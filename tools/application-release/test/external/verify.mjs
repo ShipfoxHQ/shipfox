@@ -73,6 +73,7 @@ try {
   const tsc = resolve(repositoryRoot, 'tools/typescript/node_modules/typescript/bin/tsc');
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
+  await run(process.execPath, ['runners-composition.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
     resolve(repositoryRoot, 'tools/application-release/node_modules/.bin/tsx'),
@@ -118,7 +119,7 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
             strict: true,
             target: 'ES2024',
           },
-          include: ['types.ts', 'composition.ts'],
+          include: ['types.ts', 'composition.ts', 'runners-composition.ts'],
         },
         null,
         2,
@@ -145,6 +146,28 @@ void createServer({
   ],
 });
 `,
+    ),
+    writeFile(
+      join(root, 'runners-composition.ts'),
+      `import {createRunnersModule} from '@shipfox/api-runners';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+
+const auth = {} as AuthInterModuleClient;
+const module = createRunnersModule({
+  auth,
+  installationProvisioning: {
+    policy: {
+      filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
+    },
+  },
+});
+
+void module;
+`,
+    ),
+    writeFile(
+      join(root, 'runners-composition.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst {createRunnersModule} = await import('@shipfox/api-runners');\nconst module = createRunnersModule({\n  auth: {},\n  installationProvisioning: {\n    policy: {\n      filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),\n    },\n  },\n});\nif (module.name !== 'runners' || !module.routes?.length) {\n  throw new Error('Packed API runners does not compose the installation provisioning policy.');\n}\nconsole.log('Composed packed API runners with an external installation policy.');\n`,
     ),
     writeFile(
       join(root, 'runtime-imports.mjs'),

@@ -1,11 +1,12 @@
 ---
 title: "Runner Provisioners: Autoscale Runners on Demand"
 sidebarTitle: "Runner Provisioners"
-description: "Understand how the Docker provisioner starts single-job runners to meet changing job demand."
+description: "Understand how the Docker provisioner creates, enrolls, and assigns single-job runner instances to meet changing job demand."
 ---
 
-A **provisioner** watches how many jobs are waiting. It starts an ephemeral
-runner container for each reserved job, then lets the runner exit.
+A **provisioner** watches how many jobs are waiting. It creates a durable runner
+instance before it starts ephemeral compute, then the runner enrolls and is assigned
+to a reserved job. Each activated runner claims at most one job and exits.
 
 Use a provisioner when demand changes enough that a fixed runner fleet would sit
 idle or run out of capacity. One provisioner scales runner containers to the
@@ -23,10 +24,12 @@ The provisioner runs a continuous control loop against the Shipfox API:
 <Steps>
   <Step>
 
-    **Advertise capacity**
+    **Advertise capability**
 
-    The provisioner reports free slots for each template. Free slots equal
-    `max_concurrency` minus the containers already starting or running.
+    The provisioner reports labels and free slots for each template. Free slots equal
+    `max_concurrency` minus the containers already starting or running. A matching
+    workspace-owned provisioner always takes precedence over installation fallback,
+    even when it is busy or reports zero free slots.
   </Step>
   <Step>
 
@@ -37,28 +40,31 @@ The provisioner runs a continuous control loop against the Shipfox API:
   </Step>
   <Step>
 
-    **Mint ephemeral tokens**
+    **Create runner instances**
 
-    The provisioner mints one single-use **ephemeral registration token**
-    (`sf_ert_…`) for each reservation. The new runner uses it to register once.
-    This differs from the long-lived `sf_mrt_…` manual token; see
-    [token types](/reference/runner#token-types).
+    The provisioner creates one runner instance and one single-use bootstrap token
+    (`sf_rbt_…`) for every planned runner. The bootstrap token grants only enrollment:
+    it does not reveal a workspace, reservation, or job credential.
   </Step>
   <Step>
 
-    **Launch and reconcile**
+    **Launch, enroll, assign, and reconcile**
 
-    It starts one container per reservation. Each container gets the API URL,
-    ephemeral token, and template labels.
+    It starts one container per runner instance. The container exchanges its bootstrap
+    token for a workspace-neutral control session, declares its labels, and waits. The
+    provisioner assigns an enrolled instance only to its own reservation. The API then
+    issues an activation token for that immutable assignment.
 
-    The provisioner reports each container's state. After a restart, it compares
-    its records with Docker and removes containers that never registered. If
-    Docker is unreachable, it advertises zero capacity and backs off.
+    The provisioner reports each container's state. After a restart, it compares its
+    records with Docker and reconciles failed, expired, and unused runners. A template
+    can also keep `target_concurrency` enrolled runners ready without a reservation.
+    If Docker is unreachable, it advertises zero capacity and backs off.
   </Step>
 </Steps>
 
 Each provisioned runner claims one job, runs it, and exits. A burst starts more
-runners. Quiet periods leave no runner containers idle.
+runners. Quiet periods leave no runner containers idle unless the template deliberately
+keeps a small prewarmed pool.
 
 ## Templates
 
@@ -73,6 +79,7 @@ templates:
     cpu: 2
     memory: 4GiB
     max_concurrency: 100
+    target_concurrency: 0
 ```
 
 When several templates satisfy a job's labels, the provisioner chooses the one

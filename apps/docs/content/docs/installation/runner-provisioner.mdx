@@ -1,10 +1,13 @@
 ---
 title: "Run a Docker Runner Provisioner"
 sidebarTitle: "Runner Provisioner"
-description: "Start the Shipfox Docker runner provisioner from a source checkout and verify that it creates a runner for waiting work."
+description: "Start the Shipfox Docker runner provisioner from a source checkout and verify its runner-instance lifecycle."
 ---
 
-A [runner provisioner](/operations/runner-provisioners) starts ephemeral, single-job runner containers to meet demand. You don't hand-start runners or keep a fleet idle. This guide deploys the Docker provisioner.
+A [runner provisioner](/operations/runner-provisioners) creates runner instances,
+starts ephemeral compute, and activates each runner for at most one job. You do not
+hand a workspace registration credential to the provider. This guide deploys the Docker
+provisioner.
 
 ## Before you begin
 
@@ -26,7 +29,10 @@ A [runner provisioner](/operations/runner-provisioners) starts ephemeral, single
 
     **Create the token**
 
-    Click **Create token** and copy the value. It is shown only once. Treat it like a secret. It authenticates the provisioner to your workspace, and you can revoke it on the same page.
+    Click **Create token** and copy the value. It is shown only once. Treat it like a
+    secret. A workspace token can provision only its workspace. An installation token
+    can serve host-approved workspaces, but the runner still receives its workspace
+    only after immutable assignment. You can revoke either token on the same page.
   </Step>
 </Steps>
 
@@ -42,6 +48,7 @@ templates:
     cpu: 2
     memory: 4GiB
     max_concurrency: 100
+    target_concurrency: 0
 ```
 
 The full field semantics and selection rule live in the [Runner Provisioner reference](/reference/runner-provisioner#template-file-schema).
@@ -65,7 +72,28 @@ reference](/reference/runner-provisioner).
 
 ## Verify it works
 
-Fire a workflow whose `runner:` label matches one of your templates (for example `runner: ubuntu22`). Within a few seconds the provisioner starts a container. The container registers as a runner, claims the job, runs it, and exits. The run detail page shows the job leaving `pending` and streaming logs.
+Fire a workflow whose `runner:` label matches one of your templates (for example
+`runner: ubuntu22`). Within a few seconds the provisioner creates a runner instance
+and starts a container with a one-use bootstrap token. The container enrolls, receives
+an immutable assignment, activates, claims one job, runs it, and exits. The run detail
+page shows the job leaving `pending` and streaming logs.
+
+## Breaking protocol migration
+
+Provisioners built against the former capacity protocol must migrate as one release:
+
+1. Replace capacity creation, capacity assignment, and batch registration-token calls
+   with runner-instance creation and bootstrap tokens.
+2. Start compute with `SHIPFOX_RUNNER_BOOTSTRAP_TOKEN`, never a workspace registration
+   token.
+3. Attach the provider runner ID, let the runner enroll, then assign its runner instance
+   to the owned reservation.
+4. Treat an unassigned runner as workspace-neutral. Do not send workspace metadata,
+   credentials, or job data through the provider.
+
+Use `SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE` in place of
+`SHIPFOX_PROVISIONER_REGISTRATION_TOKEN_BATCH_SIZE`. A template may set
+`target_concurrency` to maintain prewarmed, unassigned runners independently of demand.
 
 ## Related pages
 
