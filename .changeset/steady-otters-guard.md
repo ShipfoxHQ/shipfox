@@ -3,7 +3,6 @@
 "@shipfox/annotations": patch
 "@shipfox/api-auth": patch
 "@shipfox/api-definitions": patch
-"@shipfox/api-email-challenges": patch
 "@shipfox/api-integration-core": patch
 "@shipfox/api-integration-gitea": patch
 "@shipfox/api-integration-github": patch

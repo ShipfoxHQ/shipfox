@@ -358,7 +358,8 @@ and one tracking issue. The final move removes that path or records a new decisi
 `.dependency-cruiser.cjs`. The rule then blocks imports from every other mapped context. The
 application root remains the only package that imports multiple implementations to compose them.
 Provider packages belong to Integrations unless this record changes the boundary.
-DTO-only packages, the shared auth context, and dispatcher infrastructure are not bounded contexts.
+DTO-only packages, the shared auth context, Email Challenges, and dispatcher infrastructure are not
+bounded contexts. Email Challenges is provider-neutral infrastructure consumed directly by Auth.
 
 **Add a method at the producer boundary.** Put its Zod input, output, and known-error schemas in
 the producer DTO package's `/inter-module` export. Add the method to the contract, implement it in

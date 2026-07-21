@@ -28,7 +28,6 @@ const apiContextImplementationPaths = {
   annotations: ['libs/api/annotations'],
   auth: ['libs/api/auth'],
   definitions: ['libs/api/definitions'],
-  emailChallenges: ['libs/api/email-challenges'],
   integrations: [
     'libs/api/integration/core',
     'libs/api/integration/gitea',
