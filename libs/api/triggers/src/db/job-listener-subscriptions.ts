@@ -131,3 +131,12 @@ export async function findMatchingJobListenerSubscriptions(
     );
   return rows.map(toJobListenerSubscription);
 }
+
+export async function hasJobListenerSubscriptions(jobId: string): Promise<boolean> {
+  const [subscription] = await db()
+    .select({id: jobListenerSubscriptions.id})
+    .from(jobListenerSubscriptions)
+    .where(eq(jobListenerSubscriptions.jobId, jobId))
+    .limit(1);
+  return subscription !== undefined;
+}

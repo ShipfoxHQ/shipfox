@@ -18,6 +18,7 @@ import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-modul
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, triggersOutbox} from '#db/index.js';
 import {registerTriggersServiceMetrics} from '#metrics/index.js';
+import {triggersE2eRoutes} from '#presentation/e2e-routes.js';
 import {createTriggerRoutes} from '#presentation/index.js';
 import {
   createOnIntegrationEventReceived,
@@ -76,6 +77,7 @@ export function createTriggersModule({workflows}: CreateTriggersModuleOptions): 
     name: 'triggers',
     database: {db, migrationsPath},
     routes: createTriggerRoutes(workflows),
+    e2eRoutes: [triggersE2eRoutes],
     metrics: registerTriggersServiceMetrics,
     publishers: [{name: 'triggers', table: triggersOutbox, db}],
     subscribers: [
