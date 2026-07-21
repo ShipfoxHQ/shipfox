@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      SHIPFOX_TURBO_CONCURRENCY: "2"
+      SHIPFOX_TURBO_CONCURRENCY: "4"
 
     steps:
       - name: Check out repository
@@ -143,7 +143,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SHIPFOX_TURBO_CONCURRENCY: "2"
+      # Reserve one of the runner's four CPUs for the API/client processes,
+      # Docker services, and Ollama-backed provider validation.
+      SHIPFOX_TURBO_CONCURRENCY: "3"
 
     steps:
       - name: Check out repository
