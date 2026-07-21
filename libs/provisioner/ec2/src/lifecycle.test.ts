@@ -10,6 +10,18 @@ import {type Ec2Engine, Ec2EngineError, type Ec2InstanceView} from '#ec2-engine.
 import {createEc2Lifecycle} from '#lifecycle.js';
 import type {Ec2TemplateSpec} from '#templates.js';
 
+const observability = vi.hoisted(() => ({
+  logger: {error: vi.fn(), info: vi.fn()},
+  recordEc2Launch: vi.fn(),
+  recordEc2Termination: vi.fn(),
+}));
+
+vi.mock('@shipfox/node-opentelemetry', () => ({logger: () => observability.logger}));
+vi.mock('#metrics/instance.js', () => ({
+  recordEc2Launch: observability.recordEc2Launch,
+  recordEc2Termination: observability.recordEc2Termination,
+}));
+
 const NOW = new Date('2026-01-01T00:10:00.000Z');
 const RUNNER_INSTANCE_ID = '00000000-0000-4000-8000-000000000004';
 
@@ -32,6 +44,10 @@ const template: ProvisionerTemplate<Ec2TemplateSpec> = {
 };
 
 describe('createEc2Lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('attaches and reports starting before launching an instance', async () => {
     const engine = fakeEngine();
     const client = fakeClient();
@@ -54,6 +70,14 @@ describe('createEc2Lifecycle', () => {
       market: 'spot',
       tags: {'shipfox.provider_runner_id': 'runner-1'},
     });
+    expect(observability.recordEc2Launch).toHaveBeenCalledWith('spot', 'launched');
+    expect(observability.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provisioned_runner_id: 'runner-1',
+        aws_instance_id: 'i-123',
+      }),
+      'Launched EC2 runner instance',
+    );
   });
 
   it('reports a classified failure and rethrows when EC2 launch fails', async () => {
@@ -78,6 +102,7 @@ describe('createEc2Lifecycle', () => {
       {state: 'starting'},
       {state: 'failed', reason: 'throttled'},
     ]);
+    expect(observability.recordEc2Launch).toHaveBeenCalledWith('spot', 'throttled');
   });
 
   it('preserves a just-launched instance in the tracker while DescribeInstances lags', async () => {
@@ -129,6 +154,7 @@ describe('createEc2Lifecycle', () => {
       state: 'failed',
       reason: 'spot-interruption',
     });
+    expect(observability.recordEc2Termination).toHaveBeenCalledWith('spot-interruption');
   });
 
   it('propagates observation failures so the core loop degrades capacity to zero', async () => {
