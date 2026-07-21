@@ -20,11 +20,17 @@ Packer is pinned in `mise.toml`. Install QEMU and `xorriso` through the host ope
 Cloud-init writes `/etc/shipfox/runner.env`. The provider owns the values and must never bake them into the image:
 
 - `SHIPFOX_API_URL`: API base URL.
-- `SHIPFOX_RUNNER_REGISTRATION_TOKEN`: single-use runner registration token.
+- `SHIPFOX_RUNNER_BOOTSTRAP_TOKEN`: one-use managed-runner bootstrap token.
+- `SHIPFOX_RUNNER_PROVIDER_KIND`: provider identifier declared during enrollment, such as `ec2`.
+- `SHIPFOX_RUNNER_PROTOCOL_VERSION`: managed-runner protocol version. The current image supports `1`.
 - `SHIPFOX_RUNNER_LABELS`: comma-separated runner labels.
 - `SHIPFOX_POLL_MAX_DURATION_MS`: runner polling deadline. `0` means forever.
 - `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS`: hard instance lifetime. Use a value comfortably above one job's maximum duration.
 - `AGENT_CUSTOM_PROVIDER_ALLOW_PRIVATE_NETWORKS=false`: required for cloud runners.
+
+The image derives its tool capabilities from its baked runner runtime and sends them during
+enrollment. Providers do not inject capabilities, workspace IDs, workspace registration tokens,
+or activation tokens into user data.
 
 `shipfox-runner.service` powers off immediately when the runner exits. Its SIGTERM drain budget is 90 seconds, after which systemd can force-kill the process and the backend re-reserves the job. `shipfox-max-lifetime.service` schedules a forced poweroff and falls back to a baked 3600-second limit when the configured value is missing or malformed. AWS builds also enable a Spot IMDSv2 watcher that stops the runner, allows it to drain briefly, then powers off.
 
