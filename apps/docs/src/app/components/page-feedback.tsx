@@ -1,7 +1,7 @@
 'use client';
 
-import posthog from 'posthog-js';
 import {useState} from 'react';
+import {captureDocsEvent} from '@/lib/docs-analytics';
 
 const GITHUB_EDIT_BASE = 'https://github.com/ShipfoxHQ/shipfox/edit/main/apps/docs/content/docs/';
 
@@ -10,7 +10,7 @@ export function PageFeedback({pageUrl, filePath}: {pageUrl: string; filePath: st
 
   const vote = (helpful: boolean) => {
     setVoted(true);
-    posthog.capture('docs_page_feedback', {page: pageUrl, helpful});
+    captureDocsEvent('docs_page_feedback', {page: pageUrl, helpful});
   };
 
   return (
@@ -40,6 +40,10 @@ export function PageFeedback({pageUrl, filePath}: {pageUrl: string; filePath: st
         href={`${GITHUB_EDIT_BASE}${filePath}`}
         target="_blank"
         rel="noreferrer"
+        data-docs-edit-link=""
+        onClick={() =>
+          captureDocsEvent('docs_edit_on_github_clicked', {page: pageUrl, file_path: filePath})
+        }
         className="underline underline-offset-4 transition-colors hover:text-fd-foreground"
       >
         Edit this page on GitHub

@@ -3,11 +3,26 @@ import {createMDX} from 'fumadocs-mdx/next';
 
 const withMDX = createMDX();
 const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
+const isVercelProduction = process.env.VERCEL_ENV === 'production';
+const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+
+if (isVercelProduction && (!posthogKey || !posthogHost)) {
+  throw new Error(
+    'NEXT_PUBLIC_POSTHOG_KEY and NEXT_PUBLIC_POSTHOG_HOST are required for the production docs deployment.',
+  );
+}
+
+if (posthogHost) {
+  const parsedPosthogHost = new URL(posthogHost);
+  if (isVercelProduction && parsedPosthogHost.protocol !== 'https:')
+    throw new Error('NEXT_PUBLIC_POSTHOG_HOST must use HTTPS in production.');
+}
 
 // The production docs deployment is mounted behind the cloud landing app at
 // www.shipfox.io/docs. Vercel previews stay rooted at / so preview URLs work
 // directly from the generated deployment URL.
-const basePath = process.env.VERCEL_ENV === 'production' ? '/docs' : '';
+const basePath = isVercelProduction ? '/docs' : '';
 
 /** @type {import('next').NextConfig} */
 const config = {
