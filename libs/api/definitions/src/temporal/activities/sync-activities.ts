@@ -1,5 +1,5 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {markErrorReported} from '@shipfox/node-error-monitoring';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';

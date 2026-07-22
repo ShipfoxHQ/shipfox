@@ -1,4 +1,4 @@
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,

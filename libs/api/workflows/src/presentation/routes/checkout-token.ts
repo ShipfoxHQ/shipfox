@@ -2,8 +2,8 @@ import {requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
-} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {checkoutTokenResponseSchema} from '@shipfox/api-workflows-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';

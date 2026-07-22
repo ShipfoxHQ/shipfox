@@ -1,5 +1,5 @@
 import {AUTH_USER} from '@shipfox/api-auth-context';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createManagementAccess} from './auth.js';
 import {batchSecretsRoute} from './batch-secrets.js';

@@ -130,7 +130,7 @@ function productionizeDependencyReferences(
   return productionManifest;
 }
 
-function resolveDependencyReference(
+export function resolveDependencyReference(
   name: string,
   reference: unknown,
   {workspaceConfig, workspaceVersions}: PackageDependencyContext,

@@ -1,9 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
-import {
-  integrationsInterModuleContract,
-  MAX_REPOSITORY_FILE_BYTES,
-} from '@shipfox/api-integration-core-dto';
+import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
 import type {IntegrationValidationContext} from './entities/integration-context.js';

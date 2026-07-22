@@ -4,8 +4,8 @@ import {
   definitionResponseSchema,
   definitionValidationErrorSchema,
 } from '@shipfox/api-definitions-dto';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {DefinitionParseError} from '#core/errors.js';

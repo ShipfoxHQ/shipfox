@@ -1,5 +1,5 @@
 import {definitionResponseSchema} from '@shipfox/api-definitions-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {getDefinitionById} from '#db/definitions.js';

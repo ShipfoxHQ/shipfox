@@ -1,10 +1,10 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationsEventMap,
 } from '@shipfox/api-integration-core-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsEventSchemas} from '@shipfox/api-projects-dto';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {db, migrationsPath, projectsOutbox} from '#db/index.js';

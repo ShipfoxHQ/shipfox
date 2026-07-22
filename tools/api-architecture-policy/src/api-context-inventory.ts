@@ -70,16 +70,15 @@ const baseline: BaselineEntry[] = [
     violation: `import:${path}`,
   })),
   ...[
-    'libs/api/integration/github:package.json:dependencies:@shipfox/api-workspaces',
-    'libs/api/integration/jira:package.json:dependencies:@shipfox/api-workspaces',
-    'libs/api/integration/linear:package.json:dependencies:@shipfox/api-workspaces',
-    'libs/api/triggers:package.json:dependencies:@shipfox/api-projects',
-    'libs/api/workflows:package.json:dependencies:@shipfox/api-projects',
+    'libs/api/annotations:package.json:devDependencies:@shipfox/api-auth',
+    'libs/api/logs:package.json:devDependencies:@shipfox/api-auth',
+    'libs/api/runners:package.json:devDependencies:@shipfox/api-auth',
+    'libs/api/workflows:package.json:devDependencies:@shipfox/api-auth',
   ].map((path) => ({
-    issue: 'ENG-1143',
-    owner: 'Contract location and stale-edge migration',
+    issue: 'ENG-1145',
+    owner: 'Auth consumer-test migration',
     reason:
-      'The implementation edge is stale while the consumer migration moves to the explicit DTO subpath.',
+      'The manifest remains until the corresponding Auth implementation test import is replaced.',
     violation: `manifest:${path}`,
   })),
   ...[
@@ -96,30 +95,6 @@ const baseline: BaselineEntry[] = [
       'The manifest remains until consumer tests and setup stop depending on peer implementations.',
     violation: `manifest:${path}`,
   })),
-  {
-    issue: 'ENG-1143',
-    owner: 'Contract location and stale-edge migration',
-    reason: 'Projects still re-exports its synchronous contract from the DTO root.',
-    violation: 'dto-export:libs/api/projects-dto:src/index.ts:root-inter-module',
-  },
-  {
-    issue: 'ENG-1143',
-    owner: 'Contract location and stale-edge migration',
-    reason: 'Integrations still re-exports its synchronous contract from the DTO root.',
-    violation: 'dto-export:libs/api/integration/core-dto:src/index.ts:root-inter-module',
-  },
-  {
-    issue: 'ENG-1143',
-    owner: 'Contract location and stale-edge migration',
-    reason: 'Projects has not yet published the required inter-module subpath.',
-    violation: 'dto-export:libs/api/projects-dto:package.json:missing-inter-module-entry',
-  },
-  {
-    issue: 'ENG-1143',
-    owner: 'Contract location and stale-edge migration',
-    reason: 'Integrations has not yet published the required inter-module subpath.',
-    violation: 'dto-export:libs/api/integration/core-dto:package.json:missing-inter-module-entry',
-  },
 ];
 
 function compareText(left: string, right: string): number {

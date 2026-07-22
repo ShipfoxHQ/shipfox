@@ -6,13 +6,13 @@ import {
   type DefinitionsEventMap,
   definitionsEventSchemas,
 } from '@shipfox/api-definitions-dto';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
   PROJECT_SOURCE_BOUND,
   PROJECT_SOURCE_COMMIT_OBSERVED,
   type ProjectsEventMap,
 } from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createDefinitionsSourceControl} from '#core/integrations.js';

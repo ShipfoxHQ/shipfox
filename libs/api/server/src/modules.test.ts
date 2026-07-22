@@ -2,8 +2,8 @@ import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-mod
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
-import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {
   type SecretsInterModuleClient,

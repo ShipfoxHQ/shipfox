@@ -2,7 +2,7 @@ import {
   definitionListQuerySchema,
   definitionListResponseSchema,
 } from '@shipfox/api-definitions-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {decodeStringIdCursor, encodeStringIdCursor} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {listDefinitions} from '#db/definitions.js';

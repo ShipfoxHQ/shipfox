@@ -1,5 +1,5 @@
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {getJobById, getWorkflowRunByAttemptId} from '#db/workflow-runs.js';
 import {
   CheckoutIntentUnresolvedError,

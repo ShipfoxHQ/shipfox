@@ -4,7 +4,7 @@ import {
   setUserContext,
   type UserContextMembership,
 } from '@shipfox/api-auth-context';
-import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {
   SECRET_CREATED,
   SECRET_DELETED,
