@@ -1,5 +1,16 @@
 # @shipfox/api-server
 
+## 7.0.2
+
+### Patch Changes
+
+- @shipfox/annotations@6.0.0
+- @shipfox/api-auth@7.0.2
+- @shipfox/api-email-challenges@0.2.3
+- @shipfox/api-logs@6.0.0
+- @shipfox/api-runners@7.0.2
+- @shipfox/api-workflows@7.0.2
+
 ## 7.0.1
 
 ### Patch Changes

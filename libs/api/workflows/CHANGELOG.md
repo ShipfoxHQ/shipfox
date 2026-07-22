@@ -1,5 +1,11 @@
 # @shipfox/api-workflows
 
+## 7.0.2
+
+### Patch Changes
+
+- @shipfox/api-runners@7.0.2
+
 ## 7.0.1
 
 ### Patch Changes
