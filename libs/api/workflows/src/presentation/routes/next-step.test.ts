@@ -28,6 +28,21 @@ import {
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
+vi.mock('#db/workflow-runs.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('#db/workflow-runs.js')>();
+  return {
+    ...original,
+    lockActiveJobExecutionLeaseForUpdate: async (params: {
+      jobId: string;
+      jobExecutionId: string;
+      runnerSessionId: string;
+    }) => {
+      const {active} = await runnersTestClient.getLeaseState(params);
+      return active;
+    },
+  };
+});
+
 const URL = '/runs/jobs/current/steps/next';
 
 async function recordStepResult(

@@ -17,6 +17,7 @@ import {
 } from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
 import {writeWorkflowsOutboxEvent} from '../outbox-writes.js';
+import {runningJobExecutions} from '../runner-lease-table.js';
 import {jobExecutions, toJobExecution} from '../schema/job-executions.js';
 import {jobs, toJob} from '../schema/jobs.js';
 import {stepAttempts, toStepAttempt} from '../schema/step-attempts.js';
@@ -31,6 +32,26 @@ import {
   TERMINAL_EXECUTION_STATUSES,
 } from './shared.js';
 import {bulkUpdateStepStatuses, getStepsByJobExecutionIdForUpdate} from './steps.js';
+
+export async function lockActiveJobExecutionLeaseForUpdate(
+  params: {jobId: string; jobExecutionId: string; runnerSessionId: string},
+  tx: Tx,
+): Promise<boolean> {
+  const rows = await tx
+    .select({id: runningJobExecutions.id})
+    .from(runningJobExecutions)
+    .where(
+      and(
+        eq(runningJobExecutions.jobId, params.jobId),
+        eq(runningJobExecutions.jobExecutionId, params.jobExecutionId),
+        eq(runningJobExecutions.runnerSessionId, params.runnerSessionId),
+      ),
+    )
+    .limit(1)
+    .for('update');
+
+  return rows.length > 0;
+}
 
 export async function getJobExecutionById(id: string, tx?: Tx): Promise<JobExecution | undefined> {
   const rows = await (tx ?? db())

@@ -9,6 +9,7 @@ export {
   getJobExecutionsByJobId,
   getJobExecutionsByWorkflowRunAttemptId,
   getLatestJobExecutionByJobId,
+  lockActiveJobExecutionLeaseForUpdate,
   recordJobExecutionQueuedAt,
   recordJobExecutionStartedAt,
   resolveJobExecutionAfterLeaseExpiry,
