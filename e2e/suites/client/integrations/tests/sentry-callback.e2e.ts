@@ -133,7 +133,9 @@ test('Sentry callback offers Start over on a terminal failure', async ({
   await sentryCallback.installButton().click();
 
   await expect(
-    sentryCallback.message('This Sentry link could not be completed. Start the install again.'),
+    sentryCallback.message(
+      'Sentry did not accept this install. Start the install again from workspace settings.',
+    ),
   ).toBeVisible();
   await expect(sentryCallback.startOverLink()).toBeVisible();
 
