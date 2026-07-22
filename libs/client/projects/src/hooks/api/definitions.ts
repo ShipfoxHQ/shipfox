@@ -1,6 +1,14 @@
 import {definitionListResponseSchema} from '@shipfox/api-definitions-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
-import {keepPreviousData, queryOptions, useInfiniteQuery, useQuery} from '@tanstack/react-query';
+import {
+  type InfiniteData,
+  keepPreviousData,
+  queryOptions,
+  type UseInfiniteQueryOptions,
+  type UseQueryOptions,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
 import type {DefinitionList} from '#core/definition.js';
 import {toDefinitionList} from './mappers.js';
 
@@ -8,6 +16,23 @@ export const definitionsQueryKeys = {
   all: ['definitions'] as const,
   list: (projectId: string) => [...definitionsQueryKeys.all, 'list', projectId] as const,
 };
+
+type DefinitionListQueryKey =
+  | ReturnType<typeof definitionsQueryKeys.list>
+  | readonly ['definitions', 'list'];
+type DefinitionListInfiniteQueryOptions = UseInfiniteQueryOptions<
+  DefinitionList,
+  Error,
+  InfiniteData<DefinitionList, string | undefined>,
+  DefinitionListQueryKey,
+  string | undefined
+>;
+type DefinitionListQueryOptions = UseQueryOptions<
+  DefinitionList,
+  Error,
+  DefinitionList,
+  DefinitionListQueryKey
+>;
 export async function listDefinitions({
   projectId,
   limit = 50,
@@ -27,7 +52,10 @@ export async function listDefinitions({
     }),
   );
 }
-export function definitionsInfiniteQueryOptions(projectId: string | undefined, limit = 50) {
+export function definitionsInfiniteQueryOptions(
+  projectId: string | undefined,
+  limit = 50,
+): DefinitionListInfiniteQueryOptions {
   return {
     queryKey: projectId
       ? definitionsQueryKeys.list(projectId)
@@ -40,7 +68,7 @@ export function definitionsInfiniteQueryOptions(projectId: string | undefined, l
     placeholderData: keepPreviousData,
   };
 }
-export function definitionsQueryOptions(projectId: string | undefined) {
+export function definitionsQueryOptions(projectId: string | undefined): DefinitionListQueryOptions {
   return queryOptions({
     queryKey: projectId
       ? definitionsQueryKeys.list(projectId)

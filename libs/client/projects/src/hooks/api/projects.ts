@@ -5,8 +5,11 @@ import {
 } from '@shipfox/api-projects-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
 import {
+  type InfiniteData,
   keepPreviousData,
   queryOptions,
+  type UseInfiniteQueryOptions,
+  type UseQueryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -22,6 +25,31 @@ export const projectsQueryKeys = {
   exists: (workspaceId: string) => [...projectsQueryKeys.all, 'exists', workspaceId] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
+
+type ProjectListQueryKey =
+  | ReturnType<typeof projectsQueryKeys.list>
+  | readonly ['projects', 'list'];
+type ProjectExistenceQueryKey =
+  | ReturnType<typeof projectsQueryKeys.exists>
+  | readonly ['projects', 'exists'];
+type ProjectDetailQueryKey =
+  | ReturnType<typeof projectsQueryKeys.detail>
+  | readonly ['projects', 'detail'];
+
+type ProjectListInfiniteQueryOptions = UseInfiniteQueryOptions<
+  ProjectList,
+  Error,
+  InfiniteData<ProjectList, string | undefined>,
+  ProjectListQueryKey,
+  string | undefined
+>;
+type ProjectExistenceQueryOptions = UseQueryOptions<
+  ProjectList,
+  Error,
+  ProjectList,
+  ProjectExistenceQueryKey
+>;
+type ProjectDetailQueryOptions = UseQueryOptions<Project, Error, Project, ProjectDetailQueryKey>;
 
 export async function listProjects({
   workspaceId,
@@ -66,7 +94,7 @@ export function projectsInfiniteQueryOptions(
   workspaceId: string | undefined,
   search?: string,
   limit = 50,
-) {
+): ProjectListInfiniteQueryOptions {
   const normalizedSearch = search?.trim() ?? '';
   return {
     queryKey: workspaceId
@@ -87,7 +115,9 @@ export function projectsInfiniteQueryOptions(
   };
 }
 
-export function projectExistenceQueryOptions(workspaceId: string | undefined) {
+export function projectExistenceQueryOptions(
+  workspaceId: string | undefined,
+): ProjectExistenceQueryOptions {
   return queryOptions({
     queryKey: workspaceId
       ? projectsQueryKeys.exists(workspaceId)
@@ -98,7 +128,7 @@ export function projectExistenceQueryOptions(workspaceId: string | undefined) {
   });
 }
 
-export function projectQueryOptions(projectId: string | undefined) {
+export function projectQueryOptions(projectId: string | undefined): ProjectDetailQueryOptions {
   return queryOptions({
     queryKey: projectId
       ? projectsQueryKeys.detail(projectId)
