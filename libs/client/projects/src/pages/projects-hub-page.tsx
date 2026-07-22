@@ -15,7 +15,6 @@ import {Input} from '@shipfox/react-ui/input';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link, useNavigate} from '@tanstack/react-router';
-import {useEffect} from 'react';
 import {ModelProviderReminderBanner} from '#components/model-provider-reminder-banner.js';
 import type {Project} from '#core/project.js';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
@@ -79,9 +78,7 @@ export function ProjectsHubPage({search = ''}: {search?: string}) {
 
       <ModelProviderReminderBanner workspaceId={workspace.id} />
 
-      {isInitialLoading || (search && hasNoData && query.isFetching) ? (
-        <ProjectsSkeleton />
-      ) : null}
+      {isInitialLoading || (search && hasNoData && query.isFetching) ? <ProjectsSkeleton /> : null}
 
       {query.isError && hasNoData ? <QueryLoadError query={query} subject="projects" /> : null}
 
@@ -90,7 +87,10 @@ export function ProjectsHubPage({search = ''}: {search?: string}) {
       ) : null}
 
       {!query.isFetching && !query.isError && projects.length === 0 && search ? (
-        <NoSearchResults search={search} onClear={() => navigate({search: {} as never, replace: true})} />
+        <NoSearchResults
+          search={search}
+          onClear={() => navigate({search: {} as never, replace: true})}
+        />
       ) : null}
 
       {projects.length > 0 ? (
