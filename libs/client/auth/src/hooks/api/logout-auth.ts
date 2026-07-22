@@ -1,8 +1,6 @@
 import {apiRequest} from '@shipfox/client-api';
-import {useMutation, useQueryClient} from '@tanstack/react-query';
-import {useSetAtom} from 'jotai';
-import {authStateAtom} from '#state/auth.js';
-import {authRefreshQueryKey} from './refresh-auth.js';
+import {useMutation} from '@tanstack/react-query';
+import {useAuthTransition} from '#state/auth.js';
 
 async function logoutAuth() {
   try {
@@ -13,14 +11,10 @@ async function logoutAuth() {
 }
 
 export function useLogoutAuth() {
-  const queryClient = useQueryClient();
-  const setState = useSetAtom(authStateAtom);
+  const {enterGuest} = useAuthTransition();
 
   return useMutation({
     mutationFn: logoutAuth,
-    onSettled: () => {
-      setState({status: 'guest'});
-      queryClient.removeQueries({queryKey: authRefreshQueryKey});
-    },
+    onSettled: enterGuest,
   });
 }
