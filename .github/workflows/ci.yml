@@ -195,6 +195,9 @@ jobs:
       # --affected skips images untouched by the PR. The Docker wrapper validates
       # PR builds with BuildKit's cache-only output, so no local image import runs.
       - name: Build images
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+          TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha }}
         run: turbo image --affected --filter "${{ matrix.package }}"
 
   build-images:
