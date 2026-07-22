@@ -181,7 +181,8 @@ describe('classifySentryConnectError', () => {
 
     expect(result).toEqual({
       kind: 'terminal',
-      message: 'Sentry rejected the code.',
+      message:
+        'Sentry did not accept this install. Start the install again from workspace settings.',
       startOver: true,
     });
   });

@@ -9,8 +9,9 @@ import {Header, Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
 import type {IntegrationConnection} from '#core/models.js';
-import {connectSentry, integrationsQueryKeys} from '#hooks/api/integrations.js';
+import {connectSentry} from '#hooks/api/integrations.js';
 import {
   classifySentryConnectError,
   clearSentryInstallWorkspace,
@@ -101,24 +102,25 @@ export function SentryCallbackPage() {
     const request = connectRequests.run(
       key,
       async () =>
-        await refreshAuth().then((session) =>
-          connectSentry({
-            body: {
-              workspace_id: workspaceId,
-              code: params.code,
-              installation_id: params.installationId,
-            },
-            token: session.accessToken,
-          }),
-        ),
+        await completeIntegrationCallback({
+          input: workspaceId,
+          refreshAuth,
+          complete: async (selectedWorkspaceId, token) =>
+            await connectSentry({
+              body: {
+                workspace_id: selectedWorkspaceId,
+                code: params.code,
+                installation_id: params.installationId,
+              },
+              token,
+            }),
+          queryClient,
+        }),
     );
 
     request
       .then(async () => {
         clearSentryInstallWorkspace(window.sessionStorage);
-        await queryClient.invalidateQueries({
-          queryKey: integrationsQueryKeys.connectionsByWorkspace(workspaceId),
-        });
         if (disposedRef.current) return;
         toast.success('Sentry installed.');
         await navigate({

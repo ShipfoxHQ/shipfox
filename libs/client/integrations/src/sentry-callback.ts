@@ -118,9 +118,12 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
       };
     }
     if (error.status < 500) {
-      // 4xx (access-denied, malformed-provider-response, validation): the grant
-      // code is spent or rejected — only a fresh install can recover.
-      return {kind: 'terminal', message: error.message, startOver: true};
+      return {
+        kind: 'terminal',
+        message:
+          'Sentry did not accept this install. Start the install again from workspace settings.',
+        startOver: true,
+      };
     }
   }
   return {kind: 'retryable', message: 'Could not install Sentry. Try again.'};

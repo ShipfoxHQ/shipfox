@@ -4,8 +4,10 @@ import {defineRoute} from '@shipfox/client-shell/runtime';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
+import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
+import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
 import {completeGithubCallback} from '#hooks/api/integrations.js';
 
 interface GithubCallbackParams {
@@ -26,6 +28,7 @@ function GithubCallbackRoute() {
   const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const missing = missingCallbackParams(search);
@@ -47,9 +50,12 @@ function GithubCallbackRoute() {
     const request = callbackRequests.run(
       key,
       async () =>
-        await refreshAuth().then(async (session) => {
-          await completeGithubCallback({...params, token: session.accessToken});
-        }),
+        void (await completeIntegrationCallback({
+          input: params,
+          refreshAuth,
+          complete: async (input, token) => await completeGithubCallback({...input, token}),
+          queryClient,
+        })),
     );
     request
       .then(() => {
@@ -71,7 +77,7 @@ function GithubCallbackRoute() {
     return () => {
       disposed = true;
     };
-  }, [navigate, refreshAuth, search]);
+  }, [navigate, queryClient, refreshAuth, search]);
 
   return <FullPageLoader />;
 }

@@ -5,9 +5,10 @@ import {toast} from '@shipfox/react-ui/toast';
 import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
+import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import type {IntegrationConnection} from '#core/models.js';
-import {integrationsQueryKeys, useCompleteSlackCallbackMutation} from '#hooks/api/integrations.js';
+import {useCompleteSlackCallbackMutation} from '#hooks/api/integrations.js';
 import {
   classifySlackCallbackError,
   clearSlackInstallWorkspace,
@@ -43,10 +44,12 @@ export function SlackCallbackPage() {
     const request = callbackRequests.run(
       key,
       async () =>
-        await refreshAuth().then(
-          async (session) =>
-            await completeSlackCallback({query: params, token: session.accessToken}),
-        ),
+        await completeIntegrationCallback({
+          input: params,
+          refreshAuth,
+          complete: async (query, token) => await completeSlackCallback({query, token}),
+          queryClient,
+        }),
     );
     request.then(
       async (connection) => {
@@ -60,13 +63,6 @@ export function SlackCallbackPage() {
           clearSlackInstallWorkspace(window.sessionStorage);
         } catch {
           // The successful API response remains the source of truth.
-        }
-        try {
-          await queryClient.invalidateQueries({
-            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
-          });
-        } catch {
-          // Navigation can continue when cache refresh is unavailable.
         }
         if (disposed) return;
         if (!toastedCallbacks.has(key)) {

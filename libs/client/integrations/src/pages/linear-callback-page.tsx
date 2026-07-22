@@ -5,9 +5,10 @@ import {toast} from '@shipfox/react-ui/toast';
 import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
+import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import type {IntegrationConnection} from '#core/models.js';
-import {integrationsQueryKeys, useCompleteLinearCallbackMutation} from '#hooks/api/integrations.js';
+import {useCompleteLinearCallbackMutation} from '#hooks/api/integrations.js';
 import {
   classifyLinearCallbackError,
   clearLinearInstallWorkspace,
@@ -49,10 +50,12 @@ export function LinearCallbackPage() {
     const request = callbackRequests.run(
       key,
       async () =>
-        await refreshAuth().then(
-          async (session) =>
-            await completeLinearCallback({query: params, token: session.accessToken}),
-        ),
+        await completeIntegrationCallback({
+          input: params,
+          refreshAuth,
+          complete: async (query, token) => await completeLinearCallback({query, token}),
+          queryClient,
+        }),
     );
 
     request.then(
@@ -62,13 +65,6 @@ export function LinearCallbackPage() {
           clearLinearInstallWorkspace(window.sessionStorage);
         } catch {
           // The successful API response remains the source of truth for navigation.
-        }
-        try {
-          await queryClient.invalidateQueries({
-            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
-          });
-        } catch {
-          // Cache refresh is best effort: the successful callback is already committed server-side.
         }
         if (disposed) return;
         if (!toastedCallbacks.has(key)) {

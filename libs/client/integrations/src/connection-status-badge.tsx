@@ -1,19 +1,9 @@
-import type {IntegrationConnectionLifecycleStatusDto} from '@shipfox/api-integration-core-dto';
 import {Badge} from '@shipfox/react-ui/badge';
 import type {IconName} from '@shipfox/react-ui/icon';
-
-const lifecyclePills: Record<
-  IntegrationConnectionLifecycleStatusDto,
-  {variant: 'warning' | 'error'; label: string; iconLeft?: IconName} | undefined
-> = {
-  // `active` is the expected state and carries no badge.
-  active: undefined,
-  disabled: {variant: 'warning', label: 'Disabled', iconLeft: 'errorWarningLine'},
-  error: {variant: 'error', label: 'Error'},
-};
+import {type ConnectionLifecycleStatus, connectionLifecyclePresentation} from '#core/models.js';
 
 export interface ConnectionStatusBadgeProps {
-  status: IntegrationConnectionLifecycleStatusDto;
+  status: ConnectionLifecycleStatus;
   className?: string;
 }
 
@@ -23,8 +13,12 @@ export interface ConnectionStatusBadgeProps {
  * nothing for the expected `active` state.
  */
 export function ConnectionStatusBadge({status, className}: ConnectionStatusBadgeProps) {
-  const pill = lifecyclePills[status];
-  if (!pill) return null;
+  const presentation = connectionLifecyclePresentation(status);
+  if (presentation.kind === 'active') return null;
+  const pill: {variant: 'warning' | 'error'; label: string; iconLeft?: IconName} =
+    presentation.kind === 'disabled'
+      ? {variant: 'warning', label: presentation.label, iconLeft: 'errorWarningLine'}
+      : {variant: 'error', label: presentation.label};
   return (
     <Badge
       variant={pill.variant}

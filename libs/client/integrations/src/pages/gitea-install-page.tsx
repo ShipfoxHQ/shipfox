@@ -5,16 +5,14 @@ import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-fiel
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
-import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate} from '@tanstack/react-router';
 import {useState} from 'react';
-import {integrationsQueryKeys, useCreateGiteaConnectionMutation} from '#hooks/api/integrations.js';
+import {useCreateGiteaConnectionMutation} from '#hooks/api/integrations.js';
 import {giteaConnectErrorToFormError} from './gitea-form-errors.js';
 
 export function GiteaInstallPage() {
   const workspace = useActiveWorkspace();
   const connect = useCreateGiteaConnectionMutation();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | undefined>();
 
@@ -25,13 +23,6 @@ export function GiteaInstallPage() {
       const workspaceId = workspace.id;
       try {
         await connect.mutateAsync({workspace_id: workspaceId, org: value.org.trim()});
-        await queryClient.invalidateQueries({
-          queryKey: integrationsQueryKeys.sourceConnections(workspaceId),
-          // The workspace home is the next active observer, not this page, so the
-          // default 'active' refetch would no-op and leave the cache stale until
-          // after the home redirects back here.
-          refetchType: 'all',
-        });
         toast.success('Gitea organization installed.');
         await navigate({to: '/workspaces/$wid', params: {wid: workspaceId}});
       } catch (error) {
