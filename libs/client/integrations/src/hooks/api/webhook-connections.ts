@@ -8,12 +8,14 @@ import {
 } from '@shipfox/api-integration-webhook-dto';
 import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {
+  type FetchQueryOptions,
   type QueryClient,
   queryOptions,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import type {WebhookConnection} from '#core/models.js';
 import {toWebhookConnection} from './integration-mapper.js';
 import {integrationsQueryKeys} from './integrations.js';
 
@@ -21,6 +23,15 @@ export const webhookConnectionsQueryKeys = {
   all: ['webhook-connections'] as const,
   list: (workspaceId: string) => [...webhookConnectionsQueryKeys.all, 'list', workspaceId] as const,
 };
+
+type WebhookConnectionsListQueryKey = ReturnType<typeof webhookConnectionsQueryKeys.list>;
+
+type WebhookConnectionsListQueryOptions = FetchQueryOptions<
+  WebhookConnection[],
+  Error,
+  WebhookConnection[],
+  WebhookConnectionsListQueryKey
+>;
 
 export async function listWebhookConnections({
   workspaceId,
@@ -85,7 +96,9 @@ export function useWebhookConnectionsQuery(workspaceId: string | undefined) {
   });
 }
 
-export function webhookConnectionsQueryOptions(workspaceId: string) {
+export function webhookConnectionsQueryOptions(
+  workspaceId: string,
+): WebhookConnectionsListQueryOptions {
   return queryOptions({
     queryKey: webhookConnectionsQueryKeys.list(workspaceId),
     queryFn: ({signal}) => listWebhookConnections({workspaceId, signal}),

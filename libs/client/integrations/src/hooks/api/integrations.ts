@@ -48,7 +48,11 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import {type IntegrationConnection, isUsableConnection} from '#core/models.js';
+import {
+  type IntegrationConnection,
+  type IntegrationProvider,
+  isUsableConnection,
+} from '#core/models.js';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 import {
@@ -83,6 +87,15 @@ type SourceConnectionsQueryOptions = FetchQueryOptions<
   Error,
   IntegrationConnection[],
   SourceConnectionsQueryKey
+>;
+
+type ProvidersQueryKey = ReturnType<typeof integrationsQueryKeys.providers>;
+
+type ProvidersQueryOptions = FetchQueryOptions<
+  IntegrationProvider[],
+  Error,
+  IntegrationProvider[],
+  ProvidersQueryKey
 >;
 
 export async function listIntegrationProviders({
@@ -327,7 +340,9 @@ export function useIntegrationProvidersQuery(params?: {capability?: IntegrationC
   });
 }
 
-export function integrationProvidersQueryOptions(capability?: IntegrationCapabilityDto) {
+export function integrationProvidersQueryOptions(
+  capability?: IntegrationCapabilityDto,
+): ProvidersQueryOptions {
   return queryOptions({
     queryKey: integrationsQueryKeys.providers(capability ?? 'all'),
     queryFn: ({signal}) => listIntegrationProviders(capability ? {capability, signal} : {signal}),
