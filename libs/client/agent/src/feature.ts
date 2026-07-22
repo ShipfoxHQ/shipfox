@@ -8,5 +8,19 @@ export const agentFeature = defineClientFeature({
       parent: 'workspaceLayout',
       impl: '@shipfox/client-agent/routes/model-provider',
     },
+    {
+      path: '/workspaces/$wid/settings/agents',
+      parent: 'workspaceSettings',
+      impl: '@shipfox/client-agent/routes/agents-settings',
+    },
+  ],
+  settingsSections: [
+    {
+      id: 'settings.agents',
+      pathSegment: 'agents',
+      label: 'Agents',
+      icon: 'robot2Line',
+      order: 400,
+    },
   ],
 });

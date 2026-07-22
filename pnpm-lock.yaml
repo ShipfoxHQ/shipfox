@@ -564,9 +564,18 @@ importers:
       '@shipfox/client-projects':
         specifier: workspace:*
         version: link:../../libs/client/projects
+      '@shipfox/client-runners':
+        specifier: workspace:*
+        version: link:../../libs/client/runners
+      '@shipfox/client-secrets':
+        specifier: workspace:*
+        version: link:../../libs/client/secrets
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../../libs/client/shell
+      '@shipfox/client-triggers':
+        specifier: workspace:*
+        version: link:../../libs/client/triggers
       '@shipfox/client-workflows':
         specifier: workspace:*
         version: link:../../libs/client/workflows
@@ -4759,6 +4768,15 @@ importers:
       '@shipfox/client-projects':
         specifier: workspace:*
         version: link:../projects
+      '@shipfox/client-runners':
+        specifier: workspace:*
+        version: link:../runners
+      '@shipfox/client-secrets':
+        specifier: workspace:*
+        version: link:../secrets
+      '@shipfox/client-triggers':
+        specifier: workspace:*
+        version: link:../triggers
       '@shipfox/client-workflows':
         specifier: workspace:*
         version: link:../workflows
@@ -5119,9 +5137,6 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../../api/projects-dto
-      '@shipfox/api-workflows-dto':
-        specifier: workspace:*
-        version: link:../../api/workflows-dto
       '@shipfox/client-agent':
         specifier: workspace:*
         version: link:../agent
@@ -5140,9 +5155,6 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
-      '@shipfox/client-workflows':
-        specifier: workspace:*
-        version: link:../workflows
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -5252,6 +5264,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-shell':
+        specifier: workspace:*
+        version: link:../shell
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
@@ -5361,6 +5376,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-shell':
+        specifier: workspace:*
+        version: link:../shell
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
@@ -5616,6 +5634,9 @@ importers:
       '@shipfox/client-integrations':
         specifier: workspace:*
         version: link:../integrations
+      '@shipfox/client-shell':
+        specifier: workspace:*
+        version: link:../shell
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
@@ -5783,6 +5804,9 @@ importers:
 
   libs/client/workflows:
     dependencies:
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../../api/definitions-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../api/workflows-dto
@@ -5792,6 +5816,9 @@ importers:
       '@shipfox/client-logs':
         specifier: workspace:*
         version: link:../logs
+      '@shipfox/client-projects':
+        specifier: workspace:*
+        version: link:../projects
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell
@@ -5877,6 +5904,9 @@ importers:
       happy-dom:
         specifier: 'catalog:'
         version: 20.10.6
+      jotai:
+        specifier: 'catalog:'
+        version: 2.20.1(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.17)(react@19.2.7)
       jsdom:
         specifier: 'catalog:'
         version: 29.1.1
@@ -5907,30 +5937,15 @@ importers:
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../../api/workspaces-dto
-      '@shipfox/client-agent':
-        specifier: workspace:*
-        version: link:../agent
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
       '@shipfox/client-auth':
         specifier: workspace:*
         version: link:../auth
-      '@shipfox/client-integrations':
-        specifier: workspace:*
-        version: link:../integrations
-      '@shipfox/client-runners':
-        specifier: workspace:*
-        version: link:../runners
-      '@shipfox/client-secrets':
-        specifier: workspace:*
-        version: link:../secrets
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell
-      '@shipfox/client-triggers':
-        specifier: workspace:*
-        version: link:../triggers
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui

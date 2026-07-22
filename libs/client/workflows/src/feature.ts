@@ -4,6 +4,11 @@ export const workflowsFeature = defineClientFeature({
   id: 'shipfox.workflows',
   routes: [
     {
+      path: '/workspaces/$wid/projects/$pid/workflows',
+      parent: 'projectLayout',
+      impl: '@shipfox/client-workflows/routes/workflows',
+    },
+    {
       path: '/workspaces/$wid/projects/$pid/runs',
       parent: 'projectLayout',
       impl: '@shipfox/client-workflows/routes/runs',
@@ -21,6 +26,13 @@ export const workflowsFeature = defineClientFeature({
       label: 'Runs',
       to: '/workspaces/$wid/projects/$pid/runs',
       order: 100,
+    },
+    {
+      id: 'nav.workflows',
+      scope: 'project',
+      label: 'Workflows',
+      to: '/workspaces/$wid/projects/$pid/workflows',
+      order: 200,
     },
   ],
 });

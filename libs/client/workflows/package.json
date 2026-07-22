@@ -62,9 +62,11 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-definitions-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-logs": "workspace:*",
+    "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-shell": "workspace:*",
     "@shipfox/client-triggers": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
@@ -101,6 +103,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "happy-dom": "catalog:",
+    "jotai": "catalog:",
     "jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

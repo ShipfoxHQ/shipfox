@@ -18,11 +18,6 @@ export const projectsFeature = defineClientFeature({
       parent: 'projectLayout',
       impl: '@shipfox/client-projects/routes/project-index',
     },
-    {
-      path: '/workspaces/$wid/projects/$pid/workflows',
-      parent: 'projectLayout',
-      impl: '@shipfox/client-projects/routes/workflows',
-    },
   ],
   navigation: [
     {
@@ -32,13 +27,6 @@ export const projectsFeature = defineClientFeature({
       to: '/workspaces/$wid',
       exact: true,
       order: 100,
-    },
-    {
-      id: 'nav.workflows',
-      scope: 'project',
-      label: 'Workflows',
-      to: '/workspaces/$wid/projects/$pid/workflows',
-      order: 200,
     },
   ],
 });

@@ -1,7 +1,7 @@
 import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import {ApiError} from '@shipfox/client-api';
+import {SourceStrip, useDefinitionsInfiniteQuery, useProjectQuery} from '@shipfox/client-projects';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {useFireManualWorkflowMutation} from '@shipfox/client-workflows';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -28,9 +28,7 @@ import {
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
-import {SourceStrip} from '#components/source-strip.js';
-import {useDefinitionsInfiniteQuery} from '#hooks/api/definitions.js';
-import {useProjectQuery} from '#hooks/api/projects.js';
+import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
   return (

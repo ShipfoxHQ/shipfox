@@ -1,4 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
+import {type AuthState, authStateAtom} from '@shipfox/client-shell/runtime';
+import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
   createMemoryHistory,
@@ -10,6 +12,7 @@ import {
   useParams,
 } from '@tanstack/react-router';
 import {type RenderResult, render} from '@testing-library/react';
+import {createStore, Provider as JotaiProvider} from 'jotai';
 import type {ReactElement} from 'react';
 
 // The workflow run page navigates with the router (run rows are links and the page redirects
@@ -18,6 +21,15 @@ import type {ReactElement} from 'react';
 // page is supplied as a factory the detail route calls with the current `workflowRunId`, mirroring
 // the real route wiring so a redirect re-renders the page with the run it landed on.
 export const PROJECT_TEST_WID = '11111111-1111-4111-8111-111111111111';
+
+// Pages that render components depending on `useActiveWorkspace()` (e.g. the project source
+// strip) need an authenticated workspace matching `$wid` in the atom `client-shell/runtime`
+// reads. A fixed membership id is fine here: nothing in these tests asserts on it.
+const authState: AuthState = {
+  status: 'authenticated',
+  token: 'token',
+  workspaces: [{id: PROJECT_TEST_WID, name: 'Acme', membershipId: 'm-1'}],
+};
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -45,6 +57,11 @@ function createTestRouter(
       return renderPage({workflowRunId});
     },
   });
+  const workflowsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/workspaces/$wid/projects/$pid/workflows',
+    component: () => renderPage({}),
+  });
   const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/settings/agents',
@@ -53,7 +70,12 @@ function createTestRouter(
 
   return createRouter({
     history: createMemoryHistory({initialEntries: [path]}),
-    routeTree: rootRoute.addChildren([runsRoute, runDetailRoute, modelProviderSettingsRoute]),
+    routeTree: rootRoute.addChildren([
+      runsRoute,
+      runDetailRoute,
+      workflowsRoute,
+      modelProviderSettingsRoute,
+    ]),
   });
 }
 
@@ -66,12 +88,17 @@ export function renderProjectPage(
 } {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const router = createTestRouter(path, renderPage);
+  const store = createStore();
+  store.set(authStateAtom, authState);
 
   configureApiClient({baseUrl: 'https://api.example.test'});
 
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <JotaiProvider store={store}>
+        <RouterProvider router={router} />
+        <Toaster />
+      </JotaiProvider>
     </QueryClientProvider>,
   );
 
