@@ -157,6 +157,8 @@ jobs:
     if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      SHIPFOX_TURBO_CONCURRENCY: "4"
 
     steps:
       - name: Check out repository
@@ -172,8 +174,20 @@ jobs:
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Verify external package contracts
-        run: turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
+      - name: Prepare external package contracts
+        run: |
+          turbo build type:emit \
+            --filter=@shipfox/application-release... \
+            --filter=@shipfox/api... \
+            --filter=@shipfox/client-shell... \
+            --filter=@shipfox/client-features... \
+            --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+
+      - name: Verify packed API runtime closure
+        run: pnpm --filter=@shipfox/application-release test:external
+
+      - name: Verify packed client composition
+        run: pnpm --filter=@shipfox/client-shell test:external
 
   publication-preflight:
     name: Package publication preflight
