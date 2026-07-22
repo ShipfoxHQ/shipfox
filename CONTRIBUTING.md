@@ -46,6 +46,10 @@ Build a specific package and its dependencies:
 turbo build --filter=@shipfox/api...
 ```
 
+If your contribution creates or changes a visual or interaction decision, read
+the [design system](DESIGN.md). It owns shared design guidance and points to
+the code that owns exact token and component values.
+
 ## Dependency versions
 
 Read the [dependency version policy](docs/policies/dependency-versions.md) before

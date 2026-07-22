@@ -755,17 +755,6 @@ To cover a component state a single render cannot reach (error states, populated
 
 ## Design System
 
-Always read [DESIGN.md](DESIGN.md) before making any visual or UI decisions. Token
-families, font choices, color usage, spacing conventions, and surface-level guidance
-(DAG view, log tails, status pills, runner tables, etc.) are all defined there.
-
-Two conventions trip up newcomers and must be enforced in review:
-
-1. **Spacing base is 1px.** `p-4` is 4px, not 16px. The Tailwind class names map
-   directly to pixels because `index.css` sets `--spacing: 1px`.
-2. **Brand orange is the focus ring and interactive highlight, not the primary
-   CTA fill.** The default primary button is inverted neutral. Reach for orange
-   for focus states, links, and "this is where you are" affordances only.
-
-Do not deviate without explicit user approval and a corresponding entry in the
-DESIGN.md decisions log.
+Before an agent creates or changes a visual or UI decision, read
+[DESIGN.md](DESIGN.md). It owns the shared design system and points to the
+code that owns exact token and component values.

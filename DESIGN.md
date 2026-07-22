@@ -1,8 +1,16 @@
 # Design System — Shipfox
 
-Source of truth for visual and interaction decisions. Read this before writing any UI.
+`DESIGN.md` is the canonical design-system source for Shipfox. Read it when a
+change creates or changes a visual or interaction decision. It owns the shared
+visual language: tokens, components, accessibility, motion, status taxonomy,
+patterns, and review anti-patterns.
 
-The system is already built. The CSS lives in `libs/shared/react/ui/index.css` (chicago workspace) and the broader catalog of tokens and components lives in the shared `@shipfox/react-ui` package. This document explains what the system is and why it is shaped this way. It does not prescribe what individual product pages should look like — surface-level designs live with the features they belong to.
+The system is already built. [The shared CSS](libs/shared/react/ui/index.css)
+and [the `@shipfox/react-ui` package](libs/shared/react/ui/) are canonical for
+exact token and component values. When code and this document differ, use the
+code and update this document in the same change when its guidance has changed.
+This document explains the system and its rationale. It does not prescribe
+individual product pages. Surface-level designs live with their features.
 
 ---
 

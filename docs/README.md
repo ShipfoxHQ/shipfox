@@ -24,7 +24,7 @@ listed there or when you need to place, update, or review documentation.
 | Adds or changes end-to-end coverage. | [E2E guide](../e2e/README.md) | Suite levels, HTTP-first setup, screens, and E2E package boundaries. |
 | Mints, verifies, or carries an authentication token. | [Auth security model](../libs/api/auth/README.md#security-model) | Token authority, lifetime, trust boundaries, and logging constraints. |
 | Defines an inter-module contract or transport. | [Inter-module package README](../libs/shared/common/inter-module/README.md) | Contract primitives and transport responsibilities. |
-| Changes shared visual or interaction decisions. | [Design system](../DESIGN.md) | Repository-wide visual and interaction decisions. |
+| Creates or changes a visual or interaction decision. | [Design system](../DESIGN.md) | Shared tokens, components, accessibility, motion, status taxonomy, patterns, and review anti-patterns. Code owns exact token and component values. |
 | Writes engineering prose, a README, or a runbook. | [Writing guide](../WRITING.md) | Repository-wide prose structure, style, punctuation, and readability. |
 | Writes product or self-hosting documentation. | [Docs writing guide](../apps/docs/WRITING.md) | Product documentation page types, templates, and local terminology. |
 
