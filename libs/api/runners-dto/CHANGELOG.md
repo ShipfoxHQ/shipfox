@@ -1,5 +1,11 @@
 # @shipfox/api-runners-dto
 
+## 7.0.1
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+
 ## 7.0.0
 
 ### Major Changes

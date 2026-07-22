@@ -1,5 +1,11 @@
 # @shipfox/node-email
 
+## 0.3.1
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+
 ## 0.3.0
 
 ### Minor Changes

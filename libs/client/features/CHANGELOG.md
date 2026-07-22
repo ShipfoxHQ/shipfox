@@ -1,5 +1,20 @@
 # @shipfox/client-features
 
+## 3.0.1
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+- Updated dependencies [ffc7fc9]
+  - @shipfox/client-agent@3.0.1
+  - @shipfox/client-auth@3.0.1
+  - @shipfox/client-integrations@3.0.1
+  - @shipfox/client-invitations@3.0.1
+  - @shipfox/client-projects@3.0.1
+  - @shipfox/client-shell@3.0.1
+  - @shipfox/client-workflows@3.0.1
+  - @shipfox/client-workspace-settings@3.0.1
+
 ## 3.0.0
 
 ### Patch Changes
