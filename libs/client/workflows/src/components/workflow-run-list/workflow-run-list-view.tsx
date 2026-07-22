@@ -13,18 +13,23 @@ export function WorkflowRunListView({
   projectId,
   selectedWorkflowRunId,
   className,
+  search = '',
+  statusFilter = 'all',
+  onFiltersChange,
 }: WorkflowRunListViewProps) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<WorkflowRunListStatusFilter>('all');
+  const [localSearch, setLocalSearch] = useState(search);
+  const [localStatusFilter, setLocalStatusFilter] = useState(statusFilter);
+  const currentSearch = onFiltersChange ? search : localSearch;
+  const currentStatusFilter = onFiltersChange ? statusFilter : localStatusFilter;
 
   const filteredRuns = runs.filter((run) => {
-    if (!runMatchesStatusFilter(run.status, statusFilter)) return false;
-    return runMatchesSearch(run, search);
+    if (!runMatchesStatusFilter(run.status, currentStatusFilter)) return false;
+    return runMatchesSearch(run, currentSearch);
   });
 
   function handleClearFilters() {
-    setSearch('');
-    setStatusFilter('all');
+    if (onFiltersChange) onFiltersChange({});
+    else { setLocalSearch(''); setLocalStatusFilter('all'); }
   }
 
   return (
@@ -37,10 +42,18 @@ export function WorkflowRunListView({
         aria-label="Workflow runs"
       >
         <WorkflowRunListHeader
-          query={search}
-          onQueryChange={setSearch}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
+          query={currentSearch}
+          onQueryChange={(next) => {
+            if (onFiltersChange)
+              onFiltersChange({...(next ? {search: next} : {}), status: currentStatusFilter});
+            else setLocalSearch(next);
+          }}
+          statusFilter={currentStatusFilter}
+          onStatusFilterChange={(next) => {
+            if (onFiltersChange)
+              onFiltersChange({...(currentSearch ? {search: currentSearch} : {}), status: next});
+            else setLocalStatusFilter(next);
+          }}
         />
         <WorkflowRunListContent
           query={query}

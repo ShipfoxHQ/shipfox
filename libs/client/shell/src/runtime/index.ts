@@ -21,6 +21,7 @@ export * from './auth.js';
 export * from './chrome-context.js';
 export * from './compose-client-app.js';
 export * from './define-route.js';
+export * from './route-inputs.js';
 export * from './last-workspace.js';
 export * from './nav-order.js';
 export * from './router-context.js';

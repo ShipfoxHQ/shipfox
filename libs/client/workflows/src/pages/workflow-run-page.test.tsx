@@ -257,11 +257,12 @@ describe('WorkflowRunPage', () => {
 function renderRunsPath(search = '') {
   return renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs${search}`,
-    ({workflowRunId}) => (
+    ({workflowRunId, search}) => (
       <WorkflowRunPage
         workspaceId={PROJECT_TEST_WID}
         projectId={PROJECT_ID}
         workflowRunId={workflowRunId}
+        search={search}
       />
     ),
   );
@@ -270,11 +271,12 @@ function renderRunsPath(search = '') {
 function renderRunPath(search = '') {
   return renderProjectPage(
     `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/runs/${RUN_ID}${search}`,
-    ({workflowRunId}) => (
+    ({workflowRunId, search}) => (
       <WorkflowRunPage
         workspaceId={PROJECT_TEST_WID}
         projectId={PROJECT_ID}
         workflowRunId={workflowRunId}
+        search={search}
       />
     ),
   );

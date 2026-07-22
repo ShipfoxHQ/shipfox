@@ -10,10 +10,12 @@ import {
   Outlet,
   RouterProvider,
   useParams,
+  useSearch,
 } from '@tanstack/react-router';
 import {type RenderResult, render} from '@testing-library/react';
 import {createStore, Provider as JotaiProvider} from 'jotai';
 import type {ReactElement} from 'react';
+import {validateWorkflowRunsSearch} from '#routes/inputs.js';
 
 // The workflow run page navigates with the router (run rows are links and the page redirects
 // to the first run), so the harness mounts the page under a memory router whose route tree
@@ -41,26 +43,28 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
 
 function createTestRouter(
   path: string,
-  renderPage: (params: {workflowRunId?: string | undefined}) => ReactElement,
+  renderPage: (params: {workflowRunId?: string | undefined; search: ReturnType<typeof validateWorkflowRunsSearch>}) => ReactElement,
 ) {
   const rootRoute = createRootRoute({component: Outlet});
   const runsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/runs',
-    component: () => renderPage({}),
+    component: function RunsRoute() {
+      return renderPage({search: validateWorkflowRunsSearch(useSearch({strict: false}) as Record<string, unknown>)});
+    },
   });
   const runDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
     component: function RunDetailRoute() {
       const {workflowRunId} = useParams({strict: false}) as {workflowRunId?: string};
-      return renderPage({workflowRunId});
+      return renderPage({workflowRunId, search: validateWorkflowRunsSearch(useSearch({strict: false}) as Record<string, unknown>)});
     },
   });
   const workflowsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/workflows',
-    component: () => renderPage({}),
+    component: () => renderPage({search: {}}),
   });
   const modelProviderSettingsRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -81,7 +85,7 @@ function createTestRouter(
 
 export function renderProjectPage(
   path: string,
-  renderPage: (params: {workflowRunId?: string | undefined}) => ReactElement,
+  renderPage: (params: {workflowRunId?: string | undefined; search: ReturnType<typeof validateWorkflowRunsSearch>}) => ReactElement,
 ): RenderResult & {
   queryClient: QueryClient;
   router: ReturnType<typeof createTestRouter>;

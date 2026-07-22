@@ -1,20 +1,19 @@
-import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useNavigate} from '@tanstack/react-router';
 import {useCallback, useEffect} from 'react';
 import {WorkflowRunList} from '#components/workflow-run-list/workflow-run-list.js';
 import {WorkflowRunView} from '#components/workflow-run-view/index.js';
 import {
   type WorkflowRunSelectionInput,
-  withoutWorkflowRunSelectionSearch,
-  withWorkflowRunSelectionSearch,
-  workflowRunSelectionFromSearch,
 } from '#core/workflow-run-url-state.js';
 import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
+import {type WorkflowRunsSearch, workflowRunSearchParams} from '#routes/inputs.js';
 import {WorkflowRunFirstTimeUse} from './workflow-run-first-time-use.js';
 
 interface WorkflowRunPageProps {
   workspaceId: string;
   projectId: string;
   workflowRunId?: string | undefined;
+  search?: WorkflowRunsSearch;
 }
 
 /**
@@ -28,6 +27,7 @@ function useWorkflowRunPageTarget(
   workspaceId: string,
   projectId: string,
   workflowRunId: string | undefined,
+  search: WorkflowRunsSearch,
 ) {
   const navigate = useNavigate();
   const {data, isPending} = useWorkflowRunsInfiniteQuery(projectId, {});
@@ -42,28 +42,25 @@ function useWorkflowRunPageTarget(
     navigate({
       to: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
       params: {wid: workspaceId, pid: projectId, workflowRunId: firstWorkflowRunId},
-      search: ((previous: Record<string, unknown>) =>
-        withoutWorkflowRunSelectionSearch(previous)) as never,
+      search: workflowRunSearchParams(search, {}),
       replace: true,
     });
-  }, [navigate, workspaceId, projectId, workflowRunId, isLoaded, firstWorkflowRunId]);
+  }, [navigate, workspaceId, projectId, workflowRunId, isLoaded, firstWorkflowRunId, search]);
 
   return {hasNoRuns: isLoaded && firstWorkflowRunId === undefined};
 }
 
-export function WorkflowRunPage({workspaceId, projectId, workflowRunId}: WorkflowRunPageProps) {
-  const {hasNoRuns} = useWorkflowRunPageTarget(workspaceId, projectId, workflowRunId);
+export function WorkflowRunPage({workspaceId, projectId, workflowRunId, search = {}}: WorkflowRunPageProps) {
+  const {hasNoRuns} = useWorkflowRunPageTarget(workspaceId, projectId, workflowRunId, search);
   const navigate = useNavigate();
-  const search = useSearch({strict: false}) as Record<string, unknown>;
-  const selection = workflowRunSelectionFromSearch(search);
+  const selection: WorkflowRunSelectionInput = search;
   const onSelectionChange = useCallback(
     (nextSelection: WorkflowRunSelectionInput) => {
       navigate({
-        search: ((previous: Record<string, unknown>) =>
-          withWorkflowRunSelectionSearch(previous, nextSelection)) as never,
+        search: workflowRunSearchParams(search, nextSelection) as never,
       });
     },
-    [navigate],
+    [navigate, search],
   );
 
   if (!workflowRunId && hasNoRuns) {
@@ -76,6 +73,9 @@ export function WorkflowRunPage({workspaceId, projectId, workflowRunId}: Workflo
         workspaceId={workspaceId}
         projectId={projectId}
         selectedWorkflowRunId={workflowRunId}
+        search={search.search ?? ''}
+        statusFilter={search.status ?? 'all'}
+        onFiltersChange={(filters) => navigate({search: workflowRunSearchParams({...search, ...filters}) as never})}
       />
       <WorkflowRunView
         workspaceId={workspaceId}
