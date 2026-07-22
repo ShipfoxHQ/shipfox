@@ -25,13 +25,9 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
   if (!run) throw new Error('Expected workflow run to exist');
   const runnerSessionId = crypto.randomUUID();
 
-  await insertRunningJobLease({
-    workspaceId: run.workspaceId,
-    workflowRunId: run.id,
-    workflowRunAttemptId: job.workflowRunAttemptId,
+  registerActiveRunnerLease({
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
-    projectId: run.projectId,
     runnerSessionId,
   });
 
@@ -56,6 +52,7 @@ export interface InsertRunningJobLeaseParams {
   runnerSessionId: string;
 }
 
-export async function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {
+export function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {
   registerActiveRunnerLease(params);
+  return Promise.resolve();
 }

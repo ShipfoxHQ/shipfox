@@ -1,4 +1,5 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {LogOutcomeDto} from '@shipfox/api-workflows-dto';
 import {
   coerceStepOutputs,
@@ -16,7 +17,6 @@ import {
   getStepAttemptsByJobExecutionId,
   getStepsByJobExecutionIdForUpdate,
   insertRunningStepAttempt,
-  lockActiveJobExecutionLeaseForUpdate,
   markStepRunning,
   markStepSkipped,
   settleJobFailed,
@@ -339,18 +339,19 @@ export interface NextStepForLeasedJobExecutionParams {
   jobId: string;
   jobExecutionId: string;
   runnerSessionId: string;
+  runners: Pick<RunnersInterModuleClient, 'getLeaseState'>;
   agent?: AgentInterModuleClient | undefined;
 }
 
-export function nextStepForLeasedJobExecution(
+export async function nextStepForLeasedJobExecution(
   params: NextStepForLeasedJobExecutionParams,
 ): Promise<NextStep> {
-  return withTransaction(async (tx) => {
-    const leaseIsActive = await lockActiveJobExecutionLeaseForUpdate(params, tx);
-    if (!leaseIsActive) throw new JobLeaseNotActiveError(params.jobExecutionId);
+  const {active: leaseIsActive} = await params.runners.getLeaseState(params);
+  if (!leaseIsActive) throw new JobLeaseNotActiveError(params.jobExecutionId);
 
-    return nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent);
-  });
+  return withTransaction((tx) =>
+    nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent),
+  );
 }
 
 export function nextStepForJob(

@@ -41,6 +41,7 @@ export function createNextStepRoute(params: {
         jobId: leasedJob.jobId,
         jobExecutionId: leasedJob.jobExecutionId,
         runnerSessionId: leasedJob.runnerSessionId,
+        runners: params.runners,
         agent: params.agent,
       });
 

@@ -3,10 +3,10 @@ import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {isErrorReported} from '@shipfox/node-error-monitoring';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
+import type {DefinitionsSourceControl} from '#core/integrations.js';
 import {db, definitionSyncStates} from '#db/index.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
-import type {DefinitionsSourceControl} from '#core/integrations.js';
 import {createDefinitionSyncActivities} from './sync-activities.js';
 
 const agent = {getValidationCatalog: vi.fn(() => agentValidationCatalog)} as never;
@@ -26,7 +26,9 @@ jobs:
       - run: pnpm test
 `;
 
-function sourceControl(overrides: Partial<DefinitionsSourceControl> = {}): DefinitionsSourceControl {
+function sourceControl(
+  overrides: Partial<DefinitionsSourceControl> = {},
+): DefinitionsSourceControl {
   return {
     resolveRepository: vi.fn(() =>
       Promise.resolve({

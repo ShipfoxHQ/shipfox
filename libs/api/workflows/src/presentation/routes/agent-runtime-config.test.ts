@@ -1,6 +1,6 @@
 import {
-  agentInterModuleContract,
   type AgentInterModuleClient,
+  agentInterModuleContract,
 } from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
@@ -28,15 +28,20 @@ vi.mock('@shipfox/node-error-monitoring', () => ({captureException: captureExcep
 
 const URL = '/runs/jobs/current/agent-runtime-config';
 const secrets = createTestSecretsClient();
-const runtimeConfigs = new Map<string, Awaited<ReturnType<AgentInterModuleClient['resolveRuntimeCredentials']>>>();
+const runtimeConfigs = new Map<
+  string,
+  Awaited<ReturnType<AgentInterModuleClient['resolveRuntimeCredentials']>>
+>();
 const resolveRuntimeCredentials = vi.fn<AgentInterModuleClient['resolveRuntimeCredentials']>(
-  async ({workspaceId}) => {
+  ({workspaceId}) => {
     const runtimeConfig = runtimeConfigs.get(workspaceId);
-    if (runtimeConfig) return runtimeConfig;
-    throw createInterModuleKnownError(
-      agentInterModuleContract.methods.resolveRuntimeCredentials,
-      'model-provider-not-configured',
-      {},
+    if (runtimeConfig) return Promise.resolve(runtimeConfig);
+    return Promise.reject(
+      createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        'model-provider-not-configured',
+        {},
+      ),
     );
   },
 );
@@ -334,7 +339,7 @@ function runtimeConfigUrl(stepId: string, attempt: number): string {
   return `${URL}?${search.toString()}`;
 }
 
-async function saveWorkspaceCredential(workspaceId: string, apiKey: string) {
+function saveWorkspaceCredential(workspaceId: string, apiKey: string): void {
   runtimeConfigs.set(workspaceId, {
     harness: 'pi',
     provider_id: 'anthropic',
