@@ -1,17 +1,8 @@
-import type {
-  WorkflowRunDetailResponseDto,
-  WorkflowRunListResponseDto,
-  WorkflowRunResponseDto,
-  WorkflowRunStatusDto,
-} from '@shipfox/api-workflows-dto';
-import {type Job, toJob, WORKFLOW_JOB_STATUSES} from './job.js';
-import {
-  toWorkflowRunAttempt,
-  type WorkflowRunAttempt,
-  WorkflowRunAttemptSummary,
-} from './workflow-run-attempt.js';
+import {type Job, WORKFLOW_JOB_STATUSES} from './job.js';
+import type {WorkflowRunAttempt, WorkflowRunAttemptSummary} from './workflow-run-attempt.js';
 
-export type WorkflowRunStatus = WorkflowRunStatusDto;
+export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type WorkflowRunRerunMode = 'all' | 'failed';
 export type WorkflowStatus = WorkflowRunStatus | (typeof WORKFLOW_JOB_STATUSES)[number];
 
 export const WORKFLOW_RUN_STATUSES = [
@@ -107,77 +98,4 @@ export function isWorkflowRunTerminal(status: WorkflowRunStatus): boolean {
 
 export function isWorkflowStatus(status: string): status is WorkflowStatus {
   return WORKFLOW_STATUSES.has(status as WorkflowStatus);
-}
-
-export function toWorkflowRun(dto: WorkflowRunResponseDto): WorkflowRun {
-  const triggerLabel = workflowRunTriggerLabel({
-    triggerSource: dto.trigger_source,
-    triggerEvent: dto.trigger_event,
-  });
-  const triggerDisplayLabel = workflowRunTriggerDisplayLabel({
-    triggerSource: dto.trigger_source,
-    triggerEvent: dto.trigger_event,
-  });
-
-  return {
-    id: dto.id,
-    projectId: dto.project_id,
-    definitionId: dto.definition_id,
-    name: dto.name,
-    currentAttempt: dto.current_attempt,
-    triggerProvider: dto.trigger_provider,
-    triggerSource: dto.trigger_source,
-    triggerEvent: dto.trigger_event,
-    triggerDisplayLabel,
-    triggerLabel,
-    triggerPayload: dto.trigger_payload,
-    inputs: dto.inputs ?? null,
-    sourceSnapshot: dto.source_snapshot ? toWorkflowSourceSnapshot(dto.source_snapshot) : null,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
-    shortId: workflowRunShortId(dto.id),
-    isTemporary: dto.id.startsWith('temp-'),
-  };
-}
-
-export function toWorkflowRunListItem(dto: WorkflowRunResponseDto): WorkflowRunListItem {
-  return {
-    ...toWorkflowRun(dto),
-    status: dto.status,
-    latestAttempt: dto.latest_attempt,
-    runAttempt: new WorkflowRunAttemptSummary({
-      workflowRunId: dto.id,
-      attempt: dto.current_attempt,
-      status: dto.status,
-      createdAt: dto.created_at,
-      startedAt: dto.started_at ?? null,
-      finishedAt: dto.finished_at ?? null,
-    }),
-  };
-}
-
-export function toWorkflowRunDetail(dto: WorkflowRunDetailResponseDto): WorkflowRunDetail {
-  return {
-    ...toWorkflowRun(dto),
-    latestAttempt: dto.latest_attempt,
-    runAttempt: toWorkflowRunAttempt(dto.run_attempt),
-    jobs: dto.jobs.map(toJob),
-  };
-}
-
-export function toWorkflowRunListPage(dto: WorkflowRunListResponseDto): WorkflowRunListPage {
-  return {
-    runs: dto.runs.map(toWorkflowRunListItem),
-    nextCursor: dto.next_cursor,
-    filteredTotalCount: dto.filtered_total_count,
-  };
-}
-
-function toWorkflowSourceSnapshot(
-  dto: NonNullable<WorkflowRunResponseDto['source_snapshot']>,
-): WorkflowSourceSnapshot {
-  return {
-    content: dto.content,
-    format: dto.format,
-  };
 }

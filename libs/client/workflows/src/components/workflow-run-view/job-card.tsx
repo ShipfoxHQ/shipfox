@@ -1,4 +1,3 @@
-import {agentConfigIssueSchema, stepErrorReasonSchema} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
@@ -12,9 +11,11 @@ import type {ReactNode} from 'react';
 import {Fragment, useId, useRef, useState} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {
+  AGENT_CONFIG_ISSUES,
   type Job,
   type JobExecution,
   type JobExecutionTime,
+  STEP_ERROR_REASONS,
   type Step,
   type StepError,
   type StepSourceLocation,
@@ -404,25 +405,33 @@ function toSelectedAttemptError(
 ): StepError | null {
   if (error === null) return null;
 
-  const reason = stepErrorReasonSchema.safeParse(error.reason);
-  const agentConfigIssue = agentConfigIssueSchema.safeParse(
-    error.agentConfigIssue ?? error.agent_config_issue,
-  );
+  const rawReason = error.reason;
+  const parsedReason =
+    typeof rawReason === 'string' &&
+    STEP_ERROR_REASONS.has(rawReason as StepError['reason'] & string)
+      ? (rawReason as NonNullable<StepError['reason']>)
+      : undefined;
+  const rawAgentConfigIssue = error.agentConfigIssue ?? error.agent_config_issue;
+  const agentConfigIssue =
+    typeof rawAgentConfigIssue === 'string' &&
+    AGENT_CONFIG_ISSUES.has(rawAgentConfigIssue as NonNullable<StepError['agentConfigIssue']>)
+      ? (rawAgentConfigIssue as NonNullable<StepError['agentConfigIssue']>)
+      : undefined;
   const exitCode = error.exitCode ?? error.exit_code;
-  const parsedReason = reason.success
-    ? reason.data
-    : agentConfigIssue.success
+  const resolvedReason = parsedReason
+    ? parsedReason
+    : agentConfigIssue
       ? 'agent_config_invalid'
       : undefined;
 
-  if (parsedReason === undefined) return null;
+  if (resolvedReason === undefined) return null;
 
   return {
     message: typeof error.message === 'string' ? error.message : '',
     exitCode: exitCode === null || typeof exitCode === 'number' ? exitCode : null,
     signal: typeof error.signal === 'string' ? error.signal : undefined,
-    reason: parsedReason,
-    agentConfigIssue: agentConfigIssue.success ? agentConfigIssue.data : undefined,
+    reason: resolvedReason,
+    agentConfigIssue,
     category: step.type === 'setup' ? 'setup' : 'user',
   };
 }

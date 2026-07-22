@@ -1,4 +1,3 @@
-import type {WorkflowRunRerunModeDto} from '@shipfox/api-workflows-dto';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
@@ -20,6 +19,7 @@ import {
   type Job,
   WORKFLOW_RUN_STATUSES,
   type WorkflowRunDetail,
+  type WorkflowRunRerunMode,
 } from '#core/workflow-run.js';
 import {WorkflowRunDurationLabel} from '../workflow-run-duration-label.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
@@ -43,7 +43,7 @@ export interface WorkflowRunSummaryProps {
   cancelling?: boolean | undefined;
   onCancel?: (() => void) | undefined;
   rerunPending?: boolean | undefined;
-  onRerun?: ((mode: WorkflowRunRerunModeDto) => void) | undefined;
+  onRerun?: ((mode: WorkflowRunRerunMode) => void) | undefined;
   latestAttempt?: number | undefined;
 }
 
@@ -207,7 +207,7 @@ function WorkflowRunActionSlot({
   cancelling: boolean;
   onCancel?: (() => void) | undefined;
   rerunPending: boolean;
-  onRerun?: ((mode: WorkflowRunRerunModeDto) => void) | undefined;
+  onRerun?: ((mode: WorkflowRunRerunMode) => void) | undefined;
 }) {
   if (action === 'none') return null;
 

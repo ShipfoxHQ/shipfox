@@ -1,11 +1,14 @@
-import type {
-  WorkflowExecutionEventDto,
-  WorkflowRunJobExecutionDetailDto,
-} from '@shipfox/api-workflows-dto';
 import {type Duration, intervalToDuration} from 'date-fns';
-import {type Step, toStep} from './step.js';
+import type {Step} from './step.js';
 
-export type JobExecutionStatus = WorkflowRunJobExecutionDetailDto['status'];
+export type JobExecutionStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export interface WorkflowExecutionEvent {
+  source: string;
+  event: string;
+  deliveryId: string;
+  receivedAt: string;
+  data: unknown;
+}
 export type JobExecutionTime =
   | {state: 'fixed'; elapsed: Duration}
   | {state: 'live'; fromIso: string};
@@ -20,7 +23,7 @@ interface JobExecutionFields {
   name: string;
   status: JobExecutionStatus;
   statusReason: string | null;
-  triggerEvents: WorkflowExecutionEventDto[];
+  triggerEvents: WorkflowExecutionEvent[];
   queuedAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -37,7 +40,7 @@ export class JobExecution {
   name!: string;
   status!: JobExecutionStatus;
   statusReason!: string | null;
-  triggerEvents!: WorkflowExecutionEventDto[];
+  triggerEvents!: WorkflowExecutionEvent[];
   queuedAt!: string | null;
   startedAt!: string | null;
   finishedAt!: string | null;
@@ -61,25 +64,6 @@ export class JobExecution {
   get displayDuration(): JobExecutionDisplayDuration | null {
     return jobExecutionDisplayDurationFromTimestamps(this);
   }
-}
-
-export function toJobExecution(dto: WorkflowRunJobExecutionDetailDto): JobExecution {
-  return new JobExecution({
-    id: dto.id,
-    jobId: dto.job_id,
-    sequence: dto.sequence,
-    name: dto.name,
-    status: dto.status,
-    statusReason: dto.status_reason,
-    triggerEvents: dto.trigger_events ?? [],
-    queuedAt: dto.queued_at ?? null,
-    startedAt: dto.started_at ?? null,
-    finishedAt: dto.finished_at ?? null,
-    timedOutAt: dto.timed_out_at ?? null,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
-    steps: dto.steps.map(toStep),
-  });
 }
 
 export function jobExecutionQueueTimeFromTimestamps({

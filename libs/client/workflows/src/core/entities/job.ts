@@ -1,23 +1,45 @@
-import type {
-  JobListeningDto,
-  JobModeDto,
-  JobStatusDto,
-  JobStatusReasonDto,
-  ListenerStatusDto,
-  ResolutionReasonDto,
-  WorkflowRunJobDetailDto,
-} from '@shipfox/api-workflows-dto';
-import {
-  type JobExecution,
-  type JobExecutionDisplayDuration,
-  toJobExecution,
-} from './job-execution.js';
+import type {JobExecution, JobExecutionDisplayDuration} from './job-execution.js';
 
-export type JobStatus = JobStatusDto;
-export type JobMode = JobModeDto;
-export type ListenerStatus = ListenerStatusDto;
-export type ResolutionReason = ResolutionReasonDto;
-export type JobStatusReason = JobStatusReasonDto;
+export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';
+export type JobMode = 'one_shot' | 'listening';
+export type ListenerStatus = 'inactive' | 'listening' | 'resolved';
+export type ResolutionReason = 'until' | 'timeout' | 'max_executions' | 'cancelled';
+export type JobStatusReason =
+  | 'dependency_not_completed'
+  | 'condition_false'
+  | 'default_gate_rejected'
+  | 'condition_rejected'
+  | 'condition_errored'
+  | 'user_cancelled'
+  | 'run_cancelled'
+  | 'timed_out'
+  | 'runner_lost'
+  | 'step_failed'
+  | 'unknown';
+export interface JobListening {
+  on: Array<{
+    source: string;
+    event: string;
+    inputs?: Record<string, unknown> | undefined;
+    filter?: string | undefined;
+  }>;
+  until: Array<{
+    source: string;
+    event: string;
+    inputs?: Record<string, unknown> | undefined;
+    filter?: string | undefined;
+  }> | null;
+  timeoutMs: number | null;
+  maxExecutions: number | null;
+  batch: {
+    debounceMs?: number | undefined;
+    maxSize?: number | undefined;
+    maxWaitMs?: number | undefined;
+  } | null;
+  onResolve: 'finish' | 'cancel';
+  executionTimeoutMs: number | null;
+  name: string | null;
+}
 
 export type JobDisplayDuration = JobExecutionDisplayDuration;
 
@@ -48,7 +70,7 @@ interface JobFields {
   status: JobStatus;
   statusReason: JobStatusReason | null;
   carriedOver: boolean;
-  listening: JobListeningDto | null;
+  listening: JobListening | null;
   listenerStatus: ListenerStatus;
   resolutionReason: ResolutionReason | null;
   dependencies: string[];
@@ -67,7 +89,7 @@ export class Job {
   status!: JobStatus;
   statusReason!: JobStatusReason | null;
   carriedOver!: boolean;
-  listening!: JobListeningDto | null;
+  listening!: JobListening | null;
   listenerStatus!: ListenerStatus;
   resolutionReason!: ResolutionReason | null;
   dependencies!: string[];
@@ -123,27 +145,4 @@ export function defaultJobExecution(job: Job): JobExecution | undefined {
     if (!latest) return jobExecution;
     return jobExecution.sequence > latest.sequence ? jobExecution : latest;
   }, undefined);
-}
-
-export function toJob(dto: WorkflowRunJobDetailDto): Job {
-  const jobExecutions = dto.job_executions.map(toJobExecution);
-
-  return new Job({
-    id: dto.id,
-    runAttemptId: dto.run_attempt_id,
-    key: dto.key,
-    name: dto.name,
-    mode: dto.mode,
-    status: dto.status,
-    statusReason: dto.status_reason,
-    carriedOver: dto.carried_over,
-    listening: dto.listening,
-    listenerStatus: dto.listener_status,
-    resolutionReason: dto.resolution_reason,
-    dependencies: dto.dependencies,
-    position: dto.position,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
-    jobExecutions,
-  });
 }

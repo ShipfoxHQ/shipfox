@@ -1,6 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {toWorkflowRunAttempt} from '#hooks/api/workflow-run-mapper.js';
 import {workflowRunsQueryKeys} from '#hooks/api/workflow-runs.js';
 import {
   runAttemptsResponseDto,
@@ -145,12 +146,10 @@ describe('WorkflowRunAttemptSwitcher', () => {
     const {queryClient} = renderSwitcher({latestAttempt: 3});
     queryClient.setQueryData(
       workflowRunsQueryKeys.attempts(CURRENT_RUN_ID),
-      runAttemptsResponseDto({
-        attempts: [
-          workflowRunAttemptDto({id: ROOT_RUN_ID, attempt: 1}),
-          workflowRunAttemptDto({id: CURRENT_RUN_ID, attempt: 2}),
-        ],
-      }),
+      [
+        workflowRunAttemptDto({id: ROOT_RUN_ID, attempt: 1}),
+        workflowRunAttemptDto({id: CURRENT_RUN_ID, attempt: 2}),
+      ].map(toWorkflowRunAttempt),
     );
 
     await user.click(await screen.findByRole('button', {name: 'Switch attempt, currently 2 of 3'}));

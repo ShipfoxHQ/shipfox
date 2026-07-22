@@ -11,20 +11,22 @@ import type {
   WorkflowRunStatusDto,
   WorkflowRunStepDetailDto,
 } from '@shipfox/api-workflows-dto';
+import type {
+  Job,
+  Step,
+  StepAttempt,
+  WorkflowRunDetail,
+  WorkflowRunListItem,
+  WorkflowRunListPage,
+} from '#core/workflow-run.js';
 import {
-  type Job,
-  type Step,
-  type StepAttempt,
   toJob,
   toStep,
   toStepAttempt,
   toWorkflowRunDetail,
   toWorkflowRunListItem,
   toWorkflowRunListPage,
-  type WorkflowRunDetail,
-  type WorkflowRunListItem,
-  type WorkflowRunListPage,
-} from '#core/workflow-run.js';
+} from '#hooks/api/workflow-run-mapper.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const RUN_ATTEMPT_ID = '11111111-1111-4111-8111-111111111112';
