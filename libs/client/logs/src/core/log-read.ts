@@ -1,18 +1,13 @@
-import {type LogRecord, parseLogRecordLine, type ReadLogsResponseDto} from '@shipfox/api-logs-dto';
+import type {InlineLogRead, LogRecord, LogSource, LogState, PresignedLogRead} from './log-model.js';
 
 export const STEP_LOG_DRAIN_REFETCH_MS = 250;
 export const STEP_LOG_LIVE_REFETCH_MS = 2_000;
 
-const NDJSON_LINE_BREAK = /\r?\n/;
-
-type InlineReadLogsResponse = Extract<ReadLogsResponseDto, {mode: 'inline'}>;
-type PresignedReadLogsResponse = Extract<ReadLogsResponseDto, {mode: 'presigned'}>;
-
 export interface StepLogSnapshot {
   records: LogRecord[];
   nextCursor: number;
-  source: 'inline' | 'presigned';
-  state: 'open' | 'closed' | 'compacted';
+  source: LogSource;
+  state: LogState;
   complete: boolean;
   hasMore: boolean;
   truncated: boolean;
@@ -21,15 +16,8 @@ export interface StepLogSnapshot {
 }
 
 export type ResolvedStepLogRead =
-  | {mode: 'inline'; response: InlineReadLogsResponse}
-  | {mode: 'presigned'; response: PresignedReadLogsResponse; ndjson: string};
-
-export function parseLogNdjson(ndjson: string): LogRecord[] {
-  return ndjson
-    .split(NDJSON_LINE_BREAK)
-    .filter((line) => line.length > 0)
-    .map(parseLogRecordLine);
-}
+  | {mode: 'inline'; response: InlineLogRead; records: readonly LogRecord[]}
+  | {mode: 'presigned'; response: PresignedLogRead; records: readonly LogRecord[]};
 
 export function mergeLogRead(
   previous: StepLogSnapshot | undefined,
@@ -37,28 +25,27 @@ export function mergeLogRead(
 ): StepLogSnapshot {
   if (read.mode === 'presigned') {
     return {
-      records: parseLogNdjson(read.ndjson),
+      records: [...read.records],
       nextCursor: 0,
       source: 'presigned',
       state: 'compacted',
       complete: true,
       hasMore: false,
       truncated: read.response.truncated,
-      totalBytes: read.response.total_bytes,
-      expiresAt: read.response.expires_at,
+      totalBytes: read.response.totalBytes,
+      expiresAt: read.response.expiresAt,
     };
   }
 
-  const records = parseLogNdjson(read.response.ndjson);
-  const complete = read.response.state === 'closed' && !read.response.has_more;
+  const complete = read.response.state === 'closed' && !read.response.hasMore;
 
   return {
-    records: [...(previous?.records ?? []), ...records],
-    nextCursor: read.response.next_cursor,
+    records: [...(previous?.records ?? []), ...read.records],
+    nextCursor: read.response.nextCursor,
     source: 'inline',
     state: read.response.state,
     complete,
-    hasMore: read.response.has_more,
+    hasMore: read.response.hasMore,
     truncated: read.response.truncated,
     totalBytes: null,
     expiresAt: null,

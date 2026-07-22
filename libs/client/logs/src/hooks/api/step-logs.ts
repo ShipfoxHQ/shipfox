@@ -1,5 +1,5 @@
-import type {ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {ApiError, apiRequest} from '@shipfox/client-api';
+import {readLogsResponseSchema} from '@shipfox/api-logs-dto';
+import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useRef} from 'react';
 import {
@@ -8,6 +8,7 @@ import {
   type StepLogSnapshot,
   stepLogRefetchInterval,
 } from '#core/log-read.js';
+import {parseLogNdjson, toLogRead} from './log-mapper.js';
 
 export const stepLogsQueryKeys = {
   all: ['step-logs'] as const,
@@ -27,12 +28,14 @@ export async function readStepAttemptLogsPage({
   attempt,
   cursor,
   signal,
-}: ReadStepAttemptLogsPageParams): Promise<ReadLogsResponseDto> {
+}: ReadStepAttemptLogsPageParams) {
   const params = new URLSearchParams({cursor: String(cursor)});
-  return await apiRequest<ReadLogsResponseDto>(
+  const response = await checkedApiRequest(
+    readLogsResponseSchema,
     `/steps/${encodeURIComponent(stepId)}/attempts/${attempt}/logs?${params.toString()}`,
     {signal},
   );
+  return toLogRead(response);
 }
 
 class StepLogObjectFetchError extends Error {
@@ -63,6 +66,12 @@ export interface UseStepAttemptLogsQueryOptions {
   initialErrorRetryDelayMs?: number;
 }
 
+/**
+ * Narrow React Query wrapper for step logs. Its query function can read the prior
+ * snapshot imperatively, but bounded missing-stream retries need a ref that resets
+ * when the step, attempt, or retry budget changes. Keep that lifecycle state here
+ * rather than exporting query options that could accidentally share it between views.
+ */
 export function useStepAttemptLogsQuery(
   stepId: string | undefined,
   attempt: number | undefined,
@@ -93,7 +102,7 @@ export function useStepAttemptLogsQuery(
     enabled,
     queryFn: async ({signal}) => {
       const previous = queryClient.getQueryData<StepLogSnapshot>(queryKey);
-      let response: ReadLogsResponseDto;
+      let response: Awaited<ReturnType<typeof readStepAttemptLogsPage>>;
       try {
         response = await readStepAttemptLogsPage({
           stepId: stepId ?? '',
@@ -121,10 +130,18 @@ export function useStepAttemptLogsQuery(
 
       if (response.mode === 'presigned') {
         const ndjson = await readPresignedLogObject(response.url, signal);
-        return mergeLogRead(previous, {mode: 'presigned', response, ndjson});
+        return mergeLogRead(previous, {
+          mode: 'presigned',
+          response,
+          records: parseLogNdjson(ndjson),
+        });
       }
 
-      return mergeLogRead(previous, {mode: 'inline', response});
+      return mergeLogRead(previous, {
+        mode: 'inline',
+        response,
+        records: parseLogNdjson(response.ndjson),
+      });
     },
     retry: (failureCount, error) => {
       if (initialErrorRetryCount <= 0) return false;

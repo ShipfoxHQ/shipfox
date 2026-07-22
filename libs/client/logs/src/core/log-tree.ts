@@ -1,4 +1,4 @@
-import type {LogRecord} from '@shipfox/api-logs-dto';
+import type {LogRecord} from './log-model.js';
 
 /**
  * Pure render transform for the step-log read stream. The runner emits a flat,
@@ -119,11 +119,11 @@ export function buildLogTree(records: readonly LogRecord[]): LogTree {
         // own `group_end` was dropped under backlog pressure. Orphan-close those frames so a
         // dropped end never mis-parents the groups that follow. A parent whose own start was
         // dropped is not on the stack: it falls through to best-effort root placement.
-        const parentId = record.parent_group_id;
+        const parentId = record.parentGroupId;
         let parentIndex = -1;
         if (parentId !== null) {
           for (let i = stack.length - 1; i >= 0; i -= 1) {
-            if (stack[i]?.record.group_id === parentId) {
+            if (stack[i]?.record.groupId === parentId) {
               parentIndex = i;
               break;
             }
@@ -154,7 +154,7 @@ export function buildLogTree(records: readonly LogRecord[]): LogTree {
         // group_end close with it. An end with no matching open start is ignored.
         let matchIndex = -1;
         for (let i = stack.length - 1; i >= 0; i -= 1) {
-          if (stack[i]?.record.group_id === record.group_id) {
+          if (stack[i]?.record.groupId === record.groupId) {
             matchIndex = i;
             break;
           }

@@ -1,5 +1,5 @@
-import type {LogRecord} from '@shipfox/api-logs-dto';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import type {LogRecord} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ts = new Date('2026-06-23T10:00:00.000Z').getTime();
@@ -58,7 +58,7 @@ describe('LogView', () => {
   });
 
   test('renders no-output copy before the end marker for an end-marker-only stream', () => {
-    render(<LogView records={[{v: 1, ts, type: 'end', total_bytes: 0}]} />);
+    render(<LogView records={[{v: 1, ts, type: 'end', totalBytes: 0}]} />);
 
     expect(screen.getByText('Step produced no output')).toBeDefined();
     expect(screen.getByText('End of log')).toBeDefined();
@@ -67,7 +67,7 @@ describe('LogView', () => {
 
   test.each([
     {record: {v: 1, ts, type: 'runner_lost'} as const, label: 'Runner disconnected'},
-    {record: {v: 1, ts, type: 'gap', dropped_bytes: 2048} as const, label: 'Output missing'},
+    {record: {v: 1, ts, type: 'gap', droppedBytes: 2048} as const, label: 'Output missing'},
     {record: {v: 1, ts, type: 'capped'} as const, label: 'Log size limit reached'},
   ])('does not show no-output copy for a $record.type marker-only stream', ({record, label}) => {
     render(<LogView records={[record]} />);

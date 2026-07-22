@@ -1,5 +1,5 @@
-import type {LogRecord, SessionViewRow} from '@shipfox/api-logs-dto';
 import type {Meta, StoryObj} from '@storybook/react';
+import type {LogRecord, SessionViewRow} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
@@ -28,15 +28,15 @@ const groupStart = (
   v: 1,
   ts: at(offset),
   type: 'group_start',
-  group_id: groupId,
-  parent_group_id: parentGroupId,
+  groupId,
+  parentGroupId,
   name,
 });
 const groupEnd = (groupId: string, offset: number): LogRecord => ({
   v: 1,
   ts: at(offset),
   type: 'group_end',
-  group_id: groupId,
+  groupId,
 });
 
 const showcaseRecords: LogRecord[] = [
@@ -53,8 +53,8 @@ const showcaseRecords: LogRecord[] = [
   out('running 42 tests\n', 10),
   out('FAIL client.test.ts > retries on 503\n', 11, 'stderr'),
   groupEnd('g3', 12),
-  {v: 1, ts: at(13), type: 'gap', dropped_bytes: 2048},
-  {v: 1, ts: at(14), type: 'end', total_bytes: 15_360},
+  {v: 1, ts: at(13), type: 'gap', droppedBytes: 2048},
+  {v: 1, ts: at(14), type: 'end', totalBytes: 15_360},
 ];
 
 // A pipeline nested three levels deep: Deploy > Build > Compile, and Deploy >
@@ -85,7 +85,7 @@ const nestedRecords: LogRecord[] = [
   groupEnd('g7', 14),
   groupEnd('g5', 14.5),
   groupEnd('g1', 15),
-  {v: 1, ts: at(15.2), type: 'end', total_bytes: 9_216},
+  {v: 1, ts: at(15.2), type: 'end', totalBytes: 9_216},
 ];
 
 const unifiedAgentRecords: LogRecord[] = [
@@ -155,7 +155,7 @@ const unifiedAgentRecords: LogRecord[] = [
     },
     4,
   ),
-  {v: 1, ts: at(5), type: 'end', total_bytes: 4096},
+  {v: 1, ts: at(5), type: 'end', totalBytes: 4096},
 ];
 
 const awaitingAgentRecords: LogRecord[] = [
@@ -415,7 +415,7 @@ const allAgentSessionTypeRecords: LogRecord[] = [
     16,
   ),
   session({kind: 'raw', timestamp: 0, label: 'Malformed session entry', raw: '{not-json'}, 17),
-  {v: 1, ts: at(20), type: 'end', total_bytes: 12_288},
+  {v: 1, ts: at(20), type: 'end', totalBytes: 12_288},
 ];
 
 const meta = {
@@ -483,7 +483,7 @@ export const MinimalOutput: Story = {
   args: {showLineNumbers: true},
   render: (args) => (
     <div className="max-w-3xl">
-      <LogView {...args} records={[{v: 1, ts: at(1), type: 'end', total_bytes: 0}]} />
+      <LogView {...args} records={[{v: 1, ts: at(1), type: 'end', totalBytes: 0}]} />
     </div>
   ),
 };
