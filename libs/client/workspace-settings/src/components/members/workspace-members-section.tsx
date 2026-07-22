@@ -31,6 +31,7 @@ import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {formatDate} from '@shipfox/react-ui/utils';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
+import type {Invitation} from '#core/invitation.js';
 import {useCreateInvitation} from '#hooks/api/create-invitation.js';
 import {useListInvitations} from '#hooks/api/list-invitations.js';
 import {useListMembers} from '#hooks/api/list-members.js';
@@ -194,7 +195,7 @@ function PendingInvitationsSection({
   workspaceName: string;
 }) {
   const query = useListInvitations(workspaceId);
-  const invitations = query.data?.invitations ?? [];
+  const invitations = query.data ?? [];
   const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
@@ -249,16 +250,10 @@ function PendingInvitationsSection({
   );
 }
 
-function InvitationRow({
-  invitation,
-  workspaceId,
-}: {
-  invitation: import('@shipfox/api-workspaces-dto').InvitationDto;
-  workspaceId: string;
-}) {
+function InvitationRow({invitation, workspaceId}: {invitation: Invitation; workspaceId: string}) {
   const [open, setOpen] = useState(false);
   const revoke = useRevokeInvitation(workspaceId);
-  const expiresAt = new Date(invitation.expires_at);
+  const expiresAt = new Date(invitation.expiresAt);
   const expiresSoon = expiresAt.getTime() - Date.now() < EXPIRES_SOON_MS;
 
   async function handleRevoke() {
@@ -276,10 +271,10 @@ function InvitationRow({
       <TableCell>
         <Code variant="paragraph">{invitation.email}</Code>
       </TableCell>
-      <TableCell>{invitation.invited_by_display ?? '—'}</TableCell>
+      <TableCell>{invitation.invitedByDisplay ?? '—'}</TableCell>
       <TableCell>
         <div className="flex items-center gap-8">
-          <Text size="sm">{formatDate(invitation.expires_at)}</Text>
+          <Text size="sm">{formatDate(invitation.expiresAt)}</Text>
           {expiresSoon ? <Badge variant="warning">Soon</Badge> : null}
         </div>
       </TableCell>

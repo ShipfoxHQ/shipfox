@@ -16,6 +16,25 @@ export interface ApiRequestOptions {
   signal?: AbortSignal | undefined;
 }
 
+export interface StandardSchema<Input = unknown, Output = Input> {
+  readonly '~standard': {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (
+      value: unknown,
+    ) =>
+      | {readonly value: Output; readonly issues?: undefined}
+      | {readonly value?: undefined; readonly issues: ReadonlyArray<unknown>}
+      | Promise<
+          | {readonly value: Output; readonly issues?: undefined}
+          | {readonly value?: undefined; readonly issues: ReadonlyArray<unknown>}
+        >;
+  };
+}
+
+export type StandardSchemaOutput<Schema extends StandardSchema> =
+  Schema extends StandardSchema<unknown, infer Output> ? Output : never;
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -27,6 +46,15 @@ export class ApiError extends Error {
     this.code = params.code;
     this.status = params.status;
     this.details = params.details;
+  }
+}
+
+export class InvalidApiResponseError extends Error {
+  readonly code = 'invalid-response';
+
+  constructor() {
+    super('The server returned an invalid response.');
+    this.name = 'InvalidApiResponseError';
   }
 }
 
@@ -62,6 +90,10 @@ export function getErrorCode(error: unknown): string | undefined {
 
 export function isErrorWithCode(error: unknown, code: string): boolean {
   return getErrorCode(error) === code;
+}
+
+export function isInvalidApiResponseError(error: unknown): error is InvalidApiResponseError {
+  return error instanceof InvalidApiResponseError;
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -182,4 +214,21 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     }
     throw error;
   }
+}
+
+/**
+ * Requests and validates a JSON response at the transport boundary.
+ *
+ * Invalid payloads intentionally expose no response body or validation details,
+ * which can contain unexpected sensitive values from an untrusted server.
+ */
+export async function checkedApiRequest<Schema extends StandardSchema>(
+  schema: Schema,
+  path: string,
+  options: ApiRequestOptions = {},
+): Promise<StandardSchemaOutput<Schema>> {
+  const response = await apiRequest<unknown>(path, options);
+  const result = await schema['~standard'].validate(response);
+  if ('issues' in result) throw new InvalidApiResponseError();
+  return result.value as StandardSchemaOutput<Schema>;
 }

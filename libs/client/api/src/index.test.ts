@@ -1,9 +1,12 @@
+import {z} from 'zod';
 import {
   ApiError,
   apiRequest,
+  checkedApiRequest,
   configureApiClient,
   getErrorCode,
   isErrorWithCode,
+  isInvalidApiResponseError,
   resetApiClient,
 } from './index.js';
 
@@ -155,5 +158,29 @@ describe('resetApiClient', () => {
     const request = freshFetch.mock.calls[0]?.[0] as Request;
     expect(request.url).toBe('https://fresh.example.test/workspaces');
     expect(request.headers.get('authorization')).toBeNull();
+  });
+});
+
+describe('checkedApiRequest', () => {
+  test('returns the schema output', async () => {
+    configureApiClient({fetchImpl: vi.fn().mockResolvedValue(jsonResponse({id: 'workspace-1'}))});
+    const schema = z.object({id: z.string()});
+
+    const result = await checkedApiRequest(schema, '/workspaces/workspace-1');
+
+    expect(result).toEqual({id: 'workspace-1'});
+  });
+
+  test('keeps invalid responses distinct from transport errors without retaining the payload', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn().mockResolvedValue(jsonResponse({secret: 'do-not-expose'})),
+    });
+    const schema = z.object({id: z.string()});
+
+    const result = checkedApiRequest(schema, '/workspaces/workspace-1');
+
+    await expect(result).rejects.toMatchObject({code: 'invalid-response'});
+    await expect(result).rejects.not.toThrow('do-not-expose');
+    await expect(result.catch(isInvalidApiResponseError)).resolves.toBe(true);
   });
 });

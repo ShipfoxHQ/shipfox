@@ -53,6 +53,15 @@ adding, updating, or exempting a dependency. It defines catalog range rules,
 peer compatibility, coordinated Renovate families, and the transitive exception
 format.
 
+## Client architecture
+
+Client features follow [ADR 0003](docs/adr/0003-client-state-and-domain-architecture.md). API adapters
+validate response contracts and map them to package-owned domain models before caching. The
+`pnpm check:client-architecture` audit blocks new boundary violations while
+`tools/client-architecture-policy/client-architecture-baseline.json` records the remaining migration
+work. Do not add a baseline entry for new code. Move it to the approved adapter, `core/`, or resource
+mutation owner instead.
+
 ## Error reporting
 
 Report unexpected API-process failures at the earliest owning boundary. A catch

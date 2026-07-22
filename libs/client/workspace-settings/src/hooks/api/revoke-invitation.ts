@@ -1,6 +1,6 @@
 import {apiRequest} from '@shipfox/client-api';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
-import {listInvitationsQueryKey} from './list-invitations.js';
+import {listInvitationsQueryOptions} from './list-invitations.js';
 
 async function revokeInvitation(params: {workspaceId: string; invitationId: string}) {
   await apiRequest<void>(`/workspaces/${params.workspaceId}/invitations/${params.invitationId}`, {
@@ -13,7 +13,7 @@ export function useRevokeInvitation(workspaceId: string) {
   return useMutation({
     mutationFn: (invitationId: string) => revokeInvitation({workspaceId, invitationId}),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({queryKey: listInvitationsQueryKey(workspaceId)});
+      await queryClient.invalidateQueries(listInvitationsQueryOptions(workspaceId));
     },
   });
 }
