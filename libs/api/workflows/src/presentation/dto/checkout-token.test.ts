@@ -1,5 +1,11 @@
-import type {CheckoutSpec} from '@shipfox/api-integration-core';
 import {toCheckoutTokenDto} from './checkout-token.js';
+
+type CheckoutSpec = {
+  repositoryUrl: string;
+  ref: string;
+  credentials?: {username: string; token: string; expiresAt: Date};
+  gitAuthor?: {name: string; email: string};
+};
 
 describe('toCheckoutTokenDto', () => {
   it('maps credentials to basic auth with an ISO expiry', () => {

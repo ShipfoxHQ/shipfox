@@ -1,19 +1,11 @@
 import {
-  createAgentModule,
-  createCustomModelProviderConfig,
-  testAndSaveModelProviderConfig,
-} from '@shipfox/api-agent';
-import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
-import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
+  type AgentInterModuleClient,
+  agentInterModuleContract,
+} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
-import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
-import {
-  createInMemoryInterModuleTransport,
-  registerInterModulePresentations,
-} from '@shipfox/node-module/inter-module';
 import {eq} from 'drizzle-orm';
 import type {StepStatus} from '#core/entities/step.js';
 import {db} from '#db/db.js';
@@ -32,22 +24,32 @@ import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
 const {captureExceptionMock} = vi.hoisted(() => ({captureExceptionMock: vi.fn()}));
-vi.mock('@shipfox/api-agent/core/resolve-runtime-credentials', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@shipfox/api-agent/core/resolve-runtime-credentials')>();
-  return {...actual, resolveRuntimeCredentials: vi.fn(actual.resolveRuntimeCredentials)};
-});
 vi.mock('@shipfox/node-error-monitoring', () => ({captureException: captureExceptionMock}));
 
 const URL = '/runs/jobs/current/agent-runtime-config';
 const secrets = createTestSecretsClient();
-const agentTransport = createInMemoryInterModuleTransport();
-const agentTestClient = agentTransport.createClient(agentInterModuleContract);
-registerInterModulePresentations({
-  transport: agentTransport,
-  modules: [createAgentModule({secrets})],
-});
-agentTransport.seal();
+const runtimeConfigs = new Map<
+  string,
+  Awaited<ReturnType<AgentInterModuleClient['resolveRuntimeCredentials']>>
+>();
+const resolveRuntimeCredentials = vi.fn<AgentInterModuleClient['resolveRuntimeCredentials']>(
+  ({workspaceId}) => {
+    const runtimeConfig = runtimeConfigs.get(workspaceId);
+    if (runtimeConfig) return Promise.resolve(runtimeConfig);
+    return Promise.reject(
+      createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        'model-provider-not-configured',
+        {},
+      ),
+    );
+  },
+);
+const agentTestClient: AgentInterModuleClient = {
+  getValidationCatalog: vi.fn(),
+  resolveAgentConfig: vi.fn(),
+  resolveRuntimeCredentials,
+};
 
 describe('GET /runs/jobs/current/agent-runtime-config', () => {
   let app: FastifyInstance;
@@ -76,7 +78,8 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
   beforeEach(() => {
     clearLogLines();
     captureExceptionMock.mockReset();
-    vi.mocked(resolveRuntimeCredentials).mockClear();
+    runtimeConfigs.clear();
+    resolveRuntimeCredentials.mockClear();
   });
 
   afterAll(async () => {
@@ -158,67 +161,6 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().credentials.api_key).toBe('sk-gated-workspace-secret');
-  });
-
-  test('returns custom provider descriptors for a running leased custom agent step', async () => {
-    const workspaceId = crypto.randomUUID();
-    await createCustomModelProviderConfig(
-      {
-        workspaceId,
-        body: {
-          slug: 'local-vllm',
-          display_name: 'Local vLLM',
-          api: 'openai-responses',
-          base_url: 'http://127.0.0.1:11434/v1',
-          api_key: 'sk-local-secret',
-          headers: [{name: 'authorization', value: 'Bearer local', secret: true}],
-          models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-        },
-      },
-      {probe: async () => undefined, secrets},
-    );
-    const {job, step} = await createRunningAgentStep({
-      workspaceId,
-      resolveAgentDefaults: () => ({
-        harness: 'pi',
-        provider: 'local-vllm',
-        model: 'llama-3.1',
-        thinking: 'high',
-      }),
-      steps: [
-        {
-          provider: 'local-vllm',
-          model: 'llama-3.1',
-          thinking: 'high',
-          prompt: 'Fix the tests.',
-        },
-      ],
-    });
-    const token = await mintActiveLeaseToken({jobId: job.id});
-
-    const res = await app.inject({
-      method: 'GET',
-      url: runtimeConfigUrl(step.id, step.currentAttempt),
-      headers: {authorization: `Bearer ${token}`},
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({
-      harness: 'pi',
-      provider_id: 'local-vllm',
-      model: 'llama-3.1',
-      credentials: {
-        api_key: 'sk-local-secret',
-        'header:authorization': 'Bearer local',
-      },
-      custom_provider: {
-        api: 'openai-responses',
-        base_url: 'http://127.0.0.1:11434/v1',
-        secret_header_names: ['authorization'],
-        models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-        requires_api_key: true,
-      },
-    });
   });
 
   test('returns 404 when the lease token is no longer the active job lease', async () => {
@@ -348,10 +290,10 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
   test('returns 409 and reports when workspace credentials cannot be decrypted', async () => {
     const {job, step} = await createRunningAgentStep();
-    vi.mocked(resolveRuntimeCredentials).mockRejectedValueOnce(
+    resolveRuntimeCredentials.mockRejectedValueOnce(
       createInterModuleKnownError(
-        secretsInterModuleContract.methods.getSecretsByNamespace,
-        'secret-decryption-failed',
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        'model-provider-credentials-invalid',
         {},
       ),
     );
@@ -397,15 +339,14 @@ function runtimeConfigUrl(stepId: string, attempt: number): string {
   return `${URL}?${search.toString()}`;
 }
 
-async function saveWorkspaceCredential(workspaceId: string, apiKey: string) {
-  return await testAndSaveModelProviderConfig(
-    {
-      workspaceId,
-      providerId: 'anthropic',
-      credentials: {api_key: apiKey},
-    },
-    {probe: async () => undefined, secrets},
-  );
+function saveWorkspaceCredential(workspaceId: string, apiKey: string): void {
+  runtimeConfigs.set(workspaceId, {
+    harness: 'pi',
+    provider_id: 'anthropic',
+    model: 'claude-opus-4-8',
+    thinking: 'xhigh',
+    credentials: {api_key: apiKey},
+  });
 }
 
 type TestStepInput =

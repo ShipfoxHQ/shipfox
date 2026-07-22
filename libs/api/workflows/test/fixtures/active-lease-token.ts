@@ -1,11 +1,10 @@
-import {db} from '#db/db.js';
-import {runnerSessions, runningJobExecutions} from '#db/runner-lease-table.js';
 import {
   getFirstJobExecutionByJobId,
   getJobById,
   getWorkflowRunByAttemptId,
 } from '#db/workflow-runs.js';
 import {mintLeaseToken} from './lease-token.js';
+import {registerActiveRunnerLease} from './runners-inter-module.js';
 
 export interface MintActiveLeaseTokenParams {
   jobId: string;
@@ -26,13 +25,9 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
   if (!run) throw new Error('Expected workflow run to exist');
   const runnerSessionId = crypto.randomUUID();
 
-  await insertRunningJobLease({
-    workspaceId: run.workspaceId,
-    workflowRunId: run.id,
-    workflowRunAttemptId: job.workflowRunAttemptId,
+  registerActiveRunnerLease({
     jobId: params.jobId,
     jobExecutionId: jobExecution.id,
-    projectId: run.projectId,
     runnerSessionId,
   });
 
@@ -57,29 +52,7 @@ export interface InsertRunningJobLeaseParams {
   runnerSessionId: string;
 }
 
-export async function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {
-  await db()
-    .insert(runnerSessions)
-    .values({
-      id: params.runnerSessionId,
-      workspaceId: params.workspaceId,
-      scope: 'workspace',
-      registrationTokenId: crypto.randomUUID(),
-      registrationTokenKind: 'manual',
-      labels: ['linux'],
-    });
-
-  await db()
-    .insert(runningJobExecutions)
-    .values({
-      workspaceId: params.workspaceId,
-      workflowRunId: params.workflowRunId,
-      workflowRunAttemptId: params.workflowRunAttemptId,
-      jobId: params.jobId,
-      jobExecutionId: params.jobExecutionId,
-      projectId: params.projectId,
-      runnerSessionId: params.runnerSessionId,
-      requiredLabels: ['linux'],
-      runnerLabels: ['linux'],
-    });
+export function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {
+  registerActiveRunnerLease(params);
+  return Promise.resolve();
 }

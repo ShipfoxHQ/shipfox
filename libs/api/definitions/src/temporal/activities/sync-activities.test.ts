@@ -1,9 +1,9 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {isErrorReported} from '@shipfox/node-error-monitoring';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
+import type {DefinitionsSourceControl} from '#core/integrations.js';
 import {db, definitionSyncStates} from '#db/index.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
@@ -27,11 +27,9 @@ jobs:
 `;
 
 function sourceControl(
-  overrides: Partial<IntegrationSourceControlService> = {},
-): IntegrationSourceControlService {
+  overrides: Partial<DefinitionsSourceControl> = {},
+): DefinitionsSourceControl {
   return {
-    getConnection: vi.fn(),
-    listRepositories: vi.fn(),
     resolveRepository: vi.fn(() =>
       Promise.resolve({
         connection: {
@@ -66,7 +64,6 @@ function sourceControl(
     fetchFile: vi.fn(() =>
       Promise.resolve({path: '.shipfox/workflows/ci.yml', ref: 'main', content: validYaml}),
     ),
-    createCheckoutSpec: vi.fn(),
     ...overrides,
   };
 }
