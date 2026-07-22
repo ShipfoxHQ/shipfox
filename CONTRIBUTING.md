@@ -11,51 +11,42 @@ By participating, you are expected to uphold this code.
 
 ## Getting Started
 
-### Install tooling
+### Install tooling and dependencies
 
-[mise](https://mise.jdx.dev/) reads `mise.toml` and installs the correct versions of Node.js, pnpm, Turbo, and Ollama.
+[mise](https://mise.jdx.dev/) reads `mise.toml` and installs the correct versions
+of Node.js, pnpm, Turbo, and Ollama.
+
+Install the pinned tools and workspace dependencies:
 
 ```sh
 mise install
-```
-
-Use mise-managed tools directly after activation, or through `mise exec` in
-non-interactive scripts:
-
-```sh
 mise exec -- pnpm install
-mise exec -- turbo build
 ```
 
-### Start local services
+### Start services and build
 
 ```sh
 docker compose up -d
+mise exec -- turbo build
 ```
 
-### Install dependencies and build
+This creates a working local checkout. Use `mise exec --` for shell scripts and
+automation. Run `mise tasks` to discover repository tasks.
 
-```sh
-pnpm install
-turbo build
-```
+## Normal contribution workflow
 
-Build a specific package and its dependencies:
-
-```sh
-turbo build --filter=@shipfox/api...
-```
+Make a focused change. Run the smallest relevant validation before opening a
+pull request. Read the [local development and release workflow guide](docs/guides/local-development-and-release-workflow.md)
+when you need task selection, Conductor or Ollama recovery, affected-package
+validation, or package release procedures.
 
 If your contribution creates or changes a visual or interaction decision, read
 the [design system](DESIGN.md). It owns shared design guidance and points to
 the code that owns exact token and component values.
 
-## Dependency versions
-
-Read the [dependency version policy](docs/policies/dependency-versions.md) before
-adding, updating, or exempting a dependency. It defines catalog range rules,
-peer compatibility, coordinated Renovate families, and the transitive exception
-format.
+If you add, update, or exempt a dependency, read the
+[dependency version policy](docs/policies/dependency-versions.md). It defines
+version rules, exceptions, package families, and dependency checks.
 
 ## Client architecture
 
@@ -77,85 +68,6 @@ application log so self-hosters can diagnose it without Sentry. Log the error
 and only safe, bounded context such as the boundary's module, operation, or
 resource identifier. Never attach request bodies, headers, cookies, tokens, or
 payloads to either logs or reports.
-
-## Local Tooling
-
-### Mise Tasks
-
-The repository defines project tasks in `mise.toml`. List them with:
-
-```sh
-mise tasks
-```
-
-Mise tasks are safe to run from the main checkout or from a Conductor worktree.
-When a task needs the main checkout, it detects `CONDUCTOR_ROOT_PATH` and
-delegates to `mise -C "$CONDUCTOR_ROOT_PATH" run <task>`.
-
-### Shared Ollama
-
-Ollama is installed by mise and is used as a shared local service. It is started
-from the main checkout, not from each Conductor worktree, because the server is
-heavy and stateless.
-
-Conductor setup runs this automatically for local workspaces:
-
-```sh
-mise run ollama:up
-```
-
-From a worktree, that task delegates to the root checkout and runs the root
-`ollama:up` task. From the root checkout, it starts `ollama serve`, pulls
-`smollm2:135m-instruct-q2_K`, and then reports the API as ready. A background warmup request
-preloads the model with a 24 hour keep-alive, so callers can start using the
-Ollama HTTP API as soon as the pull completes.
-
-Useful commands:
-
-```sh
-mise run ollama:up       # start the shared server and pull smollm2:135m-instruct-q2_K
-mise run ollama:status   # show endpoint, root path, and managed process status
-mise run ollama:stop     # stop the server if this repo started it
-```
-
-The helper stores process state and logs under:
-
-```text
-$CONDUCTOR_ROOT_PATH/.context/shared-ollama/
-```
-
-The default endpoint is `http://127.0.0.1:11434`. Override it only when needed:
-
-```sh
-SHIPFOX_OLLAMA_BASE_URL=http://127.0.0.1:11500 mise run ollama:up
-SHIPFOX_OLLAMA_MODEL=other:model mise run ollama:up
-SHIPFOX_OLLAMA_KEEP_ALIVE=2h mise run ollama:up
-```
-
-### Conductor Worktree Services
-
-Conductor workspaces run `dev/worktree-services.mjs up` during setup. This
-creates per-worktree Docker services, leases a 20-port block from
-`~/.shipfox/shipfox-port-leases.json`, and writes the generated app environment
-to `.context/local-services/env`, which is loaded by `mise.toml`. Conductor
-workspaces use `CONDUCTOR_WORKSPACE_ID` as the stable lease identity, so a
-workspace rename keeps its ports. Ordinary git worktrees and clones fall back to
-their resolved path.
-
-Common commands:
-
-```sh
-mise exec -- node dev/worktree-services.mjs status
-mise exec -- node dev/worktree-services.mjs stop
-mise exec -- node dev/worktree-services.mjs destroy
-mise exec -- node dev/worktree-services.mjs cleanup
-```
-
-`destroy` removes the worktree Docker volumes and generated local-service state.
-The shared Ollama service is intentionally not stopped during workspace archive.
-`cleanup` only reports leases whose workspace path no longer exists. Run
-`mise exec -- node dev/worktree-services.mjs cleanup --apply` to remove the
-reported leases.
 
 ## Writing Documentation
 
@@ -184,61 +96,6 @@ package/
   dist/         Build output (git-ignored)
 ```
 
-## Common Scripts
-
-Available in most packages via `pnpm <script>`:
-
-| Script       | Description                                     |
-| ------------ | ----------------------------------------------- |
-| `build`      | Transpile source with [SWC](https://swc.rs/)    |
-| `dev`        | Start in watch mode with hot-reload (apps only) |
-| `type`       | Type-check and emit declarations                |
-| `lint`       | Check for lint errors                           |
-| `lint:fix`   | Auto-fix lint errors                            |
-| `format`     | Check formatting                                |
-| `format:fix` | Auto-fix formatting                             |
-| `test`       | Run tests once                                  |
-| `test:watch` | Run tests in watch mode                         |
-
-## Publishing & Changesets
-
-`libs/` and `tools/` packages publish to npm under `@shipfox/*`. `apps/`,
-`e2e/`, and the workspace root stay private.
-
-Every non-trivial PR touching `libs/` or `tools/` needs a changeset. Pure
-formatting or comment-only edits can skip it.
-
-```sh
-pnpm exec changeset          # humans
-# agents: invoke the `generate-changeset` skill
-```
-
-Pick the bump: `patch` for fixes/refactors, `minor` for additive API, `major`
-for breaking changes. Commit `.changeset/*.md` alongside the code.
-
-Trigger `.github/workflows/publish-packages.yml` from the Actions tab to
-publish.
-
-## Turbo Tasks
-
-[Turbo](https://turbo.build/) orchestrates tasks across the monorepo with caching and dependency ordering. Tasks are defined in `turbo.jsonc`:
-
-| Task | Description |
-| --- | --- |
-| `turbo build` | Build all packages in dependency order |
-| `turbo lint` / `turbo format` | Run checks across all packages |
-| `turbo type` | Type-check all packages in dependency order |
-| `turbo test` | Run tests across all packages |
-| `turbo verify` | Check repository and package invariants |
-| `turbo test:external` | Exercise built packages from clean consumers |
-| `turbo test:e2e` | Run Playwright E2E packages against a pre-started local stack |
-
-`--filter` scopes a task to a specific package:
-
-```sh
-turbo build --filter=@shipfox/api...
-turbo lint --filter=@shipfox/api-hello
-```
 
 ## E2E Testing
 
