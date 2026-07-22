@@ -20,6 +20,8 @@ export function createSingleFlight<Key, Value>({
 }: SingleFlightOptions = {}): SingleFlight<Key, Value> {
   const inFlight = new Map<Key, Promise<Value>>();
   const terminal = new Map<Key, Promise<Value>>();
+  const keyGenerations = new Map<Key, number>();
+  let globalGeneration = 0;
 
   const remember = (key: Key, result: Promise<Value>) => {
     if (maxTerminalResults <= 0) return;
@@ -43,10 +45,14 @@ export function createSingleFlight<Key, Value>({
       const active = inFlight.get(key);
       if (active) return active;
 
+      const keyGeneration = keyGenerations.get(key) ?? 0;
+      const runGeneration = globalGeneration;
       const result = Promise.resolve().then(operation);
       inFlight.set(key, result);
       const settle = () => {
         if (inFlight.get(key) === result) inFlight.delete(key);
+        if (runGeneration !== globalGeneration || keyGeneration !== (keyGenerations.get(key) ?? 0))
+          return;
         remember(key, result);
       };
       result.then(settle, settle);
@@ -56,9 +62,12 @@ export function createSingleFlight<Key, Value>({
       if (key === undefined) {
         inFlight.clear();
         terminal.clear();
+        keyGenerations.clear();
+        globalGeneration += 1;
       } else {
         inFlight.delete(key);
         terminal.delete(key);
+        keyGenerations.set(key, (keyGenerations.get(key) ?? 0) + 1);
       }
     },
     get inFlightSize() {

@@ -38,4 +38,18 @@ describe('createSingleFlight', () => {
 
     expect(flight.terminalSize).toBe(2);
   });
+
+  it('does not retain an in-flight result cleared before settlement', async () => {
+    const flight = createSingleFlight<string, string>({maxTerminalResults: 1});
+    let resolve!: (value: string) => void;
+    const result = flight.run('callback', () => new Promise<string>((done) => (resolve = done)));
+    await Promise.resolve();
+
+    flight.clear('callback');
+    resolve('complete');
+    await result;
+    await Promise.resolve();
+
+    expect(flight.terminalSize).toBe(0);
+  });
 });

@@ -1,8 +1,10 @@
 import {createTypedBrowserStorage, localStorageOrUndefined} from '@shipfox/client-ui';
 import {atom} from 'jotai';
 
+const lastWorkspaceStorageKey = 'shipfox.lastWorkspaceId';
+
 const lastWorkspaceStorage = createTypedBrowserStorage(localStorageOrUndefined, {
-  key: 'shipfox.lastWorkspaceId',
+  key: lastWorkspaceStorageKey,
   lifetime: 'persistent',
   principalScope: 'principal',
   serialize: (workspaceId: string) => JSON.stringify(workspaceId),
@@ -17,6 +19,16 @@ const lastWorkspaceStorage = createTypedBrowserStorage(localStorageOrUndefined, 
 });
 
 const storedLastWorkspaceIdAtom = atom<string | undefined>(getLastWorkspaceId());
+
+storedLastWorkspaceIdAtom.onMount = (setLastWorkspaceId) => {
+  if (typeof window === 'undefined') return undefined;
+
+  const syncFromStorage = (event: StorageEvent) => {
+    if (event.key === lastWorkspaceStorageKey) setLastWorkspaceId(getLastWorkspaceId());
+  };
+  window.addEventListener('storage', syncFromStorage);
+  return () => window.removeEventListener('storage', syncFromStorage);
+};
 
 export const lastWorkspaceIdAtom = atom(
   (get) => get(storedLastWorkspaceIdAtom),

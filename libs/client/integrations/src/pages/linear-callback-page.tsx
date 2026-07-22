@@ -17,6 +17,8 @@ import {
   serializeLinearCallbackQuery,
 } from '#linear-callback.js';
 
+// Retain only recent completions: this bounds long-lived callback pages while
+// still covering StrictMode and immediate Back/Forward remounts.
 const callbackRequests = createSingleFlight<string, LinearCallbackResponseDto>({
   maxTerminalResults: 32,
 });

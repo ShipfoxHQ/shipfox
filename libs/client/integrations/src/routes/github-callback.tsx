@@ -14,6 +14,8 @@ interface GithubCallbackParams {
   setupAction?: string;
 }
 
+// Retain only recent completions: this bounds long-lived callback pages while
+// still covering StrictMode and immediate Back/Forward remounts.
 const callbackRequests = createSingleFlight<string, void>({maxTerminalResults: 32});
 const toastedCallbacks = new Set<string>();
 
@@ -109,7 +111,7 @@ function numberParam(value: unknown): number | undefined {
   }
   return undefined;
 }
-function githubCallbackErrorMessage(error: unknown): string {
+export function githubCallbackErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return 'GitHub could not be installed. Try again from settings.';
   return 'Could not install GitHub.';
 }

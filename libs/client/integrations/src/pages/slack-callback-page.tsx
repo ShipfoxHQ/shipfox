@@ -17,6 +17,8 @@ import {
   serializeSlackCallbackQuery,
 } from '#slack-callback.js';
 
+// Retain only recent completions: this bounds long-lived callback pages while
+// still covering StrictMode and immediate Back/Forward remounts.
 const callbackRequests = createSingleFlight<string, SlackCallbackResponseDto>({
   maxTerminalResults: 32,
 });
