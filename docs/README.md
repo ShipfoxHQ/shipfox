@@ -17,6 +17,7 @@ listed there or when you need to place, update, or review documentation.
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |
 | Changes server module boundaries or an inter-module call. | [ADR 0002](adr/0002-api-inter-module-architecture.md) | Producer-owned inter-module contracts and bounded-context crossings. |
+| Adds or changes a backend module, DTO, outbox event, HTTP boundary, or server package dependency. | [Backend architecture](architecture/backend-architecture.md) | The current backend module model and package-boundary rules. |
 | Changes client state, API adapters, forms, or feature-domain boundaries. | [ADR 0003](adr/0003-client-state-and-domain-architecture.md) | Client state ownership and domain architecture decisions. |
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
