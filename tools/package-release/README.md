@@ -26,3 +26,14 @@ pnpm --filter=@shipfox/package-release verify-generated-release -- \
 
 `classification` is either `generated-release` or `not-generated-release`.
 CI must use only `generated-release` to select a release-specific path.
+
+`pnpm run release:preflight` builds the public libraries and tools, stages every
+package in `publication-closure.json` plus every public tool, and packs each one
+without registry credentials. It validates productionized manifests, runtime
+dependency references, and packed entry-point files. Staging directories and
+tarballs live under the system temporary directory, so the source tree is not
+rewritten.
+
+Preflight proves that the planned packages can be transformed and packed as a
+coherent release closure. The real publish step still proves registry
+authorization, provenance, and that npm accepted each upload.

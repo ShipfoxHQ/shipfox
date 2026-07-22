@@ -72,6 +72,36 @@ test('packs a staged production manifest without changing the source package', a
   assert.equal(await readFile(join(sourceDirectory, 'package.json'), 'utf8'), sourceManifest);
 });
 
+test('removes test-only internal imports from production manifests', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'shipfox-productionized-manifest-packer-'));
+  roots.push(root);
+  const sourceDirectory = join(root, 'source');
+  const stagingRoot = join(root, 'staging');
+  await mkdir(sourceDirectory, {recursive: true});
+  await mkdir(stagingRoot, {recursive: true});
+  await Promise.all([
+    writeFile(join(sourceDirectory, 'dist.js'), 'export {};'),
+    writeFile(
+      join(sourceDirectory, 'package.json'),
+      JSON.stringify({name: '@shipfox/example', imports: {'#test/*': './test/*'}}),
+    ),
+  ]);
+
+  const result = await packProductionizedPackage({
+    dependencyContext: {workspaceConfig: {}, workspaceVersions: new Map()},
+    manifest: {name: '@shipfox/example'},
+    packArtifact: async (stagedDirectory) =>
+      JSON.parse(await readFile(join(stagedDirectory, 'package.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >,
+    sourceDirectory,
+    stagingRoot,
+  });
+
+  assert.deepEqual(result.imports, {});
+});
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await access(path);

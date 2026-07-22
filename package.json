@@ -16,6 +16,7 @@
     "check:published-artifacts": "turbo verify --filter=@shipfox/package-release",
     "fix:dependencies": "pnpm --filter=@shipfox/dependency-policy fix",
     "release:publish": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && pnpm --filter=@shipfox/package-release publish:closure",
+    "release:preflight": "turbo type build type:emit --filter='./libs/**' --filter='./tools/**' && pnpm --filter=@shipfox/package-release preflight",
     "test:external": "turbo test:external",
     "verify": "turbo verify"
   },

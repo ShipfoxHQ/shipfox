@@ -60,6 +60,24 @@ jobs:
       - name: Verify external package contracts
         run: turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
 
+  publication-preflight:
+    name: Package publication preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Preflight package publication closure
+        run: pnpm run release:preflight
+
   tests:
     name: Unit and story tests
     runs-on: ubuntu-latest

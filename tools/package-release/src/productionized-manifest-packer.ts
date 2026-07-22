@@ -41,13 +41,23 @@ export async function packProductionizedPackage<T>({
   const stagedManifestPath = join(stagedDirectory, 'package.json');
   const stagedManifest = JSON.parse(await readFile(stagedManifestPath, 'utf8')) as JsonRecord;
   const productionManifest = productionizeDependencyReferences(
-    productionizeManifest(stagedManifest),
+    productionizePackageManifest(stagedManifest),
     dependencyContext,
   );
-  delete productionManifest.devDependencies;
   await writeFile(stagedManifestPath, `${JSON.stringify(productionManifest, null, 2)}\n`);
 
   return packArtifact(stagedDirectory);
+}
+
+export function productionizePackageManifest(manifest: JsonRecord): JsonRecord {
+  const productionManifest = productionizeManifest(manifest);
+  const {devDependencies: _, imports, ...publishManifest} = productionManifest;
+  if (!isRecord(imports)) return publishManifest;
+
+  const publishImports = Object.fromEntries(
+    Object.entries(imports).filter(([specifier]) => !specifier.startsWith('#test/')),
+  );
+  return {...publishManifest, imports: publishImports};
 }
 
 export function run(
