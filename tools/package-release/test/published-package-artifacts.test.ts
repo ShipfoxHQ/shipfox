@@ -6,6 +6,7 @@ import {
   consumerDependencies,
   consumerOverrides,
   findUnsupportedProtocol,
+  runtimeEntryPoints,
   safePackageName,
 } from '../src/published-package-artifacts.js';
 
@@ -64,23 +65,34 @@ describe('catalogRange', () => {
 });
 
 describe('consumerDependencies', () => {
-  test('declares React UI peers without relying on auto-install-peers', () => {
+  test('installs every packed artifact from its local tarball', () => {
     const tarballs = {
       '@shipfox/react-ui': '/tmp/react-ui.tgz',
       '@shipfox/redact': '/tmp/redact.tgz',
     };
 
-    const dependencies = consumerDependencies(tarballs, {
-      react: '^19.0.0',
-      'react-dom': '^19.0.0',
-    });
+    const dependencies = consumerDependencies(tarballs);
 
     assert.deepEqual(dependencies, {
       '@shipfox/react-ui': 'file:/tmp/react-ui.tgz',
       '@shipfox/redact': 'file:/tmp/redact.tgz',
-      react: '^19.0.0',
-      'react-dom': '^19.0.0',
     });
+  });
+});
+
+describe('runtimeEntryPoints', () => {
+  test('discovers runtime exports and excludes type-only or data exports', () => {
+    const entryPoints = runtimeEntryPoints('@shipfox/example', {
+      name: '@shipfox/example',
+      exports: {
+        '.': {types: './dist/index.d.ts', default: './dist/index.js'},
+        './client': './client.d.ts',
+        './config': './config.json',
+        './runner': './dist/runner.mjs',
+      },
+    });
+
+    assert.deepEqual(entryPoints, ['@shipfox/example', '@shipfox/example/runner']);
   });
 });
 

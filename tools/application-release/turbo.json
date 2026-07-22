@@ -2,6 +2,14 @@
   "$schema": "https://turbo.build/schema.json",
   "extends": ["//"],
   "tasks": {
+    "verify": {
+      "dependsOn": ["$TURBO_EXTENDS$"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/publication-closure.json",
+        "$TURBO_ROOT$/{apps,e2e,infra,libs,tools,turbo}/**/package.json"
+      ]
+    },
     "test:external": {
       "dependsOn": ["$TURBO_EXTENDS$", "@shipfox/api#build", "@shipfox/api#type:emit"]
     }

@@ -1,7 +1,7 @@
 import {globSync} from 'node:fs';
-import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
+import {access, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join, resolve} from 'node:path';
+import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {parse as parseYaml} from 'yaml';
@@ -16,17 +16,15 @@ import {
 
 type DependencyMap = Record<string, string>;
 
-interface PackageManifest extends Record<string, unknown> {
+export interface PackageManifest extends Record<string, unknown> {
+  bin?: Record<string, string> | string;
   dependencies?: DependencyMap;
+  exports?: unknown;
+  main?: string;
   name: string;
   peerDependencies?: DependencyMap;
   private?: boolean;
   version?: string;
-}
-
-interface ReactPeerDependencies {
-  react: string;
-  'react-dom': string;
 }
 
 interface SourcePackage {
@@ -44,19 +42,8 @@ type SourcePackageEntry = [string, SourcePackage];
 type SourcePackages = Map<string, SourcePackage>;
 
 const repositoryRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
-const packageSources = {
-  '@shipfox/api-common-dto': 'libs/api/common-dto',
-  '@shipfox/api-integration-core-dto': 'libs/api/integration/core-dto',
-  '@shipfox/api-projects-dto': 'libs/api/projects-dto',
-  '@shipfox/application-release': 'tools/application-release',
-  '@shipfox/inter-module': 'libs/shared/common/inter-module',
-  '@shipfox/react-ui': 'libs/shared/react/ui',
-  '@shipfox/redact': 'libs/shared/common/redact',
-  '@shipfox/regex': 'libs/shared/common/regex',
-} satisfies Record<string, string>;
-const packageNames = Object.keys(packageSources);
 const registryShipfoxPackagePattern = /^@shipfox\+[^@]+@\d/u;
-const developmentConditionImports = ['@shipfox/regex'];
+const runtimeModulePattern = /\.(?:[cm]?js|node)$/u;
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((error) => {
@@ -93,35 +80,44 @@ export async function main() {
       stagingRoot,
       dependencyContext,
     );
-    await writeConsumerManifest(fixtureRoot, tarballs, reactUiPeerDependencies(sourcePackages));
+    await writeConsumerManifest(fixtureRoot, tarballs);
     await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot);
     await validateInstalledPackages(fixtureRoot, sourcePackages, expectedDependencies);
     await validateNoRegistryShipfoxPackages(fixtureRoot);
-    await exerciseConsumer(fixtureRoot);
-    process.stdout.write(`Validated ${packageNames.length} packed published package artifacts.\n`);
+    await exerciseConsumer(fixtureRoot, sourcePackages);
+    process.stdout.write(`Validated ${sourcePackages.size} packed public tool artifacts.\n`);
   } finally {
     await rm(fixtureRoot, {recursive: true, force: true});
   }
 }
 
-function readSourcePackages(): Promise<SourcePackageEntry[]> {
-  return Promise.all(
-    Object.entries(packageSources).map(async ([name, directory]) => {
-      const manifest = JSON.parse(
-        await readFile(join(repositoryRoot, directory, 'package.json'), 'utf8'),
-      ) as PackageManifest;
-      if (manifest.name !== name) throw new Error(`Expected ${directory} to define ${name}`);
-      if (manifest.private === true) throw new Error(`Representative package ${name} is private`);
+async function readSourcePackages(): Promise<SourcePackageEntry[]> {
+  const entries = await Promise.all(
+    globSync(join(repositoryRoot, 'tools/**/package.json')).map(async (manifestPath) => {
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as PackageManifest;
+      if (manifest.private === true) return undefined;
+      const {name} = manifest;
+      if (typeof name !== 'string')
+        throw new Error(`${manifestPath} does not define a package name`);
       return [
         name,
         {
-          directory: join(repositoryRoot, directory),
+          directory: dirname(manifestPath),
           manifest,
-          manifestPath: join(repositoryRoot, directory, 'package.json'),
+          manifestPath,
         },
       ] satisfies SourcePackageEntry;
     }),
   );
+  const sourcePackageEntries = entries.filter(
+    (entry): entry is SourcePackageEntry => entry !== undefined,
+  );
+  const names = new Set<string>();
+  for (const [name] of sourcePackageEntries) {
+    if (names.has(name)) throw new Error(`Duplicate public tool package: ${name}`);
+    names.add(name);
+  }
+  return sourcePackageEntries;
 }
 
 export function catalogDependencies(
@@ -136,7 +132,7 @@ export function catalogDependencies(
       (!reference.startsWith('catalog:') && !reference.startsWith('workspace:'))
     ) {
       throw new Error(
-        `Representative package ${manifest.name} must use a catalog or workspace reference for ${name}`,
+        `Published package ${manifest.name} must use a catalog or workspace reference for ${name}`,
       );
     }
     const resolved = resolveDependencyReference(name, reference, {
@@ -144,9 +140,7 @@ export function catalogDependencies(
       workspaceVersions,
     });
     if (typeof resolved !== 'string') {
-      throw new Error(
-        `Representative package ${manifest.name} has an invalid dependency for ${name}`,
-      );
+      throw new Error(`Published package ${manifest.name} has an invalid dependency for ${name}`);
     }
     dependencies[name] = resolved;
   }
@@ -207,17 +201,13 @@ async function readWorkspaceVersions(): Promise<Map<string, string>> {
   );
 }
 
-async function writeConsumerManifest(
-  root: string,
-  tarballs: DependencyMap,
-  reactUiPeers: ReactPeerDependencies,
-): Promise<void> {
+async function writeConsumerManifest(root: string, tarballs: DependencyMap): Promise<void> {
   const manifest = {
     name: 'shipfox-published-package-artifacts-consumer',
     version: '1.0.0',
     private: true,
     type: 'module',
-    dependencies: consumerDependencies(tarballs, reactUiPeers),
+    dependencies: consumerDependencies(tarballs),
   };
   await Promise.all([
     writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`),
@@ -228,33 +218,16 @@ async function writeConsumerManifest(
   ]);
 }
 
-export function consumerDependencies(
-  tarballs: DependencyMap,
-  reactUiPeers: ReactPeerDependencies,
-): DependencyMap {
-  return {
-    ...Object.fromEntries(
-      Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`]),
-    ),
-    react: reactUiPeers.react,
-    'react-dom': reactUiPeers['react-dom'],
-  };
+export function consumerDependencies(tarballs: DependencyMap): DependencyMap {
+  return Object.fromEntries(
+    Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`]),
+  );
 }
 
 export function consumerOverrides(tarballs: DependencyMap): DependencyMap {
   return Object.fromEntries(
     Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`]),
   );
-}
-
-function reactUiPeerDependencies(sourcePackages: SourcePackages): ReactPeerDependencies {
-  const peerDependencies = sourcePackages.get('@shipfox/react-ui')?.manifest.peerDependencies;
-  const react = peerDependencies?.react;
-  const reactDom = peerDependencies?.['react-dom'];
-  if (typeof react !== 'string' || typeof reactDom !== 'string') {
-    throw new Error('@shipfox/react-ui must declare react and react-dom peer dependencies');
-  }
-  return {react, 'react-dom': reactDom};
 }
 
 async function validateInstalledPackages(
@@ -277,9 +250,26 @@ async function validateInstalledPackages(
     }
     validateCatalogRanges(name, manifest, expectedDependencies);
     validatePeerRanges(name, sourcePackage.manifest, manifest);
+    await validatePackageFiles(root, name, manifest);
     const packagePath = await realpath(join(root, 'node_modules', name));
     if (!packagePath.startsWith(fixturePath)) {
       throw new Error(`Packed ${name} resolved outside the external consumer`);
+    }
+  }
+}
+
+async function validatePackageFiles(
+  root: string,
+  name: string,
+  manifest: PackageManifest,
+): Promise<void> {
+  const binPaths =
+    typeof manifest.bin === 'string' ? [manifest.bin] : Object.values(manifest.bin ?? {});
+  for (const binPath of binPaths) {
+    try {
+      await access(join(root, 'node_modules', name, binPath));
+    } catch (error) {
+      throw new Error(`Packed ${name} is missing its executable ${binPath}`, {cause: error});
     }
   }
 }
@@ -340,13 +330,10 @@ async function validateNoRegistryShipfoxPackages(root: string): Promise<void> {
   }
 }
 
-async function exerciseConsumer(root: string): Promise<void> {
-  const imports = [
-    '@shipfox/api-integration-core-dto/inter-module',
-    '@shipfox/api-projects-dto/inter-module',
-    '@shipfox/redact',
-    '@shipfox/react-ui/button',
-  ];
+async function exerciseConsumer(root: string, sourcePackages: SourcePackages): Promise<void> {
+  const imports = [...sourcePackages].flatMap(([name, {manifest}]) =>
+    runtimeEntryPoints(name, manifest),
+  );
   await run(
     process.execPath,
     [
@@ -361,52 +348,52 @@ if (modules.some((module) => Object.keys(module).length === 0)) throw new Error(
   await run(
     process.execPath,
     [
-      '--input-type=module',
-      '--eval',
-      `const {createInterModuleClient} = await import('@shipfox/inter-module');
-const {projectsInterModuleContract} = await import('@shipfox/api-projects-dto/inter-module');
-const {integrationsInterModuleContract} = await import('@shipfox/api-integration-core-dto/inter-module');
-const projectId = '00000000-0000-4000-8000-000000000001';
-const projects = createInterModuleClient(projectsInterModuleContract, async () => ({project: null}));
-const integrations = createInterModuleClient(integrationsInterModuleContract, async () => ({
-  path: 'workflow.yml',
-  ref: 'main',
-  content: 'name: workflow',
-}));
-const project = await projects.getProjectById({projectId});
-const file = await integrations.fetchSourceFile({
-  workspaceId: '00000000-0000-4000-8000-000000000002',
-  connectionId: '00000000-0000-4000-8000-000000000003',
-  externalRepositoryId: 'shipfox/project',
-  ref: 'main',
-  path: 'workflow.yml',
-});
-if (project.project !== null || file.content !== 'name: workflow') throw new Error('Packed inter-module client did not execute its contract.');`,
-    ],
-    root,
-  );
-  await run(
-    process.execPath,
-    [
       '--conditions=development',
       '--input-type=module',
       '--eval',
-      `const imports = ${JSON.stringify(developmentConditionImports)};
+      `const imports = ${JSON.stringify(imports)};
 const modules = await Promise.all(imports.map((specifier) => import(specifier)));
 if (modules.some((module) => Object.keys(module).length === 0)) throw new Error('A development-condition import has no exports.');`,
     ],
     root,
   );
-  await run(
-    process.execPath,
-    [
-      '--input-type=module',
-      '--eval',
-      `const tool = await import('./node_modules/@shipfox/application-release/dist/manifest.js');
-if (typeof tool.createApplicationReleaseManifest !== 'function') throw new Error('Packed application-release is missing its manifest builder.');`,
-    ],
-    root,
+}
+
+export function runtimeEntryPoints(name: string, manifest: PackageManifest): string[] {
+  if (manifest.exports === undefined) {
+    return typeof manifest.main === 'string' && runtimeTarget(manifest.main) ? [name] : [];
+  }
+  if (typeof manifest.exports === 'string') {
+    return runtimeTarget(manifest.exports) ? [name] : [];
+  }
+  if (!isRecord(manifest.exports)) return [];
+  const exportsField = manifest.exports;
+  const subpaths = Object.keys(exportsField).filter((key) => key.startsWith('.'));
+  if (subpaths.length === 0) {
+    return exportTargets(exportsField).some(runtimeTarget) ? [name] : [];
+  }
+  return subpaths.flatMap((subpath) => {
+    const target = exportsField[subpath];
+    if (!exportTargets(target).some(runtimeTarget)) return [];
+    return [subpath === '.' ? name : `${name}/${subpath.slice(2)}`];
+  });
+}
+
+function exportTargets(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(exportTargets);
+  if (!isRecord(value)) return [];
+  return Object.entries(value).flatMap(([condition, target]) =>
+    condition === 'types' ? [] : exportTargets(target),
   );
+}
+
+function runtimeTarget(target: string): boolean {
+  return runtimeModulePattern.test(target);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function safePackageName(name: string): string {

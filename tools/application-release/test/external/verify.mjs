@@ -1,7 +1,8 @@
+import {globSync} from 'node:fs';
 import {mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {basename, extname, join, resolve} from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {mapWithConcurrency, packProductionizedPackage, run} from '@shipfox/package-release/packer';
 import {parse as parseYaml} from 'yaml';
 
@@ -65,7 +66,16 @@ try {
   const typeEntryPoints = entryPoints
     .filter(({target}) => entryPointSupportsTypeResolution(target))
     .map(({specifier}) => specifier);
-  await writeFixtureFiles(fixtureRoot, dependencies, runtimeEntryPoints, typeEntryPoints);
+  const publishedScenarios = listPublishedScenarios(closure, workspacePackages);
+  const publishedEnvironment = await readPublishedTestEnvironment(closure, workspacePackages);
+  const fixtureScenarios = await writeFixtureFiles(
+    fixtureRoot,
+    dependencies,
+    runtimeEntryPoints,
+    typeEntryPoints,
+    publishedScenarios,
+    publishedEnvironment,
+  );
   await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot);
   await validateInstalledPackages(fixtureRoot, closure, workspacePackages);
   await validateNoRegistryShipfoxPackages(fixtureRoot);
@@ -73,21 +83,33 @@ try {
   const tsc = resolve(repositoryRoot, 'tools/typescript/node_modules/typescript/bin/tsc');
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
-  await run(process.execPath, ['email-challenge-contract.mjs'], fixtureRoot);
-  await run(process.execPath, ['login-methods-route.mjs'], fixtureRoot);
-  await run(process.execPath, ['runners-composition.mjs'], fixtureRoot);
-  await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
-  await run(
-    resolve(repositoryRoot, 'tools/application-release/node_modules/.bin/tsx'),
-    ['--conditions=development', 'development-conditions.mjs'],
-    fixtureRoot,
-  );
-  await run(process.execPath, ['workflow-bundles.mjs'], fixtureRoot);
+  for (const scenario of fixtureScenarios.filter(({extension}) => extension === '.mjs')) {
+    const args = scenario.developmentCondition
+      ? ['--conditions=development', scenario.fixtureName]
+      : [scenario.fixtureName];
+    await run(process.execPath, args, fixtureRoot);
+  }
 } finally {
   await rm(fixtureRoot, {recursive: true, force: true});
 }
 
-async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEntryPoints) {
+async function writeFixtureFiles(
+  root,
+  dependencies,
+  runtimeEntryPoints,
+  typeEntryPoints,
+  publishedScenarios,
+  environment,
+) {
+  const fixtureScenarios = publishedScenarios.map(({packageName, sourcePath}) => {
+    const fixtureName = `${safePackageName(packageName)}-${basename(sourcePath)}`;
+    return {
+      developmentCondition: fixtureName.endsWith('.development.mjs'),
+      extension: extname(fixtureName),
+      fixtureName,
+      sourcePath,
+    };
+  });
   await Promise.all([
     writeFile(
       join(root, 'package.json'),
@@ -121,7 +143,12 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
             strict: true,
             target: 'ES2024',
           },
-          include: ['types.ts', 'composition.ts', 'runners-composition.ts'],
+          include: [
+            'types.ts',
+            ...fixtureScenarios
+              .filter(({extension}) => extension === '.ts')
+              .map(({fixtureName}) => fixtureName),
+          ],
         },
         null,
         2,
@@ -138,98 +165,49 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
         )}\n\n${typeEntryPoints.map((_, index) => `void (0 as unknown as typeof Entry${index});`).join('\n')}\n`,
     ),
     writeFile(
-      join(root, 'composition.ts'),
-      `import {createRunnersModule} from '@shipfox/api-runners';
-import {createServer, defaultModules} from '@shipfox/api-server';
-
-void createServer({
-  modules: [
-    ...(await defaultModules({
-      runnersModule: ({auth}) =>
-        createRunnersModule({
-          auth,
-          installationProvisioning: {
-            policy: {
-              filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
-            },
-          },
-        }),
-    })),
-    {name: 'external-dummy'},
-  ],
-});
-`,
-    ),
-    writeFile(
-      join(root, 'runners-composition.ts'),
-      `import {createRunnersModule} from '@shipfox/api-runners';
-import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
-
-const auth = {} as AuthInterModuleClient;
-const module = createRunnersModule({
-  auth,
-  installationProvisioning: {
-    policy: {
-      filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
-    },
-  },
-});
-
-void module;
-`,
-    ),
-    writeFile(
-      join(root, 'email-challenge-contract.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst {createEmailChallenge, getEmailChallengeContinuation} = await import('@shipfox/api-email-challenges');\nif (typeof createEmailChallenge !== 'function' || typeof getEmailChallengeContinuation !== 'function') {\n  throw new Error('Packed email challenges package does not export retry-safe continuation contracts.');\n}\nconsole.log('Imported packed retry-safe email challenge continuation contracts.');\n`,
-    ),
-    writeFile(
-      join(root, 'runners-composition.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst {createRunnersModule} = await import('@shipfox/api-runners');\nconst module = createRunnersModule({\n  auth: {},\n  installationProvisioning: {\n    policy: {\n      filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),\n    },\n  },\n});\nif (module.name !== 'runners' || !module.routes?.length) {\n  throw new Error('Packed API runners does not compose the installation provisioning policy.');\n}\nconsole.log('Composed packed API runners with an external installation policy.');\n`,
-    ),
-    writeFile(
       join(root, 'runtime-imports.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconst {createServer, defaultModules} = await import('@shipfox/api-server');\nif (typeof createServer !== 'function' || typeof defaultModules !== 'function')\n  throw new Error('Packed API server does not export its composition API.');\nconst modules = [...(await defaultModules()), {name: 'external-dummy'}];\nif (modules.at(-1)?.name !== 'external-dummy')\n  throw new Error('Could not append an external module to the packed API server defaults.');\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points and composed API modules.\`);\nprocess.exit(0);\n`,
+      `Object.assign(process.env, ${JSON.stringify(environment, null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconst {createServer, defaultModules} = await import('@shipfox/api-server');\nif (typeof createServer !== 'function' || typeof defaultModules !== 'function')\n  throw new Error('Packed API server does not export its composition API.');\nconst modules = [...(await defaultModules()), {name: 'external-dummy'}];\nif (modules.at(-1)?.name !== 'external-dummy')\n  throw new Error('Could not append an external module to the packed API server defaults.');\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points and composed API modules.\`);\nprocess.exit(0);\n`,
     ),
-    writeFile(
-      join(root, 'login-methods-route.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});
-
-const {loginMethodsResponseSchema} = await import('@shipfox/api-auth-dto');
-const {createLoginMethodsRoute} = await import('@shipfox/api-server');
-const {createApp} = await import('@shipfox/node-fastify');
-
-const app = await createApp({
-  auth: [],
-  routes: [createLoginMethodsRoute({loginMethods: [{id: 'external-provider'}]})],
-  swagger: false,
-});
-
-try {
-  const response = await app.inject({method: 'GET', url: '/auth/login-methods'});
-  if (response.statusCode !== 200) throw new Error('Packed login-method catalog route did not respond.');
-  const body = loginMethodsResponseSchema.parse(response.json());
-  if (body.login_methods[0]?.id !== 'external-provider')
-    throw new Error('Packed login-method catalog route returned an unexpected contract.');
-} finally {
-  await app.close();
+    ...fixtureScenarios.map(async ({extension, fixtureName, sourcePath}) => {
+      const source = await readFile(sourcePath, 'utf8');
+      const contents =
+        extension === '.mjs'
+          ? `Object.assign(process.env, ${JSON.stringify(environment, null, 2)});\n\n${source}`
+          : source;
+      await writeFile(join(root, fixtureName), contents);
+    }),
+  ]);
+  return fixtureScenarios;
 }
 
-console.log('Validated the packed login-method catalog DTO and route contract.');
-`,
-    ),
-    writeFile(
-      join(root, 'workflow-bundles.mjs'),
-      `Object.assign(process.env, {...${JSON.stringify(runtimeEnvironment(), null, 2)}, INTEGRATIONS_ENABLE_SENTRY_PROVIDER: 'true', NODE_ENV: 'production'});\n\nconst {readdir, readFile} = await import('node:fs/promises');\nconst {dirname, join} = await import('node:path');\nconst {defaultModules} = await import('@shipfox/api-server');\nconst {loadProductionWorkflowBundle} = await import('@shipfox/node-temporal');\nconst modules = await defaultModules();\nconst workflowPaths = new Set(\n  modules.flatMap((module) => module.workers ?? []).map((worker) => worker.workflowsPath),\n);\n\nif (!workflowPaths.size) throw new Error('Packed API server declares no workflow entrypoints.');\n\nconst bundles = new Map();\nfor (const workflowsPath of workflowPaths) {\n  const workflowBundle = loadProductionWorkflowBundle(workflowsPath);\n  bundles.set(workflowsPath, workflowBundle);\n\n  const code = await readFile(workflowBundle.codePath, 'utf8');\n  if (/@shipfox[/\\\\][^/\\\\]+[/\\\\]src[/\\\\]/u.test(code)) {\n    throw new Error(\n      \`Workflow bundle for \${workflowsPath} resolved a first-party source path.\`,\n    );\n  }\n}\n\nconst declaredCodePaths = new Set([...bundles.values()].map(({codePath}) => codePath));\nif (declaredCodePaths.size !== workflowPaths.size) {\n  throw new Error('Packed API workflow entrypoints do not map one-to-one to prebuilt bundles.');\n}\n\nconst workflowDirectories = new Set([...workflowPaths].map((workflowsPath) => dirname(workflowsPath)));\nconst emittedBundles = (\n  await Promise.all(\n    [...workflowDirectories].map(async (directory) =>\n      (await readdir(directory))\n        .filter((entry) => entry.endsWith('.bundle.js'))\n        .map((entry) => join(directory, entry)),\n    ),\n  )\n).flat();\nconst unreferencedBundles = emittedBundles.filter((codePath) => !declaredCodePaths.has(codePath));\nif (unreferencedBundles.length) {\n  throw new Error(\n    \`Packed API contains unreferenced workflow bundles: \${unreferencedBundles.join(', ')}\`,\n  );\n}\n\nconsole.log(\`Validated \${workflowPaths.size} packed API workflow bundles.\`);\n`,
-    ),
-    writeFile(
-      join(root, 'development-conditions.mjs'),
-      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nawait import('@shipfox/api-server/instrumentation');\nprocess.exit(0);\n`,
-    ),
-    writeFile(
-      join(root, 'workflow-source-bundle.mjs'),
-      `delete process.env.NODE_ENV;\n\nconst {createRequire} = await import('node:module');\nconst {fileURLToPath} = await import('node:url');\nconst {dirname, join} = await import('node:path');\nconst temporalRequire = createRequire(import.meta.resolve('@shipfox/node-temporal'));\nconst {bundleWorkflowCode} = await import(temporalRequire.resolve('@temporalio/worker'));\nconst packageEntryPoint = fileURLToPath(import.meta.resolve('@shipfox/api-definitions'));\nconst workflowsPath = join(\n  dirname(dirname(packageEntryPoint)),\n  'dist',\n  'temporal',\n  'workflows',\n  'index.js',\n);\n\nawait bundleWorkflowCode({workflowsPath});\nconsole.log('Bundled a packed API definitions workflow with Temporal defaults.');\n`,
-    ),
-  ]);
+function listPublishedScenarios(names, workspacePackages) {
+  return names.flatMap((packageName) => {
+    const workspacePackage = workspacePackages.get(packageName);
+    if (!workspacePackage) throw new Error(`Missing workspace package: ${packageName}`);
+    return globSync(join(workspacePackage.directory, 'test/published/*.{mjs,ts}'))
+      .filter((sourcePath) => !basename(sourcePath).startsWith('_'))
+      .sort()
+      .map((sourcePath) => ({packageName, sourcePath}));
+  });
+}
+
+async function readPublishedTestEnvironment(names, workspacePackages) {
+  const environmentPaths = names.flatMap((name) => {
+    const workspacePackage = workspacePackages.get(name);
+    if (!workspacePackage) throw new Error(`Missing workspace package: ${name}`);
+    return globSync(join(workspacePackage.directory, 'test/published/_environment.mjs'));
+  });
+  if (environmentPaths.length !== 1) {
+    throw new Error(
+      `Packed API verification requires exactly one environment provider; found ${environmentPaths.length}`,
+    );
+  }
+  const environmentModule = await import(pathToFileURL(environmentPaths[0]).href);
+  const environment = environmentModule.publishedTestEnvironment?.();
+  if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
+    throw new Error('Packed API environment provider must return an environment object');
+  }
+  return environment;
 }
 
 async function validateInstalledPackages(root, names, workspacePackages) {
@@ -277,70 +255,6 @@ function findWorkspaceRange(value, path = 'package.json') {
     if (found) return found;
   }
   return undefined;
-}
-
-function runtimeEnvironment() {
-  // Prefer the active workspace's own Postgres connection (e.g. a Conductor
-  // worktree's isolated instance) over the fixed port CI's dedicated service
-  // listens on, so this fixture never migrates or mutates an unrelated
-  // Postgres instance that happens to also be reachable on the CI default.
-  const postgresHost = process.env.POSTGRES_HOST ?? '127.0.0.1';
-  const postgresPort = process.env.POSTGRES_PORT ?? '5432';
-  const postgresUsername = process.env.POSTGRES_USERNAME ?? 'shipfox';
-  const postgresPassword = process.env.POSTGRES_PASSWORD ?? 'password';
-  const postgresDatabase = 'api_test';
-
-  return {
-    AUTH_ROOT_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
-    DATABASE_URL: `postgres://${postgresUsername}:${postgresPassword}@${postgresHost}:${postgresPort}/${postgresDatabase}`,
-    GITEA_BASE_URL: 'https://gitea.example.com',
-    GITEA_SERVICE_TOKEN: 'external-consumer-token',
-    GITEA_SERVICE_USERNAME: 'shipfox-bot',
-    GITEA_WEBHOOK_SECRET: 'external-consumer-webhook-secret',
-    GITHUB_API_BASE_URL: 'https://api.github.com',
-    GITHUB_APP_CLIENT_ID: 'external-consumer-client-id',
-    GITHUB_APP_CLIENT_SECRET: 'external-consumer-client-secret',
-    GITHUB_APP_ID: '1',
-    GITHUB_APP_PRIVATE_KEY: 'external-consumer-private-key',
-    GITHUB_APP_SLUG: 'shipfox-external-consumer',
-    GITHUB_APP_USERNAME: 'shipfox-external-consumer',
-    GITHUB_APP_WEBHOOK_SECRET: 'external-consumer-webhook-secret',
-    GITHUB_INSTALL_STATE_SECRET: 'external-consumer-install-state-secret',
-    JIRA_OAUTH_CLIENT_ID: 'external-consumer-client-id',
-    JIRA_OAUTH_CLIENT_SECRET: 'external-consumer-client-secret',
-    JIRA_OAUTH_REDIRECT_URL: 'https://shipfox.example.com/integrations/jira/callback',
-    JIRA_WEBHOOK_BASE_URL: 'https://shipfox.example.com',
-    JIRA_WEBHOOK_SIGNING_SECRET: 'external-consumer-webhook-secret',
-    LINEAR_MCP_ENDPOINT: 'https://mcp.linear.app/mcp',
-    LINEAR_OAUTH_CLIENT_ID: 'external-consumer-client-id',
-    LINEAR_OAUTH_CLIENT_SECRET: 'external-consumer-client-secret',
-    LINEAR_OAUTH_REDIRECT_URL: 'https://shipfox.example.com/integrations/linear/callback',
-    LINEAR_WEBHOOK_SIGNING_SECRET: 'external-consumer-webhook-secret',
-    SLACK_API_BASE_URL: 'https://slack.example.com/api',
-    SLACK_OAUTH_CLIENT_ID: 'external-consumer-client-id',
-    SLACK_OAUTH_CLIENT_SECRET: 'external-consumer-client-secret',
-    SLACK_OAUTH_REDIRECT_URL: 'https://shipfox.example.com/integrations/slack/callback',
-    SLACK_SIGNING_SECRET: 'external-consumer-signing-secret',
-    LOG_STORAGE_S3_ACCESS_KEY_ID: 'external-consumer-access-key',
-    LOG_STORAGE_S3_BUCKET: 'shipfox-logs',
-    LOG_STORAGE_S3_ENDPOINT: 'http://127.0.0.1:3900',
-    LOG_STORAGE_S3_FORCE_PATH_STYLE: 'true',
-    LOG_STORAGE_S3_REGION: 'garage',
-    LOG_STORAGE_S3_SECRET_ACCESS_KEY: 'external-consumer-secret-key',
-    POSTGRES_DATABASE: postgresDatabase,
-    POSTGRES_HOST: postgresHost,
-    POSTGRES_MAX_CONNECTIONS: '5',
-    POSTGRES_PASSWORD: postgresPassword,
-    POSTGRES_PORT: postgresPort,
-    POSTGRES_USERNAME: postgresUsername,
-    SECRETS_ENCRYPTION_KEK: 'ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=',
-    SENTRY_APP_CLIENT_ID: 'external-consumer-client-id',
-    SENTRY_APP_CLIENT_SECRET: 'external-consumer-client-secret',
-    SENTRY_APP_SLUG: 'shipfox-external-consumer',
-    SENTRY_APP_VERIFY_INSTALL: 'true',
-    TEMPORAL_ADDRESS: '127.0.0.1:7233',
-    WORKSPACE_JWT_SECRET: 'external-consumer-workspace-secret',
-  };
 }
 
 function safePackageName(name) {

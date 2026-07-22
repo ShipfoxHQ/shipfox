@@ -64,6 +64,12 @@ dependency. The API gate packs the Node-composed API closure, and the client gat
 browser client closure before building a Vite consumer. Together they install all tarballs in a
 temporary consumer outside the workspace and resolve public declaration and runtime entry points.
 
+Packages can add packed-consumer checks under `test/published/`. The API gate discovers these
+files from the publication closure: `.ts` files are type-checked, `.mjs` files are executed, and
+`.development.mjs` files run with Node's `development` condition. The API server owns the single
+`_environment.mjs` provider used by runtime checks. This keeps feature contracts beside their
+owners without adding a central package or entry-point list to the release tool.
+
 Each image has a repository, digest, platform list, and attestation state. The
 image build does not publish provenance or a software bill of materials (SBOM)
 today. Both fields use `status: not-published` until those OCI artifacts exist.
@@ -91,7 +97,9 @@ turbo check --filter=@shipfox/application-release
 turbo type --filter=@shipfox/application-release
 turbo test --filter=@shipfox/application-release
 turbo build --filter=@shipfox/application-release
+turbo verify --filter=@shipfox/application-release
 turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
+pnpm run release:preflight
 ```
 
 ## License

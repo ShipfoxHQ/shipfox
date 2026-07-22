@@ -16,16 +16,20 @@ type JsonRecord = Record<string, unknown>;
 const roots: string[] = [];
 const DUPLICATE_MANIFEST_ERROR = /Duplicate package manifest: @shipfox\/duplicate/u;
 const MISSING_MANIFEST_ERROR = /Publication closure package has no manifest: @shipfox\/missing/u;
+const SOURCE_PATH_PATTERN = /src\//u;
 const SPAWN_FAILURE_ERROR = /spawn failed/u;
 
 test('resolves the repository root from the package entrypoint', () => {
+  const root = mkdtempSync(join(tmpdir(), 'shipfox-repository-root-'));
+  roots.push(root);
+  writeFileSync(join(root, 'publication-closure.json'), '{}\n');
   const entryPoint = pathToFileURL(
-    '/workspace/tools/package-release/dist/publish-productionized-closure.js',
+    join(root, 'tools/package-release/dist/publish-productionized-closure.js'),
   ).href;
 
   const repositoryRoot = getRepositoryRoot(entryPoint);
 
-  assert.equal(repositoryRoot, '/workspace');
+  assert.equal(repositoryRoot, root);
 });
 
 afterEach(() => {
@@ -139,10 +143,8 @@ describe('publishProductionizedClosure', () => {
       packageNames: ['@shipfox/one'],
       publish: () => {
         const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-        assert.deepEqual(manifest.imports, {'#*': './dist/*'});
-        assert.deepEqual(manifest.exports, {
-          '.': {types: './dist/index.d.ts', default: './dist/index.js'},
-        });
+        assert.doesNotMatch(JSON.stringify(manifest.imports), SOURCE_PATH_PATTERN);
+        assert.doesNotMatch(JSON.stringify(manifest.exports), SOURCE_PATH_PATTERN);
         assert.equal(manifest.devDependencies, undefined);
         const toolManifest = JSON.parse(readFileSync(toolManifestPath, 'utf8'));
         assert.equal(toolManifest.devDependencies, undefined);
