@@ -33,13 +33,31 @@ export function findClosureManifests(root: string, packageNames: string[]): stri
   });
 }
 
+export function findPublishableToolManifests(root: string): string[] {
+  return globSync(join(root, 'tools/**/package.json')).filter((manifestPath) => {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord;
+    return manifest.private !== true;
+  });
+}
+
+function productionizePublishManifest(manifest: JsonRecord): JsonRecord {
+  const productionized = productionizeManifest(manifest);
+  if (!('devDependencies' in productionized)) return productionized;
+
+  const {devDependencies: _, ...publishManifest} = productionized;
+  return publishManifest;
+}
+
 export async function publishProductionizedClosure<T>({
   root,
   packageNames,
   publish,
   onPrepared,
 }: PublishProductionizedClosureOptions<T>): Promise<T> {
-  const manifestPaths = findClosureManifests(root, packageNames);
+  const manifestPaths = [
+    ...findClosureManifests(root, packageNames),
+    ...findPublishableToolManifests(root),
+  ];
   const originalManifests = new Map(
     manifestPaths.map((manifestPath) => [manifestPath, readFileSync(manifestPath, 'utf8')]),
   );
@@ -51,7 +69,7 @@ export async function publishProductionizedClosure<T>({
 
   for (const [manifestPath, originalManifest] of originalManifests) {
     const manifest = JSON.parse(originalManifest) as JsonRecord;
-    const productionized = productionizeManifest(manifest);
+    const productionized = productionizePublishManifest(manifest);
     if (productionized === manifest) continue;
     writeFileSync(manifestPath, `${JSON.stringify(productionized, null, 2)}\n`);
   }

@@ -6,6 +6,7 @@ import {pathToFileURL} from 'node:url';
 
 import {
   findClosureManifests,
+  findPublishableToolManifests,
   getRepositoryRoot,
   publishProductionizedClosure,
 } from '../src/publish-productionized-closure.js';
@@ -42,6 +43,12 @@ function createFixture(packages: Array<[string, JsonRecord]>) {
   }
 
   return root;
+}
+
+function createToolFixture(root: string, directory: string, manifest: JsonRecord) {
+  const packageDirectory = join(root, 'tools', directory);
+  mkdirSync(packageDirectory, {recursive: true});
+  writeFileSync(join(packageDirectory, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 function closureManifest(name: string) {
@@ -93,11 +100,39 @@ describe('findClosureManifests', () => {
   });
 });
 
+describe('findPublishableToolManifests', () => {
+  test('finds public tool manifests and ignores private tooling', () => {
+    const root = createFixture([]);
+    const publicToolPath = join(root, 'tools', 'public-tool', 'package.json');
+    createToolFixture(root, 'public-tool', {name: '@shipfox/public-tool', version: '1.0.0'});
+    createToolFixture(root, 'private-tool', {name: '@shipfox/private-tool', private: true});
+
+    const manifests = findPublishableToolManifests(root);
+
+    assert.deepEqual(manifests, [publicToolPath]);
+  });
+});
+
 describe('publishProductionizedClosure', () => {
   test('publishes productionized manifests and restores them after success', async () => {
-    const root = createFixture([['one', closureManifest('@shipfox/one')]]);
+    const root = createFixture([
+      [
+        'one',
+        {
+          ...closureManifest('@shipfox/one'),
+          devDependencies: {'@shipfox/private-tool': 'workspace:*'},
+        },
+      ],
+    ]);
     const manifestPath = join(root, 'libs', 'one', 'package.json');
+    const toolManifestPath = join(root, 'tools', 'public-tool', 'package.json');
     const originalManifest = readFileSync(manifestPath, 'utf8');
+    createToolFixture(root, 'public-tool', {
+      name: '@shipfox/public-tool',
+      version: '1.0.0',
+      devDependencies: {'@shipfox/private-tool': 'workspace:*'},
+    });
+    const originalToolManifest = readFileSync(toolManifestPath, 'utf8');
 
     const status = await publishProductionizedClosure({
       root,
@@ -108,12 +143,16 @@ describe('publishProductionizedClosure', () => {
         assert.deepEqual(manifest.exports, {
           '.': {types: './dist/index.d.ts', default: './dist/index.js'},
         });
+        assert.equal(manifest.devDependencies, undefined);
+        const toolManifest = JSON.parse(readFileSync(toolManifestPath, 'utf8'));
+        assert.equal(toolManifest.devDependencies, undefined);
         return 0;
       },
     });
 
     assert.equal(status, 0);
     assert.equal(readFileSync(manifestPath, 'utf8'), originalManifest);
+    assert.equal(readFileSync(toolManifestPath, 'utf8'), originalToolManifest);
   });
 
   test('restores manifests after a non-zero publish status or publish failure', async () => {
