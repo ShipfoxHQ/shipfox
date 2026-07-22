@@ -334,6 +334,32 @@ describe('auth core', () => {
     expect(refreshed.user.id).toBe(user.id);
   });
 
+  test('keeps the refresh-session identity stable across a token refresh', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const initial = await login({email: user.email, password: user.plainPassword});
+    const refreshed = await refreshAccessToken({refreshToken: initial.refreshToken});
+    const initialClaims = await verifyUserToken({
+      token: initial.token,
+      secret: userAccessTokenKey(),
+    });
+    const refreshedClaims = await verifyUserToken({
+      token: refreshed.token,
+      secret: userAccessTokenKey(),
+    });
+
+    expect(refreshedClaims.refreshSessionId).toBe(initialClaims.refreshSessionId);
+  });
+
+  test('issues different refresh-session identities for separate sessions of one user', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const first = await login({email: user.email, password: user.plainPassword});
+    const second = await login({email: user.email, password: user.plainPassword});
+    const firstClaims = await verifyUserToken({token: first.token, secret: userAccessTokenKey()});
+    const secondClaims = await verifyUserToken({token: second.token, secret: userAccessTokenKey()});
+
+    expect(secondClaims.refreshSessionId).not.toBe(firstClaims.refreshSessionId);
+  });
+
   test('refreshAccessToken tolerates a concurrent reuse within the grace window', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const loginResult = await login({email: user.email, password: user.plainPassword});
@@ -485,6 +511,21 @@ describe('auth core', () => {
       hashedToken: hashOpaqueToken(loginResult.refreshToken),
     });
     expect(active).toBeUndefined();
+  });
+
+  test('logout revokes the active successor when presented a rotated refresh token', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+    const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    await logout({refreshToken: loginResult.refreshToken});
+
+    const successor = refreshed.refreshToken
+      ? await refreshTokenDb.findActiveRefreshTokenByHash({
+          hashedToken: hashOpaqueToken(refreshed.refreshToken),
+        })
+      : undefined;
+    expect(successor).toBeUndefined();
   });
 
   test('getCurrentUser returns the user', async () => {

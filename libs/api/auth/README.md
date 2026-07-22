@@ -250,6 +250,7 @@ It also exports lower-level pieces for tests and advanced integration:
 - `issueRunnerSessionToken(claims)` / `verifyRunnerSessionToken(token)`: mint and verify runner session tokens.
 - `issueJobLeaseToken(claims)` / `verifyJobLeaseToken(token)`: mint and verify job lease tokens.
 - `getClientContext(request)`: reads the authenticated user context from a Fastify request.
+- `getAuthenticatedSessionContext(request)`: resolves an authenticated request to its user ID and active refresh-session ID.
 - `findUserByEmail({email})`: read-only lookup of the current owner of a normalized email; see below.
 - Entity types: `User`, `UserStatus`, `RefreshToken`, `PasswordReset`, and `EmailOwner`.
 
@@ -332,6 +333,24 @@ public contract.
 `createJwtAuthMethod`, `createRunnerSessionAuthMethod`, and
 `createLeaseTokenAuthMethod` make request-auth methods. They do not add a
 user-facing login method.
+
+### Authenticated session context
+
+`getAuthenticatedSessionContext(request)` returns the stable refresh-session
+identity behind an authenticated user request:
+
+```ts
+import {getAuthenticatedSessionContext} from '@shipfox/api-auth';
+
+const session = await getAuthenticatedSessionContext(request);
+// {userId, refreshSessionId}
+```
+
+The refresh-session ID remains the same when its refresh token rotates. The
+helper verifies that the session is active and belongs to the authenticated user,
+and returns the standard `401 unauthorized` error for a missing, malformed,
+expired, or revoked session. It exposes neither refresh-token material nor
+storage details.
 
 ## Data Model
 

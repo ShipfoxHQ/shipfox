@@ -44,7 +44,13 @@ export {
   issueRunnerSessionToken,
   verifyRunnerSessionToken,
 } from '#core/runner-session-token.js';
-export {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
+export {
+  type AuthenticatedSessionContext,
+  createJwtAuthMethod,
+  getAuthenticatedSessionContext,
+  type RefreshSessionId,
+  type UserId,
+} from '#presentation/auth/jwt-auth.js';
 export {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 export {
   authCookiePlugin,

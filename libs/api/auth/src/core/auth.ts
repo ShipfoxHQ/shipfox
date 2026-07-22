@@ -18,7 +18,7 @@ import {
   createRefreshToken,
   findActiveRefreshTokenByHash,
   findRefreshTokenByHash,
-  revokeRefreshTokenByHash,
+  revokeRefreshSession,
   revokeRefreshTokensForUser,
   rotateRefreshToken,
 } from '#db/refresh-tokens.js';
@@ -73,6 +73,7 @@ function recordRefreshOutcome(outcome: AuthTokenRefreshOutcome): void {
 async function signAccessToken(
   user: User,
   workspaces: WorkspacesInterModuleClient,
+  refreshSessionId: string,
 ): Promise<string> {
   const memberships = await workspaces
     .listMembershipsForTokenClaims({userId: user.id})
@@ -84,6 +85,7 @@ async function signAccessToken(
     email: user.email,
     name: user.name,
     memberships: memberships.memberships,
+    refreshSessionId,
     secret: userAccessTokenKey(),
     expiresIn: config.AUTH_JWT_EXPIRES_IN,
   });
@@ -95,14 +97,28 @@ function isWithinRotationGrace(refreshToken: RefreshToken): boolean {
   return Date.now() - refreshToken.rotatedAt.getTime() <= graceMs;
 }
 
-async function createRefreshSession(user: User): Promise<string> {
+async function createRefreshSession(
+  user: User,
+  refreshSessionId: string,
+): Promise<{refreshToken: string; refreshSessionId: string}> {
   const refreshToken = generateOpaqueToken('refreshToken');
-  await createRefreshToken({
+  const session = await createRefreshToken({
+    sessionId: refreshSessionId,
     userId: user.id,
     hashedToken: hashOpaqueToken(refreshToken),
     expiresAt: daysFromNow(config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS),
   });
-  return refreshToken;
+  return {refreshToken, refreshSessionId: session.sessionId};
+}
+
+async function createSessionTokens(
+  user: User,
+  workspaces: WorkspacesInterModuleClient,
+): Promise<{token: string; refreshToken: string}> {
+  const refreshSessionId = crypto.randomUUID();
+  const token = await signAccessToken(user, workspaces, refreshSessionId);
+  const {refreshToken} = await createRefreshSession(user, refreshSessionId);
+  return {token, refreshToken};
 }
 
 function passwordResetLink(rawToken: string): string {
@@ -271,8 +287,7 @@ export async function signupWithInvitation(
 
   // Step 4: Issue session. signAccessToken reads memberships through the
   // workspaces module API, so a successful accept is reflected in the JWT.
-  const token = await signAccessToken(user, params.workspaces);
-  const refreshToken = await createRefreshSession(user);
+  const {token, refreshToken} = await createSessionTokens(user, params.workspaces);
 
   if (acceptError) {
     return {token, refreshToken, user, membership, acceptError};
@@ -334,8 +349,7 @@ export async function login(params: LoginParams): Promise<LoginResult> {
     throw new EmailNotVerifiedError();
   }
 
-  const token = await signAccessToken(user, params.workspaces);
-  const refreshToken = await createRefreshSession(user);
+  const {token, refreshToken} = await createSessionTokens(user, params.workspaces);
 
   return {token, refreshToken, user};
 }
@@ -377,8 +391,7 @@ export async function createSessionForUser(
     throw new InvalidCredentialsError();
   }
 
-  const token = await signAccessToken(user, params.workspaces);
-  const refreshToken = await createRefreshSession(user);
+  const {token, refreshToken} = await createSessionTokens(user, params.workspaces);
 
   return {token, refreshToken, user};
 }
@@ -403,7 +416,7 @@ export async function refreshAccessToken(params: {
 
   const user = await findUserById({id: current.userId});
   if (user?.status !== 'active') {
-    await revokeRefreshTokenByHash({hashedToken: currentHashedToken});
+    await revokeRefreshSession({sessionId: current.sessionId, userId: current.userId});
     recordRefreshOutcome('rejected');
     throw new TokenInvalidError('Refresh token is invalid or expired');
   }
@@ -412,7 +425,7 @@ export async function refreshAccessToken(params: {
   // second tab); past it, reuse of a retired token means a compromised session.
   if (current.rotatedAt) {
     if (isWithinRotationGrace(current)) {
-      const token = await signAccessToken(user, params.workspaces);
+      const token = await signAccessToken(user, params.workspaces, current.sessionId);
       recordRefreshOutcome('grace');
       return {token, refreshToken: undefined, user};
     }
@@ -436,12 +449,12 @@ export async function refreshAccessToken(params: {
       recordRefreshOutcome('rejected');
       throw new TokenInvalidError('Refresh token is invalid or expired');
     }
-    const token = await signAccessToken(user, params.workspaces);
+    const token = await signAccessToken(user, params.workspaces, latest.sessionId);
     recordRefreshOutcome('grace');
     return {token, refreshToken: undefined, user};
   }
 
-  const token = await signAccessToken(user, params.workspaces);
+  const token = await signAccessToken(user, params.workspaces, current.sessionId);
   recordRefreshOutcome('rotated');
   return {token, refreshToken: nextRefreshToken, user};
 }
@@ -476,8 +489,7 @@ export async function confirmEmailVerification(params: {
     throw new TokenInvalidError('Verification code is invalid or expired');
   }
 
-  const token = await signAccessToken(verifiedUser, params.workspaces);
-  const refreshToken = await createRefreshSession(verifiedUser);
+  const {token, refreshToken} = await createSessionTokens(verifiedUser, params.workspaces);
 
   return {token, refreshToken, user: verifiedUser};
 }
@@ -548,8 +560,7 @@ export async function confirmPasswordReset(params: {
 
   await revokeRefreshTokensForUser({userId: consumed.userId});
 
-  const token = await signAccessToken(user, params.workspaces);
-  const refreshToken = await createRefreshSession(user);
+  const {token, refreshToken} = await createSessionTokens(user, params.workspaces);
 
   return {token, refreshToken, user};
 }
@@ -587,7 +598,11 @@ export async function changePassword(params: {
 
 export async function logout(params: {refreshToken?: string | undefined}): Promise<void> {
   if (!params.refreshToken) return;
-  await revokeRefreshTokenByHash({hashedToken: hashOpaqueToken(params.refreshToken)});
+  const refreshToken = await findRefreshTokenByHash({
+    hashedToken: hashOpaqueToken(params.refreshToken),
+  });
+  if (!refreshToken) return;
+  await revokeRefreshSession({sessionId: refreshToken.sessionId, userId: refreshToken.userId});
 }
 
 export interface GetCurrentUserResult {
