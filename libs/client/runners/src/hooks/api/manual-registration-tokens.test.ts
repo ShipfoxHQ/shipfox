@@ -35,20 +35,23 @@ describe('createManualRegistrationToken', () => {
       );
     });
     configureApiClient({fetchImpl});
-    const body = {name: 'Local runner', ttl_seconds: 86_400};
+    const command = {
+      name: 'Local runner',
+      expiration: {kind: 'expires-after' as const, seconds: 86_400},
+    };
 
     const result = await createManualRegistrationToken({
       workspaceId: '11111111-1111-4111-8111-111111111111',
-      body,
+      command,
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.raw_token).toBe('sf_mrt_raw-created-token');
+    expect(result.token).toBe('sf_mrt_raw-created-token');
     expect(request.url).toBe(
       'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/manual-registration-tokens',
     );
     expect(request.method).toBe('POST');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({name: 'Local runner', ttl_seconds: 86_400});
   });
 });
 
@@ -78,7 +81,7 @@ describe('revokeManualRegistrationToken', () => {
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.revoked_at).toBe('2026-05-08T01:00:00.000Z');
+    expect(result.revokedAt).toBe('2026-05-08T01:00:00.000Z');
     expect(request.url).toBe(
       'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/manual-registration-tokens/33333333-3333-4333-8333-333333333333/revoke',
     );

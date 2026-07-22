@@ -1,4 +1,3 @@
-import type {CreateManualRegistrationTokenResponseDto} from '@shipfox/api-runners-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -12,6 +11,7 @@ import {
 } from '@shipfox/react-ui/modal';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
+import type {CreatedManualRegistrationToken} from '#core/token.js';
 import {useManualRegistrationTokensQuery} from '#hooks/api/manual-registration-tokens.js';
 import {
   CreatedManualRegistrationTokenPanel,
@@ -30,10 +30,8 @@ export function WorkspaceManualRegistrationTokensSettingsSection({
 }) {
   const tokensQuery = useManualRegistrationTokensQuery(workspaceId);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [createdToken, setCreatedToken] = useState<CreateManualRegistrationTokenResponseDto | null>(
-    null,
-  );
-  const tokens = tokensQuery.data?.manual_registration_tokens ?? [];
+  const [createdToken, setCreatedToken] = useState<CreatedManualRegistrationToken | null>(null);
+  const tokens = tokensQuery.data ?? [];
 
   function handleOpenChange(nextOpen: boolean) {
     setIsModalOpen(nextOpen);

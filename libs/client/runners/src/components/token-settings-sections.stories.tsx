@@ -7,6 +7,11 @@ import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import type {ReactNode} from 'react';
 import {within} from 'storybook/test';
+import type {
+  CreatedProvisionerToken,
+  ManualRegistrationToken,
+  ProvisionerToken,
+} from '#core/token.js';
 import {CreatedManualRegistrationTokenPanel} from './create-manual-registration-token-form.js';
 import {CreatedProvisionerTokenPanel} from './create-provisioner-token-form.js';
 import {
@@ -115,20 +120,20 @@ export const Statuses: Story = {
       <ProvisionerTokenList
         workspaceId={WORKSPACE_ID}
         tokens={[
-          provisionerToken({
+          provisionerTokenModel({
             id: '33333333-3333-4333-8333-333333333333',
             name: 'Docker autoscaler',
-            last_seen_at: NOW,
+            lastSeenAt: NOW,
           }),
-          provisionerToken({
+          provisionerTokenModel({
             id: '44444444-4444-4444-8444-444444444444',
             name: 'Kubernetes spot pool',
-            last_seen_at: EIGHT_MINUTES_AGO,
+            lastSeenAt: EIGHT_MINUTES_AGO,
           }),
-          provisionerToken({
+          provisionerTokenModel({
             id: '55555555-5555-4555-8555-555555555555',
             name: 'Buildkite migration pool',
-            last_seen_at: null,
+            lastSeenAt: null,
           }),
         ]}
         activeIds={new Set(['33333333-3333-4333-8333-333333333333'])}
@@ -151,18 +156,18 @@ export const Content: Story = {
           <ManualRegistrationTokenList
             workspaceId={WORKSPACE_ID}
             tokens={[
-              manualToken({name: 'Deploy runner', prefix: 'sf_mrt_deploy'}),
-              manualToken({
+              manualRegistrationToken({name: 'Deploy runner', prefix: 'sf_mrt_deploy'}),
+              manualRegistrationToken({
                 id: '66666666-6666-4666-8666-666666666666',
                 name: 'macOS build host',
                 prefix: 'sf_mrt_macos',
-                expires_at: null,
+                expiresAt: null,
               }),
             ]}
           />
           <ProvisionerTokenList
             workspaceId={WORKSPACE_ID}
-            tokens={provisionerTokens()}
+            tokens={provisionerTokenModels()}
             activeIds={new Set(['33333333-3333-4333-8333-333333333333'])}
           />
         </div>
@@ -172,7 +177,7 @@ export const Content: Story = {
           <ManualRegistrationTokenList
             workspaceId={WORKSPACE_ID}
             tokens={[
-              manualToken({
+              manualRegistrationToken({
                 name: 'self-hosted-runner-for-production-release-candidate-validation-on-metal',
                 prefix: 'sf_mrt_release_candidate_validation',
               }),
@@ -181,10 +186,10 @@ export const Content: Story = {
           <ProvisionerTokenList
             workspaceId={WORKSPACE_ID}
             tokens={[
-              provisionerToken({
+              provisionerTokenModel({
                 name: 'docker-provisioner-for-west-coast-gpu-burst-capacity-and-fallback',
                 prefix: 'sf_pt_west_coast_gpu_burst',
-                last_seen_at: EIGHT_MINUTES_AGO,
+                lastSeenAt: EIGHT_MINUTES_AGO,
               }),
             ]}
             activeIds={new Set()}
@@ -202,22 +207,17 @@ export const CreatedTokenPanels: Story = {
         <CreatedManualRegistrationTokenPanel
           token={{
             id: '77777777-7777-4777-8777-777777777777',
-            raw_token: 'sf_mrt_4nJvNrs23ExampleManualTokenValue',
+            token: 'sf_mrt_4nJvNrs23ExampleManualTokenValue',
             prefix: 'sf_mrt_4nJv',
             name: 'Deploy runner',
-            workspace_id: WORKSPACE_ID,
-            expires_at: EXPIRES_AT,
-            created_at: CREATED_AT,
+            workspaceId: WORKSPACE_ID,
+            expiresAt: EXPIRES_AT,
+            createdAt: CREATED_AT,
           }}
         />
       </StateExample>
       <StateExample label="Provisioner token reveal">
-        <CreatedProvisionerTokenPanel
-          token={{
-            ...provisionerToken({name: 'Docker autoscaler'}),
-            raw_token: 'sf_pt_Rv8YwrExampleProvisionerTokenValue',
-          }}
-        />
+        <CreatedProvisionerTokenPanel token={createdProvisionerToken()} />
       </StateExample>
     </StorySurface>
   ),
@@ -306,6 +306,55 @@ function provisionerTokens(): ProvisionerTokenDto[] {
       last_seen_at: null,
     }),
   ];
+}
+
+function manualRegistrationToken(
+  overrides: Partial<ManualRegistrationToken> = {},
+): ManualRegistrationToken {
+  return {
+    id: '22222222-2222-4222-8222-222222222222',
+    workspaceId: WORKSPACE_ID,
+    prefix: 'sf_mrt_deploy',
+    name: 'Deploy runner',
+    expiresAt: EXPIRES_AT,
+    revokedAt: null,
+    createdAt: CREATED_AT,
+    updatedAt: CREATED_AT,
+    ...overrides,
+  };
+}
+
+function provisionerTokenModel(overrides: Partial<ProvisionerToken> = {}): ProvisionerToken {
+  return {
+    ...manualRegistrationToken(),
+    createdByUserId: '99999999-9999-4999-8999-999999999999',
+    revokedByUserId: null,
+    lastSeenAt: NOW,
+    ...overrides,
+  };
+}
+
+function provisionerTokenModels(): ProvisionerToken[] {
+  return [
+    provisionerTokenModel({id: '33333333-3333-4333-8333-333333333333', name: 'Docker autoscaler'}),
+    provisionerTokenModel({
+      id: '44444444-4444-4444-8444-444444444444',
+      name: 'Kubernetes spot pool',
+      lastSeenAt: EIGHT_MINUTES_AGO,
+    }),
+    provisionerTokenModel({
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Buildkite migration pool',
+      lastSeenAt: null,
+    }),
+  ];
+}
+
+function createdProvisionerToken(): CreatedProvisionerToken {
+  return {
+    ...provisionerTokenModel({name: 'Docker autoscaler'}),
+    token: 'sf_pt_Rv8YwrExampleProvisionerTokenValue',
+  };
 }
 
 function manualToken(

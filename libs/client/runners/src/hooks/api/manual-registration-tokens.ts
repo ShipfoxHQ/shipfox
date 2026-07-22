@@ -1,11 +1,20 @@
-import type {
-  CreateManualRegistrationTokenBodyDto,
-  CreateManualRegistrationTokenResponseDto,
-  ListManualRegistrationTokensResponseDto,
-  RevokeManualRegistrationTokenResponseDto,
+import {
+  createManualRegistrationTokenResponseSchema,
+  listManualRegistrationTokensResponseSchema,
+  revokeManualRegistrationTokenResponseSchema,
 } from '@shipfox/api-runners-dto';
-import {apiRequest} from '@shipfox/client-api';
-import {useMutation, useQuery} from '@tanstack/react-query';
+import {checkedApiRequest} from '@shipfox/client-api';
+import {queryOptions, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import type {
+  CreatedManualRegistrationToken,
+  CreateTokenCommand,
+  ManualRegistrationToken,
+} from '#core/token.js';
+import {
+  toCreatedManualRegistrationToken,
+  toCreateTokenBody,
+  toManualRegistrationToken,
+} from './token-mapper.js';
 
 export const manualRegistrationTokenQueryKeys = {
   all: ['manual-registration-tokens'] as const,
@@ -19,24 +28,28 @@ export async function listManualRegistrationTokens({
 }: {
   workspaceId: string;
   signal?: AbortSignal;
-}) {
-  return await apiRequest<ListManualRegistrationTokensResponseDto>(
+}): Promise<ManualRegistrationToken[]> {
+  const response = await checkedApiRequest(
+    listManualRegistrationTokensResponseSchema,
     `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
     {signal},
   );
+  return response.manual_registration_tokens.map(toManualRegistrationToken);
 }
 
 export async function createManualRegistrationToken({
   workspaceId,
-  body,
+  command,
 }: {
   workspaceId: string;
-  body: CreateManualRegistrationTokenBodyDto;
-}) {
-  return await apiRequest<CreateManualRegistrationTokenResponseDto>(
+  command: CreateTokenCommand;
+}): Promise<CreatedManualRegistrationToken> {
+  const response = await checkedApiRequest(
+    createManualRegistrationTokenResponseSchema,
     `/workspaces/${workspaceId}/runners/manual-registration-tokens`,
-    {method: 'POST', body},
+    {method: 'POST', body: toCreateTokenBody(command)},
   );
+  return toCreatedManualRegistrationToken(response);
 }
 
 export async function revokeManualRegistrationToken({
@@ -45,27 +58,46 @@ export async function revokeManualRegistrationToken({
 }: {
   workspaceId: string;
   tokenId: string;
-}) {
-  return await apiRequest<RevokeManualRegistrationTokenResponseDto>(
+}): Promise<ManualRegistrationToken> {
+  const response = await checkedApiRequest(
+    revokeManualRegistrationTokenResponseSchema,
     `/workspaces/${workspaceId}/runners/manual-registration-tokens/${tokenId}/revoke`,
     {method: 'POST'},
   );
+  return toManualRegistrationToken(response);
+}
+
+export function manualRegistrationTokensQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
+    queryFn: ({signal}) => listManualRegistrationTokens({workspaceId, signal}),
+  });
 }
 
 export function useManualRegistrationTokensQuery(workspaceId: string | undefined) {
   return useQuery({
-    queryKey: workspaceId
-      ? manualRegistrationTokenQueryKeys.list(workspaceId)
-      : [...manualRegistrationTokenQueryKeys.all, 'list'],
+    ...manualRegistrationTokensQueryOptions(workspaceId ?? ''),
     enabled: Boolean(workspaceId),
-    queryFn: ({signal}) => listManualRegistrationTokens({workspaceId: workspaceId ?? '', signal}),
   });
 }
 
-export function useCreateManualRegistrationTokenMutation() {
-  return useMutation({mutationFn: createManualRegistrationToken});
+export function useCreateManualRegistrationTokenMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: CreateTokenCommand) =>
+      createManualRegistrationToken({workspaceId, command}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(manualRegistrationTokensQueryOptions(workspaceId));
+    },
+  });
 }
 
-export function useRevokeManualRegistrationTokenMutation() {
-  return useMutation({mutationFn: revokeManualRegistrationToken});
+export function useRevokeManualRegistrationTokenMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tokenId: string) => revokeManualRegistrationToken({workspaceId, tokenId}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(manualRegistrationTokensQueryOptions(workspaceId));
+    },
+  });
 }

@@ -1,4 +1,3 @@
-import type {ProvisionerTokenDto} from '@shipfox/api-runners-dto';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {Dot} from '@shipfox/react-ui/dot';
@@ -28,18 +27,17 @@ import {
   TableRow,
 } from '@shipfox/react-ui/table';
 import {Code, Text} from '@shipfox/react-ui/typography';
-import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
 import {
-  provisionerTokenQueryKeys,
-  useRevokeProvisionerTokenMutation,
-} from '#hooks/api/provisioner-tokens.js';
+  type ProvisionerToken,
+  provisionerConnectionStatus,
+  provisionerTokenDisplayName,
+} from '#core/token.js';
+import {useRevokeProvisionerTokenMutation} from '#hooks/api/provisioner-tokens.js';
 import {provisionerTokenErrorMessage} from './provisioner-token-errors.js';
 import {
   formatProvisionerTokenDate,
   formatProvisionerTokenTimestamp,
-  provisionerConnectionStatus,
-  provisionerTokenDisplayName,
 } from './provisioner-token-format.js';
 import {TokenDate} from './token-date.js';
 import {TokenName} from './token-name.js';
@@ -50,7 +48,7 @@ export function ProvisionerTokenList({
   activeIds,
 }: {
   workspaceId: string;
-  tokens: ProvisionerTokenDto[];
+  tokens: ProvisionerToken[];
   activeIds: ReadonlySet<string>;
 }) {
   return (
@@ -82,10 +80,10 @@ export function ProvisionerTokenList({
                   <ProvisionerStatusCell token={token} activeIds={activeIds} />
                 </TableCell>
                 <TableCell>
-                  <ProvisionerTokenDate value={token.expires_at} />
+                  <ProvisionerTokenDate value={token.expiresAt} />
                 </TableCell>
                 <TableCell>
-                  <ProvisionerTokenDate value={token.created_at} />
+                  <ProvisionerTokenDate value={token.createdAt} />
                 </TableCell>
                 <TableCell className="text-right">
                   <RevokeProvisionerTokenButton workspaceId={workspaceId} token={token} />
@@ -120,13 +118,13 @@ export function ProvisionerTokenList({
               <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
                 <dd>
-                  <ProvisionerTokenDate value={token.expires_at} />
+                  <ProvisionerTokenDate value={token.expiresAt} />
                 </dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
                 <dd>
-                  <ProvisionerTokenDate value={token.created_at} />
+                  <ProvisionerTokenDate value={token.createdAt} />
                 </dd>
               </div>
             </dl>
@@ -151,7 +149,7 @@ function ProvisionerStatusCell({
   token,
   activeIds,
 }: {
-  token: ProvisionerTokenDto;
+  token: ProvisionerToken;
   activeIds: ReadonlySet<string>;
 }) {
   const status = provisionerConnectionStatus(token, activeIds);
@@ -175,22 +173,15 @@ function RevokeProvisionerTokenButton({
   token,
 }: {
   workspaceId: string;
-  token: ProvisionerTokenDto;
+  token: ProvisionerToken;
 }) {
-  const queryClient = useQueryClient();
-  const revokeToken = useRevokeProvisionerTokenMutation();
+  const revokeToken = useRevokeProvisionerTokenMutation(workspaceId);
   const [open, setOpen] = useState(false);
   const tokenName = provisionerTokenDisplayName(token);
 
   async function handleRevoke() {
     try {
-      await revokeToken.mutateAsync({workspaceId, tokenId: token.id});
-      await queryClient.invalidateQueries({
-        queryKey: provisionerTokenQueryKeys.list(workspaceId),
-      });
-      await queryClient.invalidateQueries({
-        queryKey: provisionerTokenQueryKeys.active(workspaceId),
-      });
+      await revokeToken.mutateAsync(token.id);
       setOpen(false);
     } catch {
       // React Query stores the error for the inline modal alert.
