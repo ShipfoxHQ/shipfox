@@ -1,4 +1,3 @@
-import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -13,6 +12,7 @@ import {
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {useMemo, useState} from 'react';
+import type {CreatedProvisionerToken} from '#core/token.js';
 import {
   useActiveProvisionersQuery,
   useProvisionerTokensQuery,
@@ -31,10 +31,10 @@ export function WorkspaceProvisionerTokensSettingsSection({workspaceId}: {worksp
   const tokensQuery = useProvisionerTokensQuery(workspaceId);
   const activeProvisionersQuery = useActiveProvisionersQuery(workspaceId);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [createdToken, setCreatedToken] = useState<CreateProvisionerTokenResponseDto | null>(null);
-  const tokens = tokensQuery.data?.tokens ?? [];
+  const [createdToken, setCreatedToken] = useState<CreatedProvisionerToken | null>(null);
+  const tokens = tokensQuery.data ?? [];
   const activeIds = useMemo(
-    () => new Set(activeProvisionersQuery.data?.provisioners.map((provisioner) => provisioner.id)),
+    () => new Set(activeProvisionersQuery.data?.map((provisioner) => provisioner.id)),
     [activeProvisionersQuery.data],
   );
 

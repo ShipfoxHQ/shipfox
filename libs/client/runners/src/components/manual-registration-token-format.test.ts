@@ -1,18 +1,18 @@
+import {tokenDisplayName} from '#core/token.js';
 import {
   formatManualRegistrationTokenDate,
   formatManualRegistrationTokenTimestamp,
-  manualRegistrationTokenDisplayName,
 } from './manual-registration-token-format.js';
 
-describe('manualRegistrationTokenDisplayName', () => {
+describe('tokenDisplayName', () => {
   test('uses the token name when present', () => {
-    const result = manualRegistrationTokenDisplayName({name: 'Deploy runner'});
+    const result = tokenDisplayName({name: 'Deploy runner'});
 
     expect(result).toBe('Deploy runner');
   });
 
   test('falls back for unnamed tokens', () => {
-    const result = manualRegistrationTokenDisplayName({name: null});
+    const result = tokenDisplayName({name: null});
 
     expect(result).toBe('Unnamed token');
   });

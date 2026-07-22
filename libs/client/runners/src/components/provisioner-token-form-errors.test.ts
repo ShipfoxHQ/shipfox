@@ -21,10 +21,10 @@ describe('provisionerTokenCreateErrorToFormError', () => {
     });
   });
 
-  test('routes Error to a form-level alert with the error message', () => {
+  test('does not expose an unknown Error message', () => {
     const result = provisionerTokenCreateErrorToFormError(new Error('boom'));
 
-    expect(result).toEqual({kind: 'form', message: 'boom'});
+    expect(result).toEqual({kind: 'form', message: 'Something went wrong. Try again.'});
   });
 
   test('falls back to generic copy for non-Error throwables', () => {

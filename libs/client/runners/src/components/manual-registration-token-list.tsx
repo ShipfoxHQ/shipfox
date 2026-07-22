@@ -1,4 +1,3 @@
-import type {ManualRegistrationTokenDto} from '@shipfox/api-runners-dto';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {
@@ -26,17 +25,13 @@ import {
   TableRow,
 } from '@shipfox/react-ui/table';
 import {Code, Text} from '@shipfox/react-ui/typography';
-import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
-import {
-  manualRegistrationTokenQueryKeys,
-  useRevokeManualRegistrationTokenMutation,
-} from '#hooks/api/manual-registration-tokens.js';
+import {type ManualRegistrationToken, tokenDisplayName} from '#core/token.js';
+import {useRevokeManualRegistrationTokenMutation} from '#hooks/api/manual-registration-tokens.js';
 import {manualRegistrationTokenErrorMessage} from './manual-registration-token-errors.js';
 import {
   formatManualRegistrationTokenDate,
   formatManualRegistrationTokenTimestamp,
-  manualRegistrationTokenDisplayName,
 } from './manual-registration-token-format.js';
 import {TokenDate} from './token-date.js';
 import {TokenName} from './token-name.js';
@@ -46,7 +41,7 @@ export function ManualRegistrationTokenList({
   tokens,
 }: {
   workspaceId: string;
-  tokens: ManualRegistrationTokenDto[];
+  tokens: ManualRegistrationToken[];
 }) {
   return (
     <>
@@ -65,7 +60,7 @@ export function ManualRegistrationTokenList({
             {tokens.map((token) => (
               <TableRow key={token.id}>
                 <TableCell>
-                  <TokenName name={manualRegistrationTokenDisplayName(token)} />
+                  <TokenName name={tokenDisplayName(token)} />
                 </TableCell>
                 <TableCell>
                   <Code variant="paragraph" className="block truncate">
@@ -73,10 +68,10 @@ export function ManualRegistrationTokenList({
                   </Code>
                 </TableCell>
                 <TableCell>
-                  <ManualRegistrationTokenDate value={token.expires_at} />
+                  <ManualRegistrationTokenDate value={token.expiresAt} />
                 </TableCell>
                 <TableCell>
-                  <ManualRegistrationTokenDate value={token.created_at} />
+                  <ManualRegistrationTokenDate value={token.createdAt} />
                 </TableCell>
                 <TableCell className="text-right">
                   <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
@@ -97,7 +92,7 @@ export function ManualRegistrationTokenList({
           >
             <div className="flex items-start justify-between gap-12">
               <div className="min-w-0 flex-1">
-                <TokenName name={manualRegistrationTokenDisplayName(token)} />
+                <TokenName name={tokenDisplayName(token)} />
                 <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
                   {token.prefix}
                 </Code>
@@ -108,13 +103,13 @@ export function ManualRegistrationTokenList({
               <div>
                 <dt className="text-foreground-neutral-muted">Expires</dt>
                 <dd>
-                  <ManualRegistrationTokenDate value={token.expires_at} />
+                  <ManualRegistrationTokenDate value={token.expiresAt} />
                 </dd>
               </div>
               <div>
                 <dt className="text-foreground-neutral-muted">Created</dt>
                 <dd>
-                  <ManualRegistrationTokenDate value={token.created_at} />
+                  <ManualRegistrationTokenDate value={token.createdAt} />
                 </dd>
               </div>
             </dl>
@@ -140,19 +135,15 @@ function RevokeManualRegistrationTokenButton({
   token,
 }: {
   workspaceId: string;
-  token: ManualRegistrationTokenDto;
+  token: ManualRegistrationToken;
 }) {
-  const queryClient = useQueryClient();
-  const revokeToken = useRevokeManualRegistrationTokenMutation();
+  const revokeToken = useRevokeManualRegistrationTokenMutation(workspaceId);
   const [open, setOpen] = useState(false);
-  const tokenName = manualRegistrationTokenDisplayName(token);
+  const tokenName = tokenDisplayName(token);
 
   async function handleRevoke() {
     try {
-      await revokeToken.mutateAsync({workspaceId, tokenId: token.id});
-      await queryClient.invalidateQueries({
-        queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
-      });
+      await revokeToken.mutateAsync(token.id);
       setOpen(false);
     } catch {
       // React Query stores the error for the inline modal alert.

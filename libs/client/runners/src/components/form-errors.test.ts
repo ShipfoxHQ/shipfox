@@ -10,10 +10,10 @@ describe('manualRegistrationTokenCreateErrorToFormError', () => {
     expect(result).toEqual({kind: 'form', message: 'Try later'});
   });
 
-  test('routes Error to a form-level alert with the error message', () => {
+  test('does not expose an unknown Error message', () => {
     const result = manualRegistrationTokenCreateErrorToFormError(new Error('boom'));
 
-    expect(result).toEqual({kind: 'form', message: 'boom'});
+    expect(result).toEqual({kind: 'form', message: 'Something went wrong. Try again.'});
   });
 
   test('falls back to generic copy for non-Error throwables', () => {

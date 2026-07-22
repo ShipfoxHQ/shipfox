@@ -1,24 +1,25 @@
-import type {ProvisionerTokenDto} from '@shipfox/api-runners-dto';
+import {
+  type ProvisionerToken,
+  provisionerConnectionStatus,
+  provisionerTokenDisplayName,
+} from '#core/token.js';
 import {
   formatProvisionerTokenDate,
   formatProvisionerTokenTimestamp,
-  provisionerConnectionStatus,
-  provisionerTokenDisplayName,
 } from './provisioner-token-format.js';
 
-const token: ProvisionerTokenDto = {
+const token: ProvisionerToken = {
   id: '33333333-3333-4333-8333-333333333333',
-  scope: 'workspace',
-  workspace_id: '11111111-1111-4111-8111-111111111111',
+  workspaceId: '11111111-1111-4111-8111-111111111111',
   prefix: 'sf_pt_abcde',
   name: 'Docker provisioner',
-  created_by_user_id: '22222222-2222-4222-8222-222222222222',
-  revoked_by_user_id: null,
-  expires_at: '2026-05-09T00:00:00.000Z',
-  revoked_at: null,
-  last_seen_at: null,
-  created_at: '2026-05-08T00:00:00.000Z',
-  updated_at: '2026-05-08T00:00:00.000Z',
+  createdByUserId: '22222222-2222-4222-8222-222222222222',
+  revokedByUserId: null,
+  expiresAt: '2026-05-09T00:00:00.000Z',
+  revokedAt: null,
+  lastSeenAt: null,
+  createdAt: '2026-05-08T00:00:00.000Z',
+  updatedAt: '2026-05-08T00:00:00.000Z',
 };
 
 describe('provisionerTokenDisplayName', () => {
@@ -73,7 +74,7 @@ describe('provisionerConnectionStatus', () => {
 
   test('returns last seen when inactive with a last seen timestamp', () => {
     const result = provisionerConnectionStatus(
-      {...token, last_seen_at: '2026-05-08T01:00:00.000Z'},
+      {...token, lastSeenAt: '2026-05-08T01:00:00.000Z'},
       new Set(),
     );
 

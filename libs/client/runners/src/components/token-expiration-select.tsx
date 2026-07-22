@@ -26,6 +26,12 @@ export const expirationOptions: Array<{value: TokenExpirationOption; label: stri
   {value: 'never', label: 'Never'},
 ];
 
+export function expirationCommand(expiration: TokenExpirationOption) {
+  return expiration === 'never'
+    ? ({kind: 'never'} as const)
+    : ({kind: 'expires-after', seconds: Number(expiration)} as const);
+}
+
 export function expirationHint(expiration: TokenExpirationOption): string {
   if (expiration === 'never') return 'Token will not expire.';
   const expiresAt = new Date(Date.now() + Number(expiration) * 1000);

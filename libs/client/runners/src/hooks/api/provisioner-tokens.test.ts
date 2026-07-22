@@ -29,7 +29,7 @@ describe('provisioner token transports', () => {
     const result = await listProvisionerTokens({workspaceId});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.tokens).toEqual([]);
+    expect(result).toEqual([]);
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${workspaceId}/provisioners/tokens`,
     );
@@ -60,17 +60,20 @@ describe('provisioner token transports', () => {
       );
     });
     configureApiClient({fetchImpl});
-    const body = {name: 'Docker provisioner', ttl_seconds: 86_400};
+    const command = {
+      name: 'Docker provisioner',
+      expiration: {kind: 'expires-after' as const, seconds: 86_400},
+    };
 
-    const result = await createProvisionerToken({workspaceId, body});
+    const result = await createProvisionerToken({workspaceId, command});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.raw_token).toBe('sf_pt_raw-created-token');
+    expect(result.token).toBe('sf_pt_raw-created-token');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${workspaceId}/provisioners/tokens`,
     );
     expect(request.method).toBe('POST');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({name: 'Docker provisioner', ttl_seconds: 86_400});
   });
 
   test('posts to the token revoke endpoint', async () => {
@@ -95,7 +98,7 @@ describe('provisioner token transports', () => {
     const result = await revokeProvisionerToken({workspaceId, tokenId});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.revoked_at).toBe('2026-05-08T01:00:00.000Z');
+    expect(result.revokedAt).toBe('2026-05-08T01:00:00.000Z');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${workspaceId}/provisioners/tokens/${tokenId}/revoke`,
     );
@@ -120,7 +123,7 @@ describe('provisioner token transports', () => {
     const result = await listActiveProvisioners({workspaceId});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.provisioners).toHaveLength(1);
+    expect(result).toHaveLength(1);
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${workspaceId}/provisioners/active`,
     );

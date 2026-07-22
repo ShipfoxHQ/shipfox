@@ -1,4 +1,3 @@
-import type {CreateProvisionerTokenResponseDto} from '@shipfox/api-runners-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
@@ -6,15 +5,14 @@ import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
 import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
-import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
-import {
-  provisionerTokenQueryKeys,
-  useCreateProvisionerTokenMutation,
-} from '#hooks/api/provisioner-tokens.js';
+import type {CreatedProvisionerToken} from '#core/token.js';
+import {createTokenCommand} from '#core/token.js';
+import {useCreateProvisionerTokenMutation} from '#hooks/api/provisioner-tokens.js';
 import {provisionerTokenCreateErrorToFormError} from './provisioner-token-form-errors.js';
 import {
   ExpirationSelect,
+  expirationCommand,
   expirationHint,
   type TokenExpirationOption,
 } from './token-expiration-select.js';
@@ -26,27 +24,19 @@ export function CreateProvisionerTokenForm({
   onCreated,
 }: {
   workspaceId: string;
-  onCreated: (token: CreateProvisionerTokenResponseDto) => void;
+  onCreated: (token: CreatedProvisionerToken) => void;
 }) {
-  const queryClient = useQueryClient();
-  const createToken = useCreateProvisionerTokenMutation();
+  const createToken = useCreateProvisionerTokenMutation(workspaceId);
   const [formError, setFormError] = useState<string | undefined>();
 
   const form = useForm({
     defaultValues: {name: '', expiration: '86400' as TokenExpirationOption},
     onSubmit: async ({value}) => {
       setFormError(undefined);
-      const trimmedName = value.name.trim();
-      const body = {
-        ...(trimmedName ? {name: trimmedName} : {}),
-        ...(value.expiration === 'never' ? {} : {ttl_seconds: Number(value.expiration)}),
-      };
+      const command = createTokenCommand(value.name, expirationCommand(value.expiration));
 
       try {
-        const token = await createToken.mutateAsync({workspaceId, body});
-        await queryClient.invalidateQueries({
-          queryKey: provisionerTokenQueryKeys.list(workspaceId),
-        });
+        const token = await createToken.mutateAsync(command);
         onCreated(token);
       } catch (error) {
         const mapped = provisionerTokenCreateErrorToFormError(error);
@@ -141,10 +131,10 @@ export function CreateProvisionerTokenForm({
   );
 }
 
-export function CreatedProvisionerTokenPanel({token}: {token: CreateProvisionerTokenResponseDto}) {
+export function CreatedProvisionerTokenPanel({token}: {token: CreatedProvisionerToken}) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const {copy} = useCopyToClipboard({
-    text: token.raw_token,
+    text: token.token,
     onCopy: () => {
       setCopyState('copied');
       window.setTimeout(() => setCopyState('idle'), 1500);
@@ -171,7 +161,7 @@ export function CreatedProvisionerTokenPanel({token}: {token: CreateProvisionerT
         </div>
         <div className="flex items-center gap-8 max-[640px]:flex-col max-[640px]:items-stretch">
           <Code variant="paragraph" className="min-w-0 flex-1 break-all">
-            {token.raw_token}
+            {token.token}
           </Code>
           <Button
             size="sm"
