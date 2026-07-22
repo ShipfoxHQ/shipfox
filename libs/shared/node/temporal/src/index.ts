@@ -20,7 +20,9 @@ export {
   getClientInterceptors,
   getWorkerInterceptors,
   getWorkflowInterceptorModules,
+  getWorkflowSinks,
 } from './interceptors.js';
+export {installTemporalRuntime, temporalRuntimeOptions} from './runtime.js';
 export {
   type CreateWorkerOptions,
   createTemporalWorker,

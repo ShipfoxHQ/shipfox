@@ -1,4 +1,4 @@
-import {createConfig, str} from '@shipfox/config';
+import {bool, createConfig, port, str} from '@shipfox/config';
 
 const TEMPORAL_CLOUD_ADDRESS_PATTERN = /\.tmprl\.cloud(?::\d+)?$/i;
 
@@ -18,6 +18,14 @@ export const temporalConfigSchema = {
   TEMPORAL_API_KEY: str({
     desc: 'API key used to authenticate with Temporal Cloud. Store it as a secret. It is required for tmprl.cloud endpoints and must be unset for other endpoints.',
     default: undefined,
+  }),
+  OTEL_TEMPORAL_METRICS_PORT: port({
+    desc: 'Port that exposes Temporal worker Prometheus metrics.',
+    default: 9465,
+  }),
+  OTEL_SDK_DISABLED: bool({
+    desc: 'Disables OpenTelemetry tracing and metrics when set to true.',
+    default: false,
   }),
 };
 

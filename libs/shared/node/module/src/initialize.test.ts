@@ -38,6 +38,8 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
     warn: vi.fn(),
   },
+  metricAdd: vi.fn(),
+  metricRecord: vi.fn(),
 }));
 
 vi.mock('@shipfox/node-temporal', () => ({
@@ -50,6 +52,12 @@ vi.mock('@shipfox/node-temporal', () => ({
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
   logger: () => mocks.logger,
+  instanceMetrics: {
+    getMeter: () => ({
+      createCounter: () => ({add: mocks.metricAdd}),
+      createHistogram: () => ({record: mocks.metricRecord}),
+    }),
+  },
 }));
 
 describe('registerModuleMetrics', () => {

@@ -14,6 +14,7 @@ Fastify setup for Shipfox Node services. It adds Zod validation, CORS, Swagger, 
 - **Auth hooks** can be set on routes or route groups.
 - **Route groups** support prefixes, inherited auth, and scoped plugins.
 - **Swagger** is on by default and serves `GET /openapi.json`.
+- **OpenTelemetry metrics** record normalized request counts, duration, active requests, and readiness.
 
 Environment variables (via `@shipfox/config`):
 

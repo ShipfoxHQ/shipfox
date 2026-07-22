@@ -108,6 +108,9 @@ catalogs:
     '@opentelemetry/instrumentation':
       specifier: ^0.219.0
       version: 0.219.0
+    '@opentelemetry/instrumentation-aws-sdk':
+      specifier: ^0.74.0
+      version: 0.74.0
     '@opentelemetry/instrumentation-cassandra-driver':
       specifier: ^0.64.0
       version: 0.64.0
@@ -6784,6 +6787,9 @@ importers:
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../temporal
+      '@temporalio/activity':
+        specifier: 'catalog:'
+        version: 1.18.1
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(pg@8.21.0)
@@ -6830,6 +6836,9 @@ importers:
       '@opentelemetry/instrumentation':
         specifier: 'catalog:'
         version: 0.219.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/instrumentation-aws-sdk':
+        specifier: 'catalog:'
+        version: 0.74.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation-cassandra-driver':
         specifier: 'catalog:'
         version: 0.64.0(@opentelemetry/api@1.9.1)

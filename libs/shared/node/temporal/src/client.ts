@@ -3,11 +3,13 @@ import {Client, Connection} from '@temporalio/client';
 import {config} from './config.js';
 import {getTemporalConnectionOptions, temporalConnectionError} from './connection-options.js';
 import {getClientInterceptors} from './interceptors.js';
+import {installTemporalRuntime} from './runtime.js';
 
 let _connection: Connection | undefined;
 let _client: Client | undefined;
 
 export async function createTemporalClient(): Promise<Client> {
+  installTemporalRuntime();
   try {
     _connection = await Connection.connect(getTemporalConnectionOptions());
   } catch (error) {

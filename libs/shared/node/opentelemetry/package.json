@@ -47,6 +47,7 @@
     "@opentelemetry/exporter-prometheus": "catalog:",
     "@opentelemetry/exporter-trace-otlp-http": "catalog:",
     "@opentelemetry/instrumentation": "catalog:",
+    "@opentelemetry/instrumentation-aws-sdk": "catalog:",
     "@opentelemetry/instrumentation-cassandra-driver": "catalog:",
     "@opentelemetry/instrumentation-dns": "catalog:",
     "@opentelemetry/instrumentation-grpc": "catalog:",

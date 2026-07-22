@@ -10,6 +10,7 @@ import {
   notFoundHandler as defaultNotFoundHandler,
 } from './errorHandler.js';
 import {registerHealthChecks} from './health.js';
+import {registerFastifyMetrics} from './metrics.js';
 import {mountRoutes} from './router.js';
 import {registerSwagger} from './swagger.js';
 import type {AppConfig} from './types.js';
@@ -61,6 +62,7 @@ export async function createApp(appConfig?: AppConfig): Promise<FastifyInstance>
 
   const fastifyInstrumentation = getFastifyInstrumentation();
   if (fastifyInstrumentation) await fastify.register(fastifyInstrumentation.plugin());
+  registerFastifyMetrics(fastify);
 
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);

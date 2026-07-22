@@ -25,8 +25,14 @@ import {getServiceMetricsProvider, shutdownServiceMetrics} from './service.js';
 import './diag.js';
 
 export type {InstrumentationOptions} from './common.js';
+export {shouldStartTelemetry as isTelemetryEnabled} from './common.js';
 export {contextWithMetadata, enrichSpanWithMetadata, getContextMetadata} from './context.js';
-export {getFastifyInstrumentation, startInstanceInstrumentation} from './instance.js';
+export {
+  getFastifyInstrumentation,
+  getInstanceResource,
+  getInstanceSpanProcessor,
+  startInstanceInstrumentation,
+} from './instance.js';
 export {logger} from './logger.js';
 export {extractContextFromAttributes, injectContextToAttributes} from './propagation.js';
 export {shutdownServiceMetrics, startServiceMetrics} from './service.js';

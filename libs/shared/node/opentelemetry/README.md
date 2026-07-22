@@ -12,10 +12,15 @@ OpenTelemetry setup for Shipfox Node services. It starts tracing, Prometheus met
 - **`logger(options?)`** returns a logger with active trace IDs when a span exists.
 - **`shutdownInstrumentation()`** shuts down tracing and metrics.
 
-Environment variables (via `@shipfox/config`):
+Environment variables:
 
 - `OTEL_SERVICE_NAME` is optional if you pass `serviceName` in code.
-- `TRACES_COLLECTOR_URL` is optional. Set it to send traces over OTLP HTTP.
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is the exact OTLP HTTP trace endpoint.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` is the base OTLP endpoint used when the trace-specific endpoint is unset.
+- `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT`, and `OTEL_EXPORTER_OTLP_COMPRESSION` configure all OTLP signals. Their `OTEL_EXPORTER_OTLP_TRACES_*` variants take precedence for traces.
+- `OTEL_RESOURCE_ATTRIBUTES` adds or overrides resource attributes such as deployment environment and release identity.
+- `OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG` configure the standard SDK sampler.
+- `OTEL_SDK_DISABLED` disables tracing and metrics when set to `true`.
 - `OTEL_INSTANCE_METRICS_PORT` defaults to `9464`.
 - `OTEL_SERVICE_METRICS_PORT` defaults to `9474`.
 - `OTEL_DIAG_LOG_LEVEL` defaults to `none`.
@@ -83,13 +88,14 @@ meter.addBatchObservableCallback((observableResult) => {
 
 ## Traces (OTLP over HTTP)
 
-Set `TRACES_COLLECTOR_URL` to send traces to an OTLP HTTP endpoint. Leave it unset to disable trace export.
+Set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` to an exact OTLP HTTP trace endpoint, or set `OTEL_EXPORTER_OTLP_ENDPOINT` to a base endpoint. Leave both unset to disable trace export.
 
 ## Configuration via environment
 
 ```bash
 export OTEL_SERVICE_NAME="billing-api"
-export TRACES_COLLECTOR_URL="http://otel-collector:4318/v1/traces"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-collector:4318"
+export OTEL_RESOURCE_ATTRIBUTES="service.version=1.2.3,deployment.environment=production"
 export OTEL_INSTANCE_METRICS_PORT="9464"
 export OTEL_SERVICE_METRICS_PORT="9474"
 ```

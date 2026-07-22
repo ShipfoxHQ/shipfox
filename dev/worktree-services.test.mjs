@@ -35,6 +35,7 @@ describe('portsFromBase', () => {
       linearMcp: 65_010,
       githubApi: 65_011,
       slackApi: 65_012,
+      otelTemporal: 65_013,
     });
   });
 });
@@ -167,7 +168,7 @@ describe('parsePort', () => {
 
 describe('parseBasePort', () => {
   test('keeps the base port low enough for every service offset', () => {
-    assert.equal(parseBasePort('65523'), 65_523);
-    assert.equal(parseBasePort('65524'), undefined);
+    assert.equal(parseBasePort('65522'), 65_522);
+    assert.equal(parseBasePort('65523'), undefined);
   });
 });

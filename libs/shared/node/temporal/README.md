@@ -11,7 +11,8 @@ Temporal client and worker helpers for Shipfox Node services.
 - **`createTemporalWorkerConnection()`**: Creates a Temporal worker connection for a caller that owns its lifecycle.
 - **`createTemporalWorker(options)`**: Creates a worker with Shipfox defaults.
 - **Prebuilt workflow bundles**: Builds and loads production workflow artifacts without bundling at worker startup.
-- **Interceptor helpers**: Return client, worker, and workflow settings.
+- **OpenTelemetry propagation**: Connects client, workflow, and activity spans through the official Temporal interceptors.
+- **Temporal metrics**: Exposes the SDK's native Prometheus metrics from the worker process.
 
 ## Installation
 
@@ -67,6 +68,8 @@ await connection.close();
 | `TEMPORAL_NAMESPACE` | `default` | Temporal namespace. |
 | `TEMPORAL_TASK_QUEUE` | `shipfox` | Default task queue for workers. |
 | `TEMPORAL_API_KEY` | none | API key used to connect to Temporal Cloud. Store it as a secret. |
+| `OTEL_TEMPORAL_METRICS_PORT` | `9465` | Port that exposes native Temporal Prometheus metrics. |
+| `OTEL_SDK_DISABLED` | `false` | Disables Temporal telemetry together with the shared OpenTelemetry SDK. |
 
 ## Behavior notes
 
@@ -77,7 +80,7 @@ await connection.close();
 - This package does not configure mutual TLS (mTLS) client certificates.
 - Production packages run `shipfox-temporal-bundle` after SWC emits a workflow entrypoint. The command writes sibling `*.bundle.js` and `*.bundle.meta.json` files.
 - Production workers load the bundle instead of compiling it. Startup fails when an artifact is missing. It also fails when the `@temporalio/worker` version differs from the runtime version.
-- Development workers keep using `workflowsPath`. The bundle build includes workflow interceptors. Production workers do not pass workflow interceptor modules.
+- Development workers keep using `workflowsPath`. The bundle build includes workflow interceptors. Production workers use those interceptors from the prebuilt bundle.
 
 ## Development
 

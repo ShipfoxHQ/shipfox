@@ -46,6 +46,8 @@ export interface WorkflowStart {
 }
 
 export interface ModuleWorker {
+  /** Populated automatically from the declaring Shipfox module. */
+  moduleName?: string;
   taskQueue: string;
   workflowsPath: string;
   activities: (context: ModuleRuntimeContext) => object;
