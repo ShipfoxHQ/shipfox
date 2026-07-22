@@ -1,104 +1,37 @@
 ---
 name: commit
-description: "ALWAYS use this skill when committing changes. Follows Shipfox conventions for branch safety, validation checks, commit messages, and Linear ticket references. Trigger on commit, commit changes, save changes, make a commit, or create commit."
+description: "ALWAYS use this skill when committing changes. Applies Shipfox agent sequencing for branch checks, scoped validation, and commit creation. Trigger on commit, commit changes, save changes, make a commit, or create commit."
 allowed-tools: Bash
 ---
 
 # Commit Changes
 
-Commit staged changes, or all modified files if nothing is staged, following
-Shipfox's engineering practices.
+Create a commit after applying the shared contributor rules and the agent
+workflow below.
 
-This skill is shared by Claude and Codex. Claude loads it from
-`.claude/skills/commit`; Codex loads the same directory through
-`.codex/skills/commit`.
+Before committing, read the
+[contributor review standard](../../../CONTRIBUTING.md#prepare-a-change-for-review).
+It owns the shared branch-safety and commit-message rules that humans and
+agents follow.
 
-## Prerequisites
-
-Before committing, check the current branch:
-
-```bash
-git branch --show-current
-```
-
-If you're on `main`, create a feature branch first. Do not ask for confirmation
-when a clear branch name can be inferred, and do not commit directly to `main`.
-
-Derive a short, kebab-case branch name from the intent of the changes. If a
-Linear ticket is in the command arguments or inferrable from context, prefix
-the branch with it:
-
-```bash
-# With a ticket reference
-git checkout -b fox-123-add-label-validation
-
-# Without a ticket reference
-git checkout -b add-label-validation
-```
+When choosing validation, read the
+[local development and release workflow](../../../docs/guides/local-development-and-release-workflow.md).
+It owns task selection and the validation scope for the changed package.
 
 ## Process
 
-### Step 1: Understand the Changes
-
-```bash
-git status
-git diff
-git diff --cached
-```
-
-Review what is staged vs. unstaged. Stage the appropriate files if nothing is
-already staged.
-
-### Step 2: Run Conformity Checks
-
-Run all three checks before committing. If any check fails, stop and report the
-error. Do not commit failing changes.
-
-```bash
-mise exec -- turbo build --filter '...[origin/main]'
-mise exec -- turbo test --filter '...[origin/main]'
-mise exec -- turbo check --filter '...[origin/main]'
-```
-
-### Step 3: Write the Commit Message
-
-**Format:**
-
-```text
-<subject>
-
-<body>
-
-<footer>
-```
-
-Only the subject is required. Add a body when the change needs context beyond
-what the subject conveys. Add a footer to reference Linear tickets.
-
-**Subject line rules:**
-
-- Short sentence describing the change at a high level from a business/product
-  perspective
-- Use imperative mood: "Add runner label validation" not "Added runner label
-  validation"
-- Maximum ~70 characters
-- No period at the end
-- Never includes a `Co-authored-by` or `Co-Authored-By` trailer
-
-**Body guidelines:**
-
-- Explain what and why, not how
-- Include motivation for the change
-- Contrast with previous behavior when relevant
-
-**Footer - Linear ticket references:**
-
-```text
-Fixes LINEAR-123   # links and signals the ticket is resolved
-Refs LINEAR-123    # links without closing
-```
-
-### Step 4: Create the Commit
+1. Inspect `git branch --show-current`, `git status`, `git diff`, and
+   `git diff --cached`.
+2. Apply the contributor branch rule. If a new feature branch is needed, infer
+   a short kebab-case name from the change and issue context.
+3. Stage only the intended files when nothing is staged. Preserve an existing
+   deliberate staging set.
+4. Run the validation selected by the shared workflow. Use the repository's
+   agent execution instructions for pinned tooling and package filters. Stop
+   and report failures before committing.
+5. Write the commit message using the contributor standard. Infer it from the
+   diff when the user has not provided one.
+6. Create the commit. Use a heredoc when the message needs a body or footer:
 
 ```bash
 git commit -m "$(cat <<'EOF'
@@ -106,50 +39,9 @@ Subject line here
 
 Optional body explaining why.
 
-Refs LINEAR-123
+Refs ENG-123
 EOF
 )"
 ```
 
-If command arguments or the user request provide commit message guidance, use
-them. Otherwise infer the message from the diff.
-
-## Examples
-
-### Simple Fix
-
-```text
-Fix registration token expiry not being enforced
-
-Tokens were validated by existence but not by expiry date, allowing
-stale tokens to register new runners. Add the expiry check and return
-401 when the token is expired.
-
-Fixes LINEAR-456
-```
-
-### Feature
-
-```text
-Add per-organization runner concurrency limits
-
-Prevents a single org from exhausting the shared runner pool by
-introducing a configurable per-org cap.
-
-Refs LINEAR-123
-```
-
-### Refactor
-
-```text
-Extract token validation into a shared helper
-
-Duplicate parsing logic existed in three route handlers. No behavior
-change.
-```
-
-## Principles
-
-- Each commit should be a single, stable change
-- The repository should be in a working state after each commit
-- Commits should be independently reviewable
+Report the commit hash, subject, files included, and validation results.

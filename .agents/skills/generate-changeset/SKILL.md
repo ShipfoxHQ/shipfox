@@ -1,121 +1,42 @@
 ---
 name: generate-changeset
-description: "Generate a changeset file for the current branch following Shipfox's changeset rules. Trigger when the user asks to add a changeset, document a change for release, bump versions, or when preparing a PR that touches libs/ or tools/."
+description: "Generate a Changeset file for the current branch using Shipfox agent automation. Trigger when the user asks to add a Changeset, document a change for release, bump versions, or prepare a PR that touches published packages."
 allowed-tools: Read, Write, Bash, Glob, Grep
 ---
 
-# Generate Changeset (Agent Path)
+# Generate Changeset
 
-Agents cannot drive the interactive `pnpm exec changeset` prompt. This skill is
-the non-interactive equivalent: it writes a properly-formatted
-`.changeset/*.md` file directly.
+Agents cannot drive the interactive `pnpm exec changeset` prompt. This skill
+creates the equivalent `.changeset/*.md` file directly.
 
-See [CONTRIBUTING.md#publishing--changesets](../../../CONTRIBUTING.md#publishing--changesets)
-for the canonical rule on **when** a changeset is required and which bump
-level to pick. The skill below covers **how** to author the file.
+When a change may affect a published package, read the
+[Changesets and publishing workflow](../../../docs/guides/local-development-and-release-workflow.md#publish-packages-with-changesets).
+It owns when a Changeset is required, package eligibility, bump levels, and
+the shared summary rules.
 
 ## Process
 
-### Step 1: Confirm a changeset is needed
+1. Inspect `git diff origin/main...HEAD --name-only` and apply the shared
+   workflow to decide whether a Changeset is required.
+2. For each changed package, walk upward to its nearest `package.json`. Read
+   its `name` and `private` fields. Include only eligible published packages.
+3. Apply the shared bump-level policy. If the change is breaking, explain the
+   major-version impact and ask the user before writing it.
+4. Generate an unused three-word filename under `.changeset/` and write the
+   standard Changesets front matter with the selected package names and bumps.
+5. Write the summary using the shared workflow. Do not create a release pull
+   request or run the publisher.
+6. Report the filename, package bumps, and summary. The calling workflow is
+   responsible for committing the file with the implementation.
 
-```bash
-git diff origin/main...HEAD --name-only
-```
-
-If the diff only touches `apps/`, `e2e/`, the workspace root, docs, or repo
-config, stop and report that no changeset is needed. Otherwise continue.
-
-### Step 2: Identify the affected packages
-
-For each modified path under `libs/` or `tools/`, walk up to the nearest
-`package.json` and read its `name` field. Build the list of unique package
-names touched in the diff.
-
-```bash
-git diff origin/main...HEAD --name-only -- 'libs/**' 'tools/**' \
-  | xargs -n1 dirname 2>/dev/null \
-  | sort -u
-```
-
-Then for each directory, find the closest `package.json` and read its `name`.
-
-Skip any package whose `package.json` has `"private": true` — changesets for
-private packages are silently dropped at release time. In this repo, all
-`libs/*` and `tools/*` packages are public, but verify rather than assume.
-
-### Step 3: Choose the bump level
-
-Pick based on what was implemented in the diff:
-
-- `patch` — bug fixes, internal refactors, dependency bumps, performance work
-- `minor` — new features, additive public API, new exported symbols
-- `major` — breaking changes to public API, removed exports, renamed types
-
-When in doubt between `patch` and `minor`, default to `patch`. Never silently
-pick `major` — flag breaking changes to the user before writing the file.
-
-### Step 4: Write the changeset file
-
-Filename: `.changeset/<adjective>-<noun>-<verb>.md` (e.g.
-`happy-lions-jump.md`). Generate three random words; do not reuse an existing
-filename.
-
-Content format (single package):
+## File shape
 
 ```markdown
 ---
 "@shipfox/api-runners": minor
 ---
 
-Adds per-organization runner concurrency limits to prevent shared-pool starvation.
+Adds per-organization runner concurrency limits.
 ```
 
-Multiple packages:
-
-```markdown
----
-"@shipfox/api-runners": minor
-"@shipfox/api-runners-dto": patch
----
-
-Adds per-organization runner concurrency limits to prevent shared-pool starvation.
-```
-
-### Step 5: Report
-
-Tell the user the filename, the packages and bumps included, and the summary.
-Remind them to commit it alongside the code change (the skill writes the file
-but does not commit).
-
-## Style rules
-
-1. **Present tense**: "Adds runner label validation", not "Added".
-2. **One sentence, packed**: lead with the area of the product when it helps
-   readability. Every word earns its place. No bracketed asides, no trailing
-   notes, no second paragraph.
-3. **One changeset per logical change**: if the diff bundles two unrelated
-   changes, write two changesets.
-
-## Worked example
-
-Diff:
-
-- Modified `libs/api/runners/src/core/limit.ts` to add a new public
-  `enforceOrgLimit()` export
-- Modified `libs/api/runners-dto/src/limit-dto.ts` to add the matching Zod
-  schema
-- Modified `apps/api/src/routes/runners.ts` to wire the route
-
-Output (`.changeset/keen-otters-soar.md`):
-
-```markdown
----
-"@shipfox/api-runners": minor
-"@shipfox/api-runners-dto": minor
----
-
-Adds per-organization runner concurrency limits with a matching DTO schema for the new admin endpoint.
-```
-
-The `apps/api` change is not listed — apps are private and the release flow
-ignores them.
+Use one front-matter entry per affected package.
