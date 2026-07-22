@@ -1,10 +1,12 @@
-import type {LoginResponseDto, UserDto} from '@shipfox/api-auth-dto';
-import type {MembershipWithWorkspaceDto} from '@shipfox/api-workspaces-dto';
-import {ApiError, apiRequest, configureApiClient} from '@shipfox/client-api';
+import {loginResponseSchema} from '@shipfox/api-auth-dto';
+import {listUserWorkspacesResponseSchema} from '@shipfox/api-workspaces-dto';
+import {ApiError, checkedApiRequest, configureApiClient} from '@shipfox/client-api';
 import {useQueryClient} from '@tanstack/react-query';
 import {atom, useAtomValue, useSetAtom, useStore} from 'jotai';
 import type {PropsWithChildren} from 'react';
 import {useCallback, useEffect, useMemo} from 'react';
+import type {AuthenticatedSession, UserIdentity, WorkspaceSummary} from '#core/session.js';
+import {toAuthenticatedSession} from '#hooks/api/session-mapper.js';
 
 const REFRESH_EARLY_MS = 5 * 60 * 1000;
 const REFRESH_RETRY_DELAY_MS = 60_000;
@@ -12,16 +14,12 @@ const BASE64_URL_REPLACEMENTS = {dash: /-/g, underscore: /_/g} as const;
 
 export type AuthStatus = 'loading' | 'authenticated' | 'guest';
 
-export interface Workspace {
-  id: string;
-  name: string;
-  membershipId: string;
-}
+export type Workspace = WorkspaceSummary;
 
 export interface AuthState {
   status: AuthStatus;
   token?: string;
-  user?: UserDto;
+  user?: UserIdentity;
   workspaces?: Workspace[];
 }
 
@@ -39,18 +37,14 @@ export const authRefreshQueryKey = ['auth', 'refresh'] as const;
 export const userWorkspacesQueryKey = ['workspaces', 'mine'] as const;
 
 export function toAuthenticatedState(
-  result: LoginResponseDto,
-  memberships: MembershipWithWorkspaceDto[] = [],
+  session: AuthenticatedSession,
+  workspaces: WorkspaceSummary[] = [],
 ): AuthState {
   return {
     status: 'authenticated',
-    token: result.token,
-    user: result.user,
-    workspaces: memberships.map((membership) => ({
-      id: membership.workspace_id,
-      name: membership.workspace_name,
-      membershipId: membership.id,
-    })),
+    token: session.accessToken,
+    user: session.user,
+    workspaces,
   };
 }
 
@@ -69,14 +63,23 @@ export function useAuthState(): AuthStateValue {
 }
 
 export async function listUserWorkspaces(token?: string) {
-  return await apiRequest<{memberships: MembershipWithWorkspaceDto[]}>(
+  const response = await checkedApiRequest(
+    listUserWorkspacesResponseSchema,
     '/workspaces',
     token ? {headers: {authorization: `Bearer ${token}`}} : {},
   );
+  return {
+    memberships: response.memberships.map((membership) => ({
+      id: membership.workspace_id,
+      name: membership.workspace_name,
+      membershipId: membership.id,
+    })),
+  };
 }
 
-async function refreshAuthRequest() {
-  return await apiRequest<LoginResponseDto>('/auth/refresh', {method: 'POST'});
+async function refreshAuthRequest(): Promise<AuthenticatedSession> {
+  const response = await checkedApiRequest(loginResponseSchema, '/auth/refresh', {method: 'POST'});
+  return toAuthenticatedSession(response);
 }
 
 function decodeBase64Url(value: string): string {
@@ -121,33 +124,33 @@ export function useAuthTransition() {
   }, [clearPrivateState, setState, store]);
 
   const enterAuthenticated = useCallback(
-    async (result: LoginResponseDto) => {
+    async (session: AuthenticatedSession) => {
       const transitionEpoch = store.get(authTransitionEpochAtom) + 1;
       store.set(authTransitionEpochAtom, transitionEpoch);
       const previousState = store.get(authStateAtom);
       const principalChanged =
-        previousState.status === 'authenticated' && previousState.user?.id !== result.user.id;
+        previousState.status === 'authenticated' && previousState.user?.id !== session.user.id;
 
       if (principalChanged) await clearPrivateState();
       if (store.get(authTransitionEpochAtom) !== transitionEpoch) return;
 
-      queryClient.setQueryData(authRefreshQueryKey, result);
-      let memberships: MembershipWithWorkspaceDto[] = [];
+      queryClient.setQueryData(authRefreshQueryKey, session);
+      let workspaces: WorkspaceSummary[] = [];
       try {
-        const workspaces = await queryClient.fetchQuery({
+        const hydratedWorkspaces = await queryClient.fetchQuery({
           queryKey: userWorkspacesQueryKey,
-          queryFn: () => listUserWorkspaces(result.token),
+          queryFn: () => listUserWorkspaces(session.accessToken),
           retry: false,
           staleTime: 0,
         });
-        memberships = workspaces.memberships;
-        queryClient.setQueryData(userWorkspacesQueryKey, workspaces);
+        workspaces = hydratedWorkspaces.memberships;
+        queryClient.setQueryData(userWorkspacesQueryKey, hydratedWorkspaces);
       } catch {
         // The authenticated session remains usable while workspace hydration retries on the next route load.
       }
       if (store.get(authTransitionEpochAtom) !== transitionEpoch) return;
 
-      setState(toAuthenticatedState(result, memberships));
+      setState(toAuthenticatedState(session, workspaces));
     },
     [clearPrivateState, queryClient, setState, store],
   );
@@ -188,7 +191,7 @@ export function AuthRuntime({children, effects = true}: AuthRuntimeProps) {
     if (!effects) return;
     configureApiClient({
       getAccessToken: () => store.get(authStateAtom).token,
-      refreshAccessToken: async () => (await refreshAuth()).token,
+      refreshAccessToken: async () => (await refreshAuth()).accessToken,
     });
   }, [effects, refreshAuth, store]);
 

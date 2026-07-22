@@ -44,7 +44,8 @@ export function SlackCallbackPage() {
       key,
       async () =>
         await refreshAuth().then(
-          async (session) => await completeSlackCallback({query: params, token: session.token}),
+          async (session) =>
+            await completeSlackCallback({query: params, token: session.accessToken}),
         ),
     );
     request.then(

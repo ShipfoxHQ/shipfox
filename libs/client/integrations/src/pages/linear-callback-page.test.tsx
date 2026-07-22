@@ -13,7 +13,7 @@ vi.mock('@shipfox/client-auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shipfox/client-auth')>();
   return {
     ...actual,
-    useRefreshAuth: () => () => Promise.resolve({token: 'test-token'}),
+    useRefreshAuth: () => () => Promise.resolve({accessToken: 'test-token'}),
   };
 });
 

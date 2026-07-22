@@ -33,7 +33,6 @@ export function AuthShell({
       >
         <div className="h-full w-full bg-[radial-gradient(circle,rgba(230,62,0,0.48)_1.6px,transparent_1.8px)] bg-[length:44px_44px]" />
       </div>
-
       <section
         className={className ?? 'relative flex w-full max-w-[384px] flex-col items-stretch gap-28'}
         aria-labelledby="auth-title"

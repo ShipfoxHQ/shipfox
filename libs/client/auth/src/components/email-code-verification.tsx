@@ -1,10 +1,10 @@
+import {AuthShell} from '@shipfox/client-shell/runtime';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput} from '@shipfox/react-ui/form-field';
 import type {HeaderProps} from '@shipfox/react-ui/typography';
 import type {FormEvent, ReactNode, Ref} from 'react';
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {AuthShell} from './auth-shell.js';
 
 const EIGHT_DIGIT_CODE_RE = /^\d{8}$/u;
 

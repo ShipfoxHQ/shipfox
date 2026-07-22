@@ -22,11 +22,7 @@ const authState: AuthState = {
   user: {
     id: '22222222-2222-4222-8222-222222222222',
     email: 'user@example.com',
-    name: null,
-    email_verified_at: new Date().toISOString(),
-    status: 'active',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    emailVerifiedAt: new Date().toISOString(),
   },
   workspaces: [{id: WORKSPACE_SETTINGS_TEST_WID, name: 'Acme', membershipId: 'm-1'}],
 };

@@ -37,7 +37,7 @@ describe('loginAuth', () => {
     const result = await loginAuth(body);
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.token).toBe('access-token');
+    expect(result.accessToken).toBe('access-token');
     expect(request.url).toBe('https://api.example.test/auth/login');
     expect(request.method).toBe('POST');
     expect(requestBody).toEqual(body);

@@ -2,6 +2,7 @@ import {
   passwordResetConfirmBodySchema,
   passwordResetRequestBodySchema,
 } from '@shipfox/api-auth-dto';
+import {AuthShell} from '@shipfox/client-shell/runtime';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
@@ -11,12 +12,10 @@ import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
-import {AuthShell} from '#/components/auth-shell.js';
 import {
   useConfirmPasswordResetAuth,
   useRequestPasswordResetAuth,
 } from '#hooks/api/password-reset-auth.js';
-import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {
   passwordResetConfirmErrorToFormError,
@@ -148,7 +147,6 @@ function PasswordResetRequest() {
 
 function PasswordResetConfirm({token}: {token: string}) {
   const confirmPasswordReset = useConfirmPasswordResetAuth();
-  const refreshAuth = useRefreshAuth();
   const navigate = useNavigate();
   const [, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [formError, setFormError] = useState<string | undefined>();
@@ -163,7 +161,6 @@ function PasswordResetConfirm({token}: {token: string}) {
           new_password: value.new_password,
         });
         await confirmPasswordReset.mutateAsync(body);
-        await refreshAuth();
         setAuthFormDraft(initialAuthFormDraft);
         toast.success('Your password has been changed. You are now logged in.');
         await navigate({to: '/', replace: true});

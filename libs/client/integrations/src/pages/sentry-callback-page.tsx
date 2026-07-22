@@ -108,7 +108,7 @@ export function SentryCallbackPage() {
               code: params.code,
               installation_id: params.installationId,
             },
-            token: session.token,
+            token: session.accessToken,
           }),
         ),
     );

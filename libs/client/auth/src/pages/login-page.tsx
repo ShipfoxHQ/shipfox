@@ -1,4 +1,5 @@
 import {loginBodySchema} from '@shipfox/api-auth-dto';
+import {AuthShell} from '@shipfox/client-shell/runtime';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
@@ -8,7 +9,6 @@ import {useForm} from '@tanstack/react-form';
 import {Link, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
-import {AuthShell} from '#/components/auth-shell.js';
 import {useLoginAuth} from '#hooks/api/login-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
 import {loginErrorToFormError} from './form-errors.js';
@@ -81,7 +81,7 @@ export function LoginPage() {
     ? `/invitations/accept?token=${encodeURIComponent(invitationToken)}`
     : undefined;
   const headerTitle = invitationPending
-    ? `Join ${invitationPending.workspace_name}`
+    ? `Join ${invitationPending.workspaceName}`
     : 'Connect to Shipfox';
   const headerDescription = invitationPending
     ? 'Log in to accept your invitation.'

@@ -1,4 +1,4 @@
-import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-auth';
+import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-shell/runtime';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -74,7 +74,7 @@ export function InvitationAcceptPage() {
 
     hasKickedAccept.current = true;
     invitationAccepts
-      .run(token, async () => await runAccept({token, workspaceName: data.workspace_name}))
+      .run(token, async () => await runAccept({token, workspaceName: data.workspaceName}))
       .catch(() => {
         // The mutation surfaces its error via accept.error; the UI re-renders
         // into the auth-match-error state below.
@@ -137,7 +137,7 @@ export function InvitationAcceptPage() {
     return (
       <AuthShell title="Invitation expired" description="The link is no longer accepting joins.">
         <Callout role="alert" type="error">
-          This invitation expired on {formatDate(data.expires_at)}. Ask your administrator to send a
+          This invitation expired on {formatDate(data.expiresAt)}. Ask your administrator to send a
           new one.
         </Callout>
         <GoHomeButton navigate={navigate} />
@@ -150,12 +150,12 @@ export function InvitationAcceptPage() {
       toast.info(`This invitation has already been accepted.`),
     );
     return (
-      <AuthShell title="Invitation already used" description={data.workspace_name}>
+      <AuthShell title="Invitation already used" description={data.workspaceName}>
         <Callout role="alert" type="info">
           This invitation has already been accepted.{' '}
           {auth.isAuthenticated
-            ? `Open your dashboard to access ${data.workspace_name} if your account is a member.`
-            : `Log in to access ${data.workspace_name}.`}
+            ? `Open your dashboard to access ${data.workspaceName} if your account is a member.`
+            : `Log in to access ${data.workspaceName}.`}
         </Callout>
         {auth.isAuthenticated ? null : (
           <Button asChild className="w-full">
@@ -168,8 +168,8 @@ export function InvitationAcceptPage() {
   }
 
   const inviterLine =
-    data.invited_by_display != null
-      ? `Invited by ${data.invited_by_display} to join as ${data.email}.`
+    data.invitedByDisplay != null
+      ? `Invited by ${data.invitedByDisplay} to join as ${data.email}.`
       : `Invited to join as ${data.email}.`;
 
   if (!auth.isAuthenticated) {
@@ -177,7 +177,7 @@ export function InvitationAcceptPage() {
     const signupHref = `/auth/signup?redirect=${encodeURIComponent(redirect)}`;
     const loginHref = `/auth/login?redirect=${encodeURIComponent(redirect)}`;
     return (
-      <AuthShell title={data.workspace_name} description={inviterLine}>
+      <AuthShell title={data.workspaceName} description={inviterLine}>
         <div className="flex flex-col gap-16">
           <Button asChild className="w-full">
             <Link to={signupHref}>Create account</Link>
@@ -199,7 +199,7 @@ export function InvitationAcceptPage() {
     const redirect = `/invitations/accept?token=${encodeURIComponent(token)}`;
     const logoutHref = `/auth/logout?redirect=${encodeURIComponent(redirect)}`;
     return (
-      <AuthShell title={data.workspace_name} description={inviterLine}>
+      <AuthShell title={data.workspaceName} description={inviterLine}>
         <Callout role="alert" type="warning">
           You're signed in as {auth.user?.email}, but this invitation is for {data.email}.
         </Callout>
@@ -223,15 +223,15 @@ export function InvitationAcceptPage() {
   // result. Show either the pending state or the error state.
   if (accept.isError) {
     return (
-      <AuthShell title={data.workspace_name} description={inviterLine}>
+      <AuthShell title={data.workspaceName} description={inviterLine}>
         <Callout role="alert" type="error">
-          We couldn't add you to {data.workspace_name}. Try again in a moment.
+          We couldn't add you to {data.workspaceName}. Try again in a moment.
         </Callout>
         <Button
           className="w-full"
           isLoading={accept.isPending}
           onClick={() => {
-            runAccept({token, workspaceName: data.workspace_name}).catch(() => {
+            runAccept({token, workspaceName: data.workspaceName}).catch(() => {
               // The mutation state drives the rendered error; avoid an
               // unhandled rejection from the click handler.
             });
@@ -244,11 +244,11 @@ export function InvitationAcceptPage() {
   }
 
   return (
-    <AuthShell title={data.workspace_name} description={inviterLine}>
+    <AuthShell title={data.workspaceName} description={inviterLine}>
       <div className="flex flex-col items-center gap-12" aria-live="polite">
         <ShipfoxLoader />
         <Text size="sm" className="text-foreground-neutral-subtle">
-          Adding you to {data.workspace_name}…
+          Adding you to {data.workspaceName}…
         </Text>
       </div>
     </AuthShell>

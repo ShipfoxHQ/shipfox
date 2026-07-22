@@ -1,5 +1,13 @@
+export {AuthActions, AuthShell, type AuthShellProps} from '#components/auth-shell.js';
 export {WorkspaceCrumb, type WorkspaceCrumbProps} from '#components/workspace-crumb.js';
 export {WorkspaceSwitcher} from '#components/workspace-switcher.js';
+export type {
+  AuthenticatedSession,
+  UserIdentity,
+  WorkspaceMembership,
+  WorkspaceSummary,
+} from '#core/session.js';
+export {toAuthenticatedSession, toUserIdentity} from '#hooks/api/session-mapper.js';
 export * from '../compose/compose-routes.js';
 export * from '../compose/errors.js';
 export * from '../compose/merge-config.js';

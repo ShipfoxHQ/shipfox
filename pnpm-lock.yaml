@@ -4549,6 +4549,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/client-invitations':
+        specifier: workspace:*
+        version: link:../invitations
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell
@@ -4934,9 +4937,6 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
-      '@shipfox/client-auth':
-        specifier: workspace:*
-        version: link:../auth
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell

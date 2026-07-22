@@ -50,7 +50,8 @@ export function LinearCallbackPage() {
       key,
       async () =>
         await refreshAuth().then(
-          async (session) => await completeLinearCallback({query: params, token: session.token}),
+          async (session) =>
+            await completeLinearCallback({query: params, token: session.accessToken}),
         ),
     );
 

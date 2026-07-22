@@ -137,7 +137,7 @@ describe('SignupPage', () => {
         return Promise.resolve(
           jsonResponse({
             status: 'pending',
-            workspace_id: 'workspace-1',
+            workspace_id: '11111111-1111-4111-8111-111111111111',
             workspace_name: 'Invite Workspace',
             email: 'invitee@example.com',
             invited_by_display: 'owner@example.com',

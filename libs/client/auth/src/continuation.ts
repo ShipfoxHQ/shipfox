@@ -1,4 +1,4 @@
-export {AuthActions, AuthShell, type AuthShellProps} from './components/auth-shell.js';
+export {AuthActions, AuthShell, type AuthShellProps} from '@shipfox/client-shell/runtime';
 export {
   EmailCodeVerification,
   type EmailCodeVerificationProps,

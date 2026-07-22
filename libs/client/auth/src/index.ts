@@ -1,6 +1,5 @@
 export * from './components/auth-guard.js';
 export * from './components/auth-provider.js';
-export * from './components/auth-shell.js';
 export {WorkspaceCrumb, type WorkspaceCrumbProps} from './components/workspace-crumb.js';
 export {WorkspaceSwitcher, type WorkspaceSwitcherProps} from './components/workspace-switcher.js';
 export * from './hooks/index.js';
