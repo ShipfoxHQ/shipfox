@@ -108,14 +108,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start test services
-        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
-        run: docker compose up -d postgres
-
       - name: Set up mise
         uses: ./.github/actions/setup-mise
         with:
-          tools: node npm:pnpm npm:turbo packer
+          tools: node npm:pnpm npm:turbo
 
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
@@ -127,14 +123,6 @@ jobs:
       - name: Verify repository and package policies
         if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
         run: turbo verify --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
-
-      - name: Wait for test services
-        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
-        run: docker compose up --wait postgres
-
-      - name: Verify external package contracts
-        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
-        run: turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
 
       - name: Verify release metadata and publication closure
         if: github.event_name == 'pull_request' && needs.release-classification.outputs.generated_release == 'true'
@@ -162,6 +150,30 @@ jobs:
             echo '- Preflight result: passed.'
             echo '- Expected comparison: under 5 minutes and under 7.65 runner-minutes, versus the 13-minute / 51 runner-minute baseline.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  external-package-contracts:
+    name: Verify external package contracts
+    needs: [release-classification]
+    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Verify external package contracts
+        run: turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
 
   publication-preflight:
     name: Package publication preflight
@@ -370,7 +382,7 @@ jobs:
   # cache instead of inheriting artifacts from less-privileged jobs.
   publish-images:
     name: Publish app image (${{ matrix.image }})
-    needs: [static-verification, tests, e2e]
+    needs: [static-verification, external-package-contracts, tests, e2e]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
@@ -425,7 +437,7 @@ jobs:
 
   publish-runner-image-candidate:
     name: Publish runner image candidate (${{ matrix.architecture }})
-    needs: [static-verification, tests, e2e]
+    needs: [static-verification, external-package-contracts, tests, e2e]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 90
