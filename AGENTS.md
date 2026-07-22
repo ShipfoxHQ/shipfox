@@ -112,70 +112,12 @@ payload maps in the module's `*-dto` package, write outbox events in the same
 transaction as the state change, and register publisher tables on the module
 declaration.
 
-### Client packages
+### Client architecture and forms
 
-Client feature packages should expose both transport functions and React Query
-hooks. Use `@shipfox/client-api` for JSON requests, auth refresh, and `ApiError`
-handling; colocate query keys, raw request functions, and hooks in the feature's
-`hooks/api/*` module.
-
-### Form management
-
-Client forms use `@tanstack/react-form` driven by the `*BodySchema` Zod schemas
-from the matching `*-dto` package. Zod 3.24+ implements Standard Schema, so
-schemas pass directly to TanStack Form's `validators`:
-
-```ts
-const form = useForm({
-  defaultValues,
-  onSubmit: async ({value}) => { /* mutation */ },
-});
-
-<form.Field
-  name="email"
-  validators={{onBlur: bodySchema.shape.email, onSubmit: bodySchema.shape.email}}
->
-```
-
-Do not add `@tanstack/zod-form-adapter` or write custom Zod adapters: the
-adapter package is legacy (pinned to form-core v0.x) and unnecessary on v1+.
-
-Render every labeled input through `FormField` from `@shipfox/react-ui`, using
-`FormFieldInput` to inherit the field's id, `aria-invalid`, and
-`aria-describedby` automatically:
-
-```tsx
-<FormField label="Email" id="email" error={fieldError(field)}>
-  <FormFieldInput
-    type="email"
-    value={field.state.value}
-    onChange={(event) => field.handleChange(event.target.value)}
-    onBlur={field.handleBlur}
-  />
-</FormField>
-```
-
-Validation runs `onBlur` per field and `onSubmit` for the form. Show field
-errors only after the field has been blurred or after a submit attempt. See
-the `fieldError(field)` helper at the bottom of each page form for the
-boilerplate.
-
-Server errors are classified by a per-feature `errorToFormError(error)` pure
-function in `form-errors.ts`. It returns either
-`{kind: 'field', field, message}` (routed to
-`form.setFieldMeta(field, prev => ({...prev, errorMap: {...prev.errorMap, onServer: message}}))`)
-or `{kind: 'form', message}` (rendered in an `<Alert>` above the form).
-Use the `onServer` slot in `errorMap` (not `errors` directly) because
-TanStack Form v1 derives `field.state.meta.errors` from `errorMap`, so a
-direct write to `errors` gets overwritten on the next derived read.
-TanStack Form auto-clears `errorMap.onServer` on the next field validation
-(blur/change), which is the correct UX. Add a Vitest node test enumerating
-every `ApiError` code the feature handles, plus the unknown-error fallback.
-
-For draft persistence across navigation (auth flows), sync TanStack Form values
-into a Jotai atom on field blur and on form unmount only (never on every
-keystroke) and filter the atom shape explicitly so unrelated fields (e.g.
-signup's `name`) don't leak into a `{email, password}` draft.
+When a task adds or changes a client feature, API adapter, query, route state,
+form, atom, browser storage, or cross-feature client flow, read the
+[client architecture guide](docs/architecture/client-architecture.md). It owns
+the current client model, form rules, and architecture enforcement.
 
 ### E2E testing
 
