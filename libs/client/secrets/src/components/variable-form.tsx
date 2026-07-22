@@ -1,4 +1,3 @@
-import {isSensitiveSecretName} from '@shipfox/api-secrets-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {
@@ -10,10 +9,16 @@ import {
 import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useEffect, useRef, useState} from 'react';
+import {
+  normalizeStoreKey,
+  STORE_KEY_HELP,
+  shouldWarnSensitiveVariableName,
+  validateNewStoreKey,
+  workspaceStoreScope,
+} from '#core/store.js';
 import {usePutVariableMutation, useVariableQuery} from '#hooks/api/variables.js';
 import {secretsErrorToFormError} from './form-errors.js';
 import {FormBody, FormFooter} from './form-shell.js';
-import {STORE_KEY_HELP, validateNewStoreKey} from './store-key.js';
 
 export const VARIABLE_FORM_ID = 'variable-form';
 
@@ -49,7 +54,12 @@ export function VariableForm({
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
-        await putVariable.mutateAsync({workspaceId, key: value.key, body: {value: value.value}});
+        await putVariable.mutateAsync({
+          workspaceId,
+          key: normalizeStoreKey(value.key),
+          value: value.value,
+          scope: workspaceStoreScope,
+        });
         onSaved();
       } catch (error) {
         const mapped = secretsErrorToFormError(error);
@@ -115,10 +125,10 @@ export function VariableForm({
                   disabled={mode === 'edit'}
                   placeholder="LOG_LEVEL"
                   value={field.state.value}
-                  onChange={(event) => field.handleChange(event.target.value.toUpperCase())}
+                  onChange={(event) => field.handleChange(normalizeStoreKey(event.target.value))}
                   onBlur={field.handleBlur}
                 />
-                {isSensitiveSecretName(field.state.value) ? (
+                {shouldWarnSensitiveVariableName(field.state.value) ? (
                   <Callout role="alert" type="warning">
                     <Text size="sm" aria-live="polite">
                       This looks like it may be sensitive. Variables are stored in plaintext and are
