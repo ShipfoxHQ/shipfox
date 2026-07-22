@@ -1,0 +1,21 @@
+# Architecture decision records
+
+Architecture decision records (ADRs) preserve durable engineering decisions.
+They record the context, alternatives, decision, and consequences at the time
+of the choice. They are not the complete operating guide for a system.
+
+Read an ADR when a change crosses its decision boundary. For the current
+documentation model and other engineering sources, start with the
+[engineering documentation map](../README.md).
+
+| ADR | Status | It owns |
+| --- | --- | --- |
+| [0001: Public client composition contract](0001-client-composition-contract.md) | Accepted | The public contract for composing Shipfox client features. |
+| [0002: Server inter-module architecture](0002-api-inter-module-architecture.md) | Accepted, amended by ADR 0004 | Producer-owned server contracts and bounded-context crossings. |
+| [0003: Client state and domain architecture](0003-client-state-and-domain-architecture.md) | Accepted | Client state ownership and feature-domain boundaries. |
+| [0004: Shared semantic packages and server dependency boundaries](0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Accepted; amends ADR 0002 | Shared package admission and server dependency boundaries. |
+| [0005: Repository documentation architecture](0005-repository-documentation-architecture.md) | Accepted | Documentation ownership, routing, and progressive disclosure. |
+
+When a decision changes, add a new ADR that supersedes or amends the earlier
+record. Keep the original record intact so readers can understand why the
+repository made the earlier choice.
