@@ -1,4 +1,4 @@
-import {ApiError, apiRequest} from '@shipfox/client-api';
+import {ApiError} from '@shipfox/client-api';
 import {useRefreshAuth} from '@shipfox/client-auth';
 import {defineRoute} from '@shipfox/client-shell/runtime';
 import {createSingleFlight} from '@shipfox/client-ui';
@@ -6,6 +6,7 @@ import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect} from 'react';
+import {completeGithubCallback} from '#hooks/api/integrations.js';
 
 interface GithubCallbackParams {
   code: string;
@@ -47,9 +48,7 @@ function GithubCallbackRoute() {
       key,
       async () =>
         await refreshAuth().then(async (session) => {
-          await apiRequest(`/integrations/github/callback/api?${key}`, {
-            headers: {authorization: `Bearer ${session.accessToken}`},
-          });
+          await completeGithubCallback({...params, token: session.accessToken});
         }),
     );
     request

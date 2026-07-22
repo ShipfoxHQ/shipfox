@@ -1,4 +1,3 @@
-import type {RepositoryDto} from '@shipfox/api-integration-core-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {Input} from '@shipfox/react-ui/input';
 import {Label} from '@shipfox/react-ui/label';
@@ -6,6 +5,7 @@ import {RadioGroup, RadioGroupItem} from '@shipfox/react-ui/radio-group';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Text} from '@shipfox/react-ui/typography';
 import {useId} from 'react';
+import type {Repository} from '#core/models.js';
 
 export function RepositoryPicker({
   repositories,
@@ -20,7 +20,7 @@ export function RepositoryPicker({
   onSearchChange,
   searchDisabled,
 }: {
-  repositories: RepositoryDto[];
+  repositories: Repository[];
   selectedRepositoryId: string | undefined;
   onSelect: (repositoryId: string) => void;
   isLoading: boolean;
@@ -69,16 +69,16 @@ export function RepositoryPicker({
         >
           {repositories.map((repository) => (
             <RadioGroupItem
-              key={repository.external_repository_id}
-              value={repository.external_repository_id}
+              key={repository.externalRepositoryId}
+              value={repository.externalRepositoryId}
               className="p-12"
             >
               <span className="flex min-w-0 items-center justify-between gap-10">
                 <Text as="span" size="sm" bold className="truncate">
-                  {repository.full_name}
+                  {repository.fullName}
                 </Text>
                 <Text as="span" size="xs" className="shrink-0 text-foreground-neutral-muted">
-                  {repository.default_branch}
+                  {repository.defaultBranch}
                 </Text>
               </span>
             </RadioGroupItem>

@@ -1,10 +1,10 @@
-import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {useIsTextTruncated} from '@shipfox/react-ui/hooks';
 import {Label} from '@shipfox/react-ui/label';
 import {RadioGroup, RadioGroupItem} from '@shipfox/react-ui/radio-group';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Text} from '@shipfox/react-ui/typography';
 import {useId} from 'react';
+import type {IntegrationConnection} from '#core/models.js';
 import {IntegrationIcon} from '#integration-icon.js';
 
 export function ConnectionPicker({
@@ -12,7 +12,7 @@ export function ConnectionPicker({
   selectedConnectionId,
   onSelect,
 }: {
-  connections: IntegrationConnectionDto[];
+  connections: IntegrationConnection[];
   selectedConnectionId: string | undefined;
   onSelect: (connectionId: string) => void;
 }) {
@@ -39,8 +39,8 @@ export function ConnectionPicker({
   );
 }
 
-function ConnectionOption({connection}: {connection: IntegrationConnectionDto}) {
-  const {ref: nameRef, isTruncated} = useIsTextTruncated<HTMLSpanElement>(connection.display_name);
+function ConnectionOption({connection}: {connection: IntegrationConnection}) {
+  const {ref: nameRef, isTruncated} = useIsTextTruncated<HTMLSpanElement>(connection.displayName);
 
   return (
     <span className="flex min-w-0 items-center gap-10">
@@ -61,11 +61,11 @@ function ConnectionOption({connection}: {connection: IntegrationConnectionDto}) 
         <TooltipTrigger asChild>
           <span ref={nameRef} className="min-w-0 truncate">
             <Text as="span" size="sm" bold>
-              {connection.display_name}
+              {connection.displayName}
             </Text>
           </span>
         </TooltipTrigger>
-        {isTruncated ? <TooltipContent>{connection.display_name}</TooltipContent> : null}
+        {isTruncated ? <TooltipContent>{connection.displayName}</TooltipContent> : null}
       </Tooltip>
     </span>
   );

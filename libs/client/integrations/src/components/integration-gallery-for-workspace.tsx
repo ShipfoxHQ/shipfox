@@ -1,11 +1,11 @@
-import type {
-  IntegrationCapabilityDto,
-  IntegrationConnectionDto,
-  IntegrationProviderDto,
-} from '@shipfox/api-integration-core-dto';
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {useState} from 'react';
+import type {
+  IntegrationCapability,
+  IntegrationConnection,
+  IntegrationProvider,
+} from '#core/models.js';
 import {
   useDeleteIntegrationConnectionMutation,
   useIntegrationConnectionsQuery,
@@ -25,7 +25,7 @@ import {WebhookCreateModal} from './webhook/webhook-create-modal.js';
 import {WebhookUsageDetails} from './webhook/webhook-usage-details.js';
 
 interface IntegrationGalleryForWorkspaceProps {
-  capability: IntegrationCapabilityDto | undefined;
+  capability: IntegrationCapability | undefined;
   emptyProvidersMessage: string;
   workspaceId: string;
 }
@@ -38,7 +38,7 @@ export function IntegrationGalleryForWorkspace({
   const [createProvider, setCreateProvider] = useState<string | undefined>();
   const [usageConnectionId, setUsageConnectionId] = useState<string | undefined>();
   const [createdUsageConnection, setCreatedUsageConnection] = useState<
-    IntegrationConnectionDto | undefined
+    IntegrationConnection | undefined
   >();
   const [deleteConnectionId, setDeleteConnectionId] = useState<string | undefined>();
   const providersQuery = useIntegrationProvidersQuery(capability ? {capability} : undefined);
@@ -48,12 +48,12 @@ export function IntegrationGalleryForWorkspace({
   const updateWebhookConnection = useUpdateWebhookConnectionMutation();
   const deleteWebhookConnection = useDeleteWebhookConnectionMutation();
 
-  const providers = providersQuery.data?.providers ?? [];
-  const providersMap = new Map<string, IntegrationProviderDto>(
+  const providers = providersQuery.data ?? [];
+  const providersMap = new Map<string, IntegrationProvider>(
     providers.map((provider) => [provider.provider, provider]),
   );
 
-  const allConnections = connectionsQuery.data?.connections ?? [];
+  const allConnections = connectionsQuery.data ?? [];
   // Filter in memory so the all-status cache key stays shared; passing capability
   // into the hook would collide with the active-only `source_control` key used
   // elsewhere.
@@ -61,13 +61,13 @@ export function IntegrationGalleryForWorkspace({
     ? allConnections.filter((connection) => connection.capabilities.includes(capability))
     : allConnections;
 
-  const providerDisplayName = (provider: string) => providersMap.get(provider)?.display_name;
+  const providerDisplayName = (provider: string) => providersMap.get(provider)?.displayName;
   const providerLabel = (provider: string) => providerDisplayName(provider) ?? provider;
 
   const sortedConnections = [...connections].sort((a, b) => {
     const byProvider = providerLabel(a.provider).localeCompare(providerLabel(b.provider));
     if (byProvider !== 0) return byProvider;
-    return a.created_at.localeCompare(b.created_at);
+    return a.createdAt.localeCompare(b.createdAt);
   });
   const usageConnection =
     sortedConnections.find((connection) => connection.id === usageConnectionId) ??
@@ -77,7 +77,7 @@ export function IntegrationGalleryForWorkspace({
     (connection) => connection.id === deleteConnectionId,
   );
 
-  async function setConnectionActive(connection: IntegrationConnectionDto, active: boolean) {
+  async function setConnectionActive(connection: IntegrationConnection, active: boolean) {
     try {
       const body = {lifecycle_status: active ? 'active' : 'disabled'} as const;
       if (connection.provider === 'webhook') {
@@ -122,8 +122,11 @@ export function IntegrationGalleryForWorkspace({
   return (
     <div className="flex flex-col gap-24">
       <InstalledIntegrationsSection
-        connectionsQuery={connectionsQuery}
         connections={sortedConnections}
+        isPending={connectionsQuery.isPending}
+        isFetching={connectionsQuery.isFetching}
+        error={connectionsQuery.isError ? connectionsQuery.error : undefined}
+        onRetry={() => void connectionsQuery.refetch()}
         isMutating={
           updateConnection.isPending ||
           deleteConnection.isPending ||
@@ -147,7 +150,11 @@ export function IntegrationGalleryForWorkspace({
         </div>
 
         <ProviderGrid
-          providersQuery={providersQuery}
+          providers={providers}
+          isPending={providersQuery.isPending}
+          isFetching={providersQuery.isFetching}
+          error={providersQuery.isError ? providersQuery.error : undefined}
+          onRetry={() => void providersQuery.refetch()}
           workspaceId={workspaceId}
           emptyMessage={emptyProvidersMessage}
           onOpenProvider={setCreateProvider}
@@ -178,7 +185,7 @@ export function IntegrationGalleryForWorkspace({
         ) : null}
       </IntegrationUsageModal>
       <IntegrationDeleteConfirmModal
-        connectionName={deleteConnectionTarget?.display_name}
+        connectionName={deleteConnectionTarget?.displayName}
         open={deleteConnectionId !== undefined}
         isPending={deleteConnection.isPending || deleteWebhookConnection.isPending}
         onOpenChange={(open) => {

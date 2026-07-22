@@ -26,7 +26,7 @@ export function SourceStrip({
 }) {
   const workspace = useActiveWorkspace();
   const connectionsQuery = useSourceConnectionsQuery(workspace.id);
-  const connection = connectionsQuery.data?.connections.find((c) => c.id === connectionId);
+  const connection = connectionsQuery.data?.find((c) => c.id === connectionId);
 
   return (
     <section
@@ -40,7 +40,7 @@ export function SourceStrip({
             <Skeleton className="h-16 w-160" />
           ) : (
             <Text size="sm" bold className="truncate">
-              {connection?.display_name ?? 'Connected source'}
+              {connection?.displayName ?? 'Connected source'}
             </Text>
           )}
           <Tooltip>

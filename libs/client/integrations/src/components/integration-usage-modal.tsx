@@ -1,4 +1,3 @@
-import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {
   CodeBlock,
@@ -29,6 +28,7 @@ import {Text} from '@shipfox/react-ui/typography';
 import type {ReactNode} from 'react';
 import {useEffect, useMemo, useState} from 'react';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
+import type {IntegrationConnection} from '#core/models.js';
 
 export interface IntegrationUsageEvent {
   value: string;
@@ -36,7 +36,7 @@ export interface IntegrationUsageEvent {
 }
 
 interface IntegrationUsageModalProps {
-  connection: IntegrationConnectionDto | null;
+  connection: IntegrationConnection | null;
   events: IntegrationUsageEvent[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,7 +69,7 @@ export function IntegrationUsageModal({
     () => [{language: 'yaml', filename: WORKFLOW_FILENAME, code: workflowExample}],
     [workflowExample],
   );
-  const title = connection ? `Use ${connection.display_name}` : 'Use integration';
+  const title = connection ? `Use ${connection.displayName}` : 'Use integration';
 
   return (
     <Modal open={open && connection !== null} onOpenChange={onOpenChange}>
@@ -82,7 +82,7 @@ export function IntegrationUsageModal({
                 {title}
               </Text>
               {connection ? (
-                <ConnectionStatusBadge status={connection.lifecycle_status} className="shrink-0" />
+                <ConnectionStatusBadge status={connection.lifecycleStatus} className="shrink-0" />
               ) : null}
             </div>
             <Text size="sm" className="text-foreground-neutral-muted">

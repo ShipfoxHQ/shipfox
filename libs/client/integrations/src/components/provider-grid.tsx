@@ -1,7 +1,3 @@
-import type {
-  IntegrationProviderDto,
-  ListIntegrationProvidersResponseDto,
-} from '@shipfox/api-integration-core-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Card} from '@shipfox/react-ui/card';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -9,13 +5,17 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
-import type {UseQueryResult} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
+import type {IntegrationProvider} from '#core/models.js';
 import {IntegrationIcon} from '#integration-icon.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
 
 export interface ProviderGridProps {
-  providersQuery: UseQueryResult<ListIntegrationProvidersResponseDto, Error>;
+  providers: IntegrationProvider[];
+  isPending: boolean;
+  isFetching?: boolean;
+  error?: Error | null | undefined;
+  onRetry?: () => void;
   workspaceId: string;
   emptyMessage: string;
   loadingLabel?: string;
@@ -29,27 +29,39 @@ export const PROVIDER_SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
 
 export function ProviderGrid({
-  providersQuery,
+  providers,
+  isPending,
+  isFetching = false,
+  error,
+  onRetry,
   workspaceId,
   emptyMessage,
   loadingLabel = 'Loading providers',
   errorSubject = 'available integrations',
   onOpenProvider,
 }: ProviderGridProps) {
-  const providers = providersQuery.data?.providers ?? [];
   const installableProviders = providers.filter((provider) => PROVIDER_CATALOG[provider.provider]);
 
-  if (providersQuery.isPending) return <ProviderGridSkeleton label={loadingLabel} />;
+  if (isPending) return <ProviderGridSkeleton label={loadingLabel} />;
 
-  if (providersQuery.isError && providersQuery.data === undefined) {
+  if (error) {
     return (
       <div className={cn(PROVIDER_SURFACE_CLASS, 'px-16')}>
-        <QueryLoadError query={providersQuery} subject={errorSubject} />
+        <QueryLoadError
+          query={{
+            isError: true,
+            isFetching,
+            data: undefined,
+            error,
+            refetch: onRetry ?? (() => undefined),
+          }}
+          subject={errorSubject}
+        />
       </div>
     );
   }
 
-  if (providersQuery.data !== undefined && installableProviders.length === 0) {
+  if (installableProviders.length === 0) {
     return (
       <div className={cn(PROVIDER_SURFACE_CLASS, 'px-16')}>
         <EmptyState
@@ -81,7 +93,7 @@ function ProviderCard({
   workspaceId,
   onOpenProvider,
 }: {
-  provider: IntegrationProviderDto;
+  provider: IntegrationProvider;
   workspaceId: string;
   onOpenProvider?: ((provider: string) => void) | undefined;
 }) {
@@ -92,7 +104,7 @@ function ProviderCard({
     return (
       <button
         type="button"
-        aria-label={`Add ${provider.display_name}`}
+        aria-label={`Add ${provider.displayName}`}
         onClick={() => onOpenProvider?.(provider.provider)}
         className="group flex h-full w-full min-w-0 items-center justify-between gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16 text-left transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
       >
@@ -105,7 +117,7 @@ function ProviderCard({
     <Link
       to={catalog.setupPath}
       params={{wid: workspaceId}}
-      aria-label={`Install ${provider.display_name}`}
+      aria-label={`Install ${provider.displayName}`}
       className="group flex h-full min-w-0 items-center justify-between gap-12 rounded-8 border border-border-neutral-base bg-background-neutral-base p-16 transition-colors hover:bg-background-components-hover focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
     >
       <ProviderCardContent provider={provider} action="Install" />
@@ -117,7 +129,7 @@ function ProviderCardContent({
   provider,
   action,
 }: {
-  provider: IntegrationProviderDto;
+  provider: IntegrationProvider;
   action: 'Add' | 'Install';
 }) {
   return (
@@ -129,7 +141,7 @@ function ProviderCardContent({
           className="size-24 shrink-0 text-foreground-neutral-base"
         />
         <Text as="span" size="md" bold className="truncate">
-          {provider.display_name}
+          {provider.displayName}
         </Text>
       </span>
       <span className="flex shrink-0 items-center gap-4 text-foreground-neutral-muted transition-colors group-hover:text-foreground-highlight-interactive">

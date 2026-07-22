@@ -12,9 +12,7 @@ interface WebhookUsageDetailsProps {
 
 export function WebhookUsageDetails({workspaceId, connectionId}: WebhookUsageDetailsProps) {
   const connectionsQuery = useWebhookConnectionsQuery(workspaceId);
-  const connection = connectionsQuery.data?.connections.find(
-    (candidate) => candidate.id === connectionId,
-  );
+  const connection = connectionsQuery.data?.find((candidate) => candidate.id === connectionId);
 
   if (connectionsQuery.isPending) {
     return (
@@ -36,7 +34,7 @@ export function WebhookUsageDetails({workspaceId, connectionId}: WebhookUsageDet
         <Text size="sm" bold>
           Inbound URL
         </Text>
-        <CopyableValue label="inbound URL" value={connection.inbound_url} />
+        <CopyableValue label="inbound URL" value={connection.inboundUrl} />
         <WebhookPublicEndpointAlert />
       </div>
     </div>

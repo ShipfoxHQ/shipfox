@@ -1,4 +1,3 @@
-import type {LinearCallbackResponseDto} from '@shipfox/api-integration-linear-dto';
 import {useRefreshAuth} from '@shipfox/client-auth';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
@@ -7,6 +6,7 @@ import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
+import type {IntegrationConnection} from '#core/models.js';
 import {integrationsQueryKeys, useCompleteLinearCallbackMutation} from '#hooks/api/integrations.js';
 import {
   classifyLinearCallbackError,
@@ -19,7 +19,7 @@ import {
 
 // Retain only recent completions: this bounds long-lived callback pages while
 // still covering StrictMode and immediate Back/Forward remounts.
-const callbackRequests = createSingleFlight<string, LinearCallbackResponseDto>({
+const callbackRequests = createSingleFlight<string, IntegrationConnection>({
   maxTerminalResults: 32,
 });
 // Keeps the success toast firing once per distinct callback even though the
@@ -65,7 +65,7 @@ export function LinearCallbackPage() {
         }
         try {
           await queryClient.invalidateQueries({
-            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspace_id),
+            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
           });
         } catch {
           // Cache refresh is best effort: the successful callback is already committed server-side.
@@ -78,7 +78,7 @@ export function LinearCallbackPage() {
         try {
           await navigate({
             to: '/workspaces/$wid/settings/integrations',
-            params: {wid: connection.workspace_id},
+            params: {wid: connection.workspaceId},
             replace: true,
           });
         } catch {

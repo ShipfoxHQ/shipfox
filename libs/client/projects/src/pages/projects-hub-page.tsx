@@ -1,8 +1,8 @@
-import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionStatusBadge,
+  type IntegrationConnection,
   IntegrationIcon,
   useIntegrationConnectionsQuery,
 } from '@shipfox/client-integrations';
@@ -35,7 +35,7 @@ export function ProjectsHubPage() {
     projects.length > 0 ? workspace.id : undefined,
   );
   const connectionsById = new Map(
-    (connectionsQuery.data?.connections ?? []).map((connection) => [connection.id, connection]),
+    (connectionsQuery.data ?? []).map((connection) => [connection.id, connection]),
   );
 
   const isInitialLoading = query.isPending;
@@ -202,7 +202,7 @@ function ProjectCard({
   workspaceId,
 }: {
   project: ProjectResponseDto;
-  connection: IntegrationConnectionDto | undefined;
+  connection: IntegrationConnection | undefined;
   connectionsResolved: boolean;
   connectionsSettled: boolean;
   workspaceId: string;
@@ -210,7 +210,7 @@ function ProjectCard({
   // On a resolved fetch, `active` carries no badge while a missing connection
   // reads as an error so a broken source is still flagged. An unresolved or
   // failed fetch shows nothing, so a fetch failure never flags every card.
-  const status = connectionsResolved ? (connection?.lifecycle_status ?? 'error') : undefined;
+  const status = connectionsResolved ? (connection?.lifecycleStatus ?? 'error') : undefined;
 
   return (
     <li>

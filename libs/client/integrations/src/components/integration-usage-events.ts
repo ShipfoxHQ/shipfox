@@ -1,4 +1,4 @@
-import type {IntegrationConnectionDto, SentryIssueAction} from '@shipfox/api-integration-core-dto';
+import type {SentryIssueAction} from '@shipfox/api-integration-core-dto';
 import {SENTRY_ISSUE_ACTIONS} from '@shipfox/api-integration-core-dto';
 import {linearWebhookEventNames} from '@shipfox/api-integration-linear-dto';
 import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
@@ -82,9 +82,10 @@ const GITHUB_EVENTS = [
   'workflow_run',
 ] as const;
 
-export function usageEventsForConnection(
-  connection: IntegrationConnectionDto,
-): IntegrationUsageEvent[] {
+export function usageEventsForConnection(connection: {
+  provider: string;
+  capabilities: readonly string[];
+}): IntegrationUsageEvent[] {
   if (connection.provider === 'webhook') {
     return [{value: WEBHOOK_RECEIVED_EVENT, label: WEBHOOK_RECEIVED_EVENT}];
   }

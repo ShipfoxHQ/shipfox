@@ -1,38 +1,45 @@
 import type {
   IntegrationCapabilityDto,
-  IntegrationConnectionDto,
-  ListIntegrationConnectionsResponseDto,
-  ListIntegrationProvidersResponseDto,
-  ListRepositoriesResponseDto,
   UpdateIntegrationConnectionBodyDto,
 } from '@shipfox/api-integration-core-dto';
-import type {
-  CreateGiteaConnectionBodyDto,
-  CreateGiteaConnectionResponseDto,
-} from '@shipfox/api-integration-gitea-dto';
-import type {
-  CreateGithubInstallBodyDto,
-  CreateGithubInstallResponseDto,
+import {
+  integrationConnectionDtoSchema,
+  listIntegrationConnectionsResponseSchema,
+  listIntegrationProvidersResponseSchema,
+  listRepositoriesResponseSchema,
+} from '@shipfox/api-integration-core-dto';
+import type {CreateGiteaConnectionBodyDto} from '@shipfox/api-integration-gitea-dto';
+import {createGiteaConnectionResponseSchema} from '@shipfox/api-integration-gitea-dto';
+import type {CreateGithubInstallBodyDto} from '@shipfox/api-integration-github-dto';
+import {
+  createGithubInstallResponseSchema,
+  githubCallbackResponseSchema,
 } from '@shipfox/api-integration-github-dto';
 import type {
   CreateLinearInstallBodyDto,
-  CreateLinearInstallResponseDto,
   LinearCallbackQueryDto,
-  LinearCallbackResponseDto,
+} from '@shipfox/api-integration-linear-dto';
+import {
+  createLinearInstallResponseSchema,
+  linearCallbackResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
 import type {
   CreateSentryInstallBodyDto,
-  CreateSentryInstallResponseDto,
   SentryConnectBodyDto,
-  SentryConnectResponseDto,
+} from '@shipfox/api-integration-sentry-dto';
+import {
+  createSentryInstallResponseSchema,
+  sentryConnectResponseSchema,
 } from '@shipfox/api-integration-sentry-dto';
 import type {
   CreateSlackInstallBodyDto,
-  CreateSlackInstallResponseDto,
   SlackCallbackQueryDto,
-  SlackCallbackResponseDto,
 } from '@shipfox/api-integration-slack-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {
+  createSlackInstallResponseSchema,
+  slackCallbackResponseSchema,
+} from '@shipfox/api-integration-slack-dto';
+import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {
   type FetchQueryOptions,
   queryOptions,
@@ -41,8 +48,18 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import {
+  type IntegrationConnection,
+  type IntegrationProvider,
+  isUsableConnection,
+} from '#core/models.js';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
+import {
+  toIntegrationConnection,
+  toIntegrationProvider,
+  toRepository,
+} from './integration-mapper.js';
 
 export const integrationsQueryKeys = {
   all: ['integrations'] as const,
@@ -66,10 +83,19 @@ type SourceConnectionsQueryKey =
   | readonly ['integrations', 'source-connections'];
 
 type SourceConnectionsQueryOptions = FetchQueryOptions<
-  ListIntegrationConnectionsResponseDto,
+  IntegrationConnection[],
   Error,
-  ListIntegrationConnectionsResponseDto,
+  IntegrationConnection[],
   SourceConnectionsQueryKey
+>;
+
+type ProvidersQueryKey = ReturnType<typeof integrationsQueryKeys.providers>;
+
+type ProvidersQueryOptions = FetchQueryOptions<
+  IntegrationProvider[],
+  Error,
+  IntegrationProvider[],
+  ProvidersQueryKey
 >;
 
 export async function listIntegrationProviders({
@@ -83,7 +109,8 @@ export async function listIntegrationProviders({
   if (capability) search.set('capability', capability);
   const query = search.toString();
   const path = query ? `/integration-providers?${query}` : '/integration-providers';
-  return await apiRequest<ListIntegrationProvidersResponseDto>(path, {signal});
+  const response = await checkedApiRequest(listIntegrationProvidersResponseSchema, path, {signal});
+  return response.providers.map(toIntegrationProvider);
 }
 
 export async function listIntegrationConnections({
@@ -97,10 +124,12 @@ export async function listIntegrationConnections({
 }) {
   const search = new URLSearchParams({workspace_id: workspaceId});
   if (capability) search.set('capability', capability);
-  return await apiRequest<ListIntegrationConnectionsResponseDto>(
+  const response = await checkedApiRequest(
+    listIntegrationConnectionsResponseSchema,
     `/integration-connections?${search.toString()}`,
     {signal},
   );
+  return response.connections.map(toIntegrationConnection);
 }
 
 export async function listSourceConnections({
@@ -110,7 +139,7 @@ export async function listSourceConnections({
   workspaceId: string;
   signal?: AbortSignal;
 }) {
-  const result = await listIntegrationConnections({
+  const connections = await listIntegrationConnections({
     workspaceId,
     capability: 'source_control',
     signal,
@@ -118,12 +147,7 @@ export async function listSourceConnections({
   // The endpoint returns every lifecycle status (the settings hub needs that),
   // but source-control consumers (onboarding redirect, project creation) only
   // act on usable connections — a disabled/error one must read as "not there".
-  return {
-    ...result,
-    connections: result.connections.filter(
-      (connection) => connection.lifecycle_status === 'active',
-    ),
-  };
+  return connections.filter(isUsableConnection);
 }
 
 export function sourceConnectionsQueryOptions(
@@ -139,35 +163,75 @@ export function sourceConnectionsQueryOptions(
 }
 
 export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) {
-  return await apiRequest<CreateGiteaConnectionResponseDto>('/integrations/gitea/connections', {
-    method: 'POST',
-    body,
-  });
+  const response = await checkedApiRequest(
+    createGiteaConnectionResponseSchema,
+    '/integrations/gitea/connections',
+    {
+      method: 'POST',
+      body,
+    },
+  );
+  return toIntegrationConnection(response);
 }
 
 export async function createGithubInstall(body: CreateGithubInstallBodyDto) {
-  return await apiRequest<CreateGithubInstallResponseDto>('/integrations/github/install', {
-    method: 'POST',
-    body,
-  });
+  return await checkedApiRequest(
+    createGithubInstallResponseSchema,
+    '/integrations/github/install',
+    {
+      method: 'POST',
+      body,
+    },
+  );
+}
+
+export async function completeGithubCallback({
+  code,
+  installationId,
+  state,
+  setupAction,
+  token,
+}: {
+  code: string;
+  installationId: number;
+  state: string;
+  setupAction?: string;
+  token: string;
+}) {
+  const query = new URLSearchParams({code, installation_id: String(installationId), state});
+  if (setupAction) query.set('setup_action', setupAction);
+  const response = await checkedApiRequest(
+    githubCallbackResponseSchema,
+    `/integrations/github/callback/api?${query.toString()}`,
+    {headers: {authorization: `Bearer ${token}`}},
+  );
+  return toIntegrationConnection(response);
 }
 
 export async function createSentryInstall(body: CreateSentryInstallBodyDto) {
-  return await apiRequest<CreateSentryInstallResponseDto>('/integrations/sentry/install', {
-    method: 'POST',
-    body,
-  });
+  return await checkedApiRequest(
+    createSentryInstallResponseSchema,
+    '/integrations/sentry/install',
+    {
+      method: 'POST',
+      body,
+    },
+  );
 }
 
 export async function createLinearInstall(body: CreateLinearInstallBodyDto) {
-  return await apiRequest<CreateLinearInstallResponseDto>('/integrations/linear/install', {
-    method: 'POST',
-    body,
-  });
+  return await checkedApiRequest(
+    createLinearInstallResponseSchema,
+    '/integrations/linear/install',
+    {
+      method: 'POST',
+      body,
+    },
+  );
 }
 
 export async function createSlackInstall(body: CreateSlackInstallBodyDto) {
-  return await apiRequest<CreateSlackInstallResponseDto>('/integrations/slack/install', {
+  return await checkedApiRequest(createSlackInstallResponseSchema, '/integrations/slack/install', {
     method: 'POST',
     body,
   });
@@ -180,10 +244,12 @@ export async function completeLinearCallback({
   query: LinearCallbackQueryDto;
   token: string;
 }) {
-  return await apiRequest<LinearCallbackResponseDto>(
+  const response = await checkedApiRequest(
+    linearCallbackResponseSchema,
     `/integrations/linear/callback/api?${serializeLinearCallbackQuery(query)}`,
     {headers: {authorization: `Bearer ${token}`}},
   );
+  return toIntegrationConnection(response);
 }
 
 export async function completeSlackCallback({
@@ -193,20 +259,27 @@ export async function completeSlackCallback({
   query: SlackCallbackQueryDto;
   token: string;
 }) {
-  return await apiRequest<SlackCallbackResponseDto>(
+  const response = await checkedApiRequest(
+    slackCallbackResponseSchema,
     `/integrations/slack/callback/api?${serializeSlackCallbackQuery(query)}`,
     {headers: {authorization: `Bearer ${token}`}},
   );
+  return toIntegrationConnection(response);
 }
 
 // Called from the callback route with an explicit bearer (same as the GitHub
 // callback): the route refreshes auth itself before forwarding the grant code.
 export async function connectSentry({body, token}: {body: SentryConnectBodyDto; token: string}) {
-  return await apiRequest<SentryConnectResponseDto>('/integrations/sentry/connect', {
-    method: 'POST',
-    body,
-    headers: {authorization: `Bearer ${token}`},
-  });
+  const response = await checkedApiRequest(
+    sentryConnectResponseSchema,
+    '/integrations/sentry/connect',
+    {
+      method: 'POST',
+      body,
+      headers: {authorization: `Bearer ${token}`},
+    },
+  );
+  return toIntegrationConnection(response);
 }
 
 export async function listRepositories({
@@ -227,7 +300,11 @@ export async function listRepositories({
   const path = query
     ? `/integration-connections/${connectionId}/repositories?${query}`
     : `/integration-connections/${connectionId}/repositories`;
-  return await apiRequest<ListRepositoriesResponseDto>(path, {signal});
+  const response = await checkedApiRequest(listRepositoriesResponseSchema, path, {signal});
+  return {
+    repositories: response.repositories.map(toRepository),
+    nextCursor: response.next_cursor ?? undefined,
+  };
 }
 
 export async function updateIntegrationConnection({
@@ -237,21 +314,36 @@ export async function updateIntegrationConnection({
   connectionId: string;
   body: UpdateIntegrationConnectionBodyDto;
 }) {
-  return await apiRequest<IntegrationConnectionDto>(
+  const response = await checkedApiRequest(
+    integrationConnectionDtoSchema,
     `/integration-connections/${encodeURIComponent(connectionId)}`,
     {method: 'PATCH', body},
   );
+  return toIntegrationConnection(response);
 }
 
 export async function deleteIntegrationConnection({connectionId}: {connectionId: string}) {
-  await apiRequest<void>(`/integration-connections/${encodeURIComponent(connectionId)}`, {
-    method: 'DELETE',
-  });
+  await checkedApiRequest(
+    emptyResponseSchema,
+    `/integration-connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export function useIntegrationProvidersQuery(params?: {capability?: IntegrationCapabilityDto}) {
   const capability = params?.capability;
   return useQuery({
+    queryKey: integrationsQueryKeys.providers(capability ?? 'all'),
+    queryFn: ({signal}) => listIntegrationProviders(capability ? {capability, signal} : {signal}),
+  });
+}
+
+export function integrationProvidersQueryOptions(
+  capability?: IntegrationCapabilityDto,
+): ProvidersQueryOptions {
+  return queryOptions({
     queryKey: integrationsQueryKeys.providers(capability ?? 'all'),
     queryFn: ({signal}) => listIntegrationProviders(capability ? {capability, signal} : {signal}),
   });
@@ -291,7 +383,7 @@ export function useRepositoriesInfiniteQuery(
       if (trimmedSearch) args.search = trimmedSearch;
       return listRepositories(args);
     },
-    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
 }
 
@@ -321,7 +413,7 @@ export function useUpdateIntegrationConnectionMutation() {
     mutationFn: updateIntegrationConnection,
     onSuccess: async (connection) => {
       await queryClient.invalidateQueries({
-        queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspace_id),
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
       });
     },
   });

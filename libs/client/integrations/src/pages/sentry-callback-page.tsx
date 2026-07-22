@@ -1,4 +1,3 @@
-import type {SentryConnectResponseDto} from '@shipfox/api-integration-sentry-dto';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
@@ -10,6 +9,7 @@ import {Header, Text} from '@shipfox/react-ui/typography';
 import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import type {IntegrationConnection} from '#core/models.js';
 import {connectSentry, integrationsQueryKeys} from '#hooks/api/integrations.js';
 import {
   classifySentryConnectError,
@@ -20,7 +20,7 @@ import {
   type SentryConnectFailure,
 } from '#sentry-callback.js';
 
-const connectRequests = createSingleFlight<string, SentryConnectResponseDto>();
+const connectRequests = createSingleFlight<string, IntegrationConnection>();
 
 export function SentryCallbackPage() {
   const search = useSearch({strict: false});

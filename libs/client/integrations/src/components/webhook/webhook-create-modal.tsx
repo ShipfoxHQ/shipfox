@@ -1,8 +1,6 @@
-import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {
   createWebhookConnectionBodySchema,
   WEBHOOK_RESERVED_SLUGS,
-  type WebhookConnectionDto,
   webhookSlugSchema,
 } from '@shipfox/api-integration-webhook-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
@@ -21,6 +19,7 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useEffect, useRef, useState} from 'react';
+import type {IntegrationConnection, WebhookConnection} from '#core/models.js';
 import {useCreateWebhookConnectionMutation} from '#hooks/api/webhook-connections.js';
 import {webhookCreateErrorToFormError} from './webhook-form-errors.js';
 
@@ -28,7 +27,7 @@ interface WebhookCreateModalProps {
   workspaceId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (connection: IntegrationConnectionDto) => void;
+  onCreated: (connection: IntegrationConnection) => void;
 }
 
 export function WebhookCreateModal({
@@ -53,7 +52,7 @@ export function WebhookCreateModal({
           slug: value.slug.trim(),
         });
         const connection = await createWebhook.mutateAsync(body);
-        onCreated(toIntegrationConnection(connection));
+        onCreated(webhookConnectionToIntegrationConnection(connection));
         toast.success('Webhook created.');
         onOpenChange(false);
       } catch (error) {
@@ -231,17 +230,19 @@ function suggestWebhookSlug(name: string): string {
   return suffix ? `${prefix}-${suffix}` : prefix;
 }
 
-function toIntegrationConnection(connection: WebhookConnectionDto): IntegrationConnectionDto {
+function webhookConnectionToIntegrationConnection(
+  connection: WebhookConnection,
+): IntegrationConnection {
   return {
     id: connection.id,
-    workspace_id: connection.workspace_id,
+    workspaceId: connection.workspaceId,
     provider: 'webhook',
-    external_account_id: connection.slug,
+    externalAccountId: connection.slug,
     slug: connection.slug,
-    display_name: connection.name,
-    lifecycle_status: connection.lifecycle_status,
+    displayName: connection.name,
+    lifecycleStatus: connection.lifecycleStatus,
     capabilities: [],
-    created_at: connection.created_at,
-    updated_at: connection.updated_at,
+    createdAt: connection.createdAt,
+    updatedAt: connection.updatedAt,
   };
 }
