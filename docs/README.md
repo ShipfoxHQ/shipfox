@@ -13,6 +13,7 @@ listed there or when you need to place, update, or review documentation.
 | --- | --- | --- |
 | Needs the product overview or a starting point outside engineering work. | [Root README](../README.md) | Product orientation and repository navigation. |
 | Starts a human contribution or needs the normal local workflow. | [Contributing guide](../CONTRIBUTING.md) | Prerequisites, initial setup, contribution workflow, and essential validation. |
+| Needs local-task selection, service recovery, or package release procedures. | [Local development and release workflow](guides/local-development-and-release-workflow.md) | Mise, local services, Ollama, affected-package validation, Changesets, and publishing. |
 | Changes agent behavior or needs agent execution instructions. | [Agent instructions](../AGENTS.md) | Repository-specific agent execution, change hygiene, and conditional context loading. |
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |

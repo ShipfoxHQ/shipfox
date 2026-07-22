@@ -1,49 +1,22 @@
 # Agent guidelines
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before working on this project.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) when the task needs human contribution
+workflow or onboarding context.
 
-## Running tasks locally
+## Agent execution
 
-This project uses [mise](https://mise.jdx.dev/) to manage tool versions. `node`, `pnpm`, and `turbo` are all available in the shell: no `npx` needed.
+Use mise-managed tools. Prefix non-interactive commands with `mise exec --`.
+Use `turbo <task> --filter=@shipfox/<package>...` to validate the changed
+package and its dependencies before widening validation.
 
-```sh
-# Install dependencies
-pnpm install
+If the task needs task selection, local-service recovery, shared Ollama, or
+release procedures, read the
+[local development and release workflow guide](docs/guides/local-development-and-release-workflow.md).
+It owns those shared contributor procedures.
 
-# Build all packages
-turbo build
-
-# Check (lint + format + import sorting) / type-check / test
-turbo check
-turbo type
-turbo type:emit
-turbo test
-
-# Scope to a specific package
-turbo build --filter=@shipfox/api...
-
-# Start local services (Docker required)
-docker compose up -d
-
-# Dev mode with hot-reload (apps only)
-pnpm --filter=@shipfox/api dev
-```
-
-## Dependency management
-
-Read the [dependency version policy](docs/policies/dependency-versions.md)
-before adding, updating, or exempting a dependency. It defines catalog range
-rules, peer compatibility, coordinated Renovate families, and the contributor
-workflow.
-
-After a dependency change, run:
-
-```sh
-pnpm check:dependencies
-pnpm check:lockfile
-pnpm check:published-artifacts
-pnpm install --frozen-lockfile
-```
+If the task adds, updates, or exempts a dependency, read the
+[dependency version policy](docs/policies/dependency-versions.md). It owns
+dependency rules and required checks.
 
 ## Backend architecture
 
