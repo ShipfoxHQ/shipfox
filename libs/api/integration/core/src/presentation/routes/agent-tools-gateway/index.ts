@@ -3,6 +3,7 @@ import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import {AUTH_LEASED_JOB, requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {GetIntegrationConnectionByIdFn} from '#db/connections.js';
 import {createIntegrationToolCallRecorder} from './audit.js';
@@ -52,12 +53,14 @@ export function createAgentToolsGatewayRoutes(
           await server.connect(transport as unknown as Transport);
           reply.raw.on('close', () => {
             void transport.close().catch((error) => {
+              logger().error({err: error}, 'Failed to close integration agent tool transport');
               reportError(error, {
                 boundary: 'integration.agent-tool',
                 operation: 'close-transport',
               });
             });
             void server.close().catch((error) => {
+              logger().error({err: error}, 'Failed to close integration agent tool server');
               reportError(error, {
                 boundary: 'integration.agent-tool',
                 operation: 'close-server',

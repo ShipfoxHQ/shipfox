@@ -5,7 +5,7 @@ Sentry integration for Shipfox Node services. It reads Sentry settings from envi
 ## What it does
 
 - **`import '@shipfox/node-error-monitoring/init'`** starts Sentry from environment config.
-- **`reportError(error, context)`** reports an unexpected failure through an isolated Sentry scope.
+- **`reportError(error, context)`** reports an unexpected failure through an isolated Sentry scope. It does not write a log entry itself.
 - **`markErrorReported(error)`** and **`isErrorReported(error)`** prevent duplicate reports when a failure crosses boundaries.
 - **`captureException(error)`** remains available for backward compatibility.
 - **`addEventProcessor(processor)`** adds a custom Sentry event processor.
@@ -35,10 +35,12 @@ import "@shipfox/node-error-monitoring/init";
 import {
   reportError,
 } from "@shipfox/node-error-monitoring";
+import {logger} from "@shipfox/node-opentelemetry";
 
 try {
   await riskyOperation();
 } catch (err) {
+  logger().error({err}, "Failed to refresh cache");
   reportError(err, {boundary: "api.runtime", operation: "refresh-cache"});
 }
 ```
@@ -48,6 +50,12 @@ try {
 The earliest boundary that owns an unexpected failure reports it. A catch that
 continues must report the failure, return or persist a recognized error, or
 document why the failure is intentionally non-actionable.
+
+`reportError` is intentionally Sentry-only. Every call site must also write a
+structured error log before reporting so a self-hosted deployment without Sentry
+still has the error, its cause chain, and safe diagnostic context. Keep the log
+context equivalent to the report context and never add untrusted input merely
+for local debugging.
 
 Report unknown HTTP failures, API startup/runtime/shutdown failures, Temporal
 activity and workflow-code defects, lifecycle failures, dispatcher and outbox

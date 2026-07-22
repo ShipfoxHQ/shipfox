@@ -263,6 +263,10 @@ async function stopStartedModuleServices(services: StartedModuleService[]): Prom
     try {
       await stopModuleService(service);
     } catch (error) {
+      logger().error(
+        {err: error, service: service.definition.name},
+        'Failed to stop module service',
+      );
       reportError(error, {
         boundary: 'module.service',
         operation: 'stop',
@@ -309,6 +313,10 @@ async function stopModuleService(service: StartedModuleService): Promise<void> {
   );
   void stopResult.then((lateResult) => {
     if (lateResult.status !== 'failed') return;
+    logger().error(
+      {err: lateResult.error, service: service.definition.name},
+      'Module service stop failed after timeout',
+    );
     reportError(lateResult.error, {
       boundary: 'module.service',
       operation: 'stop-after-timeout',
@@ -429,6 +437,7 @@ async function stopModuleWorkers(options: {
     try {
       worker.shutdown();
     } catch (error) {
+      logger().error({err: error, taskQueue}, 'Failed to shut down module worker');
       reportError(error, {
         boundary: 'module.worker',
         operation: 'shutdown',
@@ -444,6 +453,10 @@ async function stopModuleWorkers(options: {
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected') {
       const worker = options.workers[index];
+      logger().error(
+        {err: result.reason, ...(worker ? {taskQueue: worker.taskQueue} : {})},
+        'Module worker stopped with an error',
+      );
       reportError(result.reason, {
         boundary: 'module.worker',
         operation: 'run',
@@ -456,12 +469,14 @@ async function stopModuleWorkers(options: {
   try {
     await options.connection.close();
   } catch (error) {
+    logger().error({err: error}, 'Failed to close module worker connection');
     reportError(error, {boundary: 'module.worker', operation: 'close-connection'});
     errors.push(error);
   } finally {
     try {
       await closeTemporalClient();
     } catch (error) {
+      logger().error({err: error}, 'Failed to close module Temporal client');
       reportError(error, {boundary: 'module.worker', operation: 'close-client'});
       errors.push(error);
     }

@@ -8,6 +8,7 @@ const makeWorkflowExporter = vi.hoisted(() => vi.fn());
 vi.mock('@shipfox/node-opentelemetry', () => ({
   getInstanceResource: () => telemetry.resource,
   getInstanceSpanProcessor: () => telemetry.processor,
+  logger: () => ({error: vi.fn()}),
 }));
 
 vi.mock('@temporalio/interceptors-opentelemetry', () => {

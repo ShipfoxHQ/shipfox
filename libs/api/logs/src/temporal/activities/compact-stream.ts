@@ -1,4 +1,5 @@
 import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {Context} from '@temporalio/activity';
 import {compactedObjectKey, deleteObject, putCompactedObject} from '#api/object-storage.js';
 import {compactedGzipStream} from '#core/compaction.js';
@@ -81,6 +82,10 @@ async function compactStream(
     stats.uncompressedBytes !== expected.uncompressedBytes
   ) {
     await deleteObject(uploadKey).catch((error) => {
+      logger().error(
+        {err: error, streamId: stream.id, objectKey: uploadKey},
+        'Failed to delete invalid compacted log object',
+      );
       reportError(error, {
         boundary: 'logs.cleanup',
         operation: 'delete-invalid-compaction-object',

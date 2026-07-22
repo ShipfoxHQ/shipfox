@@ -118,6 +118,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
             () => closePostgresClient(),
           ]);
           for (const cleanupError of cleanupErrors) {
+            logger().error({err: cleanupError}, 'Failed to clean up API server during shutdown');
             reportError(cleanupError, {boundary: 'api.shutdown', operation: 'cleanup'});
           }
           try {
@@ -194,6 +195,7 @@ export async function runServer(options: RunServerOptions): Promise<ServerHandle
     void handle.stop().then(
       () => process.exit(0),
       (error) => {
+        logger().error({err: error}, 'Failed to stop API server after shutdown signal');
         reportError(error, {boundary: 'api.shutdown', operation: 'signal-stop'});
         process.exit(1);
       },

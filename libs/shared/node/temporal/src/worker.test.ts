@@ -104,6 +104,7 @@ describe('createTemporalWorker', () => {
     mocks.workerCreate.mockReset();
     mocks.logger.error.mockReset();
     mocks.logger.info.mockReset();
+    mocks.logger.error.mockReset();
     mocks.getTemporalConnectionOptions.mockReset();
     mocks.temporalConnectionError.mockReset();
     mocks.getWorkerInterceptors.mockReset();

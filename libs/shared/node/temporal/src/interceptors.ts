@@ -1,6 +1,6 @@
 import {createRequire} from 'node:module';
 import {isErrorReported, reportError} from '@shipfox/node-error-monitoring';
-import {getInstanceResource, getInstanceSpanProcessor} from '@shipfox/node-opentelemetry';
+import {getInstanceResource, getInstanceSpanProcessor, logger} from '@shipfox/node-opentelemetry';
 import type {ClientInterceptors} from '@temporalio/client';
 import {CancelledFailure} from '@temporalio/common';
 import {
@@ -46,6 +46,18 @@ export const createActivityErrorInterceptor = (
         return await next(input);
       } catch (error) {
         if (!(error instanceof CancelledFailure) && !isErrorReported(error)) {
+          logger().error(
+            {
+              err: error,
+              activityType: ctx.info.activityType,
+              taskQueue: ctx.info.taskQueue,
+              attempt: ctx.info.attempt,
+              workflowId: ctx.info.workflowExecution?.workflowId,
+              runId: ctx.info.workflowExecution?.runId,
+              activityId: ctx.info.activityId,
+            },
+            'Temporal activity failed unexpectedly',
+          );
           reportError(error, {
             boundary: 'temporal.activity',
             tags: {activityType: ctx.info.activityType, taskQueue: ctx.info.taskQueue},

@@ -30,6 +30,7 @@ import {
   createInMemoryInterModuleTransport,
   registerInterModulePresentations,
 } from '@shipfox/node-module/inter-module';
+import {logger} from '@shipfox/node-opentelemetry';
 
 export interface DefaultModulesOptions {
   webhookDeliverySource?: WebhookDeliverySource | undefined;
@@ -40,6 +41,10 @@ export async function defaultModules(
 ): Promise<ShipfoxModule[]> {
   const interModuleTransport = createInMemoryInterModuleTransport({
     reportInternalError: (error, context) => {
+      logger().error(
+        {err: error, module: context.module, method: context.method, phase: context.phase},
+        'Inter-module call failed unexpectedly',
+      );
       reportError(error, {
         boundary: 'inter-module',
         operation: `${context.module}.${context.method}`,
