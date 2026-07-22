@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, test} from 'node:test';
@@ -166,6 +166,54 @@ describe('port leases', () => {
       assert.equal(leasePortBlock({workspacePath: firstWorkspace, registryFile}), 20_000);
       assert.equal(leasePortBlock({workspacePath: firstWorkspace, registryFile}), 20_000);
       assert.equal(leasePortBlock({workspacePath: secondWorkspace, registryFile}), 20_020);
+    } finally {
+      rmSync(registryDirectory, {recursive: true, force: true});
+    }
+  });
+
+  test('keeps a Conductor workspace lease after the workspace is renamed', () => {
+    const registryDirectory = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(registryDirectory, 'shipfox-port-leases.json');
+    const originalWorkspace = join(registryDirectory, 'original');
+    const renamedWorkspace = join(registryDirectory, 'renamed');
+    const workspaceId = 'conductor-workspace-123';
+    mkdirSync(originalWorkspace);
+
+    try {
+      assert.equal(
+        leasePortBlock({workspaceId, workspacePath: originalWorkspace, registryFile}),
+        20_000,
+      );
+      renameSync(originalWorkspace, renamedWorkspace);
+
+      assert.equal(
+        leasePortBlock({workspaceId, workspacePath: renamedWorkspace, registryFile}),
+        20_000,
+      );
+      assert.deepEqual(findStalePortLeases({registryFile}), []);
+    } finally {
+      rmSync(registryDirectory, {recursive: true, force: true});
+    }
+  });
+
+  test('migrates an existing path-keyed lease when Conductor provides an ID', () => {
+    const registryDirectory = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(registryDirectory, 'shipfox-port-leases.json');
+    const workspace = join(registryDirectory, 'workspace');
+    const workspaceId = 'conductor-workspace-123';
+    mkdirSync(workspace);
+    writeFileSync(
+      registryFile,
+      `${JSON.stringify({
+        version: 1,
+        range: {start: 20_000, end: 45_999, blockSize: 20},
+        nextBase: 20_020,
+        leases: {[workspace]: {base: 20_000, allocatedAt: '2026-07-22T00:00:00.000Z'}},
+      })}\n`,
+    );
+
+    try {
+      assert.equal(leasePortBlock({workspaceId, workspacePath: workspace, registryFile}), 20_000);
     } finally {
       rmSync(registryDirectory, {recursive: true, force: true});
     }
