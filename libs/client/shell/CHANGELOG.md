@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.0.0
+
+### Patch Changes
+
+- 2e5b718: Adds safe browser persistence and bounded callback deduplication across client flows.
+- 11b10f7: Prevents private React Query data from persisting across logout and authenticated user changes.
+- Updated dependencies [2e5b718]
+- Updated dependencies [769d919]
+- Updated dependencies [6b4a575]
+- Updated dependencies [781a45b]
+  - @shipfox/client-ui@4.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/client-api@4.0.0
+  - @shipfox/client-config@3.0.1
+
 ## 3.0.1
 
 ### Patch Changes

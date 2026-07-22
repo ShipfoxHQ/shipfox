@@ -1,5 +1,17 @@
 # @shipfox/api-projects
 
+## 7.1.0
+
+### Patch Changes
+
+- Updated dependencies [ac42c96]
+- Updated dependencies [6ce08c0]
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-temporal@0.4.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/api-auth-context@7.1.0
+
 ## 6.0.0
 
 ### Patch Changes

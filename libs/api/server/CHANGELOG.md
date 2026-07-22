@@ -1,5 +1,41 @@
 # @shipfox/api-server
 
+## 7.1.0
+
+### Minor Changes
+
+- 769d919: Adds an anonymous login-method catalog with a published bounded DTO contract.
+- 2e05e0e: Adds a host factory for replacing only the default Runners module with the composed Auth client.
+
+### Patch Changes
+
+- ac42c96: Adds boundary-owned reporting for unexpected API runtime failures while preserving expected client and provider outcomes.
+- 6ce08c0: Adds provider-neutral OpenTelemetry traces and Prometheus metrics across the API, Fastify, module workers, and Temporal workers.
+- Updated dependencies [ac42c96]
+- Updated dependencies [769d919]
+- Updated dependencies [2a7d951]
+- Updated dependencies [6ce08c0]
+- Updated dependencies [8bb32b2]
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/api-dispatcher@7.1.0
+  - @shipfox/api-logs@7.1.0
+  - @shipfox/api-triggers@7.1.0
+  - @shipfox/api-runners@7.1.0
+  - @shipfox/api-agent@7.1.0
+  - @shipfox/api-integration-core@7.1.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/api-auth@7.1.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/api-email-challenges@0.3.0
+  - @shipfox/api-definitions@7.1.0
+  - @shipfox/api-workflows@7.1.0
+  - @shipfox/annotations@7.1.0
+  - @shipfox/api-projects@7.1.0
+  - @shipfox/api-secrets@7.1.0
+  - @shipfox/api-workspaces@7.1.0
+
 ## 7.0.2
 
 ### Patch Changes

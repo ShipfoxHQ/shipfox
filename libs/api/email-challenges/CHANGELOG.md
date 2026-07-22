@@ -1,5 +1,19 @@
 # @shipfox/api-email-challenges
 
+## 0.3.0
+
+### Minor Changes
+
+- 8bb32b2: Adds retry-safe continuation-bound email challenge creation and timing recovery.
+
+### Patch Changes
+
+- Updated dependencies [ac42c96]
+- Updated dependencies [6ce08c0]
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-mailer@0.2.1
+
 ## 0.2.3
 
 ### Patch Changes

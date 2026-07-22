@@ -1,5 +1,16 @@
 # @shipfox/api-integration-jira
 
+## 7.1.0
+
+### Patch Changes
+
+- Updated dependencies [ac42c96]
+- Updated dependencies [6ce08c0]
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/api-auth-context@7.1.0
+  - @shipfox/api-workspaces@7.1.0
+
 ## 7.0.1
 
 ### Patch Changes

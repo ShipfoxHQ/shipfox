@@ -1,5 +1,11 @@
 # @shipfox/node-error-monitoring
 
+## 0.2.0
+
+### Minor Changes
+
+- ac42c96: Adds boundary-owned reporting for unexpected API runtime failures while preserving expected client and provider outcomes.
+
 ## 0.1.3
 
 ### Patch Changes

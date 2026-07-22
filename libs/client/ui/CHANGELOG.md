@@ -1,5 +1,17 @@
 # @shipfox/client-ui
 
+## 4.0.0
+
+### Minor Changes
+
+- 2e5b718: Adds safe browser persistence and bounded callback deduplication across client flows.
+
+### Patch Changes
+
+- Updated dependencies [6b4a575]
+- Updated dependencies [781a45b]
+  - @shipfox/client-api@4.0.0
+
 ## 3.0.1
 
 ### Patch Changes

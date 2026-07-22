@@ -1,5 +1,25 @@
 # @shipfox/api-auth
 
+## 7.1.0
+
+### Minor Changes
+
+- 2a7d951: Adds authenticated refresh-session context resolution with stable identity across access-token refreshes.
+
+### Patch Changes
+
+- Updated dependencies [ac42c96]
+- Updated dependencies [769d919]
+- Updated dependencies [6ce08c0]
+- Updated dependencies [8bb32b2]
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/api-email-challenges@0.3.0
+  - @shipfox/api-auth-context@7.1.0
+  - @shipfox/node-mailer@0.2.1
+
 ## 7.0.2
 
 ### Patch Changes

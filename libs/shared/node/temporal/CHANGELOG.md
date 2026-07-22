@@ -1,5 +1,19 @@
 # @shipfox/node-temporal
 
+## 0.4.0
+
+### Minor Changes
+
+- 6ce08c0: Adds provider-neutral OpenTelemetry traces and Prometheus metrics across the API, Fastify, module workers, and Temporal workers.
+
+### Patch Changes
+
+- ac42c96: Adds boundary-owned reporting for unexpected API runtime failures while preserving expected client and provider outcomes.
+- Updated dependencies [ac42c96]
+- Updated dependencies [6ce08c0]
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-opentelemetry@0.6.0
+
 ## 0.3.2
 
 ### Patch Changes
