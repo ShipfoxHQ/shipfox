@@ -1,5 +1,8 @@
 export type * from './entities/index.js';
-export {DefinitionParseError, DefinitionSyncPermanentError} from './errors.js';
+export {
+  DefinitionParseError,
+  DefinitionSyncPermanentError,
+} from './errors.js';
 export {parseDefinition} from './parse-definition.js';
 export {
   classifySyncFailure,

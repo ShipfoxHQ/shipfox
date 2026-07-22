@@ -1,13 +1,16 @@
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {
   DEFAULT_JOB_CHECKOUT,
-  normalizeWorkflowDocument,
+  normalizeWorkflowDocument as normalizeWorkflowDocumentImpl,
   type WorkflowModel,
 } from '@shipfox/api-definitions';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
-import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {
+  agentValidationCatalog,
+  resolveTestAgentDefaults,
+} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {
   materializeJobRunner,
@@ -24,6 +27,12 @@ function materializeWorkflowModel(
   params: Parameters<typeof materializeWorkflowModelImpl>[0],
 ): ReturnType<typeof materializeWorkflowModelImpl> {
   return materializeWorkflowModelImpl({resolveAgentDefaults: resolveTestAgentDefaults, ...params});
+}
+
+function normalizeWorkflowDocument(
+  document: Parameters<typeof normalizeWorkflowDocumentImpl>[0],
+): ReturnType<typeof normalizeWorkflowDocumentImpl> {
+  return normalizeWorkflowDocumentImpl(document, {agentValidationCatalog});
 }
 
 function expression(source: string): TestWorkflowExpression {

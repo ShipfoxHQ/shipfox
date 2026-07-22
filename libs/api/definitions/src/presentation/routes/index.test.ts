@@ -2,13 +2,17 @@ import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-con
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {createDefinitionRoutes} from './index.js';
 
 const projects = {
   getProjectById: vi.fn(),
   requireProjectForWorkspace: vi.fn(),
 } as unknown as ProjectsModuleClient;
-const definitionRoutes = createDefinitionRoutes({projects});
+const definitionRoutes = createDefinitionRoutes({
+  projects,
+  agent: {getValidationCatalog: vi.fn(() => agentValidationCatalog)} as never,
+});
 
 const fakeUserAuth: AuthMethod = {
   name: AUTH_USER,

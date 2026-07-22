@@ -5,6 +5,7 @@ import type {
 } from '#core/entities/workflow-definition.js';
 import {normalizeWorkflowDocument} from '#core/workflow-model/index.js';
 import {upsertDefinition} from '#db/definitions.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 
 function defaultDefinition(): WorkflowDefinitionPayload {
   const document = {
@@ -16,7 +17,7 @@ function defaultDefinition(): WorkflowDefinitionPayload {
       },
     },
   };
-  return {document, model: normalizeWorkflowDocument(document)};
+  return {document, model: normalizeWorkflowDocument(document, {agentValidationCatalog})};
 }
 
 interface DefinitionTransients {

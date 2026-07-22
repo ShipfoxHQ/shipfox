@@ -182,7 +182,11 @@ describe('defaultModules', () => {
       interModulePresentations: [
         {
           contract: agentInterModuleContract,
-          handlers: {resolveAgentConfig: vi.fn(), resolveRuntimeCredentials: vi.fn()},
+          handlers: {
+            getValidationCatalog: vi.fn(),
+            resolveAgentConfig: vi.fn(),
+            resolveRuntimeCredentials: vi.fn(),
+          },
         },
       ],
     });

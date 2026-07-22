@@ -1,5 +1,6 @@
 import type {WorkflowDefinition} from '#core/entities/workflow-definition.js';
 import {normalizeWorkflowDocument} from '#core/workflow-model/index.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {toDefinitionDto} from './definition.js';
 
 describe('toDefinitionDto', () => {
@@ -29,7 +30,7 @@ describe('toDefinitionDto', () => {
       name: document.name,
       definition: document,
       document,
-      model: normalizeWorkflowDocument(document),
+      model: normalizeWorkflowDocument(document, {agentValidationCatalog}),
       sourceSnapshot: null,
       contentHash: null,
       fetchedAt: new Date('2026-06-09T10:00:00.000Z'),

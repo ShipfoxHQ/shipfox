@@ -16,12 +16,14 @@ import {
 import {resolveAgentConfig} from '#core/resolve-agent-config.js';
 import {resolveRuntimeCredentials} from '#core/resolve-runtime-credentials.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
+import {getAgentValidationCatalog} from '#core/validation-catalog.js';
 import {createWorkspaceAgentDefaultsResolver} from '#core/workspace-agent-defaults-resolver.js';
 
 export function createAgentInterModulePresentation(params: {
   secrets: AgentSecretsClient;
 }): InterModulePresentation<typeof agentInterModuleContract> {
   return defineInterModulePresentation(agentInterModuleContract, {
+    getValidationCatalog: () => getAgentValidationCatalog(),
     resolveAgentConfig: async ({workspaceId, config}) => {
       try {
         const resolve =

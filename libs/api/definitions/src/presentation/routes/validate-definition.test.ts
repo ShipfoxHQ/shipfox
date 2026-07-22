@@ -1,7 +1,8 @@
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
-import {validateDefinitionRoute} from './validate-definition.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import {buildValidateDefinitionRoute} from './validate-definition.js';
 
 describe('POST /definitions/validate', () => {
   let app: FastifyInstance;
@@ -10,7 +11,12 @@ describe('POST /definitions/validate', () => {
     app = Fastify();
     app.setValidatorCompiler(validatorCompiler);
     app.setSerializerCompiler(serializerCompiler);
-    app.post('/definitions/validate', validateDefinitionRoute);
+    app.post(
+      '/definitions/validate',
+      buildValidateDefinitionRoute({
+        getValidationCatalog: vi.fn(() => agentValidationCatalog),
+      } as never),
+    );
     await app.ready();
   });
 

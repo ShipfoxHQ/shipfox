@@ -1,4 +1,9 @@
-import {validateDefinition} from './validate-definition.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import {validateDefinition as validateDefinitionBase} from './validate-definition.js';
+
+function validateDefinition(yaml: string, options = {}) {
+  return validateDefinitionBase(yaml, {agentValidationCatalog, ...options});
+}
 
 describe('validateDefinition', () => {
   test('valid YAML returns { valid: true, definition }', () => {
@@ -129,9 +134,18 @@ jobs:
 `;
 
     const result = validateDefinition(yaml, {
-      harnessToolDeploymentConfig: {
-        pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
-        claude: {enabledToolPackages: []},
+      agentValidationCatalog: {
+        ...agentValidationCatalog,
+        harnesses: agentValidationCatalog.harnesses.map((harness) => {
+          if (harness.id !== 'pi') return harness;
+          return {
+            ...harness,
+            effective_tools: harness.effective_tools.filter(
+              (tool) =>
+                tool === 'fetch_content' || !['web_search', 'get_search_content'].includes(tool),
+            ),
+          };
+        }),
       },
     });
 

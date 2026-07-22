@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
 import {
   integrationsInterModuleContract,
   MAX_REPOSITORY_FILE_BYTES,
@@ -84,6 +85,7 @@ export interface FetchAndParseWorkflowsParams extends SyncSourceContext {
   ref: string;
   paths: string[];
   onProgress?: ((path: string) => void) | undefined;
+  agentValidationCatalog: AgentValidationCatalog;
   loadIntegrationValidationContext?: (() => Promise<IntegrationValidationContext>) | undefined;
 }
 
@@ -112,7 +114,11 @@ export async function fetchAndParseWorkflows(
       }
 
       return {
-        ...parseWorkflowSnapshot({path: snapshot.path, content: snapshot.content}),
+        ...parseWorkflowSnapshot({
+          path: snapshot.path,
+          content: snapshot.content,
+          agentValidationCatalog: params.agentValidationCatalog,
+        }),
         rawContent: snapshot.content,
       };
     },
@@ -131,6 +137,7 @@ export async function fetchAndParseWorkflows(
     parseWorkflowSnapshot({
       path: entry.path,
       content: entry.rawContent,
+      agentValidationCatalog: params.agentValidationCatalog,
       integrationValidationContext,
     }),
   );
@@ -140,12 +147,14 @@ function parseWorkflowSnapshot(params: {
   path: string;
   content: string;
   integrationValidationContext?: IntegrationValidationContext | undefined;
+  agentValidationCatalog: AgentValidationCatalog;
 }): ParsedWorkflow {
   try {
     const definition =
       params.integrationValidationContext === undefined
-        ? parseDefinition(params.content)
+        ? parseDefinition(params.content, {agentValidationCatalog: params.agentValidationCatalog})
         : parseDefinition(params.content, {
+            agentValidationCatalog: params.agentValidationCatalog,
             integrationValidationContext: params.integrationValidationContext,
           });
     const contentHash = sha256Hex(params.content);

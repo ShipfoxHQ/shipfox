@@ -1,4 +1,4 @@
-import type {HarnessToolDeploymentConfig} from '@shipfox/api-agent-dto';
+import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
 import type {WorkflowDefinitionPayload} from './entities/workflow-definition.js';
 import {DefinitionParseError} from './errors.js';
@@ -6,9 +6,9 @@ import {validateDefinition} from './validate-definition.js';
 
 export function parseDefinition(
   yamlString: string,
-  options?: {
+  options: {
     defaultRunnerLabels?: readonly string[];
-    harnessToolDeploymentConfig?: HarnessToolDeploymentConfig;
+    agentValidationCatalog: AgentValidationCatalog;
     integrationValidationContext?: IntegrationValidationContext;
   },
 ): WorkflowDefinitionPayload {

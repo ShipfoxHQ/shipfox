@@ -7,6 +7,26 @@ import {
   modelProviderRefSchema,
 } from '#schemas/index.js';
 
+const agentValidationCatalogSchema = z.object({
+  version: z.literal(1),
+  providers: z.array(
+    z.object({
+      id: z.string().min(1),
+      support_status: z.enum(['supported', 'unsupported']),
+    }),
+  ),
+  harnesses: z.array(
+    z.object({
+      id: harnessSchema,
+      supported_provider_ids: z.array(z.string().min(1)),
+      thinking_levels: z.array(agentThinkingSchema),
+      effective_tools: z.array(z.string().min(1)),
+    }),
+  ),
+});
+
+export type AgentValidationCatalog = z.infer<typeof agentValidationCatalogSchema>;
+
 const agentConfigInputSchema = z.object({
   harness: harnessSchema.optional(),
   provider: modelProviderRefSchema.optional(),
@@ -24,6 +44,11 @@ const resolvedAgentConfigSchema = z.object({
 export const agentInterModuleContract = defineInterModuleContract({
   module: 'agent',
   methods: {
+    getValidationCatalog: {
+      input: z.object({}),
+      output: agentValidationCatalogSchema,
+      errors: {},
+    },
     resolveAgentConfig: {
       input: z.object({workspaceId: z.string().uuid().nullable(), config: agentConfigInputSchema}),
       output: resolvedAgentConfigSchema,

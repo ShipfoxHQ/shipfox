@@ -1,3 +1,4 @@
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {definitionDtoSchema, definitionValidationErrorSchema} from '@shipfox/api-definitions-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
@@ -19,28 +20,32 @@ const validationResultSchema = z.union([
   }),
 ]);
 
-export const validateDefinitionRoute = defineRoute({
-  method: 'POST',
-  path: '/validate',
-  description: 'Validate a workflow definition without persisting',
-  schema: {
-    body: validateBodySchema,
-    response: {
-      200: validationResultSchema,
+export function buildValidateDefinitionRoute(agent: AgentInterModuleClient) {
+  return defineRoute({
+    method: 'POST',
+    path: '/validate',
+    description: 'Validate a workflow definition without persisting',
+    schema: {
+      body: validateBodySchema,
+      response: {
+        200: validationResultSchema,
+      },
     },
-  },
-  handler: (request) => {
-    const {yaml} = request.body;
-    const result = validateDefinition(yaml);
+    handler: async (request) => {
+      const {yaml} = request.body;
+      const result = validateDefinition(yaml, {
+        agentValidationCatalog: await agent.getValidationCatalog({}),
+      });
 
-    if (result.valid) {
-      return {
-        valid: true as const,
-        workflow_document: result.definition.document,
-        workflow_model: result.definition.model,
-      };
-    }
+      if (result.valid) {
+        return {
+          valid: true as const,
+          workflow_document: result.definition.document,
+          workflow_model: result.definition.model,
+        };
+      }
 
-    return result;
-  },
-});
+      return result;
+    },
+  });
+}

@@ -1,7 +1,4 @@
-import {
-  DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG,
-  type HarnessToolDeploymentConfig,
-} from '@shipfox/api-agent-dto';
+import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
@@ -20,18 +17,16 @@ export function normalizeWorkflowDocument(
   document: WorkflowDocument,
   options: {
     defaultRunnerLabels?: readonly string[] | undefined;
-    harnessToolDeploymentConfig?: HarnessToolDeploymentConfig | undefined;
+    agentValidationCatalog: AgentValidationCatalog;
     integrationValidationContext?: IntegrationValidationContext | undefined;
     stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
-  } = {},
+  },
 ): WorkflowModel {
   const issues: WorkflowModelValidationIssue[] = [];
   const defaultRunnerLabels = canonicalizeLabels(options.defaultRunnerLabels);
-  const harnessToolDeploymentConfig =
-    options.harnessToolDeploymentConfig ?? DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG;
   const context = {
     defaultRunnerLabels,
-    harnessToolDeploymentConfig,
+    agentValidationCatalog: options.agentValidationCatalog,
     integrationValidationContext: options.integrationValidationContext,
   };
   const jobIdBySourceName = mapJobIds(document, issues);

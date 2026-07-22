@@ -1,5 +1,5 @@
-import type {Harness} from '@shipfox/api-agent-dto';
 import type {SessionViewRow} from '@shipfox/api-logs-dto';
+import type {Harness} from '@shipfox/workflow-document';
 import {parseClaudeSessionRecord} from './claude-parser.js';
 import {parsePiSessionRecord} from './pi-parser.js';
 import type {AgentSessionRecord} from './session-record.js';

@@ -18,6 +18,7 @@ import {
 import {sql} from 'drizzle-orm';
 import type {WorkflowDefinitionPayload} from '#core/entities/workflow-definition.js';
 import {normalizeWorkflowDocument} from '#core/workflow-model/index.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {db} from './db.js';
 import {
   applyVcsDefinitionsBatch,
@@ -82,7 +83,7 @@ function definitionFields(name = 'Test Workflow'): WorkflowDefinitionPayload {
 function definitionFieldsForDocument(
   document: WorkflowDefinitionPayload['document'],
 ): WorkflowDefinitionPayload {
-  return {document, model: normalizeWorkflowDocument(document)};
+  return {document, model: normalizeWorkflowDocument(document, {agentValidationCatalog})};
 }
 
 async function listOutboxRowsForProject(projectId: string) {

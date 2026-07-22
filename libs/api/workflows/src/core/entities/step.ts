@@ -1,7 +1,5 @@
 import type {
   AgentIntegrationMcpServerConfigDto,
-  AgentThinking,
-  Harness,
   MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
 import type {
@@ -10,6 +8,7 @@ import type {
   ResolvedField,
   WorkflowExpression,
 } from '@shipfox/expression';
+import type {AgentThinking, Harness} from '@shipfox/workflow-document';
 import type {InterpolationUnresolvableField} from '../errors.js';
 
 export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'skipped';

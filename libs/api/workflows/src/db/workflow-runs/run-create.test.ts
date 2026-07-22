@@ -1,10 +1,13 @@
-import {normalizeWorkflowDocument} from '@shipfox/api-definitions';
+import {normalizeWorkflowDocument as normalizeWorkflowDocumentImpl} from '@shipfox/api-definitions';
 import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
-import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
+import {
+  agentValidationCatalog,
+  resolveTestAgentDefaults,
+} from '#test/fixtures/agent-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {buildModel, expression, shellRef, template} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
@@ -22,6 +25,12 @@ import {
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
 } from '../workflow-runs.js';
+
+function normalizeWorkflowDocument(
+  document: Parameters<typeof normalizeWorkflowDocumentImpl>[0],
+): ReturnType<typeof normalizeWorkflowDocumentImpl> {
+  return normalizeWorkflowDocumentImpl(document, {agentValidationCatalog});
+}
 
 describe('workflow run queries', () => {
   let workspaceId: string;

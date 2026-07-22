@@ -1,4 +1,5 @@
 import {normalizeWorkflowDocument} from '#core/workflow-model/index.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import type {DefinitionDb} from './definitions.js';
 import {toDefinition} from './definitions.js';
 
@@ -21,7 +22,7 @@ describe('toDefinition', () => {
       sha: null,
       ref: null,
       name: 'Manual workflow',
-      definition: {document, model: normalizeWorkflowDocument(document)},
+      definition: {document, model: normalizeWorkflowDocument(document, {agentValidationCatalog})},
       contentHash: null,
       fetchedAt: new Date('2026-06-09T10:00:00.000Z'),
       createdAt: new Date('2026-06-09T10:00:01.000Z'),
