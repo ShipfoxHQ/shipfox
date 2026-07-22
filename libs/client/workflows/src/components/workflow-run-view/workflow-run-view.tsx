@@ -1,4 +1,3 @@
-import type {WorkflowRunRerunModeDto} from '@shipfox/api-workflows-dto';
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
@@ -9,6 +8,7 @@ import {
   type JobExecution,
   resolveJobExecution,
   type StepSourceLocation,
+  type WorkflowRunRerunMode,
 } from '#core/workflow-run.js';
 import {
   type WorkflowRunSelectionInput,
@@ -160,7 +160,7 @@ function RunViewContent({
   const highlightedLineRange =
     sourceFocus?.location ?? resolvedSelection?.step?.sourceLocation ?? null;
   const sourceSnapshot = runData.sourceSnapshot;
-  async function rerun(mode: WorkflowRunRerunModeDto) {
+  async function rerun(mode: WorkflowRunRerunMode) {
     try {
       const run = await rerunMutation.mutateAsync({workflowRunId: runData.id, mode});
       toast.success('Re-run started');

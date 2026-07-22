@@ -1,15 +1,42 @@
-import type {
-  AgentConfigIssueDto,
-  StepErrorCategoryDto,
-  StepErrorReasonDto,
-  StepSourceLocationDto,
-  WorkflowRunStepDetailDto,
-} from '@shipfox/api-workflows-dto';
-import {type StepAttempt, toStepAttempt} from './step-attempt.js';
+import type {StepAttempt} from './step-attempt.js';
 
-export type StepErrorReason = StepErrorReasonDto;
-export type AgentConfigIssue = AgentConfigIssueDto;
-export type StepErrorCategory = StepErrorCategoryDto;
+export type StepErrorReason =
+  | 'checkout_failed'
+  | 'checkout_auth_failed'
+  | 'checkout_unavailable'
+  | 'git_unavailable'
+  | 'workspace_prep_failed'
+  | 'setup_aborted'
+  | 'config_unresolvable'
+  | 'output_invalid'
+  | 'agent_config_invalid'
+  | 'agent_invocation_failed';
+export type AgentConfigIssue =
+  | 'step_config_invalid'
+  | 'provider_not_configured'
+  | 'provider_unsupported'
+  | 'model_unavailable'
+  | 'credentials_invalid';
+export type StepErrorCategory = 'setup' | 'user';
+export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
+  'checkout_failed',
+  'checkout_auth_failed',
+  'checkout_unavailable',
+  'git_unavailable',
+  'workspace_prep_failed',
+  'setup_aborted',
+  'config_unresolvable',
+  'output_invalid',
+  'agent_config_invalid',
+  'agent_invocation_failed',
+]);
+export const AGENT_CONFIG_ISSUES = new Set<AgentConfigIssue>([
+  'step_config_invalid',
+  'provider_not_configured',
+  'provider_unsupported',
+  'model_unavailable',
+  'credentials_invalid',
+]);
 
 export interface StepSourceLocation {
   startLine: number;
@@ -47,59 +74,4 @@ export interface Step {
   createdAt: string;
   updatedAt: string;
   attempts: StepAttempt[];
-}
-
-export function toStep(dto: WorkflowRunStepDetailDto): Step {
-  return {
-    id: dto.id,
-    jobExecutionId: dto.job_execution_id,
-    key: dto.key,
-    name: dto.name,
-    sourceLocation: dto.source_location ? toStepSourceLocation(dto.source_location) : null,
-    status: dto.status,
-    type: dto.type,
-    config: dto.config,
-    agentConfig: toAgentStepConfig(dto),
-    error: dto.error ? toStepError(dto.error) : null,
-    position: dto.position,
-    currentAttempt: dto.current_attempt,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
-    attempts: dto.attempts.map((attempt) => toStepAttempt(attempt, dto.job_execution_id)),
-  };
-}
-
-function toStepSourceLocation(dto: StepSourceLocationDto): StepSourceLocation {
-  return {
-    startLine: dto.start_line,
-    endLine: dto.end_line,
-  };
-}
-
-function toStepError(dto: NonNullable<WorkflowRunStepDetailDto['error']>): StepError {
-  return {
-    message: dto.message,
-    exitCode: dto.exit_code ?? null,
-    signal: dto.signal,
-    reason: dto.reason,
-    agentConfigIssue: dto.agent_config_issue,
-    category: dto.category,
-  };
-}
-
-function toAgentStepConfig(dto: WorkflowRunStepDetailDto): AgentStepConfig | null {
-  if (dto.type !== 'agent') return null;
-
-  return {
-    provider: stringConfigValue(dto.config.provider),
-    model: stringConfigValue(dto.config.model),
-    thinking: stringConfigValue(dto.config.thinking),
-  };
-}
-
-function stringConfigValue(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-
-  const trimmedValue = value.trim();
-  return trimmedValue ? trimmedValue : null;
 }

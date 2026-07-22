@@ -1,4 +1,3 @@
-import type {WorkflowRunAttemptDto} from '@shipfox/api-workflows-dto';
 import {type Duration, intervalToDuration} from 'date-fns';
 import type {WorkflowRunStatus} from './workflow-run.js';
 
@@ -46,19 +45,6 @@ export class WorkflowRunAttempt extends WorkflowRunAttemptSummary {
     this.id = fields.id;
     this.rerunMode = fields.rerunMode;
   }
-}
-
-export function toWorkflowRunAttempt(dto: WorkflowRunAttemptDto): WorkflowRunAttempt {
-  return new WorkflowRunAttempt({
-    id: dto.id,
-    workflowRunId: dto.workflow_run_id,
-    attempt: dto.attempt,
-    status: dto.status,
-    createdAt: dto.created_at,
-    startedAt: dto.started_at ?? null,
-    finishedAt: dto.finished_at ?? null,
-    rerunMode: dto.rerun_mode,
-  });
 }
 
 export function workflowRunAttemptDisplayDurationFromTimestamps({

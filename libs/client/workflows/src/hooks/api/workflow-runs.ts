@@ -18,16 +18,20 @@ import {
 } from '@tanstack/react-query';
 import {
   isWorkflowRunTerminal,
+  type WorkflowRun,
+  type WorkflowRunAttempt,
+  WorkflowRunAttemptSummary,
+  type WorkflowRunDetail,
+  type WorkflowRunListItem,
+  type WorkflowRunListPage,
+  type WorkflowRunStatus,
+} from '#core/workflow-run.js';
+import {
   toWorkflowRunAttempt,
   toWorkflowRunDetail,
   toWorkflowRunListItem,
   toWorkflowRunListPage,
-  type WorkflowRun,
-  type WorkflowRunAttempt,
-  type WorkflowRunDetail,
-  type WorkflowRunListPage,
-  type WorkflowRunStatus,
-} from '#core/workflow-run.js';
+} from './workflow-run-mapper.js';
 
 export interface WorkflowRunFilters {
   status?: WorkflowRunStatus | undefined;
@@ -82,9 +86,11 @@ async function listWorkflowRunsDto({
   const params = new URLSearchParams({project_id: projectId, limit: String(limit)});
   if (cursor) params.set('cursor', cursor);
   appendFilters(params, filters);
-  return await apiRequest<WorkflowRunListResponseDto>(`/workflows/runs?${params.toString()}`, {
-    signal,
-  });
+  const response = await apiRequest<WorkflowRunListResponseDto>(
+    `/workflows/runs?${params.toString()}`,
+    {signal},
+  );
+  return toWorkflowRunListPage(response);
 }
 
 /**
@@ -113,16 +119,7 @@ export async function fireManualWorkflow({
 const ACTIVE_POLL_MS = 4_000;
 const IDLE_POLL_MS = 30_000;
 
-type RunListInfinite = InfiniteData<WorkflowRunListResponseDto, string | undefined>;
-
-function toWorkflowRunInfiniteData(
-  data: InfiniteData<WorkflowRunListResponseDto, string | undefined>,
-): InfiniteData<WorkflowRunListPage, string | undefined> {
-  return {
-    ...data,
-    pages: data.pages.map(toWorkflowRunListPage),
-  };
-}
+type RunListInfinite = InfiniteData<WorkflowRunListPage, string | undefined>;
 
 export function useWorkflowRunsInfiniteQuery(
   projectId: string | undefined,
@@ -148,8 +145,7 @@ export function useWorkflowRunsInfiniteQuery(
     initialPageParam: undefined as string | undefined,
     queryFn: ({pageParam, signal}) =>
       listWorkflowRunsDto({projectId: projectId ?? '', filters, limit, cursor: pageParam, signal}),
-    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-    select: toWorkflowRunInfiniteData,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
     staleTime: 2_000,
     refetchOnWindowFocus: true,
@@ -261,25 +257,36 @@ function buildTempRun({
   definitionId: string;
   name: string;
   createdAt: string;
-}): WorkflowRunDto {
+}): WorkflowRunListItem {
+  const id = `temp-${cryptoRandomId()}`;
   return {
-    id: `temp-${cryptoRandomId()}`,
-    project_id: projectId,
-    definition_id: definitionId,
+    id,
+    projectId,
+    definitionId,
     name,
     status: 'pending',
-    current_attempt: 1,
-    latest_attempt: 1,
-    trigger_provider: null,
-    trigger_source: 'manual',
-    trigger_event: 'fire',
-    trigger_payload: {source: 'manual', event: 'fire'},
+    currentAttempt: 1,
+    latestAttempt: 1,
+    triggerProvider: null,
+    triggerSource: 'manual',
+    triggerEvent: 'fire',
+    triggerPayload: {source: 'manual', event: 'fire'},
+    triggerDisplayLabel: 'fire',
+    triggerLabel: 'manual · fire',
     inputs: null,
-    source_snapshot: null,
-    created_at: createdAt,
-    updated_at: createdAt,
-    started_at: null,
-    finished_at: null,
+    sourceSnapshot: null,
+    createdAt,
+    updatedAt: createdAt,
+    shortId: id.slice(0, 8),
+    isTemporary: true,
+    runAttempt: new WorkflowRunAttemptSummary({
+      workflowRunId: id,
+      attempt: 1,
+      status: 'pending',
+      createdAt,
+      startedAt: null,
+      finishedAt: null,
+    }),
   };
 }
 
@@ -334,11 +341,11 @@ export function useFireManualWorkflowMutation() {
           if (!current || current.pages.length === 0) return current;
           const firstPage = current.pages[0];
           if (!firstPage) return current;
-          const nextFirstPage: WorkflowRunListResponseDto = {
+          const nextFirstPage: WorkflowRunListPage = {
             ...firstPage,
             runs: [tempRun, ...firstPage.runs],
-            filtered_total_count:
-              firstPage.filtered_total_count != null ? firstPage.filtered_total_count + 1 : null,
+            filteredTotalCount:
+              firstPage.filteredTotalCount != null ? firstPage.filteredTotalCount + 1 : null,
           };
           return {...current, pages: [nextFirstPage, ...current.pages.slice(1)]};
         });
@@ -362,9 +369,9 @@ export function useFireManualWorkflowMutation() {
             return {
               ...page,
               runs,
-              filtered_total_count:
-                page.filtered_total_count != null
-                  ? Math.max(0, page.filtered_total_count - removedCount)
+              filteredTotalCount:
+                page.filteredTotalCount != null
+                  ? Math.max(0, page.filteredTotalCount - removedCount)
                   : null,
             };
           });
@@ -432,13 +439,14 @@ export function useWorkflowRunAttemptQuery({
       : [...workflowRunsQueryKeys.all, 'detail'],
     enabled: Boolean(workflowRunId),
     queryFn: ({signal}) =>
-      getWorkflowRunDto({workflowRunId: workflowRunId ?? '', runAttempt, signal}),
-    select: toWorkflowRunDetail,
+      getWorkflowRunDto({workflowRunId: workflowRunId ?? '', runAttempt, signal}).then(
+        toWorkflowRunDetail,
+      ),
     staleTime: 2_000,
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
       const status: WorkflowRunDetail['runAttempt']['status'] | undefined =
-        query.state.data?.run_attempt.status;
+        query.state.data?.runAttempt.status;
       if (!status) return false;
       return isWorkflowRunTerminal(status) ? false : ACTIVE_POLL_MS;
     },
@@ -458,8 +466,10 @@ export function useWorkflowRunAttemptsQuery({
       ? workflowRunsQueryKeys.attempts(workflowRunId)
       : [...workflowRunsQueryKeys.all, 'attempts'],
     enabled: Boolean(workflowRunId) && enabled,
-    queryFn: ({signal}) => getWorkflowRunAttemptsDto({workflowRunId: workflowRunId ?? '', signal}),
-    select: (dto): WorkflowRunAttempt[] => dto.attempts.map(toWorkflowRunAttempt),
+    queryFn: ({signal}) =>
+      getWorkflowRunAttemptsDto({workflowRunId: workflowRunId ?? '', signal}).then(
+        (dto): WorkflowRunAttempt[] => dto.attempts.map(toWorkflowRunAttempt),
+      ),
     staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: false,

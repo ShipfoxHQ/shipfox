@@ -1,12 +1,8 @@
-import type {
-  WorkflowRunDetailResponseDto,
-  WorkflowRunListResponseDto,
-} from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {type InfiniteData, QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
-import {toWorkflowRun} from '#core/workflow-run.js';
+import type {WorkflowRunListPage} from '#core/workflow-run.js';
 import {
   runAttemptsResponseDto,
   workflowJobDto,
@@ -15,6 +11,7 @@ import {
   workflowRunDto,
   workflowRunListResponseDto,
 } from '#test/fixtures/workflow-run.js';
+import {toWorkflowRun, toWorkflowRunListPage} from './workflow-run-mapper.js';
 import {
   fireManualWorkflow,
   useCancelWorkflowRunMutation,
@@ -55,7 +52,7 @@ describe('workflow run API hooks', () => {
     configureApiClient({baseUrl: '', fetchImpl: undefined});
   });
 
-  test('maps list DTO pages to workflow run models while keeping the cache DTO-shaped', async () => {
+  test('maps list DTO pages to workflow run models before caching', async () => {
     const body = workflowRunListResponseDto({
       runs: [
         workflowRunDto({
@@ -92,19 +89,19 @@ describe('workflow run API hooks', () => {
     expect(result.current.data?.pages[0]?.nextCursor).toBe('cursor-2');
     expect(result.current.data?.pages[0]?.filteredTotalCount).toBe(8);
 
-    const cached = queryClient.getQueryData<
-      InfiniteData<WorkflowRunListResponseDto, string | undefined>
-    >(workflowRunsQueryKeys.list(PROJECT_ID, {}));
+    const cached = queryClient.getQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(
+      workflowRunsQueryKeys.list(PROJECT_ID, {}),
+    );
     expect(cached?.pages[0]?.runs[0]).toMatchObject({
-      trigger_provider: 'github',
-      trigger_source: 'github_acme',
-      trigger_event: 'push',
-      updated_at: '2026-05-07T01:02:00.000Z',
+      triggerProvider: 'github',
+      triggerSource: 'github_acme',
+      triggerEvent: 'push',
+      updatedAt: '2026-05-07T01:02:00.000Z',
     });
-    expect(cached?.pages[0]).not.toHaveProperty('nextCursor');
+    expect(cached?.pages[0]).toHaveProperty('nextCursor', 'cursor-2');
   });
 
-  test('maps detail DTOs to nested workflow run detail models while keeping the cache DTO-shaped', async () => {
+  test('maps detail DTOs to nested workflow run detail models before caching', async () => {
     const body = workflowRunDetailDto({
       id: RUN_ID,
       trigger_source: 'manual',
@@ -126,16 +123,14 @@ describe('workflow run API hooks', () => {
       jobs: [{name: 'build', runAttemptId: RUN_ID}],
     });
 
-    const cached = queryClient.getQueryData<WorkflowRunDetailResponseDto>(
-      workflowRunsQueryKeys.detail(RUN_ID),
-    );
+    const cached = queryClient.getQueryData(workflowRunsQueryKeys.detail(RUN_ID));
     expect(cached).toMatchObject({
       id: RUN_ID,
-      trigger_source: 'manual',
-      trigger_event: 'fire',
-      jobs: [{name: 'build', run_attempt_id: RUN_ID}],
+      triggerSource: 'manual',
+      triggerEvent: 'fire',
+      jobs: [{name: 'build', runAttemptId: RUN_ID}],
     });
-    expect(cached).not.toHaveProperty('triggerSource');
+    expect(cached).toHaveProperty('triggerSource', 'manual');
   });
 
   test('maps run attempts and caches them by workflow run id', async () => {
@@ -173,7 +168,9 @@ describe('workflow run API hooks', () => {
     expect(firstRequest(fetchImpl).url).toBe(
       `https://api.example.test/workflows/runs/${RUN_ID}/attempts`,
     );
-    expect(queryClient.getQueryData(workflowRunsQueryKeys.attempts(RUN_ID))).toEqual(body);
+    expect(queryClient.getQueryData(workflowRunsQueryKeys.attempts(RUN_ID))).toEqual(
+      result.current.data,
+    );
   });
 
   test('posts manual fire requests with and without inputs', async () => {
@@ -210,13 +207,12 @@ describe('workflow run API hooks', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
     const {result, queryClient} = renderWithQueryClient(() => useFireManualWorkflowMutation());
     const listKey = workflowRunsQueryKeys.list(PROJECT_ID, {});
-    queryClient.setQueryData<InfiniteData<WorkflowRunListResponseDto, string | undefined>>(
-      listKey,
-      {
-        pages: [workflowRunListResponseDto({runs: [], filtered_total_count: 0})],
-        pageParams: [undefined],
-      },
-    );
+    queryClient.setQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(listKey, {
+      pages: [
+        toWorkflowRunListPage(workflowRunListResponseDto({runs: [], filtered_total_count: 0})),
+      ],
+      pageParams: [undefined],
+    });
 
     const railListEntries = queryClient.getQueriesData({
       queryKey: workflowRunsQueryKeys.lists(PROJECT_ID),
@@ -229,18 +225,16 @@ describe('workflow run API hooks', () => {
 
     await waitFor(() => {
       const cached =
-        queryClient.getQueryData<InfiniteData<WorkflowRunListResponseDto, string | undefined>>(
-          listKey,
-        );
+        queryClient.getQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(listKey);
       expect(cached?.pages[0]?.runs[0]).toMatchObject({
-        project_id: PROJECT_ID,
-        definition_id: DEFINITION_ID,
+        projectId: PROJECT_ID,
+        definitionId: DEFINITION_ID,
         status: 'pending',
-        trigger_source: 'manual',
-        trigger_provider: null,
+        triggerSource: 'manual',
+        triggerProvider: null,
       });
       expect(cached?.pages[0]?.runs[0]?.id).toMatch(TEMP_RUN_ID_PATTERN);
-      expect(cached?.pages[0]?.filtered_total_count).toBe(1);
+      expect(cached?.pages[0]?.filteredTotalCount).toBe(1);
     });
 
     if (!resolveFire) throw new Error('Expected manual fire request');
@@ -262,13 +256,12 @@ describe('workflow run API hooks', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
     const {result, queryClient} = renderWithQueryClient(() => useFireManualWorkflowMutation());
     const listKey = workflowRunsQueryKeys.list(PROJECT_ID, {});
-    queryClient.setQueryData<InfiniteData<WorkflowRunListResponseDto, string | undefined>>(
-      listKey,
-      {
-        pages: [workflowRunListResponseDto({runs: [], filtered_total_count: 0})],
-        pageParams: [undefined],
-      },
-    );
+    queryClient.setQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(listKey, {
+      pages: [
+        toWorkflowRunListPage(workflowRunListResponseDto({runs: [], filtered_total_count: 0})),
+      ],
+      pageParams: [undefined],
+    });
 
     act(() => {
       result.current.mutate({projectId: PROJECT_ID, definitionId: DEFINITION_ID});
@@ -279,11 +272,9 @@ describe('workflow run API hooks', () => {
 
     await waitFor(() => {
       const cached =
-        queryClient.getQueryData<InfiniteData<WorkflowRunListResponseDto, string | undefined>>(
-          listKey,
-        );
+        queryClient.getQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(listKey);
       expect(cached?.pages[0]?.runs).toHaveLength(1);
-      expect(cached?.pages[0]?.filtered_total_count).toBe(1);
+      expect(cached?.pages[0]?.filteredTotalCount).toBe(1);
     });
 
     act(() => {
@@ -296,11 +287,9 @@ describe('workflow run API hooks', () => {
     let secondTempWorkflowRunId: string | undefined;
     await waitFor(() => {
       const cached =
-        queryClient.getQueryData<InfiniteData<WorkflowRunListResponseDto, string | undefined>>(
-          listKey,
-        );
+        queryClient.getQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(listKey);
       expect(cached?.pages[0]?.runs).toHaveLength(2);
-      expect(cached?.pages[0]?.filtered_total_count).toBe(2);
+      expect(cached?.pages[0]?.filteredTotalCount).toBe(2);
       secondTempWorkflowRunId = cached?.pages[0]?.runs[0]?.id;
       expect(secondTempWorkflowRunId).toMatch(TEMP_RUN_ID_PATTERN);
     });
@@ -311,11 +300,9 @@ describe('workflow run API hooks', () => {
 
     await waitFor(() => {
       const cached =
-        queryClient.getQueryData<InfiniteData<WorkflowRunListResponseDto, string | undefined>>(
-          listKey,
-        );
+        queryClient.getQueryData<InfiniteData<WorkflowRunListPage, string | undefined>>(listKey);
       expect(cached?.pages[0]?.runs.map((run) => run.id)).toEqual([secondTempWorkflowRunId]);
-      expect(cached?.pages[0]?.filtered_total_count).toBe(1);
+      expect(cached?.pages[0]?.filteredTotalCount).toBe(1);
     });
 
     act(() => {

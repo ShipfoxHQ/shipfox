@@ -1,4 +1,11 @@
 import {
+  toWorkflowRun,
+  toWorkflowRunAttempt,
+  toWorkflowRunDetail,
+  toWorkflowRunListItem,
+  toWorkflowRunListPage,
+} from '#hooks/api/workflow-run-mapper.js';
+import {
   workflowJobDto,
   workflowJobExecutionDto,
   workflowRunAttemptDto,
@@ -11,11 +18,6 @@ import {
 import {
   isWorkflowRunTerminal,
   isWorkflowStatus,
-  toWorkflowRun,
-  toWorkflowRunAttempt,
-  toWorkflowRunDetail,
-  toWorkflowRunListItem,
-  toWorkflowRunListPage,
   workflowRunShortId,
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
@@ -313,11 +315,11 @@ describe('workflow run model mapping', () => {
       listening: {
         on: [{source: 'github', event: 'deployment_status'}],
         until: [{source: 'slack', event: 'approval'}],
-        timeout_ms: 1_800_000,
-        max_executions: 10,
+        timeoutMs: 1_800_000,
+        maxExecutions: 10,
         batch: null,
-        on_resolve: 'finish',
-        execution_timeout_ms: null,
+        onResolve: 'finish',
+        executionTimeoutMs: null,
         name: null,
       },
       listenerStatus: 'listening',
@@ -328,8 +330,8 @@ describe('workflow run model mapping', () => {
         {
           source: 'github',
           event: 'deployment_status',
-          delivery_id: 'delivery-1',
-          received_at: '2026-05-07T01:00:00.000Z',
+          deliveryId: 'delivery-1',
+          receivedAt: '2026-05-07T01:00:00.000Z',
           data: {state: 'success'},
         },
       ],
