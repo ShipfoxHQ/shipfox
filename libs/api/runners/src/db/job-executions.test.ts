@@ -1,4 +1,3 @@
-import {verifyJobLeaseToken} from '@shipfox/api-auth';
 import {
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
@@ -8,7 +7,12 @@ import {eq, sql} from 'drizzle-orm';
 import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
-import {pendingJobFactory, runnerSessionFactory, runnersTestAuthClient} from '#test/index.js';
+import {
+  getLeaseTokenClaims,
+  pendingJobFactory,
+  runnerSessionFactory,
+  runnersTestAuthClient,
+} from '#test/index.js';
 import {db} from './db.js';
 import {
   cancelRunnerJobs,
@@ -770,7 +774,7 @@ describe('claimJobExecution', () => {
     expect(claimed?.workflowRunAttemptId).toBe(created.workflowRunAttemptId);
     expect(claimed).not.toHaveProperty('steps');
 
-    const claims = await verifyJobLeaseToken(claimed?.leaseToken as string);
+    const claims = getLeaseTokenClaims(claimed?.leaseToken as string);
     expect(claims).toMatchObject({
       jobId: created.jobId,
       workflowRunAttemptId: created.workflowRunAttemptId,

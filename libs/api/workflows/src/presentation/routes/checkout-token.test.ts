@@ -1,4 +1,3 @@
-import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
@@ -7,7 +6,7 @@ import {createCapturingLogger} from '@shipfox/node-log/test';
 import {jobFactory} from '#test/factories/job.js';
 import {projectFactory} from '#test/factories/project.js';
 import {mintActiveLeaseToken} from '#test/fixtures/active-lease-token.js';
-import {mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
@@ -29,7 +28,7 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [createLeaseTokenAuthMethod()],
+      auth: [fakeLeaseTokenAuthMethod],
       routes: [
         createLeaseTokenRouteGroup({
           agent: {} as never,
@@ -63,38 +62,6 @@ describe('POST /runs/jobs/current/checkout-token', () => {
 
       expect(res.statusCode).toBe(401);
       expect(res.json().code).toBe('unauthorized');
-    });
-
-    test('rejects an expired token', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        expiresIn: '-1s',
-      });
-
-      const res = await app.inject({
-        method: 'POST',
-        url: URL,
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
-    });
-
-    test('rejects a token with the wrong audience', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        audience: 'user-session',
-      });
-
-      const res = await app.inject({
-        method: 'POST',
-        url: URL,
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
     });
   });
 

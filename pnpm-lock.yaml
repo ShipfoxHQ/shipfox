@@ -1930,9 +1930,6 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@shipfox/api-auth':
-        specifier: workspace:*
-        version: link:../auth
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
@@ -1942,12 +1939,6 @@ importers:
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../tools/depcruise
-      '@shipfox/node-auth-root-key':
-        specifier: workspace:*
-        version: link:../../shared/node/auth-root-key
-      '@shipfox/node-jwt':
-        specifier: workspace:*
-        version: link:../../shared/node/jwt
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -3393,9 +3384,6 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@shipfox/api-auth':
-        specifier: workspace:*
-        version: link:../auth
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../auth-dto
@@ -3408,12 +3396,6 @@ importers:
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
-      '@shipfox/node-auth-root-key':
-        specifier: workspace:*
-        version: link:../../shared/node/auth-root-key
-      '@shipfox/node-jwt':
-        specifier: workspace:*
-        version: link:../../shared/node/jwt
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -3670,18 +3652,12 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@shipfox/api-auth':
-        specifier: workspace:*
-        version: link:../auth
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../tools/depcruise
-      '@shipfox/node-jwt':
-        specifier: workspace:*
-        version: link:../../shared/node/jwt
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -3947,6 +3923,9 @@ importers:
         specifier: workspace:*
         version: link:../../shared/node/postgres
     devDependencies:
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../auth-context
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
@@ -4199,9 +4178,6 @@ importers:
       '@shipfox/api-agent':
         specifier: workspace:*
         version: link:../agent
-      '@shipfox/api-auth':
-        specifier: workspace:*
-        version: link:../auth
       '@shipfox/api-definitions':
         specifier: workspace:*
         version: link:../definitions
@@ -4214,12 +4190,6 @@ importers:
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../tools/depcruise
-      '@shipfox/node-auth-root-key':
-        specifier: workspace:*
-        version: link:../../shared/node/auth-root-key
-      '@shipfox/node-jwt':
-        specifier: workspace:*
-        version: link:../../shared/node/jwt
       '@shipfox/node-log':
         specifier: workspace:*
         version: link:../../shared/node/log

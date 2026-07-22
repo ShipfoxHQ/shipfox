@@ -1,5 +1,5 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
-import type {JobLeaseTokenClaims} from '@shipfox/api-auth';
+import type {JobLeaseTokenClaims} from '@shipfox/api-auth-dto';
 import {sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';

@@ -1,19 +1,14 @@
-import {
-  createLeaseTokenAuthMethod,
-  createRunnerSessionAuthMethod,
-  verifyJobLeaseToken,
-} from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
-import {RUNNER_SESSION_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
-import {runnerSessionTokenKey} from '@shipfox/node-auth-root-key';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
-import {signHs256} from '@shipfox/node-jwt';
 import {generateOpaqueToken} from '@shipfox/node-tokens';
 import type {FastifyInstance} from 'fastify';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {
   ephemeralRegistrationTokenFactory,
+  fakeLeaseTokenAuthMethod,
+  fakeRunnerSessionAuthMethod,
+  getLeaseTokenClaims,
   manualRegistrationTokenFactory,
   pendingJobFactory,
   runnersTestAuthClient,
@@ -42,8 +37,8 @@ describe('POST /runners/jobs/request', () => {
       auth: [
         fakeUserAuth,
         createRunnerRegistrationTokenAuthMethod(),
-        createRunnerSessionAuthMethod(),
-        createLeaseTokenAuthMethod(),
+        fakeRunnerSessionAuthMethod,
+        fakeLeaseTokenAuthMethod,
         fakeProvisionerAuth,
       ],
       routes: createRunnerRoutes(runnersTestAuthClient),
@@ -116,7 +111,7 @@ describe('POST /runners/jobs/request', () => {
     expect(body.job_name).toBeUndefined();
     expect(body.steps).toBeUndefined();
 
-    const claims = await verifyJobLeaseToken(body.lease_token);
+    const claims = getLeaseTokenClaims(body.lease_token);
     expect(claims).toMatchObject({
       jobId: created.jobId,
       workflowRunId: created.workflowRunId,
@@ -200,18 +195,7 @@ describe('POST /runners/jobs/request', () => {
   });
 
   it('returns 401 when the runner session token is expired', async () => {
-    const expiredSessionToken = await signHs256({
-      payload: {
-        runnerSessionId,
-        workspaceId,
-        scope: 'workspace',
-        labels: ['linux', 'x64'],
-        maxClaims: null,
-      },
-      secret: runnerSessionTokenKey(),
-      expiresIn: '-1s',
-      audience: RUNNER_SESSION_TOKEN_AUDIENCE,
-    });
+    const expiredSessionToken = 'invalid';
 
     const res = await app.inject({
       method: 'POST',

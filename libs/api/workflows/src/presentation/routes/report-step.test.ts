@@ -1,4 +1,3 @@
-import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {nextStepForJob} from '#core/job-execution.js';
 import {
@@ -13,7 +12,7 @@ import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
-import {mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
@@ -32,7 +31,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [createLeaseTokenAuthMethod()],
+      auth: [fakeLeaseTokenAuthMethod],
       routes: [
         createLeaseTokenRouteGroup({
           agent: agentTestClient,

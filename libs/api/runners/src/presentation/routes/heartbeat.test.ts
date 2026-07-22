@@ -1,10 +1,3 @@
-import {
-  createLeaseTokenAuthMethod,
-  createRunnerSessionAuthMethod,
-  issueJobLeaseToken,
-  jobLeaseParamsFrom,
-  verifyJobLeaseToken,
-} from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
@@ -17,7 +10,15 @@ import {requestJobExecutionCancellation} from '#db/job-executions.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
-import {pendingJobFactory, runnerSessionFactory, runnersTestAuthClient} from '#test/index.js';
+import {
+  fakeLeaseTokenAuthMethod,
+  fakeRunnerSessionAuthMethod,
+  getLeaseTokenClaims,
+  mintLeaseToken,
+  pendingJobFactory,
+  runnerSessionFactory,
+  runnersTestAuthClient,
+} from '#test/index.js';
 import {createRunnerRoutes} from './index.js';
 
 const fakeUserAuth: AuthMethod = {
@@ -53,8 +54,8 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       auth: [
         fakeUserAuth,
         createRunnerRegistrationTokenAuthMethod(),
-        createRunnerSessionAuthMethod(),
-        createLeaseTokenAuthMethod(),
+        fakeRunnerSessionAuthMethod,
+        fakeLeaseTokenAuthMethod,
         fakeProvisionerAuth,
       ],
       routes: createRunnerRoutes(runnersTestAuthClient),
@@ -120,7 +121,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json<{cancel: boolean; lease_token: string}>();
     expect(body).toEqual({cancel: false, lease_token: expect.any(String)});
-    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    const refreshedLease = getLeaseTokenClaims(body.lease_token);
     expect(refreshedLease).toMatchObject({
       jobId,
       jobExecutionId,
@@ -236,7 +237,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json<{cancel: boolean; lease_token: string}>();
     expect(body).toEqual({cancel: true, lease_token: expect.any(String)});
-    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    const refreshedLease = getLeaseTokenClaims(body.lease_token);
     expect(refreshedLease).toMatchObject({
       jobId,
       jobExecutionId,
@@ -248,10 +249,10 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   it('preserves current step scope when renewing a step-scoped lease', async () => {
     const {jobId, leaseToken} = await claimAvailableJob();
-    const lease = await verifyJobLeaseToken(leaseToken);
+    const lease = getLeaseTokenClaims(leaseToken);
     if (!lease) throw new Error('Expected valid lease token');
     const stepScope = {currentStepId: crypto.randomUUID(), currentStepAttempt: 3};
-    const stepScopedLeaseToken = await issueJobLeaseToken(jobLeaseParamsFrom(lease, stepScope));
+    const stepScopedLeaseToken = mintLeaseToken({...lease, ...stepScope});
 
     const res = await app.inject({
       method: 'POST',
@@ -261,14 +262,14 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json<{cancel: boolean; lease_token: string}>();
-    const refreshedLease = await verifyJobLeaseToken(body.lease_token);
+    const refreshedLease = getLeaseTokenClaims(body.lease_token);
     expect(refreshedLease).toMatchObject(stepScope);
   });
 
   it('returns 404 when the jobId is unknown', async () => {
     const jobId = crypto.randomUUID();
     const jobExecutionId = crypto.randomUUID();
-    const leaseToken = await issueJobLeaseToken({
+    const leaseToken = mintLeaseToken({
       jobId,
       jobExecutionId,
       workflowRunId: crypto.randomUUID(),
@@ -291,7 +292,7 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
   it('returns 404 when the job belongs to a different session', async () => {
     const {jobId, jobExecutionId} = await claimAvailableJob();
     const otherSession = await runnerSessionFactory.create({workspaceId});
-    const leaseToken = await issueJobLeaseToken({
+    const leaseToken = mintLeaseToken({
       jobId,
       jobExecutionId,
       workflowRunId: crypto.randomUUID(),

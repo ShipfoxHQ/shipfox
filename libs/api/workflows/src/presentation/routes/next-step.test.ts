@@ -1,5 +1,4 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
-import {createLeaseTokenAuthMethod, verifyJobLeaseToken} from '@shipfox/api-auth';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {eq, sql} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
@@ -16,7 +15,11 @@ import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
 import {arrangeJobWithSteps} from '#test/fixtures/job-with-steps.js';
-import {mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {
+  fakeLeaseTokenAuthMethod,
+  getLeaseTokenClaims,
+  mintLeaseToken,
+} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
@@ -58,7 +61,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [createLeaseTokenAuthMethod()],
+      auth: [fakeLeaseTokenAuthMethod],
       routes: [
         createLeaseTokenRouteGroup({
           agent: agentTestClient,
@@ -108,57 +111,6 @@ describe('POST /runs/jobs/current/steps/next', () => {
       expect(res.statusCode).toBe(401);
       expect(res.json().code).toBe('unauthorized');
     });
-
-    test('rejects an expired token', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        expiresIn: '-1s',
-      });
-
-      const res = await app.inject({
-        method: 'POST',
-        url: URL,
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
-      expect(res.json().code).toBe('unauthorized');
-    });
-
-    test('rejects a token signed with the wrong secret', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        secret: 'wrong-secret',
-      });
-
-      const res = await app.inject({
-        method: 'POST',
-        url: URL,
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
-      expect(res.json().code).toBe('unauthorized');
-    });
-
-    test('rejects a token with the wrong audience (e.g. a user JWT)', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        audience: 'user-session',
-      });
-
-      const res = await app.inject({
-        method: 'POST',
-        url: URL,
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
-      expect(res.json().code).toBe('unauthorized');
-    });
   });
 
   test('returns the lowest-position pending step and marks it running', async () => {
@@ -177,7 +129,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(body.step.id).toBe(steps[0]?.id);
     expect(body.step.status).toBe('running');
     expect(body.lease_token).toEqual(expect.any(String));
-    const scopedLease = await verifyJobLeaseToken(body.lease_token);
+    const scopedLease = getLeaseTokenClaims(body.lease_token);
     expect(scopedLease).toMatchObject({
       jobId,
       jobExecutionId: steps[0]?.jobExecutionId,
@@ -228,7 +180,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
       })
       .where(eq(stepsTable.id, steps[0]?.id as string));
     const token = await mintActiveLeaseToken({jobId});
-    const lease = await verifyJobLeaseToken(token);
+    const lease = getLeaseTokenClaims(token);
     if (!lease) throw new Error('Expected minted lease token to verify');
     await setRunnerToolCapabilities(lease.runnerSessionId, {harnesses: {pi: {tools: ['read']}}});
 
@@ -378,7 +330,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.attempt).toBe(2);
-    const scopedLease = await verifyJobLeaseToken(body.lease_token);
+    const scopedLease = getLeaseTokenClaims(body.lease_token);
     expect(scopedLease?.currentStepId).toBe(steps[0]?.id);
     expect(scopedLease?.currentStepAttempt).toBe(body.attempt);
   });

@@ -14,4 +14,12 @@ export {
 export {reservationFactory} from './factories/reservation.js';
 export {providerRunnerFactory} from './factories/runner-instance.js';
 export {runnerSessionFactory} from './factories/runner-session.js';
+export {
+  fakeLeaseTokenAuthMethod,
+  fakeRunnerSessionAuthMethod,
+  getLeaseTokenClaims,
+  getRunnerSessionTokenClaims,
+  mintLeaseToken,
+  mintRunnerSessionToken,
+} from './fixtures/auth.js';
 export {runnersTestAuthClient} from './fixtures/auth-inter-module.js';
