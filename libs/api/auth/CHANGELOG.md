@@ -1,5 +1,13 @@
 # @shipfox/api-auth
 
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [81c8f33]
+  - @shipfox/node-auth-root-key@0.2.1
+  - @shipfox/api-email-challenges@0.2.3
+
 ## 7.0.1
 
 ### Patch Changes

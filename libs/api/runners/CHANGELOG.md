@@ -1,5 +1,12 @@
 # @shipfox/api-runners
 
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [81c8f33]
+  - @shipfox/node-auth-root-key@0.2.1
+
 ## 7.0.1
 
 ### Patch Changes

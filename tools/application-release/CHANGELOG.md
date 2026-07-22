@@ -1,5 +1,11 @@
 # @shipfox/application-release
 
+## 0.1.5
+
+### Patch Changes
+
+- 067e90d: Fixes publishing application-release packages that use private workspace test tooling.
+
 ## 0.1.4
 
 ### Patch Changes
