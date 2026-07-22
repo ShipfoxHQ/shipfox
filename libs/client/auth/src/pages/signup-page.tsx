@@ -50,13 +50,18 @@ export function SignupPage() {
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
-        const body = signupBodySchema.parse({
+        const parsed = signupBodySchema.parse({
           email: value.email,
           password: value.password,
           name: value.name,
           ...(invitationToken ? {invitation_token: invitationToken} : {}),
         });
-        const result = await signup.mutateAsync(body);
+        const result = await signup.mutateAsync({
+          email: parsed.email,
+          password: parsed.password,
+          name: parsed.name,
+          ...(parsed.invitation_token ? {invitationToken: parsed.invitation_token} : {}),
+        });
         skipDraftPersistRef.current = true;
         setAuthFormDraft(initialAuthFormDraft);
 
@@ -132,9 +137,9 @@ export function SignupPage() {
     try {
       const result = await resendEmailVerification.mutateAsync({
         email: emailChallenge.email,
-        challenge_id: emailChallenge.id,
+        challengeId: emailChallenge.id,
       });
-      setNextResendAvailableAt(result.next_resend_available_at);
+      setNextResendAvailableAt(result.nextResendAvailableAt);
       toast.success('If another verification email can be sent, it will arrive shortly.');
     } catch (error) {
       setResendError(authErrorMessage(error));
@@ -154,7 +159,7 @@ export function SignupPage() {
           try {
             await verifyEmail.mutateAsync({
               email: emailChallenge.email,
-              challenge_id: emailChallenge.id,
+              challengeId: emailChallenge.id,
               code,
             });
             await refreshAuth();

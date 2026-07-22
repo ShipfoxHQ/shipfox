@@ -160,7 +160,7 @@ function PasswordResetConfirm({token}: {token: string}) {
           token,
           new_password: value.new_password,
         });
-        await confirmPasswordReset.mutateAsync(body);
+        await confirmPasswordReset.mutateAsync({token: body.token, newPassword: body.new_password});
         setAuthFormDraft(initialAuthFormDraft);
         toast.success('Your password has been changed. You are now logged in.');
         await navigate({to: '/', replace: true});

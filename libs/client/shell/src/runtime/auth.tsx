@@ -1,12 +1,10 @@
-import {loginResponseSchema} from '@shipfox/api-auth-dto';
-import {listUserWorkspacesResponseSchema} from '@shipfox/api-workspaces-dto';
-import {ApiError, checkedApiRequest, configureApiClient} from '@shipfox/client-api';
+import {ApiError, configureApiClient} from '@shipfox/client-api';
 import {useQueryClient} from '@tanstack/react-query';
 import {atom, useAtomValue, useSetAtom, useStore} from 'jotai';
 import type {PropsWithChildren} from 'react';
 import {useCallback, useEffect, useMemo} from 'react';
 import type {AuthenticatedSession, UserIdentity, WorkspaceSummary} from '#core/session.js';
-import {toAuthenticatedSession} from '#hooks/api/session-mapper.js';
+import {listUserWorkspaces, refreshAuthenticatedSession} from '#hooks/api/session-auth.js';
 
 const REFRESH_EARLY_MS = 5 * 60 * 1000;
 const REFRESH_RETRY_DELAY_MS = 60_000;
@@ -62,25 +60,7 @@ export function useAuthState(): AuthStateValue {
   );
 }
 
-export async function listUserWorkspaces(token?: string) {
-  const response = await checkedApiRequest(
-    listUserWorkspacesResponseSchema,
-    '/workspaces',
-    token ? {headers: {authorization: `Bearer ${token}`}} : {},
-  );
-  return {
-    memberships: response.memberships.map((membership) => ({
-      id: membership.workspace_id,
-      name: membership.workspace_name,
-      membershipId: membership.id,
-    })),
-  };
-}
-
-async function refreshAuthRequest(): Promise<AuthenticatedSession> {
-  const response = await checkedApiRequest(loginResponseSchema, '/auth/refresh', {method: 'POST'});
-  return toAuthenticatedSession(response);
-}
+export {listUserWorkspaces} from '#hooks/api/session-auth.js';
 
 function decodeBase64Url(value: string): string {
   const base64 = value
@@ -165,7 +145,7 @@ export function useRefreshAuth() {
     try {
       const result = await queryClient.fetchQuery({
         queryKey: authRefreshQueryKey,
-        queryFn: refreshAuthRequest,
+        queryFn: refreshAuthenticatedSession,
         retry: false,
         staleTime: 0,
       });

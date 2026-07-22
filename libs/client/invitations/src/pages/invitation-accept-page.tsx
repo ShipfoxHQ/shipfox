@@ -53,7 +53,7 @@ export function InvitationAcceptPage() {
   const runAccept = useCallback(
     async (params: {token: string; workspaceName: string}) => {
       const result = await accept.mutateAsync({token: params.token});
-      await completeAccept(result.membership.workspace_id, params.workspaceName);
+      await completeAccept(result.membership.workspaceId, params.workspaceName);
     },
     [accept, completeAccept],
   );

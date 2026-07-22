@@ -1,24 +1,21 @@
-import {
-  type PasswordResetConfirmBodyDto,
-  type PasswordResetRequestBodyDto,
-  passwordResetConfirmResponseSchema,
-} from '@shipfox/api-auth-dto';
+import {passwordResetConfirmResponseSchema} from '@shipfox/api-auth-dto';
 import {apiRequest, checkedApiRequest} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
+import type {PasswordResetConfirmCommand, PasswordResetRequestCommand} from '#core/auth.js';
 import {useAuthTransition} from '#state/auth.js';
 import {toAuthenticatedSession} from './auth-mapper.js';
 
-export async function requestPasswordReset(body: PasswordResetRequestBodyDto) {
-  await apiRequest<void>('/auth/password-reset', {method: 'POST', body});
+export async function requestPasswordReset(command: PasswordResetRequestCommand) {
+  await apiRequest<void>('/auth/password-reset', {method: 'POST', body: command});
 }
 
-export async function confirmPasswordReset(body: PasswordResetConfirmBodyDto) {
+export async function confirmPasswordReset(command: PasswordResetConfirmCommand) {
   const response = await checkedApiRequest(
     passwordResetConfirmResponseSchema,
     '/auth/password-reset/confirm',
     {
       method: 'POST',
-      body,
+      body: {token: command.token, new_password: command.newPassword},
     },
   );
   return toAuthenticatedSession(response);
