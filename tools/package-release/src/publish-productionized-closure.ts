@@ -1,7 +1,7 @@
 import {type ChildProcess, spawn} from 'node:child_process';
-import {globSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, globSync, readFileSync, writeFileSync} from 'node:fs';
 import {constants} from 'node:os';
-import {join, resolve} from 'node:path';
+import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 import {productionizePackageManifest} from './productionized-manifest-packer.js';
@@ -119,7 +119,15 @@ export function publishChangesets(onSpawn?: (child: ChildProcess) => void): Prom
 }
 
 export function getRepositoryRoot(entryPoint: string): string {
-  return resolve(fileURLToPath(new URL('../../..', entryPoint)));
+  let directory = dirname(fileURLToPath(entryPoint));
+  while (true) {
+    if (existsSync(join(directory, 'publication-closure.json'))) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) {
+      throw new Error('Could not find publication-closure.json above the package entrypoint');
+    }
+    directory = parent;
+  }
 }
 
 async function main() {

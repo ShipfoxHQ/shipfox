@@ -7,20 +7,26 @@
         "$TURBO_EXTENDS$",
         "@shipfox/application-release#build",
         "@shipfox/application-release#type:emit",
-        "@shipfox/react-ui#build",
-        "@shipfox/react-ui#type:emit",
-        "@shipfox/redact#build",
-        "@shipfox/redact#type:emit",
-        "@shipfox/regex#build",
-        "@shipfox/regex#type:emit"
+        "@shipfox/biome#build",
+        "@shipfox/biome#type:emit",
+        "@shipfox/depcruise#build",
+        "@shipfox/docker#build",
+        "@shipfox/docker#type:emit",
+        "@shipfox/playwright#build",
+        "@shipfox/playwright#type:emit",
+        "@shipfox/swc#build",
+        "@shipfox/typescript#build",
+        "@shipfox/typescript#type:emit",
+        "@shipfox/vite#build",
+        "@shipfox/vite#type:emit",
+        "@shipfox/vitest#build",
+        "@shipfox/vitest#type:emit"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/pnpm-lock.yaml",
         "$TURBO_ROOT$/pnpm-workspace.yaml",
-        "$TURBO_ROOT$/tools/application-release/package.json",
-        "$TURBO_ROOT$/libs/shared/common/{redact,regex}/package.json",
-        "$TURBO_ROOT$/libs/shared/react/ui/package.json"
+        "$TURBO_ROOT$/tools/**/package.json"
       ]
     }
   }

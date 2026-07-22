@@ -24,7 +24,8 @@
     "test": "pnpm run build && node --test test/*.test.mjs",
     "test:external": "node test/external/verify.mjs",
     "type": "shipfox-tsc-check",
-    "type:emit": "shipfox-tsc-emit"
+    "type:emit": "shipfox-tsc-emit",
+    "verify": "node dist/verify-publication-closure.js"
   },
   "dependencies": {
     "ajv": "catalog:",

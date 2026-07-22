@@ -1,21 +1,15 @@
 import assert from 'node:assert/strict';
-import {resolve} from 'node:path';
 import {describe, test} from 'node:test';
-import {fileURLToPath} from 'node:url';
 
 import {
   assertApplicationReleasePackages,
   computePublicationClosure,
-  createApplicationReleasePackages,
   entryPointSupportsRuntimeImport,
   entryPointSupportsTypeResolution,
   listPublicPackageEntryPoints,
-  readPublicationClosureConfig,
-  readWorkspacePackages,
   validatePublicationState,
 } from '../dist/package-closure.js';
 
-const repositoryRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const MISSING_ROOT_ERROR = /Publication root is not a workspace package: @shipfox\/missing/u;
 const MISSING_RUNTIME_ERROR = /missing: @shipfox\/runtime/u;
 const PRIVATE_RUNTIME_ERROR = /Publication closure package is private: @shipfox\/private-runtime/u;
@@ -210,24 +204,5 @@ describe('publication closure', () => {
 
     assert.deepEqual(runtimeEntryPoints, ['@shipfox/example']);
     assert.deepEqual(typeEntryPoints, ['@shipfox/example', '@shipfox/example/types']);
-  });
-
-  test('keeps the repository closure and application-release package set exact', () => {
-    const config = readPublicationClosureConfig(
-      resolve(repositoryRoot, 'publication-closure.json'),
-    );
-    const workspacePackages = readWorkspacePackages(repositoryRoot);
-
-    const releasePackages = createApplicationReleasePackages(
-      workspacePackages,
-      config,
-      repositoryRoot,
-    );
-
-    assert.deepEqual(
-      releasePackages.map(({name}) => name),
-      config.packages,
-    );
-    assert.equal(releasePackages.length, 86);
   });
 });
