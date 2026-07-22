@@ -1,11 +1,16 @@
-import type {CreateWorkspaceBodyDto, WorkspaceResponseDto} from '@shipfox/api-workspaces-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {type CreateWorkspaceBodyDto, workspaceResponseSchema} from '@shipfox/api-workspaces-dto';
+import {checkedApiRequest} from '@shipfox/client-api';
 import {listUserWorkspaces, userWorkspacesQueryKey} from '@shipfox/client-shell/runtime';
 import {useMutation} from '@tanstack/react-query';
 import {useRefreshAuth} from './refresh-auth.js';
+import {toWorkspace} from './workspace-mapper.js';
 
 export async function createWorkspace(body: CreateWorkspaceBodyDto) {
-  return await apiRequest<WorkspaceResponseDto>('/workspaces', {method: 'POST', body});
+  const response = await checkedApiRequest(workspaceResponseSchema, '/workspaces', {
+    method: 'POST',
+    body,
+  });
+  return toWorkspace(response);
 }
 
 export {listUserWorkspaces, userWorkspacesQueryKey};

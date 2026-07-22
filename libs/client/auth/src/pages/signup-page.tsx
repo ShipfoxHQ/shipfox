@@ -1,4 +1,5 @@
 import {signupBodySchema} from '@shipfox/api-auth-dto';
+import {AuthShell} from '@shipfox/client-shell/runtime';
 import {displayNameFieldError} from '@shipfox/client-ui';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -10,7 +11,6 @@ import {useForm} from '@tanstack/react-form';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
-import {AuthShell} from '#/components/auth-shell.js';
 import {EmailCodeVerification} from '#/components/email-code-verification.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {useSignupAuth} from '#hooks/api/signup-auth.js';
@@ -67,16 +67,16 @@ export function SignupPage() {
             // Refresh failures don't block the success message — the next API
             // call's 401 handling will re-route the user.
           }
-          toast.success(`You joined ${invitationPending.workspace_name}.`);
+          toast.success(`You joined ${invitationPending.workspaceName}.`);
           await navigate({
             to: '/workspaces/$wid',
-            params: {wid: result.membership.workspace_id},
+            params: {wid: result.membership.workspaceId},
           });
           return;
         }
 
-        if (invitationToken && result.accept_error) {
-          toast.error(result.accept_error.message);
+        if (invitationToken && result.acceptError) {
+          toast.error(result.acceptError.message);
           await navigate({
             to: '/invitations/accept',
             search: {token: invitationToken},
@@ -84,12 +84,12 @@ export function SignupPage() {
           return;
         }
 
-        if (!result.email_challenge) {
+        if (!result.emailChallenge) {
           throw new Error('Signup did not return an email verification challenge');
         }
-        setEmailChallenge({email: result.user.email, id: result.email_challenge.id});
+        setEmailChallenge({email: result.user.email, id: result.emailChallenge.id});
         setResendError(undefined);
-        setNextResendAvailableAt(result.email_challenge.next_resend_available_at);
+        setNextResendAvailableAt(result.emailChallenge.nextResendAvailableAt);
       } catch (error) {
         const mapped = signupErrorToFormError(error);
         if (mapped.kind === 'field') {
@@ -181,7 +181,7 @@ export function SignupPage() {
   }
 
   const headerTitle = invitationPending
-    ? `Join ${invitationPending.workspace_name}`
+    ? `Join ${invitationPending.workspaceName}`
     : 'Create your Shipfox account';
   const headerDescription = invitationPending
     ? `Create an account to accept your invitation.`

@@ -1,22 +1,28 @@
-import type {
-  VerifyEmailConfirmBodyDto,
-  VerifyEmailConfirmResponseDto,
-  VerifyEmailResendBodyDto,
-  VerifyEmailResendResponseDto,
+import {
+  type VerifyEmailConfirmBodyDto,
+  type VerifyEmailResendBodyDto,
+  verifyEmailConfirmResponseSchema,
+  verifyEmailResendResponseSchema,
 } from '@shipfox/api-auth-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {checkedApiRequest} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
 import {useAuthTransition} from '#state/auth.js';
+import {toAuthenticatedSession} from './auth-mapper.js';
 
 async function verifyEmailAuth(body: VerifyEmailConfirmBodyDto) {
-  return await apiRequest<VerifyEmailConfirmResponseDto>('/auth/verify-email/confirm', {
-    method: 'POST',
-    body,
-  });
+  const response = await checkedApiRequest(
+    verifyEmailConfirmResponseSchema,
+    '/auth/verify-email/confirm',
+    {
+      method: 'POST',
+      body,
+    },
+  );
+  return toAuthenticatedSession(response);
 }
 
 async function resendEmailVerificationAuth(body: VerifyEmailResendBodyDto) {
-  return await apiRequest<VerifyEmailResendResponseDto>('/auth/verify-email/resend', {
+  return await checkedApiRequest(verifyEmailResendResponseSchema, '/auth/verify-email/resend', {
     method: 'POST',
     body,
   });

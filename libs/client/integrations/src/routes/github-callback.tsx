@@ -48,7 +48,7 @@ function GithubCallbackRoute() {
       async () =>
         await refreshAuth().then(async (session) => {
           await apiRequest(`/integrations/github/callback/api?${key}`, {
-            headers: {authorization: `Bearer ${session.token}`},
+            headers: {authorization: `Bearer ${session.accessToken}`},
           });
         }),
     );

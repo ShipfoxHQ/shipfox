@@ -8,7 +8,7 @@ import type {NavigateOptions} from '@tanstack/react-router';
  * routes the user into the workspace home.
  *
  * `refreshAuth` is passed in so this helper stays a plain function (no hook).
- * Call sites construct it via `useRefreshAuth()` from `@shipfox/client-auth`.
+ * Call sites construct it via `useRefreshAuth()` from `@shipfox/client-shell/runtime`.
  */
 export async function completeInvitationAcceptance(params: {
   workspaceId: string;

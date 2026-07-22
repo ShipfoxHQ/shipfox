@@ -65,16 +65,6 @@
     "occurrences": 1
   },
   {
-    "file": "libs/client/auth/src/pages/invitation-context.ts",
-    "rule": "api-request-outside-adapter",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/auth/src/pages/invitation-context.ts",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 2
-  },
-  {
     "file": "libs/client/integrations/src/components/connection-picker.tsx",
     "rule": "response-dto-in-presentation",
     "occurrences": 1
@@ -163,11 +153,6 @@
     "file": "libs/client/projects/src/pages/create-project-page.tsx",
     "rule": "response-dto-in-presentation",
     "occurrences": 3
-  },
-  {
-    "file": "libs/client/projects/src/pages/project-workflows-page.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 2
   },
   {
     "file": "libs/client/projects/src/pages/projects-hub-page.tsx",
@@ -318,6 +303,11 @@
     "file": "libs/client/workflows/src/core/entities/workflow-run.ts",
     "rule": "core-api-dto-import",
     "occurrences": 1
+  },
+  {
+    "file": "libs/client/workflows/src/pages/project-workflows-page.tsx",
+    "rule": "response-dto-in-presentation",
+    "occurrences": 2
   },
   {
     "file": "libs/client/workspace-settings/src/components/members/workspace-members-section.tsx",

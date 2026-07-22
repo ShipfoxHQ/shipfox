@@ -60,7 +60,7 @@ describe('confirmPasswordReset', () => {
     const result = await confirmPasswordReset(body);
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.token).toBe('reset-access-token');
+    expect(result.accessToken).toBe('reset-access-token');
     expect(request.url).toBe('https://api.example.test/auth/password-reset/confirm');
     expect(request.method).toBe('POST');
     expect(requestBody).toEqual(body);

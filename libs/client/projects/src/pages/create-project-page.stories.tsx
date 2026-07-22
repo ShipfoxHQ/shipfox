@@ -39,10 +39,7 @@ const authState: AuthState = {
     id: '22222222-2222-4222-8222-222222222222',
     email: 'platform@example.com',
     name: 'Platform Engineer',
-    email_verified_at: '2026-01-01T00:00:00.000Z',
-    status: 'active',
-    created_at: '2026-01-01T00:00:00.000Z',
-    updated_at: '2026-01-01T00:00:00.000Z',
+    emailVerifiedAt: '2026-01-01T00:00:00.000Z',
   },
   workspaces: [{id: WORKSPACE_ID, name: 'Acme', membershipId: 'membership-1'}],
 };

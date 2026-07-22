@@ -1,9 +1,14 @@
-import type {SignupBodyDto, SignupResponseDto} from '@shipfox/api-auth-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {type SignupBodyDto, signupResponseSchema} from '@shipfox/api-auth-dto';
+import {checkedApiRequest} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
+import {toSignupResult} from './auth-mapper.js';
 
 async function signupAuth(body: SignupBodyDto) {
-  return await apiRequest<SignupResponseDto>('/auth/signup', {method: 'POST', body});
+  const response = await checkedApiRequest(signupResponseSchema, '/auth/signup', {
+    method: 'POST',
+    body,
+  });
+  return toSignupResult(response);
 }
 
 export function useSignupAuth() {
