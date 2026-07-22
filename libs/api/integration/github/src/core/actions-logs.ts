@@ -1,7 +1,7 @@
 import {Buffer} from 'node:buffer';
-import {DEFAULT_JOB_LOG_TAIL_LINES} from '@shipfox/api-integration-github-dto';
+import {DEFAULT_JOB_LOG_TAIL_LINES} from './github-agent-tool-catalog.js';
 
-export {DEFAULT_JOB_LOG_TAIL_LINES} from '@shipfox/api-integration-github-dto';
+export {DEFAULT_JOB_LOG_TAIL_LINES} from './github-agent-tool-catalog.js';
 export const DEFAULT_JOB_LOG_CONTENT_WINDOW_LINES = 5000;
 export const MAX_JOB_LOG_RING_BUFFER_LINES = 100000;
 export const MAX_JOB_LOG_LINE_BYTES = 10 * 1024 * 1024;

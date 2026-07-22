@@ -1,10 +1,3 @@
-import {
-  type GithubAgentToolCatalogEntry,
-  type GithubAgentToolId,
-  type GithubAgentToolRequiredScope,
-  githubAgentToolCatalog,
-  githubAgentToolSelectionCatalog,
-} from '@shipfox/api-integration-github-dto';
 import type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
@@ -22,6 +15,13 @@ import {
 import {normalizedGithubApiBaseUrl} from '#config.js';
 import type {GithubInstallation} from '#db/installations.js';
 import {GithubIntegrationProviderError} from './errors.js';
+import {
+  type GithubAgentToolCatalogEntry,
+  type GithubAgentToolId,
+  type GithubAgentToolRequiredScope,
+  githubAgentToolCatalog,
+  githubAgentToolSelectionCatalog,
+} from './github-agent-tool-catalog.js';
 
 export type {
   GithubAgentToolCatalogEntry,
@@ -32,13 +32,13 @@ export type {
   GithubAgentToolRequiredPermission,
   GithubAgentToolRequiredScope,
   GithubAgentToolSensitivity,
-} from '@shipfox/api-integration-github-dto';
+} from './github-agent-tool-catalog.js';
 export {
   buildGithubAgentToolSelectionCatalog,
   DEFAULT_JOB_LOG_TAIL_LINES,
   githubAgentToolCatalog,
   githubAgentToolSelectionCatalog,
-} from '@shipfox/api-integration-github-dto';
+} from './github-agent-tool-catalog.js';
 
 type GithubIntegrationConnection = IntegrationConnection<'github'>;
 

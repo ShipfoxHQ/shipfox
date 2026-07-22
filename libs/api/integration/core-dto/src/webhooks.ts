@@ -202,22 +202,3 @@ export function createStoredWebhookRequest(
     body: {encoding: 'base64', data: encodeWebhookBody(input.body)},
   });
 }
-
-export function createMaximumSizeStoredWebhookRequestFixture(): StoredWebhookRequest {
-  const headers = Object.fromEntries(
-    Array.from({length: 8}, (_, index) => [
-      `x-fixture-${index}`,
-      'a'.repeat(index === 7 ? 8_000 : 8 * 1024),
-    ]),
-  );
-
-  return createStoredWebhookRequest({
-    requestId: '9b11d65a-f7e7-40ea-b421-06af012a9be5',
-    routeId: 'webhook.connection',
-    receivedAt: '2026-07-20T10:30:00.123Z',
-    rawQueryString: 'q='.padEnd(WEBHOOK_MAX_RAW_QUERY_STRING_LENGTH, 'q'),
-    headers,
-    body: new Uint8Array(WEBHOOK_MAX_RAW_BODY_BYTES),
-    connectionId: 'c0a8012e-0b6d-4d8f-8d5c-6d74102602b0',
-  });
-}

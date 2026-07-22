@@ -1,11 +1,5 @@
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {
-  isSensitiveSecretName,
-  isSystemNamespace,
-  isUserNamespace,
-  namespaceSchema,
-  secretKeySchema,
-} from './identifiers.js';
+import {namespaceSchema, secretKeySchema} from './identifiers.js';
 
 describe('secret identifiers', () => {
   it.each(['A', '_A', 'A_B1'])('accepts key %s', (key) => {
@@ -36,20 +30,5 @@ describe('secret identifiers', () => {
     const result = namespaceSchema.safeParse(namespace);
 
     expect(result.success).toBe(false);
-  });
-
-  it('classifies system and user namespaces', () => {
-    expect(isSystemNamespace('system/agent/x')).toBe(true);
-    expect(isSystemNamespace('')).toBe(false);
-    expect(isSystemNamespace('REGION')).toBe(false);
-    expect(isUserNamespace('')).toBe(true);
-    expect(isUserNamespace('prod')).toBe(true);
-    expect(isUserNamespace('system/agent/x')).toBe(false);
-  });
-
-  it('classifies sensitive names', () => {
-    expect(isSensitiveSecretName('API_TOKEN')).toBe(true);
-    expect(isSensitiveSecretName('PASSWORD')).toBe(true);
-    expect(isSensitiveSecretName('REGION')).toBe(false);
   });
 });

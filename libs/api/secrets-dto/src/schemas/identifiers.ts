@@ -23,19 +23,3 @@ export const namespaceSchema = z
   .refine((namespace) => namespace === '' || NAMESPACE_PATTERN.test(namespace), {
     message: 'Namespace must be empty or a lowercase slug path.',
   });
-
-export function isSystemNamespace(namespace: string): boolean {
-  return namespace.startsWith(SYSTEM_NAMESPACE_PREFIX);
-}
-
-export function isUserNamespace(namespace: string): boolean {
-  return !isSystemNamespace(namespace);
-}
-
-export function isSensitiveSecretName(key: string): boolean {
-  return SENSITIVE_NAME_PATTERNS.some((pattern) => key.includes(pattern));
-}
-
-export function isShortSecretValue(value: string, threshold: number): boolean {
-  return value.length > 0 && value.length < threshold;
-}
