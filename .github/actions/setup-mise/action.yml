@@ -1,0 +1,21 @@
+name: Set up mise
+description: Install only the mise tools required by a CI job and restore its trusted cache.
+
+inputs:
+  tools:
+    description: Space-separated mise tool names required by the job.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up selected mise tools
+      uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+      with:
+        install_args: ${{ inputs.tools }}
+        # Keep each tool set isolated and invalidate it whenever the locked mise
+        # configuration changes. There is deliberately no cross-profile fallback.
+        cache_key: mise-ci-tools-v1-{{platform}}-{{install_args_hash}}-{{file_hash}}
+        # Pull requests may restore caches seeded by main, but only approved code
+        # may publish executable tool archives for later workflow runs.
+        cache_save: ${{ github.ref == 'refs/heads/main' }}
