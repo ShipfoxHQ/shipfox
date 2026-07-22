@@ -7,6 +7,7 @@ Runs a Shipfox API server.
 - **`defaultModules()`**: Returns the standard module list.
 - **`createServer()`**: Builds an API server. The caller owns process signals.
 - **`runServer()`**: Starts the server. It listens for SIGTERM and SIGINT.
+- **`createLoginMethodsRoute()`**: Builds the public login-method catalog route. `createServer` mounts it automatically.
 - **Instrumentation preload**: Starts metrics early. Load it before feature modules.
 
 ## Installation
@@ -41,6 +42,7 @@ node --import @shipfox/api-server/instrumentation ./dist/index.js
 ## Behavior Notes
 
 - **Custom composition**: Pass a module list to make a custom server. A module must declare a unique `loginMethods` entry. `createServer` throws before startup side effects when no login method is available.
+- **Login-method catalog**: Every server composition exposes a public, unauthenticated `GET /auth/login-methods`, listing the bounded IDs of every module-contributed login method.
 - **Signal handling**: `createServer` does not install signal handlers.
 - **Lifecycle**: `start` starts workers and module services before the HTTP listener. `stop` is safe to call again. It stops services before workers and shared clients.
 - **Process scope**: Run one server at a time.
