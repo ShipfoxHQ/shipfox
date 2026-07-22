@@ -235,11 +235,12 @@ export async function stepLogText(params: {
   return logText(logs.records);
 }
 
-export async function sendBatchPairAndAwaitExecution(params: {
+export async function sendBatchPairAndAwaitMaterialization(params: {
   testCase: ListenerCase;
   runId: string;
   label: string;
   sequence: number;
+  timeoutMs: number;
 }): Promise<{deliveryIds: string[]; runDetail: Awaited<ReturnType<typeof waitForRunTerminal>>}> {
   const deliveryIds = [
     `${params.testCase.uniqueId}-${params.label}-a`,
@@ -258,7 +259,7 @@ export async function sendBatchPairAndAwaitExecution(params: {
   const runDetail = await waitForRunDetailMatching({
     token: params.testCase.token,
     runId: params.runId,
-    timeoutMs: 8_000,
+    timeoutMs: params.timeoutMs,
     description: `batched listener deliveries ${deliveryIds.join(', ')}`,
     matches: (candidate) =>
       batchedListenerExecutionMatches({
