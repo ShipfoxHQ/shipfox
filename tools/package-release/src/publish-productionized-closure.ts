@@ -4,15 +4,21 @@ import {constants} from 'node:os';
 import {join, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
-import {productionizeManifest} from '@shipfox/tool-utils';
+import {productionizePackageManifest} from './productionized-manifest-packer.js';
 
 type JsonRecord = Record<string, unknown>;
+const packageNamePattern = /^@shipfox\/[a-z0-9][a-z0-9._-]*$/u;
 
 interface PublishProductionizedClosureOptions<T> {
   onPrepared?: (restore: () => void) => void;
   packageNames: string[];
   publish: () => Promise<T> | T;
   root: string;
+}
+
+export interface PublicationClosureConfig {
+  packages: string[];
+  roots: string[];
 }
 
 export function findClosureManifests(root: string, packageNames: string[]): string[] {
@@ -40,12 +46,36 @@ export function findPublishableToolManifests(root: string): string[] {
   });
 }
 
-function productionizePublishManifest(manifest: JsonRecord): JsonRecord {
-  const productionized = productionizeManifest(manifest);
-  if (!('devDependencies' in productionized)) return productionized;
+export function loadPublicationClosure(root: string): PublicationClosureConfig {
+  const closurePath = join(root, 'publication-closure.json');
+  let config: unknown;
+  try {
+    config = JSON.parse(readFileSync(closurePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Could not read publication closure at ${closurePath}: ${String(error)}`);
+  }
+  if (!isClosureConfig(config)) {
+    throw new Error(`Invalid publication closure config at ${closurePath}`);
+  }
+  return config;
+}
 
-  const {devDependencies: _, ...publishManifest} = productionized;
-  return publishManifest;
+export function resolvePublicationManifests(root: string, packageNames: string[]): string[] {
+  const manifestPaths = [
+    ...findClosureManifests(root, packageNames),
+    ...findPublishableToolManifests(root),
+  ];
+  const names = new Set<string>();
+  for (const manifestPath of manifestPaths) {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as JsonRecord;
+    if (typeof manifest.name !== 'string') {
+      throw new Error(`Publishable package has no name: ${manifestPath}`);
+    }
+    if (names.has(manifest.name))
+      throw new Error(`Duplicate publication package: ${manifest.name}`);
+    names.add(manifest.name);
+  }
+  return manifestPaths;
 }
 
 export async function publishProductionizedClosure<T>({
@@ -54,10 +84,7 @@ export async function publishProductionizedClosure<T>({
   publish,
   onPrepared,
 }: PublishProductionizedClosureOptions<T>): Promise<T> {
-  const manifestPaths = [
-    ...findClosureManifests(root, packageNames),
-    ...findPublishableToolManifests(root),
-  ];
+  const manifestPaths = resolvePublicationManifests(root, packageNames);
   const originalManifests = new Map(
     manifestPaths.map((manifestPath) => [manifestPath, readFileSync(manifestPath, 'utf8')]),
   );
@@ -69,7 +96,7 @@ export async function publishProductionizedClosure<T>({
 
   for (const [manifestPath, originalManifest] of originalManifests) {
     const manifest = JSON.parse(originalManifest) as JsonRecord;
-    const productionized = productionizePublishManifest(manifest);
+    const productionized = productionizePackageManifest(manifest);
     if (productionized === manifest) continue;
     writeFileSync(manifestPath, `${JSON.stringify(productionized, null, 2)}\n`);
   }
@@ -97,10 +124,7 @@ export function getRepositoryRoot(entryPoint: string): string {
 
 async function main() {
   const repositoryRoot = getRepositoryRoot(import.meta.url);
-  const closurePath = join(repositoryRoot, 'publication-closure.json');
-  const {packages: packageNames} = JSON.parse(readFileSync(closurePath, 'utf8')) as {
-    packages: string[];
-  };
+  const {packages: packageNames} = loadPublicationClosure(repositoryRoot);
   let restore: (() => void) | undefined;
   let stopPublish: (() => void) | undefined;
   const stop = (signal: NodeJS.Signals) => {
@@ -128,6 +152,21 @@ async function main() {
     process.removeListener('SIGINT', stop);
     process.removeListener('SIGTERM', stop);
   }
+}
+
+function isClosureConfig(value: unknown): value is PublicationClosureConfig {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return isPackageList(record.roots) && isPackageList(record.packages);
+}
+
+function isPackageList(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((name) => typeof name === 'string' && packageNamePattern.test(name)) &&
+    new Set(value).size === value.length
+  );
 }
 
 const entryPoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : undefined;

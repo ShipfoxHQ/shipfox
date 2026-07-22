@@ -13,6 +13,7 @@
     "check:fix": "shipfox-biome-check --write",
     "verify-generated-release": "node dist/generated-release-verifier.js",
     "publish:closure": "node dist/publish-productionized-closure.js",
+    "preflight": "node dist/publication-preflight.js",
     "test": "shipfox-vitest-run",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
