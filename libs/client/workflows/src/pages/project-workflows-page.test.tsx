@@ -243,5 +243,5 @@ function baseDefinitionsDto() {
 }
 
 function runDto() {
-  return {run_id: '66666666-6666-4666-8666-666666666666'};
+  return {workflow_run_id: '66666666-6666-4666-8666-666666666666'};
 }

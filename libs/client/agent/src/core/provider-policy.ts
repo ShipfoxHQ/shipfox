@@ -32,6 +32,12 @@ export function providerMatchesSearch(entry: SupportedProvider, query: string): 
   return terms.some((term) => term.toLocaleLowerCase().includes(needle));
 }
 
+export function customProviderCardMatchesSearch(query: string): boolean {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return true;
+  return 'custom provider openai anthropic google endpoint https public'.includes(needle);
+}
+
 export function deriveProviderSlug(displayName: string): string {
   return displayName
     .trim()

@@ -1,32 +1,33 @@
 import type {LinearCallbackQueryDto} from '@shipfox/api-integration-linear-dto';
 import {ApiError} from '@shipfox/client-api';
+import {type BrowserStorageKey, createTypedBrowserStorage} from '@shipfox/client-ui';
 
 export const LINEAR_INSTALL_WORKSPACE_KEY = 'shipfox.linear-install.workspace-id';
 
 type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+const linearInstallWorkspaceStorageKey = {
+  key: LINEAR_INSTALL_WORKSPACE_KEY,
+  lifetime: 'session',
+  principalScope: 'workspace',
+  serialize: (workspaceId: string) => workspaceId,
+  parse: (value: string) => value || undefined,
+} satisfies BrowserStorageKey<string>;
+
 export function saveLinearInstallWorkspace(storage: WorkspaceStorage, workspaceId: string): void {
-  try {
-    storage.setItem(LINEAR_INSTALL_WORKSPACE_KEY, workspaceId);
-  } catch {
-    // Storage only improves recovery navigation; callback input always comes from the URL.
-  }
+  installWorkspaceStorage(storage).write(workspaceId);
 }
 
 export function readLinearInstallWorkspace(storage: WorkspaceStorage): string | undefined {
-  try {
-    return storage.getItem(LINEAR_INSTALL_WORKSPACE_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return installWorkspaceStorage(storage).read();
 }
 
 export function clearLinearInstallWorkspace(storage: WorkspaceStorage): void {
-  try {
-    storage.removeItem(LINEAR_INSTALL_WORKSPACE_KEY);
-  } catch {
-    // A stale navigation hint cannot alter the callback request or its response.
-  }
+  installWorkspaceStorage(storage).remove();
+}
+
+function installWorkspaceStorage(storage: WorkspaceStorage) {
+  return createTypedBrowserStorage(() => storage, linearInstallWorkspaceStorageKey);
 }
 
 export function parseLinearCallbackQuery(

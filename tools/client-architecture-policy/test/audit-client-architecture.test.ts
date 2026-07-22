@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {auditClientSource, newViolations, sourceFiles} from '../src/audit-client-architecture.js';
+import {auditClientSource, sourceFiles} from '../src/audit-client-architecture.js';
 
 describe('auditClientSource', () => {
-  test('allows API requests in a feature adapter', () => {
+  test('allows checked API requests in a feature adapter', () => {
     const violations = auditClientSource(
       'libs/client/projects/src/hooks/api/list-projects.ts',
-      "import {apiRequest} from '@shipfox/client-api';\napiRequest('/projects');",
+      "import {checkedApiRequest} from '@shipfox/client-api';\ncheckedApiRequest(schema, '/projects');",
     );
     assert.deepEqual(violations, []);
   });
@@ -53,6 +53,41 @@ describe('auditClientSource', () => {
         file: 'libs/client/projects/src/pages/project-page.tsx',
         occurrences: 2,
         rule: 'api-request-outside-adapter',
+      },
+      {
+        file: 'libs/client/projects/src/pages/project-page.tsx',
+        occurrences: 1,
+        rule: 'unparsed-api-response',
+      },
+    ]);
+  });
+
+  test('reports unparsed API responses from a feature adapter', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/hooks/api/list-projects.ts',
+      "apiRequest('/projects');",
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/hooks/api/list-projects.ts',
+        occurrences: 1,
+        rule: 'unparsed-api-response',
+      },
+    ]);
+  });
+
+  test('reports raw route-search parsing outside an owned route module', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/pages/projects-page.tsx',
+      'useRouteSearch(parseProjectsSearch);',
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/pages/projects-page.tsx',
+        occurrences: 1,
+        rule: 'unchecked-route-search',
       },
     ]);
   });
@@ -115,36 +150,11 @@ describe('auditClientSource', () => {
     );
     assert.deepEqual(
       page.map((violation) => violation.rule),
-      ['api-request-outside-adapter', 'response-dto-in-presentation'],
+      ['api-request-outside-adapter', 'unparsed-api-response', 'response-dto-in-presentation'],
     );
     assert.deepEqual(
       component.map((violation) => violation.rule),
       ['leaf-query-cache-ownership'],
     );
-  });
-
-  test('reports only violations not present in the migration baseline', () => {
-    const existing = {
-      file: 'libs/client/auth/src/pages/login.tsx',
-      occurrences: 1,
-      rule: 'api-request-outside-adapter',
-    } as const;
-    const added = {
-      file: 'libs/client/auth/src/pages/signup.tsx',
-      occurrences: 1,
-      rule: 'api-request-outside-adapter',
-    } as const;
-    assert.deepEqual(newViolations([existing, added], [existing]), [added]);
-  });
-
-  test('reports additional occurrences in a file already covered by the baseline', () => {
-    const baseline = {
-      file: 'libs/client/auth/src/pages/login.tsx',
-      occurrences: 1,
-      rule: 'api-request-outside-adapter',
-    } as const;
-    const current = {...baseline, occurrences: 2};
-
-    assert.deepEqual(newViolations([current], [baseline]), [current]);
   });
 });

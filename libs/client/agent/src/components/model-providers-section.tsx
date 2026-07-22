@@ -35,6 +35,7 @@ import type {
   SupportedProvider,
 } from '#core/models.js';
 import {
+  customProviderCardMatchesSearch,
   isSupportedProvider,
   availableProviders as selectAvailableProviders,
 } from '#core/provider-policy.js';
@@ -55,7 +56,6 @@ import {
   usageTargetFromCatalogEntry,
   usageTargetFromCustomConfig,
 } from './model-provider-usage-target.js';
-import {customProviderCardMatchesSearch} from './provider-search.js';
 import {ModelProviderTestAndSaveForm} from './test-and-save-form.js';
 
 const SURFACE_CLASS =
