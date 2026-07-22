@@ -1,5 +1,6 @@
 import type {LinearCallbackResponseDto} from '@shipfox/api-integration-linear-dto';
 import {useRefreshAuth} from '@shipfox/client-auth';
+import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {useQueryClient} from '@tanstack/react-query';
@@ -16,12 +17,9 @@ import {
   serializeLinearCallbackQuery,
 } from '#linear-callback.js';
 
-// Keyed by the callback's code+state. This page has no in-place Retry (failures
-// route to "Start over", which begins a fresh install with a new state+code), so
-// entries are intentionally never evicted: retaining them dedupes StrictMode and
-// remount re-runs so the single-use grant code is exchanged at most once. The
-// sibling Sentry page evicts on settle only because its Retry replays the code.
-const callbackRequests = new Map<string, Promise<LinearCallbackResponseDto>>();
+const callbackRequests = createSingleFlight<string, LinearCallbackResponseDto>({
+  maxTerminalResults: 32,
+});
 // Keeps the success toast firing once per distinct callback even though the
 // effect re-runs against the cached request as the mutation identity churns.
 const toastedCallbacks = new Set<string>();
@@ -46,13 +44,13 @@ export function LinearCallbackPage() {
 
     let disposed = false;
     const key = serializeLinearCallbackQuery(params);
-    let request = callbackRequests.get(key);
-    if (!request) {
-      request = refreshAuth().then(
-        async (session) => await completeLinearCallback({query: params, token: session.token}),
-      );
-      callbackRequests.set(key, request);
-    }
+    const request = callbackRequests.run(
+      key,
+      async () =>
+        await refreshAuth().then(
+          async (session) => await completeLinearCallback({query: params, token: session.token}),
+        ),
+    );
 
     request.then(
       async (connection) => {

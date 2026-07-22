@@ -4949,6 +4949,9 @@ importers:
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -5473,6 +5476,9 @@ importers:
       '@shipfox/client-config':
         specifier: workspace:*
         version: link:../config
+      '@shipfox/client-ui':
+        specifier: workspace:*
+        version: link:../ui
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui

@@ -65,6 +65,7 @@
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-shell": "workspace:*",
+    "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
     "@tanstack/react-query": "catalog:"

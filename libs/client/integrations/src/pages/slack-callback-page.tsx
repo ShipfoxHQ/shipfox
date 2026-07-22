@@ -1,5 +1,6 @@
 import type {SlackCallbackResponseDto} from '@shipfox/api-integration-slack-dto';
 import {useRefreshAuth} from '@shipfox/client-auth';
+import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {useQueryClient} from '@tanstack/react-query';
@@ -16,9 +17,9 @@ import {
   serializeSlackCallbackQuery,
 } from '#slack-callback.js';
 
-// Requests and committed keys remain for the document lifetime so Strict Mode,
-// browser Back, and remounts never replay Slack's single-use grant code.
-const callbackRequests = new Map<string, Promise<SlackCallbackResponseDto>>();
+const callbackRequests = createSingleFlight<string, SlackCallbackResponseDto>({
+  maxTerminalResults: 32,
+});
 const completedCallbacks = new Set<string>();
 const toastedCallbacks = new Set<string>();
 
@@ -37,13 +38,13 @@ export function SlackCallbackPage() {
     if (!params) return;
     let disposed = false;
     const key = serializeSlackCallbackQuery(params);
-    let request = callbackRequests.get(key);
-    if (!request) {
-      request = refreshAuth().then(
-        async (session) => await completeSlackCallback({query: params, token: session.token}),
-      );
-      callbackRequests.set(key, request);
-    }
+    const request = callbackRequests.run(
+      key,
+      async () =>
+        await refreshAuth().then(
+          async (session) => await completeSlackCallback({query: params, token: session.token}),
+        ),
+    );
     request.then(
       async (connection) => {
         if (disposed) return;

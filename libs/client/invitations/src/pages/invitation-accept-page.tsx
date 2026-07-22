@@ -1,4 +1,5 @@
 import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-auth';
+import {createSingleFlight} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {ShipfoxLoader} from '@shipfox/react-ui/loader';
@@ -11,9 +12,7 @@ import {completeInvitationAcceptance} from '#complete-acceptance.js';
 import {useAcceptInvitation} from '#hooks/api/accept-invitation.js';
 import {usePreviewInvitation} from '#hooks/api/preview-invitation.js';
 
-// Module-scoped guard so React StrictMode's double-mount in dev does not
-// fire the accept mutation twice for the same token.
-const inFlightAccepts = new Set<string>();
+const invitationAccepts = createSingleFlight<string, void>();
 const toastedTerminals = new Set<string>();
 const TOASTED_TERMINALS_MAX = 32;
 
@@ -65,7 +64,6 @@ export function InvitationAcceptPage() {
     if (!token) return;
     if (auth.isLoading) return;
     if (hasKickedAccept.current) return;
-    if (inFlightAccepts.has(token)) return;
     const data = preview.data;
     if (!data) return;
     if (data.status !== 'pending') return;
@@ -75,15 +73,11 @@ export function InvitationAcceptPage() {
     if (authedEmail !== data.email.toLowerCase()) return;
 
     hasKickedAccept.current = true;
-    inFlightAccepts.add(token);
-
-    runAccept({token, workspaceName: data.workspace_name})
+    invitationAccepts
+      .run(token, async () => await runAccept({token, workspaceName: data.workspace_name}))
       .catch(() => {
         // The mutation surfaces its error via accept.error; the UI re-renders
         // into the auth-match-error state below.
-      })
-      .finally(() => {
-        inFlightAccepts.delete(token);
       });
   }, [auth.isAuthenticated, auth.isLoading, auth.user?.email, preview.data, runAccept, token]);
 
