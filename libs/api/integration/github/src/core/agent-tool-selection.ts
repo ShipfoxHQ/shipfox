@@ -1,1 +1,1 @@
-export {buildGithubAgentToolSelectionCatalog} from '@shipfox/api-integration-github-dto';
+export {buildGithubAgentToolSelectionCatalog} from './github-agent-tool-catalog.js';

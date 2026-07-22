@@ -228,6 +228,6 @@ describe('publication closure', () => {
       releasePackages.map(({name}) => name),
       config.packages,
     );
-    assert.equal(releasePackages.length, 84);
+    assert.equal(releasePackages.length, 86);
   });
 });

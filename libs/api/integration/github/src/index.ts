@@ -43,6 +43,7 @@ export {
   type GithubAgentToolRequiredScope,
   GithubAgentToolsProvider,
   githubAgentToolCatalog,
+  githubAgentToolSelectionCatalog,
 } from '#core/agent-tools.js';
 export {GithubIntegrationProviderError} from '#core/errors.js';
 export type {ConnectGithubInstallationInput} from '#core/install.js';

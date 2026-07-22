@@ -6,8 +6,8 @@ import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-
 import {
   githubAgentToolCatalog,
   githubAgentToolSelectionCatalog,
-  githubEventCatalog,
-} from '@shipfox/api-integration-github-dto';
+} from '@shipfox/api-integration-github/agent-tools';
+import {githubEventCatalog} from '@shipfox/api-integration-github-dto';
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {webhookEventCatalog} from '@shipfox/api-integration-webhook-dto';
 import {buildWorkflowJsonSchema, thinkingLevelsForHarness} from '@shipfox/workflow-document';

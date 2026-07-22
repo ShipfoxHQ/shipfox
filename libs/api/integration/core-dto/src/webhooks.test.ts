@@ -1,15 +1,34 @@
 import {
-  createMaximumSizeStoredWebhookRequestFixture,
   createStoredWebhookRequest,
   decodeWebhookBody,
   storedWebhookRequestSchema,
   WEBHOOK_MAX_RAW_BODY_BYTES,
+  WEBHOOK_MAX_RAW_QUERY_STRING_LENGTH,
   WEBHOOK_MAX_SERIALIZED_REQUEST_BYTES,
   webhookProcessingResultSchema,
 } from './webhooks.js';
 
 const requestId = '9b11d65a-f7e7-40ea-b421-06af012a9be5';
 const receivedAt = '2026-07-20T10:30:00.123Z';
+
+function createMaximumSizeStoredWebhookRequestFixture() {
+  const headers = Object.fromEntries(
+    Array.from({length: 8}, (_, index) => [
+      `x-fixture-${index}`,
+      'a'.repeat(index === 7 ? 8_000 : 8 * 1024),
+    ]),
+  );
+
+  return createStoredWebhookRequest({
+    requestId,
+    routeId: 'webhook.connection',
+    receivedAt,
+    rawQueryString: 'q='.padEnd(WEBHOOK_MAX_RAW_QUERY_STRING_LENGTH, 'q'),
+    headers,
+    body: new Uint8Array(WEBHOOK_MAX_RAW_BODY_BYTES),
+    connectionId: 'c0a8012e-0b6d-4d8f-8d5c-6d74102602b0',
+  });
+}
 
 describe('storedWebhookRequestSchema', () => {
   it('round-trips exact body bytes from a direct adapter through the stored contract', () => {

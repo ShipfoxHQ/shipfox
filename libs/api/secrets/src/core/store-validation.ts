@@ -1,4 +1,4 @@
-import {isSystemNamespace, namespaceSchema, secretKeySchema} from '@shipfox/api-secrets-dto';
+import {namespaceSchema, secretKeySchema} from '@shipfox/api-secrets-dto';
 import {config, MAX_VALUE_BYTES} from '#config.js';
 import {countWorkspaceEntries, type Tx} from '#db/index.js';
 import {
@@ -7,6 +7,7 @@ import {
   SecretValueTooLargeError,
   WorkspaceSecretCapExceededError,
 } from './errors.js';
+import {isSystemNamespace} from './identifier-policy.js';
 
 export function validateNamespace(namespace: string): void {
   if (namespaceSchema.safeParse(namespace).success) return;

@@ -28,6 +28,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./agent-tools": {
+      "workspace-source": {
+        "types": "./src/core/github-agent-tool-catalog.ts",
+        "default": "./src/core/github-agent-tool-catalog.ts"
+      },
+      "default": {
+        "types": "./dist/core/github-agent-tool-catalog.d.ts",
+        "default": "./dist/core/github-agent-tool-catalog.js"
+      }
     }
   },
   "scripts": {
