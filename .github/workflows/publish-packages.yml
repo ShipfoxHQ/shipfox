@@ -1,23 +1,95 @@
 name: Publish packages
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact merged release revision to recover
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
   id-token: write
 
 concurrency:
-  group: publish-packages-${{ github.ref }}
+  group: npm-package-publication
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Open release PR or publish
+  authorize-release:
+    name: Authorize merged release
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
+    outputs:
+      authorized: ${{ steps.release.outputs.authorized }}
+      revision: ${{ steps.release.outputs.revision }}
+      base_sha: ${{ steps.release.outputs.base_sha }}
+      head_repository: ${{ steps.release.outputs.head_repository }}
+      head_ref: ${{ steps.release.outputs.head_ref }}
+      author_id: ${{ steps.release.outputs.author_id }}
+
+    steps:
+      - name: Identify merged generated release
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_MERGED: ${{ github.event.pull_request.merged }}
+          EVENT_REVISION: ${{ github.event.pull_request.merge_commit_sha }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          EVENT_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          INPUT_REVISION: ${{ inputs.revision }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            if [[ "$EVENT_MERGED" != true ]]; then
+              echo 'authorized=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            revision="$EVENT_REVISION"
+            base_sha="$EVENT_BASE_SHA"
+            head_repository="$EVENT_HEAD_REPOSITORY"
+            head_ref="$EVENT_HEAD_REF"
+            author_id="$EVENT_AUTHOR_ID"
+          else
+            revision="$INPUT_REVISION"
+            release_pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$revision/pulls" | jq --arg revision "$revision" '[.[] | select(.merged_at != null and .merge_commit_sha == $revision)][0]')"
+            if [[ -z "$release_pr" || "$release_pr" == null ]]; then
+              echo 'authorized=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            base_sha="$(jq -r '.base.sha' <<< "$release_pr")"
+            head_repository="$(jq -r '.head.repo.full_name' <<< "$release_pr")"
+            head_ref="$(jq -r '.head.ref' <<< "$release_pr")"
+            author_id="$(jq -r '.user.id' <<< "$release_pr")"
+          fi
+
+          if [[ -z "$revision" || "$head_repository" != "$GITHUB_REPOSITORY" || "$head_ref" != changeset-release/main || "$author_id" != "${{ vars.RELEASE_BOT_APP_ID }}" ]]; then
+            echo 'authorized=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo 'authorized=true'
+            echo "revision=$revision"
+            echo "base_sha=$base_sha"
+            echo "head_repository=$head_repository"
+            echo "head_ref=$head_ref"
+            echo "author_id=$author_id"
+          } >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish verified packages
+    needs: authorize-release
+    if: needs.authorize-release.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Mint App installation token
@@ -27,10 +99,11 @@ jobs:
           client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
 
-      - name: Check out repository
+      - name: Check out exact merged revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+          ref: ${{ needs.authorize-release.outputs.revision }}
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up mise
@@ -41,14 +114,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Open release PR or publish
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
-        with:
-          version: pnpm exec changeset version
-          publish: pnpm run release:publish
-          commit: "Version packages"
-          title: "Version packages"
-          commitMode: github-api
+      - name: Verify merged release tree
+        env:
+          BASE_SHA: ${{ needs.authorize-release.outputs.base_sha }}
+          HEAD_REPOSITORY: ${{ needs.authorize-release.outputs.head_repository }}
+          HEAD_REF: ${{ needs.authorize-release.outputs.head_ref }}
+          AUTHOR_ID: ${{ needs.authorize-release.outputs.author_id }}
+          RELEASE_BOT_APP_ID: ${{ vars.RELEASE_BOT_APP_ID }}
+          REVISION: ${{ needs.authorize-release.outputs.revision }}
+        run: |
+          turbo build --filter=@shipfox/package-release
+          pnpm --silent --filter=@shipfox/package-release verify-generated-release -- \
+            --base "$BASE_SHA" \
+            --head "$REVISION" \
+            --repository "$GITHUB_REPOSITORY" \
+            --head-repository "$HEAD_REPOSITORY" \
+            --head-ref "$HEAD_REF" \
+            --author-id "$AUTHOR_ID" \
+            --release-app-id "$RELEASE_BOT_APP_ID" \
+            | tee "$RUNNER_TEMP/release-verification.json"
+          jq -e '.classification == "generated-release"' "$RUNNER_TEMP/release-verification.json" >/dev/null
+
+      - name: Publish package closure
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: "true"
@@ -56,3 +143,19 @@ jobs:
           TURBO_TEAM: shipfox
           # Publish must never populate the shared cache — only read what CI built.
           TURBO_CACHE: local:rw,remote:r
+        run: pnpm run release:publish
+
+      - name: Summarize publication
+        env:
+          REVISION: ${{ needs.authorize-release.outputs.revision }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          {
+            echo '## npm package publication'
+            echo
+            echo "- Trigger: \`$TRIGGER\`"
+            echo "- Revision: \`$REVISION\`"
+            echo '- Release tree: deterministically verified before publication.'
+            echo '- Publication: completed; the publisher is serialized and never canceled.'
+            echo '- Recovery: rerun this workflow with `workflow_dispatch` and the same exact merged revision. The closure publisher skips package versions already present in npm.'
+          } >> "$GITHUB_STEP_SUMMARY"

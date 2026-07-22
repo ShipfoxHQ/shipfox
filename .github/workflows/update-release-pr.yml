@@ -1,0 +1,135 @@
+name: Update package release PR
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-package-release-pr-main
+  cancel-in-progress: true
+
+jobs:
+  detect-changesets:
+    name: Detect unreleased changesets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      has_changesets: ${{ steps.changesets.outputs.has_changesets }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Detect unreleased changesets
+        id: changesets
+        run: |
+          set +e
+          pnpm exec changeset status --output "$RUNNER_TEMP/release-plan.json"
+          status=$?
+          set -e
+
+          if [[ $status -eq 0 ]] && jq -e '.releases | length > 0' "$RUNNER_TEMP/release-plan.json" >/dev/null; then
+            echo 'has_changesets=true' >> "$GITHUB_OUTPUT"
+            echo '## Package release plan' >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.releases[] | "- `\(.name)@\(.newVersion)`"' "$RUNNER_TEMP/release-plan.json" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'has_changesets=false' >> "$GITHUB_OUTPUT"
+            echo '## Package release PR' >> "$GITHUB_STEP_SUMMARY"
+            echo 'No unreleased changesets found; the release-PR updater is a no-op.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  update-release-pr:
+    name: Update release PR
+    needs: detect-changesets
+    if: needs.detect-changesets.outputs.has_changesets == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Mint App installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: gh node npm:pnpm npm:turbo
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Snapshot standing release PR
+        id: before
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head changeset-release/main \
+            --state open \
+            --json number,updatedAt,headRefOid > "$RUNNER_TEMP/release-pr-before.json"
+
+      - name: Generate release PR
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          version: pnpm exec changeset version
+          commit: "Version packages"
+          title: "Version packages"
+          commitMode: github-api
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Summarize release PR update
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head changeset-release/main \
+            --state open \
+            --json number,updatedAt,headRefOid > "$RUNNER_TEMP/release-pr-after.json"
+
+          before="$(jq -r '.[0].headRefOid // empty' "$RUNNER_TEMP/release-pr-before.json")"
+          after="$(jq -r '.[0].headRefOid // empty' "$RUNNER_TEMP/release-pr-after.json")"
+          number="$(jq -r '.[0].number // empty' "$RUNNER_TEMP/release-pr-after.json")"
+          result=unchanged
+          if [[ -z "$before" && -n "$after" ]]; then
+            result=created
+          elif [[ -n "$before" && "$before" != "$after" ]]; then
+            result=updated
+          fi
+
+          {
+            echo '## Package release PR'
+            echo
+            echo "- Trigger: \`$GITHUB_SHA\`"
+            echo "- Result: **$result**"
+            if [[ -n "$number" ]]; then
+              echo "- Release PR: #$number"
+            fi
+            echo '- Publication authority: none'
+            echo '- Batching: a newer `main` push cancels pending or running updater work; npm publication uses a separate non-cancelable workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
