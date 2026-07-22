@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./generated-release-verifier": "./dist/generated-release-verifier.js",
     "./packer": "./dist/productionized-manifest-packer.js"
   },
   "scripts": {
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "verify-generated-release": "node dist/generated-release-verifier.js",
     "publish:closure": "node dist/publish-productionized-closure.js",
     "test": "shipfox-vitest-run",
     "test:watch": "shipfox-vitest-watch",
