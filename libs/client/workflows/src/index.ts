@@ -42,4 +42,5 @@ export {
   type WorkflowRunFilters,
   workflowRunsQueryKeys,
 } from './hooks/api/workflow-runs.js';
+export {ProjectWorkflowsPage} from './pages/project-workflows-page.js';
 export {WorkflowRunPage} from './pages/workflow-run-page.js';

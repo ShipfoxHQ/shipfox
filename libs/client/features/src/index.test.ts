@@ -13,6 +13,9 @@ describe('defaultFeatures', () => {
       'shipfox.projects',
       'shipfox.workflows',
       'shipfox.agent',
+      'shipfox.runners',
+      'shipfox.secrets',
+      'shipfox.triggers',
       'shipfox.workspace-settings',
     ]);
   });

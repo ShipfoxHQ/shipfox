@@ -15,7 +15,6 @@ import {type RenderResult, render} from '@testing-library/react';
 import {createStore, Provider as JotaiProvider} from 'jotai';
 import type {ReactElement} from 'react';
 import {CreateProjectPage} from '#pages/create-project-page.js';
-import {ProjectWorkflowsPage} from '#pages/project-workflows-page.js';
 import {ProjectsHubPage} from '#pages/projects-hub-page.js';
 
 // All test renders that exercise pages requiring `useActiveWorkspace()` mount
@@ -44,16 +43,6 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
     headers: {'content-type': 'application/json'},
     ...init,
   });
-}
-
-// The param-carrying routes below declare `$pid`/`$runId` in their path, so the value is
-// always present when their fallback page renders. A missing param means the harness
-// wired a route wrong — fail loudly instead of rendering a page with a fabricated id.
-function requireParam(value: string | undefined, name: string): string {
-  if (value === undefined) {
-    throw new Error(`Test router: route param "${name}" is missing`);
-  }
-  return value;
 }
 
 function createTestRouter(path: string, element: ReactElement) {
@@ -114,7 +103,7 @@ function createTestRouter(path: string, element: ReactElement) {
         return element;
       }
 
-      return <ProjectWorkflowsPage projectId={requireParam(params.pid, 'pid')} />;
+      return <h1>Workflows</h1>;
     },
   });
 

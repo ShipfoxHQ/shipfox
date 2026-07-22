@@ -10,10 +10,7 @@ describe('ProjectWorkflowsPage', () => {
   test('renders workflow definitions and the source strip', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-    renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
-    );
+    renderWorkflowsPage();
 
     expect(await screen.findByRole('heading', {name: 'Workflows'})).toBeInTheDocument();
     expect(screen.getAllByText('Deploy production')[0]).toBeInTheDocument();
@@ -34,10 +31,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
-    );
+    renderWorkflowsPage();
 
     expect(await screen.findByText("Couldn't load workflows")).toBeInTheDocument();
     // SyncBadge in the strip falls back to Unavailable when sync is undefined
@@ -66,10 +60,7 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
-    );
+    renderWorkflowsPage();
 
     expect(
       await screen.findByText('No workflow files found under .shipfox/workflows/.'),
@@ -80,10 +71,7 @@ describe('ProjectWorkflowsPage', () => {
   test('opens and closes the definition drawer by clicking the row', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-    renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
-    );
+    renderWorkflowsPage();
 
     const workflowName = (await screen.findAllByText('Deploy production'))[0];
     if (!workflowName) throw new Error('Workflow row was not rendered');
@@ -102,10 +90,7 @@ describe('ProjectWorkflowsPage', () => {
   test('queues a run from a workflow definition', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
-    renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
-    );
+    renderWorkflowsPage();
 
     // Run button lives in the row's hover-reveal slot; getAllByRole still
     // sees it (opacity-0, not display:none).
@@ -131,14 +116,18 @@ describe('ProjectWorkflowsPage', () => {
       }),
     });
 
-    renderProjectPage(
-      `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}`,
-      <ProjectWorkflowsPage projectId={PROJECT_ID} />,
-    );
+    renderWorkflowsPage();
 
     expect(await screen.findByText('Project not found')).toBeInTheDocument();
   });
 });
+
+function renderWorkflowsPage() {
+  return renderProjectPage(
+    `/workspaces/${PROJECT_TEST_WID}/projects/${PROJECT_ID}/workflows`,
+    () => <ProjectWorkflowsPage projectId={PROJECT_ID} />,
+  );
+}
 
 function createProjectDetailFetch({
   project = jsonResponse(projectDto()),

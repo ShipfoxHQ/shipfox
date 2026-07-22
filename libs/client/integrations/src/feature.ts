@@ -53,5 +53,19 @@ export const integrationsFeature = defineClientFeature({
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/slack',
     },
+    {
+      path: '/workspaces/$wid/settings/integrations',
+      parent: 'workspaceSettings',
+      impl: '@shipfox/client-integrations/routes/integrations-settings',
+    },
+  ],
+  settingsSections: [
+    {
+      id: 'settings.integrations',
+      pathSegment: 'integrations',
+      label: 'Integrations',
+      icon: 'plugLine',
+      order: 700,
+    },
   ],
 });
