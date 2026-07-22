@@ -1,9 +1,10 @@
 import {apiRequest} from '@shipfox/client-api';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
-import {listMembersQueryKey} from './list-members.js';
+import type {RemoveWorkspaceMemberCommand} from '#core/membership.js';
+import {listMembersQueryOptions} from './list-members.js';
 
-async function removeMember(params: {workspaceId: string; userId: string}) {
-  await apiRequest<void>(`/workspaces/${params.workspaceId}/members/${params.userId}`, {
+async function removeMember(params: {workspaceId: string; command: RemoveWorkspaceMemberCommand}) {
+  await apiRequest<void>(`/workspaces/${params.workspaceId}/members/${params.command.userId}`, {
     method: 'DELETE',
   });
 }
@@ -11,9 +12,9 @@ async function removeMember(params: {workspaceId: string; userId: string}) {
 export function useRemoveMember(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) => removeMember({workspaceId, userId}),
+    mutationFn: (command: RemoveWorkspaceMemberCommand) => removeMember({workspaceId, command}),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({queryKey: listMembersQueryKey(workspaceId)});
+      await queryClient.invalidateQueries(listMembersQueryOptions(workspaceId));
     },
   });
 }

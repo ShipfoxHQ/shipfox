@@ -1,5 +1,4 @@
-import {createInvitationBodySchema, type MembershipWithUserDto} from '@shipfox/api-workspaces-dto';
-import {ApiError} from '@shipfox/client-api';
+import {createInvitationBodySchema} from '@shipfox/api-workspaces-dto';
 import {useAuthState} from '@shipfox/client-auth';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Badge} from '@shipfox/react-ui/badge';
@@ -31,15 +30,19 @@ import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {formatDate} from '@shipfox/react-ui/utils';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
-import type {Invitation} from '#core/invitation.js';
+import {
+  getInvitationExpiry,
+  getMemberRemovalRestriction,
+  memberCount,
+  type PendingInvitation,
+  type WorkspaceMember,
+} from '#core/membership.js';
 import {useCreateInvitation} from '#hooks/api/create-invitation.js';
 import {useListInvitations} from '#hooks/api/list-invitations.js';
 import {useListMembers} from '#hooks/api/list-members.js';
 import {useRemoveMember} from '#hooks/api/remove-member.js';
 import {useRevokeInvitation} from '#hooks/api/revoke-invitation.js';
-import {invitationErrorToFormError} from './form-errors.js';
-
-const EXPIRES_SOON_MS = 24 * 60 * 60 * 1000;
+import {invitationErrorToFormError, memberRemovalErrorMessage} from './form-errors.js';
 
 export function WorkspaceMembersSettingsSection({
   workspaceId,
@@ -65,7 +68,7 @@ function MembersSection({
 }) {
   const auth = useAuthState();
   const query = useListMembers(workspaceId);
-  const members = query.data?.members ?? [];
+  const members = query.data ?? [];
 
   return (
     <section className="flex flex-col gap-16">
@@ -74,7 +77,7 @@ function MembersSection({
         <Text size="sm" className="text-foreground-neutral-muted">
           {query.isPending
             ? 'Loading members…'
-            : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}
+            : `${memberCount(members)} ${memberCount(members) === 1 ? 'member' : 'members'}`}
         </Text>
       </div>
 
@@ -99,7 +102,8 @@ function MembersSection({
               <MemberRow
                 key={member.id}
                 member={member}
-                isSelf={member.user_id === auth.user?.id}
+                members={members}
+                currentUserId={auth.user?.id}
                 workspaceId={workspaceId}
                 workspaceName={workspaceName}
               />
@@ -113,35 +117,38 @@ function MembersSection({
 
 function MemberRow({
   member,
-  isSelf,
+  members,
+  currentUserId,
   workspaceId,
   workspaceName,
 }: {
-  member: MembershipWithUserDto;
-  isSelf: boolean;
+  member: WorkspaceMember;
+  members: readonly WorkspaceMember[];
+  currentUserId: string | undefined;
   workspaceId: string;
   workspaceName: string;
 }) {
   const [open, setOpen] = useState(false);
   const remove = useRemoveMember(workspaceId);
+  const restriction = getMemberRemovalRestriction({member, members, currentUserId});
 
   async function handleRemove() {
     try {
-      await remove.mutateAsync(member.user_id);
-      toast.success(`Removed ${member.user_email} from ${workspaceName}.`);
+      await remove.mutateAsync({userId: member.userId});
+      toast.success(`Removed ${member.email} from ${workspaceName}.`);
       setOpen(false);
     } catch (error) {
-      toast.error(removeMemberErrorMessage(error));
+      toast.error(memberRemovalErrorMessage(error));
     }
   }
 
   return (
     <TableRow className={remove.isPending ? 'opacity-60' : undefined}>
-      <TableCell className="font-medium">{member.user_name ?? '—'}</TableCell>
+      <TableCell className="font-medium">{member.name ?? '—'}</TableCell>
       <TableCell>
-        <Code variant="paragraph">{member.user_email}</Code>
+        <Code variant="paragraph">{member.email}</Code>
       </TableCell>
-      <TableCell>{formatDate(member.created_at)}</TableCell>
+      <TableCell>{formatDate(member.joinedAt)}</TableCell>
       <TableCell className="text-right">
         <Modal open={open} onOpenChange={setOpen}>
           <ModalTrigger asChild>
@@ -149,7 +156,7 @@ function MemberRow({
               size="sm"
               variant="transparentMuted"
               aria-label="Remove member"
-              disabled={isSelf}
+              disabled={restriction !== undefined}
               isLoading={remove.isPending}
               className={
                 remove.isPending
@@ -164,7 +171,7 @@ function MemberRow({
             <ModalTitle className="sr-only">Remove member</ModalTitle>
             <ModalHeader>
               <Text size="lg">
-                Remove {member.user_name ?? member.user_email} from {workspaceName}?
+                Remove {member.name ?? member.email} from {workspaceName}?
               </Text>
             </ModalHeader>
             <ModalBody>
@@ -250,15 +257,20 @@ function PendingInvitationsSection({
   );
 }
 
-function InvitationRow({invitation, workspaceId}: {invitation: Invitation; workspaceId: string}) {
+function InvitationRow({
+  invitation,
+  workspaceId,
+}: {
+  invitation: PendingInvitation;
+  workspaceId: string;
+}) {
   const [open, setOpen] = useState(false);
   const revoke = useRevokeInvitation(workspaceId);
-  const expiresAt = new Date(invitation.expiresAt);
-  const expiresSoon = expiresAt.getTime() - Date.now() < EXPIRES_SOON_MS;
+  const expiry = getInvitationExpiry(invitation);
 
   async function handleRevoke() {
     try {
-      await revoke.mutateAsync(invitation.id);
+      await revoke.mutateAsync({invitationId: invitation.id});
       toast.success(`Invitation to ${invitation.email} revoked.`);
       setOpen(false);
     } catch {
@@ -275,7 +287,8 @@ function InvitationRow({invitation, workspaceId}: {invitation: Invitation; works
       <TableCell>
         <div className="flex items-center gap-8">
           <Text size="sm">{formatDate(invitation.expiresAt)}</Text>
-          {expiresSoon ? <Badge variant="warning">Soon</Badge> : null}
+          {expiry === 'expires-soon' ? <Badge variant="warning">Soon</Badge> : null}
+          {expiry === 'expired' ? <Badge variant="error">Expired</Badge> : null}
         </div>
       </TableCell>
       <TableCell className="text-right">
@@ -458,14 +471,4 @@ function TableSkeleton({rows, cols}: {rows: number; cols: number}) {
       ))}
     </div>
   );
-}
-
-function removeMemberErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.code === 'self-removal-not-allowed') return "You can't remove yourself.";
-    if (error.code === 'last-member') return 'Cannot remove the last member.';
-    return error.message;
-  }
-  if (error instanceof Error) return error.message;
-  return 'Could not remove member.';
 }

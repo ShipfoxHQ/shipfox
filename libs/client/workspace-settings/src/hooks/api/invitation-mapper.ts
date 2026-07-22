@@ -1,7 +1,7 @@
 import type {InvitationDto} from '@shipfox/api-workspaces-dto';
-import type {Invitation} from '#core/invitation.js';
+import type {PendingInvitation} from '#core/membership.js';
 
-export function toInvitation(dto: InvitationDto): Invitation {
+export function toInvitation(dto: InvitationDto): PendingInvitation {
   return {
     id: dto.id,
     workspaceId: dto.workspace_id,

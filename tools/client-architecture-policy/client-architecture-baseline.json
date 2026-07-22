@@ -308,10 +308,5 @@
     "file": "libs/client/workflows/src/pages/project-workflows-page.tsx",
     "rule": "response-dto-in-presentation",
     "occurrences": 2
-  },
-  {
-    "file": "libs/client/workspace-settings/src/components/members/workspace-members-section.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
   }
 ]
