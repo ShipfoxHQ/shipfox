@@ -1,5 +1,5 @@
-export * from '#core/models.js';
 export * from '@shipfox/integration-icons';
+export * from '#core/models.js';
 export * from './components/connection-picker.js';
 export * from './components/integration-gallery.js';
 export * from './components/redirect-install-page.js';
