@@ -61,6 +61,13 @@ type ModelProviderConfigsQueryOptions = FetchQueryOptions<
   ModelProviderConfigsQueryKey
 >;
 
+type ModelProviderCatalogQueryOptions = FetchQueryOptions<
+  ProviderCatalog,
+  Error,
+  ProviderCatalog,
+  ReturnType<typeof modelProviderQueryKeys.catalog>
+>;
+
 export async function getModelProviderCatalog({
   signal,
 }: {
@@ -249,7 +256,7 @@ export function useModelProviderCatalogQuery() {
   return useQuery(modelProviderCatalogQueryOptions());
 }
 
-export function modelProviderCatalogQueryOptions() {
+export function modelProviderCatalogQueryOptions(): ModelProviderCatalogQueryOptions {
   return queryOptions({
     queryKey: modelProviderQueryKeys.catalog(),
     queryFn: ({signal}) => getModelProviderCatalog({signal}),
