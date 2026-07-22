@@ -18,23 +18,16 @@ If the task adds, updates, or exempts a dependency, read the
 [dependency version policy](docs/policies/dependency-versions.md). It owns
 dependency rules and required checks.
 
+If the task writes or reviews code comments, module exports, or non-trivial
+control flow, read the [code style policy](docs/policies/code-style.md). It owns
+the shared rules for those code decisions.
+
 ## Backend architecture
 
 If your task adds or changes a backend module, DTO, outbox event, HTTP boundary,
 or server package dependency, read the
 [backend architecture guide](docs/architecture/backend-architecture.md). It
 owns the current module model and package-boundary rules.
-
-## Module exports and imports
-
-Avoid broad barrel files inside modules. Prefer importing from the file that owns the
-symbol, such as `#core/auth.js` or `#presentation/dto/user.js`, rather than
-`#core/index.js` or another catch-all index.
-
-Package root exports should stay intentionally small: export only shared entities and
-functions that are part of the package's public API. Do not export internal DB helpers,
-routes, auth wiring, or test-only utilities from a package root unless another package
-is meant to depend on them directly.
 
 ## Codebase conventions
 
@@ -120,102 +113,6 @@ backend metrics model and cardinality constraints.
 If your task mints, verifies, or carries an authentication token, read the
 [Auth security model](libs/api/auth/README.md#security-model). It owns token
 authority, lifetime, trust boundaries, and logging constraints.
-
-## Code comments
-
-Default to fewer comments. Well-named functions, types, and variables carry the
-intent; the reader knows the language and the codebase, so a comment that
-restates the code is pure overhead: it adds nothing to read and silently rots
-when the code changes. The bar for a comment is: **would a competent reader be
-surprised or stuck without it?** If not, delete it.
-
-### Explain *why*, never *what*
-
-A comment earns its place by capturing intent the code cannot express: a
-non-obvious constraint, a workaround, a deliberate trade-off, or a subtlety that
-would otherwise read as a mistake. The good comments already in this codebase all
-answer "why":
-
-```ts
-// Algorithm-confusion guard: nothing outside the HS256 allowlist may verify.
-
-// Drizzle creates its migrations schema/table outside its own migration transaction.
-// Serialize migrators so parallel package tests do not race on that shared setup.
-
-// `request.routeOptions.url` is the route template (e.g. /public/cache/:id/chunk)
-// but can leak a query string in some Fastify edge cases. Strip it.
-```
-
-Delete comments that narrate the next line. These say nothing the code doesn't:
-
-```ts
-// bad: restates the code
-// Set test environment variable
-process.env.FOO = "bar";
-
-// bad: restates the function name
-// Helper function to create properly typed configs
-export function createConfig(...) {}
-```
-
-### Prefer self-documenting code over a comment
-
-When you feel the urge to explain a block, first try to make the explanation
-unnecessary: extract a named function, rename a variable, or reach for an
-idiomatic construct (`value ?? fallback`, early return, a typed enum). A good
-name beats a comment because it travels with every call site and can't drift out
-of sync. Only when the *why* genuinely can't live in the code does it become a
-comment, and if that why needs a paragraph, the awkwardness is usually the code;
-refactor first.
-
-### Keep control flow readable
-
-When a conditional expression is doing real work, name the decision before the
-branch. Prefer a small, intention-revealing variable such as `hasPendingStep`,
-`usesAuthoredMode`, or `shouldRetry` over repeating a compound expression inside
-`if`, ternary, or object-spread conditionals. Inline checks are fine for obvious
-single comparisons, but once a condition combines multiple concepts, give it a
-name so the branch reads like a sentence.
-
-Split long functions into focused units when they mix distinct responsibilities,
-such as loading state, validating preconditions, building a payload, handling an
-error branch, and applying the state change. Keep the top-level function as the
-orchestration path and move self-contained branches into helpers with names that
-describe the decision or action. Do not extract tiny helpers for their own sake;
-extract when it removes nesting, clarifies a branch, or gives a meaningful name
-to a reusable piece of logic.
-
-### Use JSDoc for documentation, not narration
-
-Reserve `/** ... */` for the public API of shared packages (exported functions,
-types, and config that other packages consume), where editor hover-docs add real
-value. JSDoc is also appropriate for usage documentation when a function is
-intended to be called outside its immediate module or local context and the
-caller needs to know constraints, ordering, side effects, or examples that are
-not obvious from the signature. Document parameters and behaviour that the
-signature can't convey; do not restate the type or the name:
-
-```ts
-/**
- * Verifies an HS256-signed token and validates its payload against `schema`.
- * Rejects any token whose `alg` header is outside the HS256 allowlist.
- *
- * @param audience - When set, jose rejects an `aud` mismatch before the schema runs.
- */
-```
-
-Self-evident functions need no docstring at all; one that echoes
-`getRunner(id): Runner` is noise. But when an internal function does earn a
-comment, prefer `/** ... */` over a loose `//`: it attaches to the symbol and
-surfaces on hover at every call site.
-
-### Keep planning and process out of the source
-
-No `// TODO`, `// v1 only`, `// added in follow-up PR`, or references to
-planning-doc decisions (`/plan-eng-review A1`) in module or function headers.
-Speculation about future work ("today X, tomorrow Y") and tracked tasks belong in
-`TODOS.md`, the issue tracker, or the design doc, not in code that outlives them.
-
 
 ## Design System
 
