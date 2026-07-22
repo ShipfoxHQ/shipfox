@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {existsSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync} from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import {homedir} from 'node:os';
 import {basename, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -23,7 +31,12 @@ const composeProjectNameLeadingDashes = /^-+/;
 const composeProjectNameTrailingDashes = /-+$/;
 
 if (isCliEntryPoint()) {
-  main(process.argv.slice(2));
+  try {
+    main(process.argv.slice(2));
+  } catch (error) {
+    printError(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }
 
 export function main(commandOrArgs) {
@@ -39,8 +52,9 @@ export function main(commandOrArgs) {
     return;
   }
 
-  const workspaceName = basename(resolve());
-  const projectName = resolveProjectName(workspaceName);
+  const workspacePath = resolve();
+  const workspaceName = basename(workspacePath);
+  const projectName = resolveProjectName(workspacePath);
 
   switch (command) {
     case 'up':
@@ -65,6 +79,7 @@ function up(workspaceName, projectName) {
 
   writeEnvFile(portsFile, {
     SHIPFOX_WORKTREE_SERVICES_WORKSPACE: workspaceName,
+    SHIPFOX_WORKTREE_SERVICES_WORKSPACE_PATH: resolve(),
     SHIPFOX_WORKTREE_SERVICES_PROJECT: projectName,
     SHIPFOX_PORT_BASE: String(ports.base),
     ...portEnv(ports),
@@ -218,7 +233,12 @@ function readPortLeaseRegistry(registryFile) {
     };
   }
 
-  const registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+  let registry;
+  try {
+    registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+  } catch {
+    fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+  }
   if (
     registry.version !== 1 ||
     registry.range?.start !== portRangeStart ||
@@ -234,7 +254,9 @@ function readPortLeaseRegistry(registryFile) {
 }
 
 function writePortLeaseRegistry(registry, registryFile) {
-  writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
+  const tempFile = `${registryFile}.${process.pid}.tmp`;
+  writeFileSync(tempFile, `${JSON.stringify(registry, null, 2)}\n`);
+  renameSync(tempFile, registryFile);
 }
 
 function nextAvailablePortBlock(registry) {
@@ -369,17 +391,22 @@ export function resolveComposeFile({
   fail(`Missing ${relativePath(workspaceComposeFile)}.`);
 }
 
-function resolveProjectName(workspaceName) {
+function resolveProjectName(workspacePath) {
   const existing = readEnvFile(portsFile);
-  return existing.SHIPFOX_WORKTREE_SERVICES_PROJECT || composeProjectName(workspaceName);
+  if (existing.SHIPFOX_WORKTREE_SERVICES_WORKSPACE_PATH === workspacePath) {
+    return existing.SHIPFOX_WORKTREE_SERVICES_PROJECT;
+  }
+  return composeProjectName(workspacePath);
 }
 
-export function composeProjectName(workspaceName) {
+export function composeProjectName(workspacePath) {
+  const resolvedWorkspacePath = resolve(workspacePath);
+  const workspaceName = basename(resolvedWorkspacePath);
   const normalized = workspaceName
     .toLowerCase()
     .replace(composeProjectNameInvalidChars, '-')
     .replace(composeProjectNameLeadingDashes, '');
-  const hash = createHash('sha256').update(workspaceName).digest('hex').slice(0, 8);
+  const hash = createHash('sha256').update(resolvedWorkspacePath).digest('hex').slice(0, 8);
   const suffixLength =
     composeProjectNameMaxLength - composeProjectNamePrefix.length - hash.length - 1;
   const suffix =
@@ -439,8 +466,7 @@ function usage() {
 }
 
 function fail(message) {
-  printError(message);
-  process.exit(1);
+  throw new Error(message);
 }
 
 function isCliEntryPoint() {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, test} from 'node:test';
@@ -16,6 +16,8 @@ import {
 } from './worktree-services.mjs';
 
 const longShipfoxProjectName = /^shipfox-a+-[a-f0-9]{8}$/;
+const normalizedShipfoxProjectName = /^shipfox-kolkata-workspace-[a-f0-9]{8}$/;
+const fallbackShipfoxProjectName = /^shipfox-workspace-[a-f0-9]{8}$/;
 
 describe('portsFromBase', () => {
   test('assigns stable offsets from the base port', () => {
@@ -42,22 +44,22 @@ describe('portsFromBase', () => {
 });
 
 describe('composeProjectName', () => {
-  test('normalizes workspace names into Compose project names', () => {
-    const projectName = composeProjectName('Kolkata ! Workspace');
+  test('uses the workspace name in a Compose project name', () => {
+    const projectName = composeProjectName('/tmp/Kolkata ! Workspace');
 
-    assert.equal(projectName, 'shipfox-kolkata-workspace-f5f09833');
+    assert.match(projectName, normalizedShipfoxProjectName);
   });
 
   test('caps project names at the Docker Compose limit with a stable hash suffix', () => {
-    const projectName = composeProjectName('a'.repeat(100));
+    const projectName = composeProjectName(`/tmp/${'a'.repeat(100)}`);
 
     assert.equal(projectName.length, 63);
     assert.match(projectName, longShipfoxProjectName);
   });
 
   test('keeps long workspace names distinct after truncation', () => {
-    const first = composeProjectName(`${'a'.repeat(100)}-first`);
-    const second = composeProjectName(`${'a'.repeat(100)}-second`);
+    const first = composeProjectName(`/tmp/${'a'.repeat(100)}`);
+    const second = composeProjectName(`/other/${'a'.repeat(100)}`);
 
     assert.notEqual(first, second);
     assert.equal(first.length, 63);
@@ -65,9 +67,9 @@ describe('composeProjectName', () => {
   });
 
   test('uses a fallback when normalization removes every character', () => {
-    const projectName = composeProjectName('!!!');
+    const projectName = composeProjectName('/tmp/!!!');
 
-    assert.equal(projectName, 'shipfox-workspace-e84c538e');
+    assert.match(projectName, fallbackShipfoxProjectName);
   });
 });
 
@@ -189,6 +191,21 @@ describe('port leases', () => {
       assert.equal(staleLeases[0].base, 20_020);
       removeStalePortLeases(staleLeases, {registryFile});
       assert.deepEqual(findStalePortLeases({registryFile}), []);
+    } finally {
+      rmSync(registryDirectory, {recursive: true, force: true});
+    }
+  });
+
+  test('releases the registry lock when the registry is invalid', () => {
+    const registryDirectory = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(registryDirectory, 'shipfox-port-leases.json');
+    const workspace = join(registryDirectory, 'workspace');
+    mkdirSync(workspace);
+    writeFileSync(registryFile, '{invalid');
+
+    try {
+      assert.throws(() => leasePortBlock({workspacePath: workspace, registryFile}));
+      assert.equal(existsSync(join(registryDirectory, 'shipfox-port-leases.lock')), false);
     } finally {
       rmSync(registryDirectory, {recursive: true, force: true});
     }
