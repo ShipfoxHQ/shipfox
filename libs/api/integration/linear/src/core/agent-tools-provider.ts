@@ -8,7 +8,7 @@ import type {
   AgentToolsProvider,
   IntegrationConnection,
   OpenAgentToolsSessionInput,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {
   type LinearAgentToolRequiredScope,
   linearAgentToolCatalog,

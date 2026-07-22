@@ -1,5 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {SlackApiClient} from '#api/client.js';
 import type {SlackTokenStore} from '#core/tokens.js';

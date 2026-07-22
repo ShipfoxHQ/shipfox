@@ -1,5 +1,5 @@
 import {Buffer} from 'node:buffer';
-import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
+import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {App, Octokit, RequestError} from 'octokit';
 import {config, normalizedGithubApiBaseUrl, normalizedGithubPrivateKey} from '#config.js';

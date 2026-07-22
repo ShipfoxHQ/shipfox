@@ -2,7 +2,7 @@ import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   listIntegrationConnectionsQuerySchema,
   listIntegrationConnectionsResponseSchema,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {defineRoute} from '@shipfox/node-fastify';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {listIntegrationConnections} from '#db/connections.js';

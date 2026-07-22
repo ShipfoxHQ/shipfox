@@ -1,11 +1,11 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createGithubInstallBodySchema,
   createGithubInstallResponseSchema,
   githubCallbackQuerySchema,
   githubCallbackResponseSchema,
 } from '@shipfox/api-integration-github-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {GithubApiClient} from '#api/client.js';
 import {config} from '#config.js';

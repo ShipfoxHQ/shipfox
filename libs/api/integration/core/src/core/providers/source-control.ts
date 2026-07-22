@@ -14,4 +14,4 @@ export type {
   RepositoryVisibility,
   ResolveRepositoryInput,
   SourceControlProvider,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';

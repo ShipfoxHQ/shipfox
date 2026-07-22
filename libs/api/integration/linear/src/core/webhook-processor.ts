@@ -1,16 +1,16 @@
 import {Buffer} from 'node:buffer';
 import {
+  LINEAR_PROVIDER,
+  linearWebhookBaseEnvelopeSchema,
+} from '@shipfox/api-integration-linear-dto';
+import {
   decodeWebhookBody,
   type GetIntegrationConnectionByIdFn,
   type PublishIntegrationEventReceivedFn,
   type RecordDeliveryOnlyFn,
   type StoredWebhookRequest,
   type WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
-import {
-  LINEAR_PROVIDER,
-  linearWebhookBaseEnvelopeSchema,
-} from '@shipfox/api-integration-linear-dto';
+} from '@shipfox/api-integration-spi';
 import {verifyHexHmacSignature} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';

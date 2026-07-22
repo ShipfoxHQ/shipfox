@@ -1,8 +1,5 @@
-import {
-  type IntegrationConnection as CoreIntegrationConnection,
-  slugifyConnectionSlug,
-} from '@shipfox/api-integration-core-dto';
 import type {ConnectGithubInstallationInput} from '@shipfox/api-integration-github';
+import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
 import {
   getIntegrationConnectionById,
@@ -15,7 +12,7 @@ import {
   publishSourcePush,
   recordDeliveryOnly,
 } from '#db/webhook-deliveries.js';
-import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
+import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {
   IntegrationModuleParts,
   IntegrationProviderModule,

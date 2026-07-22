@@ -1,4 +1,10 @@
 import {
+  type GithubPushPayloadDto,
+  githubPushPayloadSchema,
+  githubWebhookActionSchema,
+  githubWebhookInstallationSchema,
+} from '@shipfox/api-integration-github-dto';
+import {
   buildProviderRepositoryId,
   type GetIntegrationConnectionByIdFn,
   type IntegrationTx,
@@ -6,13 +12,7 @@ import {
   type PublishSourcePushFn,
   type RecordDeliveryOnlyFn,
   type SourcePushPayload,
-} from '@shipfox/api-integration-core-dto';
-import {
-  type GithubPushPayloadDto,
-  githubPushPayloadSchema,
-  githubWebhookActionSchema,
-  githubWebhookInstallationSchema,
-} from '@shipfox/api-integration-github-dto';
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGithubInstallationByInstallationId} from '#db/installations.js';
 

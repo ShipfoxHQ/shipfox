@@ -7,7 +7,7 @@ import {
   type PublishIntegrationEventReceivedFn,
   type StoredWebhookRequest,
   type WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {WEBHOOK_PROVIDER, WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactHeaders, WEBHOOK_ACCEPTED_CONTENT_TYPES} from '#constants.js';

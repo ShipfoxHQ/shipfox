@@ -1,8 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {
-  createStoredWebhookRequest,
-  WEBHOOK_MAX_RAW_BODY_BYTES,
-} from '@shipfox/api-integration-core-dto';
+import {createStoredWebhookRequest, WEBHOOK_MAX_RAW_BODY_BYTES} from '@shipfox/api-integration-spi';
 import {
   ClientError,
   defineRoute,
@@ -94,7 +91,7 @@ function sentryWebhookHeaders(headers: Record<string, string | string[] | undefi
 
 function sendSentryWebhookResponse(
   reply: {code(statusCode: number): void},
-  result: import('@shipfox/api-integration-core-dto').WebhookProcessingResult,
+  result: import('@shipfox/api-integration-spi').WebhookProcessingResult,
   headers: Record<string, string | string[] | undefined>,
 ) {
   if (result.outcome === 'discarded' && result.reason === 'invalid_signature') {

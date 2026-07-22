@@ -1,5 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {JiraAccessibleResource, JiraApiClient, JiraAuthorization} from '#api/client.js';
 import type {JiraPendingSelectionStore} from '#core/pending.js';

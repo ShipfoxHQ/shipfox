@@ -1,10 +1,5 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
-  type IntegrationCapability,
-  type IntegrationConnection,
-  integrationConnectionDtoSchema,
-} from '@shipfox/api-integration-core-dto';
-import {
   completeJiraSiteSelectionBodySchema,
   createJiraInstallBodySchema,
   createJiraInstallResponseSchema,
@@ -12,6 +7,11 @@ import {
   jiraCallbackQuerySchema,
   jiraCallbackResponseSchema,
 } from '@shipfox/api-integration-jira-dto';
+import {
+  type IntegrationCapability,
+  type IntegrationConnection,
+  integrationConnectionDtoSchema,
+} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {JiraApiClient} from '#api/client.js';
 import {config} from '#config.js';

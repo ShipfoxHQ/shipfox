@@ -1,6 +1,6 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {linearAgentToolCatalog, linearAgentToolSelectionCatalog} from '#core/agent-tools.js';
 import {LinearAgentToolsProvider} from '#core/agent-tools-provider.js';
 import {LinearAccessTokenMissingError} from '#core/errors.js';

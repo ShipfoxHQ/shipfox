@@ -1,7 +1,7 @@
 import {
   IntegrationProviderError,
   type IntegrationProviderErrorReason,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {z} from 'zod';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 

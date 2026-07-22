@@ -1,4 +1,4 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 
 const TRAILING_SLASHES_RE = /\/+$/;

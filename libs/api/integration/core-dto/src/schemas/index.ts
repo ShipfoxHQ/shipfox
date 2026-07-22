@@ -1,4 +1,5 @@
 export {
+  CONNECTION_SLUG_MAX_LENGTH,
   connectionSlugSchema,
   type IntegrationCapabilityDto,
   type IntegrationConnectionDto,

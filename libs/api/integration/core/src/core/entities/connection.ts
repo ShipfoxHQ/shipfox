@@ -1,4 +1,4 @@
 export type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';

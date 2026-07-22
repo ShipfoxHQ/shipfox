@@ -1,16 +1,16 @@
 import {
+  type GiteaPushPayloadDto,
+  giteaProviderKind,
+  giteaPushPayloadSchema,
+} from '@shipfox/api-integration-gitea-dto';
+import {
   buildProviderRepositoryId,
   type GetIntegrationConnectionByIdFn,
   type IntegrationTx,
   type PublishSourcePushFn,
   type RecordDeliveryOnlyFn,
   type SourcePushPayload,
-} from '@shipfox/api-integration-core-dto';
-import {
-  type GiteaPushPayloadDto,
-  giteaProviderKind,
-  giteaPushPayloadSchema,
-} from '@shipfox/api-integration-gitea-dto';
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getGiteaConnectionByOrg} from '#db/connections.js';
 

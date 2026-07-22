@@ -2,7 +2,7 @@ import {AUTH_USER} from '@shipfox/api-auth-context';
 import {
   listIntegrationProvidersQuerySchema,
   listIntegrationProvidersResponseSchema,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {defineRoute} from '@shipfox/node-fastify';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {toIntegrationProviderDto} from '#presentation/dto/integrations.js';

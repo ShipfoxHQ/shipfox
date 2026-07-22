@@ -1,10 +1,10 @@
+import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
 import type {
   GetIntegrationConnectionByIdFn,
   IntegrationConnection,
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
-} from '@shipfox/api-integration-core-dto';
-import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
+} from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGiteaApiClient, type GiteaApiClient} from '#api/client.js';
 import type {ConnectGiteaConnectionInput} from '#core/connect.js';

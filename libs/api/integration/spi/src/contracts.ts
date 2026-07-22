@@ -97,12 +97,6 @@ export interface CheckoutPermissions {
 }
 
 export interface CheckoutSpec {
-  /**
-   * Clone URL that must never embed authentication material. Credentials live
-   * only in `credentials` so a redaction helper can mask them; a provider that
-   * embeds a token in this URL would bypass redaction and leak it into logs,
-   * `git remote -v`, and persisted job rows.
-   */
   repositoryUrl: string;
   ref: string;
   credentials?: CheckoutCredentials | undefined;
@@ -203,6 +197,13 @@ export interface IntegrationProviderAdapters<
   agent_tools?: AgentToolsProvider<Connection> | undefined;
 }
 
+/** Processes one provider-neutral inbound webhook request. */
+export interface WebhookRequestProcessor {
+  process(
+    request: import('@shipfox/api-integration-core-dto').StoredWebhookRequest,
+  ): Promise<import('@shipfox/api-integration-core-dto').WebhookProcessingResult>;
+}
+
 export interface IntegrationProvider<
   ProviderKind extends IntegrationProviderKind = IntegrationProviderKind,
   Route = unknown,
@@ -212,24 +213,8 @@ export interface IntegrationProvider<
   displayName: string;
   adapters?: IntegrationProviderAdapters<Connection> | undefined;
   routes?: Route[] | undefined;
-  /**
-   * Resolves the provider-side home of a connection (e.g. the Sentry org or the
-   * GitHub installation settings page). Returns undefined when the connection has
-   * no external home or the provider-side record is missing.
-   */
   connectionExternalUrl?(connection: Connection): Promise<string | undefined>;
-  /**
-   * Deletes provider-owned persistence rows for a connection inside the caller's
-   * transaction. The transaction belongs to the shared integration database, so
-   * provider persistence must use it. The core delete route owns the connection row.
-   * Providers without either cleanup hook remove only that core row.
-   */
   deleteConnectionRecords?(connection: Connection, options: {tx: unknown}): Promise<void>;
-  /**
-   * Deletes provider-owned secrets after the connection transaction commits.
-   * External secret stores cannot participate in the database transaction, so a
-   * failure is logged after the connection has already been deleted.
-   */
   deleteConnectionSecrets?(connection: Connection): Promise<void>;
 }
 
@@ -265,29 +250,14 @@ export class IntegrationProviderError extends Error {
   }
 }
 
-export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
-
-export function toIntegrationConnectionDto(
-  connection: IntegrationConnection,
-  options: {
-    capabilities: IntegrationCapability[];
-    externalUrl?: string | undefined;
-  },
-) {
-  return {
-    id: connection.id,
-    workspace_id: connection.workspaceId,
-    provider: connection.provider,
-    external_account_id: connection.externalAccountId,
-    slug: connection.slug,
-    display_name: connection.displayName,
-    lifecycle_status: connection.lifecycleStatus,
-    capabilities: options.capabilities,
-    ...(options.externalUrl ? {external_url: options.externalUrl} : {}),
-    created_at: connection.createdAt.toISOString(),
-    updated_at: connection.updatedAt.toISOString(),
-  };
+export class ConnectionSlugConflictError extends Error {
+  constructor(cause: unknown) {
+    super('Could not allocate a unique integration connection slug. Try again.', {cause});
+    this.name = 'ConnectionSlugConflictError';
+  }
 }
+
+export const MAX_REPOSITORY_FILE_BYTES = 1_000_000;
 
 export function buildProviderRepositoryId(
   provider: IntegrationProviderKind,

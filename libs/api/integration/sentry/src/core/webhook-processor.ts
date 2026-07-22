@@ -1,5 +1,9 @@
 import {Buffer} from 'node:buffer';
 import {
+  sentryInstallationWebhookSchema,
+  sentryIssueWebhookSchema,
+} from '@shipfox/api-integration-sentry-dto';
+import {
   decodeWebhookBody,
   type GetIntegrationConnectionByIdFn,
   type PublishIntegrationEventReceivedFn,
@@ -7,11 +11,7 @@ import {
   type StoredWebhookRequest,
   type UpdateIntegrationConnectionLifecycleStatusFn,
   type WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
-import {
-  sentryInstallationWebhookSchema,
-  sentryIssueWebhookSchema,
-} from '@shipfox/api-integration-sentry-dto';
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {SentryApiClient} from '#api/client.js';

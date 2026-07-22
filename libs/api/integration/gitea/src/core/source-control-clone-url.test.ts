@@ -1,4 +1,4 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {GiteaApiClient, GiteaRepository} from '#api/client.js';
 
 const REPOSITORY: GiteaRepository = {

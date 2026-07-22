@@ -3,7 +3,7 @@ import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationEventReceivedEvent,
   type SourcePushPayload,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {and, eq, sql} from 'drizzle-orm';
 import {db} from './db.js';
 import {integrationsOutbox} from './schema/outbox.js';

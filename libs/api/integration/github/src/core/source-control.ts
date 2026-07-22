@@ -16,7 +16,7 @@ import {
   type RepositoryVisibility,
   type ResolveRepositoryInput,
   type SourceControlProvider,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {GithubApiClient, GithubRepository} from '#api/client.js';
 import {config} from '#config.js';
 import {getGithubInstallationByConnectionId} from '#db/installations.js';

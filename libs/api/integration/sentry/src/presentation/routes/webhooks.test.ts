@@ -1,6 +1,6 @@
 import {createHmac, randomUUID} from 'node:crypto';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {sentryIssueActionSchema} from '@shipfox/api-integration-sentry-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';

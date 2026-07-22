@@ -1,4 +1,8 @@
 import {Buffer} from 'node:buffer';
+import {
+  slackEventsRequestSchema,
+  slackSlashCommandSchema,
+} from '@shipfox/api-integration-slack-dto';
 import type {
   ClaimWebhookDeliveryFn,
   GetIntegrationConnectionByIdFn,
@@ -6,12 +10,8 @@ import type {
   RecordDeliveryOnlyFn,
   StoredWebhookRequest,
   WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
-import {decodeWebhookBody} from '@shipfox/api-integration-core-dto';
-import {
-  slackEventsRequestSchema,
-  slackSlashCommandSchema,
-} from '@shipfox/api-integration-slack-dto';
+} from '@shipfox/api-integration-spi';
+import {decodeWebhookBody} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';

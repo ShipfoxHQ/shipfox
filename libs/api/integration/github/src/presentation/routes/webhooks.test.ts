@@ -1,6 +1,6 @@
 import {createHmac, randomUUID} from 'node:crypto';
 import {Webhooks} from '@octokit/webhooks';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance} from 'fastify';
 import {db} from '#db/db.js';

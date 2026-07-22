@@ -2,7 +2,7 @@ import {
   ConnectionSlugConflictError,
   IntegrationProviderError,
   type IntegrationProviderErrorReason,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {IntegrationCapability, IntegrationProviderKind} from '#core/entities/provider.js';
 
 export class IntegrationConnectionNotFoundError extends Error {

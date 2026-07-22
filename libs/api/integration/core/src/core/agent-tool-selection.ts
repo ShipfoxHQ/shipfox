@@ -3,7 +3,7 @@ import type {
   AgentToolSelectionCatalog,
   IntegrationCapability,
   IntegrationProviderKind,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {listIntegrationConnections} from '#db/connections.js';
 

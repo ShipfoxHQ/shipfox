@@ -2512,6 +2512,9 @@ importers:
       '@shipfox/api-integration-slack':
         specifier: workspace:*
         version: link:../slack
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/api-integration-webhook':
         specifier: workspace:*
         version: link:../webhook
@@ -2652,12 +2655,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
       '@shipfox/api-integration-gitea-dto':
         specifier: workspace:*
         version: link:../gitea-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -2747,12 +2750,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
       '@shipfox/api-integration-github-dto':
         specifier: workspace:*
         version: link:../github-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -2851,12 +2854,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
       '@shipfox/api-integration-jira-dto':
         specifier: workspace:*
         version: link:../jira-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -2946,12 +2949,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../linear-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -3041,12 +3044,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../sentry-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -3148,12 +3151,12 @@ importers:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
-        specifier: workspace:*
-        version: link:../core-dto
       '@shipfox/api-integration-slack-dto':
         specifier: workspace:*
         version: link:../slack-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
       '@shipfox/api-workspaces-dto':
         specifier: workspace:*
         version: link:../../workspaces-dto
@@ -3244,14 +3247,39 @@ importers:
         specifier: workspace:*
         version: link:../../../../tools/vitest
 
+  libs/api/integration/spi:
+    dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
   libs/api/integration/webhook:
     dependencies:
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
-      '@shipfox/api-integration-core-dto':
+      '@shipfox/api-integration-spi':
         specifier: workspace:*
-        version: link:../core-dto
+        version: link:../spi
       '@shipfox/api-integration-webhook-dto':
         specifier: workspace:*
         version: link:../webhook-dto

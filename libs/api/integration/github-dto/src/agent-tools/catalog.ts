@@ -1,10 +1,35 @@
-import type {
-  AgentToolCatalogEntry,
-  AgentToolCatalogMethod,
-  AgentToolJsonSchema,
-  AgentToolSelectionCatalog,
-  AgentToolSelector,
-} from '@shipfox/api-integration-core-dto';
+type AgentToolSensitivity = 'read' | 'write';
+type AgentToolJsonSchema = Record<string, unknown>;
+
+interface AgentToolCatalogMethod<RequiredScope = unknown> {
+  id: string;
+  description: string;
+  sensitivity: AgentToolSensitivity;
+  sensitive: boolean;
+  requiredScope: RequiredScope;
+}
+
+interface AgentToolCatalogEntry<RequiredScope = unknown> {
+  id: string;
+  description: string;
+  sensitivity: AgentToolSensitivity;
+  sensitive: boolean;
+  requiredScope: RequiredScope;
+  inputSchema: AgentToolJsonSchema;
+  outputSchema?: AgentToolJsonSchema | undefined;
+  methods?: readonly AgentToolCatalogMethod<RequiredScope>[] | undefined;
+}
+
+interface AgentToolSelector {
+  readonly token: string;
+  readonly kind: 'family' | 'family_wildcard' | 'method' | 'standalone';
+  readonly sensitivity: AgentToolSensitivity;
+  readonly sensitive: boolean;
+}
+
+interface AgentToolSelectionCatalog {
+  readonly selectors: readonly AgentToolSelector[];
+}
 
 export const DEFAULT_JOB_LOG_TAIL_LINES = 500;
 

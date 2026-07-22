@@ -1,4 +1,4 @@
-import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-core-dto';
+import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-spi';
 import {App, Octokit} from 'octokit';
 import {config, normalizedGithubApiBaseUrl, normalizedGithubPrivateKey} from '#config.js';
 import {GithubIntegrationProviderError} from '#core/errors.js';

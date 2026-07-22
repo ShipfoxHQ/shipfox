@@ -6,7 +6,7 @@ import {
   type WebhookProcessingResult,
   type WebhookRequestProcessor,
   type WebhookRouteId,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
@@ -45,12 +45,12 @@ export type {
   WebhookProcessingResult,
   WebhookRequestProcessor,
   WebhookRouteId,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 export {
   buildProviderRepositoryId,
   MAX_REPOSITORY_FILE_BYTES,
   parseProviderRepositoryId,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 export type {
   AgentToolCatalogs,
   AgentToolSelectionCatalogs,

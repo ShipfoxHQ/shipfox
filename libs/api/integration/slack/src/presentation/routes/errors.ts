@@ -1,7 +1,7 @@
 import {
   ConnectionSlugConflictError,
   type IntegrationProviderErrorReason,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';

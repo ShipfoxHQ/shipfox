@@ -3,7 +3,7 @@ import {
   createStoredWebhookRequest,
   decodeWebhookBody,
   type IntegrationConnection,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {db} from '#db/db.js';
 import {githubInstallations} from '#db/schema/installations.js';
 import {githubInstallationFactory} from '#test/index.js';

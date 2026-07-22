@@ -1,5 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
-import type {WebhookRequestProcessor, WebhookRouteId} from '@shipfox/api-integration-core-dto';
+import type {WebhookRequestProcessor, WebhookRouteId} from '@shipfox/api-integration-spi';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {ModuleDatabase, ModuleWorker} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';

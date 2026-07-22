@@ -1,8 +1,5 @@
 import {createHmac, randomUUID} from 'node:crypto';
-import {
-  createStoredWebhookRequest,
-  type IntegrationConnection,
-} from '@shipfox/api-integration-core-dto';
+import {createStoredWebhookRequest, type IntegrationConnection} from '@shipfox/api-integration-spi';
 import {eq} from 'drizzle-orm';
 import type {SentryApiClient} from '#api/client.js';
 import {db} from '#db/db.js';

@@ -6,7 +6,7 @@ import {
   type GetIntegrationConnectionByIdFn,
   type IntegrationConnection,
   type UpdateIntegrationConnectionLifecycleStatusFn,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {
   createWebhookConnectionBodySchema,
   listWebhookConnectionsQuerySchema,

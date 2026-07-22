@@ -1,7 +1,12 @@
 import {z} from 'zod';
-import {connectionSlugSchema} from '#slug.js';
 
-export {connectionSlugSchema};
+export const CONNECTION_SLUG_MAX_LENGTH = 100;
+
+export const connectionSlugSchema = z
+  .string()
+  .min(1)
+  .max(CONNECTION_SLUG_MAX_LENGTH)
+  .regex(/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/);
 
 export const integrationProviderKindSchema = z.string().min(1);
 export type IntegrationProviderKindDto = z.infer<typeof integrationProviderKindSchema>;

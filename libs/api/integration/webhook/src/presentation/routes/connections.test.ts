@@ -7,7 +7,7 @@ import {
 import {
   ConnectionSlugConflictError,
   type IntegrationConnection,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {WEBHOOK_RESERVED_SLUGS} from '@shipfox/api-integration-webhook-dto';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';

@@ -1,4 +1,4 @@
-import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-core-dto';
+import type {GetIntegrationConnectionByIdFn} from '@shipfox/api-integration-spi';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 import {githubInstallationFactory} from '#test/index.js';
 import {encodeInstallationTokenEnvelope} from './installation-token-envelope.js';

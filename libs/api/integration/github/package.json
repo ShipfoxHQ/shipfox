@@ -43,7 +43,7 @@
   "dependencies": {
     "@octokit/webhooks": "catalog:",
     "@shipfox/api-auth-context": "workspace:*",
-    "@shipfox/api-integration-core-dto": "workspace:*",
+    "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/api-integration-github-dto": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",
