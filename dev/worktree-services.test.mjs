@@ -7,10 +7,11 @@ import {describe, test} from 'node:test';
 import {
   appEnv,
   composeProjectName,
-  parseBasePort,
+  findStalePortLeases,
+  leasePortBlock,
   parseEnvFile,
-  parsePort,
   portsFromBase,
+  removeStalePortLeases,
   resolveComposeFile,
 } from './worktree-services.mjs';
 
@@ -18,24 +19,24 @@ const longShipfoxProjectName = /^shipfox-a+-[a-f0-9]{8}$/;
 
 describe('portsFromBase', () => {
   test('assigns stable offsets from the base port', () => {
-    const ports = portsFromBase(65_000);
+    const ports = portsFromBase(20_000);
 
     assert.deepEqual(ports, {
-      base: 65_000,
-      client: 65_000,
-      api: 65_001,
-      postgres: 65_002,
-      temporal: 65_003,
-      docs: 65_004,
-      garageS3: 65_005,
-      giteaHttp: 65_006,
-      giteaSsh: 65_007,
-      otelInstance: 65_008,
-      otelService: 65_009,
-      linearMcp: 65_010,
-      githubApi: 65_011,
-      slackApi: 65_012,
-      otelTemporal: 65_013,
+      base: 20_000,
+      client: 20_000,
+      api: 20_001,
+      postgres: 20_002,
+      temporal: 20_003,
+      docs: 20_004,
+      garageS3: 20_005,
+      giteaHttp: 20_006,
+      giteaSsh: 20_007,
+      otelInstance: 20_008,
+      otelService: 20_009,
+      linearMcp: 20_010,
+      githubApi: 20_011,
+      slackApi: 20_012,
+      otelTemporal: 20_013,
     });
   });
 });
@@ -72,14 +73,14 @@ describe('composeProjectName', () => {
 
 describe('appEnv', () => {
   test('sets runner container host access for worktree APIs', () => {
-    const env = appEnv(portsFromBase(55_290));
+    const env = appEnv(portsFromBase(20_000));
 
-    assert.equal(env.SHIPFOX_RUNNER_API_URL, 'http://host.docker.internal:55291');
+    assert.equal(env.SHIPFOX_RUNNER_API_URL, 'http://host.docker.internal:20001');
     assert.equal(env.SHIPFOX_PROVISIONER_DOCKER_EXTRA_HOSTS, 'host.docker.internal:host-gateway');
-    assert.equal(env.SHIPFOX_DOCS_PORT, '55294');
-    assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55300/mcp');
-    assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55301');
-    assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55302');
+    assert.equal(env.SHIPFOX_DOCS_PORT, '20004');
+    assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:20010/mcp');
+    assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:20011');
+    assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:20012');
   });
 });
 
@@ -150,25 +151,46 @@ describe('parseEnvFile', () => {
   });
 });
 
-describe('parsePort', () => {
-  test('accepts TCP port bounds', () => {
-    assert.equal(parsePort('1'), 1);
-    assert.equal(parsePort('65535'), 65_535);
+describe('port leases', () => {
+  test('allocates 20-port blocks and reuses a workspace lease', () => {
+    const registryDirectory = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(registryDirectory, 'shipfox-port-leases.json');
+    const firstWorkspace = join(registryDirectory, 'first');
+    const secondWorkspace = join(registryDirectory, 'second');
+    mkdirSync(firstWorkspace);
+    mkdirSync(secondWorkspace);
+
+    try {
+      assert.equal(leasePortBlock({workspacePath: firstWorkspace, registryFile}), 20_000);
+      assert.equal(leasePortBlock({workspacePath: firstWorkspace, registryFile}), 20_000);
+      assert.equal(leasePortBlock({workspacePath: secondWorkspace, registryFile}), 20_020);
+    } finally {
+      rmSync(registryDirectory, {recursive: true, force: true});
+    }
   });
 
-  test('rejects missing, non-integer, and out-of-range values', () => {
-    assert.equal(parsePort(undefined), undefined);
-    assert.equal(parsePort(''), undefined);
-    assert.equal(parsePort('0'), undefined);
-    assert.equal(parsePort('12.5'), undefined);
-    assert.equal(parsePort('65536'), undefined);
-    assert.equal(parsePort('abc'), undefined);
-  });
-});
+  test('reports and removes only leases whose workspace no longer exists', () => {
+    const registryDirectory = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(registryDirectory, 'shipfox-port-leases.json');
+    const activeWorkspace = join(registryDirectory, 'active');
+    const deletedWorkspace = join(registryDirectory, 'deleted');
+    mkdirSync(activeWorkspace);
+    mkdirSync(deletedWorkspace);
 
-describe('parseBasePort', () => {
-  test('keeps the base port low enough for every service offset', () => {
-    assert.equal(parseBasePort('65522'), 65_522);
-    assert.equal(parseBasePort('65523'), undefined);
+    try {
+      leasePortBlock({workspacePath: activeWorkspace, registryFile});
+      leasePortBlock({workspacePath: deletedWorkspace, registryFile});
+      rmSync(deletedWorkspace, {recursive: true});
+
+      const staleLeases = findStalePortLeases({registryFile});
+
+      assert.equal(staleLeases.length, 1);
+      assert.equal(staleLeases[0].workspacePath, deletedWorkspace);
+      assert.equal(staleLeases[0].base, 20_020);
+      removeStalePortLeases(staleLeases, {registryFile});
+      assert.deepEqual(findStalePortLeases({registryFile}), []);
+    } finally {
+      rmSync(registryDirectory, {recursive: true, force: true});
+    }
   });
 });

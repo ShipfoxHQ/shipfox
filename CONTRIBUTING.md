@@ -110,9 +110,11 @@ SHIPFOX_OLLAMA_KEEP_ALIVE=2h mise run ollama:up
 ### Conductor Worktree Services
 
 Conductor workspaces run `dev/worktree-services.mjs up` during setup. This
-creates per-worktree Docker services, assigns ports from `CONDUCTOR_PORT`, and
-writes the generated app environment to `.context/local-services/env`, which is
-loaded by `mise.toml`.
+creates per-worktree Docker services, leases a 20-port block from
+`~/.shipfox/shipfox-port-leases.json`, and writes the generated app environment
+to `.context/local-services/env`, which is loaded by `mise.toml`. The port lease
+does not depend on Conductor environment variables, so it also works from an
+ordinary git worktree or clone.
 
 Common commands:
 
@@ -120,10 +122,14 @@ Common commands:
 mise exec -- node dev/worktree-services.mjs status
 mise exec -- node dev/worktree-services.mjs stop
 mise exec -- node dev/worktree-services.mjs destroy
+mise exec -- node dev/worktree-services.mjs cleanup
 ```
 
 `destroy` removes the worktree Docker volumes and generated local-service state.
 The shared Ollama service is intentionally not stopped during workspace archive.
+`cleanup` only reports leases whose workspace path no longer exists. Run
+`mise exec -- node dev/worktree-services.mjs cleanup --apply` to remove the
+reported leases.
 
 ## Writing Documentation
 

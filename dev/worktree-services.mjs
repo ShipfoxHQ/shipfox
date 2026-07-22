@@ -1,13 +1,19 @@
 #!/usr/bin/env node
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {existsSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {basename, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const composeProjectNameMaxLength = 63;
 const composeProjectNamePrefix = 'shipfox-';
 const composeFileName = 'compose.yml';
+const portLeaseDirectory = resolve(homedir(), '.shipfox');
+const portLeasesFile = resolve(portLeaseDirectory, 'shipfox-port-leases.json');
+const portRangeStart = 20_000;
+const portRangeEnd = 45_999;
+const portBlockSize = 20;
 const stateDir = resolve('.context/local-services');
 const portsFile = resolve(stateDir, 'ports.env');
 const composeEnvFile = resolve(stateDir, 'compose.env');
@@ -17,17 +23,23 @@ const composeProjectNameLeadingDashes = /^-+/;
 const composeProjectNameTrailingDashes = /-+$/;
 
 if (isCliEntryPoint()) {
-  main(process.argv[2]);
+  main(process.argv.slice(2));
 }
 
-export function main(command) {
-  const commands = new Set(['up', 'stop', 'destroy', 'status']);
-  if (!commands.has(command)) {
+export function main(commandOrArgs) {
+  const [command, ...commandArgs] = Array.isArray(commandOrArgs) ? commandOrArgs : [commandOrArgs];
+  const commands = new Set(['up', 'stop', 'destroy', 'status', 'cleanup']);
+  if (!commands.has(command) || (command !== 'cleanup' && commandArgs.length > 0)) {
     usage();
     process.exit(1);
   }
 
-  const workspaceName = requireConductorWorkspace();
+  if (command === 'cleanup') {
+    cleanup(commandArgs);
+    return;
+  }
+
+  const workspaceName = basename(resolve());
   const projectName = resolveProjectName(workspaceName);
 
   switch (command) {
@@ -49,9 +61,7 @@ export function main(command) {
 function up(workspaceName, projectName) {
   mkdirSync(stateDir, {recursive: true});
 
-  const existing = readEnvFile(portsFile);
-  const ports =
-    Object.keys(existing).length > 0 ? portsFromEnv(existing) : portsFromBase(requireBasePort());
+  const ports = portsFromBase(leasePortBlock());
 
   writeEnvFile(portsFile, {
     SHIPFOX_WORKTREE_SERVICES_WORKSPACE: workspaceName,
@@ -85,12 +95,14 @@ function stop(projectName) {
 function destroy(projectName) {
   if (!existsSync(composeEnvFile)) {
     rmSync(stateDir, {recursive: true, force: true});
+    releasePortLease(resolve());
     return;
   }
   runDockerCompose(projectName, ['down', '-v', '--remove-orphans'], {
     composeFile: resolveComposeFile({allowRootFallback: true}),
   });
   rmSync(stateDir, {recursive: true, force: true});
+  releasePortLease(resolve());
 }
 
 function status(projectName) {
@@ -100,27 +112,147 @@ function status(projectName) {
   });
 }
 
-function requireConductorWorkspace() {
-  const name = process.env.CONDUCTOR_WORKSPACE_NAME;
-  if (!name) {
-    fail('This script must run from a Conductor workspace. CONDUCTOR_WORKSPACE_NAME is not set.');
-  }
-  return name;
-}
-
-function requireBasePort() {
-  const raw = process.env.CONDUCTOR_PORT;
-  const port = parseBasePort(raw);
-  if (port === undefined) {
-    fail('CONDUCTOR_PORT must be set to a valid base port for worktree services.');
-  }
-  return port;
-}
-
 function requireComposeState() {
   if (!existsSync(composeEnvFile)) {
     fail(`Missing ${relativePath(composeEnvFile)}. Run "worktree-services.mjs up" first.`);
   }
+}
+
+function cleanup(args) {
+  if (args.length > 1 || (args[0] !== undefined && args[0] !== '--apply')) {
+    usage();
+    process.exit(1);
+  }
+
+  const staleLeases = findStalePortLeases();
+  if (staleLeases.length === 0) {
+    printLine('No stale Shipfox port leases found.');
+    return;
+  }
+
+  for (const lease of staleLeases) {
+    printLine(`${lease.workspacePath} (${lease.base}-${lease.base + portBlockSize - 1})`);
+  }
+
+  if (args[0] === '--apply') {
+    removeStalePortLeases(staleLeases);
+    printLine(`Removed ${staleLeases.length} stale Shipfox port lease(s).`);
+    return;
+  }
+
+  printLine(
+    `Found ${staleLeases.length} stale Shipfox port lease(s). Run cleanup --apply to remove them.`,
+  );
+}
+
+export function leasePortBlock({workspacePath = resolve(), registryFile = portLeasesFile} = {}) {
+  const resolvedWorkspacePath = resolve(workspacePath);
+  return withPortLeaseLock(() => {
+    const registry = readPortLeaseRegistry(registryFile);
+    const existingLease = registry.leases[resolvedWorkspacePath];
+    if (existingLease) return existingLease.base;
+
+    const base = nextAvailablePortBlock(registry);
+    registry.leases[resolvedWorkspacePath] = {base, allocatedAt: new Date().toISOString()};
+    registry.nextBase = nextPortBlock(base);
+    writePortLeaseRegistry(registry, registryFile);
+    return base;
+  }, registryFile);
+}
+
+export function findStalePortLeases({registryFile = portLeasesFile} = {}) {
+  return withPortLeaseLock(() => {
+    const registry = readPortLeaseRegistry(registryFile);
+    return Object.entries(registry.leases)
+      .filter(([workspacePath]) => !existsSync(workspacePath))
+      .map(([workspacePath, lease]) => ({workspacePath, ...lease}));
+  }, registryFile);
+}
+
+export function removeStalePortLeases(staleLeases, {registryFile = portLeasesFile} = {}) {
+  withPortLeaseLock(() => {
+    const registry = readPortLeaseRegistry(registryFile);
+    for (const {workspacePath} of staleLeases) {
+      if (!existsSync(workspacePath)) delete registry.leases[workspacePath];
+    }
+    writePortLeaseRegistry(registry, registryFile);
+  }, registryFile);
+}
+
+function releasePortLease(workspacePath, registryFile = portLeasesFile) {
+  withPortLeaseLock(() => {
+    const registry = readPortLeaseRegistry(registryFile);
+    delete registry.leases[resolve(workspacePath)];
+    writePortLeaseRegistry(registry, registryFile);
+  }, registryFile);
+}
+
+function withPortLeaseLock(callback, registryFile) {
+  const lockDirectory = resolve(dirname(registryFile), 'shipfox-port-leases.lock');
+  mkdirSync(dirname(registryFile), {recursive: true});
+  try {
+    mkdirSync(lockDirectory);
+  } catch (error) {
+    if (error?.code === 'EEXIST') {
+      fail(
+        `Shipfox port lease registry is in use. Retry after the other workspace setup completes.`,
+      );
+    }
+    throw error;
+  }
+
+  try {
+    return callback();
+  } finally {
+    rmdirSync(lockDirectory);
+  }
+}
+
+function readPortLeaseRegistry(registryFile) {
+  if (!existsSync(registryFile)) {
+    return {
+      version: 1,
+      range: {start: portRangeStart, end: portRangeEnd, blockSize: portBlockSize},
+      nextBase: portRangeStart,
+      leases: {},
+    };
+  }
+
+  const registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+  if (
+    registry.version !== 1 ||
+    registry.range?.start !== portRangeStart ||
+    registry.range?.end !== portRangeEnd ||
+    registry.range?.blockSize !== portBlockSize ||
+    !Number.isInteger(registry.nextBase) ||
+    !registry.leases ||
+    typeof registry.leases !== 'object'
+  ) {
+    fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+  }
+  return registry;
+}
+
+function writePortLeaseRegistry(registry, registryFile) {
+  writeFileSync(registryFile, `${JSON.stringify(registry, null, 2)}\n`);
+}
+
+function nextAvailablePortBlock(registry) {
+  const leasedBases = new Set(Object.values(registry.leases).map((lease) => lease.base));
+  let candidate = registry.nextBase;
+  const capacity = (portRangeEnd - portRangeStart + 1) / portBlockSize;
+
+  for (let attempt = 0; attempt < capacity; attempt += 1) {
+    if (!leasedBases.has(candidate)) return candidate;
+    candidate = nextPortBlock(candidate);
+  }
+
+  fail('Shipfox port lease range is exhausted. Run cleanup to remove stale leases.');
+}
+
+function nextPortBlock(base) {
+  const nextBase = base + portBlockSize;
+  return nextBase + portBlockSize - 1 <= portRangeEnd ? nextBase : portRangeStart;
 }
 
 export function portsFromBase(base) {
@@ -141,41 +273,6 @@ export function portsFromBase(base) {
     slackApi: base + 12,
     otelTemporal: base + 13,
   };
-}
-
-function portsFromEnv(env) {
-  const base = numberFromEnv(env, 'SHIPFOX_PORT_BASE');
-  const ports = {
-    base,
-    client: numberFromEnv(env, 'SHIPFOX_CLIENT_PORT'),
-    api: numberFromEnv(env, 'SHIPFOX_API_PORT'),
-    postgres: numberFromEnv(env, 'SHIPFOX_POSTGRES_PORT'),
-    temporal: numberFromEnv(env, 'SHIPFOX_TEMPORAL_PORT'),
-    docs: optionalNumberFromEnv(env, 'SHIPFOX_DOCS_PORT') ?? base + 4,
-    garageS3: numberFromEnv(env, 'SHIPFOX_GARAGE_S3_PORT'),
-    giteaHttp: numberFromEnv(env, 'SHIPFOX_GITEA_HTTP_PORT'),
-    giteaSsh: numberFromEnv(env, 'SHIPFOX_GITEA_SSH_PORT'),
-    otelInstance: numberFromEnv(env, 'SHIPFOX_OTEL_INSTANCE_METRICS_PORT'),
-    otelService: numberFromEnv(env, 'SHIPFOX_OTEL_SERVICE_METRICS_PORT'),
-    linearMcp: optionalNumberFromEnv(env, 'SHIPFOX_LINEAR_MCP_PORT') ?? base + 10,
-    githubApi: optionalNumberFromEnv(env, 'SHIPFOX_GITHUB_API_PORT') ?? base + 11,
-    slackApi: optionalNumberFromEnv(env, 'SHIPFOX_SLACK_API_PORT') ?? base + 12,
-    otelTemporal: optionalNumberFromEnv(env, 'SHIPFOX_OTEL_TEMPORAL_METRICS_PORT') ?? base + 13,
-  };
-  return ports;
-}
-
-function numberFromEnv(env, key) {
-  const port = parsePort(env[key]);
-  if (port === undefined) {
-    fail(`${portsFile} contains an invalid ${key}: ${env[key] ?? '<missing>'}`);
-  }
-  return port;
-}
-
-function optionalNumberFromEnv(env, key) {
-  if (env[key] === undefined) return undefined;
-  return numberFromEnv(env, key);
 }
 
 function portEnv(ports) {
@@ -312,16 +409,6 @@ export function parseEnvFile(content) {
   return entries;
 }
 
-export function parsePort(raw) {
-  const port = Number(raw);
-  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : undefined;
-}
-
-export function parseBasePort(raw) {
-  const port = parsePort(raw);
-  return port !== undefined && port <= 65_522 ? port : undefined;
-}
-
 function writeEnvFile(file, values) {
   const body = `${Object.entries(values)
     .map(([key, value]) => `${key}=${value}`)
@@ -348,7 +435,7 @@ function relativePath(file) {
 }
 
 function usage() {
-  printError('Usage: node dev/worktree-services.mjs <up|stop|destroy|status>');
+  printError('Usage: node dev/worktree-services.mjs <up|stop|destroy|status|cleanup [--apply]>');
 }
 
 function fail(message) {
