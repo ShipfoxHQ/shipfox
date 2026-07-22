@@ -44,6 +44,27 @@ surface and make sure the change is scoped to the contribution. The
 owns task selection, affected-package validation, local-service recovery,
 Conductor and Ollama recovery, Changesets, and package release procedures.
 
+## Prepare a change for review
+
+Use a focused feature branch. Do not commit or push directly to `main`. Name
+the branch after the change. Include the lowercase Linear issue key when the
+work has one.
+
+Keep each commit independently reviewable. Use an imperative subject of about
+70 characters or fewer. Do not end it with a period or add a co-author trailer.
+Add a body when readers need the motivation or the previous behavior. Add a
+footer such as `Refs ENG-123` when the commit needs an issue reference.
+
+Write a pull request title that explains the change at a business level. Prefix
+it with the package name in square brackets when one package owns the change.
+In the description, explain the change and its motivation. Include alternatives
+or review concerns when they matter. Do not add a test-plan checklist or repeat
+the diff.
+
+When a pull request completes its Linear issue, use `Closes`, `Fixes`, or
+`Resolves` with the issue key. Use `Refs`, `Part of`, or `Related to` only when
+the work is partial. Keep each pull request focused on one feature or fix.
+
 ## Find the context for your task
 
 Read the linked source before making the matching change. For a task not listed

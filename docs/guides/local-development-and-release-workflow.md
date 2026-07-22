@@ -113,6 +113,9 @@ Choose `patch` for fixes and internal refactors, `minor` for additive public
 API, and `major` for breaking public API. Commit the `.changeset/*.md` file
 with the change.
 
+Write one concise present-tense summary for each logical change. Keep unrelated
+release changes in separate Changesets.
+
 `update-release-pr` runs on `main` and opens or updates the generated release
 pull request only when unreleased changesets exist. Its cancelable concurrency
 means a newer `main` push supersedes an older pending update; it has no npm
