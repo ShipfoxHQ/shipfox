@@ -4,8 +4,13 @@ import {
   putVariableResponseSchema,
 } from '@shipfox/api-secrets-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
-import {queryOptions, useQuery} from '@tanstack/react-query';
-import {projectIdFromScope, type StoreScope, workspaceStoreScope} from '#core/store.js';
+import {type FetchQueryOptions, queryOptions, useQuery} from '@tanstack/react-query';
+import {
+  projectIdFromScope,
+  type StoreScope,
+  type Variable,
+  workspaceStoreScope,
+} from '#core/store.js';
 import {createStoreApi} from './create-store-api.js';
 import {toStoreWriteWarnings, toVariable, toVariablePreview} from './store-mapper.js';
 
@@ -29,6 +34,16 @@ export const useVariablesQuery = variablesApi.useListQuery;
 export const usePutVariableMutation = variablesApi.usePutMutation;
 export const useDeleteVariableMutation = variablesApi.useDeleteMutation;
 
+export const variableQueryKey = (workspaceId: string, key: string, scope: StoreScope) =>
+  [...variablesQueryKeys.all, 'detail', workspaceId, key, scope] as const;
+
+type VariableQueryOptions = FetchQueryOptions<
+  Variable,
+  Error,
+  Variable,
+  ReturnType<typeof variableQueryKey>
+>;
+
 export async function getVariable(params: {
   workspaceId: string;
   key: string;
@@ -50,9 +65,9 @@ export function variableQueryOptions(
   workspaceId: string,
   key: string,
   scope: StoreScope = workspaceStoreScope,
-) {
+): VariableQueryOptions {
   return queryOptions({
-    queryKey: [...variablesQueryKeys.all, 'detail', workspaceId, key, scope] as const,
+    queryKey: variableQueryKey(workspaceId, key, scope),
     queryFn: ({signal}) => getVariable({workspaceId, key, scope, signal}),
   });
 }

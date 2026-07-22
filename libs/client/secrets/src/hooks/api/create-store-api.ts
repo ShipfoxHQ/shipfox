@@ -5,7 +5,13 @@ import {
   type StandardSchema,
   type StandardSchemaOutput,
 } from '@shipfox/client-api';
-import {queryOptions, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   type DeleteStoreCommand,
   type PutStoreCommand,
@@ -43,6 +49,13 @@ export function createStoreApi<
     list: (workspaceId: string, scope: StoreScope = workspaceStoreScope) =>
       [...queryKeys.all, 'list', workspaceId, scope] as const,
   };
+
+  type ListQueryOptions = FetchQueryOptions<
+    TListItem[],
+    Error,
+    TListItem[],
+    ReturnType<typeof queryKeys.list>
+  >;
 
   function searchForScope(scope: StoreScope, includeLimit = false): string {
     const search = new URLSearchParams();
@@ -86,7 +99,10 @@ export function createStoreApi<
     );
   }
 
-  function listQueryOptions(workspaceId: string, scope: StoreScope = workspaceStoreScope) {
+  function listQueryOptions(
+    workspaceId: string,
+    scope: StoreScope = workspaceStoreScope,
+  ): ListQueryOptions {
     return queryOptions({
       queryKey: queryKeys.list(workspaceId, scope),
       queryFn: ({signal}) => listAll({workspaceId, scope, signal}),
