@@ -53,6 +53,141 @@ export interface InstallRedirect {
   installUrl: string;
 }
 
+export type IntegrationUsageEvent = {
+  value: string;
+  label: string;
+};
+
+export type ConnectionLifecyclePresentation =
+  | {kind: 'active'}
+  | {kind: 'disabled'; label: 'Disabled'}
+  | {kind: 'error'; label: 'Error'};
+
+const githubUsageEvents = [
+  'push',
+  'branch_protection_configuration',
+  'branch_protection_rule',
+  'check_run',
+  'check_suite',
+  'code_scanning_alert',
+  'commit_comment',
+  'create',
+  'custom_property',
+  'custom_property_values',
+  'delete',
+  'dependabot_alert',
+  'deploy_key',
+  'deployment',
+  'deployment_protection_rule',
+  'deployment_review',
+  'deployment_status',
+  'discussion',
+  'discussion_comment',
+  'fork',
+  'github_app_authorization',
+  'gollum',
+  'installation',
+  'installation_repositories',
+  'installation_target',
+  'issue_comment',
+  'issue_dependencies',
+  'issues',
+  'label',
+  'marketplace_purchase',
+  'member',
+  'membership',
+  'merge_group',
+  'meta',
+  'milestone',
+  'org_block',
+  'organization',
+  'package',
+  'page_build',
+  'personal_access_token_request',
+  'ping',
+  'project',
+  'project_card',
+  'project_column',
+  'projects_v2',
+  'projects_v2_item',
+  'projects_v2_status_update',
+  'public',
+  'pull_request',
+  'pull_request_review',
+  'pull_request_review_comment',
+  'pull_request_review_thread',
+  'registry_package',
+  'release',
+  'repository',
+  'repository_advisory',
+  'repository_dispatch',
+  'repository_import',
+  'repository_ruleset',
+  'repository_vulnerability_alert',
+  'secret_scanning_alert',
+  'secret_scanning_alert_location',
+  'secret_scanning_scan',
+  'security_advisory',
+  'security_and_analysis',
+  'sponsorship',
+  'star',
+  'status',
+  'sub_issues',
+  'team',
+  'team_add',
+  'watch',
+  'workflow_dispatch',
+  'workflow_job',
+  'workflow_run',
+] as const;
+
+const linearUsageEvents = [
+  'Issue.create',
+  'Issue.update',
+  'Issue.remove',
+  'Comment.create',
+  'Comment.update',
+  'Comment.remove',
+  'IssueLabel.create',
+  'IssueLabel.update',
+  'IssueLabel.remove',
+  'Project.create',
+  'Project.update',
+  'Project.remove',
+  'Cycle.create',
+  'Cycle.update',
+  'Cycle.remove',
+  'agentSession.created',
+  'agentSession.prompted',
+] as const;
+
+const sentryIssueActions = ['created', 'resolved', 'assigned', 'archived', 'unresolved'] as const;
+
+export function usageEventsForConnection(
+  connection: Pick<IntegrationConnection, 'provider' | 'capabilities'>,
+): IntegrationUsageEvent[] {
+  if (connection.provider === 'webhook') return [{value: 'received', label: 'received'}];
+  if (connection.provider === 'github')
+    return githubUsageEvents.map((value) => ({value, label: value}));
+  if (connection.provider === 'sentry')
+    return sentryIssueActions.map((action) => ({
+      value: `issue.${action}`,
+      label: `issue.${action}`,
+    }));
+  if (connection.provider === 'linear')
+    return linearUsageEvents.map((value) => ({value, label: value}));
+  if (connection.capabilities.includes('source_control')) return [{value: 'push', label: 'push'}];
+  return [{value: 'received', label: 'received'}];
+}
+
+export function connectionLifecyclePresentation(
+  status: ConnectionLifecycleStatus,
+): ConnectionLifecyclePresentation {
+  if (status === 'disabled') return {kind: 'disabled', label: 'Disabled'};
+  if (status === 'error') return {kind: 'error', label: 'Error'};
+  return {kind: 'active'};
+}
+
 export function hasCapability(
   connection: IntegrationConnection,
   capability: IntegrationCapability,

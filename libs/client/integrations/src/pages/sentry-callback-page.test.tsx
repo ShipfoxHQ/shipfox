@@ -162,7 +162,11 @@ describe('SentryCallbackPage', () => {
 
     fireEvent.click(await screen.findByRole('button', {name: 'Install'}));
 
-    expect(await screen.findByText('Sentry rejected the code.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'Sentry did not accept this install. Start the install again from workspace settings.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Start over'})).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument();
   });

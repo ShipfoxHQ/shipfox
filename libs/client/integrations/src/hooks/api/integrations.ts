@@ -388,7 +388,16 @@ export function useRepositoriesInfiniteQuery(
 }
 
 export function useCreateGiteaConnectionMutation() {
-  return useMutation({mutationFn: createGiteaConnection});
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createGiteaConnection,
+    onSuccess: async (connection) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
 }
 
 export function useCreateLinearInstallMutation() {
