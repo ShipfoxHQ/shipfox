@@ -7,6 +7,12 @@ export default defineRoute({
   validateSearch: validateWorkflowRunsSearch,
   component: () => {
     const {wid, pid} = useRouteParams(workflowRouteParams);
-    return <WorkflowRunPage workspaceId={wid} projectId={pid} search={useRouteSearch(validateWorkflowRunsSearch)} />;
+    return (
+      <WorkflowRunPage
+        workspaceId={wid}
+        projectId={pid}
+        search={useRouteSearch(validateWorkflowRunsSearch)}
+      />
+    );
   },
 });

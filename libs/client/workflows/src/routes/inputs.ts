@@ -36,7 +36,11 @@ export function workflowRunSearchParams(
   };
 }
 
-export function workflowRouteParams(input: Record<string, unknown>): {wid: string; pid: string; workflowRunId?: string} {
+export function workflowRouteParams(input: Record<string, unknown>): {
+  wid: string;
+  pid: string;
+  workflowRunId?: string;
+} {
   const wid = string(input.wid);
   const pid = string(input.pid);
   if (!wid || !pid) throw new Error('Workflow route is missing required path parameters.');

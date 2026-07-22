@@ -43,14 +43,19 @@ export function jsonResponse(body: unknown, init: ResponseInit = {}) {
 
 function createTestRouter(
   path: string,
-  renderPage: (params: {workflowRunId?: string | undefined; search: ReturnType<typeof validateWorkflowRunsSearch>}) => ReactElement,
+  renderPage: (params: {
+    workflowRunId?: string | undefined;
+    search: ReturnType<typeof validateWorkflowRunsSearch>;
+  }) => ReactElement,
 ) {
   const rootRoute = createRootRoute({component: Outlet});
   const runsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/workspaces/$wid/projects/$pid/runs',
     component: function RunsRoute() {
-      return renderPage({search: validateWorkflowRunsSearch(useSearch({strict: false}) as Record<string, unknown>)});
+      return renderPage({
+        search: validateWorkflowRunsSearch(useSearch({strict: false}) as Record<string, unknown>),
+      });
     },
   });
   const runDetailRoute = createRoute({
@@ -58,7 +63,10 @@ function createTestRouter(
     path: '/workspaces/$wid/projects/$pid/runs/$workflowRunId',
     component: function RunDetailRoute() {
       const {workflowRunId} = useParams({strict: false}) as {workflowRunId?: string};
-      return renderPage({workflowRunId, search: validateWorkflowRunsSearch(useSearch({strict: false}) as Record<string, unknown>)});
+      return renderPage({
+        workflowRunId,
+        search: validateWorkflowRunsSearch(useSearch({strict: false}) as Record<string, unknown>),
+      });
     },
   });
   const workflowsRoute = createRoute({
@@ -85,7 +93,10 @@ function createTestRouter(
 
 export function renderProjectPage(
   path: string,
-  renderPage: (params: {workflowRunId?: string | undefined; search: ReturnType<typeof validateWorkflowRunsSearch>}) => ReactElement,
+  renderPage: (params: {
+    workflowRunId?: string | undefined;
+    search: ReturnType<typeof validateWorkflowRunsSearch>;
+  }) => ReactElement,
 ): RenderResult & {
   queryClient: QueryClient;
   router: ReturnType<typeof createTestRouter>;

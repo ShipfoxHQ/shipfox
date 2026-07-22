@@ -2,7 +2,7 @@ import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
 import {cn} from '@shipfox/react-ui/utils';
 import {useState} from 'react';
 import {runMatchesSearch, runMatchesStatusFilter} from './run-display.js';
-import type {WorkflowRunListStatusFilter, WorkflowRunListViewProps} from './types.js';
+import type {WorkflowRunListViewProps} from './types.js';
 import {WorkflowRunListContent} from './workflow-run-list-content.js';
 import {WorkflowRunListHeader} from './workflow-run-list-header.js';
 
@@ -29,7 +29,10 @@ export function WorkflowRunListView({
 
   function handleClearFilters() {
     if (onFiltersChange) onFiltersChange({});
-    else { setLocalSearch(''); setLocalStatusFilter('all'); }
+    else {
+      setLocalSearch('');
+      setLocalStatusFilter('all');
+    }
   }
 
   return (

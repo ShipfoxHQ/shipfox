@@ -2,9 +2,7 @@ import {useNavigate} from '@tanstack/react-router';
 import {useCallback, useEffect} from 'react';
 import {WorkflowRunList} from '#components/workflow-run-list/workflow-run-list.js';
 import {WorkflowRunView} from '#components/workflow-run-view/index.js';
-import {
-  type WorkflowRunSelectionInput,
-} from '#core/workflow-run-url-state.js';
+import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
 import {useWorkflowRunsInfiniteQuery} from '#hooks/api/workflow-runs.js';
 import {type WorkflowRunsSearch, workflowRunSearchParams} from '#routes/inputs.js';
 import {WorkflowRunFirstTimeUse} from './workflow-run-first-time-use.js';
@@ -50,7 +48,12 @@ function useWorkflowRunPageTarget(
   return {hasNoRuns: isLoaded && firstWorkflowRunId === undefined};
 }
 
-export function WorkflowRunPage({workspaceId, projectId, workflowRunId, search = {}}: WorkflowRunPageProps) {
+export function WorkflowRunPage({
+  workspaceId,
+  projectId,
+  workflowRunId,
+  search = {},
+}: WorkflowRunPageProps) {
   const {hasNoRuns} = useWorkflowRunPageTarget(workspaceId, projectId, workflowRunId, search);
   const navigate = useNavigate();
   const selection: WorkflowRunSelectionInput = search;
@@ -75,7 +78,9 @@ export function WorkflowRunPage({workspaceId, projectId, workflowRunId, search =
         selectedWorkflowRunId={workflowRunId}
         search={search.search ?? ''}
         statusFilter={search.status ?? 'all'}
-        onFiltersChange={(filters) => navigate({search: workflowRunSearchParams({...search, ...filters}) as never})}
+        onFiltersChange={(filters) =>
+          navigate({search: workflowRunSearchParams({...search, ...filters}) as never})
+        }
       />
       <WorkflowRunView
         workspaceId={workspaceId}
