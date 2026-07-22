@@ -1,7 +1,7 @@
 import {
   ConnectionSlugConflictError,
   type IntegrationProviderErrorReason,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   GithubInstallationAlreadyLinkedError,

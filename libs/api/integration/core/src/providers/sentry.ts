@@ -1,8 +1,5 @@
-import {
-  type IntegrationConnection as CoreIntegrationConnection,
-  slugifyConnectionSlug,
-} from '@shipfox/api-integration-core-dto';
 import type {ConnectSentryInstallationInput} from '@shipfox/api-integration-sentry';
+import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
 import {
   getIntegrationConnectionById,
@@ -12,7 +9,7 @@ import {
 } from '#db/connections.js';
 import {db} from '#db/db.js';
 import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
-import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
+import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 // Stable migration-tracking table name for the Sentry provider database. This

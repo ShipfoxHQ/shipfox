@@ -3,7 +3,7 @@ import type {
   RegisteredIntegrationProvider as CoreRegisteredIntegrationProvider,
   WebhookRequestProcessor,
   WebhookRouteId,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {RouteExport} from '@shipfox/node-fastify';
 
 export type {
@@ -17,7 +17,7 @@ export type {
   IntegrationProviderAdapters,
   IntegrationProviderKind,
   OpenAgentToolsSessionInput,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 
 export type IntegrationProvider = CoreIntegrationProvider<string, RouteExport> & {
   webhookProcessors?:

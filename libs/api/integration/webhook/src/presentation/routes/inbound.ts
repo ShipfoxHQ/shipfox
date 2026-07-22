@@ -3,12 +3,12 @@ import type {
   GetIntegrationConnectionByIdFn,
   IntegrationTx,
   PublishIntegrationEventReceivedFn,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {
   createStoredWebhookRequest,
   type StoredWebhookRequest,
   WEBHOOK_MAX_RAW_BODY_BYTES,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {WEBHOOK_PROVIDER} from '@shipfox/api-integration-webhook-dto';
 import {ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {FastifyPluginAsync} from 'fastify';

@@ -1,8 +1,8 @@
-import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createE2eLinearConnectionBodySchema,
   createE2eLinearConnectionResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
+import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ConnectLinearInstallationInput} from '#core/install.js';

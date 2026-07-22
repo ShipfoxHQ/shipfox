@@ -1,3 +1,10 @@
+import {
+  type GithubAgentToolCatalogEntry,
+  type GithubAgentToolId,
+  type GithubAgentToolRequiredScope,
+  githubAgentToolCatalog,
+  githubAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-github-dto';
 import type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
@@ -6,14 +13,7 @@ import type {
   AgentToolsProvider,
   IntegrationConnection,
   OpenAgentToolsSessionInput,
-} from '@shipfox/api-integration-core-dto';
-import {
-  type GithubAgentToolCatalogEntry,
-  type GithubAgentToolId,
-  type GithubAgentToolRequiredScope,
-  githubAgentToolCatalog,
-  githubAgentToolSelectionCatalog,
-} from '@shipfox/api-integration-github-dto';
+} from '@shipfox/api-integration-spi';
 import {Octokit} from 'octokit';
 import {
   createGithubInstallationTokenProvider,

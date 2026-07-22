@@ -1,9 +1,3 @@
-import type {
-  GetIntegrationConnectionByIdFn,
-  IntegrationTx,
-  PublishIntegrationEventReceivedFn,
-  RecordDeliveryOnlyFn,
-} from '@shipfox/api-integration-core-dto';
 import {
   LINEAR_PROVIDER,
   type LinearWebhookBaseEnvelopeDto,
@@ -11,6 +5,12 @@ import {
   type LinearWebhookEventName,
   linearWebhookEnvelopeSchema,
 } from '@shipfox/api-integration-linear-dto';
+import type {
+  GetIntegrationConnectionByIdFn,
+  IntegrationTx,
+  PublishIntegrationEventReceivedFn,
+  RecordDeliveryOnlyFn,
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {getLinearInstallationByOrganizationId} from '#db/installations.js';
 

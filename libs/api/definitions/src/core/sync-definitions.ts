@@ -1,6 +1,5 @@
 import {createHash} from 'node:crypto';
 import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
-import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-core-dto';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {boundedMap} from '@shipfox/node-module';
@@ -14,6 +13,7 @@ import {parseDefinition} from './parse-definition.js';
 
 export const WORKFLOW_PREFIX = '.shipfox/workflows/';
 export const MAX_WORKFLOW_FILES = 100;
+export const MAX_WORKFLOW_FILE_BYTES = 1_000_000;
 export const FILE_FETCH_CONCURRENCY = 4;
 export const UNRESOLVED_SYNC_REF = '__unresolved__';
 
@@ -104,10 +104,10 @@ export async function fetchAndParseWorkflows(
         path,
       });
 
-      if (Buffer.byteLength(snapshot.content, 'utf8') > MAX_REPOSITORY_FILE_BYTES) {
+      if (Buffer.byteLength(snapshot.content, 'utf8') > MAX_WORKFLOW_FILE_BYTES) {
         throw new DefinitionSyncPermanentError(
           'content-too-large',
-          `Workflow file is larger than ${MAX_REPOSITORY_FILE_BYTES} bytes: ${snapshot.path}`,
+          `Workflow file is larger than ${MAX_WORKFLOW_FILE_BYTES} bytes: ${snapshot.path}`,
         );
       }
 

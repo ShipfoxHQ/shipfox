@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import type {
   GetIntegrationConnectionByIdFn,
   IntegrationConnection,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {db} from '#db/db.js';
 import {getSlackInstallationByTeamId, upsertSlackInstallation} from '#db/installations.js';
 import {slackInstallations} from '#db/schema/installations.js';

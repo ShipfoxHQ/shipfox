@@ -7,4 +7,4 @@ export type {
   AgentToolSession,
   AgentToolsProvider,
   OpenAgentToolsSessionInput,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';

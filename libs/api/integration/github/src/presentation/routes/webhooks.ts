@@ -6,11 +6,8 @@ import type {
   RecordDeliveryOnlyFn,
   StoredWebhookRequest,
   WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
-import {
-  createStoredWebhookRequest,
-  WEBHOOK_MAX_RAW_BODY_BYTES,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
+import {createStoredWebhookRequest, WEBHOOK_MAX_RAW_BODY_BYTES} from '@shipfox/api-integration-spi';
 import {
   ClientError,
   defineRoute,

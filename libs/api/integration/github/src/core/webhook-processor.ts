@@ -8,7 +8,7 @@ import {
   type RecordDeliveryOnlyFn,
   type StoredWebhookRequest,
   type WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {config} from '#config.js';

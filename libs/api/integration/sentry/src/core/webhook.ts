@@ -1,3 +1,4 @@
+import type {SentryIssueWebhookDto} from '@shipfox/api-integration-sentry-dto';
 import type {
   GetIntegrationConnectionByIdFn,
   IntegrationTx,
@@ -5,8 +6,7 @@ import type {
   RecordDeliveryOnlyFn,
   SentryIssuePayload,
   UpdateIntegrationConnectionLifecycleStatusFn,
-} from '@shipfox/api-integration-core-dto';
-import type {SentryIssueWebhookDto} from '@shipfox/api-integration-sentry-dto';
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {SentryApiClient} from '#api/client.js';
 import {

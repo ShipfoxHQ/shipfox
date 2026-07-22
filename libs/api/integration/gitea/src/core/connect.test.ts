@@ -1,4 +1,4 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {GiteaApiClient} from '#api/client.js';
 import {handleGiteaConnect} from '#core/connect.js';
 import {GiteaOrgAlreadyLinkedError, GiteaOrganizationNotFoundError} from '#core/errors.js';

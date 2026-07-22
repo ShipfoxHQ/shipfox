@@ -1,4 +1,4 @@
-import type {CheckoutSpec} from '@shipfox/api-integration-core-dto';
+import type {CheckoutSpec} from '@shipfox/api-integration-spi';
 import {redactCheckoutSpec} from './redact-checkout-spec.js';
 
 describe('redactCheckoutSpec', () => {

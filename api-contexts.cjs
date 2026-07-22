@@ -78,7 +78,7 @@ const architecturePackages = {
       'libs/shared/node/tokens',
     ],
   },
-  spi: {},
+  spi: {integrations: ['libs/api/integration/spi']},
   'composition-root': {api: ['libs/api/server']},
 };
 

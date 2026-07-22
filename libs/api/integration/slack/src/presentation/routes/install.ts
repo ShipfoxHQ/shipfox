@@ -1,5 +1,4 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createSlackInstallBodySchema,
   createSlackInstallResponseSchema,
@@ -7,6 +6,7 @@ import {
   slackCallbackQuerySchema,
   slackCallbackResponseSchema,
 } from '@shipfox/api-integration-slack-dto';
+import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {SlackApiClient} from '#api/client.js';
 import {config} from '#config.js';

@@ -1,11 +1,11 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createSentryInstallBodySchema,
   createSentryInstallResponseSchema,
   sentryConnectBodySchema,
   sentryConnectResponseSchema,
 } from '@shipfox/api-integration-sentry-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {SentryApiClient} from '#api/client.js';
 import {config} from '#config.js';

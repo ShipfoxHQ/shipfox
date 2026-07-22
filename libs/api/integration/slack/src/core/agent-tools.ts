@@ -3,7 +3,7 @@ import type {
   AgentToolJsonSchema,
   AgentToolSelectionCatalog,
   AgentToolSelector,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 
 export type SlackAgentToolRequiredScope = 'read' | 'write';
 export type SlackAgentToolCatalogEntry = AgentToolCatalogEntry<SlackAgentToolRequiredScope>;

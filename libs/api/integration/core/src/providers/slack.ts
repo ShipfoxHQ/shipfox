@@ -1,11 +1,8 @@
-import {
-  type IntegrationConnection as CoreIntegrationConnection,
-  slugifyConnectionSlug,
-} from '@shipfox/api-integration-core-dto';
 import type {
   ConnectSlackInstallationInput,
   SlackSecretsStore,
 } from '@shipfox/api-integration-slack';
+import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
 import {
   deleteIntegrationConnection,
@@ -19,7 +16,7 @@ import {
   publishIntegrationEventReceived,
   recordDeliveryOnly,
 } from '#db/webhook-deliveries.js';
-import {retryConnectionSlugCollision} from '#providers/connection-slug.js';
+import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 const SLACK_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_slack';

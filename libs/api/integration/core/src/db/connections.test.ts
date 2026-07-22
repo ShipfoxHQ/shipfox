@@ -1,5 +1,5 @@
-import {ConnectionSlugConflictError} from '@shipfox/api-integration-core-dto';
 import {upsertGithubInstallation} from '@shipfox/api-integration-github';
+import {ConnectionSlugConflictError} from '@shipfox/api-integration-spi';
 import {IntegrationConnectionAlreadyExistsError} from '#core/errors.js';
 import {
   createIntegrationConnection,

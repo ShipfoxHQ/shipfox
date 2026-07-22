@@ -6,7 +6,7 @@ import type {
   IntegrationTx,
   PublishIntegrationEventReceivedFn,
   UpdateIntegrationConnectionLifecycleStatusFn,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {WEBHOOK_PROVIDER} from '@shipfox/api-integration-webhook-dto';
 import {config} from '#config.js';
 import {createGenericWebhookProcessor} from '#core/webhook-processor.js';

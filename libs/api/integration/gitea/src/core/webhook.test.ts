@@ -4,7 +4,7 @@ import type {
   IntegrationConnection,
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {db} from '#db/db.js';
 import {giteaConnections} from '#db/schema/connections.js';
 import {capturedGiteaPushPayload, giteaConnectionFactory, giteaPushPayload} from '#test/index.js';

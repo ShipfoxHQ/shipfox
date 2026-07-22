@@ -1,5 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {GithubApiClient, GithubInstallationDetails} from '#api/client.js';
 import {
   GithubInstallationAlreadyLinkedError,

@@ -1,4 +1,4 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {SlackWebApiResponse} from '#api/client.js';
 import {slackAgentToolCatalog, slackAgentToolSelectionCatalog} from '#core/agent-tools.js';
 import {SlackAgentToolsProvider} from '#core/agent-tools-provider.js';

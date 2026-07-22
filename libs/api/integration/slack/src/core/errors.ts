@@ -1,4 +1,4 @@
-import {IntegrationProviderError} from '@shipfox/api-integration-core-dto';
+import {IntegrationProviderError} from '@shipfox/api-integration-spi';
 
 export class SlackIntegrationProviderError extends IntegrationProviderError {}
 

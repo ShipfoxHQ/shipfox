@@ -3,7 +3,7 @@ import type {
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
   UpdateIntegrationConnectionLifecycleStatusFn,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {SentryApiClient} from '#api/client.js';
 

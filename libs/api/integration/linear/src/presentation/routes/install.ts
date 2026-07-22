@@ -1,5 +1,4 @@
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createLinearInstallBodySchema,
   createLinearInstallResponseSchema,
@@ -7,6 +6,7 @@ import {
   linearCallbackQuerySchema,
   linearCallbackResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
+import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {LinearApiClient} from '#api/client.js';
 import {config} from '#config.js';

@@ -1,9 +1,15 @@
-import type {AgentToolSelector} from '@shipfox/api-integration-core-dto';
 import type {WorkflowDocumentStepIntegration} from '@shipfox/workflow-document';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {WorkflowModelStepIntegration} from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {issue} from './validation-issue.js';
+
+interface AgentToolSelector {
+  readonly token: string;
+  readonly kind: 'family' | 'family_wildcard' | 'method' | 'standalone';
+  readonly sensitivity: 'read' | 'write';
+  readonly sensitive: boolean;
+}
 
 export function normalizeAgentIntegrations(params: {
   integrations: readonly WorkflowDocumentStepIntegration[] | undefined;

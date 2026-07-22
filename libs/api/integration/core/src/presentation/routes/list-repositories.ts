@@ -3,7 +3,7 @@ import {
   listRepositoriesParamsSchema,
   listRepositoriesQuerySchema,
   listRepositoriesResponseSchema,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {defineRoute} from '@shipfox/node-fastify';
 import type {IntegrationSourceControlService} from '#core/source-control-service.js';
 import {toRepositoryDto} from '#presentation/dto/integrations.js';

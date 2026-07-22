@@ -7,7 +7,7 @@ import {
 import {
   ConnectionSlugConflictError,
   type IntegrationConnection,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {SentryApiClient} from '#api/client.js';

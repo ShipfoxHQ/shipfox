@@ -1,4 +1,4 @@
-import type {CheckoutSpec} from '@shipfox/api-integration-core-dto';
+import type {CheckoutSpec} from '@shipfox/api-integration-spi';
 import {REDACTION_PLACEHOLDER, stripUrlCredentials} from '@shipfox/redact';
 
 /**

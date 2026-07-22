@@ -1,4 +1,5 @@
 import {Buffer} from 'node:buffer';
+import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
 import {
   buildProviderRepositoryId,
   type CheckoutSpec,
@@ -16,8 +17,7 @@ import {
   type RepositoryVisibility,
   type ResolveRepositoryInput,
   type SourceControlProvider,
-} from '@shipfox/api-integration-core-dto';
-import {giteaProviderKind} from '@shipfox/api-integration-gitea-dto';
+} from '@shipfox/api-integration-spi';
 import type {GiteaApiClient, GiteaRepository} from '#api/client.js';
 import {config, giteaCloneBaseOrigin} from '#config.js';
 import {GiteaIntegrationProviderError} from './errors.js';

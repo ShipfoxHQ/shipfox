@@ -1,5 +1,5 @@
 import {createHash, timingSafeEqual} from 'node:crypto';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {SentryApiClient, SentryAuthorization} from '#api/client.js';
 import {

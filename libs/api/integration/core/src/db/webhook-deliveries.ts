@@ -4,7 +4,7 @@ import {
   type IntegrationEventReceivedEvent,
   type IntegrationsEventMap,
   type SourcePushPayload,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import {lt} from 'drizzle-orm';
 import {db} from './db.js';

@@ -1,11 +1,3 @@
-import type {
-  ClaimWebhookDeliveryFn,
-  GetIntegrationConnectionByIdFn,
-  IntegrationConnection,
-  IntegrationTx,
-  PublishIntegrationEventReceivedFn,
-  RecordDeliveryOnlyFn,
-} from '@shipfox/api-integration-core-dto';
 import {
   SLACK_APP_UNINSTALLED_EVENT,
   SLACK_PROVIDER,
@@ -17,6 +9,14 @@ import {
   slackLifecycleEventTypes,
   slackTokensRevokedEventSchema,
 } from '@shipfox/api-integration-slack-dto';
+import type {
+  ClaimWebhookDeliveryFn,
+  GetIntegrationConnectionByIdFn,
+  IntegrationConnection,
+  IntegrationTx,
+  PublishIntegrationEventReceivedFn,
+  RecordDeliveryOnlyFn,
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {

@@ -1,8 +1,8 @@
-import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createE2eSlackConnectionBodySchema,
   createE2eSlackConnectionResponseSchema,
 } from '@shipfox/api-integration-slack-dto';
+import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ConnectSlackInstallationInput} from '#core/install.js';

@@ -1,7 +1,4 @@
-import type {
-  StoredWebhookRequest,
-  WebhookRequestProcessor,
-} from '@shipfox/api-integration-core-dto';
+import type {StoredWebhookRequest, WebhookRequestProcessor} from '@shipfox/api-integration-spi';
 import {createOutboxRegistry, type ModuleService, startModuleServices} from '@shipfox/node-module';
 import {createIntegrationsContext, WebhookProcessorNotConfiguredError} from './index.js';
 

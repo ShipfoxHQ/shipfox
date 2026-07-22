@@ -1,8 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {
-  createStoredWebhookRequest,
-  type IntegrationConnection,
-} from '@shipfox/api-integration-core-dto';
+import {createStoredWebhookRequest, type IntegrationConnection} from '@shipfox/api-integration-spi';
 import {createGenericWebhookProcessor} from './webhook-processor.js';
 
 function fakeConnection(overrides: Partial<IntegrationConnection> = {}): IntegrationConnection {

@@ -3,7 +3,7 @@ import type {
   AgentToolsProvider,
   IntegrationConnection,
   OpenAgentToolsSessionInput,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {SlackApiClient, SlackWebApiResponse} from '#api/client.js';
 import {

@@ -6,7 +6,7 @@ import {
   type RecordDeliveryOnlyFn,
   type StoredWebhookRequest,
   type WebhookProcessingResult,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import {verifyHexHmacSignature} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';

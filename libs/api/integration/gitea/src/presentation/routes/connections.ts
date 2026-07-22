@@ -1,9 +1,9 @@
 import {AUTH_USER, requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
 import {
   createGiteaConnectionBodySchema,
   createGiteaConnectionResponseSchema,
 } from '@shipfox/api-integration-gitea-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {GiteaApiClient} from '#api/client.js';
 import {type ConnectGiteaConnectionInput, handleGiteaConnect} from '#core/connect.js';

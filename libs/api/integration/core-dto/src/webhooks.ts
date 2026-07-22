@@ -119,11 +119,6 @@ export const webhookProcessingResultSchema = z.discriminatedUnion('outcome', [
 ]);
 export type WebhookProcessingResult = z.infer<typeof webhookProcessingResultSchema>;
 
-/** Processes one provider-neutral inbound webhook request. */
-export interface WebhookRequestProcessor {
-  process(request: StoredWebhookRequest): Promise<WebhookProcessingResult>;
-}
-
 export interface CreateStoredWebhookRequestInput {
   requestId: string;
   routeId: WebhookRouteId;

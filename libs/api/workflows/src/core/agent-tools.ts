@@ -3,12 +3,12 @@ import type {
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,
   IntegrationProviderKind,
-} from '@shipfox/api-integration-core-dto';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+} from '@shipfox/api-integration-spi';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {AgentIntegrationMaterializationError} from './errors.js';
 

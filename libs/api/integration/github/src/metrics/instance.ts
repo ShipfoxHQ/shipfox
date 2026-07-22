@@ -1,4 +1,4 @@
-import type {IntegrationProviderErrorReason} from '@shipfox/api-integration-core-dto';
+import type {IntegrationProviderErrorReason} from '@shipfox/api-integration-spi';
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
 import type {MintErrorClass} from '#api/installation-token-envelope.js';
 

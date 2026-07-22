@@ -1,5 +1,14 @@
-import type {AgentToolCatalogEntry} from '@shipfox/api-integration-core-dto';
 import {z} from 'zod';
+
+interface AgentToolCatalogEntry<RequiredScope = unknown> {
+  id: string;
+  description: string;
+  sensitivity: 'read' | 'write';
+  sensitive: boolean;
+  requiredScope: RequiredScope;
+  inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown> | undefined;
+}
 
 export const jiraAgentToolIds = [
   'get_issue',

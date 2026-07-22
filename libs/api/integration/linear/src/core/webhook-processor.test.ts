@@ -1,6 +1,6 @@
 import {createHmac, randomUUID} from 'node:crypto';
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
-import {createStoredWebhookRequest} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
+import {createStoredWebhookRequest} from '@shipfox/api-integration-spi';
 import {db} from '#db/db.js';
 import {upsertLinearInstallation} from '#db/installations.js';
 import {linearInstallations} from '#db/schema/installations.js';

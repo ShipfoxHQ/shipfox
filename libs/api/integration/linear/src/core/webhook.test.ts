@@ -1,11 +1,11 @@
 import {randomUUID} from 'node:crypto';
+import type {LinearWebhookBaseEnvelopeDto} from '@shipfox/api-integration-linear-dto';
 import type {
   GetIntegrationConnectionByIdFn,
   IntegrationConnection,
   PublishIntegrationEventReceivedFn,
   RecordDeliveryOnlyFn,
-} from '@shipfox/api-integration-core-dto';
-import type {LinearWebhookBaseEnvelopeDto} from '@shipfox/api-integration-linear-dto';
+} from '@shipfox/api-integration-spi';
 import {db} from '#db/db.js';
 import {upsertLinearInstallation} from '#db/installations.js';
 import {linearInstallations} from '#db/schema/installations.js';

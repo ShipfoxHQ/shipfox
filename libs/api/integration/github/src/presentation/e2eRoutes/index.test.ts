@@ -1,4 +1,4 @@
-import type {IntegrationConnection} from '@shipfox/api-integration-core-dto';
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {createGithubE2eRoutes} from './index.js';
 

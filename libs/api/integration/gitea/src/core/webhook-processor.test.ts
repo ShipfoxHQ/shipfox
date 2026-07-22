@@ -1,5 +1,5 @@
 import {createHmac, randomUUID} from 'node:crypto';
-import {createStoredWebhookRequest, decodeWebhookBody} from '@shipfox/api-integration-core-dto';
+import {createStoredWebhookRequest, decodeWebhookBody} from '@shipfox/api-integration-spi';
 import {createGiteaWebhookProcessor} from './webhook-processor.js';
 
 const WEBHOOK_SECRET = 'test-webhook-secret';

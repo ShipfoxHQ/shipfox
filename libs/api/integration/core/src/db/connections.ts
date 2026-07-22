@@ -1,7 +1,5 @@
-import {
-  CONNECTION_SLUG_MAX_LENGTH,
-  ConnectionSlugConflictError,
-} from '@shipfox/api-integration-core-dto';
+import {CONNECTION_SLUG_MAX_LENGTH} from '@shipfox/api-integration-core-dto';
+import {ConnectionSlugConflictError} from '@shipfox/api-integration-spi';
 import {and, eq} from 'drizzle-orm';
 import type {
   IntegrationConnection,

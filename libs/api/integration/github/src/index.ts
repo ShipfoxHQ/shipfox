@@ -3,7 +3,7 @@ import type {
   PublishIntegrationEventReceivedFn,
   PublishSourcePushFn,
   RecordDeliveryOnlyFn,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-spi';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
 import type {GithubInstallationTokenProvider} from '#api/installation-token-provider.js';
