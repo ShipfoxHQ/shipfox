@@ -23,6 +23,7 @@ describe('sanitizeRedirectPath', () => {
     ['no leading slash', 'foo'],
     ['protocol-relative URL', '//evil.com'],
     ['triple-slash URL', '///evil.com'],
+    ['backslash external URL', '/\\evil.com'],
     ['absolute https URL', 'https://evil.com'],
     ['javascript scheme', 'javascript:alert(1)'],
     ['plain /auth/login', '/auth/login'],
@@ -30,6 +31,7 @@ describe('sanitizeRedirectPath', () => {
     ['/auth/reset with token', '/auth/reset?token=x'],
     ['/auth with query bypass', '/auth?token=x'],
     ['/auth with fragment bypass', '/auth#foo'],
+    ['normalized auth path', '/workspaces/../auth/logout'],
   ])('rejects %s', (_label, input) => {
     test('returns undefined', () => {
       const result = sanitizeRedirectPath(input);
@@ -47,6 +49,12 @@ describe('sanitizeRedirectPath', () => {
 
     test('rejects percent-encoded protocol-relative URL', () => {
       const result = sanitizeRedirectPath('/%2fevil.com');
+
+      expect(result).toBeUndefined();
+    });
+
+    test('rejects a percent-encoded normalized auth path', () => {
+      const result = sanitizeRedirectPath('/workspaces/%2e%2e/auth/logout');
 
       expect(result).toBeUndefined();
     });

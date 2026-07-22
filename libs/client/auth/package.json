@@ -39,6 +39,16 @@
         "default": "./dist/feature.js"
       }
     },
+    "./continuation": {
+      "workspace-source": {
+        "types": "./src/continuation.ts",
+        "default": "./src/continuation.ts"
+      },
+      "default": {
+        "types": "./dist/continuation.d.ts",
+        "default": "./dist/continuation.js"
+      }
+    },
     "./routes/*": {
       "workspace-source": {
         "types": "./src/routes/*.tsx",
