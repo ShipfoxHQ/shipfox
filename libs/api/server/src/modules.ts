@@ -25,7 +25,10 @@ import {createTriggersModule} from '@shipfox/api-triggers';
 import {createWorkflowsModule} from '@shipfox/api-workflows';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
-import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {
+  type WorkspacesInterModuleClient,
+  workspacesInterModuleContract,
+} from '@shipfox/api-workspaces-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {durationToSeconds} from '@shipfox/node-jwt';
 import type {ShipfoxModule} from '@shipfox/node-module';
@@ -38,9 +41,13 @@ import {logger} from '@shipfox/node-opentelemetry';
 export interface DefaultModulesOptions {
   webhookDeliverySource?: WebhookDeliverySource | undefined;
   runnersModule?: DefaultRunnersModuleFactory | undefined;
+  extension?: DefaultModulesExtension | undefined;
 }
 
 export type DefaultRunnersModuleFactory = (options: {auth: AuthInterModuleClient}) => ShipfoxModule;
+export type DefaultModulesExtension = (options: {
+  workspaces: WorkspacesInterModuleClient;
+}) => ShipfoxModule[];
 
 export async function defaultModules(
   options: DefaultModulesOptions = {},
@@ -154,6 +161,7 @@ export async function defaultModules(
     agent: agentClient,
     integrations: integrationsClient,
   });
+  const extensionModules = options.extension?.({workspaces: workspacesClient}) ?? [];
 
   const modules = [
     emailChallengesModule,
@@ -182,6 +190,7 @@ export async function defaultModules(
     }),
     createTriggersModule({workflows: workflowsClient}),
     dispatcherModule,
+    ...extensionModules,
   ];
   registerInterModulePresentations({transport: interModuleTransport, modules});
   interModuleTransport.seal();
