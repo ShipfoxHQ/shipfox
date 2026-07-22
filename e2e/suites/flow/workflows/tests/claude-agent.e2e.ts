@@ -127,10 +127,28 @@ test('runs Claude set_output through downstream interpolation', async ({suite}, 
       workflowYaml: OUTPUT_WORKFLOW_YAML,
       runnerEnv: fakeAnthropic.runnerEnv,
     });
-    const consumeStep = terminal.jobs
-      .find((job) => job.key === 'fix')
-      ?.job_executions.flatMap((execution) => execution.steps)
-      .find((step) => step.key === 'consume');
+    const fixJob = terminal.jobs.find((job) => job.key === 'fix');
+    const steps = fixJob?.job_executions.flatMap((execution) => execution.steps) ?? [];
+    const produceStep = steps.find((step) => step.key === 'produce');
+    const consumeStep = steps.find((step) => step.key === 'consume');
+    const executionSucceeded =
+      terminal.status === 'succeeded' &&
+      fixJob?.status === 'succeeded' &&
+      produceStep?.status === 'succeeded' &&
+      consumeStep?.status === 'succeeded';
+
+    if (!executionSucceeded) {
+      await testInfo.attach('run-detail.json', {
+        body: JSON.stringify(terminal, null, 2),
+        contentType: 'application/json',
+      });
+    }
+
+    expect(terminal.status).toBe('succeeded');
+    expect(fixJob?.status).toBe('succeeded');
+    expect(produceStep?.status).toBe('succeeded');
+    expect(consumeStep?.status).toBe('succeeded');
+
     if (consumeStep === undefined) throw new Error('consume step missing from run detail');
     const logs = await fetchStepLogs({
       stepId: consumeStep.id,
@@ -138,8 +156,6 @@ test('runs Claude set_output through downstream interpolation', async ({suite}, 
       token: suite.sessionToken,
     });
 
-    expect(terminal.status).toBe('succeeded');
-    expect(terminal.jobs.find((job) => job.key === 'fix')?.status).toBe('succeeded');
     expect(logText(logs.records)).toContain('agent_message=claude-tool-output-ok');
   } finally {
     await fakeModelProvider.stop().catch((error: unknown) => {
