@@ -1,6 +1,6 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
-import {eq, sql} from 'drizzle-orm';
+import {eq} from 'drizzle-orm';
 import {JobNotFoundError} from '#core/errors.js';
 import {recordStepResult as recordJobExecutionStepResult} from '#core/job-execution.js';
 import {db} from '#db/db.js';
@@ -21,7 +21,10 @@ import {
   mintLeaseToken,
 } from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
-import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import {
+  runnersTestClient,
+  setRunnerToolCapabilities as setTestRunnerToolCapabilities,
+} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
@@ -39,16 +42,11 @@ async function recordStepResult(
   return recordJobExecutionStepResult({...rest, jobExecutionId: step.jobExecutionId});
 }
 
-async function setRunnerToolCapabilities(
+function setRunnerToolCapabilities(
   runnerSessionId: string,
-  capabilities: Record<string, unknown>,
-): Promise<void> {
-  await db().execute(sql`
-    UPDATE runners_runner_sessions
-    SET tool_capabilities = ${JSON.stringify(capabilities)}::jsonb,
-      tool_capabilities_reported_at = now()
-    WHERE id = ${runnerSessionId}
-  `);
+  capabilities: {harnesses: {pi?: {tools: string[]}; claude?: {tools: string[]}}},
+): void {
+  setTestRunnerToolCapabilities(runnerSessionId, {capabilities, reportFresh: true});
 }
 
 const annotationWrites = vi.fn<AnnotationsInterModuleClient['replaceOrRemoveAnnotation']>();
@@ -182,7 +180,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     const token = await mintActiveLeaseToken({jobId});
     const lease = getLeaseTokenClaims(token);
     if (!lease) throw new Error('Expected minted lease token to verify');
-    await setRunnerToolCapabilities(lease.runnerSessionId, {harnesses: {pi: {tools: ['read']}}});
+    setRunnerToolCapabilities(lease.runnerSessionId, {harnesses: {pi: {tools: ['read']}}});
 
     const first = await app.inject({
       method: 'POST',

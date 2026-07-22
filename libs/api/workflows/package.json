@@ -49,7 +49,6 @@
     "@shipfox/api-projects-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
-    "@shipfox/api-runners": "workspace:*",
     "@shipfox/api-runners-dto": "workspace:*",
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
@@ -71,8 +70,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@shipfox/annotations": "workspace:*",
-    "@shipfox/api-agent": "workspace:*",
     "@shipfox/api-definitions": "workspace:*",
     "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/biome": "workspace:*",

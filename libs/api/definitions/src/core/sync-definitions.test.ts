@@ -1,9 +1,9 @@
-import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import type {IntegrationValidationContext} from './entities/integration-context.js';
+import type {DefinitionsSourceControl} from './integrations.js';
 import {DefinitionSyncPermanentError} from './errors.js';
 import {
   classifySyncFailure,
@@ -68,12 +68,8 @@ const integrationValidationContext = {
   ]),
 } satisfies IntegrationValidationContext;
 
-function sourceControl(
-  overrides: Partial<IntegrationSourceControlService> = {},
-): IntegrationSourceControlService {
+function sourceControl(overrides: Partial<DefinitionsSourceControl> = {}): DefinitionsSourceControl {
   return {
-    getConnection: vi.fn(),
-    listRepositories: vi.fn(),
     resolveRepository: vi.fn(() =>
       Promise.resolve({
         connection: {
@@ -108,7 +104,6 @@ function sourceControl(
     fetchFile: vi.fn(() =>
       Promise.resolve({path: '.shipfox/workflows/ci.yml', ref: 'main', content: validYaml}),
     ),
-    createCheckoutSpec: vi.fn(),
     ...overrides,
   };
 }

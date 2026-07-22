@@ -1,6 +1,5 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
-import type {WorkflowDefinition} from '@shipfox/api-definitions';
-import {createWorkflowModelSnapshot} from '@shipfox/api-definitions-dto';
+import {createWorkflowModelSnapshot, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {agentValidationCatalog} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
@@ -17,61 +16,26 @@ const mockResolveAgentConfig = vi.hoisted(() =>
   }),
 );
 
-vi.mock('@shipfox/api-definitions', () => ({
-  DEFAULT_JOB_CHECKOUT: {
-    permissions: {contents: 'read'},
-    persistCredentials: true,
-  },
-  getDefinitionById: vi.fn(),
-}));
+type DefinitionForWorkflowRun = NonNullable<
+  Awaited<ReturnType<DefinitionsInterModuleClient['getDefinitionForWorkflowRun']>>['definition']
+>;
 
-import {getDefinitionById} from '@shipfox/api-definitions';
-
-const mockGetDefinitionById = vi.mocked(getDefinitionById);
+let definitionResponse: DefinitionForWorkflowRun | null = null;
 const definitions: DefinitionsInterModuleClient = {
-  getDefinitionForWorkflowRun: async ({definitionId}) => {
-    const definition = await mockGetDefinitionById(definitionId);
-    return {
-      definition:
-        definition === undefined
-          ? null
-          : {
-              id: definition.id,
-              projectId: definition.projectId,
-              name: definition.name,
-              model: createWorkflowModelSnapshot(definition.model),
-              sourceSnapshot: definition.sourceSnapshot,
-            },
-    };
-  },
+  getDefinitionForWorkflowRun: async () => ({definition: definitionResponse}),
 };
 
-function buildDefinition(overrides?: Partial<WorkflowDefinition>): WorkflowDefinition {
-  const model = workflowModel();
-  const document = {
-    name: model.name,
-    jobs: {
-      build: {steps: [{run: 'echo hello'}]},
-    },
-  };
+function buildDefinition(
+  overrides: Partial<Omit<DefinitionForWorkflowRun, 'model'>> & {model?: WorkflowModel} = {},
+): DefinitionForWorkflowRun {
+  const {model = workflowModel(), ...definitionOverrides} = overrides;
   return {
     id: crypto.randomUUID(),
     projectId: crypto.randomUUID(),
-    configPath: '.shipfox/workflows/test.yml',
-    source: 'manual',
-    sha: null,
-    ref: null,
     name: 'Test Workflow',
-    definition: document,
-    document,
-    model,
+    model: createWorkflowModelSnapshot(model),
     sourceSnapshot: null,
-    contentHash: null,
-    fetchedAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null,
-    ...overrides,
+    ...definitionOverrides,
   };
 }
 
@@ -97,11 +61,12 @@ describe('runWorkflow', () => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     mockResolveAgentConfig.mockClear();
+    definitionResponse = null;
   });
 
   test('creates a run from a valid definition with the provided manual trigger payload', async () => {
     const definition = buildDefinition({projectId});
-    mockGetDefinitionById.mockResolvedValue(definition);
+    definitionResponse = definition;
     const triggerPayload = manualPayload();
 
     const run = await runWorkflow(definitions, {
@@ -131,7 +96,7 @@ describe('runWorkflow', () => {
       },
     });
     const definition = buildDefinition({projectId, model});
-    mockGetDefinitionById.mockResolvedValue(definition);
+    definitionResponse = definition;
 
     const run = await runWorkflow(definitions, {
       workspaceId,
@@ -147,7 +112,7 @@ describe('runWorkflow', () => {
 
   test('persists an integration trigger payload intact', async () => {
     const definition = buildDefinition({projectId});
-    mockGetDefinitionById.mockResolvedValue(definition);
+    definitionResponse = definition;
     const triggerPayload: TriggerPayload = {
       provider: 'github',
       source: 'github_acme',
@@ -173,7 +138,7 @@ describe('runWorkflow', () => {
   test('creates the run with the definition source snapshot', async () => {
     const sourceSnapshot = {content: 'name: Test Workflow\njobs: {}\n', format: 'yaml'} as const;
     const definition = buildDefinition({projectId, sourceSnapshot});
-    mockGetDefinitionById.mockResolvedValue(definition);
+    definitionResponse = definition;
 
     const run = await runWorkflow(definitions, {
       workspaceId,
@@ -187,7 +152,7 @@ describe('runWorkflow', () => {
   });
 
   test('throws DefinitionNotFoundError for unknown definition', async () => {
-    mockGetDefinitionById.mockResolvedValue(undefined);
+    definitionResponse = null;
 
     const unknownId = crypto.randomUUID();
 
@@ -205,7 +170,7 @@ describe('runWorkflow', () => {
   test('throws ProjectMismatchError when definition.projectId does not match', async () => {
     const otherProjectId = crypto.randomUUID();
     const definition = buildDefinition({projectId: otherProjectId});
-    mockGetDefinitionById.mockResolvedValue(definition);
+    definitionResponse = definition;
 
     await expect(
       runWorkflow(definitions, {
@@ -220,7 +185,7 @@ describe('runWorkflow', () => {
 
   test('passes inputs through to the run', async () => {
     const definition = buildDefinition({projectId});
-    mockGetDefinitionById.mockResolvedValue(definition);
+    definitionResponse = definition;
 
     const run = await runWorkflow(definitions, {
       workspaceId,

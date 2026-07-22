@@ -1,8 +1,7 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {JobLeaseTokenClaims} from '@shipfox/api-auth-dto';
-import {sql} from 'drizzle-orm';
-import {db} from '#db/db.js';
-import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
+import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
+import {runnersTestClient, setRunnerToolCapabilities} from '#test/fixtures/runners-inter-module.js';
 import {warnAgentToolCapabilityMismatchOnDispatch as warnAgentToolCapabilityMismatchOnDispatchImpl} from './agent-tool-capability-warning.js';
 import type {Step} from './entities/step.js';
 
@@ -86,45 +85,20 @@ function agentStep(params: Partial<Step> = {}): Step {
   };
 }
 
-async function insertRunnerSession(params: {
+function setRunnerSessionCapabilities(params: {
   runnerSessionId: string;
   workspaceId: string;
-  toolCapabilities: Record<string, unknown> | null;
+  toolCapabilities:
+    | Awaited<
+        ReturnType<RunnersInterModuleClient['getEffectiveRunnerToolCapabilities']>
+      >['capabilities']
+    | null;
   reportedAt?: 'fresh' | 'stale' | 'missing';
-}): Promise<void> {
-  const reportedAt =
-    params.reportedAt === 'missing'
-      ? sql`NULL`
-      : params.reportedAt === 'stale'
-        ? sql`now() - interval '1 hour'`
-        : sql`now()`;
-  const toolCapabilities =
-    params.toolCapabilities === null
-      ? sql`NULL`
-      : sql`${JSON.stringify(params.toolCapabilities)}::jsonb`;
-
-  await db().execute(sql`
-    INSERT INTO runners_runner_sessions (
-      id,
-      workspace_id,
-      scope,
-      registration_token_id,
-      registration_token_kind,
-      labels,
-      tool_capabilities,
-      tool_capabilities_reported_at
-    )
-    VALUES (
-      ${params.runnerSessionId},
-      ${params.workspaceId},
-      'workspace',
-      ${crypto.randomUUID()},
-      'manual',
-      ARRAY['linux'],
-      ${toolCapabilities},
-      ${reportedAt}
-    )
-  `);
+}): void {
+  setRunnerToolCapabilities(params.runnerSessionId, {
+    capabilities: params.toolCapabilities === null ? {harnesses: {}} : params.toolCapabilities,
+    reportFresh: params.reportedAt !== 'missing' && params.reportedAt !== 'stale',
+  });
 }
 
 function annotationsFor(jobExecutionId: string): Array<{context: string; body: string}> {
@@ -138,7 +112,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
   it('writes a warning when the matched runner advertised a set without requested tools', async () => {
     const identity = lease();
     const step = agentStep({jobExecutionId: identity.jobExecutionId});
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: {harnesses: {pi: {tools: ['read']}}},
@@ -156,7 +130,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
   it('writes unknown wording when capabilities are missing', async () => {
     const identity = lease();
     const step = agentStep({jobExecutionId: identity.jobExecutionId});
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: null,
@@ -173,7 +147,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
   it('writes missing-harness wording when fresh capabilities omit the harness', async () => {
     const identity = lease();
     const step = agentStep({jobExecutionId: identity.jobExecutionId});
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: {harnesses: {claude: {tools: ['read', 'web_search']}}},
@@ -199,7 +173,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
         prompt: 'Fix it.',
       },
     });
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: {harnesses: {pi: {tools: ['read']}}},
@@ -214,20 +188,16 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
   it('removes an existing warning when a later dispatch has all requested tools', async () => {
     const identity = lease();
     const step = agentStep({jobExecutionId: identity.jobExecutionId});
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: {harnesses: {pi: {tools: ['read']}}},
     });
     await warnAgentToolCapabilityMismatchOnDispatch({leaseIdentity: identity, step});
-    await db().execute(sql`
-      UPDATE runners_runner_sessions
-      SET tool_capabilities = ${JSON.stringify({
-        harnesses: {pi: {tools: ['read', 'web_search']}},
-      })}::jsonb,
-      tool_capabilities_reported_at = now()
-      WHERE id = ${identity.runnerSessionId}
-    `);
+    setRunnerToolCapabilities(identity.runnerSessionId, {
+      capabilities: {harnesses: {pi: {tools: ['read', 'web_search']}}},
+      reportFresh: true,
+    });
 
     await warnAgentToolCapabilityMismatchOnDispatch({leaseIdentity: identity, step});
 
@@ -247,7 +217,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
         prompt: 'Fix it.',
       },
     });
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: null,
@@ -265,7 +235,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
       type: 'run',
       config: {run: 'echo ok'},
     });
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: null,
@@ -290,7 +260,7 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
         prompt: 'Fix it.',
       },
     });
-    await insertRunnerSession({
+    setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: {harnesses: {pi: {tools: []}}},
