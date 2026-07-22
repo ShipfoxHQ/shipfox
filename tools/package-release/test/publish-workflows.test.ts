@@ -15,7 +15,7 @@ describe('package release workflows', () => {
     const workflow = await readWorkflow('update-release-pr.yml');
 
     assert.ok(workflow.includes('cancel-in-progress: true'));
-    assert.ok(workflow.includes('pnpm exec changeset status --output'));
+    assert.ok(workflow.includes('package-release-workflow.mjs plan'));
     assert.ok(workflow.includes("has_changesets == 'true'"));
     assert.ok(workflow.includes('version: pnpm exec changeset version'));
     assert.ok(!workflow.includes('release:publish'));
@@ -32,6 +32,6 @@ describe('package release workflows', () => {
     assert.ok(workflow.includes('ref: $' + '{{ needs.authorize-release.outputs.revision }}'));
     assert.ok(workflow.includes('verify-generated-release'));
     assert.ok(workflow.includes('NPM_CONFIG_PROVENANCE: "true"'));
-    assert.ok(workflow.includes('head_ref" != changeset-release/main'));
+    assert.ok(workflow.includes('package-release-workflow.mjs authorize'));
   });
 });
