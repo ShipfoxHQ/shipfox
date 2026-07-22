@@ -1,19 +1,14 @@
-import type {ListIntegrationConnectionsResponseDto} from '@shipfox/api-integration-core-dto';
-import type {ListProjectsResponseDto} from '@shipfox/api-projects-dto';
 import {
   isModelProviderOnboardingDismissed,
-  listModelProviderConfigs,
-  modelProviderQueryKeys,
+  modelProviderConfigsQueryOptions,
 } from '@shipfox/client-agent';
-import {integrationsQueryKeys, listSourceConnections} from '@shipfox/client-integrations';
+import {sourceConnectionsQueryOptions} from '@shipfox/client-integrations';
+import {projectExistenceQueryOptions} from '@shipfox/client-projects';
 import {WorkspaceSetupLoadError, type WorkspaceSetupState} from '@shipfox/client-shell/runtime';
 import type {QueryClient} from '@tanstack/react-query';
 import {redirect} from '@tanstack/react-router';
-import {listProjects, projectsQueryKeys} from '#hooks/api/projects.js';
 
 const TRAILING_SLASHES_RE = /\/+$/u;
-const PROJECT_EXISTENCE_STALE_TIME_MS = 30_000;
-type ListModelProviderConfigsResponseDto = Awaited<ReturnType<typeof listModelProviderConfigs>>;
 
 export interface WorkspaceSetupRouteOptions {
   queryClient: QueryClient;
@@ -28,9 +23,8 @@ export async function loadWorkspaceSetupRoute({
 }: WorkspaceSetupRouteOptions): Promise<WorkspaceSetupState> {
   const projects = await fetchWorkspaceProjectExistence(queryClient, workspaceId);
   const normalizedPathname = normalizePath(pathname);
-  const hasProject = projects.projects.length > 0;
 
-  if (hasProject) {
+  if (projects.projects.length > 0) {
     if (isIntegrationsIndexPath(normalizedPathname, workspaceId)) {
       throw redirect({
         to: '/workspaces/$wid/settings/integrations',
@@ -43,9 +37,7 @@ export async function loadWorkspaceSetupRoute({
   }
 
   const sourceConnections = await fetchWorkspaceSourceConnections(queryClient, workspaceId);
-  const hasSourceConnection = sourceConnections.connections.length > 0;
-
-  if (!hasSourceConnection) {
+  if (sourceConnections.connections.length === 0) {
     if (isIntegrationSetupPath(normalizedPathname, workspaceId)) {
       return {hideProjectNavigation: true};
     }
@@ -86,37 +78,24 @@ export async function loadWorkspaceSetupRoute({
 }
 
 async function fetchWorkspaceProjectExistence(queryClient: QueryClient, workspaceId: string) {
-  const queryKey = projectsQueryKeys.exists(workspaceId);
+  const options = projectExistenceQueryOptions(workspaceId);
 
   try {
-    return await queryClient.fetchQuery({
-      queryKey,
-      queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
-      // beforeLoad runs for every in-workspace navigation. Use a short
-      // freshness window to avoid hot-path refetches while still detecting
-      // project creation from another tab or actor.
-      staleTime: PROJECT_EXISTENCE_STALE_TIME_MS,
-    });
+    return await queryClient.fetchQuery(options);
   } catch (error) {
-    const cached = queryClient.getQueryData<ListProjectsResponseDto>(queryKey);
+    const cached = queryClient.getQueryData<{projects: unknown[]}>(options.queryKey);
     if (cached !== undefined) return cached;
     throw new WorkspaceSetupLoadError(error);
   }
 }
 
 async function fetchWorkspaceSourceConnections(queryClient: QueryClient, workspaceId: string) {
-  const queryKey = integrationsQueryKeys.sourceConnections(workspaceId);
+  const options = sourceConnectionsQueryOptions(workspaceId);
 
   try {
-    // Onboarding-only path: kept fresh (no staleTime) because some install
-    // flows connect a source without invalidating this key, and a stale
-    // "no connection" read would trap the user in the onboarding redirect.
-    return await queryClient.fetchQuery({
-      queryKey,
-      queryFn: ({signal}) => listSourceConnections({workspaceId, signal}),
-    });
+    return await queryClient.fetchQuery(options);
   } catch (error) {
-    const cached = queryClient.getQueryData<ListIntegrationConnectionsResponseDto>(queryKey);
+    const cached = queryClient.getQueryData<{connections: unknown[]}>(options.queryKey);
     if (cached !== undefined) return cached;
     throw new WorkspaceSetupLoadError(error);
   }
@@ -128,25 +107,13 @@ async function hasHandledModelProviderOnboarding(
 ): Promise<boolean> {
   if (isModelProviderOnboardingDismissed(workspaceId)) return true;
 
-  const configs = await fetchWorkspaceModelProviderConfigs(queryClient, workspaceId);
-  return configs === null || configs.configs.length > 0;
-}
-
-async function fetchWorkspaceModelProviderConfigs(
-  queryClient: QueryClient,
-  workspaceId: string,
-): Promise<ListModelProviderConfigsResponseDto | null> {
-  const queryKey = modelProviderQueryKeys.configs(workspaceId);
-
+  const options = modelProviderConfigsQueryOptions(workspaceId);
   try {
-    return await queryClient.fetchQuery({
-      queryKey,
-      queryFn: ({signal}) => listModelProviderConfigs({workspaceId, signal}),
-    });
+    const configs = await queryClient.fetchQuery(options);
+    return configs.configs.length > 0;
   } catch {
-    const cached = queryClient.getQueryData<ListModelProviderConfigsResponseDto>(queryKey);
-    if (cached !== undefined) return cached;
-    return null;
+    const cached = queryClient.getQueryData<{configs: unknown[]}>(options.queryKey);
+    return cached?.configs.length !== 0;
   }
 }
 

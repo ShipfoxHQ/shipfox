@@ -26,6 +26,7 @@
     "@shipfox/client-auth": "workspace:*",
     "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-invitations": "workspace:*",
+    "@shipfox/client-onboarding": "workspace:*",
     "@shipfox/client-projects": "workspace:*",
     "@shipfox/client-runners": "workspace:*",
     "@shipfox/client-secrets": "workspace:*",

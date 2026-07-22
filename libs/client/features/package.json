@@ -47,6 +47,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/client-onboarding": "workspace:*",
     "@shipfox/client-shell": "workspace:*",
     "@swc/helpers": "catalog:"
   },

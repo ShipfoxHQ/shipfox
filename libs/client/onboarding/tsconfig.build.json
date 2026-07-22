@@ -1,0 +1,10 @@
+{
+  "extends": "@shipfox/ts-config/react",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "customConditions": ["workspace-source"]
+  },
+  "include": ["src"],
+  "exclude": ["**/*.test.tsx", "**/*.test.ts"]
+}

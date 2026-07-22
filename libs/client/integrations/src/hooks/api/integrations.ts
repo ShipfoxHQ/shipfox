@@ -33,7 +33,13 @@ import type {
   SlackCallbackResponseDto,
 } from '@shipfox/api-integration-slack-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {useInfiniteQuery, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 
@@ -106,6 +112,16 @@ export async function listSourceConnections({
       (connection) => connection.lifecycle_status === 'active',
     ),
   };
+}
+
+export function sourceConnectionsQueryOptions(workspaceId: string | undefined) {
+  return queryOptions({
+    queryKey: workspaceId
+      ? integrationsQueryKeys.sourceConnections(workspaceId)
+      : [...integrationsQueryKeys.all, 'source-connections'],
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => listSourceConnections({workspaceId: workspaceId ?? '', signal}),
+  });
 }
 
 export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) {
@@ -228,13 +244,7 @@ export function useIntegrationProvidersQuery(params?: {capability?: IntegrationC
 }
 
 export function useSourceConnectionsQuery(workspaceId: string | undefined) {
-  return useQuery({
-    queryKey: workspaceId
-      ? integrationsQueryKeys.sourceConnections(workspaceId)
-      : [...integrationsQueryKeys.all, 'source-connections'],
-    enabled: Boolean(workspaceId),
-    queryFn: ({signal}) => listSourceConnections({workspaceId: workspaceId ?? '', signal}),
-  });
+  return useQuery(sourceConnectionsQueryOptions(workspaceId));
 }
 
 export function useIntegrationConnectionsQuery(workspaceId: string | undefined) {

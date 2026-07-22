@@ -57,6 +57,7 @@
       "@shipfox/client-integrations",
       "@shipfox/client-invitations",
       "@shipfox/client-logs",
+      "@shipfox/client-onboarding",
       "@shipfox/client-projects",
       "@shipfox/client-runners",
       "@shipfox/client-secrets",

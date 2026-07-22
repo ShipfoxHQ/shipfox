@@ -1,14 +1,19 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import {dismissModelProviderOnboarding, modelProviderQueryKeys} from '@shipfox/client-agent';
+import {
+  dismissModelProviderOnboarding,
+  modelProviderConfigsQueryOptions,
+} from '@shipfox/client-agent';
 import {configureApiClient} from '@shipfox/client-api';
-import {integrationsQueryKeys} from '@shipfox/client-integrations';
+import {sourceConnectionsQueryOptions} from '@shipfox/client-integrations';
+import {projectExistenceQueryOptions} from '@shipfox/client-projects';
 import {
   WorkspaceLayoutErrorRoute,
   WorkspaceSetupPending,
   type WorkspaceSetupState,
 } from '@shipfox/client-shell/runtime';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
+import {afterEach, beforeEach, describe, expect, test, vi} from '@shipfox/vitest/vi';
 import {QueryClient} from '@tanstack/react-query';
 import {
   createMemoryHistory,
@@ -19,9 +24,8 @@ import {
   RouterProvider,
   useRouteContext,
 } from '@tanstack/react-router';
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
-import {projectsQueryKeys} from '#hooks/api/projects.js';
-import {loadWorkspaceSetupRoute} from './workspace-setup-guard.js';
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {loadWorkspaceSetupRoute} from './workspace-setup-route.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -179,6 +183,8 @@ function calledUrls(fetchImpl: ReturnType<typeof setupFetch>) {
 }
 
 describe('workspace setup route hook', () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     window.localStorage.clear();
   });
@@ -215,13 +221,15 @@ describe('workspace setup route hook', () => {
 
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
       seedQueryClient: (queryClient) => {
-        queryClient.setQueryData(projectsQueryKeys.exists(WORKSPACE_ID), {
-          projects: [projectStub()],
+        queryClient.setQueryData(projectExistenceQueryOptions(WORKSPACE_ID).queryKey, {
+          projects: [projectStub()] as never,
           next_cursor: null,
         });
         // Existence has a freshness window, so explicit invalidation forces the
         // refetch whose failure exercises the cached fallback.
-        void queryClient.invalidateQueries({queryKey: projectsQueryKeys.exists(WORKSPACE_ID)});
+        void queryClient.invalidateQueries({
+          queryKey: projectExistenceQueryOptions(WORKSPACE_ID).queryKey,
+        });
       },
     });
 
@@ -321,9 +329,10 @@ describe('workspace setup route hook', () => {
 
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
       seedQueryClient: (queryClient) => {
-        queryClient.setQueryData(modelProviderQueryKeys.configs(WORKSPACE_ID), {
-          configs: [modelProviderConfig()],
+        queryClient.setQueryData(modelProviderConfigsQueryOptions(WORKSPACE_ID).queryKey, {
+          configs: [modelProviderConfig()] as never,
           default_provider_id: 'anthropic',
+          default_harness_id: null,
         });
       },
     });
@@ -352,8 +361,8 @@ describe('workspace setup route hook', () => {
 
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
       seedQueryClient: (queryClient) => {
-        queryClient.setQueryData(integrationsQueryKeys.sourceConnections(WORKSPACE_ID), {
-          connections: [sourceConnection()],
+        queryClient.setQueryData(sourceConnectionsQueryOptions(WORKSPACE_ID).queryKey, {
+          connections: [sourceConnection()] as never,
         });
       },
     });
@@ -452,7 +461,7 @@ describe('workspace setup route hook', () => {
     expect(await screen.findByText('Create project')).toBeInTheDocument();
     projects = [projectStub()];
     queryClient.setQueryData(
-      projectsQueryKeys.exists(WORKSPACE_ID),
+      projectExistenceQueryOptions(WORKSPACE_ID).queryKey,
       {projects: [], next_cursor: null},
       {updatedAt: Date.now() - 31_000},
     );
