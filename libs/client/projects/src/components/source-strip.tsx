@@ -1,4 +1,3 @@
-import type {DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {useSourceConnectionsQuery} from '@shipfox/client-integrations';
 import {StatusBadge} from '@shipfox/react-ui/badge';
@@ -6,6 +5,7 @@ import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import type {DefinitionSyncSummary} from '#core/definition.js';
 
 /**
  * We cannot cheaply resolve `external_repository_id` → `owner/repo`
@@ -21,7 +21,7 @@ export function SourceStrip({
 }: {
   connectionId: string;
   externalRepositoryId: string;
-  sync: DefinitionSyncSummaryDto | null | undefined;
+  sync: DefinitionSyncSummary | null | undefined;
   isPending: boolean;
 }) {
   const workspace = useActiveWorkspace();
@@ -69,7 +69,7 @@ function SyncBadge({
   sync,
   isPending,
 }: {
-  sync: DefinitionSyncSummaryDto | null | undefined;
+  sync: DefinitionSyncSummary | null | undefined;
   isPending: boolean;
 }) {
   if (isPending) return <StatusBadge variant="neutral">Loading</StatusBadge>;

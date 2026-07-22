@@ -1,4 +1,3 @@
-import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionStatusBadge,
@@ -18,6 +17,7 @@ import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useState} from 'react';
 import {ModelProviderReminderBanner} from '#components/model-provider-reminder-banner.js';
+import type {Project} from '#core/project.js';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
 export function ProjectsHubPage() {
@@ -100,7 +100,7 @@ export function ProjectsHubPage() {
             {projects.map((project) => (
               <ProjectCard
                 project={project}
-                connection={connectionsById.get(project.source.connection_id)}
+                connection={connectionsById.get(project.source.connectionId)}
                 connectionsResolved={connectionsQuery.isSuccess}
                 connectionsSettled={connectionsQuery.isSuccess || connectionsQuery.isError}
                 key={project.id}
@@ -201,7 +201,7 @@ function ProjectCard({
   connectionsSettled,
   workspaceId,
 }: {
-  project: ProjectResponseDto;
+  project: Project;
   connection: IntegrationConnection | undefined;
   connectionsResolved: boolean;
   connectionsSettled: boolean;

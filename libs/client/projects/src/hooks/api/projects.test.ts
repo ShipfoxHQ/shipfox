@@ -59,11 +59,11 @@ describe('createProject', () => {
     });
     configureApiClient({fetchImpl});
     const body = {
-      workspace_id: '11111111-1111-4111-8111-111111111111',
+      workspaceId: '11111111-1111-4111-8111-111111111111',
       name: 'Platform',
       source: {
-        connection_id: '33333333-3333-4333-8333-333333333333',
-        external_repository_id: 'platform',
+        connectionId: '33333333-3333-4333-8333-333333333333',
+        externalRepositoryId: 'platform',
       },
     };
 
@@ -73,6 +73,13 @@ describe('createProject', () => {
     expect(result.name).toBe('Platform');
     expect(request.url).toBe('https://api.example.test/projects');
     expect(request.method).toBe('POST');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({
+      workspace_id: body.workspaceId,
+      name: body.name,
+      source: {
+        connection_id: body.source.connectionId,
+        external_repository_id: body.source.externalRepositoryId,
+      },
+    });
   });
 });

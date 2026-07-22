@@ -1,8 +1,4 @@
-import {
-  createProjectBodySchema,
-  type ListProjectsResponseDto,
-  type ProjectResponseDto,
-} from '@shipfox/api-projects-dto';
+import {createProjectBodySchema} from '@shipfox/api-projects-dto';
 import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionPicker,
@@ -20,18 +16,15 @@ import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
-import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {Link, Navigate, useNavigate} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
 import {ModelProviderReminderBanner} from '#components/model-provider-reminder-banner.js';
-import {projectsQueryKeys, useCreateProjectMutation} from '#hooks/api/projects.js';
+import {type CreateProjectCommand, projectNameFromRepository} from '#core/project.js';
+import {useCreateProjectMutation} from '#hooks/api/projects.js';
 import {projectErrorCopy} from '#project-error.js';
-
-const REPOSITORY_NAME_SPLIT_RE = /[/-]/;
 
 export function CreateProjectPage() {
   const workspace = useMaybeActiveWorkspace();
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createProject = useCreateProjectMutation();
   const errorRef = useRef<HTMLDivElement>(null);
@@ -128,18 +121,15 @@ export function CreateProjectPage() {
     }
 
     try {
-      const projectBody = createProjectBodySchema.parse({
-        workspace_id: workspace.id,
+      const command: CreateProjectCommand = {
+        workspaceId: workspace.id,
         name: projectName,
         source: {
-          connection_id: selectedConnection.id,
-          external_repository_id: selectedRepository.externalRepositoryId,
+          connectionId: selectedConnection.id,
+          externalRepositoryId: selectedRepository.externalRepositoryId,
         },
-      });
-      const project = await createProject.mutateAsync(projectBody);
-      setWorkspaceProjectExists(queryClient, workspace.id, project);
-      queryClient.setQueryData(projectsQueryKeys.detail(project.id), project);
-      await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
+      };
+      const project = await createProject.mutateAsync(command);
       toast.success('Project created.');
       await navigate({
         to: '/workspaces/$wid/projects/$pid',
@@ -148,11 +138,6 @@ export function CreateProjectPage() {
     } catch (error) {
       const copy = projectErrorCopy(error);
       if (copy.existingProjectId) {
-        await queryClient.invalidateQueries({
-          queryKey: projectsQueryKeys.exists(workspace.id),
-          refetchType: 'active',
-        });
-        await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(workspace.id)});
         toast.info('Project already exists.');
         await navigate({
           to: '/workspaces/$wid/projects/$pid',
@@ -356,15 +341,6 @@ function ProjectSummary({
   );
 }
 
-function projectNameFromRepository(repositoryId: string): string {
-  return repositoryId
-    .trim()
-    .split(REPOSITORY_NAME_SPLIT_RE)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -372,15 +348,4 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
     return () => clearTimeout(handle);
   }, [value, delayMs]);
   return debounced;
-}
-
-function setWorkspaceProjectExists(
-  queryClient: QueryClient,
-  workspaceId: string,
-  project: ProjectResponseDto,
-) {
-  queryClient.setQueryData<ListProjectsResponseDto>(projectsQueryKeys.exists(workspaceId), {
-    projects: [project],
-    next_cursor: null,
-  });
 }

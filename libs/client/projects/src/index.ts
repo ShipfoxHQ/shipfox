@@ -1,3 +1,12 @@
+export type {Definition, DefinitionList, DefinitionSyncSummary} from '#core/definition.js';
+export {
+  type CreateProjectCommand,
+  type Project,
+  type ProjectList,
+  type ProjectSource,
+  projectNameFromRepository,
+  selectProjectSource,
+} from '#core/project.js';
 export {ProjectBreadcrumb, ProjectLayoutGuard} from './chrome.js';
 export {ProjectCrumb, type ProjectCrumbProps} from './components/project-crumb.js';
 export {ProjectSwitcher, type ProjectSwitcherProps} from './components/project-switcher.js';

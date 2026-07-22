@@ -18,9 +18,9 @@ export function ProjectLayoutGuard() {
   const navigate = useNavigate();
   const project = useProjectQuery(pid).data;
   useEffect(() => {
-    if (project && project.workspace_id !== wid)
+    if (project && project.workspaceId !== wid)
       void navigate({to: '/workspaces/$wid', params: {wid}, replace: true});
   }, [navigate, project, wid]);
-  if (project && project.workspace_id !== wid) return null;
+  if (project && project.workspaceId !== wid) return null;
   return <Outlet />;
 }

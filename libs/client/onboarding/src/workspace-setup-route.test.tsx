@@ -181,7 +181,17 @@ function GuardedRoute({label}: {label: string}) {
 }
 
 function projectStub() {
-  return {id: 'project-1', workspace_id: WORKSPACE_ID, name: 'Platform'};
+  return {
+    id: '22222222-2222-4222-8222-222222222222',
+    workspace_id: WORKSPACE_ID,
+    name: 'Platform',
+    source: {
+      connection_id: '33333333-3333-4333-8333-333333333333',
+      external_repository_id: 'platform',
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 }
 
 function modelProviderConfig() {
@@ -241,7 +251,7 @@ describe('workspace setup route hook', () => {
       seedQueryClient: (queryClient) => {
         queryClient.setQueryData(projectExistenceQueryOptions(WORKSPACE_ID).queryKey, {
           projects: [projectStub()] as never,
-          next_cursor: null,
+          nextCursor: null,
         });
         // Existence has a freshness window, so explicit invalidation forces the
         // refetch whose failure exercises the cached fallback.
@@ -480,7 +490,7 @@ describe('workspace setup route hook', () => {
     projects = [projectStub()];
     queryClient.setQueryData(
       projectExistenceQueryOptions(WORKSPACE_ID).queryKey,
-      {projects: [], next_cursor: null},
+      {projects: [], nextCursor: null},
       {updatedAt: Date.now() - 31_000},
     );
 
