@@ -1,7 +1,7 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   WORKFLOWS_JOB_ACTIVATED,
   type WorkflowsJobActivatedEventDto,

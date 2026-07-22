@@ -1,5 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {encodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';

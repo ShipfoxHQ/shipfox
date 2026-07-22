@@ -1,4 +1,4 @@
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   workflowRunListQuerySchema,
   workflowRunListResponseSchema,

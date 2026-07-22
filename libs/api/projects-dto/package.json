@@ -28,6 +28,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./inter-module": {
+      "workspace-source": {
+        "types": "./src/inter-module.ts",
+        "default": "./src/inter-module.ts"
+      },
+      "default": {
+        "types": "./dist/inter-module.d.ts",
+        "default": "./dist/inter-module.js"
+      }
     }
   },
   "scripts": {
@@ -35,6 +45,8 @@
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
     "depcruise": "shipfox-depcruise",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },

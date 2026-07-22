@@ -13,10 +13,10 @@ import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter
 import {dispatcherModule} from '@shipfox/api-dispatcher';
 import {emailChallengesModule} from '@shipfox/api-email-challenges';
 import {createIntegrationsContext, type WebhookDeliverySource} from '@shipfox/api-integration-core';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createLogsModule} from '@shipfox/api-logs';
 import {createProjectsModule} from '@shipfox/api-projects';
-import {projectsInterModuleContract} from '@shipfox/api-projects-dto';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {createRunnersModule} from '@shipfox/api-runners';
 import {runnersInterModuleContract} from '@shipfox/api-runners-dto/inter-module';
 import {createSecretsModule} from '@shipfox/api-secrets';

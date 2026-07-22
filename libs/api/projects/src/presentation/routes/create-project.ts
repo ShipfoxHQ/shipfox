@@ -2,7 +2,7 @@ import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/ap
 import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-core-dto/inter-module';
 import {createProjectBodySchema, projectResponseSchema} from '@shipfox/api-projects-dto';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';

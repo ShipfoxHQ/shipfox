@@ -1,9 +1,9 @@
 import {
   INTEGRATION_SOURCE_COMMIT_PUSHED,
   type IntegrationSourceCommitPushedEvent,
-  type IntegrationsModuleClient,
   type SourcePushPayload,
 } from '@shipfox/api-integration-core-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {PROJECT_SOURCE_COMMIT_OBSERVED} from '@shipfox/api-projects-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {and, eq, sql} from 'drizzle-orm';

@@ -7,9 +7,9 @@ import type {
   AgentToolCatalogEntry,
   AgentToolCatalogMethod,
   IntegrationProviderKind,
-  IntegrationsModuleClient,
 } from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {AgentIntegrationMaterializationError} from './errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];

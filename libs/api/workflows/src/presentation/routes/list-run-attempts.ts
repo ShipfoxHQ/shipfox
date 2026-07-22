@@ -1,4 +1,4 @@
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {workflowRunAttemptsResponseSchema} from '@shipfox/api-workflows-dto';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';

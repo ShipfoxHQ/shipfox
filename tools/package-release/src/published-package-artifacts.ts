@@ -10,6 +10,7 @@ import {
   mapWithConcurrency,
   type PackageDependencyContext,
   packProductionizedPackage,
+  resolveDependencyReference,
   run,
 } from './productionized-manifest-packer.js';
 
@@ -44,7 +45,11 @@ type SourcePackages = Map<string, SourcePackage>;
 
 const repositoryRoot = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const packageSources = {
+  '@shipfox/api-common-dto': 'libs/api/common-dto',
+  '@shipfox/api-integration-core-dto': 'libs/api/integration/core-dto',
+  '@shipfox/api-projects-dto': 'libs/api/projects-dto',
   '@shipfox/application-release': 'tools/application-release',
+  '@shipfox/inter-module': 'libs/shared/common/inter-module',
   '@shipfox/react-ui': 'libs/shared/react/ui',
   '@shipfox/redact': 'libs/shared/common/redact',
   '@shipfox/regex': 'libs/shared/common/regex',
@@ -73,7 +78,7 @@ export async function main() {
   const expectedDependencies = new Map(
     [...sourcePackages].map(([name, sourcePackage]) => [
       name,
-      catalogDependencies(sourcePackage.manifest, workspace),
+      catalogDependencies(sourcePackage.manifest, workspace, workspaceVersions),
     ]),
   );
   const fixtureRoot = await mkdtemp(join(tmpdir(), 'shipfox-published-artifacts-'));
@@ -122,13 +127,28 @@ function readSourcePackages(): Promise<SourcePackageEntry[]> {
 export function catalogDependencies(
   manifest: PackageManifest,
   workspaceConfig: WorkspaceConfig,
+  workspaceVersions: ReadonlyMap<string, string> = new Map(),
 ): DependencyMap {
   const dependencies: DependencyMap = {};
   for (const [name, reference] of Object.entries(manifest.dependencies ?? {})) {
-    if (typeof reference !== 'string' || !reference.startsWith('catalog:')) {
-      throw new Error(`Representative package ${manifest.name} must use a catalog for ${name}`);
+    if (
+      typeof reference !== 'string' ||
+      (!reference.startsWith('catalog:') && !reference.startsWith('workspace:'))
+    ) {
+      throw new Error(
+        `Representative package ${manifest.name} must use a catalog or workspace reference for ${name}`,
+      );
     }
-    dependencies[name] = catalogRange(reference, name, workspaceConfig);
+    const resolved = resolveDependencyReference(name, reference, {
+      workspaceConfig,
+      workspaceVersions,
+    });
+    if (typeof resolved !== 'string') {
+      throw new Error(
+        `Representative package ${manifest.name} has an invalid dependency for ${name}`,
+      );
+    }
+    dependencies[name] = resolved;
   }
   return dependencies;
 }
@@ -199,7 +219,13 @@ async function writeConsumerManifest(
     type: 'module',
     dependencies: consumerDependencies(tarballs, reactUiPeers),
   };
-  await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  await Promise.all([
+    writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`),
+    writeFile(
+      join(root, 'pnpm-workspace.yaml'),
+      `overrides: ${JSON.stringify(consumerOverrides(tarballs))}\n`,
+    ),
+  ]);
 }
 
 export function consumerDependencies(
@@ -213,6 +239,12 @@ export function consumerDependencies(
     react: reactUiPeers.react,
     'react-dom': reactUiPeers['react-dom'],
   };
+}
+
+export function consumerOverrides(tarballs: DependencyMap): DependencyMap {
+  return Object.fromEntries(
+    Object.entries(tarballs).map(([name, tarball]) => [name, `file:${tarball}`]),
+  );
 }
 
 function reactUiPeerDependencies(sourcePackages: SourcePackages): ReactPeerDependencies {
@@ -309,7 +341,12 @@ async function validateNoRegistryShipfoxPackages(root: string): Promise<void> {
 }
 
 async function exerciseConsumer(root: string): Promise<void> {
-  const imports = ['@shipfox/redact', '@shipfox/react-ui/button'];
+  const imports = [
+    '@shipfox/api-integration-core-dto/inter-module',
+    '@shipfox/api-projects-dto/inter-module',
+    '@shipfox/redact',
+    '@shipfox/react-ui/button',
+  ];
   await run(
     process.execPath,
     [
@@ -318,6 +355,33 @@ async function exerciseConsumer(root: string): Promise<void> {
       `const imports = ${JSON.stringify(imports)};
 const modules = await Promise.all(imports.map((specifier) => import(specifier)));
 if (modules.some((module) => Object.keys(module).length === 0)) throw new Error('An imported packed package has no exports.');`,
+    ],
+    root,
+  );
+  await run(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      `const {createInterModuleClient} = await import('@shipfox/inter-module');
+const {projectsInterModuleContract} = await import('@shipfox/api-projects-dto/inter-module');
+const {integrationsInterModuleContract} = await import('@shipfox/api-integration-core-dto/inter-module');
+const projectId = '00000000-0000-4000-8000-000000000001';
+const projects = createInterModuleClient(projectsInterModuleContract, async () => ({project: null}));
+const integrations = createInterModuleClient(integrationsInterModuleContract, async () => ({
+  path: 'workflow.yml',
+  ref: 'main',
+  content: 'name: workflow',
+}));
+const project = await projects.getProjectById({projectId});
+const file = await integrations.fetchSourceFile({
+  workspaceId: '00000000-0000-4000-8000-000000000002',
+  connectionId: '00000000-0000-4000-8000-000000000003',
+  externalRepositoryId: 'shipfox/project',
+  ref: 'main',
+  path: 'workflow.yml',
+});
+if (project.project !== null || file.content !== 'name: workflow') throw new Error('Packed inter-module client did not execute its contract.');`,
     ],
     root,
   );

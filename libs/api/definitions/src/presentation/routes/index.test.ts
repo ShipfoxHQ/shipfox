@@ -1,5 +1,5 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';

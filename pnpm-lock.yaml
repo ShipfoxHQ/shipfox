@@ -2750,9 +2750,6 @@ importers:
       '@shipfox/api-integration-github-dto':
         specifier: workspace:*
         version: link:../github-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -2857,9 +2854,6 @@ importers:
       '@shipfox/api-integration-jira-dto':
         specifier: workspace:*
         version: link:../jira-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -2955,9 +2949,6 @@ importers:
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../linear-dto
-      '@shipfox/api-workspaces':
-        specifier: workspace:*
-        version: link:../../workspaces
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
@@ -3968,9 +3959,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
-      '@shipfox/api-projects':
-        specifier: workspace:*
-        version: link:../projects
       '@shipfox/api-triggers-dto':
         specifier: workspace:*
         version: link:../triggers-dto
@@ -4117,9 +4105,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
-      '@shipfox/api-projects':
-        specifier: workspace:*
-        version: link:../projects
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto

@@ -1,5 +1,8 @@
 import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
-import {type ProjectsModuleClient, projectsInterModuleContract} from '@shipfox/api-projects-dto';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';

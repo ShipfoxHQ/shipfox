@@ -4,6 +4,7 @@ import {
   catalogDependencies,
   catalogRange,
   consumerDependencies,
+  consumerOverrides,
   findUnsupportedProtocol,
   safePackageName,
 } from '../src/published-package-artifacts.js';
@@ -12,7 +13,7 @@ const workspace = {
   catalog: {react: '^19.1.1'},
   catalogs: {testing: {'@testing-library/react': '^16.3.0'}},
 };
-const directDependencyErrorPattern = /must use a catalog for react/u;
+const directDependencyErrorPattern = /must use a catalog or workspace reference for react/u;
 const missingCatalogEntryErrorPattern = /Catalog default does not define missing-package/u;
 
 describe('catalogDependencies', () => {
@@ -28,6 +29,21 @@ describe('catalogDependencies', () => {
       react: '^19.1.1',
       '@testing-library/react': '^16.3.0',
     });
+  });
+
+  test('resolves workspace dependency references', () => {
+    const manifest = {
+      name: '@fixture/package',
+      dependencies: {'@shipfox/inter-module': 'workspace:*'},
+    };
+
+    const dependencies = catalogDependencies(
+      manifest,
+      workspace,
+      new Map([['@shipfox/inter-module', '0.2.0']]),
+    );
+
+    assert.deepEqual(dependencies, {'@shipfox/inter-module': '0.2.0'});
   });
 
   test('rejects dependency versions outside a catalog', () => {
@@ -65,6 +81,16 @@ describe('consumerDependencies', () => {
       react: '^19.0.0',
       'react-dom': '^19.0.0',
     });
+  });
+});
+
+describe('consumerOverrides', () => {
+  test('pins transitive Shipfox dependencies to packed tarballs', () => {
+    const tarballs = {'@shipfox/inter-module': '/tmp/inter-module.tgz'};
+
+    const overrides = consumerOverrides(tarballs);
+
+    assert.deepEqual(overrides, {'@shipfox/inter-module': 'file:/tmp/inter-module.tgz'});
   });
 });
 

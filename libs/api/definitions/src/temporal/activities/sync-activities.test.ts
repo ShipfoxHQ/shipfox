@@ -1,5 +1,5 @@
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {isErrorReported} from '@shipfox/node-error-monitoring';
 import {ApplicationFailure} from '@temporalio/common';

@@ -1,7 +1,7 @@
 import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-core-dto/inter-module';
 
 export type DefinitionsSourceControl = {
   resolveRepository: IntegrationsModuleClient['resolveSourceRepository'];

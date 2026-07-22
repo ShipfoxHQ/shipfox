@@ -1,4 +1,4 @@
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import type {WorkflowRun} from '#core/entities/workflow-run.js';

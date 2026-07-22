@@ -1,4 +1,4 @@
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
   PROJECT_CREATED,
   PROJECT_SOURCE_BOUND,

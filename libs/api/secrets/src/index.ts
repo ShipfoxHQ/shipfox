@@ -1,4 +1,4 @@
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {secretsEventSchemas} from '@shipfox/api-secrets-dto';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {db, migrationsPath, secretsOutbox} from '#db/index.js';

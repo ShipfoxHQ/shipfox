@@ -1,5 +1,5 @@
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {sql} from 'drizzle-orm';
 import {db} from '#db/index.js';

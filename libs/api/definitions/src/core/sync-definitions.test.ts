@@ -1,5 +1,5 @@
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {LOWERCASE_SHA256_HEX_RE} from '@shipfox/regex';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';

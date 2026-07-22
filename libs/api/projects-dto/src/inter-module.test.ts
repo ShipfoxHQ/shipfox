@@ -1,0 +1,36 @@
+import {projectsInterModuleContract} from './inter-module.js';
+
+describe('projectsInterModuleContract', () => {
+  test('accepts a project lookup through the producer contract', () => {
+    const projectId = '00000000-0000-4000-8000-000000000001';
+    const result = projectsInterModuleContract.methods.getProjectById.output.parse({
+      project: {
+        id: projectId,
+        workspaceId: '00000000-0000-4000-8000-000000000002',
+        sourceConnectionId: '00000000-0000-4000-8000-000000000003',
+        sourceExternalRepositoryId: 'shipfox/project',
+        name: 'Project',
+      },
+    });
+
+    expect(result.project?.id).toBe(projectId);
+  });
+
+  test.each([
+    ['project-not-found', {projectId: '00000000-0000-4000-8000-000000000001'}],
+    [
+      'project-workspace-mismatch',
+      {
+        projectId: '00000000-0000-4000-8000-000000000001',
+        workspaceId: '00000000-0000-4000-8000-000000000002',
+      },
+    ],
+  ] as const)('defines the %s failure', (code, details) => {
+    const schema =
+      projectsInterModuleContract.methods.requireProjectForWorkspace.errors[
+        code as keyof typeof projectsInterModuleContract.methods.requireProjectForWorkspace.errors
+      ];
+
+    expect(schema.parse(details)).toEqual(details);
+  });
+});

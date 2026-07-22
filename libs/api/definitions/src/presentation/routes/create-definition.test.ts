@@ -1,6 +1,6 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';

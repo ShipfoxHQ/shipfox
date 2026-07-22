@@ -4,8 +4,8 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,

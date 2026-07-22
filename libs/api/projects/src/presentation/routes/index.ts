@@ -1,4 +1,4 @@
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createProjectRoute} from './create-project.js';
 import {getProjectRoute} from './get-project.js';

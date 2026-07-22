@@ -2,8 +2,8 @@ import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {AUTH_LEASED_JOB, AUTH_USER} from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
-import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';

@@ -7,7 +7,7 @@ import {
 import {
   type IntegrationsModuleClient,
   integrationsInterModuleContract,
-} from '@shipfox/api-integration-core-dto';
+} from '@shipfox/api-integration-core-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AuthMethod} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';

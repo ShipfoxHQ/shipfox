@@ -1,5 +1,5 @@
-import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
+import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {createCapturingLogger} from '@shipfox/node-log/test';
