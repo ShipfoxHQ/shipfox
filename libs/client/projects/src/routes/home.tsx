@@ -1,4 +1,8 @@
-import {defineRoute} from '@shipfox/client-shell/runtime';
+import {defineRoute, useRouteSearch} from '@shipfox/client-shell/runtime';
 import {HomeRouter} from '#pages/home-router.js';
+import {validateProjectsSearch} from './search.js';
 
-export default defineRoute({component: HomeRouter});
+export default defineRoute({
+  validateSearch: validateProjectsSearch,
+  component: () => <HomeRouter search={useRouteSearch(validateProjectsSearch)} />,
+});

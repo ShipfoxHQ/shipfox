@@ -9,6 +9,9 @@ export function WorkflowRunList({
   projectId,
   selectedWorkflowRunId,
   className,
+  search = '',
+  statusFilter = 'all',
+  onFiltersChange,
 }: WorkflowRunListProps) {
   const query = useWorkflowRunsInfiniteQuery(projectId, {});
   const runs = useMemo<WorkflowRunListItem[]>(
@@ -24,6 +27,9 @@ export function WorkflowRunList({
       projectId={projectId}
       selectedWorkflowRunId={selectedWorkflowRunId}
       className={className}
+      search={search}
+      statusFilter={statusFilter}
+      {...(onFiltersChange ? {onFiltersChange} : {})}
     />
   );
 }

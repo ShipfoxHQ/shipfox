@@ -14,18 +14,15 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {Input} from '@shipfox/react-ui/input';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Header, Text} from '@shipfox/react-ui/typography';
-import {Link} from '@tanstack/react-router';
-import {useEffect, useState} from 'react';
+import {Link, useNavigate} from '@tanstack/react-router';
 import {ModelProviderReminderBanner} from '#components/model-provider-reminder-banner.js';
 import type {Project} from '#core/project.js';
 import {useProjectsInfiniteQuery} from '#hooks/api/projects.js';
 
-export function ProjectsHubPage() {
+export function ProjectsHubPage({search = ''}: {search?: string}) {
   const workspace = useActiveWorkspace();
-  const [searchInput, setSearchInput] = useState('');
-  const trimmedInput = searchInput.trim();
-  const debouncedSearch = useDebouncedValue(trimmedInput, 250);
-  const query = useProjectsInfiniteQuery(workspace.id, debouncedSearch || undefined);
+  const navigate = useNavigate();
+  const query = useProjectsInfiniteQuery(workspace.id, search || undefined);
   const projects = query.data?.pages.flatMap((page) => page.projects) ?? [];
 
   // The provider logo and connection health live on the integration connection,
@@ -39,9 +36,7 @@ export function ProjectsHubPage() {
   );
 
   const isInitialLoading = query.isPending;
-  const isDebouncePending = trimmedInput !== debouncedSearch;
-  const isSearching =
-    Boolean(trimmedInput) && (isDebouncePending || (query.isFetching && !query.isFetchingNextPage));
+  const isSearching = Boolean(search) && query.isFetching && !query.isFetchingNextPage;
   const hasNoData = !query.data;
 
   return (
@@ -53,8 +48,11 @@ export function ProjectsHubPage() {
         <div className="flex items-center gap-12 max-[640px]:flex-col max-[640px]:items-stretch">
           <Input
             type="search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
+            value={search}
+            onChange={(event) => {
+              const next = event.target.value.trim();
+              navigate({search: (next ? {search: next} : {}) as never, replace: true});
+            }}
             placeholder="Search projects…"
             aria-label="Search projects"
             className="flex-1"
@@ -80,18 +78,19 @@ export function ProjectsHubPage() {
 
       <ModelProviderReminderBanner workspaceId={workspace.id} />
 
-      {isInitialLoading || (debouncedSearch && hasNoData && query.isFetching) ? (
-        <ProjectsSkeleton />
-      ) : null}
+      {isInitialLoading || (search && hasNoData && query.isFetching) ? <ProjectsSkeleton /> : null}
 
       {query.isError && hasNoData ? <QueryLoadError query={query} subject="projects" /> : null}
 
-      {!isInitialLoading && !query.isError && projects.length === 0 && !debouncedSearch ? (
+      {!isInitialLoading && !query.isError && projects.length === 0 && !search ? (
         <EmptyProjects workspaceId={workspace.id} />
       ) : null}
 
-      {!query.isFetching && !query.isError && projects.length === 0 && debouncedSearch ? (
-        <NoSearchResults search={debouncedSearch} onClear={() => setSearchInput('')} />
+      {!query.isFetching && !query.isError && projects.length === 0 && search ? (
+        <NoSearchResults
+          search={search}
+          onClear={() => navigate({search: {} as never, replace: true})}
+        />
       ) : null}
 
       {projects.length > 0 ? (
@@ -130,15 +129,6 @@ export function ProjectsHubPage() {
       ) : null}
     </div>
   );
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(handle);
-  }, [value, delayMs]);
-  return debounced;
 }
 
 function ProjectsSkeleton() {

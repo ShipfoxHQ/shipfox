@@ -23,5 +23,6 @@ export * from './compose-client-app.js';
 export * from './define-route.js';
 export * from './last-workspace.js';
 export * from './nav-order.js';
+export * from './route-inputs.js';
 export * from './router-context.js';
 export * from './workspace-setup.js';
