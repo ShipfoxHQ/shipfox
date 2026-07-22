@@ -1,8 +1,12 @@
 # E2E Testing
 
-This directory owns Shipfox end-to-end tests and their shared authoring tools. Use
+This subtree owns Shipfox end-to-end tests and their shared authoring tools. Use
 this guide to decide where a test belongs, how setup is allowed to work, and what
 reviewers should enforce.
+
+For repository-wide unit-test, Storybook, and visual-regression rules, read the
+[testing guide](../docs/guides/testing.md). This README owns the E2E-specific
+suite architecture, setup model, screens, drivers, and review constraints.
 
 ## Directory Map
 

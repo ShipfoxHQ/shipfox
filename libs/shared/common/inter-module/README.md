@@ -4,6 +4,11 @@ Browser-safe, Zod-only primitives for defining a producer-owned inter-module
 contract: stable method names, JSON-safe input/output schemas, and kebab-case
 known errors.
 
+For repository-wide backend module layering and dependency-boundary rules, read
+the [backend architecture guide](../../../../docs/architecture/backend-architecture.md).
+This README owns the package API and local constraints for defining and
+consuming inter-module contracts.
+
 This package defines contracts and clients. It never validates JSON safety,
 serializes a call, or dispatches one — that is a transport's job. The in-memory
 transport lives in `@shipfox/node-module/inter-module`.

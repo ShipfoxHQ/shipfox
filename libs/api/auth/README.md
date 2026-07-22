@@ -1,6 +1,13 @@
 # Shipfox API Auth
 
-Shipfox API Auth provides the server-side auth module for Shipfox APIs. It owns user accounts, email verification, login, refresh sessions, password reset, password change, JWT auth, and its PostgreSQL tables.
+Shipfox API Auth provides the server-side auth module for Shipfox APIs. This
+package owns user accounts, email verification, login, refresh sessions,
+password reset, password change, JWT auth, and its PostgreSQL tables.
+
+For repository-wide backend module, configuration, error, and observability
+rules, read the [backend architecture guide](../../../docs/architecture/backend-architecture.md).
+This README owns the local security model, package API, routes, data model, and
+auth-specific operational constraints.
 
 ## Example
 
