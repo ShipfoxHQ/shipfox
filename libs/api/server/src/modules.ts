@@ -4,7 +4,10 @@ import {createAgentModule} from '@shipfox/api-agent';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {createAuthModule} from '@shipfox/api-auth';
 import {config as authConfig} from '@shipfox/api-auth/config';
-import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
+import {
+  type AuthInterModuleClient,
+  authInterModuleContract,
+} from '@shipfox/api-auth-dto/inter-module';
 import {createDefinitionsModule} from '@shipfox/api-definitions';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {dispatcherModule} from '@shipfox/api-dispatcher';
@@ -34,7 +37,10 @@ import {logger} from '@shipfox/node-opentelemetry';
 
 export interface DefaultModulesOptions {
   webhookDeliverySource?: WebhookDeliverySource | undefined;
+  runnersModule?: DefaultRunnersModuleFactory | undefined;
 }
+
+export type DefaultRunnersModuleFactory = (options: {auth: AuthInterModuleClient}) => ShipfoxModule;
 
 export async function defaultModules(
   options: DefaultModulesOptions = {},
@@ -168,7 +174,7 @@ export async function defaultModules(
       integrations: integrationsClient,
     }),
     annotationsModule,
-    createRunnersModule({auth: authClient}),
+    (options.runnersModule ?? createRunnersModule)({auth: authClient}),
     createLogsModule({
       workflows: workflowsClient,
       jobLeaseTokenTtlSeconds: durationToSeconds(authConfig.AUTH_JOB_LEASE_TOKEN_EXPIRES_IN),
