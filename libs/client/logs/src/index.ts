@@ -1,3 +1,10 @@
+export type {
+  LogRecord,
+  LogSource,
+  LogState,
+  SessionViewRow,
+  SessionViewRowMeta,
+} from '#core/log-model.js';
 export type {StepLogSnapshot} from '#core/log-read.js';
 export {
   buildLogTree,

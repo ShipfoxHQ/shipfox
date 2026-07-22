@@ -13,8 +13,8 @@ const groupStart = (groupId: string, name: string): GroupStartLogRecord => ({
   v: 1,
   ts: at(0),
   type: 'group_start',
-  group_id: groupId,
-  parent_group_id: null,
+  groupId,
+  parentGroupId: null,
   name,
 });
 

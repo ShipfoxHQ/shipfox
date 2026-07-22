@@ -45,7 +45,14 @@ describe('readStepAttemptLogsPage', () => {
     });
 
     const url = new URL(requestFrom(fetchImpl).url);
-    expect(result).toEqual(body);
+    expect(result).toEqual({
+      mode: 'inline',
+      ndjson: '',
+      nextCursor: 8,
+      hasMore: false,
+      state: 'open',
+      truncated: false,
+    });
     expect(url.pathname).toBe('/steps/11111111-1111-4111-8111-111111111111/attempts/2/logs');
     expect(url.searchParams.get('cursor')).toBe('7');
     expect(requestFrom(fetchImpl).method).toBe('GET');
@@ -62,5 +69,18 @@ describe('readStepAttemptLogsPage', () => {
     });
 
     await expect(result).rejects.toMatchObject({code: 'not-found', status: 404});
+  });
+
+  test('rejects an invalid response envelope before it can advance a cached cursor', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({mode: 'inline', next_cursor: 8}));
+    configureApiClient({fetchImpl});
+
+    const result = readStepAttemptLogsPage({
+      stepId: '11111111-1111-4111-8111-111111111111',
+      attempt: 1,
+      cursor: 7,
+    });
+
+    await expect(result).rejects.toMatchObject({code: 'invalid-response'});
   });
 });

@@ -93,7 +93,7 @@ export interface EndMarkerProps {
 export function EndMarker({record, lineCount, durationMs = null}: EndMarkerProps) {
   const meta = [
     `${lineCount} ${lineCount === 1 ? 'line' : 'lines'}`,
-    formatBytes(record.total_bytes),
+    formatBytes(record.totalBytes),
     ...(durationMs != null ? [formatDuration(durationMs)] : []),
   ].join(' · ');
 
@@ -111,7 +111,7 @@ export function GapMarker({record}: {record: GapLogRecord}) {
       icon="errorWarningLine"
       tone="warning"
       timestamp={new Date(record.ts)}
-      detail={`the runner fell behind and dropped ${formatBytes(record.dropped_bytes)}`}
+      detail={`the runner fell behind and dropped ${formatBytes(record.droppedBytes)}`}
     >
       Output missing
     </LogMarkerRow>

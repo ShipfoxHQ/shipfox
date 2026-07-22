@@ -1,6 +1,5 @@
 'use client';
 
-import type {SessionViewRow, SessionViewRowMeta} from '@shipfox/api-logs-dto';
 import {Icon} from '@shipfox/react-ui/icon';
 import {
   LogContent,
@@ -12,6 +11,7 @@ import {
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {cn} from '@shipfox/react-ui/utils';
 import {Fragment, useState} from 'react';
+import type {SessionViewRow, SessionViewRowMeta} from '#core/log-model.js';
 
 const PREVIEW_CHAR_LIMIT = 1200;
 const WORD_SUMMARY_CHAR_LIMIT = 5000;

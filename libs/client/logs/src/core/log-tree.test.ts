@@ -1,4 +1,4 @@
-import type {LogRecord} from '@shipfox/api-logs-dto';
+import type {LogRecord} from './log-model.js';
 import {buildLogTree, type GroupLogNode, type LogNode, stripTrailingNewline} from './log-tree.js';
 
 const out = (data: string, stream: 'stdout' | 'stderr' = 'stdout', ts = 0): LogRecord => ({
@@ -17,27 +17,27 @@ const gstart = (
   v: 1,
   ts,
   type: 'group_start',
-  group_id: groupId,
-  parent_group_id: parentGroupId,
+  groupId,
+  parentGroupId,
   name,
 });
 const gend = (groupId: string, ts = 0): LogRecord => ({
   v: 1,
   ts,
   type: 'group_end',
-  group_id: groupId,
+  groupId,
 });
 const end = (totalBytes = 0, ts = 0): LogRecord => ({
   v: 1,
   ts,
   type: 'end',
-  total_bytes: totalBytes,
+  totalBytes,
 });
 const gap = (droppedBytes = 0, ts = 0): LogRecord => ({
   v: 1,
   ts,
   type: 'gap',
-  dropped_bytes: droppedBytes,
+  droppedBytes,
 });
 const capped = (ts = 0): LogRecord => ({v: 1, ts, type: 'capped'});
 const runnerLost = (ts = 0): LogRecord => ({v: 1, ts, type: 'runner_lost'});
@@ -114,8 +114,8 @@ describe('buildLogTree', () => {
     const g1 = asGroup(tree.nodes[0]);
     const g2 = asGroup(g1.children[0]);
 
-    expect(g1.record.group_id).toBe('g1');
-    expect(g2.record.group_id).toBe('g2');
+    expect(g1.record.groupId).toBe('g1');
+    expect(g2.record.groupId).toBe('g2');
     expect(g2.children[0]?.kind).toBe('output');
   });
 
@@ -224,10 +224,10 @@ describe('buildLogTree', () => {
     expect(g1.children.map((n) => n.kind)).toEqual(['group', 'group']);
     const g2 = asGroup(g1.children[0]);
     const g3 = asGroup(g1.children[1]);
-    expect(g2.record.group_id).toBe('g2');
+    expect(g2.record.groupId).toBe('g2');
     expect(g2.closed).toBe(true);
     expect(g2.endTs).toBeNull();
-    expect(g3.record.group_id).toBe('g3');
+    expect(g3.record.groupId).toBe('g3');
     expect(g3.closed).toBe(true);
   });
 
