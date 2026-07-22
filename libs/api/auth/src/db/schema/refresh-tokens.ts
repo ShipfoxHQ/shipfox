@@ -1,4 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
+import {sql} from 'drizzle-orm';
 import {index, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {RefreshToken} from '#core/entities/refresh-token.js';
 import {pgTable} from './common.js';
@@ -8,6 +9,7 @@ export const refreshTokens = pgTable(
   'refresh_tokens',
   {
     id: uuidv7PrimaryKey(),
+    sessionId: uuid('session_id').notNull().default(sql`uuidv7()`),
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, {onDelete: 'cascade'}),
@@ -21,6 +23,9 @@ export const refreshTokens = pgTable(
   },
   (table) => [
     uniqueIndex('auth_refresh_tokens_hashed_token_unique').on(table.hashedToken),
+    uniqueIndex('auth_refresh_tokens_active_session_unique')
+      .on(table.userId, table.sessionId)
+      .where(sql`${table.revokedAt} IS NULL AND ${table.rotatedAt} IS NULL`),
     index('auth_refresh_tokens_user_id_idx').on(table.userId),
   ],
 );
@@ -31,6 +36,7 @@ export type RefreshTokenCreateDb = typeof refreshTokens.$inferInsert;
 export function toRefreshToken(row: RefreshTokenDb): RefreshToken {
   return {
     id: row.id,
+    sessionId: row.sessionId,
     userId: row.userId,
     hashedToken: row.hashedToken,
     expiresAt: row.expiresAt,

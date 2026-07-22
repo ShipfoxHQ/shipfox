@@ -1,5 +1,6 @@
 export interface RefreshToken {
   id: string;
+  sessionId: string;
   userId: string;
   hashedToken: string;
   expiresAt: Date;

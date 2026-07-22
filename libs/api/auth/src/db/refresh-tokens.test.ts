@@ -1,8 +1,10 @@
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {
   createRefreshToken,
+  findActiveRefreshSession,
   findActiveRefreshTokenByHash,
   findRefreshTokenByHash,
+  revokeRefreshSession,
   revokeRefreshTokenByHash,
   revokeRefreshTokensForUser,
   rotateRefreshToken,
@@ -41,6 +43,24 @@ describe('refresh-tokens db', () => {
     const found = await findActiveRefreshTokenByHash({hashedToken});
 
     expect(found).toBeUndefined();
+  });
+
+  test('finds only the active session owned by the requested user', async () => {
+    const user = await createUser({email: emailFor('rt-session'), hashedPassword: 'h'});
+    const otherUser = await createUser({email: emailFor('rt-session-other'), hashedPassword: 'h'});
+    const sessionId = crypto.randomUUID();
+    await createRefreshToken({
+      userId: user.id,
+      sessionId,
+      hashedToken: hashOpaqueToken(`active-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const found = await findActiveRefreshSession({sessionId, userId: user.id});
+    const otherUserFound = await findActiveRefreshSession({sessionId, userId: otherUser.id});
+
+    expect(found?.sessionId).toBe(sessionId);
+    expect(otherUserFound).toBeUndefined();
   });
 
   test('rotates a token once, creates the successor, and only the first caller wins', async () => {
@@ -137,6 +157,28 @@ describe('refresh-tokens db', () => {
     const found = await findActiveRefreshTokenByHash({hashedToken});
 
     expect(found).toBeUndefined();
+  });
+
+  test('revokes every token in one refresh-session lineage', async () => {
+    const user = await createUser({email: emailFor('rt-revoke-session'), hashedPassword: 'h'});
+    const currentHashedToken = hashOpaqueToken(`current-${crypto.randomUUID()}`);
+    const nextHashedToken = hashOpaqueToken(`next-${crypto.randomUUID()}`);
+    const created = await createRefreshToken({
+      userId: user.id,
+      hashedToken: currentHashedToken,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await rotateRefreshToken({
+      id: created.id,
+      currentHashedToken,
+      nextHashedToken,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await revokeRefreshSession({sessionId: created.sessionId, userId: user.id});
+
+    expect(await findRefreshTokenByHash({hashedToken: currentHashedToken})).toBeUndefined();
+    expect(await findActiveRefreshTokenByHash({hashedToken: nextHashedToken})).toBeUndefined();
   });
 
   test('revokes all user refresh tokens except the selected session', async () => {

@@ -35,6 +35,7 @@ CREATE TABLE "auth_rate_limits" (
 --> statement-breakpoint
 CREATE TABLE "auth_refresh_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"session_id" uuid DEFAULT uuidv7() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"hashed_token" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
@@ -65,5 +66,6 @@ CREATE INDEX "auth_password_resets_user_id_idx" ON "auth_password_resets" USING 
 CREATE UNIQUE INDEX "auth_rate_limits_window_unique" ON "auth_rate_limits" USING btree ("action","scope","identifier_hmac","window_start");--> statement-breakpoint
 CREATE INDEX "auth_rate_limits_expires_at_idx" ON "auth_rate_limits" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "auth_refresh_tokens_hashed_token_unique" ON "auth_refresh_tokens" USING btree ("hashed_token");--> statement-breakpoint
+CREATE UNIQUE INDEX "auth_refresh_tokens_active_session_unique" ON "auth_refresh_tokens" USING btree ("user_id","session_id") WHERE "auth_refresh_tokens"."revoked_at" IS NULL AND "auth_refresh_tokens"."rotated_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "auth_refresh_tokens_user_id_idx" ON "auth_refresh_tokens" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "auth_users_email_unique" ON "auth_users" USING btree ("email");

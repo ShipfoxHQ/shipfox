@@ -143,6 +143,13 @@
           "notNull": true,
           "default": "uuidv7()"
         },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -411,6 +418,28 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_refresh_tokens_active_session_unique": {
+          "name": "auth_refresh_tokens_active_session_unique",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"auth_refresh_tokens\".\"revoked_at\" IS NULL AND \"auth_refresh_tokens\".\"rotated_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -4,6 +4,7 @@ import {db} from './db.js';
 import {refreshTokens, toRefreshToken} from './schema/refresh-tokens.js';
 
 export interface CreateRefreshTokenParams {
+  sessionId?: string | undefined;
   userId: string;
   hashedToken: string;
   expiresAt: Date;
@@ -13,6 +14,7 @@ export async function createRefreshToken(params: CreateRefreshTokenParams): Prom
   const rows = await db()
     .insert(refreshTokens)
     .values({
+      sessionId: params.sessionId,
       userId: params.userId,
       hashedToken: params.hashedToken,
       expiresAt: params.expiresAt,
@@ -39,6 +41,29 @@ export async function findActiveRefreshTokenByHash(params: {
     .where(
       and(
         eq(refreshTokens.hashedToken, params.hashedToken),
+        isNull(refreshTokens.revokedAt),
+        isNull(refreshTokens.rotatedAt),
+        gt(refreshTokens.expiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toRefreshToken(row);
+}
+
+export async function findActiveRefreshSession(params: {
+  sessionId: string;
+  userId: string;
+}): Promise<RefreshToken | undefined> {
+  const rows = await db()
+    .select()
+    .from(refreshTokens)
+    .where(
+      and(
+        eq(refreshTokens.sessionId, params.sessionId),
+        eq(refreshTokens.userId, params.userId),
         isNull(refreshTokens.revokedAt),
         isNull(refreshTokens.rotatedAt),
         gt(refreshTokens.expiresAt, sql`now()`),
@@ -113,6 +138,7 @@ export async function rotateRefreshToken(params: {
     const successorRows = await tx
       .insert(refreshTokens)
       .values({
+        sessionId: rotated.sessionId,
         userId: rotated.userId,
         hashedToken: params.nextHashedToken,
         expiresAt: params.expiresAt,
@@ -130,6 +156,22 @@ export async function revokeRefreshTokenByHash(params: {hashedToken: string}): P
     .update(refreshTokens)
     .set({revokedAt: sql`now()`, updatedAt: sql`now()`})
     .where(and(eq(refreshTokens.hashedToken, params.hashedToken), isNull(refreshTokens.revokedAt)));
+}
+
+export async function revokeRefreshSession(params: {
+  sessionId: string;
+  userId: string;
+}): Promise<void> {
+  await db()
+    .update(refreshTokens)
+    .set({revokedAt: sql`now()`, updatedAt: sql`now()`})
+    .where(
+      and(
+        eq(refreshTokens.sessionId, params.sessionId),
+        eq(refreshTokens.userId, params.userId),
+        isNull(refreshTokens.revokedAt),
+      ),
+    );
 }
 
 export async function revokeRefreshTokensForUser(params: {
