@@ -1,11 +1,18 @@
 import {previewInvitationResponseSchema} from '@shipfox/api-workspaces-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
-import {queryOptions, useQuery} from '@tanstack/react-query';
+import {type FetchQueryOptions, queryOptions, useQuery} from '@tanstack/react-query';
 import type {InvitationPreview} from '#core/invitation-preview.js';
 import {toInvitationPreview} from './invitation-preview-mapper.js';
 
 export const previewInvitationQueryKey = (token: string) =>
   ['invitations', 'preview', token] as const;
+
+type PreviewInvitationQueryOptions = FetchQueryOptions<
+  InvitationPreview,
+  Error,
+  InvitationPreview,
+  ReturnType<typeof previewInvitationQueryKey>
+>;
 
 async function previewInvitation(token: string): Promise<InvitationPreview> {
   const params = new URLSearchParams({token});
@@ -16,7 +23,7 @@ async function previewInvitation(token: string): Promise<InvitationPreview> {
   return toInvitationPreview(response);
 }
 
-export function previewInvitationQueryOptions(token: string) {
+export function previewInvitationQueryOptions(token: string): PreviewInvitationQueryOptions {
   return queryOptions({
     queryKey: previewInvitationQueryKey(token),
     queryFn: () => previewInvitation(token),
