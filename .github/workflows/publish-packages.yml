@@ -1,23 +1,76 @@
 name: Publish packages
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact merged release revision to recover
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
   id-token: write
 
 concurrency:
-  group: publish-packages-${{ github.ref }}
+  group: npm-package-publication
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Open release PR or publish
+  authorize-release:
+    name: Authorize merged release
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
+    outputs:
+      authorized: ${{ steps.release.outputs.authorized }}
+      revision: ${{ steps.release.outputs.revision }}
+      base_sha: ${{ steps.release.outputs.base_sha }}
+      head_repository: ${{ steps.release.outputs.head_repository }}
+      head_ref: ${{ steps.release.outputs.head_ref }}
+      author_id: ${{ steps.release.outputs.author_id }}
+
+    steps:
+      - name: Check out workflow tools
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Identify merged generated release
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_MERGED: ${{ github.event.pull_request.merged }}
+          EVENT_REVISION: ${{ github.event.pull_request.merge_commit_sha }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          EVENT_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          INPUT_REVISION: ${{ inputs.revision }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node .github/scripts/package-release-workflow.mjs authorize \
+            --event-name "$EVENT_NAME" \
+            --merged "$EVENT_MERGED" \
+            --revision "${INPUT_REVISION:-$EVENT_REVISION}" \
+            --base "$EVENT_BASE_SHA" \
+            --head-repository "$EVENT_HEAD_REPOSITORY" \
+            --head-ref "$EVENT_HEAD_REF" \
+            --author-id "$EVENT_AUTHOR_ID" \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-app-id "${{ vars.RELEASE_BOT_APP_ID }}" \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish verified packages
+    needs: authorize-release
+    if: needs.authorize-release.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Mint App installation token
@@ -27,10 +80,11 @@ jobs:
           client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
 
-      - name: Check out repository
+      - name: Check out exact merged revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+          ref: ${{ needs.authorize-release.outputs.revision }}
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up mise
@@ -41,14 +95,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Open release PR or publish
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
-        with:
-          version: pnpm exec changeset version
-          publish: pnpm run release:publish
-          commit: "Version packages"
-          title: "Version packages"
-          commitMode: github-api
+      - name: Verify merged release tree
+        run: |
+          turbo build --filter=@shipfox/package-release
+          pnpm --silent --filter=@shipfox/package-release verify-generated-release -- \
+            --base "${{ needs.authorize-release.outputs.base_sha }}" \
+            --head "${{ needs.authorize-release.outputs.revision }}" \
+            --repository "$GITHUB_REPOSITORY" \
+            --head-repository "${{ needs.authorize-release.outputs.head_repository }}" \
+            --head-ref "${{ needs.authorize-release.outputs.head_ref }}" \
+            --author-id "${{ needs.authorize-release.outputs.author_id }}" \
+            --release-app-id "${{ vars.RELEASE_BOT_APP_ID }}"
+
+      - name: Publish package closure
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: "true"
@@ -56,3 +115,11 @@ jobs:
           TURBO_TEAM: shipfox
           # Publish must never populate the shared cache — only read what CI built.
           TURBO_CACHE: local:rw,remote:r
+        run: pnpm run release:publish
+
+      - name: Summarize publication
+        run: |
+          node .github/scripts/package-release-workflow.mjs summarize-publication \
+            --trigger "${{ github.event_name }}" \
+            --revision "${{ needs.authorize-release.outputs.revision }}" \
+            --github-summary "$GITHUB_STEP_SUMMARY"

@@ -113,10 +113,20 @@ Choose `patch` for fixes and internal refactors, `minor` for additive public
 API, and `major` for breaking public API. Commit the `.changeset/*.md` file
 with the change.
 
-The `publish-packages` GitHub workflow runs on `main`. Changesets opens or
-updates the generated release pull request, then publishes the release after
-that pull request merges. Do not run `release:publish` as a normal contributor
+`update-release-pr` runs on `main` and opens or updates the generated release
+pull request only when unreleased changesets exist. Its cancelable concurrency
+means a newer `main` push supersedes an older pending update; it has no npm
+publication authority. `publish-packages` runs only after a merged,
+deterministically verified `changeset-release/main` pull request, then checks
+out that exact merge revision and publishes under a separate non-cancelable
+concurrency group. Do not run `release:publish` as a normal contributor
 workflow. It is the workflow command and requires its release environment.
+
+If an npm operation is interrupted or only partly succeeds, use the
+`publish-packages` **Run workflow** control with the exact merged release
+revision. The publisher re-verifies the generated tree before retrying and its
+closure publisher skips versions already present in npm; do not create a new
+release PR merely to retry publication.
 
 If a release or package-publishing incident needs tool-specific diagnosis, read
 the relevant package documentation under `tools/` and the workflow definition
