@@ -229,6 +229,6 @@ export async function checkedApiRequest<Schema extends StandardSchema>(
 ): Promise<StandardSchemaOutput<Schema>> {
   const response = await apiRequest<unknown>(path, options);
   const result = await schema['~standard'].validate(response);
-  if ('issues' in result) throw new InvalidApiResponseError();
+  if (result.issues) throw new InvalidApiResponseError();
   return result.value as StandardSchemaOutput<Schema>;
 }

@@ -171,6 +171,21 @@ describe('checkedApiRequest', () => {
     expect(result).toEqual({id: 'workspace-1'});
   });
 
+  test('accepts a Standard Schema success result with an undefined issues property', async () => {
+    configureApiClient({fetchImpl: vi.fn().mockResolvedValue(jsonResponse({id: 'workspace-1'}))});
+    const schema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'test',
+        validate: (value: unknown) => ({value: value as {id: string}, issues: undefined}),
+      },
+    };
+
+    const result = await checkedApiRequest(schema, '/workspaces/workspace-1');
+
+    expect(result).toEqual({id: 'workspace-1'});
+  });
+
   test('keeps invalid responses distinct from transport errors without retaining the payload', async () => {
     configureApiClient({
       fetchImpl: vi.fn().mockResolvedValue(jsonResponse({secret: 'do-not-expose'})),
@@ -182,5 +197,11 @@ describe('checkedApiRequest', () => {
     await expect(result).rejects.toMatchObject({code: 'invalid-response'});
     await expect(result).rejects.not.toThrow('do-not-expose');
     await expect(result.catch(isInvalidApiResponseError)).resolves.toBe(true);
+  });
+
+  test('does not classify unrelated errors as invalid API responses', () => {
+    const result = isInvalidApiResponseError(new Error('unrelated'));
+
+    expect(result).toBe(false);
   });
 });
