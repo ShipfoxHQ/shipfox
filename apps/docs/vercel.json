@@ -4,6 +4,11 @@
   "installCommand": "pnpm install",
   "buildCommand": "turbo run build --filter=@shipfox/docs",
   "devCommand": "turbo run dev --filter=@shipfox/docs",
+  "git": {
+    "deploymentEnabled": {
+      "changeset-release/main": false
+    }
+  },
   "regions": ["fra1", "iad1"],
   "trailingSlash": false,
   "headers": [
