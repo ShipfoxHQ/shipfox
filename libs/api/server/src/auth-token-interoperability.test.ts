@@ -1,8 +1,11 @@
+import {createLeaseTokenAuthMethod, issueJobLeaseToken} from '@shipfox/api-auth';
 import {AUTH_LEASED_JOB, requireLeasedJobContext} from '@shipfox/api-auth-context';
 import {closeApp, createApp, defineRoute} from '@shipfox/node-fastify';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 
-process.env.AUTH_ROOT_KEY ??= 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
+vi.hoisted(() => {
+  process.env.AUTH_ROOT_KEY ??= 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
+});
 
 const leaseRoute = defineRoute({
   method: 'GET',
@@ -20,7 +23,6 @@ describe('Auth token interoperability', () => {
   });
 
   it('accepts an Auth-issued step lease through the server route boundary', async () => {
-    const {createLeaseTokenAuthMethod, issueJobLeaseToken} = await import('@shipfox/api-auth');
     const jobId = crypto.randomUUID();
     const stepId = crypto.randomUUID();
     const token = await issueJobLeaseToken({
