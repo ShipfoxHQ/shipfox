@@ -1,4 +1,5 @@
 export {
+  type DefaultModulesExtension,
   type DefaultModulesOptions,
   type DefaultRunnersModuleFactory,
   defaultModules,

@@ -10,7 +10,10 @@ import {
   secretsInterModuleContract,
 } from '@shipfox/api-secrets-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
-import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {
+  type WorkspacesInterModuleClient,
+  workspacesInterModuleContract,
+} from '@shipfox/api-workspaces-dto/inter-module';
 import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {defaultModules} from './modules.js';
 
@@ -30,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   deleteSecrets: vi.fn(),
   getIntegrationConnectionById: vi.fn(),
   getSecret: vi.fn(),
+  listMembershipsForTokenClaims: vi.fn(),
   setSecrets: vi.fn(),
 }));
 
@@ -96,7 +100,7 @@ vi.mock('@shipfox/api-workspaces', () => ({
       {
         contract: workspacesInterModuleContract,
         handlers: {
-          listMembershipsForTokenClaims: vi.fn(),
+          listMembershipsForTokenClaims: mocks.listMembershipsForTokenClaims,
           preflightInvitationAcceptance: vi.fn(),
           acceptInvitation: vi.fn(),
           requireActiveMembership: vi.fn(),
@@ -123,6 +127,7 @@ describe('defaultModules', () => {
     mocks.deleteSecrets.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
     mocks.getSecret.mockReset();
+    mocks.listMembershipsForTokenClaims.mockReset();
     mocks.setSecrets.mockReset();
 
     mocks.createIntegrationsContext.mockResolvedValue({
@@ -147,6 +152,7 @@ describe('defaultModules', () => {
     mocks.createWorkspaceConnectionSnapshotLoader.mockReturnValue(vi.fn());
     mocks.deleteSecrets.mockResolvedValue({deleted: 1});
     mocks.getSecret.mockResolvedValue({value: 'secret'});
+    mocks.listMembershipsForTokenClaims.mockResolvedValue({memberships: []});
     mocks.setSecrets.mockResolvedValue({});
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
@@ -290,6 +296,27 @@ describe('defaultModules', () => {
       'triggers',
       'dispatcher',
     ]);
+  });
+
+  it('extends the default module list with the composed Workspaces client', async () => {
+    let workspaces: WorkspacesInterModuleClient | undefined;
+    const extensionModule = {name: 'cloud'};
+    const extension = vi.fn((options: {workspaces: WorkspacesInterModuleClient}) => {
+      workspaces = options.workspaces;
+      return [extensionModule];
+    });
+
+    const modules = await defaultModules({extension});
+    const userId = crypto.randomUUID();
+    const memberships = await workspaces?.listMembershipsForTokenClaims({userId});
+
+    expect(extension).toHaveBeenCalledWith({workspaces: expect.any(Object)});
+    expect(memberships).toEqual({memberships: []});
+    expect(mocks.listMembershipsForTokenClaims).toHaveBeenCalledWith(
+      {userId},
+      expect.objectContaining({signal: expect.any(AbortSignal)}),
+    );
+    expect(modules.at(-1)).toBe(extensionModule);
   });
 
   it('injects Workflows into integrations and logs and namespaces provider secrets', async () => {

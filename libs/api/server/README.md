@@ -24,6 +24,15 @@ import {defaultModules, runServer} from '@shipfox/api-server';
 await runServer({modules: await defaultModules()});
 ```
 
+To add a module that creates sessions, use the composed Workspaces client rather
+than creating another inter-module transport:
+
+```ts
+const modules = await defaultModules({
+  extension: ({workspaces}) => [createCloudModule({workspaces})],
+});
+```
+
 Load the instrumentation entry before feature modules:
 
 ```sh
