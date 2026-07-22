@@ -137,11 +137,22 @@ async function writeFixtureFiles(root, dependencies, runtimeEntryPoints, typeEnt
     ),
     writeFile(
       join(root, 'composition.ts'),
-      `import {createServer, defaultModules} from '@shipfox/api-server';
+      `import {createRunnersModule} from '@shipfox/api-runners';
+import {createServer, defaultModules} from '@shipfox/api-server';
 
 void createServer({
   modules: [
-    ...(await defaultModules()),
+    ...(await defaultModules({
+      runnersModule: ({auth}) =>
+        createRunnersModule({
+          auth,
+          installationProvisioning: {
+            policy: {
+              filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
+            },
+          },
+        }),
+    })),
     {name: 'external-dummy'},
   ],
 });

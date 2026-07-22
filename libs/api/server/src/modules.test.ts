@@ -254,6 +254,40 @@ describe('defaultModules', () => {
     expect(mocks.createRunnersModule).toHaveBeenCalledWith({auth: expect.any(Object)});
   });
 
+  it('lets a host replace only the Runners module with the composed Auth client', async () => {
+    const policy = {filterEligibleWorkspaceIds: vi.fn().mockResolvedValue(new Set<string>())};
+    const runnersModule = mocks.createRunnersModule({});
+    const createHostRunnersModule = vi.fn(({auth}) =>
+      mocks.createRunnersModule({auth, installationProvisioning: {policy}}),
+    );
+    mocks.createRunnersModule.mockClear();
+
+    const modules = await defaultModules({runnersModule: createHostRunnersModule});
+
+    expect(createHostRunnersModule).toHaveBeenCalledWith({auth: expect.any(Object)});
+    expect(mocks.createRunnersModule).toHaveBeenCalledWith({
+      auth: createHostRunnersModule.mock.calls[0]?.[0].auth,
+      installationProvisioning: {policy},
+    });
+    expect(modules.filter((module) => module.name === 'runners')).toEqual([runnersModule]);
+    expect(modules.map((module) => module.name)).toEqual([
+      'email-challenges',
+      'auth',
+      'workspaces',
+      'secrets',
+      'agent',
+      'integrations',
+      'projects',
+      'definitions',
+      'workflows',
+      'annotations',
+      'runners',
+      'logs',
+      'triggers',
+      'dispatcher',
+    ]);
+  });
+
   it('injects Workflows into integrations and logs and namespaces provider secrets', async () => {
     await defaultModules();
 
