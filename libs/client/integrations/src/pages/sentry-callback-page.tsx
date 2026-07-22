@@ -1,5 +1,6 @@
 import type {SentryConnectResponseDto} from '@shipfox/api-integration-sentry-dto';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
+import {createSingleFlight} from '@shipfox/client-ui';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {Card} from '@shipfox/react-ui/card';
@@ -19,12 +20,7 @@ import {
   type SentryConnectFailure,
 } from '#sentry-callback.js';
 
-// De-dupes concurrent attempts for the same installation+workspace+code
-// (double click, remount while in flight). Entries are evicted once the
-// request settles, so Retry, and any later attempt carrying a fresh grant
-// code, always issues a genuinely new request instead of replaying a cached
-// outcome.
-const connectRequests = new Map<string, Promise<SentryConnectResponseDto>>();
+const connectRequests = createSingleFlight<string, SentryConnectResponseDto>();
 
 export function SentryCallbackPage() {
   const search = useSearch({strict: false});
@@ -102,26 +98,20 @@ export function SentryCallbackPage() {
     setConnectingId(workspaceId);
     setFailure(undefined);
     const key = `${params.installationId}|${workspaceId}|${params.code}`;
-    let request = connectRequests.get(key);
-    if (!request) {
-      request = refreshAuth().then((session) =>
-        connectSentry({
-          body: {
-            workspace_id: workspaceId,
-            code: params.code,
-            installation_id: params.installationId,
-          },
-          token: session.token,
-        }),
-      );
-      // Evict on settle (success or failure) so the key never replays a stale
-      // outcome. Two-arg `then` keeps this cleanup branch from surfacing the
-      // rejection as unhandled — the main chain below owns the user-facing
-      // failure handling.
-      const evict = () => connectRequests.delete(key);
-      request.then(evict, evict);
-      connectRequests.set(key, request);
-    }
+    const request = connectRequests.run(
+      key,
+      async () =>
+        await refreshAuth().then((session) =>
+          connectSentry({
+            body: {
+              workspace_id: workspaceId,
+              code: params.code,
+              installation_id: params.installationId,
+            },
+            token: session.token,
+          }),
+        ),
+    );
 
     request
       .then(async () => {

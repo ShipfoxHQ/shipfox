@@ -1,4 +1,5 @@
 import {useModelProviderConfigsQuery} from '@shipfox/client-agent';
+import {createTypedBrowserStorage, sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {
   Alert,
   AlertActions,
@@ -10,8 +11,6 @@ import {
 import {Button} from '@shipfox/react-ui/button';
 import {Link} from '@tanstack/react-router';
 import {useState} from 'react';
-
-const REMINDER_SESSION_KEY_PREFIX = 'shipfox.modelProviderReminder.dismissed.';
 
 export function ModelProviderReminderBanner({workspaceId}: {workspaceId: string}) {
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
@@ -54,25 +53,19 @@ export function ModelProviderReminderBanner({workspaceId}: {workspaceId: string}
 }
 
 function isReminderDismissed(workspaceId: string): boolean {
-  if (typeof window === 'undefined') return false;
-
-  try {
-    return window.sessionStorage.getItem(sessionKey(workspaceId)) === 'true';
-  } catch {
-    return false;
-  }
+  return reminderStorage(workspaceId).read() === true;
 }
 
 function dismissReminder(workspaceId: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    window.sessionStorage.setItem(sessionKey(workspaceId), 'true');
-  } catch {
-    // Session persistence is best-effort; showing the banner again is benign.
-  }
+  reminderStorage(workspaceId).write(true);
 }
 
-function sessionKey(workspaceId: string): string {
-  return `${REMINDER_SESSION_KEY_PREFIX}${workspaceId}`;
+function reminderStorage(workspaceId: string) {
+  return createTypedBrowserStorage(sessionStorageOrUndefined, {
+    key: `shipfox.modelProviderReminder.dismissed.${workspaceId}`,
+    lifetime: 'session' as const,
+    principalScope: 'workspace' as const,
+    serialize: (dismissed: boolean) => JSON.stringify(dismissed),
+    parse: (raw: string) => raw === 'true',
+  });
 }

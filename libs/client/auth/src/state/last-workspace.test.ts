@@ -45,6 +45,22 @@ describe('lastWorkspaceIdAtom', () => {
     unsubscribe();
   });
 
+  test('syncs the atom when another tab updates last workspace storage', () => {
+    const store = createStore();
+    const unsubscribe = store.sub(lastWorkspaceIdAtom, () => undefined);
+    window.localStorage.setItem('shipfox.lastWorkspaceId', JSON.stringify('workspace-2'));
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'shipfox.lastWorkspaceId',
+        storageArea: window.localStorage,
+      }),
+    );
+
+    expect(store.get(lastWorkspaceIdAtom)).toBe('workspace-2');
+    unsubscribe();
+  });
+
   test('rememberLastWorkspaceId persists a root redirect target', () => {
     rememberLastWorkspaceId('workspace-1');
 

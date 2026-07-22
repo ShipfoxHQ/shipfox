@@ -78,6 +78,7 @@
     "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
     "@shipfox/client-config": "workspace:*",
+    "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
     "@tanstack/router-core": "catalog:",

@@ -1,6 +1,7 @@
 import {ApiError, apiRequest} from '@shipfox/client-api';
 import {useRefreshAuth} from '@shipfox/client-auth';
 import {defineRoute} from '@shipfox/client-shell/runtime';
+import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {useNavigate, useSearch} from '@tanstack/react-router';
@@ -13,7 +14,9 @@ interface GithubCallbackParams {
   setupAction?: string;
 }
 
-const callbackRequests = new Map<string, Promise<void>>();
+// Retain only recent completions: this bounds long-lived callback pages while
+// still covering StrictMode and immediate Back/Forward remounts.
+const callbackRequests = createSingleFlight<string, void>({maxTerminalResults: 32});
 const toastedCallbacks = new Set<string>();
 
 export default defineRoute({component: GithubCallbackRoute});
@@ -40,14 +43,15 @@ function GithubCallbackRoute() {
     }
     let disposed = false;
     const key = encodeCallbackQuery(params);
-    const request =
-      callbackRequests.get(key) ??
-      refreshAuth().then(async (session) => {
-        await apiRequest(`/integrations/github/callback/api?${key}`, {
-          headers: {authorization: `Bearer ${session.token}`},
-        });
-      });
-    callbackRequests.set(key, request);
+    const request = callbackRequests.run(
+      key,
+      async () =>
+        await refreshAuth().then(async (session) => {
+          await apiRequest(`/integrations/github/callback/api?${key}`, {
+            headers: {authorization: `Bearer ${session.token}`},
+          });
+        }),
+    );
     request
       .then(() => {
         if (disposed) return;
@@ -107,8 +111,7 @@ function numberParam(value: unknown): number | undefined {
   }
   return undefined;
 }
-function githubCallbackErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
+export function githubCallbackErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) return 'GitHub could not be installed. Try again from settings.';
   return 'Could not install GitHub.';
 }
