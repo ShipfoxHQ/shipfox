@@ -34,6 +34,7 @@ export interface AuthStateValue extends AuthState {
 
 export const initialAuthState: AuthState = {status: 'loading'};
 export const authStateAtom = atom<AuthState>(initialAuthState);
+const authTransitionEpochAtom = atom(0);
 export const authRefreshQueryKey = ['auth', 'refresh'] as const;
 export const userWorkspacesQueryKey = ['workspaces', 'mine'] as const;
 
@@ -101,17 +102,36 @@ export function getAuthRefreshDelayMs(token: string, nowMs = Date.now()): number
   return exp === undefined ? undefined : exp * 1000 - nowMs - REFRESH_EARLY_MS;
 }
 
-export function useRefreshAuth() {
+export function useAuthTransition() {
   const queryClient = useQueryClient();
+  const store = useStore();
   const setState = useSetAtom(authStateAtom);
-  return useCallback(async () => {
-    try {
-      const result = await queryClient.fetchQuery({
-        queryKey: authRefreshQueryKey,
-        queryFn: refreshAuthRequest,
-        retry: false,
-        staleTime: 0,
-      });
+
+  const clearPrivateState = useCallback(async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+  }, [queryClient]);
+
+  const enterGuest = useCallback(async () => {
+    const transitionEpoch = store.get(authTransitionEpochAtom) + 1;
+    store.set(authTransitionEpochAtom, transitionEpoch);
+    await clearPrivateState();
+    if (store.get(authTransitionEpochAtom) !== transitionEpoch) return;
+    setState({status: 'guest'});
+  }, [clearPrivateState, setState, store]);
+
+  const enterAuthenticated = useCallback(
+    async (result: LoginResponseDto) => {
+      const transitionEpoch = store.get(authTransitionEpochAtom) + 1;
+      store.set(authTransitionEpochAtom, transitionEpoch);
+      const previousState = store.get(authStateAtom);
+      const principalChanged =
+        previousState.status === 'authenticated' && previousState.user?.id !== result.user.id;
+
+      if (principalChanged) await clearPrivateState();
+      if (store.get(authTransitionEpochAtom) !== transitionEpoch) return;
+
+      queryClient.setQueryData(authRefreshQueryKey, result);
       let memberships: MembershipWithWorkspaceDto[] = [];
       try {
         const workspaces = await queryClient.fetchQuery({
@@ -121,16 +141,38 @@ export function useRefreshAuth() {
           staleTime: 0,
         });
         memberships = workspaces.memberships;
+        queryClient.setQueryData(userWorkspacesQueryKey, workspaces);
       } catch {
-        // A valid session remains usable while workspace hydration retries on the next route load.
+        // The authenticated session remains usable while workspace hydration retries on the next route load.
       }
+      if (store.get(authTransitionEpochAtom) !== transitionEpoch) return;
+
       setState(toAuthenticatedState(result, memberships));
+    },
+    [clearPrivateState, queryClient, setState, store],
+  );
+
+  return {enterAuthenticated, enterGuest};
+}
+
+export function useRefreshAuth() {
+  const queryClient = useQueryClient();
+  const {enterAuthenticated, enterGuest} = useAuthTransition();
+  return useCallback(async () => {
+    try {
+      const result = await queryClient.fetchQuery({
+        queryKey: authRefreshQueryKey,
+        queryFn: refreshAuthRequest,
+        retry: false,
+        staleTime: 0,
+      });
+      await enterAuthenticated(result);
       return result;
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) setState({status: 'guest'});
+      if (error instanceof ApiError && error.status === 401) await enterGuest();
       throw error;
     }
-  }, [queryClient, setState]);
+  }, [enterAuthenticated, enterGuest, queryClient]);
 }
 
 export interface AuthRuntimeProps extends PropsWithChildren {

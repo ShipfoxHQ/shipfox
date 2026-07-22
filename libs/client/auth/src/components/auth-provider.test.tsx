@@ -1,6 +1,8 @@
 import {configureApiClient} from '@shipfox/client-api';
+import {QueryClient, useQuery} from '@tanstack/react-query';
 import {render, screen, waitFor} from '@testing-library/react';
 import {useEffect, useRef} from 'react';
+import {useLoginAuth} from '#hooks/api/login-auth.js';
 import {useLogoutAuth} from '#hooks/api/logout-auth.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {useAuthState} from '#hooks/use-auth-state.js';
@@ -15,6 +17,8 @@ const user = {
   created_at: '2026-04-27T00:00:00.000Z',
   updated_at: '2026-04-27T00:00:00.000Z',
 };
+
+const otherUser = {...user, id: '22222222-2222-4222-8222-222222222222', email: 'other@example.com'};
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -39,6 +43,28 @@ function StatusProbe() {
   );
 }
 
+function PrivateDataProbe() {
+  const auth = useAuthState();
+  const privateData = useQuery({
+    queryKey: ['private-data'],
+    queryFn: () => new Promise<string>(() => undefined),
+    enabled: auth.isAuthenticated,
+  });
+  const login = useLoginAuth();
+
+  return (
+    <div>
+      <span data-testid="private-data">{privateData.data ?? 'loading'}</span>
+      <button
+        type="button"
+        onClick={() => void login.mutateAsync({email: 'other@example.com', password: 'password'})}
+      >
+        Switch user
+      </button>
+    </div>
+  );
+}
+
 describe('AuthProvider', () => {
   beforeEach(() => {
     configureApiClient({
@@ -50,7 +76,9 @@ describe('AuthProvider', () => {
   });
 
   test('boots from a successful refresh', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({token: 'access-token', user}));
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(jsonResponse({token: 'access-token', user})));
     configureApiClient({fetchImpl});
 
     render(
@@ -64,21 +92,26 @@ describe('AuthProvider', () => {
   });
 
   test('treats refresh 401 as a guest session', async () => {
+    const queryClient = new QueryClient();
+    const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(
         jsonResponse({code: 'unauthorized', message: 'Unauthorized'}, {status: 401}),
       );
     configureApiClient({fetchImpl});
+    queryClient.setQueryData(['private-data'], 'private data');
 
     render(
-      <AuthProvider>
+      <AuthProvider queryClient={queryClient}>
         <StatusProbe />
       </AuthProvider>,
     );
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('guest'));
     expect(screen.getByTestId('email')).toHaveTextContent('none');
+    expect(cancelQueries).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(['private-data'])).toBeUndefined();
   });
 
   test('keeps the current session when refresh fails with a server error', async () => {
@@ -116,6 +149,41 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('email')).toHaveTextContent('noe@example.com');
   });
 
+  test('preserves private cached data when refresh returns the same user', async () => {
+    const queryClient = new QueryClient();
+    const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(jsonResponse({token: 'access-token', user})));
+    configureApiClient({fetchImpl});
+    queryClient.setQueryData(['private-data'], 'current user private data');
+    const onDone = vi.fn();
+
+    function RefreshAfterBootProbe() {
+      const auth = useAuthState();
+      const refresh = useRefreshAuth();
+      const didRefresh = useRef(false);
+
+      useEffect(() => {
+        if (auth.status !== 'authenticated' || didRefresh.current) return;
+        didRefresh.current = true;
+        void refresh().then(onDone);
+      }, [auth.status, refresh]);
+
+      return <StatusProbe />;
+    }
+
+    render(
+      <AuthProvider queryClient={queryClient}>
+        <RefreshAfterBootProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(cancelQueries).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData(['private-data'])).toBe('current user private data');
+  });
+
   test('deduplicates concurrent refresh calls', async () => {
     const fetchImpl = vi
       .fn()
@@ -144,14 +212,30 @@ describe('AuthProvider', () => {
   });
 
   test('logout clears local state even when the API call fails', async () => {
+    const queryClient = new QueryClient();
+    const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({token: 'access-token', user}))
       .mockRejectedValueOnce(new Error('offline'));
     configureApiClient({fetchImpl});
+    queryClient.setQueryData(['private-data'], 'private data');
+    const onQueryAbort = vi.fn();
+    void queryClient
+      .fetchQuery({
+        queryKey: ['in-flight-private-data'],
+        queryFn: ({signal}) =>
+          new Promise<string>((_, reject) => {
+            signal.addEventListener('abort', () => {
+              onQueryAbort();
+              reject(signal.reason);
+            });
+          }),
+      })
+      .catch(() => undefined);
 
     render(
-      <AuthProvider>
+      <AuthProvider queryClient={queryClient}>
         <StatusProbe />
       </AuthProvider>,
     );
@@ -160,5 +244,91 @@ describe('AuthProvider', () => {
     screen.getByRole('button', {name: 'Logout'}).click();
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('guest'));
+    expect(cancelQueries).toHaveBeenCalledTimes(1);
+    expect(onQueryAbort).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(['private-data'])).toBeUndefined();
+  });
+
+  test('does not restore a session when logout supersedes workspace hydration', async () => {
+    const workspaceRefreshStarted = vi.fn();
+    let workspaceRequestCount = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const request = input as Request;
+      if (!request.url.endsWith('/workspaces'))
+        return Promise.resolve(jsonResponse({token: 'access-token', user}));
+
+      workspaceRequestCount += 1;
+      if (workspaceRequestCount === 1) return Promise.resolve(jsonResponse({memberships: []}));
+
+      workspaceRefreshStarted();
+      return new Promise<Response>((_, reject) => {
+        request.signal.addEventListener('abort', () => reject(request.signal.reason));
+      });
+    });
+    configureApiClient({fetchImpl});
+
+    function LogoutDuringRefreshProbe() {
+      const auth = useAuthState();
+      const logout = useLogoutAuth();
+      const refresh = useRefreshAuth();
+      const didRefresh = useRef(false);
+
+      useEffect(() => {
+        if (auth.status !== 'authenticated' || didRefresh.current) return;
+        didRefresh.current = true;
+        void refresh();
+      }, [auth.status, refresh]);
+
+      return (
+        <div>
+          <span data-testid="status">{auth.status}</span>
+          <button type="button" onClick={() => void logout.mutateAsync()}>
+            Logout
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <AuthProvider>
+        <LogoutDuringRefreshProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(workspaceRefreshStarted).toHaveBeenCalledTimes(1));
+    screen.getByRole('button', {name: 'Logout'}).click();
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('guest'));
+  });
+
+  test('does not render cached private data after a user switch', async () => {
+    const queryClient = new QueryClient();
+    const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = (input as Request).url;
+      if (url.endsWith('/auth/login'))
+        return Promise.resolve(jsonResponse({token: 'other-token', user: otherUser}));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({token: 'access-token', user}));
+    });
+    configureApiClient({fetchImpl});
+    queryClient.setQueryData(['private-data'], 'User A private data');
+
+    render(
+      <AuthProvider queryClient={queryClient}>
+        <PrivateDataProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('private-data')).toHaveTextContent('User A private data'),
+    );
+    screen.getByRole('button', {name: 'Switch user'}).click();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('private-data')).not.toHaveTextContent('User A private data'),
+    );
+    expect(cancelQueries).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(['private-data'])).toBeUndefined();
   });
 });

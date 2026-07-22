@@ -6,6 +6,7 @@ export {
   authStateAtom,
   initialAuthState,
   toAuthenticatedState,
+  useAuthTransition,
   type Workspace,
 } from '@shipfox/client-shell/runtime';
 
