@@ -1,5 +1,24 @@
 # @shipfox/client-auth
 
+## 4.0.0
+
+### Minor Changes
+
+- 20e4feb: Adds provider-neutral authentication continuation primitives for reusable shells, email-code verification, and redirect context.
+
+### Patch Changes
+
+- 11b10f7: Prevents private React Query data from persisting across logout and authenticated user changes.
+- Updated dependencies [2e5b718]
+- Updated dependencies [769d919]
+- Updated dependencies [6b4a575]
+- Updated dependencies [11b10f7]
+- Updated dependencies [781a45b]
+  - @shipfox/client-ui@4.0.0
+  - @shipfox/client-shell@4.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/client-api@4.0.0
+
 ## 3.0.1
 
 ### Patch Changes

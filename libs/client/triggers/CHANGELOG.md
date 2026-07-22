@@ -1,5 +1,16 @@
 # @shipfox/client-triggers
 
+## 4.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e5b718]
+- Updated dependencies [6b4a575]
+- Updated dependencies [781a45b]
+  - @shipfox/client-ui@4.0.0
+  - @shipfox/client-integrations@4.0.0
+  - @shipfox/client-api@4.0.0
+
 ## 3.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/api-auth-dto
 
+## 7.1.0
+
+### Minor Changes
+
+- 769d919: Adds an anonymous login-method catalog with a published bounded DTO contract.
+
 ## 6.0.0
 
 ### Major Changes

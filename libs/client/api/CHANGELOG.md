@@ -1,5 +1,15 @@
 # @shipfox/client-api
 
+## 4.0.0
+
+### Minor Changes
+
+- 6b4a575: Adds checked client API response boundaries and domain-cached invitation queries.
+
+### Patch Changes
+
+- 781a45b: Fixes Standard Schema response validation when successful results include an undefined issues property.
+
 ## 1.0.0
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @shipfox/runner-workspace
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [6ce08c0]
+  - @shipfox/node-opentelemetry@0.6.0
+
 ## 0.0.5
 
 ### Patch Changes

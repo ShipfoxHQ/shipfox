@@ -1,5 +1,15 @@
 # @shipfox/api-auth-context
 
+## 7.1.0
+
+### Patch Changes
+
+- Updated dependencies [ac42c96]
+- Updated dependencies [769d919]
+- Updated dependencies [6ce08c0]
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/api-auth-dto@7.1.0
+
 ## 6.0.0
 
 ### Major Changes

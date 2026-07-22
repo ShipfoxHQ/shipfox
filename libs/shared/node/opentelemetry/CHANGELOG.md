@@ -1,5 +1,11 @@
 # @shipfox/node-opentelemetry
 
+## 0.6.0
+
+### Minor Changes
+
+- 6ce08c0: Adds provider-neutral OpenTelemetry traces and Prometheus metrics across the API, Fastify, module workers, and Temporal workers.
+
 ## 0.5.2
 
 ### Patch Changes

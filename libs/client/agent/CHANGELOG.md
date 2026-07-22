@@ -1,5 +1,18 @@
 # @shipfox/client-agent
 
+## 4.0.0
+
+### Patch Changes
+
+- 2e5b718: Adds safe browser persistence and bounded callback deduplication across client flows.
+- Updated dependencies [2e5b718]
+- Updated dependencies [6b4a575]
+- Updated dependencies [11b10f7]
+- Updated dependencies [781a45b]
+  - @shipfox/client-ui@4.0.0
+  - @shipfox/client-shell@4.0.0
+  - @shipfox/client-api@4.0.0
+
 ## 3.0.1
 
 ### Patch Changes

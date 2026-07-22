@@ -1,5 +1,25 @@
 # @shipfox/client-workspace-settings
 
+## 4.0.0
+
+### Patch Changes
+
+- 6b4a575: Adds checked client API response boundaries and domain-cached invitation queries.
+- Updated dependencies [2e5b718]
+- Updated dependencies [6b4a575]
+- Updated dependencies [20e4feb]
+- Updated dependencies [11b10f7]
+- Updated dependencies [781a45b]
+  - @shipfox/client-ui@4.0.0
+  - @shipfox/client-agent@4.0.0
+  - @shipfox/client-integrations@4.0.0
+  - @shipfox/client-shell@4.0.0
+  - @shipfox/client-api@4.0.0
+  - @shipfox/client-auth@4.0.0
+  - @shipfox/client-runners@4.0.0
+  - @shipfox/client-secrets@4.0.0
+  - @shipfox/client-triggers@4.0.0
+
 ## 3.0.1
 
 ### Patch Changes
