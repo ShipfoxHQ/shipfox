@@ -1,4 +1,5 @@
 import {QueryLoadError} from '@shipfox/client-ui';
+import {IntegrationIcon} from '@shipfox/integration-icons';
 import {Card} from '@shipfox/react-ui/card';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -7,7 +8,6 @@ import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import type {IntegrationProvider} from '#core/models.js';
-import {IntegrationIcon} from '#integration-icon.js';
 import {PROVIDER_CATALOG} from '#provider-catalog.js';
 
 export interface ProviderGridProps {

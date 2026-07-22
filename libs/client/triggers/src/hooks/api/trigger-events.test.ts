@@ -18,9 +18,32 @@ function requestFrom(fetchImpl: ReturnType<typeof vi.fn>): Request {
   return fetchImpl.mock.calls[0]?.[0] as Request;
 }
 
+const EVENT_ID = '22222222-2222-4222-8222-222222222222';
+const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
+
+function triggerEventDto(overrides: Record<string, unknown> = {}) {
+  return {
+    id: EVENT_ID,
+    event_ref: 'github:delivery-1:push',
+    origin: 'integration',
+    workspace_id: WORKSPACE_ID,
+    provider: 'github',
+    source: 'github',
+    event: 'push',
+    delivery_id: 'delivery-1',
+    connection_id: '33333333-3333-4333-8333-333333333333',
+    outcome: 'routed',
+    matched_count: 1,
+    received_at: '2026-06-01T00:00:00.000Z',
+    processed_at: '2026-06-01T00:00:01.000Z',
+    created_at: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 describe('triggerEventsQueryKeys', () => {
   test('list key nests under the workspace lists key', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const key = triggerEventsQueryKeys.list(workspaceId, {});
 
@@ -35,7 +58,7 @@ describe('triggerEventsQueryKeys', () => {
   });
 
   test('keeps distinct page limits on distinct keys', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const defaultLimit = triggerEventsQueryKeys.list(workspaceId, {});
     const compactLimit = triggerEventsQueryKeys.list(workspaceId, {}, 25);
@@ -46,7 +69,7 @@ describe('triggerEventsQueryKeys', () => {
   });
 
   test('normalizes absent filter fields to null so empty variants share a key', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const empty = triggerEventsQueryKeys.list(workspaceId, {});
     const allUndefined = triggerEventsQueryKeys.list(workspaceId, {
@@ -61,7 +84,7 @@ describe('triggerEventsQueryKeys', () => {
   });
 
   test('treats an empty outcome array as no outcome filter', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const key = triggerEventsQueryKeys.list(workspaceId, {outcome: []});
 
@@ -69,7 +92,7 @@ describe('triggerEventsQueryKeys', () => {
   });
 
   test('treats empty source and event arrays as no filter', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const key = triggerEventsQueryKeys.list(workspaceId, {source: [], event: []});
 
@@ -77,7 +100,7 @@ describe('triggerEventsQueryKeys', () => {
   });
 
   test('sorts and de-duplicates outcome so filter order does not split the cache', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const a = triggerEventsQueryKeys.list(workspaceId, {outcome: ['routed', 'failed']});
     const b = triggerEventsQueryKeys.list(workspaceId, {outcome: ['failed', 'routed', 'failed']});
@@ -87,7 +110,7 @@ describe('triggerEventsQueryKeys', () => {
   });
 
   test('sorts and de-duplicates source and event filters so order does not split the cache', () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
 
     const a = triggerEventsQueryKeys.list(workspaceId, {
       source: ['github', 'gitea'],
@@ -203,14 +226,23 @@ describe('listTriggerEvents', () => {
 
   test('returns the parsed list response', async () => {
     const page = {
-      trigger_events: [],
+      trigger_events: [triggerEventDto()],
       next_cursor: 'next-page',
     };
     configureApiClient({fetchImpl: vi.fn(async () => jsonResponse(page))});
 
     const result = await listTriggerEvents({workspaceId});
 
-    expect(result).toEqual(page);
+    expect(result).toEqual({
+      events: [
+        expect.objectContaining({
+          id: EVENT_ID,
+          eventRef: 'github:delivery-1:push',
+          matchedCount: 1,
+        }),
+      ],
+      nextCursor: 'next-page',
+    });
   });
 });
 
@@ -220,8 +252,13 @@ describe('getTriggerEvent', () => {
   });
 
   test('requests the event detail by id', async () => {
-    const id = '22222222-2222-4222-8222-222222222222';
-    const fetchImpl = vi.fn(async () => jsonResponse({id, decisions: []}));
+    const id = EVENT_ID;
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...triggerEventDto({id, connection_name: null, payload: null}),
+        decisions: [],
+      }),
+    );
     configureApiClient({fetchImpl});
 
     await getTriggerEvent({id});
@@ -238,7 +275,7 @@ describe('getTriggerEventFacets', () => {
   });
 
   test('requests the workspace facets', async () => {
-    const workspaceId = '11111111-1111-4111-8111-111111111111';
+    const workspaceId = WORKSPACE_ID;
     const fetchImpl = vi.fn(async () => jsonResponse({sources: [], events: []}));
     configureApiClient({fetchImpl});
 

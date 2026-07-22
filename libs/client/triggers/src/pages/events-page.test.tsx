@@ -1,9 +1,9 @@
 import type {
   TriggerEventDetailResponseDto,
   TriggerEventListItemDto,
-  TriggerEventListResponseDto,
 } from '@shipfox/api-triggers-dto';
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {toTriggerEventDetail, toTriggerEventListPage} from '#hooks/api/trigger-event-mapper.js';
 import {
   useTriggerEventFacetsQuery,
   useTriggerEventQuery,
@@ -49,10 +49,10 @@ function makeDetail(overrides: Partial<TriggerEventDetailResponseDto> = {}) {
 }
 
 function makeListQuery(triggerEvents: TriggerEventListItemDto[]) {
-  const page: TriggerEventListResponseDto = {
+  const page = toTriggerEventListPage({
     trigger_events: triggerEvents,
     next_cursor: null,
-  };
+  });
 
   return {
     data: {pages: [page], pageParams: [undefined]},
@@ -75,7 +75,7 @@ describe('EventsPage', () => {
     useTriggerEventQueryMock.mockImplementation(
       (eventId) =>
         ({
-          data: eventId ? makeDetail({id: eventId}) : undefined,
+          data: eventId ? toTriggerEventDetail(makeDetail({id: eventId})) : undefined,
           isError: false,
           refetch: vi.fn(),
         }) as unknown as ReturnType<typeof useTriggerEventQuery>,

@@ -1,7 +1,7 @@
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Table, TableBody, TableHead, TableHeader, TableRow} from '@shipfox/react-ui/table';
-import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
+import {hasTriggerEventFilters} from '#core/trigger-event.js';
 import {EventsFilterBar} from './events-filter-bar.js';
 import {
   EventsListEmpty,
@@ -11,16 +11,6 @@ import {
 } from './events-list-states.js';
 import {TriggerEventRow} from './trigger-event-row.js';
 import type {EventsListProps} from './types.js';
-
-function hasAnyFilter(filters: TriggerEventFilters): boolean {
-  return Boolean(
-    (filters.source && filters.source.length > 0) ||
-      (filters.event && filters.event.length > 0) ||
-      filters.from ||
-      filters.to ||
-      (filters.outcome && filters.outcome.length > 0),
-  );
-}
 
 export function EventsList({
   events,
@@ -35,7 +25,7 @@ export function EventsList({
   selectedEventId,
   onSelectEvent,
 }: EventsListProps) {
-  const activeFilters = hasAnyFilter(filters);
+  const activeFilters = hasTriggerEventFilters(filters);
   const refreshFailed = query.isError && query.data !== undefined;
   const showEmptyState = !query.isPending && !query.isError && events.length === 0;
 

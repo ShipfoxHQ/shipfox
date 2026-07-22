@@ -4813,6 +4813,9 @@ importers:
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/integration-icons':
+        specifier: workspace:*
+        version: link:../../shared/react/integration-icons
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -5668,15 +5671,15 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
-      '@shipfox/client-integrations':
-        specifier: workspace:*
-        version: link:../integrations
       '@shipfox/client-shell':
         specifier: workspace:*
         version: link:../shell
       '@shipfox/client-ui':
         specifier: workspace:*
         version: link:../ui
+      '@shipfox/integration-icons':
+        specifier: workspace:*
+        version: link:../../shared/react/integration-icons
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui
@@ -7157,6 +7160,58 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+
+  libs/shared/react/integration-icons:
+    dependencies:
+      '@shipfox/react-ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@swc/helpers':
+        specifier: 'catalog:'
+        version: 0.5.23
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/client-test-setup':
+        specifier: workspace:*
+        version: link:../../../client/test-setup
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+      '@testing-library/jest-dom':
+        specifier: 'catalog:'
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: 'catalog:'
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@testing-library/user-event':
+        specifier: 'catalog:'
+        version: 14.6.1(@testing-library/dom@10.4.1)
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: 'catalog:'
+        version: 29.1.1
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
 
   libs/shared/react/ui:
     dependencies:

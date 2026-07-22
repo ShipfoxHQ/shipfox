@@ -1,4 +1,3 @@
-import type {TriggerDecisionDto, TriggerEventDetailResponseDto} from '@shipfox/api-triggers-dto';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -21,6 +20,10 @@ import {Code, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {useMemo} from 'react';
+import type {
+  TriggerEventDetail as TriggerEventDetailModel,
+  TriggerEventMatchedWorkflowResult,
+} from '#core/trigger-event.js';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
 import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
@@ -52,7 +55,7 @@ export function TriggerEventDetailView({
   onBack,
 }: {
   workspaceId: string;
-  event: TriggerEventDetailResponseDto;
+  event: TriggerEventDetailModel;
   onBack: () => void;
 }) {
   const result = triggerEventResult(event);
@@ -106,7 +109,7 @@ export function TriggerEventDetailView({
               </TooltipContent>
             </Tooltip>
             <Text size="xs" className="truncate text-foreground-neutral-muted">
-              <RelativeTime value={event.received_at} />
+              <RelativeTime value={event.receivedAt} />
             </Text>
           </div>
           <Badge variant={result.badge} size="xs">
@@ -123,11 +126,11 @@ export function TriggerEventDetailView({
   );
 }
 
-function triggerEventDisplayLabel(event: Pick<TriggerEventDetailResponseDto, 'event' | 'source'>) {
+function triggerEventDisplayLabel(event: Pick<TriggerEventDetailModel, 'event' | 'source'>) {
   return event.event || event.source;
 }
 
-function triggerEventFullLabel(event: Pick<TriggerEventDetailResponseDto, 'event' | 'source'>) {
+function triggerEventFullLabel(event: Pick<TriggerEventDetailModel, 'event' | 'source'>) {
   return [event.source, event.event].filter(Boolean).join(' · ');
 }
 
@@ -196,13 +199,7 @@ function TriggerEventDetailError({onBack, onRetry}: {onBack: () => void; onRetry
   );
 }
 
-function EventRuns({
-  workspaceId,
-  event,
-}: {
-  workspaceId: string;
-  event: TriggerEventDetailResponseDto;
-}) {
+function EventRuns({workspaceId, event}: {workspaceId: string; event: TriggerEventDetailModel}) {
   if (event.decisions.length === 0) {
     if (event.outcome === 'discarded') {
       return (
@@ -228,8 +225,14 @@ function EventRuns({
   );
 }
 
-function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: TriggerDecisionDto}) {
-  if (decision.decision !== 'triggered' || !decision.run_id || !decision.run_name) {
+function DecisionRow({
+  workspaceId,
+  decision,
+}: {
+  workspaceId: string;
+  decision: TriggerEventMatchedWorkflowResult;
+}) {
+  if (decision.decision !== 'triggered' || !decision.runId || !decision.runName) {
     return (
       <li className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6">
         <Icon
@@ -239,7 +242,7 @@ function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: Tr
         />
         <div className="flex min-w-0 flex-col gap-1">
           <Text size="sm" className="min-w-0 truncate text-foreground-neutral-base">
-            {decision.subscription_name}
+            {decision.subscriptionName}
           </Text>
           {decision.reason ? (
             <Text size="xs" className="text-foreground-highlight-error">
@@ -259,7 +262,7 @@ function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: Tr
     <li>
       <Link
         to="/workspaces/$wid/projects/$pid/runs/$workflowRunId"
-        params={{wid: workspaceId, pid: decision.project_id, workflowRunId: decision.run_id}}
+        params={{wid: workspaceId, pid: decision.projectId ?? '', workflowRunId: decision.runId}}
         className="flex min-w-0 items-start gap-8 rounded-6 px-8 py-6 transition-colors hover:bg-background-components-hover focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
       >
         <Icon
@@ -269,10 +272,10 @@ function DecisionRow({workspaceId, decision}: {workspaceId: string; decision: Tr
         />
         <span className="flex min-w-0 flex-col gap-1">
           <Text as="span" size="sm" className="min-w-0 truncate text-foreground-neutral-base">
-            {decision.subscription_name}
+            {decision.subscriptionName}
           </Text>
           <Code as="span" variant="label" className="truncate text-foreground-neutral-muted">
-            {decision.run_name}
+            {decision.runName}
           </Code>
         </span>
       </Link>

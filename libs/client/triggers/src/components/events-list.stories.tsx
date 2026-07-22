@@ -7,6 +7,7 @@ import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {Code} from '@shipfox/react-ui/typography';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import type {ReactNode} from 'react';
+import {toTriggerEventSummary} from '#hooks/api/trigger-event-mapper.js';
 import {EventsList} from './events-list.js';
 import type {TriggerEventsListQuery} from './types.js';
 
@@ -62,13 +63,13 @@ function makeEvent(
   };
 }
 
-const SAMPLE_EVENTS: TriggerEventListItemDto[] = [
+const SAMPLE_EVENTS = [
   makeEvent('received', 'github', 'github_acme', 'push', 0, 0),
   makeEvent('routed', 'github', 'github_acme', 'push', 2, 3),
   makeEvent('routed', 'gitea', 'gitea_acme', 'pull_request', 1, 12),
   makeEvent('discarded', 'github', 'github_acme', 'issue_comment', 0, 38),
   makeEvent('failed', 'gitlab', 'gitlab_acme', 'push', 1, 95),
-];
+].map(toTriggerEventSummary);
 
 const SAMPLE_FACETS: TriggerEventFacetsResponseDto = {
   sources: [

@@ -1,4 +1,5 @@
 import {QueryLoadError} from '@shipfox/client-ui';
+import {IntegrationIcon} from '@shipfox/integration-icons';
 import {IconButton} from '@shipfox/react-ui/button';
 import {
   DropdownMenu,
@@ -14,7 +15,6 @@ import {cn, formatDate} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
 import {type IntegrationConnection, isUsableConnection} from '#core/models.js';
-import {IntegrationIcon} from '#integration-icon.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
 
 interface InstalledIntegrationsSectionProps {

@@ -1,3 +1,4 @@
+import {IntegrationIcon} from '@shipfox/integration-icons';
 import {useIsTextTruncated} from '@shipfox/react-ui/hooks';
 import {Label} from '@shipfox/react-ui/label';
 import {RadioGroup, RadioGroupItem} from '@shipfox/react-ui/radio-group';
@@ -5,7 +6,6 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Text} from '@shipfox/react-ui/typography';
 import {useId} from 'react';
 import type {IntegrationConnection} from '#core/models.js';
-import {IntegrationIcon} from '#integration-icon.js';
 
 export function ConnectionPicker({
   connections,

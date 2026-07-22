@@ -3,6 +3,7 @@ import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {fireEvent, render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {ReactElement} from 'react';
+import {toTriggerEventDetail} from '#hooks/api/trigger-event-mapper.js';
 import {useTriggerEventQuery} from '#hooks/api/trigger-events.js';
 import {TriggerEventDetail, TriggerEventDetailView} from './trigger-event-detail.js';
 
@@ -65,7 +66,11 @@ function renderWithProviders(ui: ReactElement) {
 
 function renderDetailView(event: TriggerEventDetailResponseDto, onBack = vi.fn()) {
   return renderWithProviders(
-    <TriggerEventDetailView workspaceId={WORKSPACE_ID} event={event} onBack={onBack} />,
+    <TriggerEventDetailView
+      workspaceId={WORKSPACE_ID}
+      event={toTriggerEventDetail(event)}
+      onBack={onBack}
+    />,
   );
 }
 

@@ -1,12 +1,11 @@
-import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {useEffect, useMemo, useState} from 'react';
 import {EventsList} from '#components/events-list.js';
 import {TriggerEventDetail} from '#components/trigger-event-detail.js';
+import type {TriggerEventFilters, TriggerEventSummary} from '#core/trigger-event.js';
 import {
-  type TriggerEventFilters,
   useTriggerEventFacetsQuery,
   useTriggerEventsInfiniteQuery,
 } from '#hooks/api/trigger-events.js';
@@ -26,8 +25,8 @@ export function EventsPage({workspaceId, filters, onFiltersChange}: EventsPagePr
   const facetsQuery = useTriggerEventFacetsQuery(workspaceId);
   const [selectedEventId, setSelectedEventId] = useState<string | undefined>();
 
-  const events = useMemo<TriggerEventListItemDto[]>(
-    () => query.data?.pages.flatMap((page) => page.trigger_events) ?? [],
+  const events = useMemo<TriggerEventSummary[]>(
+    () => query.data?.pages.flatMap((page) => page.events) ?? [],
     [query.data],
   );
 

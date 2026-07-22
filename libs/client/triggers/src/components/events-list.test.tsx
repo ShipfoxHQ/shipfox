@@ -2,11 +2,12 @@ import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import {toTriggerEventSummary} from '#hooks/api/trigger-event-mapper.js';
 import {EventsList} from './events-list.js';
 import type {EventsListProps} from './types.js';
 
-function makeEvent(overrides: Partial<TriggerEventListItemDto> = {}): TriggerEventListItemDto {
-  return {
+function makeEvent(overrides: Partial<TriggerEventListItemDto> = {}) {
+  return toTriggerEventSummary({
     id: 'evt-1',
     event_ref: 'ref-1',
     origin: 'integration',
@@ -22,7 +23,7 @@ function makeEvent(overrides: Partial<TriggerEventListItemDto> = {}): TriggerEve
     processed_at: '2026-06-01T00:00:00.000Z',
     created_at: '2026-06-01T00:00:00.000Z',
     ...overrides,
-  };
+  });
 }
 
 function makeProps(overrides: Partial<EventsListProps> = {}): EventsListProps {

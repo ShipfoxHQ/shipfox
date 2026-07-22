@@ -1,8 +1,6 @@
 import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import type {ComponentProps} from 'react';
-import {PROVIDER_CATALOG} from '#provider-catalog.js';
-
-export const FALLBACK_INTEGRATION_ICON: IconName = 'componentLine';
+import {FALLBACK_INTEGRATION_ICON, getProviderIcon} from './provider-icons.js';
 
 /**
  * Accepts the source strings used by connections and events; unknown values use
@@ -10,7 +8,7 @@ export const FALLBACK_INTEGRATION_ICON: IconName = 'componentLine';
  */
 export function getIntegrationIcon(source: string | null | undefined): IconName {
   if (!source) return FALLBACK_INTEGRATION_ICON;
-  return PROVIDER_CATALOG[source]?.iconName ?? FALLBACK_INTEGRATION_ICON;
+  return getProviderIcon(source) ?? FALLBACK_INTEGRATION_ICON;
 }
 
 export interface IntegrationIconProps extends Omit<ComponentProps<typeof Icon>, 'name'> {
