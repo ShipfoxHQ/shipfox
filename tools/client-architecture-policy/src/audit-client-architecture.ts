@@ -11,24 +11,27 @@ export interface ClientArchitectureViolation {
     | 'core-api-dto-import'
     | 'core-client-framework-import'
     | 'leaf-query-cache-ownership'
-    | 'response-dto-in-presentation';
+    | 'response-dto-in-presentation'
+    | 'unchecked-route-search'
+    | 'unparsed-api-response';
 }
 
 const rootDirectory = fileURLToPath(new URL('../../../', import.meta.url));
-const clientDirectory = path.join(rootDirectory, 'libs/client');
-const baselinePath = path.join(
-  rootDirectory,
-  'tools/client-architecture-policy/client-architecture-baseline.json',
-);
+const auditedDirectories = [
+  path.join(rootDirectory, 'libs/client'),
+  path.join(rootDirectory, 'libs/shared/react/ui'),
+];
 const sourceFilePattern = /\.(?:ts|tsx)$/;
 const nonProductionSourcePattern = /\.(?:stories|test)\.(?:ts|tsx)$/;
 const apiDtoImportPattern = /(?:from\s+|import\()['"]@shipfox\/api-[^'"]+-dto['"]/;
 const clientFrameworkImportPattern =
   /from\s+['"](?:react(?:-dom)?|jotai|@tanstack\/[^'"]+|@shipfox\/client-(?:api|shell|ui)|@shipfox\/react-ui(?:\/[^'"]+)?)['"]/;
 const apiRequestPattern = /\b(?:apiRequest|checkedApiRequest)\s*(?:<[^>]*>)?\s*\(/;
+const uncheckedApiRequestPattern = /\bapiRequest\s*(?:<[^>]*>)?\s*\(/;
 const queryCachePattern =
   /\b(?:useQueryClient\s*\(|queryClient\.(?:invalidateQueries|removeQueries|resetQueries|setQueriesData|setQueryData))/;
 const responseDtoNamePattern = /\b[A-Za-z0-9_]+(?<!Body|Query)Dto\b/;
+const routeSearchPattern = /\buseRouteSearch\s*\(/;
 const generatedDirectoryNames = new Set(['dist', 'node_modules']);
 
 function toRepositoryPath(filePath: string): string {
@@ -99,14 +102,18 @@ export function auditClientSource(file: string, source: string): ClientArchitect
   }
   if (!isAdapter && !isClientApi)
     addViolation('api-request-outside-adapter', countMatches(source, apiRequestPattern));
+  if (!isClientApi)
+    addViolation('unparsed-api-response', countMatches(source, uncheckedApiRequestPattern));
   if (isPresentation) addViolation('response-dto-in-presentation', responseDtoImportCount(source));
   if (normalizedFile.includes('/src/components/'))
     addViolation('leaf-query-cache-ownership', countMatches(source, queryCachePattern));
+  if (!normalizedFile.includes('/src/routes/'))
+    addViolation('unchecked-route-search', countMatches(source, routeSearchPattern));
   return violations;
 }
 
 export async function auditRepository(): Promise<ClientArchitectureViolation[]> {
-  const files = await sourceFiles(clientDirectory);
+  const files = (await Promise.all(auditedDirectories.map(sourceFiles))).flat();
   const violations = await Promise.all(
     files.map(async (file) =>
       auditClientSource(toRepositoryPath(file), await readFile(file, 'utf8')),
@@ -119,37 +126,14 @@ export async function auditRepository(): Promise<ClientArchitectureViolation[]> 
     );
 }
 
-export async function baselineViolations(): Promise<ClientArchitectureViolation[]> {
-  return JSON.parse(await readFile(baselinePath, 'utf8')) as ClientArchitectureViolation[];
-}
-
-function violationKey(violation: ClientArchitectureViolation): string {
-  return `${violation.file}:${violation.rule}`;
-}
-
-export function newViolations(
-  violations: ClientArchitectureViolation[],
-  baseline: ClientArchitectureViolation[],
-): ClientArchitectureViolation[] {
-  const baselineOccurrences = new Map(
-    baseline.map((violation) => [violationKey(violation), violation.occurrences]),
-  );
-  return violations.filter(
-    (violation) => violation.occurrences > (baselineOccurrences.get(violationKey(violation)) ?? 0),
-  );
-}
-
 async function main(): Promise<void> {
-  const [violations, baseline] = await Promise.all([auditRepository(), baselineViolations()]);
-  const newEntries = newViolations(violations, baseline);
-  if (newEntries.length === 0) {
-    process.stdout.write(
-      `Client architecture audit passed with ${baseline.length} baseline entries\n`,
-    );
+  const violations = await auditRepository();
+  if (violations.length === 0) {
+    process.stdout.write('Client architecture audit passed with zero violations\n');
     return;
   }
-  process.stderr.write(`Client architecture audit found ${newEntries.length} new violation(s)\n`);
-  for (const violation of newEntries)
+  process.stderr.write(`Client architecture audit found ${violations.length} violation(s)\n`);
+  for (const violation of violations)
     process.stderr.write(`- ${violation.file}: ${violation.rule}\n`);
   process.exitCode = 1;
 }

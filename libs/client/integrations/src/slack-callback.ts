@@ -1,29 +1,30 @@
 import type {SlackCallbackQueryDto} from '@shipfox/api-integration-slack-dto';
 import {ApiError} from '@shipfox/client-api';
+import {type BrowserStorageKey, createTypedBrowserStorage} from '@shipfox/client-ui';
 
 export const SLACK_INSTALL_WORKSPACE_KEY = 'shipfox.slack-install.workspace-id';
 type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+const slackInstallWorkspaceStorageKey = {
+  key: SLACK_INSTALL_WORKSPACE_KEY,
+  lifetime: 'session',
+  principalScope: 'workspace',
+  serialize: (workspaceId: string) => workspaceId,
+  parse: (value: string) => value || undefined,
+} satisfies BrowserStorageKey<string>;
+
 export function saveSlackInstallWorkspace(storage: WorkspaceStorage, workspaceId: string): void {
-  try {
-    storage.setItem(SLACK_INSTALL_WORKSPACE_KEY, workspaceId);
-  } catch {
-    // Storage only supports recovery navigation.
-  }
+  installWorkspaceStorage(storage).write(workspaceId);
 }
 export function readSlackInstallWorkspace(storage: WorkspaceStorage): string | undefined {
-  try {
-    return storage.getItem(SLACK_INSTALL_WORKSPACE_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return installWorkspaceStorage(storage).read();
 }
 export function clearSlackInstallWorkspace(storage: WorkspaceStorage): void {
-  try {
-    storage.removeItem(SLACK_INSTALL_WORKSPACE_KEY);
-  } catch {
-    // A stale recovery hint cannot affect the API callback.
-  }
+  installWorkspaceStorage(storage).remove();
+}
+
+function installWorkspaceStorage(storage: WorkspaceStorage) {
+  return createTypedBrowserStorage(() => storage, slackInstallWorkspaceStorageKey);
 }
 
 export function parseSlackCallbackQuery(

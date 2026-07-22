@@ -122,7 +122,7 @@ describe('WorkflowRunView', () => {
                   listener_status: 'listening',
                   job_executions: [
                     workflowJobExecutionDto({
-                      id: 'execution-1',
+                      id: '77777777-7777-4777-8777-000000000001',
                       job_id: BUILD_JOB_ID,
                       sequence: 1,
                       status: 'succeeded',
@@ -152,7 +152,7 @@ describe('WorkflowRunView', () => {
                       ],
                     }),
                     workflowJobExecutionDto({
-                      id: 'execution-2',
+                      id: '77777777-7777-4777-8777-000000000002',
                       job_id: BUILD_JOB_ID,
                       sequence: 2,
                       status: 'failed',
@@ -427,7 +427,7 @@ describe('WorkflowRunView', () => {
                   status: 'succeeded',
                   job_executions: [
                     workflowJobExecutionDto({
-                      id: 'retry-execution',
+                      id: '77777777-7777-4777-8777-000000000003',
                       job_id: DEPLOY_JOB_ID,
                       sequence: 2,
                       name: 'retry',

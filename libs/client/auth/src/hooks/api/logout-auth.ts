@@ -1,10 +1,10 @@
-import {apiRequest} from '@shipfox/client-api';
+import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
 import {useAuthTransition} from '#state/auth.js';
 
 async function logoutAuth() {
   try {
-    await apiRequest<void>('/auth/logout', {method: 'POST', body: {}});
+    await checkedApiRequest(emptyResponseSchema, '/auth/logout', {method: 'POST', body: {}});
   } catch {
     // Logout is best-effort: local session state must clear even if the API is offline.
   }

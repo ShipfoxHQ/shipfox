@@ -1,10 +1,11 @@
-import {apiRequest} from '@shipfox/client-api';
+import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import type {RevokeInvitationCommand} from '#core/membership.js';
 import {listInvitationsQueryOptions} from './list-invitations.js';
 
 async function revokeInvitation(params: {workspaceId: string; command: RevokeInvitationCommand}) {
-  await apiRequest<void>(
+  await checkedApiRequest(
+    emptyResponseSchema,
     `/workspaces/${params.workspaceId}/invitations/${params.command.invitationId}`,
     {
       method: 'DELETE',

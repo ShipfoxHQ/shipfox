@@ -1,7 +1,7 @@
 import {SECRETS_MAX_LIST_LIMIT} from '@shipfox/api-secrets-dto';
 import {
-  apiRequest,
   checkedApiRequest,
+  emptyResponseSchema,
   type StandardSchema,
   type StandardSchemaOutput,
 } from '@shipfox/client-api';
@@ -93,7 +93,8 @@ export function createStoreApi<
 
   async function remove(command: DeleteStoreCommand): Promise<void> {
     const search = searchForScope(command.scope);
-    await apiRequest<void>(
+    await checkedApiRequest(
+      emptyResponseSchema,
       `/workspaces/${command.workspaceId}/${resource}/${encodeURIComponent(command.key)}${search ? `?${search}` : ''}`,
       {method: 'DELETE'},
     );

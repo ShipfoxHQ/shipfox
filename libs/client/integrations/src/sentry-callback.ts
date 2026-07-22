@@ -1,34 +1,35 @@
 import {ApiError} from '@shipfox/client-api';
+import {type BrowserStorageKey, createTypedBrowserStorage} from '@shipfox/client-ui';
 
 export const SENTRY_INSTALL_WORKSPACE_KEY = 'shipfox.sentry-install.workspace-id';
 
 type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+const sentryInstallWorkspaceStorageKey = {
+  key: SENTRY_INSTALL_WORKSPACE_KEY,
+  lifetime: 'session',
+  principalScope: 'workspace',
+  serialize: (workspaceId: string) => workspaceId,
+  parse: (value: string) => value || undefined,
+} satisfies BrowserStorageKey<string>;
+
 // Storage helpers swallow failures (quota, private mode, disabled storage):
 // the handoff is an optimization, never a requirement — the callback always
 // asks for explicit confirmation and only uses the stored id to pre-select.
 export function saveSentryInstallWorkspace(storage: WorkspaceStorage, workspaceId: string): void {
-  try {
-    storage.setItem(SENTRY_INSTALL_WORKSPACE_KEY, workspaceId);
-  } catch {
-    // The callback falls back to its sole-workspace pre-selection.
-  }
+  installWorkspaceStorage(storage).write(workspaceId);
 }
 
 export function readSentryInstallWorkspace(storage: WorkspaceStorage): string | undefined {
-  try {
-    return storage.getItem(SENTRY_INSTALL_WORKSPACE_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return installWorkspaceStorage(storage).read();
 }
 
 export function clearSentryInstallWorkspace(storage: WorkspaceStorage): void {
-  try {
-    storage.removeItem(SENTRY_INSTALL_WORKSPACE_KEY);
-  } catch {
-    // A tab-scoped leftover key is harmless: it only pre-selects.
-  }
+  installWorkspaceStorage(storage).remove();
+}
+
+function installWorkspaceStorage(storage: WorkspaceStorage) {
+  return createTypedBrowserStorage(() => storage, sentryInstallWorkspaceStorageKey);
 }
 
 export interface SentryCallbackParams {

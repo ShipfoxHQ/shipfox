@@ -1,13 +1,13 @@
-import type {
-  RerunWorkflowRunBodyDto,
-  WorkflowRunAttemptsResponseDto,
-  WorkflowRunDetailResponseDto,
-  WorkflowRunDto,
-  WorkflowRunListResponseDto,
-  WorkflowRunRerunModeDto,
-  WorkflowRunResponseDto,
+import {
+  type RerunWorkflowRunBodyDto,
+  type WorkflowRunRerunModeDto,
+  workflowRunAttemptsResponseSchema,
+  workflowRunDetailResponseSchema,
+  workflowRunDtoSchema,
+  workflowRunListResponseSchema,
+  workflowRunResponseSchema,
 } from '@shipfox/api-workflows-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {checkedApiRequest, type StandardSchema} from '@shipfox/client-api';
 import {
   type InfiniteData,
   keepPreviousData,
@@ -86,7 +86,8 @@ async function listWorkflowRunsDto({
   const params = new URLSearchParams({project_id: projectId, limit: String(limit)});
   if (cursor) params.set('cursor', cursor);
   appendFilters(params, filters);
-  const response = await apiRequest<WorkflowRunListResponseDto>(
+  const response = await checkedApiRequest(
+    workflowRunListResponseSchema,
     `/workflows/runs?${params.toString()}`,
     {signal},
   );
@@ -107,7 +108,8 @@ export async function fireManualWorkflow({
   definitionId: string;
   inputs?: Record<string, unknown>;
 }) {
-  return await apiRequest<{workflow_run_id: string}>(
+  return await checkedApiRequest(
+    manualWorkflowResponseSchema,
     `/workflow-definitions/${definitionId}/fire-manual`,
     {
       method: 'POST',
@@ -173,7 +175,8 @@ async function getWorkflowRunDto({
   const params = new URLSearchParams();
   if (runAttempt) params.set('attempt', String(runAttempt));
   const query = params.size > 0 ? `?${params.toString()}` : '';
-  return await apiRequest<WorkflowRunDetailResponseDto>(
+  return await checkedApiRequest(
+    workflowRunDetailResponseSchema,
     `/workflows/runs/${workflowRunId}${query}`,
     {
       signal,
@@ -188,7 +191,8 @@ async function getWorkflowRunAttemptsDto({
   workflowRunId: string;
   signal?: AbortSignal;
 }) {
-  return await apiRequest<WorkflowRunAttemptsResponseDto>(
+  return await checkedApiRequest(
+    workflowRunAttemptsResponseSchema,
     `/workflows/runs/${workflowRunId}/attempts`,
     {
       signal,
@@ -197,7 +201,7 @@ async function getWorkflowRunAttemptsDto({
 }
 
 async function cancelWorkflowRunDto({workflowRunId}: {workflowRunId: string}) {
-  return await apiRequest<WorkflowRunDto>(`/workflows/runs/${workflowRunId}/cancel`, {
+  return await checkedApiRequest(workflowRunDtoSchema, `/workflows/runs/${workflowRunId}/cancel`, {
     method: 'POST',
   });
 }
@@ -209,11 +213,32 @@ export async function rerunWorkflowRun({
   workflowRunId: string;
   mode: WorkflowRunRerunModeDto;
 }) {
-  return await apiRequest<WorkflowRunResponseDto>(`/workflows/runs/${workflowRunId}/rerun`, {
-    method: 'POST',
-    body: {mode} satisfies RerunWorkflowRunBodyDto,
-  });
+  return await checkedApiRequest(
+    workflowRunResponseSchema,
+    `/workflows/runs/${workflowRunId}/rerun`,
+    {
+      method: 'POST',
+      body: {mode} satisfies RerunWorkflowRunBodyDto,
+    },
+  );
 }
+
+const manualWorkflowResponseSchema: StandardSchema<unknown, {workflow_run_id: string}> = {
+  '~standard': {
+    version: 1,
+    vendor: 'client-workflows',
+    validate: (value) => {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        'workflow_run_id' in value &&
+        typeof value.workflow_run_id === 'string'
+      )
+        return {value: {workflow_run_id: value.workflow_run_id}};
+      return {issues: [{message: 'Expected workflow_run_id.'}]};
+    },
+  },
+};
 
 export function useRerunWorkflowRunMutation(projectId: string) {
   const queryClient = useQueryClient();

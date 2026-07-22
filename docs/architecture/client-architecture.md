@@ -170,12 +170,21 @@ Test query keys, cache effects, polling, and optimistic updates at the query
 boundary. Component tests prove rendered behavior. E2E tests prove journeys.
 
 Run `pnpm check:client-architecture` after changing a client boundary. The
-check blocks new direct API requests outside adapters, DTO imports in
-presentation, DTO or framework imports in `core/`, and leaf-component query
-cache ownership. Its existing migration inventory is
-[`client-architecture-baseline.json`](../../tools/client-architecture-policy/client-architecture-baseline.json).
-Do not add a baseline entry for new code. Move the code to the appropriate
-adapter, `core/`, or mutation owner instead.
+check requires zero violations across every production client package and shared
+React UI code. It blocks direct API requests outside adapters, unparsed API
+responses, response DTO imports in presentation, DTO or framework imports in
+`core/`, leaf-component query-cache ownership, and raw route-search parsing
+outside an owned route module. It has no migration baseline or allowlist.
+
+A completed feature package has `core/` domain models and policies with no UI
+or transport imports; checked adapter functions that parse and map every
+business response; reusable package-owned query options for each server
+resource; mutation-owned cache effects; route, settings, and navigation
+contributions in its own `feature.ts`; and typed browser-storage definitions
+that declare `lifetime` and `principalScope`. Components and pages consume the
+domain surface and coordinate UI only. A narrow shell/runtime or cross-feature
+coordinator exception must be named and tested at its owner rather than copied
+into a leaf component.
 
 Update this guide when the current operating model changes. Update ADR 0003,
 or add a new ADR, when the durable decision, ownership model, or accepted
