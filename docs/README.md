@@ -22,6 +22,7 @@ listed there or when you need to place, update, or review documentation.
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
 | Changes webhook retry behavior. | [Webhook retry safety](architecture/webhook-retry-safety.md) | The current safety model for webhook retries. |
+| Adds or changes unit tests, Storybook stories, or visual regression coverage. | [Testing guide](guides/testing.md) | Unit-test altitude, Storybook conventions, Argos ownership, build names, and review. |
 | Adds or changes end-to-end coverage. | [E2E guide](../e2e/README.md) | Suite levels, HTTP-first setup, screens, and E2E package boundaries. |
 | Mints, verifies, or carries an authentication token. | [Auth security model](../libs/api/auth/README.md#security-model) | Token authority, lifetime, trust boundaries, and logging constraints. |
 | Defines an inter-module contract or transport. | [Inter-module package README](../libs/shared/common/inter-module/README.md) | Contract primitives and transport responsibilities. |
