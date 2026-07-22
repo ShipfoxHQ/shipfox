@@ -133,9 +133,10 @@ SHIPFOX_OLLAMA_KEEP_ALIVE=2h mise run ollama:up
 Conductor workspaces run `dev/worktree-services.mjs up` during setup. This
 creates per-worktree Docker services, leases a 20-port block from
 `~/.shipfox/shipfox-port-leases.json`, and writes the generated app environment
-to `.context/local-services/env`, which is loaded by `mise.toml`. The port lease
-does not depend on Conductor environment variables, so it also works from an
-ordinary git worktree or clone.
+to `.context/local-services/env`, which is loaded by `mise.toml`. Conductor
+workspaces use `CONDUCTOR_WORKSPACE_ID` as the stable lease identity, so a
+workspace rename keeps its ports. Ordinary git worktrees and clones fall back to
+their resolved path.
 
 Common commands:
 

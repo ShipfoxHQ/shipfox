@@ -54,11 +54,12 @@ export function main(commandOrArgs) {
 
   const workspacePath = resolve();
   const workspaceName = basename(workspacePath);
-  const projectName = resolveProjectName(workspacePath);
+  const workspaceId = workspaceIdentity(workspacePath);
+  const projectName = resolveProjectName(workspacePath, workspaceId);
 
   switch (command) {
     case 'up':
-      up(workspaceName, projectName);
+      up(workspaceName, workspaceId, projectName);
       break;
     case 'stop':
       stop(projectName);
@@ -72,13 +73,14 @@ export function main(commandOrArgs) {
   }
 }
 
-function up(workspaceName, projectName) {
+function up(workspaceName, workspaceId, projectName) {
   mkdirSync(stateDir, {recursive: true});
 
-  const ports = portsFromBase(leasePortBlock());
+  const ports = portsFromBase(leasePortBlock({workspaceId}));
 
   writeEnvFile(portsFile, {
     SHIPFOX_WORKTREE_SERVICES_WORKSPACE: workspaceName,
+    SHIPFOX_WORKTREE_SERVICES_WORKSPACE_ID: workspaceId,
     SHIPFOX_WORKTREE_SERVICES_WORKSPACE_PATH: resolve(),
     SHIPFOX_WORKTREE_SERVICES_PROJECT: projectName,
     SHIPFOX_PORT_BASE: String(ports.base),
@@ -160,15 +162,40 @@ function cleanup(args) {
   );
 }
 
-export function leasePortBlock({workspacePath = resolve(), registryFile = portLeasesFile} = {}) {
+export function leasePortBlock({
+  workspaceId,
+  workspacePath = resolve(),
+  registryFile = portLeasesFile,
+} = {}) {
   const resolvedWorkspacePath = resolve(workspacePath);
+  const leaseWorkspaceId = workspaceId ?? resolvedWorkspacePath;
   return withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
-    const existingLease = registry.leases[resolvedWorkspacePath];
-    if (existingLease) return existingLease.base;
+    const existingLease = registry.leases[leaseWorkspaceId];
+    if (existingLease) {
+      existingLease.workspacePath = resolvedWorkspacePath;
+      writePortLeaseRegistry(registry, registryFile);
+      return existingLease.base;
+    }
+
+    const legacyLeaseKey = Object.entries(registry.leases).find(
+      ([leaseKey, lease]) =>
+        leaseKey === resolvedWorkspacePath || lease.workspacePath === resolvedWorkspacePath,
+    )?.[0];
+    if (legacyLeaseKey) {
+      const legacyLease = registry.leases[legacyLeaseKey];
+      delete registry.leases[legacyLeaseKey];
+      registry.leases[leaseWorkspaceId] = {...legacyLease, workspacePath: resolvedWorkspacePath};
+      writePortLeaseRegistry(registry, registryFile);
+      return legacyLease.base;
+    }
 
     const base = nextAvailablePortBlock(registry);
-    registry.leases[resolvedWorkspacePath] = {base, allocatedAt: new Date().toISOString()};
+    registry.leases[leaseWorkspaceId] = {
+      base,
+      allocatedAt: new Date().toISOString(),
+      workspacePath: resolvedWorkspacePath,
+    };
     registry.nextBase = nextPortBlock(base);
     writePortLeaseRegistry(registry, registryFile);
     return base;
@@ -179,25 +206,30 @@ export function findStalePortLeases({registryFile = portLeasesFile} = {}) {
   return withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
     return Object.entries(registry.leases)
-      .filter(([workspacePath]) => !existsSync(workspacePath))
-      .map(([workspacePath, lease]) => ({workspacePath, ...lease}));
+      .map(([workspaceId, lease]) => ({
+        workspaceId,
+        workspacePath: lease.workspacePath ?? workspaceId,
+        ...lease,
+      }))
+      .filter(({workspacePath}) => !existsSync(workspacePath));
   }, registryFile);
 }
 
 export function removeStalePortLeases(staleLeases, {registryFile = portLeasesFile} = {}) {
   withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
-    for (const {workspacePath} of staleLeases) {
-      if (!existsSync(workspacePath)) delete registry.leases[workspacePath];
+    for (const {workspaceId, workspacePath} of staleLeases) {
+      if (!existsSync(workspacePath)) delete registry.leases[workspaceId];
     }
     writePortLeaseRegistry(registry, registryFile);
   }, registryFile);
 }
 
 function releasePortLease(workspacePath, registryFile = portLeasesFile) {
+  const workspaceId = workspaceIdentity(workspacePath);
   withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
-    delete registry.leases[resolve(workspacePath)];
+    delete registry.leases[workspaceId];
     writePortLeaseRegistry(registry, registryFile);
   }, registryFile);
 }
@@ -391,22 +423,28 @@ export function resolveComposeFile({
   fail(`Missing ${relativePath(workspaceComposeFile)}.`);
 }
 
-function resolveProjectName(workspacePath) {
+function resolveProjectName(workspacePath, workspaceId) {
   const existing = readEnvFile(portsFile);
-  if (existing.SHIPFOX_WORKTREE_SERVICES_WORKSPACE_PATH === workspacePath) {
+  if (
+    existing.SHIPFOX_WORKTREE_SERVICES_WORKSPACE_ID === workspaceId ||
+    existing.SHIPFOX_WORKTREE_SERVICES_WORKSPACE_PATH === workspacePath
+  ) {
     return existing.SHIPFOX_WORKTREE_SERVICES_PROJECT;
   }
-  return composeProjectName(workspacePath);
+  return composeProjectName(workspacePath, workspaceId);
 }
 
-export function composeProjectName(workspacePath) {
+export function composeProjectName(
+  workspacePath,
+  workspaceId = resolve(workspacePath),
+) {
   const resolvedWorkspacePath = resolve(workspacePath);
   const workspaceName = basename(resolvedWorkspacePath);
   const normalized = workspaceName
     .toLowerCase()
     .replace(composeProjectNameInvalidChars, '-')
     .replace(composeProjectNameLeadingDashes, '');
-  const hash = createHash('sha256').update(resolvedWorkspacePath).digest('hex').slice(0, 8);
+  const hash = createHash('sha256').update(workspaceId).digest('hex').slice(0, 8);
   const suffixLength =
     composeProjectNameMaxLength - composeProjectNamePrefix.length - hash.length - 1;
   const suffix =
@@ -414,6 +452,10 @@ export function composeProjectName(workspacePath) {
       .slice(0, suffixLength)
       .replace(composeProjectNameTrailingDashes, '') || 'workspace';
   return `${composeProjectNamePrefix}${suffix}-${hash}`;
+}
+
+function workspaceIdentity(workspacePath) {
+  return process.env.CONDUCTOR_WORKSPACE_ID || resolve(workspacePath);
 }
 
 function readEnvFile(file) {
