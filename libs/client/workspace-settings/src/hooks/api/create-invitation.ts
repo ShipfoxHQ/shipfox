@@ -1,23 +1,27 @@
-import {invitationDtoSchema} from '@shipfox/api-workspaces-dto';
+import {type CreateInvitationBodyDto, invitationDtoSchema} from '@shipfox/api-workspaces-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
-import type {CreateInvitationCommand, Invitation} from '#core/invitation.js';
+import type {CreateInvitationCommand, PendingInvitation} from '#core/membership.js';
 import {toInvitation} from './invitation-mapper.js';
 import {listInvitationsQueryOptions} from './list-invitations.js';
 
 async function createInvitation(params: {
   workspaceId: string;
   command: CreateInvitationCommand;
-}): Promise<Invitation> {
+}): Promise<PendingInvitation> {
   const response = await checkedApiRequest(
     invitationDtoSchema,
     `/workspaces/${params.workspaceId}/invitations`,
     {
       method: 'POST',
-      body: {email: params.command.email},
+      body: toCreateInvitationBody(params.command),
     },
   );
   return toInvitation(response);
+}
+
+export function toCreateInvitationBody(command: CreateInvitationCommand): CreateInvitationBodyDto {
+  return {email: command.email};
 }
 
 export function useCreateInvitation(workspaceId: string) {

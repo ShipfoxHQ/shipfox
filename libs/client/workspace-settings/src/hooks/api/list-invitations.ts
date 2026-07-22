@@ -1,13 +1,13 @@
 import {listInvitationsResponseSchema} from '@shipfox/api-workspaces-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
 import {queryOptions, useQuery} from '@tanstack/react-query';
-import type {Invitation} from '#core/invitation.js';
+import type {PendingInvitation} from '#core/membership.js';
 import {toInvitation} from './invitation-mapper.js';
 
 export const listInvitationsQueryKey = (workspaceId: string) =>
   ['workspaces', workspaceId, 'invitations'] as const;
 
-async function listInvitations(workspaceId: string): Promise<Invitation[]> {
+async function listInvitations(workspaceId: string): Promise<PendingInvitation[]> {
   const response = await checkedApiRequest(
     listInvitationsResponseSchema,
     `/workspaces/${workspaceId}/invitations`,
