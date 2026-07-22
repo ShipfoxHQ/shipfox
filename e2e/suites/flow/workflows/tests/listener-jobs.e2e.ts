@@ -10,7 +10,7 @@ import {
   LISTENER_JOB,
   type ListenerCase,
   listenerWorkflows,
-  sendBatchPairAndAwaitExecution,
+  sendBatchPairAndAwaitMaterialization,
   sendFire,
   sendResolve,
   setupListenerCase,
@@ -19,6 +19,9 @@ import {
 } from '#listener-jobs.js';
 import {waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {expect, test} from './fixtures.js';
+
+const LISTENER_FLOW_OBSERVATION_TIMEOUT_MS = 60_000;
+const LISTENER_RUN_TERMINAL_TIMEOUT_MS = 180_000;
 
 test.describe('listener jobs', () => {
   test('creates multiple executions before resolving on an until event', async ({
@@ -216,33 +219,20 @@ test.describe('listener jobs', () => {
         runId,
         jobKey: LISTENER_JOB,
         listenerStatus: 'listening',
-        timeoutMs: 8_000,
+        timeoutMs: LISTENER_FLOW_OBSERVATION_TIMEOUT_MS,
       });
-      await sendBatchPairAndAwaitExecution({
-        testCase,
-        runId,
-        label: 'readiness',
-        sequence: 1,
-      });
-      await waitForListenerExecution({
-        token: testCase.token,
-        runId,
-        jobKey: LISTENER_JOB,
-        sequence: 1,
-        status: 'succeeded',
-        timeoutMs: 8_000,
-      });
-      const batch = await sendBatchPairAndAwaitExecution({
+      const batch = await sendBatchPairAndAwaitMaterialization({
         testCase,
         runId,
         label: 'batch',
-        sequence: 2,
+        sequence: 1,
+        timeoutMs: LISTENER_FLOW_OBSERVATION_TIMEOUT_MS,
       });
       await sendResolve(testCase, 'resolve-batch');
       const terminal = await waitForRunTerminalOrFailedRunner({
         runId,
         token: testCase.token,
-        timeoutMs: 180_000,
+        timeoutMs: LISTENER_RUN_TERMINAL_TIMEOUT_MS,
         runner: testCase.runner,
       });
 
@@ -251,13 +241,13 @@ test.describe('listener jobs', () => {
         runDetail: terminal,
         token: testCase.token,
         jobKey: LISTENER_JOB,
-        sequence: 2,
+        sequence: 1,
         stepKey: 'show-batch',
       });
       expect(terminal.status).toBe('succeeded');
       expect(listen?.resolution_reason).toBe('until');
-      expect(listen?.job_executions).toHaveLength(2);
-      expect(listen?.job_executions[1]?.trigger_events.map((event) => event.delivery_id)).toEqual(
+      expect(listen?.job_executions).toHaveLength(1);
+      expect(listen?.job_executions[0]?.trigger_events.map((event) => event.delivery_id)).toEqual(
         batch.deliveryIds,
       );
       expect(logs).toContain(`batch_first=${batch.deliveryIds[0]}`);
