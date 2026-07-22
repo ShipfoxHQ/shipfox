@@ -84,14 +84,14 @@ describe('ProjectsHubPage', () => {
         if (url.searchParams.get('cursor') === 'cursor-1') {
           return Promise.resolve(
             jsonResponse({
-              projects: [projectDto({id: 'project-2', name: 'API'})],
+              projects: [projectDto({id: '11111111-1111-4111-8111-111111111113', name: 'API'})],
               next_cursor: null,
             }),
           );
         }
         return Promise.resolve(
           jsonResponse({
-            projects: [projectDto({id: 'project-1', name: 'Platform'})],
+            projects: [projectDto({id: '11111111-1111-4111-8111-111111111112', name: 'Platform'})],
             next_cursor: 'cursor-1',
           }),
         );
@@ -132,7 +132,7 @@ describe('ProjectsHubPage', () => {
         projects: jsonResponse({
           projects: [
             projectDto({
-              id: 'project-1',
+              id: '11111111-1111-4111-8111-111111111112',
               name: 'Platform',
               externalRepositoryId: 'github:octo/platform',
             }),
@@ -171,7 +171,7 @@ describe('ProjectsHubPage', () => {
     configureApiClient({
       fetchImpl: createHubFetch({
         projects: jsonResponse({
-          projects: [projectDto({id: 'project-1', name: 'Platform'})],
+          projects: [projectDto({id: '11111111-1111-4111-8111-111111111112', name: 'Platform'})],
           next_cursor: null,
         }),
         connections: jsonResponse(connectionsDto({lifecycleStatus})),
@@ -190,7 +190,7 @@ describe('ProjectsHubPage', () => {
     configureApiClient({
       fetchImpl: createHubFetch({
         projects: jsonResponse({
-          projects: [projectDto({id: 'project-1', name: 'Platform'})],
+          projects: [projectDto({id: '11111111-1111-4111-8111-111111111112', name: 'Platform'})],
           next_cursor: null,
         }),
         connections: jsonResponse({code: 'server-error'}, {status: 500}),
@@ -218,7 +218,7 @@ describe('ProjectsHubPage', () => {
 
 function createHubFetch({
   projects = jsonResponse({
-    projects: [projectDto({id: 'project-1', name: 'Platform'})],
+    projects: [projectDto({id: '11111111-1111-4111-8111-111111111112', name: 'Platform'})],
     next_cursor: null,
   }),
   connections = jsonResponse(connectionsDto()),

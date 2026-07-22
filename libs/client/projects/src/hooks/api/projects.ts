@@ -1,32 +1,27 @@
-import type {
-  CreateProjectBodyDto,
-  ListProjectsResponseDto,
-  ProjectResponseDto,
-} from '@shipfox/api-projects-dto';
-import {apiRequest} from '@shipfox/client-api';
 import {
-  type FetchQueryOptions,
+  createProjectBodySchema,
+  listProjectsResponseSchema,
+  projectResponseSchema,
+} from '@shipfox/api-projects-dto';
+import {checkedApiRequest} from '@shipfox/client-api';
+import {
   keepPreviousData,
   queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
+import type {CreateProjectCommand, Project, ProjectList} from '#core/project.js';
+import {toProject, toProjectList} from './mappers.js';
 
 export const projectsQueryKeys = {
   all: ['projects'] as const,
-  list: (workspaceId: string, search?: string) =>
-    [...projectsQueryKeys.all, 'list', workspaceId, search ?? ''] as const,
+  list: (workspaceId: string, search = '') =>
+    [...projectsQueryKeys.all, 'list', workspaceId, search] as const,
   exists: (workspaceId: string) => [...projectsQueryKeys.all, 'exists', workspaceId] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
-
-type ProjectExistenceQueryOptions = FetchQueryOptions<
-  ListProjectsResponseDto,
-  Error,
-  ListProjectsResponseDto,
-  ReturnType<typeof projectsQueryKeys.exists>
->;
 
 export async function listProjects({
   workspaceId,
@@ -39,28 +34,77 @@ export async function listProjects({
   limit?: number;
   cursor?: string | undefined;
   search?: string | undefined;
-  signal?: AbortSignal;
-}) {
+  signal?: AbortSignal | undefined;
+}): Promise<ProjectList> {
   const params = new URLSearchParams({workspace_id: workspaceId, limit: String(limit)});
   if (cursor) params.set('cursor', cursor);
   if (search) params.set('search', search);
-
-  return await apiRequest<ListProjectsResponseDto>(`/projects?${params.toString()}`, {signal});
+  return toProjectList(
+    await checkedApiRequest(listProjectsResponseSchema, `/projects?${params.toString()}`, {signal}),
+  );
 }
 
-export async function getProject(projectId: string) {
-  return await apiRequest<ProjectResponseDto>(`/projects/${projectId}`);
+export async function getProject(projectId: string): Promise<Project> {
+  return toProject(await checkedApiRequest(projectResponseSchema, `/projects/${projectId}`));
 }
 
-export async function createProject(body: CreateProjectBodyDto) {
-  return await apiRequest<ProjectResponseDto>('/projects', {method: 'POST', body});
+export async function createProject(command: CreateProjectCommand): Promise<Project> {
+  const body = createProjectBodySchema.parse({
+    workspace_id: command.workspaceId,
+    name: command.name,
+    source: {
+      connection_id: command.source.connectionId,
+      external_repository_id: command.source.externalRepositoryId,
+    },
+  });
+  return toProject(
+    await checkedApiRequest(projectResponseSchema, '/projects', {method: 'POST', body}),
+  );
 }
 
-export function projectExistenceQueryOptions(workspaceId: string): ProjectExistenceQueryOptions {
+export function projectsInfiniteQueryOptions(
+  workspaceId: string | undefined,
+  search?: string,
+  limit = 50,
+) {
+  const normalizedSearch = search?.trim() ?? '';
+  return {
+    queryKey: workspaceId
+      ? projectsQueryKeys.list(workspaceId, normalizedSearch)
+      : ([...projectsQueryKeys.all, 'list'] as const),
+    enabled: Boolean(workspaceId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({pageParam, signal}: {pageParam: string | undefined; signal: AbortSignal}) =>
+      listProjects({
+        workspaceId: workspaceId ?? '',
+        limit,
+        cursor: pageParam,
+        search: normalizedSearch || undefined,
+        signal,
+      }),
+    getNextPageParam: (lastPage: ProjectList) => lastPage.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+  };
+}
+
+export function projectExistenceQueryOptions(workspaceId: string | undefined) {
   return queryOptions({
-    queryKey: projectsQueryKeys.exists(workspaceId),
-    queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
+    queryKey: workspaceId
+      ? projectsQueryKeys.exists(workspaceId)
+      : ([...projectsQueryKeys.all, 'exists'] as const),
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => listProjects({workspaceId: workspaceId ?? '', limit: 1, signal}),
     staleTime: 30_000,
+  });
+}
+
+export function projectQueryOptions(projectId: string | undefined) {
+  return queryOptions({
+    queryKey: projectId
+      ? projectsQueryKeys.detail(projectId)
+      : ([...projectsQueryKeys.all, 'detail'] as const),
+    enabled: Boolean(projectId),
+    queryFn: () => getProject(projectId ?? ''),
   });
 }
 
@@ -69,29 +113,30 @@ export function useProjectsInfiniteQuery(
   search?: string,
   limit = 50,
 ) {
-  return useInfiniteQuery({
-    queryKey: workspaceId
-      ? projectsQueryKeys.list(workspaceId, search)
-      : [...projectsQueryKeys.all, 'list'],
-    enabled: Boolean(workspaceId),
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({pageParam, signal}) =>
-      listProjects({workspaceId: workspaceId ?? '', limit, cursor: pageParam, search, signal}),
-    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-    placeholderData: keepPreviousData,
-  });
+  return useInfiniteQuery(projectsInfiniteQueryOptions(workspaceId, search, limit));
 }
-
 export function useProjectQuery(projectId: string | undefined) {
-  return useQuery({
-    queryKey: projectId
-      ? projectsQueryKeys.detail(projectId)
-      : [...projectsQueryKeys.all, 'detail'],
-    enabled: Boolean(projectId),
-    queryFn: () => getProject(projectId ?? ''),
-  });
+  return useQuery(projectQueryOptions(projectId));
 }
 
 export function useCreateProjectMutation() {
-  return useMutation({mutationFn: createProject});
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createProject,
+    onSuccess: async (project) => {
+      queryClient.setQueryData(projectsQueryKeys.detail(project.id), project);
+      queryClient.setQueryData<ProjectList>(projectsQueryKeys.exists(project.workspaceId), {
+        projects: [project],
+        nextCursor: null,
+      });
+      await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(project.workspaceId)});
+    },
+    onError: async (_error, command) => {
+      await queryClient.invalidateQueries({
+        queryKey: projectsQueryKeys.exists(command.workspaceId),
+        refetchType: 'active',
+      });
+      await queryClient.invalidateQueries({queryKey: projectsQueryKeys.list(command.workspaceId)});
+    },
+  });
 }

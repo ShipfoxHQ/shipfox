@@ -1,6 +1,11 @@
-import type {DefinitionDto, DefinitionSyncSummaryDto} from '@shipfox/api-definitions-dto';
 import {ApiError} from '@shipfox/client-api';
-import {SourceStrip, useDefinitionsInfiniteQuery, useProjectQuery} from '@shipfox/client-projects';
+import {
+  type Definition,
+  type DefinitionSyncSummary,
+  SourceStrip,
+  useDefinitionsInfiniteQuery,
+  useProjectQuery,
+} from '@shipfox/client-projects';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -42,14 +47,14 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   const projectQuery = useProjectQuery(projectId);
   const definitionsQuery = useDefinitionsInfiniteQuery(projectId);
   const fireManual = useFireManualWorkflowMutation();
-  const [selectedDefinition, setSelectedDefinition] = useState<DefinitionDto | null>(null);
+  const [selectedDefinition, setSelectedDefinition] = useState<Definition | null>(null);
   const [runError, setRunError] = useState<{definitionId: string; message: string} | null>(null);
   const definitions = definitionsQuery.data?.pages.flatMap((page) => page.definitions) ?? [];
   const sync = definitionsQuery.data?.pages[0]?.sync;
 
-  async function handleRun(definition: DefinitionDto) {
+  async function handleRun(definition: Definition) {
     setRunError(null);
-    if (!definition.manual_trigger) return;
+    if (!definition.manualTrigger) return;
     try {
       await fireManual.mutateAsync({projectId, definitionId: definition.id});
       toast.success('Run queued');
@@ -91,8 +96,8 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
           </header>
 
           <SourceStrip
-            connectionId={projectQuery.data.source.connection_id}
-            externalRepositoryId={projectQuery.data.source.external_repository_id}
+            connectionId={projectQuery.data.source.connectionId}
+            externalRepositoryId={projectQuery.data.source.externalRepositoryId}
             sync={sync}
             isPending={definitionsQuery.isPending}
           />
@@ -148,10 +153,10 @@ function WorkflowDefinitionsList({
   onOpenDefinition,
   onRun,
 }: {
-  definitions: DefinitionDto[];
+  definitions: Definition[];
   isPending: boolean;
   isError: boolean;
-  sync: DefinitionSyncSummaryDto | null;
+  sync: DefinitionSyncSummary | null;
   runError: {definitionId: string; message: string} | null;
   runningDefinitionId: string | null;
   hasNextPage: boolean;
@@ -159,8 +164,8 @@ function WorkflowDefinitionsList({
   isFetchNextPageError: boolean;
   onRetry: () => void;
   onLoadMore: () => void;
-  onOpenDefinition: (definition: DefinitionDto) => void;
-  onRun: (definition: DefinitionDto) => void;
+  onOpenDefinition: (definition: Definition) => void;
+  onRun: (definition: Definition) => void;
 }) {
   if (isPending) {
     return (
@@ -232,7 +237,7 @@ function WorkflowDefinitionsList({
                           {definition.name}
                         </Text>
                         <Code className="truncate text-foreground-neutral-muted">
-                          {definition.config_path ?? 'Manual definition'}
+                          {definition.configPath ?? 'Manual definition'}
                         </Code>
                       </button>
                       {runErrorMessage ? (
@@ -243,10 +248,10 @@ function WorkflowDefinitionsList({
                     </div>
                   </TableCell>
                   <TableCell className="text-foreground-neutral-muted">
-                    <RelativeTime value={definition.updated_at} />
+                    <RelativeTime value={definition.updatedAt} />
                   </TableCell>
                   <TableCell>
-                    {definition.manual_trigger ? (
+                    {definition.manualTrigger ? (
                       <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         <Button size="xs" isLoading={isRunning} onClick={() => onRun(definition)}>
                           Run
@@ -287,15 +292,15 @@ function WorkflowDefinitionsList({
                     {definition.name}
                   </Text>
                   <Code className="break-words text-foreground-neutral-muted">
-                    {definition.config_path ?? 'Manual definition'}
+                    {definition.configPath ?? 'Manual definition'}
                   </Code>
                 </div>
               </button>
               <div className="flex items-center justify-between gap-8">
                 <Text size="xs" className="text-foreground-neutral-muted">
-                  Updated <RelativeTime value={definition.updated_at} />
+                  Updated <RelativeTime value={definition.updatedAt} />
                 </Text>
-                {definition.manual_trigger ? (
+                {definition.manualTrigger ? (
                   <Button size="sm" isLoading={isRunning} onClick={() => onRun(definition)}>
                     Run
                   </Button>
@@ -337,12 +342,12 @@ function sourceIcon(source: 'manual' | 'vcs'): IconName {
   return source === 'vcs' ? ('gitBranchLine' as IconName) : ('terminalLine' as IconName);
 }
 
-function WorkflowEmptyState({sync}: {sync: DefinitionSyncSummaryDto | null}) {
+function WorkflowEmptyState({sync}: {sync: DefinitionSyncSummary | null}) {
   const message =
-    sync?.status === 'failed' && sync.last_error_code === 'no-workflow-files'
+    sync?.status === 'failed' && sync.lastErrorCode === 'no-workflow-files'
       ? 'No workflow files found under .shipfox/workflows/.'
       : sync?.status === 'failed'
-        ? (sync.last_error_message ?? 'Workflow definitions could not be synced.')
+        ? (sync.lastErrorMessage ?? 'Workflow definitions could not be synced.')
         : sync?.status === 'syncing'
           ? 'Workflow definitions are being discovered.'
           : sync?.status === 'succeeded'
@@ -352,7 +357,7 @@ function WorkflowEmptyState({sync}: {sync: DefinitionSyncSummaryDto | null}) {
   return <EmptyState icon="flowChart" title="No workflows" description={message} />;
 }
 
-function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummaryDto | null | undefined}) {
+function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummary | null | undefined}) {
   if (sync?.status !== 'failed') return null;
 
   return (
@@ -362,7 +367,7 @@ function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummaryDto | null | unde
           Workflow sync failed
         </Text>
         <Text size="sm">
-          {sync.last_error_message ?? 'The latest workflow sync failed before definitions updated.'}
+          {sync.lastErrorMessage ?? 'The latest workflow sync failed before definitions updated.'}
         </Text>
       </div>
     </Callout>
@@ -373,14 +378,14 @@ function DefinitionSheet({
   definition,
   onOpenChange,
 }: {
-  definition: DefinitionDto | null;
+  definition: Definition | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const normalizedJson = definition
     ? JSON.stringify(
         {
-          workflow_document: definition.workflow_document,
-          workflow_model: definition.workflow_model,
+          workflow_document: definition.workflowDocument,
+          workflow_model: definition.workflowModel,
         },
         null,
         2,
@@ -395,7 +400,7 @@ function DefinitionSheet({
             <SheetHeader>
               <SheetTitle>{definition.name}</SheetTitle>
               <SheetDescription>
-                {definition.config_path ?? 'Manual workflow definition'}
+                {definition.configPath ?? 'Manual workflow definition'}
               </SheetDescription>
             </SheetHeader>
             <SheetBody className="gap-18">

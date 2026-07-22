@@ -8,6 +8,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {fireEvent, render, screen} from '@testing-library/react';
+import {toProject} from '#hooks/api/mappers.js';
 import {projectsQueryKeys} from '#hooks/api/projects.js';
 import {PROJECT_TEST_WID} from '#test/pages.js';
 import {ProjectSwitcher} from './project-switcher.js';
@@ -50,7 +51,7 @@ function renderProjectSwitcher({
     defaultOptions: {queries: {retry: false, staleTime: Number.POSITIVE_INFINITY}},
   });
   queryClient.setQueryData(projectsQueryKeys.list(PROJECT_TEST_WID), {
-    pages: [{projects, next_cursor: null}],
+    pages: [{projects: projects.map(toProject), nextCursor: null}],
     pageParams: [undefined],
   });
   const rootRoute = createRootRoute({component: Outlet});
