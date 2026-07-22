@@ -31,7 +31,8 @@ listed there or when you need to place, update, or review documentation.
 | Mints, verifies, or carries an authentication token. | [Auth security model](../libs/api/auth/README.md#security-model) | Token authority, lifetime, trust boundaries, and logging constraints. |
 | Defines an inter-module contract or transport. | [Inter-module package README](../libs/shared/common/inter-module/README.md) | Contract primitives and transport responsibilities. |
 | Creates or changes a visual or interaction decision. | [Design system](../DESIGN.md) | Shared tokens, components, accessibility, motion, status taxonomy, patterns, and review anti-patterns. Code owns exact token and component values. |
-| Writes engineering prose, a README, or a runbook. | [Writing guide](../WRITING.md) | Repository-wide prose structure, style, punctuation, and readability. |
+| Writes engineering prose, a package README, or a runbook. | [Writing guide](../WRITING.md) | Repository-wide prose structure, style, punctuation, readability, and package README structure. |
+| Writes or reviews code comments, module exports, or non-trivial control flow. | [Code style policy](policies/code-style.md) | Shared code-comment, import and export, and control-flow rules. |
 | Writes product or self-hosting documentation. | [Docs writing guide](../apps/docs/WRITING.md) | Product documentation page types, templates, and local terminology. |
 
 ## Documentation contract
