@@ -175,6 +175,7 @@ export async function signup(params: SignupParams & {sourceIp?: string}): Promis
         email: existing.email,
         purpose: PASSWORD_VERIFICATION_PURPOSE,
         continuation: existing.id,
+        idempotencyKey: existing.id,
         sourceIp: params.sourceIp ?? '0.0.0.0',
       });
       return {...existing, emailChallenge};
@@ -194,6 +195,7 @@ export async function signup(params: SignupParams & {sourceIp?: string}): Promis
     email: user.email,
     purpose: PASSWORD_VERIFICATION_PURPOSE,
     continuation: user.id,
+    idempotencyKey: user.id,
     sourceIp: params.sourceIp ?? '0.0.0.0',
   });
 

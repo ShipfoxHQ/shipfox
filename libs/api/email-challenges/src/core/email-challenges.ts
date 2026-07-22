@@ -17,6 +17,7 @@ const resendCooldownMs = 60 * 1000;
 const maxSends = 3;
 const maxFailedAttempts = 5;
 const retentionMs = 24 * 60 * 60 * 1000;
+const deliveryRecoveryMs = 30 * 1000;
 
 function digest(domain: string, value: string) {
   return createHmac('sha256', emailChallengeKey()).update(`${domain}:${value}`).digest('hex');
@@ -49,12 +50,50 @@ export interface CreateEmailChallengeParams {
   email: string;
   purpose: string;
   continuation: string;
+  idempotencyKey: string;
   sourceIp: string;
 }
 export interface EmailChallengeHandle {
   id: string;
   expiresAt: Date;
   nextResendAvailableAt: Date;
+}
+
+export interface EmailChallengeContinuation {
+  expiresAt: Date;
+  nextResendAvailableAt: Date;
+}
+
+function handle(row: typeof challenges.$inferSelect): EmailChallengeHandle {
+  return {
+    id: row.id,
+    expiresAt: row.expiresAt,
+    nextResendAvailableAt: new Date(row.lastSentAt.getTime() + resendCooldownMs),
+  };
+}
+
+function idempotencyDigest(
+  params: Pick<CreateEmailChallengeParams, 'purpose' | 'continuation' | 'idempotencyKey'>,
+) {
+  return digest(
+    'idempotency',
+    JSON.stringify([params.purpose, params.continuation, params.idempotencyKey]),
+  );
+}
+
+async function recordDeliveryOutcome(
+  id: string,
+  deliveryAttemptedAt: Date,
+  outcome: 'delivered' | 'failed',
+) {
+  await db()
+    .update(challenges)
+    .set(
+      outcome === 'delivered'
+        ? {deliveryState: outcome, deliveredAt: new Date()}
+        : {deliveryState: outcome, deliveryFailedAt: new Date()},
+    )
+    .where(and(eq(challenges.id, id), eq(challenges.deliveryAttemptedAt, deliveryAttemptedAt)));
 }
 
 async function consumeLimit(
@@ -133,16 +172,80 @@ export async function createEmailChallenge(
   params: CreateEmailChallengeParams,
 ): Promise<EmailChallengeHandle> {
   const email = emailSchema.parse(params.email);
-  if (!params.purpose || !params.continuation)
+  if (!params.purpose || !params.continuation || !params.idempotencyKey)
     throw new EmailChallengeError(
       'invalid',
-      'Email challenge purpose and continuation are required',
+      'Email challenge purpose, continuation, and idempotency key are required',
     );
   const now = new Date();
-  const value = code();
-  const expiresAt = new Date(now.getTime() + ttlMs);
+  const idempotencyHmac = idempotencyDigest(params);
   try {
-    const row = await db().transaction(async (tx) => {
+    const created = await db().transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`challenge:${idempotencyHmac}`}))`,
+      );
+      const existing = await tx
+        .select()
+        .from(challenges)
+        .where(and(eq(challenges.idempotencyHmac, idempotencyHmac), isNull(challenges.terminalAt)))
+        .limit(1)
+        .for('update');
+      const current = existing[0];
+      if (current) {
+        if (
+          !current.email ||
+          current.purpose !== params.purpose ||
+          !current.continuationHmac ||
+          !equal(current.continuationHmac, digest('continuation', params.continuation))
+        )
+          throw new EmailChallengeError('invalid', 'Email challenge is invalid');
+        if (current.expiresAt <= now) {
+          await tx
+            .update(challenges)
+            .set({...terminalUpdate(now), invalidatedAt: now})
+            .where(eq(challenges.id, current.id));
+          throw new EmailChallengeError('expired', 'Email challenge has expired');
+        }
+        if (current.terminalAt || current.confirmedAt)
+          throw new EmailChallengeError('invalid', 'Email challenge is invalid');
+        const deliveryStale =
+          current.deliveryState === 'pending' &&
+          (!current.deliveryAttemptedAt ||
+            current.deliveryAttemptedAt.getTime() + deliveryRecoveryMs <= now.getTime());
+        const shouldRecoverDelivery = current.deliveryState === 'failed' || deliveryStale;
+        if (!shouldRecoverDelivery) return {handle: handle(current), deliver: false as const};
+        if (current.sentCount >= maxSends)
+          throw new EmailChallengeError('exhausted', 'Email challenge resends are exhausted');
+
+        const value = code();
+        const expiresAt = new Date(now.getTime() + ttlMs);
+        await consumeSendLimits(tx, current.email, params.sourceIp, now);
+        const updated = await tx
+          .update(challenges)
+          .set({
+            codeHmac: digest('code', value),
+            sentCount: current.sentCount + 1,
+            resendCount: current.resendCount + 1,
+            lastSentAt: now,
+            expiresAt,
+            deliveryState: 'pending',
+            deliveryAttemptedAt: now,
+            deliveryFailedAt: null,
+          })
+          .where(eq(challenges.id, current.id))
+          .returning();
+        if (!updated[0]) throw new Error('Update returned no email challenge');
+        return {
+          handle: handle(updated[0]),
+          email: current.email,
+          value,
+          deliveryAttemptedAt: now,
+          deliver: true as const,
+        };
+      }
+
+      const value = code();
+      const expiresAt = new Date(now.getTime() + ttlMs);
       await consumeSendLimits(tx, email, params.sourceIp, now);
       const inserted = await tx
         .insert(challenges)
@@ -150,25 +253,79 @@ export async function createEmailChallenge(
           email,
           purpose: params.purpose,
           continuationHmac: digest('continuation', params.continuation),
+          idempotencyHmac,
           codeHmac: digest('code', value),
           expiresAt,
           lastSentAt: now,
+          deliveryAttemptedAt: now,
         })
         .returning();
       if (!inserted[0]) throw new Error('Insert returned no email challenge');
-      return inserted[0];
+      return {
+        handle: handle(inserted[0]),
+        email,
+        value,
+        deliveryAttemptedAt: now,
+        deliver: true as const,
+      };
     });
-    await deliver(email, value);
+    if (!created.deliver) return created.handle;
+    try {
+      await deliver(created.email, created.value);
+      await recordDeliveryOutcome(created.handle.id, created.deliveryAttemptedAt, 'delivered');
+    } catch (error) {
+      await recordDeliveryOutcome(created.handle.id, created.deliveryAttemptedAt, 'failed');
+      throw error;
+    }
     recordEmailChallenge('send', 'ok');
-    return {
-      id: row.id,
-      expiresAt,
-      nextResendAvailableAt: new Date(now.getTime() + resendCooldownMs),
-    };
+    return created.handle;
   } catch (error) {
     recordEmailChallenge('send', 'rejected');
     throw error;
   }
+}
+
+export async function getEmailChallengeContinuation(params: {
+  purpose: string;
+  continuation: string;
+  idempotencyKey: string;
+}): Promise<EmailChallengeContinuation> {
+  const now = new Date();
+  if (!params.purpose || !params.continuation || !params.idempotencyKey)
+    throw new EmailChallengeError('invalid', 'Email challenge is invalid');
+  const idempotencyHmac = idempotencyDigest(params);
+  const result = await db().transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`challenge:${idempotencyHmac}`}))`,
+    );
+    const rows = await tx
+      .select()
+      .from(challenges)
+      .where(and(eq(challenges.idempotencyHmac, idempotencyHmac), isNull(challenges.terminalAt)))
+      .limit(1)
+      .for('update');
+    const current = rows[0];
+    if (
+      !current ||
+      current.purpose !== params.purpose ||
+      !current.continuationHmac ||
+      !equal(current.continuationHmac, digest('continuation', params.continuation)) ||
+      current.terminalAt ||
+      current.confirmedAt
+    )
+      return 'invalid' as const;
+    if (current.expiresAt <= now) {
+      await tx
+        .update(challenges)
+        .set({...terminalUpdate(now), invalidatedAt: now})
+        .where(eq(challenges.id, current.id));
+      return 'expired' as const;
+    }
+    return handle(current);
+  });
+  if (result === 'expired') throw new EmailChallengeError('expired', 'Email challenge has expired');
+  if (result === 'invalid') throw new EmailChallengeError('invalid', 'Email challenge is invalid');
+  return {expiresAt: result.expiresAt, nextResendAvailableAt: result.nextResendAvailableAt};
 }
 
 export async function resendEmailChallenge(params: {
@@ -220,13 +377,22 @@ export async function resendEmailChallenge(params: {
           lastSentAt: now,
           expiresAt: new Date(now.getTime() + ttlMs),
           failedAttemptCount: 0,
+          deliveryState: 'pending',
+          deliveryAttemptedAt: now,
+          deliveryFailedAt: null,
         })
         .where(eq(challenges.id, current.id))
         .returning();
       if (!updated[0]) throw new Error('Update returned no email challenge');
-      return {challenge: updated[0], email: current.email};
+      return {challenge: updated[0], email: current.email, deliveryAttemptedAt: now};
     });
-    await deliver(row.email, value);
+    try {
+      await deliver(row.email, value);
+      await recordDeliveryOutcome(row.challenge.id, row.deliveryAttemptedAt, 'delivered');
+    } catch (error) {
+      await recordDeliveryOutcome(row.challenge.id, row.deliveryAttemptedAt, 'failed');
+      throw error;
+    }
     recordEmailChallenge('resend', 'ok');
     return {
       id: row.challenge.id,
