@@ -82,10 +82,12 @@ describe('provisioner core config validation', () => {
   });
 
   it('accepts the documented defaults', async () => {
+    vi.stubEnv('SHIPFOX_API_URL', undefined);
     vi.resetModules();
 
     const {config} = await import('#config.js');
 
+    expect(config.SHIPFOX_API_URL).toBe('https://api.shipfox.io');
     expect(config.SHIPFOX_PROVISIONER_POLL_WAIT_SECONDS).toBe(30);
     expect(config.SHIPFOX_PROVISIONER_MAX_RESERVATIONS).toBe(250);
     expect(config.SHIPFOX_PROVISIONER_RUNNER_INSTANCE_BATCH_SIZE).toBe(250);

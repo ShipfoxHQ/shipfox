@@ -37,7 +37,7 @@ until observation succeeds.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `SHIPFOX_API_URL` | yes | — | Base URL of the Shipfox API. |
+| `SHIPFOX_API_URL` | no | `https://api.shipfox.io` | Base URL of the Shipfox API. Set it for a self-hosted API. |
 | `SHIPFOX_RUNNER_API_URL` | no | `SHIPFOX_API_URL` | API URL injected into runner containers as `SHIPFOX_API_URL`; set it when containers reach the API through a different address. |
 | `SHIPFOX_PROVISIONER_TOKEN` | yes | — | Long-lived provisioner token (keep it in `.env.local`, never commit it). |
 | `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | yes | — | Path to the YAML template file (see `templates.example.yaml`). |

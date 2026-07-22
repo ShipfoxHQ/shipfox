@@ -23,7 +23,7 @@ maximum lifetime. The AMI reads that file and shuts down when its watchdog exits
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `SHIPFOX_API_URL` | yes | — | Base URL of the Shipfox API. |
+| `SHIPFOX_API_URL` | no | `https://api.shipfox.io` | Base URL of the Shipfox API. Set it for a self-hosted API. |
 | `SHIPFOX_RUNNER_API_URL` | no | `SHIPFOX_API_URL` | API URL injected into runner instances when they reach the API through a different address. |
 | `SHIPFOX_PROVISIONER_TOKEN` | yes | — | Long-lived provisioner token. |
 | `SHIPFOX_PROVISIONER_TEMPLATES_FILE` | yes | — | Path to the EC2 template YAML file. |
