@@ -1,5 +1,11 @@
 # @shipfox/annotations
 
+## 8.0.0
+
+### Patch Changes
+
+- b15f3a7: Removes Auth implementation dependencies from consumer test boundaries.
+
 ## 7.1.0
 
 ### Patch Changes

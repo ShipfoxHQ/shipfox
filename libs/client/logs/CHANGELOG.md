@@ -1,5 +1,11 @@
 # @shipfox/client-logs
 
+## 5.0.0
+
+### Major Changes
+
+- ee9d641: Converges step-log snapshots on package-owned camelCase records validated at the transport boundary.
+
 ## 4.0.0
 
 ### Patch Changes

@@ -1,5 +1,32 @@
 # @shipfox/api-server
 
+## 8.0.0
+
+### Minor Changes
+
+- 74243c0: Adds a default-module extension factory with the composed Workspaces inter-module client.
+
+### Patch Changes
+
+- b15f3a7: Removes Auth implementation dependencies from consumer test boundaries.
+- Updated dependencies [de559bb]
+- Updated dependencies [b15f3a7]
+- Updated dependencies [7f227c6]
+  - @shipfox/api-agent-dto@8.0.0
+  - @shipfox/api-agent@8.0.0
+  - @shipfox/api-definitions@8.0.0
+  - @shipfox/api-logs@8.0.0
+  - @shipfox/api-workflows@8.0.0
+  - @shipfox/annotations@8.0.0
+  - @shipfox/api-runners@8.0.0
+  - @shipfox/api-integration-core-dto@8.0.0
+  - @shipfox/api-projects-dto@8.0.0
+  - @shipfox/api-integration-core@8.0.0
+  - @shipfox/api-workflows-dto@8.0.0
+  - @shipfox/api-projects@8.0.0
+  - @shipfox/api-triggers@8.0.0
+  - @shipfox/api-secrets@8.0.0
+
 ## 7.1.0
 
 ### Minor Changes

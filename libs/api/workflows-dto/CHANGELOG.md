@@ -1,5 +1,12 @@
 # @shipfox/api-workflows-dto
 
+## 8.0.0
+
+### Patch Changes
+
+- Updated dependencies [de559bb]
+  - @shipfox/api-agent-dto@8.0.0
+
 ## 6.0.0
 
 ### Minor Changes

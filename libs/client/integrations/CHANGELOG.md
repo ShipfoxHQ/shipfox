@@ -1,5 +1,27 @@
 # @shipfox/client-integrations
 
+## 5.0.0
+
+### Minor Changes
+
+- 8d8cdef: Extracts workspace onboarding into a dedicated coordinator and shares its feature query policies.
+
+### Patch Changes
+
+- ffd727b: Converges auth session and invitation state onto shared camelCase domain types validated at the API boundary, replacing the raw snake_case DTOs previously returned by login, signup, password reset, email verification, workspace creation, and invitation preview. `AuthState.user`, `useRefreshAuth()`, and `usePreviewInvitation()` now resolve to `UserIdentity`/`AuthenticatedSession`/`InvitationPreview` shapes (for example `accessToken` instead of `token`, `workspaceName` instead of `workspace_name`). Also moves the shared `AuthShell` component and session mapping helpers into `@shipfox/client-shell`, breaking the former `client-auth` ↔ `client-invitations` circular dependency.
+- f1d6465: Moves workspace-settings and project-workflow route ownership from centralized packages into each feature's own route module, so a feature package declares and ships its own settings pages.
+- Updated dependencies [ffd727b]
+- Updated dependencies [7f227c6]
+  - @shipfox/client-shell@5.0.0
+  - @shipfox/client-auth@5.0.0
+  - @shipfox/api-integration-core-dto@8.0.0
+  - @shipfox/api-integration-gitea-dto@8.0.0
+  - @shipfox/api-integration-github-dto@8.0.0
+  - @shipfox/api-integration-linear-dto@8.0.0
+  - @shipfox/api-integration-sentry-dto@8.0.0
+  - @shipfox/api-integration-slack-dto@8.0.0
+  - @shipfox/api-integration-webhook-dto@8.0.0
+
 ## 4.0.0
 
 ### Patch Changes

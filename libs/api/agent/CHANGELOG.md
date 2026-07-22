@@ -1,5 +1,13 @@
 # @shipfox/api-agent
 
+## 8.0.0
+
+### Patch Changes
+
+- de559bb: Moves Agent validation policy behind a versioned inter-module catalog and injects it into Definitions normalization.
+- Updated dependencies [de559bb]
+  - @shipfox/api-agent-dto@8.0.0
+
 ## 7.1.0
 
 ### Patch Changes

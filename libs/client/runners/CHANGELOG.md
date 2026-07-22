@@ -1,5 +1,13 @@
 # @shipfox/client-runners
 
+## 5.0.0
+
+### Patch Changes
+
+- f1d6465: Moves workspace-settings and project-workflow route ownership from centralized packages into each feature's own route module, so a feature package declares and ships its own settings pages.
+- Updated dependencies [ffd727b]
+  - @shipfox/client-shell@5.0.0
+
 ## 4.0.0
 
 ### Patch Changes

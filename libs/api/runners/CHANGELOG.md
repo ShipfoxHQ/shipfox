@@ -1,5 +1,12 @@
 # @shipfox/api-runners
 
+## 8.0.0
+
+### Patch Changes
+
+- b15f3a7: Removes Auth implementation dependencies from consumer test boundaries.
+  - @shipfox/api-workflows-dto@8.0.0
+
 ## 7.1.0
 
 ### Patch Changes
