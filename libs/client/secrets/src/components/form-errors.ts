@@ -52,8 +52,5 @@ export function secretsErrorToFormError(error: unknown): SecretsFormErrorMapping
         return {kind: 'form', message: error.message};
     }
   }
-  if (error instanceof Error) {
-    return {kind: 'form', message: error.message};
-  }
   return {kind: 'form', message: 'Something went wrong. Try again.'};
 }

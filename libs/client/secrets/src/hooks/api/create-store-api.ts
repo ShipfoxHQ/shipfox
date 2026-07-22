@@ -1,102 +1,107 @@
-import {SECRETS_MAX_LIST_LIMIT, type SecretWriteWarningDto} from '@shipfox/api-secrets-dto';
-import {apiRequest} from '@shipfox/client-api';
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {SECRETS_MAX_LIST_LIMIT} from '@shipfox/api-secrets-dto';
+import {
+  apiRequest,
+  checkedApiRequest,
+  type StandardSchema,
+  type StandardSchemaOutput,
+} from '@shipfox/client-api';
+import {queryOptions, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  type DeleteStoreCommand,
+  type PutStoreCommand,
+  projectIdFromScope,
+  type StoreScope,
+  type StoreWriteWarning,
+  workspaceStoreScope,
+} from '#core/store.js';
 
-/**
- * Secrets and variables share an identical management surface (list / put /
- * delete under `/workspaces/:id/{resource}`); only the response envelope keys
- * and DTO types differ. This factory builds the typed transport functions,
- * query keys, and React Query hooks for one resource so `secrets.ts` and
- * `variables.ts` stay thin instantiations. The forms and sections diverge
- * (write-only vs readable) and are kept separate on purpose.
- */
-export interface CreateStoreApiConfig<TItem, TListResponse, TPutResponse> {
-  /** URL segment and query-key namespace, e.g. `'secrets'` or `'variables'`. */
-  resource: string;
-  /** Pulls the item array out of a list response. */
-  listItems: (response: TListResponse) => TItem[];
-  /** Pulls the single item out of a put response. */
-  putItem: (response: TPutResponse) => TItem;
-}
-
-export interface PutResult<TItem> {
-  item: TItem;
-  warnings: SecretWriteWarningDto[];
-}
+type StoreApiConfig<
+  TListItem,
+  TPutItem,
+  TListSchema extends StandardSchema,
+  TPutSchema extends StandardSchema,
+> = {
+  resource: 'secrets' | 'variables';
+  listResponseSchema: TListSchema;
+  putResponseSchema: TPutSchema;
+  toListItems: (response: StandardSchemaOutput<TListSchema>) => TListItem[];
+  toPutResult: (response: StandardSchemaOutput<TPutSchema>) => {
+    item: TPutItem;
+    warnings: StoreWriteWarning[];
+  };
+};
 
 export function createStoreApi<
-  TItem,
-  TListResponse,
-  TPutBody,
-  TPutResponse extends {warnings: SecretWriteWarningDto[]},
->(config: CreateStoreApiConfig<TItem, TListResponse, TPutResponse>) {
-  const {resource, listItems, putItem} = config;
-
+  TListItem,
+  TPutItem,
+  TListSchema extends StandardSchema,
+  TPutSchema extends StandardSchema,
+>(config: StoreApiConfig<TListItem, TPutItem, TListSchema, TPutSchema>) {
+  const {resource} = config;
   const queryKeys = {
     all: [resource] as const,
-    list: (workspaceId: string) => [resource, 'list', workspaceId] as const,
+    list: (workspaceId: string, scope: StoreScope = workspaceStoreScope) =>
+      [...queryKeys.all, 'list', workspaceId, scope] as const,
   };
 
-  // The store is a bounded set (per-workspace cap), so the UI fetches every key
-  // in one call rather than paginating: request the max limit and ignore the
-  // cursor. See SECRETS_MAX_LIST_LIMIT / the S1a list route.
+  function searchForScope(scope: StoreScope, includeLimit = false): string {
+    const search = new URLSearchParams();
+    if (includeLimit) search.set('limit', String(SECRETS_MAX_LIST_LIMIT));
+    const projectId = projectIdFromScope(scope);
+    if (projectId) search.set('project_id', projectId);
+    return search.toString();
+  }
+
   async function listAll(params: {
     workspaceId: string;
-    projectId?: string | undefined;
+    scope?: StoreScope;
     signal?: AbortSignal | undefined;
-  }): Promise<TItem[]> {
-    const search = new URLSearchParams({limit: String(SECRETS_MAX_LIST_LIMIT)});
-    if (params.projectId) search.set('project_id', params.projectId);
-    const response = await apiRequest<TListResponse>(
-      `/workspaces/${params.workspaceId}/${resource}?${search.toString()}`,
+  }): Promise<TListItem[]> {
+    const scope = params.scope ?? workspaceStoreScope;
+    const response = await checkedApiRequest(
+      config.listResponseSchema,
+      `/workspaces/${params.workspaceId}/${resource}?${searchForScope(scope, true)}`,
       {signal: params.signal},
     );
-    return listItems(response);
+    return config.toListItems(response);
   }
 
-  async function put(params: {
-    workspaceId: string;
-    key: string;
-    body: TPutBody;
-  }): Promise<PutResult<TItem>> {
-    const response = await apiRequest<TPutResponse>(
-      `/workspaces/${params.workspaceId}/${resource}/${encodeURIComponent(params.key)}`,
-      {method: 'PUT', body: params.body},
+  async function put(command: PutStoreCommand) {
+    const response = await checkedApiRequest(
+      config.putResponseSchema,
+      `/workspaces/${command.workspaceId}/${resource}/${encodeURIComponent(command.key)}`,
+      {
+        method: 'PUT',
+        body: {value: command.value, project_id: projectIdFromScope(command.scope)},
+      },
     );
-    return {item: putItem(response), warnings: response.warnings};
+    return config.toPutResult(response);
   }
 
-  async function remove(params: {
-    workspaceId: string;
-    key: string;
-    projectId?: string | undefined;
-  }): Promise<void> {
-    const search = params.projectId
-      ? `?${new URLSearchParams({project_id: params.projectId}).toString()}`
-      : '';
+  async function remove(command: DeleteStoreCommand): Promise<void> {
+    const search = searchForScope(command.scope);
     await apiRequest<void>(
-      `/workspaces/${params.workspaceId}/${resource}/${encodeURIComponent(params.key)}${search}`,
+      `/workspaces/${command.workspaceId}/${resource}/${encodeURIComponent(command.key)}${search ? `?${search}` : ''}`,
       {method: 'DELETE'},
     );
   }
 
-  function useListQuery(workspaceId: string | undefined) {
-    return useQuery({
-      queryKey: workspaceId ? queryKeys.list(workspaceId) : [resource, 'list'],
-      enabled: Boolean(workspaceId),
-      queryFn: ({signal}) => listAll({workspaceId: workspaceId ?? '', signal}),
+  function listQueryOptions(workspaceId: string, scope: StoreScope = workspaceStoreScope) {
+    return queryOptions({
+      queryKey: queryKeys.list(workspaceId, scope),
+      queryFn: ({signal}) => listAll({workspaceId, scope, signal}),
     });
+  }
+
+  function useListQuery(workspaceId: string | undefined, scope: StoreScope = workspaceStoreScope) {
+    return useQuery({...listQueryOptions(workspaceId ?? '', scope), enabled: Boolean(workspaceId)});
   }
 
   function usePutMutation() {
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: put,
-      // Invalidate the whole resource namespace so the per-item detail cache
-      // (full variable values) is refreshed too, not just the list.
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({queryKey: queryKeys.all});
-      },
+      onSuccess: async () => await queryClient.invalidateQueries({queryKey: queryKeys.all}),
     });
   }
 
@@ -104,11 +109,18 @@ export function createStoreApi<
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: remove,
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({queryKey: queryKeys.all});
-      },
+      onSuccess: async () => await queryClient.invalidateQueries({queryKey: queryKeys.all}),
     });
   }
 
-  return {queryKeys, listAll, put, remove, useListQuery, usePutMutation, useDeleteMutation};
+  return {
+    queryKeys,
+    listAll,
+    put,
+    remove,
+    listQueryOptions,
+    useListQuery,
+    usePutMutation,
+    useDeleteMutation,
+  };
 }

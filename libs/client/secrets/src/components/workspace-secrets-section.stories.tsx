@@ -1,4 +1,3 @@
-import type {SecretDto} from '@shipfox/api-secrets-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Toaster} from '@shipfox/react-ui/toast';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
@@ -25,7 +24,7 @@ const withFrozenClock: Decorator = (Story) => {
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const EDITOR_ID = '22222222-2222-4222-8222-222222222222';
 
-const SECRETS: SecretDto[] = [
+const SECRETS = [
   {
     key: 'API_TOKEN',
     project_id: null,

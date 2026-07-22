@@ -53,10 +53,10 @@ describe('secretsErrorToFormError', () => {
     expect(result).toEqual({kind: 'form', message: 'raw server message'});
   });
 
-  test('maps a plain Error to a form-level alert with its message', () => {
+  test('does not expose a raw Error message', () => {
     const result = secretsErrorToFormError(new Error('boom'));
 
-    expect(result).toEqual({kind: 'form', message: 'boom'});
+    expect(result).toEqual({kind: 'form', message: 'Something went wrong. Try again.'});
   });
 
   test('falls back to generic copy for a non-Error throwable', () => {

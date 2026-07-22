@@ -1,4 +1,3 @@
-import type {VariableListItemDto} from '@shipfox/api-secrets-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -21,6 +20,7 @@ import {
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {useMemo, useState} from 'react';
+import {type VariablePreview, workspaceStoreScope} from '#core/store.js';
 import {useDeleteVariableMutation, useVariablesQuery} from '#hooks/api/variables.js';
 import {copyKeyName} from './copy-key.js';
 import {DeleteEntryDialog} from './delete-entry-dialog.js';
@@ -33,7 +33,7 @@ const VARIABLES_DESCRIPTION =
 const EMPTY_VARIABLES_DESCRIPTION =
   'Create a variable to store non-sensitive configuration like regions, flags, and log levels.';
 
-type FormState = {mode: 'create'} | {mode: 'edit'; variable: VariableListItemDto} | null;
+type FormState = {mode: 'create'} | {mode: 'edit'; variable: VariablePreview} | null;
 
 export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) {
   const variablesQuery = useVariablesQuery(workspaceId);
@@ -137,7 +137,7 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
               existingKey={formState.mode === 'edit' ? formState.variable.key : undefined}
               existingValue={formState.mode === 'edit' ? formState.variable.value : undefined}
               existingValueTruncated={
-                formState.mode === 'edit' ? formState.variable.value_truncated : undefined
+                formState.mode === 'edit' ? formState.variable.valueTruncated : undefined
               }
               reservedKeys={variables.map((variable) => variable.key)}
               onSaved={() => {
@@ -163,7 +163,11 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
           if (deleteKey === null) return;
           setDeleteError(undefined);
           try {
-            await deleteVariable.mutateAsync({workspaceId, key: deleteKey});
+            await deleteVariable.mutateAsync({
+              workspaceId,
+              key: deleteKey,
+              scope: workspaceStoreScope,
+            });
             toast.success('Variable deleted');
             closeDelete();
           } catch (error) {
@@ -180,7 +184,7 @@ function VariableRow({
   onEdit,
   onDelete,
 }: {
-  variable: VariableListItemDto;
+  variable: VariablePreview;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -211,7 +215,7 @@ function VariableRow({
         </span>
       </TableCell>
       <TableCell className="text-foreground-neutral-muted">
-        <RelativeTime value={variable.updated_at} />
+        <RelativeTime value={variable.updatedAt} />
       </TableCell>
       <TableCell className="text-right">
         <DropdownMenu>

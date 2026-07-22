@@ -1,4 +1,3 @@
-import type {SecretDto} from '@shipfox/api-secrets-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -21,6 +20,7 @@ import {
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {useMemo, useState} from 'react';
+import {type SecretMetadata, workspaceStoreScope} from '#core/store.js';
 import {useDeleteSecretMutation, useSecretsQuery} from '#hooks/api/secrets.js';
 import {copyKeyName} from './copy-key.js';
 import {DeleteEntryDialog} from './delete-entry-dialog.js';
@@ -159,7 +159,11 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
           if (deleteKey === null) return;
           setDeleteError(undefined);
           try {
-            await deleteSecret.mutateAsync({workspaceId, key: deleteKey});
+            await deleteSecret.mutateAsync({
+              workspaceId,
+              key: deleteKey,
+              scope: workspaceStoreScope,
+            });
             toast.success('Secret deleted');
             closeDelete();
           } catch (error) {
@@ -176,7 +180,7 @@ function SecretRow({
   onEdit,
   onDelete,
 }: {
-  secret: SecretDto;
+  secret: SecretMetadata;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -204,7 +208,7 @@ function SecretRow({
         </span>
       </TableCell>
       <TableCell className="text-foreground-neutral-muted">
-        <RelativeTime value={secret.updated_at} />
+        <RelativeTime value={secret.updatedAt} />
       </TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
