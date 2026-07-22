@@ -18,7 +18,13 @@ import type {
   UpdateModelProviderDefaultModelBodyDto,
 } from '@shipfox/api-agent-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {queryOptions, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 
 export const modelProviderQueryKeys = {
   all: ['model-providers'] as const,
@@ -26,6 +32,17 @@ export const modelProviderQueryKeys = {
   configs: (workspaceId: string) =>
     [...modelProviderQueryKeys.all, 'configs', workspaceId] as const,
 };
+
+type ModelProviderConfigsQueryKey =
+  | ReturnType<typeof modelProviderQueryKeys.configs>
+  | readonly ['model-providers', 'configs'];
+
+type ModelProviderConfigsQueryOptions = FetchQueryOptions<
+  ListModelProviderConfigsResponseDto,
+  Error,
+  ListModelProviderConfigsResponseDto,
+  ModelProviderConfigsQueryKey
+>;
 
 export async function getModelProviderCatalog({signal}: {signal?: AbortSignal} = {}) {
   return await apiRequest<ModelProviderCatalogResponseDto>('/agent/model-provider-catalog', {
@@ -46,11 +63,13 @@ export async function listModelProviderConfigs({
   );
 }
 
-export function modelProviderConfigsQueryOptions(workspaceId: string | undefined) {
+export function modelProviderConfigsQueryOptions(
+  workspaceId: string | undefined,
+): ModelProviderConfigsQueryOptions {
   return queryOptions({
     queryKey: workspaceId
       ? modelProviderQueryKeys.configs(workspaceId)
-      : [...modelProviderQueryKeys.all, 'configs'],
+      : ([...modelProviderQueryKeys.all, 'configs'] as const),
     enabled: Boolean(workspaceId),
     queryFn: ({signal}) => listModelProviderConfigs({workspaceId: workspaceId ?? '', signal}),
   });

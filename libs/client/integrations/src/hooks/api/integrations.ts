@@ -34,6 +34,7 @@ import type {
 } from '@shipfox/api-integration-slack-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
+  type FetchQueryOptions,
   queryOptions,
   useInfiniteQuery,
   useMutation,
@@ -59,6 +60,17 @@ export const integrationsQueryKeys = {
   repositories: (connectionId: string, search: string) =>
     [...integrationsQueryKeys.all, 'repositories', connectionId, search] as const,
 };
+
+type SourceConnectionsQueryKey =
+  | ReturnType<typeof integrationsQueryKeys.sourceConnections>
+  | readonly ['integrations', 'source-connections'];
+
+type SourceConnectionsQueryOptions = FetchQueryOptions<
+  ListIntegrationConnectionsResponseDto,
+  Error,
+  ListIntegrationConnectionsResponseDto,
+  SourceConnectionsQueryKey
+>;
 
 export async function listIntegrationProviders({
   capability,
@@ -114,11 +126,13 @@ export async function listSourceConnections({
   };
 }
 
-export function sourceConnectionsQueryOptions(workspaceId: string | undefined) {
+export function sourceConnectionsQueryOptions(
+  workspaceId: string | undefined,
+): SourceConnectionsQueryOptions {
   return queryOptions({
     queryKey: workspaceId
       ? integrationsQueryKeys.sourceConnections(workspaceId)
-      : [...integrationsQueryKeys.all, 'source-connections'],
+      : ([...integrationsQueryKeys.all, 'source-connections'] as const),
     enabled: Boolean(workspaceId),
     queryFn: ({signal}) => listSourceConnections({workspaceId: workspaceId ?? '', signal}),
   });

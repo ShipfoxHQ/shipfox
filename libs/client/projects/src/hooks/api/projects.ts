@@ -5,6 +5,7 @@ import type {
 } from '@shipfox/api-projects-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {
+  type FetchQueryOptions,
   keepPreviousData,
   queryOptions,
   useInfiniteQuery,
@@ -19,6 +20,13 @@ export const projectsQueryKeys = {
   exists: (workspaceId: string) => [...projectsQueryKeys.all, 'exists', workspaceId] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
+
+type ProjectExistenceQueryOptions = FetchQueryOptions<
+  ListProjectsResponseDto,
+  Error,
+  ListProjectsResponseDto,
+  ReturnType<typeof projectsQueryKeys.exists>
+>;
 
 export async function listProjects({
   workspaceId,
@@ -48,7 +56,7 @@ export async function createProject(body: CreateProjectBodyDto) {
   return await apiRequest<ProjectResponseDto>('/projects', {method: 'POST', body});
 }
 
-export function projectExistenceQueryOptions(workspaceId: string) {
+export function projectExistenceQueryOptions(workspaceId: string): ProjectExistenceQueryOptions {
   return queryOptions({
     queryKey: projectsQueryKeys.exists(workspaceId),
     queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
