@@ -3350,9 +3350,6 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: 'catalog:'
         version: 3.1089.0
-      '@shipfox/api-agent-dto':
-        specifier: workspace:*
-        version: link:../agent-dto
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../auth-context
@@ -3389,6 +3386,9 @@ importers:
       '@shipfox/node-temporal':
         specifier: workspace:*
         version: link:../../shared/node/temporal
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
       '@temporalio/activity':
         specifier: 'catalog:'
         version: 1.18.1
@@ -4189,6 +4189,9 @@ importers:
       '@shipfox/runner-labels':
         specifier: workspace:*
         version: link:../../shared/common/runner-labels
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../shared/workflow/document
       '@temporalio/common':
         specifier: 'catalog:'
         version: 1.18.1

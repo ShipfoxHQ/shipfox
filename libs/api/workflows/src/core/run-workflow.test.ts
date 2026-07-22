@@ -2,6 +2,7 @@ import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowDefinition} from '@shipfox/api-definitions';
 import {createWorkflowModelSnapshot} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import {agentValidationCatalog} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import type {TriggerPayload} from './entities/workflow-run.js';
 import {DefinitionNotFoundError, ProjectMismatchError} from './errors.js';
@@ -87,6 +88,7 @@ describe('runWorkflow', () => {
   let workspaceId: string;
   let projectId: string;
   const agent: AgentInterModuleClient = {
+    getValidationCatalog: vi.fn().mockResolvedValue(agentValidationCatalog),
     resolveAgentConfig: mockResolveAgentConfig,
     resolveRuntimeCredentials: vi.fn(),
   };

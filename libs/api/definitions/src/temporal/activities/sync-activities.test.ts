@@ -6,7 +6,10 @@ import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import {db, definitionSyncStates} from '#db/index.js';
 import {workflowDefinitions} from '#db/schema/definitions.js';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {createDefinitionSyncActivities} from './sync-activities.js';
+
+const agent = {getValidationCatalog: vi.fn(() => agentValidationCatalog)} as never;
 
 vi.mock('@temporalio/activity', () => ({
   Context: {
@@ -79,7 +82,7 @@ describe('definition sync activities', () => {
 
   describe('prepareDefinitionSync', () => {
     it('marks the sync state as syncing and returns the resolved ref', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl());
+      const activities = createDefinitionSyncActivities(sourceControl(), agent);
 
       const result = await activities.prepareDefinitionSync({
         projectId,
@@ -100,7 +103,7 @@ describe('definition sync activities', () => {
 
     it('keeps source ref and source commit sha separate for commit-triggered sync', async () => {
       const source = sourceControl();
-      const activities = createDefinitionSyncActivities(source);
+      const activities = createDefinitionSyncActivities(source, agent);
 
       const result = await activities.prepareDefinitionSync({
         projectId,
@@ -127,6 +130,7 @@ describe('definition sync activities', () => {
             return Promise.reject(new Error('temporary outage'));
           }),
         }),
+        agent,
       );
 
       const result = activities.prepareDefinitionSync({
@@ -159,6 +163,7 @@ describe('definition sync activities', () => {
             );
           }),
         }),
+        agent,
       );
 
       const result = activities.prepareDefinitionSync({
@@ -180,7 +185,7 @@ describe('definition sync activities', () => {
 
   describe('fetchAndApplyDefinitionWorkflows', () => {
     it('upserts workflow definitions and soft-deletes orphans', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl());
+      const activities = createDefinitionSyncActivities(sourceControl(), agent);
 
       const result = await activities.fetchAndApplyDefinitionWorkflows({
         projectId,
@@ -206,6 +211,7 @@ describe('definition sync activities', () => {
             }),
           ),
         }),
+        agent,
       );
 
       const result = activities.fetchAndApplyDefinitionWorkflows({
@@ -224,7 +230,7 @@ describe('definition sync activities', () => {
 
     it('fetches from source commit sha while persisting under source ref', async () => {
       const source = sourceControl();
-      const activities = createDefinitionSyncActivities(source);
+      const activities = createDefinitionSyncActivities(source, agent);
 
       const result = await activities.fetchAndApplyDefinitionWorkflows({
         projectId,
@@ -250,7 +256,7 @@ describe('definition sync activities', () => {
 
   describe('markDefinitionSyncFailed', () => {
     it('persists last_error_code and last_error_message verbatim', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl());
+      const activities = createDefinitionSyncActivities(sourceControl(), agent);
       await activities.prepareDefinitionSync({
         projectId,
         workspaceId: crypto.randomUUID(),
@@ -280,7 +286,7 @@ describe('definition sync activities', () => {
     });
 
     it('persists failures with the unresolved sentinel ref when no ref was produced', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl());
+      const activities = createDefinitionSyncActivities(sourceControl(), agent);
 
       const result = activities.markDefinitionSyncFailed({
         projectId,
@@ -307,7 +313,7 @@ describe('definition sync activities', () => {
 
   describe('markDefinitionSyncSucceeded', () => {
     it('clears stale error fields when transitioning to succeeded', async () => {
-      const activities = createDefinitionSyncActivities(sourceControl());
+      const activities = createDefinitionSyncActivities(sourceControl(), agent);
       await activities.prepareDefinitionSync({
         projectId,
         workspaceId: crypto.randomUUID(),

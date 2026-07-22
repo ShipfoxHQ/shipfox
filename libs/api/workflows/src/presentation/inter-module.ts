@@ -1,8 +1,4 @@
-import {
-  DEFAULT_HARNESS,
-  harnessSchema,
-  materializedAgentStepConfigSchema,
-} from '@shipfox/api-agent-dto';
+import {materializedAgentStepConfigSchema} from '@shipfox/api-agent-dto';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
@@ -15,6 +11,7 @@ import {
   defineInterModulePresentation,
   type InterModulePresentation,
 } from '@shipfox/inter-module';
+import {DEFAULT_HARNESS, harnessSchema} from '@shipfox/workflow-document';
 import {InvalidJobRunnerLabelsError} from '#core/errors.js';
 import {
   AgentConfigUnresolvableError,

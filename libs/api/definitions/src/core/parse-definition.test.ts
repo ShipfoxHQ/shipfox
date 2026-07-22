@@ -1,10 +1,15 @@
 import {readFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {DefinitionParseError} from './errors.js';
-import {parseDefinition} from './parse-definition.js';
+import {parseDefinition as parseDefinitionBase} from './parse-definition.js';
 
 const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../test/fixtures');
+
+function parseDefinition(yaml: string, options = {}) {
+  return parseDefinitionBase(yaml, {agentValidationCatalog, ...options});
+}
 
 function readFixture(name: string): string {
   return readFileSync(resolve(fixturesDir, name), 'utf-8');

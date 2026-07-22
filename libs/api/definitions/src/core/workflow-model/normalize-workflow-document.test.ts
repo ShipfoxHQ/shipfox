@@ -1,4 +1,5 @@
 import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import {InvalidWorkflowModelError} from './invalid-workflow-model-error.js';
 import {DEFAULT_JOB_CHECKOUT} from './normalize-job-checkout.js';
@@ -6,14 +7,22 @@ import {normalizeWorkflowDocument as normalizeWorkflowDocumentBase} from './norm
 
 function normalizeWorkflowDocument(
   document: WorkflowDocument,
-  options?: Parameters<typeof normalizeWorkflowDocumentBase>[1],
+  options?: Omit<Parameters<typeof normalizeWorkflowDocumentBase>[1], 'agentValidationCatalog'> &
+    Partial<Pick<Parameters<typeof normalizeWorkflowDocumentBase>[1], 'agentValidationCatalog'>>,
 ) {
-  return normalizeWorkflowDocumentBase({runner: 'ubuntu-latest', ...document}, options);
+  return normalizeWorkflowDocumentBase(
+    {runner: 'ubuntu-latest', ...document},
+    {
+      agentValidationCatalog: options?.agentValidationCatalog ?? agentValidationCatalog,
+      ...options,
+    },
+  );
 }
 
 function expectInvalid(
   document: WorkflowDocument,
-  options?: Parameters<typeof normalizeWorkflowDocumentBase>[1],
+  options?: Omit<Parameters<typeof normalizeWorkflowDocumentBase>[1], 'agentValidationCatalog'> &
+    Partial<Pick<Parameters<typeof normalizeWorkflowDocumentBase>[1], 'agentValidationCatalog'>>,
 ): InvalidWorkflowModelError {
   try {
     normalizeWorkflowDocument(document, options);
@@ -578,12 +587,7 @@ describe('normalizeWorkflowDocument', () => {
       },
     };
 
-    const error = expectInvalid(document, {
-      harnessToolDeploymentConfig: {
-        pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: true},
-        claude: {enabledToolPackages: []},
-      },
-    });
+    const error = expectInvalid(document);
 
     expect(error.issues).toEqual([
       {
@@ -670,9 +674,20 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     const error = expectInvalid(document, {
-      harnessToolDeploymentConfig: {
-        pi: {enabledToolPackages: ['pi-web-access'], webSearchEnabled: false},
-        claude: {enabledToolPackages: []},
+      agentValidationCatalog: {
+        ...agentValidationCatalog,
+        harnesses: agentValidationCatalog.harnesses.map((harness) =>
+          harness.id === 'pi'
+            ? {
+                ...harness,
+                effective_tools: harness.effective_tools.filter(
+                  (tool) =>
+                    tool === 'fetch_content' ||
+                    !['web_search', 'get_search_content'].includes(tool),
+                ),
+              }
+            : harness,
+        ),
       },
     });
 
@@ -1169,7 +1184,7 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     try {
-      normalizeWorkflowDocumentBase(document);
+      normalizeWorkflowDocumentBase(document, {agentValidationCatalog});
       expect.fail('Expected InvalidWorkflowModelError');
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidWorkflowModelError);
@@ -1193,6 +1208,7 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     const model = normalizeWorkflowDocumentBase(document, {
+      agentValidationCatalog,
       defaultRunnerLabels: [' Ubuntu ', 'ubuntu'],
     });
 
@@ -1211,7 +1227,10 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     try {
-      normalizeWorkflowDocumentBase(document, {defaultRunnerLabels: ['ubuntu-latest']});
+      normalizeWorkflowDocumentBase(document, {
+        agentValidationCatalog,
+        defaultRunnerLabels: ['ubuntu-latest'],
+      });
       expect.fail('Expected InvalidWorkflowModelError');
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidWorkflowModelError);
@@ -1253,7 +1272,7 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     try {
-      normalizeWorkflowDocumentBase(document);
+      normalizeWorkflowDocumentBase(document, {agentValidationCatalog});
       expect.fail('Expected InvalidWorkflowModelError');
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidWorkflowModelError);
@@ -1279,7 +1298,7 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     try {
-      normalizeWorkflowDocumentBase(document);
+      normalizeWorkflowDocumentBase(document, {agentValidationCatalog});
       expect.fail('Expected InvalidWorkflowModelError');
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidWorkflowModelError);
@@ -1349,7 +1368,7 @@ describe('normalizeWorkflowDocument', () => {
     };
 
     try {
-      normalizeWorkflowDocumentBase(document);
+      normalizeWorkflowDocumentBase(document, {agentValidationCatalog});
       expect.fail('Expected InvalidWorkflowModelError');
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidWorkflowModelError);
@@ -1378,7 +1397,7 @@ describe('normalizeWorkflowDocument', () => {
       },
     };
 
-    const model = normalizeWorkflowDocumentBase(document);
+    const model = normalizeWorkflowDocumentBase(document, {agentValidationCatalog});
 
     expect(model.jobs[0]?.runner).toHaveLength(20);
   });

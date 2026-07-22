@@ -1,5 +1,6 @@
-import type {AgentThinking, Harness, ModelProviderRef} from '@shipfox/api-agent-dto';
+import type {ModelProviderRef} from '@shipfox/api-agent-dto';
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {AgentThinking, Harness} from '@shipfox/workflow-document';
 
 export interface AgentDefaultsInput {
   readonly harness?: Harness | undefined;

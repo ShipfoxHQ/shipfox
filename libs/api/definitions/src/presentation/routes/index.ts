@@ -6,7 +6,7 @@ import {
 } from './create-definition.js';
 import {buildGetDefinitionRoute} from './get-definition.js';
 import {buildListDefinitionsRoute} from './list-definitions.js';
-import {validateDefinitionRoute} from './validate-definition.js';
+import {buildValidateDefinitionRoute} from './validate-definition.js';
 
 export interface DefinitionRouteOptions extends CreateDefinitionRouteOptions {}
 
@@ -19,7 +19,7 @@ export function createDefinitionRoutes(options: DefinitionRouteOptions): RouteGr
         buildCreateDefinitionRoute(options),
         buildListDefinitionsRoute(options.projects),
         buildGetDefinitionRoute(options.projects),
-        validateDefinitionRoute,
+        buildValidateDefinitionRoute(options.agent),
       ],
     },
   ];

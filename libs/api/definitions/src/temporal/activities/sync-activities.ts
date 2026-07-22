@@ -1,3 +1,4 @@
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
 import {markErrorReported} from '@shipfox/node-error-monitoring';
 import {Context} from '@temporalio/activity';
@@ -53,12 +54,17 @@ export interface FetchAndApplyActivityResult {
 
 export function createDefinitionSyncActivities(
   sourceControl: DefinitionsSourceControl,
+  agent: AgentInterModuleClient,
   integrations?: IntegrationsModuleClient | undefined,
 ) {
   return {
     prepareDefinitionSync: createPrepareDefinitionSyncActivity(sourceControl),
     discoverDefinitionWorkflows: createDiscoverDefinitionWorkflowsActivity(sourceControl),
-    fetchAndApplyDefinitionWorkflows: createFetchAndApplyActivity(sourceControl, integrations),
+    fetchAndApplyDefinitionWorkflows: createFetchAndApplyActivity(
+      sourceControl,
+      agent,
+      integrations,
+    ),
     markDefinitionSyncSucceeded: createMarkSyncSucceededActivity(),
     markDefinitionSyncFailed: createMarkSyncFailedActivity(),
   };
@@ -104,6 +110,7 @@ function createDiscoverDefinitionWorkflowsActivity(sourceControl: DefinitionsSou
 
 function createFetchAndApplyActivity(
   sourceControl: DefinitionsSourceControl,
+  agent: AgentInterModuleClient,
   integrations?: IntegrationsModuleClient | undefined,
 ) {
   return async function fetchAndApplyDefinitionWorkflows(
@@ -114,6 +121,7 @@ function createFetchAndApplyActivity(
         ...input,
         ref: input.sourceCommitSha ?? input.sourceRef,
         sourceControl,
+        agentValidationCatalog: await agent.getValidationCatalog({}),
         onProgress: (path) => Context.current().heartbeat({path}),
         loadIntegrationValidationContext:
           integrations === undefined

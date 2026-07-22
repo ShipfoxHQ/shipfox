@@ -151,6 +151,7 @@ export async function defaultModules(
   const projectsModule = createProjectsModule({integrations: integrationsClient});
   const definitionsModule = createDefinitionsModule({
     projects: projectsClient,
+    agent: agentClient,
     integrations: integrationsClient,
   });
 

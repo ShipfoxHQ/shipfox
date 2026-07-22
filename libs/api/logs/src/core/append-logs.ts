@@ -1,5 +1,4 @@
 import {Buffer} from 'node:buffer';
-import {DEFAULT_HARNESS, type Harness} from '@shipfox/api-agent-dto';
 import {
   type LogRecord,
   parseLogRecordLine,
@@ -8,6 +7,7 @@ import {
 } from '@shipfox/api-logs-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import {DEFAULT_HARNESS, type Harness} from '@shipfox/workflow-document';
 import {config} from '#config.js';
 import {accrueStoredBytes, claimCap, ensureJobAccounting, isJobCapped} from '#db/accounting.js';
 import {insertChunk} from '#db/chunks.js';

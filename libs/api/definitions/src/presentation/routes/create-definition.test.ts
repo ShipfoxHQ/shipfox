@@ -4,10 +4,12 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {buildCreateDefinitionRoute} from './create-definition.js';
 
 const getProjectById = vi.fn();
 const projects = {getProjectById} as Pick<ProjectsModuleClient, 'getProjectById'>;
+const agent = {getValidationCatalog: vi.fn(() => agentValidationCatalog)};
 
 describe('POST /api/definitions', () => {
   let app: FastifyInstance;
@@ -32,7 +34,10 @@ describe('POST /api/definitions', () => {
     });
     app.post(
       '/api/definitions',
-      buildCreateDefinitionRoute({projects: projects as ProjectsModuleClient}),
+      buildCreateDefinitionRoute({
+        projects: projects as ProjectsModuleClient,
+        agent: agent as never,
+      }),
     );
     await app.ready();
   });
@@ -96,6 +101,7 @@ jobs:
       '/api/definitions',
       buildCreateDefinitionRoute({
         projects: projects as ProjectsModuleClient,
+        agent: agent as never,
         integrations: {getAgentToolsContext} as Pick<
           IntegrationsModuleClient,
           'getAgentToolsContext'
@@ -168,6 +174,7 @@ jobs:
       '/api/definitions',
       buildCreateDefinitionRoute({
         projects: projects as ProjectsModuleClient,
+        agent: agent as never,
         integrations: {getAgentToolsContext} as Pick<
           IntegrationsModuleClient,
           'getAgentToolsContext'

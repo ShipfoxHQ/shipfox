@@ -4,13 +4,13 @@ import {
   AGENT_INTEGRATION_MCP_SERVER_NAME,
   AGENT_INTEGRATION_MCP_TRANSPORT,
   type AgentIntegrationMcpServerConfigDto,
-  type AgentThinking,
   type MaterializedAgentIntegrationConfigDto,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import type {AgentThinking} from '@shipfox/workflow-document';
 import type {AgentDefaultsResolver, ResolvedAgentDefaults} from '#core/agent-defaults.js';
 import {
   type AgentToolMaterializationContext,

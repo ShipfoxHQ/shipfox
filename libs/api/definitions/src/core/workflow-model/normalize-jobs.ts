@@ -1,10 +1,4 @@
-import {
-  agentThinkingByHarness,
-  getHarnessDescriptor,
-  getModelProviderEntry,
-  type HarnessToolDeploymentConfig,
-  listEnabledHarnessTools,
-} from '@shipfox/api-agent-dto';
+import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
 import {
   type AvailabilitySite,
   buildTypedRootsEnvironment,
@@ -53,7 +47,7 @@ import {issue} from './validation-issue.js';
 
 export interface NormalizeContext {
   readonly defaultRunnerLabels: readonly string[];
-  readonly harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  readonly agentValidationCatalog: AgentValidationCatalog;
   readonly integrationValidationContext?: IntegrationValidationContext | undefined;
 }
 
@@ -719,7 +713,7 @@ function normalizeAgentStep(params: {
     stepIndex: params.stepIndex,
     issues: params.issues,
     validateLiteralProvider: providerTemplate === undefined,
-    harnessToolDeploymentConfig: params.context.harnessToolDeploymentConfig,
+    agentValidationCatalog: params.context.agentValidationCatalog,
   });
   const integrations = normalizeAgentIntegrations({
     integrations: params.step.integrations,
@@ -755,7 +749,7 @@ function validateAgentStep(params: {
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
   validateLiteralProvider: boolean;
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  agentValidationCatalog: AgentValidationCatalog;
 }): void {
   validateHarnessThinking(params);
   validateHarnessTools(params);
@@ -764,7 +758,7 @@ function validateAgentStep(params: {
   const providerId = params.step.provider;
   if (providerId === undefined) return;
 
-  const provider = getModelProviderEntry(providerId);
+  const provider = params.agentValidationCatalog.providers.find((entry) => entry.id === providerId);
   const harness = params.step.harness;
   if (provider === undefined && harness === 'pi') return;
 
@@ -782,15 +776,19 @@ function validateAgentStep(params: {
 
   if (harness === undefined) return;
 
-  const descriptor = getHarnessDescriptor(harness);
-  if (descriptor.supportedProviderIds.includes(providerId)) return;
+  const descriptor = params.agentValidationCatalog.harnesses.find((entry) => entry.id === harness);
+  if (descriptor?.supported_provider_ids.includes(providerId)) return;
 
   params.issues.push(
     issue({
       code: 'harness-provider-incompatible',
-      message: `Harness "${harness}" does not support provider: ${providerId}. Supported providers: ${descriptor.supportedProviderIds.join(', ')}.`,
+      message: `Harness "${harness}" does not support provider: ${providerId}. Supported providers: ${descriptor?.supported_provider_ids.join(', ') ?? ''}.`,
       path: ['jobs', params.sourceName, 'steps', params.stepIndex, 'provider'],
-      details: {harness, provider: providerId, supportedProviders: descriptor.supportedProviderIds},
+      details: {
+        harness,
+        provider: providerId,
+        supportedProviders: descriptor?.supported_provider_ids ?? [],
+      },
     }),
   );
 }
@@ -800,7 +798,7 @@ function validateHarnessTools(params: {
   sourceName: string;
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
-  harnessToolDeploymentConfig: HarnessToolDeploymentConfig;
+  agentValidationCatalog: AgentValidationCatalog;
 }): void {
   const {harness, tools} = params.step;
   if (tools === undefined) return;
@@ -818,9 +816,9 @@ function validateHarnessTools(params: {
     return;
   }
 
-  const supportedTools = listEnabledHarnessTools(harness, params.harnessToolDeploymentConfig).map(
-    (tool) => tool.name,
-  );
+  const supportedTools =
+    params.agentValidationCatalog.harnesses.find((entry) => entry.id === harness)
+      ?.effective_tools ?? [];
   const supportedToolSet = new Set(supportedTools);
 
   tools.forEach((tool, toolIndex) => {
@@ -842,14 +840,15 @@ function validateHarnessThinking(params: {
   sourceName: string;
   stepIndex: number;
   issues: WorkflowModelValidationIssue[];
+  agentValidationCatalog: AgentValidationCatalog;
 }): void {
   const {harness, thinking} = params.step;
   if (harness === undefined || thinking === undefined) return;
 
-  const thinkingSchema = agentThinkingByHarness[harness];
-  if (thinkingSchema.safeParse(thinking).success) return;
-
-  const supportedLevels = thinkingSchema.options;
+  const supportedLevels =
+    params.agentValidationCatalog.harnesses.find((entry) => entry.id === harness)
+      ?.thinking_levels ?? [];
+  if (supportedLevels.includes(thinking)) return;
   params.issues.push(
     issue({
       code: 'harness-thinking-incompatible',

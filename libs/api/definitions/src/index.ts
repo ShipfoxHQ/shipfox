@@ -1,5 +1,6 @@
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {
   DEFINITION_RESOLVED,
   type DefinitionsEventMap,
@@ -48,11 +49,13 @@ const subscriber = subscriberFactory<DefinitionsEventMap & ProjectsEventMap>();
 
 export interface CreateDefinitionsModuleOptions {
   projects: ProjectsModuleClient;
+  agent: AgentInterModuleClient;
   integrations: IntegrationsModuleClient;
 }
 
 export function createDefinitionsModule({
   projects,
+  agent,
   integrations,
 }: CreateDefinitionsModuleOptions): ShipfoxModule {
   const sourceControl = createDefinitionsSourceControl(integrations);
@@ -60,7 +63,7 @@ export function createDefinitionsModule({
   return {
     name: 'definitions',
     database: {db, migrationsPath},
-    routes: createDefinitionRoutes({projects, integrations}),
+    routes: createDefinitionRoutes({projects, agent, integrations}),
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],
@@ -76,7 +79,7 @@ export function createDefinitionsModule({
       {
         taskQueue: DEFINITIONS_TASK_QUEUE,
         workflowsPath,
-        activities: () => createDefinitionSyncActivities(sourceControl, integrations),
+        activities: () => createDefinitionSyncActivities(sourceControl, agent, integrations),
         workflows: [],
       },
     ],
