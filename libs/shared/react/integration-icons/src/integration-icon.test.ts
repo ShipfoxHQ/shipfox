@@ -1,4 +1,5 @@
-import {FALLBACK_INTEGRATION_ICON, getIntegrationIcon} from './integration-icon.js';
+import {getIntegrationIcon} from './integration-icon.js';
+import {FALLBACK_INTEGRATION_ICON} from './provider-icons.js';
 
 describe('getIntegrationIcon', () => {
   it('resolves cataloged providers to the icon they declare', () => {

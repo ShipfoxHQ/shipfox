@@ -1,3 +1,4 @@
+import {PROVIDER_ICONS} from '@shipfox/integration-icons';
 import type {IconName} from '@shipfox/react-ui/icon';
 
 // Literal union (not string) so `<Link to={catalog.setupPath}>` stays typed
@@ -25,31 +26,31 @@ export type ProviderCatalogEntry = RouteProviderCatalogEntry | ModalProviderCata
 export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
   github: {
     kind: 'redirect-install',
-    iconName: 'github',
+    iconName: PROVIDER_ICONS.github,
     setupPath: '/workspaces/$wid/integrations/github',
   },
   sentry: {
     kind: 'redirect-install',
-    iconName: 'sentry',
+    iconName: PROVIDER_ICONS.sentry,
     setupPath: '/workspaces/$wid/integrations/sentry',
   },
   linear: {
     kind: 'redirect-install',
-    iconName: 'linear',
+    iconName: PROVIDER_ICONS.linear,
     setupPath: '/workspaces/$wid/integrations/linear',
   },
   slack: {
     kind: 'redirect-install',
-    iconName: 'slack',
+    iconName: PROVIDER_ICONS.slack,
     setupPath: '/workspaces/$wid/integrations/slack',
   },
   gitea: {
     kind: 'direct-connect',
-    iconName: 'gitea',
+    iconName: PROVIDER_ICONS.gitea,
     setupPath: '/workspaces/$wid/integrations/gitea',
   },
   webhook: {
     kind: 'modal-connect',
-    iconName: 'webhookLine',
+    iconName: PROVIDER_ICONS.webhook,
   },
 };

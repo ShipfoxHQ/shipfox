@@ -1,15 +1,15 @@
-import type {TriggerEventListItemDto} from '@shipfox/api-triggers-dto';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
 import {TableCell, TableRow} from '@shipfox/react-ui/table';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import type {MouseEvent} from 'react';
+import type {TriggerEventSummary} from '#core/trigger-event.js';
 import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
 
 interface TriggerEventRowProps {
-  event: TriggerEventListItemDto;
+  event: TriggerEventSummary;
   selected: boolean;
   onSelect: (eventId: string) => void;
 }
@@ -70,17 +70,17 @@ export function TriggerEventRow({event, selected, onSelect}: TriggerEventRowProp
       </TableCell>
       <TableCell className="text-right">
         <Code as="span" variant="label" className="text-foreground-neutral-muted">
-          <RelativeTime value={event.received_at} />
+          <RelativeTime value={event.receivedAt} />
         </Code>
       </TableCell>
     </TableRow>
   );
 }
 
-function triggerEventDisplayLabel(event: Pick<TriggerEventListItemDto, 'event' | 'source'>) {
+function triggerEventDisplayLabel(event: Pick<TriggerEventSummary, 'event' | 'source'>) {
   return event.event || event.source;
 }
 
-function triggerEventFullLabel(event: Pick<TriggerEventListItemDto, 'event' | 'source'>) {
+function triggerEventFullLabel(event: Pick<TriggerEventSummary, 'event' | 'source'>) {
   return [event.source, event.event].filter(Boolean).join(' · ');
 }

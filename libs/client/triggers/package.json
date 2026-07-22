@@ -63,9 +63,9 @@
   "dependencies": {
     "@shipfox/api-triggers-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
-    "@shipfox/client-integrations": "workspace:*",
     "@shipfox/client-shell": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
+    "@shipfox/integration-icons": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:"
   },

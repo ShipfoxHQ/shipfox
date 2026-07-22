@@ -11,6 +11,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {screen} from 'storybook/test';
+import {toTriggerEventDetail} from '#hooks/api/trigger-event-mapper.js';
 import {TriggerEventDetailView} from './trigger-event-detail.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
@@ -53,7 +54,7 @@ const withRouter: Decorator = (Story) => {
   return <RouterProvider router={router} />;
 };
 
-const routedEvent: TriggerEventDetailResponseDto = {
+const routedEventDto: TriggerEventDetailResponseDto = {
   id: '44444444-4444-4444-8444-444444444444',
   event_ref: 'github:delivery-179:push',
   origin: 'integration',
@@ -114,8 +115,8 @@ const routedEvent: TriggerEventDetailResponseDto = {
   ],
 };
 
-const discardedEvent: TriggerEventDetailResponseDto = {
-  ...routedEvent,
+const discardedEventDto: TriggerEventDetailResponseDto = {
+  ...routedEventDto,
   id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   event_ref: 'github:delivery-180:issue_comment',
   event: 'issue_comment',
@@ -126,6 +127,9 @@ const discardedEvent: TriggerEventDetailResponseDto = {
   processed_at: '2026-06-25T19:33:01.000Z',
   decisions: [],
 };
+
+const routedEvent = toTriggerEventDetail(routedEventDto);
+const discardedEvent = toTriggerEventDetail(discardedEventDto);
 
 const meta = {
   title: 'Triggers/EventDetail',

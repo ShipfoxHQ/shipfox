@@ -98,6 +98,7 @@
     "@shipfox/client-workspace-settings",
     "@shipfox/config",
     "@shipfox/expression",
+    "@shipfox/integration-icons",
     "@shipfox/inter-module",
     "@shipfox/node-auth-root-key",
     "@shipfox/node-drizzle",

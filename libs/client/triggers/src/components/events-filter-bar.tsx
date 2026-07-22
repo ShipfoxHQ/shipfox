@@ -1,4 +1,3 @@
-import type {TriggerEventFacetItemDto, TriggerEventOutcomeDto} from '@shipfox/api-triggers-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@shipfox/react-ui/collapsible';
 import {Combobox, type ComboboxOption} from '@shipfox/react-ui/combobox';
@@ -6,24 +5,30 @@ import {type DateRange, DateRangePicker} from '@shipfox/react-ui/date-range-pick
 import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {type ReactNode, useState} from 'react';
-import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
+import {
+  type TriggerEventFacetItem,
+  type TriggerEventFilters,
+  type TriggerEventOutcome,
+  type TriggerEventResultKind,
+  triggerEventResultFilterOutcomes,
+} from '#core/trigger-event.js';
 
 // Filters expose the same plain-language results shown in the table. `failed`
 // includes `errored` so the Failed filter does not hide rows rendered as failed.
 const RESULT_FILTERS: {
-  value: TriggerEventOutcomeDto;
-  selects: TriggerEventOutcomeDto[];
+  value: TriggerEventResultKind;
+  selects: readonly TriggerEventOutcome[];
   label: string;
 }[] = [
-  {value: 'routed', selects: ['routed'], label: 'Triggered'},
-  {value: 'discarded', selects: ['discarded'], label: 'No match'},
-  {value: 'failed', selects: ['failed', 'errored'], label: 'Failed'},
-  {value: 'received', selects: ['received'], label: 'Evaluating'},
+  {value: 'triggered', selects: triggerEventResultFilterOutcomes.triggered, label: 'Triggered'},
+  {value: 'no-match', selects: triggerEventResultFilterOutcomes['no-match'], label: 'No match'},
+  {value: 'failed', selects: triggerEventResultFilterOutcomes.failed, label: 'Failed'},
+  {value: 'evaluating', selects: triggerEventResultFilterOutcomes.evaluating, label: 'Evaluating'},
 ];
 
 const RESULT_OPTIONS: ComboboxOption[] = RESULT_FILTERS.map(({value, label}) => ({value, label}));
 
-function toOptions(facets: TriggerEventFacetItemDto[] | undefined): ComboboxOption[] {
+function toOptions(facets: TriggerEventFacetItem[] | undefined): ComboboxOption[] {
   return (facets ?? []).map((facet) => ({
     value: facet.value,
     label: `${facet.value} (${facet.count})`,
@@ -33,8 +38,8 @@ function toOptions(facets: TriggerEventFacetItemDto[] | undefined): ComboboxOpti
 interface EventsFilterBarProps {
   filters: TriggerEventFilters;
   onFiltersChange: (patch: Partial<TriggerEventFilters>) => void;
-  sources: TriggerEventFacetItemDto[] | undefined;
-  events: TriggerEventFacetItemDto[] | undefined;
+  sources: TriggerEventFacetItem[] | undefined;
+  events: TriggerEventFacetItem[] | undefined;
   hasActiveFilters: boolean;
   onClear: () => void;
 }

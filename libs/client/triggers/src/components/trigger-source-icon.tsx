@@ -1,6 +1,7 @@
-import {getIntegrationIcon} from '@shipfox/client-integrations';
+import {getIntegrationIcon} from '@shipfox/integration-icons';
 import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import type {ComponentProps} from 'react';
+import type {TriggerEventSource} from '#core/trigger-event.js';
 
 const SYSTEM_TRIGGER_SOURCE_ICONS: Record<string, IconName> = {
   manual: 'cursorLine',
@@ -8,23 +9,24 @@ const SYSTEM_TRIGGER_SOURCE_ICONS: Record<string, IconName> = {
 };
 
 /**
- * Gives first-class icons to system trigger sources; integration sources keep
- * using the integration catalog and its fallback.
+ * Stable presentation seam for trigger-source icons. System sources have
+ * first-class icons; integration sources delegate to the shared provider
+ * catalog so a new provider's icon shows up here without a second edit.
  */
 export function getTriggerSourceIcon({
   provider,
   source,
 }: {
-  provider: string | null | undefined;
-  source: string | null | undefined;
+  provider?: TriggerEventSource['provider'] | undefined;
+  source?: TriggerEventSource['source'] | undefined;
 }): IconName {
   const systemIcon = source ? SYSTEM_TRIGGER_SOURCE_ICONS[source] : undefined;
   return systemIcon ?? getIntegrationIcon(provider);
 }
 
 export interface TriggerSourceIconProps extends Omit<ComponentProps<typeof Icon>, 'name'> {
-  provider: string | null | undefined;
-  source: string | null | undefined;
+  provider?: TriggerEventSource['provider'] | undefined;
+  source?: TriggerEventSource['source'] | undefined;
 }
 
 /**

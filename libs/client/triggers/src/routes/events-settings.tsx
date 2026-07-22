@@ -1,6 +1,6 @@
 import {defineRoute, useActiveWorkspace} from '@shipfox/client-shell/runtime';
 import {getRouteApi} from '@tanstack/react-router';
-import type {TriggerEventFilters} from '#hooks/api/trigger-events.js';
+import type {TriggerEventFilters} from '#core/trigger-event.js';
 import {EventsPage} from '#pages/events-page.js';
 import {type TriggerEventsSearch, validateTriggerEventsSearch} from '#search.js';
 

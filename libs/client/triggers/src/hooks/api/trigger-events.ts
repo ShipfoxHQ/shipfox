@@ -1,40 +1,35 @@
-import type {
-  TriggerEventDetailResponseDto,
-  TriggerEventFacetsResponseDto,
-  TriggerEventListResponseDto,
-  TriggerEventOutcomeDto,
+import {
+  triggerEventDetailResponseSchema,
+  triggerEventFacetsResponseSchema,
+  triggerEventListResponseSchema,
 } from '@shipfox/api-triggers-dto';
-import {apiRequest} from '@shipfox/client-api';
-import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/react-query';
+import {checkedApiRequest} from '@shipfox/client-api';
+import {
+  infiniteQueryOptions,
+  keepPreviousData,
+  queryOptions,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
+import {
+  normalizeTriggerEventFilters,
+  normalizeTriggerEventFilterValues,
+  type TriggerEventFilters,
+} from '#core/trigger-event.js';
+import {
+  toTriggerEventDetail,
+  toTriggerEventFacets,
+  toTriggerEventListPage,
+} from './trigger-event-mapper.js';
 
-export interface TriggerEventFilters {
-  source?: string[] | undefined;
-  event?: string[] | undefined;
-  outcome?: TriggerEventOutcomeDto[] | undefined;
-  from?: string | undefined;
-  to?: string | undefined;
-}
-
-function normalizeStringFilter(values: readonly string[] | undefined) {
-  return values && values.length > 0 ? [...new Set(values)].sort() : null;
-}
-
-function normalizeTriggerEventFiltersForQueryKey(filters: TriggerEventFilters) {
-  return {
-    source: normalizeStringFilter(filters.source),
-    event: normalizeStringFilter(filters.event),
-    outcome: normalizeStringFilter(filters.outcome),
-    from: filters.from ?? null,
-    to: filters.to ?? null,
-  };
-}
+export type {TriggerEventFilters} from '#core/trigger-event.js';
 
 function setListParam(
   params: URLSearchParams,
   name: string,
   values: readonly string[] | undefined,
 ) {
-  const normalized = normalizeStringFilter(values);
+  const normalized = normalizeTriggerEventFilterValues(values);
   if (normalized) params.set(name, normalized.join(','));
 }
 
@@ -45,7 +40,7 @@ export const triggerEventsQueryKeys = {
     [
       ...triggerEventsQueryKeys.lists(workspaceId),
       limit,
-      normalizeTriggerEventFiltersForQueryKey(filters),
+      normalizeTriggerEventFilters(filters),
     ] as const,
   detail: (id: string) => [...triggerEventsQueryKeys.all, 'detail', id] as const,
   facets: (workspaceId: string) => [...triggerEventsQueryKeys.all, 'facets', workspaceId] as const,
@@ -72,16 +67,36 @@ export async function listTriggerEvents({
   if (filters.to) params.set('to', filters.to);
   setListParam(params, 'outcome', filters.outcome);
 
-  return await apiRequest<TriggerEventListResponseDto>(`/trigger-events?${params.toString()}`, {
-    signal,
-  });
+  const response = await checkedApiRequest(
+    triggerEventListResponseSchema,
+    `/trigger-events?${params.toString()}`,
+    {signal},
+  );
+  return toTriggerEventListPage(response);
 }
 
 export async function getTriggerEvent({id, signal}: {id: string; signal?: AbortSignal}) {
-  return await apiRequest<TriggerEventDetailResponseDto>(
+  const response = await checkedApiRequest(
+    triggerEventDetailResponseSchema,
     `/trigger-events/${encodeURIComponent(id)}`,
     {signal},
   );
+  return toTriggerEventDetail(response);
+}
+
+export function triggerEventsInfiniteQueryOptions(
+  workspaceId: string,
+  filters: TriggerEventFilters = {},
+  limit = 50,
+) {
+  return infiniteQueryOptions({
+    queryKey: triggerEventsQueryKeys.list(workspaceId, filters, limit),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({pageParam, signal}) =>
+      listTriggerEvents({workspaceId, filters, limit, cursor: pageParam, signal}),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useTriggerEventsInfiniteQuery(
@@ -90,29 +105,22 @@ export function useTriggerEventsInfiniteQuery(
   limit = 50,
 ) {
   return useInfiniteQuery({
-    queryKey: workspaceId
-      ? triggerEventsQueryKeys.list(workspaceId, filters, limit)
-      : [...triggerEventsQueryKeys.all, 'list'],
+    ...triggerEventsInfiniteQueryOptions(workspaceId ?? '', filters, limit),
     enabled: Boolean(workspaceId),
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({pageParam, signal}) =>
-      listTriggerEvents({
-        workspaceId: workspaceId ?? '',
-        filters,
-        limit,
-        cursor: pageParam,
-        signal,
-      }),
-    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
-    placeholderData: keepPreviousData,
+  });
+}
+
+export function triggerEventQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: triggerEventsQueryKeys.detail(id),
+    queryFn: ({signal}) => getTriggerEvent({id, signal}),
   });
 }
 
 export function useTriggerEventQuery(id: string | undefined) {
   return useQuery({
-    queryKey: id ? triggerEventsQueryKeys.detail(id) : [...triggerEventsQueryKeys.all, 'detail'],
+    ...triggerEventQueryOptions(id ?? ''),
     enabled: Boolean(id),
-    queryFn: ({signal}) => getTriggerEvent({id: id ?? '', signal}),
   });
 }
 
@@ -124,20 +132,25 @@ export async function getTriggerEventFacets({
   signal?: AbortSignal;
 }) {
   const params = new URLSearchParams({workspace_id: workspaceId});
-  return await apiRequest<TriggerEventFacetsResponseDto>(
+  const response = await checkedApiRequest(
+    triggerEventFacetsResponseSchema,
     `/trigger-events/facets?${params.toString()}`,
     {signal},
   );
+  return toTriggerEventFacets(response);
+}
+
+export function triggerEventFacetsQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: triggerEventsQueryKeys.facets(workspaceId),
+    queryFn: ({signal}) => getTriggerEventFacets({workspaceId, signal}),
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
 export function useTriggerEventFacetsQuery(workspaceId: string | undefined) {
   return useQuery({
-    queryKey: workspaceId
-      ? triggerEventsQueryKeys.facets(workspaceId)
-      : [...triggerEventsQueryKeys.all, 'facets'],
+    ...triggerEventFacetsQueryOptions(workspaceId ?? ''),
     enabled: Boolean(workspaceId),
-    queryFn: ({signal}) => getTriggerEventFacets({workspaceId: workspaceId ?? '', signal}),
-    // Distinct values change slowly; avoid refetching on every page mount.
-    staleTime: 5 * 60 * 1000,
   });
 }
