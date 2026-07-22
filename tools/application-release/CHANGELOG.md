@@ -1,5 +1,11 @@
 # @shipfox/application-release
 
+## 0.1.4
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+
 ## 0.1.3
 
 ### Patch Changes

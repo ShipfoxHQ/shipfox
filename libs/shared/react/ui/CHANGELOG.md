@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 0.3.5
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+
 ## 0.3.4
 
 ### Patch Changes

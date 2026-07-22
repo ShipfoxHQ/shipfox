@@ -1,5 +1,23 @@
 # @shipfox/api-server
 
+## 7.0.1
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+- Updated dependencies [ffc7fc9]
+  - @shipfox/api-auth@7.0.1
+  - @shipfox/api-email-challenges@0.2.2
+  - @shipfox/api-integration-core@7.0.1
+  - @shipfox/api-runners@7.0.1
+  - @shipfox/api-runners-dto@7.0.1
+  - @shipfox/api-triggers@7.0.1
+  - @shipfox/api-workflows@7.0.1
+  - @shipfox/api-workspaces@7.0.1
+  - @shipfox/annotations@6.0.0
+  - @shipfox/api-logs@6.0.0
+  - @shipfox/api-definitions@6.0.0
+
 ## 7.0.0
 
 ### Patch Changes

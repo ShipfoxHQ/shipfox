@@ -1,5 +1,13 @@
 # @shipfox/api-email-challenges
 
+## 0.2.2
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+- Updated dependencies [ffc7fc9]
+  - @shipfox/node-email@0.3.1
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @shipfox/client-workflows
 
+## 3.0.1
+
+### Patch Changes
+
+- ffc7fc9: Republishes the affected release set after recovering package publication.
+- Updated dependencies [ffc7fc9]
+  - @shipfox/client-logs@3.0.1
+  - @shipfox/client-shell@3.0.1
+  - @shipfox/client-triggers@3.0.1
+  - @shipfox/client-ui@3.0.1
+  - @shipfox/react-ui@0.3.5
+
 ## 3.0.0
 
 ### Patch Changes
