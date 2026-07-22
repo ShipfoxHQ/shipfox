@@ -7,6 +7,7 @@ export {
   type RegisterEc2ServiceMetricsOptions,
   registerEc2ServiceMetrics,
 } from '#metrics/service.js';
+export {createEc2ProvisionerAdapter, startEc2Provisioner} from '#provisioner.js';
 export {
   type Ec2Market,
   Ec2TemplateConfigError,

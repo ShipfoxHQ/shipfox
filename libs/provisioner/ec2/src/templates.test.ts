@@ -61,6 +61,7 @@ templates:
     associate_public_ip: false
     root_volume_gb: 100
     max_concurrency: 200
+    target_concurrency: 2
     cost: 5
   ec2-ubuntu22-2vcpu-on-demand:
     labels: [ubuntu22, ubuntu22-2vcpu-on-demand]
@@ -86,6 +87,7 @@ describe('loadEc2Templates', () => {
         key: 'ec2-ubuntu22-2vcpu-spot',
         labels: ['ubuntu22', 'ubuntu22-2vcpu'],
         maxConcurrency: 200,
+        targetConcurrency: 2,
         cost: 5,
         spec: {
           ami: 'ami-0123456789abcdef0',

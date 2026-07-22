@@ -766,6 +766,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../tools/biome
+      '@shipfox/docker':
+        specifier: workspace:*
+        version: link:../../tools/docker
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../tools/swc

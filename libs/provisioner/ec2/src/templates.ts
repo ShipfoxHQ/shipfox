@@ -47,6 +47,7 @@ const ec2TemplateSchema = z
     root_volume_gb: z.number().int().positive(),
     root_device_name: z.string().trim().min(1).optional(),
     max_concurrency: z.number().int().positive().max(MAX_TEMPLATE_CONCURRENCY),
+    target_concurrency: z.number().int().nonnegative().max(MAX_TEMPLATE_CONCURRENCY).optional(),
     cost: z.number().positive(),
   })
   .strict()
@@ -117,6 +118,7 @@ function toTemplate(
     key,
     labels,
     maxConcurrency: spec.max_concurrency,
+    ...(spec.target_concurrency === undefined ? {} : {targetConcurrency: spec.target_concurrency}),
     cost: spec.cost,
     spec: {
       ami: spec.ami,
