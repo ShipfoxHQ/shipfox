@@ -1,4 +1,3 @@
-import {createLeaseTokenAuthMethod, createRunnerSessionAuthMethod} from '@shipfox/api-auth';
 import {
   AUTH_LEASED_JOB,
   AUTH_PROVISIONER_TOKEN,
@@ -18,7 +17,12 @@ import {db} from '#db/db.js';
 import {revokeManualRegistrationToken} from '#db/manual-registration-tokens.js';
 import {manualRegistrationTokens} from '#db/schema/manual-registration-tokens.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
-import {manualRegistrationTokenFactory, runnersTestAuthClient} from '#test/index.js';
+import {
+  fakeLeaseTokenAuthMethod,
+  fakeRunnerSessionAuthMethod,
+  manualRegistrationTokenFactory,
+  runnersTestAuthClient,
+} from '#test/index.js';
 import {createRunnerRoutes} from './index.js';
 
 let authenticatedMemberships: ReadonlyArray<UserContextMembership> = [];
@@ -59,8 +63,8 @@ describe('manual registration token routes', () => {
       auth: [
         fakeUserAuth,
         createRunnerRegistrationTokenAuthMethod(),
-        createRunnerSessionAuthMethod(),
-        createLeaseTokenAuthMethod(),
+        fakeRunnerSessionAuthMethod,
+        fakeLeaseTokenAuthMethod,
         fakeProvisionerAuth,
       ],
       routes: createRunnerRoutes(runnersTestAuthClient),

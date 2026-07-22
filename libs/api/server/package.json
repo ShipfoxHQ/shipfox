@@ -83,6 +83,7 @@
     "@shipfox/node-postgres": "workspace:*"
   },
   "devDependencies": {
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/inter-module": "workspace:*",

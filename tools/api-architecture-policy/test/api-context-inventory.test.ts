@@ -19,20 +19,24 @@ describe('auditApiContextInventory', () => {
     assert.deepEqual(errors, []);
   });
 
-  test('rejects new production and test imports of a foreign implementation', () => {
+  test('rejects Auth root and deep implementation imports from consumer tests', () => {
     const productionErrors = auditPolicyFixture({
       importerPath: 'libs/api/runners',
-      sourceFile: 'src/new-import.ts',
+      sourceFile: 'src/consumer.test.ts:@shipfox/api-auth',
       targetPath: 'libs/api/auth',
     });
     const testErrors = auditPolicyFixture({
       importerPath: 'libs/api/runners',
-      sourceFile: 'test/new-import.test.ts',
+      sourceFile: 'test/consumer.test.ts:@shipfox/api-auth/core/job-lease-token',
       targetPath: 'libs/api/auth',
     });
 
-    assert.deepEqual(productionErrors, ['Foreign implementation import: src/new-import.ts']);
-    assert.deepEqual(testErrors, ['Foreign implementation import: test/new-import.test.ts']);
+    assert.deepEqual(productionErrors, [
+      'Foreign implementation import: src/consumer.test.ts:@shipfox/api-auth',
+    ]);
+    assert.deepEqual(testErrors, [
+      'Foreign implementation import: test/consumer.test.ts:@shipfox/api-auth/core/job-lease-token',
+    ]);
   });
 
   test('rejects a new foreign manifest edge and DTO root contract export', () => {

@@ -5,7 +5,6 @@ import {
 } from '@shipfox/api-agent';
 import {resolveRuntimeCredentials} from '@shipfox/api-agent/core/resolve-runtime-credentials';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
@@ -26,7 +25,7 @@ import {insertRunningJobLease, mintActiveLeaseToken} from '#test/fixtures/active
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
-import {mintLeaseToken} from '#test/fixtures/lease-token.js';
+import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
@@ -56,7 +55,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [createLeaseTokenAuthMethod()],
+      auth: [fakeLeaseTokenAuthMethod],
       routes: [
         createLeaseTokenRouteGroup({
           agent: agentTestClient,
@@ -90,38 +89,6 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
       expect(res.statusCode).toBe(401);
       expect(res.json().code).toBe('unauthorized');
-    });
-
-    test('rejects an expired token', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        expiresIn: '-1s',
-      });
-
-      const res = await app.inject({
-        method: 'GET',
-        url: runtimeConfigUrl(crypto.randomUUID(), 1),
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
-    });
-
-    test('rejects a token with the wrong audience', async () => {
-      const token = await mintLeaseToken({
-        jobId: crypto.randomUUID(),
-        jobExecutionId: crypto.randomUUID(),
-        audience: 'user-session',
-      });
-
-      const res = await app.inject({
-        method: 'GET',
-        url: runtimeConfigUrl(crypto.randomUUID(), 1),
-        headers: {authorization: `Bearer ${token}`},
-      });
-
-      expect(res.statusCode).toBe(401);
     });
   });
 

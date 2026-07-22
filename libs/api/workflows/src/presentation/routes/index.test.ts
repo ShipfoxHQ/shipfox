@@ -1,4 +1,3 @@
-import {createLeaseTokenAuthMethod} from '@shipfox/api-auth';
 import {
   AUTH_LEASED_JOB,
   AUTH_USER,
@@ -10,6 +9,7 @@ import type {FastifyRequest} from 'fastify';
 import {agentTestClient} from '#test/fixtures/agent-inter-module.js';
 import {annotationsTestClient} from '#test/fixtures/annotations-inter-module.js';
 import {workflowsTestAuthClient} from '#test/fixtures/auth-inter-module.js';
+import {fakeLeaseTokenAuthMethod} from '#test/fixtures/lease-token.js';
 import {projectsTestClient} from '#test/fixtures/projects-inter-module.js';
 import {runnersTestClient} from '#test/fixtures/runners-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
@@ -50,7 +50,7 @@ describe('workflow route auth', () => {
 
   test('rejects API-key-only requests', async () => {
     const app = await createApp({
-      auth: [fakeUserAuth, createLeaseTokenAuthMethod()],
+      auth: [fakeUserAuth, fakeLeaseTokenAuthMethod],
       routes: workflowRoutes,
       swagger: false,
     });
@@ -71,7 +71,7 @@ describe('workflow route auth', () => {
 
   test('step routes reject requests without a lease token', async () => {
     const app = await createApp({
-      auth: [fakeUserAuth, createLeaseTokenAuthMethod()],
+      auth: [fakeUserAuth, fakeLeaseTokenAuthMethod],
       routes: workflowRoutes,
       swagger: false,
     });

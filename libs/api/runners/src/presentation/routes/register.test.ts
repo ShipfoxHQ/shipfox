@@ -1,8 +1,3 @@
-import {
-  createLeaseTokenAuthMethod,
-  createRunnerSessionAuthMethod,
-  verifyRunnerSessionToken,
-} from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER} from '@shipfox/api-auth-context';
 import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import type {AuthMethod} from '@shipfox/node-fastify';
@@ -20,6 +15,9 @@ import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {createRunnerRegistrationTokenAuthMethod} from '#presentation/auth/index.js';
 import {
   ephemeralRegistrationTokenFactory,
+  fakeLeaseTokenAuthMethod,
+  fakeRunnerSessionAuthMethod,
+  getRunnerSessionTokenClaims,
   manualRegistrationTokenFactory,
   runnersTestAuthClient,
 } from '#test/index.js';
@@ -52,8 +50,8 @@ describe('POST /runners/register', () => {
       auth: [
         fakeUserAuth,
         createRunnerRegistrationTokenAuthMethod(),
-        createRunnerSessionAuthMethod(),
-        createLeaseTokenAuthMethod(),
+        fakeRunnerSessionAuthMethod,
+        fakeLeaseTokenAuthMethod,
         fakeProvisionerAuth,
       ],
       routes: createRunnerRoutes(runnersTestAuthClient),
@@ -87,7 +85,7 @@ describe('POST /runners/register', () => {
     expect(body.mode).toBe('manual');
     expect(body.max_claims).toBeNull();
 
-    const claims = await verifyRunnerSessionToken(body.session_token);
+    const claims = getRunnerSessionTokenClaims(body.session_token);
     expect(claims).toMatchObject({
       runnerSessionId: body.session_id,
       workspaceId,
@@ -144,7 +142,7 @@ describe('POST /runners/register', () => {
     expect(body.mode).toBe('ephemeral');
     expect(body.max_claims).toBe(1);
 
-    const claims = await verifyRunnerSessionToken(body.session_token);
+    const claims = getRunnerSessionTokenClaims(body.session_token);
     expect(claims?.maxClaims).toBe(1);
 
     const [session] = await db()

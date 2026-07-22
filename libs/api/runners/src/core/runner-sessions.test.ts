@@ -1,4 +1,3 @@
-import {verifyRunnerSessionToken} from '@shipfox/api-auth';
 import {and, eq} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {ephemeralRegistrationTokens} from '#db/schema/ephemeral-registration-tokens.js';
@@ -7,6 +6,7 @@ import {providerRunners} from '#db/schema/runner-instances.js';
 import {runnerSessions} from '#db/schema/runner-sessions.js';
 import {
   ephemeralRegistrationTokenFactory,
+  getRunnerSessionTokenClaims,
   manualRegistrationTokenFactory,
   providerRunnerFactory,
   runnersTestAuthClient,
@@ -51,7 +51,7 @@ describe('registerRunnerSession', () => {
       .where(eq(runnerSessions.id, result.session.id));
     expect(rows[0]?.labels).toEqual(['linux', 'x64']);
 
-    const claims = await verifyRunnerSessionToken(result.sessionToken);
+    const claims = getRunnerSessionTokenClaims(result.sessionToken);
     expect(claims?.labels).toEqual(['linux', 'x64']);
     expect(claims?.maxClaims).toBeNull();
   });
@@ -104,7 +104,7 @@ describe('registerRunnerSession', () => {
     expect(session?.provisionerId).toBe(token.provisionerId);
     expect(session?.providerRunnerId).toBe(token.providerRunnerId);
 
-    const claims = await verifyRunnerSessionToken(result.sessionToken);
+    const claims = getRunnerSessionTokenClaims(result.sessionToken);
     expect(claims?.maxClaims).toBe(1);
   });
 

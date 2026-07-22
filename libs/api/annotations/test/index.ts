@@ -1,2 +1,2 @@
 export {annotationFactory} from './factories/annotation.js';
-export {mintLeaseToken} from './fixtures/lease-token.js';
+export {fakeLeaseTokenAuthMethod, mintLeaseToken} from './fixtures/lease-token.js';

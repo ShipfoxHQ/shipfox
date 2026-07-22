@@ -50,30 +50,6 @@ interface BaselineEntry {
 
 const baseline: BaselineEntry[] = [
   ...[
-    'libs/api/annotations/src/presentation/routes/write-annotations.test.ts:@shipfox/api-auth',
-    'libs/api/logs/src/presentation/routes/append-logs.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/core/runner-sessions.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/db/job-executions.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/presentation/routes/heartbeat.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/presentation/routes/manual-registration-tokens.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/presentation/routes/register.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/presentation/routes/request-job.test.ts:@shipfox/api-auth',
-    'libs/api/runners/src/presentation/routes/runner-enrollment.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/core/agent-tool-capability-warning.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/presentation/routes/agent-runtime-config.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/presentation/routes/checkout-token.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/presentation/routes/get-step-secrets.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/presentation/routes/index.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/presentation/routes/next-step.test.ts:@shipfox/api-auth',
-    'libs/api/workflows/src/presentation/routes/report-step.test.ts:@shipfox/api-auth',
-  ].map((path) => ({
-    issue: 'ENG-1145',
-    owner: 'Auth consumer-test migration',
-    reason:
-      'Consumer tests still use Auth implementation helpers while the contract fakes are migrated.',
-    violation: `import:${path}`,
-  })),
-  ...[
     'libs/api/definitions/src/core/sync-definitions.test.ts:@shipfox/api-integration-core',
     'libs/api/definitions/src/temporal/activities/sync-activities.test.ts:@shipfox/api-integration-core',
     'libs/api/workflows/src/core/run-workflow.test.ts:@shipfox/api-definitions',
@@ -104,18 +80,6 @@ const baseline: BaselineEntry[] = [
     owner: 'Contract location and stale-edge migration',
     reason:
       'The implementation edge is stale while the consumer migration moves to the explicit DTO subpath.',
-    violation: `manifest:${path}`,
-  })),
-  ...[
-    'libs/api/annotations:package.json:devDependencies:@shipfox/api-auth',
-    'libs/api/logs:package.json:devDependencies:@shipfox/api-auth',
-    'libs/api/runners:package.json:devDependencies:@shipfox/api-auth',
-    'libs/api/workflows:package.json:devDependencies:@shipfox/api-auth',
-  ].map((path) => ({
-    issue: 'ENG-1145',
-    owner: 'Auth consumer-test migration',
-    reason:
-      'The manifest remains until the corresponding Auth implementation test import is replaced.',
     violation: `manifest:${path}`,
   })),
   ...[

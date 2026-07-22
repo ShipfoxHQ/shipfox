@@ -1,4 +1,3 @@
-import {createLeaseTokenAuthMethod, createRunnerSessionAuthMethod} from '@shipfox/api-auth';
 import {AUTH_PROVISIONER_TOKEN, AUTH_USER, setProvisionerContext} from '@shipfox/api-auth-context';
 import {
   type AuthMethod,
@@ -18,7 +17,11 @@ import {
   createRunnerControlSessionAuthMethod,
   createRunnerRegistrationTokenAuthMethod,
 } from '#presentation/auth/index.js';
-import {runnersTestAuthClient} from '#test/index.js';
+import {
+  fakeLeaseTokenAuthMethod,
+  fakeRunnerSessionAuthMethod,
+  runnersTestAuthClient,
+} from '#test/index.js';
 import {createRunnerRoutes} from './index.js';
 
 const token = 'provisioner-test-token';
@@ -44,8 +47,8 @@ describe('runner enrollment control plane', () => {
         provisionerAuth,
         createRunnerRegistrationTokenAuthMethod(),
         createRunnerControlSessionAuthMethod(),
-        createRunnerSessionAuthMethod(),
-        createLeaseTokenAuthMethod(),
+        fakeRunnerSessionAuthMethod,
+        fakeLeaseTokenAuthMethod,
       ],
       routes: createRunnerRoutes(runnersTestAuthClient),
       swagger: false,
