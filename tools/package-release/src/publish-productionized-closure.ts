@@ -2,7 +2,7 @@ import {type ChildProcess, spawn} from 'node:child_process';
 import {globSync, readFileSync, writeFileSync} from 'node:fs';
 import {constants} from 'node:os';
 import {join, resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 import {productionizeManifest} from '@shipfox/tool-utils';
 
@@ -73,8 +73,12 @@ export function publishChangesets(onSpawn?: (child: ChildProcess) => void): Prom
   });
 }
 
+export function getRepositoryRoot(entryPoint: string): string {
+  return resolve(fileURLToPath(new URL('../../..', entryPoint)));
+}
+
 async function main() {
-  const repositoryRoot = process.cwd();
+  const repositoryRoot = getRepositoryRoot(import.meta.url);
   const closurePath = join(repositoryRoot, 'publication-closure.json');
   const {packages: packageNames} = JSON.parse(readFileSync(closurePath, 'utf8')) as {
     packages: string[];

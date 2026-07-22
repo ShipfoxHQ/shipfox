@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {pathToFileURL} from 'node:url';
 
 import {
   findClosureManifests,
+  getRepositoryRoot,
   publishProductionizedClosure,
 } from '../src/publish-productionized-closure.js';
 
@@ -14,6 +16,16 @@ const roots: string[] = [];
 const DUPLICATE_MANIFEST_ERROR = /Duplicate package manifest: @shipfox\/duplicate/u;
 const MISSING_MANIFEST_ERROR = /Publication closure package has no manifest: @shipfox\/missing/u;
 const SPAWN_FAILURE_ERROR = /spawn failed/u;
+
+test('resolves the repository root from the package entrypoint', () => {
+  const entryPoint = pathToFileURL(
+    '/workspace/tools/package-release/dist/publish-productionized-closure.js',
+  ).href;
+
+  const repositoryRoot = getRepositoryRoot(entryPoint);
+
+  assert.equal(repositoryRoot, '/workspace');
+});
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, {force: true, recursive: true});
