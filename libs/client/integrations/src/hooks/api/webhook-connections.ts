@@ -1,11 +1,20 @@
 import type {
   CreateWebhookConnectionBodyDto,
-  ListWebhookConnectionsResponseDto,
   UpdateWebhookConnectionBodyDto,
-  WebhookConnectionDto,
 } from '@shipfox/api-integration-webhook-dto';
-import {apiRequest} from '@shipfox/client-api';
-import {type QueryClient, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  listWebhookConnectionsResponseSchema,
+  webhookConnectionDtoSchema,
+} from '@shipfox/api-integration-webhook-dto';
+import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
+import {
+  type QueryClient,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import {toWebhookConnection} from './integration-mapper.js';
 import {integrationsQueryKeys} from './integrations.js';
 
 export const webhookConnectionsQueryKeys = {
@@ -21,17 +30,24 @@ export async function listWebhookConnections({
   signal?: AbortSignal;
 }) {
   const search = new URLSearchParams({workspace_id: workspaceId});
-  return await apiRequest<ListWebhookConnectionsResponseDto>(
+  const response = await checkedApiRequest(
+    listWebhookConnectionsResponseSchema,
     `/integrations/webhook/connections?${search.toString()}`,
     {signal},
   );
+  return response.connections.map(toWebhookConnection);
 }
 
 export async function createWebhookConnection(body: CreateWebhookConnectionBodyDto) {
-  return await apiRequest<WebhookConnectionDto>('/integrations/webhook/connections', {
-    method: 'POST',
-    body,
-  });
+  const response = await checkedApiRequest(
+    webhookConnectionDtoSchema,
+    '/integrations/webhook/connections',
+    {
+      method: 'POST',
+      body,
+    },
+  );
+  return toWebhookConnection(response);
 }
 
 export async function updateWebhookConnection({
@@ -41,16 +57,22 @@ export async function updateWebhookConnection({
   connectionId: string;
   body: UpdateWebhookConnectionBodyDto;
 }) {
-  return await apiRequest<WebhookConnectionDto>(
+  const response = await checkedApiRequest(
+    webhookConnectionDtoSchema,
     `/integrations/webhook/connections/${encodeURIComponent(connectionId)}`,
     {method: 'PATCH', body},
   );
+  return toWebhookConnection(response);
 }
 
 export async function deleteWebhookConnection({connectionId}: {connectionId: string}) {
-  await apiRequest<void>(`/integrations/webhook/connections/${encodeURIComponent(connectionId)}`, {
-    method: 'DELETE',
-  });
+  await checkedApiRequest(
+    emptyResponseSchema,
+    `/integrations/webhook/connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export function useWebhookConnectionsQuery(workspaceId: string | undefined) {
@@ -63,12 +85,19 @@ export function useWebhookConnectionsQuery(workspaceId: string | undefined) {
   });
 }
 
+export function webhookConnectionsQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: webhookConnectionsQueryKeys.list(workspaceId),
+    queryFn: ({signal}) => listWebhookConnections({workspaceId, signal}),
+  });
+}
+
 export function useCreateWebhookConnectionMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createWebhookConnection,
     onSuccess: async (connection) => {
-      await invalidateWebhookConnectionViews(queryClient, connection.workspace_id);
+      await invalidateWebhookConnectionViews(queryClient, connection.workspaceId);
     },
   });
 }
@@ -85,7 +114,7 @@ export function useUpdateWebhookConnectionMutation() {
       body: UpdateWebhookConnectionBodyDto;
     }) => updateWebhookConnection({connectionId, body}),
     onSuccess: async (connection) => {
-      await invalidateWebhookConnectionViews(queryClient, connection.workspace_id);
+      await invalidateWebhookConnectionViews(queryClient, connection.workspaceId);
     },
   });
 }

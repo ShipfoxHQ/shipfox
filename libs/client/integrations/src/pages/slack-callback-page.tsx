@@ -1,4 +1,3 @@
-import type {SlackCallbackResponseDto} from '@shipfox/api-integration-slack-dto';
 import {useRefreshAuth} from '@shipfox/client-auth';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
@@ -7,6 +6,7 @@ import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
+import type {IntegrationConnection} from '#core/models.js';
 import {integrationsQueryKeys, useCompleteSlackCallbackMutation} from '#hooks/api/integrations.js';
 import {
   classifySlackCallbackError,
@@ -19,7 +19,7 @@ import {
 
 // Retain only recent completions: this bounds long-lived callback pages while
 // still covering StrictMode and immediate Back/Forward remounts.
-const callbackRequests = createSingleFlight<string, SlackCallbackResponseDto>({
+const callbackRequests = createSingleFlight<string, IntegrationConnection>({
   maxTerminalResults: 32,
 });
 const completedCallbacks = new Set<string>();
@@ -52,7 +52,7 @@ export function SlackCallbackPage() {
       async (connection) => {
         if (disposed) return;
         if (completedCallbacks.has(key)) {
-          setCompletedWorkspaceId(connection.workspace_id);
+          setCompletedWorkspaceId(connection.workspaceId);
           return;
         }
         completedCallbacks.add(key);
@@ -63,7 +63,7 @@ export function SlackCallbackPage() {
         }
         try {
           await queryClient.invalidateQueries({
-            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspace_id),
+            queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
           });
         } catch {
           // Navigation can continue when cache refresh is unavailable.
@@ -76,11 +76,11 @@ export function SlackCallbackPage() {
         try {
           await navigate({
             to: '/workspaces/$wid/settings/integrations',
-            params: {wid: connection.workspace_id},
+            params: {wid: connection.workspaceId},
             replace: true,
           });
         } catch {
-          if (!disposed) setCompletedWorkspaceId(connection.workspace_id);
+          if (!disposed) setCompletedWorkspaceId(connection.workspaceId);
         }
       },
       (error: unknown) => {

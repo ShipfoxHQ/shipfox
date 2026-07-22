@@ -53,6 +53,24 @@ function sourceConnection(overrides: {lifecycle_status?: string} = {}) {
   };
 }
 
+// The query cache stores the mapped domain shape (camelCase), not the wire
+// DTO `sourceConnection()` mocks for fetch responses — keep this seed in sync
+// with `toIntegrationConnection` in client-integrations.
+function cachedSourceConnection() {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    workspaceId: WORKSPACE_ID,
+    provider: 'github',
+    externalAccountId: 'acct',
+    slug: 'github_acct',
+    displayName: 'GitHub',
+    lifecycleStatus: 'active' as const,
+    capabilities: ['source_control' as const],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 interface SetupFetchOptions {
   projects?: unknown[];
   connections?: unknown[];
@@ -361,9 +379,9 @@ describe('workspace setup route hook', () => {
 
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
       seedQueryClient: (queryClient) => {
-        queryClient.setQueryData(sourceConnectionsQueryOptions(WORKSPACE_ID).queryKey, {
-          connections: [sourceConnection()] as never,
-        });
+        queryClient.setQueryData(sourceConnectionsQueryOptions(WORKSPACE_ID).queryKey, [
+          cachedSourceConnection(),
+        ]);
       },
     });
 

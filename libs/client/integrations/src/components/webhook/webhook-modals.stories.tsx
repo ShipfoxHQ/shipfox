@@ -1,4 +1,3 @@
-import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 import {WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
 import {configureApiClient} from '@shipfox/client-api';
@@ -14,6 +13,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import {useMemo} from 'react';
+import type {IntegrationConnection} from '#core/models.js';
 import {IntegrationDeleteConfirmModal} from '../integration-delete-confirm-modal.js';
 import {IntegrationUsageModal} from '../integration-usage-modal.js';
 import {CopyableValue} from './copyable-value.js';
@@ -52,22 +52,22 @@ const disabledConnection: WebhookConnectionDto = {
   lifecycle_status: 'disabled',
 };
 
-const activeIntegrationConnection: IntegrationConnectionDto = {
+const activeIntegrationConnection: IntegrationConnection = {
   id: CONNECTION_ID,
-  workspace_id: WORKSPACE_ID,
+  workspaceId: WORKSPACE_ID,
   provider: 'webhook',
-  external_account_id: activeConnection.slug,
+  externalAccountId: activeConnection.slug,
   slug: activeConnection.slug,
-  display_name: activeConnection.name,
-  lifecycle_status: activeConnection.lifecycle_status,
+  displayName: activeConnection.name,
+  lifecycleStatus: activeConnection.lifecycle_status,
   capabilities: [],
-  created_at: activeConnection.created_at,
-  updated_at: activeConnection.updated_at,
+  createdAt: activeConnection.created_at,
+  updatedAt: activeConnection.updated_at,
 };
 
-const disabledIntegrationConnection: IntegrationConnectionDto = {
+const disabledIntegrationConnection: IntegrationConnection = {
   ...activeIntegrationConnection,
-  lifecycle_status: 'disabled',
+  lifecycleStatus: 'disabled',
 };
 
 function WebhookModalStory({scenario}: WebhookModalStoryProps) {

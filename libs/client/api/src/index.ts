@@ -35,6 +35,11 @@ export interface StandardSchema<Input = unknown, Output = Input> {
 export type StandardSchemaOutput<Schema extends StandardSchema> =
   Schema extends StandardSchema<unknown, infer Output> ? Output : never;
 
+/** Pass to `checkedApiRequest` for endpoints (e.g. DELETE) with no response body. */
+export const emptyResponseSchema: StandardSchema<unknown, undefined> = {
+  '~standard': {version: 1, vendor: 'client-api', validate: () => ({value: undefined})},
+};
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;

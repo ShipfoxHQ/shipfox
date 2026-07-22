@@ -1,7 +1,3 @@
-import type {
-  IntegrationConnectionDto,
-  ListIntegrationConnectionsResponseDto,
-} from '@shipfox/api-integration-core-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {IconButton} from '@shipfox/react-ui/button';
 import {
@@ -15,18 +11,21 @@ import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn, formatDate} from '@shipfox/react-ui/utils';
-import type {UseQueryResult} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
 import {ConnectionStatusBadge} from '#connection-status-badge.js';
+import {type IntegrationConnection, isUsableConnection} from '#core/models.js';
 import {IntegrationIcon} from '#integration-icon.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
 
 interface InstalledIntegrationsSectionProps {
-  connectionsQuery: UseQueryResult<ListIntegrationConnectionsResponseDto, Error>;
-  connections: IntegrationConnectionDto[];
+  connections: IntegrationConnection[];
+  isPending: boolean;
+  isFetching: boolean;
+  error?: Error | null | undefined;
+  onRetry: () => void;
   isMutating: boolean;
   onUse: (connectionId: string) => void;
-  onSetActive: (connection: IntegrationConnectionDto, active: boolean) => void;
+  onSetActive: (connection: IntegrationConnection, active: boolean) => void;
   onDelete: (connectionId: string) => void;
   providerDisplayName: (provider: string) => string | undefined;
 }
@@ -35,8 +34,11 @@ const INSTALLED_SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
 
 export function InstalledIntegrationsSection({
-  connectionsQuery,
   connections,
+  isPending,
+  isFetching,
+  error,
+  onRetry,
   isMutating,
   onUse,
   onSetActive,
@@ -52,15 +54,18 @@ export function InstalledIntegrationsSection({
         </Text>
       </div>
 
-      {connectionsQuery.isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
+      {isPending ? <InstalledSkeleton label="Loading integrations" /> : null}
 
-      {connectionsQuery.isError && connectionsQuery.data === undefined ? (
+      {error ? (
         <div className={cn(INSTALLED_SURFACE_CLASS, 'px-16')}>
-          <QueryLoadError query={connectionsQuery} subject="integrations" />
+          <QueryLoadError
+            query={{isError: true, isFetching, data: undefined, error, refetch: onRetry}}
+            subject="integrations"
+          />
         </div>
       ) : null}
 
-      {connectionsQuery.data !== undefined && connections.length === 0 ? (
+      {!isPending && !error && connections.length === 0 ? (
         <div className={cn(INSTALLED_SURFACE_CLASS, 'px-16')}>
           <EmptyState
             icon="componentLine"
@@ -97,15 +102,15 @@ function InstalledRow({
   onDelete,
   providerDisplayName,
 }: {
-  connection: IntegrationConnectionDto;
+  connection: IntegrationConnection;
   isMutating: boolean;
   onUse: (connectionId: string) => void;
   onSetActive: (active: boolean) => void;
   onDelete: (connectionId: string) => void;
   providerDisplayName: (provider: string) => string | undefined;
 }) {
-  const muted = connection.lifecycle_status === 'disabled';
-  const active = connection.lifecycle_status === 'active';
+  const muted = connection.lifecycleStatus === 'disabled';
+  const active = isUsableConnection(connection);
   const recentEventsEvent = usageEventsForConnection(connection)[0]?.value ?? 'received';
   const providerName = providerDisplayName(connection.provider);
 
@@ -126,12 +131,12 @@ function InstalledRow({
             bold
             className={cn('truncate', muted ? 'text-foreground-neutral-disabled' : undefined)}
           >
-            {connection.display_name}
+            {connection.displayName}
           </Text>
-          <ConnectionStatusBadge status={connection.lifecycle_status} className="shrink-0" />
+          <ConnectionStatusBadge status={connection.lifecycleStatus} className="shrink-0" />
         </div>
         <Text size="sm" className="truncate text-foreground-neutral-muted">
-          Added {formatDate(connection.created_at)}
+          Added {formatDate(connection.createdAt)}
         </Text>
       </div>
       <DropdownMenu>
@@ -140,13 +145,13 @@ function InstalledRow({
             size="sm"
             variant="transparent"
             icon="more2Line"
-            aria-label={`Open ${connection.display_name} integration actions`}
+            aria-label={`Open ${connection.displayName} integration actions`}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {connection.external_url ? (
+          {connection.externalUrl ? (
             <DropdownMenuItem asChild>
-              <a href={connection.external_url} target="_blank" rel="noreferrer noopener">
+              <a href={connection.externalUrl} target="_blank" rel="noreferrer noopener">
                 {providerName ? `Open in ${providerName}` : 'Open provider settings'}
               </a>
             </DropdownMenuItem>
@@ -157,7 +162,7 @@ function InstalledRow({
           <DropdownMenuItem asChild>
             <Link
               to="/workspaces/$wid/settings/events"
-              params={{wid: connection.workspace_id}}
+              params={{wid: connection.workspaceId}}
               search={{source: [connection.slug], event: [recentEventsEvent]}}
             >
               View recent events

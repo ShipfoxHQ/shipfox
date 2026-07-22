@@ -1,9 +1,9 @@
-import type {IntegrationCapabilityDto} from '@shipfox/api-integration-core-dto';
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import type {IntegrationCapability} from '#core/models.js';
 import {IntegrationGalleryForWorkspace} from './integration-gallery-for-workspace.js';
 
 export interface IntegrationGalleryProps {
-  capability?: IntegrationCapabilityDto;
+  capability?: IntegrationCapability;
   emptyProvidersMessage?: string;
   workspaceId?: string;
 }
@@ -35,7 +35,7 @@ function RoutedIntegrationGallery({
   capability,
   emptyProvidersMessage,
 }: {
-  capability: IntegrationCapabilityDto | undefined;
+  capability: IntegrationCapability | undefined;
   emptyProvidersMessage: string;
 }) {
   const workspace = useActiveWorkspace();

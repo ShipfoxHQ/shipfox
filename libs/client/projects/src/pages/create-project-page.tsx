@@ -1,4 +1,3 @@
-import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {
   createProjectBodySchema,
   type ListProjectsResponseDto,
@@ -7,6 +6,7 @@ import {
 import {useMaybeActiveWorkspace} from '@shipfox/client-auth';
 import {
   ConnectionPicker,
+  type IntegrationConnection,
   IntegrationIcon,
   RepositoryPicker,
   useRepositoriesInfiniteQuery,
@@ -37,7 +37,7 @@ export function CreateProjectPage() {
   const errorRef = useRef<HTMLDivElement>(null);
 
   const connectionsQuery = useSourceConnectionsQuery(workspace?.id);
-  const connections = connectionsQuery.data?.connections ?? [];
+  const connections = connectionsQuery.data ?? [];
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | undefined>();
   const singleConnectionId = connections.length === 1 ? connections[0]?.id : undefined;
@@ -48,7 +48,7 @@ export function CreateProjectPage() {
     }
   }, [singleConnectionId, selectedConnectionId]);
 
-  const selectedConnection: IntegrationConnectionDto | undefined = connections.find(
+  const selectedConnection: IntegrationConnection | undefined = connections.find(
     (connection) => connection.id === effectiveSelectedConnectionId,
   );
 
@@ -65,11 +65,11 @@ export function CreateProjectPage() {
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | undefined>();
   useEffect(() => {
     if (!selectedRepositoryId && repositories[0]) {
-      setSelectedRepositoryId(repositories[0].external_repository_id);
+      setSelectedRepositoryId(repositories[0].externalRepositoryId);
     }
   }, [repositories, selectedRepositoryId]);
   const selectedRepository = repositories.find(
-    (repository) => repository.external_repository_id === selectedRepositoryId,
+    (repository) => repository.externalRepositoryId === selectedRepositoryId,
   );
 
   const [nameTouched, setNameTouched] = useState(false);
@@ -133,7 +133,7 @@ export function CreateProjectPage() {
         name: projectName,
         source: {
           connection_id: selectedConnection.id,
-          external_repository_id: selectedRepository.external_repository_id,
+          external_repository_id: selectedRepository.externalRepositoryId,
         },
       });
       const project = await createProject.mutateAsync(projectBody);
@@ -284,7 +284,7 @@ export function CreateProjectPage() {
 
             <ProjectSummary
               connection={selectedConnection}
-              repositoryName={selectedRepository?.full_name}
+              repositoryName={selectedRepository?.fullName}
             />
 
             <form.Field
@@ -333,7 +333,7 @@ function ProjectSummary({
   connection,
   repositoryName,
 }: {
-  connection: IntegrationConnectionDto | undefined;
+  connection: IntegrationConnection | undefined;
   repositoryName: string | undefined;
 }) {
   return (

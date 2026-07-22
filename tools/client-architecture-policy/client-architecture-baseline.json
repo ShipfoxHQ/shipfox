@@ -65,69 +65,14 @@
     "occurrences": 1
   },
   {
-    "file": "libs/client/integrations/src/components/connection-picker.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/components/installed-integrations-section.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 2
-  },
-  {
-    "file": "libs/client/integrations/src/components/integration-gallery-for-workspace.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 3
-  },
-  {
-    "file": "libs/client/integrations/src/components/integration-gallery.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/components/integration-usage-events.ts",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/components/integration-usage-modal.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/components/provider-grid.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 2
-  },
-  {
-    "file": "libs/client/integrations/src/components/repository-picker.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/components/webhook/webhook-create-modal.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 2
-  },
-  {
-    "file": "libs/client/integrations/src/pages/linear-callback-page.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/pages/sentry-callback-page.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/pages/slack-callback-page.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 1
-  },
-  {
-    "file": "libs/client/integrations/src/routes/github-callback.tsx",
+    "file": "libs/client/auth/src/pages/invitation-context.ts",
     "rule": "api-request-outside-adapter",
     "occurrences": 1
+  },
+  {
+    "file": "libs/client/auth/src/pages/invitation-context.ts",
+    "rule": "response-dto-in-presentation",
+    "occurrences": 2
   },
   {
     "file": "libs/client/logs/src/core/log-read.ts",
@@ -145,19 +90,14 @@
     "occurrences": 1
   },
   {
-    "file": "libs/client/projects/src/components/workspace-setup-guard.tsx",
-    "rule": "response-dto-in-presentation",
-    "occurrences": 2
-  },
-  {
     "file": "libs/client/projects/src/pages/create-project-page.tsx",
     "rule": "response-dto-in-presentation",
-    "occurrences": 3
+    "occurrences": 2
   },
   {
     "file": "libs/client/projects/src/pages/projects-hub-page.tsx",
     "rule": "response-dto-in-presentation",
-    "occurrences": 2
+    "occurrences": 1
   },
   {
     "file": "libs/client/runners/src/components/create-manual-registration-token-form.tsx",

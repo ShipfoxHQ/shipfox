@@ -2,7 +2,10 @@ import {
   isModelProviderOnboardingDismissed,
   modelProviderConfigsQueryOptions,
 } from '@shipfox/client-agent';
-import {sourceConnectionsQueryOptions} from '@shipfox/client-integrations';
+import {
+  type IntegrationConnection,
+  sourceConnectionsQueryOptions,
+} from '@shipfox/client-integrations';
 import {projectExistenceQueryOptions} from '@shipfox/client-projects';
 import {WorkspaceSetupLoadError, type WorkspaceSetupState} from '@shipfox/client-shell/runtime';
 import type {QueryClient} from '@tanstack/react-query';
@@ -37,7 +40,9 @@ export async function loadWorkspaceSetupRoute({
   }
 
   const sourceConnections = await fetchWorkspaceSourceConnections(queryClient, workspaceId);
-  if (sourceConnections.connections.length === 0) {
+  const hasSourceConnection = sourceConnections.length > 0;
+
+  if (!hasSourceConnection) {
     if (isIntegrationSetupPath(normalizedPathname, workspaceId)) {
       return {hideProjectNavigation: true};
     }
@@ -95,7 +100,7 @@ async function fetchWorkspaceSourceConnections(queryClient: QueryClient, workspa
   try {
     return await queryClient.fetchQuery(options);
   } catch (error) {
-    const cached = queryClient.getQueryData<{connections: unknown[]}>(options.queryKey);
+    const cached = queryClient.getQueryData<IntegrationConnection[]>(options.queryKey);
     if (cached !== undefined) return cached;
     throw new WorkspaceSetupLoadError(error);
   }
