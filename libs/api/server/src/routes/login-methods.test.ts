@@ -49,4 +49,8 @@ describe('createLoginMethodsRoute', () => {
       await app.close();
     }
   });
+
+  it('rejects an out-of-contract login method ID before the server can start', () => {
+    expect(() => createLoginMethodsRoute({loginMethods: [{id: ''}]})).toThrow();
+  });
 });

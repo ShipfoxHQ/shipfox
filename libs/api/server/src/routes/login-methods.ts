@@ -3,6 +3,10 @@ import {defineRoute} from '@shipfox/node-fastify';
 import type {LoginMethod} from '@shipfox/node-module';
 
 export function createLoginMethodsRoute({loginMethods}: {loginMethods: readonly LoginMethod[]}) {
+  const response = loginMethodsResponseSchema.parse({
+    login_methods: loginMethods.map(({id}) => ({id})),
+  });
+
   return defineRoute({
     method: 'GET',
     path: '/auth/login-methods',
@@ -12,8 +16,6 @@ export function createLoginMethodsRoute({loginMethods}: {loginMethods: readonly 
         200: loginMethodsResponseSchema,
       },
     },
-    handler: () => ({
-      login_methods: loginMethods.map(({id}) => ({id})),
-    }),
+    handler: () => response,
   });
 }

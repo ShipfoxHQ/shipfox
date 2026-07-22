@@ -219,6 +219,8 @@ describe('createServer', () => {
       ],
       fastifyOptions: {trustProxy: false},
     });
+    const appConfig = mocks.createApp.mock.calls.at(0)?.[0];
+    expect(appConfig?.routes[0].handler()).toEqual({login_methods: [{id: 'test-login'}]});
   });
 
   it('fails before startup side effects when no login method is configured', async () => {
