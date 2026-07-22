@@ -20,9 +20,11 @@
   },
   "devDependencies": {
     "@shipfox/api-auth-dto": "workspace:*",
+    "@shipfox/api-server": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
+    "@shipfox/e2e-harness": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",
     "@shipfox/playwright": "workspace:*",
