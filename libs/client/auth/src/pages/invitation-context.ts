@@ -4,28 +4,10 @@ import type {
 } from '@shipfox/api-workspaces-dto';
 import {apiRequest} from '@shipfox/client-api';
 import {useQuery} from '@tanstack/react-query';
+import {parseRedirectContext} from '#/components/redirect-context.js';
 
-const INVITATION_ACCEPT_PATH = '/invitations/accept';
-
-/**
- * Extract an invitation token from a `redirect=` URL if it points at the
- * canonical pre-auth invitation page. Returns undefined when the redirect is
- * absent, malformed, or unrelated to invitations.
- */
 export function extractInvitationToken(redirect: unknown): string | undefined {
-  if (typeof redirect !== 'string') return undefined;
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(redirect);
-  } catch {
-    return undefined;
-  }
-  if (!decoded.startsWith('/')) return undefined;
-  const [path, queryString = ''] = decoded.split('?', 2);
-  if (path !== INVITATION_ACCEPT_PATH) return undefined;
-  const params = new URLSearchParams(queryString);
-  const token = params.get('token');
-  return token && token.length > 0 ? token : undefined;
+  return parseRedirectContext(redirect).invitationToken;
 }
 
 async function fetchPreview(token: string): Promise<PreviewInvitationResponseDto> {

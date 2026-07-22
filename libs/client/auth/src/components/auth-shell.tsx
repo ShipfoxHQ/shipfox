@@ -1,15 +1,24 @@
 import {Icon} from '@shipfox/react-ui/icon';
-import {Header, Text} from '@shipfox/react-ui/typography';
-import type {PropsWithChildren, ReactNode} from 'react';
+import {Header, type HeaderProps, Text} from '@shipfox/react-ui/typography';
+import type {PropsWithChildren, ReactNode, Ref} from 'react';
 
-interface AuthShellProps {
+export interface AuthShellProps {
   title: string;
   description: string;
   children: ReactNode;
   className?: string;
+  headingProps?: Omit<HeaderProps, 'children' | 'id'> | undefined;
+  headingRef?: Ref<HTMLHeadingElement> | undefined;
 }
 
-export function AuthShell({title, description, children, className}: AuthShellProps) {
+export function AuthShell({
+  title,
+  description,
+  children,
+  className,
+  headingProps,
+  headingRef,
+}: AuthShellProps) {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background-subtle-base px-24 py-32 max-[520px]:items-start max-[520px]:px-20 max-[520px]:pb-32 max-[520px]:pt-56">
       <div
@@ -34,7 +43,13 @@ export function AuthShell({title, description, children, className}: AuthShellPr
             <Icon name="shipfox" className="size-42 text-background-highlight-interactive" />
           </div>
           <div className="flex min-w-[128px] flex-col items-center gap-4 text-center">
-            <Header id="auth-title" variant="h1">
+            <Header
+              id="auth-title"
+              variant="h1"
+              tabIndex={-1}
+              {...headingProps}
+              {...(headingRef ? ({ref: headingRef} as HeaderProps) : {})}
+            >
               {title}
             </Header>
             <Text size="sm" className="text-foreground-neutral-subtle">

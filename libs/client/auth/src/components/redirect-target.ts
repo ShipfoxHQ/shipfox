@@ -1,21 +1,22 @@
-const SEARCH_OR_HASH_RE = /[?#]/u;
+const REDIRECT_ORIGIN = 'https://shipfox-redirect.invalid';
 
-// Returns the input string only if it is a same-origin internal path safe to
-// navigate to after authentication. We decode before checking so percent-encoded
-// variants like `/%61uth/login` cannot bypass the `/auth/*` rejection.
+// Resolves and canonicalizes an internal path before returning it, so browser URL
+// parsing cannot turn a seemingly safe path into an external or auth route.
 export function sanitizeRedirectPath(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
+  if (typeof value !== 'string' || !value.startsWith('/')) return undefined;
   let decoded: string;
   try {
     decoded = decodeURIComponent(value);
   } catch {
     return undefined;
   }
-  if (!decoded.startsWith('/')) return undefined;
-  if (decoded.startsWith('//')) return undefined;
-  // Strip search/hash before the /auth check so /auth?token=x and /auth#x
-  // cannot bypass the prefix match.
-  const pathOnly = decoded.split(SEARCH_OR_HASH_RE, 1)[0] ?? decoded;
-  if (pathOnly === '/auth' || pathOnly.startsWith('/auth/')) return undefined;
-  return value;
+  let target: URL;
+  try {
+    target = new URL(decoded, REDIRECT_ORIGIN);
+  } catch {
+    return undefined;
+  }
+  if (target.origin !== REDIRECT_ORIGIN) return undefined;
+  if (target.pathname === '/auth' || target.pathname.startsWith('/auth/')) return undefined;
+  return `${target.pathname}${target.search}${target.hash}`;
 }

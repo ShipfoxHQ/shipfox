@@ -1,4 +1,4 @@
-import {signupBodySchema, verifyEmailConfirmBodySchema} from '@shipfox/api-auth-dto';
+import {signupBodySchema} from '@shipfox/api-auth-dto';
 import {displayNameFieldError} from '@shipfox/client-ui';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -11,14 +11,11 @@ import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
 import {AuthShell} from '#/components/auth-shell.js';
+import {EmailCodeVerification} from '#/components/email-code-verification.js';
 import {useRefreshAuth} from '#hooks/api/refresh-auth.js';
 import {useSignupAuth} from '#hooks/api/signup-auth.js';
 import {useResendEmailVerificationAuth, useVerifyEmailAuth} from '#hooks/api/verify-email-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
-import {
-  getResendRemainingSeconds,
-  parseNextResendAvailableAt,
-} from './email-verification-resend-model.js';
 import {signupErrorToFormError} from './form-errors.js';
 import {authErrorMessage} from './form-utils.js';
 import {
@@ -39,8 +36,7 @@ export function SignupPage() {
   const invitationPending = pendingInvitation(invitationPreview.data);
   const [authFormDraft, setAuthFormDraft] = useAtom(authFormDraftAtom);
   const [emailChallenge, setEmailChallenge] = useState<{email: string; id: string} | undefined>();
-  const [now, setNow] = useState(() => Date.now());
-  const [nextResendAvailableAt, setNextResendAvailableAt] = useState<number | undefined>();
+  const [nextResendAvailableAt, setNextResendAvailableAt] = useState<string | undefined>();
   const [formError, setFormError] = useState<string | undefined>();
   const [resendError, setResendError] = useState<string | undefined>();
   const draftRef = useRef(authFormDraft);
@@ -48,8 +44,6 @@ export function SignupPage() {
   // Set just before clearing the draft on success so the unmount cleanup
   // below does not repersist the just-submitted credentials.
   const skipDraftPersistRef = useRef(false);
-  const resendRemainingSeconds = getResendRemainingSeconds({nextResendAvailableAt, now});
-  const isResendCoolingDown = resendRemainingSeconds > 0;
 
   const form = useForm({
     defaultValues: {email: authFormDraft.email, password: authFormDraft.password, name: ''},
@@ -94,12 +88,8 @@ export function SignupPage() {
           throw new Error('Signup did not return an email verification challenge');
         }
         setEmailChallenge({email: result.user.email, id: result.email_challenge.id});
-        verificationForm.reset();
         setResendError(undefined);
-        setNow(Date.now());
-        setNextResendAvailableAt(
-          parseNextResendAvailableAt(result.email_challenge.next_resend_available_at),
-        );
+        setNextResendAvailableAt(result.email_challenge.next_resend_available_at);
       } catch (error) {
         const mapped = signupErrorToFormError(error);
         if (mapped.kind === 'field') {
@@ -113,48 +103,6 @@ export function SignupPage() {
       }
     },
   });
-
-  const verificationForm = useForm({
-    defaultValues: {code: ''},
-    onSubmit: async ({value}) => {
-      if (!emailChallenge || verifyEmail.isPending) return;
-
-      setResendError(undefined);
-      try {
-        await verifyEmail.mutateAsync({
-          email: emailChallenge.email,
-          challenge_id: emailChallenge.id,
-          code: value.code,
-        });
-        await refreshAuth();
-        toast.success('Your email is verified. You are now logged in.');
-        await navigate({to: '/', replace: true});
-      } catch (error) {
-        setResendError(authErrorMessage(error));
-      }
-    },
-  });
-
-  useEffect(() => {
-    if (!emailChallenge || !nextResendAvailableAt) {
-      return;
-    }
-
-    const current = Date.now();
-    setNow(current);
-    if (nextResendAvailableAt <= current) {
-      return;
-    }
-
-    const handle = window.setInterval(() => {
-      const tickNow = Date.now();
-      setNow(tickNow);
-      if (nextResendAvailableAt <= tickNow) {
-        window.clearInterval(handle);
-      }
-    }, 1000);
-    return () => window.clearInterval(handle);
-  }, [emailChallenge, nextResendAvailableAt]);
 
   // When arriving from an invitation link, prefill the email and lock it.
   useEffect(() => {
@@ -178,7 +126,7 @@ export function SignupPage() {
   }, [form, setAuthFormDraft]);
 
   async function onResendVerificationEmail() {
-    if (!emailChallenge || isResendCoolingDown || resendEmailVerification.isPending) return;
+    if (!emailChallenge || resendEmailVerification.isPending) return;
 
     setResendError(undefined);
     try {
@@ -186,11 +134,7 @@ export function SignupPage() {
         email: emailChallenge.email,
         challenge_id: emailChallenge.id,
       });
-      const nextAvailableAt = parseNextResendAvailableAt(result.next_resend_available_at);
-      setNow(Date.now());
-      if (nextAvailableAt !== undefined) {
-        setNextResendAvailableAt(nextAvailableAt);
-      }
+      setNextResendAvailableAt(result.next_resend_available_at);
       toast.success('If another verification email can be sent, it will arrive shortly.');
     } catch (error) {
       setResendError(authErrorMessage(error));
@@ -199,80 +143,40 @@ export function SignupPage() {
 
   if (emailChallenge) {
     return (
-      <AuthShell
-        title="Check your email"
-        description={`We sent an eight-digit verification code to ${emailChallenge.email}.`}
+      <EmailCodeVerification
+        destination={emailChallenge.email}
+        nextResendAvailableAt={nextResendAvailableAt}
+        isResending={resendEmailVerification.isPending}
+        isVerifying={verifyEmail.isPending}
+        error={resendError}
+        onVerify={async (code) => {
+          setResendError(undefined);
+          try {
+            await verifyEmail.mutateAsync({
+              email: emailChallenge.email,
+              challenge_id: emailChallenge.id,
+              code,
+            });
+            await refreshAuth();
+            toast.success('Your email is verified. You are now logged in.');
+            await navigate({to: '/', replace: true});
+          } catch (error) {
+            setResendError(authErrorMessage(error));
+          }
+        }}
+        onResend={onResendVerificationEmail}
+        onUseAnotherEmail={() => {
+          setEmailChallenge(undefined);
+          setResendError(undefined);
+        }}
       >
-        {resendError ? (
-          <Callout role="alert" type="error">
-            {resendError}
-          </Callout>
-        ) : null}
-        <form
-          className="flex flex-col gap-8"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            void verificationForm.handleSubmit();
-          }}
-        >
-          <verificationForm.Field
-            name="code"
-            validators={{
-              onBlur: verifyEmailConfirmBodySchema.shape.code,
-              onSubmit: verifyEmailConfirmBodySchema.shape.code,
-            }}
-          >
-            {(field) => (
-              <FormField label="Verification code" id="verification-code" error={fieldError(field)}>
-                <FormFieldInput
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  maxLength={8}
-                  pattern="[0-9]{8}"
-                  value={field.state.value}
-                  onChange={(event) => field.handleChange(event.target.value.replace(/\D/gu, ''))}
-                  onBlur={field.handleBlur}
-                />
-              </FormField>
-            )}
-          </verificationForm.Field>
-          <Button className="w-full" type="submit" isLoading={verifyEmail.isPending}>
-            Verify email
-          </Button>
-          <Button
-            aria-disabled={isResendCoolingDown ? true : undefined}
-            className="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-70"
-            variant="secondary"
-            type="button"
-            isLoading={resendEmailVerification.isPending}
-            onClick={onResendVerificationEmail}
-          >
-            {resendEmailVerification.isPending
-              ? 'Sending email...'
-              : isResendCoolingDown
-                ? `Resend in ${resendRemainingSeconds}s`
-                : 'Resend verification email'}
-          </Button>
-        </form>
-        <Button
-          className="w-full"
-          variant="transparent"
-          type="button"
-          onClick={() => {
-            setEmailChallenge(undefined);
-            setResendError(undefined);
-          }}
-        >
-          Use another email
-        </Button>
         <Text size="sm" className="text-center text-foreground-neutral-subtle">
           Already verified?{' '}
           <ButtonLink asChild variant="interactive" underline>
             <Link to="/auth/login">Log in</Link>
           </ButtonLink>
         </Text>
-      </AuthShell>
+      </EmailCodeVerification>
     );
   }
 
