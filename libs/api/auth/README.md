@@ -383,13 +383,8 @@ turbo type --filter=@shipfox/api-auth
 turbo test --filter=@shipfox/api-auth
 ```
 
-Tests use Vitest and a real PostgreSQL database. Start local services before running the test suite:
-
-```sh
-docker compose up -d
-```
-
-The test environment uses the `api_test` database and sets fake auth secrets in `test/env.ts`.
+For repository test conventions, read the [testing guide](../../../docs/guides/testing.md).
+This package uses the `api_test` database and sets fake auth secrets in `test/env.ts`.
 
 ## License
 

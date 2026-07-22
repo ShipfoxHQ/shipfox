@@ -76,11 +76,7 @@ turbo type --filter=@shipfox/api-workspaces
 turbo test --filter=@shipfox/api-workspaces
 ```
 
-Tests use Vitest and PostgreSQL. Start local services before the suite:
-
-```sh
-docker compose up -d
-```
+For repository test conventions, read the [testing guide](../../../docs/guides/testing.md).
 
 ## License
 

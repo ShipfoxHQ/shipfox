@@ -95,7 +95,9 @@ Components are documented in Storybook stories under `src/**/*.stories.tsx`:
 pnpm --filter=@shipfox/react-ui storybook
 ```
 
-Stories are also captured by Argos for visual regression under `turbo test` (light + dark).
+For repository-wide story ordering and Argos rules, read the
+[testing guide](../../../docs/guides/testing.md). This package captures stories
+in light and dark under `turbo test`.
 
 ## Build
 

@@ -131,14 +131,9 @@ turbo type --filter=@shipfox/api-integration-sentry
 turbo test --filter=@shipfox/api-integration-sentry
 ```
 
-Tests use Vitest and a real PostgreSQL database. Start local services before
-running the test suite:
-
-```sh
-docker compose up -d
-```
-
-The test environment uses the `api_test` database, set in `test/env.ts`.
+For repository test conventions, read the
+[testing guide](../../../../docs/guides/testing.md). This package uses the
+`api_test` database, set in `test/env.ts`.
 
 ## License
 
