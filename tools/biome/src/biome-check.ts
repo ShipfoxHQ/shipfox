@@ -4,13 +4,30 @@ import {execSync} from 'node:child_process';
 import {buildShellCommand, getProjectBinaryPath, getWorkspaceFilePath} from '@shipfox/tool-utils';
 
 const binPath = getProjectBinaryPath('biome', import.meta.url);
-const biomeConfigFile = getWorkspaceFilePath('biome.json');
+let biomeConfigFile = getWorkspaceFilePath('biome.json');
 
 const extraArgs: string[] = [];
+const positionalArgs: string[] = [];
 
-if (process.argv.includes('--write') || process.argv.includes('--fix')) extraArgs.push('--write');
+for (let index = 2; index < process.argv.length; index += 1) {
+  const argument = process.argv[index];
+  if (argument === '--write' || argument === '--fix') {
+    extraArgs.push('--write');
+  } else if (argument === '--config-path') {
+    const configPath = process.argv[index + 1];
+    if (!configPath || configPath.startsWith('--'))
+      throw new Error('--config-path requires a path to a Biome configuration file');
+    biomeConfigFile = configPath;
+    index += 1;
+  } else if (argument?.startsWith('--config-path=')) {
+    biomeConfigFile = argument.slice('--config-path='.length);
+  } else if (argument?.startsWith('--')) {
+    extraArgs.push(argument);
+  } else if (argument) {
+    positionalArgs.push(argument);
+  }
+}
 
-const positionalArgs = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
 const targets = positionalArgs.length > 0 ? positionalArgs : [process.cwd()];
 
 const command = buildShellCommand([

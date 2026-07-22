@@ -19,6 +19,7 @@
   },
   "scripts": {
     "build": "shipfox-swc",
+    "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
@@ -34,6 +35,7 @@
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*",
     "@types/node": "catalog:"
   }
 }

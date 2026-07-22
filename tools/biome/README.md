@@ -1,15 +1,17 @@
 # @shipfox/biome
 
-Opinionated wrapper around Biome for formatting and linting across Shipfox repos. Ships platform-specific binaries and a unified CLI. It should be used with other packages from [Shipfox](https://www.shipfox.io/).
+Biome commands and bundled binaries for Shipfox packages.
 
 ## What it does
 
-- **`shipfox-biome-lint`**: Lint the current package using the workspace-level `biome.json`.
-- **`shipfox-biome-format`**: Format files using the workspace-level `biome.json`.
-- **`shipfox-biome-check`**: Run Biome check with assist rules enabled. This is the command most package `check` scripts use.
-- Cross-platform support via bundled Biome binaries (Darwin ARM64/x64, Linux ARM64/x64).
+- **`shipfox-biome-lint`**: Checks the current package with the root `biome.json`.
+- **`shipfox-biome-format`**: Formats files with the root `biome.json`.
+- **`shipfox-biome-check`**: Runs format, lint, and assist checks. Most package `check` scripts use it.
+- **Bundled binaries**: Includes Biome for macOS and Linux on ARM64 and x64.
 
 ## Installation
+
+Install the package as a development tool.
 
 ```bash
 pnpm add -D @shipfox/biome
@@ -17,7 +19,7 @@ pnpm add -D @shipfox/biome
 
 ## Usage
 
-Add scripts to your `package.json`:
+Add these scripts to `package.json`:
 
 ```json
 {
@@ -43,6 +45,9 @@ shipfox-biome-lint --fix
 shipfox-biome-check
 shipfox-biome-check --write
 
+# Check a focused fixture tree with an explicit config
+shipfox-biome-check --config-path path/to/biome.fixture.json path/to/fixtures/
+
 # Format
 shipfox-biome-format
 shipfox-biome-format --write
@@ -50,3 +55,23 @@ shipfox-biome-format --write
 # Format specific targets
 shipfox-biome-format --write src/ test/
 ```
+
+## Behavior Notes
+
+Package checks use the root `biome.json`. Pass `--config-path` only for a
+focused config, such as a fixture tree. The normal form reads files. The write
+form can change them. Check the result before you send a change for review.
+
+## Development
+
+Build and test the package and its fixture harness with:
+
+```sh
+turbo build --filter=@shipfox/biome
+turbo type --filter=@shipfox/biome
+turbo test --filter=@shipfox/biome
+```
+
+## License
+
+MIT
