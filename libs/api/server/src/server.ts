@@ -17,6 +17,7 @@ import {logger, shutdownServiceMetrics, startServiceMetrics} from '@shipfox/node
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
 import {config, parseApiTrustProxy} from './config.js';
 import {createE2eAdminAuthMethod, createE2eRouteGroup} from './e2e.js';
+import {createLoginMethodsRoute} from './routes/login-methods.js';
 
 const RUNTIME_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS = 10_000;
 const ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS = 2_000;
@@ -46,7 +47,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
   hasActiveServer = true;
 
   try {
-    aggregateLoginMethods({modules: options.modules});
+    const loginMethods = aggregateLoginMethods({modules: options.modules});
     startServiceMetrics({serviceName: 'api'});
     createPostgresClient();
 
@@ -62,7 +63,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     logger().info('Creating HTTP server');
     await createApp({
       auth: [...auth, ...e2eAuth],
-      routes: [...routes, ...mountedE2eRoutes],
+      routes: [createLoginMethodsRoute({loginMethods}), ...routes, ...mountedE2eRoutes],
       fastifyOptions: {trustProxy: parseApiTrustProxy(config.API_TRUST_PROXY)},
     });
 

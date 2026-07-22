@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     closeErrorMonitoring: vi.fn(),
     closePostgresClient: vi.fn(),
     createApp: vi.fn(),
+    defineRoute: vi.fn((route) => route),
     createE2eAdminAuthMethod: vi.fn(),
     createE2eRouteGroup: vi.fn(),
     createPostgresClient: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('@shipfox/node-error-monitoring', () => ({
 vi.mock('@shipfox/node-fastify', () => ({
   closeApp: mocks.closeApp,
   createApp: mocks.createApp,
+  defineRoute: mocks.defineRoute,
   listen: mocks.listen,
 }));
 vi.mock('@shipfox/node-module', () => ({
@@ -121,6 +123,7 @@ function resetMocks(): void {
   mocks.closeErrorMonitoring.mockReset();
   mocks.closePostgresClient.mockReset();
   mocks.createApp.mockReset();
+  mocks.defineRoute.mockReset();
   mocks.createE2eAdminAuthMethod.mockReset();
   mocks.createE2eRouteGroup.mockReset();
   mocks.createPostgresClient.mockReset();
@@ -146,6 +149,7 @@ function resetMocks(): void {
   mocks.closeErrorMonitoring.mockResolvedValue(true);
   mocks.closePostgresClient.mockResolvedValue(undefined);
   mocks.createApp.mockResolvedValue({});
+  mocks.defineRoute.mockImplementation((route) => route);
   mocks.aggregateLoginMethods.mockReturnValue([{id: 'test-login'}]);
   mocks.createE2eRouteGroup.mockReturnValue([]);
   mocks.initializeModules.mockResolvedValue({
@@ -207,7 +211,12 @@ describe('createServer', () => {
     });
     expect(mocks.createApp).toHaveBeenCalledWith({
       auth: [],
-      routes: [],
+      routes: [
+        expect.objectContaining({
+          method: 'GET',
+          path: '/auth/login-methods',
+        }),
+      ],
       fastifyOptions: {trustProxy: false},
     });
   });

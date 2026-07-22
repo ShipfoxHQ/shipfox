@@ -5,6 +5,14 @@ import {
 } from './login-methods.js';
 
 describe('aggregateLoginMethods', () => {
+  it('returns one registered login method', () => {
+    const loginMethods = aggregateLoginMethods({
+      modules: [{name: 'password', loginMethods: [{id: 'password'}]}],
+    });
+
+    expect(loginMethods).toEqual([{id: 'password'}]);
+  });
+
   it('aggregates login methods in module order and skips modules without them', () => {
     const loginMethods = aggregateLoginMethods({
       modules: [
@@ -72,5 +80,13 @@ describe('aggregateLoginMethods', () => {
       });
 
     expect(result).toThrow(NoLoginMethodError);
+  });
+
+  it('preserves unknown future login method IDs', () => {
+    const loginMethods = aggregateLoginMethods({
+      modules: [{name: 'future-provider', loginMethods: [{id: 'future-provider'}]}],
+    });
+
+    expect(loginMethods).toEqual([{id: 'future-provider'}]);
   });
 });

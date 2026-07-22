@@ -5,6 +5,18 @@ import {userDtoSchema} from './user.js';
 export const passwordSchema = z.string().min(12).max(128);
 export {emailSchema};
 
+export const loginMethodSchema = z.object({
+  id: z.string().min(1).max(128),
+});
+
+export type LoginMethodDto = z.infer<typeof loginMethodSchema>;
+
+export const loginMethodsResponseSchema = z.object({
+  login_methods: z.array(loginMethodSchema),
+});
+
+export type LoginMethodsResponseDto = z.infer<typeof loginMethodsResponseSchema>;
+
 export const signupBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,

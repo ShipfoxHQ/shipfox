@@ -74,6 +74,7 @@ try {
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
   await run(process.execPath, ['email-challenge-contract.mjs'], fixtureRoot);
+  await run(process.execPath, ['login-methods-route.mjs'], fixtureRoot);
   await run(process.execPath, ['runners-composition.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
@@ -188,6 +189,33 @@ void module;
     writeFile(
       join(root, 'runtime-imports.mjs'),
       `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst entryPoints = ${JSON.stringify(runtimeEntryPoints, null, 2)};\nfor (const entryPoint of entryPoints) await import(entryPoint);\nconst {createServer, defaultModules} = await import('@shipfox/api-server');\nif (typeof createServer !== 'function' || typeof defaultModules !== 'function')\n  throw new Error('Packed API server does not export its composition API.');\nconst modules = [...(await defaultModules()), {name: 'external-dummy'}];\nif (modules.at(-1)?.name !== 'external-dummy')\n  throw new Error('Could not append an external module to the packed API server defaults.');\nconsole.log(\`Imported \${entryPoints.length} packed runtime entry points and composed API modules.\`);\nprocess.exit(0);\n`,
+    ),
+    writeFile(
+      join(root, 'login-methods-route.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});
+
+const {loginMethodsResponseSchema} = await import('@shipfox/api-auth-dto');
+const {createLoginMethodsRoute} = await import('@shipfox/api-server');
+const {createApp} = await import('@shipfox/node-fastify');
+
+const app = await createApp({
+  auth: [],
+  routes: [createLoginMethodsRoute({loginMethods: [{id: 'external-provider'}]})],
+  swagger: false,
+});
+
+try {
+  const response = await app.inject({method: 'GET', url: '/auth/login-methods'});
+  if (response.statusCode !== 200) throw new Error('Packed login-method catalog route did not respond.');
+  const body = loginMethodsResponseSchema.parse(response.json());
+  if (body.login_methods[0]?.id !== 'external-provider')
+    throw new Error('Packed login-method catalog route returned an unexpected contract.');
+} finally {
+  await app.close();
+}
+
+console.log('Validated the packed login-method catalog DTO and route contract.');
+`,
     ),
     writeFile(
       join(root, 'workflow-bundles.mjs'),
