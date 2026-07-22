@@ -33,7 +33,14 @@ import type {
   SlackCallbackResponseDto,
 } from '@shipfox/api-integration-slack-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {useInfiniteQuery, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 
@@ -53,6 +60,17 @@ export const integrationsQueryKeys = {
   repositories: (connectionId: string, search: string) =>
     [...integrationsQueryKeys.all, 'repositories', connectionId, search] as const,
 };
+
+type SourceConnectionsQueryKey =
+  | ReturnType<typeof integrationsQueryKeys.sourceConnections>
+  | readonly ['integrations', 'source-connections'];
+
+type SourceConnectionsQueryOptions = FetchQueryOptions<
+  ListIntegrationConnectionsResponseDto,
+  Error,
+  ListIntegrationConnectionsResponseDto,
+  SourceConnectionsQueryKey
+>;
 
 export async function listIntegrationProviders({
   capability,
@@ -106,6 +124,18 @@ export async function listSourceConnections({
       (connection) => connection.lifecycle_status === 'active',
     ),
   };
+}
+
+export function sourceConnectionsQueryOptions(
+  workspaceId: string | undefined,
+): SourceConnectionsQueryOptions {
+  return queryOptions({
+    queryKey: workspaceId
+      ? integrationsQueryKeys.sourceConnections(workspaceId)
+      : ([...integrationsQueryKeys.all, 'source-connections'] as const),
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => listSourceConnections({workspaceId: workspaceId ?? '', signal}),
+  });
 }
 
 export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) {
@@ -228,13 +258,7 @@ export function useIntegrationProvidersQuery(params?: {capability?: IntegrationC
 }
 
 export function useSourceConnectionsQuery(workspaceId: string | undefined) {
-  return useQuery({
-    queryKey: workspaceId
-      ? integrationsQueryKeys.sourceConnections(workspaceId)
-      : [...integrationsQueryKeys.all, 'source-connections'],
-    enabled: Boolean(workspaceId),
-    queryFn: ({signal}) => listSourceConnections({workspaceId: workspaceId ?? '', signal}),
-  });
+  return useQuery(sourceConnectionsQueryOptions(workspaceId));
 }
 
 export function useIntegrationConnectionsQuery(workspaceId: string | undefined) {

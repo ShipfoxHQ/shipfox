@@ -4,7 +4,14 @@ import type {
   ProjectResponseDto,
 } from '@shipfox/api-projects-dto';
 import {apiRequest} from '@shipfox/client-api';
-import {keepPreviousData, useInfiniteQuery, useMutation, useQuery} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  keepPreviousData,
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+} from '@tanstack/react-query';
 
 export const projectsQueryKeys = {
   all: ['projects'] as const,
@@ -13,6 +20,13 @@ export const projectsQueryKeys = {
   exists: (workspaceId: string) => [...projectsQueryKeys.all, 'exists', workspaceId] as const,
   detail: (projectId: string) => [...projectsQueryKeys.all, 'detail', projectId] as const,
 };
+
+type ProjectExistenceQueryOptions = FetchQueryOptions<
+  ListProjectsResponseDto,
+  Error,
+  ListProjectsResponseDto,
+  ReturnType<typeof projectsQueryKeys.exists>
+>;
 
 export async function listProjects({
   workspaceId,
@@ -40,6 +54,14 @@ export async function getProject(projectId: string) {
 
 export async function createProject(body: CreateProjectBodyDto) {
   return await apiRequest<ProjectResponseDto>('/projects', {method: 'POST', body});
+}
+
+export function projectExistenceQueryOptions(workspaceId: string): ProjectExistenceQueryOptions {
+  return queryOptions({
+    queryKey: projectsQueryKeys.exists(workspaceId),
+    queryFn: ({signal}) => listProjects({workspaceId, limit: 1, signal}),
+    staleTime: 30_000,
+  });
 }
 
 export function useProjectsInfiniteQuery(
