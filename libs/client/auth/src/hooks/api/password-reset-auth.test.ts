@@ -55,7 +55,7 @@ describe('confirmPasswordReset', () => {
       });
     });
     configureApiClient({fetchImpl});
-    const body = {token: 'reset-token', new_password: 'new password is long'};
+    const body = {token: 'reset-token', newPassword: 'new password is long'};
 
     const result = await confirmPasswordReset(body);
 
@@ -63,6 +63,6 @@ describe('confirmPasswordReset', () => {
     expect(result.accessToken).toBe('reset-access-token');
     expect(request.url).toBe('https://api.example.test/auth/password-reset/confirm');
     expect(request.method).toBe('POST');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({token: body.token, new_password: body.newPassword});
   });
 });

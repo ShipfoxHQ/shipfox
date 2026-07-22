@@ -1,15 +1,14 @@
-import type {
-  AcceptInvitationBodyDto,
-  AcceptInvitationResponseDto,
-} from '@shipfox/api-workspaces-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {acceptInvitationResponseSchema} from '@shipfox/api-workspaces-dto';
+import {checkedApiRequest} from '@shipfox/client-api';
 import {useMutation} from '@tanstack/react-query';
+import {toInvitationAcceptance} from './invitation-acceptance-mapper.js';
 
-async function acceptInvitation(body: AcceptInvitationBodyDto) {
-  return await apiRequest<AcceptInvitationResponseDto>('/invitations/accept', {
+async function acceptInvitation(command: {token: string}) {
+  const response = await checkedApiRequest(acceptInvitationResponseSchema, '/invitations/accept', {
     method: 'POST',
-    body,
+    body: command,
   });
+  return toInvitationAcceptance(response);
 }
 
 export function useAcceptInvitation() {

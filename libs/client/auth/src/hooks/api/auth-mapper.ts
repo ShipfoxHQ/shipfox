@@ -1,18 +1,8 @@
 import type {SignupResponseDto} from '@shipfox/api-auth-dto';
-import {
-  toAuthenticatedSession,
-  toUserIdentity,
-  type UserIdentity,
-} from '@shipfox/client-shell/runtime';
+import {toAuthenticatedSession, toUserIdentity} from '@shipfox/client-shell/runtime';
+import type {SignupResult} from '#core/auth.js';
 
 export {toAuthenticatedSession};
-
-export interface SignupResult {
-  user: UserIdentity;
-  emailChallenge?: {id: string; nextResendAvailableAt: string};
-  membership?: {id: string; userId: string; workspaceId: string};
-  acceptError?: {code: string; message: string};
-}
 
 export function toSignupResult(dto: SignupResponseDto): SignupResult {
   return {

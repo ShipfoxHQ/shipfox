@@ -43,8 +43,8 @@ export function WorkspaceOnboardingPage() {
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
-        const body = createWorkspaceBodySchema.parse({name: value.name});
-        const created = await createWorkspace.mutateAsync(body);
+        const command = createWorkspaceBodySchema.parse({name: value.name});
+        const created = await createWorkspace.mutateAsync(command);
         toast.success('Workspace created.');
         // Pin the new workspace as the last-active one so a page refresh and
         // future visits to `/` land on it.
