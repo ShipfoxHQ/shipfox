@@ -8,7 +8,9 @@ export {
   confirmEmailChallenge,
   consumeEmailChallengeProof,
   createEmailChallenge,
+  type EmailChallengeContinuation,
   type EmailChallengeHandle,
+  getEmailChallengeContinuation,
   resendEmailChallenge,
 } from '#core/email-challenges.js';
 export {EmailChallengeError, type EmailChallengeErrorCode} from '#core/errors.js';

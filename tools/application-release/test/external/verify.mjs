@@ -73,6 +73,7 @@ try {
   const tsc = resolve(repositoryRoot, 'tools/typescript/node_modules/typescript/bin/tsc');
   await run(process.execPath, [tsc, '--project', 'tsconfig.json'], fixtureRoot);
   await run(process.execPath, ['runtime-imports.mjs'], fixtureRoot);
+  await run(process.execPath, ['email-challenge-contract.mjs'], fixtureRoot);
   await run(process.execPath, ['runners-composition.mjs'], fixtureRoot);
   await run(process.execPath, ['workflow-source-bundle.mjs'], fixtureRoot);
   await run(
@@ -164,6 +165,10 @@ const module = createRunnersModule({
 
 void module;
 `,
+    ),
+    writeFile(
+      join(root, 'email-challenge-contract.mjs'),
+      `Object.assign(process.env, ${JSON.stringify(runtimeEnvironment(), null, 2)});\n\nconst {createEmailChallenge, getEmailChallengeContinuation} = await import('@shipfox/api-email-challenges');\nif (typeof createEmailChallenge !== 'function' || typeof getEmailChallengeContinuation !== 'function') {\n  throw new Error('Packed email challenges package does not export retry-safe continuation contracts.');\n}\nconsole.log('Imported packed retry-safe email challenge continuation contracts.');\n`,
     ),
     writeFile(
       join(root, 'runners-composition.mjs'),

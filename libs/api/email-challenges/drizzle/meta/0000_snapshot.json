@@ -33,6 +33,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "idempotency_hmac": {
+          "name": "idempotency_hmac",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "code_hmac": {
           "name": "code_hmac",
           "type": "text",
@@ -72,6 +78,31 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "delivery_state": {
+          "name": "delivery_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "delivery_attempted_at": {
+          "name": "delivery_attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_failed_at": {
+          "name": "delivery_failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "confirmed_at": {
           "name": "confirmed_at",
@@ -118,6 +149,22 @@
         }
       },
       "indexes": {
+        "email_challenges_idempotency_unique": {
+          "name": "email_challenges_idempotency_unique",
+          "columns": [
+            {
+              "expression": "idempotency_hmac",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "where": "\"email_challenges_challenges\".\"terminal_at\" is null",
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "email_challenges_expiry_idx": {
           "name": "email_challenges_expiry_idx",
           "columns": [
