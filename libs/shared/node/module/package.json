@@ -66,6 +66,7 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",
+    "@temporalio/activity": "catalog:",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },

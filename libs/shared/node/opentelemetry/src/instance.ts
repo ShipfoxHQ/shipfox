@@ -1,14 +1,18 @@
 import otel from '@fastify/otel';
 import {OTLPTraceExporter} from '@opentelemetry/exporter-trace-otlp-http';
 import type {Instrumentation} from '@opentelemetry/instrumentation';
+import type {Resource} from '@opentelemetry/resources';
 import {NodeSDK} from '@opentelemetry/sdk-node';
+import type {SpanProcessor} from '@opentelemetry/sdk-trace-node';
 import {BatchSpanProcessor} from '@opentelemetry/sdk-trace-node';
 import {config} from '#config.js';
 import {
-  env,
   getMetricsReader,
+  getResource,
   type InstrumentationOptions,
   type StartInstrumentationOptions,
+  shouldExportTraces,
+  shouldStartTelemetry,
 } from './common.js';
 import {fastifyRequestHook} from './utils.js';
 
@@ -16,6 +20,8 @@ const {FastifyOtelInstrumentation} = otel;
 
 let instanceInstrumentation: NodeSDK | undefined;
 let fastifyInstrumentation: InstanceType<typeof FastifyOtelInstrumentation> | undefined;
+let instanceResource: Resource | undefined;
+let instanceSpanProcessor: SpanProcessor | undefined;
 
 async function resolveInstrumentations(
   options: InstrumentationOptions,
@@ -28,6 +34,7 @@ async function resolveInstrumentations(
     pg,
     ioredis,
     undici,
+    awsSdk,
     cassandraDriver,
     grpc,
     pino,
@@ -62,6 +69,10 @@ async function resolveInstrumentations(
     const {UndiciInstrumentation} = await import('@opentelemetry/instrumentation-undici');
     instrumentations.push(new UndiciInstrumentation());
   }
+  if (awsSdk) {
+    const {AwsInstrumentation} = await import('@opentelemetry/instrumentation-aws-sdk');
+    instrumentations.push(new AwsInstrumentation());
+  }
   if (cassandraDriver) {
     const {CassandraDriverInstrumentation} = await import(
       '@opentelemetry/instrumentation-cassandra-driver'
@@ -82,6 +93,7 @@ async function resolveInstrumentations(
 
 export async function startInstanceInstrumentation(options: StartInstrumentationOptions) {
   if (instanceInstrumentation) throw new Error('Instrumentation already initialized');
+  if (!shouldStartTelemetry()) return;
   const metricReader = getMetricsReader({
     port: config.OTEL_INSTANCE_METRICS_PORT,
     endpoint: '/metrics',
@@ -97,18 +109,26 @@ export async function startInstanceInstrumentation(options: StartInstrumentation
     instrumentations = await resolveInstrumentations(options.instrumentations);
   }
 
+  instanceResource = getResource(options);
   const sdkConfig: ConstructorParameters<typeof NodeSDK>[0] = {
-    ...(options.serviceName ? {serviceName: options.serviceName} : {}),
+    resource: instanceResource,
     metricReader,
     instrumentations,
   };
-  if (env.TRACES_COLLECTOR_URL) {
-    sdkConfig.spanProcessors = [
-      new BatchSpanProcessor(new OTLPTraceExporter({url: env.TRACES_COLLECTOR_URL})),
-    ];
+  if (shouldExportTraces()) {
+    instanceSpanProcessor = new BatchSpanProcessor(new OTLPTraceExporter());
+    sdkConfig.spanProcessors = [instanceSpanProcessor];
   }
   instanceInstrumentation = new NodeSDK(sdkConfig);
   instanceInstrumentation.start();
+}
+
+export function getInstanceResource(): Resource | undefined {
+  return instanceResource;
+}
+
+export function getInstanceSpanProcessor(): SpanProcessor | undefined {
+  return instanceSpanProcessor;
 }
 
 export function getFastifyInstrumentation():
@@ -120,4 +140,7 @@ export function getFastifyInstrumentation():
 export async function shutdownInstanceInstrumentation() {
   await instanceInstrumentation?.shutdown();
   instanceInstrumentation = undefined;
+  instanceResource = undefined;
+  instanceSpanProcessor = undefined;
+  fastifyInstrumentation = undefined;
 }

@@ -1,4 +1,5 @@
 import type {FastifyInstance} from 'fastify';
+import {recordFastifyReadiness} from './metrics.js';
 import type {HealthCheck} from './types.js';
 
 interface HealthResponse {
@@ -55,6 +56,7 @@ export function registerHealthChecks({
     {logLevel: 'debug', schema: {description: 'Readiness check'}},
     async (_request, reply) => {
       const response = await runChecks(readinessChecks);
+      recordFastifyReadiness(response.status === 'ok');
       return reply.code(response.status === 'ok' ? 200 : 503).send(response);
     },
   );

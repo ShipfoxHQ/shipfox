@@ -44,6 +44,8 @@ COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/shipfox-entrypoint
 
 USER shipfox
 
+EXPOSE 9464 9465 9474
+
 # The build/promotion workflows pass revision/created as build args.
 ARG IMAGE_SOURCE="https://github.com/ShipfoxHQ/shipfox"
 ARG IMAGE_REVISION

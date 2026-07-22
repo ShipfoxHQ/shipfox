@@ -10,6 +10,7 @@ import {
   temporalClient,
   type Worker,
 } from '@shipfox/node-temporal';
+import {instrumentModuleActivities} from './metrics.js';
 import {createOutboxRegistry, registerPublisher, subscribe} from './publisher-registry.js';
 import type {
   ModuleDatabase,
@@ -121,7 +122,7 @@ export async function initializeModules(
     }
 
     if (mod.workers) {
-      workers.push(...mod.workers);
+      workers.push(...mod.workers.map((worker) => ({...worker, moduleName: mod.name})));
     }
 
     if (mod.services) {
@@ -313,7 +314,11 @@ export async function startModuleWorkers(
           connection,
           taskQueue: workerDef.taskQueue,
           workflowsPath: workerDef.workflowsPath,
-          activities: workerDef.activities(options.context),
+          activities: instrumentModuleActivities({
+            moduleName: workerDef.moduleName ?? 'unknown',
+            taskQueue: workerDef.taskQueue,
+            activities: workerDef.activities(options.context),
+          }),
         });
         const startedWorker: StartedModuleWorker = {worker};
         workers.push(startedWorker);

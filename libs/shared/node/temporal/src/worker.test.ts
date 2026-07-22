@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   temporalConnectionError: vi.fn(),
   getWorkerInterceptors: vi.fn(),
   getWorkflowInterceptorModules: vi.fn(),
+  getWorkflowSinks: vi.fn(),
+  installTemporalRuntime: vi.fn(),
   loadProductionWorkflowBundle: vi.fn(),
   temporalConfig: {
     TEMPORAL_NAMESPACE: 'test-namespace',
@@ -40,7 +42,10 @@ vi.mock('./bundle.js', () => ({
 vi.mock('./interceptors.js', () => ({
   getWorkerInterceptors: mocks.getWorkerInterceptors,
   getWorkflowInterceptorModules: mocks.getWorkflowInterceptorModules,
+  getWorkflowSinks: mocks.getWorkflowSinks,
 }));
+
+vi.mock('./runtime.js', () => ({installTemporalRuntime: mocks.installTemporalRuntime}));
 
 function workerOptions(overrides: Partial<CreateWorkerOptions> = {}): CreateWorkerOptions {
   return {
@@ -55,6 +60,7 @@ describe('createTemporalWorkerConnection', () => {
     mocks.nativeConnectionConnect.mockReset();
     mocks.getTemporalConnectionOptions.mockReset();
     mocks.temporalConnectionError.mockReset();
+    mocks.installTemporalRuntime.mockReset();
     mocks.getTemporalConnectionOptions.mockReturnValue({address: 'temporal.example.test:7233'});
     mocks.temporalConnectionError.mockImplementation(
       (error) => new Error('Failed to connect to Temporal.', {cause: error}),
@@ -68,6 +74,7 @@ describe('createTemporalWorkerConnection', () => {
     const result = await createTemporalWorkerConnection();
 
     expect(result).toBe(connection);
+    expect(mocks.installTemporalRuntime).toHaveBeenCalledOnce();
     expect(mocks.nativeConnectionConnect).toHaveBeenCalledWith({
       address: 'temporal.example.test:7233',
     });
@@ -97,12 +104,15 @@ describe('createTemporalWorker', () => {
     mocks.temporalConnectionError.mockReset();
     mocks.getWorkerInterceptors.mockReset();
     mocks.getWorkflowInterceptorModules.mockReset();
+    mocks.getWorkflowSinks.mockReset();
+    mocks.installTemporalRuntime.mockReset();
     mocks.loadProductionWorkflowBundle.mockReset();
     mocks.nativeConnectionConnect.mockResolvedValue({});
     mocks.workerCreate.mockResolvedValue({});
     mocks.getTemporalConnectionOptions.mockReturnValue({address: 'temporal.example.test:7233'});
     mocks.getWorkerInterceptors.mockReturnValue({activity: []});
     mocks.getWorkflowInterceptorModules.mockReturnValue(['/tmp/workflow-interceptor.js']);
+    mocks.getWorkflowSinks.mockReturnValue({exporter: {}});
     mocks.loadProductionWorkflowBundle.mockReturnValue({codePath: '/tmp/workflows.bundle.js'});
   });
 
@@ -117,6 +127,7 @@ describe('createTemporalWorker', () => {
         connection,
         namespace: 'test-namespace',
         taskQueue: 'test-queue',
+        sinks: {exporter: {}},
       }),
     );
   });
@@ -130,6 +141,7 @@ describe('createTemporalWorker', () => {
     await result.shutdown();
 
     expect(mocks.nativeConnectionConnect).not.toHaveBeenCalled();
+    expect(mocks.installTemporalRuntime).toHaveBeenCalledOnce();
     expect(mocks.workerCreate).toHaveBeenCalledWith(expect.objectContaining({connection}));
     expect(connection.close).not.toHaveBeenCalled();
   });
