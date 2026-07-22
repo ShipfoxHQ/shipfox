@@ -34,7 +34,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up mise
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
