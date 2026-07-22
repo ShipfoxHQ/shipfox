@@ -1,4 +1,4 @@
-import {captureException} from '@shipfox/node-error-monitoring';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {
   boundedMap,
   type DrainedEvent,
@@ -30,33 +30,29 @@ export async function runDrainCycle(
 
   const groups = groupRows(rows);
 
-  try {
-    await boundedMap(
-      groups,
-      DISPATCH_CONCURRENCY,
-      async (group) => {
-        const dispatchedClaims: OutboxDispatchClaim[] = [];
+  await boundedMap(
+    groups,
+    DISPATCH_CONCURRENCY,
+    async (group) => {
+      const dispatchedClaims: OutboxDispatchClaim[] = [];
 
-        for (const row of group.rows) {
-          if (signal?.aborted) break;
-          const succeeded = await dispatchRow(outboxRegistry, row);
-          if (!succeeded) break;
-          dispatchedClaims.push(claimFromRow(row));
-        }
+      for (const row of group.rows) {
+        if (signal?.aborted) break;
+        const succeeded = await dispatchRow(outboxRegistry, row);
+        if (!succeeded) break;
+        dispatchedClaims.push(claimFromRow(row));
+      }
 
-        if (dispatchedClaims.length > 0) {
-          await markDispatched(outboxRegistry, group.source, dispatchedClaims);
-          eventDispatchedCount.add(dispatchedClaims.length, {
-            module: group.source,
-            outcome: 'succeeded',
-          });
-        }
-      },
-      {stopOnError: false, signal},
-    );
-  } catch (error) {
-    logger().warn({err: error}, 'Outbox dispatch groups completed with errors');
-  }
+      if (dispatchedClaims.length > 0) {
+        await markDispatched(outboxRegistry, group.source, dispatchedClaims);
+        eventDispatchedCount.add(dispatchedClaims.length, {
+          module: group.source,
+          outcome: 'succeeded',
+        });
+      }
+    },
+    {stopOnError: false, signal},
+  );
 
   return hasMore;
 }
@@ -96,7 +92,11 @@ async function dispatchClaimedRow(
     } catch (error) {
       const errorContext = failureFromHandler(row, error);
       logger().error({err: error, ...errorContext}, 'Handler failed for outbox event');
-      captureException(error, {extra: errorContext});
+      reportError(error, {
+        boundary: 'dispatcher.handler',
+        tags: {module: row.source, eventType: row.event.type},
+        extra: {eventId: row.id},
+      });
       dispatchFailure ??= errorContext;
     }
   }
@@ -142,6 +142,11 @@ async function renewRowClaim(outboxRegistry: OutboxRegistry, row: DrainedEvent):
       {err: error, source: row.source, eventId: row.id},
       'Failed to renew outbox dispatch claim',
     );
+    reportError(error, {
+      boundary: 'dispatcher.claim-renewal',
+      tags: {module: row.source, eventType: row.event.type},
+      extra: {eventId: row.id},
+    });
   }
 }
 
@@ -207,7 +212,16 @@ function validatePayload(
     })),
   };
   logger().error({err: result.error, ...errorContext}, 'Invalid outbox payload at drain');
-  captureException(result.error, {extra: errorContext});
+  reportError(result.error, {
+    boundary: 'dispatcher.payload',
+    tags: {module: row.source, eventType: row.event.type},
+    extra: {
+      eventId: row.id,
+      issueCount: result.error.issues.length,
+      issuePaths: result.error.issues.map((issue) => issue.path.join('.')).join(','),
+      issueCodes: result.error.issues.map((issue) => issue.code).join(','),
+    },
+  });
   return {success: false, failure: errorContext};
 }
 

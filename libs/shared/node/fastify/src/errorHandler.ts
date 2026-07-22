@@ -1,4 +1,4 @@
-import {captureException} from '@shipfox/node-error-monitoring';
+import {reportError} from '@shipfox/node-error-monitoring';
 import type {FastifyReply, FastifyRequest} from 'fastify';
 import {ClientError} from './clientError.js';
 
@@ -44,7 +44,16 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
   }
 
   request.log.error(error);
-  captureException(error);
+  const route = (request.routeOptions.url ?? 'unknown').split('?')[0] ?? 'unknown';
+  reportError(error, {
+    boundary: 'http.unhandled',
+    operation: `${request.method} ${route}`,
+    tags: {
+      method: request.method,
+      route,
+    },
+    extra: {requestId: request.id},
+  });
   return reply.code(500).send({code: 'server-error'});
 }
 

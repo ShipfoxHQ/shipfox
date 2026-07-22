@@ -2,6 +2,11 @@ import {createOutboxRegistry} from '@shipfox/node-module';
 import {createOutboxDrainerService} from './outbox-drainer-service.js';
 
 const context = {outboxRegistry: createOutboxRegistry()};
+const errorMonitoring = vi.hoisted(() => ({reportError: vi.fn()}));
+
+vi.mock('@shipfox/node-error-monitoring', () => errorMonitoring);
+
+afterEach(() => vi.clearAllMocks());
 
 describe('createOutboxDrainerService', () => {
   it('drains pending batches before idling and stops without another claim', async () => {
@@ -72,5 +77,28 @@ describe('createOutboxDrainerService', () => {
 
     expect(drain).toHaveBeenCalledTimes(2);
     expect(logError).toHaveBeenCalledWith(failure);
+  });
+
+  it('reports an unexpected drain-loop failure when no caller reporter is supplied', async () => {
+    const failure = new Error('database unavailable');
+    const drain = vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce(false);
+    const service = createOutboxDrainerService({
+      pollMs: 25,
+      runDrainCycle: drain,
+      sleep: async (ms, signal) => {
+        if (ms === 1_000) return;
+        await new Promise<void>((resolve) =>
+          signal.addEventListener('abort', () => resolve(), {once: true}),
+        );
+      },
+    });
+
+    const handle = await service.start(context);
+    await vi.waitFor(() => expect(drain).toHaveBeenCalledTimes(2));
+    await handle.stop();
+
+    expect(errorMonitoring.reportError).toHaveBeenCalledWith(failure, {
+      boundary: 'dispatcher.drain',
+    });
   });
 });

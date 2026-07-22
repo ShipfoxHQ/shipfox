@@ -23,6 +23,7 @@ import {createWorkflowsModule} from '@shipfox/api-workflows';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {workspacesModule} from '@shipfox/api-workspaces';
 import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {durationToSeconds} from '@shipfox/node-jwt';
 import type {ShipfoxModule} from '@shipfox/node-module';
 import {
@@ -37,7 +38,15 @@ export interface DefaultModulesOptions {
 export async function defaultModules(
   options: DefaultModulesOptions = {},
 ): Promise<ShipfoxModule[]> {
-  const interModuleTransport = createInMemoryInterModuleTransport();
+  const interModuleTransport = createInMemoryInterModuleTransport({
+    reportInternalError: (error, context) => {
+      reportError(error, {
+        boundary: 'inter-module',
+        operation: `${context.module}.${context.method}`,
+        tags: {module: context.module, method: context.method, phase: context.phase},
+      });
+    },
+  });
   const workflowsClient = interModuleTransport.createClient(workflowsInterModuleContract);
   const authClient = interModuleTransport.createClient(authInterModuleContract);
   const agentClient = interModuleTransport.createClient(agentInterModuleContract);

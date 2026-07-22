@@ -49,7 +49,8 @@ describe('OpenTelemetry interceptors', () => {
 
     expect(client.workflow).toHaveLength(1);
     expect(worker.activity).toHaveLength(1);
-    expect(workflows).toHaveLength(1);
+    expect(worker.activityInbound).toHaveLength(1);
+    expect(workflows).toHaveLength(2);
   });
 
   it('keeps workflow export safe when tracing is disabled', () => {

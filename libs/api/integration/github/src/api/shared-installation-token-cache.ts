@@ -1,4 +1,5 @@
 import {setTimeout as sleepTimeout} from 'node:timers/promises';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 import {
@@ -135,6 +136,11 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
           {installationId: params.installationId, reason: classified.reason, error: writeError},
           'github installation token backoff write failed',
         );
+        reportError(writeError, {
+          boundary: 'integration.cache',
+          operation: 'write-backoff-envelope',
+          extra: {installationId: params.installationId},
+        });
       });
 
       if (
@@ -179,6 +185,11 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
         {installationId: params.installationId, expiresAt: token.expiresAt.toISOString(), error},
         'github installation token cache write failed after mint',
       );
+      reportError(error, {
+        boundary: 'integration.cache',
+        operation: 'write-minted-token',
+        extra: {installationId: params.installationId},
+      });
     }
 
     logger().info(

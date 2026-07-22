@@ -81,6 +81,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/node-error-monitoring": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@shipfox/api-agent-dto": "workspace:*",

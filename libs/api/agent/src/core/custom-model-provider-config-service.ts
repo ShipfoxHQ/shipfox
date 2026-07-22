@@ -11,6 +11,7 @@ import {
   type UpdateCustomModelProviderHeaderRequestDto,
 } from '@shipfox/api-agent-dto';
 import {assertEgressAllowed} from '@shipfox/node-egress-guard';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {
   deleteModelProviderConfig,
   getModelProviderConfig,
@@ -235,7 +236,13 @@ export async function updateCustomModelProviderConfig(
       namespace,
       existingSecrets,
       attemptedSecrets: newSecretCredentials,
-    }).catch(() => undefined);
+    }).catch((rollbackError) => {
+      reportError(rollbackError, {
+        boundary: 'agent.cleanup',
+        operation: 'rollback-secret-update',
+        extra: {workspaceId: params.workspaceId, providerId: params.providerId},
+      });
+    });
     throw error;
   }
 

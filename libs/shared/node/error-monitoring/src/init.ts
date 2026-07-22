@@ -9,6 +9,7 @@ Sentry.init({
   dsn: config.SENTRY_DSN,
   environment: config.SENTRY_ENVIRONMENT,
   release,
+  sendDefaultPii: false,
   skipOpenTelemetrySetup: true,
 });
 

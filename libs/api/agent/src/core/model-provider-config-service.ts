@@ -5,6 +5,7 @@ import {
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {
   deleteModelProviderConfig as deleteModelProviderConfigRow,
   getModelProviderConfig,
@@ -108,7 +109,13 @@ export async function testAndSaveModelProviderConfig(
     workspaceId: params.workspaceId,
     namespace,
     expectedKeys: Object.keys(values),
-  }).catch(() => undefined);
+  }).catch((error) => {
+    reportError(error, {
+      boundary: 'agent.cleanup',
+      operation: 'prune-stale-secrets',
+      extra: {workspaceId: params.workspaceId, providerId: params.providerId},
+    });
+  });
 
   return config;
 }

@@ -70,6 +70,7 @@ export function createInMemoryInterModuleTransport(
   const tracer = resolveInterModuleTracer(options.tracer);
   const reportInternalError: InterModuleReportInternalError =
     options.reportInternalError ?? (() => undefined);
+  const hasInternalReporter = options.reportInternalError !== undefined;
 
   let sealed = false;
   const clientContractByModule = new Map<
@@ -143,6 +144,7 @@ export function createInMemoryInterModuleTransport(
         tracer,
         transportName: TRANSPORT_NAME,
         reportInternalError,
+        hasInternalReporter,
       });
     });
   }

@@ -6,6 +6,7 @@ import {
   type InterModulePresentationHandlers,
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
+import {isErrorReported} from '@shipfox/node-error-monitoring';
 import {SpanKind, SpanStatusCode} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {createFakeTracer} from '#test/fake-tracer.js';
@@ -162,8 +163,13 @@ describe('inter-module dispatch: input validation', () => {
     );
     transport.seal();
 
-    await expect(client.withAsyncInputSchema({id: 'w-1'})).rejects.toThrow(InterModuleOpaqueError);
+    const rejection = await client
+      .withAsyncInputSchema({id: 'w-1'})
+      .catch((error: unknown) => error);
 
+    expect(rejection).toBeInstanceOf(InterModuleOpaqueError);
+    expect((rejection as Error).cause).toBeUndefined();
+    expect(isErrorReported(rejection)).toBe(true);
     expect(reports).toEqual([
       {phase: 'input-schema', module: 'edge', method: 'withAsyncInputSchema'},
     ]);

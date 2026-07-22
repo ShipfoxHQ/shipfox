@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {Context} from '@temporalio/activity';
 import {compactedObjectKey, deleteObject, putCompactedObject} from '#api/object-storage.js';
 import {compactedGzipStream} from '#core/compaction.js';
@@ -79,7 +80,13 @@ async function compactStream(
     stats.lastSeq !== expected.maxSeq ||
     stats.uncompressedBytes !== expected.uncompressedBytes
   ) {
-    await deleteObject(uploadKey).catch(() => undefined);
+    await deleteObject(uploadKey).catch((error) => {
+      reportError(error, {
+        boundary: 'logs.cleanup',
+        operation: 'delete-invalid-compaction-object',
+        extra: {streamId: stream.id, objectKey: uploadKey},
+      });
+    });
     throw new Error(
       `Compaction integrity check failed for stream ${stream.id}: streamed ${stats.chunkCount} chunks / ${stats.uncompressedBytes} bytes up to seq ${stats.lastSeq}, table holds ${expected.count} / ${expected.uncompressedBytes} bytes up to seq ${expected.maxSeq}`,
     );

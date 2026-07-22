@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {JobListenerSubscription} from '#core/entities/job-listener-subscription.js';
 import type {TriggerEventOrigin} from '#core/entities/received-event.js';
@@ -140,6 +141,11 @@ async function safe<T>(
       {err: error, label, eventRef, ...(subscriptionId ? {subscriptionId} : {})},
       'trigger history write failed; ignored (best-effort)',
     );
+    reportError(error, {
+      boundary: 'triggers.history',
+      operation: label,
+      extra: {eventRef, subscriptionId},
+    });
     return undefined;
   }
 }

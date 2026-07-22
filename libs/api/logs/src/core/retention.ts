@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {deleteObjectsByPrefix} from '#api/object-storage.js';
 import {config} from '#config.js';
@@ -116,6 +117,7 @@ export async function runRetentionSweep(
           {err: error, streamId: stream.id},
           'Failed to delete expired log stream objects',
         );
+        reportError(error, {boundary: 'logs.maintenance', extra: {streamId: stream.id}});
         continue;
       }
 
@@ -129,6 +131,7 @@ export async function runRetentionSweep(
           {err: error, streamId: stream.id},
           'Failed to delete expired log stream row',
         );
+        reportError(error, {boundary: 'logs.maintenance', extra: {streamId: stream.id}});
         continue;
       }
 
@@ -143,6 +146,7 @@ export async function runRetentionSweep(
             {err: error, streamId: stream.id},
             'Failed to reload raced expired log stream',
           );
+          reportError(error, {boundary: 'logs.maintenance', extra: {streamId: stream.id}});
           continue;
         }
         if (current) {
@@ -159,6 +163,7 @@ export async function runRetentionSweep(
               {err: error, streamId: stream.id},
               'Failed to delete raced expired log stream',
             );
+            reportError(error, {boundary: 'logs.maintenance', extra: {streamId: stream.id}});
             continue;
           }
         }

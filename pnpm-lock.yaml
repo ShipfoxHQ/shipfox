@@ -1813,6 +1813,9 @@ importers:
       '@shipfox/node-egress-guard':
         specifier: workspace:*
         version: link:../../shared/node/egress-guard
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
@@ -2220,6 +2223,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
@@ -2518,6 +2524,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../../shared/node/fastify
@@ -2747,6 +2756,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../../shared/node/fastify
@@ -3344,6 +3356,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
@@ -3612,6 +3627,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
@@ -3980,6 +3998,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../shared/node/drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../../shared/node/error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../../shared/node/fastify
@@ -6639,6 +6660,12 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.0)(@vitest/browser-playwright@4.1.9)(happy-dom@20.10.6)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   libs/shared/node/fastify:
     dependencies:
@@ -6775,6 +6802,9 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../drizzle
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../error-monitoring
       '@shipfox/node-fastify':
         specifier: workspace:*
         version: link:../fastify
@@ -7004,6 +7034,9 @@ importers:
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config
+      '@shipfox/node-error-monitoring':
+        specifier: workspace:*
+        version: link:../error-monitoring
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../opentelemetry

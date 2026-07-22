@@ -9,6 +9,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService, ShipfoxModule} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {IntegrationProvider} from '#core/entities/provider.js';
@@ -225,6 +226,7 @@ export async function createIntegrationsContext(
         await task();
       } catch (error) {
         logger().error({err: error}, 'Integration startup task failed, continuing boot');
+        reportError(error, {boundary: 'integration.startup'});
       }
     }
   }

@@ -1,4 +1,5 @@
 import {runMigrations} from '@shipfox/node-drizzle';
+import {markErrorReported, reportError} from '@shipfox/node-error-monitoring';
 import type {AuthMethod, RouteExport} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
@@ -56,6 +57,7 @@ export interface ModuleServicesHandle {
 
 interface StartedModuleWorker {
   worker: Worker;
+  taskQueue: string;
   runPromise?: Promise<void>;
 }
 
@@ -161,6 +163,7 @@ export function registerModuleMetrics(options: {
       mod.metrics(options.context);
     } catch (error) {
       logger().warn({err: error, module: mod.name}, 'Failed to register module metrics');
+      reportError(error, {boundary: 'module.metrics', tags: {module: mod.name}});
     }
   }
 }
@@ -193,7 +196,11 @@ export async function startModuleServices(
     }
   } catch (error) {
     stopping = true;
-    await stopStartedModuleServices(services);
+    try {
+      await stopStartedModuleServices(services);
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Failed to start module services');
+    }
     throw error;
   }
 
@@ -239,6 +246,11 @@ function reportModuleServiceFailure(
         {err: handlerError, serviceErr: error, service: service.name},
         'Module service failure handler failed',
       );
+      reportError(handlerError, {
+        boundary: 'module.service',
+        operation: 'failure-callback',
+        tags: {service: service.name},
+      });
     });
     return;
   }
@@ -246,8 +258,26 @@ function reportModuleServiceFailure(
 }
 
 async function stopStartedModuleServices(services: StartedModuleService[]): Promise<void> {
+  const errors: unknown[] = [];
   for (const service of [...services].reverse()) {
-    await stopModuleService(service);
+    try {
+      await stopModuleService(service);
+    } catch (error) {
+      reportError(error, {
+        boundary: 'module.service',
+        operation: 'stop',
+        tags: {service: service.definition.name},
+      });
+      errors.push(error);
+    }
+  }
+  throwLifecycleErrors(errors, 'Failed to stop module services');
+}
+
+export class ModuleServiceShutdownTimeoutError extends Error {
+  constructor(service: string, timeoutMs: number) {
+    super(`Timed out stopping module service ${service} after ${timeoutMs}ms`);
+    this.name = 'ModuleServiceShutdownTimeoutError';
   }
 }
 
@@ -270,24 +300,22 @@ async function stopModuleService(service: StartedModuleService): Promise<void> {
 
   if (result.status === 'stopped') return;
   if (result.status === 'failed') {
-    logger().warn(
-      {err: result.error, service: service.definition.name},
-      'Failed to stop module service',
-    );
-    return;
+    throw result.error;
   }
 
-  logger().error(
-    {service: service.definition.name, timeoutMs: service.definition.shutdownTimeoutMs},
-    'Timed out stopping module service',
+  const timeoutError = new ModuleServiceShutdownTimeoutError(
+    service.definition.name,
+    service.definition.shutdownTimeoutMs,
   );
   void stopResult.then((lateResult) => {
     if (lateResult.status !== 'failed') return;
-    logger().warn(
-      {err: lateResult.error, service: service.definition.name},
-      'Module service stop failed after timeout',
-    );
+    reportError(lateResult.error, {
+      boundary: 'module.service',
+      operation: 'stop-after-timeout',
+      tags: {service: service.definition.name},
+    });
   });
+  throw timeoutError;
 }
 
 /**
@@ -320,7 +348,7 @@ export async function startModuleWorkers(
             activities: workerDef.activities(options.context),
           }),
         });
-        const startedWorker: StartedModuleWorker = {worker};
+        const startedWorker: StartedModuleWorker = {worker, taskQueue: workerDef.taskQueue};
         workers.push(startedWorker);
 
         for (const workflow of workerDef.workflows) {
@@ -351,6 +379,11 @@ export async function startModuleWorkers(
                   {err: handlerError, workerErr: error, taskQueue: workerDef.taskQueue},
                   'Module worker failure handler failed',
                 );
+                reportError(handlerError, {
+                  boundary: 'module.worker',
+                  operation: 'failure-callback',
+                  tags: {taskQueue: workerDef.taskQueue},
+                });
               },
             );
             return;
@@ -370,7 +403,11 @@ export async function startModuleWorkers(
     }
   } catch (error) {
     stopping = true;
-    await cleanUpFailedModuleWorkerStartup({error, workers, connection});
+    try {
+      await cleanUpFailedModuleWorkerStartup({error, workers, connection});
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Failed to start module workers');
+    }
     throw error;
   }
 
@@ -387,28 +424,57 @@ async function stopModuleWorkers(options: {
   workers: StartedModuleWorker[];
   connection: NativeConnection;
 }): Promise<void> {
-  for (const {worker} of options.workers) {
+  const errors: unknown[] = [];
+  for (const {worker, taskQueue} of options.workers) {
     try {
       worker.shutdown();
     } catch (error) {
-      logger().warn({err: error}, 'Failed to shut down module worker');
+      reportError(error, {
+        boundary: 'module.worker',
+        operation: 'shutdown',
+        tags: {taskQueue},
+      });
+      errors.push(error);
     }
   }
 
   const results = await Promise.allSettled(
-    options.workers.flatMap(({runPromise}) => (runPromise ? [runPromise] : [])),
+    options.workers.map(({runPromise}) => runPromise ?? Promise.resolve()),
   );
-  for (const result of results) {
+  for (const [index, result] of results.entries()) {
     if (result.status === 'rejected') {
-      logger().error({err: result.reason}, 'Module worker stopped with an error');
+      const worker = options.workers[index];
+      reportError(result.reason, {
+        boundary: 'module.worker',
+        operation: 'run',
+        ...(worker ? {tags: {taskQueue: worker.taskQueue}} : {}),
+      });
+      errors.push(result.reason);
     }
   }
 
   try {
     await options.connection.close();
+  } catch (error) {
+    reportError(error, {boundary: 'module.worker', operation: 'close-connection'});
+    errors.push(error);
   } finally {
-    await closeTemporalClient();
+    try {
+      await closeTemporalClient();
+    } catch (error) {
+      reportError(error, {boundary: 'module.worker', operation: 'close-client'});
+      errors.push(error);
+    }
   }
+  throwLifecycleErrors(errors, 'Failed to stop module workers');
+}
+
+function throwLifecycleErrors(errors: unknown[], message: string): void {
+  if (errors.length === 0) return;
+  if (errors.length === 1) throw errors[0];
+  const aggregate = new AggregateError(errors, message);
+  markErrorReported(aggregate);
+  throw aggregate;
 }
 
 async function cleanUpFailedModuleWorkerStartup(options: {
@@ -416,16 +482,9 @@ async function cleanUpFailedModuleWorkerStartup(options: {
   workers: StartedModuleWorker[];
   connection: NativeConnection | undefined;
 }): Promise<void> {
-  try {
-    if (options.connection) {
-      await stopModuleWorkers({workers: options.workers, connection: options.connection});
-    } else {
-      await closeTemporalClient();
-    }
-  } catch (cleanupError) {
-    logger().error(
-      {err: cleanupError, workerErr: options.error},
-      'Failed to clean up module worker startup resources',
-    );
+  if (options.connection) {
+    await stopModuleWorkers({workers: options.workers, connection: options.connection});
+  } else {
+    await closeTemporalClient();
   }
 }

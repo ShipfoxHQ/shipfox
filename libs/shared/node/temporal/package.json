@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
+    "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",

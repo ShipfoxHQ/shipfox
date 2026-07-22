@@ -1,9 +1,16 @@
 import {z} from 'zod';
+
+const errorMonitoring = vi.hoisted(() => ({reportError: vi.fn()}));
+
+vi.mock('@shipfox/node-error-monitoring', () => errorMonitoring);
+
 import {ClientError} from './clientError.js';
 import {closeApp, createApp} from './index.js';
 
 afterEach(async () => {
+  expect(errorMonitoring.reportError).not.toHaveBeenCalled();
   await closeApp();
+  vi.clearAllMocks();
 });
 
 describe('default error handler', () => {
@@ -211,5 +218,16 @@ describe('default error handler', () => {
     const res = await app.inject({method: 'GET', url: '/boom'});
     expect(res.statusCode).toBe(500);
     expect(res.json()).toEqual({code: 'server-error'});
+    expect(errorMonitoring.reportError).toHaveBeenCalledTimes(1);
+    expect(errorMonitoring.reportError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        boundary: 'http.unhandled',
+        operation: 'GET /boom',
+        tags: {method: 'GET', route: '/boom'},
+        extra: expect.objectContaining({requestId: expect.any(String)}),
+      }),
+    );
+    errorMonitoring.reportError.mockClear();
   });
 });
