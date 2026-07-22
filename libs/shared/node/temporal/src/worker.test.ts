@@ -5,7 +5,7 @@ import {createTemporalWorker, createTemporalWorkerConnection} from './worker.js'
 const mocks = vi.hoisted(() => ({
   nativeConnectionConnect: vi.fn(),
   workerCreate: vi.fn(),
-  logger: {info: vi.fn()},
+  logger: {error: vi.fn(), info: vi.fn()},
   getTemporalConnectionOptions: vi.fn(),
   temporalConnectionError: vi.fn(),
   getWorkerInterceptors: vi.fn(),
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getWorkflowSinks: vi.fn(),
   installTemporalRuntime: vi.fn(),
   loadProductionWorkflowBundle: vi.fn(),
+  reportError: vi.fn(),
   temporalConfig: {
     TEMPORAL_NAMESPACE: 'test-namespace',
     TEMPORAL_TASK_QUEUE: 'test-queue',
@@ -27,6 +28,8 @@ vi.mock('@temporalio/worker', () => ({
 vi.mock('@shipfox/node-opentelemetry', () => ({
   logger: () => mocks.logger,
 }));
+
+vi.mock('@shipfox/node-error-monitoring', () => ({reportError: mocks.reportError}));
 
 vi.mock('./connection-options.js', () => ({
   getTemporalConnectionOptions: mocks.getTemporalConnectionOptions,
@@ -99,7 +102,9 @@ describe('createTemporalWorker', () => {
     vi.unstubAllEnvs();
     mocks.nativeConnectionConnect.mockReset();
     mocks.workerCreate.mockReset();
+    mocks.logger.error.mockReset();
     mocks.logger.info.mockReset();
+    mocks.logger.error.mockReset();
     mocks.getTemporalConnectionOptions.mockReset();
     mocks.temporalConnectionError.mockReset();
     mocks.getWorkerInterceptors.mockReset();
@@ -107,6 +112,7 @@ describe('createTemporalWorker', () => {
     mocks.getWorkflowSinks.mockReset();
     mocks.installTemporalRuntime.mockReset();
     mocks.loadProductionWorkflowBundle.mockReset();
+    mocks.reportError.mockReset();
     mocks.nativeConnectionConnect.mockResolvedValue({});
     mocks.workerCreate.mockResolvedValue({});
     mocks.getTemporalConnectionOptions.mockReturnValue({address: 'temporal.example.test:7233'});
@@ -127,7 +133,7 @@ describe('createTemporalWorker', () => {
         connection,
         namespace: 'test-namespace',
         taskQueue: 'test-queue',
-        sinks: {exporter: {}},
+        sinks: expect.objectContaining({exporter: {}}),
       }),
     );
   });
@@ -174,6 +180,35 @@ describe('createTemporalWorker', () => {
     expect(createdWorkerOptions).not.toHaveProperty('bundlerOptions');
     expect(createdWorkerOptions?.interceptors).not.toHaveProperty('workflowModules');
     expect(mocks.loadProductionWorkflowBundle).toHaveBeenCalledWith('/tmp/workflows.js');
+  });
+
+  it('reports workflow defects through a replay-safe sink without workflow input', async () => {
+    await createTemporalWorker(workerOptions());
+
+    const createdWorkerOptions = mocks.workerCreate.mock.calls[0]?.[0];
+    const sink = createdWorkerOptions.sinks.shipfoxErrorMonitoring.reportWorkflowError;
+    const report = {
+      name: 'Error',
+      message: 'workflow failed',
+      stack: 'Error: workflow failed',
+      workflowType: 'dispatch',
+      taskQueue: 'workflows',
+      workflowId: 'workflow-1',
+      runId: 'run-1',
+      attempt: 3,
+    };
+
+    sink.fn({}, report);
+
+    expect(sink.callDuringReplay).toBe(false);
+    expect(mocks.reportError).toHaveBeenCalledWith(
+      expect.objectContaining({name: 'Error', message: 'workflow failed', stack: report.stack}),
+      {
+        boundary: 'temporal.workflow',
+        tags: {workflowType: 'dispatch', taskQueue: 'workflows'},
+        extra: {workflowId: 'workflow-1', runId: 'run-1', attempt: 3},
+      },
+    );
   });
 
   it('validates a production bundle before opening an internally owned connection', async () => {

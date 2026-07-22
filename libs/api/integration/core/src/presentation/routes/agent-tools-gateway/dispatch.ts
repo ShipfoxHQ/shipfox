@@ -1,4 +1,6 @@
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
+import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {IntegrationProviderError} from '#core/errors.js';
 import type {
   AgentToolCatalogEntry,
@@ -48,7 +50,15 @@ async function dispatchIntegrationToolCall(
       arguments: input.arguments,
     });
   } catch (error) {
-    return toolError(errorResult(error));
+    const result = errorResult(error);
+    if (result.code === 'provider-unavailable') {
+      logger().error(
+        {err: error, provider: input.authorizedTool.integration.provider},
+        'Integration agent tool provider was unavailable',
+      );
+      reportError(error, {boundary: 'integration.agent-tool'});
+    }
+    return toolError(result);
   } finally {
     await closeSession(session);
   }
@@ -83,8 +93,10 @@ function agentToolCatalogEntry(input: IntegrationToolDispatchInput): AgentToolCa
 async function closeSession(session: {close?(): Promise<void>} | undefined): Promise<void> {
   try {
     await session?.close?.();
-  } catch {
+  } catch (error) {
     // Cleanup must not mask the tool result returned to the runner.
+    logger().error({err: error}, 'Failed to close integration agent tool session');
+    reportError(error, {boundary: 'integration.agent-tool', operation: 'close-session'});
   }
 }
 

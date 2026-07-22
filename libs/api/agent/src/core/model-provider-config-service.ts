@@ -5,6 +5,8 @@ import {
   modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
+import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {
   deleteModelProviderConfig as deleteModelProviderConfigRow,
   getModelProviderConfig,
@@ -108,7 +110,17 @@ export async function testAndSaveModelProviderConfig(
     workspaceId: params.workspaceId,
     namespace,
     expectedKeys: Object.keys(values),
-  }).catch(() => undefined);
+  }).catch((error) => {
+    logger().error(
+      {err: error, workspaceId: params.workspaceId, providerId: params.providerId},
+      'Failed to prune stale model provider secrets',
+    );
+    reportError(error, {
+      boundary: 'agent.cleanup',
+      operation: 'prune-stale-secrets',
+      extra: {workspaceId: params.workspaceId, providerId: params.providerId},
+    });
+  });
 
   return config;
 }

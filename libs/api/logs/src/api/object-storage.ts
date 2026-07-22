@@ -9,6 +9,8 @@ import {
 } from '@aws-sdk/client-s3';
 import {Upload} from '@aws-sdk/lib-storage';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
+import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {type LogObjectKeyParams, logObjectKey} from '#core/entities/log-object.js';
 
@@ -140,12 +142,29 @@ export async function putCompactedObject(params: PutCompactedObjectParams): Prom
     params.signal.addEventListener(
       'abort',
       () => {
-        void upload.abort().catch(() => undefined);
+        void upload.abort().catch((error) => {
+          logger().error(
+            {err: error, objectKey: params.key},
+            'Failed to abort multipart log upload',
+          );
+          reportError(error, {
+            boundary: 'logs.cleanup',
+            operation: 'abort-multipart-upload',
+            extra: {objectKey: params.key},
+          });
+        });
       },
       {once: true},
     );
     if (params.signal.aborted) {
-      await upload.abort().catch(() => undefined);
+      await upload.abort().catch((error) => {
+        logger().error({err: error, objectKey: params.key}, 'Failed to abort multipart log upload');
+        reportError(error, {
+          boundary: 'logs.cleanup',
+          operation: 'abort-multipart-upload',
+          extra: {objectKey: params.key},
+        });
+      });
       throw new Error('Compaction upload aborted before it started');
     }
   }

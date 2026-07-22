@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {db} from '#db/db.js';
 import {listStaleOpenStreams} from '#db/streams.js';
@@ -53,6 +54,7 @@ export async function reapStaleOpenStreams(
     } catch (error) {
       result.failed += 1;
       logger().error({err: error, streamId: stream.id}, 'Failed to reap stale open log stream');
+      reportError(error, {boundary: 'logs.maintenance', extra: {streamId: stream.id}});
     }
   }
 

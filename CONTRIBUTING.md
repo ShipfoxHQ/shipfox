@@ -53,6 +53,18 @@ adding, updating, or exempting a dependency. It defines catalog range rules,
 peer compatibility, coordinated Renovate families, and the transitive exception
 format.
 
+## Error reporting
+
+Report unexpected API-process failures at the earliest owning boundary. A catch
+that continues must report the failure, return or persist a recognized error, or
+document why it is intentionally non-actionable. Do not report expected client,
+validation, authentication, typed provider, cancellation, or idempotency paths.
+Every unexpected failure sent to Sentry must also be written to the structured
+application log so self-hosters can diagnose it without Sentry. Log the error
+and only safe, bounded context such as the boundary's module, operation, or
+resource identifier. Never attach request bodies, headers, cookies, tokens, or
+payloads to either logs or reports.
+
 ## Local Tooling
 
 ### Mise Tasks

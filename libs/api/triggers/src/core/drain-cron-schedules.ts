@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {advanceCronSchedule, claimDueCronSchedules, selectDbNow} from '#db/cron-schedules.js';
 import {db} from '#db/db.js';
@@ -84,6 +85,11 @@ export async function drainDueCronSchedules(
           {err: error, subscriptionId: schedule.subscriptionId},
           'cron drain: transient fire failure; schedule left due for retry',
         );
+        reportError(error, {
+          boundary: 'triggers.maintenance',
+          operation: 'drain-cron-schedules',
+          extra: {subscriptionId: schedule.subscriptionId},
+        });
       }
       params.onScheduleProcessed?.();
     }

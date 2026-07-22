@@ -1,4 +1,4 @@
-import {captureException, closeErrorMonitoring} from '@shipfox/node-error-monitoring';
+import {closeErrorMonitoring, markErrorReported, reportError} from '@shipfox/node-error-monitoring';
 import {closeApp, createApp, listen} from '@shipfox/node-fastify';
 import {
   aggregateLoginMethods,
@@ -116,10 +116,24 @@ export async function createServer(options: CreateServerOptions): Promise<Server
             () => workersHandle?.stop(),
             () => shutdownServiceMetrics(),
             () => closePostgresClient(),
-            async () => {
-              await closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS);
-            },
           ]);
+          for (const cleanupError of cleanupErrors) {
+            logger().error({err: cleanupError}, 'Failed to clean up API server during shutdown');
+            reportError(cleanupError, {boundary: 'api.shutdown', operation: 'cleanup'});
+          }
+          try {
+            const errorMonitoringClosed = await closeErrorMonitoring(
+              ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS,
+            );
+            if (!errorMonitoringClosed) {
+              logger().error('Timed out closing error monitoring during API shutdown');
+              cleanupErrors.push(
+                new Error('Timed out closing error monitoring during API shutdown'),
+              );
+            }
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
           throwCleanupErrors(cleanupErrors, 'Failed to stop API server');
           stopped = true;
           hasActiveServer = false;
@@ -138,6 +152,7 @@ export async function createServer(options: CreateServerOptions): Promise<Server
     ]);
     for (const cleanupError of cleanupErrors) {
       logger().error({err: cleanupError, bootError: error}, 'Failed to clean up API server boot');
+      reportError(cleanupError, {boundary: 'api.startup', operation: 'cleanup'});
     }
     hasActiveServer = false;
     throw error;
@@ -168,11 +183,23 @@ export async function runServer(options: RunServerOptions): Promise<ServerHandle
         {err: cleanupError, startError: error},
         'Failed to clean up API server startup',
       );
+      reportError(cleanupError, {
+        boundary: 'api.startup',
+        operation: 'cleanup-after-failed-start',
+      });
     }
     throw error;
   }
 
-  const stopAndExit = () => void handle.stop().finally(() => process.exit(0));
+  const stopAndExit = () =>
+    void handle.stop().then(
+      () => process.exit(0),
+      (error) => {
+        logger().error({err: error}, 'Failed to stop API server after shutdown signal');
+        reportError(error, {boundary: 'api.shutdown', operation: 'signal-stop'});
+        process.exit(1);
+      },
+    );
   process.once('SIGTERM', stopAndExit);
   process.once('SIGINT', stopAndExit);
 
@@ -210,7 +237,9 @@ async function runCleanupSteps(steps: CleanupStep[]): Promise<unknown[]> {
 function throwCleanupErrors(cleanupErrors: unknown[], message: string): void {
   if (cleanupErrors.length === 0) return;
   if (cleanupErrors.length === 1) throw cleanupErrors[0];
-  throw new AggregateError(cleanupErrors, message);
+  const aggregate = new AggregateError(cleanupErrors, message);
+  markErrorReported(aggregate);
+  throw aggregate;
 }
 
 async function handleModuleWorkerFailure(
@@ -246,11 +275,19 @@ async function handleModuleRuntimeFailure(options: {
   onFailure(): void | Promise<void>;
 }): Promise<void> {
   logger().error({err: options.error, ...options.fields}, options.message);
-  captureException(options.error);
+  reportError(options.error, {
+    boundary: 'api.runtime',
+    tags: options.fields,
+  });
 
   try {
     await closeHttpServerAfterRuntimeFailure();
-    await closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS);
+    const errorMonitoringClosed = await closeErrorMonitoring(ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS);
+    if (!errorMonitoringClosed) {
+      logger().error('Timed out closing error monitoring after module runtime failure');
+    }
+  } catch (error) {
+    logger().error({err: error}, 'Failed to close error monitoring after module runtime failure');
   } finally {
     await options.onFailure();
   }
@@ -270,13 +307,13 @@ async function closeHttpServerAfterRuntimeFailure(): Promise<void> {
       },
     );
     if (result === 'timeout') {
-      logger().error(
-        {timeoutMs: RUNTIME_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS},
-        'Timed out closing HTTP server after module runtime failure',
-      );
+      const error = new Error('Timed out closing HTTP server after module runtime failure');
+      logger().error({timeoutMs: RUNTIME_FAILURE_HTTP_SHUTDOWN_TIMEOUT_MS}, error.message);
+      reportError(error, {boundary: 'api.runtime', operation: 'close-http-timeout'});
     }
   } catch (error) {
     logger().error({err: error}, 'Failed to close HTTP server after module runtime failure');
+    reportError(error, {boundary: 'api.runtime', operation: 'close-http'});
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);

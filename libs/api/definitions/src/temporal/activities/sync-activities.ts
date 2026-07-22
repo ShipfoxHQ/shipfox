@@ -1,4 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto';
+import {markErrorReported} from '@shipfox/node-error-monitoring';
 import {Context} from '@temporalio/activity';
 import {ApplicationFailure} from '@temporalio/common';
 import type {DefinitionSyncErrorCode} from '#core/entities/sync-state.js';
@@ -183,9 +184,10 @@ async function runWithPermanentTranslation<T>(operation: () => Promise<T>): Prom
       throw error;
     }
     const failure = classifySyncFailure(error);
-    if (!failure.retryable) {
-      throw ApplicationFailure.nonRetryable(failure.message, failure.code);
-    }
-    throw ApplicationFailure.retryable(failure.message, failure.code);
+    const translatedError = failure.retryable
+      ? ApplicationFailure.retryable(failure.message, failure.code)
+      : ApplicationFailure.nonRetryable(failure.message, failure.code);
+    if (failure.code !== 'unknown') markErrorReported(translatedError);
+    throw translatedError;
   }
 }

@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => {
   const workersHandle = {stop: vi.fn()};
   const servicesHandle = {stop: vi.fn()};
   return {
-    captureException: vi.fn(),
+    markErrorReported: vi.fn(),
+    reportError: vi.fn(),
     closeApp: vi.fn(),
     closeErrorMonitoring: vi.fn(),
     closePostgresClient: vi.fn(),
@@ -42,8 +43,9 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('@shipfox/node-error-monitoring', () => ({
-  captureException: mocks.captureException,
   closeErrorMonitoring: mocks.closeErrorMonitoring,
+  markErrorReported: mocks.markErrorReported,
+  reportError: mocks.reportError,
 }));
 vi.mock('@shipfox/node-fastify', () => ({
   closeApp: mocks.closeApp,
@@ -113,7 +115,8 @@ function lastStartModuleServicesOptions(): {
 
 function resetMocks(): void {
   vi.useRealTimers();
-  mocks.captureException.mockReset();
+  mocks.markErrorReported.mockReset();
+  mocks.reportError.mockReset();
   mocks.closeApp.mockReset();
   mocks.closeErrorMonitoring.mockReset();
   mocks.closePostgresClient.mockReset();
@@ -492,7 +495,10 @@ describe('createServer', () => {
       {err: failure, taskQueue: 'runtime-queue'},
       'Module worker stopped unexpectedly',
     );
-    expect(mocks.captureException).toHaveBeenCalledWith(failure);
+    expect(mocks.reportError).toHaveBeenCalledWith(failure, {
+      boundary: 'api.runtime',
+      tags: {taskQueue: 'runtime-queue'},
+    });
     expect(mocks.closeApp).toHaveBeenCalledOnce();
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
     expect(mocks.closeErrorMonitoring.mock.invocationCallOrder[0]).toBeLessThan(
@@ -513,7 +519,10 @@ describe('createServer', () => {
       {err: failure, service: 'runtime-service'},
       'Module service stopped unexpectedly',
     );
-    expect(mocks.captureException).toHaveBeenCalledWith(failure);
+    expect(mocks.reportError).toHaveBeenCalledWith(failure, {
+      boundary: 'api.runtime',
+      tags: {service: 'runtime-service'},
+    });
     expect(mocks.closeApp).toHaveBeenCalledOnce();
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
     expect(mocks.closeErrorMonitoring.mock.invocationCallOrder[0]).toBeLessThan(

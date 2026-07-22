@@ -1,6 +1,7 @@
 import type {IntegrationSourceControlService} from '@shipfox/api-integration-core';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {isErrorReported} from '@shipfox/node-error-monitoring';
 import {ApplicationFailure} from '@temporalio/common';
 import {sql} from 'drizzle-orm';
 import {db, definitionSyncStates} from '#db/index.js';
@@ -141,6 +142,8 @@ describe('definition sync activities', () => {
         type: 'unknown',
         message: 'temporary outage',
       });
+      const error = await result.catch((error: unknown) => error);
+      expect(isErrorReported(error)).toBe(false);
     });
 
     it('preserves retryable provider error codes for workflow-level failure persistence', async () => {
@@ -170,6 +173,8 @@ describe('definition sync activities', () => {
         type: 'provider-timeout',
         message: 'integrations.resolveSourceRepository: provider-failure',
       });
+      const error = await result.catch((error: unknown) => error);
+      expect(isErrorReported(error)).toBe(true);
     });
   });
 

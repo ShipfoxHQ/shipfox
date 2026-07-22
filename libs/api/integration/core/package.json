@@ -60,6 +60,7 @@
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-outbox": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-temporal": "workspace:*",

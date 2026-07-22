@@ -5,7 +5,9 @@ Sentry integration for Shipfox Node services. It reads Sentry settings from envi
 ## What it does
 
 - **`import '@shipfox/node-error-monitoring/init'`** starts Sentry from environment config.
-- **`captureException(error)`** reports an error to Sentry.
+- **`reportError(error, context)`** reports an unexpected failure through an isolated Sentry scope. It does not write a log entry itself.
+- **`markErrorReported(error)`** and **`isErrorReported(error)`** prevent duplicate reports when a failure crosses boundaries.
+- **`captureException(error)`** remains available for backward compatibility.
 - **`addEventProcessor(processor)`** adds a custom Sentry event processor.
 - **`closeErrorMonitoring()`** flushes pending events and shuts down the Sentry client.
 
@@ -31,27 +33,43 @@ npm install @shipfox/node-error-monitoring
 import "@shipfox/node-error-monitoring/init";
 
 import {
-  captureException,
-  addEventProcessor,
-  closeErrorMonitoring,
+  reportError,
 } from "@shipfox/node-error-monitoring";
+import {logger} from "@shipfox/node-opentelemetry";
 
 try {
   await riskyOperation();
 } catch (err) {
-  captureException(err);
+  logger().error({err}, "Failed to refresh cache");
+  reportError(err, {boundary: "api.runtime", operation: "refresh-cache"});
 }
-
-addEventProcessor((event) => {
-  event.tags = {...event.tags, service: "billing-api"};
-  return event;
-});
-
-process.on("SIGTERM", async () => {
-  await closeErrorMonitoring();
-  process.exit(0);
-});
 ```
+
+## Reporting policy
+
+The earliest boundary that owns an unexpected failure reports it. A catch that
+continues must report the failure, return or persist a recognized error, or
+document why the failure is intentionally non-actionable.
+
+`reportError` is intentionally Sentry-only. Every call site must also write a
+structured error log before reporting so a self-hosted deployment without Sentry
+still has the error, its cause chain, and safe diagnostic context. Keep the log
+context equivalent to the report context and never add untrusted input merely
+for local debugging.
+
+Report unknown HTTP failures, API startup/runtime/shutdown failures, Temporal
+activity and workflow-code defects, lifecycle failures, dispatcher and outbox
+infrastructure failures, inter-module defects, and best-effort cleanup failures.
+
+Do not report client, validation, authentication, signature, known-domain, typed
+provider, rate-limit, expected-timeout, cancellation, idempotency, or already
+reported failures. Do not report metrics-recording failures.
+
+Use tags only for bounded classifications such as a boundary, operation, module,
+event type, task queue, or outcome. Use extras for safe diagnostic identifiers
+such as a request, event, workflow, stream, or installation ID. Never include
+request bodies, headers, cookies, tokens, event payloads, activity arguments, or
+inter-module input or output in either tags or extras.
 
 Configure via environment variables before starting your app:
 

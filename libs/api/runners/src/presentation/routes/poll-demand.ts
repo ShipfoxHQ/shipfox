@@ -4,7 +4,9 @@ import {
 } from '@shipfox/api-auth-context';
 import type {PollDemandTemplateDto} from '@shipfox/api-runners-dto';
 import {pollDemandBodySchema, pollDemandResponseSchema} from '@shipfox/api-runners-dto';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {pollDemand, releaseReservationGrants} from '#core/demand.js';
 import {publishWorkspaceProvisionerCapabilitySnapshot} from '#db/provisioner-capability-snapshots.js';
@@ -50,7 +52,17 @@ export function createPollDemandRoute(options: CreateRunnersModuleOptions = {}) 
       reply.raw.on('close', () => {
         if (!responseFinished) {
           abortController.abort();
-          void releaseReservationGrants(responseReservations).catch(() => undefined);
+          void releaseReservationGrants(responseReservations).catch((error) => {
+            logger().error(
+              {err: error, reservationCount: responseReservations.length},
+              'Failed to release reservations after provisioner disconnect',
+            );
+            reportError(error, {
+              boundary: 'runners.cleanup',
+              operation: 'release-disconnected-reservations',
+              extra: {reservationCount: responseReservations.length},
+            });
+          });
         }
       });
       const provisionerContext = requireProvisionerContext(request);

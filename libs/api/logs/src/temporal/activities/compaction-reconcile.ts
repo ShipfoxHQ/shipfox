@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {temporalClient} from '@shipfox/node-temporal';
 import {config} from '#config.js';
@@ -41,6 +42,7 @@ export async function compactionReconcileActivity(): Promise<{restarted: number;
         {err: error, streamId: stream.id},
         'Failed to re-drive stale stream compaction',
       );
+      reportError(error, {boundary: 'logs.maintenance', extra: {streamId: stream.id}});
     }
   }
 

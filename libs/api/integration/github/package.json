@@ -51,6 +51,7 @@
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*",
+    "@shipfox/node-error-monitoring": "workspace:*",
     "drizzle-orm": "catalog:",
     "ky": "catalog:",
     "octokit": "catalog:",

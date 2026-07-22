@@ -4,6 +4,8 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {INVALID_METHOD_LABEL, type IntegrationToolCallRecorder, NO_METHOD_LABEL} from './audit.js';
 import type {
   AuthorizedIntegrationTool,
@@ -119,8 +121,10 @@ function recordToolCall(
 ): void {
   try {
     recordCall?.(record);
-  } catch {
+  } catch (error) {
     // Audit and metrics must not affect MCP responses.
+    logger().error({err: error}, 'Failed to record integration agent tool audit event');
+    reportError(error, {boundary: 'integration.agent-tool', operation: 'audit'});
   }
 }
 

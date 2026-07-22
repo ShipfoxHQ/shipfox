@@ -11,6 +11,8 @@ import {
   type UpdateCustomModelProviderHeaderRequestDto,
 } from '@shipfox/api-agent-dto';
 import {assertEgressAllowed} from '@shipfox/node-egress-guard';
+import {reportError} from '@shipfox/node-error-monitoring';
+import {logger} from '@shipfox/node-opentelemetry';
 import {
   deleteModelProviderConfig,
   getModelProviderConfig,
@@ -235,7 +237,17 @@ export async function updateCustomModelProviderConfig(
       namespace,
       existingSecrets,
       attemptedSecrets: newSecretCredentials,
-    }).catch(() => undefined);
+    }).catch((rollbackError) => {
+      logger().error(
+        {err: rollbackError, workspaceId: params.workspaceId, providerId: params.providerId},
+        'Failed to roll back custom model provider secrets',
+      );
+      reportError(rollbackError, {
+        boundary: 'agent.cleanup',
+        operation: 'rollback-secret-update',
+        extra: {workspaceId: params.workspaceId, providerId: params.providerId},
+      });
+    });
     throw error;
   }
 

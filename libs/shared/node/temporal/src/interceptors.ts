@@ -1,6 +1,8 @@
 import {createRequire} from 'node:module';
-import {getInstanceResource, getInstanceSpanProcessor} from '@shipfox/node-opentelemetry';
+import {isErrorReported, reportError} from '@shipfox/node-error-monitoring';
+import {getInstanceResource, getInstanceSpanProcessor, logger} from '@shipfox/node-opentelemetry';
 import type {ClientInterceptors} from '@temporalio/client';
+import {CancelledFailure} from '@temporalio/common';
 import {
   makeWorkflowExporter,
   OpenTelemetryActivityInboundInterceptor,
@@ -8,7 +10,11 @@ import {
   type OpenTelemetrySinks,
   OpenTelemetryWorkflowClientInterceptor,
 } from '@temporalio/interceptors-opentelemetry';
-import type {InjectedSinks, WorkerInterceptors} from '@temporalio/worker';
+import type {
+  ActivityInboundCallsInterceptor,
+  InjectedSinks,
+  WorkerInterceptors,
+} from '@temporalio/worker';
 
 const require = createRequire(import.meta.url);
 const workflowInterceptorModule = require.resolve(
@@ -27,11 +33,52 @@ export function getWorkerInterceptors(): WorkerInterceptors {
         outbound: new OpenTelemetryActivityOutboundInterceptor(context),
       }),
     ],
+    activityInbound: [createActivityErrorInterceptor],
   };
 }
 
+export const createActivityErrorInterceptor = (
+  ctx: Parameters<NonNullable<WorkerInterceptors['activityInbound']>[number]>[0],
+) =>
+  ({
+    async execute(input, next) {
+      try {
+        return await next(input);
+      } catch (error) {
+        if (!(error instanceof CancelledFailure) && !isErrorReported(error)) {
+          logger().error(
+            {
+              err: error,
+              activityType: ctx.info.activityType,
+              taskQueue: ctx.info.taskQueue,
+              attempt: ctx.info.attempt,
+              workflowId: ctx.info.workflowExecution?.workflowId,
+              runId: ctx.info.workflowExecution?.runId,
+              activityId: ctx.info.activityId,
+            },
+            'Temporal activity failed unexpectedly',
+          );
+          reportError(error, {
+            boundary: 'temporal.activity',
+            tags: {activityType: ctx.info.activityType, taskQueue: ctx.info.taskQueue},
+            extra: {
+              attempt: ctx.info.attempt,
+              workflowId: ctx.info.workflowExecution?.workflowId,
+              runId: ctx.info.workflowExecution?.runId,
+              activityId: ctx.info.activityId,
+            },
+          });
+        }
+        throw error;
+      }
+    },
+  }) satisfies ActivityInboundCallsInterceptor;
+
 export function getWorkflowInterceptorModules(): string[] {
-  return [workflowInterceptorModule];
+  return [
+    workflowInterceptorModule,
+    new URL('./workflow-error-interceptor.js', import.meta.url).pathname,
+  ];
 }
 
 export function getWorkflowSinks(): InjectedSinks<OpenTelemetrySinks> {

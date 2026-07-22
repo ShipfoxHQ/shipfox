@@ -4,7 +4,8 @@ import type {
   InterModuleKnownError,
   InterModuleMethodContract,
 } from '@shipfox/inter-module';
-import {type Span, SpanKind, type trace} from '@shipfox/node-opentelemetry';
+import {markErrorReported} from '@shipfox/node-error-monitoring';
+import {logger, type Span, SpanKind, type trace} from '@shipfox/node-opentelemetry';
 import {InterModuleOpaqueError, InterModuleValidationError} from './errors.js';
 import {isJsonSafeValue} from './json.js';
 import {reviveThrownKnownError} from './known-error-revive.js';
@@ -44,10 +45,13 @@ function drainReport(
   try {
     const result = reportInternalError(error, context);
     if (result && typeof result.then === 'function') {
-      result.then(undefined, () => undefined);
+      result.then(undefined, (reporterError) => {
+        logger().warn({err: reporterError}, 'Inter-module internal error reporter failed');
+      });
     }
-  } catch {
+  } catch (reporterError) {
     // The reporter's own synchronous failure never affects the caller's outcome.
+    logger().warn({err: reporterError}, 'Inter-module internal error reporter failed');
   }
 }
 
@@ -102,6 +106,7 @@ export interface RunInterModuleCallOptions {
   tracer: ReturnType<typeof trace.getTracer>;
   transportName: string;
   reportInternalError: InterModuleReportInternalError;
+  hasInternalReporter: boolean;
 }
 
 /**
@@ -152,7 +157,7 @@ export function runInterModuleCall(callOptions: RunInterModuleCallOptions): Prom
           endSpan(clientSpan, inputResolution.kind);
           throw inputResolution.kind === 'validation-error'
             ? new InterModuleValidationError(module, method)
-            : new InterModuleOpaqueError(module, method);
+            : createOpaqueError(callOptions);
         }
 
         return startActiveInterModuleSpan(
@@ -184,7 +189,7 @@ export function runInterModuleCall(callOptions: RunInterModuleCallOptions): Prom
             if (settlement.outcome === 'success') return settlement.value;
             if (settlement.outcome === 'known-error') throw settlement.error;
             if (settlement.outcome === 'cancelled') throw settlement.reason;
-            throw new InterModuleOpaqueError(module, method);
+            throw createOpaqueError(callOptions);
           },
         );
       },
@@ -192,6 +197,12 @@ export function runInterModuleCall(callOptions: RunInterModuleCallOptions): Prom
   } catch (error) {
     return Promise.reject(error);
   }
+}
+
+function createOpaqueError(callOptions: RunInterModuleCallOptions): InterModuleOpaqueError {
+  const error = new InterModuleOpaqueError(callOptions.module, callOptions.method);
+  if (callOptions.hasInternalReporter) markErrorReported(error);
+  return error;
 }
 
 type SafeParseResult =

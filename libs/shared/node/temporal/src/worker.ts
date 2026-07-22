@@ -1,3 +1,4 @@
+import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {NativeConnection, Worker, type WorkerOptions} from '@temporalio/worker';
 import {loadProductionWorkflowBundle} from './bundle.js';
@@ -9,6 +10,7 @@ import {
   getWorkflowSinks,
 } from './interceptors.js';
 import {installTemporalRuntime} from './runtime.js';
+import type {WorkflowErrorReport} from './workflow-error-interceptor.js';
 
 export interface CreateWorkerOptions {
   connection?: NativeConnection;
@@ -53,7 +55,39 @@ export async function createTemporalWorker(options: CreateWorkerOptions): Promis
     namespace: config.TEMPORAL_NAMESPACE,
     taskQueue,
     activities: options.activities,
-    sinks: getWorkflowSinks(),
+    sinks: {
+      ...getWorkflowSinks(),
+      shipfoxErrorMonitoring: {
+        reportWorkflowError: {
+          callDuringReplay: false,
+          fn: (_info, report: WorkflowErrorReport) => {
+            const error = new Error(report.message);
+            error.name = report.name;
+            if (report.stack) error.stack = report.stack;
+            logger().error(
+              {
+                err: error,
+                workflowType: report.workflowType,
+                taskQueue: report.taskQueue,
+                workflowId: report.workflowId,
+                runId: report.runId,
+                attempt: report.attempt,
+              },
+              'Temporal workflow failed unexpectedly',
+            );
+            reportError(error, {
+              boundary: 'temporal.workflow',
+              tags: {workflowType: report.workflowType, taskQueue: report.taskQueue},
+              extra: {
+                workflowId: report.workflowId,
+                runId: report.runId,
+                attempt: report.attempt,
+              },
+            });
+          },
+        },
+      },
+    },
     interceptors: {
       ...getWorkerInterceptors(),
       ...workflowInterceptors,

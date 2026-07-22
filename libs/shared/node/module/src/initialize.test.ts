@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   createTemporalWorker: vi.fn(),
   createTemporalWorkerConnection: vi.fn(),
   workflowStart: vi.fn(),
+  markErrorReported: vi.fn(),
+  reportError: vi.fn(),
   logger: {
     error: vi.fn(),
     info: vi.fn(),
@@ -48,6 +50,11 @@ vi.mock('@shipfox/node-temporal', () => ({
   createTemporalWorker: mocks.createTemporalWorker,
   createTemporalWorkerConnection: mocks.createTemporalWorkerConnection,
   temporalClient: () => ({workflow: {start: mocks.workflowStart}}),
+}));
+
+vi.mock('@shipfox/node-error-monitoring', () => ({
+  markErrorReported: mocks.markErrorReported,
+  reportError: mocks.reportError,
 }));
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
@@ -168,6 +175,7 @@ describe('startModuleServices', () => {
     mocks.logger.error.mockReset();
     mocks.logger.info.mockReset();
     mocks.logger.warn.mockReset();
+    mocks.reportError.mockReset();
   });
 
   afterEach(() => {
@@ -256,14 +264,10 @@ describe('startModuleServices', () => {
       ],
     });
 
-    await handle.stop();
+    await expect(handle.stop()).rejects.toBe(failure);
 
     expect(firstHandle.stop).toHaveBeenCalledOnce();
     expect(secondHandle.stop).toHaveBeenCalledOnce();
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {err: failure, service: 'second'},
-      'Failed to stop module service',
-    );
   });
 
   it('bounds service shutdown and observes a late stop failure', async () => {
@@ -281,19 +285,20 @@ describe('startModuleServices', () => {
     const handle = await startModuleServices({services: [service]});
 
     const stop = handle.stop();
+    const stopped = stop.catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(10);
-    await stop;
+    await expect(stopped).resolves.toMatchObject({
+      name: 'ModuleServiceShutdownTimeoutError',
+      message: 'Timed out stopping module service slow after 10ms',
+    });
     rejectStop(failure);
     await flushMicrotasks();
 
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      {service: 'slow', timeoutMs: 10},
-      'Timed out stopping module service',
-    );
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {err: failure, service: 'slow'},
-      'Module service stop failed after timeout',
-    );
+    expect(mocks.reportError).toHaveBeenCalledWith(failure, {
+      boundary: 'module.service',
+      operation: 'stop-after-timeout',
+      tags: {service: 'slow'},
+    });
   });
 
   it('reports unexpected service completion but suppresses completion during deliberate shutdown', async () => {
@@ -665,20 +670,12 @@ describe('startModuleWorkers', () => {
     expect(connection.close).not.toHaveBeenCalled();
     rejectRun(failure);
 
-    await firstStop;
+    await expect(firstStop).rejects.toBeInstanceOf(AggregateError);
 
     expect(secondStop).toBe(firstStop);
     expect(firstWorker.shutdown).toHaveBeenCalledOnce();
     expect(secondWorker.shutdown).toHaveBeenCalledOnce();
     expect(onWorkerFailure).not.toHaveBeenCalled();
-    expect(mocks.logger.warn).toHaveBeenCalledWith(
-      {err: shutdownFailure},
-      'Failed to shut down module worker',
-    );
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      {err: failure},
-      'Module worker stopped with an error',
-    );
     expect(connection.close.mock.invocationCallOrder[0]).toBeGreaterThan(
       secondWorker.shutdown.mock.invocationCallOrder[0] ?? 0,
     );

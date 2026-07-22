@@ -1,5 +1,5 @@
 const mocks = vi.hoisted(() => ({
-  captureException: vi.fn(),
+  reportError: vi.fn(),
   closeErrorMonitoring: vi.fn(),
   logger: {
     error: vi.fn(),
@@ -14,8 +14,8 @@ vi.mock('@shipfox/api-server', () => ({
 }));
 
 vi.mock('@shipfox/node-error-monitoring', () => ({
-  captureException: mocks.captureException,
   closeErrorMonitoring: mocks.closeErrorMonitoring,
+  reportError: mocks.reportError,
 }));
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
@@ -25,7 +25,7 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
 describe('index', () => {
   beforeEach(() => {
     vi.resetModules();
-    mocks.captureException.mockReset();
+    mocks.reportError.mockReset();
     mocks.closeErrorMonitoring.mockReset();
     mocks.logger.error.mockReset();
     mocks.defaultModules.mockReset();
@@ -54,10 +54,10 @@ describe('index', () => {
 
     await expect(result).rejects.toThrow('exit 1');
     expect(mocks.logger.error).toHaveBeenCalledWith({error: failure}, 'Fatal startup error');
-    expect(mocks.captureException).toHaveBeenCalledOnce();
-    expect(mocks.captureException).toHaveBeenCalledWith(failure);
+    expect(mocks.reportError).toHaveBeenCalledTimes(2);
+    expect(mocks.reportError).toHaveBeenCalledWith(failure, {boundary: 'api.startup'});
     expect(mocks.closeErrorMonitoring).toHaveBeenCalledWith(2_000);
-    expect(mocks.captureException.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.reportError.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.closeErrorMonitoring.mock.invocationCallOrder[0] ?? 0,
     );
     expect(mocks.closeErrorMonitoring.mock.invocationCallOrder[0]).toBeLessThan(
