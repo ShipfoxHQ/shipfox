@@ -14,6 +14,8 @@ listed there or when you need to place, update, or review documentation.
 | Needs the product overview or a starting point outside engineering work. | [Root README](../README.md) | Product orientation and repository navigation. |
 | Starts a human contribution or needs branch, commit, or pull-request guidance. | [Contributing guide](../CONTRIBUTING.md) | Prerequisites, initial setup, contribution workflow, review standards, and essential validation. |
 | Needs local-task selection, service recovery, or package release procedures. | [Local development and release workflow](guides/local-development-and-release-workflow.md) | Mise, local services, Ollama, affected-package validation, Changesets, and publishing. |
+| Needs the generated release-PR CI verification path. | [Generated release PR CI](guides/release-pr-ci.md) | The fast-path conditions and fail-closed verification behavior for Changesets release PRs. |
+| Needs to configure or review Vercel release-PR previews. | [Vercel release PR previews](vercel-preview-release-prs.md) | The repository-owned Vercel branch configuration and verification workflow. |
 | Changes agent behavior or needs agent execution instructions. | [Agent instructions](../AGENTS.md) | Repository-specific agent execution, change hygiene, and conditional context loading. |
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |
@@ -25,6 +27,7 @@ listed there or when you need to place, update, or review documentation.
 | Changes client state, API adapters, forms, or feature-domain boundaries. | [Client architecture](architecture/client-architecture.md) | The current client feature model, form rules, and architecture enforcement. |
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
+| Validates repository Markdown links, anchors, or documentation reachability. | [Repository documentation policy](../tools/repository-documentation-policy/README.md) | Deterministic link and orphan checks for engineering documentation. |
 | Changes webhook retry behavior. | [Webhook retry safety](architecture/webhook-retry-safety.md) | The current safety model for webhook retries. |
 | Adds or changes unit tests, Storybook stories, or visual regression coverage. | [Testing guide](guides/testing.md) | Unit-test altitude, Storybook conventions, Argos ownership, build names, and review. |
 | Adds or changes end-to-end coverage. | [E2E guide](../e2e/README.md) | Suite levels, HTTP-first setup, screens, and E2E package boundaries. |
