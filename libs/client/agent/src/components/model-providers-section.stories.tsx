@@ -255,7 +255,7 @@ function catalogForScenario(scenario: Scenario): ModelProviderCatalogEntryDto[] 
 
 function configsForScenario(scenario: Scenario) {
   if (scenario === 'empty-configured' || scenario === 'configs-error') {
-    return {configs: [], default_provider_id: null};
+    return {configs: [], default_provider_id: null, default_harness_id: null};
   }
   if (scenario === 'all-configured') {
     return {
@@ -265,17 +265,20 @@ function configsForScenario(scenario: Scenario) {
         }),
       ),
       default_provider_id: 'anthropic',
+      default_harness_id: null,
     };
   }
   if (scenario === 'custom-configured') {
     return {
       configs: [providerConfig({provider_id: 'anthropic'}), customProviderConfig()],
       default_provider_id: 'local-vllm',
+      default_harness_id: null,
     };
   }
   return {
     configs: [providerConfig({provider_id: 'anthropic'})],
     default_provider_id: 'anthropic',
+    default_harness_id: null,
   };
 }
 

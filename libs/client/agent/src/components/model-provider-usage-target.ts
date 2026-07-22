@@ -1,36 +1,33 @@
-import type {
-  CustomModelProviderConfigDto,
-  ModelProviderCatalogEntryDto,
-} from '@shipfox/api-agent-dto';
+import type {CustomProviderConfig, SupportedProvider} from '#core/models.js';
 
 export interface ModelProviderUsageTarget {
   id: string;
   label: string;
   isCustom: boolean;
-  models: Array<{id: string; label: string}>;
-  default_model: string | null;
+  models: ReadonlyArray<{id: string; label: string}>;
+  defaultModel: string | null;
 }
 
-export function usageTargetFromCatalogEntry(
-  entry: ModelProviderCatalogEntryDto,
-): ModelProviderUsageTarget {
+export function usageTargetFromCatalogEntry(entry: SupportedProvider): ModelProviderUsageTarget {
+  const provider = entry;
   return {
-    id: entry.id,
-    label: entry.label,
+    id: provider.id,
+    label: provider.label,
     isCustom: false,
-    models: entry.models,
-    default_model: entry.default_model,
+    models: provider.models,
+    defaultModel: provider.defaultModel,
   };
 }
 
 export function usageTargetFromCustomConfig(
-  config: CustomModelProviderConfigDto,
+  config: CustomProviderConfig,
 ): ModelProviderUsageTarget {
+  const provider = config;
   return {
-    id: config.provider_id,
-    label: config.display_name,
+    id: provider.providerId,
+    label: provider.displayName,
     isCustom: true,
-    models: config.models,
-    default_model: config.default_model,
+    models: provider.models,
+    defaultModel: provider.defaultModel,
   };
 }

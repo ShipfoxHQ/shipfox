@@ -27,7 +27,7 @@ export function modelProviderEntry(
     id: 'anthropic',
     label: 'Anthropic',
     support_status: 'supported',
-    default_model: null,
+    default_model: 'claude-opus-4-8',
     credential_fields: [{key: 'api_key', label: 'API key', secret: true}],
     unsupported_reason: null,
     models: [{id: 'claude-opus-4-8', label: 'Claude Opus 4.8'}],

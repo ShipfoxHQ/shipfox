@@ -1,9 +1,9 @@
-import type {CustomModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {Modal, ModalContent, ModalHeader, ModalTitle} from '@shipfox/react-ui/modal';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useMemo, useState} from 'react';
+import type {CustomProviderConfig} from '#core/models.js';
 import {CustomModelProviderForm} from './custom-model-provider-form.js';
 
 interface CustomModelProviderFormStoryProps {
@@ -61,31 +61,31 @@ export const EditStoredSecrets: Story = {
   args: {mode: 'edit'},
 };
 
-function customConfig(): CustomModelProviderConfigDto {
+function customConfig(): CustomProviderConfig {
   return {
     kind: 'custom',
-    provider_id: 'local-vllm',
-    display_name: 'Local vLLM',
+    providerId: 'local-vllm',
+    displayName: 'Local vLLM',
     api: 'openai-completions',
-    base_url: 'http://localhost:8000/v1',
+    baseUrl: 'http://localhost:8000/v1',
     headers: [{name: 'x-region', value: 'us'}],
-    secret_header_names: ['authorization'],
+    secretHeaderNames: ['authorization'],
     models: [
       {
         id: 'llama-3.1',
         label: 'Llama 3.1',
-        context_window: 128000,
-        max_output_tokens: 16384,
+        contextWindow: 128000,
+        maxOutputTokens: 16384,
       },
       {
         id: 'qwen-coder',
         label: 'Qwen Coder',
-        context_window: 32768,
-        max_output_tokens: 8192,
+        contextWindow: 32768,
+        maxOutputTokens: 8192,
       },
     ],
-    default_model: 'llama-3.1',
-    created_at: '2026-05-08T00:00:00.000Z',
-    updated_at: '2026-05-08T00:00:00.000Z',
+    defaultModel: 'llama-3.1',
+    createdAt: '2026-05-08T00:00:00.000Z',
+    updatedAt: '2026-05-08T00:00:00.000Z',
   };
 }

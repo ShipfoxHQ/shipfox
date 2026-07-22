@@ -7,6 +7,7 @@ export type OnboardingState =
       readonly step: 'configure-provider';
       readonly harnessId: HarnessId;
       readonly provider: SupportedProvider;
+      readonly error?: string | undefined;
     }
   | {
       readonly step: 'saving-default-harness';

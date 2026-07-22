@@ -1,11 +1,3 @@
-import {
-  DEFAULT_HARNESS,
-  type Harness,
-  type HarnessDescriptor,
-  harnessSupportsProvider,
-  listHarnessDescriptors,
-  type ModelProviderCatalogEntryDto,
-} from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -16,10 +8,14 @@ import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useReducer} from 'react';
 import {AvailableProvidersGrid, PROVIDER_GRID_CLASS} from '#components/available-providers-grid.js';
 import {modelProviderConfigErrorToFormError} from '#components/form-errors.js';
 import {ModelProviderTestAndSaveForm} from '#components/test-and-save-form.js';
+import {DEFAULT_HARNESS, harnessSupportsProvider, listHarnesses} from '#core/harness-policy.js';
+import type {HarnessDescriptor, HarnessId, SupportedProvider} from '#core/models.js';
+import {initialOnboardingState, onboardingReducer} from '#core/onboarding-reducer.js';
+import {isSupportedProvider} from '#core/provider-policy.js';
 import {
   useModelProviderCatalogQuery,
   useSetDefaultHarnessMutation,
@@ -40,27 +36,24 @@ export function ModelProviderOnboardingPage({
 }) {
   const catalogQuery = useModelProviderCatalogQuery();
   const setDefaultHarness = useSetDefaultHarnessMutation();
-  const [selectedHarness, setSelectedHarness] = useState<Harness | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<ModelProviderCatalogEntryDto | null>(null);
-  const [defaultHarnessError, setDefaultHarnessError] = useState<string | undefined>();
-  const [isSettingDefaultHarness, setIsSettingDefaultHarness] = useState(false);
-  const supportedProviders =
-    catalogQuery.data?.providers.filter((provider) => provider.support_status === 'supported') ??
-    [];
+  const [onboarding, dispatch] = useReducer(onboardingReducer, initialOnboardingState);
+  const supportedProviders = catalogQuery.data?.providers.filter(isSupportedProvider) ?? [];
   const filteredProviders = useMemo(() => {
-    if (selectedHarness === null) return [];
+    if (onboarding.step === 'choose-harness') return [];
     return supportedProviders.filter((provider) =>
-      harnessSupportsProvider(selectedHarness, provider.id),
+      harnessSupportsProvider(onboarding.harnessId, provider.id),
     );
-  }, [selectedHarness, supportedProviders]);
+  }, [onboarding, supportedProviders]);
 
   useEffect(() => {
     document
       .getElementById(
-        selectedHarness === null ? 'model-provider-harness-step' : 'model-provider-provider-step',
+        onboarding.step === 'choose-harness'
+          ? 'model-provider-harness-step'
+          : 'model-provider-provider-step',
       )
       ?.focus();
-  }, [selectedHarness]);
+  }, [onboarding.step]);
 
   function handleSkip() {
     try {
@@ -72,37 +65,43 @@ export function ModelProviderOnboardingPage({
   }
 
   async function handleProviderSaved() {
-    if (selectedEntry === null || selectedHarness === null) return;
+    if (onboarding.step !== 'configure-provider' && onboarding.step !== 'saving-default-harness')
+      return;
 
-    setDefaultHarnessError(undefined);
-    if (selectedHarness === DEFAULT_HARNESS) {
-      toast.success(`${selectedEntry.label} saved`);
+    const provider = onboarding.provider;
+    if (onboarding.step === 'configure-provider') dispatch({type: 'provider-saved'});
+    if (onboarding.harnessId === DEFAULT_HARNESS) {
+      toast.success(`${provider.label} saved`);
+      dispatch({type: 'default-harness-saved'});
       onConfigured();
       return;
     }
 
-    setIsSettingDefaultHarness(true);
     try {
       await setDefaultHarness.mutateAsync({
         workspaceId,
-        body: {harness_id: selectedHarness},
+        harnessId: onboarding.harnessId,
       });
-      toast.success(`${selectedEntry.label} saved`);
+      toast.success(`${provider.label} saved`);
+      dispatch({type: 'default-harness-saved'});
       onConfigured();
     } catch (error) {
       const mapped = modelProviderConfigErrorToFormError(error);
-      setDefaultHarnessError(mapped.message || 'Could not save default harness. Try again.');
-    } finally {
-      setIsSettingDefaultHarness(false);
+      dispatch({
+        type: 'default-harness-failed',
+        message: mapped.message || 'Could not save default harness. Try again.',
+      });
     }
   }
 
   const selectedHarnessDescriptor =
-    selectedHarness === null
+    onboarding.step === 'choose-harness'
       ? null
-      : listHarnessDescriptors().find((harness) => harness.id === selectedHarness);
+      : listHarnesses().find((harness) => harness.id === onboarding.harnessId);
   const headingId =
-    selectedHarness === null ? 'model-provider-harness-step' : 'model-provider-provider-step';
+    onboarding.step === 'choose-harness'
+      ? 'model-provider-harness-step'
+      : 'model-provider-provider-step';
 
   return (
     <div className="mx-auto flex w-full max-w-[640px] flex-col gap-20">
@@ -125,22 +124,23 @@ export function ModelProviderOnboardingPage({
       </header>
 
       <section aria-labelledby={headingId} className="flex flex-col gap-16">
-        {selectedHarness === null ? (
-          <HarnessPicker onSelect={setSelectedHarness} />
+        {onboarding.step === 'choose-harness' ? (
+          <HarnessPicker
+            onSelect={(harnessId) => dispatch({type: 'harness-selected', harnessId})}
+          />
         ) : (
           <>
             <div>
-              <Button type="button" variant="transparent" onClick={() => setSelectedHarness(null)}>
+              <Button type="button" variant="transparent" onClick={() => dispatch({type: 'back'})}>
                 Back
               </Button>
             </div>
             <ModelProviderPicker
-              key={selectedHarness}
+              key={onboarding.harnessId}
               catalogQuery={catalogQuery}
               supportedProviders={filteredProviders}
               onSelect={(entry) => {
-                setDefaultHarnessError(undefined);
-                setSelectedEntry(entry);
+                dispatch({type: 'provider-selected', provider: entry});
               }}
             />
           </>
@@ -148,17 +148,19 @@ export function ModelProviderOnboardingPage({
       </section>
 
       <Modal
-        open={selectedEntry !== null}
+        open={
+          onboarding.step === 'configure-provider' || onboarding.step === 'saving-default-harness'
+        }
         onOpenChange={(open) => {
-          if (!open && !isSettingDefaultHarness) {
-            setSelectedEntry(null);
-            setDefaultHarnessError(undefined);
-          }
+          if (!open && onboarding.step === 'configure-provider') dispatch({type: 'back'});
         }}
       >
         <ModalContent aria-describedby={undefined}>
           <ModalTitle className="sr-only">
-            {selectedEntry ? `Configure ${selectedEntry.label}` : ''}
+            {onboarding.step === 'configure-provider' ||
+            onboarding.step === 'saving-default-harness'
+              ? `Configure ${onboarding.provider.label}`
+              : ''}
           </ModalTitle>
           <ModalHeader>
             <Text
@@ -166,32 +168,36 @@ export function ModelProviderOnboardingPage({
               aria-hidden="true"
               className="overflow-ellipsis overflow-hidden whitespace-nowrap"
             >
-              {selectedEntry ? `Configure ${selectedEntry.label}` : ''}
+              {onboarding.step === 'configure-provider' ||
+              onboarding.step === 'saving-default-harness'
+                ? `Configure ${onboarding.provider.label}`
+                : ''}
             </Text>
           </ModalHeader>
-          {isSettingDefaultHarness ? (
+          {onboarding.step === 'saving-default-harness' ? (
             <div role="status" className="px-20 pb-8">
               <Text size="sm" className="text-foreground-neutral-muted">
                 Saving harness default...
               </Text>
             </div>
           ) : null}
-          {defaultHarnessError ? (
+          {onboarding.step === 'saving-default-harness' && onboarding.error ? (
             <div className="px-20 pb-8">
               <Callout role="alert" type="error">
                 <div className="flex flex-col gap-8">
                   <Text size="sm" bold>
                     Could not save default harness
                   </Text>
-                  <Text size="sm">{defaultHarnessError}</Text>
+                  <Text size="sm">{onboarding.error}</Text>
                 </div>
               </Callout>
             </div>
           ) : null}
-          {selectedEntry ? (
+          {onboarding.step === 'configure-provider' ||
+          onboarding.step === 'saving-default-harness' ? (
             <ModelProviderTestAndSaveForm
               workspaceId={workspaceId}
-              entry={selectedEntry}
+              entry={onboarding.provider}
               setAsDefaultOnSave
               onSaved={() => {
                 void handleProviderSaved();
@@ -204,10 +210,10 @@ export function ModelProviderOnboardingPage({
   );
 }
 
-function HarnessPicker({onSelect}: {onSelect: (harness: Harness) => void}) {
+function HarnessPicker({onSelect}: {onSelect: (harness: HarnessId) => void}) {
   return (
     <ul className={PROVIDER_GRID_CLASS} aria-label="Agent harnesses">
-      {listHarnessDescriptors().map((harness) => (
+      {listHarnesses().map((harness) => (
         <HarnessCard key={harness.id} harness={harness} onChoose={() => onSelect(harness.id)} />
       ))}
     </ul>
@@ -251,8 +257,8 @@ function ModelProviderPicker({
   onSelect,
 }: {
   catalogQuery: ReturnType<typeof useModelProviderCatalogQuery>;
-  supportedProviders: ModelProviderCatalogEntryDto[];
-  onSelect: (entry: ModelProviderCatalogEntryDto) => void;
+  supportedProviders: SupportedProvider[];
+  onSelect: (entry: SupportedProvider) => void;
 }) {
   if (catalogQuery.isPending) {
     return (

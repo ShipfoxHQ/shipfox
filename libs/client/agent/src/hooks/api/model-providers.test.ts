@@ -47,7 +47,7 @@ describe('model provider transport', () => {
     const result = await listModelProviderConfigs({workspaceId: AGENT_TEST_WORKSPACE_ID});
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.default_provider_id).toBe('anthropic');
+    expect(result.defaultProviderId).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers`,
     );
@@ -66,11 +66,11 @@ describe('model provider transport', () => {
     const result = await upsertModelProviderConfig({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
       providerId: 'anthropic',
-      body,
+      command: {defaultModel: 'claude-haiku-4-5', credentials: {api_key: 'sk-ant-secret'}},
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.provider_id).toBe('anthropic');
+    expect(result.providerId).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers/anthropic`,
     );
@@ -102,21 +102,21 @@ describe('model provider transport', () => {
       return jsonResponse(modelProviderConfig({default_model: null}));
     });
     configureApiClient({fetchImpl});
-    const body = {default_model: null};
+    const defaultModel: string | null = null;
 
     const result = await updateModelProviderDefaultModel({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
       providerId: 'anthropic',
-      body,
+      defaultModel,
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.default_model).toBeNull();
+    expect(result.defaultModel).toBeNull();
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/model-providers/anthropic/default-model`,
     );
     expect(request.method).toBe('PUT');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({default_model: defaultModel});
   });
 
   test('sets the default model provider', async () => {
@@ -126,11 +126,11 @@ describe('model provider transport', () => {
       return jsonResponse({default_provider_id: 'anthropic'});
     });
     configureApiClient({fetchImpl});
-    const body = {provider_id: 'anthropic'} as const;
+    const providerId = 'anthropic';
 
     const result = await setDefaultModelProvider({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
-      body,
+      providerId,
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
@@ -139,7 +139,7 @@ describe('model provider transport', () => {
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-model-provider`,
     );
     expect(request.method).toBe('PUT');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({provider_id: providerId});
   });
 
   test('sets the default harness', async () => {
@@ -149,11 +149,11 @@ describe('model provider transport', () => {
       return jsonResponse({default_harness_id: 'claude'});
     });
     configureApiClient({fetchImpl});
-    const body = {harness_id: 'claude'} as const;
+    const harnessId = 'claude' as const;
 
     const result = await setDefaultHarness({
       workspaceId: AGENT_TEST_WORKSPACE_ID,
-      body,
+      harnessId,
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
@@ -162,6 +162,6 @@ describe('model provider transport', () => {
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-harness`,
     );
     expect(request.method).toBe('PUT');
-    expect(requestBody).toEqual(body);
+    expect(requestBody).toEqual({harness_id: harnessId});
   });
 });

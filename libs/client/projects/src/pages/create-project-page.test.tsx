@@ -163,7 +163,9 @@ describe('CreateProjectPage', () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const request = input as Request;
       if (request.url.endsWith('/agent/model-providers')) {
-        return Promise.resolve(jsonResponse({configs: [], default_provider_id: null}));
+        return Promise.resolve(
+          jsonResponse({configs: [], default_provider_id: null, default_harness_id: null}),
+        );
       }
       if (request.url.includes('/integration-connections?')) {
         return Promise.resolve(jsonResponse({connections: [connectionDto()]}));

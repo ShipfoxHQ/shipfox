@@ -1,23 +1,14 @@
-import type {
-  CreateCustomModelProviderBodyDto,
-  CustomModelProviderConfigDto,
-  DiscoverCustomModelProviderModelsBodyDto,
-  DiscoverCustomModelProviderModelsBySlugBodyDto,
-  DiscoverCustomModelProviderModelsResponseDto,
-  ListModelProviderConfigsResponseDto,
-  ModelProviderCatalogResponseDto,
-  ModelProviderConfigDto,
-  ModelProviderRef,
-  SetDefaultHarnessBodyDto,
-  SetDefaultHarnessResponseDto,
-  SetDefaultModelProviderBodyDto,
-  SetDefaultModelProviderResponseDto,
-  SupportedModelProviderId,
-  UpdateCustomModelProviderBodyDto,
-  UpdateModelProviderConfigBodyDto,
-  UpdateModelProviderDefaultModelBodyDto,
+import {
+  customModelProviderConfigDtoSchema,
+  discoverCustomModelProviderModelsResponseSchema,
+  listModelProviderConfigsResponseSchema,
+  type ModelProviderRef,
+  modelProviderCatalogResponseSchema,
+  modelProviderConfigDtoSchema,
+  setDefaultHarnessResponseSchema,
+  setDefaultModelProviderResponseSchema,
 } from '@shipfox/api-agent-dto';
-import {apiRequest} from '@shipfox/client-api';
+import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {
   type FetchQueryOptions,
   queryOptions,
@@ -25,6 +16,32 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import type {
+  AgentModel,
+  CreateCustomProviderCommand,
+  DiscoverProviderModelsCommand,
+  HarnessId,
+  ProviderCatalog,
+  ProviderConfig,
+  ProviderConfiguration,
+  ProviderCredentialsCommand,
+  UpdateCustomProviderCommand,
+} from '#core/models.js';
+import {
+  toCreateCustomProviderBody,
+  toDefaultHarnessBody,
+  toDefaultModelBody,
+  toDefaultProviderBody,
+  toDiscoverModelsBody,
+  toDiscoverModelsBySlugBody,
+  toProviderCredentialsBody,
+  toUpdateCustomProviderBody,
+} from './model-provider-command-mapper.js';
+import {
+  toProviderCatalog,
+  toProviderConfig,
+  toProviderConfiguration,
+} from './model-provider-mapper.js';
 
 export const modelProviderQueryKeys = {
   all: ['model-providers'] as const,
@@ -38,16 +55,29 @@ type ModelProviderConfigsQueryKey =
   | readonly ['model-providers', 'configs'];
 
 type ModelProviderConfigsQueryOptions = FetchQueryOptions<
-  ListModelProviderConfigsResponseDto,
+  ProviderConfiguration,
   Error,
-  ListModelProviderConfigsResponseDto,
+  ProviderConfiguration,
   ModelProviderConfigsQueryKey
 >;
 
-export async function getModelProviderCatalog({signal}: {signal?: AbortSignal} = {}) {
-  return await apiRequest<ModelProviderCatalogResponseDto>('/agent/model-provider-catalog', {
-    signal,
-  });
+type ModelProviderCatalogQueryOptions = FetchQueryOptions<
+  ProviderCatalog,
+  Error,
+  ProviderCatalog,
+  ReturnType<typeof modelProviderQueryKeys.catalog>
+>;
+
+export async function getModelProviderCatalog({
+  signal,
+}: {
+  signal?: AbortSignal;
+} = {}): Promise<ProviderCatalog> {
+  return toProviderCatalog(
+    await checkedApiRequest(modelProviderCatalogResponseSchema, '/agent/model-provider-catalog', {
+      signal,
+    }),
+  );
 }
 
 export async function listModelProviderConfigs({
@@ -56,10 +86,13 @@ export async function listModelProviderConfigs({
 }: {
   workspaceId: string;
   signal?: AbortSignal;
-}) {
-  return await apiRequest<ListModelProviderConfigsResponseDto>(
-    `/workspaces/${workspaceId}/agent/model-providers`,
-    {signal},
+}): Promise<ProviderConfiguration> {
+  return toProviderConfiguration(
+    await checkedApiRequest(
+      listModelProviderConfigsResponseSchema,
+      `/workspaces/${workspaceId}/agent/model-providers`,
+      {signal},
+    ),
   );
 }
 
@@ -78,72 +111,85 @@ export function modelProviderConfigsQueryOptions(
 export async function upsertModelProviderConfig({
   workspaceId,
   providerId,
-  body,
+  command,
 }: {
   workspaceId: string;
-  providerId: SupportedModelProviderId;
-  body: UpdateModelProviderConfigBodyDto;
-}) {
-  return await apiRequest<ModelProviderConfigDto>(
-    `/workspaces/${workspaceId}/agent/model-providers/${providerId}`,
-    {method: 'PUT', body},
+  providerId: string;
+  command: ProviderCredentialsCommand;
+}): Promise<ProviderConfig> {
+  return toProviderConfig(
+    await checkedApiRequest(
+      modelProviderConfigDtoSchema,
+      `/workspaces/${workspaceId}/agent/model-providers/${providerId}`,
+      {method: 'PUT', body: toProviderCredentialsBody(command)},
+    ),
   );
 }
 
 export async function createCustomModelProviderConfig({
   workspaceId,
-  body,
+  command,
 }: {
   workspaceId: string;
-  body: CreateCustomModelProviderBodyDto;
-}) {
-  return await apiRequest<CustomModelProviderConfigDto>(
-    `/workspaces/${workspaceId}/agent/custom-model-providers`,
-    {method: 'POST', body},
+  command: CreateCustomProviderCommand;
+}): Promise<ProviderConfig> {
+  return toProviderConfig(
+    await checkedApiRequest(
+      customModelProviderConfigDtoSchema,
+      `/workspaces/${workspaceId}/agent/custom-model-providers`,
+      {method: 'POST', body: toCreateCustomProviderBody(command)},
+    ),
   );
 }
 
 export async function updateCustomModelProviderConfig({
   workspaceId,
   providerId,
-  body,
+  command,
 }: {
   workspaceId: string;
   providerId: ModelProviderRef;
-  body: UpdateCustomModelProviderBodyDto;
-}) {
-  return await apiRequest<CustomModelProviderConfigDto>(
-    `/workspaces/${workspaceId}/agent/custom-model-providers/${providerId}`,
-    {method: 'PUT', body},
+  command: UpdateCustomProviderCommand;
+}): Promise<ProviderConfig> {
+  return toProviderConfig(
+    await checkedApiRequest(
+      customModelProviderConfigDtoSchema,
+      `/workspaces/${workspaceId}/agent/custom-model-providers/${providerId}`,
+      {method: 'PUT', body: toUpdateCustomProviderBody(command)},
+    ),
   );
 }
 
 export async function discoverCustomModelProviderModels({
   workspaceId,
-  body,
+  command,
 }: {
   workspaceId: string;
-  body: DiscoverCustomModelProviderModelsBodyDto;
-}) {
-  return await apiRequest<DiscoverCustomModelProviderModelsResponseDto>(
+  command: DiscoverProviderModelsCommand;
+}): Promise<readonly AgentModel[]> {
+  const response = await checkedApiRequest(
+    discoverCustomModelProviderModelsResponseSchema,
     `/workspaces/${workspaceId}/agent/custom-model-providers/discover-models`,
-    {method: 'POST', body},
+    {method: 'POST', body: toDiscoverModelsBody(command)},
   );
+  return response.models.map((model) => ({id: model.id, label: model.label}));
 }
 
 export async function discoverCustomModelProviderModelsBySlug({
   workspaceId,
   providerId,
-  body,
+  command,
 }: {
   workspaceId: string;
   providerId: ModelProviderRef;
-  body: DiscoverCustomModelProviderModelsBySlugBodyDto;
-}) {
-  return await apiRequest<DiscoverCustomModelProviderModelsResponseDto>(
+  command: DiscoverProviderModelsCommand;
+}): Promise<readonly AgentModel[]> {
+  const response = await checkedApiRequest(
+    discoverCustomModelProviderModelsResponseSchema,
     `/workspaces/${workspaceId}/agent/custom-model-providers/${providerId}/discover-models`,
-    {method: 'POST', body},
+    {method: 'POST', body: toDiscoverModelsBySlugBody(command)},
   );
+  return response.models.map((model) => ({id: model.id, label: model.label}));
 }
 
 export async function deleteModelProviderConfig({
@@ -153,54 +199,65 @@ export async function deleteModelProviderConfig({
   workspaceId: string;
   providerId: ModelProviderRef;
 }) {
-  return await apiRequest<void>(`/workspaces/${workspaceId}/agent/model-providers/${providerId}`, {
-    method: 'DELETE',
-  });
+  return await checkedApiRequest(
+    emptyResponseSchema,
+    `/workspaces/${workspaceId}/agent/model-providers/${providerId}`,
+    {method: 'DELETE'},
+  );
 }
 
 export async function updateModelProviderDefaultModel({
   workspaceId,
   providerId,
-  body,
+  defaultModel,
 }: {
   workspaceId: string;
-  providerId: SupportedModelProviderId;
-  body: UpdateModelProviderDefaultModelBodyDto;
-}) {
-  return await apiRequest<ModelProviderConfigDto>(
-    `/workspaces/${workspaceId}/agent/model-providers/${providerId}/default-model`,
-    {method: 'PUT', body},
+  providerId: string;
+  defaultModel: string | null;
+}): Promise<ProviderConfig> {
+  return toProviderConfig(
+    await checkedApiRequest(
+      modelProviderConfigDtoSchema,
+      `/workspaces/${workspaceId}/agent/model-providers/${providerId}/default-model`,
+      {method: 'PUT', body: toDefaultModelBody(defaultModel)},
+    ),
   );
 }
 
 export async function setDefaultModelProvider({
   workspaceId,
-  body,
+  providerId,
 }: {
   workspaceId: string;
-  body: SetDefaultModelProviderBodyDto;
+  providerId: string;
 }) {
-  return await apiRequest<SetDefaultModelProviderResponseDto>(
+  return await checkedApiRequest(
+    setDefaultModelProviderResponseSchema,
     `/workspaces/${workspaceId}/agent/default-model-provider`,
-    {method: 'PUT', body},
+    {method: 'PUT', body: toDefaultProviderBody(providerId)},
   );
 }
 
 export async function setDefaultHarness({
   workspaceId,
-  body,
+  harnessId,
 }: {
   workspaceId: string;
-  body: SetDefaultHarnessBodyDto;
+  harnessId: HarnessId;
 }) {
-  return await apiRequest<SetDefaultHarnessResponseDto>(
+  return await checkedApiRequest(
+    setDefaultHarnessResponseSchema,
     `/workspaces/${workspaceId}/agent/default-harness`,
-    {method: 'PUT', body},
+    {method: 'PUT', body: toDefaultHarnessBody(harnessId)},
   );
 }
 
 export function useModelProviderCatalogQuery() {
-  return useQuery({
+  return useQuery(modelProviderCatalogQueryOptions());
+}
+
+export function modelProviderCatalogQueryOptions(): ModelProviderCatalogQueryOptions {
+  return queryOptions({
     queryKey: modelProviderQueryKeys.catalog(),
     queryFn: ({signal}) => getModelProviderCatalog({signal}),
     staleTime: 1000 * 60 * 60,

@@ -17,9 +17,7 @@ export function ModelProviderReminderBanner({workspaceId}: {workspaceId: string}
   const [dismissed, setDismissed] = useState(() => isReminderDismissed(workspaceId));
   const configs = configsQuery.data?.configs;
   const unconfigured =
-    Array.isArray(configs) &&
-    configs.length === 0 &&
-    configsQuery.data?.default_provider_id === null;
+    Array.isArray(configs) && configs.length === 0 && configsQuery.data?.defaultProviderId === null;
 
   if (!unconfigured || dismissed) return null;
 

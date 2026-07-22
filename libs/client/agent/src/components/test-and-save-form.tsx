@@ -1,8 +1,3 @@
-import type {
-  ModelProviderCatalogEntryDto,
-  ModelProviderConfigDto,
-  SupportedModelProviderId,
-} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
@@ -10,6 +5,7 @@ import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
 import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
+import type {BuiltinProviderConfig, SupportedProvider} from '#core/models.js';
 import {useUpsertModelProviderConfigMutation} from '#hooks/api/model-providers.js';
 import {
   DefaultModelField,
@@ -29,8 +25,8 @@ export function ModelProviderTestAndSaveForm({
   setAsDefaultOnSave = false,
 }: {
   workspaceId: string;
-  entry: ModelProviderCatalogEntryDto;
-  existingConfig?: ModelProviderConfigDto | undefined;
+  entry: SupportedProvider;
+  existingConfig?: BuiltinProviderConfig | undefined;
   onSaved: (savedDefaultModel: string | null) => void;
   setAsDefaultOnSave?: boolean | undefined;
 }) {
@@ -41,7 +37,7 @@ export function ModelProviderTestAndSaveForm({
     onSubmit: async ({value}) => {
       setFormError(undefined);
       const credentials = Object.fromEntries(
-        entry.credential_fields.map((credentialField) => [
+        entry.credentialFields.map((credentialField) => [
           credentialField.key,
           value[credentialField.key]?.trim() ?? '',
         ]),
@@ -55,11 +51,11 @@ export function ModelProviderTestAndSaveForm({
       try {
         await upsertConfig.mutateAsync({
           workspaceId,
-          providerId: entry.id as SupportedModelProviderId,
-          body: {
-            ...(defaultModel !== undefined ? {default_model: defaultModel} : {}),
+          providerId: entry.id,
+          command: {
+            ...(defaultModel !== undefined ? {defaultModel} : {}),
             credentials,
-            ...(setAsDefaultOnSave ? {set_as_default: true} : {}),
+            ...(setAsDefaultOnSave ? {setAsDefault: true} : {}),
           },
         });
         onSaved(selectedModelForCredentialsPayload(selectedModel));
@@ -102,7 +98,7 @@ export function ModelProviderTestAndSaveForm({
               )}
             </form.Field>
           ) : null}
-          {entry.credential_fields.map((credentialField) => (
+          {entry.credentialFields.map((credentialField) => (
             <form.Field
               key={credentialField.key}
               name={credentialField.key}
@@ -156,11 +152,11 @@ export function ModelProviderTestAndSaveForm({
 }
 
 function defaultFormValues(
-  entry: ModelProviderCatalogEntryDto,
-  existingConfig: ModelProviderConfigDto | undefined,
+  entry: SupportedProvider,
+  existingConfig: BuiltinProviderConfig | undefined,
 ): Record<string, string> {
   return {
-    default_model: defaultModelFormValue(existingConfig?.default_model),
-    ...Object.fromEntries(entry.credential_fields.map((field) => [field.key, ''])),
+    default_model: defaultModelFormValue(existingConfig?.defaultModel),
+    ...Object.fromEntries(entry.credentialFields.map((field) => [field.key, ''])),
   };
 }

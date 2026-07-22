@@ -1,9 +1,3 @@
-import {
-  DEFAULT_HARNESS,
-  getHarnessDescriptor,
-  type Harness,
-  listHarnessDescriptors,
-} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {
   CodeBlock,
@@ -28,6 +22,8 @@ import {
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {DEFAULT_HARNESS, getHarness, listHarnesses} from '#core/harness-policy.js';
+import type {HarnessId} from '#core/models.js';
 import {buildAgentWorkflowExample} from './agent-workflow-example.js';
 import {compatibleHarnessIds} from './harness-availability.js';
 import type {ModelProviderUsageTarget} from './model-provider-usage-target.js';
@@ -49,14 +45,14 @@ export function ModelProviderUsageModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   closeFocusTarget?: HTMLElement | null | undefined;
-  workspaceDefaultHarnessId?: Harness | null | undefined;
+  workspaceDefaultHarnessId?: HarnessId | null | undefined;
 }) {
   const [selectedModel, setSelectedModel] = useState('');
-  const [selectedHarness, setSelectedHarness] = useState<Harness>(DEFAULT_HARNESS);
+  const [selectedHarness, setSelectedHarness] = useState<HarnessId>(DEFAULT_HARNESS);
 
   useEffect(() => {
     if (!target) return;
-    setSelectedModel(initialModel ?? target.default_model ?? target.models[0]?.id ?? '');
+    setSelectedModel(initialModel ?? target.defaultModel ?? target.models[0]?.id ?? '');
   }, [target, initialModel]);
 
   useEffect(() => {
@@ -72,14 +68,14 @@ export function ModelProviderUsageModal({
     () =>
       target
         ? compatibleHarnessIds({isCustom: target.isCustom, providerId: target.id})
-        : ([] as Harness[]),
+        : ([] as HarnessId[]),
     [target],
   );
   const harnessOptions = useMemo(
     () =>
       compatibleIds.map((harnessId) => ({
         value: harnessId,
-        label: getHarnessDescriptor(harnessId).label,
+        label: getHarness(harnessId).label,
       })),
     [compatibleIds],
   );
@@ -239,9 +235,9 @@ export function ModelProviderUsageModal({
 }
 
 function selectInitialHarness(
-  compatibleIds: Harness[],
-  workspaceDefaultHarnessId: Harness | null | undefined,
-): Harness {
+  compatibleIds: HarnessId[],
+  workspaceDefaultHarnessId: HarnessId | null | undefined,
+): HarnessId {
   if (workspaceDefaultHarnessId && compatibleIds.includes(workspaceDefaultHarnessId)) {
     return workspaceDefaultHarnessId;
   }
@@ -249,8 +245,8 @@ function selectInitialHarness(
   return compatibleIds[0] ?? DEFAULT_HARNESS;
 }
 
-function isHarness(value: string): value is Harness {
-  return listHarnessDescriptors().some((descriptor) => descriptor.id === value);
+function isHarness(value: string): value is HarnessId {
+  return listHarnesses().some((descriptor) => descriptor.id === value);
 }
 
 function ModelProviderModelRow({label, id}: {label: string; id: string}) {

@@ -150,7 +150,11 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
     const method = input instanceof Request ? input.method : (init?.method ?? 'GET');
     if (url.pathname === `/workspaces/${WORKSPACE_ID}/agent/model-providers`) {
       return Promise.resolve(
-        jsonResponse({configs: [modelProviderConfig()], default_provider_id: 'openai'}),
+        jsonResponse({
+          configs: [modelProviderConfig()],
+          default_provider_id: 'openai',
+          default_harness_id: null,
+        }),
       );
     }
     if (url.pathname === '/integration-connections') {
@@ -312,6 +316,7 @@ function repository(overrides: Partial<RepositoryDto>): RepositoryDto {
 
 function modelProviderConfig() {
   return {
+    kind: 'builtin',
     workspace_id: WORKSPACE_ID,
     provider_id: 'openai',
     default_model: 'gpt-5.5-pro',

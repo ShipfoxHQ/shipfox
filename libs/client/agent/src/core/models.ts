@@ -83,3 +83,53 @@ export interface ProviderConfiguration {
   readonly defaultHarnessId: HarnessId | null;
   readonly defaultProviderId: string | null;
 }
+
+export interface ProviderCredentialsCommand {
+  defaultModel?: string | null | undefined;
+  credentials: Record<string, string>;
+  setAsDefault?: boolean | undefined;
+}
+
+export interface CustomProviderHeaderCommand {
+  name: string;
+  value?: string | undefined;
+  secret: boolean;
+  keep?: boolean | undefined;
+}
+
+export interface CustomProviderModelCommand {
+  id: string;
+  label: string;
+  contextWindow?: number | undefined;
+  maxOutputTokens?: number | undefined;
+  inputImage?: boolean | undefined;
+  reasoning?: boolean | undefined;
+}
+
+export interface CreateCustomProviderCommand {
+  slug: string;
+  displayName: string;
+  api: ProviderApi;
+  baseUrl: string;
+  apiKey?: string | undefined;
+  headers?: CustomProviderHeaderCommand[] | undefined;
+  models: CustomProviderModelCommand[];
+  defaultModel?: string | null | undefined;
+}
+
+export interface UpdateCustomProviderCommand {
+  displayName?: string | undefined;
+  api?: ProviderApi | undefined;
+  baseUrl?: string | undefined;
+  apiKey?: string | undefined;
+  headers?: CustomProviderHeaderCommand[] | undefined;
+  models?: CustomProviderModelCommand[] | undefined;
+  defaultModel?: string | null | undefined;
+}
+
+export interface DiscoverProviderModelsCommand {
+  api?: ProviderApi | undefined;
+  baseUrl?: string | undefined;
+  apiKey?: string | undefined;
+  headers?: CustomProviderHeaderCommand[] | undefined;
+}

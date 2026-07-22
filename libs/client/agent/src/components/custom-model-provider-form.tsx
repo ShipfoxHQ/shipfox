@@ -1,4 +1,3 @@
-import type {CustomModelProviderConfigDto, ModelProviderApi} from '@shipfox/api-agent-dto';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -10,6 +9,7 @@ import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import type {ReactNode, RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
+import type {CustomProviderConfig, ProviderApi} from '#core/models.js';
 import {
   useCreateCustomModelProviderMutation,
   useDiscoverCustomModelProviderModelsBySlugMutation,
@@ -44,7 +44,7 @@ export function CustomModelProviderForm({
   onSaved,
 }: {
   workspaceId: string;
-  existingConfig?: CustomModelProviderConfigDto | undefined;
+  existingConfig?: CustomProviderConfig | undefined;
   onSaved: () => void;
 }) {
   const createMutation = useCreateCustomModelProviderMutation();
@@ -67,13 +67,13 @@ export function CustomModelProviderForm({
         if (existingConfig) {
           await updateMutation.mutateAsync({
             workspaceId,
-            providerId: existingConfig.provider_id,
-            body: buildUpdateCustomModelProviderBody(existingConfig, value),
+            providerId: existingConfig.providerId,
+            command: buildUpdateCustomModelProviderBody(existingConfig, value),
           });
         } else {
           await createMutation.mutateAsync({
             workspaceId,
-            body: buildCreateCustomModelProviderBody(value),
+            command: buildCreateCustomModelProviderBody(value),
           });
         }
         onSaved();
@@ -101,16 +101,16 @@ export function CustomModelProviderForm({
       const response = existingConfig
         ? await discoverBySlugMutation.mutateAsync({
             workspaceId,
-            providerId: existingConfig.provider_id,
-            body: buildDiscoverModelsBySlugBody(existingConfig, values),
+            providerId: existingConfig.providerId,
+            command: buildDiscoverModelsBySlugBody(existingConfig, values),
           })
         : await discoverMutation.mutateAsync({
             workspaceId,
-            body: buildDiscoverModelsBody(values),
+            command: buildDiscoverModelsBody(values),
           });
       if (!mountedRef.current) return;
       const existingIds = new Set(values.models.map((model) => model.id.trim()).filter(Boolean));
-      const discovered = response.models.filter((model) => !existingIds.has(model.id));
+      const discovered = response.filter((model) => !existingIds.has(model.id));
       form.setFieldValue('models', [
         ...values.models,
         ...discovered.map((model) => ({
@@ -234,7 +234,7 @@ export function CustomModelProviderForm({
                           <FormFieldSelect
                             value={field.state.value}
                             onChange={(event) =>
-                              field.handleChange(event.target.value as ModelProviderApi)
+                              field.handleChange(event.target.value as ProviderApi)
                             }
                             onBlur={field.handleBlur}
                           >

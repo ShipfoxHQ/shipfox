@@ -110,7 +110,11 @@ function setupFetch(options: SetupFetchOptions = {}) {
       if (providerConfigsFail)
         return Promise.resolve(jsonResponse({code: 'server-error'}, {status: 500}));
       return Promise.resolve(
-        jsonResponse({configs: providerConfigs, default_provider_id: defaultProviderId}),
+        jsonResponse({
+          configs: providerConfigs,
+          default_provider_id: defaultProviderId,
+          default_harness_id: null,
+        }),
       );
     }
     return Promise.resolve(jsonResponse({}, {status: 404}));
@@ -196,9 +200,9 @@ function projectStub() {
 
 function modelProviderConfig() {
   return {
+    kind: 'builtin',
     provider_id: 'anthropic',
     default_model: null,
-    key_fingerprints: {'credential:api_key': '...abcd'},
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -358,9 +362,17 @@ describe('workspace setup route hook', () => {
     renderSetupRoute(`/workspaces/${WORKSPACE_ID}`, fetchImpl, {
       seedQueryClient: (queryClient) => {
         queryClient.setQueryData(modelProviderConfigsQueryOptions(WORKSPACE_ID).queryKey, {
-          configs: [modelProviderConfig()] as never,
-          default_provider_id: 'anthropic',
-          default_harness_id: null,
+          configs: [
+            {
+              kind: 'builtin',
+              providerId: 'anthropic',
+              defaultModel: null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+          defaultProviderId: 'anthropic',
+          defaultHarnessId: null,
         });
       },
     });
