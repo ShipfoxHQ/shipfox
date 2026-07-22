@@ -1,15 +1,12 @@
-import {normalizeWorkflowDocument as normalizeWorkflowDocumentImpl} from '@shipfox/api-definitions';
 import {WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {InterpolationUnresolvableError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
-import {
-  agentValidationCatalog,
-  resolveTestAgentDefaults,
-} from '#test/fixtures/agent-inter-module.js';
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {buildModel, expression, shellRef, template} from '#test/helpers/workflow-runs.js';
+import {workflowModel} from '#test/index.js';
 import {db} from '../db.js';
 import {workflowsOutbox} from '../schema/outbox.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
@@ -25,12 +22,6 @@ import {
   resolveJobStatusFromJobExecutions,
   updateJobExecutionStatus,
 } from '../workflow-runs.js';
-
-function normalizeWorkflowDocument(
-  document: Parameters<typeof normalizeWorkflowDocumentImpl>[0],
-): ReturnType<typeof normalizeWorkflowDocumentImpl> {
-  return normalizeWorkflowDocumentImpl(document, {agentValidationCatalog});
-}
 
 describe('workflow run queries', () => {
   let workspaceId: string;
@@ -339,7 +330,7 @@ describe('workflow run queries', () => {
       const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
       const stepNameSource = ['Review $', '{{ execution.index }}'].join('');
       const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
-      const model = normalizeWorkflowDocument({
+      const model = workflowModel({
         name: 'Listening workflow',
         runner: 'ubuntu-latest',
         jobs: {
@@ -348,10 +339,10 @@ describe('workflow run queries', () => {
             listening: {
               on: [{source: 'github', event: 'pull_request_review'}],
               until: [{source: 'github', event: 'pull_request'}],
-              timeout: '30d',
-              max_executions: 3,
-              batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
-              on_resolve: 'cancel',
+              timeoutMs: 30 * 24 * 60 * 60 * 1000,
+              maxExecutions: 3,
+              batch: {debounceMs: 5000, maxSize: 10, maxWaitMs: 60 * 60 * 1000},
+              onResolve: 'cancel',
             },
             steps: [{name: stepNameSource, prompt: promptSource}],
           },
@@ -409,7 +400,7 @@ describe('workflow run queries', () => {
     test('persists the listening workflow model on the run attempt', async () => {
       const displayNameSource = ['Review batch $', '{{ execution.index }}'].join('');
       const promptSource = ['Review $', '{{ execution.events[0].data.body }}'].join('');
-      const model = normalizeWorkflowDocument({
+      const model = workflowModel({
         name: 'Listening workflow',
         runner: 'ubuntu-latest',
         jobs: {
@@ -418,10 +409,10 @@ describe('workflow run queries', () => {
             listening: {
               on: [{source: 'github', event: 'pull_request_review'}],
               until: [{source: 'github', event: 'pull_request'}],
-              timeout: '30d',
-              max_executions: 3,
-              batch: {debounce: '5s', max_size: 10, max_wait: '1h'},
-              on_resolve: 'cancel',
+              timeoutMs: 30 * 24 * 60 * 60 * 1000,
+              maxExecutions: 3,
+              batch: {debounceMs: 5000, maxSize: 10, maxWaitMs: 60 * 60 * 1000},
+              onResolve: 'cancel',
             },
             steps: [{prompt: promptSource}],
           },
@@ -450,7 +441,7 @@ describe('workflow run queries', () => {
     });
 
     test('does not load variables referenced only by listening job executions at run creation', async () => {
-      const model = normalizeWorkflowDocument({
+      const model = workflowModel({
         name: 'Listening vars workflow',
         runner: 'ubuntu-latest',
         jobs: {
@@ -458,6 +449,7 @@ describe('workflow run queries', () => {
             listening: {
               on: [{source: 'github', event: 'pull_request_review'}],
               until: [{source: 'github', event: 'pull_request'}],
+              onResolve: 'finish',
             },
             steps: [
               {
@@ -492,7 +484,7 @@ describe('workflow run queries', () => {
       {
         field: 'run',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing run var',
             runner: 'ubuntu-latest',
             jobs: {build: {steps: [{run: `echo ${template('vars.REQUIRED')}`}]}},
@@ -502,7 +494,7 @@ describe('workflow run queries', () => {
       {
         field: 'env',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing env var',
             runner: 'ubuntu-latest',
             jobs: {
@@ -516,7 +508,7 @@ describe('workflow run queries', () => {
       {
         field: 'agent.prompt',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing prompt var',
             runner: 'ubuntu-latest',
             jobs: {fix: {steps: [{prompt: template('vars.REQUIRED')}]}},
@@ -526,7 +518,7 @@ describe('workflow run queries', () => {
       {
         field: 'agent.model',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing model var',
             runner: 'ubuntu-latest',
             jobs: {fix: {steps: [{prompt: 'Fix it', model: template('vars.REQUIRED')}]}},
@@ -536,7 +528,7 @@ describe('workflow run queries', () => {
       {
         field: 'agent.provider',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing provider var',
             runner: 'ubuntu-latest',
             jobs: {fix: {steps: [{prompt: 'Fix it', provider: template('vars.REQUIRED')}]}},
@@ -546,17 +538,23 @@ describe('workflow run queries', () => {
       {
         field: 'job.runner',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing runner var',
             runner: 'ubuntu-latest',
-            jobs: {build: {runner: template('vars.REQUIRED'), steps: [{run: 'echo ok'}]}},
+            jobs: {
+              build: {
+                runner: [],
+                runnerTemplates: [template('vars.REQUIRED')],
+                steps: [{run: 'echo ok'}],
+              },
+            },
           }),
         expected: {field: 'job.runner', source: 'vars.REQUIRED'},
       },
       {
         field: 'step.name',
         model: () =>
-          normalizeWorkflowDocument({
+          workflowModel({
             name: 'Missing step name var',
             runner: 'ubuntu-latest',
             jobs: {build: {steps: [{name: template('vars.REQUIRED'), run: 'echo ok'}]}},
@@ -623,7 +621,7 @@ describe('workflow run queries', () => {
     });
 
     test('persists resolved step config and authored step config separately', async () => {
-      const model = normalizeWorkflowDocument({
+      const model = workflowModel({
         name: 'Interpolated workflow',
         runner: 'ubuntu-latest',
         env: {RUN_ID: template('run.id'), REF: template('event.ref')},
@@ -674,7 +672,7 @@ describe('workflow run queries', () => {
     });
 
     test('resolves webhook trigger payload body and headers into step config', async () => {
-      const model = normalizeWorkflowDocument({
+      const model = workflowModel({
         name: 'Webhook workflow',
         runner: 'ubuntu-latest',
         env: {
@@ -720,7 +718,7 @@ describe('workflow run queries', () => {
     });
 
     test('fails for missing available untrusted interpolation paths', async () => {
-      const model = normalizeWorkflowDocument({
+      const model = workflowModel({
         name: 'Diagnostic workflow',
         runner: 'ubuntu-latest',
         env: {REF: template('event.ref')},

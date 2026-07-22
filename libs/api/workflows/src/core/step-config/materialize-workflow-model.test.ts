@@ -1,16 +1,9 @@
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import {
-  DEFAULT_JOB_CHECKOUT,
-  normalizeWorkflowDocument as normalizeWorkflowDocumentImpl,
-  type WorkflowModel,
-} from '@shipfox/api-definitions';
+import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
-import {
-  agentValidationCatalog,
-  resolveTestAgentDefaults,
-} from '#test/fixtures/agent-inter-module.js';
+import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';
 import {
   materializeJobRunner,
@@ -27,12 +20,6 @@ function materializeWorkflowModel(
   params: Parameters<typeof materializeWorkflowModelImpl>[0],
 ): ReturnType<typeof materializeWorkflowModelImpl> {
   return materializeWorkflowModelImpl({resolveAgentDefaults: resolveTestAgentDefaults, ...params});
-}
-
-function normalizeWorkflowDocument(
-  document: Parameters<typeof normalizeWorkflowDocumentImpl>[0],
-): ReturnType<typeof normalizeWorkflowDocumentImpl> {
-  return normalizeWorkflowDocumentImpl(document, {agentValidationCatalog});
 }
 
 function expression(source: string): TestWorkflowExpression {
@@ -548,7 +535,7 @@ describe('materializeWorkflowModel', () => {
   });
 
   it('freezes vars from the run-creation context into step config', async () => {
-    const model = normalizeWorkflowDocument({
+    const model = workflowModel({
       name: 'vars workflow',
       runner: 'ubuntu-latest',
       jobs: {
@@ -1008,14 +995,15 @@ describe('materializeWorkflowModel', () => {
 
   it('skips listening job steps at workflow-run creation', async () => {
     const stepNameSource = `Review ${template('execution.index')}`;
-    const model = normalizeWorkflowDocument({
+    const model = workflowModel({
       name: 'Listening workflow',
       runner: 'ubuntu-latest',
       jobs: {
         review: {
           listening: {
             on: [{source: 'github', event: 'pull_request_review'}],
-            max_executions: 3,
+            maxExecutions: 3,
+            onResolve: 'finish',
           },
           steps: [{name: stepNameSource, prompt: 'Summarize the review.'}],
         },
@@ -1036,14 +1024,15 @@ describe('materializeWorkflowModel', () => {
   });
 
   it('materializes one-shot siblings while skipping listening steps', async () => {
-    const model = normalizeWorkflowDocument({
+    const model = workflowModel({
       name: 'Mixed workflow',
       runner: 'ubuntu-latest',
       jobs: {
         review: {
           listening: {
             on: [{source: 'github', event: 'pull_request_review'}],
-            max_executions: 3,
+            maxExecutions: 3,
+            onResolve: 'finish',
           },
           steps: [{name: `Review ${template('execution.index')}`, prompt: 'Summarize it.'}],
         },
@@ -1104,12 +1093,12 @@ describe('materializeWorkflowModel', () => {
   });
 
   it('materializes step if as server-owned condition outside runner config', async () => {
-    const model = normalizeWorkflowDocument({
+    const model = workflowModel({
       name: 'Conditional workflow',
       runner: 'ubuntu-latest',
       jobs: {
         build: {
-          steps: [{if: template('false'), run: 'npm test'}],
+          steps: [{if: expression('false'), run: 'npm test'}],
         },
       },
     });
@@ -1121,7 +1110,6 @@ describe('materializeWorkflowModel', () => {
       language: 'cel',
       source: 'false',
       check: 'typed',
-      resultType: 'bool',
     });
     expect(step?.config).toEqual({run: 'npm test'});
   });

@@ -70,8 +70,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@shipfox/api-definitions": "workspace:*",
-    "@shipfox/api-integration-core": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/node-log": "workspace:*",
