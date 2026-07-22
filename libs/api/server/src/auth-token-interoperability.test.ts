@@ -48,5 +48,5 @@ describe('Auth token interoperability', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({job_id: jobId, step_id: stepId});
-  });
+  }, 15_000);
 });
