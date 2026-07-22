@@ -110,9 +110,7 @@ jobs:
 
       - name: Start test services
         if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
-        id: test-services
-        run: docker compose up --wait -d postgres
-        background: true
+        run: docker compose up -d postgres
 
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
@@ -130,7 +128,7 @@ jobs:
 
       - name: Wait for test services
         if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
-        wait: test-services
+        run: docker compose up --wait postgres
 
       - name: Verify external package contracts
         if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
