@@ -31,8 +31,72 @@ env:
 # Parallel jobs cannot share PR-written remote cache artifacts, so each job
 # rebuilds what its own Turbo graph needs.
 jobs:
+  release-classification:
+    name: Classify release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      generated_release: ${{ steps.classify.outputs.generated_release || 'false' }}
+      reason: ${{ steps.classify.outputs.reason || 'not-a-release-pr' }}
+
+    steps:
+      - name: Check out repository
+        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up mise
+        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+
+      - name: Set up pnpm
+        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Build generated-release verifier
+        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        run: turbo build --filter=@shipfox/package-release
+
+      - name: Verify generated release tree
+        id: classify
+        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PULL_REQUEST_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          RELEASE_BOT_APP_ID: ${{ vars.RELEASE_BOT_APP_ID }}
+        run: |
+          set +e
+          pnpm --silent --filter=@shipfox/package-release verify-generated-release -- \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --head-repository "$HEAD_REPOSITORY" \
+            --head-ref "$HEAD_REF" \
+            --author-id "$PULL_REQUEST_AUTHOR_ID" \
+            --release-app-id "$RELEASE_BOT_APP_ID" \
+            > "$RUNNER_TEMP/release-verification.json"
+          verifier_status=$?
+          set -e
+
+          result="$(tail -n 1 "$RUNNER_TEMP/release-verification.json")"
+          classification="$(jq -r '.classification // "unknown"' <<< "$result" 2>/dev/null || true)"
+          reason="$(jq -r '.reason // "verification-error"' <<< "$result" 2>/dev/null || true)"
+          generated_release=false
+          if [[ "$verifier_status" == 0 && "$classification" == generated-release ]]; then
+            generated_release=true
+          fi
+
+          echo "generated_release=$generated_release" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
   static-verification:
     name: Static verification
+    needs: [release-classification]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -45,9 +109,8 @@ jobs:
           fetch-depth: 0
 
       - name: Start test services
-        id: test-services
-        run: docker compose up --wait -d postgres
-        background: true
+        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
+        run: docker compose up -d postgres
 
       - name: Set up mise
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
@@ -56,19 +119,52 @@ jobs:
         uses: ./.github/actions/setup-pnpm
 
       - name: Run static verification
+        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
         run: turbo check type build depcruise $SHIPFOX_TURBO_AFFECTED --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Verify repository and package policies
+        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
         run: turbo verify --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Wait for test services
-        wait: test-services
+        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
+        run: docker compose up --wait postgres
 
       - name: Verify external package contracts
+        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
         run: turbo test:external --filter=@shipfox/application-release --filter=@shipfox/client-shell --concurrency=1
+
+      - name: Verify release metadata and publication closure
+        if: github.event_name == 'pull_request' && needs.release-classification.outputs.generated_release == 'true'
+        run: |
+          turbo verify --filter=@shipfox/package-release...
+          turbo test --filter=@shipfox/package-release...
+          pnpm run release:preflight
+
+      - name: Summarize verified release CI
+        if: github.event_name == 'pull_request' && needs.release-classification.outputs.generated_release == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            echo '## Verified generated release CI'
+            echo
+            echo '- Classification: `generated-release` (deterministic tree verification passed)'
+            echo '- Files in release:'
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sed 's/^/  - `/' | sed 's/$/`/'
+            echo '- Package directories changed:'
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" | awk -F/ '/^(libs|tools)\// {print $1 "/" $2}' | sort -u | sed 's/^/  - `/' | sed 's/$/`/'
+            echo '- Checks run: frozen dependency install, package-release policy checks and tests, whole-closure `release:preflight`.'
+            echo '- Checks intentionally skipped: unit/story suite, E2E suite, and application image matrix.'
+            echo '- Preflight result: passed.'
+            echo '- Expected comparison: under 5 minutes and under 7.65 runner-minutes, versus the 13-minute / 51 runner-minute baseline.'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   publication-preflight:
     name: Package publication preflight
+    needs: [release-classification]
+    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -87,6 +183,8 @@ jobs:
 
   tests:
     name: Unit and story tests
+    needs: [release-classification]
+    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -125,6 +223,8 @@ jobs:
 
   e2e:
     name: E2E tests
+    needs: [release-classification]
+    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -193,7 +293,8 @@ jobs:
   # permission. Main publishes images in `publish-images`.
   build-image:
     name: Build image (${{ matrix.image }})
-    if: github.ref != 'refs/heads/main'
+    needs: [release-classification]
+    if: always() && github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -233,7 +334,7 @@ jobs:
 
   build-images:
     name: Build images
-    needs: [build-image]
+    needs: [release-classification, build-image]
     if: always() && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -241,11 +342,18 @@ jobs:
     steps:
       - name: Report image validation
         run: |
+          if [ "${{ needs.build-image.result }}" = "success" ]; then
+            echo "Image validation matrix completed."
+            exit 0
+          fi
+          if [ "${{ needs.release-classification.outputs.generated_release }}" = "true" ] && [ "${{ needs.build-image.result }}" = "skipped" ]; then
+            echo "Image validation matrix intentionally skipped for a verified generated release PR."
+            exit 0
+          fi
           if [ "${{ needs.build-image.result }}" != "success" ]; then
             echo "Image validation matrix result: ${{ needs.build-image.result }}"
             exit 1
           fi
-          echo "Image validation matrix completed."
 
   # Publishing stays in a main-only job so package write permission is granted
   # only after verification and E2E pass. It restores build output from Turbo's
