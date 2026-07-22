@@ -1,5 +1,19 @@
 # @shipfox/client-agent
 
+## 5.0.0
+
+### Minor Changes
+
+- 8d8cdef: Extracts workspace onboarding into a dedicated coordinator and shares its feature query policies.
+
+### Patch Changes
+
+- f1d6465: Moves workspace-settings and project-workflow route ownership from centralized packages into each feature's own route module, so a feature package declares and ships its own settings pages.
+- Updated dependencies [de559bb]
+- Updated dependencies [ffd727b]
+  - @shipfox/api-agent-dto@8.0.0
+  - @shipfox/client-shell@5.0.0
+
 ## 4.0.0
 
 ### Patch Changes

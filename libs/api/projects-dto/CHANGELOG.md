@@ -1,5 +1,11 @@
 # @shipfox/api-projects-dto
 
+## 8.0.0
+
+### Major Changes
+
+- 7f227c6: Moves Projects and Integrations synchronous contracts to producer-owned inter-module entry points.
+
 ## 6.0.0
 
 ### Patch Changes

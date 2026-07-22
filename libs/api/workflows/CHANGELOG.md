@@ -1,5 +1,20 @@
 # @shipfox/api-workflows
 
+## 8.0.0
+
+### Patch Changes
+
+- de559bb: Moves Agent validation policy behind a versioned inter-module catalog and injects it into Definitions normalization.
+- b15f3a7: Removes Auth implementation dependencies from consumer test boundaries.
+- Updated dependencies [de559bb]
+- Updated dependencies [b15f3a7]
+- Updated dependencies [7f227c6]
+  - @shipfox/api-agent-dto@8.0.0
+  - @shipfox/api-runners@8.0.0
+  - @shipfox/api-integration-core-dto@8.0.0
+  - @shipfox/api-projects-dto@8.0.0
+  - @shipfox/api-workflows-dto@8.0.0
+
 ## 7.1.0
 
 ### Patch Changes

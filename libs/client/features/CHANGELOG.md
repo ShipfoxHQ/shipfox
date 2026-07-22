@@ -1,5 +1,28 @@
 # @shipfox/client-features
 
+## 5.0.0
+
+### Patch Changes
+
+- 8d8cdef: Extracts workspace onboarding into a dedicated coordinator and shares its feature query policies.
+- f1d6465: Moves workspace-settings and project-workflow route ownership from centralized packages into each feature's own route module, so a feature package declares and ships its own settings pages.
+- Updated dependencies [8d8cdef]
+- Updated dependencies [ffd727b]
+- Updated dependencies [f1d6465]
+- Updated dependencies [79df9d1]
+  - @shipfox/client-agent@5.0.0
+  - @shipfox/client-integrations@5.0.0
+  - @shipfox/client-onboarding@5.0.0
+  - @shipfox/client-projects@5.0.0
+  - @shipfox/client-shell@5.0.0
+  - @shipfox/client-auth@5.0.0
+  - @shipfox/client-invitations@5.0.0
+  - @shipfox/client-workspace-settings@5.0.0
+  - @shipfox/client-runners@5.0.0
+  - @shipfox/client-secrets@5.0.0
+  - @shipfox/client-triggers@5.0.0
+  - @shipfox/client-workflows@5.0.0
+
 ## 4.0.0
 
 ### Patch Changes
