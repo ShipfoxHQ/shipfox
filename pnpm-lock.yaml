@@ -1398,6 +1398,9 @@ importers:
       '@shipfox/api-auth-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/auth-dto
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
@@ -1407,6 +1410,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1425,12 +1431,18 @@ importers:
 
   e2e/suites/client/agent:
     devDependencies:
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
       '@shipfox/client-agent':
         specifier: workspace:*
         version: link:../../../../libs/client/agent
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
       '@shipfox/client-workspace-settings':
         specifier: workspace:*
         version: link:../../../../libs/client/workspace-settings
@@ -1443,6 +1455,9 @@ importers:
       '@shipfox/e2e-driver-model-provider':
         specifier: workspace:*
         version: link:../../../drivers/model-provider
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1473,18 +1488,27 @@ importers:
 
   e2e/suites/client/auth:
     devDependencies:
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
       '@shipfox/client-auth':
         specifier: workspace:*
         version: link:../../../../libs/client/auth
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../../tools/depcruise
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1509,9 +1533,15 @@ importers:
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/integration/sentry-dto
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
       '@shipfox/client-integrations':
         specifier: workspace:*
         version: link:../../../../libs/client/integrations
@@ -1524,6 +1554,9 @@ importers:
       '@shipfox/e2e-driver-gitea':
         specifier: workspace:*
         version: link:../../../drivers/gitea
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1542,9 +1575,15 @@ importers:
 
   e2e/suites/client/runners:
     devDependencies:
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
       '@shipfox/client-runners':
         specifier: workspace:*
         version: link:../../../../libs/client/runners
@@ -1560,6 +1599,9 @@ importers:
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1590,9 +1632,15 @@ importers:
 
   e2e/suites/client/secrets:
     devDependencies:
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
       '@shipfox/client-secrets':
         specifier: workspace:*
         version: link:../../../../libs/client/secrets
@@ -1605,6 +1653,9 @@ importers:
       '@shipfox/e2e-core':
         specifier: workspace:*
         version: link:../../../core
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1635,12 +1686,18 @@ importers:
 
   e2e/suites/client/workspaces:
     devDependencies:
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
       '@shipfox/client-auth':
         specifier: workspace:*
         version: link:../../../../libs/client/auth
+      '@shipfox/client-features':
+        specifier: workspace:*
+        version: link:../../../../libs/client/features
       '@shipfox/client-projects':
         specifier: workspace:*
         version: link:../../../../libs/client/projects
@@ -1653,6 +1710,9 @@ importers:
       '@shipfox/e2e-driver-gitea':
         specifier: workspace:*
         version: link:../../../drivers/gitea
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-kit':
         specifier: workspace:*
         version: link:../../../kit
@@ -1695,6 +1755,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/projects-dto
+      '@shipfox/api-server':
+        specifier: workspace:*
+        version: link:../../../../libs/api/server
       '@shipfox/api-triggers-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/triggers-dto
@@ -1719,6 +1782,9 @@ importers:
       '@shipfox/e2e-driver-runner-process':
         specifier: workspace:*
         version: link:../../../drivers/runner-process
+      '@shipfox/e2e-harness':
+        specifier: workspace:*
+        version: link:../../../harness
       '@shipfox/e2e-observe-definitions':
         specifier: workspace:*
         version: link:../../../observe/definitions
@@ -1746,6 +1812,9 @@ importers:
       '@shipfox/playwright':
         specifier: workspace:*
         version: link:../../../../tools/playwright
+      '@shipfox/runner':
+        specifier: workspace:*
+        version: link:../../../../apps/runner
       '@shipfox/ts-config':
         specifier: workspace:*
         version: link:../../../../tools/ts-config

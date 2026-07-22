@@ -19,12 +19,15 @@
     "type": "shipfox-tsc-check"
   },
   "devDependencies": {
+    "@shipfox/api-server": "workspace:*",
     "@shipfox/biome": "workspace:*",
+    "@shipfox/client-features": "workspace:*",
     "@shipfox/client-runners": "workspace:*",
     "@shipfox/client-workspace-settings": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/e2e-core": "workspace:*",
     "@shipfox/e2e-driver-runner-process": "workspace:*",
+    "@shipfox/e2e-harness": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
     "@shipfox/e2e-screens-runners": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",

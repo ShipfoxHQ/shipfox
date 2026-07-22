@@ -19,6 +19,11 @@ concurrency:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: shipfox
+  # Pull requests only run tasks affected between their base and head commits.
+  # main leaves the filter empty and continues to run the complete task graph.
+  SHIPFOX_TURBO_AFFECTED: ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+  TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+  TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha }}
   # Only approved code on main may write remote cache artifacts. Pull requests
   # can restore trusted artifacts from main, but cannot overwrite them.
   TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
@@ -36,6 +41,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
 
       - name: Start test services
         id: test-services
@@ -49,7 +56,7 @@ jobs:
         uses: ./.github/actions/setup-pnpm
 
       - name: Run static verification
-        run: turbo check type build depcruise --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+        run: turbo check type build depcruise $SHIPFOX_TURBO_AFFECTED --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Verify repository and package policies
         run: turbo verify --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
@@ -71,6 +78,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
 
       - name: Start test services
         id: test-services
@@ -94,7 +103,7 @@ jobs:
       - name: Run tests
         env:
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: turbo test --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
+        run: turbo test $SHIPFOX_TURBO_AFFECTED --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
   e2e:
     name: E2E tests
@@ -108,6 +117,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
 
       - name: Start test services
         id: test-services
@@ -144,7 +155,12 @@ jobs:
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-        run: mise run e2e
+        run: |
+          if [[ -n "$SHIPFOX_TURBO_AFFECTED" ]]; then
+            mise run e2e -- "$SHIPFOX_TURBO_AFFECTED"
+          else
+            mise run e2e
+          fi
 
       - name: Upload E2E diagnostics
         if: failure() && steps.e2e.outcome == 'failure'
@@ -195,9 +211,6 @@ jobs:
       # --affected skips images untouched by the PR. The Docker wrapper validates
       # PR builds with BuildKit's cache-only output, so no local image import runs.
       - name: Build images
-        env:
-          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
-          TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha }}
         run: turbo image --affected --filter "${{ matrix.package }}"
 
   build-images:
