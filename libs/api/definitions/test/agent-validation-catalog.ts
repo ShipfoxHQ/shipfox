@@ -1,8 +1,8 @@
 import {
   DEFAULT_HARNESS_TOOL_DEPLOYMENT_CONFIG,
-  getModelProviderEntry,
   listEnabledHarnessTools,
   listHarnessDescriptors,
+  MODEL_PROVIDER_CATALOG_SEED,
   MODEL_PROVIDER_IDS,
 } from '@shipfox/api-agent-dto';
 import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
@@ -11,7 +11,8 @@ export const agentValidationCatalog: AgentValidationCatalog = {
   version: 1,
   providers: MODEL_PROVIDER_IDS.map((id) => ({
     id,
-    support_status: getModelProviderEntry(id)?.support_status ?? 'unsupported',
+    support_status:
+      MODEL_PROVIDER_CATALOG_SEED.find((entry) => entry.id === id)?.support_status ?? 'unsupported',
   })),
   harnesses: listHarnessDescriptors().map((harness) => ({
     id: harness.id,

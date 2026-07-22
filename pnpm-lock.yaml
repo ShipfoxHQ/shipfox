@@ -4205,9 +4205,6 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
-      '@shipfox/api-integration-spi':
-        specifier: workspace:*
-        version: link:../integration/spi
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto

@@ -1,11 +1,11 @@
 import {getModels, getProviders, type KnownProvider} from '@earendil-works/pi-ai';
 import {
-  getModelProviderEntry,
   MODEL_PROVIDER_CATALOG_SEED,
   MODEL_PROVIDER_IDS,
   type ModelProviderId,
   SUPPORTED_MODEL_PROVIDER_IDS,
 } from '@shipfox/api-agent-dto';
+import {getModelProviderEntry, isReservedModelProviderId} from './model-provider-policy.js';
 
 const STORE_COMPATIBLE_CREDENTIAL_KEY_PATTERN = /^[a-z_][a-z0-9_]*$/;
 
@@ -15,6 +15,13 @@ describe('model provider catalog registry', () => {
     const piModelProviderIds = getProviders().sort();
 
     expect(catalogModelProviderIds).toEqual(piModelProviderIds);
+  });
+
+  it('keeps the Agent reserved-provider helper aligned with every known provider ID', () => {
+    const reservedProviderIds = MODEL_PROVIDER_IDS.filter(isReservedModelProviderId).sort();
+
+    expect(reservedProviderIds).toEqual([...MODEL_PROVIDER_IDS].sort());
+    expect(isReservedModelProviderId('custom-provider')).toBe(false);
   });
 
   it('keeps supported catalog default models present in the pinned Pi model registry', () => {

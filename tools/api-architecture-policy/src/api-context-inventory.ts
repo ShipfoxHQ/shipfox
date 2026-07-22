@@ -25,6 +25,8 @@ const dependencyGroups = [
 const importExpression =
   /(?:import|export)\s+(?:type\s+)?(?:[^'"`]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 const sourceFileExpression = /\.(?:[cm]?[jt]sx?)$/;
+const dtoImplementationDetailExpression =
+  /(?:^|\/)(?:core|db|presentation|provider|test|tests|fixtures)(?:\/|\.|$)/;
 
 interface ClassifiedPath {
   classification: string;
@@ -40,62 +42,6 @@ interface PackageManifest {
   optionalDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 }
-
-interface BaselineEntry {
-  issue: string;
-  owner: string;
-  reason: string;
-  violation: string;
-}
-
-const baseline: BaselineEntry[] = [
-  ...[
-    'libs/api/definitions/src/core/sync-definitions.test.ts:@shipfox/api-integration-core',
-    'libs/api/definitions/src/temporal/activities/sync-activities.test.ts:@shipfox/api-integration-core',
-    'libs/api/workflows/src/core/run-workflow.test.ts:@shipfox/api-definitions',
-    'libs/api/workflows/src/core/step-config/materialize-job-execution-steps.test.ts:@shipfox/api-integration-core',
-    'libs/api/workflows/src/core/step-config/materialize-workflow-model.test.ts:@shipfox/api-definitions',
-    'libs/api/workflows/src/db/workflow-runs/run-create.test.ts:@shipfox/api-definitions',
-    'libs/api/workflows/src/presentation/dto/checkout-token.test.ts:@shipfox/api-integration-core',
-    'libs/api/workflows/src/presentation/routes/agent-runtime-config.test.ts:@shipfox/api-agent',
-    'libs/api/workflows/src/presentation/routes/agent-runtime-config.test.ts:@shipfox/api-agent/core/resolve-runtime-credentials',
-    'libs/api/workflows/test/globalSetup.ts:@shipfox/annotations',
-    'libs/api/workflows/test/globalSetup.ts:@shipfox/api-agent',
-    'libs/api/workflows/test/globalSetup.ts:@shipfox/api-runners',
-  ].map((path) => ({
-    issue: 'ENG-1148',
-    owner: 'Definitions and Workflows test migration',
-    reason:
-      'Consumer test and setup coverage still composes peer implementations pending contract fakes.',
-    violation: `import:${path}`,
-  })),
-  ...[
-    'libs/api/annotations:package.json:devDependencies:@shipfox/api-auth',
-    'libs/api/logs:package.json:devDependencies:@shipfox/api-auth',
-    'libs/api/runners:package.json:devDependencies:@shipfox/api-auth',
-    'libs/api/workflows:package.json:devDependencies:@shipfox/api-auth',
-  ].map((path) => ({
-    issue: 'ENG-1145',
-    owner: 'Auth consumer-test migration',
-    reason:
-      'The manifest remains until the corresponding Auth implementation test import is replaced.',
-    violation: `manifest:${path}`,
-  })),
-  ...[
-    'libs/api/definitions:package.json:devDependencies:@shipfox/api-integration-core',
-    'libs/api/workflows:package.json:dependencies:@shipfox/api-runners',
-    'libs/api/workflows:package.json:devDependencies:@shipfox/annotations',
-    'libs/api/workflows:package.json:devDependencies:@shipfox/api-agent',
-    'libs/api/workflows:package.json:devDependencies:@shipfox/api-definitions',
-    'libs/api/workflows:package.json:devDependencies:@shipfox/api-integration-core',
-  ].map((path) => ({
-    issue: 'ENG-1148',
-    owner: 'Definitions and Workflows test migration',
-    reason:
-      'The manifest remains until consumer tests and setup stop depending on peer implementations.',
-    violation: `manifest:${path}`,
-  })),
-];
 
 function compareText(left: string, right: string): number {
   if (left < right) return -1;
@@ -123,35 +69,95 @@ function classifiedPaths(): ClassifiedPath[] {
   );
 }
 
-function implementationByName(
-  manifests: Map<string, PackageManifest>,
-): Map<string, ClassifiedPath> {
+function packagesByName(manifests: Map<string, PackageManifest>): Map<string, ClassifiedPath> {
   const result = new Map<string, ClassifiedPath>();
   const classifications = new Map(classifiedPaths().map((entry) => [entry.packagePath, entry]));
   for (const [packagePath, manifest] of manifests) {
     const classification = classifications.get(packagePath);
-    if (classification?.classification === 'implementations' && manifest.name)
-      result.set(manifest.name, classification);
+    if (classification && manifest.name) result.set(manifest.name, classification);
   }
   return result;
 }
 
-function isBaselineViolation(violation: string): boolean {
-  return baseline.some((entry) => entry.violation === violation);
+function packageName(specifier: string): string {
+  return specifier
+    .split('/')
+    .slice(0, specifier.startsWith('@') ? 2 : 1)
+    .join('/');
 }
 
-function baselineErrors(): string[] {
-  const violations = new Map<string, number>();
-  const errors: string[] = [];
-  for (const entry of baseline) {
-    if (!entry.issue || !entry.owner || !entry.reason)
-      errors.push(`Invalid architecture baseline entry: ${entry.violation}`);
-    violations.set(entry.violation, (violations.get(entry.violation) ?? 0) + 1);
+function importViolation(
+  importer: ClassifiedPath,
+  target: ClassifiedPath | undefined,
+  specifier: string,
+): string | undefined {
+  if (!target) return undefined;
+  if (
+    importer.classification === 'implementations' &&
+    target.classification === 'implementations' &&
+    importer.context !== target.context
+  )
+    return 'Foreign implementation import';
+  if (importer.classification === 'dto' && target.classification === 'implementations')
+    return 'DTO implementation import';
+  if (importer.classification === 'dto' && target.classification === 'spi') return 'DTO SPI import';
+  if (
+    importer.classification === 'dto' &&
+    target.classification === 'dto' &&
+    specifier.endsWith('/inter-module')
+  )
+    return 'DTO inter-module import';
+  if (importer.classification === 'shared-semantic' && target.classification === 'implementations')
+    return 'Shared semantic implementation import';
+  if (importer.classification === 'shared-semantic' && target.classification === 'spi')
+    return 'Shared semantic SPI import';
+  if (
+    importer.classification === 'implementations' &&
+    target.classification === 'spi' &&
+    importer.context !== target.context
+  )
+    return 'Foreign same-context SPI import';
+  if (
+    importer.classification === 'spi' &&
+    target.classification === 'implementations' &&
+    importer.context !== target.context
+  )
+    return 'Foreign SPI implementation import';
+  return undefined;
+}
+
+function manifestViolation(
+  importer: ClassifiedPath,
+  target: ClassifiedPath | undefined,
+): string | undefined {
+  if (!target) return undefined;
+  if (target.classification === 'implementations') {
+    if (importer.classification === 'implementations' && importer.context !== target.context)
+      return 'Foreign implementation manifest edge';
+    if (importer.classification === 'dto') return 'DTO implementation manifest edge';
+    if (importer.classification === 'shared-semantic')
+      return 'Shared semantic implementation dependency';
+    if (importer.classification === 'spi' && importer.context !== target.context)
+      return 'Foreign SPI implementation manifest edge';
   }
-  for (const [violation, count] of violations) {
-    if (count > 1) errors.push(`Architecture baseline has duplicate entry: ${violation}`);
+  if (target.classification === 'spi') {
+    if (importer.classification === 'dto') return 'DTO SPI manifest edge';
+    if (importer.classification === 'shared-semantic') return 'Shared semantic SPI dependency';
   }
-  return errors;
+  if (
+    importer.classification === 'implementations' &&
+    target.classification === 'spi' &&
+    importer.context !== target.context
+  )
+    return 'Foreign same-context SPI manifest edge';
+  return undefined;
+}
+
+function dtoRootExportViolation(specifier: string): string | undefined {
+  if (specifier.includes('inter-module')) return 'DTO root exports inter-module contract';
+  if (dtoImplementationDetailExpression.test(specifier))
+    return 'DTO root exports implementation detail';
+  return undefined;
 }
 
 async function findPackagePaths(directory: string, relativeDirectory = ''): Promise<string[]> {
@@ -253,6 +259,7 @@ export function auditPolicyFixture({
   dependencyGroup,
   dtoHasInterModuleEntry = true,
   dtoRootExportsInterModule = false,
+  dtoRootExportSpecifier,
   importerPath,
   sourceFile,
   targetPath,
@@ -260,6 +267,7 @@ export function auditPolicyFixture({
   dependencyGroup?: (typeof dependencyGroups)[number];
   dtoHasInterModuleEntry?: boolean;
   dtoRootExportsInterModule?: boolean;
+  dtoRootExportSpecifier?: string;
   importerPath: string;
   sourceFile?: string;
   targetPath?: string;
@@ -269,16 +277,19 @@ export function auditPolicyFixture({
   const target = targetPath ? classifications.get(targetPath) : undefined;
   const errors: string[] = [];
 
-  if (
-    importer?.classification === 'implementations' &&
-    target?.classification === 'implementations' &&
-    importer.context !== target.context
-  ) {
-    if (sourceFile) errors.push(`Foreign implementation import: ${sourceFile}`);
-    if (dependencyGroup) errors.push(`Foreign implementation manifest edge: ${dependencyGroup}`);
+  if (importer) {
+    const sourceViolation = importViolation(importer, target, sourceFile?.split(':').at(-1) ?? '');
+    if (sourceFile && sourceViolation) errors.push(`${sourceViolation}: ${sourceFile}`);
+    const dependencyViolation = manifestViolation(importer, target);
+    if (dependencyGroup && dependencyViolation)
+      errors.push(`${dependencyViolation}: ${dependencyGroup}`);
   }
   if (importer?.classification === 'dto' && dtoRootExportsInterModule && !dtoHasInterModuleEntry)
     errors.push('DTO root exports inter-module contract');
+  if (importer?.classification === 'dto' && dtoRootExportSpecifier) {
+    const violation = dtoRootExportViolation(dtoRootExportSpecifier);
+    if (violation) errors.push(violation);
+  }
   return errors;
 }
 
@@ -286,64 +297,46 @@ export async function auditRepository(): Promise<string[]> {
   const packagePaths = await repositoryPackagePaths();
   const manifests = await readManifests(packagePaths);
   const classifications = new Map(classifiedPaths().map((entry) => [entry.packagePath, entry]));
-  const implementations = implementationByName(manifests);
-  const errors = [...auditApiContextInventory(packagePaths), ...baselineErrors()];
+  const packages = packagesByName(manifests);
+  const errors = auditApiContextInventory(packagePaths);
 
   for (const [packagePath, manifest] of manifests) {
     const classification = classifications.get(packagePath);
     if (!classification) continue;
     for (const group of dependencyGroups) {
       for (const dependency of Object.keys(manifest[group] ?? {})) {
-        const target = implementations.get(dependency);
-        if (
-          classification.classification === 'implementations' &&
-          target &&
-          target.context !== classification.context
-        ) {
-          const violation = `manifest:${packagePath}:package.json:${group}:${dependency}`;
-          if (!isBaselineViolation(violation))
-            errors.push(`Foreign implementation manifest edge: ${violation}`);
-        }
-        if (classification.classification === 'shared-semantic' && target) {
-          const violation = `manifest:${packagePath}:package.json:${group}:${dependency}`;
-          if (!isBaselineViolation(violation))
-            errors.push(`Shared semantic implementation dependency: ${violation}`);
+        const violation = manifestViolation(classification, packages.get(dependency));
+        if (violation) {
+          errors.push(`${violation}: manifest:${packagePath}:package.json:${group}:${dependency}`);
         }
       }
     }
     if (classification.classification === 'dto') {
       const indexPath = path.join(repositoryRoot, packagePath, 'src/index.ts');
       const indexSource = await readFile(indexPath, 'utf8');
-      if (sourceReExportsInterModule(indexSource)) {
-        const violation = `dto-export:${packagePath}:src/index.ts:root-inter-module`;
-        if (!isBaselineViolation(violation))
-          errors.push(`DTO root exports inter-module contract: ${violation}`);
+      for (const specifier of importSpecifiers(indexSource)) {
+        const violation = dtoRootExportViolation(specifier);
+        if (violation)
+          errors.push(`${violation}: dto-export:${packagePath}:src/index.ts:${specifier}`);
       }
       if (sourceReExportsInterModule(indexSource) && !hasInterModuleEntry(manifest.exports)) {
         const violation = `dto-export:${packagePath}:package.json:missing-inter-module-entry`;
-        if (!isBaselineViolation(violation))
-          errors.push(`DTO contract has no explicit inter-module export: ${violation}`);
+        errors.push(`DTO contract has no explicit inter-module export: ${violation}`);
       }
     }
   }
 
   for (const [packagePath, classification] of classifications) {
-    if (classification.classification !== 'implementations') continue;
     for (const sourceFile of await sourceFiles(packagePath)) {
       const source = await readFile(sourceFile, 'utf8');
       const relativeFile = toPosixPath(path.relative(repositoryRoot, sourceFile));
       for (const specifier of importSpecifiers(source)) {
-        const target = implementations.get(
-          specifier
-            .split('/')
-            .slice(0, specifier.startsWith('@') ? 2 : 1)
-            .join('/'),
+        const violation = importViolation(
+          classification,
+          packages.get(packageName(specifier)),
+          specifier,
         );
-        if (target && target.context !== classification.context) {
-          const violation = `import:${relativeFile}:${specifier}`;
-          if (!isBaselineViolation(violation))
-            errors.push(`Foreign implementation import: ${violation}`);
-        }
+        if (violation) errors.push(`${violation}: import:${relativeFile}:${specifier}`);
       }
     }
   }

@@ -1,8 +1,6 @@
 import {
   DEFAULT_AGENT_THINKING,
-  getModelProviderEntry,
   type ModelProviderRef,
-  modelProviderCredentialKeysMatch,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {reportError} from '@shipfox/node-error-monitoring';
@@ -22,6 +20,7 @@ import {
   UnsupportedModelProviderError,
 } from './errors.js';
 import {buildModelProviderCatalog} from './model-provider-catalog.js';
+import {getModelProviderEntry, modelProviderCredentialKeysMatch} from './model-provider-policy.js';
 import {probeModelProviderCredentials, runProviderProbe} from './model-provider-validation.js';
 import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-client.js';
 

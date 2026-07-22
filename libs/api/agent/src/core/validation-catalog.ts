@@ -1,11 +1,11 @@
 import {
-  getModelProviderEntry,
   listEnabledHarnessTools,
   listHarnessDescriptors,
   MODEL_PROVIDER_IDS,
 } from '@shipfox/api-agent-dto';
 import type {AgentValidationCatalog} from '@shipfox/api-agent-dto/inter-module';
 import {harnessToolDeploymentConfig} from '#config.js';
+import {getModelProviderEntry} from './model-provider-policy.js';
 
 /** Produces the versioned, JSON-safe policy snapshot consumed by Definitions. */
 export function getAgentValidationCatalog(): AgentValidationCatalog {

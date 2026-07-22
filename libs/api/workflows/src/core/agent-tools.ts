@@ -4,17 +4,19 @@ import type {
 } from '@shipfox/api-agent-dto';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
-import type {
-  AgentToolCatalogEntry,
-  AgentToolCatalogMethod,
-  IntegrationProviderKind,
-} from '@shipfox/api-integration-spi';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {AgentIntegrationMaterializationError} from './errors.js';
 
 type WorkflowModelJob = WorkflowModel['jobs'][number];
 type WorkflowModelAgentStep = Extract<WorkflowModelJob['steps'][number], {kind: 'agent'}>;
 type WorkflowModelStepIntegration = NonNullable<WorkflowModelAgentStep['integrations']>[number];
+type IntegrationsAgentToolsContext = Awaited<
+  ReturnType<IntegrationsModuleClient['getAgentToolsContext']>
+>;
+export type AgentToolCatalogEntry =
+  IntegrationsAgentToolsContext['catalogs'][number]['tools'][number];
+type AgentToolCatalogMethod = NonNullable<AgentToolCatalogEntry['methods']>[number];
+type IntegrationProviderKind = IntegrationsAgentToolsContext['catalogs'][number]['provider'];
 type AgentToolCatalogs = ReadonlyMap<IntegrationProviderKind, readonly AgentToolCatalogEntry[]>;
 type WorkspaceConnectionSnapshot = ReadonlyMap<
   string,

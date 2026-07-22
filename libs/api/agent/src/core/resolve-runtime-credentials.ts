@@ -1,11 +1,9 @@
-import {
-  type AgentRuntimeCredentialsResponseDto,
-  type AgentThinking,
-  getModelProviderEntry,
-  type Harness,
-  type ModelProviderRef,
-  modelProviderCredentialKeysMatch,
-  type SupportedModelProviderId,
+import type {
+  AgentRuntimeCredentialsResponseDto,
+  AgentThinking,
+  Harness,
+  ModelProviderRef,
+  SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
@@ -19,6 +17,7 @@ import {
 } from './credential-fingerprints.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
 import {ModelProviderConfigNotFoundError} from './errors.js';
+import {getModelProviderEntry, modelProviderCredentialKeysMatch} from './model-provider-policy.js';
 import {type AgentSecretsClient, requireAgentSecretsClient} from './secrets-client.js';
 
 export interface ResolveRuntimeCredentialsParams {

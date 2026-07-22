@@ -4,7 +4,6 @@ import {
   type CustomAgentModelDto,
   DEFAULT_HARNESS,
   getHarnessDescriptor,
-  getModelProviderEntry,
   type Harness,
   type ModelProviderRef,
   type SupportedModelProviderId,
@@ -16,6 +15,7 @@ import {
   UnsupportedModelProviderError,
 } from './errors.js';
 import {listHarnessProviderModels} from './harness/index.js';
+import {getModelProviderEntry} from './model-provider-policy.js';
 
 export interface ContextualAgentConfig {
   readonly harness?: Harness | undefined;

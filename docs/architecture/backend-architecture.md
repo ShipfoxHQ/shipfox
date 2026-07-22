@@ -127,11 +127,18 @@ These checks enforce the rules:
 - `pnpm check:dependencies` checks dependency policy and manifest hygiene.
 - `pnpm check:published-artifacts` checks packed public entry points.
 
-The architecture registry and allowed migration baselines live in
-[`api-contexts.cjs`](../../api-contexts.cjs) and
-[`tools/api-architecture-policy`](../../tools/api-architecture-policy). Update
-them with a boundary change. Do not add a broad exception. A test exception
-must name one path, owner, reason, and tracking issue.
+When adding a bounded context, classify its implementation and DTO packages in
+[`api-contexts.cjs`](../../api-contexts.cjs) before adding its dependencies.
+Add a synchronous method to the producer DTO's `/inter-module` export and one
+producer presentation; the application composition root registers that
+presentation before sealing the transport. Admit a shared semantic package only
+when it meets ADR 0004's joint-ownership rules. Keep a same-context SPI narrow
+and unavailable to other contexts. Consumer tests use DTO fixtures or contract
+fakes; only composition and E2E tests may compose real modules.
+
+[`tools/api-architecture-policy`](../../tools/api-architecture-policy) enforces
+the registry without migration exceptions. Update it when the durable policy
+changes, never to admit a completed violation.
 
 Update this guide when the current model changes. Update an ADR, or add one,
 when the durable decision, ownership model, or accepted tradeoff changes.

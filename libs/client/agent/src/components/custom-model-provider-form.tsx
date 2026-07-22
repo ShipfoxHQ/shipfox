@@ -14,6 +14,7 @@ import {
   useCreateCustomModelProviderMutation,
   useDiscoverCustomModelProviderModelsBySlugMutation,
   useDiscoverCustomModelProviderModelsMutation,
+  useModelProviderCatalogQuery,
   useUpdateCustomModelProviderMutation,
 } from '#hooks/api/model-providers.js';
 import {MODEL_PROVIDER_API_OPTIONS} from './custom-model-provider-api-options.js';
@@ -50,6 +51,8 @@ export function CustomModelProviderForm({
   const createMutation = useCreateCustomModelProviderMutation();
   const updateMutation = useUpdateCustomModelProviderMutation();
   const discoverMutation = useDiscoverCustomModelProviderModelsMutation();
+  const catalogQuery = useModelProviderCatalogQuery();
+  const reservedProviderIds = catalogQuery.data?.providers.map((provider) => provider.id) ?? [];
   const discoverBySlugMutation = useDiscoverCustomModelProviderModelsBySlugMutation();
   const [slugEdited, setSlugEdited] = useState(existingConfig !== undefined);
   const [formError, setFormError] = useState<string | undefined>();
@@ -200,9 +203,13 @@ export function CustomModelProviderForm({
                       name="slug"
                       validators={{
                         onBlur: ({value}) =>
-                          existingConfig ? undefined : customModelProviderSlugError(value),
+                          existingConfig
+                            ? undefined
+                            : customModelProviderSlugError(value, reservedProviderIds),
                         onSubmit: ({value}) =>
-                          existingConfig ? undefined : customModelProviderSlugError(value),
+                          existingConfig
+                            ? undefined
+                            : customModelProviderSlugError(value, reservedProviderIds),
                       }}
                     >
                       {(field) => (

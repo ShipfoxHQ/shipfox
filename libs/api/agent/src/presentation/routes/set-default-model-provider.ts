@@ -1,5 +1,4 @@
 import {
-  getModelProviderEntry,
   setDefaultModelProviderBodySchema,
   setDefaultModelProviderResponseSchema,
 } from '@shipfox/api-agent-dto';
@@ -7,6 +6,7 @@ import {requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {UnsupportedModelProviderError} from '#core/index.js';
+import {getModelProviderEntry} from '#core/model-provider-policy.js';
 import {getModelProviderConfig, setDefaultModelProvider} from '#db/index.js';
 import {translateModelProviderRouteError} from './errors.js';
 

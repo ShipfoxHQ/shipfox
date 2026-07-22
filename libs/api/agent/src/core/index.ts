@@ -42,6 +42,13 @@ export {
   updateModelProviderConfigDefaultModel,
 } from './model-provider-config-service.js';
 export {
+  getModelProviderCredentialKeys,
+  getModelProviderEntry,
+  isReservedModelProviderId,
+  listSupportedModelProviders,
+  modelProviderCredentialKeysMatch,
+} from './model-provider-policy.js';
+export {
   type AgentConfigResolutionContext,
   type AgentDefaultsResolver,
   type ContextualAgentConfig,

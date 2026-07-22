@@ -25,7 +25,7 @@ describe('customModelProviderSlugError', () => {
   });
 
   test('rejects reserved built-in provider ids', () => {
-    const result = customModelProviderSlugError('anthropic');
+    const result = customModelProviderSlugError('anthropic', ['anthropic']);
 
     expect(result).toBe('This id is reserved for a built-in provider.');
   });

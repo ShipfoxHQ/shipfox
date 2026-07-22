@@ -1,11 +1,11 @@
 import {
   agentThinkingSchema,
   buildHarnessToolDeploymentConfig,
-  getModelProviderEntry,
   SUPPORTED_MODEL_PROVIDER_IDS,
   type SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {bool, createConfig, num, str} from '@shipfox/config';
+import {getModelProviderEntry} from '#core/model-provider-policy.js';
 
 const AGENT_THINKING_CHOICES = agentThinkingSchema.options;
 
