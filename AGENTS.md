@@ -45,6 +45,13 @@ pnpm check:published-artifacts
 pnpm install --frozen-lockfile
 ```
 
+## Backend architecture
+
+If your task adds or changes a backend module, DTO, outbox event, HTTP boundary,
+or server package dependency, read the
+[backend architecture guide](docs/architecture/backend-architecture.md). It
+owns the current module model and package-boundary rules.
+
 ## Module exports and imports
 
 Avoid broad barrel files inside modules. Prefer importing from the file that owns the
