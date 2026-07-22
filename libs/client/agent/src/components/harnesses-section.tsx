@@ -1,9 +1,3 @@
-import {
-  DEFAULT_HARNESS,
-  type Harness,
-  type HarnessDescriptor,
-  listHarnessDescriptors,
-} from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -20,6 +14,8 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {useRef, useState} from 'react';
+import {DEFAULT_HARNESS, listHarnesses} from '#core/harness-policy.js';
+import type {HarnessDescriptor, HarnessId} from '#core/models.js';
 import {
   useModelProviderConfigsQuery,
   useSetDefaultHarnessMutation,
@@ -38,13 +34,13 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
   const activeDefaultRequestRef = useRef<{workspaceId: string; id: number} | null>(null);
   const [pendingDefaultHarness, setPendingDefaultHarness] = useState<{
     workspaceId: string;
-    harnessId: Harness;
+    harnessId: HarnessId;
   } | null>(null);
   const [defaultError, setDefaultError] = useState<
-    {workspaceId: string; harnessId: Harness; message: string} | undefined
+    {workspaceId: string; harnessId: HarnessId; message: string} | undefined
   >();
   const configs = configsQuery.data?.configs ?? [];
-  const defaultHarnessId = configsQuery.data?.default_harness_id ?? DEFAULT_HARNESS;
+  const defaultHarnessId = configsQuery.data?.defaultHarnessId ?? DEFAULT_HARNESS;
   activeWorkspaceIdRef.current = workspaceId;
 
   function isActiveDefaultRequest(request: {workspaceId: string; id: number}) {
@@ -67,7 +63,7 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
     try {
       await setDefaultHarness.mutateAsync({
         workspaceId,
-        body: {harness_id: harness.id},
+        harnessId: harness.id,
       });
       if (!isActiveDefaultRequest(request)) return;
       toast.success(`${harness.label} is now the default harness`);
@@ -106,7 +102,7 @@ export function WorkspaceHarnessesSection({workspaceId}: {workspaceId: string}) 
 
       {configsQuery.data !== undefined ? (
         <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
-          {listHarnessDescriptors().map((harness) => (
+          {listHarnesses().map((harness) => (
             <HarnessRow
               key={harness.id}
               harness={harness}

@@ -19,7 +19,7 @@ export function ModelProviderReminderBanner({workspaceId}: {workspaceId: string}
   const unconfigured =
     Array.isArray(configs) &&
     configs.length === 0 &&
-    configsQuery.data?.default_provider_id === null;
+    configsQuery.data?.defaultProviderId === null;
 
   if (!unconfigured || dismissed) return null;
 

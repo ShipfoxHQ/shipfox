@@ -1,9 +1,3 @@
-import type {
-  CustomModelProviderConfigDto,
-  ModelProviderCatalogEntryDto,
-  ModelProviderConfigDto,
-  ModelProviderConfigResponseDto,
-} from '@shipfox/api-agent-dto';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -28,7 +22,22 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
+import {
+  type ManagementModal,
+  managementModalReducer,
+} from '#core/model-provider-management-reducer.js';
+import type {
+  BuiltinProviderConfig,
+  CustomProviderConfig,
+  ProviderCatalogEntry,
+  ProviderConfig,
+  SupportedProvider,
+} from '#core/models.js';
+import {
+  isSupportedProvider,
+  availableProviders as selectAvailableProviders,
+} from '#core/provider-policy.js';
 import {
   useDeleteModelProviderConfigMutation,
   useModelProviderCatalogQuery,
@@ -47,23 +56,11 @@ import {
   usageTargetFromCustomConfig,
 } from './model-provider-usage-target.js';
 import {customProviderCardMatchesSearch} from './provider-search.js';
-import {
-  isSupportedCatalogEntry,
-  type SupportedModelProviderCatalogEntry,
-  toSupportedCatalogEntry,
-} from './supported-model-provider-catalog-entry.js';
 import {ModelProviderTestAndSaveForm} from './test-and-save-form.js';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
 
-type ModelProviderFormState =
-  | {mode: 'configure'; entry: SupportedModelProviderCatalogEntry; config?: undefined}
-  | {mode: 'edit'; entry: SupportedModelProviderCatalogEntry; config: ModelProviderConfigDto};
-type CustomModelProviderFormState =
-  | {mode: 'create'}
-  | {mode: 'edit'; config: CustomModelProviderConfigDto};
-type ModelFormState = {entry: SupportedModelProviderCatalogEntry; config: ModelProviderConfigDto};
 type UsageTarget = {
   target: ModelProviderUsageTarget;
   initialModel: string | null;
@@ -75,61 +72,45 @@ const USAGE_MODAL_OPEN_DELAY_MS = 250;
 export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: string}) {
   const catalogQuery = useModelProviderCatalogQuery();
   const configsQuery = useModelProviderConfigsQuery(workspaceId);
-  const [formState, setFormState] = useState<ModelProviderFormState | null>(null);
-  const [customFormState, setCustomFormState] = useState<CustomModelProviderFormState | null>(null);
-  const [modelFormState, setModelFormState] = useState<ModelFormState | null>(null);
-  const [usageTarget, setUsageTarget] = useState<UsageTarget | null>(null);
+  const [modal, dispatchModal] = useReducer(managementModalReducer, {kind: 'closed'});
   const [pendingUsageTarget, setPendingUsageTarget] = useState<UsageTarget | null>(null);
   const configuredProvidersRegionRef = useRef<HTMLElement | null>(null);
 
   const providers = catalogQuery.data?.providers ?? [];
   const configs = configsQuery.data?.configs ?? [];
   const configsLoaded = configsQuery.data !== undefined;
-  const defaultProviderId = configsQuery.data?.default_provider_id ?? null;
+  const defaultProviderId = configsQuery.data?.defaultProviderId ?? null;
   const providerById = useMemo(
     () =>
-      new Map<string, ModelProviderCatalogEntryDto>(
-        providers.map((provider) => [provider.id, provider]),
-      ),
+      new Map<string, ProviderCatalogEntry>(providers.map((provider) => [provider.id, provider])),
     [providers],
   );
-  const configuredIds = useMemo(
-    () => new Set<string>(configs.map((config) => config.provider_id)),
-    [configs],
-  );
-  const availableProviders = configsLoaded
-    ? providers.filter(
-        (provider): provider is SupportedModelProviderCatalogEntry =>
-          isSupportedCatalogEntry(provider) && !configuredIds.has(provider.id),
-      )
-    : [];
-  const unsupportedProviders = providers.filter(
-    (provider) => provider.support_status === 'unsupported',
-  );
-
-  function closeForm() {
-    setFormState(null);
-  }
-
-  function closeModelForm() {
-    setModelFormState(null);
-  }
-
-  function closeCustomForm() {
-    setCustomFormState(null);
-  }
+  const availableProviders = configsLoaded ? selectAvailableProviders(providers, configs) : [];
+  const unsupportedProviders = providers.filter((provider) => !isSupportedProvider(provider));
 
   useEffect(() => {
-    if (pendingUsageTarget === null || formState !== null || customFormState !== null)
-      return undefined;
+    if (pendingUsageTarget === null || modal.kind !== 'closed') return undefined;
 
     const timer = window.setTimeout(() => {
-      setUsageTarget(pendingUsageTarget);
+      dispatchModal({
+        type: 'show-usage',
+        providerId: pendingUsageTarget.target.id,
+        initialModel: pendingUsageTarget.initialModel,
+        restoreFocusToConfiguredProviders: pendingUsageTarget.restoreFocusToConfiguredProviders,
+      });
       setPendingUsageTarget(null);
     }, USAGE_MODAL_OPEN_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [customFormState, formState, pendingUsageTarget]);
+  }, [modal.kind, pendingUsageTarget]);
+
+  const usageTarget = useMemo(() => {
+    if (modal.kind !== 'show-usage') return null;
+    const config = configs.find((item) => item.providerId === modal.providerId);
+    if (config?.kind === 'custom') return usageTargetFromCustomConfig(config);
+    const entry = providerById.get(modal.providerId);
+    return entry && isSupportedProvider(entry) ? usageTargetFromCatalogEntry(entry) : null;
+  }, [configs, modal, providerById]);
 
   return (
     <div className="flex min-w-0 flex-col gap-32">
@@ -169,39 +150,48 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         {configs.length > 0 ? (
           <ul className={cn('divide-y divide-border-neutral-base', SURFACE_CLASS)}>
             {configs.map((config) => {
-              const entry = toSupportedCatalogEntry(providerById.get(config.provider_id));
+              const catalogEntry = providerById.get(config.providerId);
+              const entry =
+                catalogEntry && isSupportedProvider(catalogEntry) ? catalogEntry : undefined;
               const builtinConfig = isBuiltinModelProviderConfig(config) ? config : undefined;
               const customConfig = isCustomModelProviderConfig(config) ? config : undefined;
               return (
                 <ConfiguredProviderRow
-                  key={config.provider_id}
+                  key={config.providerId}
                   workspaceId={workspaceId}
                   config={config}
                   entry={entry}
-                  isDefault={config.provider_id === defaultProviderId}
+                  isDefault={config.providerId === defaultProviderId}
                   onEdit={() => {
                     if (entry && builtinConfig) {
-                      setFormState({mode: 'edit', entry, config: builtinConfig});
+                      dispatchModal({type: 'edit-builtin', provider: entry, config: builtinConfig});
                     } else if (customConfig) {
-                      setCustomFormState({mode: 'edit', config: customConfig});
+                      dispatchModal({type: 'edit-custom', config: customConfig});
                     }
                   }}
                   onChangeDefaultModel={() => {
-                    if (entry && builtinConfig) setModelFormState({entry, config: builtinConfig});
+                    if (entry && builtinConfig)
+                      dispatchModal({
+                        type: 'change-default-model',
+                        provider: entry,
+                        config: builtinConfig,
+                      });
                   }}
                   onShowUsage={() => {
                     if (entry && builtinConfig) {
                       setPendingUsageTarget(null);
-                      setUsageTarget({
-                        target: usageTargetFromCatalogEntry(entry),
-                        initialModel: builtinConfig.default_model,
+                      dispatchModal({
+                        type: 'show-usage',
+                        providerId: entry.id,
+                        initialModel: builtinConfig.defaultModel,
                         restoreFocusToConfiguredProviders: false,
                       });
                     } else if (customConfig) {
                       setPendingUsageTarget(null);
-                      setUsageTarget({
-                        target: usageTargetFromCustomConfig(customConfig),
-                        initialModel: customConfig.default_model,
+                      dispatchModal({
+                        type: 'show-usage',
+                        providerId: customConfig.providerId,
+                        initialModel: customConfig.defaultModel,
                         restoreFocusToConfiguredProviders: false,
                       });
                     }
@@ -232,9 +222,9 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         {configsLoaded ? (
           <AvailableProvidersGrid
             entries={availableProviders}
-            onSelect={(entry) => setFormState({mode: 'configure', entry})}
+            onSelect={(entry) => dispatchModal({type: 'configure-builtin', provider: entry})}
             trailingCard={
-              <AddCustomProviderCard onConfigure={() => setCustomFormState({mode: 'create'})} />
+              <AddCustomProviderCard onConfigure={() => dispatchModal({type: 'create-custom'})} />
             }
             trailingCardMatchesSearch={customProviderCardMatchesSearch}
           />
@@ -267,7 +257,7 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
                     {entry.label}
                   </Text>
                   <Text size="sm" className="text-foreground-neutral-muted">
-                    {entry.unsupported_reason}
+                    {entry.unsupportedReason}
                   </Text>
                 </div>
               </li>
@@ -276,33 +266,36 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
         ) : null}
       </section>
 
-      <Modal open={formState !== null} onOpenChange={(open) => (open ? undefined : closeForm())}>
+      <Modal
+        open={modal.kind === 'configure-builtin' || modal.kind === 'edit-builtin'}
+        onOpenChange={(open) => (open ? undefined : dispatchModal({type: 'close'}))}
+      >
         <ModalContent aria-describedby={undefined}>
-          <ModalTitle className="sr-only">{modelProviderFormTitle(formState)}</ModalTitle>
+          <ModalTitle className="sr-only">{modelProviderFormTitle(modal)}</ModalTitle>
           <ModalHeader>
             <Text
               size="lg"
               aria-hidden="true"
               className="overflow-ellipsis overflow-hidden whitespace-nowrap"
             >
-              {modelProviderFormTitle(formState)}
+              {modelProviderFormTitle(modal)}
             </Text>
           </ModalHeader>
-          {formState ? (
+          {modal.kind === 'configure-builtin' || modal.kind === 'edit-builtin' ? (
             <ModelProviderTestAndSaveForm
               workspaceId={workspaceId}
-              entry={formState.entry}
-              existingConfig={formState.config}
+              entry={modal.provider}
+              existingConfig={modal.kind === 'edit-builtin' ? modal.config : undefined}
               onSaved={(savedDefaultModel) => {
-                toast.success(`${formState.entry.label} saved`);
-                if (formState.mode === 'configure' && configs.length === 0) {
+                toast.success(`${modal.provider.label} saved`);
+                if (modal.kind === 'configure-builtin' && configs.length === 0) {
                   setPendingUsageTarget({
-                    target: usageTargetFromCatalogEntry(formState.entry),
+                    target: usageTargetFromCatalogEntry(modal.provider),
                     initialModel: savedDefaultModel,
                     restoreFocusToConfiguredProviders: true,
                   });
                 }
-                closeForm();
+                dispatchModal({type: 'close'});
               }}
             />
           ) : null}
@@ -310,8 +303,8 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
       </Modal>
 
       <Modal
-        open={modelFormState !== null}
-        onOpenChange={(open) => (open ? undefined : closeModelForm())}
+        open={modal.kind === 'change-default-model'}
+        onOpenChange={(open) => (open ? undefined : dispatchModal({type: 'close'}))}
       >
         <ModalContent aria-describedby={undefined}>
           <ModalTitle className="sr-only">Change default model</ModalTitle>
@@ -321,17 +314,18 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
               aria-hidden="true"
               className="overflow-ellipsis overflow-hidden whitespace-nowrap"
             >
-              Change default model for {modelFormState?.entry.label}
+              Change default model for{' '}
+              {modal.kind === 'change-default-model' ? modal.provider.label : ''}
             </Text>
           </ModalHeader>
-          {modelFormState ? (
+          {modal.kind === 'change-default-model' ? (
             <ChangeDefaultModelForm
               workspaceId={workspaceId}
-              entry={modelFormState.entry}
-              config={modelFormState.config}
+              entry={modal.provider}
+              config={modal.config}
               onSaved={() => {
-                toast.success(`${modelFormState.entry.label} default model saved`);
-                closeModelForm();
+                toast.success(`${modal.provider.label} default model saved`);
+                dispatchModal({type: 'close'});
               }}
             />
           ) : null}
@@ -339,52 +333,50 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
       </Modal>
 
       <ModelProviderUsageModal
-        target={usageTarget?.target ?? null}
-        initialModel={usageTarget?.initialModel ?? null}
-        workspaceDefaultHarnessId={configsQuery.data?.default_harness_id ?? null}
-        open={usageTarget !== null}
+        target={usageTarget}
+        initialModel={modal.kind === 'show-usage' ? modal.initialModel : null}
+        workspaceDefaultHarnessId={configsQuery.data?.defaultHarnessId ?? null}
+        open={modal.kind === 'show-usage'}
         closeFocusTarget={
-          usageTarget?.restoreFocusToConfiguredProviders
+          modal.kind === 'show-usage' && modal.restoreFocusToConfiguredProviders
             ? configuredProvidersRegionRef.current
             : null
         }
         onOpenChange={(open) => {
-          if (!open) setUsageTarget(null);
+          if (!open) dispatchModal({type: 'close'});
         }}
       />
 
       <Modal
-        open={customFormState !== null}
-        onOpenChange={(open) => (open ? undefined : closeCustomForm())}
+        open={modal.kind === 'create-custom' || modal.kind === 'edit-custom'}
+        onOpenChange={(open) => (open ? undefined : dispatchModal({type: 'close'}))}
       >
         <ModalContent
           aria-describedby={undefined}
           className="max-h-[calc(100vh-32px)] max-w-[760px]"
         >
-          <ModalTitle className="sr-only">
-            {customModelProviderFormTitle(customFormState)}
-          </ModalTitle>
+          <ModalTitle className="sr-only">{customModelProviderFormTitle(modal)}</ModalTitle>
           <ModalHeader>
             <div className="flex min-w-0 flex-col gap-2">
               <Text size="lg" aria-hidden="true" className="truncate">
-                {customModelProviderFormTitle(customFormState)}
+                {customModelProviderFormTitle(modal)}
               </Text>
               <Text size="sm" className="text-foreground-neutral-muted">
                 Connect an OpenAI-, Anthropic-, or Gemini-compatible endpoint.
               </Text>
             </div>
           </ModalHeader>
-          {customFormState ? (
+          {modal.kind === 'create-custom' || modal.kind === 'edit-custom' ? (
             <CustomModelProviderForm
               workspaceId={workspaceId}
-              existingConfig={customFormState.mode === 'edit' ? customFormState.config : undefined}
+              existingConfig={modal.kind === 'edit-custom' ? modal.config : undefined}
               onSaved={() => {
                 toast.success(
-                  customFormState.mode === 'edit'
-                    ? `${customFormState.config.display_name} saved`
+                  modal.kind === 'edit-custom'
+                    ? `${modal.config.displayName} saved`
                     : 'Custom provider saved',
                 );
-                closeCustomForm();
+                dispatchModal({type: 'close'});
               }}
             />
           ) : null}
@@ -394,27 +386,22 @@ export function WorkspaceModelProvidersSection({workspaceId}: {workspaceId: stri
   );
 }
 
-function modelProviderFormTitle(formState: ModelProviderFormState | null): string {
-  if (formState === null) return '';
-  if (formState.mode === 'edit') return `Edit credentials for ${formState.entry.label}`;
-  return `Configure ${formState.entry.label}`;
+function modelProviderFormTitle(modal: ManagementModal): string {
+  if (modal.kind === 'edit-builtin') return `Edit credentials for ${modal.provider.label}`;
+  if (modal.kind === 'configure-builtin') return `Configure ${modal.provider.label}`;
+  return '';
 }
 
-function customModelProviderFormTitle(formState: CustomModelProviderFormState | null): string {
-  if (formState === null) return '';
-  if (formState.mode === 'edit') return `Edit ${formState.config.display_name}`;
+function customModelProviderFormTitle(modal: ManagementModal): string {
+  if (modal.kind === 'edit-custom') return `Edit ${modal.config.displayName}`;
   return 'Add custom provider';
 }
 
-function isBuiltinModelProviderConfig(
-  config: ModelProviderConfigResponseDto,
-): config is ModelProviderConfigDto {
+function isBuiltinModelProviderConfig(config: ProviderConfig): config is BuiltinProviderConfig {
   return config.kind === 'builtin';
 }
 
-function isCustomModelProviderConfig(
-  config: ModelProviderConfigResponseDto,
-): config is CustomModelProviderConfigDto {
+function isCustomModelProviderConfig(config: ProviderConfig): config is CustomProviderConfig {
   return config.kind === 'custom';
 }
 
@@ -428,8 +415,8 @@ function ConfiguredProviderRow({
   onShowUsage,
 }: {
   workspaceId: string;
-  config: ModelProviderConfigResponseDto;
-  entry: SupportedModelProviderCatalogEntry | undefined;
+  config: ProviderConfig;
+  entry: SupportedProvider | undefined;
   isDefault: boolean;
   onEdit: () => void;
   onChangeDefaultModel: () => void;
@@ -441,7 +428,7 @@ function ConfiguredProviderRow({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | undefined>();
   const customConfig = isCustomModelProviderConfig(config) ? config : undefined;
-  const label = customConfig?.display_name ?? entry?.label ?? config.provider_id;
+  const label = customConfig?.displayName ?? entry?.label ?? config.providerId;
   const canUse = entry !== undefined || customConfig !== undefined;
   const canEdit = entry !== undefined || customConfig !== undefined;
   const isBuiltinConfig = isBuiltinModelProviderConfig(config);
@@ -451,7 +438,7 @@ function ConfiguredProviderRow({
     try {
       await setDefault.mutateAsync({
         workspaceId,
-        body: {provider_id: config.provider_id},
+        providerId: config.providerId,
       });
       toast.success(`${label} is now the default provider`);
     } catch (error) {
@@ -463,7 +450,7 @@ function ConfiguredProviderRow({
   async function handleDelete() {
     setDeleteError(undefined);
     try {
-      await deleteConfig.mutateAsync({workspaceId, providerId: config.provider_id});
+      await deleteConfig.mutateAsync({workspaceId, providerId: config.providerId});
       toast.success(`${label} deleted`);
       setDeleteOpen(false);
     } catch (error) {

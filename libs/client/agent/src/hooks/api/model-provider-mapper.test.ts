@@ -11,7 +11,7 @@ test('maps provider catalog entries before they reach the client domain', () => 
   expect(catalog.providers).toEqual([
     expect.objectContaining({
       kind: 'supported',
-      defaultModel: null,
+      defaultModel: 'claude-opus-4-8',
       credentialFields: [{key: 'api_key', label: 'API key', secret: true}],
     }),
   ]);

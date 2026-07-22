@@ -1,7 +1,7 @@
-import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
+import type {SupportedProvider} from '#core/models.js';
 
 const SURFACE_CLASS =
   'overflow-hidden rounded-8 border border-border-neutral-base bg-background-neutral-base';
@@ -10,7 +10,7 @@ export function AvailableProviderCard({
   entry,
   onConfigure,
 }: {
-  entry: ModelProviderCatalogEntryDto;
+  entry: SupportedProvider;
   onConfigure: () => void;
 }) {
   return (

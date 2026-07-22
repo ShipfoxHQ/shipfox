@@ -1,4 +1,4 @@
-import type {CustomModelProviderConfigDto} from '@shipfox/api-agent-dto';
+import type {CustomProviderConfig} from '#core/models.js';
 import {
   buildCreateCustomModelProviderBody,
   buildDiscoverModelsBody,
@@ -61,21 +61,21 @@ describe('custom model provider payload mappers', () => {
 
     expect(body).toEqual({
       slug: 'local-vllm',
-      display_name: 'Local vLLM',
+      displayName: 'Local vLLM',
       api: 'openai-completions',
-      base_url: 'http://localhost:8000/v1',
-      api_key: 'sk-local',
+      baseUrl: 'http://localhost:8000/v1',
+      apiKey: 'sk-local',
       headers: [{name: 'authorization', value: 'Bearer token', secret: true}],
       models: [
         {
           id: 'llama-3.1',
           label: 'Llama 3.1',
-          context_window: 128000,
-          max_output_tokens: 16384,
-          input_image: true,
+          contextWindow: 128000,
+          maxOutputTokens: 16384,
+          inputImage: true,
         },
       ],
-      default_model: 'llama-3.1',
+      defaultModel: 'llama-3.1',
     });
   });
 
@@ -131,11 +131,11 @@ describe('custom model provider payload mappers', () => {
 
     expect(body).toEqual({
       api: 'openai-responses',
-      base_url: 'https://llm.example.test/v1',
-      api_key: 'sk-new',
+      baseUrl: 'https://llm.example.test/v1',
+      apiKey: 'sk-new',
       headers: [
-        {name: 'x-region', value: 'us'},
-        {name: 'authorization', value: 'Bearer new'},
+        {name: 'x-region', value: 'us', secret: false},
+        {name: 'authorization', value: 'Bearer new', secret: false},
       ],
     });
   });
@@ -146,25 +146,25 @@ describe('custom model provider payload mappers', () => {
   });
 });
 
-function customConfig(): CustomModelProviderConfigDto {
+function customConfig(): CustomProviderConfig {
   return {
     kind: 'custom',
-    provider_id: 'local-vllm',
-    display_name: 'Local vLLM',
+    providerId: 'local-vllm',
+    displayName: 'Local vLLM',
     api: 'openai-responses',
-    base_url: 'https://llm.example.test/v1',
+    baseUrl: 'https://llm.example.test/v1',
     headers: [{name: 'x-region', value: 'us'}],
-    secret_header_names: ['authorization'],
+    secretHeaderNames: ['authorization'],
     models: [
       {
         id: 'llama-3.1',
         label: 'Llama 3.1',
-        context_window: 128000,
-        max_output_tokens: 16384,
+        contextWindow: 128000,
+        maxOutputTokens: 16384,
       },
     ],
-    default_model: 'llama-3.1',
-    created_at: '2026-05-08T00:00:00.000Z',
-    updated_at: '2026-05-08T00:00:00.000Z',
+    defaultModel: 'llama-3.1',
+    createdAt: '2026-05-08T00:00:00.000Z',
+    updatedAt: '2026-05-08T00:00:00.000Z',
   };
 }

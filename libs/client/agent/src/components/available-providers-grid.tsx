@@ -1,19 +1,19 @@
-import type {ModelProviderCatalogEntryDto} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Input} from '@shipfox/react-ui/input';
 import type {ReactNode} from 'react';
 import {useMemo, useRef, useState} from 'react';
+import type {SupportedProvider} from '#core/models.js';
+import {providerMatchesSearch} from '#core/provider-policy.js';
 import {AvailableProviderCard} from './available-provider-card.js';
-import {providerMatchesSearch} from './provider-search.js';
 
 export const PROVIDER_GRID_CLASS = 'grid grid-cols-2 gap-12 max-[760px]:grid-cols-1';
 
 const SEARCH_VISIBILITY_THRESHOLD = 8;
 const MAX_ECHOED_QUERY_LENGTH = 40;
 
-export function AvailableProvidersGrid<TEntry extends ModelProviderCatalogEntryDto>({
+export function AvailableProvidersGrid<TEntry extends SupportedProvider>({
   entries,
   onSelect,
   trailingCard,

@@ -1,6 +1,6 @@
 import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {customModelProviderConfig, modelProviderEntry} from '#test/fixtures/model-providers.js';
+import type {CustomProviderConfig, SupportedProvider} from '#core/models.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
 import {
   usageTargetFromCatalogEntry,
@@ -12,8 +12,8 @@ const KIMI_MODEL_ROW_NAME = 'Copy Kimi K2.7 Code model id @cf/moonshotai/kimi-k2
 
 function renderUsageModal() {
   const onOpenChange = vi.fn();
-  const entry = modelProviderEntry({
-    default_model: 'claude-opus-4-8',
+  const entry = supportedProvider({
+    defaultModel: 'claude-opus-4-8',
     models: [
       {id: 'claude-opus-4-8', label: 'Claude Opus 4.8'},
       {id: '@cf/moonshotai/kimi-k2.7-code', label: 'Kimi K2.7 Code'},
@@ -79,7 +79,7 @@ describe('ModelProviderUsageModal', () => {
 
   test('uses the workspace default harness when it is compatible', async () => {
     const onOpenChange = vi.fn();
-    const entry = modelProviderEntry();
+    const entry = supportedProvider();
 
     render(
       <ModelProviderUsageModal
@@ -100,8 +100,8 @@ describe('ModelProviderUsageModal', () => {
 
   test('clamps the selected harness when the target changes', async () => {
     const onOpenChange = vi.fn();
-    const anthropic = modelProviderEntry();
-    const openai = modelProviderEntry({
+    const anthropic = supportedProvider();
+    const openai = supportedProvider({
       id: 'openai',
       label: 'OpenAI',
       models: [{id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'}],
@@ -144,7 +144,7 @@ describe('ModelProviderUsageModal', () => {
 
     render(
       <ModelProviderUsageModal
-        target={usageTargetFromCustomConfig(customModelProviderConfig())}
+        target={usageTargetFromCustomConfig(customProviderConfig())}
         initialModel="custom-model"
         workspaceDefaultHarnessId="claude"
         open
@@ -208,3 +208,31 @@ describe('ModelProviderUsageModal', () => {
     );
   });
 });
+
+function supportedProvider(overrides: Partial<SupportedProvider> = {}): SupportedProvider {
+  return {
+    kind: 'supported',
+    id: 'anthropic',
+    label: 'Anthropic',
+    defaultModel: 'claude-opus-4-8',
+    credentialFields: [{key: 'api_key', label: 'API key', secret: true}],
+    models: [{id: 'claude-opus-4-8', label: 'Claude Opus 4.8'}],
+    ...overrides,
+  };
+}
+
+function customProviderConfig(): CustomProviderConfig {
+  return {
+    kind: 'custom',
+    providerId: 'openai-compatible',
+    displayName: 'OpenAI Compatible',
+    api: 'openai-completions',
+    baseUrl: 'https://llm.example.test/v1',
+    headers: [],
+    secretHeaderNames: [],
+    models: [{id: 'custom-model', label: 'Custom Model'}],
+    defaultModel: 'custom-model',
+    createdAt: '2026-05-08T00:00:00.000Z',
+    updatedAt: '2026-05-08T00:00:00.000Z',
+  };
+}

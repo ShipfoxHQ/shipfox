@@ -1,9 +1,6 @@
-import type {
-  CustomModelProviderConfigDto,
-  ModelProviderCatalogEntryDto,
-} from '@shipfox/api-agent-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {useState} from 'react';
+import type {CustomProviderConfig, SupportedProvider} from '#core/models.js';
 import {ModelProviderUsageModal} from './model-provider-usage-modal.js';
 import {
   usageTargetFromCatalogEntry,
@@ -26,7 +23,7 @@ function ModelProviderUsageModalStory({variant}: ModelProviderUsageModalStoryPro
     <div className="min-h-screen bg-background-neutral-background p-24">
       <ModelProviderUsageModal
         target={target}
-        initialModel={target.default_model}
+        initialModel={target.defaultModel}
         workspaceDefaultHarnessId="claude"
         open={open}
         onOpenChange={setOpen}
@@ -55,14 +52,13 @@ export const CustomProvider: Story = {
   args: {variant: 'custom'},
 };
 
-function anthropicEntry(): ModelProviderCatalogEntryDto {
+function anthropicEntry(): SupportedProvider {
   return {
+    kind: 'supported',
     id: 'anthropic',
     label: 'Anthropic',
-    support_status: 'supported',
-    default_model: 'claude-opus-4-8',
-    credential_fields: [{key: 'api_key', label: 'API key', secret: true}],
-    unsupported_reason: null,
+    defaultModel: 'claude-opus-4-8',
+    credentialFields: [{key: 'api_key', label: 'API key', secret: true}],
     models: [
       {id: 'claude-opus-4-8', label: 'Claude Opus 4.8'},
       {id: 'claude-sonnet-4-8', label: 'Claude Sonnet 4.8'},
@@ -71,14 +67,13 @@ function anthropicEntry(): ModelProviderCatalogEntryDto {
   };
 }
 
-function longListEntry(): ModelProviderCatalogEntryDto {
+function longListEntry(): SupportedProvider {
   return {
+    kind: 'supported',
     id: 'cloudflare-workers-ai',
     label: 'Cloudflare Workers AI',
-    support_status: 'supported',
-    default_model: '@cf/moonshotai/kimi-k2.7-code',
-    credential_fields: [{key: 'api_token', label: 'API token', secret: true}],
-    unsupported_reason: null,
+    defaultModel: '@cf/moonshotai/kimi-k2.7-code',
+    credentialFields: [{key: 'api_token', label: 'API token', secret: true}],
     models: Array.from({length: 56}, (_, index) => ({
       id:
         index === 0
@@ -89,18 +84,18 @@ function longListEntry(): ModelProviderCatalogEntryDto {
   };
 }
 
-function customProviderConfig(): CustomModelProviderConfigDto {
+function customProviderConfig(): CustomProviderConfig {
   return {
     kind: 'custom',
-    provider_id: 'local-vllm',
-    display_name: 'Local vLLM',
+    providerId: 'local-vllm',
+    displayName: 'Local vLLM',
     api: 'openai-completions',
-    base_url: 'http://localhost:8000/v1',
+    baseUrl: 'http://localhost:8000/v1',
     headers: [],
-    secret_header_names: [],
+    secretHeaderNames: [],
     models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
-    default_model: 'llama-3.1',
-    created_at: '2026-05-08T00:00:00.000Z',
-    updated_at: '2026-05-08T00:00:00.000Z',
+    defaultModel: 'llama-3.1',
+    createdAt: '2026-05-08T00:00:00.000Z',
+    updatedAt: '2026-05-08T00:00:00.000Z',
   };
 }

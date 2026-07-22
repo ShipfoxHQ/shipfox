@@ -1,15 +1,11 @@
 import type {
-  CreateCustomModelProviderBodyDto,
-  CustomAgentModelDto,
-  CustomModelProviderConfigDto,
-  DiscoverCustomModelProviderModelsBodyDto,
-  DiscoverCustomModelProviderModelsBySlugBodyDto,
-  ModelProviderApi,
-  UpdateCustomModelProviderBodyDto,
-} from '@shipfox/api-agent-dto';
-
-type CreateHeaderRequest = NonNullable<CreateCustomModelProviderBodyDto['headers']>[number];
-type UpdateHeaderRequest = NonNullable<UpdateCustomModelProviderBodyDto['headers']>[number];
+  AgentModel,
+  CreateCustomProviderCommand,
+  CustomProviderConfig,
+  DiscoverProviderModelsCommand,
+  ProviderApi,
+  UpdateCustomProviderCommand,
+} from '#core/models.js';
 
 export interface CustomModelProviderHeaderFormValue {
   client_id: string;
@@ -33,7 +29,7 @@ export interface CustomModelProviderModelFormValue {
 export interface CustomModelProviderFormValues {
   slug: string;
   display_name: string;
-  api: ModelProviderApi;
+  api: ProviderApi;
   base_url: string;
   api_key: string;
   headers: CustomModelProviderHeaderFormValue[];
@@ -65,13 +61,13 @@ export function createCustomModelProviderFormValues(): CustomModelProviderFormVa
 }
 
 export function editCustomModelProviderFormValues(
-  config: CustomModelProviderConfigDto,
+  config: CustomProviderConfig,
 ): CustomModelProviderFormValues {
   return {
-    slug: config.provider_id,
-    display_name: config.display_name,
+    slug: config.providerId,
+    display_name: config.displayName,
     api: config.api,
-    base_url: config.base_url,
+    base_url: config.baseUrl,
     api_key: '',
     headers: [
       ...config.headers.map((header) => ({
@@ -82,7 +78,7 @@ export function editCustomModelProviderFormValues(
         hasStoredValue: false,
         storedName: header.name,
       })),
-      ...config.secret_header_names.map((name) => ({
+      ...config.secretHeaderNames.map((name) => ({
         client_id: createFormRowId(),
         name,
         value: '',
@@ -92,45 +88,45 @@ export function editCustomModelProviderFormValues(
       })),
     ],
     models: config.models.map(modelFormValue),
-    default_model: config.default_model ?? '',
+    default_model: config.defaultModel ?? '',
   };
 }
 
 export function buildCreateCustomModelProviderBody(
   values: CustomModelProviderFormValues,
-): CreateCustomModelProviderBodyDto {
+): CreateCustomProviderCommand {
   return {
     slug: values.slug.trim(),
-    display_name: values.display_name.trim(),
+    displayName: values.display_name.trim(),
     api: values.api,
-    base_url: values.base_url.trim(),
-    ...(values.api_key.trim() ? {api_key: values.api_key.trim()} : {}),
+    baseUrl: values.base_url.trim(),
+    ...(values.api_key.trim() ? {apiKey: values.api_key.trim()} : {}),
     ...(requestHeaders(values.headers).length > 0 ? {headers: requestHeaders(values.headers)} : {}),
     models: requestModels(values.models),
-    ...(values.default_model.trim() ? {default_model: values.default_model.trim()} : {}),
+    ...(values.default_model.trim() ? {defaultModel: values.default_model.trim()} : {}),
   };
 }
 
 export function buildUpdateCustomModelProviderBody(
-  config: CustomModelProviderConfigDto,
+  config: CustomProviderConfig,
   values: CustomModelProviderFormValues,
-): UpdateCustomModelProviderBodyDto {
-  const body: UpdateCustomModelProviderBodyDto = {};
-  if (values.display_name.trim() !== config.display_name)
-    body.display_name = values.display_name.trim();
+): UpdateCustomProviderCommand {
+  const body: UpdateCustomProviderCommand = {};
+  if (values.display_name.trim() !== config.displayName)
+    body.displayName = values.display_name.trim();
   if (values.api !== config.api) body.api = values.api;
-  if (values.base_url.trim() !== config.base_url) body.base_url = values.base_url.trim();
-  if (values.api_key.trim()) body.api_key = values.api_key.trim();
+  if (values.base_url.trim() !== config.baseUrl) body.baseUrl = values.base_url.trim();
+  if (values.api_key.trim()) body.apiKey = values.api_key.trim();
   if (customHeadersDirty(config, values.headers)) body.headers = updateHeaders(values.headers);
   if (customModelsDirty(config, values.models)) body.models = requestModels(values.models);
 
   const nextDefault = values.default_model.trim() || null;
-  if (nextDefault !== config.default_model) body.default_model = nextDefault;
+  if (nextDefault !== config.defaultModel) body.defaultModel = nextDefault;
   return body;
 }
 
 export function customHeadersDirty(
-  config: CustomModelProviderConfigDto,
+  config: CustomProviderConfig,
   headers: CustomModelProviderHeaderFormValue[],
 ): boolean {
   return (
@@ -141,7 +137,7 @@ export function customHeadersDirty(
         value: header.value,
         secret: false,
       })),
-      ...config.secret_header_names.map((name) => ({
+      ...config.secretHeaderNames.map((name) => ({
         name: normalizeHeaderName(name),
         secret: true,
         keep: true,
@@ -151,24 +147,37 @@ export function customHeadersDirty(
 }
 
 export function customModelsDirty(
-  config: CustomModelProviderConfigDto,
+  config: CustomProviderConfig,
   models: CustomModelProviderModelFormValue[],
 ): boolean {
-  return JSON.stringify(requestModels(models)) !== JSON.stringify(config.models);
+  return (
+    JSON.stringify(requestModels(models)) !==
+    JSON.stringify(
+      config.models.map((model) => ({
+        id: model.id,
+        label: model.label,
+        ...(model.contextWindow === undefined ? {} : {contextWindow: model.contextWindow}),
+        ...(model.maxOutputTokens === undefined ? {} : {maxOutputTokens: model.maxOutputTokens}),
+        ...(model.inputImage ? {inputImage: true} : {}),
+        ...(model.reasoning ? {reasoning: true} : {}),
+      })),
+    )
+  );
 }
 
 export function buildDiscoverModelsBody(
   values: CustomModelProviderFormValues,
-): DiscoverCustomModelProviderModelsBodyDto {
+): DiscoverProviderModelsCommand {
   return {
     api: values.api,
-    base_url: values.base_url.trim(),
-    ...(values.api_key.trim() ? {api_key: values.api_key.trim()} : {}),
+    baseUrl: values.base_url.trim(),
+    ...(values.api_key.trim() ? {apiKey: values.api_key.trim()} : {}),
     ...(requestHeaders(values.headers).length > 0
       ? {
           headers: requestHeaders(values.headers).map(({name, value}) => ({
             name,
             value,
+            secret: false,
           })),
         }
       : {}),
@@ -176,13 +185,13 @@ export function buildDiscoverModelsBody(
 }
 
 export function buildDiscoverModelsBySlugBody(
-  config: CustomModelProviderConfigDto,
+  config: CustomProviderConfig,
   values: CustomModelProviderFormValues,
-): DiscoverCustomModelProviderModelsBySlugBodyDto {
-  const body: DiscoverCustomModelProviderModelsBySlugBodyDto = {};
+): DiscoverProviderModelsCommand {
+  const body: DiscoverProviderModelsCommand = {};
   if (values.api !== config.api) body.api = values.api;
-  if (values.base_url.trim() !== config.base_url) body.base_url = values.base_url.trim();
-  if (values.api_key.trim()) body.api_key = values.api_key.trim();
+  if (values.base_url.trim() !== config.baseUrl) body.baseUrl = values.base_url.trim();
+  if (values.api_key.trim()) body.apiKey = values.api_key.trim();
   body.headers = updateHeaders(values.headers);
   return body;
 }
@@ -200,8 +209,10 @@ export function createFormRowId(): string {
   return crypto.randomUUID();
 }
 
-function updateHeaders(headers: CustomModelProviderHeaderFormValue[]): UpdateHeaderRequest[] {
-  const result: UpdateHeaderRequest[] = [];
+function updateHeaders(
+  headers: CustomModelProviderHeaderFormValue[],
+): NonNullable<UpdateCustomProviderCommand['headers']> {
+  const result: NonNullable<UpdateCustomProviderCommand['headers']> = [];
   for (const header of headers) {
     const name = normalizeHeaderName(header.name);
     if (!name) continue;
@@ -219,7 +230,9 @@ function updateHeaders(headers: CustomModelProviderHeaderFormValue[]): UpdateHea
   return result;
 }
 
-function requestHeaders(headers: CustomModelProviderHeaderFormValue[]): CreateHeaderRequest[] {
+function requestHeaders(
+  headers: CustomModelProviderHeaderFormValue[],
+): NonNullable<CreateCustomProviderCommand['headers']> {
   return updateHeaders(headers).flatMap((header) =>
     'value' in header && header.value
       ? [{name: header.name, value: header.value, secret: header.secret}]
@@ -227,7 +240,9 @@ function requestHeaders(headers: CustomModelProviderHeaderFormValue[]): CreateHe
   );
 }
 
-function requestModels(models: CustomModelProviderModelFormValue[]): CustomAgentModelDto[] {
+function requestModels(
+  models: CustomModelProviderModelFormValue[],
+): CreateCustomProviderCommand['models'] {
   return models.flatMap((model) => {
     const id = model.id.trim();
     const label = model.label.trim();
@@ -236,25 +251,25 @@ function requestModels(models: CustomModelProviderModelFormValue[]): CustomAgent
       {
         id,
         label,
-        ...(model.context_window.trim() ? {context_window: Number(model.context_window)} : {}),
+        ...(model.context_window.trim() ? {contextWindow: Number(model.context_window)} : {}),
         ...(model.max_output_tokens.trim()
-          ? {max_output_tokens: Number(model.max_output_tokens)}
+          ? {maxOutputTokens: Number(model.max_output_tokens)}
           : {}),
-        ...(model.input_image ? {input_image: true} : {}),
+        ...(model.input_image ? {inputImage: true} : {}),
         ...(model.reasoning ? {reasoning: true} : {}),
       },
     ];
   });
 }
 
-function modelFormValue(model: CustomAgentModelDto): CustomModelProviderModelFormValue {
+function modelFormValue(model: AgentModel): CustomModelProviderModelFormValue {
   return {
     client_id: createFormRowId(),
     id: model.id,
     label: model.label,
-    context_window: model.context_window?.toString() ?? '',
-    max_output_tokens: model.max_output_tokens?.toString() ?? '',
-    input_image: model.input_image ?? false,
+    context_window: model.contextWindow?.toString() ?? '',
+    max_output_tokens: model.maxOutputTokens?.toString() ?? '',
+    input_image: model.inputImage ?? false,
     reasoning: model.reasoning ?? false,
   };
 }

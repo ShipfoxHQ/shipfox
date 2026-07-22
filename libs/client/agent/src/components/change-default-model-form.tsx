@@ -1,4 +1,3 @@
-import type {ModelProviderConfigDto} from '@shipfox/api-agent-dto';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {fieldError} from '@shipfox/react-ui/form-field';
@@ -6,6 +5,7 @@ import {ModalBody, ModalFooter} from '@shipfox/react-ui/modal';
 import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
 import {useState} from 'react';
+import type {BuiltinProviderConfig, SupportedProvider} from '#core/models.js';
 import {useUpdateModelProviderDefaultModelMutation} from '#hooks/api/model-providers.js';
 import {
   DefaultModelField,
@@ -13,7 +13,6 @@ import {
   selectedModelForModelPayload,
 } from './default-model-field.js';
 import {modelProviderConfigErrorToFormError} from './form-errors.js';
-import type {SupportedModelProviderCatalogEntry} from './supported-model-provider-catalog-entry.js';
 
 const CHANGE_DEFAULT_MODEL_FORM_ID = 'model-provider-change-default-model-form';
 
@@ -24,21 +23,21 @@ export function ChangeDefaultModelForm({
   onSaved,
 }: {
   workspaceId: string;
-  entry: SupportedModelProviderCatalogEntry;
-  config: ModelProviderConfigDto;
+  entry: SupportedProvider;
+  config: BuiltinProviderConfig;
   onSaved: () => void;
 }) {
   const updateDefaultModel = useUpdateModelProviderDefaultModelMutation();
   const [formError, setFormError] = useState<string | undefined>();
   const form = useForm({
-    defaultValues: {default_model: defaultModelFormValue(config.default_model)},
+    defaultValues: {default_model: defaultModelFormValue(config.defaultModel)},
     onSubmit: async ({value}) => {
       setFormError(undefined);
       try {
         await updateDefaultModel.mutateAsync({
           workspaceId,
           providerId: entry.id,
-          body: {default_model: selectedModelForModelPayload(value.default_model)},
+          defaultModel: selectedModelForModelPayload(value.default_model),
         });
         onSaved();
       } catch (error) {

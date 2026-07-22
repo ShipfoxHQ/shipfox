@@ -19,6 +19,7 @@ export type ManagementModal =
       readonly kind: 'show-usage';
       readonly providerId: string;
       readonly initialModel: string | null;
+      readonly restoreFocusToConfiguredProviders?: boolean | undefined;
     };
 
 export type ManagementModalAction =
@@ -40,6 +41,7 @@ export type ManagementModalAction =
       readonly type: 'show-usage';
       readonly providerId: string;
       readonly initialModel: string | null;
+      readonly restoreFocusToConfiguredProviders?: boolean | undefined;
     };
 
 export function managementModalReducer(
@@ -60,6 +62,11 @@ export function managementModalReducer(
     case 'edit-custom':
       return {kind: 'edit-custom', config: action.config};
     case 'show-usage':
-      return {kind: 'show-usage', providerId: action.providerId, initialModel: action.initialModel};
+      return {
+        kind: 'show-usage',
+        providerId: action.providerId,
+        initialModel: action.initialModel,
+        restoreFocusToConfiguredProviders: action.restoreFocusToConfiguredProviders ?? false,
+      };
   }
 }
