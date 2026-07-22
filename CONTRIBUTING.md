@@ -55,17 +55,23 @@ atom, browser storage, or cross-feature client flow, read the
 [client architecture guide](docs/architecture/client-architecture.md). It owns
 the current client model, form rules, and architecture enforcement.
 
-## Error reporting
+## Backend cross-cutting rules
 
-Report unexpected API-process failures at the earliest owning boundary. A catch
-that continues must report the failure, return or persist a recognized error, or
-document why it is intentionally non-actionable. Do not report expected client,
-validation, authentication, typed provider, cancellation, or idempotency paths.
-Every unexpected failure sent to Sentry must also be written to the structured
-application log so self-hosters can diagnose it without Sentry. Log the error
-and only safe, bounded context such as the boundary's module, operation, or
-resource identifier. Never attach request bodies, headers, cookies, tokens, or
-payloads to either logs or reports.
+When your change adds or changes an environment variable, validator, or
+environment description, read the [configuration policy](docs/policies/configuration.md).
+It owns repository-wide configuration rules.
+
+When your change adds a domain or provider error, translates a request failure,
+or reports an unexpected failure, read [error handling](docs/architecture/error-handling.md).
+It owns the backend error model and reporting boundaries.
+
+When your change adds a metric or changes instrumentation startup, naming,
+units, or labels, read [observability](docs/architecture/observability.md). It
+owns the backend metrics model and cardinality constraints.
+
+When your change mints, verifies, or carries an authentication token, read the
+[Auth security model](libs/api/auth/README.md#security-model). It owns token
+authority, lifetime, trust boundaries, and logging constraints.
 
 ## Writing Documentation
 

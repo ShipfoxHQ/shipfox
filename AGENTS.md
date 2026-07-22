@@ -143,42 +143,23 @@ enabled, waits for both to become ready, then runs `turbo test:e2e`. Diagnostics
 land in `.context/shipfox-e2e-logs/`; flow runner logs are attached to failed
 scenario results.
 
-### Configuration
+### Backend cross-cutting rules
 
-Each app and each package that reads the environment owns a `src/config.ts`. It
-calls `createConfig` from `@shipfox/config` (a thin wrapper over envalid) with one
-validator per variable: `str`, `num`, `bool`, `host`, `port`, `url`, or `email`. A
-validator with a `default` is optional; one without a default is required, so a
-missing value fails startup. Keep the file flat: declare the schema, then derive
-any helpers (such as a mailer) below it.
+If your task adds or changes an environment variable, validator, or environment
+description, read the [configuration policy](docs/policies/configuration.md). It
+owns repository-wide configuration rules.
 
-Document every variable with the validator's `desc` property, never a `//` comment
-beside it. `desc` stays attached to the schema: envalid's default reporter prints it
-when a required variable is missing at startup, and any config tooling can read it.
-A `//` comment never leaves the source file. When you find an existing `//` note on
-a config param, move it into `desc`.
+If your task adds a domain or provider error, translates a request failure, or
+reports an unexpected failure, read [error handling](docs/architecture/error-handling.md).
+It owns the backend error model and reporting boundaries.
 
-Write the descriptions for self-hosters, not for maintainers:
+If your task adds a metric or changes instrumentation startup, naming, units, or
+labels, read [observability](docs/architecture/observability.md). It owns the
+backend metrics model and cardinality constraints.
 
-- Plain language, one idea per sentence, present tense.
-- Say what the variable does and how to set it.
-- List the accepted values when the variable is constrained: enums like
-  `LOG_LEVEL` or `MAILER_TRANSPORT`, a URL, a comma-separated list.
-- Note when a variable is required, or when it depends on another (for example,
-  `SMTP_HOST` is required when `MAILER_TRANSPORT` is `smtp`).
-- No marketing words.
-
-```ts
-export const config = createConfig({
-  AUTH_JWT_SECRET: str({
-    desc: 'Secret used to sign and verify user access tokens (JWTs). Required, with no default, so startup fails when it is missing.',
-  }),
-  MAILER_TRANSPORT: str({
-    desc: 'How emails are delivered. Use console to print them to the log, or smtp to send them through an SMTP server.',
-    default: 'console',
-  }),
-});
-```
+If your task mints, verifies, or carries an authentication token, read the
+[Auth security model](libs/api/auth/README.md#security-model). It owns token
+authority, lifetime, trust boundaries, and logging constraints.
 
 ## Code comments
 
@@ -275,230 +256,6 @@ planning-doc decisions (`/plan-eng-review A1`) in module or function headers.
 Speculation about future work ("today X, tomorrow Y") and tracked tasks belong in
 `TODOS.md`, the issue tracker, or the design doc, not in code that outlives them.
 
-## Auth & token security
-
-The auth module issues two stateless bearer tokens, a **user session token** and
-a **job lease token**, each signed with a distinct key derived from
-`AUTH_ROOT_KEY`. Rotating the root invalidates every derived-token type. The full
-security model (trust boundaries, scope, threat model, and rotation) lives in
-`libs/api/auth/README.md#security-model`; read it before touching anything that
-mints, verifies, or carries either token.
-
-The job lease token is a single-job **capability**, not an identity. When working
-near it, keep its authority narrow:
-
-- **Keep the scope to one job.** Do not add claims that grant access beyond the
-  single job the lease names. It is not a runner identity, not workspace-wide, and
-  not a replacement for the long-lived runner credential.
-- **Keep a single issuer; everyone else verifies only.** Scheduling mints leases;
-  every other side does an in-process signature check with no callback. Treat the
-  runner and the agent workload it hosts as untrusted; they only present a token.
-- **Keep the lifetime bounded** and never trade the short TTL for convenience.
-- **Server state is the final gate.** A valid token must never be sufficient to
-  advance work on its own; on the lease path, terminal step/progression state
-  always wins (job finalization is enforced outside it), and cancellation rides on
-  the heartbeat response.
-- **Never log a raw token.** There is no automatic redaction; tokens must not reach
-  logs, traces, or error payloads. Secrets come from configuration, never code.
-
-If the no-revocation window proves too wide, bind the lease to live runner or job
-state; do not broaden what the token itself authorizes.
-
-## Error handling
-
-Error handling is a cross-layer concern, not an HTTP detail. The guiding
-principle is **let errors bubble up and translate them only when crossing a
-boundary**. Each layer owns one job, and the error changes shape only at the
-edges:
-
-```
-external system  →  api/core: typed error  →  presentation: ClientError  →  global handler  →  HTTP response
-```
-
-Never swallow or wrap an error unless you add meaning. If you can re-throw
-as-is, do. Do not catch errors just to log them; let unknowns reach the global
-handler.
-
-### Domain errors (`core` / `db`)
-
-Throw typed domain errors from domain and persistence code. Define them in
-`core/errors.ts` as plain `Error` subclasses with a human-readable message, a
-`name`, and any context as public readonly fields. They carry **no HTTP
-concerns** (no status, no client-facing code), which keeps them reusable by
-workers, subscribers, and jobs, not just routes:
-
-```ts
-export class WorkspaceNotFoundError extends Error {
-  constructor(workspaceId: string) {
-    super(`Workspace not found: ${workspaceId}`);
-    this.name = 'WorkspaceNotFoundError';
-  }
-}
-```
-
-### External and infrastructure errors (`api` / `core`)
-
-Catch errors from external systems (GitHub, GCP, etc.) at the layer that talks
-to them and re-throw them as a typed error carrying a `reason` enum (e.g.
-`IntegrationProviderError`) rather than letting raw SDK errors leak upward.
-Callers then branch on `reason` without depending on the SDK's error shapes.
-Pass `retryAfterSeconds` for backpressure reasons like `rate-limited`:
-
-```ts
-throw new IntegrationProviderError('rate-limited', message, retryAfterSeconds);
-```
-
-### Translating to HTTP responses (`presentation`)
-
-The presentation/request boundary is the only place that turns errors into
-client responses. Route `errorHandler`s are the default place to translate
-known domain errors to `ClientError`; re-throw anything you don't recognize so
-it reaches the global handler:
-
-```ts
-errorHandler: (error) => {
-  if (error instanceof WorkspaceNotFoundError)
-    throw new ClientError('Workspace not found', 'not-found', {status: 404});
-  if (error instanceof LastMemberError)
-    throw new ClientError(error.message, 'last-member', {status: 409});
-  throw error; // unrecognized → global handler
-},
-```
-
-`ClientError(message, code, params)` is the only error that produces a
-structured client response. `code` is a stable kebab-case string (`not-found`,
-`last-member`, `project-already-exists`). `params`:
-
-- `status`: HTTP status, **defaults to 400**; set it for any other 4xx.
-- `details`: structured data **returned to the client** (snake_case keys).
-- `data`: context **logged only**, never sent to the client.
-- `cause`: pass the original error when wrapping, so it stays in the chain for
-  logs and diagnostics. Sentry sees unknown errors that reach the global handler;
-  handled cases must capture explicitly if they need Sentry reporting.
-
-For external errors, map the `reason` enum to a status and client code here
-(e.g. `rate-limited` → 429).
-
-### The global handler
-
-The shared handler in `@shipfox/node-fastify` is the last resort. It sends
-`ClientError` as `{code, details?}` with its status, maps Fastify
-validation/known errors to 4xx codes, and logs + reports unknown errors to
-Sentry as a 500 `server-error`. Anything that reaches it untyped becomes an
-opaque 500, so translate errors you can describe before they get here.
-
-## Metrics & observability
-
-Metrics are emitted through OpenTelemetry and scraped by Prometheus. All the
-plumbing (the SDK, the Prometheus exporters, the meter providers) lives in
-`@shipfox/node-opentelemetry`; an app turns it on once at startup (the API does
-this in `apps/api/src/core/run.ts`) and feature packages only define and record
-instruments. Never add a metrics SDK or exporter to a feature package.
-
-The worked example is `libs/api/runners/src/metrics`. Copy its shape.
-
-### Two planes: instance vs service
-
-There are two separate meter providers on two ports, and the choice between
-them is about *what the number means*, not convenience.
-
-- **Instance metrics** (`instanceMetrics.getMeter(name)`, port 9464) are
-  counters and histograms recorded inline as an event happens: a job claimed,
-  a request served, a duration observed. Each pod exposes its own values and
-  Prometheus sums across pods. This is the default; reach for it first.
-- **Service metrics** (`getServiceMetricsProvider().getMeter(name)`, port 9474)
-  are observable gauges that read shared state (a queue depth, a backlog size,
-  a current count) through a callback that runs on each scrape. They live on a
-  separate provider because every pod reading the same database row would report
-  the same value, and Prometheus must not sum those copies. Use a service gauge
-  only for point-in-time state derived from shared storage.
-
-If you are counting things that happen, you want an instance counter. If you are
-reporting how many things currently exist, you want a service gauge.
-
-### Package layout
-
-Each feature package that emits metrics owns a `src/metrics/` folder:
-
-```text
-src/metrics/
-  instance.ts   Counters and histograms, created at module load, recorded inline.
-  service.ts    register<Module>ServiceMetrics(): observable gauges (omit if none).
-  index.ts      Re-exports the above.
-```
-
-Instance instruments are created at the top of `instance.ts` and exported, then
-imported and recorded where the event occurs. Creating them at import time is
-safe for tests: `instanceMetrics.getMeter` returns a no-op meter until an app
-starts instrumentation, so a test that merely imports the module records nothing
-and binds nothing.
-
-That same lazy resolution is a production trap. The metrics API has no proxy
-meter (unlike traces, which back-fill), so an instrument created before the app
-registers the global meter provider stays a no-op forever and never exports. The
-app must therefore start instance instrumentation **before** the module graph
-loads: preload it via `--import`, not from inside `run()`. See
-`apps/api/src/instrumentation.ts` (wired into the Dockerfile CMD and the dev
-script). A new app that calls `startInstanceInstrumentation` in-process after
-importing its feature modules will silently emit nothing.
-
-Service gauges are different. Reaching `getServiceMetricsProvider()` binds the
-metrics port, so it must never run at import time; it would break any unit test
-that imports the module. Fetch the meter, create the gauges, and attach their
-callbacks **inside** an exported `register<Module>ServiceMetrics()` function.
-Wire that function to the module via the `metrics` hook:
-
-```ts
-export const runnersModule: ShipfoxModule = {
-  name: 'runners',
-  // ...
-  metrics: registerRunnersServiceMetrics,
-};
-```
-
-`registerModuleMetrics` (called once from the app bootstrap, after
-`startServiceMetrics` and `initializeModules`) invokes every module's hook. A
-package with no shared-state gauge omits `metrics` entirely.
-
-### Naming
-
-Snake_case, prefixed with the module name: `runners_job_claimed`,
-`runners_pending_jobs`, `runners_claim_duration`. The prefix is the namespace;
-it keeps `workflows_*` and `runners_*` from colliding in one Prometheus tenant.
-
-Do not hand-append `_total` to counters or unit suffixes to histograms: the
-Prometheus exporter derives `_total`, `_milliseconds`, and friends from the
-instrument kind and its `unit`. Set `unit: 'ms'` and `advice.explicitBucketBoundaries`
-on histograms; the name stays unit-free.
-
-### Cardinality is the one rule that matters
-
-A metric label multiplies into one time series per distinct value. Labels must
-be **bounded and low-cardinality**: an outcome, a reason, a type, a conclusion,
-a provider, an OS: values you could list on one hand or one page.
-
-Never label a metric with an unbounded identifier: no `jobId`, `runId`,
-`workspaceId`, `organizationId`, `userId`, raw URL, or error message. One job ID
-in a label is one new time series per job forever; it melts Prometheus and the
-bill. When you need per-entity detail, that is what logs and traces are for;
-put the ID in a `logger()` field, not a metric label.
-
-Type the label set so the shape is enforced at every call site:
-
-```ts
-const jobClaimedCount = meter.createCounter<{outcome: 'claimed' | 'empty'}>(
-  'runners_job_claimed',
-  {description: 'Job-claim attempts by outcome'},
-);
-```
-
-### Where recording lives
-
-Metrics are observability, like logging, so they are allowed in `core` and `db`;
-record where the event is known most precisely, not only at the HTTP edge.
-Keep recording out of pure row-to-domain mappers and DTO converters. A service
-gauge's callback queries through the same `db/` functions the rest of the
-package uses; it does not reach for raw Drizzle.
 
 ## Unit Testing Strategy (Client Apps)
 

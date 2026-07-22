@@ -19,6 +19,9 @@ listed there or when you need to place, update, or review documentation.
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |
 | Changes server module boundaries or an inter-module call. | [ADR 0002](adr/0002-api-inter-module-architecture.md) | Producer-owned inter-module contracts and bounded-context crossings. |
 | Adds or changes a backend module, DTO, outbox event, HTTP boundary, or server package dependency. | [Backend architecture](architecture/backend-architecture.md) | The current backend module model and package-boundary rules. |
+| Adds or changes an environment variable, validator, or environment description. | [Configuration policy](policies/configuration.md) | Repository-wide configuration ownership, validation, and description rules. |
+| Adds a domain or provider error, translates a request failure, or reports an unexpected failure. | [Error handling](architecture/error-handling.md) | The current backend error model, client translation, and reporting boundaries. |
+| Adds a metric or changes instrumentation startup, naming, units, or labels. | [Observability](architecture/observability.md) | The current backend metrics model and cardinality constraints. |
 | Changes client state, API adapters, forms, or feature-domain boundaries. | [Client architecture](architecture/client-architecture.md) | The current client feature model, form rules, and architecture enforcement. |
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
