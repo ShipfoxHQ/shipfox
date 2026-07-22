@@ -5,9 +5,12 @@ import {
 } from '@shipfox/api-triggers-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
 import {
+  type FetchQueryOptions,
+  type InfiniteData,
   infiniteQueryOptions,
   keepPreviousData,
   queryOptions,
+  type UseInfiniteQueryOptions,
   useInfiniteQuery,
   useQuery,
 } from '@tanstack/react-query';
@@ -23,6 +26,28 @@ import {
 } from './trigger-event-mapper.js';
 
 export type {TriggerEventFilters} from '#core/trigger-event.js';
+
+type TriggerEventsInfiniteQueryOptions = UseInfiniteQueryOptions<
+  import('#core/trigger-event.js').TriggerEventListPage,
+  Error,
+  InfiniteData<import('#core/trigger-event.js').TriggerEventListPage, string | undefined>,
+  ReturnType<typeof triggerEventsQueryKeys.list>,
+  string | undefined
+>;
+
+type TriggerEventQueryOptions = FetchQueryOptions<
+  import('#core/trigger-event.js').TriggerEventDetail,
+  Error,
+  import('#core/trigger-event.js').TriggerEventDetail,
+  ReturnType<typeof triggerEventsQueryKeys.detail>
+>;
+
+type TriggerEventFacetsQueryOptions = FetchQueryOptions<
+  import('#core/trigger-event.js').TriggerEventFacets,
+  Error,
+  import('#core/trigger-event.js').TriggerEventFacets,
+  ReturnType<typeof triggerEventsQueryKeys.facets>
+>;
 
 function setListParam(
   params: URLSearchParams,
@@ -88,7 +113,7 @@ export function triggerEventsInfiniteQueryOptions(
   workspaceId: string,
   filters: TriggerEventFilters = {},
   limit = 50,
-) {
+): TriggerEventsInfiniteQueryOptions {
   return infiniteQueryOptions({
     queryKey: triggerEventsQueryKeys.list(workspaceId, filters, limit),
     initialPageParam: undefined as string | undefined,
@@ -110,7 +135,7 @@ export function useTriggerEventsInfiniteQuery(
   });
 }
 
-export function triggerEventQueryOptions(id: string) {
+export function triggerEventQueryOptions(id: string): TriggerEventQueryOptions {
   return queryOptions({
     queryKey: triggerEventsQueryKeys.detail(id),
     queryFn: ({signal}) => getTriggerEvent({id, signal}),
@@ -140,7 +165,9 @@ export async function getTriggerEventFacets({
   return toTriggerEventFacets(response);
 }
 
-export function triggerEventFacetsQueryOptions(workspaceId: string) {
+export function triggerEventFacetsQueryOptions(
+  workspaceId: string,
+): TriggerEventFacetsQueryOptions {
   return queryOptions({
     queryKey: triggerEventsQueryKeys.facets(workspaceId),
     queryFn: ({signal}) => getTriggerEventFacets({workspaceId, signal}),
