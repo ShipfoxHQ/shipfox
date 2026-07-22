@@ -49,6 +49,7 @@ interface TestWorkflowJob {
   readonly success?: string | undefined;
   readonly outputs?: Readonly<Record<string, string>> | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
+  readonly listening?: WorkflowModel['jobs'][number]['listening'] | undefined;
   readonly steps: readonly TestWorkflowStep[];
 }
 
@@ -70,7 +71,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     return {
       id: jobId,
       key,
-      mode: 'one_shot' as const,
+      mode: job.listening === undefined ? ('one_shot' as const) : ('listening' as const),
       runner: normalizeStringArray(job.runner ?? input.runner ?? DEFAULT_RUNNER_LABELS),
       ...(job.runnerTemplates === undefined
         ? {}
@@ -90,6 +91,7 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
               {kind: 'literal' as const, value: job.name},
             ],
           }),
+      ...(job.listening === undefined ? {} : {listening: job.listening}),
       ...optionalScopedEnv(job.env),
       dependencies: normalizeStringArray(job.needs).map(stableId),
       steps: job.steps.map((step, stepIndex) => normalizeStep(step, jobId, stepIndex)),
