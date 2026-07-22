@@ -9,6 +9,7 @@
 "@shipfox/api-integration-sentry": patch
 "@shipfox/api-integration-slack": patch
 "@shipfox/api-integration-webhook": patch
+"@shipfox/client-shell": patch
 ---
 
 Separates Integrations provider SPI contracts from the public DTO surface.
