@@ -4,7 +4,13 @@ import {
   revokeManualRegistrationTokenResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
-import {queryOptions, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   CreatedManualRegistrationToken,
   CreateTokenCommand,
@@ -21,6 +27,13 @@ export const manualRegistrationTokenQueryKeys = {
   list: (workspaceId: string) =>
     [...manualRegistrationTokenQueryKeys.all, 'list', workspaceId] as const,
 };
+
+type ManualRegistrationTokensQueryOptions = FetchQueryOptions<
+  ManualRegistrationToken[],
+  Error,
+  ManualRegistrationToken[],
+  ReturnType<typeof manualRegistrationTokenQueryKeys.list>
+>;
 
 export async function listManualRegistrationTokens({
   workspaceId,
@@ -67,7 +80,9 @@ export async function revokeManualRegistrationToken({
   return toManualRegistrationToken(response);
 }
 
-export function manualRegistrationTokensQueryOptions(workspaceId: string) {
+export function manualRegistrationTokensQueryOptions(
+  workspaceId: string,
+): ManualRegistrationTokensQueryOptions {
   return queryOptions({
     queryKey: manualRegistrationTokenQueryKeys.list(workspaceId),
     queryFn: ({signal}) => listManualRegistrationTokens({workspaceId, signal}),

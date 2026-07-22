@@ -5,7 +5,13 @@ import {
   revokeProvisionerTokenResponseSchema,
 } from '@shipfox/api-runners-dto';
 import {checkedApiRequest} from '@shipfox/client-api';
-import {queryOptions, useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {
+  type FetchQueryOptions,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   ActiveProvisioner,
   CreatedProvisionerToken,
@@ -27,6 +33,20 @@ export const provisionerTokenQueryKeys = {
   active: (workspaceId: string) =>
     [...provisionerTokenQueryKeys.all, 'provisioners', workspaceId] as const,
 };
+
+type ProvisionerTokensQueryOptions = FetchQueryOptions<
+  ProvisionerToken[],
+  Error,
+  ProvisionerToken[],
+  ReturnType<typeof provisionerTokenQueryKeys.list>
+>;
+
+type ActiveProvisionersQueryOptions = FetchQueryOptions<
+  ActiveProvisioner[],
+  Error,
+  ActiveProvisioner[],
+  ReturnType<typeof provisionerTokenQueryKeys.active>
+>;
 
 export async function listProvisionerTokens({
   workspaceId,
@@ -88,7 +108,7 @@ export async function listActiveProvisioners({
   return response.provisioners.map(toActiveProvisioner);
 }
 
-export function provisionerTokensQueryOptions(workspaceId: string) {
+export function provisionerTokensQueryOptions(workspaceId: string): ProvisionerTokensQueryOptions {
   return queryOptions({
     queryKey: provisionerTokenQueryKeys.list(workspaceId),
     queryFn: ({signal}) => listProvisionerTokens({workspaceId, signal}),
@@ -97,7 +117,9 @@ export function provisionerTokensQueryOptions(workspaceId: string) {
   });
 }
 
-export function activeProvisionersQueryOptions(workspaceId: string) {
+export function activeProvisionersQueryOptions(
+  workspaceId: string,
+): ActiveProvisionersQueryOptions {
   return queryOptions({
     queryKey: provisionerTokenQueryKeys.active(workspaceId),
     queryFn: ({signal}) => listActiveProvisioners({workspaceId, signal}),
