@@ -30,8 +30,18 @@ It owns when a Changeset is required and how releases are published.
    `generate-changeset` skill or use `pnpm exec changeset` interactively, then
    commit it before opening the pull request.
 4. Use the contributor standard to prepare the title, description, and Linear
-   reference. If it is unclear whether the change fully resolves an issue, ask
-   before choosing a closing keyword.
+   reference. Inspect the source issue and compare its requested scope with the
+   branch diff before choosing the keyword:
+   - Use `Closes ENG-123` when the task implements that issue and no requested
+     work remains. This is the default when the branch covers the full scope.
+   - Use `Refs ENG-123`, `Part of ENG-123`, or `Related to ENG-123` only when the
+     issue is an umbrella item, the pull request is an explicit partial step, or
+     a named requirement remains for another pull request. State the remaining
+     work in the description.
+   - Optional follow-up improvements do not make the work partial. Neither do a
+     draft pull request, a narrow implementation, or a `Refs` commit footer.
+   Ask only when the issue and diff contain conflicting evidence that cannot be
+   resolved by inspection.
 5. Push the branch when needed with `git push -u origin HEAD`, then create the
    pull request:
 
@@ -43,6 +53,10 @@ EOF
 ```
 
 Pass `--draft` when the user request, task context, or arguments require it.
+
+Before submission, inspect the final body. A pull request that completes a
+Linear issue must contain a closing line such as `Closes ENG-123`. This lets the
+Linear integration apply its merge automation.
 
 ## Edit an existing pull request
 
