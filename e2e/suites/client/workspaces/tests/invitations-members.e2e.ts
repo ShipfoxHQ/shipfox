@@ -223,11 +223,16 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
   await expect(pendingInvitationRow).toBeHidden();
 });
 
-test('renders terminal public invitation states', async ({page, invitationAccept}) => {
+test('renders a missing-token public invitation as an invalid link', async ({
+  page,
+  invitationAccept,
+}) => {
   await invitationAccept.goto();
   await expect(invitationAccept.heading('Invalid link')).toBeVisible();
   await stableScreenshot(page, 'invitations/missing-token');
+});
 
+test('renders an invalid public invitation', async ({page, invitationAccept}) => {
   await page.route('**/invitations/preview?**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -238,8 +243,9 @@ test('renders terminal public invitation states', async ({page, invitationAccept
   await invitationAccept.goto(`invalid-${randomUUID()}`);
   await expect(invitationAccept.heading('Invalid invitation')).toBeVisible();
   await stableScreenshot(page, 'invitations/invalid');
+});
 
-  await page.unroute('**/invitations/preview?**');
+test('renders an expired public invitation', async ({page, invitationAccept}) => {
   await page.route('**/invitations/preview?**', async (route) => {
     await route.fulfill({
       status: 200,
