@@ -1,0 +1,24 @@
+{
+  "name": "fixture-workspace-package",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#test/*": "./test/*",
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
+  },
+  "exports": {
+    ".": {
+      "workspace-source": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  }
+}

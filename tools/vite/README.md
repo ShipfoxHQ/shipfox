@@ -9,6 +9,7 @@ Vite defaults and CLI wrappers for Shipfox frontend packages. It adds TypeScript
 - **`vite-dev`**: Runs the project-local Vite dev server.
 - **`vite-build`**: Runs `vite build --outDir dist`.
 - **`@shipfox/vite/client`**: Type entry that re-exports `vite/client`.
+- **`@shipfox/vite/workspace-source`**: Shared resolver for package-local source imports when the `workspace-source` condition is active.
 
 ## Installation
 

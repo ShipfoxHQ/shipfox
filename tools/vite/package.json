@@ -20,21 +20,34 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./client": "./client.d.ts"
+    "./client": "./client.d.ts",
+    "./workspace-source": {
+      "workspace-source": {
+        "types": "./src/workspace-source.ts",
+        "default": "./src/workspace-source.ts"
+      },
+      "default": {
+        "types": "./dist/workspace-source.d.ts",
+        "default": "./dist/workspace-source.js"
+      }
+    }
   },
   "scripts": {
     "build": "shipfox-swc",
+    "test": "vitest run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
     "@shipfox/tool-utils": "workspace:*",
+    "resolve.exports": "catalog:",
     "tsx": "catalog:",
     "vite": "catalog:"
   },
   "devDependencies": {
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
-    "@shipfox/typescript": "workspace:*"
+    "@shipfox/typescript": "workspace:*",
+    "vitest": "catalog:"
   }
 }

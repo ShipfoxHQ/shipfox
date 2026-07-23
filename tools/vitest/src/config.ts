@@ -1,4 +1,5 @@
 import {getProjectRootPath} from '@shipfox/tool-utils';
+import {workspaceSourceResolver} from '@shipfox/vite/workspace-source';
 import {defaultClientConditions, defaultServerConditions} from 'vite';
 import {
   type TestProjectConfiguration,
@@ -18,6 +19,9 @@ export type UserConfigFnObject = () => Parameters<typeof vitestDefineConfig>[0];
 export type UserConfig = Parameters<typeof vitestDefineConfig>[0];
 
 type ConfigInput = UserConfig | UserWorkspaceConfig;
+type ResolveConfig = {
+  conditions?: string[];
+};
 type MergeableConfigInput = ConfigInput & {
   plugins?: unknown[];
   optimizeDeps?: {
@@ -40,7 +44,9 @@ type MergeableConfigInput = ConfigInput & {
 
 const maxWorkers = parseMaxWorkers(process.env.SHIPFOX_VITEST_MAX_WORKERS);
 const workerPoolDefaults = maxWorkers === undefined ? {} : {maxWorkers};
-const vitestServerConditions = defaultServerConditions.filter((condition) => condition !== 'module');
+const vitestServerConditions = defaultServerConditions.filter(
+  (condition) => condition !== 'module',
+);
 
 function parseMaxWorkers(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -59,19 +65,34 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
   const existingTestConfig = mergeableConfig.test || {};
   const existingResolve = mergeableConfig.resolve || {};
   const existingSsrResolve = mergeableConfig.ssr?.resolve || {};
+  const resolveConditions = existingResolve.conditions ?? [
+    ...defaultClientConditions,
+    'workspace-source',
+  ];
+  const ssrResolveConditions = existingSsrResolve.conditions ?? [
+    ...vitestServerConditions,
+    'workspace-source',
+  ];
   const merged = {
     ...resolvedConfig,
-    plugins: [...existingPlugins],
+    plugins: [
+      ...existingPlugins,
+      ...(shouldResolveWorkspaceSource(
+        {conditions: resolveConditions},
+        {conditions: ssrResolveConditions},
+      )
+        ? [workspaceSourceResolver()]
+        : []),
+    ],
     resolve: {
       ...existingResolve,
-      conditions: existingResolve.conditions ?? [...defaultClientConditions, 'workspace-source'],
+      conditions: resolveConditions,
     },
     ssr: {
       ...mergeableConfig.ssr,
       resolve: {
         ...existingSsrResolve,
-        conditions:
-          existingSsrResolve.conditions ?? [...vitestServerConditions, 'workspace-source'],
+        conditions: ssrResolveConditions,
       },
     },
     optimizeDeps: {
@@ -103,6 +124,16 @@ function createMergedConfig(resolvedConfig: ConfigInput, projectRoot?: string): 
   }
 
   return merged as ConfigInput;
+}
+
+function shouldResolveWorkspaceSource(
+  resolve: ResolveConfig | undefined,
+  ssrResolve: ResolveConfig | undefined,
+): boolean {
+  return (
+    resolve?.conditions?.includes('workspace-source') === true ||
+    ssrResolve?.conditions?.includes('workspace-source') === true
+  );
 }
 
 function mergeConfig(config: ConfigInput, callerUrl?: string): ConfigInput {

@@ -1,0 +1,11 @@
+{
+  "name": "fixture-dist-only-package",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#*": "./dist/*"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  }
+}

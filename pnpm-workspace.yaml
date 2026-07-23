@@ -152,6 +152,7 @@ catalog:
   "react-markdown": "^9.1.0"
   "rehype-sanitize": "^6.0.0"
   "remark-gfm": "^4.0.1"
+  "resolve.exports": "^2.0.3"
   "shiki": "^4.0.0"
   "simple-icons": "^14.0.0"
   "sonner": "^2.0.7"
