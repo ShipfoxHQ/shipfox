@@ -6,19 +6,6 @@ import {
   reconcileDatabaseBoundaryBaseline,
 } from '../src/api-database-boundaries.js';
 
-function findingFromBaseline(index: number): DatabaseBoundaryFinding {
-  const entry = databaseBoundaryBaseline[index];
-  assert.ok(entry);
-  return {
-    owner: entry.owner,
-    namespace: entry.namespace,
-    file: entry.file,
-    line: entry.line,
-    object: entry.object,
-    rule: entry.rule,
-    suggestedBoundary: entry.suggestedBoundary,
-  };
-}
 describe('database boundary verifier', () => {
   test('keeps the current repository findings as exact, issue-owned baseline entries', async () => {
     const findings = await auditApiDatabaseBoundaries();
@@ -28,17 +15,30 @@ describe('database boundary verifier', () => {
     assert.equal(reconciliation.knownBaselineFindings.length, databaseBoundaryBaseline.length);
     assert.ok(databaseBoundaryBaseline.every((entry) => !entry.file.includes('*')));
     assert.ok(databaseBoundaryBaseline.every((entry) => !entry.object.includes('*')));
-    assert.deepEqual(
-      new Set(findings.map((finding) => finding.rule)),
-      new Set(['unprefixed-table']),
-    );
+    assert.deepEqual(new Set(findings.map((finding) => finding.rule)), new Set());
   });
   test('fails closed when a finding is new or a baseline entry disappears', () => {
-    const known = findingFromBaseline(0);
-    const firstBaseline = databaseBoundaryBaseline[0];
-    const secondBaseline = databaseBoundaryBaseline[1];
-    assert.ok(firstBaseline);
-    assert.ok(secondBaseline);
+    const firstBaseline = {
+      owner: 'test',
+      namespace: 'test',
+      file: 'test.ts',
+      line: 1,
+      object: 'test',
+      rule: 'unprefixed-table',
+      suggestedBoundary: "Use the test owner's test schema factory and producer-owned boundary.",
+      trackingIssue: 'TEST-1',
+      removalCondition: 'Test baseline entry is removed.',
+    } satisfies (typeof databaseBoundaryBaseline)[number];
+    const secondBaseline = {...firstBaseline, line: 2, object: 'test_second'};
+    const known: DatabaseBoundaryFinding = {
+      owner: firstBaseline.owner,
+      namespace: firstBaseline.namespace,
+      file: firstBaseline.file,
+      line: firstBaseline.line,
+      object: firstBaseline.object,
+      rule: firstBaseline.rule,
+      suggestedBoundary: firstBaseline.suggestedBoundary,
+    };
     const disappeared = {...secondBaseline};
     const reconciliation = reconcileDatabaseBoundaryBaseline([known], [firstBaseline, disappeared]);
     assert.deepEqual(reconciliation.knownBaselineFindings, [known]);

@@ -123,10 +123,10 @@
         }
       },
       "foreignKeys": {
-        "workspaces_invitations_workspace_id_workspaces_id_fk": {
-          "name": "workspaces_invitations_workspace_id_workspaces_id_fk",
+        "workspaces_invitations_workspace_id_workspaces_workspaces_id_fk": {
+          "name": "workspaces_invitations_workspace_id_workspaces_workspaces_id_fk",
           "tableFrom": "workspaces_invitations",
-          "tableTo": "workspaces",
+          "tableTo": "workspaces_workspaces",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -228,10 +228,10 @@
         }
       },
       "foreignKeys": {
-        "workspaces_memberships_workspace_id_workspaces_id_fk": {
-          "name": "workspaces_memberships_workspace_id_workspaces_id_fk",
+        "workspaces_memberships_workspace_id_workspaces_workspaces_id_fk": {
+          "name": "workspaces_memberships_workspace_id_workspaces_workspaces_id_fk",
           "tableFrom": "workspaces_memberships",
-          "tableTo": "workspaces",
+          "tableTo": "workspaces_workspaces",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -372,8 +372,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workspaces": {
-      "name": "workspaces",
+    "public.workspaces_workspaces": {
+      "name": "workspaces_workspaces",
       "schema": "",
       "columns": {
         "id": {
