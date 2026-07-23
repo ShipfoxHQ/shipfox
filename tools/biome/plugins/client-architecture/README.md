@@ -21,6 +21,14 @@ the change. Keep each example short so the expected result is easy to see.
   data, runtime flow, and behavior tests in
   `@shipfox/client-architecture-policy` or a focused test.
 
+The production rules currently cover:
+
+- `no-api-dto-in-core` and `no-client-framework-in-core` for `src/core/**`.
+- `no-response-dto-in-presentation` for pages and components.
+- `no-raw-api-request` outside `@shipfox/client-api` and checked adapter paths.
+- `no-query-cache-ownership` for leaf components; named coordinators and
+  mutation/query adapters remain the ownership boundary.
+
 `fixture-boundary.grit` is the smoke rule for this foundation. Its sentinel is
 not a migrated production rule. Later issues add real rules beside it.
 

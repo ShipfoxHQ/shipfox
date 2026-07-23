@@ -1,0 +1,13 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `import $_ from $source` as $match,
+  `import($source)` as $match
+} where {
+  $source <: r".*@shipfox/api-.*-dto.*",
+  register_diagnostic(
+    span=$match,
+    message="client-architecture/no-api-dto-in-core: keep API DTO imports at the checked adapter boundary; core may depend only on domain models."
+  )
+}

@@ -1,0 +1,20 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `import $_ from $source` as $match,
+  `import($source)` as $match
+} where {
+  $source <: or {
+    `'react'`,
+    `'react-dom'`,
+    `'jotai'`,
+    r".*@tanstack/.*",
+    r".*@shipfox/client-(api|shell|ui).*",
+    r".*@shipfox/react-ui.*"
+  },
+  register_diagnostic(
+    span=$match,
+    message="client-architecture/no-client-framework-in-core: keep client framework dependencies outside core; use a pure domain model or policy."
+  )
+}

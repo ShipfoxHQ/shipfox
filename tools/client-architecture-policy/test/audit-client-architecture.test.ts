@@ -92,69 +92,14 @@ describe('auditClientSource', () => {
     ]);
   });
 
-  test('reports inline response DTO imports in presentation', () => {
-    const violations = auditClientSource(
-      'libs/client/projects/src/pages/project-page.tsx',
-      "type Project = import('@shipfox/api-projects-dto').ProjectDto;",
-    );
-
-    assert.deepEqual(violations, [
-      {
-        file: 'libs/client/projects/src/pages/project-page.tsx',
-        occurrences: 1,
-        rule: 'response-dto-in-presentation',
-      },
-    ]);
-  });
-
-  test('reports inline API DTO imports in core', () => {
-    const violations = auditClientSource(
-      'libs/client/projects/src/core/project.ts',
-      "type Project = import('@shipfox/api-projects-dto').ProjectDto;",
-    );
-
-    assert.deepEqual(violations, [
-      {
-        file: 'libs/client/projects/src/core/project.ts',
-        occurrences: 1,
-        rule: 'core-api-dto-import',
-      },
-    ]);
-  });
-
-  test('allows inline request body and query DTO imports in presentation', () => {
-    const violations = auditClientSource(
-      'libs/client/projects/src/pages/project-page.tsx',
-      "type Body = import('@shipfox/api-projects-dto').CreateProjectBody;\ntype Query = import('@shipfox/api-projects-dto').ListProjectsQuery;",
-    );
-
-    assert.deepEqual(violations, []);
-  });
-
-  test('reports each prohibited boundary crossing', () => {
-    const core = auditClientSource(
-      'libs/client/projects/src/core/project.ts',
-      "import type {ProjectDto} from '@shipfox/api-projects-dto';\nimport {useQuery} from '@tanstack/react-query';",
-    );
+  test('reports remaining semantic boundary crossings', () => {
     const page = auditClientSource(
       'libs/client/projects/src/pages/project-page.tsx',
       "import type {ProjectDto} from '@shipfox/api-projects-dto';\nimport {apiRequest} from '@shipfox/client-api';\napiRequest('/projects');",
     );
-    const component = auditClientSource(
-      'libs/client/projects/src/components/project-list.tsx',
-      "import {useQueryClient} from '@tanstack/react-query';\nuseQueryClient();",
-    );
-    assert.deepEqual(
-      core.map((violation) => violation.rule),
-      ['core-api-dto-import', 'core-client-framework-import'],
-    );
     assert.deepEqual(
       page.map((violation) => violation.rule),
-      ['api-request-outside-adapter', 'unparsed-api-response', 'response-dto-in-presentation'],
-    );
-    assert.deepEqual(
-      component.map((violation) => violation.rule),
-      ['leaf-query-cache-ownership'],
+      ['api-request-outside-adapter', 'unparsed-api-response'],
     );
   });
 });

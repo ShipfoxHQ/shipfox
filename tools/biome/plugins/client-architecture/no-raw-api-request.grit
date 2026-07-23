@@ -1,0 +1,27 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsImport() as $import where {
+    $import <: r".*@shipfox/client-api.*",
+    $import <: contains JsNamedImportSpecifier() as $raw where {
+      $raw <: r".*\bapiRequest\b.*",
+      register_diagnostic(
+        span=$raw,
+        message="client-architecture/no-raw-api-request: use checkedApiRequest from a feature-owned adapter instead of raw apiRequest here."
+      )
+    }
+  },
+  `apiRequest($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-raw-api-request: use checkedApiRequest from a feature-owned adapter instead of raw apiRequest here."
+    )
+  },
+  `$client.apiRequest($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-raw-api-request: use checkedApiRequest from a feature-owned adapter instead of raw apiRequest here."
+    )
+  }
+}
