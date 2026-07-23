@@ -1,18 +1,34 @@
 import assert from 'node:assert/strict';
-import {execFile} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {dirname, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
-import {promisify} from 'node:util';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
-const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const packageDirectory = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(packageDirectory, '../../..');
 const fixtureRoot = resolve(workspaceRoot, 'fixtures/depcruise-api-edges');
-const fixtureConfig = resolve(fixtureRoot, 'config.cjs');
-const dependencyCruiser = resolve(workspaceRoot, 'tools/depcruise/node_modules/.bin/depcruise');
+const dependencyCruiserDirectory = resolve(
+  workspaceRoot,
+  'tools/depcruise/node_modules/dependency-cruiser',
+);
+const {main: dependencyCruiserMain} = require(
+  resolve(dependencyCruiserDirectory, 'package.json'),
+) as {main: string};
+const dependencyCruiserModule = import(
+  pathToFileURL(resolve(dependencyCruiserDirectory, dependencyCruiserMain)).href
+) as Promise<{
+  cruise: (
+    files: string[],
+    options: Record<string, unknown>,
+  ) => Promise<{output: string | Record<string, unknown>}>;
+}>;
 const noDependencyViolationsPattern = /no dependency violations found/u;
+const {createFixtureConfiguration} = require(resolve(fixtureRoot, 'fixture-config.cjs')) as {
+  createFixtureConfiguration: (currentDirectory: string) => {
+    forbidden: Array<Record<string, unknown>>;
+    options: Record<string, unknown>;
+  };
+};
 const {
   apiArchitectureEdgePolicy,
   architecturePackages,
@@ -33,16 +49,18 @@ const {
 
 async function runFixture(fixtureName: string): Promise<string> {
   const fixturePackage = resolve(fixtureRoot, 'packages/consumers', fixtureName);
-  try {
-    const result = await execFileAsync(dependencyCruiser, ['--config', fixtureConfig, '.'], {
-      cwd: fixturePackage,
-      env: {...process.env, DEPCRUISE_FIXTURE_PACKAGE: fixturePackage},
-    });
-    return `${result.stdout}${result.stderr}`;
-  } catch (error) {
-    const commandError = error as {stdout?: string; stderr?: string};
-    return `${commandError.stdout ?? ''}${commandError.stderr ?? ''}`;
-  }
+  const {options, ...ruleSet} = createFixtureConfiguration(fixturePackage);
+  const {cruise} = await dependencyCruiserModule;
+  const {output} = await cruise(['.'], {
+    ...options,
+    baseDir: fixturePackage,
+    outputType: 'err',
+    ruleSet,
+    validate: true,
+  });
+
+  assert.ok(typeof output === 'string');
+  return output;
 }
 
 describe('API Dependency Cruiser edge policy', () => {
