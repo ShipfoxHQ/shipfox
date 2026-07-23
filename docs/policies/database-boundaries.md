@@ -28,9 +28,10 @@ migration units to one composed module. The application root records those
 units under the owner's stable ID.
 
 A namespace is a database identity, not necessarily the module's display name.
-Existing migration-history names are compatibility-sensitive; the
-`email_challenges` namespace remains registered for the `email-challenges`
-module until its runtime migration-table contract is changed deliberately.
+Migration-history names must use the registered namespace explicitly when a
+module's display name is not compliant. The `email_challenges` namespace is
+used for both the application tables and the migration-history table of the
+`email-challenges` module.
 
 Examples include `runners`, `workflows`, `email_challenges`, and
 `integrations_github`.

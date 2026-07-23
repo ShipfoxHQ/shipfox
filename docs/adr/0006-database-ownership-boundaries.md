@@ -38,8 +38,9 @@ views, triggers, database functions, and foreign keys.
 namespace as a name prefix. Its PostgreSQL types and explicit support object
 names use the same namespace. One `ShipfoxModule` owner can compose several
 migration units under one stable owner ID. The namespace is a database identity,
-not necessarily the module's display name; changing an existing migration
-history name requires a compatibility plan.
+not necessarily the module's display name. Migration-history names must use
+the registered namespace explicitly when a module's display name is not
+compliant.
 
 **Modules cross the boundary through producer-owned contracts.** A caller uses
 an inter-module operation for current state, an outbox event for a committed
