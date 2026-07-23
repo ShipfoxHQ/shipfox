@@ -1,0 +1,145 @@
+name: Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: storybook-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TURBO_TEAM: shipfox
+  # Same-repository pull requests and main may read the trusted remote cache.
+  # Forks receive no repository secret and therefore run without a cache token.
+  TURBO_TOKEN: ${{ (github.ref == 'refs/heads/main' || github.event.pull_request.head.repo.full_name == github.repository) && secrets.TURBO_TOKEN || '' }}
+  TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'local:rw,remote:rw' || 'local:rw,remote:r' }}
+  TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || github.sha }}
+  TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+  PREVIEW_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  build:
+    name: Build and validate preview
+    if: github.event_name == 'push' || github.event.pull_request.head.ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Record workflow queue time
+        id: queue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          metadata="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")"
+          created_at="$(jq -r '.created_at' <<< "$metadata")"
+          started_at="$(jq -r '.run_started_at' <<< "$metadata")"
+          queue_seconds=unavailable
+          if [[ "$created_at" != null && "$started_at" != null ]]; then
+            created_epoch="$(date --date="$created_at" +%s)"
+            started_epoch="$(date --date="$started_at" +%s)"
+            queue_seconds="$((started_epoch - created_epoch))"
+          fi
+          echo "queue_seconds=$queue_seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact preview commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: gh node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up Playwright
+        uses: ./.github/actions/setup-playwright
+
+      - name: Build and assemble all Storybooks
+        id: build
+        run: |
+          set -euo pipefail
+          build_started="$(date +%s)"
+          echo "build_started=$build_started" >> "$GITHUB_OUTPUT"
+          turbo build --filter=@shipfox/storybook... --concurrency=4 2>&1 | tee "$RUNNER_TEMP/storybook-preview-build.log"
+          build_finished="$(date +%s)"
+          echo "build_seconds=$((build_finished - build_started))" >> "$GITHUB_OUTPUT"
+
+      - name: Verify artifact and run browser smoke tests
+        id: validation
+        run: |
+          set -euo pipefail
+          validation_started="$(date +%s)"
+          echo "validation_started=$validation_started" >> "$GITHUB_OUTPUT"
+          pnpm --filter=@shipfox/storybook test:e2e 2>&1 | tee "$RUNNER_TEMP/storybook-preview-validation.log"
+          validation_finished="$(date +%s)"
+          echo "validation_seconds=$((validation_finished - validation_started))" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified Storybook preview artifact
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: storybook-preview-${{ github.event.pull_request.number || 'main' }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: apps/storybook/.vercel/output
+          if-no-files-found: error
+
+      - name: Report preview metrics
+        if: always()
+        env:
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          BUILD_SECONDS: ${{ steps.build.outputs.build_seconds || 'unavailable' }}
+          VALIDATION_RESULT: ${{ steps.validation.outcome }}
+          VALIDATION_SECONDS: ${{ steps.validation.outputs.validation_seconds || 'unavailable' }}
+          QUEUE_SECONDS: ${{ steps.queue.outputs.queue_seconds || 'unavailable' }}
+        run: |
+          set -euo pipefail
+          {
+            echo '## Storybook preview metrics'
+            echo
+            echo '| Metric | Value |'
+            echo '| --- | --- |'
+            echo "| Queue | ${QUEUE_SECONDS} seconds |"
+            echo "| Build and assembly | ${BUILD_SECONDS} seconds (${BUILD_RESULT}) |"
+            echo "| Validation and browser smoke | ${VALIDATION_SECONDS} seconds (${VALIDATION_RESULT}) |"
+            echo '| Remote cache | Pull requests read only; main reads and writes |'
+            echo
+            echo '### Turbo cache output'
+            echo
+            if [[ -f "$RUNNER_TEMP/storybook-preview-build.log" ]]; then
+              grep -E '^(Tasks:|Cached:|Time:)' "$RUNNER_TEMP/storybook-preview-build.log" | tail -n 6 || true
+            else
+              echo 'Build did not produce a Turbo log.'
+            fi
+            echo
+            echo '### Verified artifact'
+            echo
+            if [[ -f apps/storybook/.vercel/output/static/preview-metadata.json ]]; then
+              echo '| Storybook | Files | Bytes |'
+              echo '| --- | ---: | ---: |'
+              jq -r '
+                "| Composition shell | \(.metrics.shell.fileCount) | \(.metrics.shell.bytes) |",
+                (.metrics.children[] | "| \(.id) | \(.fileCount) | \(.bytes) |"),
+                "| Total | \(.metrics.total.fileCount) | \(.metrics.total.bytes) |"
+              ' apps/storybook/.vercel/output/static/preview-metadata.json
+              echo
+              echo '- Assembly: atomic `.vercel/output` tree created by the Storybook build.'
+              echo '- Validation: static output and one representative story per child passed.'
+            else
+              echo 'No verified artifact metadata was produced.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
