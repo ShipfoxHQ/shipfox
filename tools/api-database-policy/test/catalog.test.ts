@@ -149,11 +149,11 @@ describe('PostgreSQL catalog verifier', () => {
     assert.deepEqual(
       objects.map(({kind, name}) => `${kind}:${name}`),
       [
-        'enum:model_provider_config_kind',
-        'table:model_provider_configs',
+        'enum:agent_model_provider_config_kind',
+        'table:agent_model_provider_configs',
         'table:agent_workspace_settings',
-        'index:model_provider_configs_workspace_provider_unique',
-        'constraint:model_provider_configs_custom_required_fields',
+        'index:agent_model_provider_configs_workspace_provider_unique',
+        'constraint:agent_model_provider_configs_custom_required_fields',
       ],
     );
   });
