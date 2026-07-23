@@ -179,10 +179,7 @@ function baselineEntry(
 ): DatabaseBoundaryBaselineEntry {
   return {...finding, trackingIssue, removalCondition};
 }
-const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Object.freeze([
-  baselineEntry(
-    {
-]);
+const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Object.freeze([]);
 
 export {databaseBoundaryBaseline};
 
