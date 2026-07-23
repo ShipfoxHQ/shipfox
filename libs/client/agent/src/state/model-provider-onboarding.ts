@@ -1,37 +1,27 @@
-import {createTypedBrowserStorage, localStorageOrUndefined} from '@shipfox/client-ui';
+import {
+  type BrowserStorageKey,
+  createTypedBrowserStorage,
+  localStorageOrUndefined,
+} from '@shipfox/client-ui';
 
-type DismissedMap = Record<string, true>;
-
-const dismissedStorage = createTypedBrowserStorage(localStorageOrUndefined, {
+const dismissedStorageKey = {
   key: 'shipfox.modelProviderOnboardingDismissed',
   lifetime: 'persistent',
   principalScope: 'workspace',
-  serialize: (dismissed: DismissedMap) => JSON.stringify(dismissed),
+  serialize: (dismissed: boolean) => JSON.stringify(dismissed),
   parse: (raw) => {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      return isDismissedMap(parsed) ? parsed : undefined;
-    } catch {
-      return undefined;
-    }
+    return raw === 'true' ? true : raw === 'false' ? false : undefined;
   },
-});
+} satisfies BrowserStorageKey<boolean>;
 
 export function isModelProviderOnboardingDismissed(workspaceId: string): boolean {
-  return Boolean(readDismissedMap()[workspaceId]);
+  return dismissedStorage(workspaceId).read() === true;
 }
 
 export function dismissModelProviderOnboarding(workspaceId: string): void {
-  const dismissed = readDismissedMap();
-  dismissed[workspaceId] = true;
-  dismissedStorage.write(dismissed);
+  dismissedStorage(workspaceId).write(true);
 }
 
-function readDismissedMap(): DismissedMap {
-  return dismissedStorage.read() ?? {};
-}
-
-function isDismissedMap(value: unknown): value is DismissedMap {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  return Object.values(value).every((entry) => entry === true);
+function dismissedStorage(workspaceId: string) {
+  return createTypedBrowserStorage(localStorageOrUndefined, dismissedStorageKey, {workspaceId});
 }

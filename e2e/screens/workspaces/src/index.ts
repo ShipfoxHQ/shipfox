@@ -5,6 +5,10 @@ type Locator = ReturnType<Page['locator']>;
 type FixtureUse<T> = (fixture: T) => Promise<void>;
 const LAST_WORKSPACE_KEY = 'shipfox.lastWorkspaceId';
 
+function lastWorkspaceStorageKey(principalId: string): string {
+  return `${LAST_WORKSPACE_KEY}.principal.${encodeURIComponent(principalId)}`;
+}
+
 export class WorkspaceOnboardingScreen {
   constructor(private readonly page: Page) {}
 
@@ -61,11 +65,9 @@ export class WorkspaceHomeScreen {
     return new URL(this.page.url()).pathname.split('/')[2];
   }
 
-  async readMaybeLastWorkspaceId(): Promise<string | undefined> {
-    const raw = await this.page.evaluate(
-      (key) => window.localStorage.getItem(key),
-      LAST_WORKSPACE_KEY,
-    );
+  async readMaybeLastWorkspaceId(principalId: string): Promise<string | undefined> {
+    const key = lastWorkspaceStorageKey(principalId);
+    const raw = await this.page.evaluate((key) => window.localStorage.getItem(key), key);
     if (!raw) return undefined;
     let parsed: unknown;
     try {
@@ -76,10 +78,11 @@ export class WorkspaceHomeScreen {
     return typeof parsed === 'string' ? parsed : undefined;
   }
 
-  async readLastWorkspaceId(): Promise<string> {
-    const workspaceId = await this.readMaybeLastWorkspaceId();
+  async readLastWorkspaceId(principalId: string): Promise<string> {
+    const key = lastWorkspaceStorageKey(principalId);
+    const workspaceId = await this.readMaybeLastWorkspaceId(principalId);
     if (workspaceId === undefined) {
-      throw new Error(`localStorage[${LAST_WORKSPACE_KEY}] is not set`);
+      throw new Error(`localStorage[${key}] is not set`);
     }
     return workspaceId;
   }

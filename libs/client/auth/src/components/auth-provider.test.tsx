@@ -1,5 +1,5 @@
-import {configureApiClient} from '@shipfox/client-api';
-import {QueryClient, useQuery} from '@tanstack/react-query';
+import {ApiError, configureApiClient} from '@shipfox/client-api';
+import {QueryClient, useQuery, useQueryClient} from '@tanstack/react-query';
 import {render, screen, waitFor} from '@testing-library/react';
 import {useEffect, useRef} from 'react';
 import {useLoginAuth} from '#hooks/api/login-auth.js';
@@ -45,12 +45,20 @@ function StatusProbe() {
 
 function PrivateDataProbe() {
   const auth = useAuthState();
+  const queryClient = useQueryClient();
+  const seeded = useRef(false);
   const privateData = useQuery({
     queryKey: ['private-data'],
     queryFn: () => new Promise<string>(() => undefined),
     enabled: auth.isAuthenticated,
   });
   const login = useLoginAuth();
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || seeded.current) return;
+    seeded.current = true;
+    queryClient.setQueryData(['private-data'], 'User A private data');
+  }, [auth.isAuthenticated, queryClient]);
 
   return (
     <div>
@@ -114,6 +122,24 @@ describe('AuthProvider', () => {
     expect(queryClient.getQueryData(['private-data'])).toBeUndefined();
   });
 
+  test('clears a hydrated private cache before accepting the first principal', async () => {
+    const queryClient = new QueryClient();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({token: 'other-token', user: otherUser}));
+    configureApiClient({fetchImpl});
+    queryClient.setQueryData(['private-data'], 'previous principal private data');
+
+    render(
+      <AuthProvider queryClient={queryClient}>
+        <StatusProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    expect(queryClient.getQueryData(['private-data'])).toBeUndefined();
+  });
+
   test('keeps the current session when refresh fails with a server error', async () => {
     const fetchImpl = vi
       .fn()
@@ -156,21 +182,30 @@ describe('AuthProvider', () => {
       .fn()
       .mockImplementation(() => Promise.resolve(jsonResponse({token: 'access-token', user})));
     configureApiClient({fetchImpl});
-    queryClient.setQueryData(['private-data'], 'current user private data');
     const onDone = vi.fn();
+    const onReady = vi.fn();
 
     function RefreshAfterBootProbe() {
       const auth = useAuthState();
       const refresh = useRefreshAuth();
-      const didRefresh = useRef(false);
+      const queryClient = useQueryClient();
+      const didSeed = useRef(false);
 
       useEffect(() => {
-        if (auth.status !== 'authenticated' || didRefresh.current) return;
-        didRefresh.current = true;
-        void refresh().then(onDone);
-      }, [auth.status, refresh]);
+        if (auth.status !== 'authenticated' || didSeed.current) return;
+        didSeed.current = true;
+        queryClient.setQueryData(['private-data'], 'current user private data');
+        onReady();
+      }, [auth.status, queryClient]);
 
-      return <StatusProbe />;
+      return (
+        <>
+          <StatusProbe />
+          <button type="button" onClick={() => void refresh().then(onDone)}>
+            Refresh
+          </button>
+        </>
+      );
     }
 
     render(
@@ -179,6 +214,9 @@ describe('AuthProvider', () => {
       </AuthProvider>,
     );
 
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    cancelQueries.mockClear();
+    screen.getByRole('button', {name: 'Refresh'}).click();
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
     expect(cancelQueries).not.toHaveBeenCalled();
     expect(queryClient.getQueryData(['private-data'])).toBe('current user private data');
@@ -211,6 +249,80 @@ describe('AuthProvider', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  test('does not restore a stale refresh result after a principal transition', async () => {
+    let refreshRequestCount = 0;
+    let workspaceRequestCount = 0;
+    const initialWorkspaceRefresh = new Promise<Response>(() => undefined);
+    const onFreshRefresh = vi.fn();
+    const onRefreshError = vi.fn();
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = (input as Request).url;
+      if (url.endsWith('/auth/refresh')) {
+        refreshRequestCount += 1;
+        return refreshRequestCount === 1
+          ? Promise.resolve(jsonResponse({token: 'access-token', user}))
+          : Promise.resolve(jsonResponse({token: 'other-token-2', user: otherUser}));
+      }
+      if (url.endsWith('/auth/login'))
+        return Promise.resolve(jsonResponse({token: 'other-token', user: otherUser}));
+      if (url.endsWith('/workspaces')) {
+        workspaceRequestCount += 1;
+        return workspaceRequestCount === 1
+          ? initialWorkspaceRefresh
+          : Promise.resolve(jsonResponse({memberships: []}));
+      }
+      return Promise.resolve(jsonResponse({token: 'access-token', user}));
+    });
+    configureApiClient({fetchImpl});
+
+    function RefreshAndLoginProbe() {
+      const auth = useAuthState();
+      const login = useLoginAuth();
+      const refresh = useRefreshAuth();
+
+      useEffect(() => {
+        void refresh().catch(onRefreshError);
+      }, [refresh]);
+
+      return (
+        <div>
+          <span data-testid="email">{auth.user?.email ?? 'none'}</span>
+          <button
+            type="button"
+            onClick={() =>
+              void login.mutateAsync({email: 'other@example.com', password: 'password'})
+            }
+          >
+            Login as other user
+          </button>
+          <button type="button" onClick={() => void refresh().then(onFreshRefresh)}>
+            Refresh current principal
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <AuthProvider>
+        <RefreshAndLoginProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(workspaceRequestCount).toBe(1));
+    screen.getByRole('button', {name: 'Login as other user'}).click();
+    await waitFor(() => expect(screen.getByTestId('email')).toHaveTextContent('other@example.com'));
+    await waitFor(() => expect(onRefreshError).toHaveBeenCalledTimes(1));
+    const refreshError = onRefreshError.mock.calls[0]?.[0];
+    expect(refreshError).toBeInstanceOf(ApiError);
+    expect(refreshError).toMatchObject({code: 'unauthorized', status: 401});
+
+    screen.getByRole('button', {name: 'Refresh current principal'}).click();
+    await waitFor(() => expect(onFreshRefresh).toHaveBeenCalledTimes(1));
+    expect(refreshRequestCount).toBe(2);
+
+    expect(screen.getByTestId('email')).toHaveTextContent('other@example.com');
+  });
+
   test('logout clears local state even when the API call fails', async () => {
     const queryClient = new QueryClient();
     const cancelQueries = vi.spyOn(queryClient, 'cancelQueries');
@@ -219,8 +331,16 @@ describe('AuthProvider', () => {
       .mockResolvedValueOnce(jsonResponse({token: 'access-token', user}))
       .mockRejectedValueOnce(new Error('offline'));
     configureApiClient({fetchImpl});
-    queryClient.setQueryData(['private-data'], 'private data');
     const onQueryAbort = vi.fn();
+
+    render(
+      <AuthProvider queryClient={queryClient}>
+        <StatusProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    queryClient.setQueryData(['private-data'], 'private data');
     void queryClient
       .fetchQuery({
         queryKey: ['in-flight-private-data'],
@@ -233,14 +353,7 @@ describe('AuthProvider', () => {
           }),
       })
       .catch(() => undefined);
-
-    render(
-      <AuthProvider queryClient={queryClient}>
-        <StatusProbe />
-      </AuthProvider>,
-    );
-
-    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('authenticated'));
+    cancelQueries.mockClear();
     screen.getByRole('button', {name: 'Logout'}).click();
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('guest'));
@@ -312,7 +425,6 @@ describe('AuthProvider', () => {
       return Promise.resolve(jsonResponse({token: 'access-token', user}));
     });
     configureApiClient({fetchImpl});
-    queryClient.setQueryData(['private-data'], 'User A private data');
 
     render(
       <AuthProvider queryClient={queryClient}>
@@ -323,6 +435,7 @@ describe('AuthProvider', () => {
     await waitFor(() =>
       expect(screen.getByTestId('private-data')).toHaveTextContent('User A private data'),
     );
+    cancelQueries.mockClear();
     screen.getByRole('button', {name: 'Switch user'}).click();
 
     await waitFor(() =>

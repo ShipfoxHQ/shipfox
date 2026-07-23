@@ -12,7 +12,10 @@ type WorkspaceStorage = BrowserStorage | undefined;
 const slackInstallWorkspaceStorageKey = {
   key: SLACK_INSTALL_WORKSPACE_KEY,
   lifetime: 'session',
-  principalScope: 'workspace',
+  // This is a one-shot navigation hint, not private workspace state. It must
+  // remain readable on an OAuth callback before workspace hydration completes;
+  // the callback state and returned connection are the authoritative checks.
+  principalScope: 'global',
   serialize: (workspaceId: string) => workspaceId,
   parse: (value: string) => value || undefined,
 } satisfies BrowserStorageKey<string>;

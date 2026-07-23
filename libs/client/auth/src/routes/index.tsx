@@ -10,9 +10,11 @@ export default defineRoute({
     if (!auth.isAuthenticated) throw redirect({to: '/auth/login'});
     const [first, ...rest] = auth.workspaces;
     if (!first) throw redirect({to: '/setup/workspaces/new'});
-    const target =
-      [first, ...rest].find((workspace) => workspace.id === getLastWorkspaceId()) ?? first;
-    throw redirect({to: '/workspaces/$wid', params: {wid: target.id}});
+    const principalId = auth.user?.id;
+    const target = principalId
+      ? [first, ...rest].find((workspace) => workspace.id === getLastWorkspaceId(principalId))
+      : undefined;
+    throw redirect({to: '/workspaces/$wid', params: {wid: (target ?? first).id}});
   },
   component: FullPageLoader,
 });

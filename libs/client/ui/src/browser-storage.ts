@@ -1,4 +1,10 @@
-export type {BrowserStorage, BrowserStorageKey, TypedBrowserStorage} from '@shipfox/react-ui/utils';
+export type {
+  BrowserStorage,
+  BrowserStorageKey,
+  BrowserStorageScope,
+  BrowserStorageScopeProvider,
+  TypedBrowserStorage,
+} from '@shipfox/react-ui/utils';
 export {
   createTypedBrowserStorage,
   localStorageOrUndefined,

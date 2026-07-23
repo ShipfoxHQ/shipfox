@@ -18,6 +18,6 @@ export function useLoginAuth() {
 
   return useMutation({
     mutationFn: loginAuth,
-    onSuccess: enterAuthenticated,
+    onSuccess: (session) => enterAuthenticated(session),
   });
 }
