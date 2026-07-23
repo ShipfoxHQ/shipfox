@@ -12,15 +12,15 @@ import {
   check,
   jsonb,
   pgEnum,
-  pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import type {ModelProviderConfig} from '#core/entities/model-provider-config.js';
+import {pgTable} from './common.js';
 
-export const modelProviderConfigKindEnum = pgEnum('model_provider_config_kind', [
+export const modelProviderConfigKindEnum = pgEnum('agent_model_provider_config_kind', [
   'builtin',
   'custom',
 ]);
@@ -45,12 +45,12 @@ export const modelProviderConfigs = pgTable(
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('model_provider_configs_workspace_provider_unique').on(
+    uniqueIndex('agent_model_provider_configs_workspace_provider_unique').on(
       table.workspaceId,
       table.providerId,
     ),
     check(
-      'model_provider_configs_custom_required_fields',
+      'agent_model_provider_configs_custom_required_fields',
       sql`${table.kind} <> 'custom' OR (${table.api} IS NOT NULL AND ${table.baseUrl} IS NOT NULL AND ${table.models} IS NOT NULL AND ${table.displayName} IS NOT NULL)`,
     ),
   ],

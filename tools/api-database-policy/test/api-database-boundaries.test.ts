@@ -31,15 +31,12 @@ describe('database boundary verifier', () => {
     assert.deepEqual(
       new Set(findings.map((finding) => finding.rule)),
       new Set([
-        'direct-table-declaration',
         'foreign-database-access',
         'foreign-enum-declaration',
         'foreign-migration',
         'foreign-raw-sql',
         'foreign-table-declaration',
         'migration-history-instability',
-        'unprefixed-enum',
-        'unprefixed-support-object',
         'unprefixed-table',
       ]),
     );
