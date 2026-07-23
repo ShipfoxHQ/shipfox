@@ -83,16 +83,20 @@ test.describe('assembled Storybook preview', () => {
   test('serves standalone child URLs and refreshes deep links', async ({page, request}) => {
     const errors = collectBrowserErrors(page);
 
-    for (const storybook of storybooks) {
-      const storyId = await getRepresentativeStoryId(request, storybook.path);
+    const storyIds = await Promise.all(
+      storybooks.map(async (storybook) => getRepresentativeStoryId(request, storybook.path)),
+    );
 
-      const standaloneResponse = await page.goto(storybook.path);
-      expect(standaloneResponse?.ok()).toBe(true);
+    for (const [index, storybook] of storybooks.entries()) {
+      const standaloneResponse = await request.get(storybook.path);
+      expect(standaloneResponse.ok()).toBe(true);
+      expect(await standaloneResponse.text()).toContain('id="root"');
+
+      const deepLink = `${storybook.path}?path=/story/${storyIds[index]}`;
+      const deepLinkResponse = await page.goto(deepLink, {waitUntil: 'domcontentloaded'});
+      expect(deepLinkResponse?.ok()).toBe(true);
       await expect(page.locator('#root')).toBeVisible();
-
-      const deepLink = `${storybook.path}?path=/story/${storyId}`;
-      await page.goto(deepLink);
-      await page.reload();
+      await page.reload({waitUntil: 'domcontentloaded'});
       await expect(page.locator('#root')).toBeVisible();
     }
 
