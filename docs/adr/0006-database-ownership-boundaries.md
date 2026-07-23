@@ -68,12 +68,13 @@ need a new operation, snapshot, or reporting model.
 a foreign row lock inside an existing transaction. The operation needs one
 owner or an explicit consistency protocol.
 
-**Prefixing becomes a rule.** Existing unprefixed objects need a named legacy
-exception until a safe migration can rename them.
+**Prefixing becomes a rule.** Correct unprefixed objects in the unshipped
+migration baseline before the first deployment. After deployment, a rename
+needs a staged compatibility plan.
 
-**The first static gate has migration work.** Workflows currently re-declares
-and locks Runners-owned lease tables. That access must move behind an
-owner-provided protocol.
+**The first static gate has cleanup work.** The database boundary policy lists
+the pre-deploy baseline. Remove it before the gate becomes a zero-finding
+pull-request check.
 
 ## Rejected alternatives
 

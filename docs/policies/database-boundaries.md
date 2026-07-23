@@ -64,9 +64,6 @@ __drizzle_migrations_<database_namespace>
 PostgreSQL system objects and extension-owned objects are outside this naming
 rule.
 
-The unprefixed `workspaces` table is a legacy exception. Do not copy this
-pattern. Rename it only through a reviewed compatibility plan.
-
 ## Cross a database boundary
 
 **Call the owner instead of querying its tables.** Choose the boundary from the
@@ -122,6 +119,17 @@ The gate must run in pull-request verification. A new exception needs a named
 owner, reason, tracking issue, and removal condition in this policy. Do not add
 a broad path or prefix allowlist.
 
-Workflows currently declares and locks Runners lease tables. This is a known
-violation. Move it to an owner-provided protocol before enabling the gate
-without exceptions. New code cannot copy that pattern.
+The pre-deploy remediation baseline contains these known violations:
+
+- Agent has four database object names without the `agent_` prefix.
+- The Workspaces root table is named `workspaces`, not
+  `workspaces_workspaces`.
+- Workflows declares and locks Runners lease tables.
+- Auth test setup migrates and truncates Email Challenges storage.
+- Module migration-history names can depend on a display name or array
+  position instead of the database namespace.
+
+Remove each violation before enabling the gate without a baseline. Because
+there is no deployed database state to preserve, correct unshipped migrations
+and snapshots directly. Do not add compatibility objects or copy these
+patterns.
