@@ -1,4 +1,4 @@
-import {readdir, readFile} from 'node:fs/promises';
+import {access, readdir, readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
@@ -32,11 +32,7 @@ const dependencyGroups = [
   'optionalDependencies',
   'peerDependencies',
 ] as const;
-const importExpression =
-  /(?:import|export)\s+(?:type\s+)?(?:[^'"`]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-const sourceFileExpression = /\.(?:[cm]?[jt]sx?)$/;
-const dtoImplementationDetailExpression =
-  /(?:^|\/)(?:core|db|presentation|provider|test|tests|fixtures)(?:\/|\.|$)/;
+const importViolationSuffixExpression = / import$/;
 
 interface ClassifiedPath {
   classification: string;
@@ -57,10 +53,6 @@ function compareText(left: string, right: string): number {
   if (left < right) return -1;
   if (left > right) return 1;
   return 0;
-}
-
-function toPosixPath(value: string): string {
-  return value.split(path.sep).join('/');
 }
 
 function classifiedPaths(): ClassifiedPath[] {
@@ -89,17 +81,9 @@ function packagesByName(manifests: Map<string, PackageManifest>): Map<string, Cl
   return result;
 }
 
-function packageName(specifier: string): string {
-  return specifier
-    .split('/')
-    .slice(0, specifier.startsWith('@') ? 2 : 1)
-    .join('/');
-}
-
-function sourceEdgeViolation(
+function architectureEdgeViolation(
   importer: ClassifiedPath,
   target: ClassifiedPath | undefined,
-  specifier: string,
 ): string | undefined {
   if (!target) return undefined;
   const edge = apiArchitectureEdgePolicy[importer.classification]?.[target.classification];
@@ -107,10 +91,6 @@ function sourceEdgeViolation(
     throw new Error(
       `Missing API architecture edge policy decision: ${importer.classification} -> ${target.classification}`,
     );
-  }
-  if (importer.classification === 'dto' && target.classification === 'dto') {
-    if (specifier.endsWith('/inter-module')) return 'DTO inter-module import';
-    return undefined;
   }
   if (
     edge.decision === 'allow' ||
@@ -124,34 +104,26 @@ function manifestViolation(
   importer: ClassifiedPath,
   target: ClassifiedPath | undefined,
 ): string | undefined {
-  if (!target) return undefined;
-  if (target.classification === 'implementations') {
-    if (importer.classification === 'implementations' && importer.context !== target.context)
-      return 'Foreign implementation manifest edge';
-    if (importer.classification === 'dto') return 'DTO implementation manifest edge';
-    if (importer.classification === 'shared-semantic')
-      return 'Shared semantic implementation dependency';
-    if (importer.classification === 'spi' && importer.context !== target.context)
-      return 'Foreign SPI implementation manifest edge';
-  }
-  if (target.classification === 'spi') {
-    if (importer.classification === 'dto') return 'DTO SPI manifest edge';
-    if (importer.classification === 'shared-semantic') return 'Shared semantic SPI dependency';
-  }
-  if (
-    importer.classification === 'implementations' &&
-    target.classification === 'spi' &&
-    importer.context !== target.context
-  )
-    return 'Foreign same-context SPI manifest edge';
-  return undefined;
+  const violation = architectureEdgeViolation(importer, target);
+  return violation?.replace(importViolationSuffixExpression, ' manifest edge');
 }
 
-function dtoRootExportViolation(specifier: string): string | undefined {
-  if (specifier.includes('inter-module')) return 'DTO root exports inter-module contract';
-  if (dtoImplementationDetailExpression.test(specifier))
-    return 'DTO root exports implementation detail';
-  return undefined;
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT')
+      return false;
+    throw error;
+  }
+}
+
+function interModuleParityViolation(hasSource: boolean, hasExport: boolean): string | undefined {
+  if (hasSource === hasExport) return undefined;
+  return hasSource
+    ? 'DTO inter-module source has no explicit package export'
+    : 'DTO inter-module export has no source file';
 }
 
 async function findPackagePaths(directory: string, relativeDirectory = ''): Promise<string[]> {
@@ -188,38 +160,8 @@ async function readManifests(packagePaths: string[]): Promise<Map<string, Packag
   return new Map(manifests);
 }
 
-function sourceReExportsInterModule(source: string): boolean {
-  return source.includes('inter-module');
-}
-
 function hasInterModuleEntry(exports: PackageManifest['exports']): boolean {
   return typeof exports === 'object' && exports !== null && './inter-module' in exports;
-}
-
-async function sourceFiles(packagePath: string): Promise<string[]> {
-  const directory = path.join(repositoryRoot, packagePath);
-  const files: string[] = [];
-  const visit = async (currentDirectory: string): Promise<void> => {
-    const entries = await readdir(currentDirectory, {withFileTypes: true});
-    for (const entry of entries) {
-      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'coverage')
-        continue;
-      const absolutePath = path.join(currentDirectory, entry.name);
-      if (entry.isDirectory()) await visit(absolutePath);
-      if (entry.isFile() && sourceFileExpression.test(entry.name)) files.push(absolutePath);
-    }
-  };
-  await visit(directory);
-  return files;
-}
-
-function importSpecifiers(source: string): string[] {
-  const specifiers: string[] = [];
-  for (const match of source.matchAll(importExpression)) {
-    const specifier = match[1] ?? match[2];
-    if (specifier) specifiers.push(specifier);
-  }
-  return specifiers;
 }
 
 export function apiContextPackagePaths(): string[] {
@@ -251,19 +193,15 @@ export function auditApiContextInventory(packagePaths: string[]): string[] {
 
 export function auditPolicyFixture({
   dependencyGroup,
-  dtoHasInterModuleEntry = true,
-  dtoRootExportsInterModule = false,
-  dtoRootExportSpecifier,
+  dtoHasInterModuleEntry = false,
+  dtoHasInterModuleSource = false,
   importerPath,
-  sourceFile,
   targetPath,
 }: {
   dependencyGroup?: (typeof dependencyGroups)[number];
   dtoHasInterModuleEntry?: boolean;
-  dtoRootExportsInterModule?: boolean;
-  dtoRootExportSpecifier?: string;
+  dtoHasInterModuleSource?: boolean;
   importerPath: string;
-  sourceFile?: string;
   targetPath?: string;
 }): string[] {
   const classifications = new Map(classifiedPaths().map((entry) => [entry.packagePath, entry]));
@@ -272,21 +210,16 @@ export function auditPolicyFixture({
   const errors: string[] = [];
 
   if (importer) {
-    const sourceViolation = sourceEdgeViolation(
-      importer,
-      target,
-      sourceFile?.split(':').at(-1) ?? '',
-    );
-    if (sourceFile && sourceViolation) errors.push(`${sourceViolation}: ${sourceFile}`);
     const dependencyViolation = manifestViolation(importer, target);
     if (dependencyGroup && dependencyViolation)
       errors.push(`${dependencyViolation}: ${dependencyGroup}`);
   }
-  if (importer?.classification === 'dto' && dtoRootExportsInterModule && !dtoHasInterModuleEntry)
-    errors.push('DTO root exports inter-module contract');
-  if (importer?.classification === 'dto' && dtoRootExportSpecifier) {
-    const violation = dtoRootExportViolation(dtoRootExportSpecifier);
-    if (violation) errors.push(violation);
+  if (importer?.classification === 'dto') {
+    const parityViolation = interModuleParityViolation(
+      dtoHasInterModuleSource,
+      dtoHasInterModuleEntry,
+    );
+    if (parityViolation) errors.push(parityViolation);
   }
   return errors;
 }
@@ -310,32 +243,15 @@ export async function auditRepository(): Promise<string[]> {
       }
     }
     if (classification.classification === 'dto') {
-      const indexPath = path.join(repositoryRoot, packagePath, 'src/index.ts');
-      const indexSource = await readFile(indexPath, 'utf8');
-      for (const specifier of importSpecifiers(indexSource)) {
-        const violation = dtoRootExportViolation(specifier);
-        if (violation)
-          errors.push(`${violation}: dto-export:${packagePath}:src/index.ts:${specifier}`);
-      }
-      if (sourceReExportsInterModule(indexSource) && !hasInterModuleEntry(manifest.exports)) {
-        const violation = `dto-export:${packagePath}:package.json:missing-inter-module-entry`;
-        errors.push(`DTO contract has no explicit inter-module export: ${violation}`);
-      }
-    }
-  }
-
-  for (const [packagePath, classification] of classifications) {
-    for (const sourceFile of await sourceFiles(packagePath)) {
-      const source = await readFile(sourceFile, 'utf8');
-      const relativeFile = toPosixPath(path.relative(repositoryRoot, sourceFile));
-      for (const specifier of importSpecifiers(source)) {
-        const violation = sourceEdgeViolation(
-          classification,
-          packages.get(packageName(specifier)),
-          specifier,
-        );
-        if (violation) errors.push(`${violation}: import:${relativeFile}:${specifier}`);
-      }
+      const hasInterModuleSource = await fileExists(
+        path.join(repositoryRoot, packagePath, 'src/inter-module.ts'),
+      );
+      const hasInterModuleExport = hasInterModuleEntry(manifest.exports);
+      const parityViolation = interModuleParityViolation(
+        hasInterModuleSource,
+        hasInterModuleExport,
+      );
+      if (parityViolation) errors.push(`${parityViolation}: dto-export:${packagePath}`);
     }
   }
 

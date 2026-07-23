@@ -128,14 +128,20 @@ fixtures, cross-repository policy, and local verification.
 
 These checks enforce the rules:
 
-- The root [API architecture Biome plugins](../../tools/biome/plugins/api-architecture/README.md)
-  report local DTO import and export violations at the source expression.
-- `pnpm check:api-context-inventory` checks package classification, stale
-  registry entries, manifest edges, explicit export maps, and imports that
-  depend on context or same-context SPI ownership from `api-contexts.cjs`.
-- `.dependency-cruiser.cjs` checks resolved dependency boundaries.
-- `pnpm check:dependencies` checks dependency policy and manifest hygiene.
-- `pnpm check:published-artifacts` checks packed public entry points.
+| Owner | Enforced policy |
+| --- | --- |
+| Biome | Local import and export syntax, including DTO root and `/inter-module` source shape. |
+| Dependency Cruiser | Resolved source dependency graph, including context-aware API package edges. |
+| API architecture policy | Package inventory, classifications, declared manifest edges, and intended public-contract subpaths. |
+| Package release verification | Packed public entry-point correctness and external-consumer closure. |
+
+The root [API architecture Biome plugins](../../tools/biome/plugins/api-architecture/README.md)
+report local DTO import and export violations at the source expression.
+`pnpm check:api-context-inventory` checks package classification, stale registry
+entries, manifest edges, and structural `/inter-module` export parity. It does
+not parse source imports; use Dependency Cruiser for resolved source edges.
+`pnpm check:dependencies` checks dependency policy and manifest hygiene.
+`pnpm check:published-artifacts` checks packed public entry points.
 
 When adding a bounded context, classify its implementation and DTO packages in
 [`api-contexts.cjs`](../../api-contexts.cjs) before adding its dependencies.
