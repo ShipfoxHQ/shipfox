@@ -96,7 +96,7 @@ pnpm --filter=@shipfox/react-ui storybook
 ```
 
 For repository-wide story ordering and Argos rules, read the
-[testing guide](../../../docs/guides/testing.md). This package captures stories
+[testing guide](../../../../docs/guides/testing.md). This package captures stories
 in light and dark under `turbo test`.
 
 ## Build

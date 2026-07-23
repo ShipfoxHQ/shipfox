@@ -7720,6 +7720,27 @@ importers:
         specifier: workspace:*
         version: link:../typescript
 
+  tools/repository-documentation-policy:
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../biome
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../vitest
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+
   tools/swc:
     dependencies:
       '@shipfox/tool-utils':
