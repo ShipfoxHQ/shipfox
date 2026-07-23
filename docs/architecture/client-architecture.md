@@ -60,7 +60,10 @@ handle presentation effects such as closing a dialog or navigating. A named
 page or application coordinator owns a journey that must update more than one
 feature's cache.
 
-Use `@shipfox/client-api` for requests, auth refresh, and `ApiError` handling.
+Use `checkedApiRequest` from `@shipfox/client-api` for business responses. It
+validates the response at the transport boundary. The raw request primitive is
+private to `@shipfox/client-api`. Use `emptyResponseSchema` for a response with
+no domain value.
 
 ## Choose state by its source of truth
 
@@ -173,12 +176,18 @@ Run the affected package `check` and `pnpm check:client-architecture` after
 changing a client boundary. Package checks run the local Biome rules and report
 source locations for response DTO imports, DTO or framework imports in `core/`,
 raw API requests, and leaf-component query-cache ownership. The repository
-verifier checks direct API requests outside adapters, unparsed API responses,
-raw route-search parsing outside an owned route module, deep imports into
-another feature's private modules, and navigation or settings contributions
-that target a route owned by another feature without an explicit `coordinator`.
-Both checks require zero production violations. Neither check has a migration
-baseline or allowlist.
+verifier inventories production adapters and query hooks under `libs/client/**`
+and `libs/shared/react/ui/**`. It rejects direct API requests outside adapters,
+unparsed API responses, checked business responses returned without a mapper,
+inline query policies, query hooks outside adapters, and raw route-search
+parsing outside an owned route module. Both checks require zero production
+violations. Neither check has a migration baseline or broad allowlist. The
+step-log query is the only narrow query-policy exception; its per-view cursor
+and retry lifecycle is documented in
+[`clientArchitectureExceptions`](../../tools/client-architecture-policy/src/audit-client-architecture.ts).
+It also rejects deep imports into another feature's private modules and
+navigation or settings contributions that target a route owned by another
+feature without an explicit `coordinator`.
 
 A completed feature package has `core/` domain models and policies with no UI
 or transport imports; checked adapter functions that parse and map every

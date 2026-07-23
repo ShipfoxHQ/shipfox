@@ -6,9 +6,10 @@ import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useRef, useState} from 'react';
+import type {InstallRedirect} from '#core/models.js';
 
 interface RedirectInstallPageProps {
-  installRequest: (body: {workspace_id: string}) => Promise<{install_url: string}>;
+  installRequest: (body: {workspace_id: string}) => Promise<InstallRedirect>;
   errorFallbackMessage: string;
   loadingLabel?: string;
   /**
@@ -44,7 +45,7 @@ export function RedirectInstallPage({
     }
     installRequest({workspace_id: workspace.id})
       .then((response) => {
-        assignLocation(response.install_url);
+        assignLocation(response.installUrl);
       })
       .catch((error: unknown) => {
         setErrorMessage(error instanceof ApiError ? error.message : errorFallbackMessage);

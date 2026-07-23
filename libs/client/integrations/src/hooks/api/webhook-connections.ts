@@ -24,7 +24,9 @@ export const webhookConnectionsQueryKeys = {
   list: (workspaceId: string) => [...webhookConnectionsQueryKeys.all, 'list', workspaceId] as const,
 };
 
-type WebhookConnectionsListQueryKey = ReturnType<typeof webhookConnectionsQueryKeys.list>;
+type WebhookConnectionsListQueryKey =
+  | ReturnType<typeof webhookConnectionsQueryKeys.list>
+  | readonly ['webhook-connections', 'list'];
 
 type WebhookConnectionsListQueryOptions = FetchQueryOptions<
   WebhookConnection[],
@@ -87,21 +89,18 @@ export async function deleteWebhookConnection({connectionId}: {connectionId: str
 }
 
 export function useWebhookConnectionsQuery(workspaceId: string | undefined) {
-  return useQuery({
-    queryKey: workspaceId
-      ? webhookConnectionsQueryKeys.list(workspaceId)
-      : [...webhookConnectionsQueryKeys.all, 'list'],
-    enabled: Boolean(workspaceId),
-    queryFn: ({signal}) => listWebhookConnections({workspaceId: workspaceId ?? '', signal}),
-  });
+  return useQuery(webhookConnectionsQueryOptions(workspaceId));
 }
 
 export function webhookConnectionsQueryOptions(
-  workspaceId: string,
+  workspaceId: string | undefined,
 ): WebhookConnectionsListQueryOptions {
   return queryOptions({
-    queryKey: webhookConnectionsQueryKeys.list(workspaceId),
-    queryFn: ({signal}) => listWebhookConnections({workspaceId, signal}),
+    queryKey: workspaceId
+      ? webhookConnectionsQueryKeys.list(workspaceId)
+      : ([...webhookConnectionsQueryKeys.all, 'list'] as const),
+    enabled: Boolean(workspaceId),
+    queryFn: ({signal}) => listWebhookConnections({workspaceId: workspaceId ?? '', signal}),
   });
 }
 

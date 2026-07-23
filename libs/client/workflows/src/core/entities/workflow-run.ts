@@ -68,6 +68,10 @@ export interface WorkflowRunListPage {
   filteredTotalCount: number | null;
 }
 
+export interface ManualWorkflowLaunch {
+  workflowRunId: string;
+}
+
 export function workflowRunShortId(id: string): string {
   return id.length <= 8 ? id : id.slice(0, 8);
 }

@@ -11,8 +11,29 @@ export interface ClientArchitectureViolation {
     | 'non-owning-feature-contribution'
     | 'private-feature-import'
     | 'unchecked-route-search'
+    | 'inline-query-policy'
+    | 'query-policy-outside-adapter'
+    | 'unmapped-api-response'
     | 'unparsed-api-response';
 }
+
+export interface ClientArchitectureInventory {
+  adapterFiles: string[];
+  checkedApiRequestCalls: number;
+  queryHooks: number;
+  reusableQueryPolicies: number;
+}
+
+/**
+ * Narrow exceptions must name the owning file and explain the state that the
+ * shared query-options convention cannot safely represent.
+ */
+export const clientArchitectureExceptions = {
+  queryPolicy: {
+    'libs/client/logs/src/hooks/api/step-logs.ts':
+      'The query merges a prior cursor snapshot and owns a per-view retry lifecycle.',
+  },
+} as const;
 
 const rootDirectory = fileURLToPath(new URL('../../../', import.meta.url));
 const auditedDirectories = [
@@ -23,13 +44,47 @@ const sourceFilePattern = /\.(?:ts|tsx)$/;
 const nonProductionSourcePattern = /\.(?:stories|test)\.(?:ts|tsx)$/;
 const apiRequestPattern = /\b(?:apiRequest|checkedApiRequest)\s*(?:<[^>]*>)?\s*\(/;
 const uncheckedApiRequestPattern = /\bapiRequest\s*(?:<[^>]*>)?\s*\(/;
+const checkedApiRequestCallPattern = /\bcheckedApiRequest\s*(?:<[^>]*>)?\s*\(/g;
+const unmappedApiResponsePattern =
+  /(?:\breturn\s*(?:\(\s*)?|=>\s*(?:\(\s*)?)(?:await\s+)?checkedApiRequest\s*(?:<[^>]*>)?\s*\((?!\s*emptyResponseSchema\b)/g;
+const queryHookPattern = /\b(?:useQuery|useInfiniteQuery)\s*(?:<[^>]*>)?\s*\(/g;
+const queryPolicyPattern =
+  /(?:\.\.\.\s*)?(?:[A-Za-z_$][\w$]*QueryOptions|queryOptions|infiniteQueryOptions)\s*\(/;
 const routeSearchPattern = /\buseRouteSearch\s*\(/;
+const identifierStartPattern = /[A-Za-z_$]/;
+const identifierPartPattern = /[A-Za-z0-9_$]/;
+const regexFlagPattern = /[A-Za-z]/;
+const whitespacePattern = /\s/;
+const digitPattern = /[0-9]/;
+const regexLiteralPrefixKeywords = new Set([
+  'await',
+  'case',
+  'catch',
+  'delete',
+  'do',
+  'else',
+  'for',
+  'if',
+  'in',
+  'instanceof',
+  'of',
+  'return',
+  'switch',
+  'throw',
+  'typeof',
+  'void',
+  'while',
+  'with',
+  'yield',
+]);
 const excludedDirectoryNames = new Set([
   'dist',
   'node_modules',
   'test',
   'tests',
   '__tests__',
+  'fixtures',
+  '__fixtures__',
   'generated',
   '__generated__',
 ]);
@@ -45,6 +100,7 @@ const navigationTargetPattern = /\bto\s*:\s*['"]([^'"]+)['"]/gu;
 const settingsPathPattern = /\bpathSegment\s*:\s*['"]([^'"]+)['"]/gu;
 const registryDefinitionPattern = /\b(?:navigation|settingsSections)\s*(?::|=)\s*\[/u;
 const trailingSlashPattern = /\/+$/u;
+const generatedFilePattern = /\.gen\.(?:ts|tsx)$/;
 
 function toRepositoryPath(filePath: string): string {
   return path.relative(rootDirectory, filePath).split(path.sep).join('/');
@@ -58,7 +114,9 @@ export async function sourceFiles(directory: string): Promise<string[]> {
       if (entry.isDirectory()) {
         return excludedDirectoryNames.has(entry.name) ? [] : await sourceFiles(entryPath);
       }
-      return sourceFilePattern.test(entry.name) && !nonProductionSourcePattern.test(entry.name)
+      return sourceFilePattern.test(entry.name) &&
+        !nonProductionSourcePattern.test(entry.name) &&
+        !generatedFilePattern.test(entry.name)
         ? [entryPath]
         : [];
     }),
@@ -108,6 +166,174 @@ function featureContributionOccurrences(file: string, source: string): number {
 
   return occurrences;
 }
+
+function isIdentifierStart(character: string | undefined): boolean {
+  return character !== undefined && identifierStartPattern.test(character);
+}
+
+function isIdentifierPart(character: string | undefined): boolean {
+  return character !== undefined && identifierPartPattern.test(character);
+}
+
+function findRegexLiteralEnd(source: string, start: number): number {
+  let inCharacterClass = false;
+  let escaped = false;
+
+  for (let index = start + 1; index < source.length; index += 1) {
+    const character = source[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (character === '\n' || character === '\r') return source.length;
+    if (character === '[') {
+      inCharacterClass = true;
+      continue;
+    }
+    if (character === ']') {
+      inCharacterClass = false;
+      continue;
+    }
+    if (character === '/' && !inCharacterClass) {
+      let end = index + 1;
+      while (regexFlagPattern.test(source[end] ?? '')) end += 1;
+      return end;
+    }
+  }
+  return source.length;
+}
+
+function findMatchingCallEnd(source: string, openParen: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  let canEndExpression = false;
+
+  for (let index = openParen; index < source.length; index += 1) {
+    const character = source[index];
+    const nextCharacter = source[index + 1];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+        canEndExpression = true;
+      }
+      continue;
+    }
+    if (whitespacePattern.test(character ?? '')) continue;
+    if (character === '/' && nextCharacter === '/') {
+      const newline = source.indexOf('\n', index + 2);
+      if (newline === -1) return source.length;
+      index = newline;
+      continue;
+    }
+    if (character === '/' && nextCharacter === '*') {
+      const commentEnd = source.indexOf('*/', index + 2);
+      if (commentEnd === -1) return source.length;
+      index = commentEnd + 1;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character;
+      escaped = false;
+      canEndExpression = false;
+      continue;
+    }
+    if (character === '/' && !canEndExpression) {
+      index = findRegexLiteralEnd(source, index) - 1;
+      canEndExpression = true;
+      continue;
+    }
+    if (isIdentifierStart(character)) {
+      let end = index + 1;
+      while (isIdentifierPart(source[end])) end += 1;
+      canEndExpression = !regexLiteralPrefixKeywords.has(source.slice(index, end));
+      index = end - 1;
+      continue;
+    }
+    if (digitPattern.test(character ?? '')) {
+      canEndExpression = true;
+      continue;
+    }
+    if (character === '(') {
+      depth += 1;
+      canEndExpression = false;
+      continue;
+    }
+    if (character === ')' && --depth === 0) return index;
+    if (character === ')') {
+      canEndExpression = true;
+      continue;
+    }
+    if (character === ']' || character === '}') {
+      canEndExpression = true;
+      continue;
+    }
+    if (character === '+' || character === '-') {
+      if (nextCharacter === character) {
+        index += 1;
+        canEndExpression = true;
+      } else {
+        canEndExpression = false;
+      }
+      continue;
+    }
+    canEndExpression = false;
+  }
+  return source.length;
+}
+
+function queryHookCalls(source: string): Array<{hasPolicy: boolean}> {
+  return [...source.matchAll(new RegExp(queryHookPattern.source, 'g'))].map((match) => {
+    const start = match.index ?? 0;
+    const openParen = start + match[0].lastIndexOf('(');
+    const end = findMatchingCallEnd(source, openParen);
+    const argumentsSource = source.slice(openParen + 1, end);
+    return {hasPolicy: queryPolicyPattern.test(argumentsSource)};
+  });
+}
+
+function hasQueryPolicyException(file: string): boolean {
+  return Object.hasOwn(clientArchitectureExceptions.queryPolicy, file);
+}
+
+function validateExceptionRegistry(files: string[]): void {
+  const fileSet = new Set(files);
+  for (const [file, reason] of Object.entries(clientArchitectureExceptions.queryPolicy)) {
+    if (!reason.trim()) throw new Error(`Client architecture exception has no reason: ${file}`);
+    if (!fileSet.has(file))
+      throw new Error(`Client architecture exception file is not audited: ${file}`);
+  }
+}
+
+export function inventoryClientSource(
+  file: string,
+  source: string,
+): {
+  isAdapter: boolean;
+  checkedApiRequestCalls: number;
+  queryHooks: number;
+  reusableQueryPolicies: number;
+} {
+  const normalizedFile = file.split(path.sep).join('/');
+  const isAdapter = normalizedFile.includes('/src/hooks/api/');
+  const calls = queryHookCalls(source);
+  const reusableQueryPolicies = calls.filter((call) => call.hasPolicy).length;
+  return {
+    isAdapter,
+    checkedApiRequestCalls: countMatches(source, checkedApiRequestCallPattern),
+    queryHooks: calls.length,
+    reusableQueryPolicies,
+  };
+}
+
 export function auditClientSource(file: string, source: string): ClientArchitectureViolation[] {
   const violations: ClientArchitectureViolation[] = [];
   const normalizedFile = file.split(path.sep).join('/');
@@ -125,13 +351,49 @@ export function auditClientSource(file: string, source: string): ClientArchitect
     addViolation('api-request-outside-adapter', countMatches(source, apiRequestPattern));
   if (!isClientApi)
     addViolation('unparsed-api-response', countMatches(source, uncheckedApiRequestPattern));
+  if (isAdapter && !isClientApi) {
+    addViolation('unmapped-api-response', countMatches(source, unmappedApiResponsePattern));
+    const queryCalls = queryHookCalls(source);
+    if (!hasQueryPolicyException(normalizedFile)) {
+      addViolation('inline-query-policy', queryCalls.filter((call) => !call.hasPolicy).length);
+    }
+  } else if (!isClientApi) {
+    addViolation('query-policy-outside-adapter', queryHookCalls(source).length);
+  }
   if (!normalizedFile.includes('/src/routes/'))
     addViolation('unchecked-route-search', countMatches(source, routeSearchPattern));
   return violations;
 }
 
+export async function inventoryRepository(): Promise<ClientArchitectureInventory> {
+  const files = (await Promise.all(auditedDirectories.map(sourceFiles))).flat();
+  validateExceptionRegistry(files.map(toRepositoryPath));
+  const entries = await Promise.all(
+    files.map(async (file) => ({
+      file: toRepositoryPath(file),
+      inventory: inventoryClientSource(toRepositoryPath(file), await readFile(file, 'utf8')),
+    })),
+  );
+  return {
+    adapterFiles: entries
+      .filter(({inventory}) => inventory.isAdapter)
+      .map(({file}) => file)
+      .sort(),
+    checkedApiRequestCalls: entries.reduce(
+      (total, {inventory}) => total + inventory.checkedApiRequestCalls,
+      0,
+    ),
+    queryHooks: entries.reduce((total, {inventory}) => total + inventory.queryHooks, 0),
+    reusableQueryPolicies: entries.reduce(
+      (total, {inventory}) => total + inventory.reusableQueryPolicies,
+      0,
+    ),
+  };
+}
+
 export async function auditRepository(): Promise<ClientArchitectureViolation[]> {
   const files = (await Promise.all(auditedDirectories.map(sourceFiles))).flat();
+  validateExceptionRegistry(files.map(toRepositoryPath));
   const violations = await Promise.all(
     files.map(async (file) =>
       auditClientSource(toRepositoryPath(file), await readFile(file, 'utf8')),
@@ -147,7 +409,10 @@ export async function auditRepository(): Promise<ClientArchitectureViolation[]> 
 async function main(): Promise<void> {
   const violations = await auditRepository();
   if (violations.length === 0) {
-    process.stdout.write('Client architecture audit passed with zero violations\n');
+    const inventory = await inventoryRepository();
+    process.stdout.write(
+      `Client architecture audit passed with zero violations (${inventory.checkedApiRequestCalls} checked API calls, ${inventory.queryHooks} query hooks, ${inventory.reusableQueryPolicies} reusable query policies, ${inventory.adapterFiles.length} adapter files)\n`,
+    );
     return;
   }
   process.stderr.write(`Client architecture audit found ${violations.length} violation(s)\n`);

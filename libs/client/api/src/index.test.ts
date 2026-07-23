@@ -1,7 +1,7 @@
 import {z} from 'zod';
+import * as clientApi from './index.js';
 import {
   ApiError,
-  apiRequest,
   checkedApiRequest,
   configureApiClient,
   getErrorCode,
@@ -9,6 +9,10 @@ import {
   isInvalidApiResponseError,
   resetApiClient,
 } from './index.js';
+
+function transportRequest<T>(path: string, options: Parameters<typeof checkedApiRequest>[2] = {}) {
+  return checkedApiRequest(z.unknown(), path, options) as Promise<T>;
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -18,7 +22,7 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-describe('apiRequest', () => {
+describe('checked API transport', () => {
   beforeEach(() => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
@@ -26,6 +30,10 @@ describe('apiRequest', () => {
       getAccessToken: undefined,
       refreshAccessToken: undefined,
     });
+  });
+
+  test('does not expose the raw transport primitive from the public client surface', () => {
+    expect('apiRequest' in clientApi).toBe(false);
   });
 
   test('preserves the native fetch receiver', async () => {
@@ -37,7 +45,7 @@ describe('apiRequest', () => {
     }) as typeof fetch;
 
     try {
-      const result = await apiRequest<{ok: boolean}>('/auth/refresh', {method: 'POST'});
+      const result = await transportRequest<{ok: boolean}>('/auth/refresh', {method: 'POST'});
 
       expect(result.ok).toBe(true);
       expect(receiver).toBe(globalThis);
@@ -50,7 +58,7 @@ describe('apiRequest', () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ok: true}));
     configureApiClient({fetchImpl, getAccessToken: () => 'access-token'});
 
-    const result = await apiRequest<{ok: boolean}>('/auth/refresh', {method: 'POST'});
+    const result = await transportRequest<{ok: boolean}>('/auth/refresh', {method: 'POST'});
 
     expect(result.ok).toBe(true);
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
@@ -68,7 +76,7 @@ describe('apiRequest', () => {
       );
     configureApiClient({fetchImpl});
 
-    const result = apiRequest('/auth/login', {method: 'POST'});
+    const result = transportRequest('/auth/login', {method: 'POST'});
 
     await expect(result).rejects.toMatchObject({
       code: 'invalid-credentials',
@@ -91,7 +99,7 @@ describe('apiRequest', () => {
       refreshAccessToken,
     });
 
-    const result = await apiRequest<{ok: boolean}>('/workspaces');
+    const result = await transportRequest<{ok: boolean}>('/workspaces');
 
     expect(result.ok).toBe(true);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
@@ -110,7 +118,7 @@ describe('apiRequest', () => {
     const refreshAccessToken = vi.fn().mockResolvedValue('fresh-token');
     configureApiClient({fetchImpl, refreshAccessToken});
 
-    const result = apiRequest('/auth/login', {method: 'POST'});
+    const result = transportRequest('/auth/login', {method: 'POST'});
 
     await expect(result).rejects.toMatchObject({
       code: 'invalid-credentials',
@@ -122,7 +130,7 @@ describe('apiRequest', () => {
   test('normalizes network failures', async () => {
     configureApiClient({fetchImpl: vi.fn().mockRejectedValue(new Error('offline'))});
 
-    const result = apiRequest('/auth/login', {method: 'POST'});
+    const result = transportRequest('/auth/login', {method: 'POST'});
 
     await expect(result).rejects.toBeInstanceOf(ApiError);
     await expect(result).rejects.toMatchObject({code: 'network-error', status: 0});
@@ -152,7 +160,7 @@ describe('resetApiClient', () => {
 
     const freshFetch = vi.fn().mockResolvedValue(jsonResponse({ok: true}));
     configureApiClient({baseUrl: 'https://fresh.example.test', fetchImpl: freshFetch});
-    await apiRequest('/workspaces');
+    await transportRequest('/workspaces');
 
     expect(staleFetch).not.toHaveBeenCalled();
     const request = freshFetch.mock.calls[0]?.[0] as Request;

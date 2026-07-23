@@ -5,6 +5,7 @@ import type {
 } from '@shipfox/api-integration-core-dto';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 import type {
+  InstallRedirect,
   IntegrationConnection,
   IntegrationProvider,
   Repository,
@@ -13,6 +14,10 @@ import type {
 
 export function toIntegrationProvider(dto: IntegrationProviderDto): IntegrationProvider {
   return {provider: dto.provider, displayName: dto.display_name, capabilities: dto.capabilities};
+}
+
+export function toInstallRedirect(dto: {install_url: string}): InstallRedirect {
+  return {installUrl: dto.install_url};
 }
 
 export function toIntegrationConnection(dto: IntegrationConnectionDto): IntegrationConnection {

@@ -5,6 +5,7 @@ export type {
   JobExecutionStatus,
   JobExecutionTime,
   JobStatus,
+  ManualWorkflowLaunch,
   Step,
   StepAttempt,
   StepAttemptDisplayDuration,
@@ -40,6 +41,9 @@ export {
   useWorkflowRunQuery,
   useWorkflowRunsInfiniteQuery,
   type WorkflowRunFilters,
+  workflowRunAttemptsQueryOptions,
+  workflowRunQueryOptions,
+  workflowRunsInfiniteQueryOptions,
   workflowRunsQueryKeys,
 } from './hooks/api/workflow-runs.js';
 export {ProjectWorkflowsPage} from './pages/project-workflows-page.js';

@@ -5,11 +5,15 @@ import type {
   ModelProviderCatalogResponseDto,
   ModelProviderConfigDto,
   ModelProviderConfigResponseDto,
+  SetDefaultHarnessResponseDto,
+  SetDefaultModelProviderResponseDto,
 } from '@shipfox/api-agent-dto';
 import type {
   AgentModel,
   BuiltinProviderConfig,
   CustomProviderConfig,
+  DefaultHarnessSelection,
+  DefaultModelProviderSelection,
   ProviderCatalog,
   ProviderCatalogEntry,
   ProviderConfig,
@@ -51,6 +55,18 @@ export function toProviderConfiguration(
     defaultHarnessId: response.default_harness_id,
     defaultProviderId: response.default_provider_id,
   };
+}
+
+export function toDefaultModelProviderSelection(
+  response: SetDefaultModelProviderResponseDto,
+): DefaultModelProviderSelection {
+  return {defaultProviderId: response.default_provider_id};
+}
+
+export function toDefaultHarnessSelection(
+  response: SetDefaultHarnessResponseDto,
+): DefaultHarnessSelection {
+  return {defaultHarnessId: response.default_harness_id};
 }
 
 export function toProviderConfig(config: ModelProviderConfigResponseDto): ProviderConfig {

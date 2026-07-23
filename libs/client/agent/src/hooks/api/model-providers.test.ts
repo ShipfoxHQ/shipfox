@@ -134,7 +134,7 @@ describe('model provider transport', () => {
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.default_provider_id).toBe('anthropic');
+    expect(result.defaultProviderId).toBe('anthropic');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-model-provider`,
     );
@@ -157,7 +157,7 @@ describe('model provider transport', () => {
     });
 
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
-    expect(result.default_harness_id).toBe('claude');
+    expect(result.defaultHarnessId).toBe('claude');
     expect(request.url).toBe(
       `https://api.example.test/workspaces/${AGENT_TEST_WORKSPACE_ID}/agent/default-harness`,
     );

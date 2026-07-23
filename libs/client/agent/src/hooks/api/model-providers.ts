@@ -19,6 +19,8 @@ import {
 import type {
   AgentModel,
   CreateCustomProviderCommand,
+  DefaultHarnessSelection,
+  DefaultModelProviderSelection,
   DiscoverProviderModelsCommand,
   HarnessId,
   ProviderCatalog,
@@ -38,6 +40,8 @@ import {
   toUpdateCustomProviderBody,
 } from './model-provider-command-mapper.js';
 import {
+  toDefaultHarnessSelection,
+  toDefaultModelProviderSelection,
   toProviderCatalog,
   toProviderConfig,
   toProviderConfiguration,
@@ -230,11 +234,13 @@ export async function setDefaultModelProvider({
 }: {
   workspaceId: string;
   providerId: string;
-}) {
-  return await checkedApiRequest(
-    setDefaultModelProviderResponseSchema,
-    `/workspaces/${workspaceId}/agent/default-model-provider`,
-    {method: 'PUT', body: toDefaultProviderBody(providerId)},
+}): Promise<DefaultModelProviderSelection> {
+  return toDefaultModelProviderSelection(
+    await checkedApiRequest(
+      setDefaultModelProviderResponseSchema,
+      `/workspaces/${workspaceId}/agent/default-model-provider`,
+      {method: 'PUT', body: toDefaultProviderBody(providerId)},
+    ),
   );
 }
 
@@ -244,11 +250,13 @@ export async function setDefaultHarness({
 }: {
   workspaceId: string;
   harnessId: HarnessId;
-}) {
-  return await checkedApiRequest(
-    setDefaultHarnessResponseSchema,
-    `/workspaces/${workspaceId}/agent/default-harness`,
-    {method: 'PUT', body: toDefaultHarnessBody(harnessId)},
+}): Promise<DefaultHarnessSelection> {
+  return toDefaultHarnessSelection(
+    await checkedApiRequest(
+      setDefaultHarnessResponseSchema,
+      `/workspaces/${workspaceId}/agent/default-harness`,
+      {method: 'PUT', body: toDefaultHarnessBody(harnessId)},
+    ),
   );
 }
 
