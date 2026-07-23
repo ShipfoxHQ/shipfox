@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ShipfoxHQ/shipfox/blob/main/tools/architecture-policy/schema/repository-configuration.schema.json",
+  "title": "Shipfox repository architecture policy configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "localPackages",
+    "compositionRoots",
+    "realms",
+    "architectureClasses",
+    "classRelationships",
+    "exportIntent",
+    "extensions",
+    "exceptions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "localPackages": { "type": "array", "items": { "$ref": "#/$defs/localPackage" } },
+    "compositionRoots": { "type": "array", "items": { "type": "string" } },
+    "realms": { "type": "object", "additionalProperties": { "$ref": "#/$defs/realm" } },
+    "architectureClasses": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/classConfiguration" }
+    },
+    "classRelationships": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "$ref": "#/$defs/relationship" }
+      }
+    },
+    "exportIntent": {
+      "type": "object",
+      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+    },
+    "extensions": { "type": "object" },
+    "exceptions": { "type": "array", "items": { "$ref": "#/$defs/exception" } }
+  },
+  "$defs": {
+    "localPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "packageName", "realm", "architectureClass", "boundedContext"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "packageName": { "type": "string", "minLength": 1 },
+        "realm": { "type": "string", "minLength": 1 },
+        "architectureClass": { "type": "string", "minLength": 1 },
+        "boundedContext": { "type": ["string", "null"] }
+      }
+    },
+    "realm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mayDependOn"],
+      "properties": {
+        "mayDependOn": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "classConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiresBoundedContext"],
+      "properties": { "requiresBoundedContext": { "type": "boolean" } }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision"],
+      "properties": {
+        "decision": { "enum": ["allow", "never", "same-context"] },
+        "ruleId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ruleId",
+        "source",
+        "target",
+        "owner",
+        "reason",
+        "trackingIssue",
+        "removalCondition",
+        "expiresAt"
+      ],
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "trackingIssue": { "type": "string", "minLength": 1 },
+        "removalCondition": { "type": ["string", "null"] },
+        "expiresAt": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

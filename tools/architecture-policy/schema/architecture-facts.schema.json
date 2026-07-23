@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ShipfoxHQ/shipfox/blob/main/tools/architecture-policy/schema/architecture-facts.schema.json",
+  "title": "Shipfox normalized architecture facts",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packages",
+    "importEdges",
+    "manifestEdges",
+    "publicExports",
+    "compositionFacts"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "packages": { "type": "array", "items": { "$ref": "#/$defs/packageFact" } },
+    "importEdges": { "type": "array", "items": { "$ref": "#/$defs/importEdge" } },
+    "manifestEdges": { "type": "array", "items": { "$ref": "#/$defs/manifestEdge" } },
+    "publicExports": { "type": "array", "items": { "$ref": "#/$defs/publicExport" } },
+    "compositionFacts": { "type": "array", "items": { "$ref": "#/$defs/compositionFact" } }
+  },
+  "$defs": {
+    "version": { "const": 1 },
+    "packageFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "name",
+        "version",
+        "path",
+        "origin",
+        "policyParticipant",
+        "realm",
+        "architectureClass",
+        "boundedContext"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/version" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": ["string", "null"] },
+        "path": { "type": "string", "minLength": 1 },
+        "origin": { "enum": ["installed", "local"] },
+        "policyParticipant": { "type": "boolean" },
+        "realm": { "type": ["string", "null"] },
+        "architectureClass": { "type": ["string", "null"] },
+        "boundedContext": { "type": ["string", "null"] }
+      }
+    },
+    "importEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "source", "target", "sourceFile", "specifier", "importKind"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/version" },
+        "source": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "sourceFile": { "type": "string", "minLength": 1 },
+        "specifier": { "type": "string", "minLength": 1 },
+        "importKind": { "enum": ["dynamic", "re-export", "static", "type-only"] }
+      }
+    },
+    "manifestEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "source", "target", "dependencyGroup"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/version" },
+        "source": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "dependencyGroup": {
+          "enum": ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]
+        }
+      }
+    },
+    "publicExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "package", "publicSubpath", "resolvedTarget"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/version" },
+        "package": { "type": "string", "minLength": 1 },
+        "publicSubpath": { "type": "string", "minLength": 1 },
+        "resolvedTarget": { "type": ["string", "null"] }
+      }
+    },
+    "compositionFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "declaringOwner",
+        "contributionOwner",
+        "targetOwner",
+        "explicitCoordinator"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/version" },
+        "declaringOwner": { "type": "string" },
+        "contributionOwner": { "type": "string" },
+        "targetOwner": { "type": "string" },
+        "explicitCoordinator": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
