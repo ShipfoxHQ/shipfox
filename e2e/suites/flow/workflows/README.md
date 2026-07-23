@@ -123,7 +123,7 @@ localhost API and gitea URLs are correct for the standard dev stack.
 
 ```sh
 # 1. Infrastructure (postgres, temporal, garage, gitea)
-docker compose up -d            # Conductor worktrees: node dev/worktree-services.mjs up
+docker compose up -d            # Conductor worktrees: pnpm dev:services:up
 
 # 2. Start the API/client dev servers and run the suite.
 mise run e2e -- --filter=@shipfox/e2e-flow-workflows

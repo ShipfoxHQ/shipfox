@@ -55,20 +55,32 @@ Conductor workspaces use isolated services. Workspace setup normally starts
 them. If setup did not finish or the services need recovery, run:
 
 ```sh
-mise exec -- node dev/worktree-services.mjs up
+mise exec -- pnpm dev:services:up
 ```
 
 The command leases a worktree-specific 20-port block, starts PostgreSQL,
 Temporal, Garage, and Gitea, and writes the app environment to
 `.context/local-services/env`. Mise loads that file for later commands.
 
+The repository-level port pool is configured with
+`SHIPFOX_PORT_RANGE_START` and `SHIPFOX_PORT_RANGE_END` in `mise.toml`. This
+checkout reserves `20000–24999`; another repository sharing the same machine
+should reserve a different range. This checkout supports 250 worktree leases;
+another repository can start at `25000`. All ranges still use 20-port blocks, and
+the shared `~/.shipfox/shipfox-port-leases.json` registry rejects overlapping
+allocations. Conductor leases use the stable workspace ID, scoped to this
+repository; their recorded paths are refreshed when services start. Archive or
+destroy a Conductor workspace to release its lease. Cleanup only reclaims
+missing path-identified checkouts, because a missing historical Conductor path
+may mean that the workspace was renamed.
+
 | Need | Command |
 | --- | --- |
-| Inspect workspace services. | `mise exec -- node dev/worktree-services.mjs status` |
-| Stop services but keep their data. | `mise exec -- node dev/worktree-services.mjs stop` |
-| Remove services, volumes, generated state, and the port lease. | `mise exec -- node dev/worktree-services.mjs destroy` |
-| List stale port leases. | `mise exec -- node dev/worktree-services.mjs cleanup` |
-| Remove listed stale port leases. | `mise exec -- node dev/worktree-services.mjs cleanup --apply` |
+| Inspect workspace services. | `mise exec -- pnpm dev:services:status` |
+| Stop services but keep their data. | `mise exec -- pnpm dev:services:stop` |
+| Remove services, volumes, generated state, and the port lease. | `mise exec -- pnpm dev:services:destroy` |
+| List stale port leases. | `mise exec -- pnpm dev:services:cleanup` |
+| Remove listed stale port leases. | `mise exec -- pnpm dev:services:cleanup -- --apply` |
 
 `destroy` is destructive. It removes the worktree Docker volumes and generated
 local-service state. It does not stop shared Ollama.

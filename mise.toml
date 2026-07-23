@@ -11,6 +11,9 @@ packer = "1.15.4"
 [env]
 _.path = ['{{config_root}}/node_modules/.bin']
 _.file = '.context/local-services/env'
+# Reserve this repository's worktree-service port pool in the shared user-local registry.
+SHIPFOX_PORT_RANGE_START = '20000'
+SHIPFOX_PORT_RANGE_END = '24999'
 
 [tasks."ollama:up"]
 description = "Start the shared root Ollama server and preload the default model"
