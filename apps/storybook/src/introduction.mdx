@@ -1,0 +1,29 @@
+import {storybookLinks} from '../preview-manifest.js';
+
+<div className="shipfox-introduction">
+  <div className="shipfox-introduction__content">
+    <p className="shipfox-introduction__eyebrow">Shipfox / Storybook Preview</p>
+    <h1 className="shipfox-introduction__title">One catalog for every component surface.</h1>
+    <p className="shipfox-introduction__summary">
+      This composed Storybook is the local entry point for the ten package Storybooks built from
+      the same repository commit.
+    </p>
+
+    <h2 className="shipfox-introduction__section-title">Standalone Storybooks</h2>
+    <div className="shipfox-introduction__links">
+      {storybookLinks.map((storybook) => (
+        <a className="shipfox-introduction__link" href={storybook.url} key={storybook.id}>
+          <span className="shipfox-introduction__link-title">{storybook.title}</span>
+          <span className="shipfox-introduction__link-path">{storybook.url}</span>
+        </a>
+      ))}
+    </div>
+
+    <p className="shipfox-introduction__note">
+      Composition provides shared discovery and navigation, while each child keeps its own
+      Storybook configuration. Child-specific addons and toolbar globals do not automatically
+      synchronize with this shell; use the standalone links when you need the package-specific
+      experience.
+    </p>
+  </div>
+</div>
