@@ -1,4 +1,21 @@
-import {defineClientFeature} from '@shipfox/client-shell';
+import {defineClientFeature, type NavTabEntry} from '@shipfox/client-shell';
+
+export const workflowsNavigation = [
+  {
+    id: 'nav.runs',
+    scope: 'project',
+    label: 'Runs',
+    to: '/workspaces/$wid/projects/$pid/runs',
+    order: 100,
+  },
+  {
+    id: 'nav.workflows',
+    scope: 'project',
+    label: 'Workflows',
+    to: '/workspaces/$wid/projects/$pid/workflows',
+    order: 200,
+  },
+] as const satisfies readonly NavTabEntry[];
 
 export const workflowsFeature = defineClientFeature({
   id: 'shipfox.workflows',
@@ -19,20 +36,5 @@ export const workflowsFeature = defineClientFeature({
       impl: '@shipfox/client-workflows/routes/run-detail',
     },
   ],
-  navigation: [
-    {
-      id: 'nav.runs',
-      scope: 'project',
-      label: 'Runs',
-      to: '/workspaces/$wid/projects/$pid/runs',
-      order: 100,
-    },
-    {
-      id: 'nav.workflows',
-      scope: 'project',
-      label: 'Workflows',
-      to: '/workspaces/$wid/projects/$pid/workflows',
-      order: 200,
-    },
-  ],
+  navigation: workflowsNavigation,
 });

@@ -8,6 +8,7 @@ export type {
   WorkspaceSummary,
 } from '#core/session.js';
 export {toAuthenticatedSession, toUserIdentity} from '#hooks/api/session-mapper.js';
+export * from '../compose/compose-client-features.js';
 export * from '../compose/compose-routes.js';
 export * from '../compose/errors.js';
 export * from '../compose/merge-config.js';

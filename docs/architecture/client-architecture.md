@@ -174,9 +174,11 @@ changing a client boundary. Package checks run the local Biome rules and report
 source locations for response DTO imports, DTO or framework imports in `core/`,
 raw API requests, and leaf-component query-cache ownership. The repository
 verifier checks direct API requests outside adapters, unparsed API responses,
-and raw route-search parsing outside an owned route module. Both checks require
-zero production violations. Neither check has a migration baseline or
-allowlist.
+raw route-search parsing outside an owned route module, deep imports into
+another feature's private modules, and navigation or settings contributions
+that target a route owned by another feature without an explicit `coordinator`.
+Both checks require zero production violations. Neither check has a migration
+baseline or allowlist.
 
 A completed feature package has `core/` domain models and policies with no UI
 or transport imports; checked adapter functions that parse and map every

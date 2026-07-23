@@ -4,6 +4,7 @@ import {normalizeRoutePath} from './normalize-route-path.js';
 
 export interface ComposedRoute extends RouteContribution {
   featureId: string;
+  ownerFeatureId: string;
 }
 
 export function composeRoutes(features: readonly ClientFeature[]): ComposedRoute[] {
@@ -26,6 +27,7 @@ export function composeRoutes(features: readonly ClientFeature[]): ComposedRoute
         routes.set(normalizedContribution.path, {
           ...normalizedContribution,
           featureId: feature.id,
+          ownerFeatureId: feature.id,
         });
         continue;
       }
@@ -53,6 +55,7 @@ export function composeRoutes(features: readonly ClientFeature[]): ComposedRoute
       routes.set(normalizedContribution.path, {
         ...normalizedContribution,
         featureId: feature.id,
+        ownerFeatureId: existing.ownerFeatureId,
       });
     }
   }

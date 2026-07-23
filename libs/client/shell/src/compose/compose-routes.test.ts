@@ -27,8 +27,15 @@ describe('composeRoutes', () => {
         override: true,
         impl: 'override',
         featureId: 'acme.insights',
+        ownerFeatureId: 'shipfox.base',
       },
-      {path: '/audit', parent: 'root', impl: 'audit', featureId: 'acme.audit'},
+      {
+        path: '/audit',
+        parent: 'root',
+        impl: 'audit',
+        featureId: 'acme.audit',
+        ownerFeatureId: 'acme.audit',
+      },
     ]);
   });
 

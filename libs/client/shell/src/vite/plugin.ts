@@ -1,11 +1,7 @@
 import {mkdir, readFile, realpath, writeFile} from 'node:fs/promises';
 import {dirname, resolve} from 'node:path';
 import type {Plugin, ResolvedConfig} from 'vite';
-import {composeRoutes} from '#compose/compose-routes.js';
-import {mergeConfigShapes} from '#compose/merge-config.js';
-import {validateProviderIds} from '#compose/validate-providers.js';
-import {validateNavigation, validateSettingsSections} from '#compose/validate-registries.js';
-import {navigationEntries, settingsEntries} from '#runtime/registries.js';
+import {composeClientFeatures} from '#compose/compose-client-features.js';
 import {evaluateFeatures} from './evaluate-features.js';
 import {generateAppModule} from './generate.js';
 
@@ -28,7 +24,7 @@ export function shipfoxClientComposition({
 
   async function assertRoutesResolve(
     resolveRoute: RouteResolver,
-    routes: ReturnType<typeof composeRoutes>,
+    routes: ReturnType<typeof composeClientFeatures>['routes'],
   ): Promise<void> {
     for (const route of routes) {
       const resolvedRoute = await resolveRoute(route.impl, outputPath());
@@ -48,26 +44,16 @@ export function shipfoxClientComposition({
     resolveRoute: RouteResolver;
   }): Promise<void> {
     const evaluated = await evaluateFeatures(featuresPath());
-    const routes = composeRoutes(evaluated.features);
-    validateProviderIds(evaluated.features);
-    validateNavigation(
-      evaluated.features,
-      routes.map((route) => route.path),
-    );
-    validateSettingsSections(
-      evaluated.features,
-      routes.map((route) => route.path),
-    );
-    mergeConfigShapes(evaluated.features);
-    await assertRoutesResolve(resolveRoute, routes);
+    const composition = composeClientFeatures(evaluated.features);
+    await assertRoutesResolve(resolveRoute, composition.routes);
 
     watchedFiles = new Set(evaluated.loadedFiles);
     for (const file of watchedFiles) addWatchFile(file);
 
     const output = generateAppModule({
-      routes,
-      navigation: navigationEntries(evaluated.features),
-      settingsSections: settingsEntries(evaluated.features),
+      routes: composition.routes,
+      navigation: composition.navigation,
+      settingsSections: composition.settingsSections,
     });
     const path = outputPath();
     const existing = await readFile(path, 'utf8').catch(() => undefined);

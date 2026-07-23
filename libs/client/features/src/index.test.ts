@@ -1,3 +1,4 @@
+import {composeClientFeatures} from '@shipfox/client-shell/runtime';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import manifest from '../package.json' with {type: 'json'};
 import {defaultFeatures} from './index.js';
@@ -33,5 +34,32 @@ describe('defaultFeatures', () => {
     );
 
     expect([...routePackageNames].sort()).toEqual(peerPackageNames.sort());
+  });
+
+  it('composes each navigation and settings contribution exactly once', () => {
+    const composition = composeClientFeatures(defaultFeatures());
+
+    expect(composition.navigation.map(({id}) => id)).toEqual([
+      'nav.projects',
+      'nav.runs',
+      'nav.workflows',
+      'nav.settings',
+    ]);
+    expect(composition.settingsSections.map(({id}) => id)).toEqual([
+      'settings.members',
+      'settings.runners',
+      'settings.provisioners',
+      'settings.agents',
+      'settings.secrets',
+      'settings.variables',
+      'settings.integrations',
+      'settings.events',
+    ]);
+    expect(new Set(composition.navigation.map(({id}) => id)).size).toBe(
+      composition.navigation.length,
+    );
+    expect(new Set(composition.settingsSections.map(({id}) => id)).size).toBe(
+      composition.settingsSections.length,
+    );
   });
 });

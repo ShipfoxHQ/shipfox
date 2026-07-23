@@ -1,4 +1,14 @@
-import {defineClientFeature} from '@shipfox/client-shell';
+import {defineClientFeature, type SettingsSectionEntry} from '@shipfox/client-shell';
+
+export const integrationsSettingsSections = [
+  {
+    id: 'settings.integrations',
+    pathSegment: 'integrations',
+    label: 'Integrations',
+    icon: 'plugLine',
+    order: 700,
+  },
+] as const satisfies readonly SettingsSectionEntry[];
 
 export const integrationsFeature = defineClientFeature({
   id: 'shipfox.integrations',
@@ -59,13 +69,5 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/integrations-settings',
     },
   ],
-  settingsSections: [
-    {
-      id: 'settings.integrations',
-      pathSegment: 'integrations',
-      label: 'Integrations',
-      icon: 'plugLine',
-      order: 700,
-    },
-  ],
+  settingsSections: integrationsSettingsSections,
 });

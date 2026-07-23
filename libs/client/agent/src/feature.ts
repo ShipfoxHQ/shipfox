@@ -1,4 +1,14 @@
-import {defineClientFeature} from '@shipfox/client-shell';
+import {defineClientFeature, type SettingsSectionEntry} from '@shipfox/client-shell';
+
+export const agentSettingsSections = [
+  {
+    id: 'settings.agents',
+    pathSegment: 'agents',
+    label: 'Agents',
+    icon: 'robot2Line',
+    order: 400,
+  },
+] as const satisfies readonly SettingsSectionEntry[];
 
 export const agentFeature = defineClientFeature({
   id: 'shipfox.agent',
@@ -14,13 +24,5 @@ export const agentFeature = defineClientFeature({
       impl: '@shipfox/client-agent/routes/agents-settings',
     },
   ],
-  settingsSections: [
-    {
-      id: 'settings.agents',
-      pathSegment: 'agents',
-      label: 'Agents',
-      icon: 'robot2Line',
-      order: 400,
-    },
-  ],
+  settingsSections: agentSettingsSections,
 });
