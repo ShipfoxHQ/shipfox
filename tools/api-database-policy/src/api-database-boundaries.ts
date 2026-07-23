@@ -182,58 +182,6 @@ function baselineEntry(
 const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Object.freeze([
   baselineEntry(
     {
-      owner: 'auth',
-      namespace: 'auth',
-      file: 'libs/api/auth/test/globalSetup.ts',
-      line: 13,
-      object: 'emailChallengesModule.database',
-      rule: 'foreign-database-access',
-      suggestedBoundary: namespaceSuggestion('email-challenges', 'email_challenges'),
-    },
-    'ENG-1198',
-    'Auth tests migrate and clean only Auth-owned storage.',
-  ),
-  baselineEntry(
-    {
-      owner: 'auth',
-      namespace: 'auth',
-      file: 'libs/api/auth/test/globalSetup.ts',
-      line: 20,
-      object: '__drizzle_migrations_email_challenges',
-      rule: 'foreign-migration',
-      suggestedBoundary: namespaceSuggestion('email-challenges', 'email_challenges'),
-    },
-    'ENG-1198',
-    'Auth tests migrate and clean only Auth-owned storage.',
-  ),
-  baselineEntry(
-    {
-      owner: 'auth',
-      namespace: 'auth',
-      file: 'libs/api/auth/test/globalSetup.ts',
-      line: 22,
-      object: 'email_challenges_challenges',
-      rule: 'foreign-raw-sql',
-      suggestedBoundary: namespaceSuggestion('email-challenges', 'email_challenges'),
-    },
-    'ENG-1198',
-    'Auth tests migrate and clean only Auth-owned storage.',
-  ),
-  baselineEntry(
-    {
-      owner: 'auth',
-      namespace: 'auth',
-      file: 'libs/api/auth/test/globalSetup.ts',
-      line: 22,
-      object: 'email_challenges_send_limits',
-      rule: 'foreign-raw-sql',
-      suggestedBoundary: namespaceSuggestion('email-challenges', 'email_challenges'),
-    },
-    'ENG-1198',
-    'Auth tests migrate and clean only Auth-owned storage.',
-  ),
-  baselineEntry(
-    {
       owner: 'workspaces',
       namespace: 'workspaces',
       file: 'libs/api/workspaces/drizzle/0000_initial.sql',

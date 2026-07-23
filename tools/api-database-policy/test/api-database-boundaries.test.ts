@@ -30,12 +30,7 @@ describe('database boundary verifier', () => {
     assert.ok(databaseBoundaryBaseline.every((entry) => !entry.object.includes('*')));
     assert.deepEqual(
       new Set(findings.map((finding) => finding.rule)),
-      new Set([
-        'foreign-database-access',
-        'foreign-migration',
-        'foreign-raw-sql',
-        'unprefixed-table',
-      ]),
+      new Set(['unprefixed-table']),
     );
   });
   test('fails closed when a finding is new or a baseline entry disappears', () => {
