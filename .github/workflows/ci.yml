@@ -58,6 +58,27 @@ jobs:
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         uses: ./.github/actions/setup-pnpm
 
+      - name: Mint release App installation token
+        id: release-app-token
+        if: >-
+          vars.FORCE_FULL_CI != 'true' &&
+          ((github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.head.ref == 'changeset-release/main') ||
+          github.ref == 'refs/heads/main')
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+
+      - name: Resolve release App bot user ID
+        id: release-app
+        if: steps.release-app-token.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.release-app-token.outputs.token }}
+          RELEASE_APP_SLUG: ${{ steps.release-app-token.outputs.app-slug }}
+        run: echo "user_id=$(gh api "/users/${RELEASE_APP_SLUG}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+
       - name: Build generated-release verifier
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         run: turbo build --filter=@shipfox/package-release
@@ -71,7 +92,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PULL_REQUEST_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
-          RELEASE_BOT_APP_ID: ${{ vars.RELEASE_BOT_APP_ID }}
+          RELEASE_BOT_USER_ID: ${{ steps.release-app.outputs.user_id }}
         run: |
           set +e
           pnpm --silent --filter=@shipfox/package-release verify-generated-release -- \
@@ -81,7 +102,7 @@ jobs:
             --head-repository "$HEAD_REPOSITORY" \
             --head-ref "$HEAD_REF" \
             --author-id "$PULL_REQUEST_AUTHOR_ID" \
-            --release-app-id "$RELEASE_BOT_APP_ID" \
+            --release-app-id "$RELEASE_BOT_USER_ID" \
             > "$RUNNER_TEMP/release-verification.json"
           verifier_status=$?
           set -e
@@ -102,13 +123,13 @@ jobs:
         if: github.ref == 'refs/heads/main' && vars.FORCE_FULL_CI != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_BOT_APP_ID: ${{ vars.RELEASE_BOT_APP_ID }}
+          RELEASE_BOT_USER_ID: ${{ steps.release-app.outputs.user_id }}
           REVISION: ${{ github.sha }}
         run: |
           node .github/scripts/package-release-workflow.mjs classify-main \
             --revision "$REVISION" \
             --repository "$GITHUB_REPOSITORY" \
-            --release-app-id "$RELEASE_BOT_APP_ID" \
+            --release-app-id "$RELEASE_BOT_USER_ID" \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
 
