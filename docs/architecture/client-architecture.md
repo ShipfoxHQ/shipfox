@@ -169,12 +169,14 @@ React. Test an adapter with representative DTOs and its mapped domain model.
 Test query keys, cache effects, polling, and optimistic updates at the query
 boundary. Component tests prove rendered behavior. E2E tests prove journeys.
 
-Run `pnpm check:client-architecture` after changing a client boundary. The
-check requires zero violations across every production client package and shared
-React UI code. It blocks direct API requests outside adapters, unparsed API
-responses, response DTO imports in presentation, DTO or framework imports in
-`core/`, leaf-component query-cache ownership, and raw route-search parsing
-outside an owned route module. It has no migration baseline or allowlist.
+Run the affected package `check` and `pnpm check:client-architecture` after
+changing a client boundary. Package checks run the local Biome rules and report
+source locations for response DTO imports, DTO or framework imports in `core/`,
+raw API requests, and leaf-component query-cache ownership. The repository
+verifier checks direct API requests outside adapters, unparsed API responses,
+and raw route-search parsing outside an owned route module. Both checks require
+zero production violations. Neither check has a migration baseline or
+allowlist.
 
 A completed feature package has `core/` domain models and policies with no UI
 or transport imports; checked adapter functions that parse and map every

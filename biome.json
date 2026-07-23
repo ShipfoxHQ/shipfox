@@ -21,8 +21,108 @@
     {
       "path": "./tools/biome/plugins/client-architecture/fixture-boundary.grit",
       "includes": [
-        "libs/client/**",
-        "libs/shared/react/ui/**",
+        "**/libs/client/**",
+        "**/libs/shared/react/ui/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-api-dto-in-core.grit",
+      "includes": [
+        "**/libs/client/**/src/core/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-client-framework-in-core.grit",
+      "includes": [
+        "**/libs/client/**/src/core/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-response-dto-in-presentation.grit",
+      "includes": [
+        "**/libs/client/**/src/pages/**",
+        "**/libs/client/**/src/components/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-raw-api-request.grit",
+      "includes": [
+        "**/libs/client/**",
+        "**/libs/shared/react/ui/**",
+        "!**/libs/client/api/**",
+        "!**/libs/client/**/src/hooks/api/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-query-cache-ownership.grit",
+      "includes": [
+        "**/libs/client/**/src/components/**",
+        "**/libs/shared/react/ui/**/src/components/**",
         "!**/dist/**",
         "!**/node_modules/**",
         "!**/*.test.ts",

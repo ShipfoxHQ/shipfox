@@ -1,0 +1,57 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsImport() as $import where {
+    $import <: r".*@tanstack/react-query.*",
+    $import <: contains JsNamedImportSpecifier() as $queryHook where {
+      $queryHook <: r".*\buseQueryClient\b.*",
+      register_diagnostic(
+        span=$queryHook,
+        message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+      )
+    }
+  },
+  `useQueryClient($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  },
+  `$queryClient.useQueryClient($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  },
+  `$queryClient.invalidateQueries($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  },
+  `$queryClient.removeQueries($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  },
+  `$queryClient.resetQueries($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  },
+  `$queryClient.setQueriesData($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  },
+  `$queryClient.setQueryData($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="client-architecture/no-query-cache-ownership: keep query-cache ownership in the query/mutation adapter or named coordinator, not a leaf component."
+    )
+  }
+}

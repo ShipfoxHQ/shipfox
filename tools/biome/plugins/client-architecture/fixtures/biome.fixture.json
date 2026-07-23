@@ -14,6 +14,15 @@
     "lineEnding": "lf",
     "lineWidth": 100
   },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "bracketSpacing": false,
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "always"
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -23,30 +32,43 @@
   "plugins": [
     {
       "path": "../fixture-boundary.grit",
-      "includes": [
-        "**/*.ts",
-        "!**/*.test.ts",
-        "!**/*.stories.ts",
-        "!**/test/**",
-        "!**/tests/**",
-        "!**/__tests__/**",
-        "!**/generated/**",
-        "!**/__generated__/**",
-        "!**/*.gen.ts"
-      ]
+      "includes": ["**/fixture-boundary/**"]
+    },
+    {
+      "path": "../no-api-dto-in-core.grit",
+      "includes": ["**/no-api-dto-in-core/**"]
+    },
+    {
+      "path": "../no-client-framework-in-core.grit",
+      "includes": ["**/no-client-framework-in-core/**"]
+    },
+    {
+      "path": "../no-response-dto-in-presentation.grit",
+      "includes": ["**/no-response-dto-in-presentation/**"]
+    },
+    {
+      "path": "../no-raw-api-request.grit",
+      "includes": ["**/no-raw-api-request/**"]
+    },
+    {
+      "path": "../no-query-cache-ownership.grit",
+      "includes": ["**/no-query-cache-ownership/**"]
     }
   ],
   "files": {
     "includes": [
       "**/*.ts",
       "!**/*.test.ts",
+      "!**/*.test.tsx",
       "!**/*.stories.ts",
+      "!**/*.stories.tsx",
       "!**/test/**",
       "!**/tests/**",
       "!**/__tests__/**",
       "!**/generated/**",
       "!**/__generated__/**",
-      "!**/*.gen.ts"
+      "!**/*.gen.ts",
+      "!**/*.gen.tsx"
     ]
   }
 }

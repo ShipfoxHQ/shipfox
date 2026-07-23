@@ -1,0 +1,27 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsImport() as $import where {
+    $import <: r".*@shipfox/api-.*-dto.*",
+    $import <: contains $name where {
+      $name <: r".*Dto\b.*",
+      $name <: not r".*BodyDto.*",
+      $name <: not r".*QueryDto.*"
+    },
+    register_diagnostic(
+      span=$name,
+      message="client-architecture/no-response-dto-in-presentation: response DTOs stop at the checked adapter; pages and components consume a package-owned domain model."
+    )
+  },
+  TsImportType() as $type where {
+    $type <: r".*@shipfox/api-.*-dto.*",
+    $type <: r".*Dto\b.*",
+    $type <: not r".*BodyDto.*",
+    $type <: not r".*QueryDto.*",
+    register_diagnostic(
+      span=$type,
+      message="client-architecture/no-response-dto-in-presentation: response DTOs stop at the checked adapter; pages and components consume a package-owned domain model."
+    )
+  }
+}
