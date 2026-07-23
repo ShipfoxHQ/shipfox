@@ -5,7 +5,8 @@
     "build": {
       "cache": false,
       "outputs": ["storybook-static/**/*", ".vercel/**/*"],
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["PREVIEW_COMMIT_SHA"]
     },
     "test:e2e": {
       "cache": false,
