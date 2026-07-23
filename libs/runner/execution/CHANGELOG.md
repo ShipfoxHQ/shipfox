@@ -1,5 +1,16 @@
 # @shipfox/runner-execution
 
+## 0.1.10
+
+### Patch Changes
+
+- @shipfox/annotations-dto@6.0.0
+- @shipfox/api-workflows-dto@9.0.0
+- @shipfox/runner-protocol@0.2.4
+- @shipfox/runner-workspace@0.0.8
+- @shipfox/redact@0.2.3
+- @shipfox/node-opentelemetry@0.6.0
+
 ## 0.1.9
 
 ### Patch Changes

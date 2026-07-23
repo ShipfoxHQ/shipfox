@@ -1,5 +1,32 @@
 # @shipfox/client-workspace-settings
 
+## 6.0.0
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- 01f1c88: Converges workspace membership settings on checked domain models and membership policies.
+- d784a07: Enforces checked client API responses and removes stale transport compatibility helpers.
+- Updated dependencies [401b583]
+- Updated dependencies [d784a07]
+- Updated dependencies [891e469]
+- Updated dependencies [82eda45]
+- Updated dependencies [9c9d266]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-auth@6.0.0
+  - @shipfox/api-workspaces-dto@9.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Patch Changes

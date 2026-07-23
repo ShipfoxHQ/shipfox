@@ -1,5 +1,29 @@
 # @shipfox/client-secrets
 
+## 6.0.0
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- d784a07: Enforces checked client API responses and removes stale transport compatibility helpers.
+- 83f2710: Converges the secrets and variables client store on a shared domain model and Zod-validated transport, with no behavior change.
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-secrets-dto@9.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Patch Changes

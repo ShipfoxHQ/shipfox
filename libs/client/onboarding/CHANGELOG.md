@@ -1,5 +1,29 @@
 # @shipfox/client-onboarding
 
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [401b583]
+- Updated dependencies [e009149]
+- Updated dependencies [d784a07]
+- Updated dependencies [82eda45]
+- Updated dependencies [125c90f]
+- Updated dependencies [f2d50a8]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [fa07be9]
+- Updated dependencies [46aa52f]
+- Updated dependencies [9d8f510]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+- Updated dependencies [c097dff]
+  - @shipfox/client-agent@6.0.0
+  - @shipfox/client-integrations@6.0.0
+  - @shipfox/client-projects@6.0.0
+  - @shipfox/client-shell@6.0.0
+
 ## 5.0.0
 
 ### Minor Changes

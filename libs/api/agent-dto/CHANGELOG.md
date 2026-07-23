@@ -1,5 +1,16 @@
 # @shipfox/api-agent-dto
 
+## 9.0.0
+
+### Major Changes
+
+- 46aa52f: Closes remaining API package-boundary exceptions and moves model-provider policy behind the Agent implementation boundary.
+
+### Patch Changes
+
+- @shipfox/inter-module@0.2.0
+- @shipfox/workflow-document@2.1.1
+
 ## 8.0.0
 
 ### Minor Changes

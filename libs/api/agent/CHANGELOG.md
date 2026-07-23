@@ -1,5 +1,29 @@
 # @shipfox/api-agent
 
+## 9.0.0
+
+### Minor Changes
+
+- 46aa52f: Closes remaining API package-boundary exceptions and moves model-provider policy behind the Agent implementation boundary.
+
+### Patch Changes
+
+- Updated dependencies [46aa52f]
+- Updated dependencies [02974d6]
+  - @shipfox/api-agent-dto@9.0.0
+  - @shipfox/api-secrets-dto@9.0.0
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/redact@0.2.3
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-egress-guard@0.1.1
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-postgres@0.4.2
+
 ## 8.0.0
 
 ### Patch Changes

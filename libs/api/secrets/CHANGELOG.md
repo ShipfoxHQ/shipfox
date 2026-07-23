@@ -1,5 +1,22 @@
 # @shipfox/api-secrets
 
+## 9.0.0
+
+### Patch Changes
+
+- Updated dependencies [02974d6]
+  - @shipfox/api-secrets-dto@9.0.0
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/api-projects-dto@8.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/node-postgres@0.4.2
+
 ## 8.0.0
 
 ### Patch Changes

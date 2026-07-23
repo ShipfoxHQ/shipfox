@@ -1,5 +1,34 @@
 # @shipfox/api-definitions
 
+## 9.0.0
+
+### Patch Changes
+
+- a9f9c57: Decouples Definitions and Workflows tests from peer implementation packages and databases.
+- c279061: Improves release verification with owner-defined packed contracts, discovery-driven artifact checks, and an early publication preflight.
+- Updated dependencies [46aa52f]
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+  - @shipfox/api-agent-dto@9.0.0
+  - @shipfox/api-integration-core-dto@9.0.0
+  - @shipfox/api-secrets-dto@9.0.0
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/api-definitions-dto@6.0.0
+  - @shipfox/api-projects-dto@8.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/runner-labels@0.1.1
+  - @shipfox/expression@1.1.3
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/node-postgres@0.4.2
+  - @shipfox/node-temporal@0.4.0
+  - @shipfox/workflow-document@2.1.1
+
 ## 8.0.0
 
 ### Major Changes

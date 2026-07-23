@@ -1,5 +1,13 @@
 # @shipfox/application-release
 
+## 0.1.6
+
+### Patch Changes
+
+- 9623bb9: Fixes application release closure validation after integration package changes.
+- a12993b: Records explicit provenance when an application release reuses immutable image artifacts for a version-only main commit.
+- c279061: Improves release verification with owner-defined packed contracts, discovery-driven artifact checks, and an early publication preflight.
+
 ## 0.1.5
 
 ### Patch Changes

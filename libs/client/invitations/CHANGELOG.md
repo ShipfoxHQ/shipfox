@@ -1,5 +1,25 @@
 # @shipfox/client-invitations
 
+## 6.0.0
+
+### Patch Changes
+
+- c56c124: Converges auth sessions and invitation responses on checked domain boundaries.
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [9c9d266]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/api-workspaces-dto@9.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Major Changes

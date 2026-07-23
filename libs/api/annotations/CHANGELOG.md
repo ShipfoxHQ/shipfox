@@ -1,5 +1,18 @@
 # @shipfox/annotations
 
+## 9.0.0
+
+### Patch Changes
+
+- @shipfox/api-auth-context@9.0.0
+- @shipfox/annotations-dto@6.0.0
+- @shipfox/config@1.2.2
+- @shipfox/inter-module@0.2.0
+- @shipfox/node-drizzle@0.3.2
+- @shipfox/node-fastify@0.3.0
+- @shipfox/node-module@0.5.0
+- @shipfox/node-postgres@0.4.2
+
 ## 8.0.0
 
 ### Patch Changes

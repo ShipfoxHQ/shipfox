@@ -1,5 +1,32 @@
 # @shipfox/client-auth
 
+## 6.0.0
+
+### Minor Changes
+
+- cd90c19: Enforces package-owned query policies and explicit cache-operation ownership across client resources.
+
+### Patch Changes
+
+- d784a07: Enforces checked client API responses and removes stale transport compatibility helpers.
+- 891e469: Adds a sanitized logout redirect that clears local and server auth state before returning to a safe same-origin destination.
+- c56c124: Converges auth sessions and invitation responses on checked domain boundaries.
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [9c9d266]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/api-workspaces-dto@9.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/client-invitations@6.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Major Changes

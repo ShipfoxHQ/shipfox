@@ -1,5 +1,15 @@
 # @shipfox/api-secrets-dto
 
+## 9.0.0
+
+### Major Changes
+
+- 02974d6: Removes executable policy and test fixtures from public API DTO roots.
+
+### Patch Changes
+
+- @shipfox/inter-module@0.2.0
+
 ## 6.0.0
 
 ### Minor Changes

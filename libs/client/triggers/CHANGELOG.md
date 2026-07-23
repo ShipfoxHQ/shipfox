@@ -1,5 +1,29 @@
 # @shipfox/client-triggers
 
+## 6.0.0
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- f2d50a8: Extracts shared integration provider icons into a leaf package so client features can render them without depending on integration routing code.
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [f2d50a8]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/integration-icons@0.2.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-triggers-dto@5.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Patch Changes

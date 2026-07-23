@@ -1,5 +1,29 @@
 # @shipfox/api-runners
 
+## 9.0.0
+
+### Patch Changes
+
+- c279061: Improves release verification with owner-defined packed contracts, discovery-driven artifact checks, and an early publication preflight.
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/api-runners-dto@7.0.1
+  - @shipfox/api-workflows-dto@9.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/runner-labels@0.1.1
+  - @shipfox/node-auth-root-key@0.2.1
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/node-postgres@0.4.2
+  - @shipfox/node-rate-limit@0.3.0
+  - @shipfox/node-temporal@0.4.0
+  - @shipfox/node-tokens@0.3.0
+
 ## 8.0.0
 
 ### Patch Changes

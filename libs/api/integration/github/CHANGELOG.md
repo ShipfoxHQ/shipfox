@@ -1,5 +1,26 @@
 # @shipfox/api-integration-github
 
+## 9.0.0
+
+### Minor Changes
+
+- 02974d6: Removes executable policy and test fixtures from public API DTO roots.
+
+### Patch Changes
+
+- 4a6d124: Separates Integrations provider SPI contracts from the public DTO surface.
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+  - @shipfox/api-integration-github-dto@9.0.0
+  - @shipfox/api-integration-spi@0.2.0
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-postgres@0.4.2
+
 ## 8.0.0
 
 ### Patch Changes
