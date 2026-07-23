@@ -64,6 +64,41 @@ const entrypointFiles = new Set([
   'docs/README.md',
   'docs/adr/README.md',
 ]);
+
+export const guidanceRootEntrypoints = [
+  'AGENTS.md',
+  'CONTRIBUTING.md',
+  'WRITING.md',
+  'DESIGN.md',
+] as const;
+
+export type GuidanceFileKind =
+  | 'agent-skill'
+  | 'adr'
+  | 'architecture'
+  | 'documentation-map'
+  | 'entrypoint'
+  | 'guide'
+  | 'package'
+  | 'policy'
+  | 'subsystem';
+
+export function guidanceFileKind(relativePath: string): GuidanceFileKind {
+  if (relativePath === 'docs/README.md') return 'documentation-map';
+  if (isGuidanceRootEntrypoint(relativePath)) return 'entrypoint';
+  if (relativePath.startsWith('docs/architecture/')) return 'architecture';
+  if (relativePath.startsWith('docs/adr/')) return 'adr';
+  if (relativePath.startsWith('docs/policies/')) return 'policy';
+  if (relativePath.startsWith('docs/guides/')) return 'guide';
+  if (relativePath.startsWith('.agents/skills/')) return 'agent-skill';
+  if (path.posix.basename(relativePath) === 'README.md') return 'package';
+  return 'subsystem';
+}
+
+export function isGuidanceRootEntrypoint(relativePath: string): boolean {
+  return guidanceRootEntrypoints.includes(relativePath as (typeof guidanceRootEntrypoints)[number]);
+}
+
 const excludedDirectoryNames = new Set([
   '.changeset',
   '.context',

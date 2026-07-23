@@ -7,6 +7,10 @@ import {fileURLToPath} from 'node:url';
 import {parse as parseYaml} from 'yaml';
 
 import {
+  engineeringGuidancePackageName,
+  validateExternalEngineeringGuidanceArtifact,
+} from './engineering-guidance-artifact.js';
+import {
   mapWithConcurrency,
   type PackageDependencyContext,
   packProductionizedPackage,
@@ -80,6 +84,13 @@ export async function main() {
       stagingRoot,
       dependencyContext,
     );
+    const guidanceTarball = tarballs[engineeringGuidancePackageName];
+    if (!guidanceTarball) {
+      throw new Error(
+        `Published tool inventory is missing ${engineeringGuidancePackageName}; keep public tools discoverable by the release verifier`,
+      );
+    }
+    await validateExternalEngineeringGuidanceArtifact(guidanceTarball, repositoryRoot);
     await writeConsumerManifest(fixtureRoot, tarballs);
     await run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], fixtureRoot);
     await validateInstalledPackages(fixtureRoot, sourcePackages, expectedDependencies);

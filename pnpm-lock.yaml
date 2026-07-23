@@ -7772,6 +7772,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../biome
+      '@shipfox/repository-documentation-policy':
+        specifier: workspace:*
+        version: link:../repository-documentation-policy
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../swc
@@ -7790,6 +7793,9 @@ importers:
 
   tools/package-release:
     dependencies:
+      '@shipfox/repository-documentation-policy':
+        specifier: workspace:*
+        version: link:../repository-documentation-policy
       '@shipfox/tool-utils':
         specifier: workspace:*
         version: link:../utils
