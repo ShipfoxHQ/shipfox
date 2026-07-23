@@ -1,3 +1,4 @@
+import {sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {useCallback} from 'react';
 import {RedirectInstallPage} from '#components/redirect-install-page.js';
 import {useCreateLinearInstallMutation} from '#hooks/api/integrations.js';
@@ -17,7 +18,7 @@ export function LinearInstallPage() {
       loadingLabel="Connecting Linear"
       beforeRedirect={(workspaceId) => {
         try {
-          saveLinearInstallWorkspace(window.sessionStorage, workspaceId);
+          saveLinearInstallWorkspace(sessionStorageOrUndefined(), workspaceId);
         } catch {
           // Storage can be disabled before the helper gets a usable Storage object.
         }

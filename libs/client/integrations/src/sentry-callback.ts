@@ -1,9 +1,13 @@
 import {ApiError} from '@shipfox/client-api';
-import {type BrowserStorageKey, createTypedBrowserStorage} from '@shipfox/client-ui';
+import {
+  type BrowserStorage,
+  type BrowserStorageKey,
+  createTypedBrowserStorage,
+} from '@shipfox/client-ui';
 
 export const SENTRY_INSTALL_WORKSPACE_KEY = 'shipfox.sentry-install.workspace-id';
 
-type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type WorkspaceStorage = BrowserStorage | undefined;
 
 const sentryInstallWorkspaceStorageKey = {
   key: SENTRY_INSTALL_WORKSPACE_KEY,

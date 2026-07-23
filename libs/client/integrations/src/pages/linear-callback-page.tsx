@@ -1,8 +1,9 @@
 import {useRefreshAuth} from '@shipfox/client-auth';
-import {createSingleFlight} from '@shipfox/client-ui';
+import {useRouteSearch} from '@shipfox/client-shell/runtime';
+import {createSingleFlight, sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
-import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
 import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
@@ -27,19 +28,12 @@ const callbackRequests = createSingleFlight<string, IntegrationConnection>({
 const toastedCallbacks = new Set<string>();
 
 export function LinearCallbackPage() {
-  const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
   const {mutateAsync: completeLinearCallback} = useCompleteLinearCallbackMutation();
-  const params = useMemo(() => parseLinearCallbackQuery(search), [search]);
-  const workspaceId = useMemo(() => {
-    try {
-      return readLinearInstallWorkspace(window.sessionStorage);
-    } catch {
-      return undefined;
-    }
-  }, []);
+  const params = useRouteSearch(parseLinearCallbackQuery);
+  const workspaceId = useMemo(() => readLinearInstallWorkspace(sessionStorageOrUndefined()), []);
   const [failure, setFailure] = useState<LinearCallbackFailure | undefined>();
   useEffect(() => {
     if (!params) return;
@@ -60,7 +54,7 @@ export function LinearCallbackPage() {
       async (connection) => {
         if (disposed) return;
         try {
-          clearLinearInstallWorkspace(window.sessionStorage);
+          clearLinearInstallWorkspace(sessionStorageOrUndefined());
         } catch {
           // The successful API response remains the source of truth for navigation.
         }

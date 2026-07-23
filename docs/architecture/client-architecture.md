@@ -188,9 +188,8 @@ verifier inventories production adapters and query hooks under `libs/client/**`
 and `libs/shared/react/ui/**`. It rejects direct API requests outside adapters,
 unparsed API responses, checked business responses returned without a mapper,
 inline query policies, query hooks outside adapters, direct query-client
-operations outside an owning adapter or named coordinator, and raw
-route-search parsing outside an owned route module. Both checks require zero
-production violations. Neither check has a migration baseline or broad
+operations outside an owning adapter or named coordinator. Both checks require
+zero production violations. Neither check has a migration baseline or broad
 allowlist. A shell/runtime or cross-feature coordinator that needs a direct
 query-client operation must be recorded in the
 [`cacheOperation` registry](../../tools/client-architecture-policy/src/audit-client-architecture.ts)
@@ -201,7 +200,10 @@ lifecycle is recorded in the same
 [`clientArchitectureExceptions`](../../tools/client-architecture-policy/src/audit-client-architecture.ts)
 registry. It also rejects deep imports into another feature's private modules
 and navigation or settings contributions that target a route owned by another
-feature without an explicit `coordinator`.
+feature without an explicit `coordinator`. Raw route-input parsing and direct
+browser-storage access are blocked separately, by the `no-raw-route-inputs`
+and `no-direct-browser-storage` Biome plugins in
+`tools/biome/plugins/client-architecture/`.
 
 A completed feature package has `core/` domain models and policies with no UI
 or transport imports; checked adapter functions that parse and map every

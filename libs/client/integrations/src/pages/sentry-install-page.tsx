@@ -1,3 +1,4 @@
+import {sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {RedirectInstallPage} from '#components/redirect-install-page.js';
 import {createSentryInstall} from '#hooks/api/integrations.js';
 import {saveSentryInstallWorkspace} from '#sentry-callback.js';
@@ -11,7 +12,7 @@ export function SentryInstallPage() {
       // Sentry's redirect has no state param; the stored id lets the callback
       // pre-select this workspace. Saving never throws (see helper).
       beforeRedirect={(workspaceId) => {
-        saveSentryInstallWorkspace(window.sessionStorage, workspaceId);
+        saveSentryInstallWorkspace(sessionStorageOrUndefined(), workspaceId);
       }}
     />
   );

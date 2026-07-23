@@ -1,6 +1,7 @@
-import {Link, useParams} from '@tanstack/react-router';
+import {Link} from '@tanstack/react-router';
 import {useReducedMotion} from 'framer-motion';
 import type {NavTabEntry} from '#contract.js';
+import {parseWorkspaceProjectParams, useRouteParams} from '#runtime/route-inputs.js';
 
 export function NavTabs({
   entries,
@@ -9,7 +10,7 @@ export function NavTabs({
   entries: readonly NavTabEntry[];
   scope: NavTabEntry['scope'];
 }) {
-  const params = useParams({strict: false}) as {wid?: string; pid?: string};
+  const params = useRouteParams(parseWorkspaceProjectParams);
   const reduced = useReducedMotion();
   const tabs = entries.filter((entry) => entry.scope === scope);
   const tabClassName = `h-40 inline-flex items-center px-4 text-sm font-medium transition-colors ${reduced ? '' : 'transition-[border-color]'}`;

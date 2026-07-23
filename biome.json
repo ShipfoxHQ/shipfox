@@ -165,6 +165,49 @@
         "!**/node_modules/**",
         "!**/coverage/**"
       ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-raw-route-inputs.grit",
+      "includes": [
+        "**/libs/client/**",
+        "**/libs/shared/react/ui/**",
+        "!**/libs/client/shell/src/runtime/route-inputs.ts",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/client-architecture/no-direct-browser-storage.grit",
+      "includes": [
+        "**/libs/client/**",
+        "**/libs/shared/react/ui/**",
+        "!**/libs/client/ui/src/browser-storage.ts",
+        "!**/libs/shared/react/ui/src/utils/browser-storage.ts",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
     }
   ],
   "formatter": {

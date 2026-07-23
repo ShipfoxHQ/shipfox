@@ -1,18 +1,25 @@
 import {ApiError} from '@shipfox/client-api';
 import {useRefreshAuth} from '@shipfox/client-auth';
-import {defineRoute} from '@shipfox/client-shell/runtime';
+import {defineRoute, useRouteSearch} from '@shipfox/client-shell/runtime';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
-import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useNavigate} from '@tanstack/react-router';
 import {useEffect} from 'react';
 import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import {completeGithubCallback} from '#hooks/api/integrations.js';
 
-interface GithubCallbackParams {
+export interface GithubCallbackParams {
   code: string;
   installationId: number;
   state: string;
+  setupAction?: string;
+}
+
+export interface GithubCallbackSearch {
+  code?: string;
+  installationId?: number;
+  state?: string;
   setupAction?: string;
 }
 
@@ -21,10 +28,13 @@ interface GithubCallbackParams {
 const callbackRequests = createSingleFlight<string, void>({maxTerminalResults: 32});
 const toastedCallbacks = new Set<string>();
 
-export default defineRoute({component: GithubCallbackRoute});
+export default defineRoute({
+  validateSearch: validateGithubCallbackSearch,
+  component: GithubCallbackRoute,
+});
 
 function GithubCallbackRoute() {
-  const search = useSearch({strict: false});
+  const search = useRouteSearch(validateGithubCallbackSearch);
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
@@ -80,19 +90,32 @@ function GithubCallbackRoute() {
   return <FullPageLoader />;
 }
 
-function missingCallbackParams(search: Record<string, unknown>): string[] {
+export function validateGithubCallbackSearch(input: Record<string, unknown>): GithubCallbackSearch {
+  const code = stringParam(input.code);
+  const installationId = numberParam(input.installation_id);
+  const state = stringParam(input.state);
+  const setupAction = stringParam(input.setup_action);
+  return {
+    ...(code ? {code} : {}),
+    ...(installationId === undefined ? {} : {installationId}),
+    ...(state ? {state} : {}),
+    ...(setupAction ? {setupAction} : {}),
+  };
+}
+
+export function missingCallbackParams(search: GithubCallbackSearch): string[] {
   const missing: string[] = [];
-  if (!stringParam(search.code)) missing.push('code');
-  if (!numberParam(search.installation_id)) missing.push('installation_id');
-  if (!stringParam(search.state)) missing.push('state');
+  if (!search.code) missing.push('code');
+  if (search.installationId === undefined) missing.push('installation_id');
+  if (!search.state) missing.push('state');
   return missing;
 }
-function githubCallbackParams(search: Record<string, unknown>): GithubCallbackParams | undefined {
-  const code = stringParam(search.code);
-  const installationId = numberParam(search.installation_id);
-  const state = stringParam(search.state);
+export function githubCallbackParams(
+  search: GithubCallbackSearch,
+): GithubCallbackParams | undefined {
+  const {code, installationId, state} = search;
   if (!code || installationId === undefined || !state) return undefined;
-  const setupAction = stringParam(search.setup_action);
+  const {setupAction} = search;
   return setupAction ? {code, installationId, state, setupAction} : {code, installationId, state};
 }
 function encodeCallbackQuery(params: GithubCallbackParams): string {

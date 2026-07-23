@@ -1,8 +1,10 @@
+import {useRouteSearch} from '@shipfox/client-shell/runtime';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
-import {Navigate, useRouter, useSearch} from '@tanstack/react-router';
+import {Navigate, useRouter} from '@tanstack/react-router';
 import {type PropsWithChildren, useEffect} from 'react';
 import {useAuthState} from '#hooks/use-auth-state.js';
 import {WorkspaceOnboardingPage} from '#pages/workspace-onboarding-page.js';
+import {validateRedirectSearch} from '../routes/inputs.js';
 import {sanitizeRedirectPath} from './redirect-target.js';
 
 export function AuthGuard({children}: PropsWithChildren) {
@@ -21,7 +23,7 @@ export function AuthGuard({children}: PropsWithChildren) {
 
 export function GuestGuard({children}: PropsWithChildren) {
   const auth = useAuthState();
-  const search = useSearch({strict: false}) as {redirect?: unknown};
+  const search = useRouteSearch(validateRedirectSearch);
   const router = useRouter();
   const target = sanitizeRedirectPath(search.redirect);
 

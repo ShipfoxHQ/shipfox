@@ -1,8 +1,9 @@
 import {useRefreshAuth} from '@shipfox/client-auth';
-import {createSingleFlight} from '@shipfox/client-ui';
+import {useRouteSearch} from '@shipfox/client-shell/runtime';
+import {createSingleFlight, sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
-import {useNavigate, useSearch} from '@tanstack/react-router';
+import {useNavigate} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
 import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
@@ -26,13 +27,12 @@ const completedCallbacks = new Set<string>();
 const toastedCallbacks = new Set<string>();
 
 export function SlackCallbackPage() {
-  const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
   const {mutateAsync: completeSlackCallback} = useCompleteSlackCallbackMutation();
-  const params = useMemo(() => parseSlackCallbackQuery(search), [search]);
-  const workspaceId = useMemo(() => readSlackInstallWorkspace(window.sessionStorage), []);
+  const params = useRouteSearch(parseSlackCallbackQuery);
+  const workspaceId = useMemo(() => readSlackInstallWorkspace(sessionStorageOrUndefined()), []);
   const [failure, setFailure] = useState<SlackCallbackFailure>();
   const [completedWorkspaceId, setCompletedWorkspaceId] = useState<string>();
 
@@ -58,7 +58,7 @@ export function SlackCallbackPage() {
         }
         completedCallbacks.add(key);
         try {
-          clearSlackInstallWorkspace(window.sessionStorage);
+          clearSlackInstallWorkspace(sessionStorageOrUndefined());
         } catch {
           // The successful API response remains the source of truth.
         }

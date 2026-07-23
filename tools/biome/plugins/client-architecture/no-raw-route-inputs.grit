@@ -1,0 +1,30 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `useSearch` as $import where {
+    $import <: within JsImportNamedClause(source=`'@tanstack/react-router'`) ,
+    register_diagnostic(span=$import, message="client-architecture/no-raw-route-inputs: use the typed route runtime (`useRouteSearch` or `useRouteParams`) instead of raw TanStack Router input hooks.")
+  },
+  `useParams` as $import where {
+    $import <: within JsImportNamedClause(source=`'@tanstack/react-router'`) ,
+    register_diagnostic(span=$import, message="client-architecture/no-raw-route-inputs: use the typed route runtime (`useRouteSearch` or `useRouteParams`) instead of raw TanStack Router input hooks.")
+  },
+  `useSearch as $_` as $import where {
+    $import <: within JsImportNamedClause(source=`'@tanstack/react-router'`) ,
+    register_diagnostic(span=$import, message="client-architecture/no-raw-route-inputs: use the typed route runtime (`useRouteSearch` or `useRouteParams`) instead of raw TanStack Router input hooks.")
+  },
+  `useParams as $_` as $import where {
+    $import <: within JsImportNamedClause(source=`'@tanstack/react-router'`) ,
+    register_diagnostic(span=$import, message="client-architecture/no-raw-route-inputs: use the typed route runtime (`useRouteSearch` or `useRouteParams`) instead of raw TanStack Router input hooks.")
+  },
+  JsImportNamespaceClause(source=`'@tanstack/react-router'`) as $import where {
+    register_diagnostic(span=$import, message="client-architecture/no-raw-route-inputs: use the typed route runtime (`useRouteSearch` or `useRouteParams`) instead of a raw TanStack Router namespace.")
+  },
+  `useSearch($...)` as $call where {
+    register_diagnostic(span=$call, message="client-architecture/no-raw-route-inputs: use `useRouteSearch` from `@shipfox/client-shell/runtime` so route input is validated at the feature boundary.")
+  },
+  `useParams($...)` as $call where {
+    register_diagnostic(span=$call, message="client-architecture/no-raw-route-inputs: use `useRouteParams` from `@shipfox/client-shell/runtime` so route input is validated at the feature boundary.")
+  }
+}

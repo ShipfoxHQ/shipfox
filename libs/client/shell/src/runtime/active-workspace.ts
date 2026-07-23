@@ -1,5 +1,5 @@
-import {useParams} from '@tanstack/react-router';
 import {useAuthState, type Workspace} from './auth.js';
+import {parseWorkspaceParams, useRouteParams} from './route-inputs.js';
 
 export function useActiveWorkspace(): Workspace {
   const workspace = useMaybeActiveWorkspace();
@@ -8,6 +8,6 @@ export function useActiveWorkspace(): Workspace {
 }
 
 export function useMaybeActiveWorkspace(): Workspace | undefined {
-  const {wid} = useParams({strict: false}) as {wid?: string};
+  const {wid} = useRouteParams(parseWorkspaceParams);
   return useAuthState().workspaces.find((workspace) => workspace.id === wid);
 }

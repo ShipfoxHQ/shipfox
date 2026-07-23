@@ -2,14 +2,14 @@ import {
   passwordResetConfirmBodySchema,
   passwordResetRequestBodySchema,
 } from '@shipfox/api-auth-dto';
-import {AuthShell} from '@shipfox/client-shell/runtime';
+import {AuthShell, useRouteSearch} from '@shipfox/client-shell/runtime';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
 import {useForm} from '@tanstack/react-form';
-import {Link, useNavigate, useSearch} from '@tanstack/react-router';
+import {Link, useNavigate} from '@tanstack/react-router';
 import {useAtom} from 'jotai';
 import {useEffect, useRef, useState} from 'react';
 import {
@@ -17,14 +17,14 @@ import {
   useRequestPasswordResetAuth,
 } from '#hooks/api/password-reset-auth.js';
 import {authFormDraftAtom, initialAuthFormDraft} from '#state/auth.js';
+import {validatePasswordResetSearch} from '../routes/inputs.js';
 import {
   passwordResetConfirmErrorToFormError,
   passwordResetRequestErrorToFormError,
 } from './form-errors.js';
 
 export function PasswordResetPage() {
-  const search = useSearch({strict: false});
-  const token = typeof search.token === 'string' ? search.token : undefined;
+  const {token} = useRouteSearch(validatePasswordResetSearch);
 
   if (token) {
     return <PasswordResetConfirm token={token} />;

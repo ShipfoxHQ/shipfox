@@ -1,7 +1,12 @@
 'use client';
 
-import {type ReactNode, useEffect, useState} from 'react';
+import {type ReactNode, useEffect, useMemo, useState} from 'react';
 import {type Theme, ThemeProviderContext} from '#state/theme.js';
+import {
+  type BrowserStorageKey,
+  createTypedBrowserStorage,
+  localStorageOrUndefined,
+} from '#utils/browser-storage.js';
 
 type ThemeProviderProps = {
   children: ReactNode;
@@ -15,9 +20,19 @@ export function ThemeProvider({
   storageKey = 'shipfox-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
+  const storage = useMemo(
+    () =>
+      createTypedBrowserStorage(localStorageOrUndefined, {
+        key: storageKey,
+        lifetime: 'persistent',
+        principalScope: 'global',
+        serialize: (value: Theme) => value,
+        parse: (value: string) =>
+          value === 'light' || value === 'dark' || value === 'system' ? value : undefined,
+      } satisfies BrowserStorageKey<Theme>),
+    [storageKey],
   );
+  const [theme, setTheme] = useState<Theme>(() => storage.read() ?? defaultTheme);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -39,7 +54,7 @@ export function ThemeProvider({
   const value = {
     theme,
     setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
+      storage.write(theme);
       setTheme(theme);
     },
   };

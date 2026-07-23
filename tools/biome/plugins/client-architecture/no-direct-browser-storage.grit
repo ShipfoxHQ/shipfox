@@ -1,0 +1,8 @@
+language js(typescript, jsx)
+
+or {
+  `localStorage` as $access,
+  `sessionStorage` as $access
+} where {
+  register_diagnostic(span=$access, message="client-architecture/no-direct-browser-storage: use `createTypedBrowserStorage` with a key definition that declares `lifetime` and `principalScope`.")
+}
