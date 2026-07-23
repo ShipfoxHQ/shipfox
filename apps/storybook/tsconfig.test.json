@@ -6,6 +6,7 @@
   "include": [
     "test",
     ".storybook",
+    "playwright.config.ts",
     "preview-manifest.ts",
     "scripts",
     "vitest.config.ts",

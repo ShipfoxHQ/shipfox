@@ -4,8 +4,12 @@
   "tasks": {
     "build": {
       "cache": false,
-      "outputs": ["storybook-static/**/*"],
+      "outputs": ["storybook-static/**/*", ".vercel/**/*"],
       "dependsOn": ["^build"]
+    },
+    "test:e2e": {
+      "cache": false,
+      "dependsOn": ["build"]
     }
   }
 }

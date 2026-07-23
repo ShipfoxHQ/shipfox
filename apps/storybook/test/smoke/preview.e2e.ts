@@ -1,0 +1,101 @@
+import {type APIRequestContext, expect, type Page, test} from '@shipfox/playwright';
+import {storybooks} from '../../preview-manifest.js';
+
+type StorybookIndexEntry = {
+  id: string;
+  type: string;
+};
+
+type StorybookIndex = {
+  entries: Record<string, StorybookIndexEntry>;
+};
+
+const compositionStoryUrlPattern = /\/\?path=\/story\/react-ui_/;
+
+async function getRepresentativeStoryId(request: APIRequestContext, path: string): Promise<string> {
+  const response = await request.get(`${path}index.json`);
+  expect(response.ok()).toBe(true);
+
+  const index = (await response.json()) as StorybookIndex;
+  const story = Object.values(index.entries).find((entry) => entry.type === 'story');
+  if (story === undefined) throw new Error(`${path} has no representative story`);
+
+  return story.id;
+}
+
+function collectBrowserErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+  });
+  page.on('pageerror', (error) => errors.push(`page: ${error.message}`));
+  page.on('requestfailed', (request) => {
+    const errorText = request.failure()?.errorText;
+    if (errorText !== 'net::ERR_ABORTED') {
+      errors.push(`request: ${request.url()} ${errorText ?? 'failed'}`);
+    }
+  });
+  return errors;
+}
+
+test.describe('assembled Storybook preview', () => {
+  test('loads Composition refs and navigates to a standalone child', async ({page}) => {
+    const errors = collectBrowserErrors(page);
+
+    await page.goto('/');
+
+    const refs = await page.evaluate(() => {
+      const value = (window as Window & {REFS?: Record<string, {url: string}>}).REFS;
+      return value === undefined ? {} : value;
+    });
+    expect(Object.keys(refs)).toEqual(storybooks.map(({id}) => id));
+
+    for (const storybook of storybooks) {
+      await expect(page.locator('body')).toContainText(storybook.title);
+    }
+
+    await page.getByText('Accordion', {exact: true}).click();
+    await expect(page).toHaveURL(compositionStoryUrlPattern);
+    expect(errors).toEqual([]);
+  });
+
+  test('renders one representative story from every child without browser errors', async ({
+    browser,
+    request,
+  }) => {
+    const context = await browser.newContext();
+
+    for (const storybook of storybooks) {
+      const storyId = await getRepresentativeStoryId(request, storybook.path);
+      const page = await context.newPage();
+      const errors = collectBrowserErrors(page);
+      const response = await page.goto(`${storybook.path}iframe.html?id=${storyId}&viewMode=story`);
+
+      expect(response?.ok()).toBe(true);
+      await expect(page.locator('#storybook-root')).toBeVisible();
+      expect(errors).toEqual([]);
+      await page.close();
+    }
+
+    await context.close();
+  });
+
+  test('serves standalone child URLs and refreshes deep links', async ({page, request}) => {
+    const errors = collectBrowserErrors(page);
+
+    for (const storybook of storybooks) {
+      const storyId = await getRepresentativeStoryId(request, storybook.path);
+
+      const standaloneResponse = await page.goto(storybook.path);
+      expect(standaloneResponse?.ok()).toBe(true);
+      await expect(page.locator('#root')).toBeVisible();
+
+      const deepLink = `${storybook.path}?path=/story/${storyId}`;
+      await page.goto(deepLink);
+      await page.reload();
+      await expect(page.locator('#root')).toBeVisible();
+    }
+
+    expect(errors).toEqual([]);
+  });
+});

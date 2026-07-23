@@ -19,7 +19,9 @@ describe('storybook preview manifest', () => {
   it('derives Composition refs and standalone links from the same entries', () => {
     expect(Object.keys(storybookRefs)).toEqual(storybooks.map(({id}) => id));
     expect(storybookLinks).toEqual(storybooks.map(({id, title, url}) => ({id, title, url})));
-    expect(Object.values(storybookRefs)).toEqual(storybooks.map(({title, url}) => ({title, url})));
+    expect(Object.values(storybookRefs)).toEqual(
+      storybooks.map(({title, path}) => ({title, url: path})),
+    );
   });
 
   it('points each composed Storybook link at its static index document', () => {
