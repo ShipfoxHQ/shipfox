@@ -7,3 +7,25 @@ The fast path keeps the required `Static verification`, `Unit and story tests`, 
 Any verification error, timeout, malformed result, source edit, or other mismatch fails closed to the normal CI path.
 
 To force full CI for every PR temporarily, set the repository Actions variable `FORCE_FULL_CI` to `true`.
+
+## Version-only commits on `main`
+
+After a verified release PR merges, `CI` classifies the resulting `main`
+commit from its GitHub pull request metadata and complete tree. The classifier
+also checks the first parent revision. It does not trust the commit title,
+branch, or author on its own.
+
+When the tree matches the generated Changesets output:
+
+- package-release verification and publication preflight still run;
+- unit and Storybook tests, E2E tests, and Packer runner candidates are skipped;
+- each application image gets an immutable full-revision tag on its first
+  successful build, and reruns or version-only commits retag from that digest;
+- the application-release manifest records the prior image revision in
+  `artifactReuse`.
+
+If GitHub metadata, the parent revision, generated tree, or any prior image
+digest cannot be resolved, the workflow uses normal validation or fails before
+publishing an incomplete application release. Ordinary source, configuration,
+dependency, Dockerfile, Packer, workflow, or application metadata changes keep
+the full `main` pipeline.

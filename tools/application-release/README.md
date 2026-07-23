@@ -87,6 +87,10 @@ The first successful publish owns the full source revision tag. A workflow
 rerun reuses that artifact and only moves `latest`, so the revision tag does
 not change.
 
+Version-only `main` commits reuse the previous commit's immutable image
+digests. Their manifest keeps the new source revision and records the previous
+image revision in `artifactReuse` with reason `version-only-main-commit`.
+
 `build.startedAt` records when CI starts. `publishedAt` records when all image
 checks finish.
 

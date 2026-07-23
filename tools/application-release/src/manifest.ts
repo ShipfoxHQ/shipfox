@@ -57,6 +57,12 @@ export interface ApplicationReleaseInput {
   publishedAt: string;
   images: ApplicationImageSet;
   packages: ApplicationReleasePackage[];
+  artifactReuse?: ApplicationReleaseReuse;
+}
+
+export interface ApplicationReleaseReuse {
+  fromRevision: string;
+  reason: 'version-only-main-commit';
 }
 
 export interface ApplicationReleaseManifest {
@@ -70,6 +76,7 @@ export interface ApplicationReleaseManifest {
   publishedAt: string;
   images: ApplicationImageSet;
   packages: ApplicationReleasePackage[];
+  artifactReuse?: ApplicationReleaseReuse;
 }
 
 const validateManifest = createManifestValidator();
@@ -91,6 +98,7 @@ export function createApplicationReleaseManifest(
     publishedAt: timestamp(input.publishedAt, 'Publication time'),
     images: input.images,
     packages: input.packages,
+    ...(input.artifactReuse ? {artifactReuse: input.artifactReuse} : {}),
   };
 
   if (!validateManifest(manifest)) {

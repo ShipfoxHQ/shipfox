@@ -52,6 +52,13 @@ describe('parseCreateOptions', () => {
     assert.equal(options.publicationConfig, '/tmp/publication-closure.json');
   });
 
+  test('accepts an artifact reuse source revision', () => {
+    const revision = 'fedcba9876543210fedcba9876543210fedcba98';
+    const options = parseCreateOptions([...args(), '--reuse-from-revision', revision]);
+
+    assert.equal(options.reuseFromRevision, revision);
+  });
+
   test('rejects a missing required argument', () => {
     const input = args();
     input.splice(input.indexOf('--revision'), 2);

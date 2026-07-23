@@ -75,6 +75,22 @@ describe('createApplicationReleaseManifest', () => {
     assert.equal('publication' in manifest, false);
   });
 
+  test('records the source revision when application artifacts are reused', () => {
+    const manifest = createApplicationReleaseManifest({
+      ...input(),
+      artifactReuse: {
+        fromRevision: 'fedcba9876543210fedcba9876543210fedcba98',
+        reason: 'version-only-main-commit',
+      },
+    });
+
+    assert.deepEqual(manifest.artifactReuse, {
+      fromRevision: 'fedcba9876543210fedcba9876543210fedcba98',
+      reason: 'version-only-main-commit',
+    });
+    assert.equal(validateManifest(manifest), true, JSON.stringify(validateManifest.errors));
+  });
+
   test('matches the strict version 1 schema', () => {
     const manifest = createApplicationReleaseManifest(input());
 

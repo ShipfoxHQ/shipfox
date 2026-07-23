@@ -4,6 +4,7 @@ import {describe, test} from 'node:test';
 import {resolveApplicationImages} from '../dist/oci.js';
 
 const revision = '0123456789abcdef0123456789abcdef01234567';
+const reusedRevision = 'fedcba9876543210fedcba9876543210fedcba98';
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const mismatchedRevisionError = /has OCI revision "other-revision"; expected 0123456789abcdef/;
 const multiPlatformError = /must be a multi-platform OCI image index/;
@@ -81,6 +82,17 @@ describe('resolveApplicationImages', () => {
       resolveApplicationImages('build-42', revision, registry({labelRevision: 'other-revision'}));
 
     assert.throws(resolve, mismatchedRevisionError);
+  });
+
+  test('accepts a reused image revision when it is explicitly provided', () => {
+    const images = resolveApplicationImages(
+      'build-42',
+      revision,
+      registry({labelRevision: reusedRevision}),
+      reusedRevision,
+    );
+
+    assert.equal(images.api.digest, digest('a'));
   });
 
   test('rejects a single-platform image manifest', () => {

@@ -130,6 +130,207 @@ async function authorize() {
   process.stdout.write(`${JSON.stringify({authorized, reason})}\n`);
 }
 
+function classificationResult(values, reason, message) {
+  return {
+    versionOnlyMain: values.versionOnlyMain ?? false,
+    previousRevision: values.previousRevision ?? '',
+    releasePrUrl: values.releasePrUrl ?? '',
+    releasePrNumber: values.releasePrNumber ?? '',
+    reason,
+    message,
+  };
+}
+
+async function writeMainClassification(result) {
+  await writeOutput({
+    version_only_main: String(result.versionOnlyMain),
+    version_only_previous_revision: result.previousRevision,
+    version_only_release_pr: result.releasePrUrl,
+    version_only_release_pr_number: result.releasePrNumber,
+    reason: result.reason,
+  });
+  await writeSummary(
+    [
+      '## Main commit classification',
+      '',
+      `- Result: **${result.versionOnlyMain ? 'version-only' : 'normal CI'}**`,
+      `- Reason: \`${result.reason}\``,
+      ...(result.releasePrUrl ? [`- Generated release PR: ${result.releasePrUrl}`] : []),
+      ...(result.previousRevision
+        ? [`- Prior validated revision: \`${result.previousRevision}\``]
+        : []),
+      result.versionOnlyMain
+        ? '- Application validation and image bytes can be reused from the prior revision.'
+        : '- The workflow keeps the full main validation and build path.',
+    ].join('\n'),
+  );
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+async function classifyMain() {
+  const revision = argument('revision');
+  const repository = argument('repository');
+  const expectedAppId = argument('release-app-id');
+  const invalidMetadata = !revision || !repository || !expectedAppId;
+
+  if (invalidMetadata) {
+    await writeMainClassification(
+      classificationResult(
+        {},
+        'missing-main-classification-metadata',
+        'The main commit classifier did not receive the required metadata.',
+      ),
+    );
+    return;
+  }
+
+  const parentResult = await run('git', ['rev-parse', `${revision}^1`]);
+  if (parentResult.code !== 0) {
+    await writeMainClassification(
+      classificationResult(
+        {},
+        'parent-revision-unavailable',
+        'The parent revision could not be resolved; normal main CI remains required.',
+      ),
+    );
+    return;
+  }
+  const previousRevision = parentResult.stdout.trim();
+  if (!/^[a-f0-9]{40}$/.test(previousRevision)) {
+    await writeMainClassification(
+      classificationResult(
+        {},
+        'parent-revision-invalid',
+        'The resolved parent is not a full Git revision; normal main CI remains required.',
+      ),
+    );
+    return;
+  }
+
+  const pullRequestsResult = await run('gh', [
+    'api',
+    `repos/${repository}/commits/${revision}/pulls`,
+    '--header',
+    'Accept: application/vnd.github+json',
+  ]);
+  if (pullRequestsResult.code !== 0) {
+    await writeMainClassification(
+      classificationResult(
+        {},
+        'merged-release-pr-unavailable',
+        'The merged pull request could not be resolved; normal main CI remains required.',
+      ),
+    );
+    return;
+  }
+
+  let pullRequests;
+  try {
+    pullRequests = JSON.parse(pullRequestsResult.stdout);
+  } catch {
+    await writeMainClassification(
+      classificationResult(
+        {},
+        'merged-release-pr-invalid',
+        'GitHub returned invalid pull request metadata; normal main CI remains required.',
+      ),
+    );
+    return;
+  }
+
+  const releasePullRequest = Array.isArray(pullRequests)
+    ? pullRequests.find(
+        (pullRequest) =>
+          typeof pullRequest.merged_at === 'string' &&
+          pullRequest.merge_commit_sha === revision &&
+          pullRequest.base?.ref === 'main',
+      )
+    : undefined;
+  const releasePrUrl = releasePullRequest?.html_url ?? '';
+  const releasePrNumber = releasePullRequest?.number ? String(releasePullRequest.number) : '';
+
+  if (!releasePullRequest) {
+    await writeMainClassification(
+      classificationResult(
+        {releasePrUrl, releasePrNumber},
+        'merged-release-pr-not-found',
+        'The commit is not the merged result of a pull request targeting main.',
+      ),
+    );
+    return;
+  }
+
+  const headRepository = releasePullRequest.head?.repo?.full_name ?? '';
+  const headRef = releasePullRequest.head?.ref ?? '';
+  const authorId = String(releasePullRequest.user?.id ?? '');
+  const metadataResult =
+    headRepository !== repository
+      ? 'head-repository-mismatch'
+      : headRef !== 'changeset-release/main'
+        ? 'release-branch-mismatch'
+        : authorId !== expectedAppId
+          ? 'release-app-mismatch'
+          : undefined;
+
+  if (metadataResult) {
+    await writeMainClassification(
+      classificationResult(
+        {releasePrUrl, releasePrNumber},
+        metadataResult,
+        'The merged pull request metadata is not an approved generated release.',
+      ),
+    );
+    return;
+  }
+
+  const verifierResult = await run('pnpm', [
+    '--silent',
+    '--filter=@shipfox/package-release',
+    'verify-generated-release',
+    '--',
+    '--base',
+    previousRevision,
+    '--head',
+    revision,
+    '--repository',
+    repository,
+    '--head-repository',
+    headRepository,
+    '--head-ref',
+    headRef,
+    '--author-id',
+    authorId,
+    '--release-app-id',
+    expectedAppId,
+  ]);
+  const verifierLine = verifierResult.stdout
+    .trim()
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1);
+  let verifier;
+  try {
+    verifier = verifierLine ? JSON.parse(verifierLine) : undefined;
+  } catch {
+    verifier = undefined;
+  }
+
+  const versionOnlyMain =
+    verifierResult.code === 0 && verifier?.classification === 'generated-release';
+  await writeMainClassification(
+    classificationResult(
+      versionOnlyMain
+        ? {versionOnlyMain: true, previousRevision, releasePrUrl, releasePrNumber}
+        : {releasePrUrl, releasePrNumber},
+      versionOnlyMain ? 'generated-tree-matches' : (verifier?.reason ?? 'verification-error'),
+      versionOnlyMain
+        ? 'The merged tree exactly matches the generated release output from its parent revision.'
+        : 'The merged tree is not a deterministic generated release; normal main CI remains required.',
+    ),
+  );
+}
+
 async function summarizeUpdate() {
   const before = JSON.parse(await readFile(argument('before'), 'utf8'));
   const after = JSON.parse(await readFile(argument('after'), 'utf8'));
@@ -169,6 +370,7 @@ async function summarizePublication() {
 const command = process.argv[2];
 if (command === 'plan') await plan();
 else if (command === 'authorize') await authorize();
+else if (command === 'classify-main') await classifyMain();
 else if (command === 'summarize-update') await summarizeUpdate();
 else if (command === 'summarize-publication') await summarizePublication();
 else throw new Error(`Unknown package release workflow command: ${command ?? '(missing)'}`);

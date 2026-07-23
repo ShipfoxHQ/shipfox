@@ -10,6 +10,7 @@ import {
 } from './package-closure.js';
 
 const POSITIVE_DECIMAL_PATTERN = /^[1-9]\d*$/;
+const REVISION_PATTERN = /^[a-f0-9]{40}$/;
 
 export interface CreateOptions {
   sourceRepository: string;
@@ -21,6 +22,7 @@ export interface CreateOptions {
   buildStartedAt: string;
   buildUrl: string;
   imageTag: string;
+  reuseFromRevision?: string;
   output: string;
   publicationConfig: string;
 }
@@ -40,6 +42,7 @@ export function parseCreateOptions(args: string[]): CreateOptions {
       'build-started-at': {type: 'string'},
       'build-url': {type: 'string'},
       'image-tag': {type: 'string'},
+      'reuse-from-revision': {type: 'string'},
       output: {type: 'string'},
       'publication-config': {type: 'string'},
     },
@@ -47,6 +50,11 @@ export function parseCreateOptions(args: string[]): CreateOptions {
 
   if (positionals.length !== 1 || positionals[0] !== 'create') {
     throw new Error('Usage: shipfox-application-release create [options]');
+  }
+
+  const reuseFromRevision = values['reuse-from-revision'];
+  if (reuseFromRevision && !REVISION_PATTERN.test(reuseFromRevision)) {
+    throw new Error('--reuse-from-revision must be a 40-character lowercase Git revision');
   }
 
   return {
@@ -59,13 +67,19 @@ export function parseCreateOptions(args: string[]): CreateOptions {
     buildStartedAt: required(values['build-started-at'], '--build-started-at'),
     buildUrl: required(values['build-url'], '--build-url'),
     imageTag: required(values['image-tag'], '--image-tag'),
+    reuseFromRevision,
     output: required(values.output, '--output'),
     publicationConfig: values['publication-config'] ?? 'publication-closure.json',
   };
 }
 
 export function createApplicationRelease(options: CreateOptions): void {
-  const images = resolveApplicationImages(options.imageTag, options.revision);
+  const images = resolveApplicationImages(
+    options.imageTag,
+    options.revision,
+    undefined,
+    options.reuseFromRevision,
+  );
   const publicationConfigPath = resolve(options.publicationConfig);
   const repositoryRoot = dirname(publicationConfigPath);
   const packages = createApplicationReleasePackages(
@@ -87,6 +101,14 @@ export function createApplicationRelease(options: CreateOptions): void {
     publishedAt: new Date().toISOString(),
     images,
     packages,
+    ...(options.reuseFromRevision
+      ? {
+          artifactReuse: {
+            fromRevision: options.reuseFromRevision,
+            reason: 'version-only-main-commit' as const,
+          },
+        }
+      : {}),
   });
 
   writeFileSync(options.output, `${JSON.stringify(manifest, null, 2)}\n`);

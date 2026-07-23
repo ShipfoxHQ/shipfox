@@ -8,10 +8,11 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 # Cancel superseded PR/branch runs before they finish, so rapid pushes stop paying
 # for CI work they already invalidated. main is never cancelled: every merged commit
-# must run to completion to publish its per-commit release artifacts.
+# must run to completion to publish or reuse its per-commit release artifacts.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -32,30 +33,33 @@ env:
 # rebuilds what its own Turbo graph needs.
 jobs:
   release-classification:
-    name: Classify release PR
+    name: Classify release PR or version-only main commit
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       generated_release: ${{ steps.classify.outputs.generated_release || 'false' }}
-      reason: ${{ steps.classify.outputs.reason || 'not-a-release-pr' }}
+      version_only_main: ${{ steps.classify-main.outputs.version_only_main || 'false' }}
+      version_only_previous_revision: ${{ steps.classify-main.outputs.version_only_previous_revision || '' }}
+      version_only_release_pr: ${{ steps.classify-main.outputs.version_only_release_pr || '' }}
+      reason: ${{ steps.classify.outputs.reason || steps.classify-main.outputs.reason || 'not-a-release-pr' }}
 
     steps:
       - name: Check out repository
-        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
       - name: Set up mise
-        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
 
       - name: Set up pnpm
-        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         uses: ./.github/actions/setup-pnpm
 
       - name: Build generated-release verifier
-        if: github.event_name == 'pull_request' && vars.FORCE_FULL_CI != 'true'
+        if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         run: turbo build --filter=@shipfox/package-release
 
       - name: Verify generated release tree
@@ -64,7 +68,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PULL_REQUEST_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           RELEASE_BOT_APP_ID: ${{ vars.RELEASE_BOT_APP_ID }}
@@ -93,9 +97,55 @@ jobs:
           echo "generated_release=$generated_release" >> "$GITHUB_OUTPUT"
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
 
+      - name: Verify version-only main commit
+        id: classify-main
+        if: github.ref == 'refs/heads/main' && vars.FORCE_FULL_CI != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BOT_APP_ID: ${{ vars.RELEASE_BOT_APP_ID }}
+          REVISION: ${{ github.sha }}
+        run: |
+          node .github/scripts/package-release-workflow.mjs classify-main \
+            --revision "$REVISION" \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-app-id "$RELEASE_BOT_APP_ID" \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
+
+  release-mode:
+    name: Select CI execution mode
+    needs: [release-classification]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+      previous_revision: ${{ needs.release-classification.outputs.version_only_previous_revision }}
+      release_pr: ${{ needs.release-classification.outputs.version_only_release_pr }}
+
+    steps:
+      - name: Normalize release classification
+        id: select
+        env:
+          CLASSIFICATION_RESULT: ${{ needs.release-classification.result }}
+          GENERATED_RELEASE: ${{ needs.release-classification.outputs.generated_release }}
+          VERSION_ONLY_MAIN: ${{ needs.release-classification.outputs.version_only_main }}
+        run: |
+          mode=normal
+          if [[ "$CLASSIFICATION_RESULT" == success ]]; then
+            if [[ "$VERSION_ONLY_MAIN" == true ]]; then
+              mode=version-only-main
+            elif [[ "$GENERATED_RELEASE" == true ]]; then
+              mode=generated-release
+            fi
+          fi
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Selected CI mode: $mode" >> "$GITHUB_STEP_SUMMARY"
+
   static-verification:
     name: Static verification
-    needs: [release-classification]
+    needs: [release-mode]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -117,44 +167,55 @@ jobs:
         uses: ./.github/actions/setup-pnpm
 
       - name: Run static verification
-        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
+        if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
         run: turbo check type build depcruise $SHIPFOX_TURBO_AFFECTED --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Verify repository and package policies
-        if: github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'
+        if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
         run: turbo verify --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
       - name: Verify release metadata and publication closure
-        if: github.event_name == 'pull_request' && needs.release-classification.outputs.generated_release == 'true'
+        if: always() && needs.release-mode.result == 'success' && needs.release-mode.outputs.mode != 'normal'
         run: |
           turbo verify --filter=@shipfox/package-release...
           turbo test --filter=@shipfox/package-release...
           pnpm run release:preflight
 
       - name: Summarize verified release CI
-        if: github.event_name == 'pull_request' && needs.release-classification.outputs.generated_release == 'true'
+        if: always() && needs.release-mode.result == 'success' && needs.release-mode.outputs.mode != 'normal'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ needs.release-mode.outputs.previous_revision || github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RELEASE_MODE: ${{ needs.release-mode.outputs.mode }}
+          RELEASE_PR_URL: ${{ needs.release-mode.outputs.release_pr }}
         run: |
           {
-            echo '## Verified generated release CI'
+            if [[ "$RELEASE_MODE" == version-only-main ]]; then
+              echo '## Verified version-only main CI'
+              echo
+              echo '- Classification: `version-only-main` (deterministic tree verification passed)'
+              echo "- Generated release PR: ${RELEASE_PR_URL:-unavailable}"
+              echo "- Prior validated revision: \`${BASE_SHA}\`"
+            else
+              echo '## Verified generated release CI'
+              echo
+              echo '- Classification: `generated-release` (deterministic tree verification passed)'
+            fi
             echo
-            echo '- Classification: `generated-release` (deterministic tree verification passed)'
             echo '- Files in release:'
             git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sed 's/^/  - `/' | sed 's/$/`/'
             echo '- Package directories changed:'
             git diff --name-only "$BASE_SHA" "$HEAD_SHA" | awk -F/ '/^(libs|tools)\// {print $1 "/" $2}' | sort -u | sed 's/^/  - `/' | sed 's/$/`/'
             echo '- Checks run: frozen dependency install, package-release policy checks and tests, whole-closure `release:preflight`.'
-            echo '- Checks intentionally skipped: unit/story suite, E2E suite, and application image matrix.'
+            echo '- Checks intentionally skipped: unit/story suite, E2E suite, application image rebuilds, and Packer runner candidates.'
             echo '- Preflight result: passed.'
             echo '- Expected comparison: under 5 minutes and under 7.65 runner-minutes, versus the 13-minute / 51 runner-minute baseline.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   external-package-contracts:
     name: Verify external package contracts
-    needs: [release-classification]
-    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
+    needs: [release-mode]
+    if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -191,8 +252,8 @@ jobs:
 
   publication-preflight:
     name: Package publication preflight
-    needs: [release-classification]
-    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
+    needs: [release-mode]
+    if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -213,8 +274,8 @@ jobs:
 
   tests:
     name: Unit and story tests
-    needs: [release-classification]
-    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
+    needs: [release-mode]
+    if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -255,8 +316,8 @@ jobs:
 
   e2e:
     name: E2E tests
-    needs: [release-classification]
-    if: always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
+    needs: [release-mode]
+    if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -327,8 +388,8 @@ jobs:
   # permission. Main publishes images in `publish-images`.
   build-image:
     name: Build image (${{ matrix.image }})
-    needs: [release-classification]
-    if: always() && github.ref != 'refs/heads/main' && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')
+    needs: [release-mode]
+    if: always() && github.ref != 'refs/heads/main' && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -337,14 +398,19 @@ jobs:
         include: &app_image_matrix
           - package: "@shipfox/api"
             image: api
+            repository: ghcr.io/shipfoxhq/api
           - package: "@shipfox/client"
             image: client
+            repository: ghcr.io/shipfoxhq/client
           - package: "@shipfox/provisioner-docker"
             image: provisioner-docker
+            repository: ghcr.io/shipfoxhq/provisioner-docker
           - package: "@shipfox/provisioner-ec2"
             image: provisioner-ec2
+            repository: ghcr.io/shipfoxhq/provisioner-ec2
           - package: "@shipfox/runner"
             image: runner
+            repository: ghcr.io/shipfoxhq/runner
 
     steps:
       - name: Check out repository
@@ -370,7 +436,7 @@ jobs:
 
   build-images:
     name: Build images
-    needs: [release-classification, build-image]
+    needs: [release-mode, build-image]
     if: always() && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -382,7 +448,7 @@ jobs:
             echo "Image validation matrix completed."
             exit 0
           fi
-          if [ "${{ needs.release-classification.outputs.generated_release }}" = "true" ] && [ "${{ needs.build-image.result }}" = "skipped" ]; then
+          if [ "${{ needs.release-mode.result }}" = "success" ] && [ "${{ needs.release-mode.outputs.mode }}" = "generated-release" ] && [ "${{ needs.build-image.result }}" = "skipped" ]; then
             echo "Image validation matrix intentionally skipped for a verified generated release PR."
             exit 0
           fi
@@ -396,8 +462,14 @@ jobs:
   # cache instead of inheriting artifacts from less-privileged jobs.
   publish-images:
     name: Publish app image (${{ matrix.image }})
-    needs: [static-verification, external-package-contracts, tests, e2e]
-    if: github.ref == 'refs/heads/main'
+    needs: [release-mode, static-verification, external-package-contracts, tests, e2e]
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      needs.release-mode.result == 'success' &&
+      needs.static-verification.result == 'success' &&
+      (needs.external-package-contracts.result == 'success' || (needs.release-mode.outputs.mode == 'version-only-main' && needs.external-package-contracts.result == 'skipped')) &&
+      (needs.tests.result == 'success' || needs.tests.result == 'skipped') &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
     runs-on: ubuntu-latest
     # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
     # cache (the runner image's apt layer most of all); the cache makes later runs fast.
@@ -414,28 +486,102 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2
+        with:
+          version: 1.3.3
+
       - name: Set up mise
+        if: needs.release-mode.outputs.mode != 'version-only-main'
         uses: ./.github/actions/setup-mise
         with:
           tools: node npm:pnpm npm:turbo
 
       - name: Set up pnpm
+        if: needs.release-mode.outputs.mode != 'version-only-main'
         uses: ./.github/actions/setup-pnpm
 
       - name: Set up QEMU
+        if: needs.release-mode.outputs.mode != 'version-only-main'
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4
 
       - name: Set up Docker Buildx
+        if: needs.release-mode.outputs.mode != 'version-only-main'
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
       - name: Log in to GHCR
+        if: needs.release-mode.outputs.mode != 'version-only-main'
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Log in to GHCR for ORAS
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Resolve existing application image for this revision
+        id: existing-image
+        if: needs.release-mode.outputs.mode != 'version-only-main'
+        env:
+          APPLICATION_IMAGE_REPOSITORY: ${{ matrix.repository }}
+        run: |
+          set -euo pipefail
+          revision_reference="$APPLICATION_IMAGE_REPOSITORY:revision-$GITHUB_SHA"
+          resolve_error="$(mktemp)"
+          trap 'rm -f "$resolve_error"' EXIT
+
+          set +e
+          existing_digest="$(oras resolve "$revision_reference" 2>"$resolve_error")"
+          resolve_status=$?
+          set -e
+
+          if (( resolve_status == 0 )); then
+            if [[ ! "$existing_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Existing application image revision tag returned an invalid digest: $revision_reference -> $existing_digest" >&2
+              exit 1
+            fi
+            echo "digest=$existing_digest" >> "$GITHUB_OUTPUT"
+          elif grep -Eiq 'manifest unknown|not found|404' "$resolve_error"; then
+            echo 'digest=' >> "$GITHUB_OUTPUT"
+          else
+            cat "$resolve_error" >&2
+            exit "$resolve_status"
+          fi
+
+      - name: Reuse previous application image digest
+        if: needs.release-mode.outputs.mode == 'version-only-main'
+        env:
+          APPLICATION_IMAGE_REPOSITORY: ${{ matrix.repository }}
+          PREVIOUS_REVISION: ${{ needs.release-mode.outputs.previous_revision }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$PREVIOUS_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "The version-only classifier did not provide a valid prior revision: $PREVIOUS_REVISION" >&2
+            exit 1
+          fi
+
+          previous_reference="$APPLICATION_IMAGE_REPOSITORY:revision-$PREVIOUS_REVISION"
+          digest="$(oras resolve "$previous_reference")"
+          if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "The prior application image revision tag did not resolve to an immutable digest: $previous_reference -> $digest" >&2
+            exit 1
+          fi
+
+          for tag in "revision-$GITHUB_SHA" "sha-${GITHUB_SHA:0:7}" "build-$GITHUB_RUN_NUMBER" latest; do
+            oras tag "$APPLICATION_IMAGE_REPOSITORY@$digest" "$tag"
+          done
+
+          {
+            echo "- Reused \`$APPLICATION_IMAGE_REPOSITORY@$digest\` from revision \`$PREVIOUS_REVISION\`."
+            echo "- New tags: \`revision-$GITHUB_SHA\`, \`sha-${GITHUB_SHA:0:7}\`, \`build-$GITHUB_RUN_NUMBER\`, and \`latest\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build and push images
+        if: needs.release-mode.outputs.mode != 'version-only-main' && steps.existing-image.outputs.digest == ''
         env:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
@@ -449,10 +595,42 @@ jobs:
           export IMAGE_REGISTRIES="ghcr.io/$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           turbo image --filter "${{ matrix.package }}"
 
+      - name: Retag existing application image for this revision
+        if: needs.release-mode.outputs.mode != 'version-only-main' && steps.existing-image.outputs.digest != ''
+        env:
+          APPLICATION_IMAGE_REPOSITORY: ${{ matrix.repository }}
+          EXISTING_IMAGE_DIGEST: ${{ steps.existing-image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          for tag in "sha-${GITHUB_SHA:0:7}" "build-$GITHUB_RUN_NUMBER" latest; do
+            oras tag "$APPLICATION_IMAGE_REPOSITORY@$EXISTING_IMAGE_DIGEST" "$tag"
+          done
+
+      - name: Claim immutable application image revision tag
+        if: needs.release-mode.outputs.mode != 'version-only-main' && steps.existing-image.outputs.digest == ''
+        env:
+          APPLICATION_IMAGE_REPOSITORY: ${{ matrix.repository }}
+        run: |
+          set -euo pipefail
+          build_reference="$APPLICATION_IMAGE_REPOSITORY:build-$GITHUB_RUN_NUMBER"
+          digest="$(oras resolve "$build_reference")"
+          if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "The current application image did not resolve to an immutable digest: $build_reference -> $digest" >&2
+            exit 1
+          fi
+          oras tag "$APPLICATION_IMAGE_REPOSITORY@$digest" "revision-$GITHUB_SHA"
+
   publish-runner-image-candidate:
     name: Publish runner image candidate (${{ matrix.architecture }})
-    needs: [static-verification, external-package-contracts, tests, e2e]
-    if: github.ref == 'refs/heads/main'
+    needs: [release-mode, static-verification, external-package-contracts, tests, e2e]
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      needs.release-mode.result == 'success' &&
+      needs.release-mode.outputs.mode == 'normal' &&
+      needs.static-verification.result == 'success' &&
+      needs.external-package-contracts.result == 'success' &&
+      needs.tests.result == 'success' &&
+      needs.e2e.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -516,7 +694,7 @@ jobs:
 
   publish-application-release:
     name: Publish application release
-    needs: [publish-images]
+    needs: [release-mode, publish-images]
     if: github.ref == 'refs/heads/main' && needs.publish-images.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -583,8 +761,14 @@ jobs:
         if: steps.application-release.outputs.digest == ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIOUS_REVISION: ${{ needs.release-mode.outputs.previous_revision }}
+          VERSION_ONLY_MAIN: ${{ needs.release-mode.outputs.mode == 'version-only-main' }}
         run: |
           build_started_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_started_at')"
+          reuse_args=()
+          if [[ "$VERSION_ONLY_MAIN" == "true" ]]; then
+            reuse_args=(--reuse-from-revision "$PREVIOUS_REVISION")
+          fi
 
           node tools/application-release/bin/application-release.js create \
             --source-repository "https://github.com/$GITHUB_REPOSITORY" \
@@ -596,6 +780,7 @@ jobs:
             --build-started-at "$build_started_at" \
             --build-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --image-tag "build-$GITHUB_RUN_NUMBER" \
+            "${reuse_args[@]}" \
             --output application-release.json
 
           published_at="$(jq -r '.publishedAt' application-release.json)"

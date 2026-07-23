@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {chmod, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -16,6 +16,10 @@ const authorizedPattern = /authorized=true/;
 const createdPattern = /"result":"created"/;
 const releasePattern = /revision=release/;
 const releasePrPattern = /Release PR: #42/;
+const versionOnlyMainPattern = /version_only_main=true/;
+const versionOnlyReleasePrPattern =
+  /version_only_release_pr=https:\/\/github\.com\/ShipfoxHQ\/shipfox\/pull\/999/;
+const versionOnlySummaryPattern = /version-only/;
 
 describe('package release workflow tool', () => {
   test('authorizes only merged release-App pull requests from the release branch', async () => {
@@ -83,4 +87,72 @@ describe('package release workflow tool', () => {
       await rm(temporaryRoot, {force: true, recursive: true});
     }
   });
+
+  test('classifies a main commit only after merged release metadata and tree verification', async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-main-classification-test-'));
+    const binDirectory = join(temporaryRoot, 'bin');
+    const outputPath = join(temporaryRoot, 'output');
+    const summaryPath = join(temporaryRoot, 'summary');
+    const revision = '0123456789abcdef0123456789abcdef01234567';
+    const previousRevision = 'fedcba9876543210fedcba9876543210fedcba98';
+    const pullRequest = JSON.stringify([
+      {
+        base: {ref: 'main'},
+        head: {ref: 'changeset-release/main', repo: {full_name: 'ShipfoxHQ/shipfox'}},
+        html_url: 'https://github.com/ShipfoxHQ/shipfox/pull/999',
+        merge_commit_sha: revision,
+        merged_at: '2026-07-23T10:00:00Z',
+        number: 999,
+        user: {id: 123},
+      },
+    ]);
+
+    try {
+      await mkdir(binDirectory);
+      await writeExecutable(
+        join(binDirectory, 'git'),
+        `#!/bin/sh\nprintf '%s\\n' '${previousRevision}'\n`,
+      );
+      await writeExecutable(
+        join(binDirectory, 'gh'),
+        `#!/bin/sh\nprintf '%s\\n' '${pullRequest}'\n`,
+      );
+      await writeExecutable(
+        join(binDirectory, 'pnpm'),
+        '#!/bin/sh\nprintf \'%s\\n\' \'{"classification":"generated-release","reason":"generated-tree-matches"}\'\n',
+      );
+
+      await execFileAsync(
+        'node',
+        [
+          workflowTool,
+          'classify-main',
+          '--revision',
+          revision,
+          '--repository',
+          'ShipfoxHQ/shipfox',
+          '--release-app-id',
+          '123',
+          '--github-output',
+          outputPath,
+          '--github-summary',
+          summaryPath,
+        ],
+        {env: {...process.env, PATH: `${binDirectory}:${process.env.PATH}`}},
+      );
+
+      const output = await readFile(outputPath, 'utf8');
+      assert.match(output, versionOnlyMainPattern);
+      assert.match(output, new RegExp(`version_only_previous_revision=${previousRevision}`));
+      assert.match(output, versionOnlyReleasePrPattern);
+      assert.match(await readFile(summaryPath, 'utf8'), versionOnlySummaryPattern);
+    } finally {
+      await rm(temporaryRoot, {force: true, recursive: true});
+    }
+  });
 });
+
+async function writeExecutable(path: string, content: string): Promise<void> {
+  await writeFile(path, content);
+  await chmod(path, 0o755);
+}
