@@ -30,6 +30,8 @@ listed there or when you need to place, update, or review documentation.
 | Changes client state, API adapters, or feature boundaries. | [Client architecture](architecture/client-architecture.md) | The current client model and architecture checks. |
 | Adds or changes a client form. | [Client form guidance](architecture/client-architecture.md#forms) | Form state, validation, fields, server errors, and saved drafts. |
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
+| Adds, moves, or debugs an architecture validation rule. | [Architecture validation guide](guides/architecture-validation.md) | Tool selection, rule placement, fixtures, exceptions, and local verification. |
+| Changes how architecture policy is shared with another repository. | [ADR 0007](adr/0007-cross-repository-architecture-validation.md) | Shared policy distribution, package metadata, versioning, and repository ownership. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
 | Validates repository Markdown links, anchors, or documentation reachability. | [Repository documentation policy](../tools/repository-documentation-policy/README.md) | Deterministic link and orphan checks for engineering documentation. |
 | Changes webhook retry behavior. | [Webhook retry safety](architecture/webhook-retry-safety.md) | The current safety model for webhook retries. |

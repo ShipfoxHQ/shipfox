@@ -392,5 +392,9 @@ imports from pages and components, blocked client-framework imports from `core/`
 dependency rules. Request schemas used for field validation remain allowed. Add a check only after at
 least one feature follows the target structure and proves the rule is practical.
 
+**ADR 0007 owns enforcement placement and cross-repository distribution.** Use the
+[architecture validation guide](../guides/architecture-validation.md) to select the tool and
+verification path for a rule derived from this record.
+
 **Exceptions update this record.** A repeated exception is an architecture change, not a local
 workaround.

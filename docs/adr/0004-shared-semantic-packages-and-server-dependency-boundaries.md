@@ -240,6 +240,10 @@ directory.
 **Names do not grant exceptions.** A package named `utils`, `shared`, or `common` remains forbidden
 until the architecture registry classifies it. The inventory check rejects unclassified packages.
 
+**ADR 0007 owns enforcement placement and cross-repository distribution.** Use the
+[architecture validation guide](../guides/architecture-validation.md) to select the tool and
+verification path for a rule derived from this record.
+
 ## Migration
 
 **The repository moves to this model in bounded steps.** The migration order is:
