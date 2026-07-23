@@ -4,7 +4,11 @@ import {atom, useAtomValue, useSetAtom, useStore} from 'jotai';
 import type {PropsWithChildren} from 'react';
 import {useCallback, useEffect, useMemo} from 'react';
 import type {AuthenticatedSession, UserIdentity, WorkspaceSummary} from '#core/session.js';
-import {listUserWorkspaces, refreshAuthenticatedSession} from '#hooks/api/session-auth.js';
+import {
+  authRefreshQueryKey,
+  authRefreshQueryOptions,
+  userWorkspacesQueryOptions,
+} from '#hooks/api/session-auth.js';
 
 const REFRESH_EARLY_MS = 5 * 60 * 1000;
 const REFRESH_RETRY_DELAY_MS = 60_000;
@@ -31,8 +35,6 @@ export interface AuthStateValue extends AuthState {
 export const initialAuthState: AuthState = {status: 'loading'};
 export const authStateAtom = atom<AuthState>(initialAuthState);
 const authTransitionEpochAtom = atom(0);
-export const authRefreshQueryKey = ['auth', 'refresh'] as const;
-export const userWorkspacesQueryKey = ['workspaces', 'mine'] as const;
 
 export function toAuthenticatedState(
   session: AuthenticatedSession,
@@ -60,7 +62,13 @@ export function useAuthState(): AuthStateValue {
   );
 }
 
-export {listUserWorkspaces} from '#hooks/api/session-auth.js';
+export {
+  authRefreshQueryKey,
+  authRefreshQueryOptions,
+  listUserWorkspaces,
+  userWorkspacesQueryKey,
+  userWorkspacesQueryOptions,
+} from '#hooks/api/session-auth.js';
 
 function decodeBase64Url(value: string): string {
   const base64 = value
@@ -117,14 +125,10 @@ export function useAuthTransition() {
       queryClient.setQueryData(authRefreshQueryKey, session);
       let workspaces: WorkspaceSummary[] = [];
       try {
-        const hydratedWorkspaces = await queryClient.fetchQuery({
-          queryKey: userWorkspacesQueryKey,
-          queryFn: () => listUserWorkspaces(session.accessToken),
-          retry: false,
-          staleTime: 0,
-        });
+        const hydratedWorkspaces = await queryClient.fetchQuery(
+          userWorkspacesQueryOptions(session.accessToken),
+        );
         workspaces = hydratedWorkspaces.memberships;
-        queryClient.setQueryData(userWorkspacesQueryKey, hydratedWorkspaces);
       } catch {
         // The authenticated session remains usable while workspace hydration retries on the next route load.
       }
@@ -143,12 +147,7 @@ export function useRefreshAuth() {
   const {enterAuthenticated, enterGuest} = useAuthTransition();
   return useCallback(async () => {
     try {
-      const result = await queryClient.fetchQuery({
-        queryKey: authRefreshQueryKey,
-        queryFn: refreshAuthenticatedSession,
-        retry: false,
-        staleTime: 0,
-      });
+      const result = await queryClient.fetchQuery(authRefreshQueryOptions());
       await enterAuthenticated(result);
       return result;
     } catch (error) {

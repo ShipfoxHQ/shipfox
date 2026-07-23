@@ -6,10 +6,9 @@ import {Card} from '@shipfox/react-ui/card';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
-import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
+import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import type {IntegrationConnection} from '#core/models.js';
 import {connectSentry} from '#hooks/api/integrations.js';
 import {
@@ -28,7 +27,7 @@ export function SentryCallbackPage() {
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
   const {workspaces, isLoading} = useAuthState();
-  const queryClient = useQueryClient();
+  const completeIntegrationCallback = useCompleteIntegrationCallback();
 
   const params = useMemo(() => parseSentryCallbackParams(search), [search]);
   const storedWorkspaceId = useMemo(() => readSentryInstallWorkspace(window.sessionStorage), []);
@@ -114,7 +113,6 @@ export function SentryCallbackPage() {
               },
               token,
             }),
-          queryClient,
         }),
     );
 

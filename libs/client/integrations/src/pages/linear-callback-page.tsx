@@ -2,10 +2,9 @@ import {useRefreshAuth} from '@shipfox/client-auth';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
-import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
-import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
+import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import type {IntegrationConnection} from '#core/models.js';
 import {useCompleteLinearCallbackMutation} from '#hooks/api/integrations.js';
@@ -31,7 +30,7 @@ export function LinearCallbackPage() {
   const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
-  const queryClient = useQueryClient();
+  const completeIntegrationCallback = useCompleteIntegrationCallback();
   const {mutateAsync: completeLinearCallback} = useCompleteLinearCallbackMutation();
   const params = useMemo(() => parseLinearCallbackQuery(search), [search]);
   const workspaceId = useMemo(() => {
@@ -54,7 +53,6 @@ export function LinearCallbackPage() {
           input: params,
           refreshAuth,
           complete: async (query, token) => await completeLinearCallback({query, token}),
-          queryClient,
         }),
     );
 
@@ -90,7 +88,7 @@ export function LinearCallbackPage() {
     return () => {
       disposed = true;
     };
-  }, [completeLinearCallback, navigate, params, queryClient, refreshAuth]);
+  }, [completeIntegrationCallback, completeLinearCallback, navigate, params, refreshAuth]);
 
   if (!params) {
     return (

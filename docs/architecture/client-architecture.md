@@ -53,11 +53,14 @@ Components do not build snake_case transport payloads. Empty responses,
 redirect URLs, health checks, and opaque acknowledgements can remain transport
 values when they have no domain meaning.
 
-Each query option owns its key, request, mapping, cache policy, and pagination.
-Reuse that option from hooks, loaders, and coordinators. A mutation owns the
-cache updates for the resource it changes. Components report user intent and
-handle presentation effects such as closing a dialog or navigating. A named
-page or application coordinator owns a journey that must update more than one
+Each server-backed resource exposes a package-owned named
+`*QueryOptions` or `*InfiniteQueryOptions` factory from `hooks/api/`. The
+factory owns its key, request, mapping, cache policy, and pagination. Hooks,
+loaders, and coordinators reuse that factory; hooks do not build an inline raw
+`queryOptions` policy. A mutation hook owns the cache updates for the
+same-feature resource it changes. Components report user intent and handle
+presentation effects such as closing a dialog or navigating. A named page or
+application coordinator owns a journey that must update more than one
 feature's cache.
 
 Use `checkedApiRequest` from `@shipfox/client-api` for business responses. It
@@ -179,14 +182,20 @@ raw API requests, and leaf-component query-cache ownership. The repository
 verifier inventories production adapters and query hooks under `libs/client/**`
 and `libs/shared/react/ui/**`. It rejects direct API requests outside adapters,
 unparsed API responses, checked business responses returned without a mapper,
-inline query policies, query hooks outside adapters, and raw route-search
-parsing outside an owned route module. Both checks require zero production
-violations. Neither check has a migration baseline or broad allowlist. The
-step-log query is the only narrow query-policy exception; its per-view cursor
-and retry lifecycle is documented in
-[`clientArchitectureExceptions`](../../tools/client-architecture-policy/src/audit-client-architecture.ts).
-It also rejects deep imports into another feature's private modules and
-navigation or settings contributions that target a route owned by another
+inline query policies, query hooks outside adapters, direct query-client
+operations outside an owning adapter or named coordinator, and raw
+route-search parsing outside an owned route module. Both checks require zero
+production violations. Neither check has a migration baseline or broad
+allowlist. A shell/runtime or cross-feature coordinator that needs a direct
+query-client operation must be recorded in the
+[`cacheOperation` registry](../../tools/client-architecture-policy/src/audit-client-architecture.ts)
+with its exact source file, owner, reason, and focused test. The verifier
+rejects unregistered operations and stale registry records. The step-log query
+is the only narrow query-policy exception; its per-view cursor and retry
+lifecycle is recorded in the same
+[`clientArchitectureExceptions`](../../tools/client-architecture-policy/src/audit-client-architecture.ts)
+registry. It also rejects deep imports into another feature's private modules
+and navigation or settings contributions that target a route owned by another
 feature without an explicit `coordinator`.
 
 A completed feature package has `core/` domain models and policies with no UI
