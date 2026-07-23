@@ -1,0 +1,24 @@
+engine biome(1.0)
+language js(typescript, jsx)
+or {
+  JsImport() as $import where {
+    $import <: r".*drizzle-orm/pg-core.*",
+    $import <: r".*pgTable.*",
+    register_diagnostic(
+      span=$import,
+      message="database-boundaries/no-direct-table-declaration: declare database objects through the registered owner schema factory."
+    )
+  },
+  `$pgCore.pgTable($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="database-boundaries/no-direct-table-declaration: declare database objects through the registered owner schema factory."
+    )
+  },
+  `$pgCore.pgTableCreator($...)` as $match where {
+    register_diagnostic(
+      span=$match,
+      message="database-boundaries/no-direct-table-declaration: declare database objects through the registered owner schema factory."
+    )
+  }
+}

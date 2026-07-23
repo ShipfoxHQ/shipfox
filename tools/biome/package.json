@@ -18,7 +18,9 @@
     "plugins/client-architecture/no-client-framework-in-core.grit",
     "plugins/client-architecture/no-query-cache-ownership.grit",
     "plugins/client-architecture/no-raw-api-request.grit",
-    "plugins/client-architecture/no-response-dto-in-presentation.grit"
+    "plugins/client-architecture/no-response-dto-in-presentation.grit",
+    "plugins/database-boundaries/README.md",
+    "plugins/database-boundaries/no-direct-table-declaration.grit"
   ],
   "exports": {
     "./package.json": "./package.json",
@@ -26,7 +28,8 @@
     "./plugins/client-architecture/no-client-framework-in-core.grit": "./plugins/client-architecture/no-client-framework-in-core.grit",
     "./plugins/client-architecture/no-query-cache-ownership.grit": "./plugins/client-architecture/no-query-cache-ownership.grit",
     "./plugins/client-architecture/no-raw-api-request.grit": "./plugins/client-architecture/no-raw-api-request.grit",
-    "./plugins/client-architecture/no-response-dto-in-presentation.grit": "./plugins/client-architecture/no-response-dto-in-presentation.grit"
+    "./plugins/client-architecture/no-response-dto-in-presentation.grit": "./plugins/client-architecture/no-response-dto-in-presentation.grit",
+    "./plugins/database-boundaries/no-direct-table-declaration.grit": "./plugins/database-boundaries/no-direct-table-declaration.grit"
   },
   "imports": {
     "#*": "./src/*"

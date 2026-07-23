@@ -1,6 +1,6 @@
 # @shipfox/biome
 
-Biome commands, bundled binaries, and client-architecture plugins for Shipfox packages.
+Biome commands, bundled binaries, and architecture plugins for Shipfox packages.
 
 ## What it does
 
@@ -9,6 +9,7 @@ Biome commands, bundled binaries, and client-architecture plugins for Shipfox pa
 - **`shipfox-biome-check`**: Runs format, lint, and assist checks. Most package `check` scripts use it.
 - **Bundled binaries**: Includes Biome for macOS and Linux on ARM64 and x64.
 - **Client-architecture plugins**: Publishes five GritQL rules for external repositories. See the [plugin guide](plugins/client-architecture/README.md).
+- **Database-boundaries plugin**: Publishes a GritQL rule that rejects direct Drizzle table-factory imports. See the [plugin guide](plugins/database-boundaries/README.md).
 
 ## Installation
 
@@ -72,6 +73,15 @@ The package publishes these semver-governed asset paths:
 - `plugins/client-architecture/no-query-cache-ownership.grit`
 - `plugins/client-architecture/no-raw-api-request.grit`
 - `plugins/client-architecture/no-response-dto-in-presentation.grit`
+
+## Database-boundaries plugin
+
+- `plugins/database-boundaries/no-direct-table-declaration.grit`
+
+The database-boundaries rule rejects direct `pgTable` and `pgTableCreator`
+imports from `drizzle-orm/pg-core`. Configure it over database source paths and
+exclude the registered owner schema factory. See the [database-boundaries
+plugin guide](plugins/database-boundaries/README.md).
 
 Consumers reference the installed files from `biome.json`. Do not copy the
 GritQL source into the consumer repository. The [plugin guide](plugins/client-architecture/README.md)

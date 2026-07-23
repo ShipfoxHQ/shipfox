@@ -22,6 +22,7 @@ const publishedPluginFiles = [
   'plugins/client-architecture/no-query-cache-ownership.grit',
   'plugins/client-architecture/no-raw-api-request.grit',
   'plugins/client-architecture/no-response-dto-in-presentation.grit',
+  'plugins/database-boundaries/no-direct-table-declaration.grit',
 ] as const;
 const externalRuleFixtures = [
   {
@@ -121,6 +122,7 @@ describe('packed client-architecture Biome plugins', () => {
         assert.ok(entries.includes(`package/${path}`), `Packed artifact is missing ${path}`);
       }
       assert.ok(entries.includes('package/plugins/client-architecture/README.md'));
+      assert.ok(entries.includes('package/plugins/database-boundaries/README.md'));
       assert.ok(
         !entries.some((entry) => entry.startsWith('package/plugins/client-architecture/fixtures/')),
         'Packed artifact must not publish repository fixtures',
