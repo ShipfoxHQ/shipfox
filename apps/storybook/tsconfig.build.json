@@ -1,0 +1,10 @@
+{
+  "extends": "@shipfox/ts-config/react",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": [".storybook", "preview-manifest.ts", "scripts", "vitest.config.ts"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "src/**/*.mdx"]
+}

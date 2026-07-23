@@ -278,7 +278,7 @@ take part in numeric equality.
 | Temporal SDK | `@temporalio/activity`, `@temporalio/client`, `@temporalio/common`, `@temporalio/interceptors-opentelemetry`, `@temporalio/testing`, `@temporalio/worker`, `@temporalio/workflow` | Yes. | Yes. | Exact. |
 | React runtime | `react`, `react-dom` | Yes. | Yes. | Caret. Peers stay separate. |
 | Vitest | `vitest`, `@vitest/browser-playwright` | Yes. | Yes. | Caret. |
-| Storybook core | `storybook`, `@storybook/addon-vitest`, `@storybook/react`, `@storybook/react-vite` | Yes. | Yes. | Caret. |
+| Storybook | `storybook`, `@storybook/addon-docs`, `@storybook/addon-vitest`, `@storybook/react`, `@storybook/react-vite` | Yes. | Yes. | Caret. |
 | Tailwind CSS | `tailwindcss`, `@tailwindcss/vite` | Yes. | Yes. | Caret. |
 | React type definitions | `@types/react`, `@types/react-dom` | No. | No. | Group only. |
 | TanStack Query | `@tanstack/query-core`, `@tanstack/react-query`, `@tanstack/react-query-devtools` | No. | No. | Group only. |

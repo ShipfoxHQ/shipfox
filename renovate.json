@@ -140,17 +140,18 @@
       "separateMajorMinor": false
     },
     {
-      "description": "Storybook core packages share one upstream release. Wait for all four catalog entries and combine major and non-major releases while retaining caret ranges.",
+      "description": "Storybook packages share one upstream release. Wait for all five catalog entries and combine major and non-major releases while retaining caret ranges.",
       "groupName": "storybook-core",
       "groupSlug": "storybook-core",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "storybook",
+        "@storybook/addon-docs",
         "@storybook/addon-vitest",
         "@storybook/react",
         "@storybook/react-vite"
       ],
-      "minimumGroupSize": 4,
+      "minimumGroupSize": 5,
       "rangeStrategy": "bump",
       "separateMajorMinor": false
     },

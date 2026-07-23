@@ -68,6 +68,7 @@ catalog:
   "@radix-ui/react-tooltip": "^1.2.8"
   "@remixicon/react": "^4.6.0"
   "@sentry/node": "^10.44.0"
+  '@storybook/addon-docs': ^10.4.6
   "@storybook/addon-vitest": "^10.3.6"
   "@storybook/react": "^10.0.0"
   "@storybook/react-vite": "^10.0.0"

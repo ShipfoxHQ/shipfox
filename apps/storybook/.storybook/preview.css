@@ -1,0 +1,115 @@
+body {
+  margin: 0;
+  background: var(--background-neutral-background);
+  color: var(--foreground-neutral-base);
+  font-family: var(--font-display);
+}
+
+.shipfox-introduction {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 48px 24px 64px;
+}
+
+.shipfox-introduction__content {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.shipfox-introduction__eyebrow {
+  margin: 0;
+  color: var(--foreground-neutral-muted);
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 20px;
+  text-transform: uppercase;
+}
+
+.shipfox-introduction__title {
+  max-width: 720px;
+  margin: 16px 0 0;
+  color: var(--foreground-neutral-base);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 44px;
+}
+
+.shipfox-introduction__summary {
+  max-width: 720px;
+  margin: 16px 0 0;
+  color: var(--foreground-neutral-subtle);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.shipfox-introduction__section-title {
+  margin: 40px 0 0;
+  color: var(--foreground-neutral-base);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.shipfox-introduction__links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.shipfox-introduction__link {
+  display: block;
+  padding: 16px;
+  border: 1px solid var(--border-neutral-base);
+  border-radius: 8px;
+  background: var(--background-components-base);
+  box-shadow: var(--shadow-border-base);
+  color: var(--foreground-neutral-base);
+  text-decoration: none;
+  transition:
+    background 150ms ease-out,
+    border-color 150ms ease-out;
+}
+
+.shipfox-introduction__link:hover {
+  border-color: var(--border-neutral-strong);
+  background: var(--background-components-hover);
+}
+
+.shipfox-introduction__link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-button-neutral-focus);
+}
+
+.shipfox-introduction__link-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.shipfox-introduction__link-path {
+  display: block;
+  margin-top: 4px;
+  color: var(--foreground-neutral-muted);
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.shipfox-introduction__note {
+  max-width: 720px;
+  margin: 40px 0 0;
+  padding: 16px;
+  border-left: 4px solid var(--border-highlights-interactive);
+  background: var(--background-components-base);
+  color: var(--foreground-neutral-subtle);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shipfox-introduction__link {
+    transition: none;
+  }
+}
