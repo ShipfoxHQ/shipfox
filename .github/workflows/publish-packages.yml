@@ -39,6 +39,25 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
+      - name: Mint release App installation token
+        id: release-app-token
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          (github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.head.ref == 'changeset-release/main')
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+
+      - name: Resolve release App bot user ID
+        id: release-app
+        if: steps.release-app-token.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.release-app-token.outputs.token }}
+          RELEASE_APP_SLUG: ${{ steps.release-app-token.outputs.app-slug }}
+        run: echo "user_id=$(gh api "/users/${RELEASE_APP_SLUG}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+
       - name: Identify merged generated release
         id: release
         env:
@@ -51,6 +70,7 @@ jobs:
           EVENT_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           INPUT_REVISION: ${{ inputs.revision }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_BOT_USER_ID: ${{ steps.release-app.outputs.user_id }}
         run: |
           node .github/scripts/package-release-workflow.mjs authorize \
             --event-name "$EVENT_NAME" \
@@ -61,7 +81,7 @@ jobs:
             --head-ref "$EVENT_HEAD_REF" \
             --author-id "$EVENT_AUTHOR_ID" \
             --repository "$GITHUB_REPOSITORY" \
-            --release-app-id "${{ vars.RELEASE_BOT_APP_ID }}" \
+            --release-app-id "$RELEASE_BOT_USER_ID" \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
 

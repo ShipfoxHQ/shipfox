@@ -33,5 +33,8 @@ describe('package release workflows', () => {
     assert.ok(workflow.includes('verify-generated-release'));
     assert.ok(workflow.includes('NPM_CONFIG_PROVENANCE: "true"'));
     assert.ok(workflow.includes('package-release-workflow.mjs authorize'));
+    assert.ok(workflow.includes('steps.release-app-token.outputs.app-slug'));
+    assert.ok(workflow.includes('gh api "/users/$' + '{RELEASE_APP_SLUG}[bot]" --jq .id'));
+    assert.ok(workflow.includes('--release-app-id "$RELEASE_BOT_USER_ID"'));
   });
 });

@@ -17,7 +17,9 @@ describe('generated release CI path', () => {
     assert.ok(workflow.includes('release-classification:'));
     assert.ok(workflow.includes('--base "$BASE_SHA"'));
     assert.ok(workflow.includes('--head "$HEAD_SHA"'));
-    assert.ok(workflow.includes('--release-app-id "$RELEASE_BOT_APP_ID"'));
+    assert.ok(workflow.includes('steps.release-app-token.outputs.app-slug'));
+    assert.ok(workflow.includes('gh api "/users/$' + '{RELEASE_APP_SLUG}[bot]" --jq .id'));
+    assert.ok(workflow.includes('--release-app-id "$RELEASE_BOT_USER_ID"'));
     assert.ok(workflow.includes('generated_release=false'));
     assert.ok(workflow.includes('classification" == generated-release'));
   });
