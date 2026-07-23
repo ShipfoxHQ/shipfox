@@ -11,12 +11,6 @@ import {publishSourcePush, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
-// Stable migration-tracking table name for the Gitea provider database. This
-// must NOT depend on the provider's position in the module `database` array. A
-// positional name would shift if a provider is flag-disabled and silently
-// re-run migrations against existing tables.
-const GITEA_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_gitea';
-
 async function loadGiteaModuleParts(): Promise<IntegrationModuleParts> {
   const {
     createGiteaIntegrationProvider,
@@ -91,7 +85,7 @@ async function loadGiteaModuleParts(): Promise<IntegrationModuleParts> {
     database: {
       db: giteaDb,
       migrationsPath: giteaMigrationsPath,
-      migrationsTableName: GITEA_MIGRATIONS_TABLE,
+      databaseNamespace: 'integrations_gitea',
     },
   };
 }

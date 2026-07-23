@@ -49,7 +49,7 @@ export function createRunnersModule({
 }: CreateRunnersModuleOptions & {auth: AuthInterModuleClient}): ShipfoxModule {
   return {
     name: 'runners',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'runners'},
     auth: [
       createRunnerRegistrationTokenAuthMethod(),
       createRunnerControlSessionAuthMethod(),

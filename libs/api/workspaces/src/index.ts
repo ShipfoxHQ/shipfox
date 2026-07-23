@@ -38,7 +38,7 @@ const subscriber = subscriberFactory<WorkspacesEventMap>();
 
 export const workspacesModule: ShipfoxModule = {
   name: 'workspaces',
-  database: {db, migrationsPath},
+  database: {db, migrationsPath, databaseNamespace: 'workspaces'},
   routes: workspacesRoutes,
   e2eRoutes: [workspacesE2eRoutes],
   publishers: [

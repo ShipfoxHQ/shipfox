@@ -234,34 +234,6 @@ const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Objec
   ),
   baselineEntry(
     {
-      owner: 'neutral-infrastructure',
-      namespace: 'neutral',
-      file: 'libs/shared/node/module/src/initialize.ts',
-      line: 96,
-      object: 'moduleMigrationTableName',
-      rule: 'migration-history-instability',
-      suggestedBoundary:
-        'Require the registered database namespace on every ModuleDatabase declaration.',
-    },
-    'ENG-1194',
-    'ModuleDatabase requires a registered stable namespace and no positional fallback.',
-  ),
-  baselineEntry(
-    {
-      owner: 'neutral-infrastructure',
-      namespace: 'neutral',
-      file: 'libs/shared/node/module/src/types.ts',
-      line: 20,
-      object: 'migrationsTableName',
-      rule: 'migration-history-instability',
-      suggestedBoundary:
-        'Require the registered database namespace on every ModuleDatabase declaration.',
-    },
-    'ENG-1194',
-    'ModuleDatabase requires a registered stable namespace and no positional fallback.',
-  ),
-  baselineEntry(
-    {
       owner: 'workflows',
       namespace: 'workflows',
       file: 'libs/api/workflows/src/db/runner-lease-table.ts',

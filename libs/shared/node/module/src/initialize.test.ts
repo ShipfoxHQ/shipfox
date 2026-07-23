@@ -1,4 +1,5 @@
 import {
+  initializeModules,
   registerModuleMetrics,
   runModuleStartupTasks as runStartupTasks,
   startModuleServices as startServices,
@@ -28,6 +29,7 @@ function startModuleWorkers(options: Omit<Parameters<typeof startWorkers>[0], 'c
 }
 
 const mocks = vi.hoisted(() => ({
+  runMigrations: vi.fn(),
   closeTemporalClient: vi.fn(),
   createTemporalClient: vi.fn(),
   createTemporalWorker: vi.fn(),
@@ -42,6 +44,10 @@ const mocks = vi.hoisted(() => ({
   },
   metricAdd: vi.fn(),
   metricRecord: vi.fn(),
+}));
+
+vi.mock('@shipfox/node-drizzle', () => ({
+  runMigrations: mocks.runMigrations,
 }));
 
 vi.mock('@shipfox/node-temporal', () => ({
@@ -66,6 +72,98 @@ vi.mock('@shipfox/node-opentelemetry', () => ({
     }),
   },
 }));
+
+function migrationModule(
+  name: string,
+  databaseNamespace: string,
+  extraDatabases: Array<{databaseNamespace: string}> = [],
+): ShipfoxModule {
+  return {
+    name,
+    database: [
+      ...[databaseNamespace, ...extraDatabases.map((database) => database.databaseNamespace)].map(
+        (namespace) => ({
+          db: () => undefined as never,
+          migrationsPath: `/migrations/${namespace}`,
+          databaseNamespace: namespace,
+        }),
+      ),
+    ],
+  };
+}
+
+describe('initializeModules database namespaces', () => {
+  beforeEach(() => {
+    mocks.runMigrations.mockReset();
+  });
+
+  it('derives stable migration histories when databases are reordered or removed', async () => {
+    await initializeModules({
+      modules: [
+        migrationModule('integrations', 'integrations', [
+          {databaseNamespace: 'integrations_github'},
+        ]),
+        migrationModule('auth', 'auth'),
+      ],
+    });
+
+    expect(mocks.runMigrations.mock.calls.map((call) => call[2])).toEqual([
+      '__drizzle_migrations_integrations',
+      '__drizzle_migrations_integrations_github',
+      '__drizzle_migrations_auth',
+    ]);
+
+    mocks.runMigrations.mockReset();
+
+    await initializeModules({
+      modules: [
+        migrationModule('auth', 'auth'),
+        migrationModule('integrations', 'integrations_github', [
+          {databaseNamespace: 'integrations'},
+        ]),
+      ],
+    });
+
+    expect(mocks.runMigrations.mock.calls.map((call) => call[2])).toEqual([
+      '__drizzle_migrations_auth',
+      '__drizzle_migrations_integrations_github',
+      '__drizzle_migrations_integrations',
+    ]);
+
+    mocks.runMigrations.mockReset();
+
+    await initializeModules({modules: [migrationModule('integrations', 'integrations')]});
+
+    expect(mocks.runMigrations.mock.calls.map((call) => call[2])).toEqual([
+      '__drizzle_migrations_integrations',
+    ]);
+  });
+
+  it('rejects duplicate namespaces before running any migrations', async () => {
+    await expect(
+      initializeModules({
+        modules: [migrationModule('first', 'shared'), migrationModule('second', 'shared')],
+      }),
+    ).rejects.toThrow(
+      'Duplicate database namespace "shared" declared by modules "first" and "second"',
+    );
+
+    expect(mocks.runMigrations).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    '',
+    'Integrations',
+    'integrations-github',
+    '_integrations',
+  ])('rejects invalid namespace %j before running any migrations', async (databaseNamespace) => {
+    await expect(
+      initializeModules({modules: [migrationModule('invalid', databaseNamespace)]}),
+    ).rejects.toThrow(`Invalid database namespace "${databaseNamespace}"`);
+
+    expect(mocks.runMigrations).not.toHaveBeenCalled();
+  });
+});
 
 describe('registerModuleMetrics', () => {
   it('invokes the metrics hook for each module that declares one', () => {

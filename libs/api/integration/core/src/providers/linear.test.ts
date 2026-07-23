@@ -27,7 +27,7 @@ describe('linearProviderModule', () => {
     await runMigrations(
       linearPart.database.db(),
       linearPart.database.migrationsPath,
-      linearPart.database.migrationsTableName,
+      `__drizzle_migrations_${linearPart.database.databaseNamespace}`,
     );
     const app = await createTestApp([linearPart.provider]);
     const connection = await upsertIntegrationConnection({
@@ -99,7 +99,7 @@ describe('linearProviderModule', () => {
     await runMigrations(
       linearPart.database.db(),
       linearPart.database.migrationsPath,
-      linearPart.database.migrationsTableName,
+      `__drizzle_migrations_${linearPart.database.databaseNamespace}`,
     );
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,

@@ -26,7 +26,7 @@ describe('jiraProviderModule', () => {
     await runMigrations(
       jiraPart.database.db(),
       jiraPart.database.migrationsPath,
-      jiraPart.database.migrationsTableName,
+      `__drizzle_migrations_${jiraPart.database.databaseNamespace}`,
     );
     const connection = await upsertIntegrationConnection({
       workspaceId,
