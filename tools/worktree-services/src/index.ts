@@ -69,6 +69,7 @@ export interface WorktreeServicesConfig {
 export interface WorktreeServicesOptions {
   env?: WorktreeEnvironment;
   registryFile?: string;
+  repositoryId?: string;
   rootPath?: string;
   workspacePath?: string;
 }
@@ -141,7 +142,12 @@ export function createWorktreeServices(
   const composeEnvFile = resolve(stateDir, 'compose.env');
   const appEnvFile = resolve(stateDir, 'env');
   const workspaceId = workspaceIdentity(workspacePath, env);
-  const projectName = resolveProjectName(workspacePath, workspaceId, portsFile);
+  const repositoryId = options.repositoryId ?? repositoryIdentity(workspacePath, rootPath);
+  const projectName = resolveProjectName(
+    workspacePath,
+    portLeaseKey(repositoryId, workspaceId),
+    portsFile,
+  );
 
   return {
     up() {
@@ -153,7 +159,7 @@ export function createWorktreeServices(
       mkdirSync(stateDir, {recursive: true});
       const portRange = resolvePortRange(env);
       const ports = portsFromBase(
-        leasePortBlock({workspaceId, workspacePath, registryFile, portRange}),
+        leasePortBlock({repositoryId, workspaceId, workspacePath, registryFile, portRange}),
         validatedConfig.ports,
       );
 
@@ -227,7 +233,7 @@ export function createWorktreeServices(
         );
       }
       rmSync(stateDir, {recursive: true, force: true});
-      releasePortLease(workspacePath, workspaceId, registryFile);
+      releasePortLease(workspacePath, repositoryId, workspaceId, registryFile);
     },
     status() {
       requireComposeState(composeEnvFile, workspacePath);
@@ -250,20 +256,24 @@ export function createWorktreeServices(
 export function leasePortBlock({
   portRange = defaultPortRange,
   registryFile = defaultPortLeasesFile(),
+  repositoryId,
   workspaceId,
   workspacePath = process.cwd(),
 }: {
   portRange?: PortRange;
   registryFile?: string;
+  repositoryId?: string;
   workspaceId?: string;
   workspacePath?: string;
 } = {}): number {
   const resolvedWorkspacePath = resolve(workspacePath);
   const leaseWorkspaceId = workspaceId ?? resolvedWorkspacePath;
+  const leaseRepositoryId = repositoryId ?? resolvedWorkspacePath;
+  const leaseKey = portLeaseKey(leaseRepositoryId, leaseWorkspaceId);
   const resolvedPortRange = normalizePortRange(portRange);
   return withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
-    const existingLease = registry.leases[leaseWorkspaceId];
+    const existingLease = registry.leases[leaseKey];
     if (existingLease) {
       existingLease.workspacePath = resolvedWorkspacePath;
       writePortLeaseRegistry(registry, registryFile);
@@ -271,23 +281,33 @@ export function leasePortBlock({
     }
 
     const legacyLeaseKey = Object.entries(registry.leases).find(
-      ([leaseKey, lease]) =>
-        leaseKey === resolvedWorkspacePath || lease.workspacePath === resolvedWorkspacePath,
+      ([existingLeaseKey, lease]) =>
+        existingLeaseKey === leaseWorkspaceId ||
+        existingLeaseKey === resolvedWorkspacePath ||
+        lease.workspacePath === resolvedWorkspacePath ||
+        (lease.repositoryId === 'legacy' && lease.workspaceId === leaseWorkspaceId),
     )?.[0];
     if (legacyLeaseKey) {
       const legacyLease = registry.leases[legacyLeaseKey];
       if (!legacyLease) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
       delete registry.leases[legacyLeaseKey];
-      registry.leases[leaseWorkspaceId] = {...legacyLease, workspacePath: resolvedWorkspacePath};
+      registry.leases[leaseKey] = {
+        ...legacyLease,
+        repositoryId: leaseRepositoryId,
+        workspaceId: leaseWorkspaceId,
+        workspacePath: resolvedWorkspacePath,
+      };
       writePortLeaseRegistry(registry, registryFile);
       return legacyLease.base;
     }
 
     const base = nextAvailablePortBlock(registry, resolvedPortRange);
-    registry.leases[leaseWorkspaceId] = {
+    registry.leases[leaseKey] = {
       allocatedAt: new Date().toISOString(),
       base,
       range: resolvedPortRange,
+      repositoryId: leaseRepositoryId,
+      workspaceId: leaseWorkspaceId,
       workspacePath: resolvedWorkspacePath,
     };
     writePortLeaseRegistry(registry, registryFile);
@@ -299,28 +319,29 @@ export function findStalePortLeases({
   registryFile = defaultPortLeasesFile(),
 }: {
   registryFile?: string;
-} = {}): Array<PortLease & {workspaceId: string}> {
+} = {}): Array<PortLease & {leaseKey: string}> {
   return withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
     return Object.entries(registry.leases)
       .map(([workspaceId, lease]) => ({
         ...lease,
         range: normalizePortRange(lease.range),
-        workspaceId,
-        workspacePath: lease.workspacePath ?? workspaceId,
+        leaseKey: workspaceId,
       }))
-      .filter(({workspacePath}) => !existsSync(workspacePath));
+      .filter(
+        (lease) => !existsSync(lease.workspacePath) && lease.workspaceId === lease.workspacePath,
+      );
   }, registryFile);
 }
 
 export function removeStalePortLeases(
-  staleLeases: Array<PortLease & {workspaceId: string}>,
+  staleLeases: Array<PortLease & {leaseKey: string}>,
   {registryFile = defaultPortLeasesFile()}: {registryFile?: string} = {},
 ): void {
   withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
-    for (const {workspaceId, workspacePath} of staleLeases) {
-      if (!existsSync(workspacePath)) delete registry.leases[workspaceId];
+    for (const {leaseKey, workspacePath} of staleLeases) {
+      if (!existsSync(workspacePath)) delete registry.leases[leaseKey];
     }
     writePortLeaseRegistry(registry, registryFile);
   }, registryFile);
@@ -407,13 +428,15 @@ export interface PortLease {
   allocatedAt: string;
   base: number;
   range: PortRange;
+  repositoryId: string;
+  workspaceId: string;
   workspacePath: string;
 }
 
 interface PortLeaseRegistry {
   leases: Record<string, PortLease>;
   ranges: Record<string, PortRange & {nextBase: number}>;
-  version: 2;
+  version: 3;
 }
 
 function defaultPortLeasesFile(): string {
@@ -422,6 +445,23 @@ function defaultPortLeasesFile(): string {
 
 function workspaceIdentity(workspacePath: string, env: WorktreeEnvironment): string {
   return env.CONDUCTOR_WORKSPACE_ID || resolve(workspacePath);
+}
+
+function repositoryIdentity(workspacePath: string, rootPath: string | undefined): string {
+  if (rootPath) return resolve(rootPath);
+  const result = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+    cwd: workspacePath,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  if (result.status === 0 && typeof result.stdout === 'string' && result.stdout.trim()) {
+    return resolve(workspacePath, result.stdout.trim());
+  }
+  return workspacePath;
+}
+
+function portLeaseKey(repositoryId: string, workspaceId: string): string {
+  return JSON.stringify([repositoryId, workspaceId]);
 }
 
 function resolveProjectName(workspacePath: string, workspaceId: string, portsFile: string): string {
@@ -517,7 +557,7 @@ function requireComposeState(composeEnvFile: string, workspacePath: string): voi
 
 function readPortLeaseRegistry(registryFile: string): PortLeaseRegistry {
   if (!existsSync(registryFile)) {
-    return {version: 2, ranges: {}, leases: {}};
+    return {version: 3, ranges: {}, leases: {}};
   }
 
   let registry: unknown;
@@ -526,12 +566,12 @@ function readPortLeaseRegistry(registryFile: string): PortLeaseRegistry {
   } catch {
     fail(`Invalid Shipfox port lease registry: ${registryFile}`);
   }
-  if (isRecord(registry) && registry.version === 1) {
+  if (isRecord(registry) && (registry.version === 1 || registry.version === 2)) {
     return migrateLegacyPortLeaseRegistry(registry, registryFile);
   }
   if (
     !isRecord(registry) ||
-    registry.version !== 2 ||
+    registry.version !== 3 ||
     !isRecord(registry.ranges) ||
     !isRecord(registry.leases)
   ) {
@@ -546,16 +586,24 @@ function readPortLeaseRegistry(registryFile: string): PortLeaseRegistry {
       }
     }
     const leases: Record<string, PortLease> = {};
-    for (const [workspaceId, lease] of Object.entries(registry.leases)) {
+    for (const [leaseKey, lease] of Object.entries(registry.leases)) {
       if (!isRecord(lease)) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
       const range = normalizePortRange(lease.range);
-      if (!isPortBlockStart(lease.base, range) || typeof lease.workspacePath !== 'string') {
+      if (
+        !isPortBlockStart(lease.base, range) ||
+        typeof lease.repositoryId !== 'string' ||
+        typeof lease.workspaceId !== 'string' ||
+        typeof lease.workspacePath !== 'string' ||
+        leaseKey !== portLeaseKey(lease.repositoryId, lease.workspaceId)
+      ) {
         fail(`Invalid Shipfox port lease registry: ${registryFile}`);
       }
-      leases[workspaceId] = {
+      leases[leaseKey] = {
         allocatedAt: String(lease.allocatedAt),
         base: lease.base,
         range,
+        repositoryId: lease.repositoryId,
+        workspaceId: lease.workspaceId,
         workspacePath: lease.workspacePath,
       };
     }
@@ -567,7 +615,7 @@ function readPortLeaseRegistry(registryFile: string): PortLeaseRegistry {
       }
       ranges[key] = {...range, nextBase: rangeState.nextBase};
     }
-    return {version: 2, ranges, leases};
+    return {version: 3, ranges, leases};
   } catch {
     fail(`Invalid Shipfox port lease registry: ${registryFile}`);
   }
@@ -577,9 +625,19 @@ function migrateLegacyPortLeaseRegistry(
   registry: Record<string, unknown>,
   registryFile: string,
 ): PortLeaseRegistry {
-  if (!isRecord(registry.leases) || !Number.isInteger(registry.nextBase)) {
+  if (!isRecord(registry.leases)) {
     fail(`Invalid Shipfox port lease registry: ${registryFile}`);
   }
+  if (registry.version === 1) return migrateVersionOnePortLeaseRegistry(registry, registryFile);
+  return migrateVersionTwoPortLeaseRegistry(registry, registryFile);
+}
+
+function migrateVersionOnePortLeaseRegistry(
+  registry: Record<string, unknown>,
+  registryFile: string,
+): PortLeaseRegistry {
+  if (!Number.isInteger(registry.nextBase))
+    fail(`Invalid Shipfox port lease registry: ${registryFile}`);
   let range: PortRange;
   try {
     range = normalizePortRange(registry.range);
@@ -589,23 +647,67 @@ function migrateLegacyPortLeaseRegistry(
   } catch {
     fail(`Invalid Shipfox port lease registry: ${registryFile}`);
   }
-  const leases: Record<string, PortLease> = {};
-  for (const [workspaceId, lease] of Object.entries(registry.leases)) {
-    if (!isRecord(lease) || !isPortBlockStart(lease.base, range)) {
-      fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+  return legacyRegistryToVersionThree(
+    registry.leases as Record<string, unknown>,
+    {
+      [portRangeKey(range)]: {...range, nextBase: registry.nextBase},
+    },
+    registryFile,
+  );
+}
+
+function migrateVersionTwoPortLeaseRegistry(
+  registry: Record<string, unknown>,
+  registryFile: string,
+): PortLeaseRegistry {
+  if (!isRecord(registry.ranges)) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+  const ranges: PortLeaseRegistry['ranges'] = {};
+  try {
+    for (const [key, rangeState] of Object.entries(registry.ranges)) {
+      const range = normalizePortRange(rangeState);
+      if (
+        !isRecord(rangeState) ||
+        key !== portRangeKey(range) ||
+        !isPortBlockStart(rangeState.nextBase, range)
+      ) {
+        fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+      }
+      ranges[key] = {...range, nextBase: rangeState.nextBase};
     }
-    leases[workspaceId] = {
+  } catch {
+    fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+  }
+  return legacyRegistryToVersionThree(
+    registry.leases as Record<string, unknown>,
+    ranges,
+    registryFile,
+  );
+}
+
+function legacyRegistryToVersionThree(
+  legacyLeases: Record<string, unknown>,
+  ranges: PortLeaseRegistry['ranges'],
+  registryFile: string,
+): PortLeaseRegistry {
+  const leases: Record<string, PortLease> = {};
+  for (const [legacyKey, lease] of Object.entries(legacyLeases)) {
+    if (!isRecord(lease)) fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+    const range = normalizePortRange(lease.range ?? ranges[Object.keys(ranges)[0]]);
+    if (!isPortBlockStart(lease.base, range))
+      fail(`Invalid Shipfox port lease registry: ${registryFile}`);
+    const workspacePath = typeof lease.workspacePath === 'string' ? lease.workspacePath : legacyKey;
+    const workspaceId = legacyKey;
+    const repositoryId = 'legacy';
+    leases[portLeaseKey(repositoryId, workspaceId)] = {
       allocatedAt: String(lease.allocatedAt),
       base: lease.base,
       range,
-      workspacePath: typeof lease.workspacePath === 'string' ? lease.workspacePath : workspaceId,
+      repositoryId,
+      workspaceId,
+      workspacePath,
     };
   }
-  return {
-    version: 2,
-    ranges: {[portRangeKey(range)]: {...range, nextBase: registry.nextBase}},
-    leases,
-  };
+  return {version: 3, ranges, leases};
 }
 
 function writePortLeaseRegistry(registry: PortLeaseRegistry, registryFile: string): void {
@@ -713,12 +815,23 @@ function validatePortDefinitions(definitions: StandardPortDefinitions): void {
   }
 }
 
-function releasePortLease(workspacePath: string, workspaceId: string, registryFile: string): void {
+function releasePortLease(
+  workspacePath: string,
+  repositoryId: string,
+  workspaceId: string,
+  registryFile: string,
+): void {
   withPortLeaseLock(() => {
     const registry = readPortLeaseRegistry(registryFile);
-    delete registry.leases[workspaceId];
+    delete registry.leases[portLeaseKey(repositoryId, workspaceId)];
     for (const [leaseId, lease] of Object.entries(registry.leases)) {
-      if (lease.workspacePath === workspacePath) delete registry.leases[leaseId];
+      if (
+        lease.workspacePath === workspacePath &&
+        lease.repositoryId === repositoryId &&
+        lease.workspaceId === workspaceId
+      ) {
+        delete registry.leases[leaseId];
+      }
     }
     writePortLeaseRegistry(registry, registryFile);
   }, registryFile);

@@ -74,8 +74,10 @@ SHIPFOX_PORT_RANGE_END = '71999'
 
 All repositories share this user-local registry:
 `~/.shipfox/shipfox-port-leases.json`. It prevents overlapping blocks. This
-also works when configured ranges overlap by mistake. Conductor uses
-`CONDUCTOR_WORKSPACE_ID` when available. A normal checkout uses its path.
+also works when configured ranges overlap by mistake. A lease is keyed by the
+repository identity and, in Conductor, `CONDUCTOR_WORKSPACE_ID`; a normal
+checkout uses its path. The stored workspace path is only the last observed
+location, so renaming a Conductor workspace does not change its lease.
 
 ## Commands
 
@@ -85,11 +87,15 @@ also works when configured ranges overlap by mistake. Conductor uses
 | `shipfox-worktree-services stop` | Stop services and keep their volumes. |
 | `shipfox-worktree-services status` | Show the Compose service status. |
 | `shipfox-worktree-services destroy` | Remove this workspace's services, volumes, state, and lease. |
-| `shipfox-worktree-services cleanup` | Report leases for missing workspaces. |
-| `shipfox-worktree-services cleanup --apply` | Remove the reported stale leases. |
+| `shipfox-worktree-services cleanup` | Report safely reclaimable leases for missing path-identified checkouts. |
+| `shipfox-worktree-services cleanup --apply` | Remove the reported path-identified leases. |
 
 Use `--workspace`, `--root`, or `--config` for explicit workspace and archive
 commands. `cleanup` is read-only unless you pass `--apply`.
+
+Conductor leases are released by `destroy`, including the configured archive
+script. Cleanup deliberately does not reclaim a Conductor lease from a missing
+path: the workspace may have been renamed since it last ran services.
 
 ## Public API
 

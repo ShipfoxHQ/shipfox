@@ -68,7 +68,11 @@ checkout reserves `20000–24999`; another repository sharing the same machine
 should reserve a different range. This checkout supports 250 worktree leases;
 another repository can start at `25000`. All ranges still use 20-port blocks, and
 the shared `~/.shipfox/shipfox-port-leases.json` registry rejects overlapping
-allocations.
+allocations. Conductor leases use the stable workspace ID, scoped to this
+repository; their recorded paths are refreshed when services start. Archive or
+destroy a Conductor workspace to release its lease. Cleanup only reclaims
+missing path-identified checkouts, because a missing historical Conductor path
+may mean that the workspace was renamed.
 
 | Need | Command |
 | --- | --- |

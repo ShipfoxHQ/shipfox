@@ -227,6 +227,37 @@ describe('port leases', () => {
     }
   });
 
+  test('namespaces identical workspace IDs by repository', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(root, 'shipfox-port-leases.json');
+    const firstWorkspace = join(root, 'first');
+    const secondWorkspace = join(root, 'second');
+    mkdirSync(firstWorkspace);
+    mkdirSync(secondWorkspace);
+    try {
+      assert.equal(
+        leasePortBlock({
+          repositoryId: 'repository-one',
+          workspaceId: 'conductor-workspace-123',
+          workspacePath: firstWorkspace,
+          registryFile,
+        }),
+        20_000,
+      );
+      assert.equal(
+        leasePortBlock({
+          repositoryId: 'repository-two',
+          workspaceId: 'conductor-workspace-123',
+          workspacePath: secondWorkspace,
+          registryFile,
+        }),
+        20_020,
+      );
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
   test('keeps a Conductor workspace lease after the workspace is renamed', () => {
     const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
     const registryFile = join(root, 'shipfox-port-leases.json');
@@ -236,6 +267,7 @@ describe('port leases', () => {
     try {
       assert.equal(
         leasePortBlock({
+          repositoryId: 'repository',
           workspaceId: 'conductor-workspace-123',
           workspacePath: originalWorkspace,
           registryFile,
@@ -245,12 +277,34 @@ describe('port leases', () => {
       renameSync(originalWorkspace, renamedWorkspace);
       assert.equal(
         leasePortBlock({
+          repositoryId: 'repository',
           workspaceId: 'conductor-workspace-123',
           workspacePath: renamedWorkspace,
           registryFile,
         }),
         20_000,
       );
+      assert.deepEqual(findStalePortLeases({registryFile}), []);
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('does not automatically reclaim a renamed Conductor workspace before it refreshes its path', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(root, 'shipfox-port-leases.json');
+    const originalWorkspace = join(root, 'original');
+    const renamedWorkspace = join(root, 'renamed');
+    mkdirSync(originalWorkspace);
+    try {
+      leasePortBlock({
+        repositoryId: 'repository',
+        workspaceId: 'conductor-workspace-123',
+        workspacePath: originalWorkspace,
+        registryFile,
+      });
+      renameSync(originalWorkspace, renamedWorkspace);
+
       assert.deepEqual(findStalePortLeases({registryFile}), []);
     } finally {
       rmSync(root, {recursive: true, force: true});
@@ -274,6 +328,42 @@ describe('port leases', () => {
     try {
       assert.equal(
         leasePortBlock({
+          workspaceId: 'conductor-workspace-123',
+          workspacePath: workspace,
+          registryFile,
+        }),
+        20_000,
+      );
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
+  test('migrates an existing unscoped Conductor lease into its repository namespace', () => {
+    const root = mkdtempSync(join(tmpdir(), 'shipfox-port-leases-'));
+    const registryFile = join(root, 'shipfox-port-leases.json');
+    const workspace = join(root, 'workspace');
+    const range = {start: 20_000, end: 45_999, blockSize: 20};
+    mkdirSync(workspace);
+    writeFileSync(
+      registryFile,
+      `${JSON.stringify({
+        version: 2,
+        ranges: {'20000-45999-20': {...range, nextBase: 20_020}},
+        leases: {
+          'conductor-workspace-123': {
+            allocatedAt: '2026-07-22T00:00:00.000Z',
+            base: 20_000,
+            range,
+            workspacePath: workspace,
+          },
+        },
+      })}\n`,
+    );
+    try {
+      assert.equal(
+        leasePortBlock({
+          repositoryId: 'repository',
           workspaceId: 'conductor-workspace-123',
           workspacePath: workspace,
           registryFile,
