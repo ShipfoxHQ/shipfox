@@ -1,8 +1,9 @@
-import {DEFAULT_AGENT_THINKING, getModelProviderEntry} from '@shipfox/api-agent-dto';
+import {DEFAULT_AGENT_THINKING} from '@shipfox/api-agent-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {agentSystemNamespace} from '#core/credential-fingerprints.js';
 import {listHarnessProviderModels} from '#core/harness/registry.js';
+import {getModelProviderEntry} from '#core/model-provider-policy.js';
 import type {AgentSecretsClient} from '#core/secrets-client.js';
 import {upsertModelProviderConfig} from '#db/index.js';
 

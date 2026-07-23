@@ -5,10 +5,9 @@ import {
   AGENT_INTEGRATION_MCP_TRANSPORT,
 } from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import type {AgentToolCatalogEntry} from '@shipfox/api-integration-spi';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
-import type {AgentToolMaterializationContext} from '#core/agent-tools.js';
+import type {AgentToolCatalogEntry, AgentToolMaterializationContext} from '#core/agent-tools.js';
 import {AgentConfigUnresolvableError, InterpolationUnresolvableError} from '#core/errors.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {workflowModel} from '#test/index.js';

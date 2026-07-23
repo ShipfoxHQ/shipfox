@@ -1,6 +1,6 @@
 import type {SupportedModelProviderId} from '@shipfox/api-agent-dto';
-import {getModelProviderEntry} from '@shipfox/api-agent-dto';
 import {UnsupportedModelProviderError} from './errors.js';
+import {getModelProviderEntry} from './model-provider-policy.js';
 
 export function agentSystemNamespace(providerId: string): string {
   return `system/agent/model-provider/${providerId}`;

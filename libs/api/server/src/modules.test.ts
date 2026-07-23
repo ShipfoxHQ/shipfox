@@ -258,6 +258,27 @@ describe('defaultModules', () => {
     ]);
   });
 
+  it('registers one presentation for every composed inter-module client before sealing', async () => {
+    const modules = await defaultModules();
+    const presentationModules = modules.flatMap((module) =>
+      (module.interModulePresentations ?? []).map(({contract}) => contract.module),
+    );
+    const composedClientModules = [
+      agentInterModuleContract,
+      annotationsInterModuleContract,
+      authInterModuleContract,
+      definitionsInterModuleContract,
+      integrationsInterModuleContract,
+      projectsInterModuleContract,
+      runnersInterModuleContract,
+      secretsInterModuleContract,
+      workflowsInterModuleContract,
+      workspacesInterModuleContract,
+    ].map((contract) => contract.module);
+
+    expect(presentationModules.sort()).toEqual(composedClientModules.sort());
+  });
+
   it('injects Auth into the Runners module', async () => {
     await defaultModules();
 

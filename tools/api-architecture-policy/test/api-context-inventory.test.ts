@@ -54,4 +54,59 @@ describe('auditApiContextInventory', () => {
     assert.deepEqual(manifestErrors, ['Foreign implementation manifest edge: devDependencies']);
     assert.deepEqual(dtoErrors, ['DTO root exports inter-module contract']);
   });
+
+  test('rejects implementation dependencies from DTOs, shared semantics, and foreign SPIs', () => {
+    const dtoErrors = auditPolicyFixture({
+      dependencyGroup: 'dependencies',
+      importerPath: 'libs/api/workflows-dto',
+      sourceFile: 'src/index.ts:@shipfox/api-workflows',
+      targetPath: 'libs/api/workflows',
+    });
+    const sharedSemanticErrors = auditPolicyFixture({
+      dependencyGroup: 'dependencies',
+      importerPath: 'libs/shared/common/runner-labels',
+      sourceFile: 'src/index.ts:@shipfox/api-runners',
+      targetPath: 'libs/api/runners',
+    });
+    const spiErrors = auditPolicyFixture({
+      dependencyGroup: 'dependencies',
+      importerPath: 'libs/api/integration/spi',
+      sourceFile: 'src/index.ts:@shipfox/api-workflows',
+      targetPath: 'libs/api/workflows',
+    });
+    assert.deepEqual(dtoErrors, [
+      'DTO implementation import: src/index.ts:@shipfox/api-workflows',
+      'DTO implementation manifest edge: dependencies',
+    ]);
+    assert.deepEqual(sharedSemanticErrors, [
+      'Shared semantic implementation import: src/index.ts:@shipfox/api-runners',
+      'Shared semantic implementation dependency: dependencies',
+    ]);
+    assert.deepEqual(spiErrors, [
+      'Foreign SPI implementation import: src/index.ts:@shipfox/api-workflows',
+      'Foreign SPI implementation manifest edge: dependencies',
+    ]);
+  });
+
+  test('rejects foreign implementation dependencies on same-context SPIs', () => {
+    const errors = auditPolicyFixture({
+      dependencyGroup: 'dependencies',
+      importerPath: 'libs/api/workflows',
+      sourceFile: 'src/core/agent-tools.ts:@shipfox/api-integration-spi',
+      targetPath: 'libs/api/integration/spi',
+    });
+
+    assert.deepEqual(errors, [
+      'Foreign same-context SPI import: src/core/agent-tools.ts:@shipfox/api-integration-spi',
+      'Foreign same-context SPI manifest edge: dependencies',
+    ]);
+  });
+
+  test('rejects implementation details from DTO roots', () => {
+    const errors = auditPolicyFixture({
+      dtoRootExportSpecifier: './presentation/client.js',
+      importerPath: 'libs/api/workflows-dto',
+    });
+    assert.deepEqual(errors, ['DTO root exports implementation detail']);
+  });
 });

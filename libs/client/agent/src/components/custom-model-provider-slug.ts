@@ -1,4 +1,4 @@
-import {isReservedModelProviderId, MODEL_PROVIDER_SLUG_PATTERN} from '@shipfox/api-agent-dto';
+import {MODEL_PROVIDER_SLUG_PATTERN} from '@shipfox/api-agent-dto';
 
 const MAX_SLUG_LENGTH = 40;
 const SLUG_FORMAT_ERROR =
@@ -15,9 +15,12 @@ export function deriveCustomModelProviderSlug(displayName: string): string {
     .replace(/-+$/g, '');
 }
 
-export function customModelProviderSlugError(slug: string): string | undefined {
+export function customModelProviderSlugError(
+  slug: string,
+  reservedProviderIds: readonly string[] = [],
+): string | undefined {
   const trimmed = slug.trim();
   if (!MODEL_PROVIDER_SLUG_PATTERN.test(trimmed)) return SLUG_FORMAT_ERROR;
-  if (isReservedModelProviderId(trimmed)) return 'This id is reserved for a built-in provider.';
+  if (reservedProviderIds.includes(trimmed)) return 'This id is reserved for a built-in provider.';
   return undefined;
 }

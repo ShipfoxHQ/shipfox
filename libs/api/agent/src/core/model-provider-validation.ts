@@ -5,12 +5,11 @@ import {
   getModels,
   type ProviderStreamOptions,
 } from '@earendil-works/pi-ai';
-import {
-  type CustomAgentModelDto,
-  getModelProviderEntry,
-  type ModelProviderApi,
-  type ModelProviderRef,
-  type SupportedModelProviderId,
+import type {
+  CustomAgentModelDto,
+  ModelProviderApi,
+  ModelProviderRef,
+  SupportedModelProviderId,
 } from '@shipfox/api-agent-dto';
 import {type EgressPolicy, parseEgressHostDenylist} from '@shipfox/node-egress-guard';
 import {redactSecrets, secretWireForms} from '@shipfox/redact';
@@ -24,6 +23,7 @@ import {
   ModelProviderValidationUnavailableError,
   UnsupportedModelProviderError,
 } from './errors.js';
+import {getModelProviderEntry} from './model-provider-policy.js';
 
 const PROBE_MAX_TOKENS = 64;
 const MAX_SANITIZED_ERROR_LENGTH = 500;

@@ -1,4 +1,3 @@
-import {getModelProviderCredentialKeys} from '@shipfox/api-agent-dto';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {EgressDeniedError} from '@shipfox/node-egress-guard';
@@ -14,6 +13,7 @@ import {
   ModelProviderValidationError,
   UnsupportedModelProviderError,
 } from '#core/index.js';
+import {getModelProviderCredentialKeys} from '#core/model-provider-policy.js';
 
 export function translateModelProviderRouteError(error: unknown): never {
   if (error instanceof ModelProviderValidationError) {
