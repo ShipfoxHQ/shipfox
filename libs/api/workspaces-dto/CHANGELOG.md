@@ -1,5 +1,16 @@
 # @shipfox/api-workspaces-dto
 
+## 9.0.0
+
+### Minor Changes
+
+- 9c9d266: Adds a producer-owned workspace creator lookup for inter-module consumers.
+
+### Patch Changes
+
+- @shipfox/api-common-dto@6.0.0
+- @shipfox/inter-module@0.2.0
+
 ## 6.0.0
 
 ### Minor Changes

@@ -1,5 +1,43 @@
 # @shipfox/client-projects
 
+## 6.0.0
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+- 125c90f: Adds checked Projects domain models and resource-owned query cache policy.
+
+### Patch Changes
+
+- 82eda45: Adds validated URL-owned project and workflow run filters for shareable navigation state.
+- c02ac42: Converges the integrations client on a package-owned domain model (camelCase, schema-validated) instead of exposing raw snake_case API DTOs, changing the shape of `useSourceConnectionsQuery`, `useIntegrationConnectionsQuery`, `useIntegrationProvidersQuery`, `useRepositoriesInfiniteQuery`, and the `ConnectionPicker`/`ProviderGrid`/`RepositoryPicker` props. Adds `emptyResponseSchema` to `@shipfox/client-api` for schema-validated DELETE requests with no response body.
+- Updated dependencies [401b583]
+- Updated dependencies [e009149]
+- Updated dependencies [d784a07]
+- Updated dependencies [891e469]
+- Updated dependencies [82eda45]
+- Updated dependencies [f2d50a8]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [fa07be9]
+- Updated dependencies [46aa52f]
+- Updated dependencies [9d8f510]
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+- Updated dependencies [c097dff]
+  - @shipfox/client-agent@6.0.0
+  - @shipfox/client-integrations@6.0.0
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-auth@6.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-integration-core-dto@9.0.0
+  - @shipfox/api-definitions-dto@6.0.0
+  - @shipfox/api-projects-dto@8.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Major Changes

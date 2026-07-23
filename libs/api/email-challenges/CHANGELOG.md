@@ -1,5 +1,24 @@
 # @shipfox/api-email-challenges
 
+## 1.0.0
+
+### Major Changes
+
+- 9083d20: Use the namespace-compliant `email_challenges` migration-history table for email challenge migrations.
+
+### Patch Changes
+
+- c279061: Improves release verification with owner-defined packed contracts, discovery-driven artifact checks, and an early publication preflight.
+  - @shipfox/api-common-dto@6.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-auth-root-key@0.2.1
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-email@0.3.1
+  - @shipfox/node-mailer@0.2.1
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-postgres@0.4.2
+
 ## 0.3.0
 
 ### Minor Changes

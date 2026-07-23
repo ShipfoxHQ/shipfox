@@ -1,5 +1,36 @@
 # @shipfox/client-agent
 
+## 6.0.0
+
+### Major Changes
+
+- e009149: Converges Agent model-provider queries and commands on client domain models.
+- 24be269: Makes checked API adapters the only public business-response boundary and returns package-owned domain models from Agent, Integrations, and Workflows adapters.
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- d784a07: Enforces checked client API responses and removes stale transport compatibility helpers.
+- fa07be9: Enforces client architecture boundaries with Biome plugins and migrates the Agent presentation DTO import.
+- 46aa52f: Closes remaining API package-boundary exceptions and moves model-provider policy behind the Agent implementation boundary.
+- c097dff: Adds an internal domain-model core (harnesses, providers, onboarding and management-modal state) and a DTO-to-domain mapper for model providers, ahead of converging the package's scattered provider/model shapes onto it.
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [46aa52f]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-agent-dto@9.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Minor Changes

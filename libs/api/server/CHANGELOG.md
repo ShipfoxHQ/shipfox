@@ -1,5 +1,51 @@
 # @shipfox/api-server
 
+## 9.0.0
+
+### Patch Changes
+
+- 46aa52f: Closes remaining API package-boundary exceptions and moves model-provider policy behind the Agent implementation boundary.
+- c279061: Improves release verification with owner-defined packed contracts, discovery-driven artifact checks, and an early publication preflight.
+- Updated dependencies [9c9d266]
+- Updated dependencies [074e7b3]
+- Updated dependencies [46aa52f]
+- Updated dependencies [a9f9c57]
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c279061]
+- Updated dependencies [9083d20]
+  - @shipfox/api-workspaces-dto@9.0.0
+  - @shipfox/api-workspaces@9.0.0
+  - @shipfox/api-workflows@9.0.0
+  - @shipfox/api-agent-dto@9.0.0
+  - @shipfox/api-agent@9.0.0
+  - @shipfox/api-definitions@9.0.0
+  - @shipfox/api-integration-core-dto@9.0.0
+  - @shipfox/api-secrets-dto@9.0.0
+  - @shipfox/api-integration-core@9.0.0
+  - @shipfox/api-email-challenges@1.0.0
+  - @shipfox/api-runners@9.0.0
+  - @shipfox/api-auth@9.0.0
+  - @shipfox/annotations@9.0.0
+  - @shipfox/annotations-dto@6.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/api-definitions-dto@6.0.0
+  - @shipfox/api-dispatcher@7.1.0
+  - @shipfox/api-logs@9.0.0
+  - @shipfox/api-projects@9.0.0
+  - @shipfox/api-projects-dto@8.0.0
+  - @shipfox/api-runners-dto@7.0.1
+  - @shipfox/api-secrets@9.0.0
+  - @shipfox/api-triggers@9.0.0
+  - @shipfox/api-workflows-dto@9.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-jwt@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-postgres@0.4.2
+
 ## 8.0.0
 
 ### Minor Changes

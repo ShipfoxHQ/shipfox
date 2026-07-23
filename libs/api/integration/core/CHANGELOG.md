@@ -1,5 +1,40 @@
 # @shipfox/api-integration-core
 
+## 9.0.0
+
+### Patch Changes
+
+- 4a6d124: Separates Integrations provider SPI contracts from the public DTO surface.
+- Updated dependencies [9c9d266]
+- Updated dependencies [46aa52f]
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+  - @shipfox/api-workspaces-dto@9.0.0
+  - @shipfox/api-agent-dto@9.0.0
+  - @shipfox/api-integration-core-dto@9.0.0
+  - @shipfox/api-integration-github@9.0.0
+  - @shipfox/api-integration-spi@0.2.0
+  - @shipfox/api-integration-gitea@9.0.0
+  - @shipfox/api-integration-jira@9.0.0
+  - @shipfox/api-integration-linear@9.0.0
+  - @shipfox/api-integration-sentry@9.0.0
+  - @shipfox/api-integration-slack@9.0.0
+  - @shipfox/api-integration-webhook@9.0.0
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/api-workflows-dto@9.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/inter-module@0.2.0
+  - @shipfox/redact@0.2.3
+  - @shipfox/regex@0.2.2
+  - @shipfox/node-drizzle@0.3.2
+  - @shipfox/node-error-monitoring@0.2.0
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-module@0.5.0
+  - @shipfox/node-opentelemetry@0.6.0
+  - @shipfox/node-outbox@0.2.4
+  - @shipfox/node-postgres@0.4.2
+  - @shipfox/node-temporal@0.4.0
+
 ## 8.0.0
 
 ### Patch Changes

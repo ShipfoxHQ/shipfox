@@ -1,5 +1,16 @@
 # @shipfox/api-integration-core-dto
 
+## 9.0.0
+
+### Major Changes
+
+- 02974d6: Removes executable policy and test fixtures from public API DTO roots.
+- 4a6d124: Separates Integrations provider SPI contracts from the public DTO surface.
+
+### Patch Changes
+
+- @shipfox/inter-module@0.2.0
+
 ## 8.0.0
 
 ### Major Changes

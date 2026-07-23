@@ -1,5 +1,30 @@
 # @shipfox/client-runners
 
+## 6.0.0
+
+### Major Changes
+
+- 32d4392: Converges manual-registration-token and provisioner-token client state on package-owned camelCase models validated at the transport boundary, replacing raw wire DTOs in the public hooks and mutation signatures.
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-runners-dto@7.0.1
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Patch Changes

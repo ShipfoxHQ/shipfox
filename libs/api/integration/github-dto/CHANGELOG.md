@@ -1,5 +1,17 @@
 # @shipfox/api-integration-github-dto
 
+## 9.0.0
+
+### Major Changes
+
+- 02974d6: Removes executable policy and test fixtures from public API DTO roots.
+
+### Patch Changes
+
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+  - @shipfox/api-integration-core-dto@9.0.0
+
 ## 8.0.0
 
 ### Patch Changes

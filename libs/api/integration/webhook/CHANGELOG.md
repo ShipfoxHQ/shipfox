@@ -1,5 +1,18 @@
 # @shipfox/api-integration-webhook
 
+## 9.0.0
+
+### Patch Changes
+
+- 4a6d124: Separates Integrations provider SPI contracts from the public DTO surface.
+- Updated dependencies [4a6d124]
+  - @shipfox/api-integration-spi@0.2.0
+  - @shipfox/api-auth-context@9.0.0
+  - @shipfox/api-integration-webhook-dto@9.0.0
+  - @shipfox/config@1.2.2
+  - @shipfox/node-fastify@0.3.0
+  - @shipfox/node-opentelemetry@0.6.0
+
 ## 8.0.0
 
 ### Patch Changes

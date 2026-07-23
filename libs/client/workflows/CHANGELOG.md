@@ -1,5 +1,40 @@
 # @shipfox/client-workflows
 
+## 6.0.0
+
+### Major Changes
+
+- 24be269: Makes checked API adapters the only public business-response boundary and returns package-owned domain models from Agent, Integrations, and Workflows adapters.
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- d784a07: Enforces checked client API responses and removes stale transport compatibility helpers.
+- 82eda45: Adds validated URL-owned project and workflow run filters for shareable navigation state.
+- 125c90f: Adds checked Projects domain models and resource-owned query cache policy.
+- bb29e41: Converges workflow query caches on transport-independent domain models.
+- Updated dependencies [401b583]
+- Updated dependencies [82eda45]
+- Updated dependencies [125c90f]
+- Updated dependencies [f2d50a8]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-projects@6.0.0
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-triggers@6.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-definitions-dto@6.0.0
+  - @shipfox/api-workflows-dto@9.0.0
+  - @shipfox/client-logs@6.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @shipfox/biome
 
+## 1.9.0
+
+### Minor Changes
+
+- 50ec203: Publish client-architecture Biome rules for external repositories.
+
+### Patch Changes
+
+- 438921a: Adds the client-architecture Biome plugin fixture harness and configurable check path for scoped validation.
+- fa07be9: Enforces client architecture boundaries with Biome plugins and migrates the Agent presentation DTO import.
+- f48e80e: Adds API DTO architecture Biome rules with source-local diagnostics and fixture coverage.
+
 ## 1.8.2
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # Changelog
 
+## 6.0.0
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+- cd90c19: Enforces package-owned query policies and explicit cache-operation ownership across client resources.
+
+### Patch Changes
+
+- 82eda45: Adds validated URL-owned project and workflow run filters for shareable navigation state.
+- c56c124: Converges auth sessions and invitation responses on checked domain boundaries.
+- 4a6d124: Separates Integrations provider SPI contracts from the public DTO surface.
+- Updated dependencies [9c9d266]
+- Updated dependencies [24be269]
+- Updated dependencies [c02ac42]
+  - @shipfox/api-workspaces-dto@9.0.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-auth-dto@7.1.0
+  - @shipfox/client-config@3.0.1
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Major Changes

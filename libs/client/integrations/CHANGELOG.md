@@ -1,5 +1,47 @@
 # @shipfox/client-integrations
 
+## 6.0.0
+
+### Major Changes
+
+- 24be269: Makes checked API adapters the only public business-response boundary and returns package-owned domain models from Agent, Integrations, and Workflows adapters.
+- c02ac42: Converges the integrations client on a package-owned domain model (camelCase, schema-validated) instead of exposing raw snake_case API DTOs, changing the shape of `useSourceConnectionsQuery`, `useIntegrationConnectionsQuery`, `useIntegrationProvidersQuery`, `useRepositoriesInfiniteQuery`, and the `ConnectionPicker`/`ProviderGrid`/`RepositoryPicker` props. Adds `emptyResponseSchema` to `@shipfox/client-api` for schema-validated DELETE requests with no response body.
+
+### Minor Changes
+
+- 401b583: Exposes typed feature-owned navigation and settings contributions and enforces coordinator-owned client composition.
+
+### Patch Changes
+
+- d784a07: Enforces checked client API responses and removes stale transport compatibility helpers.
+- f2d50a8: Extracts shared integration provider icons into a leaf package so client features can render them without depending on integration routing code.
+- cd90c19: Enforces package-owned query policies and explicit cache-operation ownership across client resources.
+- 9d8f510: Converges integration callback flows on domain-owned models and safe cache refreshes.
+- Updated dependencies [401b583]
+- Updated dependencies [d784a07]
+- Updated dependencies [891e469]
+- Updated dependencies [82eda45]
+- Updated dependencies [f2d50a8]
+- Updated dependencies [cd90c19]
+- Updated dependencies [24be269]
+- Updated dependencies [c56c124]
+- Updated dependencies [02974d6]
+- Updated dependencies [4a6d124]
+- Updated dependencies [c02ac42]
+  - @shipfox/client-shell@6.0.0
+  - @shipfox/client-auth@6.0.0
+  - @shipfox/integration-icons@0.2.0
+  - @shipfox/client-api@6.0.0
+  - @shipfox/api-integration-core-dto@9.0.0
+  - @shipfox/api-integration-github-dto@9.0.0
+  - @shipfox/api-integration-gitea-dto@9.0.0
+  - @shipfox/api-integration-linear-dto@9.0.0
+  - @shipfox/api-integration-sentry-dto@9.0.0
+  - @shipfox/api-integration-slack-dto@9.0.0
+  - @shipfox/api-integration-webhook-dto@9.0.0
+  - @shipfox/client-ui@6.0.0
+  - @shipfox/react-ui@0.3.5
+
 ## 5.0.0
 
 ### Minor Changes
