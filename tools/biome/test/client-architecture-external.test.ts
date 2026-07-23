@@ -65,6 +65,14 @@ type CommandFailure = {
   stdout?: string;
 };
 
+type PackedBiomeArtifact = {
+  entries: string[];
+  tarball: string;
+  temporaryRoot: string;
+};
+
+let packedBiomeArtifact: PackedBiomeArtifact | undefined;
+
 async function packBiome(destination: string): Promise<string> {
   const {stdout} = await execFileAsync(
     'npm',
@@ -113,37 +121,46 @@ function escapedRegExp(value: string): string {
 }
 
 describe('packed client-architecture Biome plugins', () => {
-  test(
-    'includes every supported plugin and its usage documentation',
-    async () => {
-      const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-pack-'));
-      try {
-        const tarball = await packBiome(temporaryRoot);
-        const entries = await tarEntries(tarball);
-        for (const path of publishedPluginFiles) {
-          assert.ok(entries.includes(`package/${path}`), `Packed artifact is missing ${path}`);
-        }
-        assert.ok(entries.includes('package/plugins/client-architecture/README.md'));
-        assert.ok(entries.includes('package/plugins/database-boundaries/README.md'));
-        assert.ok(
-          !entries.some((entry) =>
-            entry.startsWith('package/plugins/client-architecture/fixtures/'),
-          ),
-          'Packed artifact must not publish repository fixtures',
-        );
-      } finally {
-        await rm(temporaryRoot, {force: true, recursive: true});
-      }
-    },
-    PACKED_PACKAGE_TEST_TIMEOUT_MS,
-  );
+  beforeAll(async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-pack-'));
+    try {
+      const tarball = await packBiome(temporaryRoot);
+      const entries = await tarEntries(tarball);
+      packedBiomeArtifact = {entries, tarball, temporaryRoot};
+    } catch (error) {
+      await rm(temporaryRoot, {force: true, recursive: true});
+      throw error;
+    }
+  }, PACKED_PACKAGE_TEST_TIMEOUT_MS);
+
+  afterAll(async () => {
+    if (packedBiomeArtifact) {
+      await rm(packedBiomeArtifact.temporaryRoot, {force: true, recursive: true});
+    }
+  });
+
+  test('includes every supported plugin and its usage documentation', () => {
+    assert.ok(packedBiomeArtifact, 'Packed Biome artifact setup did not complete');
+    const {entries} = packedBiomeArtifact;
+
+    for (const path of publishedPluginFiles) {
+      assert.ok(entries.includes(`package/${path}`), `Packed artifact is missing ${path}`);
+    }
+    assert.ok(entries.includes('package/plugins/client-architecture/README.md'));
+    assert.ok(entries.includes('package/plugins/database-boundaries/README.md'));
+    assert.ok(
+      !entries.some((entry) => entry.startsWith('package/plugins/client-architecture/fixtures/')),
+      'Packed artifact must not publish repository fixtures',
+    );
+  });
 
   test(
     'runs from an installed package in an external repository root',
     async () => {
+      assert.ok(packedBiomeArtifact, 'Packed Biome artifact setup did not complete');
+      const {tarball} = packedBiomeArtifact;
       const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-external-'));
       try {
-        const tarball = await packBiome(temporaryRoot);
         const externalRoot = join(temporaryRoot, 'consumer');
         await cp(fixtureTemplate, externalRoot, {recursive: true});
         await installPackedBiome(externalRoot, tarball);
