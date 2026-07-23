@@ -8,7 +8,7 @@ export async function setup() {
   createPostgresClient();
 
   await runMigrations(db(), migrationsPath, '__drizzle_migrations_workspaces');
-  await db().execute(sql`TRUNCATE workspaces_outbox, workspaces CASCADE`);
+  await db().execute(sql`TRUNCATE workspaces_outbox, workspaces_workspaces CASCADE`);
 
   closeDb();
   await closePostgresClient();

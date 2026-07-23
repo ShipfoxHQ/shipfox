@@ -38,7 +38,7 @@ CREATE TABLE "workspaces_outbox" (
 	"dead_lettered_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "workspaces" (
+CREATE TABLE "workspaces_workspaces" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"name" text NOT NULL,
 	"status" "workspaces_workspace_status" DEFAULT 'active' NOT NULL,
@@ -48,8 +48,8 @@ CREATE TABLE "workspaces" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "workspaces_invitations" ADD CONSTRAINT "workspaces_invitations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspaces_memberships" ADD CONSTRAINT "workspaces_memberships_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspaces_invitations" ADD CONSTRAINT "workspaces_invitations_workspace_id_workspaces_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces_workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspaces_memberships" ADD CONSTRAINT "workspaces_memberships_workspace_id_workspaces_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces_workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "workspaces_invitations_hashed_token_unique" ON "workspaces_invitations" USING btree ("hashed_token");--> statement-breakpoint
 CREATE INDEX "workspaces_invitations_workspace_email_idx" ON "workspaces_invitations" USING btree ("workspace_id","email");--> statement-breakpoint
 CREATE UNIQUE INDEX "workspaces_memberships_user_workspace_unique" ON "workspaces_memberships" USING btree ("user_id","workspace_id");--> statement-breakpoint

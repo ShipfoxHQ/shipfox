@@ -182,69 +182,6 @@ function baselineEntry(
 const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Object.freeze([
   baselineEntry(
     {
-      owner: 'workspaces',
-      namespace: 'workspaces',
-      file: 'libs/api/workspaces/drizzle/0000_initial.sql',
-      line: 41,
-      object: 'workspaces',
-      rule: 'unprefixed-table',
-      suggestedBoundary: namespaceSuggestion('workspaces', 'workspaces'),
-    },
-    'ENG-1196',
-    'The Workspaces root table is renamed to workspaces_workspaces.',
-  ),
-  baselineEntry(
-    {
-      owner: 'workspaces',
-      namespace: 'workspaces',
-      file: 'libs/api/workspaces/drizzle/0000_initial.sql',
-      line: 51,
-      object: 'workspaces',
-      rule: 'unprefixed-table',
-      suggestedBoundary: namespaceSuggestion('workspaces', 'workspaces'),
-    },
-    'ENG-1196',
-    'The Workspaces root table is renamed to workspaces_workspaces.',
-  ),
-  baselineEntry(
-    {
-      owner: 'workspaces',
-      namespace: 'workspaces',
-      file: 'libs/api/workspaces/drizzle/0000_initial.sql',
-      line: 52,
-      object: 'workspaces',
-      rule: 'unprefixed-table',
-      suggestedBoundary: namespaceSuggestion('workspaces', 'workspaces'),
-    },
-    'ENG-1196',
-    'The Workspaces root table is renamed to workspaces_workspaces.',
-  ),
-  baselineEntry(
-    {
-      owner: 'workspaces',
-      namespace: 'workspaces',
-      file: 'libs/api/workspaces/drizzle/meta/0000_snapshot.json',
-      line: 7,
-      object: 'workspaces',
-      rule: 'unprefixed-table',
-      suggestedBoundary: namespaceSuggestion('workspaces', 'workspaces'),
-    },
-    'ENG-1196',
-    'The Workspaces root table is renamed to workspaces_workspaces.',
-  ),
-  baselineEntry(
-    {
-      owner: 'workspaces',
-      namespace: 'workspaces',
-      file: 'libs/api/workspaces/test/globalSetup.ts',
-      line: 11,
-      object: 'workspaces',
-      rule: 'unprefixed-table',
-      suggestedBoundary: namespaceSuggestion('workspaces', 'workspaces'),
-    },
-    'ENG-1196',
-    'The Workspaces root table is renamed to workspaces_workspaces.',
-  ),
 ]);
 
 export {databaseBoundaryBaseline};
