@@ -9,6 +9,25 @@
   "license": "MIT",
   "private": false,
   "type": "module",
+  "files": [
+    "README.md",
+    "bin",
+    "dist",
+    "plugins/client-architecture/README.md",
+    "plugins/client-architecture/no-api-dto-in-core.grit",
+    "plugins/client-architecture/no-client-framework-in-core.grit",
+    "plugins/client-architecture/no-query-cache-ownership.grit",
+    "plugins/client-architecture/no-raw-api-request.grit",
+    "plugins/client-architecture/no-response-dto-in-presentation.grit"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugins/client-architecture/no-api-dto-in-core.grit": "./plugins/client-architecture/no-api-dto-in-core.grit",
+    "./plugins/client-architecture/no-client-framework-in-core.grit": "./plugins/client-architecture/no-client-framework-in-core.grit",
+    "./plugins/client-architecture/no-query-cache-ownership.grit": "./plugins/client-architecture/no-query-cache-ownership.grit",
+    "./plugins/client-architecture/no-raw-api-request.grit": "./plugins/client-architecture/no-raw-api-request.grit",
+    "./plugins/client-architecture/no-response-dto-in-presentation.grit": "./plugins/client-architecture/no-response-dto-in-presentation.grit"
+  },
   "imports": {
     "#*": "./src/*"
   },

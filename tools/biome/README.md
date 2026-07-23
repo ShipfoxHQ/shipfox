@@ -1,6 +1,6 @@
 # @shipfox/biome
 
-Biome commands and bundled binaries for Shipfox packages.
+Biome commands, bundled binaries, and client-architecture plugins for Shipfox packages.
 
 ## What it does
 
@@ -8,6 +8,7 @@ Biome commands and bundled binaries for Shipfox packages.
 - **`shipfox-biome-format`**: Formats files with the root `biome.json`.
 - **`shipfox-biome-check`**: Runs format, lint, and assist checks. Most package `check` scripts use it.
 - **Bundled binaries**: Includes Biome for macOS and Linux on ARM64 and x64.
+- **Client-architecture plugins**: Publishes five GritQL rules for external repositories. See the [plugin guide](plugins/client-architecture/README.md).
 
 ## Installation
 
@@ -61,6 +62,20 @@ shipfox-biome-format --write src/ test/
 Package checks use the root `biome.json`. Pass `--config-path` only for a
 focused config, such as a fixture tree. The normal form reads files. The write
 form can change them. Check the result before you send a change for review.
+
+## Client-architecture plugins
+
+The package publishes these semver-governed asset paths:
+
+- `plugins/client-architecture/no-api-dto-in-core.grit`
+- `plugins/client-architecture/no-client-framework-in-core.grit`
+- `plugins/client-architecture/no-query-cache-ownership.grit`
+- `plugins/client-architecture/no-raw-api-request.grit`
+- `plugins/client-architecture/no-response-dto-in-presentation.grit`
+
+Consumers reference the installed files from `biome.json`. Do not copy the
+GritQL source into the consumer repository. The [plugin guide](plugins/client-architecture/README.md)
+contains the external configuration example and the supported source globs.
 
 ## Development
 

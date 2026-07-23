@@ -1,38 +1,81 @@
 # Client-architecture Biome plugins
 
-This directory holds Biome GritQL rules for client source. The root
-[`biome.json`](../../../../biome.json) loads each rule for production files in
-`libs/client/**` and `libs/shared/react/ui/**`.
+This directory contains the five published Biome GritQL rules for client
+source. Each rule emits a stable `client-architecture/<name>` diagnostic.
 
-Each rule should be small. It should show a clear error at the code that needs
-the change. Keep each example short so the expected result is easy to see.
+## Published rules
 
-## Rules
+- `no-api-dto-in-core` rejects API DTO imports from `src/core/**`.
+- `no-client-framework-in-core` rejects client framework imports from
+  `src/core/**`.
+- `no-response-dto-in-presentation` rejects response DTOs from pages and
+  components.
+- `no-raw-api-request` rejects raw API requests outside checked adapter paths.
+- `no-query-cache-ownership` rejects query-cache writes in leaf components.
 
-- Give each rule a kebab-case name, such as `no-raw-api-request.grit`. Its rule
-  id is `client-architecture/<name>`.
-- Add `allowed.ts` and `rejected.ts` under `fixtures/<name>/` for each rule.
-  Cover aliases, namespace imports, and type-only imports when they apply.
-- Keep fixtures out of normal package checks. The fixture config includes them
-  and skips tests, stories, and generated files.
-- Put the rule id and the approved replacement boundary in each diagnostic.
-  Do not fix a client-architecture error with `biome-ignore`.
-- Keep rules local and based on source shape. Put cross-file checks, ownership
-  data, runtime flow, and behavior tests in
-  `@shipfox/client-architecture-policy` or a focused test.
+The package exports each `.grit` file at the matching path under
+`plugins/client-architecture/`. These paths and diagnostic IDs are semver-
+governed public API. Removing or renaming one requires a compatible package
+release. The repository-local `fixture-boundary.grit` smoke rule is not part of
+the published external contract.
 
-The production rules currently cover:
+## External repositories
 
-- `no-api-dto-in-core` and `no-client-framework-in-core` for `src/core/**`.
-- `no-response-dto-in-presentation` for pages and components.
-- `no-raw-api-request` outside `@shipfox/client-api` and checked adapter paths.
-- `no-query-cache-ownership` for leaf components; named coordinators and
-  mutation/query adapters remain the ownership boundary.
+Install `@shipfox/biome` at the repository root so the configuration path stays
+stable across package managers and workspace layouts:
 
-`fixture-boundary.grit` is the smoke rule for this foundation. Its sentinel is
-not a migrated production rule. Later issues add real rules beside it.
+```sh
+pnpm add -D @shipfox/biome
+```
 
-## Fixture harness
+Reference the installed package files from the external repository's root
+`biome.json`:
+
+```json
+{
+  "plugins": [
+    {
+      "path": "./node_modules/@shipfox/biome/plugins/client-architecture/no-api-dto-in-core.grit",
+      "includes": ["**/libs/client/**/src/core/**"]
+    },
+    {
+      "path": "./node_modules/@shipfox/biome/plugins/client-architecture/no-client-framework-in-core.grit",
+      "includes": ["**/libs/client/**/src/core/**"]
+    },
+    {
+      "path": "./node_modules/@shipfox/biome/plugins/client-architecture/no-response-dto-in-presentation.grit",
+      "includes": [
+        "**/libs/client/**/src/pages/**",
+        "**/libs/client/**/src/components/**"
+      ]
+    },
+    {
+      "path": "./node_modules/@shipfox/biome/plugins/client-architecture/no-raw-api-request.grit",
+      "includes": [
+        "**/libs/client/**",
+        "**/libs/shared/react/ui/**",
+        "!**/libs/client/api/**",
+        "!**/libs/client/**/src/hooks/api/**"
+      ]
+    },
+    {
+      "path": "./node_modules/@shipfox/biome/plugins/client-architecture/no-query-cache-ownership.grit",
+      "includes": [
+        "**/libs/client/**/src/components/**",
+        "**/libs/shared/react/ui/**/src/components/**"
+      ]
+    }
+  ]
+}
+```
+
+Add the repository's standard exclusions for tests, stories, generated files,
+build output, and `node_modules` to each production include list. The globs
+above work from a different repository root and do not require copied `.grit`
+files. Keep cross-file ownership checks and runtime policy in
+`@shipfox/client-architecture-policy` or focused tests.
+
+## Local fixture harness
 
 Run the focused harness with:
 
@@ -41,5 +84,5 @@ pnpm --filter=@shipfox/biome test
 ```
 
 The harness uses the same `shipfox-biome-check` wrapper as package checks. It
-opts into `biome.fixture.json` for the fixture tree. It checks the rule id,
-replacement text, source location, and pass/fail result.
+checks rule IDs, replacement guidance, source locations, and pass/fail results
+for local and packed external fixtures.
