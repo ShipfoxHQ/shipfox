@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {parseCatalogCliArgs} from '../src/api-database-catalog.js';
+import {
+  parseCatalogCliArgs,
+  resolveCurrentMigrationHistoryName,
+} from '../src/api-database-catalog.js';
 import {
   type ApiDatabaseRegistry,
   apiDatabaseRegistry,
@@ -327,6 +330,13 @@ describe('PostgreSQL catalog verifier', () => {
     assert.deepEqual(
       report.findings.map(({classification, name}) => ({classification, name})),
       [{classification: 'misnamed', name: runtimeName}],
+    );
+  });
+
+  test('resolves migration history from the stable database namespace', () => {
+    assert.equal(
+      resolveCurrentMigrationHistoryName({unit: workspacesUnit, registry}),
+      migrationHistoryName(workspacesUnit.namespace),
     );
   });
 

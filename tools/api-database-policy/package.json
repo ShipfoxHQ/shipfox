@@ -11,7 +11,7 @@
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit",
-    "verify": "node dist/api-database-registry.js",
+    "verify": "cd ../.. && node tools/biome/bin/biome-check.js --config-path biome.json libs/api && node tools/api-database-policy/dist/api-database-registry.js && node tools/api-database-policy/dist/api-database-boundaries.js",
     "verify:boundaries": "node dist/api-database-boundaries.js",
     "verify:catalog": "node dist/api-database-catalog.js"
   },

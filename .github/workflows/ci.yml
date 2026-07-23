@@ -348,22 +348,23 @@ jobs:
           verifier_exit=$?
           set -e
 
-          # The catalog verifier is intentionally report-only until the exact
-          # Agent, Workspaces, and migration-history remediation issues land.
-          # Keep unexpected execution failures fatal; ENG-1199 will make any
-          # finding fatal once the temporary baseline is removed.
-          if (( verifier_exit > 1 )); then
+          if [[ -s "$RUNNER_TEMP/api-database-catalog.json" ]]; then
+            jq '{databaseName, serverVersion, counts, findings}' \
+              "$RUNNER_TEMP/api-database-catalog.json" \
+              | tee "$RUNNER_TEMP/api-database-catalog.diff.json"
+          fi
+          if (( verifier_exit != 0 )); then
             exit "$verifier_exit"
           fi
-          jq '{databaseName, serverVersion, counts, findings}' \
-            "$RUNNER_TEMP/api-database-catalog.json"
 
-      - name: Upload database catalog report
-        if: always()
+      - name: Upload database catalog diff
+        if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: api-database-catalog
-          path: ${{ runner.temp }}/api-database-catalog.json
+          name: api-database-catalog-diff
+          path: |
+            ${{ runner.temp }}/api-database-catalog.json
+            ${{ runner.temp }}/api-database-catalog.diff.json
           if-no-files-found: ignore
 
       - name: Run tests

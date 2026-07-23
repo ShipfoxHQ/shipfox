@@ -33,8 +33,6 @@ import {
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const databaseNameExpression = /^[a-z][a-z0-9_]{0,62}$/;
-const sourceFileExpression = /\.[cm]?[jt]sx?$/;
-const sourceDirectoryName = 'src';
 const catalogExecutionErrorExitCode = 2;
 
 interface MigrationSource {
@@ -77,21 +75,6 @@ function generatedDatabaseName(): string {
   return `shipfox_catalog_${randomUUID().replaceAll('-', '')}`;
 }
 
-function sourceFiles(directory: string): Promise<string[]> {
-  return readdir(directory, {withFileTypes: true}).then(async (entries) => {
-    const files: string[] = [];
-    for (const entry of entries) {
-      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'coverage') {
-        continue;
-      }
-      const entryPath = path.join(directory, entry.name);
-      if (entry.isDirectory()) files.push(...(await sourceFiles(entryPath)));
-      else if (entry.isFile() && sourceFileExpression.test(entry.name)) files.push(entryPath);
-    }
-    return files.sort(compareText);
-  });
-}
-
 async function readMigrationSources(
   unit: DatabaseMigrationUnit,
   root: string,
@@ -110,52 +93,14 @@ async function readMigrationSources(
   );
 }
 
-async function currentHistoryLiteral(
-  unit: DatabaseMigrationUnit,
-  registry: ApiDatabaseRegistry,
-  root: string,
-): Promise<string | undefined> {
-  const owner = registry.owners.find((candidate) => candidate.id === unit.ownerId);
-  const packagePaths = new Set<string>([unit.packagePath]);
-  if (owner) packagePaths.add(owner.packagePath);
-  const files = (
-    await Promise.all(
-      [...packagePaths].map(async (packagePath) => {
-        try {
-          return await sourceFiles(path.join(root, packagePath, sourceDirectoryName));
-        } catch {
-          return [];
-        }
-      }),
-    )
-  ).flat();
-  const literal = `__drizzle_migrations_${unit.namespace}`;
-  const escapedLiteral = literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const literalExpression = new RegExp(`['"]${escapedLiteral}['"]`);
-  for (const file of files) {
-    const source = await readFile(file, 'utf8');
-    if (literalExpression.test(source)) return literal;
-  }
-  return undefined;
-}
-
-export async function resolveCurrentMigrationHistoryName({
+export function resolveCurrentMigrationHistoryName({
   unit,
-  registry,
-  root = repositoryRoot,
 }: {
   unit: DatabaseMigrationUnit;
   registry: ApiDatabaseRegistry;
   root?: string;
-}): Promise<string> {
-  const explicitName = await currentHistoryLiteral(unit, registry, root);
-  if (explicitName) return explicitName;
-  const ownerUnits = registry.migrationUnits.filter(
-    (candidate) => candidate.ownerId === unit.ownerId,
-  );
-  const index = ownerUnits.findIndex((candidate) => candidate.id === unit.id);
-  const suffix = index > 0 ? `_${index}` : '';
-  return `__drizzle_migrations_${unit.ownerId}${suffix}`;
+}): string {
+  return migrationHistoryName(unit.namespace);
 }
 
 function prepareMigrationUnits(
@@ -166,7 +111,7 @@ function prepareMigrationUnits(
     registry.migrationUnits.map(async (unit) => ({
       unit,
       sources: await readMigrationSources(unit, root),
-      runtimeHistoryName: await resolveCurrentMigrationHistoryName({unit, registry, root}),
+      runtimeHistoryName: resolveCurrentMigrationHistoryName({unit, registry, root}),
     })),
   );
 }
