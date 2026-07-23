@@ -41,7 +41,11 @@ const moduleServices = await startModuleServices({services});
 await listen();
 ```
 
-`initializeModules` runs module migrations first. It exposes auth methods and routes after that. Put modules with shared database needs earlier in the array. Call `registerModuleMetrics` once after instrumentation has started and migrations have run, so observable gauges can query shared storage safely.
+`initializeModules` runs module migrations first. It exposes auth methods and
+routes after that. Module order controls migration and initialization. It does
+not grant access to another module's tables. Call `registerModuleMetrics` after
+instrumentation starts and all migrations finish. Observable gauges can then
+query their owning module's storage.
 Worker and service startup failures reject before serving traffic. Call `runModuleStartupTasks` after initialization so migrations complete first. The returned worker handle is idempotent and stops workers before releasing the shared Temporal connection and client. A service handle is also idempotent. It stops services in reverse order and bounds each stop with the service timeout.
 
 ## Module Shape

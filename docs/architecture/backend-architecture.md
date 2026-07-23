@@ -12,9 +12,9 @@ Each backend capability exposes a declarative `ShipfoxModule`. It lists the
 database, routes, auth adapters, E2E routes, publishers, subscribers, workers,
 and metrics it owns. Feature packages do not wire their internals into an app.
 
-The application root puts modules in dependency order. A module that owns a
-shared database table comes before one that uses it. The root alone builds the
-full inter-module graph:
+The application root puts modules in dependency order and runs each module's
+migrations. Migration order does not grant access to another module's tables.
+The root alone builds the full inter-module graph:
 
 1. Create the transport for the application instance.
 2. Create typed clients from producer contracts.
@@ -30,6 +30,10 @@ hooks, or mutable default clients. The current composition lives in
 Read [ADR 0002](../adr/0002-api-inter-module-architecture.md) when changing an
 inter-module contract or its setup order. It owns history, transport behavior,
 and migration reasons.
+
+Read the [database boundary policy](../policies/database-boundaries.md) when
+changing a table, migration, query, foreign key, or transaction. It owns
+database access and naming rules.
 
 ## Feature package layers
 

@@ -21,7 +21,9 @@ listed there or when you need to place, update, or review documentation.
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |
 | Changes server module boundaries or an inter-module call. | [ADR 0002](adr/0002-api-inter-module-architecture.md) | Producer-owned inter-module contracts and bounded-context crossings. |
+| Changes database ownership, cross-module persistence access, or namespace rules. | [ADR 0006](adr/0006-database-ownership-boundaries.md) | The decision and tradeoffs behind owner-only database access. |
 | Adds or changes a backend module, DTO, outbox event, HTTP boundary, or server package dependency. | [Backend architecture](architecture/backend-architecture.md) | The current backend module model and package-boundary rules. |
+| Adds or changes a table, migration, database query, foreign key, or transaction. | [Database boundary policy](policies/database-boundaries.md) | Database ownership, access, naming, migration, and enforcement rules. |
 | Adds or changes an environment variable, validator, or environment description. | [Configuration policy](policies/configuration.md) | Repository-wide configuration ownership, validation, and description rules. |
 | Adds a domain or provider error, translates a request failure, or reports an unexpected failure. | [Error handling](architecture/error-handling.md) | The current backend error model, client translation, and reporting boundaries. |
 | Adds a metric or changes instrumentation startup, naming, units, or labels. | [Observability](architecture/observability.md) | The current backend metrics model and cardinality constraints. |
