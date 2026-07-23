@@ -264,7 +264,9 @@ The repository currently uses:
   inventory, manifest edges, imports, and DTO exports.
 - Focused composition tests for client and server runtime declarations.
 
-ADR 0007 targets a published `@shipfox/architecture-policy` package and
-architecture metadata in released manifests. Until that migration lands, keep
-the current gates passing and design new shared rules so their policy logic can
-move without copying repository discovery code.
+ADR 0007's published `@shipfox/architecture-policy` package and architecture
+metadata in released manifests are now implemented for the packages listed in
+`api-contexts.cjs`. The remaining migration work covers repository discovery,
+evaluators, and client or tool classifications that have not joined the shared
+registry. Keep the current gates passing and design new shared rules so their
+policy logic can move without copying repository discovery code.
