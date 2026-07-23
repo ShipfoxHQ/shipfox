@@ -1,0 +1,15 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `import $_ from $source` as $match where { $source <: r".*inter-module.*" },
+  `import * as $_ from $source` as $match where { $source <: r".*inter-module.*" },
+  `import $source` as $match where { $source <: r".*inter-module.*" },
+  `export {$_} from $source` as $match where { $source <: r".*inter-module.*" },
+  `export type {$_} from $source` as $match where { $source <: r".*inter-module.*" },
+  `export * from $source` as $match where { $source <: r".*inter-module.*" },
+  `import($source)` as $match where { $source <: r".*inter-module.*" },
+  TsImportType() as $match where { $match <: r".*inter-module.*" }
+} where {
+  register_diagnostic(span=$match, message="api-architecture/no-dto-root-inter-module: export synchronous contracts only from the producer DTO /inter-module subpath; keep the DTO root passive.")
+}

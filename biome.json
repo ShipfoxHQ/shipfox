@@ -14,7 +14,8 @@
     "includes": [
       "**",
       "!libs/client/shell/test/external/fixture",
-      "!tools/biome/plugins/client-architecture/fixtures"
+      "!tools/biome/plugins/client-architecture/fixtures",
+      "!tools/biome/plugins/api-architecture/fixtures"
     ]
   },
   "plugins": [
@@ -136,6 +137,33 @@
         "!**/__generated__/**",
         "!**/*.gen.ts",
         "!**/*.gen.tsx"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/api-architecture/no-dto-root-inter-module.grit",
+      "includes": [
+        "**/libs/api/**/*-dto/src/index.ts",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/coverage/**"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/api-architecture/no-dto-root-implementation-detail.grit",
+      "includes": [
+        "**/libs/api/**/*-dto/src/index.ts",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/coverage/**"
+      ]
+    },
+    {
+      "path": "./tools/biome/plugins/api-architecture/no-dto-inter-module-import.grit",
+      "includes": [
+        "**/libs/api/**/*-dto/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/coverage/**"
       ]
     }
   ],

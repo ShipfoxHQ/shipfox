@@ -39,7 +39,7 @@ describe('auditApiContextInventory', () => {
     ]);
   });
 
-  test('rejects a new foreign manifest edge and DTO root contract export', () => {
+  test('rejects a new foreign manifest edge and missing DTO inter-module export', () => {
     const manifestErrors = auditPolicyFixture({
       dependencyGroup: 'devDependencies',
       importerPath: 'libs/api/runners',
@@ -52,7 +52,7 @@ describe('auditApiContextInventory', () => {
     });
 
     assert.deepEqual(manifestErrors, ['Foreign implementation manifest edge: devDependencies']);
-    assert.deepEqual(dtoErrors, ['DTO root exports inter-module contract']);
+    assert.deepEqual(dtoErrors, ['DTO contract has no explicit inter-module export']);
   });
 
   test('rejects implementation dependencies from DTOs, shared semantics, and foreign SPIs', () => {
@@ -100,13 +100,5 @@ describe('auditApiContextInventory', () => {
       'Foreign same-context SPI import: src/core/agent-tools.ts:@shipfox/api-integration-spi',
       'Foreign same-context SPI manifest edge: dependencies',
     ]);
-  });
-
-  test('rejects implementation details from DTO roots', () => {
-    const errors = auditPolicyFixture({
-      dtoRootExportSpecifier: './presentation/client.js',
-      importerPath: 'libs/api/workflows-dto',
-    });
-    assert.deepEqual(errors, ['DTO root exports implementation detail']);
   });
 });
