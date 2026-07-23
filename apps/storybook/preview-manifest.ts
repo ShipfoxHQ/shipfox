@@ -8,6 +8,8 @@ export type StorybookManifestEntry = {
   readonly url: `/${string}/index.html`;
 };
 
+export const storybookManifestVersion = 1;
+
 export const storybooks = [
   {
     id: 'react-ui',
@@ -111,7 +113,7 @@ export type StorybookRef = {
 };
 
 export const storybookRefs = Object.fromEntries(
-  storybooks.map(({id, title, url}) => [id, {title, url}]),
+  storybooks.map(({id, title, path}) => [id, {title, url: path}]),
 ) as Record<StorybookId, StorybookRef>;
 
 export const storybookLinks = storybooks.map(({id, title, url}) => ({

@@ -5,6 +5,12 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": [".storybook", "preview-manifest.ts", "scripts", "vitest.config.ts"],
+  "include": [
+    ".storybook",
+    "playwright.config.ts",
+    "preview-manifest.ts",
+    "scripts",
+    "vitest.config.ts"
+  ],
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "src/**/*.mdx"]
 }
