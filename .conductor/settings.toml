@@ -3,6 +3,7 @@
 [scripts]
 run_mode = "concurrent"
 setup = """
+set -e
 mise trust
 mise install
 if [ "${CONDUCTOR_IS_LOCAL:-1}" = "1" ]; then
@@ -10,19 +11,21 @@ if [ "${CONDUCTOR_IS_LOCAL:-1}" = "1" ]; then
     mise -C "$CONDUCTOR_ROOT_PATH" trust
     mise -C "$CONDUCTOR_ROOT_PATH" install
   fi
-  mise run ollama:up
-  mise exec -- node dev/worktree-services.mjs up
 fi
 mise exec -- pnpm -r install --frozen-lockfile
+if [ "${CONDUCTOR_IS_LOCAL:-1}" = "1" ]; then
+  mise run ollama:up
+  mise exec -- pnpm dev:services:up
+fi
 """
 archive = """
 if [ "${CONDUCTOR_IS_LOCAL:-1}" = "1" ]; then
-  mise exec -- node "${CONDUCTOR_ROOT_PATH:-$PWD}/dev/worktree-services.mjs" destroy
+  mise exec -- pnpm dev:services:destroy
 fi
 """
 
 [scripts.run.dev]
-command = "SHIPFOX_CLIENT_OPEN=1 mise exec -- turbo dev --filter=@shipfox/api --filter=@shipfox/client"
+command = "SHIPFOX_CLIENT_OPEN=1 mise exec -- pnpm dev"
 default = true
 icon = "play"
 

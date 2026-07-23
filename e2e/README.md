@@ -261,7 +261,7 @@ In a Conductor worktree, local services are normally started by workspace setup.
 The equivalent service command is:
 
 ```sh
-node dev/worktree-services.mjs up
+pnpm dev:services:up
 ```
 
 If the API and client are already running, run the package directly:

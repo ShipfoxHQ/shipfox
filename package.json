@@ -9,6 +9,12 @@
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
+    "dev": "pnpm run dev:services:up && mise exec -- turbo dev --filter=@shipfox/api --filter=@shipfox/client",
+    "dev:services:cleanup": "pnpm --filter=@shipfox/worktree-services build && shipfox-worktree-services cleanup",
+    "dev:services:destroy": "pnpm --filter=@shipfox/worktree-services build && shipfox-worktree-services destroy",
+    "dev:services:status": "pnpm --filter=@shipfox/worktree-services build && shipfox-worktree-services status",
+    "dev:services:stop": "pnpm --filter=@shipfox/worktree-services build && shipfox-worktree-services stop",
+    "dev:services:up": "pnpm --filter=@shipfox/worktree-services build && shipfox-worktree-services up",
     "check:dependencies": "pnpm --filter=@shipfox/dependency-policy verify:dependencies",
     "check:api-context-inventory": "turbo verify --filter=@shipfox/api-architecture-policy",
     "check:api-database-boundaries": "turbo verify:boundaries --filter=@shipfox/api-database-policy",
@@ -23,6 +29,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@shipfox/worktree-services": "workspace:*",
     "@types/node": "catalog:"
   }
 }
