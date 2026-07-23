@@ -1,5 +1,4 @@
-import {ButtonLink} from '@shipfox/react-ui/button';
-import {Card, CardDescription, CardFooter, CardHeader, CardTitle} from '@shipfox/react-ui/card';
+import {Card, CardTitle} from '@shipfox/react-ui/card';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {storybookLinks} from '../preview-manifest.js';
 
@@ -26,19 +25,15 @@ export function IntroductionPage() {
           </Header>
           <div className="mt-16 grid grid-cols-1 gap-12 sm:grid-cols-2 lg:grid-cols-3">
             {storybookLinks.map((storybook) => (
-              <Card className="h-full" key={storybook.id}>
-                <CardHeader>
+              <a
+                className="sb-unstyled block h-full rounded-8 outline-none focus-visible:shadow-button-neutral-focus"
+                href={storybook.url}
+                key={storybook.id}
+              >
+                <Card className="h-full">
                   <CardTitle>{storybook.title}</CardTitle>
-                  <CardDescription>
-                    Explore {storybook.title} components, states, and interaction patterns.
-                  </CardDescription>
-                </CardHeader>
-                <CardFooter className="mt-auto">
-                  <ButtonLink href={storybook.url} variant="interactive" iconRight="chevronRight">
-                    Browse stories
-                  </ButtonLink>
-                </CardFooter>
-              </Card>
+                </Card>
+              </a>
             ))}
           </div>
         </section>
