@@ -60,7 +60,7 @@ test.describe('workspace onboarding', () => {
     await setupShell.expectNavigationHidden();
     const workspaceId = workspaceHome.currentWorkspaceId();
     expect(workspaceId).toBeTruthy();
-    expect(await workspaceHome.readLastWorkspaceId()).toBe(workspaceId);
+    expect(await workspaceHome.readLastWorkspaceId(user.user.id)).toBe(workspaceId);
     await stableScreenshot(page, 'workspaces/onboarding-complete');
   });
 });

@@ -29,7 +29,7 @@ test.describe('workspace switching', () => {
 
     await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
     await expect(topNav.currentWorkspace(workspaceBName)).toBeVisible();
-    expect(await workspaceHome.readLastWorkspaceId()).toBe(wsB.id);
+    expect(await workspaceHome.readLastWorkspaceId(user.user.id)).toBe(wsB.id);
   });
 
   test('persists the active workspace across reload and via /', async ({
@@ -45,10 +45,10 @@ test.describe('workspace switching', () => {
 
     await workspaceHome.gotoIntegrations(wsB.id);
     await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
-    await expect.poll(() => workspaceHome.readMaybeLastWorkspaceId()).toBe(wsB.id);
+    await expect.poll(() => workspaceHome.readMaybeLastWorkspaceId(user.user.id)).toBe(wsB.id);
     await page.reload();
     await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
-    await expect.poll(() => workspaceHome.readMaybeLastWorkspaceId()).toBe(wsB.id);
+    await expect.poll(() => workspaceHome.readMaybeLastWorkspaceId(user.user.id)).toBe(wsB.id);
     await workspaceHome.gotoRoot();
 
     await expect(page).toHaveURL(workspaceUrlRe(wsB.id));
