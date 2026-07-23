@@ -88,23 +88,12 @@ body {
   line-height: 24px;
 }
 
-.shipfox-introduction__link-path {
+.shipfox-introduction__link-action {
   display: block;
   margin-top: 4px;
   color: var(--foreground-neutral-muted);
   font-family: var(--font-code);
   font-size: 12px;
-  line-height: 20px;
-}
-
-.shipfox-introduction__note {
-  max-width: 720px;
-  margin: 40px 0 0;
-  padding: 16px;
-  border-left: 4px solid var(--border-highlights-interactive);
-  background: var(--background-components-base);
-  color: var(--foreground-neutral-subtle);
-  font-size: 13px;
   line-height: 20px;
 }
 
