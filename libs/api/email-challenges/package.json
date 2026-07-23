@@ -28,6 +28,16 @@
         "default": "./dist/index.js"
       }
     },
+    "./test": {
+      "workspace-source": {
+        "types": "./src/test.ts",
+        "default": "./src/test.ts"
+      },
+      "default": {
+        "types": "./dist/test.d.ts",
+        "default": "./dist/test.js"
+      }
+    },
     "./config": {
       "workspace-source": {
         "types": "./src/config.ts",
