@@ -26,7 +26,6 @@ import {
 
 const execFileAsync = promisify(execFile);
 const markdownExtension = '.md';
-const rootEntrypoints = ['AGENTS.md', 'CONTRIBUTING.md', 'WRITING.md', 'DESIGN.md'] as const;
 const excludedDirectoryNames = new Set([
   '.cache',
   '.changeset',
@@ -99,12 +98,21 @@ interface LocalTarget {
 export async function generateGuidanceBundle(
   options: GenerateGuidanceBundleOptions,
 ): Promise<GeneratedGuidanceBundle> {
+  // Keep the private policy package build-time-only for packed --ensure/--verify paths.
+  const {guidanceFileKind, guidanceRootEntrypoints, isGuidanceRootEntrypoint} = await import(
+    '@shipfox/repository-documentation-policy/documentation'
+  );
   const sourceRoot = resolve(options.sourceRoot);
   const outputRoot = resolve(options.outputRoot);
   assertGenerationInputs(sourceRoot, outputRoot, options.packageVersion, options.sourceCommit);
 
   const availableFiles = await normalizeAvailableFiles(sourceRoot, options.availableFiles);
-  const sourceFiles = await selectSourceFiles(sourceRoot, availableFiles);
+  const sourceFiles = await selectSourceFiles(
+    sourceRoot,
+    availableFiles,
+    guidanceRootEntrypoints,
+    isGuidanceRootEntrypoint,
+  );
   const sourceContents = new Map<string, string>();
   for (const sourceFile of sourceFiles) {
     sourceContents.set(sourceFile, await readSourceText(sourceRoot, sourceFile));
@@ -136,14 +144,14 @@ export async function generateGuidanceBundle(
         ({
           path: filePath,
           sha256: sha256(content),
-          kind: fileKind(filePath.slice('repository/'.length)),
+          kind: guidanceFileKind(filePath.slice('repository/'.length)),
         }) satisfies GuidanceManifestFile,
     );
   const manifest: GuidanceManifest = {
     schemaVersion: guidanceManifestSchemaVersion,
     package: {name: guidancePackageName, version: options.packageVersion},
     source: {repository: guidanceRepository, commit: options.sourceCommit},
-    entrypoints: entrypointsFor(sourceFiles),
+    entrypoints: entrypointsFor(sourceFiles, isGuidanceRootEntrypoint),
     files: manifestFiles,
   };
   assertGuidanceManifest(manifest);
@@ -224,10 +232,12 @@ export function isIncludedGuidancePath(relativePath: string): boolean {
 async function selectSourceFiles(
   sourceRoot: string,
   availableFiles: Set<string>,
+  guidanceRootEntrypoints: readonly string[],
+  isGuidanceRootEntrypoint: (relativePath: string) => boolean,
 ): Promise<string[]> {
   const markdownFiles = [...availableFiles].filter((file) => isIncludedGuidancePath(file));
   const selected = new Set(markdownFiles.filter((file) => file.startsWith('docs/')));
-  for (const entrypoint of rootEntrypoints) {
+  for (const entrypoint of guidanceRootEntrypoints) {
     if (availableFiles.has(entrypoint)) selected.add(entrypoint);
   }
   if (!selected.has('docs/README.md')) {
@@ -249,7 +259,10 @@ async function selectSourceFiles(
           `${sourceFile}:${link.line} links to an untracked or unavailable file: ${link.target}`,
         );
       }
-      if (isReachableGuidancePath(target.relativePath) && !selected.has(target.relativePath)) {
+      if (
+        isReachableGuidancePath(target.relativePath, isGuidanceRootEntrypoint) &&
+        !selected.has(target.relativePath)
+      ) {
         selected.add(target.relativePath);
         pending.push(target.relativePath);
       }
@@ -392,34 +405,26 @@ async function writeGeneratedBundle(
   }
 }
 
-function entrypointsFor(sourceFiles: string[]): Record<string, string> {
+function entrypointsFor(
+  sourceFiles: string[],
+  isGuidanceRootEntrypoint: (relativePath: string) => boolean,
+): Record<string, string> {
   const sourceSet = new Set(sourceFiles);
   const entrypoints: Record<string, string> = {
     documentationMap: 'repository/docs/README.md',
   };
-  const names: Array<[string, (typeof rootEntrypoints)[number]]> = [
+  const names: Array<[string, string]> = [
     ['agents', 'AGENTS.md'],
     ['contributing', 'CONTRIBUTING.md'],
     ['writing', 'WRITING.md'],
     ['design', 'DESIGN.md'],
   ];
   for (const [name, sourceFile] of names) {
-    if (sourceSet.has(sourceFile)) entrypoints[name] = `repository/${sourceFile}`;
+    if (sourceSet.has(sourceFile) && isGuidanceRootEntrypoint(sourceFile)) {
+      entrypoints[name] = `repository/${sourceFile}`;
+    }
   }
   return entrypoints;
-}
-
-function fileKind(relativePath: string): string {
-  if (relativePath === 'docs/README.md') return 'documentation-map';
-  if (rootEntrypoints.includes(relativePath as (typeof rootEntrypoints)[number]))
-    return 'entrypoint';
-  if (relativePath.startsWith('docs/architecture/')) return 'architecture';
-  if (relativePath.startsWith('docs/adr/')) return 'adr';
-  if (relativePath.startsWith('docs/policies/')) return 'policy';
-  if (relativePath.startsWith('docs/guides/')) return 'guide';
-  if (relativePath.startsWith('.agents/skills/')) return 'agent-skill';
-  if (posix.basename(relativePath) === 'README.md') return 'package';
-  return 'subsystem';
 }
 
 function githubPermalink(target: LocalTarget, sourceCommit: string): string {
@@ -561,10 +566,13 @@ function isExcludedGuidancePath(relativePath: string): boolean {
   return !isIncludedGuidancePath(relativePath);
 }
 
-function isReachableGuidancePath(relativePath: string): boolean {
+function isReachableGuidancePath(
+  relativePath: string,
+  isGuidanceRootEntrypoint: (relativePath: string) => boolean,
+): boolean {
   return (
     isIncludedGuidancePath(relativePath) &&
-    (rootEntrypoints.includes(relativePath as (typeof rootEntrypoints)[number]) ||
+    (isGuidanceRootEntrypoint(relativePath) ||
       relativePath.startsWith('apps/') ||
       relativePath.startsWith('dev/') ||
       relativePath.startsWith('e2e/') ||

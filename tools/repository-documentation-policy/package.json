@@ -3,6 +3,9 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "exports": {
+    "./documentation": "./dist/repository-documentation.js"
+  },
   "scripts": {
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",

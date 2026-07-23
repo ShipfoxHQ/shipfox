@@ -21,6 +21,7 @@
     "verify": "node dist/published-package-artifacts.js"
   },
   "dependencies": {
+    "@shipfox/repository-documentation-policy": "workspace:*",
     "@shipfox/tool-utils": "workspace:*",
     "yaml": "catalog:"
   },

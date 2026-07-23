@@ -1,5 +1,5 @@
 import {execFile} from 'node:child_process';
-import {globSync} from 'node:fs';
+import {existsSync, globSync} from 'node:fs';
 import {mkdir, mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
@@ -7,6 +7,10 @@ import {pathToFileURL} from 'node:url';
 
 import {parse as parseYaml} from 'yaml';
 
+import {
+  engineeringGuidancePackageName,
+  validateExternalEngineeringGuidanceArtifact,
+} from './engineering-guidance-artifact.js';
 import {
   mapWithConcurrency,
   type PackageDependencyContext,
@@ -83,6 +87,17 @@ export async function preflightPublicationClosure(root: string): Promise<void> {
       await validatePackedPackage(entry, tarball, packagesByName);
       return {name: entry.manifest.name, tarball};
     });
+    if (existsSync(join(root, 'tools/engineering-guidance/package.json'))) {
+      const guidanceTarball = results.find(
+        ({name}) => name === engineeringGuidancePackageName,
+      )?.tarball;
+      if (!guidanceTarball) {
+        throw new Error(
+          `Publication preflight did not pack ${engineeringGuidancePackageName}; keep public tools outside application runtime closures`,
+        );
+      }
+      await validateExternalEngineeringGuidanceArtifact(guidanceTarball, root);
+    }
     process.stdout.write(
       `Publication preflight plan: ${results.map(({name}) => name).join(', ')}\n` +
         `Publication preflight passed: packed ${results.length} packages.\n`,
