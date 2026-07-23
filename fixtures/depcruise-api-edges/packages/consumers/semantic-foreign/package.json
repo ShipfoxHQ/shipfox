@@ -1,0 +1,5 @@
+{
+  "name": "@fixture/shared-language",
+  "private": true,
+  "type": "module"
+}

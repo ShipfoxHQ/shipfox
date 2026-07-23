@@ -1,0 +1,1 @@
+module.exports = require('../../../api/integration/provider-with-an-unrelated-name/src/index.ts');

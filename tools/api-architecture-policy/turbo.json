@@ -13,6 +13,13 @@
         "$TURBO_ROOT$/libs/shared/node/**/package.json",
         "$TURBO_ROOT$/libs/shared/workflow/**/package.json"
       ]
+    },
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/api-contexts.cjs",
+        "$TURBO_ROOT$/fixtures/depcruise-api-edges/**"
+      ]
     }
   }
 }

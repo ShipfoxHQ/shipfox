@@ -1,0 +1,5 @@
+{
+  "name": "@fixture/integration-composition",
+  "private": true,
+  "type": "module"
+}

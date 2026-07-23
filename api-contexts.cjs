@@ -1,3 +1,5 @@
+const path = require('node:path');
+
 const architecturePackages = {
   implementations: {
     agent: ['libs/api/agent'],
@@ -82,10 +84,224 @@ const architecturePackages = {
   'composition-root': {api: ['libs/api/server']},
 };
 
-const apiContextImplementationPaths = architecturePackages.implementations;
+const apiArchitectureEdgePolicy = {
+  implementations: {
+    implementations: {
+      decision: 'same-context',
+      rule: 'api-no-foreign-implementation-imports',
+      violation: 'Foreign implementation import',
+    },
+    dto: {decision: 'allow'},
+    'shared-semantic': {decision: 'allow'},
+    'shared-infrastructure': {decision: 'allow'},
+    spi: {
+      decision: 'same-context',
+      rule: 'api-no-foreign-same-context-spi-imports',
+      violation: 'Foreign same-context SPI import',
+    },
+    'composition-root': {decision: 'allow'},
+  },
+  dto: {
+    implementations: {
+      decision: 'never',
+      rule: 'api-no-dto-implementation-imports',
+      violation: 'DTO implementation import',
+    },
+    // dto->dto is enforced separately: sourceEdgeViolation blocks specifiers ending in
+    // '/inter-module' regardless of this decision. Changing this value has no effect.
+    dto: {decision: 'allow'},
+    'shared-semantic': {decision: 'allow'},
+    'shared-infrastructure': {decision: 'allow'},
+    spi: {
+      decision: 'never',
+      rule: 'api-no-dto-spi-imports',
+      violation: 'DTO SPI import',
+    },
+    'composition-root': {decision: 'allow'},
+  },
+  'shared-semantic': {
+    implementations: {
+      decision: 'never',
+      rule: 'api-no-shared-semantic-implementation-imports',
+      violation: 'Shared semantic implementation import',
+    },
+    dto: {decision: 'allow'},
+    'shared-semantic': {decision: 'allow'},
+    'shared-infrastructure': {decision: 'allow'},
+    spi: {
+      decision: 'never',
+      rule: 'api-no-shared-semantic-spi-imports',
+      violation: 'Shared semantic SPI import',
+    },
+    'composition-root': {decision: 'allow'},
+  },
+  'shared-infrastructure': {
+    implementations: {decision: 'allow'},
+    dto: {decision: 'allow'},
+    'shared-semantic': {decision: 'allow'},
+    'shared-infrastructure': {decision: 'allow'},
+    spi: {decision: 'allow'},
+    'composition-root': {decision: 'allow'},
+  },
+  spi: {
+    implementations: {
+      decision: 'same-context',
+      rule: 'api-no-foreign-spi-implementation-imports',
+      violation: 'Foreign SPI implementation import',
+    },
+    dto: {decision: 'allow'},
+    'shared-semantic': {decision: 'allow'},
+    'shared-infrastructure': {decision: 'allow'},
+    spi: {
+      decision: 'same-context',
+      rule: 'api-no-foreign-spi-imports',
+      violation: 'Foreign SPI import',
+    },
+    'composition-root': {decision: 'allow'},
+  },
+  'composition-root': {
+    implementations: {decision: 'allow'},
+    dto: {decision: 'allow'},
+    'shared-semantic': {decision: 'allow'},
+    'shared-infrastructure': {decision: 'allow'},
+    spi: {decision: 'allow'},
+    'composition-root': {decision: 'allow'},
+  },
+};
+
+const validEdgeDecisions = new Set(['allow', 'same-context', 'never']);
+
+function validateApiArchitectureEdgePolicy(
+  packages = architecturePackages,
+  edgePolicy = apiArchitectureEdgePolicy,
+) {
+  const classifications = Object.keys(packages);
+  const errors = [];
+
+  for (const classification of classifications) {
+    const row = edgePolicy[classification];
+    if (!row) {
+      errors.push(`Missing API architecture edge policy row: ${classification}`);
+      continue;
+    }
+    for (const targetClassification of classifications) {
+      const edge = row[targetClassification];
+      if (!edge) {
+        errors.push(
+          `Missing API architecture edge policy decision: ${classification} -> ${targetClassification}`,
+        );
+        continue;
+      }
+      if (!validEdgeDecisions.has(edge.decision)) {
+        errors.push(
+          `Invalid API architecture edge policy decision: ${classification} -> ${targetClassification}`,
+        );
+      }
+      if (edge.decision !== 'allow' && (!edge.rule || !edge.violation)) {
+        errors.push(
+          `API architecture edge policy violation metadata is incomplete: ${classification} -> ${targetClassification}`,
+        );
+      }
+    }
+    for (const targetClassification of Object.keys(row)) {
+      if (!classifications.includes(targetClassification)) {
+        errors.push(
+          `API architecture edge policy references unknown classification: ${classification} -> ${targetClassification}`,
+        );
+      }
+    }
+  }
+
+  for (const classification of Object.keys(edgePolicy)) {
+    if (!classifications.includes(classification)) {
+      errors.push(`API architecture edge policy has unknown row: ${classification}`);
+    }
+  }
+
+  return errors.sort();
+}
+
+const edgePolicyErrors = validateApiArchitectureEdgePolicy();
+if (edgePolicyErrors.length > 0) {
+  throw new Error(edgePolicyErrors.join('\n'));
+}
+
+function architecturePackageEntries(packages) {
+  return Object.entries(packages).flatMap(([classification, contexts]) =>
+    Object.entries(contexts).flatMap(([context, packagePaths]) =>
+      packagePaths.map((packagePath) => ({classification, context, packagePath})),
+    ),
+  );
+}
+
+function toPosixPath(value) {
+  return value.split(path.sep).join('/');
+}
+
+function packageEntryForDirectory(currentDirectory, workspaceRoot, packages) {
+  return architecturePackageEntries(packages).find(({packagePath}) => {
+    const relativePath = path.relative(path.join(workspaceRoot, packagePath), currentDirectory);
+    return (
+      relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+    );
+  });
+}
+
+function createApiArchitectureRules({
+  currentDirectory = process.cwd(),
+  workspaceRoot = __dirname,
+  packages = architecturePackages,
+  edgePolicy = apiArchitectureEdgePolicy,
+  sourcePath = '^(?!\\.\\./)(?!node_modules/)(?!dist/)(?!coverage/).*\\.(?:[cm]?[jt]sx?)$',
+}) {
+  const policyErrors = validateApiArchitectureEdgePolicy(packages, edgePolicy);
+  if (policyErrors.length > 0) throw new Error(policyErrors.join('\n'));
+
+  const importer = packageEntryForDirectory(currentDirectory, workspaceRoot, packages);
+  if (!importer) return [];
+
+  const targetEntries = architecturePackageEntries(packages);
+  const rules = [];
+  for (const targetClassification of Object.keys(packages)) {
+    const edge = edgePolicy[importer.classification][targetClassification];
+    if (edge.decision === 'allow') continue;
+
+    const targets = targetEntries.filter(
+      (target) =>
+        target.classification === targetClassification &&
+        (edge.decision === 'never' || target.context !== importer.context),
+    );
+    if (targets.length === 0) continue;
+
+    rules.push({
+      name: edge.rule,
+      comment: `${edge.violation}; this source boundary is controlled by api-contexts.cjs.`,
+      severity: 'error',
+      from: {path: sourcePath},
+      to: {
+        path: targets.map(
+          ({packagePath}) =>
+            `^${escapeRegExp(toPosixPath(path.relative(currentDirectory, path.join(workspaceRoot, packagePath))))}/`,
+        ),
+      },
+    });
+  }
+  return rules;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 const apiContextExemptPaths = {
   'shared-infrastructure': architecturePackages['shared-infrastructure'].api,
   'composition-root': architecturePackages['composition-root'].api,
 };
 
-module.exports = {architecturePackages, apiContextExemptPaths, apiContextImplementationPaths};
+module.exports = {
+  apiArchitectureEdgePolicy,
+  apiContextExemptPaths,
+  architecturePackages,
+  createApiArchitectureRules,
+  validateApiArchitectureEdgePolicy,
+};

@@ -52,7 +52,7 @@ describe('auditApiContextInventory', () => {
     });
 
     assert.deepEqual(manifestErrors, ['Foreign implementation manifest edge: devDependencies']);
-    assert.deepEqual(dtoErrors, ['DTO contract has no explicit inter-module export']);
+    assert.deepEqual(dtoErrors, ['DTO root exports inter-module contract']);
   });
 
   test('rejects implementation dependencies from DTOs, shared semantics, and foreign SPIs', () => {
