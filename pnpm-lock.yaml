@@ -3984,6 +3984,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -6681,6 +6684,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -6699,6 +6705,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -6717,6 +6726,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc
@@ -6745,6 +6757,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../tools/swc
@@ -7552,6 +7567,9 @@ importers:
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc

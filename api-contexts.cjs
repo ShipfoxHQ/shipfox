@@ -107,8 +107,8 @@ const apiArchitectureEdgePolicy = {
       rule: 'api-no-dto-implementation-imports',
       violation: 'DTO implementation import',
     },
-    // dto->dto is enforced separately: sourceEdgeViolation blocks specifiers ending in
-    // '/inter-module' regardless of this decision. Changing this value has no effect.
+    // Local DTO-to-DTO /inter-module imports are owned by the Biome plugin. This
+    // decision remains allow because the verifier only evaluates manifest edges.
     dto: {decision: 'allow'},
     'shared-semantic': {decision: 'allow'},
     'shared-infrastructure': {decision: 'allow'},
