@@ -1,0 +1,5 @@
+language js(typescript, jsx)
+
+`clientArchitectureFixtureViolation()` as $call where {
+  register_diagnostic(span=$call, message="client-architecture/fixture-boundary: replace this unapproved boundary with the approved feature-owned adapter or coordinator boundary.")
+}

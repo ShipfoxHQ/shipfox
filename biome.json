@@ -11,8 +11,34 @@
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!libs/client/shell/test/external/fixture/**"]
+    "includes": [
+      "**",
+      "!libs/client/shell/test/external/fixture",
+      "!tools/biome/plugins/client-architecture/fixtures"
+    ]
   },
+  "plugins": [
+    {
+      "path": "./tools/biome/plugins/client-architecture/fixture-boundary.grit",
+      "includes": [
+        "libs/client/**",
+        "libs/shared/react/ui/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/__tests__/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx"
+      ]
+    }
+  ],
   "formatter": {
     "enabled": true,
     "useEditorconfig": true,

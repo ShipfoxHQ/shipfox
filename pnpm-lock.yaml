@@ -7577,6 +7577,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2

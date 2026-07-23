@@ -1,0 +1,3 @@
+function clientArchitectureFixtureViolation(): void {}
+
+clientArchitectureFixtureViolation();

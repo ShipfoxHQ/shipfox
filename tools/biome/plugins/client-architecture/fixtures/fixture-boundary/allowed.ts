@@ -1,0 +1,3 @@
+function approvedFeatureBoundary(): void {}
+
+approvedFeatureBoundary();
