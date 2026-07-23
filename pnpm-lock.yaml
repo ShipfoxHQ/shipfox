@@ -7587,6 +7587,13 @@ importers:
         version: 24.13.2
 
   tools/api-database-policy:
+    dependencies:
+      '@shipfox/node-drizzle':
+        specifier: workspace:*
+        version: link:../../libs/shared/node/drizzle
+      '@shipfox/node-postgres':
+        specifier: workspace:*
+        version: link:../../libs/shared/node/postgres
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
