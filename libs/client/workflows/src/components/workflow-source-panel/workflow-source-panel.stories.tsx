@@ -61,6 +61,10 @@ async function captureHighlightedSourcePanel(
     },
     {timeout: 10_000},
   );
+  const loadedCodeFonts = await document.fonts.load('400 14px "Commit Mono"');
+  if (!loadedCodeFonts.some((font) => font.status === 'loaded')) {
+    throw new Error('Commit Mono has not loaded yet');
+  }
   await argosScreenshot(ctx, screenshotName);
 }
 
