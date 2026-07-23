@@ -1,0 +1,5 @@
+{
+  "name": "@fixture/foreign-spi-consumer",
+  "private": true,
+  "type": "module"
+}
