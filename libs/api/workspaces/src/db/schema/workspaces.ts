@@ -1,5 +1,5 @@
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
-import {jsonb, pgEnum, text, timestamp} from 'drizzle-orm/pg-core';
+import {jsonb, pgEnum, text, timestamp, uuid} from 'drizzle-orm/pg-core';
 import type {Workspace, WorkspaceStatus} from '#core/entities/workspace.js';
 import {pgTable} from './common.js';
 
@@ -14,6 +14,7 @@ export const workspaces = pgTable('workspaces', {
   name: text('name').notNull(),
   status: workspaceStatusEnum('status').notNull().default('active'),
   settings: jsonb('settings').notNull().default({}),
+  createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
 });
@@ -27,6 +28,7 @@ export function toWorkspace(row: WorkspaceDb): Workspace {
     name: row.name,
     status: row.status as WorkspaceStatus,
     settings: row.settings as Record<string, unknown>,
+    createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

@@ -26,6 +26,7 @@ describe('authModule', () => {
   const authModule = createAuthModule({
     workspaces: {
       listMembershipsForTokenClaims: vi.fn(),
+      getWorkspaceCreator: vi.fn(),
       preflightInvitationAcceptance: vi.fn(),
       acceptInvitation: vi.fn(),
       requireActiveMembership: vi.fn(),

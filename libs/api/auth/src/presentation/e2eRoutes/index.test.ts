@@ -10,6 +10,7 @@ describe('auth E2E routes', () => {
       routes: [
         createAuthE2eRoutes({
           listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
+          getWorkspaceCreator: vi.fn(),
           preflightInvitationAcceptance: vi.fn(),
           acceptInvitation: vi.fn(),
           requireActiveMembership: vi.fn(),

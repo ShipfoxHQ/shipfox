@@ -66,7 +66,10 @@ export async function createWorkspaceForUser(params: {
   userName?: string | null | undefined;
 }): Promise<Workspace> {
   return await db().transaction(async (tx) => {
-    const [workspaceRow] = await tx.insert(workspaces).values({name: params.name}).returning();
+    const [workspaceRow] = await tx
+      .insert(workspaces)
+      .values({name: params.name, createdBy: params.userId})
+      .returning();
     if (!workspaceRow) throw new Error('Insert returned no rows');
     await tx.insert(memberships).values({
       userId: params.userId,
@@ -96,6 +99,11 @@ export async function getWorkspace(params: {workspaceId: string}): Promise<Works
   }
 
   return workspace;
+}
+
+export async function getWorkspaceCreator(params: {workspaceId: string}): Promise<string | null> {
+  const workspace = await getWorkspace(params);
+  return workspace.createdBy;
 }
 
 export async function listUserWorkspaceMemberships(params: {

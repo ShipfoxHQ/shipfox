@@ -5,6 +5,7 @@ export interface Workspace {
   name: string;
   status: WorkspaceStatus;
   settings: Record<string, unknown>;
+  createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
