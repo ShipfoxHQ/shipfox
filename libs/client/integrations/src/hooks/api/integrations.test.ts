@@ -78,7 +78,9 @@ describe('Slack transport', () => {
       }),
     });
 
-    await createSlackInstall({workspace_id: '11111111-1111-4111-8111-111111111111'});
+    const install = await createSlackInstall({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
     await completeSlackCallback({
       query: {code: 'grant code', state: 'signed state'},
       token: 'session-token',
@@ -88,6 +90,7 @@ describe('Slack transport', () => {
     expect(await requests[0]?.json()).toEqual({
       workspace_id: '11111111-1111-4111-8111-111111111111',
     });
+    expect(install).toEqual({installUrl: 'https://slack.example.test/install'});
     expect(requests[1]?.url).toBe(
       'https://api.example.test/integrations/slack/callback/api?code=grant+code&state=signed+state',
     );
@@ -122,7 +125,9 @@ describe('Linear transport', () => {
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
 
-    await createLinearInstall({workspace_id: '11111111-1111-4111-8111-111111111111'});
+    const install = await createLinearInstall({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
     await completeLinearCallback({
       query: {code: 'grant code', state: 'signed state'},
       token: 'session-token',
@@ -140,6 +145,7 @@ describe('Linear transport', () => {
     expect(await requests[0]?.json()).toEqual({
       workspace_id: '11111111-1111-4111-8111-111111111111',
     });
+    expect(install).toEqual({installUrl: 'https://linear.example.test/install'});
     expect(requests[1]?.url).toBe(
       'https://api.example.test/integrations/linear/callback/api?code=grant+code&state=signed+state',
     );

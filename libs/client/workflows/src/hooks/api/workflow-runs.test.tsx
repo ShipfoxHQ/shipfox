@@ -133,6 +133,17 @@ describe('workflow run API hooks', () => {
     expect(cached).toHaveProperty('triggerSource', 'manual');
   });
 
+  test('rejects malformed detail responses before they reach the query cache', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({id: RUN_ID, trigger_source: 'manual'}));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result, queryClient} = renderWithQueryClient(() => useWorkflowRunQuery(RUN_ID));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toMatchObject({code: 'invalid-response'});
+    expect(queryClient.getQueryData(workflowRunsQueryKeys.detail(RUN_ID))).toBeUndefined();
+  });
+
   test('maps run attempts and caches them by workflow run id', async () => {
     const body = runAttemptsResponseDto({
       attempts: [
@@ -187,8 +198,8 @@ describe('workflow run API hooks', () => {
       inputs: {env: 'production'},
     });
 
-    expect(withoutInputs.workflow_run_id).toBe(RUN_ID);
-    expect(withInputs.workflow_run_id).toBe(RUN_ID);
+    expect(withoutInputs.workflowRunId).toBe(RUN_ID);
+    expect(withInputs.workflowRunId).toBe(RUN_ID);
     expect(postBodies).toEqual([{}, {inputs: {env: 'production'}}]);
     expect(firstRequest(fetchImpl).url).toBe(
       `https://api.example.test/workflow-definitions/${DEFINITION_ID}/fire-manual`,

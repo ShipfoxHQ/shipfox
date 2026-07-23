@@ -42,20 +42,26 @@ import {
 import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {
   type FetchQueryOptions,
+  type InfiniteData,
+  infiniteQueryOptions,
   queryOptions,
+  type UseInfiniteQueryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import {
+  type InstallRedirect,
   type IntegrationConnection,
   type IntegrationProvider,
   isUsableConnection,
+  type RepositoryPage,
 } from '#core/models.js';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 import {
+  toInstallRedirect,
   toIntegrationConnection,
   toIntegrationProvider,
   toRepository,
@@ -98,13 +104,36 @@ type ProvidersQueryOptions = FetchQueryOptions<
   ProvidersQueryKey
 >;
 
+type ConnectionsQueryKey =
+  | ReturnType<typeof integrationsQueryKeys.connections>
+  | readonly ['integrations', 'connections'];
+
+type ConnectionsQueryOptions = FetchQueryOptions<
+  IntegrationConnection[],
+  Error,
+  IntegrationConnection[],
+  ConnectionsQueryKey
+>;
+
+type RepositoriesQueryKey =
+  | ReturnType<typeof integrationsQueryKeys.repositories>
+  | readonly ['integrations', 'repositories'];
+
+type RepositoriesInfiniteQueryOptions = UseInfiniteQueryOptions<
+  RepositoryPage,
+  Error,
+  InfiniteData<RepositoryPage, string | undefined>,
+  RepositoriesQueryKey,
+  string | undefined
+>;
+
 export async function listIntegrationProviders({
   capability,
   signal,
 }: {
   capability?: IntegrationCapabilityDto;
   signal?: AbortSignal;
-}) {
+}): Promise<IntegrationProvider[]> {
   const search = new URLSearchParams();
   if (capability) search.set('capability', capability);
   const query = search.toString();
@@ -121,7 +150,7 @@ export async function listIntegrationConnections({
   workspaceId: string;
   capability?: IntegrationCapabilityDto | undefined;
   signal?: AbortSignal | undefined;
-}) {
+}): Promise<IntegrationConnection[]> {
   const search = new URLSearchParams({workspace_id: workspaceId});
   if (capability) search.set('capability', capability);
   const response = await checkedApiRequest(
@@ -138,7 +167,7 @@ export async function listSourceConnections({
 }: {
   workspaceId: string;
   signal?: AbortSignal;
-}) {
+}): Promise<IntegrationConnection[]> {
   const connections = await listIntegrationConnections({
     workspaceId,
     capability: 'source_control',
@@ -162,7 +191,9 @@ export function sourceConnectionsQueryOptions(
   });
 }
 
-export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) {
+export async function createGiteaConnection(
+  body: CreateGiteaConnectionBodyDto,
+): Promise<IntegrationConnection> {
   const response = await checkedApiRequest(
     createGiteaConnectionResponseSchema,
     '/integrations/gitea/connections',
@@ -174,14 +205,14 @@ export async function createGiteaConnection(body: CreateGiteaConnectionBodyDto) 
   return toIntegrationConnection(response);
 }
 
-export async function createGithubInstall(body: CreateGithubInstallBodyDto) {
-  return await checkedApiRequest(
-    createGithubInstallResponseSchema,
-    '/integrations/github/install',
-    {
+export async function createGithubInstall(
+  body: CreateGithubInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createGithubInstallResponseSchema, '/integrations/github/install', {
       method: 'POST',
       body,
-    },
+    }),
   );
 }
 
@@ -197,7 +228,7 @@ export async function completeGithubCallback({
   state: string;
   setupAction?: string;
   token: string;
-}) {
+}): Promise<IntegrationConnection> {
   const query = new URLSearchParams({code, installation_id: String(installationId), state});
   if (setupAction) query.set('setup_action', setupAction);
   const response = await checkedApiRequest(
@@ -208,33 +239,37 @@ export async function completeGithubCallback({
   return toIntegrationConnection(response);
 }
 
-export async function createSentryInstall(body: CreateSentryInstallBodyDto) {
-  return await checkedApiRequest(
-    createSentryInstallResponseSchema,
-    '/integrations/sentry/install',
-    {
+export async function createSentryInstall(
+  body: CreateSentryInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createSentryInstallResponseSchema, '/integrations/sentry/install', {
       method: 'POST',
       body,
-    },
+    }),
   );
 }
 
-export async function createLinearInstall(body: CreateLinearInstallBodyDto) {
-  return await checkedApiRequest(
-    createLinearInstallResponseSchema,
-    '/integrations/linear/install',
-    {
+export async function createLinearInstall(
+  body: CreateLinearInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createLinearInstallResponseSchema, '/integrations/linear/install', {
       method: 'POST',
       body,
-    },
+    }),
   );
 }
 
-export async function createSlackInstall(body: CreateSlackInstallBodyDto) {
-  return await checkedApiRequest(createSlackInstallResponseSchema, '/integrations/slack/install', {
-    method: 'POST',
-    body,
-  });
+export async function createSlackInstall(
+  body: CreateSlackInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createSlackInstallResponseSchema, '/integrations/slack/install', {
+      method: 'POST',
+      body,
+    }),
+  );
 }
 
 export async function completeLinearCallback({
@@ -243,7 +278,7 @@ export async function completeLinearCallback({
 }: {
   query: LinearCallbackQueryDto;
   token: string;
-}) {
+}): Promise<IntegrationConnection> {
   const response = await checkedApiRequest(
     linearCallbackResponseSchema,
     `/integrations/linear/callback/api?${serializeLinearCallbackQuery(query)}`,
@@ -258,7 +293,7 @@ export async function completeSlackCallback({
 }: {
   query: SlackCallbackQueryDto;
   token: string;
-}) {
+}): Promise<IntegrationConnection> {
   const response = await checkedApiRequest(
     slackCallbackResponseSchema,
     `/integrations/slack/callback/api?${serializeSlackCallbackQuery(query)}`,
@@ -292,7 +327,7 @@ export async function listRepositories({
   cursor?: string;
   search?: string;
   signal?: AbortSignal;
-}) {
+}): Promise<RepositoryPage> {
   const params = new URLSearchParams();
   if (cursor) params.set('cursor', cursor);
   if (search) params.set('search', search);
@@ -303,7 +338,7 @@ export async function listRepositories({
   const response = await checkedApiRequest(listRepositoriesResponseSchema, path, {signal});
   return {
     repositories: response.repositories.map(toRepository),
-    nextCursor: response.next_cursor ?? undefined,
+    ...(response.next_cursor == null ? {} : {nextCursor: response.next_cursor}),
   };
 }
 
@@ -313,7 +348,7 @@ export async function updateIntegrationConnection({
 }: {
   connectionId: string;
   body: UpdateIntegrationConnectionBodyDto;
-}) {
+}): Promise<IntegrationConnection> {
   const response = await checkedApiRequest(
     integrationConnectionDtoSchema,
     `/integration-connections/${encodeURIComponent(connectionId)}`,
@@ -333,11 +368,7 @@ export async function deleteIntegrationConnection({connectionId}: {connectionId:
 }
 
 export function useIntegrationProvidersQuery(params?: {capability?: IntegrationCapabilityDto}) {
-  const capability = params?.capability;
-  return useQuery({
-    queryKey: integrationsQueryKeys.providers(capability ?? 'all'),
-    queryFn: ({signal}) => listIntegrationProviders(capability ? {capability, signal} : {signal}),
-  });
+  return useQuery(integrationProvidersQueryOptions(params?.capability));
 }
 
 export function integrationProvidersQueryOptions(
@@ -354,24 +385,30 @@ export function useSourceConnectionsQuery(workspaceId: string | undefined) {
 }
 
 export function useIntegrationConnectionsQuery(workspaceId: string | undefined) {
-  return useQuery({
+  return useQuery(integrationConnectionsQueryOptions(workspaceId));
+}
+
+export function integrationConnectionsQueryOptions(
+  workspaceId: string | undefined,
+): ConnectionsQueryOptions {
+  return queryOptions({
     queryKey: workspaceId
       ? integrationsQueryKeys.connections(workspaceId, 'all')
-      : [...integrationsQueryKeys.all, 'connections'],
+      : ([...integrationsQueryKeys.all, 'connections'] as const),
     enabled: Boolean(workspaceId),
     queryFn: ({signal}) => listIntegrationConnections({workspaceId: workspaceId ?? '', signal}),
   });
 }
 
-export function useRepositoriesInfiniteQuery(
+export function repositoriesInfiniteQueryOptions(
   connectionId: string | undefined,
   options?: {search?: string},
-) {
+): RepositoriesInfiniteQueryOptions {
   const trimmedSearch = options?.search?.trim() ?? '';
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: connectionId
       ? integrationsQueryKeys.repositories(connectionId, trimmedSearch)
-      : [...integrationsQueryKeys.all, 'repositories'],
+      : ([...integrationsQueryKeys.all, 'repositories'] as const),
     enabled: Boolean(connectionId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({pageParam, signal}) => {
@@ -385,6 +422,13 @@ export function useRepositoriesInfiniteQuery(
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
+}
+
+export function useRepositoriesInfiniteQuery(
+  connectionId: string | undefined,
+  options?: {search?: string},
+) {
+  return useInfiniteQuery(repositoriesInfiniteQueryOptions(connectionId, options));
 }
 
 export function useCreateGiteaConnectionMutation() {

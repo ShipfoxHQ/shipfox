@@ -190,7 +190,7 @@ function createRequestInit(options: ApiRequestOptions, headers: Headers): KyOpti
   return requestInit;
 }
 
-export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const hasCallerAuthorization = headers.has('authorization');
   const accessToken = apiOptions.getAccessToken?.();

@@ -109,7 +109,7 @@ export function classifySentryConnectError(error: unknown): SentryConnectFailure
       return {kind: 'retryable', message: 'Sentry is unreachable. Try again.'};
     }
     if (error.status === 0 || error.code === 'network-error') {
-      // A network failure (apiRequest throws status 0) never reached the
+      // A network failure (the client transport reports status 0) never reached the
       // server, so the grant code is untouched and a plain Retry can recover.
       // Must precede the status < 500 branch, which would otherwise treat it as
       // a spent code and force a full restart.

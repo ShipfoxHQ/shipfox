@@ -84,6 +84,14 @@ export interface ProviderConfiguration {
   readonly defaultProviderId: string | null;
 }
 
+export interface DefaultModelProviderSelection {
+  readonly defaultProviderId: string | null;
+}
+
+export interface DefaultHarnessSelection {
+  readonly defaultHarnessId: HarnessId;
+}
+
 export interface ProviderCredentialsCommand {
   defaultModel?: string | null | undefined;
   credentials: Record<string, string>;

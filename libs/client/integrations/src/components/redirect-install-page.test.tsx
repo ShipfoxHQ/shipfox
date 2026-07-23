@@ -26,9 +26,7 @@ function renderInstallPage(
 
 describe('RedirectInstallPage', () => {
   test('requests the install URL and leaves the app', async () => {
-    const installRequest = vi
-      .fn()
-      .mockResolvedValue({install_url: 'https://provider.test/install'});
+    const installRequest = vi.fn().mockResolvedValue({installUrl: 'https://provider.test/install'});
     const assignLocation = vi.fn();
     const beforeRedirect = vi.fn();
 
@@ -68,9 +66,7 @@ describe('RedirectInstallPage', () => {
   });
 
   test('requests the install URL exactly once in Strict Mode', async () => {
-    const installRequest = vi
-      .fn()
-      .mockResolvedValue({install_url: 'https://provider.test/install'});
+    const installRequest = vi.fn().mockResolvedValue({installUrl: 'https://provider.test/install'});
 
     renderInstallPage(
       {

@@ -10,7 +10,11 @@ import {
 import {checkedApiRequest, type StandardSchema} from '@shipfox/client-api';
 import {
   type InfiniteData,
+  infiniteQueryOptions,
   keepPreviousData,
+  queryOptions,
+  type UseInfiniteQueryOptions,
+  type UseQueryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -18,6 +22,7 @@ import {
 } from '@tanstack/react-query';
 import {
   isWorkflowRunTerminal,
+  type ManualWorkflowLaunch,
   type WorkflowRun,
   type WorkflowRunAttempt,
   WorkflowRunAttemptSummary,
@@ -52,6 +57,35 @@ export const workflowRunsQueryKeys = {
     [...workflowRunsQueryKeys.all, 'attempts', workflowRunId] as const,
 };
 
+type WorkflowRunsListQueryKey =
+  | ReturnType<typeof workflowRunsQueryKeys.list>
+  | readonly ['workflow-runs', 'list'];
+type WorkflowRunDetailQueryKey =
+  | ReturnType<typeof workflowRunsQueryKeys.detail>
+  | readonly ['workflow-runs', 'detail'];
+type WorkflowRunAttemptsQueryKey =
+  | ReturnType<typeof workflowRunsQueryKeys.attempts>
+  | readonly ['workflow-runs', 'attempts'];
+type WorkflowRunsInfiniteQueryOptions = UseInfiniteQueryOptions<
+  WorkflowRunListPage,
+  Error,
+  InfiniteData<WorkflowRunListPage, string | undefined>,
+  WorkflowRunsListQueryKey,
+  string | undefined
+>;
+type WorkflowRunDetailQueryOptions = UseQueryOptions<
+  WorkflowRunDetail,
+  Error,
+  WorkflowRunDetail,
+  WorkflowRunDetailQueryKey
+>;
+type WorkflowRunAttemptsQueryOptions = UseQueryOptions<
+  WorkflowRunAttempt[],
+  Error,
+  WorkflowRunAttempt[],
+  WorkflowRunAttemptsQueryKey
+>;
+
 function normalizeFilters(filters: WorkflowRunFilters) {
   return {
     status: filters.status ?? null,
@@ -70,7 +104,7 @@ function appendFilters(params: URLSearchParams, filters: WorkflowRunFilters) {
   if (filters.createdTo) params.set('created_to', filters.createdTo);
 }
 
-async function listWorkflowRunsDto({
+async function listWorkflowRuns({
   projectId,
   filters,
   limit = 50,
@@ -82,7 +116,7 @@ async function listWorkflowRunsDto({
   limit?: number;
   cursor?: string | undefined;
   signal?: AbortSignal;
-}) {
+}): Promise<WorkflowRunListPage> {
   const params = new URLSearchParams({project_id: projectId, limit: String(limit)});
   if (cursor) params.set('cursor', cursor);
   appendFilters(params, filters);
@@ -107,8 +141,8 @@ export async function fireManualWorkflow({
 }: {
   definitionId: string;
   inputs?: Record<string, unknown>;
-}) {
-  return await checkedApiRequest(
+}): Promise<ManualWorkflowLaunch> {
+  const response = await checkedApiRequest(
     manualWorkflowResponseSchema,
     `/workflow-definitions/${definitionId}/fire-manual`,
     {
@@ -116,6 +150,7 @@ export async function fireManualWorkflow({
       body: inputs ? {inputs} : {},
     },
   );
+  return {workflowRunId: response.workflow_run_id};
 }
 
 const ACTIVE_POLL_MS = 4_000;
@@ -128,6 +163,14 @@ export function useWorkflowRunsInfiniteQuery(
   filters: WorkflowRunFilters,
   limit = 50,
 ) {
+  return useInfiniteQuery(workflowRunsInfiniteQueryOptions(projectId, filters, limit));
+}
+
+export function workflowRunsInfiniteQueryOptions(
+  projectId: string | undefined,
+  filters: WorkflowRunFilters,
+  limit = 50,
+): WorkflowRunsInfiniteQueryOptions {
   // Polling is owned by react-query, not the page. Polling fast (4s) while
   // any non-terminal run is visible covers state transitions; polling slow
   // (30s) when idle covers brand-new external runs (webhook/schedule
@@ -139,14 +182,14 @@ export function useWorkflowRunsInfiniteQuery(
   // of rows can drop into a between-pages gap. Users who scrolled into
   // history opted into "reading mode": pause until they refocus, filter,
   // or scroll back.
-  return useInfiniteQuery({
+  return infiniteQueryOptions({
     queryKey: projectId
       ? workflowRunsQueryKeys.list(projectId, filters)
-      : [...workflowRunsQueryKeys.all, 'list'],
+      : ([...workflowRunsQueryKeys.all, 'list'] as const),
     enabled: Boolean(projectId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({pageParam, signal}) =>
-      listWorkflowRunsDto({projectId: projectId ?? '', filters, limit, cursor: pageParam, signal}),
+      listWorkflowRuns({projectId: projectId ?? '', filters, limit, cursor: pageParam, signal}),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
     staleTime: 2_000,
@@ -163,7 +206,7 @@ export function useWorkflowRunsInfiniteQuery(
   });
 }
 
-async function getWorkflowRunDto({
+async function getWorkflowRun({
   workflowRunId,
   runAttempt,
   signal,
@@ -171,39 +214,48 @@ async function getWorkflowRunDto({
   workflowRunId: string;
   runAttempt?: number | undefined;
   signal?: AbortSignal;
-}) {
+}): Promise<WorkflowRunDetail> {
   const params = new URLSearchParams();
   if (runAttempt) params.set('attempt', String(runAttempt));
   const query = params.size > 0 ? `?${params.toString()}` : '';
-  return await checkedApiRequest(
-    workflowRunDetailResponseSchema,
-    `/workflows/runs/${workflowRunId}${query}`,
-    {
-      signal,
-    },
+  return toWorkflowRunDetail(
+    await checkedApiRequest(
+      workflowRunDetailResponseSchema,
+      `/workflows/runs/${workflowRunId}${query}`,
+      {
+        signal,
+      },
+    ),
   );
 }
 
-async function getWorkflowRunAttemptsDto({
+async function getWorkflowRunAttempts({
   workflowRunId,
   signal,
 }: {
   workflowRunId: string;
   signal?: AbortSignal;
-}) {
-  return await checkedApiRequest(
+}): Promise<WorkflowRunAttempt[]> {
+  const response = await checkedApiRequest(
     workflowRunAttemptsResponseSchema,
     `/workflows/runs/${workflowRunId}/attempts`,
     {
       signal,
     },
   );
+  return response.attempts.map(toWorkflowRunAttempt);
 }
 
-async function cancelWorkflowRunDto({workflowRunId}: {workflowRunId: string}) {
-  return await checkedApiRequest(workflowRunDtoSchema, `/workflows/runs/${workflowRunId}/cancel`, {
-    method: 'POST',
-  });
+async function cancelWorkflowRun({
+  workflowRunId,
+}: {
+  workflowRunId: string;
+}): Promise<WorkflowRunListItem> {
+  return toWorkflowRunListItem(
+    await checkedApiRequest(workflowRunDtoSchema, `/workflows/runs/${workflowRunId}/cancel`, {
+      method: 'POST',
+    }),
+  );
 }
 
 export async function rerunWorkflowRun({
@@ -212,14 +264,12 @@ export async function rerunWorkflowRun({
 }: {
   workflowRunId: string;
   mode: WorkflowRunRerunModeDto;
-}) {
-  return await checkedApiRequest(
-    workflowRunResponseSchema,
-    `/workflows/runs/${workflowRunId}/rerun`,
-    {
+}): Promise<WorkflowRunListItem> {
+  return toWorkflowRunListItem(
+    await checkedApiRequest(workflowRunResponseSchema, `/workflows/runs/${workflowRunId}/rerun`, {
       method: 'POST',
       body: {mode} satisfies RerunWorkflowRunBodyDto,
-    },
+    }),
   );
 }
 
@@ -433,7 +483,7 @@ function lookupDefinitionName(
   definitionId: string,
 ): string | undefined {
   const entries = queryClient.getQueriesData<
-    InfiniteData<{definitions: Array<{id: string; project_id: string; name: string}>}>
+    InfiniteData<{definitions: Array<{id: string; name: string}>}>
   >({queryKey: ['definitions', 'list', projectId]});
   for (const [, data] of entries) {
     if (!data) continue;
@@ -456,17 +506,24 @@ export function useWorkflowRunAttemptQuery({
   workflowRunId: string | undefined;
   runAttempt?: number | undefined;
 }) {
+  return useQuery(workflowRunQueryOptions({workflowRunId, runAttempt}));
+}
+
+export function workflowRunQueryOptions({
+  workflowRunId,
+  runAttempt,
+}: {
+  workflowRunId: string | undefined;
+  runAttempt?: number | undefined;
+}): WorkflowRunDetailQueryOptions {
   // Poll a non-terminal run so the open run detail stays live (same cadence as the run
   // list); stop once the run is terminal.
-  return useQuery({
+  return queryOptions({
     queryKey: workflowRunId
       ? workflowRunsQueryKeys.detail(workflowRunId, runAttempt)
-      : [...workflowRunsQueryKeys.all, 'detail'],
+      : ([...workflowRunsQueryKeys.all, 'detail'] as const),
     enabled: Boolean(workflowRunId),
-    queryFn: ({signal}) =>
-      getWorkflowRunDto({workflowRunId: workflowRunId ?? '', runAttempt, signal}).then(
-        toWorkflowRunDetail,
-      ),
+    queryFn: ({signal}) => getWorkflowRun({workflowRunId: workflowRunId ?? '', runAttempt, signal}),
     staleTime: 2_000,
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
@@ -486,15 +543,22 @@ export function useWorkflowRunAttemptsQuery({
   workflowRunId: string | undefined;
   enabled: boolean;
 }) {
-  return useQuery({
+  return useQuery(workflowRunAttemptsQueryOptions({workflowRunId, enabled}));
+}
+
+export function workflowRunAttemptsQueryOptions({
+  workflowRunId,
+  enabled,
+}: {
+  workflowRunId: string | undefined;
+  enabled: boolean;
+}): WorkflowRunAttemptsQueryOptions {
+  return queryOptions({
     queryKey: workflowRunId
       ? workflowRunsQueryKeys.attempts(workflowRunId)
-      : [...workflowRunsQueryKeys.all, 'attempts'],
+      : ([...workflowRunsQueryKeys.all, 'attempts'] as const),
     enabled: Boolean(workflowRunId) && enabled,
-    queryFn: ({signal}) =>
-      getWorkflowRunAttemptsDto({workflowRunId: workflowRunId ?? '', signal}).then(
-        (dto): WorkflowRunAttempt[] => dto.attempts.map(toWorkflowRunAttempt),
-      ),
+    queryFn: ({signal}) => getWorkflowRunAttempts({workflowRunId: workflowRunId ?? '', signal}),
     staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
@@ -504,9 +568,9 @@ export function useWorkflowRunAttemptsQuery({
 export function useCancelWorkflowRunMutation(run: WorkflowRun | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<WorkflowRunListItem> => {
       if (!run) throw new Error('Workflow run is not loaded');
-      return toWorkflowRunListItem(await cancelWorkflowRunDto({workflowRunId: run.id}));
+      return await cancelWorkflowRun({workflowRunId: run.id});
     },
     onSuccess: async () => {
       if (!run) return;
