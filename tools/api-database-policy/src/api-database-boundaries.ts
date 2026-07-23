@@ -172,13 +172,6 @@ interface ReconciliationResult {
 const namespaceSuggestion = (owner: string, namespace: string): string =>
   `Use the ${owner} owner's ${namespace} schema factory and producer-owned boundary.`;
 
-function baselineEntry(
-  finding: Omit<DatabaseBoundaryBaselineEntry, 'trackingIssue' | 'removalCondition'>,
-  trackingIssue: string,
-  removalCondition: string,
-): DatabaseBoundaryBaselineEntry {
-  return {...finding, trackingIssue, removalCondition};
-}
 const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Object.freeze([]);
 
 export {databaseBoundaryBaseline};

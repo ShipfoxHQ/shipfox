@@ -15,10 +15,7 @@ describe('database boundary verifier', () => {
     assert.equal(reconciliation.knownBaselineFindings.length, databaseBoundaryBaseline.length);
     assert.ok(databaseBoundaryBaseline.every((entry) => !entry.file.includes('*')));
     assert.ok(databaseBoundaryBaseline.every((entry) => !entry.object.includes('*')));
-    assert.deepEqual(
-      new Set(findings.map((finding) => finding.rule)),
-      new Set(),
-    );
+    assert.deepEqual(new Set(findings.map((finding) => finding.rule)), new Set());
   });
   test('fails closed when a finding is new or a baseline entry disappears', () => {
     const firstBaseline = {
@@ -28,7 +25,7 @@ describe('database boundary verifier', () => {
       line: 1,
       object: 'test',
       rule: 'unprefixed-table',
-      suggestedBoundary: 'Use the test owner\'s test schema factory and producer-owned boundary.',
+      suggestedBoundary: "Use the test owner's test schema factory and producer-owned boundary.",
       trackingIssue: 'TEST-1',
       removalCondition: 'Test baseline entry is removed.',
     } satisfies (typeof databaseBoundaryBaseline)[number];
