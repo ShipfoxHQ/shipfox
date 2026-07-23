@@ -75,7 +75,7 @@ export interface CreateTriggersModuleOptions {
 export function createTriggersModule({workflows}: CreateTriggersModuleOptions): ShipfoxModule {
   return {
     name: 'triggers',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'triggers'},
     routes: createTriggerRoutes(workflows),
     e2eRoutes: [triggersE2eRoutes],
     metrics: registerTriggersServiceMetrics,

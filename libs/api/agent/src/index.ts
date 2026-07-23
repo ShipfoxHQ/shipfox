@@ -45,7 +45,7 @@ export {
 export function createAgentModule(params: {secrets: AgentSecretsClient}): ShipfoxModule {
   return {
     name: 'agent',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'agent'},
     routes: createAgentRoutes(params.secrets),
     e2eRoutes: [createAgentE2eRoutes(params.secrets)],
     interModulePresentations: [createAgentInterModulePresentation(params)],

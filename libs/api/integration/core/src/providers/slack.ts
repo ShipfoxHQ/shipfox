@@ -19,7 +19,6 @@ import {
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
-const SLACK_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_slack';
 const SLACK_SECRETS_NAMESPACE_PREFIX = 'system/integrations/slack/';
 
 type IntegrationDb = ReturnType<typeof db>;
@@ -180,7 +179,7 @@ async function loadSlackModuleParts(
     database: {
       db: slackDb,
       migrationsPath: slackMigrationsPath,
-      migrationsTableName: SLACK_MIGRATIONS_TABLE,
+      databaseNamespace: 'integrations_slack',
     },
   };
 }

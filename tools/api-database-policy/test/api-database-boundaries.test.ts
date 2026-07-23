@@ -36,7 +36,6 @@ describe('database boundary verifier', () => {
         'foreign-migration',
         'foreign-raw-sql',
         'foreign-table-declaration',
-        'migration-history-instability',
         'unprefixed-table',
       ]),
     );

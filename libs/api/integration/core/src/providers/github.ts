@@ -19,12 +19,6 @@ import type {
   IntegrationProviderModuleLoadOptions,
 } from '#providers/types.js';
 
-// Stable migration-tracking table name for the GitHub provider database. This
-// must NOT depend on the provider's position in the module `database` array. A
-// positional name would shift if a provider is flag-disabled and silently
-// re-run migrations against existing tables.
-const GITHUB_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_github';
-
 async function loadGithubModuleParts(
   options: IntegrationProviderModuleLoadOptions = {},
 ): Promise<IntegrationModuleParts> {
@@ -141,7 +135,7 @@ async function loadGithubModuleParts(
     database: {
       db: githubDb,
       migrationsPath: githubMigrationsPath,
-      migrationsTableName: GITHUB_MIGRATIONS_TABLE,
+      databaseNamespace: 'integrations_github',
     },
   };
 }

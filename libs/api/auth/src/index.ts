@@ -69,7 +69,7 @@ export function createAuthModule({
 }): ShipfoxModule {
   return {
     name: 'auth',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'auth'},
     auth: [createJwtAuthMethod(), createLeaseTokenAuthMethod(), createRunnerSessionAuthMethod()],
     loginMethods: passwordLoginMethods(config.AUTH_PASSWORD_ENABLED),
     routes: [buildAuthRoutes(config.AUTH_PASSWORD_ENABLED, workspaces)],

@@ -16,7 +16,6 @@ import {db} from '#db/db.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
-const JIRA_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_jira';
 const JIRA_SECRETS_NAMESPACE_PREFIX = 'system/integrations/jira/';
 type IntegrationDb = ReturnType<typeof db>;
 type IntegrationTx = Parameters<Parameters<IntegrationDb['transaction']>[0]>[0];
@@ -154,7 +153,7 @@ async function loadJiraModuleParts(
           : {}),
       },
     }),
-    database: {db: jiraDb, migrationsPath, migrationsTableName: JIRA_MIGRATIONS_TABLE},
+    database: {db: jiraDb, migrationsPath, databaseNamespace: 'integrations_jira'},
   };
 }
 

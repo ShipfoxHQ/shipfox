@@ -19,6 +19,6 @@ export const emailChallengesModule: ShipfoxModule = {
   database: {
     db,
     migrationsPath,
-    migrationsTableName: '__drizzle_migrations_email_challenges',
+    databaseNamespace: 'email_challenges',
   },
 };

@@ -30,7 +30,7 @@ describe('slackProviderModule', () => {
     await runMigrations(
       slackPart.database.db(),
       slackPart.database.migrationsPath,
-      slackPart.database.migrationsTableName,
+      `__drizzle_migrations_${slackPart.database.databaseNamespace}`,
     );
     const connection = await upsertIntegrationConnection({
       workspaceId,
@@ -81,7 +81,7 @@ describe('slackProviderModule', () => {
     await runMigrations(
       slackPart.database.db(),
       slackPart.database.migrationsPath,
-      slackPart.database.migrationsTableName,
+      `__drizzle_migrations_${slackPart.database.databaseNamespace}`,
     );
     const app = await createTestApp([slackPart.provider]);
     const connection = await upsertIntegrationConnection({
@@ -159,7 +159,7 @@ describe('slackProviderModule', () => {
     await runMigrations(
       slackPart.database.db(),
       slackPart.database.migrationsPath,
-      slackPart.database.migrationsTableName,
+      `__drizzle_migrations_${slackPart.database.databaseNamespace}`,
     );
     const connection = await upsertIntegrationConnection({
       workspaceId: context.workspaceId,

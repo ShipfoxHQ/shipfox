@@ -15,7 +15,6 @@ import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-d
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
-const LINEAR_MIGRATIONS_TABLE = '__drizzle_migrations_integrations_linear';
 const LINEAR_SECRETS_NAMESPACE_PREFIX = 'system/integrations/linear/';
 
 type IntegrationDb = ReturnType<typeof db>;
@@ -177,7 +176,7 @@ async function loadLinearModuleParts(
     database: {
       db: linearDb,
       migrationsPath: linearMigrationsPath,
-      migrationsTableName: LINEAR_MIGRATIONS_TABLE,
+      databaseNamespace: 'integrations_linear',
     },
   };
 }

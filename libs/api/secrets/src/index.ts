@@ -45,7 +45,7 @@ export {
 export function createSecretsModule(projects: ProjectsModuleClient): ShipfoxModule {
   return {
     name: 'secrets',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'secrets'},
     routes: createSecretsRoutes(projects),
     e2eRoutes: [secretsE2eRoutes],
     metrics: registerSecretsServiceMetrics,
@@ -57,5 +57,5 @@ export function createSecretsModule(projects: ProjectsModuleClient): ShipfoxModu
 // Migration setup imports this declaration only for the owned database metadata.
 export const secretsModule: ShipfoxModule = {
   name: 'secrets',
-  database: {db, migrationsPath},
+  database: {db, migrationsPath, databaseNamespace: 'secrets'},
 };

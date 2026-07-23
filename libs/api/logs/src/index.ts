@@ -38,7 +38,7 @@ export function createLogsModule({
 
   return {
     name: 'logs',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'logs'},
     routes: createLogsRoutes(workflows),
     metrics: registerLogsServiceMetrics,
     // `logs.stream.closed` is written by the close paths: the job-terminated subscriber

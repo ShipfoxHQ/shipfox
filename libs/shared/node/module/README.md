@@ -65,7 +65,7 @@ async function handleExampleCreated(payload: ExampleEventMap['example.created'])
 
 export const exampleModule: ShipfoxModule = {
   name: 'example',
-  database: {db, migrationsPath},
+  database: {db, migrationsPath, databaseNamespace: 'example'},
   auth: [authMethod],
   loginMethods: [{id: 'example-login'}],
   routes: [routes],
@@ -83,6 +83,11 @@ export const exampleModule: ShipfoxModule = {
   ],
 };
 ```
+
+Every database declaration requires a stable lowercase snake-case
+`databaseNamespace`. Initialization uses it for the Drizzle migration history
+table `__drizzle_migrations_<databaseNamespace>` and rejects invalid or
+duplicate namespaces before running migrations.
 
 ## Login methods
 

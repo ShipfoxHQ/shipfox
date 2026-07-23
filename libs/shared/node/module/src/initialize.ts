@@ -26,6 +26,8 @@ export interface InitializeModulesOptions {
   modules: ShipfoxModule[];
 }
 
+const databaseNamespaceExpression = /^[a-z][a-z0-9_]*$/u;
+
 export interface InitializedModules {
   auth: AuthMethod[];
   routes: RouteExport[];
@@ -83,19 +85,27 @@ export async function initializeModules(
   const services: ModuleService[] = [];
   const outboxRegistry = createOutboxRegistry();
 
+  validateModuleDatabaseNamespaces(options.modules);
+
   for (const mod of options.modules) {
     logger().info({module: mod.name}, 'Initializing module');
 
     if (mod.database) {
       const databases = normalizeModuleDatabases(mod.database);
-      for (const [index, database] of databases.entries()) {
-        logger().info({module: mod.name, database: index}, 'Running migrations');
+      for (const database of databases) {
+        logger().info(
+          {module: mod.name, database: database.databaseNamespace},
+          'Running migrations',
+        );
         await runMigrations(
           database.db(),
           database.migrationsPath,
-          database.migrationsTableName ?? moduleMigrationTableName(mod.name, index),
+          migrationHistoryTableName(database.databaseNamespace),
         );
-        logger().info({module: mod.name, database: index}, 'Migrations complete');
+        logger().info(
+          {module: mod.name, database: database.databaseNamespace},
+          'Migrations complete',
+        );
       }
     }
 
@@ -141,9 +151,32 @@ function normalizeModuleDatabases(database: ModuleDatabase | ModuleDatabase[]): 
   return Array.isArray(database) ? database : [database];
 }
 
-function moduleMigrationTableName(moduleName: string, index: number): string {
-  if (index === 0) return `__drizzle_migrations_${moduleName}`;
-  return `__drizzle_migrations_${moduleName}_${index}`;
+function validateModuleDatabaseNamespaces(modules: readonly ShipfoxModule[]): void {
+  const owners = new Map<string, string>();
+
+  for (const mod of modules) {
+    if (!mod.database) continue;
+    for (const database of normalizeModuleDatabases(mod.database)) {
+      const {databaseNamespace} = database;
+      if (!databaseNamespaceExpression.test(databaseNamespace)) {
+        throw new Error(
+          `Invalid database namespace "${databaseNamespace}" declared by module "${mod.name}"; expected lowercase snake case`,
+        );
+      }
+
+      const existingOwner = owners.get(databaseNamespace);
+      if (existingOwner) {
+        throw new Error(
+          `Duplicate database namespace "${databaseNamespace}" declared by modules "${existingOwner}" and "${mod.name}"`,
+        );
+      }
+      owners.set(databaseNamespace, mod.name);
+    }
+  }
+}
+
+function migrationHistoryTableName(databaseNamespace: string): string {
+  return `__drizzle_migrations_${databaseNamespace}`;
 }
 
 /**

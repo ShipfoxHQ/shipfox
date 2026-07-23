@@ -48,7 +48,7 @@ export interface CreateProjectsModuleOptions {
 export function createProjectsModule({integrations}: CreateProjectsModuleOptions): ShipfoxModule {
   return {
     name: 'projects',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'projects'},
     routes: createProjectRoutes(integrations),
     e2eRoutes: [projectsE2eRoutes],
     metrics: registerProjectsServiceMetrics,

@@ -95,7 +95,7 @@ export function createWorkflowsModule({
 }): ShipfoxModule {
   return {
     name: 'workflows',
-    database: {db, migrationsPath},
+    database: {db, migrationsPath, databaseNamespace: 'workflows'},
     routes: createWorkflowRoutes({
       agent,
       annotations,

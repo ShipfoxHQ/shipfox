@@ -238,7 +238,7 @@ export async function createIntegrationsContext(
     ],
     startupTasks: runStartupTasks,
     database: [
-      {db, migrationsPath},
+      {db, migrationsPath, databaseNamespace: 'integrations'},
       ...parts.flatMap((part) => (part.database ? [part.database] : [])),
     ],
     routes: createIntegrationRoutes(registry, sourceControl, {

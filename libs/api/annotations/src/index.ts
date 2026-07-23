@@ -6,7 +6,7 @@ import {annotationsRoutes} from '#presentation/routes/index.js';
 
 export const annotationsModule: ShipfoxModule = {
   name: 'annotations',
-  database: {db, migrationsPath},
+  database: {db, migrationsPath, databaseNamespace: 'annotations'},
   routes: annotationsRoutes,
   interModulePresentations: [createAnnotationsInterModulePresentation()],
 };

@@ -10,14 +10,12 @@ export interface ModuleDatabase {
   db: () => NodePgDatabase<Record<string, unknown>>;
   migrationsPath: string;
   /**
-   * Stable name for this database's drizzle migration-tracking table. When
-   * omitted, the name is derived from the module name and the database's
-   * position in the module's `database` array. Set this for modules that
-   * compose databases conditionally (e.g. feature-flagged providers), where a
-   * positional name would shift if another database is added or removed and
-   * silently re-run migrations against existing tables.
+   * Stable database identity used for table prefixes and the Drizzle
+   * migration-tracking table. This is registered independently of the module's
+   * display name and must remain stable when modules or providers are moved,
+   * reordered, enabled, or disabled.
    */
-  migrationsTableName?: string;
+  databaseNamespace: string;
 }
 
 export interface ModulePublisher {
