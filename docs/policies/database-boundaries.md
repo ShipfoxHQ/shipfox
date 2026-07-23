@@ -119,17 +119,7 @@ The gate must run in pull-request verification. A new exception needs a named
 owner, reason, tracking issue, and removal condition in this policy. Do not add
 a broad path or prefix allowlist.
 
-The pre-deploy remediation baseline contains these known violations:
-
-- Agent has four database object names without the `agent_` prefix.
-- The Workspaces root table is named `workspaces`, not
-  `workspaces_workspaces`.
-- Workflows declares and locks Runners lease tables.
-- Auth test setup migrates and truncates Email Challenges storage.
-- Module migration-history names can depend on a display name or array
-  position instead of the database namespace.
-
-Remove each violation before enabling the gate without a baseline. Because
-there is no deployed database state to preserve, correct unshipped migrations
-and snapshots directly. Do not add compatibility objects or copy these
-patterns.
+The first gate can carry exact temporary entries for known violations. Each
+entry names one object or source location, its tracking issue, and its removal
+condition. New findings fail immediately. Remove entries as fixes land and
+keep the target baseline empty.

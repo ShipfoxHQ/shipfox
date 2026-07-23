@@ -68,12 +68,11 @@ need a new operation, snapshot, or reporting model.
 a foreign row lock inside an existing transaction. The operation needs one
 owner or an explicit consistency protocol.
 
-**Prefixing becomes a rule.** Correct unprefixed objects in the unshipped
-migration baseline before the first deployment. After deployment, a rename
-needs a staged compatibility plan.
+**Prefixing becomes a rule.** Existing unprefixed objects must be renamed.
+Their migration plan must match the database's compatibility needs.
 
-**The first static gate has cleanup work.** The database boundary policy lists
-the pre-deploy baseline. Remove it before the gate becomes a zero-finding
+**The first static gate has cleanup work.** The database boundary policy allows
+exact temporary findings. Remove them before the gate becomes a zero-finding
 pull-request check.
 
 ## Rejected alternatives
