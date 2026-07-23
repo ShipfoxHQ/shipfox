@@ -180,30 +180,49 @@ when adding, moving, or debugging an enforcement rule. It owns the boundary
 between Biome, Dependency Cruiser, executable contract tests, and repository
 policy.
 
-Run the affected package `check` and `pnpm check:client-architecture` after
-changing a client boundary. Package checks run the local Biome rules and report
-source locations for response DTO imports, DTO or framework imports in `core/`,
-raw API requests, and leaf-component query-cache ownership. The repository
-verifier inventories production adapters and query hooks under `libs/client/**`
-and `libs/shared/react/ui/**`. It rejects direct API requests outside adapters,
-unparsed API responses, checked business responses returned without a mapper,
-inline query policies, query hooks outside adapters, direct query-client
-operations outside an owning adapter or named coordinator. Both checks require
-zero production violations. Neither check has a migration baseline or broad
-allowlist. A shell/runtime or cross-feature coordinator that needs a direct
-query-client operation must be recorded in the
+Each invariant has one enforcement owner:
+
+| Owner | What it checks | Where to fix it |
+| --- | --- | --- |
+| Biome plugins | Local source shape: DTO and framework imports in `core/`, response DTOs in pages and components, raw `apiRequest`, leaf-component query-cache writes, raw route inputs, and direct browser storage. | Fix the import or call at the diagnostic location. Do not add `biome-ignore`. |
+| `@shipfox/client-architecture-policy` | Semantic and repository facts: checked requests outside adapters, raw responses inside adapters, DTO-to-domain mapping, reusable query policies, query-hook placement, cache-operation ownership, private feature imports, and feature contributions. | Move the code to its adapter, domain, or coordinator boundary; add an exact tested exception only when the boundary is intentional. |
+| Focused tests | Composition, cache effects, principal isolation, persistence, retries, and user journeys. | Update the owning contract or runtime test. |
+
+Package checks run the local Biome rules and report source locations. The
+repository verifier inventories production adapters and query hooks under
+`libs/client/**` and `libs/shared/react/ui/**`. Both checks require zero
+production violations. Neither check has a migration baseline or broad
+allowlist.
+
+A shell/runtime or cross-feature coordinator that needs a direct query-client
+operation must be recorded in the
 [`cacheOperation` registry](../../tools/client-architecture-policy/src/audit-client-architecture.ts)
 with its exact source file, owner, reason, and focused test. The verifier
 rejects unregistered operations and stale registry records. The step-log query
-is the only narrow query-policy exception; its per-view cursor and retry
+is the only narrow query-policy exception. Its per-view cursor and retry
 lifecycle is recorded in the same
 [`clientArchitectureExceptions`](../../tools/client-architecture-policy/src/audit-client-architecture.ts)
-registry. It also rejects deep imports into another feature's private modules
-and navigation or settings contributions that target a route owned by another
-feature without an explicit `coordinator`. Raw route-input parsing and direct
-browser-storage access are blocked separately, by the `no-raw-route-inputs`
-and `no-direct-browser-storage` Biome plugins in
-`tools/biome/plugins/client-architecture/`.
+registry. Every exception must name one owner, one reason, one owning boundary,
+and one focused test. Never use a baseline, package-wide allowlist,
+or unowned suppression.
+
+Run the affected package and its dependents after a client boundary change:
+
+```sh
+mise exec -- turbo check --filter=@shipfox/<package>...
+mise exec -- pnpm check:client-architecture
+```
+
+When changing a Biome plugin or the semantic verifier, also run the focused
+fixtures and packed external-consumer checks:
+
+```sh
+mise exec -- turbo test type --filter=@shipfox/biome --filter=@shipfox/client-architecture-policy
+mise exec -- pnpm check:client-architecture
+```
+
+The `no-raw-route-inputs` and `no-direct-browser-storage` Biome plugins in
+`tools/biome/plugins/client-architecture/` own those source-shape boundaries.
 
 A completed feature package has `core/` domain models and policies with no UI
 or transport imports; checked adapter functions that parse and map every

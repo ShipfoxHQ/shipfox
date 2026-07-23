@@ -7,7 +7,7 @@ export interface ClientArchitectureViolation {
   file: string;
   occurrences: number;
   rule:
-    | 'api-request-outside-adapter'
+    | 'checked-api-request-outside-adapter'
     | 'non-owning-feature-contribution'
     | 'private-feature-import'
     | 'inline-query-policy'
@@ -80,7 +80,7 @@ const auditedDirectories = [
 ];
 const sourceFilePattern = /\.(?:ts|tsx)$/;
 const nonProductionSourcePattern = /\.(?:stories|test)\.(?:ts|tsx)$/;
-const apiRequestPattern = /\b(?:apiRequest|checkedApiRequest)\s*(?:<[^>]*>)?\s*\(/;
+const checkedApiRequestPattern = /\bcheckedApiRequest\s*(?:<[^>]*>)?\s*\(/;
 const uncheckedApiRequestPattern = /\bapiRequest\s*(?:<[^>]*>)?\s*\(/;
 const checkedApiRequestCallPattern = /\bcheckedApiRequest\s*(?:<[^>]*>)?\s*\(/g;
 const unmappedApiResponsePattern =
@@ -579,8 +579,11 @@ export function auditClientSource(file: string, source: string): ClientArchitect
     featureContributionOccurrences(normalizedFile, source),
   );
   if (!isAdapter && !isClientApi)
-    addViolation('api-request-outside-adapter', countMatches(source, apiRequestPattern));
-  if (!isClientApi)
+    addViolation(
+      'checked-api-request-outside-adapter',
+      countMatches(source, checkedApiRequestPattern),
+    );
+  if (isAdapter && !isClientApi)
     addViolation('unparsed-api-response', countMatches(source, uncheckedApiRequestPattern));
   if (isAdapter && !isClientApi) {
     addViolation('unmapped-api-response', countMatches(source, unmappedApiResponsePattern));
