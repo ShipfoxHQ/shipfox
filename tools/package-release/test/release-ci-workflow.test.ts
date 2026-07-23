@@ -25,16 +25,43 @@ describe('generated release CI path', () => {
   test('runs normal CI for normal, malformed, and main-push fixture conditions', async () => {
     const workflow = await readWorkflow();
 
+    assert.ok(workflow.includes('mode=normal'));
+    assert.ok(workflow.includes("needs.release-mode.outputs.mode == 'normal'"));
     assert.ok(
       workflow.includes(
-        "github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true'",
+        "needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal'",
+      ),
+    );
+  });
+
+  test('classifies version-only main commits and reuses immutable image digests', async () => {
+    const workflow = await readWorkflow();
+
+    assert.ok(workflow.includes('classify-main'));
+    assert.ok(workflow.includes('package-release-workflow.mjs classify-main'));
+    assert.ok(workflow.includes('release-mode:'));
+    assert.ok(workflow.includes('mode=version-only-main'));
+    assert.ok(workflow.includes('version_only_previous_revision'));
+    assert.ok(workflow.includes('Reuse previous application image digest'));
+    assert.ok(workflow.includes("needs.release-mode.outputs.mode == 'version-only-main'"));
+    assert.ok(
+      workflow.includes(
+        "needs.release-mode.outputs.mode == 'version-only-main' && needs.external-package-contracts.result == 'skipped'",
       ),
     );
     assert.ok(
       workflow.includes(
-        "always() && (github.event_name != 'pull_request' || needs.release-classification.outputs.generated_release != 'true')",
+        'previous_reference="$APPLICATION_IMAGE_REPOSITORY:revision-$PREVIOUS_REVISION"',
       ),
     );
+    assert.ok(workflow.includes('for tag in "revision-$GITHUB_SHA" "sha-$' + '{GITHUB_SHA:0:7}"'));
+    assert.ok(workflow.includes('revision-$GITHUB_SHA'));
+    assert.ok(workflow.includes('Claim immutable application image revision tag'));
+    assert.ok(workflow.includes('Retag existing application image for this revision'));
+    assert.ok(!workflow.includes('previous_reference="$APPLICATION_IMAGE_REPOSITORY:sha-'));
+    assert.ok(workflow.includes('oras tag "$APPLICATION_IMAGE_REPOSITORY@$digest"'));
+    assert.ok(workflow.includes('--reuse-from-revision "$PREVIOUS_REVISION"'));
+    assert.ok(workflow.includes('application image rebuilds, and Packer runner candidates'));
   });
 
   test('keeps required checks successful when the image matrix is intentionally skipped', async () => {
@@ -45,7 +72,7 @@ describe('generated release CI path', () => {
     assert.ok(workflow.includes('name: E2E tests'));
     assert.ok(workflow.includes('name: Build images'));
     assert.ok(
-      workflow.includes('needs.release-classification.outputs.generated_release }}" = "true"') &&
+      workflow.includes('needs.release-mode.outputs.mode }}" = "generated-release"') &&
         workflow.includes('needs.build-image.result }}" = "skipped"'),
     );
   });

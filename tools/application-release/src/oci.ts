@@ -40,12 +40,19 @@ export function resolveApplicationImages(
   tag: string,
   revision: string,
   registry: OciRegistry = orasRegistry(),
+  imageRevision = revision,
 ): ApplicationImageSet {
   return {
-    api: resolveImage(APPLICATION_RELEASE_IMAGES.api, tag, revision, registry),
-    client: resolveImage(APPLICATION_RELEASE_IMAGES.client, tag, revision, registry),
-    provisioner: resolveImage(APPLICATION_RELEASE_IMAGES.provisioner, tag, revision, registry),
-    runner: resolveImage(APPLICATION_RELEASE_IMAGES.runner, tag, revision, registry),
+    api: resolveImage(APPLICATION_RELEASE_IMAGES.api, tag, revision, registry, imageRevision),
+    client: resolveImage(APPLICATION_RELEASE_IMAGES.client, tag, revision, registry, imageRevision),
+    provisioner: resolveImage(
+      APPLICATION_RELEASE_IMAGES.provisioner,
+      tag,
+      revision,
+      registry,
+      imageRevision,
+    ),
+    runner: resolveImage(APPLICATION_RELEASE_IMAGES.runner, tag, revision, registry, imageRevision),
   };
 }
 
@@ -54,6 +61,7 @@ export function resolveImage(
   tag: string,
   revision: string,
   registry: OciRegistry,
+  imageRevision = revision,
 ): ApplicationImage {
   const taggedReference = `${repository}:${tag}`;
   const descriptor = registry.fetchDescriptor(taggedReference);
@@ -79,9 +87,9 @@ export function resolveImage(
     const actualRevision = config.config?.Labels?.['org.opencontainers.image.revision'];
     const platform = platformName(platformDescriptor.platform);
 
-    if (actualRevision !== revision) {
+    if (actualRevision !== imageRevision) {
       throw new Error(
-        `${taggedReference} (${platform}) has OCI revision ${JSON.stringify(actualRevision)}; expected ${revision}`,
+        `${taggedReference} (${platform}) has OCI revision ${JSON.stringify(actualRevision)}; expected ${imageRevision}`,
       );
     }
 
