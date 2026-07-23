@@ -134,27 +134,31 @@ export const projectsFeature = defineClientFeature({
     assert.deepEqual(violations, []);
   });
 
-  test('reports both unchecked and checked requests outside an adapter', () => {
+  test('leaves raw API request diagnostics outside adapters to Biome', () => {
     const violations = auditClientSource(
       'libs/client/projects/src/pages/project-page.tsx',
-      "apiRequest('/projects');\ncheckedApiRequest(schema, '/projects');",
+      "apiRequest('/projects');",
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  test('reports a checked request used outside an adapter', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/pages/project-page.tsx',
+      "checkedApiRequest(schema, '/projects');",
     );
 
     assert.deepEqual(violations, [
       {
         file: 'libs/client/projects/src/pages/project-page.tsx',
-        occurrences: 2,
-        rule: 'api-request-outside-adapter',
-      },
-      {
-        file: 'libs/client/projects/src/pages/project-page.tsx',
         occurrences: 1,
-        rule: 'unparsed-api-response',
+        rule: 'checked-api-request-outside-adapter',
       },
     ]);
   });
 
-  test('reports unparsed API responses from a feature adapter', () => {
+  test('reports raw API requests from a feature adapter', () => {
     const violations = auditClientSource(
       'libs/client/projects/src/hooks/api/list-projects.ts',
       "apiRequest('/projects');",
@@ -401,15 +405,12 @@ qc.invalidateQueries({queryKey: ['projects']});`,
     );
   });
 
-  test('reports remaining semantic boundary crossings', () => {
+  test('keeps source-local API request ownership out of the semantic verifier', () => {
     const page = auditClientSource(
       'libs/client/projects/src/pages/project-page.tsx',
       "import type {ProjectDto} from '@shipfox/api-projects-dto';\nimport {apiRequest} from '@shipfox/client-api';\napiRequest('/projects');",
     );
-    assert.deepEqual(
-      page.map((violation) => violation.rule),
-      ['api-request-outside-adapter', 'unparsed-api-response'],
-    );
+    assert.deepEqual(page, []);
   });
 
   test('rejects stale exception paths and missing focused tests', () => {

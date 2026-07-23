@@ -173,8 +173,8 @@ mise exec -- pnpm check:dependencies
 mise exec -- pnpm check:published-artifacts
 ```
 
-The first two commands remain repository-specific migration gates. Do not copy
-their implementation into Cloud. Move shared rules into
+`check:client-architecture` is the Platform semantic client-policy gate. Do not
+copy its implementation into Cloud. Move shared rules into
 `@shipfox/architecture-policy` when that package is available.
 
 ## Cross-repository rules
