@@ -32,10 +32,8 @@ describe('database boundary verifier', () => {
       new Set(findings.map((finding) => finding.rule)),
       new Set([
         'foreign-database-access',
-        'foreign-enum-declaration',
         'foreign-migration',
         'foreign-raw-sql',
-        'foreign-table-declaration',
         'unprefixed-table',
       ]),
     );

@@ -6,7 +6,7 @@ import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-modu
 import {nextStepResponseSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {warnAgentToolCapabilityMismatchOnDispatch} from '#core/agent-tool-capability-warning.js';
-import {JobLeaseNotActiveError, JobNotFoundError} from '#core/errors.js';
+import {JobNotFoundError} from '#core/errors.js';
 import {nextStepForLeasedJobExecution} from '#core/job-execution.js';
 import {toStepDto} from '#presentation/dto/step.js';
 
@@ -30,17 +30,21 @@ export function createNextStepRoute(params: {
       if (error instanceof JobNotFoundError) {
         throw new ClientError(error.message, 'job-not-found', {status: 404});
       }
-      if (error instanceof JobLeaseNotActiveError) {
-        throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
-      }
       throw error;
     },
     handler: async (request) => {
       const leasedJob = requireLeasedJobContext(request);
-      const next = await nextStepForLeasedJobExecution({
+      const {active: leaseIsActive} = await params.runners.getLeaseState({
         jobId: leasedJob.jobId,
         jobExecutionId: leasedJob.jobExecutionId,
         runnerSessionId: leasedJob.runnerSessionId,
+      });
+      if (!leaseIsActive) {
+        throw new ClientError('Job lease is no longer active', 'lease-not-active', {status: 404});
+      }
+
+      const next = await nextStepForLeasedJobExecution({
+        jobExecutionId: leasedJob.jobExecutionId,
         agent: params.agent,
       });
 
