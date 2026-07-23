@@ -32,6 +32,7 @@ listed there or when you need to place, update, or review documentation.
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
 | Validates repository Markdown links, anchors, or documentation reachability. | [Repository documentation policy](../tools/repository-documentation-policy/README.md) | Deterministic link and orphan checks for engineering documentation. |
+| Builds or consumes the published engineering guidance bundle. | [Engineering guidance package](../tools/engineering-guidance/README.md) | The public manifest, locator contract, and deterministic bundle workflow. |
 | Changes webhook retry behavior. | [Webhook retry safety](architecture/webhook-retry-safety.md) | The current safety model for webhook retries. |
 | Adds or changes unit tests or Storybook stories. | [Testing guide](guides/testing.md) | Unit-test levels and Storybook rules. |
 | Adds or changes a visual test. | [Visual regression guidance](guides/testing.md#visual-regression) | Argos builds, screenshots, and review. |

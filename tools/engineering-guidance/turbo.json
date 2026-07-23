@@ -1,0 +1,24 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/{AGENTS.md,CONTRIBUTING.md,DESIGN.md,README.md,WRITING.md}",
+        "$TURBO_ROOT$/docs/**/*.md",
+        "$TURBO_ROOT$/e2e/**/*.md",
+        "$TURBO_ROOT$/{apps,infra,libs,tools}/**/*.md"
+      ],
+      "outputs": ["dist/**/*"]
+    },
+    "verify": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/**/*.md",
+        "$TURBO_ROOT$/{AGENTS.md,CONTRIBUTING.md,DESIGN.md,README.md,WRITING.md}",
+        "$TURBO_ROOT$/{apps,infra,libs,tools}/**/*.md"
+      ]
+    }
+  }
+}
