@@ -36,6 +36,7 @@ const testConfig = vi.hoisted(
 const workspaceTestDoubles = vi.hoisted(() => {
   return {
     acceptInvitation: vi.fn(),
+    getWorkspaceCreator: vi.fn(),
     preflightInvitationAcceptance: vi.fn(),
     listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
     requireActiveMembership: vi.fn(),

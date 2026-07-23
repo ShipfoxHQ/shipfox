@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   deleteSecrets: vi.fn(),
   getIntegrationConnectionById: vi.fn(),
   getSecret: vi.fn(),
+  getWorkspaceCreator: vi.fn(),
   listMembershipsForTokenClaims: vi.fn(),
   setSecrets: vi.fn(),
 }));
@@ -101,6 +102,7 @@ vi.mock('@shipfox/api-workspaces', () => ({
         contract: workspacesInterModuleContract,
         handlers: {
           listMembershipsForTokenClaims: mocks.listMembershipsForTokenClaims,
+          getWorkspaceCreator: mocks.getWorkspaceCreator,
           preflightInvitationAcceptance: vi.fn(),
           acceptInvitation: vi.fn(),
           requireActiveMembership: vi.fn(),
@@ -127,6 +129,7 @@ describe('defaultModules', () => {
     mocks.deleteSecrets.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
     mocks.getSecret.mockReset();
+    mocks.getWorkspaceCreator.mockReset();
     mocks.listMembershipsForTokenClaims.mockReset();
     mocks.setSecrets.mockReset();
 
@@ -153,6 +156,7 @@ describe('defaultModules', () => {
     mocks.deleteSecrets.mockResolvedValue({deleted: 1});
     mocks.getSecret.mockResolvedValue({value: 'secret'});
     mocks.listMembershipsForTokenClaims.mockResolvedValue({memberships: []});
+    mocks.getWorkspaceCreator.mockResolvedValue({creatorUserId: null});
     mocks.setSecrets.mockResolvedValue({});
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
@@ -330,11 +334,18 @@ describe('defaultModules', () => {
     const modules = await defaultModules({extension});
     const userId = crypto.randomUUID();
     const memberships = await workspaces?.listMembershipsForTokenClaims({userId});
+    const workspaceId = crypto.randomUUID();
+    const creator = await workspaces?.getWorkspaceCreator({workspaceId});
 
     expect(extension).toHaveBeenCalledWith({workspaces: expect.any(Object)});
     expect(memberships).toEqual({memberships: []});
+    expect(creator).toEqual({creatorUserId: null});
     expect(mocks.listMembershipsForTokenClaims).toHaveBeenCalledWith(
       {userId},
+      expect.objectContaining({signal: expect.any(AbortSignal)}),
+    );
+    expect(mocks.getWorkspaceCreator).toHaveBeenCalledWith(
+      {workspaceId},
       expect.objectContaining({signal: expect.any(AbortSignal)}),
     );
     expect(modules.at(-1)).toBe(extensionModule);

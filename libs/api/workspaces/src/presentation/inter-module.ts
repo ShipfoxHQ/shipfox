@@ -14,7 +14,7 @@ import {
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 import {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitations.js';
-import {requireWorkspaceMembership} from '#core/workspaces.js';
+import {getWorkspaceCreator, requireWorkspaceMembership} from '#core/workspaces.js';
 import {listMembershipsByUser} from '#db/memberships.js';
 
 export function createWorkspacesInterModulePresentation(): InterModulePresentation<
@@ -27,6 +27,20 @@ export function createWorkspacesInterModulePresentation(): InterModulePresentati
         role: 'admin' as const,
       })),
     }),
+    getWorkspaceCreator: async (input) => {
+      try {
+        return {creatorUserId: await getWorkspaceCreator(input)};
+      } catch (error) {
+        if (error instanceof WorkspaceNotFoundError) {
+          throw createInterModuleKnownError(
+            workspacesInterModuleContract.methods.getWorkspaceCreator,
+            'workspace-not-found',
+            {workspaceId: input.workspaceId},
+          );
+        }
+        throw error;
+      }
+    },
     preflightInvitationAcceptance: async (input) => {
       try {
         const invitation = await peekInvitationByRawToken({token: input.token});

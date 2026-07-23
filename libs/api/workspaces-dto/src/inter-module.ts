@@ -13,6 +13,14 @@ export const workspacesInterModuleContract = defineInterModuleContract({
         memberships: z.array(z.object({workspaceId: idSchema, role: workspaceRoleSchema})),
       }),
     },
+    /** Resolves the user id that created the workspace, or null when no creator was recorded. */
+    getWorkspaceCreator: {
+      input: z.object({workspaceId: idSchema}),
+      output: z.object({creatorUserId: idSchema.nullable()}),
+      errors: {
+        'workspace-not-found': z.object({workspaceId: idSchema}),
+      },
+    },
     preflightInvitationAcceptance: {
       input: z.object({token: z.string().min(1), email: z.string().email()}),
       output: z.object({}),

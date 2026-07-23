@@ -73,6 +73,7 @@ const listMembershipsByUserMock = vi.fn(() =>
 );
 const workspaces = {
   listMembershipsForTokenClaims: listMembershipsByUserMock,
+  getWorkspaceCreator: vi.fn(),
   preflightInvitationAcceptance: vi.fn(),
   acceptInvitation: vi.fn(),
   requireActiveMembership: vi.fn(),

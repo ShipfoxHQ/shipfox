@@ -12,6 +12,7 @@ export const workspaceFactory = Factory.define<Workspace>(({sequence, onCreate})
     name: `Test Workspace ${sequence}`,
     status: 'active',
     settings: {},
+    createdBy: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

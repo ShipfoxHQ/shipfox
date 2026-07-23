@@ -4,6 +4,7 @@ import {buildAuthRoutes} from './index.js';
 
 const workspaces = {
   listMembershipsForTokenClaims: vi.fn(() => Promise.resolve({memberships: []})),
+  getWorkspaceCreator: vi.fn(),
   preflightInvitationAcceptance: vi.fn(),
   acceptInvitation: vi.fn(),
   requireActiveMembership: vi.fn(),
