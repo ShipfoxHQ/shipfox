@@ -1,0 +1,5 @@
+{
+  "name": "fixture-consumer",
+  "private": true,
+  "type": "module"
+}
