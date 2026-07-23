@@ -1,4 +1,4 @@
-import {sanitizeRedirectPath} from './redirect-target.js';
+import {sanitizeLogoutRedirectPath, sanitizeRedirectPath} from './redirect-target.js';
 
 describe('sanitizeRedirectPath', () => {
   describe.each([
@@ -63,6 +63,37 @@ describe('sanitizeRedirectPath', () => {
       const result = sanitizeRedirectPath('/%E0%80%80');
 
       expect(result).toBeUndefined();
+    });
+  });
+});
+
+describe('sanitizeLogoutRedirectPath', () => {
+  describe.each([
+    ['explicit login fallback', '/auth/login', '/auth/login'],
+    ['same-origin workspace path', '/workspaces/abc', '/workspaces/abc'],
+    [
+      'same-origin path with search and hash',
+      '/workspaces/abc?tab=runs#header',
+      '/workspaces/abc?tab=runs#header',
+    ],
+  ])('accepts %s', (_label, input, expected) => {
+    test('returns the safe destination', () => {
+      expect(sanitizeLogoutRedirectPath(input)).toBe(expected);
+    });
+  });
+
+  describe.each([
+    ['missing redirect', undefined],
+    ['external URL', 'https://attacker.example'],
+    ['protocol-relative URL', '//attacker.example'],
+    ['auth route other than login', '/auth/reset'],
+    ['login route with a query', '/auth/login?redirect=/workspaces/abc'],
+    ['raw invitation token', '/invitations/accept?token=sf_i_raw-token'],
+    ['raw invitation token with trailing slash', '/invitations/accept/?token=sf_i_raw-token'],
+    ['malformed percent encoding', '/%E0%80%80'],
+  ])('falls back for %s', (_label, input) => {
+    test('returns login without forwarding unsafe state', () => {
+      expect(sanitizeLogoutRedirectPath(input)).toBe('/auth/login');
     });
   });
 });
