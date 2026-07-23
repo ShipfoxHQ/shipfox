@@ -13,16 +13,92 @@ describe('auditClientSource', () => {
     assert.deepEqual(violations, []);
   });
 
+  test('allows public feature contribution and route imports', () => {
+    const violations = auditClientSource(
+      'libs/client/features/src/index.ts',
+      "import {projectsFeature} from '@shipfox/client-projects/feature';\nimport {ProjectBreadcrumb} from '@shipfox/client-projects';\nimport route from '@shipfox/client-projects/routes/home';",
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  test('reports private feature imports', () => {
+    const violations = auditClientSource(
+      'libs/client/features/src/index.ts',
+      "import {ProjectsPage} from '@shipfox/client-projects/src/pages/projects-page';",
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/features/src/index.ts',
+        occurrences: 1,
+        rule: 'private-feature-import',
+      },
+    ]);
+  });
+
+  test('reports non-owning feature contributions', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/feature.ts',
+      `import {defineClientFeature} from '@shipfox/client-shell';
+export const projectsFeature = defineClientFeature({
+  id: 'shipfox.projects',
+  routes: [{path: '/projects', parent: 'root', impl: '@shipfox/client-integrations/routes/integrations'}],
+  navigation: [{id: 'integrations', scope: 'workspace', label: 'Integrations', to: '/integrations'}],
+});`,
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/feature.ts',
+        occurrences: 2,
+        rule: 'non-owning-feature-contribution',
+      },
+    ]);
+  });
+
+  test('allows a non-owning contribution for a feature with an explicit coordinator', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/feature.ts',
+      `import {defineClientFeature} from '@shipfox/client-shell';
+export const projectsFeature = defineClientFeature({
+  id: 'shipfox.projects',
+  coordinator: 'shipfox.projects',
+  routes: [{path: '/projects', parent: 'root', impl: '@shipfox/client-integrations/routes/integrations'}],
+  navigation: [{id: 'integrations', scope: 'workspace', label: 'Integrations', to: '/integrations'}],
+});`,
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  test('requires navigation registries to be defined in a feature manifest', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/navigation.ts',
+      "export const navigation = [{id: 'projects'}];",
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/navigation.ts',
+        occurrences: 1,
+        rule: 'non-owning-feature-contribution',
+      },
+    ]);
+  });
+
   test('skips generated directories when finding source files', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'client-architecture-policy-'));
     try {
       await mkdir(path.join(directory, 'src'));
       await mkdir(path.join(directory, 'dist'));
       await mkdir(path.join(directory, 'node_modules', 'package'), {recursive: true});
+      await mkdir(path.join(directory, 'test'));
       await Promise.all([
         writeFile(path.join(directory, 'src', 'source.ts'), ''),
         writeFile(path.join(directory, 'dist', 'generated.ts'), ''),
         writeFile(path.join(directory, 'node_modules', 'package', 'dependency.ts'), ''),
+        writeFile(path.join(directory, 'test', 'fixture.ts'), ''),
       ]);
 
       const files = await sourceFiles(directory);

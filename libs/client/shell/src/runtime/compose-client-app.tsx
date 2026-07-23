@@ -13,10 +13,7 @@ import {type AnyRouter, RouterProvider} from '@tanstack/react-router';
 import {createStore} from 'jotai';
 import {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
-import {composeRoutes} from '#compose/compose-routes.js';
-import {mergeConfigShapes} from '#compose/merge-config.js';
-import {validateProviderIds} from '#compose/validate-providers.js';
-import {validateNavigation, validateSettingsSections} from '#compose/validate-registries.js';
+import {composeClientFeatures} from '#compose/compose-client-features.js';
 import type {ClientFeature} from '#contract.js';
 import {useAuthState} from './auth.js';
 import {ChromeProvider, type ChromeSlots} from './chrome-context.js';
@@ -34,17 +31,8 @@ export function composeClientApp({
   chrome?: ChromeSlots;
   workspaceSetup?: WorkspaceSetupGate;
 }) {
-  const routes = composeRoutes(features);
-  validateProviderIds(features);
-  validateNavigation(
-    features,
-    routes.map((route) => route.path),
-  );
-  validateSettingsSections(
-    features,
-    routes.map((route) => route.path),
-  );
-  const config = loadConfig(mergeConfigShapes(features), {
+  const composition = composeClientFeatures(features);
+  const config = loadConfig(composition.configShape, {
     runtime: getWindowRuntimeConfig(),
     build: (import.meta as ImportMeta & {env?: Record<string, unknown>}).env,
   });

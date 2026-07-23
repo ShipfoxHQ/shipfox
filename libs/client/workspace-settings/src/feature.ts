@@ -1,5 +1,28 @@
-import {defineClientFeature} from '@shipfox/client-shell';
-import type {IconName} from '@shipfox/react-ui/icon';
+import {
+  defineClientFeature,
+  type NavTabEntry,
+  type SettingsSectionEntry,
+} from '@shipfox/client-shell';
+
+export const workspaceSettingsNavigation = [
+  {
+    id: 'nav.settings',
+    scope: 'workspace',
+    label: 'Settings',
+    to: '/workspaces/$wid/settings',
+    order: 200,
+  },
+] as const satisfies readonly NavTabEntry[];
+
+export const workspaceSettingsSections = [
+  {
+    id: 'settings.members',
+    pathSegment: 'members',
+    label: 'Members',
+    icon: 'userLine',
+    order: 100,
+  },
+] as const satisfies readonly SettingsSectionEntry[];
 
 export const workspaceSettingsFeature = defineClientFeature({
   id: 'shipfox.workspace-settings',
@@ -15,22 +38,6 @@ export const workspaceSettingsFeature = defineClientFeature({
       impl: '@shipfox/client-workspace-settings/routes/members',
     },
   ],
-  navigation: [
-    {
-      id: 'nav.settings',
-      scope: 'workspace',
-      label: 'Settings',
-      to: '/workspaces/$wid/settings',
-      order: 200,
-    },
-  ],
-  settingsSections: [
-    {
-      id: 'settings.members',
-      pathSegment: 'members',
-      label: 'Members',
-      icon: 'userLine' as IconName,
-      order: 100,
-    },
-  ],
+  navigation: workspaceSettingsNavigation,
+  settingsSections: workspaceSettingsSections,
 });

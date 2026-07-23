@@ -1,4 +1,15 @@
-import {defineClientFeature} from '@shipfox/client-shell';
+import {defineClientFeature, type SettingsSectionEntry} from '@shipfox/client-shell';
+
+export const secretsSettingsSections = [
+  {id: 'settings.secrets', pathSegment: 'secrets', label: 'Secrets', icon: 'keyLine', order: 500},
+  {
+    id: 'settings.variables',
+    pathSegment: 'variables',
+    label: 'Variables',
+    icon: 'bracesLine',
+    order: 600,
+  },
+] as const satisfies readonly SettingsSectionEntry[];
 
 export const secretsFeature = defineClientFeature({
   id: 'shipfox.secrets',
@@ -14,14 +25,5 @@ export const secretsFeature = defineClientFeature({
       impl: '@shipfox/client-secrets/routes/variables-settings',
     },
   ],
-  settingsSections: [
-    {id: 'settings.secrets', pathSegment: 'secrets', label: 'Secrets', icon: 'keyLine', order: 500},
-    {
-      id: 'settings.variables',
-      pathSegment: 'variables',
-      label: 'Variables',
-      icon: 'bracesLine',
-      order: 600,
-    },
-  ],
+  settingsSections: secretsSettingsSections,
 });

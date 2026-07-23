@@ -35,6 +35,12 @@ export interface SettingsSectionEntry {
 
 export interface ClientFeature<S extends z.ZodRawShape = z.ZodRawShape> {
   id: string;
+  /**
+   * Set this to the feature id when the feature intentionally coordinates a
+   * navigation or settings contribution whose route belongs to another
+   * feature.
+   */
+  coordinator?: string;
   routes?: readonly RouteContribution[];
   providers?: readonly FeatureProvider[];
   navigation?: readonly NavTabEntry[];
