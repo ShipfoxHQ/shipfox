@@ -18,10 +18,12 @@ describe('storybook preview manifest', () => {
 
   it('derives Composition refs and standalone links from the same entries', () => {
     expect(Object.keys(storybookRefs)).toEqual(storybooks.map(({id}) => id));
-    expect(storybookLinks).toEqual(storybooks.map(({id, title, path: url}) => ({id, title, url})));
-    expect(Object.values(storybookRefs)).toEqual(
-      storybooks.map(({title, path: url}) => ({title, url})),
-    );
+    expect(storybookLinks).toEqual(storybooks.map(({id, title, url}) => ({id, title, url})));
+    expect(Object.values(storybookRefs)).toEqual(storybooks.map(({title, url}) => ({title, url})));
+  });
+
+  it('points each composed Storybook link at its static index document', () => {
+    expect(storybooks.map(({url}) => url)).toEqual(storybooks.map(({path}) => `${path}index.html`));
   });
 
   it('derives Turbo package filters from the manifest', () => {
