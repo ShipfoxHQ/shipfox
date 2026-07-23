@@ -172,6 +172,11 @@ React. Test an adapter with representative DTOs and its mapped domain model.
 Test query keys, cache effects, polling, and optimistic updates at the query
 boundary. Component tests prove rendered behavior. E2E tests prove journeys.
 
+Read the [architecture validation guide](../guides/architecture-validation.md)
+when adding, moving, or debugging an enforcement rule. It owns the boundary
+between Biome, Dependency Cruiser, executable contract tests, and repository
+policy.
+
 Run the affected package `check` and `pnpm check:client-architecture` after
 changing a client boundary. Package checks run the local Biome rules and report
 source locations for response DTO imports, DTO or framework imports in `core/`,

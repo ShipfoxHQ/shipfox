@@ -122,6 +122,10 @@ provider SPI is a same-context exception. It does not allow another context.
 ## Enforcement and updates
 
 This guide is the canonical current rule set for backend package boundaries.
+Read the [architecture validation guide](../guides/architecture-validation.md)
+when adding, moving, or debugging an enforcement rule. It owns tool selection,
+fixtures, cross-repository policy, and local verification.
+
 These checks enforce the rules:
 
 - `pnpm check:api-context-inventory` checks server package classification,

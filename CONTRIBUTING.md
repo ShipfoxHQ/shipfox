@@ -91,5 +91,6 @@ here, use the full [engineering documentation map](docs/README.md).
 | Creates or updates a package README. | [Package README standard](WRITING.md#package-readmes) | Required sections, public API, local checks, and license. |
 | Writes product or self-hosting documentation. | [Docs writing guide](apps/docs/WRITING.md) | Product-documentation page types, templates, and terminology. |
 | Writes or reviews code comments, module exports, or non-trivial control flow. | [Code style policy](docs/policies/code-style.md) | Shared code-comment, import and export, and control-flow rules. |
+| Adds, moves, or debugs an architecture validation rule. | [Architecture validation guide](docs/guides/architecture-validation.md) | Tool selection, rule placement, cross-repository policy, fixtures, and verification. |
 | Changes a cross-package client composition seam, server module boundary, or shared server-package boundary. | [Engineering documentation map](docs/README.md) | The applicable ADR and its decision boundary. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](docs/adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |

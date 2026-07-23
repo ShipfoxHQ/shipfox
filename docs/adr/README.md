@@ -16,6 +16,7 @@ documentation model and other engineering sources, start with the
 | [0004: Shared semantic packages and server dependency boundaries](0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Accepted; amends ADR 0002 | Shared package admission and server dependency boundaries. |
 | [0005: Repository documentation architecture](0005-repository-documentation-architecture.md) | Accepted | Documentation ownership, routing, and progressive disclosure. |
 | [0006: Database ownership boundaries](0006-database-ownership-boundaries.md) | Accepted; amends ADR 0002 | Owner-only database access and stable database namespaces. |
+| [0007: Cross-repository architecture validation](0007-cross-repository-architecture-validation.md) | Accepted | Validation layers, shared policy distribution, and downstream package metadata. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the
