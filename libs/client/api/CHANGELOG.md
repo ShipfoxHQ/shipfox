@@ -1,5 +1,11 @@
 # @shipfox/client-api
 
+## 6.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 6.0.0
 
 ### Major Changes

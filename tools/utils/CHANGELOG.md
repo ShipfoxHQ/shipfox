@@ -1,5 +1,11 @@
 # @shipfox/tool-utils
 
+## 1.2.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 1.2.0
 
 ### Minor Changes

@@ -1,5 +1,20 @@
 # @shipfox/api-dispatcher
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+- Updated dependencies [154e03f]
+  - @shipfox/config@1.2.3
+  - @shipfox/node-error-monitoring@0.2.1
+  - @shipfox/node-module@1.0.0
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-outbox@0.2.5
+  - @shipfox/node-postgres@0.4.3
+  - @shipfox/node-temporal@0.4.1
+
 ## 7.1.0
 
 ### Patch Changes

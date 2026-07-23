@@ -1,5 +1,14 @@
 # @shipfox/api-projects-dto
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/api-common-dto@9.0.1
+  - @shipfox/inter-module@0.2.1
+
 ## 8.0.0
 
 ### Major Changes

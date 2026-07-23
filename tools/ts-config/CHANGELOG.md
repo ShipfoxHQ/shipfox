@@ -1,5 +1,11 @@
 # @shipfox/ts-config
 
+## 1.3.9
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 1.3.8
 
 ### Patch Changes

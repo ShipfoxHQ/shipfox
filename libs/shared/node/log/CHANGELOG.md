@@ -1,5 +1,13 @@
 # @shipfox/node-log
 
+## 0.3.5
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/config@1.2.3
+
 ## 0.3.4
 
 ### Patch Changes

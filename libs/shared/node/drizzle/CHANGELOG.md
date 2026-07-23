@@ -1,5 +1,13 @@
 # @shipfox/node-drizzle
 
+## 0.3.3
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/node-postgres@0.4.3
+
 ## 0.3.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @shipfox/node-fastify
 
+## 0.3.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/config@1.2.3
+  - @shipfox/node-error-monitoring@0.2.1
+  - @shipfox/node-opentelemetry@0.6.1
+
 ## 0.3.0
 
 ### Minor Changes

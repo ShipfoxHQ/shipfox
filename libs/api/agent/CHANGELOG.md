@@ -1,5 +1,28 @@
 # @shipfox/api-agent
 
+## 9.0.1
+
+### Patch Changes
+
+- 067d309: Prefixes Agent database objects in the migration baseline.
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+- Updated dependencies [154e03f]
+  - @shipfox/api-secrets-dto@9.0.1
+  - @shipfox/redact@0.2.4
+  - @shipfox/api-agent-dto@9.0.1
+  - @shipfox/api-auth-context@9.0.1
+  - @shipfox/config@1.2.3
+  - @shipfox/inter-module@0.2.1
+  - @shipfox/node-drizzle@0.3.3
+  - @shipfox/node-egress-guard@0.1.2
+  - @shipfox/node-error-monitoring@0.2.1
+  - @shipfox/node-fastify@0.3.1
+  - @shipfox/node-module@1.0.0
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-postgres@0.4.3
+
 ## 9.0.0
 
 ### Minor Changes

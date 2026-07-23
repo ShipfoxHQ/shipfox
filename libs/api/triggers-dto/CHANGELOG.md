@@ -1,5 +1,11 @@
 # @shipfox/api-triggers-dto
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 5.0.0
 
 ### Patch Changes

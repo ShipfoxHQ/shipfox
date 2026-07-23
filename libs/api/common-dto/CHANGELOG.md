@@ -1,5 +1,14 @@
 # @shipfox/api-common-dto
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+  - @shipfox/regex@0.2.3
+
 ## 6.0.0
 
 ### Minor Changes

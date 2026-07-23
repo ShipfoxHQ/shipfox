@@ -1,5 +1,24 @@
 # @shipfox/client-projects
 
+## 6.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- 3f8f1cb: Enforces typed route-input and browser-storage boundaries across client features.
+- Updated dependencies [475ce59]
+- Updated dependencies [3f8f1cb]
+  - @shipfox/api-definitions-dto@9.0.1
+  - @shipfox/api-integration-core-dto@9.0.1
+  - @shipfox/api-projects-dto@9.0.1
+  - @shipfox/client-agent@6.0.1
+  - @shipfox/client-api@6.0.1
+  - @shipfox/client-auth@6.0.1
+  - @shipfox/client-integrations@6.0.1
+  - @shipfox/client-shell@6.0.1
+  - @shipfox/client-ui@6.0.1
+  - @shipfox/react-ui@0.3.6
+
 ## 6.0.0
 
 ### Minor Changes

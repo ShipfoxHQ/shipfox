@@ -1,5 +1,13 @@
 # @shipfox/api-integration-slack-dto
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/api-integration-core-dto@9.0.1
+
 ## 9.0.0
 
 ### Patch Changes

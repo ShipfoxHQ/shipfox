@@ -1,5 +1,22 @@
 # @shipfox/api-integration-slack
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/api-auth-context@9.0.1
+  - @shipfox/api-integration-slack-dto@9.0.1
+  - @shipfox/api-integration-spi@0.2.1
+  - @shipfox/api-workspaces-dto@9.0.1
+  - @shipfox/config@1.2.3
+  - @shipfox/inter-module@0.2.1
+  - @shipfox/node-drizzle@0.3.3
+  - @shipfox/node-fastify@0.3.1
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-postgres@0.4.3
+
 ## 9.0.0
 
 ### Patch Changes

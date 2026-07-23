@@ -1,5 +1,12 @@
 # @shipfox/react-ui
 
+## 0.3.6
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- 3f8f1cb: Enforces typed route-input and browser-storage boundaries across client features.
+
 ## 0.3.5
 
 ### Patch Changes

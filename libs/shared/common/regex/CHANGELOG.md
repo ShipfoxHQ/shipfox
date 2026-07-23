@@ -1,5 +1,12 @@
 # @shipfox/regex
 
+## 0.2.3
+
+### Patch Changes
+
+- 8436596: Adds Dependency Cruiser checks to all classified API packages so source-edge enforcement remains active after retiring the duplicate import scan.
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 0.2.2
 
 ### Patch Changes

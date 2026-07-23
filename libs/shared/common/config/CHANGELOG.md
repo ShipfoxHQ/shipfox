@@ -1,5 +1,11 @@
 # @shipfox/config
 
+## 1.2.3
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 1.2.2
 
 ### Patch Changes

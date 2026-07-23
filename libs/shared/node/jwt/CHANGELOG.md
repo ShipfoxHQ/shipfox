@@ -1,5 +1,11 @@
 # @shipfox/node-jwt
 
+## 0.3.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 0.3.0
 
 ### Minor Changes

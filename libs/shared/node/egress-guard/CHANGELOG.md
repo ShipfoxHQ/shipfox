@@ -1,5 +1,11 @@
 # @shipfox/node-egress-guard
 
+## 0.1.2
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 0.1.1
 
 ### Patch Changes
