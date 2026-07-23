@@ -15,12 +15,23 @@ declares and migrates the object. A bounded context can contain more than one
 database module. Being in the same context does not grant access to another
 module's tables.
 
-Each database module registers one stable namespace. The namespace:
+Each database migration unit registers one stable namespace. The namespace:
 
 - Uses lowercase snake case.
 - Matches the module name when the module has one database.
 - Adds a stable qualifier when one module has several databases.
 - Does not change when a package or source directory moves.
+
+Database ownership follows the declaring `ShipfoxModule`, not package count. One
+owner can register several namespaces, and several packages can contribute
+migration units to one composed module. The application root records those
+units under the owner's stable ID.
+
+A namespace is a database identity, not necessarily the module's display name.
+Migration-history names must use the registered namespace explicitly when a
+module's display name is not compliant. The `email_challenges` namespace is
+used for both the application tables and the migration-history table of the
+`email-challenges` module.
 
 Examples include `runners`, `workflows`, `email_challenges`, and
 `integrations_github`.

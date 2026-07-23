@@ -1,0 +1,211 @@
+function freezeEntries(entries) {
+  return Object.freeze(entries.map((entry) => Object.freeze({...entry})));
+}
+
+const databaseOwners = freezeEntries([
+  {id: 'agent', packagePath: 'libs/api/agent'},
+  {id: 'annotations', packagePath: 'libs/api/annotations'},
+  {id: 'auth', packagePath: 'libs/api/auth'},
+  {id: 'definitions', packagePath: 'libs/api/definitions'},
+  {id: 'email-challenges', packagePath: 'libs/api/email-challenges'},
+  {id: 'integrations', packagePath: 'libs/api/integration/core'},
+  {id: 'logs', packagePath: 'libs/api/logs'},
+  {id: 'projects', packagePath: 'libs/api/projects'},
+  {id: 'runners', packagePath: 'libs/api/runners'},
+  {id: 'secrets', packagePath: 'libs/api/secrets'},
+  {id: 'triggers', packagePath: 'libs/api/triggers'},
+  {id: 'workflows', packagePath: 'libs/api/workflows'},
+  {id: 'workspaces', packagePath: 'libs/api/workspaces'},
+]);
+
+const databaseMigrationUnits = freezeEntries([
+  {
+    id: 'agent',
+    ownerId: 'agent',
+    namespace: 'agent',
+    packagePath: 'libs/api/agent',
+    drizzleConfigPath: 'libs/api/agent/drizzle.config.ts',
+    migrationsPath: 'libs/api/agent/drizzle',
+  },
+  {
+    id: 'annotations',
+    ownerId: 'annotations',
+    namespace: 'annotations',
+    packagePath: 'libs/api/annotations',
+    drizzleConfigPath: 'libs/api/annotations/drizzle.config.ts',
+    migrationsPath: 'libs/api/annotations/drizzle',
+  },
+  {
+    id: 'auth',
+    ownerId: 'auth',
+    namespace: 'auth',
+    packagePath: 'libs/api/auth',
+    drizzleConfigPath: 'libs/api/auth/drizzle.config.ts',
+    migrationsPath: 'libs/api/auth/drizzle',
+  },
+  {
+    id: 'definitions',
+    ownerId: 'definitions',
+    namespace: 'definitions',
+    packagePath: 'libs/api/definitions',
+    drizzleConfigPath: 'libs/api/definitions/drizzle.config.ts',
+    migrationsPath: 'libs/api/definitions/drizzle',
+  },
+  {
+    id: 'email-challenges',
+    ownerId: 'email-challenges',
+    namespace: 'email_challenges',
+    packagePath: 'libs/api/email-challenges',
+    drizzleConfigPath: 'libs/api/email-challenges/drizzle.config.ts',
+    migrationsPath: 'libs/api/email-challenges/drizzle',
+  },
+  {
+    id: 'integrations',
+    ownerId: 'integrations',
+    namespace: 'integrations',
+    packagePath: 'libs/api/integration/core',
+    drizzleConfigPath: 'libs/api/integration/core/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/core/drizzle',
+  },
+  {
+    id: 'integrations-gitea',
+    ownerId: 'integrations',
+    namespace: 'integrations_gitea',
+    packagePath: 'libs/api/integration/gitea',
+    drizzleConfigPath: 'libs/api/integration/gitea/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/gitea/drizzle',
+  },
+  {
+    id: 'integrations-github',
+    ownerId: 'integrations',
+    namespace: 'integrations_github',
+    packagePath: 'libs/api/integration/github',
+    drizzleConfigPath: 'libs/api/integration/github/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/github/drizzle',
+  },
+  {
+    id: 'integrations-jira',
+    ownerId: 'integrations',
+    namespace: 'integrations_jira',
+    packagePath: 'libs/api/integration/jira',
+    drizzleConfigPath: 'libs/api/integration/jira/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/jira/drizzle',
+  },
+  {
+    id: 'integrations-linear',
+    ownerId: 'integrations',
+    namespace: 'integrations_linear',
+    packagePath: 'libs/api/integration/linear',
+    drizzleConfigPath: 'libs/api/integration/linear/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/linear/drizzle',
+  },
+  {
+    id: 'integrations-sentry',
+    ownerId: 'integrations',
+    namespace: 'integrations_sentry',
+    packagePath: 'libs/api/integration/sentry',
+    drizzleConfigPath: 'libs/api/integration/sentry/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/sentry/drizzle',
+  },
+  {
+    id: 'integrations-slack',
+    ownerId: 'integrations',
+    namespace: 'integrations_slack',
+    packagePath: 'libs/api/integration/slack',
+    drizzleConfigPath: 'libs/api/integration/slack/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/slack/drizzle',
+  },
+  {
+    id: 'logs',
+    ownerId: 'logs',
+    namespace: 'logs',
+    packagePath: 'libs/api/logs',
+    drizzleConfigPath: 'libs/api/logs/drizzle.config.ts',
+    migrationsPath: 'libs/api/logs/drizzle',
+  },
+  {
+    id: 'projects',
+    ownerId: 'projects',
+    namespace: 'projects',
+    packagePath: 'libs/api/projects',
+    drizzleConfigPath: 'libs/api/projects/drizzle.config.ts',
+    migrationsPath: 'libs/api/projects/drizzle',
+  },
+  {
+    id: 'runners',
+    ownerId: 'runners',
+    namespace: 'runners',
+    packagePath: 'libs/api/runners',
+    drizzleConfigPath: 'libs/api/runners/drizzle.config.ts',
+    migrationsPath: 'libs/api/runners/drizzle',
+  },
+  {
+    id: 'secrets',
+    ownerId: 'secrets',
+    namespace: 'secrets',
+    packagePath: 'libs/api/secrets',
+    drizzleConfigPath: 'libs/api/secrets/drizzle.config.ts',
+    migrationsPath: 'libs/api/secrets/drizzle',
+  },
+  {
+    id: 'triggers',
+    ownerId: 'triggers',
+    namespace: 'triggers',
+    packagePath: 'libs/api/triggers',
+    drizzleConfigPath: 'libs/api/triggers/drizzle.config.ts',
+    migrationsPath: 'libs/api/triggers/drizzle',
+  },
+  {
+    id: 'workflows',
+    ownerId: 'workflows',
+    namespace: 'workflows',
+    packagePath: 'libs/api/workflows',
+    drizzleConfigPath: 'libs/api/workflows/drizzle.config.ts',
+    migrationsPath: 'libs/api/workflows/drizzle',
+  },
+  {
+    id: 'workspaces',
+    ownerId: 'workspaces',
+    namespace: 'workspaces',
+    packagePath: 'libs/api/workspaces',
+    drizzleConfigPath: 'libs/api/workspaces/drizzle.config.ts',
+    migrationsPath: 'libs/api/workspaces/drizzle',
+  },
+]);
+
+const databaseDelegates = freezeEntries([
+  {
+    id: 'migration-runner',
+    packagePath: 'libs/shared/node/drizzle',
+    capability: 'migration-runner',
+  },
+  {
+    id: 'schema-table-factory',
+    packagePath: 'libs/shared/node/outbox',
+    capability: 'schema-table-factory',
+  },
+  {
+    id: 'owner-local-outbox-writer',
+    packagePath: 'libs/shared/node/outbox',
+    capability: 'owner-local-outbox-writer',
+  },
+  {
+    id: 'registered-outbox-dispatcher',
+    packagePath: 'libs/shared/node/module',
+    capability: 'registered-outbox-dispatcher',
+  },
+]);
+
+const databaseRegistry = Object.freeze({
+  owners: databaseOwners,
+  migrationUnits: databaseMigrationUnits,
+  delegates: databaseDelegates,
+});
+
+module.exports = {
+  apiDatabases: databaseRegistry,
+  databaseDelegates,
+  databaseMigrationUnits,
+  databaseOwners,
+  databaseRegistry,
+};

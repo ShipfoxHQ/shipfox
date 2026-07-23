@@ -16,5 +16,9 @@ export {
 export {EmailChallengeError, type EmailChallengeErrorCode} from '#core/errors.js';
 export const emailChallengesModule: ShipfoxModule = {
   name: 'email-challenges',
-  database: {db, migrationsPath},
+  database: {
+    db,
+    migrationsPath,
+    migrationsTableName: '__drizzle_migrations_email_challenges',
+  },
 };

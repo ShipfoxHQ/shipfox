@@ -34,9 +34,13 @@ context does not grant access.
 lock, reference, or re-declare an owned table. This rule also covers raw SQL,
 views, triggers, database functions, and foreign keys.
 
-**Each database module has a stable namespace.** Its tables use the namespace
-as a name prefix. Its PostgreSQL types and explicit support object names use
-the same namespace.
+**Each database migration unit has a stable namespace.** Its tables use the
+namespace as a name prefix. Its PostgreSQL types and explicit support object
+names use the same namespace. One `ShipfoxModule` owner can compose several
+migration units under one stable owner ID. The namespace is a database identity,
+not necessarily the module's display name. Migration-history names must use
+the registered namespace explicitly when a module's display name is not
+compliant.
 
 **Modules cross the boundary through producer-owned contracts.** A caller uses
 an inter-module operation for current state, an outbox event for a committed
