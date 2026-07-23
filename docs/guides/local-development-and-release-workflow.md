@@ -64,9 +64,10 @@ Temporal, Garage, and Gitea, and writes the app environment to
 
 The repository-level port pool is configured with
 `SHIPFOX_PORT_RANGE_START` and `SHIPFOX_PORT_RANGE_END` in `mise.toml`. This
-checkout reserves `20000–45999`; another repository sharing the same machine
-should reserve a different range. All ranges still use 20-port blocks, and the
-shared `~/.shipfox/shipfox-port-leases.json` registry rejects overlapping
+checkout reserves `20000–24999`; another repository sharing the same machine
+should reserve a different range. This checkout supports 250 worktree leases;
+another repository can start at `25000`. All ranges still use 20-port blocks, and
+the shared `~/.shipfox/shipfox-port-leases.json` registry rejects overlapping
 allocations.
 
 | Need | Command |
