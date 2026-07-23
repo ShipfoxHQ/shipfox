@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 const tarEntryLinePattern = /\r?\n/u;
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(testDirectory, '..');
-const EXTERNAL_CONSUMER_TEST_TIMEOUT_MS = 30_000;
+const PACKED_PACKAGE_TEST_TIMEOUT_MS = 30_000;
 const fixtureTemplate = resolve(
   packageRoot,
   'plugins/client-architecture/fixtures/external-consumer',
@@ -113,24 +113,30 @@ function escapedRegExp(value: string): string {
 }
 
 describe('packed client-architecture Biome plugins', () => {
-  test('includes every supported plugin and its usage documentation', async () => {
-    const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-pack-'));
-    try {
-      const tarball = await packBiome(temporaryRoot);
-      const entries = await tarEntries(tarball);
-      for (const path of publishedPluginFiles) {
-        assert.ok(entries.includes(`package/${path}`), `Packed artifact is missing ${path}`);
+  test(
+    'includes every supported plugin and its usage documentation',
+    async () => {
+      const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-pack-'));
+      try {
+        const tarball = await packBiome(temporaryRoot);
+        const entries = await tarEntries(tarball);
+        for (const path of publishedPluginFiles) {
+          assert.ok(entries.includes(`package/${path}`), `Packed artifact is missing ${path}`);
+        }
+        assert.ok(entries.includes('package/plugins/client-architecture/README.md'));
+        assert.ok(entries.includes('package/plugins/database-boundaries/README.md'));
+        assert.ok(
+          !entries.some((entry) =>
+            entry.startsWith('package/plugins/client-architecture/fixtures/'),
+          ),
+          'Packed artifact must not publish repository fixtures',
+        );
+      } finally {
+        await rm(temporaryRoot, {force: true, recursive: true});
       }
-      assert.ok(entries.includes('package/plugins/client-architecture/README.md'));
-      assert.ok(entries.includes('package/plugins/database-boundaries/README.md'));
-      assert.ok(
-        !entries.some((entry) => entry.startsWith('package/plugins/client-architecture/fixtures/')),
-        'Packed artifact must not publish repository fixtures',
-      );
-    } finally {
-      await rm(temporaryRoot, {force: true, recursive: true});
-    }
-  });
+    },
+    PACKED_PACKAGE_TEST_TIMEOUT_MS,
+  );
 
   test(
     'runs from an installed package in an external repository root',
@@ -176,6 +182,6 @@ describe('packed client-architecture Biome plugins', () => {
         await rm(temporaryRoot, {force: true, recursive: true});
       }
     },
-    EXTERNAL_CONSUMER_TEST_TIMEOUT_MS,
+    PACKED_PACKAGE_TEST_TIMEOUT_MS,
   );
 });
