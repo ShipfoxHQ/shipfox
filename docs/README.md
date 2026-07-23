@@ -13,7 +13,8 @@ listed there or when you need to place, update, or review documentation.
 | --- | --- | --- |
 | Needs the product overview or a starting point outside engineering work. | [Root README](../README.md) | Product orientation and repository navigation. |
 | Starts a human contribution or needs branch, commit, or pull-request guidance. | [Contributing guide](../CONTRIBUTING.md) | Prerequisites, initial setup, contribution workflow, review standards, and essential validation. |
-| Needs local-task selection, service recovery, or package release procedures. | [Local development and release workflow](guides/local-development-and-release-workflow.md) | Mise, local services, Ollama, affected-package validation, Changesets, and publishing. |
+| Needs local tasks, service recovery, shared Ollama, or affected-package checks. | [Local development and release workflow](guides/local-development-and-release-workflow.md) | Mise, local services, Ollama, and affected-package checks. |
+| Changes a published package or prepares a release. | [Changesets and publishing workflow](guides/local-development-and-release-workflow.md#publish-packages-with-changesets) | Changeset rules, version bumps, summaries, and publishing. |
 | Needs the generated release-PR CI verification path. | [Generated release PR CI](guides/release-pr-ci.md) | The fast-path conditions and fail-closed verification behavior for Changesets release PRs. |
 | Needs to configure or review Vercel release-PR previews. | [Vercel release PR previews](vercel-preview-release-prs.md) | The repository-owned Vercel branch configuration and verification workflow. |
 | Changes agent behavior or needs agent execution instructions. | [Agent instructions](../AGENTS.md) | Repository-specific agent execution, change hygiene, and conditional context loading. |
@@ -24,18 +25,21 @@ listed there or when you need to place, update, or review documentation.
 | Adds or changes an environment variable, validator, or environment description. | [Configuration policy](policies/configuration.md) | Repository-wide configuration ownership, validation, and description rules. |
 | Adds a domain or provider error, translates a request failure, or reports an unexpected failure. | [Error handling](architecture/error-handling.md) | The current backend error model, client translation, and reporting boundaries. |
 | Adds a metric or changes instrumentation startup, naming, units, or labels. | [Observability](architecture/observability.md) | The current backend metrics model and cardinality constraints. |
-| Changes client state, API adapters, forms, or feature-domain boundaries. | [Client architecture](architecture/client-architecture.md) | The current client feature model, form rules, and architecture enforcement. |
+| Changes client state, API adapters, or feature boundaries. | [Client architecture](architecture/client-architecture.md) | The current client model and architecture checks. |
+| Adds or changes a client form. | [Client form guidance](architecture/client-architecture.md#forms) | Form state, validation, fields, server errors, and saved drafts. |
 | Introduces a shared package or changes a server dependency boundary. | [ADR 0004](adr/0004-shared-semantic-packages-and-server-dependency-boundaries.md) | Shared semantic package rules and server package classes. |
 | Changes repository documentation structure or adds a shared documentation surface. | [ADR 0005](adr/0005-repository-documentation-architecture.md) | Documentation ownership, routing, and progressive disclosure. |
 | Validates repository Markdown links, anchors, or documentation reachability. | [Repository documentation policy](../tools/repository-documentation-policy/README.md) | Deterministic link and orphan checks for engineering documentation. |
 | Changes webhook retry behavior. | [Webhook retry safety](architecture/webhook-retry-safety.md) | The current safety model for webhook retries. |
-| Adds or changes unit tests, Storybook stories, or visual regression coverage. | [Testing guide](guides/testing.md) | Unit-test altitude, Storybook conventions, Argos ownership, build names, and review. |
+| Adds or changes unit tests or Storybook stories. | [Testing guide](guides/testing.md) | Unit-test levels and Storybook rules. |
+| Adds or changes a visual test. | [Visual regression guidance](guides/testing.md#visual-regression) | Argos builds, screenshots, and review. |
 | Adds or changes end-to-end coverage. | [E2E guide](../e2e/README.md) | Suite levels, HTTP-first setup, screens, and E2E package boundaries. |
 | Mints, verifies, or carries an authentication token. | [Auth security model](../libs/api/auth/README.md#security-model) | Token authority, lifetime, trust boundaries, and logging constraints. |
 | Defines an inter-module contract or transport. | [Inter-module package README](../libs/shared/common/inter-module/README.md) | Contract primitives and transport responsibilities. |
 | Needs a package-local API, configuration, fixture, or operational constraint. | [Package README standard](../WRITING.md#package-readmes) | How to find and shape the owning package README; the README beside the package owns the local detail. |
 | Creates or changes a visual or interaction decision. | [Design system](../DESIGN.md) | Shared tokens, components, accessibility, motion, status taxonomy, patterns, and review anti-patterns. Code owns exact token and component values. |
-| Writes engineering prose, a package README, or a runbook. | [Writing guide](../WRITING.md) | Repository-wide prose structure, style, punctuation, readability, and package README structure. |
+| Writes engineering prose or a runbook. | [Writing guide](../WRITING.md) | Repository prose, style, punctuation, and readability. |
+| Creates or updates a package README. | [Package README standard](../WRITING.md#package-readmes) | Required sections, public API, local checks, and license. |
 | Writes or reviews code comments, module exports, or non-trivial control flow. | [Code style policy](policies/code-style.md) | Shared code-comment, import and export, and control-flow rules. |
 | Writes product or self-hosting documentation. | [Docs writing guide](../apps/docs/WRITING.md) | Product documentation page types, templates, and local terminology. |
 

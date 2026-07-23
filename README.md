@@ -114,9 +114,8 @@ token and trust model is documented in the
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and the codebase conventions in
-[CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) before opening a pull request. UI
-work should follow [DESIGN.md](DESIGN.md); E2E work follows [e2e/README.md](e2e/README.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before you open a pull request. Its task
+map links to the engineering guide for each change.
 
 ## License
 
