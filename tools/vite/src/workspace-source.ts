@@ -1,5 +1,5 @@
 import {readFileSync, realpathSync, statSync} from 'node:fs';
-import {dirname, extname, isAbsolute, join, relative, resolve as resolvePath} from 'node:path';
+import {dirname, extname, isAbsolute, join, relative, resolve as resolvePath, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {type Package, imports as resolvePackageImports} from 'resolve.exports';
 import type {Plugin} from 'vite';
@@ -147,7 +147,7 @@ function isWithinDirectory(directory: string, path: string): boolean {
 
 function isDistTarget(packageDirectory: string, target: string): boolean {
   const relativeTarget = relative(packageDirectory, target);
-  return relativeTarget === 'dist' || relativeTarget.startsWith(`dist${'/'}`);
+  return relativeTarget === 'dist' || relativeTarget.startsWith(`dist${sep}`);
 }
 
 function resolveSourceTarget(

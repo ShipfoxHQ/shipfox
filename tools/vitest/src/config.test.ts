@@ -84,6 +84,7 @@ describe('Vitest configuration', () => {
     try {
       cpSync(join(sourceFixture, 'consumer'), consumerDirectory, {recursive: true});
       cpSync(join(sourceFixture, 'workspace-package'), packageDirectory, {recursive: true});
+      rmSync(join(packageDirectory, 'dist'), {force: true, recursive: true});
       cpSync(join(sourceFixture, 'dist-only-package'), distOnlyPackageDirectory, {
         recursive: true,
       });
