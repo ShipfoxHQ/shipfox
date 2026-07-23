@@ -1,7 +1,8 @@
 import {FullPageLoader} from '@shipfox/react-ui/loader';
-import {Outlet, useMatches, useParams} from '@tanstack/react-router';
+import {Outlet, useMatches} from '@tanstack/react-router';
 import type {NavTabEntry} from '#contract.js';
 import {useMaybeActiveWorkspace} from '#runtime/active-workspace.js';
+import {parseWorkspaceProjectParams, useRouteParams} from '#runtime/route-inputs.js';
 import {NavBar} from './nav-bar.js';
 import {NavTabs} from './nav-tabs.js';
 
@@ -19,7 +20,7 @@ export function MainLayout({
   hideProjectNavigation?: boolean;
 }) {
   const workspace = useMaybeActiveWorkspace();
-  const {pid} = useParams({strict: false}) as {pid?: string};
+  const {pid} = useRouteParams(parseWorkspaceProjectParams);
   const matches = useMatches();
   if (!workspace) return <FullPageLoader />;
   const fullBleed = matches.some((match) => match.staticData.layout === 'full-bleed');

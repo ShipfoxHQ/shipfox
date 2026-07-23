@@ -106,15 +106,15 @@ export const projectsFeature = defineClientFeature({
     try {
       await mkdir(path.join(directory, 'src'));
       await mkdir(path.join(directory, 'dist'));
-      await mkdir(path.join(directory, 'node_modules', 'package'), {recursive: true});
       await mkdir(path.join(directory, 'test'));
+      await mkdir(path.join(directory, 'node_modules', 'package'), {recursive: true});
       await Promise.all([
         writeFile(path.join(directory, 'src', 'source.ts'), ''),
         writeFile(path.join(directory, 'dist', 'generated.ts'), ''),
-        writeFile(path.join(directory, 'node_modules', 'package', 'dependency.ts'), ''),
         writeFile(path.join(directory, 'test', 'fixture.ts'), ''),
         writeFile(path.join(directory, 'test', 'setup.ts'), ''),
         writeFile(path.join(directory, 'src', 'route.gen.ts'), ''),
+        writeFile(path.join(directory, 'node_modules', 'package', 'dependency.ts'), ''),
       ]);
 
       const files = await sourceFiles(directory);
@@ -168,7 +168,6 @@ export const projectsFeature = defineClientFeature({
       },
     ]);
   });
-
   test('reports a checked business response returned without a domain mapper', () => {
     const violations = auditClientSource(
       'libs/client/projects/src/hooks/api/list-projects.ts',
@@ -400,21 +399,6 @@ qc.invalidateQueries({queryKey: ['projects']});`,
         reusableQueryPolicies: 1,
       },
     );
-  });
-
-  test('reports raw route-search parsing outside an owned route module', () => {
-    const violations = auditClientSource(
-      'libs/client/projects/src/pages/projects-page.tsx',
-      'useRouteSearch(parseProjectsSearch);',
-    );
-
-    assert.deepEqual(violations, [
-      {
-        file: 'libs/client/projects/src/pages/projects-page.tsx',
-        occurrences: 1,
-        rule: 'unchecked-route-search',
-      },
-    ]);
   });
 
   test('reports remaining semantic boundary crossings', () => {

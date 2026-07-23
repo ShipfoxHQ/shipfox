@@ -10,7 +10,6 @@ export interface ClientArchitectureViolation {
     | 'api-request-outside-adapter'
     | 'non-owning-feature-contribution'
     | 'private-feature-import'
-    | 'unchecked-route-search'
     | 'inline-query-policy'
     | 'query-policy-outside-adapter'
     | 'unregistered-query-client-operation'
@@ -128,7 +127,6 @@ const queryClientOperationNames = [
   'unmount',
 ] as const;
 const queryClientParameterPattern = /\b([A-Za-z_$][\w$]*)\s*:\s*QueryClient\b/g;
-const routeSearchPattern = /\buseRouteSearch\s*\(/;
 const identifierStartPattern = /[A-Za-z_$]/;
 const identifierPartPattern = /[A-Za-z0-9_$]/;
 const regexFlagPattern = /[A-Za-z]/;
@@ -596,8 +594,6 @@ export function auditClientSource(file: string, source: string): ClientArchitect
   if (!isAdapter && !isClientApi && !hasCacheOperationException(normalizedFile)) {
     addViolation('unregistered-query-client-operation', queryClientOperationCount(source));
   }
-  if (!normalizedFile.includes('/src/routes/'))
-    addViolation('unchecked-route-search', countMatches(source, routeSearchPattern));
   return violations;
 }
 

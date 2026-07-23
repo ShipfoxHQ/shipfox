@@ -1,12 +1,17 @@
-import {useActiveWorkspace} from '@shipfox/client-shell/runtime';
-import {Outlet, useNavigate, useParams} from '@tanstack/react-router';
+import {
+  parseWorkspaceProjectParams,
+  useActiveWorkspace,
+  useRouteParams,
+} from '@shipfox/client-shell/runtime';
+import {Outlet, useNavigate} from '@tanstack/react-router';
 import {useEffect} from 'react';
 import {ProjectCrumb} from '#components/project-crumb.js';
 import {useProjectQuery} from '#hooks/api/projects.js';
+import {projectRouteParams} from './routes/inputs.js';
 
 export function ProjectBreadcrumb() {
   const workspace = useActiveWorkspace();
-  const {pid} = useParams({strict: false}) as {pid?: string};
+  const {pid} = useRouteParams(parseWorkspaceProjectParams);
   const project = useProjectQuery(pid).data;
   return (
     <ProjectCrumb workspaceId={workspace.id} projectId={project?.id} projectName={project?.name} />
@@ -14,7 +19,7 @@ export function ProjectBreadcrumb() {
 }
 
 export function ProjectLayoutGuard() {
-  const {wid, pid} = useParams({strict: false}) as {wid: string; pid: string};
+  const {wid, pid} = useRouteParams(projectRouteParams);
   const navigate = useNavigate();
   const project = useProjectQuery(pid).data;
   useEffect(() => {

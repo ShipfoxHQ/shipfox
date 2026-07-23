@@ -1,3 +1,4 @@
+import {sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {useCallback} from 'react';
 import {RedirectInstallPage} from '#components/redirect-install-page.js';
 import {useCreateSlackInstallMutation} from '#hooks/api/integrations.js';
@@ -15,7 +16,7 @@ export function SlackInstallPage() {
       errorFallbackMessage="Could not start Slack install."
       loadingLabel="Connecting Slack"
       beforeRedirect={(workspaceId) =>
-        saveSlackInstallWorkspace(window.sessionStorage, workspaceId)
+        saveSlackInstallWorkspace(sessionStorageOrUndefined(), workspaceId)
       }
     />
   );

@@ -1,9 +1,13 @@
 import type {SlackCallbackQueryDto} from '@shipfox/api-integration-slack-dto';
 import {ApiError} from '@shipfox/client-api';
-import {type BrowserStorageKey, createTypedBrowserStorage} from '@shipfox/client-ui';
+import {
+  type BrowserStorage,
+  type BrowserStorageKey,
+  createTypedBrowserStorage,
+} from '@shipfox/client-ui';
 
 export const SLACK_INSTALL_WORKSPACE_KEY = 'shipfox.slack-install.workspace-id';
-type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type WorkspaceStorage = BrowserStorage | undefined;
 
 const slackInstallWorkspaceStorageKey = {
   key: SLACK_INSTALL_WORKSPACE_KEY,

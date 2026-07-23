@@ -1,10 +1,11 @@
 import {Button} from '@shipfox/react-ui/button';
 import {Icon} from '@shipfox/react-ui/icon';
-import {Link, useMatchRoute, useParams} from '@tanstack/react-router';
+import {Link, useMatchRoute} from '@tanstack/react-router';
 import type {SettingsSectionEntry} from '#contract.js';
+import {parseWorkspaceParams, useRouteParams} from '#runtime/route-inputs.js';
 
 export function SettingsNav({entries}: {entries: readonly SettingsSectionEntry[]}) {
-  const params = useParams({strict: false}) as {wid?: string};
+  const params = useRouteParams(parseWorkspaceParams);
   const matchRoute = useMatchRoute();
   if (!params.wid) return null;
   return (

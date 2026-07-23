@@ -1,12 +1,13 @@
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {createSingleFlight} from '@shipfox/client-ui';
+import {useRouteSearch} from '@shipfox/client-shell/runtime';
+import {createSingleFlight, sessionStorageOrUndefined} from '@shipfox/client-ui';
 import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {Card} from '@shipfox/react-ui/card';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
-import {Link, useNavigate, useSearch} from '@tanstack/react-router';
+import {Link, useNavigate} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import type {IntegrationConnection} from '#core/models.js';
@@ -23,14 +24,16 @@ import {
 const connectRequests = createSingleFlight<string, IntegrationConnection>();
 
 export function SentryCallbackPage() {
-  const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
   const {workspaces, isLoading} = useAuthState();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
 
-  const params = useMemo(() => parseSentryCallbackParams(search), [search]);
-  const storedWorkspaceId = useMemo(() => readSentryInstallWorkspace(window.sessionStorage), []);
+  const params = useRouteSearch(parseSentryCallbackParams);
+  const storedWorkspaceId = useMemo(
+    () => readSentryInstallWorkspace(sessionStorageOrUndefined()),
+    [],
+  );
   const preselection = preselectSentryWorkspace(storedWorkspaceId, workspaces);
   const preselectedId = preselection.kind === 'pick' ? preselection.preselectedId : undefined;
 
@@ -118,7 +121,7 @@ export function SentryCallbackPage() {
 
     request
       .then(async () => {
-        clearSentryInstallWorkspace(window.sessionStorage);
+        clearSentryInstallWorkspace(sessionStorageOrUndefined());
         if (disposedRef.current) return;
         toast.success('Sentry installed.');
         await navigate({
@@ -133,7 +136,7 @@ export function SentryCallbackPage() {
         if (classified.kind === 'terminal') {
           // Only a fresh install (new grant code) can recover; the stored
           // handoff has served its purpose either way.
-          clearSentryInstallWorkspace(window.sessionStorage);
+          clearSentryInstallWorkspace(sessionStorageOrUndefined());
         }
         setConnectingId(undefined);
         setFailure({workspaceId, failure: classified});

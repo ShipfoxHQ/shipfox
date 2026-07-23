@@ -19,6 +19,23 @@ governed public API. Removing or renaming one requires a compatible package
 release. The repository-local `fixture-boundary.grit` smoke rule is not part of
 the published external contract.
 
+## Rule authoring
+
+- Give each rule a kebab-case name, such as `no-raw-api-request.grit`. Its rule
+  id is `client-architecture/<name>`.
+- Add `allowed.ts` and `rejected.ts` under `fixtures/<name>/` for each rule.
+  Cover aliases, namespace imports, and type-only imports when they apply.
+- Keep fixtures out of normal package checks. The fixture config includes them
+  and skips tests, stories, and generated files.
+- Put the rule id and the approved replacement boundary in each diagnostic.
+  Do not fix a client-architecture error with `biome-ignore`.
+- Keep source-shape boundary checks, including route inputs and browser storage,
+  in Biome plugins. Reserve `@shipfox/client-architecture-policy` for checks
+  that require cross-file, ownership, or semantic analysis.
+- Keep rules local and based on source shape. Put cross-file checks, ownership
+  data, runtime flow, and behavior tests in
+  `@shipfox/client-architecture-policy` or a focused test.
+
 ## External repositories
 
 Install `@shipfox/biome` at the repository root so the configuration path stays

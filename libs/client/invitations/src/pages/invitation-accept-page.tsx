@@ -1,4 +1,9 @@
-import {AuthShell, useAuthState, useRefreshAuth} from '@shipfox/client-shell/runtime';
+import {
+  AuthShell,
+  useAuthState,
+  useRefreshAuth,
+  useRouteSearch,
+} from '@shipfox/client-shell/runtime';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
@@ -6,20 +11,19 @@ import {ShipfoxLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
 import {formatDate} from '@shipfox/react-ui/utils';
-import {Link, useNavigate, useSearch} from '@tanstack/react-router';
+import {Link, useNavigate} from '@tanstack/react-router';
 import {useCallback, useEffect, useRef} from 'react';
 import {completeInvitationAcceptance} from '#complete-acceptance.js';
 import {useAcceptInvitation} from '#hooks/api/accept-invitation.js';
 import {usePreviewInvitation} from '#hooks/api/preview-invitation.js';
+import {validateInvitationAcceptSearch} from '../routes/inputs.js';
 
 const invitationAccepts = createSingleFlight<string, void>();
 const toastedTerminals = new Set<string>();
 const TOASTED_TERMINALS_MAX = 32;
 
 export function InvitationAcceptPage() {
-  const search = useSearch({strict: false}) as {token?: unknown};
-  const token =
-    typeof search.token === 'string' && search.token.length > 0 ? search.token : undefined;
+  const {token} = useRouteSearch(validateInvitationAcceptSearch);
   const navigate = useNavigate();
   const auth = useAuthState();
   const refreshAuth = useRefreshAuth();

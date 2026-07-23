@@ -1,10 +1,14 @@
 import type {LinearCallbackQueryDto} from '@shipfox/api-integration-linear-dto';
 import {ApiError} from '@shipfox/client-api';
-import {type BrowserStorageKey, createTypedBrowserStorage} from '@shipfox/client-ui';
+import {
+  type BrowserStorage,
+  type BrowserStorageKey,
+  createTypedBrowserStorage,
+} from '@shipfox/client-ui';
 
 export const LINEAR_INSTALL_WORKSPACE_KEY = 'shipfox.linear-install.workspace-id';
 
-type WorkspaceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type WorkspaceStorage = BrowserStorage | undefined;
 
 const linearInstallWorkspaceStorageKey = {
   key: LINEAR_INSTALL_WORKSPACE_KEY,
