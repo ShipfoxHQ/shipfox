@@ -191,6 +191,15 @@ async function createFixtureRepository(rootDirectory: string): Promise<void> {
   );
   await writeFixture(
     rootDirectory,
+    'libs/shared/node/module/src/initialize.ts',
+    [
+      'const moduleMigrationTableName = "__drizzle_migrations_module";',
+      'const migrationsTableName = database.migrationsTableName ?? moduleMigrationTableName;',
+      'void migrationsTableName;',
+    ].join('\n'),
+  );
+  await writeFixture(
+    rootDirectory,
     'libs/api/alpha/extra/drizzle.config.ts',
     'export default {};\n',
   );
@@ -216,6 +225,7 @@ describe('database boundary verifier fixtures', () => {
         'foreign-migration',
         'foreign-raw-sql',
         'foreign-table-declaration',
+        'migration-history-instability',
         'unprefixed-enum',
         'unprefixed-table',
         'unregistered-migration-unit',

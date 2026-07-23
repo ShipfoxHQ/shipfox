@@ -81,18 +81,6 @@ export interface DatabaseBoundaryFinding {
   suggestedBoundary: string;
 }
 
-export interface DatabaseBoundaryBaselineEntry {
-  owner: string;
-  namespace: string;
-  file: string;
-  line: number;
-  object: string;
-  rule: DatabaseBoundaryRule;
-  suggestedBoundary: string;
-  trackingIssue: string;
-  removalCondition: string;
-}
-
 export interface DatabaseBoundaryAuditOptions {
   registry?: ApiDatabaseRegistry;
   rootDirectory?: string;
@@ -100,9 +88,6 @@ export interface DatabaseBoundaryAuditOptions {
 
 export interface DatabaseBoundaryVerificationResult {
   findings: DatabaseBoundaryFinding[];
-  knownBaselineFindings: DatabaseBoundaryFinding[];
-  newFindings: DatabaseBoundaryFinding[];
-  disappearedBaselineEntries: DatabaseBoundaryBaselineEntry[];
   registryErrors: string[];
 }
 
@@ -163,18 +148,8 @@ interface SqlObjectReference {
   expression: RegExp;
 }
 
-interface ReconciliationResult {
-  knownBaselineFindings: DatabaseBoundaryFinding[];
-  newFindings: DatabaseBoundaryFinding[];
-  disappearedBaselineEntries: DatabaseBoundaryBaselineEntry[];
-}
-
 const namespaceSuggestion = (owner: string, namespace: string): string =>
   `Use the ${owner} owner's ${namespace} schema factory and producer-owned boundary.`;
-
-const databaseBoundaryBaseline: readonly DatabaseBoundaryBaselineEntry[] = Object.freeze([]);
-
-export {databaseBoundaryBaseline};
 
 function compareText(left: string, right: string): number {
   if (left < right) return -1;
@@ -216,10 +191,6 @@ function findingKey(finding: Pick<DatabaseBoundaryFinding, keyof DatabaseBoundar
     finding.rule,
     finding.suggestedBoundary,
   ].join('\u0000');
-}
-
-function baselineKey(entry: DatabaseBoundaryBaselineEntry): string {
-  return findingKey(entry);
 }
 
 function toRepositoryPath(rootDirectory: string, absolutePath: string): string {
@@ -1368,36 +1339,12 @@ export async function auditApiDatabaseBoundaries(
   return [...unique.values()].sort(compareFindings);
 }
 
-export function reconcileDatabaseBoundaryBaseline(
-  findings: readonly DatabaseBoundaryFinding[],
-  baseline: readonly DatabaseBoundaryBaselineEntry[] = databaseBoundaryBaseline,
-): ReconciliationResult {
-  const baselineByKey = new Map(baseline.map((entry) => [baselineKey(entry), entry]));
-  const knownBaselineFindings: DatabaseBoundaryFinding[] = [];
-  const newFindings: DatabaseBoundaryFinding[] = [];
-  for (const finding of findings) {
-    if (baselineByKey.has(findingKey(finding))) knownBaselineFindings.push(finding);
-    else newFindings.push(finding);
-  }
-  const findingKeys = new Set(findings.map((finding) => findingKey(finding)));
-  const disappearedBaselineEntries = baseline.filter(
-    (entry) => !findingKeys.has(baselineKey(entry)),
-  );
-  return {
-    knownBaselineFindings: knownBaselineFindings.sort(compareFindings),
-    newFindings: newFindings.sort(compareFindings),
-    disappearedBaselineEntries: [...disappearedBaselineEntries],
-  };
-}
-
 export async function verifyApiDatabaseBoundaries(
   options: DatabaseBoundaryAuditOptions = {},
 ): Promise<DatabaseBoundaryVerificationResult> {
   const findings = await auditApiDatabaseBoundaries(options);
-  const reconciliation = reconcileDatabaseBoundaryBaseline(findings, databaseBoundaryBaseline);
   return {
     findings,
-    ...reconciliation,
     registryErrors: await auditApiDatabaseRegistry(options.registry ?? apiDatabaseRegistry),
   };
 }
@@ -1408,27 +1355,11 @@ function formatFinding(finding: DatabaseBoundaryFinding): string {
 
 async function main(): Promise<void> {
   const result = await verifyApiDatabaseBoundaries();
-  if (result.knownBaselineFindings.length > 0) {
-    process.stdout.write(
-      `Known database-boundary baseline findings (${result.knownBaselineFindings.length}):\n`,
-    );
-    for (const finding of result.knownBaselineFindings)
-      process.stdout.write(`- ${formatFinding(finding)}\n`);
-  }
-  if (
-    result.registryErrors.length > 0 ||
-    result.newFindings.length > 0 ||
-    result.disappearedBaselineEntries.length > 0
-  ) {
+  if (result.registryErrors.length > 0 || result.findings.length > 0) {
     process.stderr.write('API database-boundary verification failed\n');
     for (const error of result.registryErrors) process.stderr.write(`- registry: ${error}\n`);
-    for (const finding of result.newFindings)
-      process.stderr.write(`- new: ${formatFinding(finding)}\n`);
-    for (const entry of result.disappearedBaselineEntries) {
-      process.stderr.write(
-        `- baseline disappeared: ${entry.file}:${entry.line} ${entry.rule} object=${entry.object} tracking=${entry.trackingIssue} removal=${entry.removalCondition}\n`,
-      );
-    }
+    for (const finding of result.findings)
+      process.stderr.write(`- finding: ${formatFinding(finding)}\n`);
     process.exitCode = 1;
     return;
   }

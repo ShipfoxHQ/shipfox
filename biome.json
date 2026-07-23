@@ -208,6 +208,23 @@
         "!**/*.gen.ts",
         "!**/*.gen.tsx"
       ]
+    },
+    {
+      "path": "./tools/biome/plugins/database-boundaries/no-direct-table-declaration.grit",
+      "includes": [
+        "**/libs/api/**/src/db/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/test/**",
+        "!**/tests/**",
+        "!**/generated/**",
+        "!**/__generated__/**",
+        "!**/*.gen.ts",
+        "!**/*.gen.tsx",
+        "!**/libs/api/**/src/db/schema/common.ts"
+      ]
     }
   ],
   "formatter": {

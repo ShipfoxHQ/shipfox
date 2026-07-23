@@ -113,11 +113,9 @@ It does not grant a later module access to an earlier module's tables.
 
 ## Enforcement
 
-The API architecture and Dependency Cruiser checks enforce package imports.
-They do not yet enforce database ownership or names.
-
-A repository database-boundary gate must use the registered package and
-database namespace inventory to check:
+The database-boundary gate is fail-closed and has no violation baseline or
+allowlist. It uses the registered package and database namespace inventory to
+check:
 
 - Drizzle table and PostgreSQL type declarations.
 - Generated migration SQL and Drizzle snapshots.
@@ -126,11 +124,32 @@ database namespace inventory to check:
 - Raw SQL that names a module-owned object.
 - Direct `pgTable` or `pgTableCreator` use outside the owning schema factory.
 
-The gate must run in pull-request verification. A new exception needs a named
-owner, reason, tracking issue, and removal condition in this policy. Do not add
-a broad path or prefix allowlist.
+The static gate runs as part of the normal `turbo verify` task. The database
+policy package runs the Biome guardrail, registry validation, and Node
+cross-file verifier together:
 
-The first gate can carry exact temporary entries for known violations. Each
-entry names one object or source location, its tracking issue, and its removal
-condition. New findings fail immediately. Remove entries as fixes land and
-keep the target baseline empty.
+```sh
+mise exec -- pnpm check:api-database-boundaries
+mise exec -- turbo verify --filter=@shipfox/api-database-policy
+```
+
+The repository-wide verification command includes the same package gate:
+
+```sh
+mise exec -- turbo verify
+```
+
+The fresh-catalog verifier applies every registered migration unit to an empty
+PostgreSQL 18 database and runs in the database-backed CI stage. Run it locally
+after starting the repository services with:
+
+```sh
+mise exec -- pnpm dev:services:up
+mise exec -- turbo test:external --filter=@shipfox/api-database-policy
+mise exec -- pnpm --filter=@shipfox/api-database-policy verify:catalog --json
+```
+
+Any static or catalog finding fails its command. Diagnostics identify the
+owner, namespace, object, source, rule, and producer-owned boundary. Neutral
+infrastructure delegates remain registry capabilities; they are not findings
+and must not be represented by a broad allowlist.
