@@ -2,10 +2,9 @@ import {useRefreshAuth} from '@shipfox/client-auth';
 import {createSingleFlight} from '@shipfox/client-ui';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
-import {useQueryClient} from '@tanstack/react-query';
 import {useNavigate, useSearch} from '@tanstack/react-router';
 import {useEffect, useMemo, useState} from 'react';
-import {completeIntegrationCallback} from '#application/complete-integration-callback.js';
+import {useCompleteIntegrationCallback} from '#application/complete-integration-callback.js';
 import {CallbackStatusShell} from '#components/callback-status-shell.js';
 import type {IntegrationConnection} from '#core/models.js';
 import {useCompleteSlackCallbackMutation} from '#hooks/api/integrations.js';
@@ -30,7 +29,7 @@ export function SlackCallbackPage() {
   const search = useSearch({strict: false});
   const navigate = useNavigate();
   const refreshAuth = useRefreshAuth();
-  const queryClient = useQueryClient();
+  const completeIntegrationCallback = useCompleteIntegrationCallback();
   const {mutateAsync: completeSlackCallback} = useCompleteSlackCallbackMutation();
   const params = useMemo(() => parseSlackCallbackQuery(search), [search]);
   const workspaceId = useMemo(() => readSlackInstallWorkspace(window.sessionStorage), []);
@@ -48,7 +47,6 @@ export function SlackCallbackPage() {
           input: params,
           refreshAuth,
           complete: async (query, token) => await completeSlackCallback({query, token}),
-          queryClient,
         }),
     );
     request.then(
@@ -86,7 +84,7 @@ export function SlackCallbackPage() {
     return () => {
       disposed = true;
     };
-  }, [completeSlackCallback, navigate, params, queryClient, refreshAuth]);
+  }, [completeIntegrationCallback, completeSlackCallback, navigate, params, refreshAuth]);
 
   if (!params)
     return (

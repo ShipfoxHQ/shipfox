@@ -2,11 +2,21 @@ import assert from 'node:assert/strict';
 import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import type {ClientArchitectureExceptionRegistry} from '../src/audit-client-architecture.js';
 import {
   auditClientSource,
+  auditRepository,
+  clientArchitectureExceptions,
   inventoryClientSource,
   sourceFiles,
+  validateExceptionRegistry,
+  validateExceptionSourceUsage,
 } from '../src/audit-client-architecture.js';
+
+const exceptionFileNotAuditedPattern = /exception file is not audited/;
+const exceptionTestDoesNotExistPattern = /exception test does not exist/;
+const cacheOperationExceptionStalePattern = /cache-operation exception is stale/;
+const queryPolicyExceptionStalePattern = /query-policy exception is stale/;
 
 describe('auditClientSource', () => {
   test('allows checked API requests in a feature adapter', () => {
@@ -242,6 +252,87 @@ export const projectsFeature = defineClientFeature({
     );
   });
 
+  test('rejects an inline TanStack query-options factory in a query hook', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/hooks/api/projects.ts',
+      "useQuery(queryOptions({queryKey: ['projects'], queryFn: listProjects}));",
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/hooks/api/projects.ts',
+        occurrences: 1,
+        rule: 'inline-query-policy',
+      },
+    ]);
+  });
+
+  test('rejects an aliased TanStack query-options factory in a query hook', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/hooks/api/projects.ts',
+      `import {queryOptions as buildQueryOptions} from '@tanstack/react-query';
+useQuery(buildQueryOptions({queryKey: ['projects'], queryFn: listProjects}));`,
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/hooks/api/projects.ts',
+        occurrences: 1,
+        rule: 'inline-query-policy',
+      },
+    ]);
+  });
+
+  test('requires a registry entry for direct query-client ownership outside adapters', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/pages/project-page.tsx',
+      "import {useQueryClient} from '@tanstack/react-query';\nconst queryClient = useQueryClient();\nqueryClient.invalidateQueries({queryKey: ['projects']});",
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/pages/project-page.tsx',
+        occurrences: 2,
+        rule: 'unregistered-query-client-operation',
+      },
+    ]);
+  });
+
+  test('tracks aliased useQueryClient imports outside adapters', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/pages/project-page.tsx',
+      `import {useQueryClient as useQC} from '@tanstack/react-query';
+const qc = useQC();
+qc.invalidateQueries({queryKey: ['projects']});`,
+    );
+
+    assert.deepEqual(violations, [
+      {
+        file: 'libs/client/projects/src/pages/project-page.tsx',
+        occurrences: 2,
+        rule: 'unregistered-query-client-operation',
+      },
+    ]);
+  });
+
+  test('allows same-feature cache effects inside a mutation adapter', () => {
+    const violations = auditClientSource(
+      'libs/client/projects/src/hooks/api/projects.ts',
+      "const queryClient = useQueryClient();\nqueryClient.invalidateQueries(projectQueryOptions('id'));",
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
+  test('allows a registered coordinator to own direct query-client operations', () => {
+    const violations = auditClientSource(
+      'libs/client/onboarding/src/workspace-setup-route.ts',
+      "const cached = queryClient.getQueryData(['projects']);\nreturn queryClient.fetchQuery(projectQueryOptions('id'));",
+    );
+
+    assert.deepEqual(violations, []);
+  });
+
   test('keeps query hooks inside the adapter boundary', () => {
     const violations = auditClientSource(
       'libs/client/projects/src/pages/project-page.tsx',
@@ -335,5 +426,98 @@ export const projectsFeature = defineClientFeature({
       page.map((violation) => violation.rule),
       ['api-request-outside-adapter', 'unparsed-api-response'],
     );
+  });
+
+  test('rejects stale exception paths and missing focused tests', () => {
+    const registry: ClientArchitectureExceptionRegistry = {
+      cacheOperation: [
+        {
+          file: 'libs/client/projects/src/hooks/api/projects.ts',
+          owner: 'projects mutation adapter',
+          reason: 'The mutation owns same-feature cache effects.',
+          test: 'libs/client/projects/src/hooks/api/projects.test.ts',
+        },
+      ],
+      queryPolicy: [],
+    };
+
+    assert.throws(
+      () => validateExceptionRegistry(Object.keys(clientArchitectureExceptions), [], registry),
+      exceptionFileNotAuditedPattern,
+    );
+    assert.throws(
+      () =>
+        validateExceptionRegistry(
+          ['libs/client/projects/src/hooks/api/projects.ts'],
+          ['libs/client/projects/src/hooks/api/other.test.ts'],
+          registry,
+        ),
+      exceptionTestDoesNotExistPattern,
+    );
+    assert.throws(
+      () =>
+        validateExceptionRegistry(['libs/client/projects/src/hooks/api/projects.ts'], [], registry),
+      exceptionTestDoesNotExistPattern,
+    );
+  });
+
+  test('rejects an exception whose source no longer contains its operation', () => {
+    const registry: ClientArchitectureExceptionRegistry = {
+      cacheOperation: [
+        {
+          file: 'libs/client/projects/src/application/project-coordinator.ts',
+          owner: 'project coordinator',
+          reason: 'The coordinator refreshes a cross-route cache.',
+          test: 'libs/client/projects/src/application/project-coordinator.test.ts',
+        },
+      ],
+      queryPolicy: [],
+    };
+
+    assert.throws(
+      () =>
+        validateExceptionSourceUsage(
+          new Map([
+            [
+              'libs/client/projects/src/application/project-coordinator.ts',
+              'export function coordinate() { return true; }',
+            ],
+          ]),
+          registry,
+        ),
+      cacheOperationExceptionStalePattern,
+    );
+  });
+
+  test('rejects a query-policy exception whose source now owns its policy', () => {
+    const registry: ClientArchitectureExceptionRegistry = {
+      cacheOperation: [],
+      queryPolicy: [
+        {
+          file: 'libs/client/logs/src/hooks/api/step-logs.ts',
+          owner: 'step-log query adapter',
+          reason: 'The query has a special per-view policy.',
+          test: 'libs/client/logs/src/hooks/api/step-logs-query.test.tsx',
+        },
+      ],
+    };
+
+    assert.throws(
+      () =>
+        validateExceptionSourceUsage(
+          new Map([
+            [
+              'libs/client/logs/src/hooks/api/step-logs.ts',
+              'useQuery(stepLogsQueryOptions({projectId: "id"}));',
+            ],
+          ]),
+          registry,
+        ),
+      queryPolicyExceptionStalePattern,
+    );
+  });
+
+  test('accepts the production exception registry and source inventory', async () => {
+    assert.deepEqual(await auditRepository(), []);
   });
 });
