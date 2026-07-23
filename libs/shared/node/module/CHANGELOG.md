@@ -1,5 +1,23 @@
 # @shipfox/node-module
 
+## 1.0.0
+
+### Major Changes
+
+- 154e03f: Require every `ModuleDatabase` declaration to provide a stable database namespace and use it for the Drizzle migration-history table name.
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/inter-module@0.2.1
+  - @shipfox/node-drizzle@0.3.3
+  - @shipfox/node-error-monitoring@0.2.1
+  - @shipfox/node-fastify@0.3.1
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-outbox@0.2.5
+  - @shipfox/node-temporal@0.4.1
+
 ## 0.5.0
 
 ### Minor Changes

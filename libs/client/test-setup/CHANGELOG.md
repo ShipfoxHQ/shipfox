@@ -1,5 +1,14 @@
 # @shipfox/client-test-setup
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [475ce59]
+- Updated dependencies [4d6be08]
+  - @shipfox/client-api@6.0.1
+  - @shipfox/vitest@1.2.4
+
 ## 0.0.5
 
 ### Patch Changes

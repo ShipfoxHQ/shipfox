@@ -1,5 +1,26 @@
 # @shipfox/api-email-challenges
 
+## 1.1.0
+
+### Minor Changes
+
+- 44c15c8: Adds an owner-owned test surface for initializing and resetting Email Challenges storage.
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+- Updated dependencies [154e03f]
+  - @shipfox/api-common-dto@9.0.1
+  - @shipfox/config@1.2.3
+  - @shipfox/node-auth-root-key@0.2.2
+  - @shipfox/node-drizzle@0.3.3
+  - @shipfox/node-email@0.3.2
+  - @shipfox/node-mailer@0.2.2
+  - @shipfox/node-module@1.0.0
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-postgres@0.4.3
+
 ## 1.0.0
 
 ### Major Changes

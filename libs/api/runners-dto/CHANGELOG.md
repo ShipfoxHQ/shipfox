@@ -1,5 +1,15 @@
 # @shipfox/api-runners-dto
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+  - @shipfox/runner-labels@0.1.2
+  - @shipfox/inter-module@0.2.1
+
 ## 7.0.1
 
 ### Patch Changes

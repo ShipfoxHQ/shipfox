@@ -1,5 +1,15 @@
 # @shipfox/expression
 
+## 1.1.4
+
+### Patch Changes
+
+- 8436596: Adds Dependency Cruiser checks to all classified API packages so source-edge enforcement remains active after retiring the duplicate import scan.
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+  - @shipfox/workflow-document@2.1.2
+
 ## 1.1.3
 
 ### Patch Changes

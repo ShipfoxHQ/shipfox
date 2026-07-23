@@ -1,5 +1,27 @@
 # @shipfox/api-logs
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+- Updated dependencies [154e03f]
+  - @shipfox/workflow-document@2.1.2
+  - @shipfox/api-auth-context@9.0.1
+  - @shipfox/api-logs-dto@9.0.1
+  - @shipfox/api-workflows-dto@9.0.1
+  - @shipfox/config@1.2.3
+  - @shipfox/node-drizzle@0.3.3
+  - @shipfox/node-error-monitoring@0.2.1
+  - @shipfox/node-fastify@0.3.1
+  - @shipfox/node-module@1.0.0
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-outbox@0.2.5
+  - @shipfox/node-postgres@0.4.3
+  - @shipfox/node-temporal@0.4.1
+
 ## 9.0.0
 
 ### Patch Changes

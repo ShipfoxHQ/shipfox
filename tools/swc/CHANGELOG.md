@@ -1,5 +1,13 @@
 # @shipfox/swc
 
+## 1.2.7
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/tool-utils@1.2.1
+
 ## 1.2.6
 
 ### Patch Changes

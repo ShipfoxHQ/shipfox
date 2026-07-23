@@ -1,5 +1,21 @@
 # @shipfox/runner-agent
 
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+  - @shipfox/expression@1.1.4
+  - @shipfox/api-agent-dto@9.0.1
+  - @shipfox/api-runners-dto@9.0.1
+  - @shipfox/api-workflows-dto@9.0.1
+  - @shipfox/config@1.2.3
+  - @shipfox/node-egress-guard@0.1.2
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/runner-execution@0.1.11
+  - @shipfox/runner-protocol@0.2.5
+
 ## 0.1.10
 
 ### Patch Changes

@@ -1,5 +1,49 @@
 # @shipfox/api-server
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [067d309]
+- Updated dependencies [8436596]
+- Updated dependencies [44c15c8]
+- Updated dependencies [475ce59]
+- Updated dependencies [a041e25]
+- Updated dependencies [154e03f]
+- Updated dependencies [cd28a05]
+  - @shipfox/api-agent@9.0.1
+  - @shipfox/api-secrets-dto@9.0.1
+  - @shipfox/api-email-challenges@1.1.0
+  - @shipfox/annotations@9.0.1
+  - @shipfox/annotations-dto@9.0.1
+  - @shipfox/api-agent-dto@9.0.1
+  - @shipfox/api-auth@9.0.1
+  - @shipfox/api-auth-dto@9.0.1
+  - @shipfox/api-definitions@9.0.1
+  - @shipfox/api-definitions-dto@9.0.1
+  - @shipfox/api-dispatcher@9.0.1
+  - @shipfox/api-integration-core@9.0.1
+  - @shipfox/api-integration-core-dto@9.0.1
+  - @shipfox/api-logs@9.0.1
+  - @shipfox/api-projects@9.0.1
+  - @shipfox/api-projects-dto@9.0.1
+  - @shipfox/api-runners@9.0.1
+  - @shipfox/api-runners-dto@9.0.1
+  - @shipfox/api-secrets@9.0.1
+  - @shipfox/api-triggers@9.0.1
+  - @shipfox/api-workflows@9.0.1
+  - @shipfox/api-workflows-dto@9.0.1
+  - @shipfox/api-workspaces@9.0.1
+  - @shipfox/api-workspaces-dto@9.0.1
+  - @shipfox/config@1.2.3
+  - @shipfox/node-error-monitoring@0.2.1
+  - @shipfox/node-fastify@0.3.1
+  - @shipfox/node-jwt@0.3.1
+  - @shipfox/node-module@1.0.0
+  - @shipfox/node-opentelemetry@0.6.1
+  - @shipfox/node-postgres@0.4.3
+
 ## 9.0.0
 
 ### Patch Changes

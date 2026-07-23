@@ -1,5 +1,13 @@
 # @shipfox/depcruise
 
+## 1.0.3
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/tool-utils@1.2.1
+
 ## 1.0.2
 
 ### Patch Changes

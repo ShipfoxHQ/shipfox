@@ -1,5 +1,18 @@
 # @shipfox/biome
 
+## 1.10.0
+
+### Minor Changes
+
+- d6d971e: Publishes the generic database-boundaries GritQL guardrail for direct Drizzle table-factory imports.
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- 3f8f1cb: Enforces typed route-input and browser-storage boundaries across client features.
+- Updated dependencies [475ce59]
+  - @shipfox/tool-utils@1.2.1
+
 ## 1.9.0
 
 ### Minor Changes

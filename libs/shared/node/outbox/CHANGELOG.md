@@ -1,5 +1,13 @@
 # @shipfox/node-outbox
 
+## 0.2.5
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/node-drizzle@0.3.3
+
 ## 0.2.4
 
 ### Patch Changes

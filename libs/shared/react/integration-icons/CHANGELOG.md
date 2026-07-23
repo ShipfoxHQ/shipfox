@@ -1,5 +1,14 @@
 # @shipfox/integration-icons
 
+## 0.2.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+- Updated dependencies [3f8f1cb]
+  - @shipfox/react-ui@0.3.6
+
 ## 0.2.0
 
 ### Minor Changes

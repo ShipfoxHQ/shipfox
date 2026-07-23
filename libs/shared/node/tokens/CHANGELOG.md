@@ -1,5 +1,15 @@
 # @shipfox/node-tokens
 
+## 0.3.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [8436596]
+- Updated dependencies [475ce59]
+  - @shipfox/regex@0.2.3
+  - @shipfox/config@1.2.3
+
 ## 0.3.0
 
 ### Minor Changes

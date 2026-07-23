@@ -1,5 +1,11 @@
 # @shipfox/application-release
 
+## 0.1.7
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 0.1.6
 
 ### Patch Changes

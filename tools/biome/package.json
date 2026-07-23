@@ -1,6 +1,6 @@
 {
   "name": "@shipfox/biome",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",

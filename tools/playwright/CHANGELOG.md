@@ -1,5 +1,11 @@
 # @shipfox/playwright
 
+## 1.0.3
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+
 ## 1.0.2
 
 ### Patch Changes

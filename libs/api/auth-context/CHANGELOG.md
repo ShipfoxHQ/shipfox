@@ -1,5 +1,15 @@
 # @shipfox/api-auth-context
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/api-auth-dto@9.0.1
+  - @shipfox/api-workspaces-dto@9.0.1
+  - @shipfox/node-fastify@0.3.1
+
 ## 9.0.0
 
 ### Patch Changes

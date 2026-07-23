@@ -1,5 +1,14 @@
 # @shipfox/api-workflows-dto
 
+## 9.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+  - @shipfox/api-agent-dto@9.0.1
+  - @shipfox/inter-module@0.2.1
+
 ## 9.0.0
 
 ### Patch Changes

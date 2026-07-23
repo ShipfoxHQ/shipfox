@@ -1,5 +1,16 @@
 # @shipfox/vitest
 
+## 1.2.4
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- 4d6be08: Shares workspace-source package-import resolution between the Vite and Vitest tooling wrappers.
+- Updated dependencies [475ce59]
+- Updated dependencies [4d6be08]
+  - @shipfox/tool-utils@1.2.1
+  - @shipfox/vite@1.2.6
+
 ## 1.2.3
 
 ### Patch Changes

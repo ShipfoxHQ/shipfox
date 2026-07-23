@@ -1,5 +1,17 @@
 # @shipfox/client-onboarding
 
+## 6.0.1
+
+### Patch Changes
+
+- 475ce59: Republishes all public packages after restoring release authorization.
+- Updated dependencies [475ce59]
+- Updated dependencies [3f8f1cb]
+  - @shipfox/client-agent@6.0.1
+  - @shipfox/client-integrations@6.0.1
+  - @shipfox/client-projects@6.0.1
+  - @shipfox/client-shell@6.0.1
+
 ## 6.0.0
 
 ### Patch Changes
