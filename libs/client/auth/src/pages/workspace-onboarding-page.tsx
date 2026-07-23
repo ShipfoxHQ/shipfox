@@ -12,7 +12,8 @@ import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
 import {useState} from 'react';
 import {useCreateWorkspaceAuth} from '#hooks/api/workspace-auth.js';
-import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
+import {useAuthState} from '#hooks/use-auth-state.js';
+import {lastWorkspaceIdAtom, rememberLastWorkspaceId} from '#state/last-workspace.js';
 import {workspaceOnboardingErrorToFormError} from './form-errors.js';
 
 const previewMetrics = [
@@ -34,6 +35,7 @@ const previewBars = [
 
 export function WorkspaceOnboardingPage() {
   const createWorkspace = useCreateWorkspaceAuth();
+  const {user} = useAuthState();
   const navigate = useNavigate();
   const setLastWorkspaceId = useSetAtom(lastWorkspaceIdAtom);
   const [formError, setFormError] = useState<string | undefined>();
@@ -50,6 +52,7 @@ export function WorkspaceOnboardingPage() {
         // future visits to `/` land on it.
         try {
           setLastWorkspaceId(created.id);
+          if (user?.id) rememberLastWorkspaceId(user.id, created.id);
         } catch {
           // localStorage may throw in private browsing or quota-exceeded.
         }

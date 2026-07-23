@@ -11,7 +11,7 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
 import {useAuthState} from '#runtime/auth.js';
-import {lastWorkspaceIdAtom} from '#runtime/last-workspace.js';
+import {lastWorkspaceIdAtom, rememberLastWorkspaceId} from '#runtime/last-workspace.js';
 
 export function WorkspaceSwitcher({
   activeWorkspaceId,
@@ -20,12 +20,13 @@ export function WorkspaceSwitcher({
   activeWorkspaceId?: string;
   onSelect?: () => void;
 }) {
-  const {workspaces} = useAuthState();
+  const {user, workspaces} = useAuthState();
   const navigate = useNavigate();
   const setLastWorkspaceId = useSetAtom(lastWorkspaceIdAtom);
   const selectWorkspace = (wid: string) => {
     try {
       setLastWorkspaceId(wid);
+      if (user?.id) rememberLastWorkspaceId(user.id, wid);
     } catch {
       // Local storage is best effort.
     }

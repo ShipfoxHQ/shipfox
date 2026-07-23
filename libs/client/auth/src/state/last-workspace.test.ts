@@ -5,7 +5,7 @@ import {
   rememberLastWorkspaceId,
 } from './last-workspace.js';
 
-describe('lastWorkspaceIdAtom', () => {
+describe('last workspace state', () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
@@ -14,21 +14,13 @@ describe('lastWorkspaceIdAtom', () => {
     window.localStorage.clear();
   });
 
-  test('initial value is undefined when storage is empty', () => {
-    const store = createStore();
-
-    expect(store.get(lastWorkspaceIdAtom)).toBeUndefined();
-  });
-
-  test('write persists to localStorage and round-trips through the atom', () => {
+  test('atom stores current UI selection without unscoped persistence', () => {
     const store = createStore();
 
     store.set(lastWorkspaceIdAtom, 'workspace-1');
 
-    expect(JSON.parse(window.localStorage.getItem('shipfox.lastWorkspaceId') ?? 'null')).toBe(
-      'workspace-1',
-    );
     expect(store.get(lastWorkspaceIdAtom)).toBe('workspace-1');
+    expect(window.localStorage.getItem('shipfox.lastWorkspaceId')).toBeNull();
   });
 
   test('subscribers receive updates when the atom is set', () => {
@@ -45,34 +37,35 @@ describe('lastWorkspaceIdAtom', () => {
     unsubscribe();
   });
 
-  test('syncs the atom when another tab updates last workspace storage', () => {
-    const store = createStore();
-    const unsubscribe = store.sub(lastWorkspaceIdAtom, () => undefined);
-    window.localStorage.setItem('shipfox.lastWorkspaceId', JSON.stringify('workspace-2'));
+  test('write persists to localStorage and can be read for the same principal', () => {
+    rememberLastWorkspaceId('principal-1', 'workspace-1');
 
-    window.dispatchEvent(
-      new StorageEvent('storage', {
-        key: 'shipfox.lastWorkspaceId',
-        storageArea: window.localStorage,
-      }),
-    );
-
-    expect(store.get(lastWorkspaceIdAtom)).toBe('workspace-2');
-    unsubscribe();
+    expect(
+      JSON.parse(
+        window.localStorage.getItem('shipfox.lastWorkspaceId.principal.principal-1') ?? 'null',
+      ),
+    ).toBe('workspace-1');
+    expect(getLastWorkspaceId('principal-1')).toBe('workspace-1');
   });
 
   test('rememberLastWorkspaceId persists a root redirect target', () => {
-    rememberLastWorkspaceId('workspace-1');
+    rememberLastWorkspaceId('principal-1', 'workspace-1');
 
-    const result = getLastWorkspaceId();
+    const result = getLastWorkspaceId('principal-1');
 
     expect(result).toBe('workspace-1');
   });
 
-  test('getLastWorkspaceId ignores malformed storage', () => {
-    window.localStorage.setItem('shipfox.lastWorkspaceId', '{');
+  test("does not reuse a different principal's root redirect target", () => {
+    rememberLastWorkspaceId('principal-a', 'workspace-a');
 
-    const result = getLastWorkspaceId();
+    expect(getLastWorkspaceId('principal-b')).toBeUndefined();
+  });
+
+  test('getLastWorkspaceId ignores malformed storage', () => {
+    window.localStorage.setItem('shipfox.lastWorkspaceId.principal.principal-1', '{');
+
+    const result = getLastWorkspaceId('principal-1');
 
     expect(result).toBeUndefined();
   });

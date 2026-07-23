@@ -15,6 +15,6 @@ export function useLogoutAuth() {
 
   return useMutation({
     mutationFn: logoutAuth,
-    onSettled: enterGuest,
+    onSettled: () => enterGuest(),
   });
 }

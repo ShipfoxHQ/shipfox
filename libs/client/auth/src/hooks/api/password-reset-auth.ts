@@ -33,6 +33,6 @@ export function useConfirmPasswordResetAuth() {
 
   return useMutation({
     mutationFn: confirmPasswordReset,
-    onSuccess: enterAuthenticated,
+    onSuccess: (session) => enterAuthenticated(session),
   });
 }

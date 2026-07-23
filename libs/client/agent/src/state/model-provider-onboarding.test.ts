@@ -29,10 +29,10 @@ describe('model provider onboarding dismissed state', () => {
   });
 
   test('keeps dismissed state isolated per workspace', () => {
-    const localStorage = createStorage({
-      'shipfox.modelProviderOnboardingDismissed': JSON.stringify({'workspace-1': true}),
-    });
+    const localStorage = createStorage();
     vi.stubGlobal('window', {localStorage});
+
+    dismissModelProviderOnboarding('workspace-1');
 
     expect(isModelProviderOnboardingDismissed('workspace-1')).toBe(true);
     expect(isModelProviderOnboardingDismissed('workspace-2')).toBe(false);
@@ -46,7 +46,7 @@ describe('model provider onboarding dismissed state', () => {
 
   test('treats corrupt JSON as empty state', () => {
     const localStorage = createStorage({
-      'shipfox.modelProviderOnboardingDismissed': '{',
+      'shipfox.modelProviderOnboardingDismissed.workspace.workspace-1': '{',
     });
     vi.stubGlobal('window', {localStorage});
 

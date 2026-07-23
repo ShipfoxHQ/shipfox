@@ -47,6 +47,6 @@ export function useVerifyEmailAuth() {
 
   return useMutation({
     mutationFn: verifyEmailAuth,
-    onSuccess: enterAuthenticated,
+    onSuccess: (session) => enterAuthenticated(session),
   });
 }

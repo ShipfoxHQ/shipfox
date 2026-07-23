@@ -12,7 +12,9 @@ type WorkspaceStorage = BrowserStorage | undefined;
 const sentryInstallWorkspaceStorageKey = {
   key: SENTRY_INSTALL_WORKSPACE_KEY,
   lifetime: 'session',
-  principalScope: 'workspace',
+  // This is a one-shot navigation hint, not private workspace state. The
+  // callback validates it against the authenticated workspace list before use.
+  principalScope: 'global',
   serialize: (workspaceId: string) => workspaceId,
   parse: (value: string) => value || undefined,
 } satisfies BrowserStorageKey<string>;

@@ -59,11 +59,15 @@ function dismissReminder(workspaceId: string): void {
 }
 
 function reminderStorage(workspaceId: string) {
-  return createTypedBrowserStorage(sessionStorageOrUndefined, {
-    key: `shipfox.modelProviderReminder.dismissed.${workspaceId}`,
-    lifetime: 'session' as const,
-    principalScope: 'workspace' as const,
-    serialize: (dismissed: boolean) => JSON.stringify(dismissed),
-    parse: (raw: string) => raw === 'true',
-  });
+  return createTypedBrowserStorage(
+    sessionStorageOrUndefined,
+    {
+      key: 'shipfox.modelProviderReminder.dismissed',
+      lifetime: 'session' as const,
+      principalScope: 'workspace' as const,
+      serialize: (dismissed: boolean) => JSON.stringify(dismissed),
+      parse: (raw: string) => raw === 'true',
+    },
+    {workspaceId},
+  );
 }

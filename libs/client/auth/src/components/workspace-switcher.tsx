@@ -11,7 +11,7 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {useNavigate} from '@tanstack/react-router';
 import {useSetAtom} from 'jotai';
 import {useAuthState} from '#hooks/use-auth-state.js';
-import {lastWorkspaceIdAtom} from '#state/last-workspace.js';
+import {lastWorkspaceIdAtom, rememberLastWorkspaceId} from '#state/last-workspace.js';
 
 export interface WorkspaceSwitcherProps {
   activeWorkspaceId: string | undefined;
@@ -19,13 +19,14 @@ export interface WorkspaceSwitcherProps {
 }
 
 export function WorkspaceSwitcher({activeWorkspaceId, onSelect}: WorkspaceSwitcherProps) {
-  const {workspaces} = useAuthState();
+  const {user, workspaces} = useAuthState();
   const navigate = useNavigate();
   const setLastWorkspaceId = useSetAtom(lastWorkspaceIdAtom);
 
   const handleSelect = (workspaceId: string) => {
     try {
       setLastWorkspaceId(workspaceId);
+      if (user?.id) rememberLastWorkspaceId(user.id, workspaceId);
     } catch {
       // localStorage may throw in private browsing or quota-exceeded; persistence is best-effort.
     }

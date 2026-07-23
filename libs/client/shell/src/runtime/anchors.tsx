@@ -29,17 +29,17 @@ export function buildAnchorSkeleton({
     getParentRoute: () => rootRoute,
     path: anchorPaths.workspaceLayout,
     beforeLoad: async ({context, params, location}) => {
-      try {
-        rememberLastWorkspaceId(params.wid);
-      } catch {
-        // Local storage is best effort.
-      }
       const auth = context.auth;
       if (!auth || auth.isLoading || !context.queryClient) return;
       if (!auth.isAuthenticated)
         throw redirect({to: '/auth/login' as never, search: {redirect: location.href} as never});
       if (!auth.workspaces.some((workspace) => workspace.id === params.wid))
         throw redirect({to: '/'});
+      try {
+        if (auth.user?.id) rememberLastWorkspaceId(auth.user.id, params.wid);
+      } catch {
+        // Local storage is best effort.
+      }
       if (!context.workspaceSetup)
         throw new Error('Client composition includes workspace routes but no workspaceSetup gate.');
       return await context.workspaceSetup({
