@@ -81,7 +81,6 @@ test.describe('assembled Storybook preview', () => {
   });
 
   test('serves standalone child URLs and refreshes deep links', async ({page, request}) => {
-    test.setTimeout(120_000);
     const errors = collectBrowserErrors(page);
 
     const storyIds = await Promise.all(
