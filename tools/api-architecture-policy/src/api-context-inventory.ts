@@ -25,8 +25,6 @@ const dependencyGroups = [
 const importExpression =
   /(?:import|export)\s+(?:type\s+)?(?:[^'"`]*?\s+from\s+)?['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 const sourceFileExpression = /\.(?:[cm]?[jt]sx?)$/;
-const dtoImplementationDetailExpression =
-  /(?:^|\/)(?:core|db|presentation|provider|test|tests|fixtures)(?:\/|\.|$)/;
 
 interface ClassifiedPath {
   classification: string;
@@ -89,7 +87,6 @@ function packageName(specifier: string): string {
 function importViolation(
   importer: ClassifiedPath,
   target: ClassifiedPath | undefined,
-  specifier: string,
 ): string | undefined {
   if (!target) return undefined;
   if (
@@ -101,12 +98,6 @@ function importViolation(
   if (importer.classification === 'dto' && target.classification === 'implementations')
     return 'DTO implementation import';
   if (importer.classification === 'dto' && target.classification === 'spi') return 'DTO SPI import';
-  if (
-    importer.classification === 'dto' &&
-    target.classification === 'dto' &&
-    specifier.endsWith('/inter-module')
-  )
-    return 'DTO inter-module import';
   if (importer.classification === 'shared-semantic' && target.classification === 'implementations')
     return 'Shared semantic implementation import';
   if (importer.classification === 'shared-semantic' && target.classification === 'spi')
@@ -150,13 +141,6 @@ function manifestViolation(
     importer.context !== target.context
   )
     return 'Foreign same-context SPI manifest edge';
-  return undefined;
-}
-
-function dtoRootExportViolation(specifier: string): string | undefined {
-  if (specifier.includes('inter-module')) return 'DTO root exports inter-module contract';
-  if (dtoImplementationDetailExpression.test(specifier))
-    return 'DTO root exports implementation detail';
   return undefined;
 }
 
@@ -259,7 +243,6 @@ export function auditPolicyFixture({
   dependencyGroup,
   dtoHasInterModuleEntry = true,
   dtoRootExportsInterModule = false,
-  dtoRootExportSpecifier,
   importerPath,
   sourceFile,
   targetPath,
@@ -267,7 +250,6 @@ export function auditPolicyFixture({
   dependencyGroup?: (typeof dependencyGroups)[number];
   dtoHasInterModuleEntry?: boolean;
   dtoRootExportsInterModule?: boolean;
-  dtoRootExportSpecifier?: string;
   importerPath: string;
   sourceFile?: string;
   targetPath?: string;
@@ -278,18 +260,14 @@ export function auditPolicyFixture({
   const errors: string[] = [];
 
   if (importer) {
-    const sourceViolation = importViolation(importer, target, sourceFile?.split(':').at(-1) ?? '');
+    const sourceViolation = importViolation(importer, target);
     if (sourceFile && sourceViolation) errors.push(`${sourceViolation}: ${sourceFile}`);
     const dependencyViolation = manifestViolation(importer, target);
     if (dependencyGroup && dependencyViolation)
       errors.push(`${dependencyViolation}: ${dependencyGroup}`);
   }
   if (importer?.classification === 'dto' && dtoRootExportsInterModule && !dtoHasInterModuleEntry)
-    errors.push('DTO root exports inter-module contract');
-  if (importer?.classification === 'dto' && dtoRootExportSpecifier) {
-    const violation = dtoRootExportViolation(dtoRootExportSpecifier);
-    if (violation) errors.push(violation);
-  }
+    errors.push('DTO contract has no explicit inter-module export');
   return errors;
 }
 
@@ -314,11 +292,6 @@ export async function auditRepository(): Promise<string[]> {
     if (classification.classification === 'dto') {
       const indexPath = path.join(repositoryRoot, packagePath, 'src/index.ts');
       const indexSource = await readFile(indexPath, 'utf8');
-      for (const specifier of importSpecifiers(indexSource)) {
-        const violation = dtoRootExportViolation(specifier);
-        if (violation)
-          errors.push(`${violation}: dto-export:${packagePath}:src/index.ts:${specifier}`);
-      }
       if (sourceReExportsInterModule(indexSource) && !hasInterModuleEntry(manifest.exports)) {
         const violation = `dto-export:${packagePath}:package.json:missing-inter-module-entry`;
         errors.push(`DTO contract has no explicit inter-module export: ${violation}`);
@@ -331,11 +304,7 @@ export async function auditRepository(): Promise<string[]> {
       const source = await readFile(sourceFile, 'utf8');
       const relativeFile = toPosixPath(path.relative(repositoryRoot, sourceFile));
       for (const specifier of importSpecifiers(source)) {
-        const violation = importViolation(
-          classification,
-          packages.get(packageName(specifier)),
-          specifier,
-        );
+        const violation = importViolation(classification, packages.get(packageName(specifier)));
         if (violation) errors.push(`${violation}: import:${relativeFile}:${specifier}`);
       }
     }

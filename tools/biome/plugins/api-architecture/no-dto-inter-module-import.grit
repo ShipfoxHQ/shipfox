@@ -1,0 +1,19 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `import $_ from $source` as $match where { $source <: r".*@shipfox/[^/]+-dto/inter-module.*" },
+  `import * as $_ from $source` as $match where {
+    $source <: r".*@shipfox/[^/]+-dto/inter-module.*"
+  },
+  `import $source` as $match where { $source <: r".*@shipfox/[^/]+-dto/inter-module.*" },
+  `export {$_} from $source` as $match where { $source <: r".*@shipfox/[^/]+-dto/inter-module.*" },
+  `export type {$_} from $source` as $match where {
+    $source <: r".*@shipfox/[^/]+-dto/inter-module.*"
+  },
+  `export * from $source` as $match where { $source <: r".*@shipfox/[^/]+-dto/inter-module.*" },
+  `import($source)` as $match where { $source <: r".*@shipfox/[^/]+-dto/inter-module.*" },
+  TsImportType() as $match where { $match <: r".*@shipfox/[^/]+-dto/inter-module.*" }
+} where {
+  register_diagnostic(span=$match, message="api-architecture/no-dto-inter-module-import: consume producer DTO /inter-module contracts only from implementation or composition packages; DTO packages remain passive.")
+}

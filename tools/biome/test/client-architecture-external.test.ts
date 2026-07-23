@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const tarEntryLinePattern = /\r?\n/u;
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(testDirectory, '..');
+const EXTERNAL_CONSUMER_TEST_TIMEOUT_MS = 30_000;
 const fixtureTemplate = resolve(
   packageRoot,
   'plugins/client-architecture/fixtures/external-consumer',
@@ -129,42 +130,50 @@ describe('packed client-architecture Biome plugins', () => {
     }
   });
 
-  test('runs from an installed package in an external repository root', async () => {
-    const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-external-'));
-    try {
-      const tarball = await packBiome(temporaryRoot);
-      const externalRoot = join(temporaryRoot, 'consumer');
-      await cp(fixtureTemplate, externalRoot, {recursive: true});
-      await installPackedBiome(externalRoot, tarball);
+  test(
+    'runs from an installed package in an external repository root',
+    async () => {
+      const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-biome-external-'));
+      try {
+        const tarball = await packBiome(temporaryRoot);
+        const externalRoot = join(temporaryRoot, 'consumer');
+        await cp(fixtureTemplate, externalRoot, {recursive: true});
+        await installPackedBiome(externalRoot, tarball);
 
-      const nodeModulesFixture = join(externalRoot, excludedFixtureFiles[4]);
-      await mkdir(dirname(nodeModulesFixture), {recursive: true});
-      await writeFile(
-        nodeModulesFixture,
-        "\n\nimport type {ProjectResponseDto as Project} from '@shipfox/api-projects-dto';\n\nexport type {Project};\n",
-      );
-
-      for (const fixture of externalRuleFixtures) {
-        const allowed = await runBiome(externalRoot, fixture.allowed);
-        assert.equal(allowed.code, 0, `${fixture.name} allowed fixture failed:\n${allowed.output}`);
-
-        const rejected = await runBiome(externalRoot, fixture.rejected);
-        assert.notEqual(rejected.code, 0, `${fixture.name} rejected fixture passed`);
-        assert.match(rejected.output, new RegExp(`client-architecture/${fixture.name}`, 'u'));
-        assert.match(rejected.output, new RegExp(`${escapedRegExp(fixture.rejected)}:3`, 'u'));
-      }
-
-      const fullFixture = await runBiome(externalRoot, '.');
-      assert.notEqual(fullFixture.code, 0, 'The external rejected fixtures unexpectedly passed');
-      for (const excludedPath of excludedFixtureFiles) {
-        assert.doesNotMatch(
-          fullFixture.output,
-          new RegExp(escapedRegExp(excludedPath), 'u'),
-          `Excluded fixture produced a diagnostic: ${excludedPath}`,
+        const nodeModulesFixture = join(externalRoot, excludedFixtureFiles[4]);
+        await mkdir(dirname(nodeModulesFixture), {recursive: true});
+        await writeFile(
+          nodeModulesFixture,
+          "\n\nimport type {ProjectResponseDto as Project} from '@shipfox/api-projects-dto';\n\nexport type {Project};\n",
         );
+
+        for (const fixture of externalRuleFixtures) {
+          const allowed = await runBiome(externalRoot, fixture.allowed);
+          assert.equal(
+            allowed.code,
+            0,
+            `${fixture.name} allowed fixture failed:\n${allowed.output}`,
+          );
+
+          const rejected = await runBiome(externalRoot, fixture.rejected);
+          assert.notEqual(rejected.code, 0, `${fixture.name} rejected fixture passed`);
+          assert.match(rejected.output, new RegExp(`client-architecture/${fixture.name}`, 'u'));
+          assert.match(rejected.output, new RegExp(`${escapedRegExp(fixture.rejected)}:3`, 'u'));
+        }
+
+        const fullFixture = await runBiome(externalRoot, '.');
+        assert.notEqual(fullFixture.code, 0, 'The external rejected fixtures unexpectedly passed');
+        for (const excludedPath of excludedFixtureFiles) {
+          assert.doesNotMatch(
+            fullFixture.output,
+            new RegExp(escapedRegExp(excludedPath), 'u'),
+            `Excluded fixture produced a diagnostic: ${excludedPath}`,
+          );
+        }
+      } finally {
+        await rm(temporaryRoot, {force: true, recursive: true});
       }
-    } finally {
-      await rm(temporaryRoot, {force: true, recursive: true});
-    }
-  });
+    },
+    EXTERNAL_CONSUMER_TEST_TIMEOUT_MS,
+  );
 });

@@ -1,0 +1,31 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `import $_ from $source` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  `import * as $_ from $source` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  `import $source` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  `export {$_} from $source` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  `export type {$_} from $source` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  `export * from $source` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  `import($source)` as $match where {
+    $source <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  },
+  TsImportType() as $match where {
+    $match <: r".*(?:^|/|\x22|\x27)(?:core|db|presentation|provider|test|tests|fixtures)(?:/|\.|$|\x22|\x27).*"
+  }
+} where {
+  register_diagnostic(span=$match, message="api-architecture/no-dto-root-implementation-detail: keep DTO roots on passive contract modules; implementation details stay behind their owning implementation package.")
+}

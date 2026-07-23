@@ -128,10 +128,12 @@ fixtures, cross-repository policy, and local verification.
 
 These checks enforce the rules:
 
-- `pnpm check:api-context-inventory` checks server package classification,
-  cross-context implementation imports and manifest edges, and DTO
-  `/inter-module` exports.
-- `.dependency-cruiser.cjs` checks declared dependency boundaries.
+- The root [API architecture Biome plugins](../../tools/biome/plugins/api-architecture/README.md)
+  report local DTO import and export violations at the source expression.
+- `pnpm check:api-context-inventory` checks package classification, stale
+  registry entries, manifest edges, explicit export maps, and imports that
+  depend on context or same-context SPI ownership from `api-contexts.cjs`.
+- `.dependency-cruiser.cjs` checks resolved dependency boundaries.
 - `pnpm check:dependencies` checks dependency policy and manifest hygiene.
 - `pnpm check:published-artifacts` checks packed public entry points.
 

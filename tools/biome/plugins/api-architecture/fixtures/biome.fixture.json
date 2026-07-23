@@ -1,0 +1,69 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
+  "vcs": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": true
+  },
+  "formatter": {
+    "enabled": true,
+    "useEditorconfig": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "bracketSpacing": false,
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "plugins": [
+    {
+      "path": "../no-dto-root-inter-module.grit",
+      "includes": [
+        "**/no-dto-root-inter-module/**/libs/api/**/*-dto/src/index.ts",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/coverage/**"
+      ]
+    },
+    {
+      "path": "../no-dto-root-implementation-detail.grit",
+      "includes": [
+        "**/no-dto-root-implementation-detail/**/libs/api/**/*-dto/src/index.ts",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/coverage/**"
+      ]
+    },
+    {
+      "path": "../no-dto-inter-module-import.grit",
+      "includes": [
+        "**/no-dto-inter-module-import/**/libs/api/**/*-dto/**",
+        "!**/dist/**",
+        "!**/node_modules/**",
+        "!**/coverage/**"
+      ]
+    }
+  ],
+  "files": {
+    "includes": [
+      "**/*.ts",
+      "!**/dist/**",
+      "!**/node_modules/**",
+      "!**/coverage/**"
+    ]
+  }
+}
