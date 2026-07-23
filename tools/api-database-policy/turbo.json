@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "verify": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/api-contexts.cjs",
+        "$TURBO_ROOT$/api-databases.cjs",
+        "$TURBO_ROOT$/libs/api/**/package.json",
+        "$TURBO_ROOT$/libs/api/**/drizzle.config.ts",
+        "$TURBO_ROOT$/libs/api/**/drizzle/**",
+        "$TURBO_ROOT$/libs/shared/node/**/package.json"
+      ]
+    }
+  }
+}
