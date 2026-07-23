@@ -5,6 +5,7 @@ export type StorybookManifestEntry = {
   readonly order: number;
   readonly source: string;
   readonly path: `/${string}/`;
+  readonly url: `/${string}/index.html`;
 };
 
 export const storybooks = [
@@ -15,6 +16,7 @@ export const storybooks = [
     order: 1,
     source: 'libs/shared/react/ui/storybook-static',
     path: '/react-ui/',
+    url: '/react-ui/index.html',
   },
   {
     id: 'client-agent',
@@ -23,6 +25,7 @@ export const storybooks = [
     order: 2,
     source: 'libs/client/agent/storybook-static',
     path: '/client-agent/',
+    url: '/client-agent/index.html',
   },
   {
     id: 'client-auth',
@@ -31,6 +34,7 @@ export const storybooks = [
     order: 3,
     source: 'libs/client/auth/storybook-static',
     path: '/client-auth/',
+    url: '/client-auth/index.html',
   },
   {
     id: 'client-integrations',
@@ -39,6 +43,7 @@ export const storybooks = [
     order: 4,
     source: 'libs/client/integrations/storybook-static',
     path: '/client-integrations/',
+    url: '/client-integrations/index.html',
   },
   {
     id: 'client-logs',
@@ -47,6 +52,7 @@ export const storybooks = [
     order: 5,
     source: 'libs/client/logs/storybook-static',
     path: '/client-logs/',
+    url: '/client-logs/index.html',
   },
   {
     id: 'client-projects',
@@ -55,6 +61,7 @@ export const storybooks = [
     order: 6,
     source: 'libs/client/projects/storybook-static',
     path: '/client-projects/',
+    url: '/client-projects/index.html',
   },
   {
     id: 'client-runners',
@@ -63,6 +70,7 @@ export const storybooks = [
     order: 7,
     source: 'libs/client/runners/storybook-static',
     path: '/client-runners/',
+    url: '/client-runners/index.html',
   },
   {
     id: 'client-secrets',
@@ -71,6 +79,7 @@ export const storybooks = [
     order: 8,
     source: 'libs/client/secrets/storybook-static',
     path: '/client-secrets/',
+    url: '/client-secrets/index.html',
   },
   {
     id: 'client-triggers',
@@ -79,6 +88,7 @@ export const storybooks = [
     order: 9,
     source: 'libs/client/triggers/storybook-static',
     path: '/client-triggers/',
+    url: '/client-triggers/index.html',
   },
   {
     id: 'client-workflows',
@@ -87,6 +97,7 @@ export const storybooks = [
     order: 10,
     source: 'libs/client/workflows/storybook-static',
     path: '/client-workflows/',
+    url: '/client-workflows/index.html',
   },
 ] as const satisfies readonly StorybookManifestEntry[];
 
@@ -100,13 +111,13 @@ export type StorybookRef = {
 };
 
 export const storybookRefs = Object.fromEntries(
-  storybooks.map(({id, title, path}) => [id, {title, url: path}]),
+  storybooks.map(({id, title, url}) => [id, {title, url}]),
 ) as Record<StorybookId, StorybookRef>;
 
-export const storybookLinks = storybooks.map(({id, title, path}) => ({
+export const storybookLinks = storybooks.map(({id, title, url}) => ({
   id,
   title,
-  url: path,
+  url,
 }));
 
 export const storybookTurboFilters = storybooks.map(({package: packageName}) => packageName);
