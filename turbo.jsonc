@@ -11,7 +11,8 @@
     "CLIENT_URL",
     "ARGOS_TOKEN",
     "SHIPFOX_VITEST_MAX_WORKERS",
-    "CI"
+    "CI",
+    "PREVIEW_COMMIT_SHA"
   ],
   "tasks": {
     "build": {
