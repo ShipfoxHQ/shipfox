@@ -16,7 +16,6 @@ import {
   getStepAttemptsByJobExecutionId,
   getStepsByJobExecutionIdForUpdate,
   insertRunningStepAttempt,
-  lockActiveJobExecutionLeaseForUpdate,
   markStepRunning,
   markStepSkipped,
   settleJobFailed,
@@ -33,7 +32,6 @@ import type {PersistedEvaluationTraceEntry, Step, StepStatusReason} from './enti
 import {
   AgentConfigUnresolvableError,
   InterpolationUnresolvableError,
-  JobLeaseNotActiveError,
   JobNotFoundError,
   StepAttemptAheadError,
   StepNotFoundError,
@@ -336,21 +334,16 @@ function dispatchConfigError(error: DispatchConfigError): Record<string, unknown
 }
 
 export interface NextStepForLeasedJobExecutionParams {
-  jobId: string;
   jobExecutionId: string;
-  runnerSessionId: string;
   agent?: AgentInterModuleClient | undefined;
 }
 
 export function nextStepForLeasedJobExecution(
   params: NextStepForLeasedJobExecutionParams,
 ): Promise<NextStep> {
-  return withTransaction(async (tx) => {
-    const leaseIsActive = await lockActiveJobExecutionLeaseForUpdate(params, tx);
-    if (!leaseIsActive) throw new JobLeaseNotActiveError(params.jobExecutionId);
-
-    return nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent);
-  });
+  return withTransaction((tx) =>
+    nextStepForJobExecutionInTransaction(params.jobExecutionId, tx, params.agent),
+  );
 }
 
 export function nextStepForJob(

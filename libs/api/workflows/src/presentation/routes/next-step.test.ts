@@ -28,21 +28,6 @@ import {
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {createLeaseTokenRouteGroup} from './index.js';
 
-vi.mock('#db/workflow-runs.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('#db/workflow-runs.js')>();
-  return {
-    ...original,
-    lockActiveJobExecutionLeaseForUpdate: async (params: {
-      jobId: string;
-      jobExecutionId: string;
-      runnerSessionId: string;
-    }) => {
-      const {active} = await runnersTestClient.getLeaseState(params);
-      return active;
-    },
-  };
-});
-
 const URL = '/runs/jobs/current/steps/next';
 
 async function recordStepResult(
@@ -129,6 +114,9 @@ describe('POST /runs/jobs/current/steps/next', () => {
   test('returns the lowest-position pending step and marks it running', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
     const token = await mintActiveLeaseToken({jobId});
+    const lease = getLeaseTokenClaims(token);
+    if (!lease) throw new Error('Expected minted lease token to verify');
+    const getLeaseState = vi.spyOn(runnersTestClient, 'getLeaseState');
 
     const res = await app.inject({
       method: 'POST',
@@ -137,6 +125,11 @@ describe('POST /runs/jobs/current/steps/next', () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(getLeaseState).toHaveBeenCalledWith({
+      jobId: lease.jobId,
+      jobExecutionId: lease.jobExecutionId,
+      runnerSessionId: lease.runnerSessionId,
+    });
     const body = res.json();
     expect(body.kind).toBe('step');
     expect(body.step.id).toBe(steps[0]?.id);

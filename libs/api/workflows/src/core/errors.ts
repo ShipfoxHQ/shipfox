@@ -104,13 +104,6 @@ export class JobNotFoundError extends Error {
   }
 }
 
-export class JobLeaseNotActiveError extends Error {
-  constructor(readonly jobExecutionId: string) {
-    super(`Job lease is no longer active: ${jobExecutionId}`);
-    this.name = 'JobLeaseNotActiveError';
-  }
-}
-
 export class InvalidJobRunnerLabelsError extends Error {
   constructor(readonly labels: readonly string[]) {
     super(`Job runner labels are invalid: ${labels.join(', ')}`);
