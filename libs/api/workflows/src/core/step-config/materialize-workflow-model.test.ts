@@ -1640,6 +1640,50 @@ describe('materializeJobOutputs', () => {
     expect(materialize).toThrow(JobOutputTooLargeError);
   });
 
+  it('accepts a 64 KiB value and rejects one byte over', () => {
+    const maxValueBytes = 64 * 1024;
+    const job = outputJob({payload: template('steps.collect.outputs.payload')});
+    const materialize = (payload: string) =>
+      materializeJobOutputs({
+        job,
+        context: outputContext({payload}),
+        definitionId: 'definition-1',
+      });
+
+    const payload = 'x'.repeat(maxValueBytes);
+
+    expect(materialize(payload)).toEqual({payload});
+    expect(() => materialize(`${payload}x`)).toThrow(JobOutputTooLargeError);
+  });
+
+  it('accepts a serialized total at 256 KiB and rejects one byte over', () => {
+    const maxTotalBytes = 256 * 1024;
+    const keys = ['one', 'two', 'three', 'four'];
+    const outputs = Object.fromEntries(
+      keys.map((key) => [key, template(`steps.collect.outputs.${key}`)]),
+    );
+    const values = {
+      one: 'x'.repeat(64 * 1024),
+      two: 'x'.repeat(64 * 1024),
+      three: 'x'.repeat(64 * 1024),
+      four: 'x'.repeat(64 * 1024 - 40),
+    };
+    const job = outputJob(outputs);
+    const materialize = (contextValues: Record<string, unknown>) =>
+      materializeJobOutputs({
+        job,
+        context: outputContext(contextValues),
+        definitionId: 'definition-1',
+      });
+
+    expect(Buffer.byteLength(JSON.stringify(values), 'utf8')).toBe(maxTotalBytes);
+    expect(materialize(values)).toEqual(values);
+
+    const overLimitValues = {...values, four: `${values.four}x`};
+    expect(Buffer.byteLength(JSON.stringify(overLimitValues), 'utf8')).toBe(maxTotalBytes + 1);
+    expect(() => materialize(overLimitValues)).toThrow(JobOutputTooLargeError);
+  });
+
   it('rejects the total materialized job output cap', () => {
     const keys = ['one', 'two', 'three', 'four', 'five'];
     const outputs = Object.fromEntries(
