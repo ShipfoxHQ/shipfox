@@ -1,5 +1,11 @@
 # @shipfox/client-workflows
 
+## 17.0.2
+
+### Patch Changes
+
+- cd6fef9: Lets the run job rail use available height and exposes overflow when the job list scrolls.
+
 ## 17.0.0
 
 ### Minor Changes
