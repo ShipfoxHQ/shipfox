@@ -1,6 +1,12 @@
 import {WORKFLOWS_JOB_EXECUTION_TIMED_OUT} from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {
+  InterpolationUnresolvableError,
+  JobOutputNotJsonSafeError,
+  JobOutputTooLargeError,
+  JobOutputTooManyEntriesError,
+} from '#core/errors.js';
+import {
   MAX_JOB_OUTPUT_ENTRIES,
   MAX_JOB_OUTPUT_VALUE_BYTES,
 } from '#core/step-config/job-output-limits.js';
@@ -19,6 +25,7 @@ import {
   resolveJobExecutionAfterLeaseExpiry,
   updateJobExecutionStatus,
 } from '../workflow-runs.js';
+import {jobOutputFailureReason} from './job-executions.js';
 
 describe('workflow run job executions', () => {
   let workspaceId: string;
@@ -224,7 +231,11 @@ describe('workflow run job executions', () => {
       expectedVersion: execution.version,
     });
 
-    expect(resolved).toMatchObject({status: 'failed', statusReason: 'unknown', outputs: null});
+    expect(resolved).toMatchObject({
+      status: 'failed',
+      statusReason: 'output_invalid',
+      outputs: null,
+    });
   });
 
   test('fails a successful execution when the persisted model has too many job outputs', async () => {
@@ -265,7 +276,29 @@ describe('workflow run job executions', () => {
       expectedVersion: execution.version,
     });
 
-    expect(resolved).toMatchObject({status: 'failed', statusReason: 'unknown', outputs: null});
+    expect(resolved).toMatchObject({
+      status: 'failed',
+      statusReason: 'output_invalid',
+      outputs: null,
+    });
+  });
+});
+
+describe('jobOutputFailureReason', () => {
+  test.each([
+    new InterpolationUnresolvableError('definition-1', {
+      field: 'job.outputs',
+      source: 'steps.collect.outputs.payload',
+    }),
+    new JobOutputNotJsonSafeError('payload', 'the value is not JSON-safe'),
+    new JobOutputTooLargeError('payload', 16 * 1024, 'value'),
+    new JobOutputTooManyEntriesError(11, 10),
+  ])('classifies %s as an output contract failure', (error) => {
+    expect(jobOutputFailureReason(error)).toBe('output_invalid');
+  });
+
+  test('leaves unrelated failures unclassified', () => {
+    expect(jobOutputFailureReason(new Error('database unavailable'))).toBeNull();
   });
 });
 

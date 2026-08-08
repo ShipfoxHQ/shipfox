@@ -20,6 +20,7 @@ export type JobStatusReason =
   | 'run_cancelled'
   | 'timed_out'
   | 'runner_lost'
+  | 'output_invalid'
   | 'step_failed'
   | 'unknown';
 export interface JobListening {

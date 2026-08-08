@@ -213,16 +213,12 @@ async function updateJobExecutionStatusAtVersion(
         secrets: params.secrets,
       });
     } catch (error) {
-      if (
-        !(error instanceof InterpolationUnresolvableError) &&
-        !(error instanceof JobOutputNotJsonSafeError) &&
-        !(error instanceof JobOutputTooLargeError) &&
-        !(error instanceof JobOutputTooManyEntriesError)
-      ) {
+      const outputFailureReason = jobOutputFailureReason(error);
+      if (outputFailureReason === null) {
         throw error;
       }
       status = 'failed';
-      statusReason = 'unknown';
+      statusReason = outputFailureReason;
       outputs = null;
     }
   }
@@ -299,6 +295,19 @@ export async function updateJobExecutionStatus(
   if (result.changed) recordWorkflowJobExecutionStatusChanged(result.execution.status);
 
   return result.execution;
+}
+
+export function jobOutputFailureReason(error: unknown): JobStatusReason | null {
+  if (
+    error instanceof InterpolationUnresolvableError ||
+    error instanceof JobOutputNotJsonSafeError ||
+    error instanceof JobOutputTooLargeError ||
+    error instanceof JobOutputTooManyEntriesError
+  ) {
+    return 'output_invalid';
+  }
+
+  return null;
 }
 
 export async function recordJobExecutionQueuedAt(params: {

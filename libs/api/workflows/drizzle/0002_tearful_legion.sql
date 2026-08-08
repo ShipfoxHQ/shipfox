@@ -1,0 +1,1 @@
+ALTER TYPE "public"."workflows_job_status_reason" ADD VALUE 'output_invalid' BEFORE 'step_failed';
