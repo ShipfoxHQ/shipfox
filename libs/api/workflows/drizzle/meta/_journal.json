@@ -15,6 +15,13 @@
       "when": 1785771111717,
       "tag": "0001_windy_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786200814636,
+      "tag": "0002_tearful_legion",
+      "breakpoints": true
     }
   ]
 }

@@ -42,4 +42,14 @@ describe('job DTO schema', () => {
 
     expect(result.status_reason).toBe(statusReason);
   });
+
+  it('accepts the materialized output contract failure reason', () => {
+    const result = jobDtoSchema.parse({
+      ...baseJob,
+      status: 'failed',
+      status_reason: 'output_invalid',
+    });
+
+    expect(result.status_reason).toBe('output_invalid');
+  });
 });

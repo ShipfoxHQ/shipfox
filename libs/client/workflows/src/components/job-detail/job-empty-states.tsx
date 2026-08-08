@@ -155,6 +155,7 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
       return 'The job condition did not match, so this job was skipped.';
     case 'condition_errored':
       return 'The job condition could not be evaluated, so this job was skipped.';
+    case 'output_invalid':
     case 'user_cancelled':
     case 'run_cancelled':
     case 'timed_out':
@@ -179,6 +180,8 @@ function preStepFailureDescription(reason: string | null, runner: string[] | nul
       return 'The execution ended while the run was being cancelled.';
     case 'step_failed':
       return `The execution failed before step details were recorded.${runnerCopy} Review run annotations before re-running the workflow.`;
+    case 'output_invalid':
+      return 'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';
     case 'condition_errored':
       return 'The job condition could not be evaluated. Review run annotations before re-running the workflow.';
     case 'dependency_not_completed':
