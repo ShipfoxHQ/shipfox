@@ -1,3 +1,4 @@
+import {Callout, CalloutContent, CalloutDescription, CalloutTitle} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import type {Job, JobExecution, Step, StepError} from '#core/workflow-run.js';
 import {
@@ -8,6 +9,44 @@ import {
 } from '#core/workflow-run.js';
 import type {StepListEmptyState} from '../step-list/index.js';
 import {formatJobExecutionTime} from './job-execution-time-text.js';
+
+const MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION =
+  'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';
+
+export function outputFailureDescriptionForJob(
+  job: Job,
+  jobExecution: JobExecution,
+): string | undefined {
+  if (jobExecution.steps.length === 0) return undefined;
+
+  const statusReason = jobExecution.statusReason ?? job.statusReason;
+  return statusReason === 'output_invalid' ? MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION : undefined;
+}
+
+export function MaterializedOutputFailureNotice({
+  job,
+  jobExecution,
+}: {
+  job: Job;
+  jobExecution: JobExecution;
+}) {
+  const description = outputFailureDescriptionForJob(job, jobExecution);
+  if (!description) return null;
+
+  return (
+    <Callout
+      role="alert"
+      type="error"
+      variant="secondary"
+      className="border-b border-border-neutral-base px-row py-row"
+    >
+      <CalloutContent>
+        <CalloutTitle>Job output could not be persisted</CalloutTitle>
+        <CalloutDescription>{description}</CalloutDescription>
+      </CalloutContent>
+    </Callout>
+  );
+}
 
 export function emptyStateForJob(
   job: Job,
@@ -181,7 +220,7 @@ function preStepFailureDescription(reason: string | null, runner: string[] | nul
     case 'step_failed':
       return `The execution failed before step details were recorded.${runnerCopy} Review run annotations before re-running the workflow.`;
     case 'output_invalid':
-      return 'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';
+      return MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION;
     case 'condition_errored':
       return 'The job condition could not be evaluated. Review run annotations before re-running the workflow.';
     case 'dependency_not_completed':
