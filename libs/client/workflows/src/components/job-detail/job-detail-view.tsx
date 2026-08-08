@@ -260,7 +260,7 @@ export function JobDetailView({
               </Text>
               {selectedJobExecution ? (
                 <>
-                  <MaterializedOutputFailureNotice job={job} jobExecution={selectedJobExecution} />
+                  <MaterializedOutputFailureNotice jobExecution={selectedJobExecution} />
                   <StepList
                     job={job}
                     jobExecution={selectedJobExecution}

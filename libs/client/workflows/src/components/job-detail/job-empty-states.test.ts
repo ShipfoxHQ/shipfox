@@ -7,7 +7,7 @@ import {
   emptyStateForJob,
   emptyStateForMissingExecution,
   jobSucceededSummary,
-  outputFailureDescriptionForJob,
+  outputFailureDescriptionForExecution,
 } from './job-empty-states.js';
 
 describe('jobSucceededSummary', () => {
@@ -70,6 +70,24 @@ describe('materialized output failure empty states', () => {
     const execution = job.jobExecutions[0];
     if (!execution) throw new Error('Expected a job execution');
 
-    expect(outputFailureDescriptionForJob(job, execution)).toBe(description);
+    expect(outputFailureDescriptionForExecution(execution)).toBe(description);
+  });
+
+  test('does not use an output failure from another execution', () => {
+    const job = workflowJob({
+      status: 'failed',
+      status_reason: 'output_invalid',
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'succeeded',
+          status_reason: null,
+          steps: [workflowStepDto({status: 'succeeded'})],
+        }),
+      ],
+    });
+    const execution = job.jobExecutions[0];
+    if (!execution) throw new Error('Expected a job execution');
+
+    expect(outputFailureDescriptionForExecution(execution)).toBeUndefined();
   });
 });

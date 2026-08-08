@@ -13,24 +13,18 @@ import {formatJobExecutionTime} from './job-execution-time-text.js';
 const MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION =
   'A materialized job output could not be persisted: it exceeded a size or entry cap, contained a non-JSON-safe value, or referenced an unresolved value. Check the output mapping and values before re-running the workflow.';
 
-export function outputFailureDescriptionForJob(
-  job: Job,
+export function outputFailureDescriptionForExecution(
   jobExecution: JobExecution,
 ): string | undefined {
   if (jobExecution.steps.length === 0) return undefined;
 
-  const statusReason = jobExecution.statusReason ?? job.statusReason;
-  return statusReason === 'output_invalid' ? MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION : undefined;
+  return jobExecution.statusReason === 'output_invalid'
+    ? MATERIALIZED_OUTPUT_FAILURE_DESCRIPTION
+    : undefined;
 }
 
-export function MaterializedOutputFailureNotice({
-  job,
-  jobExecution,
-}: {
-  job: Job;
-  jobExecution: JobExecution;
-}) {
-  const description = outputFailureDescriptionForJob(job, jobExecution);
+export function MaterializedOutputFailureNotice({jobExecution}: {jobExecution: JobExecution}) {
+  const description = outputFailureDescriptionForExecution(jobExecution);
   if (!description) return null;
 
   return (
