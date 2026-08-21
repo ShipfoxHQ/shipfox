@@ -1,5 +1,15 @@
 # @shipfox/client-workspace-settings
 
+## 22.0.3
+
+### Patch Changes
+
+- Updated dependencies [ddcc546]
+  - @shipfox/react-ui@2.1.2
+  - @shipfox/client-auth@22.0.3
+  - @shipfox/client-shell@22.0.3
+  - @shipfox/client-ui@22.0.3
+
 ## 22.0.2
 
 ### Patch Changes
