@@ -10,12 +10,19 @@
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 
-**The agent platform for engineering teams.**
+## Your AI software factory
 
-Shipfox turns engineering work into automated workflows built from AI agents and
-shell commands. Workflows live as YAML in your repository and react to events
-across your stack. Shipfox handles orchestration, secure tool access, isolated
-execution, and monitoring.
+**Shipfox is an AI software factory for engineering teams.**
+
+**Ship more work. Manage less of it.**
+
+Delegate recurring work across code, delivery, documentation, and operations.
+Shipfox keeps it moving with AI agents and brings your team in where human
+judgment matters.
+
+Workflows live as YAML in your repository and react to events across your stack.
+Shipfox handles orchestration, secure tool access, isolated execution, and
+monitoring.
 
 [Get your first workflow running now](https://www.shipfox.io/docs/getting-started).
 
