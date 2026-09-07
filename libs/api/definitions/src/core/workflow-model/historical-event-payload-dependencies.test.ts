@@ -8,6 +8,10 @@ import {
 } from './historical-event-payload-dependencies.js';
 import {normalizeWorkflowDocument} from './normalize-workflow-document.js';
 
+function interpolation(source: string): string {
+  return '$'.concat('{{ ', source, ' }}');
+}
+
 function normalize(document: WorkflowDocument) {
   const diagnostics = [] as Parameters<typeof normalizeWorkflowDocument>[1]['diagnostics'];
   const model = normalizeWorkflowDocument(document, {
@@ -45,6 +49,147 @@ describe('historical event-payload definition analysis', () => {
           contextPath: 'executions[0].events[0].data.action',
         }),
       }),
+    );
+  });
+
+  it('audits normalized checkout target templates', () => {
+    const source = 'executions[0].events[0].data.repository';
+    const {diagnostics} = normalize({
+      name: 'checkout history',
+      jobs: {
+        build: {
+          steps: [
+            {
+              checkout: {
+                repository: interpolation(source),
+                ref: interpolation(source),
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'historical-event-payload-dependency',
+          path: ['jobs', 'build', 'steps', 0, 'checkout', 'repository'],
+          details: expect.objectContaining({classification: 'payload', expression: source}),
+        }),
+        expect.objectContaining({
+          code: 'historical-event-payload-dependency',
+          path: ['jobs', 'build', 'steps', 0, 'checkout', 'ref'],
+          details: expect.objectContaining({classification: 'payload', expression: source}),
+        }),
+      ]),
+    );
+  });
+
+  it('warns for whole-element filter and map template results', () => {
+    const filterSource = 'executions.filter(e, e.status == "succeeded")';
+    const mapSource = 'executions.map(e, e)';
+    const {model} = normalize({
+      name: 'historical template results',
+      jobs: {
+        inspect: {
+          steps: [
+            {
+              tool: 'get_issue',
+              connection: 'linear-main',
+              with: {history: interpolation(mapSource)},
+            },
+          ],
+        },
+      },
+    });
+    const plannedModel = {
+      ...model,
+      runName: [
+        {
+          kind: 'deferred' as const,
+          expression: createWorkflowExpression({
+            source: filterSource,
+            check: {mode: 'syntax'},
+          }),
+          roots: ['executions'],
+          fillTarget: 'run-creation' as const,
+        },
+      ],
+    };
+
+    const warnings = historicalEventPayloadDependencyIssues(plannedModel).filter(
+      (diagnostic) => diagnostic.code === 'historical-event-payload-dependency',
+    );
+    expect(warnings).toHaveLength(2);
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ['run_name'],
+          details: expect.objectContaining({classification: 'unknown', expression: filterSource}),
+        }),
+        expect.objectContaining({
+          path: ['jobs', 'inspect', 'steps', 0, 'with', 'history'],
+          details: expect.objectContaining({classification: 'unknown', expression: mapSource}),
+        }),
+      ]),
+    );
+    expect(auditWorkflowModelHistoricalEventPayloadDependencies(plannedModel).classification).toBe(
+      'unknown',
+    );
+  });
+
+  it('bounds dynamic warning messages while retaining the full expression details', () => {
+    const source = `executions[vars.index].events[0].data.action${' '.repeat(2200)}== "opened"`;
+    const {model, diagnostics} = normalize({
+      name: 'long historical expression',
+      jobs: {
+        review: {
+          success: source,
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    });
+
+    const warning = diagnostics.find(
+      (diagnostic) => diagnostic.code === 'historical-event-payload-dependency',
+    );
+    expect(warning).toMatchObject({
+      details: expect.objectContaining({classification: 'unknown', expression: source}),
+    });
+    expect(warning?.message).toContain('…');
+    expect(warning?.message).not.toContain(source);
+    expect(warning?.message.length).toBeLessThan(2048);
+    expect(historicalEventPayloadDependencyIssues(model)[0]?.details).toMatchObject({
+      expression: source,
+    });
+  });
+
+  it('keeps warnings for distinct dotted authored paths with the same expression', () => {
+    const source = 'executions[0].events[0].data.action';
+    const {model} = normalize({
+      name: 'dotted historical paths',
+      jobs: {
+        'a.outputs': {
+          success: `${source} == "opened"`,
+          steps: [{run: 'echo first'}],
+        },
+        a: {
+          outputs: {success: interpolation(source)},
+          steps: [{run: 'echo second'}],
+        },
+      },
+    });
+
+    const warnings = historicalEventPayloadDependencyIssues(model).filter(
+      (diagnostic) => diagnostic.code === 'historical-event-payload-dependency',
+    );
+    expect(warnings).toHaveLength(2);
+    expect(warnings.map((warning) => warning.path)).toEqual(
+      expect.arrayContaining([
+        ['jobs', 'a.outputs', 'success'],
+        ['jobs', 'a', 'outputs', 'success'],
+      ]),
     );
   });
 

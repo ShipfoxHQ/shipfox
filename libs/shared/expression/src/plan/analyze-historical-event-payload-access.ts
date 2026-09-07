@@ -1,6 +1,6 @@
 import type {WorkflowExpression} from '../expression/workflow-expression.js';
 import {
-  analyzeContextPathAccess,
+  analyzeContextPathAccessForHistoricalPayload,
   type ContextPathAccessUnknown,
   type ContextPathReference,
   type ContextPathSegment,
@@ -34,7 +34,7 @@ const executionEventCollections = new Set(['events', 'trigger_events']);
 export function analyzeHistoricalEventPayloadAccess(
   expression: WorkflowExpression | string,
 ): HistoricalEventPayloadAccessAnalysis {
-  const analysis = analyzeContextPathAccess(expression, ['executions']);
+  const analysis = analyzeContextPathAccessForHistoricalPayload(expression, ['executions']);
   const accesses = [
     ...analysis.references.flatMap(historicalPayloadAccessFromReference),
     ...analysis.unknown.map(historicalPayloadAccessFromUnknown),
@@ -46,7 +46,10 @@ export function analyzeHistoricalEventPayloadAccess(
 function historicalPayloadAccessFromReference(
   reference: ContextPathReference,
 ): HistoricalEventPayloadAccess[] {
-  if (reference.root !== 'executions' || reference.cardinalityOnly === true) return [];
+  if (reference.root !== 'executions') return [];
+  if (reference.cardinalityOnly === true && isCardinalityOnlyCollectionReference(reference)) {
+    return [];
+  }
   if (reference.segments.length === 0) return [payloadAccess(reference)];
 
   const eventCollection = reference.segments[1];
@@ -60,6 +63,18 @@ function historicalPayloadAccessFromReference(
     reference.segments.length === 1 &&
     (reference.wholeElement === true || typeof reference.segments[0] === 'number');
   return referencesExecutionElement ? [payloadAccess(reference)] : [];
+}
+
+function isCardinalityOnlyCollectionReference(reference: ContextPathReference): boolean {
+  if (reference.wholeElement === true) return false;
+  if (reference.segments.length === 0) return true;
+
+  const eventCollection = reference.segments[1];
+  return (
+    reference.segments.length === 2 &&
+    typeof eventCollection === 'string' &&
+    executionEventCollections.has(eventCollection)
+  );
 }
 
 function historicalEventCollectionPayloadAccess(

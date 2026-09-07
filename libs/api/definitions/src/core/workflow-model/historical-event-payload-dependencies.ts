@@ -20,6 +20,7 @@ export const HISTORICAL_EVENT_PAYLOAD_DEPENDENCY_CODE =
   'historical-event-payload-dependency' as const;
 
 const celIdentifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const HISTORICAL_DEPENDENCY_MESSAGE_EXPRESSION_MAX_LENGTH = 160;
 
 export type HistoricalEventPayloadDependencyClassification = 'safe' | 'payload' | 'unknown';
 
@@ -150,7 +151,7 @@ export function historicalEventPayloadDependencyIssues(
 ): WorkflowModelValidationIssue[] {
   const dependencies = new Map<string, HistoricalEventPayloadDependency>();
   for (const dependency of findHistoricalEventPayloadDependencies(model)) {
-    const key = `${dependency.path.join('.')}\u0000${dependency.expression}`;
+    const key = JSON.stringify([dependency.path, dependency.expression]);
     const previous = dependencies.get(key);
     if (
       previous === undefined ||
@@ -167,8 +168,9 @@ export function historicalEventPayloadDependencyIssues(
     const remediation =
       'Use current execution.events for payload data, or migrate this expression to prior-event metadata before historical payloads become unavailable.';
     const dynamic = dependency.access.kind === 'unknown';
+    const expressionForMessage = shortenHistoricalDependencyExpression(dependency.expression);
     const referenceDescription = dynamic
-      ? `may reach a prior execution event payload through dynamic access in ${dependency.expression}`
+      ? `may reach a prior execution event payload through dynamic access in ${expressionForMessage}`
       : `references the prior execution event payload at ${contextPath}`;
 
     return issue({
@@ -205,6 +207,12 @@ function scanWorkflowStep(
 
   if (step.kind === 'agent' && step.session !== undefined) {
     scanTemplate(step.session.key, [...path, 'session'], dependencies);
+  }
+
+  if (step.kind === 'checkout') {
+    for (const [key, template] of Object.entries(step.checkout.templates ?? {})) {
+      scanTemplate(template, [...path, 'checkout', key], dependencies);
+    }
   }
 
   if (step.kind === 'tool') {
@@ -280,6 +288,14 @@ function scanTemplateTree(
   for (const [key, child] of Object.entries(value)) {
     scanTemplateTree(child, [...path, key], dependencies);
   }
+}
+
+function shortenHistoricalDependencyExpression(expression: string): string {
+  if (expression.length <= HISTORICAL_DEPENDENCY_MESSAGE_EXPRESSION_MAX_LENGTH) {
+    return expression;
+  }
+
+  return `${expression.slice(0, HISTORICAL_DEPENDENCY_MESSAGE_EXPRESSION_MAX_LENGTH - 1)}…`;
 }
 
 function scanExpression(

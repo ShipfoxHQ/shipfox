@@ -52,6 +52,22 @@ describe('analyzeHistoricalEventPayloadAccess', () => {
     });
   });
 
+  it.each([
+    'size(executions[0].events[0].data)',
+    'executions[0].events[0].data.size()',
+  ])('detects payload access inside cardinality expressions: %s', (source) => {
+    expect(analyzeHistoricalEventPayloadAccess(source)).toEqual({
+      accesses: [
+        {
+          kind: 'payload',
+          root: 'executions',
+          segments: [0, 'events', 0, 'data'],
+          source: 'executions[0].events[0].data',
+        },
+      ],
+    });
+  });
+
   it('detects comprehension-based payload access', () => {
     expect(
       analyzeHistoricalEventPayloadAccess(
@@ -64,6 +80,12 @@ describe('analyzeHistoricalEventPayloadAccess', () => {
           root: 'executions',
           segments: ['*', 'events', '*', 'data', 'action'],
           source: 'event.data.action',
+        },
+        {
+          kind: 'unknown',
+          root: 'executions',
+          reason: 'dynamic',
+          source: 'executions.map(e, e.events.map(event, event.data.action))',
         },
       ],
     });

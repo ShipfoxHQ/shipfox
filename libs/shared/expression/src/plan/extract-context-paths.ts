@@ -68,12 +68,36 @@ export function analyzeContextPathAccess(
   expression: WorkflowExpression | string,
   roots?: readonly string[],
 ): ContextPathAccessAnalysis {
+  return analyzeContextPathAccessWithOptions(expression, roots, false);
+}
+
+/** Enables conservative whole-result classification for persisted historical plans. */
+export function analyzeContextPathAccessForHistoricalPayload(
+  expression: WorkflowExpression | string,
+  roots?: readonly string[],
+): ContextPathAccessAnalysis {
+  return analyzeContextPathAccessWithOptions(expression, roots, true);
+}
+
+function analyzeContextPathAccessWithOptions(
+  expression: WorkflowExpression | string,
+  roots: readonly string[] | undefined,
+  allowComprehensionResultUnknown: boolean,
+): ContextPathAccessAnalysis {
   const source = typeof expression === 'string' ? expression : expression.source;
   const references: ContextPathReference[] = [];
   const unknown: ContextPathAccessUnknown[] = [];
   const selectedRoots = roots === undefined ? undefined : new Set(roots);
 
-  collectContextPaths(parseCel(source).ast, source, new Map(), selectedRoots, references, unknown);
+  collectContextPaths(
+    parseCel(source).ast,
+    source,
+    new Map(),
+    selectedRoots,
+    references,
+    unknown,
+    allowComprehensionResultUnknown,
+  );
 
   return {references, unknown};
 }
