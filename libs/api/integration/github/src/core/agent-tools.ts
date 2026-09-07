@@ -8,7 +8,7 @@ import type {
   IntegrationProviderErrorReason,
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-spi';
-import {MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
+import {isValidGitObjectId, MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
 import {Octokit} from 'octokit';
 import {mapGithubError} from '#api/client.js';
 import type {GithubInstallationTokenPermissions} from '#api/installation-token-envelope.js';
@@ -661,7 +661,6 @@ const CREATE_COMMIT_STALE_HEAD_TYPE_PATTERN = /^STALE_(HEAD_OID|DATA)$/u;
 const CREATE_COMMIT_STALE_HEAD_MESSAGE_PATTERN = /Expected branch to point to/u;
 const CREATE_COMMIT_RATE_LIMITED_TYPE = 'RATE_LIMITED';
 const CREATE_COMMIT_REPOSITORY_PATTERN = /^[^/\s]+\/[^/\s]+$/u;
-const CREATE_COMMIT_OID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu;
 const CREATE_COMMIT_ENCODINGS = new Set(['utf8', 'base64']);
 const CREATE_COMMIT_UNPAIRED_SURROGATE_PATTERN = /[\uD800-\uDFFF]/u;
 const CREATE_COMMIT_BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/u;
@@ -861,8 +860,6 @@ function isPendingReviewOperation(toolId: GithubAgentToolId, method: string | un
   );
 }
 
-const GITHUB_COMMIT_OID_PATTERN = /^[0-9a-f]{40}$/iu;
-
 async function executeGithubRestOperation(
   client: GithubToolClient,
   route: string,
@@ -967,16 +964,16 @@ async function resolveCreateBranchParameters(
   if (typeof from !== 'string' || from.length === 0) {
     throw new GithubIntegrationProviderError(
       'ref-invalid',
-      'Parameter from must be a 40-character commit oid or a branch name',
+      'Parameter from must be a 40- or 64-character commit oid or a branch name',
     );
   }
   if (from.startsWith('refs/')) {
     throw new GithubIntegrationProviderError(
       'ref-invalid',
-      'Parameter from must be a 40-character commit oid or a branch name without a refs/ prefix',
+      'Parameter from must be a 40- or 64-character commit oid or a branch name without a refs/ prefix',
     );
   }
-  const sha = GITHUB_COMMIT_OID_PATTERN.test(from)
+  const sha = isValidGitObjectId(from)
     ? from
     : await resolveBranchHeadOid(client, owner, repo, from);
   const {repository: _repository, from: _from, ...rest} = parameters;
@@ -1004,7 +1001,7 @@ async function resolveBranchHeadOid(
     if (error instanceof GithubIntegrationProviderError && error.status === 404) {
       throw new GithubIntegrationProviderError(
         'provider-rejected',
-        `Branch '${branch}' does not exist in repository ${owner}/${repo}; from must be a 40-character commit oid or an existing branch name`,
+        `Branch '${branch}' does not exist in repository ${owner}/${repo}; from must be a 40- or 64-character commit oid or an existing branch name`,
         undefined,
         error.status,
       );
@@ -1027,7 +1024,7 @@ async function resolveBranchHeadOid(
     );
   }
   const sha = object.sha;
-  if (typeof sha !== 'string' || !GITHUB_COMMIT_OID_PATTERN.test(sha)) {
+  if (typeof sha !== 'string' || !isValidGitObjectId(sha)) {
     throw new GithubIntegrationProviderError(
       'malformed-provider-response',
       'GitHub branch head resolution response was malformed',
@@ -1672,7 +1669,7 @@ function validateCreateCommitMetadata(arguments_: Record<string, unknown>): stri
     return 'Parameter branch must be a non-empty branch name';
   }
   const expectedHeadOid = arguments_.expected_head_oid;
-  if (typeof expectedHeadOid !== 'string' || !CREATE_COMMIT_OID_PATTERN.test(expectedHeadOid)) {
+  if (typeof expectedHeadOid !== 'string' || !isValidGitObjectId(expectedHeadOid)) {
     return 'Parameter expected_head_oid must be a 40- or 64-character commit oid';
   }
   const message = arguments_.message;
