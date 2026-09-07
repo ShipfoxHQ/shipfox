@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import {randomUUID, timingSafeEqual} from 'node:crypto';
 import type {
   ManagedModelApi,
   ManagedModelProvider,
@@ -225,7 +225,7 @@ function createInferenceAuth(state: InferenceState, adminApiKey: string | undefi
       if (token === undefined) {
         throw new ClientError('Missing credential', 'unauthorized', {status: 401});
       }
-      if (adminApiKey !== undefined && token === adminApiKey) return Promise.resolve();
+      if (adminApiKey !== undefined && tokensMatch(token, adminApiKey)) return Promise.resolve();
 
       const tokenDetails = parseToken(token);
       const credentialState =
@@ -291,7 +291,7 @@ function respondToInferenceRequest(params: {
   if (token === undefined) {
     return params.reply.code(401).send({code: 'unauthorized', message: 'missing credential'});
   }
-  if (params.adminApiKey !== undefined && token === params.adminApiKey) {
+  if (params.adminApiKey !== undefined && tokensMatch(token, params.adminApiKey)) {
     params.state.stats.acceptedRequests += 1;
     if (params.api === 'openai-completions') {
       return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
@@ -464,6 +464,14 @@ function requestToken(headers: Record<string, unknown>): string | undefined {
   const authorization = headerValue(headers.authorization);
   if (authorization?.startsWith('Bearer ')) return authorization.slice('Bearer '.length);
   return headerValue(headers['x-api-key']);
+}
+
+function tokensMatch(actual: string, expected: string): boolean {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 }
 
 function parseToken(
