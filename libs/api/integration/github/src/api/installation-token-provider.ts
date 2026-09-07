@@ -16,11 +16,14 @@ import {
   TOKEN_REFRESH_MARGIN_MS,
 } from './installation-token-envelope.js';
 import {
+  type DeleteInstallationOptions,
   type InstallationTokenCache,
   type InstallationTokenSecretStore,
   SharedInstallationTokenCache,
   type SharedInstallationTokenCacheOptions,
 } from './shared-installation-token-cache.js';
+
+export type {DeleteInstallationOptions};
 
 export interface GithubInstallationTokenProvider {
   getInstallationAccessToken(
@@ -28,6 +31,7 @@ export interface GithubInstallationTokenProvider {
     permissionFingerprint?: string,
     permissions?: GithubInstallationTokenPermissions,
   ): Promise<GithubInstallationAccessToken>;
+  deleteInstallation?(installationId: number, options?: DeleteInstallationOptions): Promise<number>;
 }
 
 export interface GithubInstallationTokenProviderOptions {
@@ -84,6 +88,13 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
     return await this.cache.getOrMint(installationId, effectivePermissionFingerprint, () =>
       this.mintInstallationAccessToken(installationId, requestedPermissions),
     );
+  }
+
+  async deleteInstallation(
+    installationId: number,
+    options?: DeleteInstallationOptions,
+  ): Promise<number> {
+    return (await this.cache.deleteInstallation?.(installationId, options)) ?? 0;
   }
 
   private async assertInstallationIsActive(installationId: number): Promise<void> {
@@ -165,8 +176,14 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
 }
 
 class InMemoryInstallationTokenCache implements InstallationTokenCache {
-  private readonly tokens = new Map<string, GithubInstallationAccessToken>();
+  private readonly tokens = new Map<
+    string,
+    {token: GithubInstallationAccessToken; generation: string | null}
+  >();
   private readonly inFlightMints = new Map<string, Promise<GithubInstallationAccessToken>>();
+  private readonly inFlightEpochs = new Map<string, number>();
+  private readonly generations = new Map<number, string | null>();
+  private readonly epochs = new Map<number, number>();
 
   constructor(
     private readonly options: {
@@ -178,31 +195,75 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
     },
   ) {}
 
+  observeGeneration(installationId: number, generation: string | null): void {
+    const previous = this.generations.get(installationId);
+    if (previous === undefined) {
+      this.generations.set(installationId, generation);
+      return;
+    }
+    if (previous === generation) return;
+    this.generations.set(installationId, generation);
+    this.invalidateLocal(installationId);
+  }
+
   getOrMint(
     installationId: number,
     permissionFingerprint: string,
     mint: () => Promise<GithubInstallationAccessToken>,
   ): Promise<GithubInstallationAccessToken> {
     const cacheKey = installationTokenCacheKey(installationId, permissionFingerprint);
+    const epoch = this.epochs.get(installationId) ?? 0;
+    const generation = this.generations.get(installationId) ?? null;
     const cached = this.tokens.get(cacheKey);
-    if (cached && !this.isInsideRefreshMargin(cached.expiresAt)) {
+    if (
+      cached &&
+      cached.generation === generation &&
+      !this.isInsideRefreshMargin(cached.token.expiresAt)
+    ) {
       recordInstallationTokenLookup('ram-hit');
-      return Promise.resolve(cached);
+      return Promise.resolve(cached.token);
     }
 
     const inFlightMint = this.inFlightMints.get(cacheKey);
-    if (inFlightMint) return inFlightMint;
+    if (inFlightMint && this.inFlightEpochs.get(cacheKey) === epoch) return inFlightMint;
 
     const freshToken = mint()
       .then((token) => {
-        this.tokens.set(cacheKey, token);
+        if ((this.epochs.get(installationId) ?? 0) === epoch) {
+          this.tokens.set(cacheKey, {token, generation});
+        }
         return token;
       })
       .finally(() => {
-        this.inFlightMints.delete(cacheKey);
+        if (this.inFlightMints.get(cacheKey) === freshToken) {
+          this.inFlightMints.delete(cacheKey);
+          this.inFlightEpochs.delete(cacheKey);
+        }
       });
     this.inFlightMints.set(cacheKey, freshToken);
+    this.inFlightEpochs.set(cacheKey, epoch);
     return freshToken;
+  }
+
+  async deleteInstallation(
+    installationId: number,
+    options?: DeleteInstallationOptions,
+  ): Promise<number> {
+    const deleted = this.invalidateLocal(installationId);
+    if (!options?.deleteNamespace) return deleted;
+    return deleted + (await options.deleteNamespace(installationId));
+  }
+
+  private invalidateLocal(installationId: number): number {
+    this.epochs.set(installationId, (this.epochs.get(installationId) ?? 0) + 1);
+    const prefix = `${installationId}\u0000`;
+    let deleted = 0;
+    for (const cacheKey of this.tokens.keys()) {
+      if (!cacheKey.startsWith(prefix)) continue;
+      this.tokens.delete(cacheKey);
+      deleted += 1;
+    }
+    return deleted;
   }
 
   private isInsideRefreshMargin(expiresAt: Date): boolean {
@@ -220,16 +281,44 @@ class TieredInstallationTokenCache implements InstallationTokenCache {
     private readonly shared: InstallationTokenCache,
   ) {}
 
-  getOrMint(
+  async getOrMint(
     installationId: number,
     permissionFingerprint: string,
     mint: () => Promise<GithubInstallationAccessToken>,
   ): Promise<GithubInstallationAccessToken> {
-    return this.ram.getOrMint(installationId, permissionFingerprint, () =>
+    const generation = await this.readGeneration(installationId);
+    this.ram.observeGeneration?.(installationId, generation);
+    const result = await this.ram.getOrMint(installationId, permissionFingerprint, () =>
       this.shared.getOrMint(installationId, permissionFingerprint, mint),
     );
+    const currentGeneration = await this.readGeneration(installationId);
+    if (currentGeneration === generation) return result;
+
+    this.ram.observeGeneration?.(installationId, currentGeneration);
+    return await this.getOrMint(installationId, permissionFingerprint, mint);
+  }
+
+  async deleteInstallation(
+    installationId: number,
+    options?: DeleteInstallationOptions,
+  ): Promise<number> {
+    const deletedRam = (await this.ram.deleteInstallation?.(installationId)) ?? 0;
+    const deletedShared = (await this.shared.deleteInstallation?.(installationId, options)) ?? 0;
+    const deletedRamAfterShared = (await this.ram.deleteInstallation?.(installationId)) ?? 0;
+    return deletedRam + deletedShared + deletedRamAfterShared;
+  }
+
+  private async readGeneration(installationId: number): Promise<string | null> {
+    const shared = this.shared as InstallationTokenGenerationReader;
+    return shared.readObservedGeneration
+      ? await shared.readObservedGeneration(installationId)
+      : null;
   }
 }
+
+type InstallationTokenGenerationReader = {
+  readObservedGeneration?: (installationId: number) => Promise<string | null>;
+};
 
 function createInstallationTokenCache(
   options: GithubInstallationTokenProviderOptions,
@@ -242,9 +331,12 @@ function createInstallationTokenCache(
   });
   if (!options.getIntegrationConnectionById || !options.secretStore) return ram;
 
+  const withLock = options.withLock ?? withInstallationTokenLock;
   const shared = new SharedInstallationTokenCache({
     secretStore: options.secretStore,
-    withLock: options.withLock ?? withInstallationTokenLock,
+    withLock,
+    withBackoffLock: withLock,
+    shareCompatibilityLock: true,
     resolveWorkspaceId: createGithubInstallationWorkspaceResolver(
       options.getIntegrationConnectionById,
     ),

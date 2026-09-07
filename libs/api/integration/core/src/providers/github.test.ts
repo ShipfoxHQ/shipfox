@@ -33,6 +33,8 @@ import {
   encodeInstallationTokenEnvelope,
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
+  GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
+  githubInstallationTokenGenerationNamespace,
   githubInstallationTokenKey,
   githubInstallationTokenNamespace,
 } from '@shipfox/api-integration-github';
@@ -47,6 +49,12 @@ type SecretStore = {
     installationId: number,
     key: string,
     envelope: {token?: string; expiresAt?: Date},
+  ) => Promise<void>;
+  readGeneration?: (workspaceId: string, installationId: number) => Promise<string | null>;
+  writeGeneration?: (
+    workspaceId: string,
+    installationId: number,
+    generation: string,
   ) => Promise<void>;
 };
 
@@ -103,6 +111,26 @@ describe('githubProviderModule', () => {
       values: {
         [profileKey]: encodeInstallationTokenEnvelope(envelope),
       },
+    });
+
+    const generationNamespace = githubInstallationTokenGenerationNamespace(installationId);
+    const readGeneration = secretStore.readGeneration;
+    const writeGeneration = secretStore.writeGeneration;
+    if (!readGeneration || !writeGeneration) throw new Error('Generation adapter is missing');
+    getSecret.mockReset();
+    getSecret.mockResolvedValueOnce('generation-1').mockResolvedValueOnce(undefined);
+    setSecrets.mockReset();
+    await expect(readGeneration(workspaceId, installationId)).resolves.toBe('generation-1');
+    await writeGeneration(workspaceId, installationId, 'generation-2');
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId,
+      namespace: generationNamespace,
+      key: GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
+    });
+    expect(setSecrets).toHaveBeenCalledWith({
+      workspaceId,
+      namespace: generationNamespace,
+      values: {[GITHUB_INSTALLATION_TOKEN_GENERATION_KEY]: 'generation-2'},
     });
   });
 

@@ -48,6 +48,7 @@ names it and links to it; it does not restate it.
 | Validates repository Markdown links, anchors, or documentation reachability. | [Repository documentation policy](../tools/repository-documentation-policy/README.md) | Deterministic link and orphan checks for engineering documentation. |
 | Builds or consumes the published engineering guidance bundle. | [Engineering guidance package](../tools/engineering-guidance/README.md) | The public manifest, locator contract, and deterministic bundle workflow. |
 | Changes webhook retry behavior. | [Webhook retry safety](architecture/webhook-retry-safety.md) | The current safety model for webhook retries. |
+| Changes GitHub installation-token cache invalidation or permission-approval consistency. | [GitHub installation-token invalidation](architecture/github-installation-token-invalidation.md) | The generation fence, consistency bound, rollout contract, and degradation behavior. |
 | Adds or changes unit tests or Storybook stories. | [Testing guide](guides/testing.md) | Unit-test levels and Storybook rules. |
 | Adds or changes a visual test. | [Visual regression guidance](guides/testing.md#visual-regression) | Argos builds, screenshots, and review. |
 | Adds or changes end-to-end coverage. | [E2E guide](../e2e/README.md) | Suite levels, HTTP-first setup, screens, and E2E package boundaries. |
