@@ -164,7 +164,6 @@ export function getAuthRouteRevision(
     principalRole: state.user?.adminRole,
     workspaces: (state.workspaces ?? []).map((workspace) => ({
       id: workspace.id,
-      name: workspace.name,
       slug: workspace.slug,
       membershipId: workspace.membershipId,
       status: workspace.status,
