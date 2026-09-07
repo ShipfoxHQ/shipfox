@@ -13,7 +13,7 @@ import {
 } from '@tanstack/react-router';
 import type {ReactNode} from 'react';
 import {useEffect, useState} from 'react';
-import {screen, userEvent, within} from 'storybook/test';
+import {expect, screen, userEvent, within} from 'storybook/test';
 import {WorkflowRunAttempt, type WorkflowRunStatus} from '#core/workflow-run.js';
 import {
   runAttemptsResponseDto,
@@ -247,6 +247,17 @@ export const Statuses: Story = {
       ))}
     </div>
   ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const buttons = canvas.getAllByRole('button', {name: 'Inspect run details'});
+    const headings = canvas.getAllByRole('heading', {level: 1});
+    for (const [index, button] of buttons.entries()) {
+      const buttonBounds = button.getBoundingClientRect();
+      const headingBounds = headings[index]?.getBoundingClientRect();
+      await expect(buttonBounds.height).toBe(24);
+      await expect(buttonBounds.top).toBe(headingBounds?.top);
+    }
+  },
 };
 
 const ACTION_VARIANTS = [

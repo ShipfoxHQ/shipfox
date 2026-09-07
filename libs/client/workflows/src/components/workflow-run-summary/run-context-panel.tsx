@@ -31,7 +31,7 @@ export function RunContextPanel({
             <button
               type="button"
               aria-label="Inspect run details"
-              className="flex size-28 shrink-0 items-center justify-center rounded-4 text-foreground-neutral-muted hover:text-foreground-neutral-base focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
+              className="flex size-24 shrink-0 items-center justify-center rounded-4 text-foreground-neutral-muted hover:text-foreground-neutral-base focus-visible:shadow-button-neutral-focus focus-visible:outline-none"
             >
               <Icon name="informationLine" size={14} aria-hidden="true" />
             </button>
