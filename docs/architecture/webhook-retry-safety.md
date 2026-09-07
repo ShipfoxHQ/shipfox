@@ -38,7 +38,7 @@ the safe secret deletion and removes the records.
 
 The focused tests inject these failures:
 
-- GitHub installation cleanup after delivery commit, including permission approval, followed by secret-store failure and duplicate retry.
+- GitHub delivery commit followed by secret-store failure and duplicate retry. Approval deliveries repeat cleanup safely.
 - Sentry code exchange followed by a failed state and delivery transaction. The
   retry continues from the durable exchange checkpoint without exchanging again.
 - Sentry rejects a first exchange with `access-denied`. The claim remains pending

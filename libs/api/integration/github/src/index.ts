@@ -8,7 +8,6 @@ import type {
   PublishSourceRepositoryUpdatedFn,
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
-import {logger} from '@shipfox/node-opentelemetry';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createGithubApiClient, type GithubApiClient} from '#api/client.js';
 import {
@@ -56,13 +55,11 @@ export {
   encodeInstallationTokenEnvelope,
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
-  GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
   githubInstallationTokenKey,
   githubInstallationTokenNamespace,
 } from '#api/installation-token-envelope.js';
 export {
   createGithubInstallationTokenProvider,
-  type DeleteInstallationOptions,
   type GithubInstallationTokenProvider,
 } from '#api/installation-token-provider.js';
 export {
@@ -129,36 +126,23 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     options.getGithubInstallationByConnectionId ?? getGithubInstallationByConnectionId;
   const deleteSecrets = options.deleteSecrets;
   const checkoutTokenCache = options.checkoutTokenCache;
-  const installationTokenProvider =
-    options.agentTools?.tokenProvider ??
-    createGithubInstallationTokenProvider({
-      getGithubInstallationByInstallationId:
-        options.getGithubInstallationByInstallationId ?? getGithubInstallationByInstallationId,
-    });
   const checkoutTokenProviderInstance =
     deleteSecrets || checkoutTokenCache
       ? githubProviderInstanceFingerprint(normalizedGithubApiBaseUrl(), config.GITHUB_APP_ID)
       : undefined;
   const deleteInstallationSecrets =
     deleteSecrets || checkoutTokenCache
-      ? async (params: {workspaceId: string; installationId: number}): Promise<number> => {
-          const deleteNamespace = deleteSecrets
-            ? (installationId: number) =>
-                deleteGithubInstallationTokenSecret({
-                  workspaceId: params.workspaceId,
-                  installationId,
-                  deleteSecrets,
-                })
-            : undefined;
-          const tokenCleanup = Promise.resolve().then(() =>
-            installationTokenProvider.deleteInstallation
-              ? installationTokenProvider.deleteInstallation(params.installationId, {
-                  workspaceId: params.workspaceId,
-                  deleteNamespace,
-                })
-              : (deleteNamespace?.(params.installationId) ?? 0),
-          );
-          const cleanup: Promise<number>[] = [tokenCleanup];
+      ? async (params: {workspaceId: string; installationId: number}): Promise<void> => {
+          const cleanup: Promise<unknown>[] = [];
+          if (deleteSecrets) {
+            cleanup.push(
+              deleteGithubInstallationTokenSecret({
+                workspaceId: params.workspaceId,
+                installationId: params.installationId,
+                deleteSecrets,
+              }),
+            );
+          }
           if (checkoutTokenProviderInstance) {
             cleanup.push(
               (async () => {
@@ -172,39 +156,17 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
                 // A cache without a shared store can still evict its RAM copy but
                 // must fall through to the authoritative namespace deletion.
                 if (deleted === 0 && deleteSecrets) {
-                  return await deleteGithubCheckoutTokenSecretGroup({
+                  await deleteGithubCheckoutTokenSecretGroup({
                     workspaceId: params.workspaceId,
                     providerInstance: checkoutTokenProviderInstance,
                     installationId: params.installationId,
                     deleteSecrets,
                   });
                 }
-                return deleted;
               })(),
             );
           }
-          const results = await Promise.allSettled(cleanup);
-          results.forEach((result, index) => {
-            if (result.status === 'rejected') {
-              logger().error(
-                {
-                  workspaceId: params.workspaceId,
-                  installationId: params.installationId,
-                  cleanupIndex: index,
-                  err: result.reason,
-                },
-                'github installation cache cleanup failed',
-              );
-            }
-          });
-          const failure = results.find(
-            (result): result is PromiseRejectedResult => result.status === 'rejected',
-          );
-          if (failure) throw failure.reason;
-          return results.reduce(
-            (total, result) => total + (result.status === 'fulfilled' ? result.value : 0),
-            0,
-          );
+          await Promise.all(cleanup);
         }
       : undefined;
   const deleteInstallationTokenSecret = deleteInstallationSecrets
@@ -240,7 +202,13 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
       source_control: new GithubSourceControlProvider(github, undefined, checkoutTokenCache),
       agent_tools: new GithubAgentToolsProvider({
         getInstallationByConnectionId: getInstallationByConnectionId,
-        tokenProvider: installationTokenProvider,
+        tokenProvider:
+          options.agentTools?.tokenProvider ??
+          createGithubInstallationTokenProvider({
+            getGithubInstallationByInstallationId:
+              options.getGithubInstallationByInstallationId ??
+              getGithubInstallationByInstallationId,
+          }),
       }),
     },
     ...(deleteConnectionSecrets ? {deleteConnectionSecrets} : {}),

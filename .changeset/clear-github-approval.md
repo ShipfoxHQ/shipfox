@@ -1,6 +1,5 @@
 ---
-"@shipfox/api-integration-core": minor
-"@shipfox/api-integration-github": minor
+"@shipfox/api-integration-github": patch
 ---
 
-Clears shared GitHub installation-token entries and permission backoff after approval.
+Clears cached GitHub installation tokens and permission backoff after approval.
