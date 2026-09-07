@@ -102,6 +102,14 @@ const expectedCatalogRows = [
     ],
   },
   {
+    id: 'check_run_write',
+    category: 'checks',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: [{permission: 'checks', access: 'write'}],
+    methods: ['create', 'update'],
+  },
+  {
     id: 'list_pull_requests',
     category: 'pull_requests',
     sensitivity: 'read',
@@ -407,6 +415,18 @@ const githubOperationRouteCases = [
     method: 'get_check_runs',
     args: {pull_number: 1, ref: 'main'},
     expectedRoute: 'GET /repos/{owner}/{repo}/commits/{ref}/check-runs',
+  },
+  {
+    toolId: 'check_run_write',
+    method: 'create',
+    args: {owner: 'shipfox', repo: 'platform', name: 'Shipfox review', head_sha: 'a'.repeat(40)},
+    expectedRoute: 'POST /repos/{owner}/{repo}/check-runs',
+  },
+  {
+    toolId: 'check_run_write',
+    method: 'update',
+    args: {owner: 'shipfox', repo: 'platform', check_run_id: 123},
+    expectedRoute: 'PATCH /repos/{owner}/{repo}/check-runs/{check_run_id}',
   },
   {
     toolId: 'list_pull_requests',
@@ -795,6 +815,7 @@ describe('github agent tool catalog', () => {
     const updatePullRequestSchema = inputSchemaFor('update_pull_request');
     const addReplySchema = inputSchemaFor('add_reply_to_pull_request_comment');
     const pullRequestReadSchema = inputSchemaFor('pull_request_read');
+    const checkRunWriteSchema = inputSchemaFor('check_run_write');
     const actionsRunTriggerSchema = inputSchemaFor('actions_run_trigger');
     const getJobLogsSchema = inputSchemaFor('get_job_logs');
     const createCommitSchema = inputSchemaFor('create_commit');
@@ -830,6 +851,23 @@ describe('github agent tool catalog', () => {
     expect(addReplySchema.anyOf).toEqual([
       {required: ['pull_number', 'body']},
       {required: ['reaction']},
+    ]);
+    expect(checkRunWriteSchema.oneOf).toEqual([
+      {properties: {method: {const: 'create'}}, required: ['name', 'head_sha']},
+      {
+        properties: {method: {const: 'update'}},
+        required: ['check_run_id'],
+        anyOf: [
+          {required: ['name']},
+          {required: ['details_url']},
+          {required: ['external_id']},
+          {required: ['status']},
+          {required: ['started_at']},
+          {required: ['conclusion']},
+          {required: ['completed_at']},
+          {required: ['output']},
+        ],
+      },
     ]);
     expect(pullRequestReadSchema.oneOf).toEqual([
       {properties: {method: {const: 'get'}}, required: []},
@@ -882,6 +920,72 @@ describe('github agent tool catalog', () => {
     expect(createCommitSchema.properties?.deletions).toMatchObject({
       type: 'array',
       items: {type: 'object', required: ['path']},
+    });
+    expect(checkRunWriteSchema.properties?.status).toMatchObject({
+      type: 'string',
+      enum: ['queued', 'in_progress', 'completed'],
+    });
+    expect(checkRunWriteSchema.properties?.conclusion).toMatchObject({
+      type: 'string',
+      enum: [
+        'action_required',
+        'cancelled',
+        'failure',
+        'neutral',
+        'success',
+        'skipped',
+        'timed_out',
+      ],
+    });
+    const checkRunOutputSchema = githubAgentToolCatalog.find(
+      (entry) => entry.id === 'check_run_write',
+    )?.outputSchema as {properties?: Record<string, unknown>; [key: string]: unknown} | undefined;
+    const checkRunSchema = checkRunOutputSchema?.properties?.check_run;
+    expect(checkRunOutputSchema).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['check_run'],
+    });
+    expect(checkRunSchema).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'id',
+        'name',
+        'head_sha',
+        'external_id',
+        'details_url',
+        'html_url',
+        'status',
+        'conclusion',
+        'started_at',
+        'completed_at',
+      ],
+    });
+    expect(checkRunSchema).toMatchObject({
+      properties: {
+        external_id: {type: ['string', 'null']},
+        details_url: {type: ['string', 'null']},
+        conclusion: {
+          type: ['string', 'null'],
+          enum: [
+            'action_required',
+            'cancelled',
+            'failure',
+            'neutral',
+            'success',
+            'skipped',
+            'timed_out',
+            'stale',
+            null,
+          ],
+        },
+        started_at: {type: ['string', 'null']},
+        completed_at: {type: ['string', 'null']},
+        status: {
+          enum: ['queued', 'in_progress', 'completed', 'waiting', 'requested', 'pending'],
+        },
+      },
     });
     expect(createBranch).toBeDefined();
     expect(createBranch?.description).toContain('40- or 64-character commit oid');
@@ -4554,6 +4658,403 @@ describe('github agent tool catalog', () => {
       structuredContent: testCase.expected,
     });
   });
+
+  it('creates a check run through the configured route and projects accepted fields', async () => {
+    const headSha = 'a'.repeat(40);
+    const data = {
+      id: 123456,
+      name: 'Shipfox review',
+      head_sha: headSha,
+      external_id: '',
+      details_url: null,
+      html_url: 'https://github.com/shipfox/platform/runs/123456',
+      status: 'in_progress',
+      conclusion: null,
+      started_at: '2026-09-05T12:00:00Z',
+      completed_at: null,
+    };
+    const request = vi.fn(() => Promise.resolve({data}));
+
+    const result = await callGithubToolWithRequest(
+      'check_run_write',
+      {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: headSha,
+        status: 'in_progress',
+        details_url: 'https://shipfox.example/runs/123456',
+        external_id: 'run_123456',
+        output: {
+          title: 'Review in progress',
+          summary: 'Shipfox is reviewing this commit.',
+          ignored: 'not sent to GitHub',
+        },
+        ignored: 'not sent to GitHub',
+      },
+      request,
+    );
+
+    expect(request).toHaveBeenCalledWith('POST /repos/{owner}/{repo}/check-runs', {
+      owner: 'shipfox',
+      repo: 'platform',
+      name: 'Shipfox review',
+      head_sha: headSha,
+      status: 'in_progress',
+      details_url: 'https://shipfox.example/runs/123456',
+      external_id: 'run_123456',
+      output: {title: 'Review in progress', summary: 'Shipfox is reviewing this commit.'},
+    });
+    expect(result).toEqual({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            check_run: {
+              id: 123456,
+              name: 'Shipfox review',
+              head_sha: headSha,
+              external_id: null,
+              details_url: null,
+              html_url: 'https://github.com/shipfox/platform/runs/123456',
+              status: 'in_progress',
+              conclusion: null,
+              started_at: '2026-09-05T12:00:00Z',
+              completed_at: null,
+            },
+          }),
+        },
+      ],
+      structuredContent: {
+        check_run: {
+          id: 123456,
+          name: 'Shipfox review',
+          head_sha: headSha,
+          external_id: null,
+          details_url: null,
+          html_url: 'https://github.com/shipfox/platform/runs/123456',
+          status: 'in_progress',
+          conclusion: null,
+          started_at: '2026-09-05T12:00:00Z',
+          completed_at: null,
+        },
+      },
+    });
+  });
+
+  it.each([
+    '2026-09-05t12:00:00z',
+    '2016-12-31T23:59:60Z',
+  ])('accepts RFC 3339 boundary timestamp %s for input and response projection', async (timestamp) => {
+    const headSha = 'a'.repeat(40);
+    const data = {
+      id: 123456,
+      name: 'Shipfox review',
+      head_sha: headSha,
+      html_url: 'https://github.com/shipfox/platform/runs/123456',
+      status: 'queued',
+      conclusion: null,
+      started_at: timestamp,
+      completed_at: null,
+    };
+    const request = vi.fn(() => Promise.resolve({data}));
+
+    const result = await callGithubToolWithRequest(
+      'check_run_write',
+      {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: headSha,
+        started_at: timestamp,
+      },
+      request,
+    );
+
+    expect(request).toHaveBeenCalledWith('POST /repos/{owner}/{repo}/check-runs', {
+      owner: 'shipfox',
+      repo: 'platform',
+      name: 'Shipfox review',
+      head_sha: headSha,
+      started_at: timestamp,
+    });
+    expect(result).toMatchObject({
+      structuredContent: {check_run: {started_at: timestamp}},
+    });
+  });
+
+  it('updates a check run and normalizes conclusion-only completion', async () => {
+    const data = {
+      id: 123456,
+      name: 'Shipfox review',
+      head_sha: 'b'.repeat(64),
+      html_url: 'https://github.com/shipfox/platform/runs/123456',
+      status: 'completed',
+      conclusion: 'neutral',
+    };
+    const request = vi.fn(() => Promise.resolve({data}));
+
+    const result = await callGithubToolWithRequest(
+      'check_run_write',
+      {
+        method: 'update',
+        owner: 'shipfox',
+        repo: 'platform',
+        check_run_id: 123456,
+        conclusion: 'neutral',
+        output: {title: 'Review complete', summary: 'Shipfox completed the review.'},
+        head_sha: 'must not be forwarded',
+      },
+      request,
+    );
+
+    expect(request).toHaveBeenCalledWith('PATCH /repos/{owner}/{repo}/check-runs/{check_run_id}', {
+      owner: 'shipfox',
+      repo: 'platform',
+      check_run_id: 123456,
+      conclusion: 'neutral',
+      status: 'completed',
+      output: {title: 'Review complete', summary: 'Shipfox completed the review.'},
+    });
+    expect(result).toMatchObject({
+      structuredContent: {
+        check_run: {
+          id: 123456,
+          head_sha: 'b'.repeat(64),
+          external_id: null,
+          details_url: null,
+          status: 'completed',
+          conclusion: 'neutral',
+          started_at: null,
+          completed_at: null,
+        },
+      },
+    });
+  });
+
+  it.each([
+    {
+      label: 'an update without mutable fields',
+      arguments: {
+        method: 'update',
+        owner: 'shipfox',
+        repo: 'platform',
+        check_run_id: 123456,
+      },
+    },
+    {
+      label: 'a non-completed status with a conclusion',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        status: 'in_progress',
+        conclusion: 'neutral',
+      },
+    },
+    {
+      label: 'a completed status without a conclusion',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        status: 'completed',
+      },
+    },
+    {
+      label: 'a completion timestamp without a conclusion',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        completed_at: '2026-09-05T12:00:00Z',
+      },
+    },
+    {
+      label: 'an invalid details URL',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        details_url: 'ftp://shipfox.example/runs/1',
+      },
+    },
+    {
+      label: 'an invalid timestamp',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        started_at: 'not-a-timestamp',
+      },
+    },
+    {
+      label: 'an output without a summary',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        output: {title: 'Review'},
+      },
+    },
+    {
+      label: 'an all-zero commit object ID',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: '0'.repeat(64),
+      },
+    },
+  ])('$label fails before the GitHub request', async ({arguments: arguments_}) => {
+    const request = vi.fn();
+    const result = await callGithubToolWithRequest('check_run_write', arguments_, request);
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'invalid-request'},
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('accepts GitHub-only response states and normalizes absent optional fields', async () => {
+    const result = await callGithubTool(
+      'check_run_write',
+      {
+        method: 'update',
+        owner: 'shipfox',
+        repo: 'platform',
+        check_run_id: 123456,
+        status: 'in_progress',
+      },
+      {
+        id: 123456,
+        name: 'Shipfox review',
+        head_sha: 'c'.repeat(40),
+        html_url: 'https://github.com/shipfox/platform/runs/123456',
+        status: 'waiting',
+        conclusion: 'stale',
+      },
+    );
+
+    expect(result).toMatchObject({
+      structuredContent: {
+        check_run: {
+          external_id: null,
+          details_url: null,
+          status: 'waiting',
+          conclusion: 'stale',
+          started_at: null,
+          completed_at: null,
+        },
+      },
+    });
+  });
+
+  it('rejects a malformed check-run response', async () => {
+    await expect(
+      callGithubTool(
+        'check_run_write',
+        {
+          method: 'create',
+          owner: 'shipfox',
+          repo: 'platform',
+          name: 'Shipfox review',
+          head_sha: 'a'.repeat(40),
+        },
+        {
+          name: 'Shipfox review',
+          head_sha: 'a'.repeat(40),
+          html_url: 'https://github.com/shipfox/platform/runs/123456',
+          status: 'queued',
+        },
+      ),
+    ).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+      message: 'GitHub check run response was malformed',
+    });
+  });
+
+  it('maps an update 404 to provider-rejected', async () => {
+    const providerError = new RequestError('Not Found', 404, {
+      request: {
+        method: 'PATCH',
+        url: 'https://api.github.com/repos/shipfox/platform/check-runs/123456',
+        headers: {},
+      },
+    });
+    const request = vi.fn(() => Promise.reject(providerError));
+
+    await expect(
+      callGithubToolWithRequest(
+        'check_run_write',
+        {
+          method: 'update',
+          owner: 'shipfox',
+          repo: 'platform',
+          check_run_id: 123456,
+          status: 'in_progress',
+        },
+        request,
+      ),
+    ).rejects.toMatchObject({reason: 'provider-rejected', status: 404});
+  });
+
+  it('denies check-run calls when the minted token lacks checks write', async () => {
+    const request = vi.fn();
+    const checkRunWrite = githubAgentToolCatalog.find((entry) => entry.id === 'check_run_write');
+    if (!checkRunWrite) throw new Error('Missing check-run write catalog entry');
+    const provider = new GithubAgentToolsProvider({
+      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
+      tokenProvider: {
+        getInstallationAccessToken: vi.fn(() =>
+          Promise.resolve({
+            token: 'installation-token',
+            expiresAt: new Date(),
+            permissions: {checks: 'read' as const},
+          }),
+        ),
+      },
+      createClient: vi.fn(() => ({request})),
+    });
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [checkRunWrite],
+      scope: undefined,
+    });
+
+    const result = await session.call({
+      toolId: 'check_run_write',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+      },
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'access-denied'},
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
 });
 
 async function callGithubTool(
@@ -4595,7 +5096,7 @@ function createAgentToolsProvider(client: GithubToolClient) {
           expiresAt: new Date(),
           permissions: {
             actions: 'write' as const,
-            checks: 'read' as const,
+            checks: 'write' as const,
             contents: 'write' as const,
             issues: 'write' as const,
             pull_requests: 'write' as const,

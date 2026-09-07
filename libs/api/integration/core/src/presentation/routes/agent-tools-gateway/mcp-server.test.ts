@@ -748,6 +748,13 @@ function valueFixture(schema: Record<string, unknown>): unknown {
   const branch = schemaBranch(schema);
   if (branch) return valueFixture(branch);
 
+  if (Array.isArray(schema.type)) {
+    const nonNullType = schema.type.find(
+      (type): type is string => typeof type === 'string' && type !== 'null',
+    );
+    return nonNullType === undefined ? null : valueFixture({...schema, type: nonNullType});
+  }
+
   switch (schema.type) {
     case 'object':
       return objectFixture(schema);

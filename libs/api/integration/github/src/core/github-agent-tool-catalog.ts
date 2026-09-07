@@ -29,7 +29,12 @@ interface GithubCatalogEntry<RequiredScope = unknown> extends AgentToolCatalogEn
 
 export const DEFAULT_JOB_LOG_TAIL_LINES = 500;
 
-export type GithubAgentToolCategory = 'issues' | 'pull_requests' | 'actions' | 'repository';
+export type GithubAgentToolCategory =
+  | 'issues'
+  | 'pull_requests'
+  | 'checks'
+  | 'actions'
+  | 'repository';
 export type GithubAgentToolPermission =
   | 'actions'
   | 'checks'
@@ -82,6 +87,7 @@ const scopes = {
   actionsRead: [{permission: 'actions', access: 'read'}],
   actionsWrite: [{permission: 'actions', access: 'write'}],
   checksRead: [{permission: 'checks', access: 'read'}],
+  checksWrite: [{permission: 'checks', access: 'write'}],
   statusesRead: [{permission: 'statuses', access: 'read'}],
   contentsWrite: [{permission: 'contents', access: 'write'}],
   mergePullRequest: [
@@ -309,6 +315,120 @@ const pullRequestReadMethods = [
     scopes.checksRead,
   ),
 ] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const checkRunWriteMethods = [
+  method(
+    'create',
+    'Create a check run for a commit in a GitHub repository.',
+    'write',
+    false,
+    scopes.checksWrite,
+  ),
+  method(
+    'update',
+    'Update an existing check run in a GitHub repository.',
+    'write',
+    false,
+    scopes.checksWrite,
+  ),
+] as const satisfies readonly GithubAgentToolCatalogMethod[];
+
+const checkRunInputConclusions = [
+  'action_required',
+  'cancelled',
+  'failure',
+  'neutral',
+  'success',
+  'skipped',
+  'timed_out',
+];
+const checkRunOutputStatuses = [
+  'queued',
+  'in_progress',
+  'completed',
+  'waiting',
+  'requested',
+  'pending',
+];
+const checkRunOutputConclusions = [...checkRunInputConclusions, 'stale'];
+const checkRunMutableFields = [
+  'name',
+  'details_url',
+  'external_id',
+  'status',
+  'started_at',
+  'conclusion',
+  'completed_at',
+  'output',
+];
+
+const checkRunInputSchema = repositoryInputSchema(
+  {
+    method: methodSchema(checkRunWriteMethods, 'The check-run operation to perform'),
+    check_run_id: integerSchema('The positive numeric ID of the check run to update', {
+      minimum: 1,
+    }),
+    name: stringSchema('Stable display name for the check'),
+    head_sha: stringSchema('Full, non-zero 40- or 64-character hexadecimal commit object ID'),
+    details_url: stringSchema('Absolute HTTP or HTTPS link with more details'),
+    external_id: stringSchema('Caller-owned correlation key'),
+    status: enumSchema(['queued', 'in_progress', 'completed'], 'Check-run lifecycle status'),
+    started_at: stringSchema('RFC 3339 timestamp when the check started'),
+    conclusion: enumSchema(checkRunInputConclusions, 'Final check-run conclusion'),
+    completed_at: stringSchema('RFC 3339 timestamp when the check completed'),
+    output: objectSchema(
+      {
+        title: stringSchema('Check output title'),
+        summary: stringSchema('Check output summary in GitHub Markdown'),
+        text: stringSchema('Optional check output text in GitHub Markdown'),
+      },
+      ['title', 'summary'],
+    ),
+  },
+  ['method'],
+  {
+    oneOf: [
+      methodRequiredSchema('create', ['name', 'head_sha']),
+      {
+        properties: {method: {const: 'update'}},
+        required: ['check_run_id'],
+        anyOf: checkRunMutableFields.map((field) => ({required: [field]})),
+      },
+    ],
+  },
+);
+
+const checkRunOutputSchema = objectSchema(
+  {
+    check_run: objectSchema(
+      {
+        id: integerSchema('Positive numeric check-run ID', {minimum: 1}),
+        name: stringSchema('Check-run display name'),
+        head_sha: stringSchema('Non-zero 40- or 64-character hexadecimal commit object ID'),
+        external_id: nullableStringSchema('Caller-owned correlation key'),
+        details_url: nullableStringSchema('Absolute HTTP or HTTPS details link'),
+        html_url: stringSchema('GitHub check-run URL'),
+        status: enumSchema(checkRunOutputStatuses, 'GitHub check-run lifecycle status'),
+        conclusion: nullableEnumSchema(checkRunOutputConclusions, 'GitHub check-run conclusion'),
+        started_at: nullableStringSchema('RFC 3339 start timestamp'),
+        completed_at: nullableStringSchema('RFC 3339 completion timestamp'),
+      },
+      [
+        'id',
+        'name',
+        'head_sha',
+        'external_id',
+        'details_url',
+        'html_url',
+        'status',
+        'conclusion',
+        'started_at',
+        'completed_at',
+      ],
+    ),
+  },
+  ['check_run'],
+);
 
 const pullRequestReviewWriteMethods = [
   method(
@@ -614,6 +734,14 @@ export const githubAgentToolCatalog = [
       },
     ),
     outputSchema: openObjectSchema('Pull request read result'),
+  }),
+  tool({
+    id: 'check_run_write',
+    category: 'checks',
+    description: 'Create or update a check run for a commit in a GitHub repository.',
+    methods: checkRunWriteMethods,
+    inputSchema: checkRunInputSchema,
+    outputSchema: checkRunOutputSchema,
   }),
   tool({
     id: 'list_pull_requests',
@@ -1221,6 +1349,14 @@ function openObjectSchema(description: string): AgentToolJsonSchema {
 
 function stringSchema(description?: string): AgentToolJsonSchema {
   return {type: 'string', ...(description ? {description} : {})};
+}
+
+function nullableStringSchema(description?: string): AgentToolJsonSchema {
+  return {type: ['string', 'null'], ...(description ? {description} : {})};
+}
+
+function nullableEnumSchema(values: string[], description: string): AgentToolJsonSchema {
+  return {type: ['string', 'null'], description, enum: [...values, null]};
 }
 
 function integerSchema(
