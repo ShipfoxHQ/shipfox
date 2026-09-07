@@ -1,3 +1,5 @@
+import {MAX_LISTENER_FILTER_SNAPSHOT_BYTES} from '@shipfox/api-workflows-dto';
+
 const metricMocks = vi.hoisted(() => {
   const metrics = new Map<
     string,
@@ -160,7 +162,14 @@ describe('workflow payload metrics', () => {
         unit: 'By',
         advice: {
           explicitBucketBoundaries: [
-            1_024, 10_240, 65_536, 256_000, 512_000, 524_288, 868_928, 1_000_000,
+            1_024,
+            10_240,
+            65_536,
+            256_000,
+            512_000,
+            MAX_LISTENER_FILTER_SNAPSHOT_BYTES,
+            868_928,
+            1_000_000,
           ],
         },
       }),
