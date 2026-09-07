@@ -1,4 +1,4 @@
-import {and, eq, inArray, isNull, ne, notInArray, or, sql} from 'drizzle-orm';
+import {and, asc, eq, inArray, isNull, ne, notInArray, or, sql} from 'drizzle-orm';
 import {
   ReservationExpiredError,
   ReservationNotFoundError,
@@ -71,6 +71,7 @@ export async function assignRunnerInstancesTx(
         inArray(providerRunners.id, runnerInstanceIds),
       ),
     )
+    .orderBy(asc(providerRunners.id))
     .for('update');
 
   // The assignment outlives its short reservation row. A retry after maintenance
