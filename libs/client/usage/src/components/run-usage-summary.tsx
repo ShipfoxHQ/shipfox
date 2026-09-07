@@ -32,7 +32,9 @@ export function RunUsageBreakdown({runId, usage}: RunUsageSummaryProps) {
 
 function useRunCost(runId: string, usage: RunUsage | undefined) {
   const summary = useMemo(() => (usage ? summarizeRunUsage(usage) : undefined), [usage]);
-  const completeDuration = usage?.jobExecutions.every((job) => job.durationSeconds !== null);
+  const completeDuration =
+    Boolean(usage?.jobExecutions.length) &&
+    usage?.jobExecutions.every((job) => job.durationSeconds !== null);
   const pricingInputs = useMemo(
     () =>
       summary

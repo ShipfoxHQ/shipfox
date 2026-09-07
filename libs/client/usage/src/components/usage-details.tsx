@@ -33,7 +33,9 @@ export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: Usa
       models.push({model: priced.model, upstream: priced.upstream, totals: undefined});
     }
   }
-  const durationKnown = usage.jobExecutions.every((job) => job.durationSeconds !== null);
+  const durationKnown =
+    usage.jobExecutions.length > 0 &&
+    usage.jobExecutions.every((job) => job.durationSeconds !== null);
   const duration = usage.jobExecutions.reduce(
     (total, job) => total + (job.durationSeconds ?? 0),
     0,
@@ -48,14 +50,14 @@ export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: Usa
         </div>
       ) : null}
       {cost && !cost.breakdown ? (
-        <p className="pb-cluster text-xs text-foreground-neutral-muted">
+        <p className="pb-cluster text-xs text-foreground-neutral-subtle">
           Cost breakdown unavailable. Recorded usage is shown below.
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-cluster border-t border-border-neutral-base py-row">
         <div>
           <h3 className="font-medium">Machine</h3>
-          <p className="text-xs text-foreground-neutral-muted">
+          <p className="text-xs text-foreground-neutral-subtle">
             {durationKnown ? formatUsageDuration(duration) : 'Duration unavailable'}
           </p>
         </div>
@@ -69,7 +71,7 @@ export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: Usa
           </span>
         </summary>
         {models.length === 0 ? (
-          <p className="pb-row text-xs text-foreground-neutral-muted">No model usage recorded.</p>
+          <p className="pb-row text-xs text-foreground-neutral-subtle">No model usage recorded.</p>
         ) : (
           models.map((model) => (
             <ModelUsage
@@ -77,6 +79,7 @@ export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: Usa
               model={model.model}
               upstream={model.upstream}
               totals={model.totals}
+              showPrices={showPrices}
               pricing={cost?.breakdown?.models.find(
                 (priced) => priced.model === model.model && priced.upstream === model.upstream,
               )}
@@ -100,11 +103,13 @@ function ModelUsage({
   upstream,
   totals,
   pricing,
+  showPrices,
 }: {
   model: string;
   upstream: string;
   totals: UsageTokenTotals | undefined;
   pricing: UsagePricingModel | undefined;
+  showPrices: boolean;
 }) {
   return (
     <details className="ml-cluster border-t border-border-neutral-base">
@@ -112,9 +117,9 @@ function ModelUsage({
         <span className="flex min-w-0 flex-1 items-center justify-between gap-inline">
           <span className="min-w-0">
             <span className="block break-words font-code text-xs">{model}</span>
-            <span className="block text-xs text-foreground-neutral-muted">{upstream}</span>
+            <span className="block text-xs text-foreground-neutral-subtle">{upstream}</span>
           </span>
-          <CostValue cost={pricing?.cost} />
+          {showPrices ? <CostValue cost={pricing?.cost} /> : null}
         </span>
       </summary>
       {pricing ? (
@@ -123,7 +128,7 @@ function ModelUsage({
             <div key={sku.sku} className="flex items-start justify-between gap-cluster py-tight">
               <dt className="min-w-0">
                 <span>{sku.label}</span>
-                <span className="block break-words text-xs text-foreground-neutral-muted">
+                <span className="block break-words text-xs text-foreground-neutral-subtle">
                   {formatUsageNumber(sku.quantity)} {sku.unit} · {sku.rate}
                 </span>
               </dt>
@@ -140,7 +145,7 @@ function ModelUsage({
           <summary className="cursor-pointer text-xs text-foreground-neutral-subtle focus-visible:outline-auto">
             Request details
           </summary>
-          <dl className="pt-tight text-xs text-foreground-neutral-muted">
+          <dl className="pt-tight text-xs text-foreground-neutral-subtle">
             <Quantity label="Requests" value={formatUsageNumber(totals.requestCount)} />
             <Quantity label="Cache hit" value={formatUsageRate(totals.cacheHitRate)} />
             <Quantity
@@ -157,7 +162,7 @@ function ModelUsage({
 function TokenQuantities({totals}: {totals: UsageTokenTotals}) {
   return (
     <div className="pb-row">
-      <p className="pb-tight text-xs text-foreground-neutral-muted">SKU pricing unavailable.</p>
+      <p className="pb-tight text-xs text-foreground-neutral-subtle">SKU pricing unavailable.</p>
       <dl className="text-xs">
         <Quantity label="Input tokens" value={formatUsageNumber(totals.inputTokens)} />
         <Quantity label="Cached input tokens" value={formatUsageNumber(totals.cachedInputTokens)} />

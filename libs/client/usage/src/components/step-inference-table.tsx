@@ -70,7 +70,7 @@ export function StepInferenceTable({
         </div>
       </PanelHeader>
       <PanelBody className="p-0">
-        <Table>
+        <Table tabIndex={0} aria-label="Inference usage" className="focus-visible:outline-auto">
           <TableHeader>
             <TableRow>
               <TableHead>Step attempt</TableHead>

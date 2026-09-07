@@ -107,6 +107,62 @@ const pricing: ClientUsagePricing = {
 };
 
 describe('Usage components', () => {
+  test('shares a job pricing snapshot with details and releases it after unmount', async () => {
+    const resolveCosts = vi.fn(() => new Map());
+    const estimate = vi.fn(() => ({amount: 0.9, state: 'estimated' as const}));
+    const sharedPricing = {...pricing, resolveCosts, estimate};
+    function Usage({details, mounted = true}: {details: boolean; mounted?: boolean}) {
+      return (
+        <ClientUsagePricingProvider usagePricing={sharedPricing}>
+          {mounted ? <JobUsageCells usage={jobUsage} /> : null}
+          {mounted && details ? <JobUsageBreakdown usage={jobUsage} /> : null}
+        </ClientUsagePricingProvider>
+      );
+    }
+    const {rerender} = render(<Usage details={false} />);
+    await screen.findByText('Est. $0.90');
+
+    rerender(<Usage details />);
+    await waitFor(() => expect(screen.getAllByText('Est. $0.90')).toHaveLength(2));
+    expect(resolveCosts).toHaveBeenCalledTimes(1);
+    expect(estimate).toHaveBeenCalledTimes(1);
+
+    rerender(<Usage details={false} mounted={false} />);
+    rerender(<Usage details />);
+    await waitFor(() => expect(screen.getAllByText('Est. $0.90')).toHaveLength(2));
+    expect(resolveCosts).toHaveBeenCalledTimes(2);
+    expect(estimate).toHaveBeenCalledTimes(2);
+  });
+
+  test('does not leave an empty job metadata item without pricing', () => {
+    const {container} = render(<JobUsageCells usage={jobUsage} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test('keeps recorded model quantities available without per-model unavailable prices', () => {
+    render(<JobUsageBreakdown usage={jobUsage} />);
+    fireEvent.click(screen.getByText('Model usage'));
+    fireEvent.click(screen.getByText(segment.model));
+    expect(screen.getByText('Input tokens')).toBeVisible();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
+  test('does not treat an empty run as measured zero usage', async () => {
+    const resolveCosts = vi.fn(() => new Map());
+    const estimate = vi.fn(() => ({amount: 0, state: 'estimated' as const}));
+    const usage: RunUsage = {jobExecutions: [], inferenceSegments: []};
+    render(
+      <ClientUsagePricingProvider usagePricing={{...pricing, resolveCosts, estimate}}>
+        <RunUsageSummary runId={RUN_ID} usage={usage} />
+        <RunUsageBreakdown runId={RUN_ID} usage={usage} />
+      </ClientUsagePricingProvider>,
+    );
+    await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
+    expect(estimate).not.toHaveBeenCalled();
+    expect(screen.getByText('Duration unavailable')).toBeVisible();
+    expect(screen.queryByText('0s')).not.toBeInTheDocument();
+  });
+
   test('drills into application-priced models and SKUs without estimating an allocation', async () => {
     const estimate = vi.fn(() => null);
     render(
@@ -359,6 +415,7 @@ describe('Usage components', () => {
     );
 
     expect(screen.getByText('Generate release notes')).toBeVisible();
+    expect(screen.getByRole('table', {name: 'Inference usage'})).toHaveAttribute('tabindex', '0');
     expect(screen.getByText('claude-sonnet-4')).toBeVisible();
     expect(screen.getByText('1.8K')).toBeVisible();
     expect(screen.queryByRole('columnheader', {name: 'Cost'})).not.toBeInTheDocument();

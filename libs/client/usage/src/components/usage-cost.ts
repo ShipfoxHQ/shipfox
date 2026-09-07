@@ -14,6 +14,14 @@ export interface UsageCostRequest {
   quantities?: UsagePricingQuantities;
 }
 
+interface ActiveCostRequest {
+  consumers: number;
+  result: Promise<ReadonlyMap<string, UsagePricingCost>>;
+}
+
+// Share a snapshot only while its consumers are mounted, within one pricing provider.
+const activeCostRequests = new WeakMap<ClientUsagePricing, Map<string, ActiveCostRequest>>();
+
 export function useUsageCosts(
   inputs: readonly UsageCostRequest[],
 ): ReadonlyMap<string, UsagePricingCost> {
@@ -42,12 +50,26 @@ export function useUsageCosts(
     }
 
     setCosts(new Map());
-    void loadUsageCosts({pricing, requests}).then((nextCosts) => {
+    let activeRequests = activeCostRequests.get(pricing);
+    if (!activeRequests) {
+      activeRequests = new Map();
+      activeCostRequests.set(pricing, activeRequests);
+    }
+    const signature = usageCostRequestSignature(requests);
+    let activeRequest = activeRequests.get(signature);
+    if (!activeRequest) {
+      activeRequest = {consumers: 0, result: loadUsageCosts({pricing, requests})};
+      activeRequests.set(signature, activeRequest);
+    }
+    activeRequest.consumers += 1;
+    void activeRequest.result.then((nextCosts) => {
       if (!cancelled) setCosts(nextCosts);
     });
 
     return () => {
       cancelled = true;
+      activeRequest.consumers -= 1;
+      if (activeRequest.consumers === 0) activeRequests.delete(signature);
     };
   }, [pricing, requests]);
 
@@ -79,7 +101,7 @@ export function formatUsageCost(
   pricing: ClientUsagePricing | undefined,
   cost: UsagePricingCost | undefined,
 ): string | undefined {
-  if (!pricing || !cost) return undefined;
+  if (!pricing || !validUsagePricingCost(cost)) return undefined;
   try {
     const formatted = pricing.formatMoney(cost.amount);
     return formatted || undefined;

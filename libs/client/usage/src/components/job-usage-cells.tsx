@@ -17,7 +17,7 @@ export interface JobUsageCellsProps {
 
 export function JobUsageCells({usage, className}: JobUsageCellsProps) {
   const {cost} = useJobCost(usage);
-  if (!usage) return null;
+  if (!usage || !cost) return null;
   return (
     <span data-usage-job-cells className={`inline-flex items-center ${className ?? ''}`}>
       <UsageCostText cost={cost} />
