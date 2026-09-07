@@ -1,4 +1,7 @@
-import {RUNNER_ASSIGNMENT_POLL_DEFAULT_WAIT_SECONDS} from '@shipfox/api-runners-dto';
+import {
+  RUNNER_ASSIGNMENT_POLL_DEFAULT_WAIT_SECONDS,
+  RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS,
+} from '@shipfox/api-runners-dto';
 import {vi} from '@shipfox/vitest/vi';
 
 const staleSessionThresholdThrottleError =
@@ -219,6 +222,7 @@ describe('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS validation', () => {
     '0',
     '-5',
     '1.5',
+    String(RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS + 1),
   ])('fails startup when RUNNER_EXECUTION_FENCE_MARGIN_SECONDS is %s', async (value) => {
     vi.stubEnv('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS', value);
     vi.resetModules();

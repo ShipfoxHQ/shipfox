@@ -144,7 +144,7 @@ export const config = createConfig({
     default: 300,
   }),
   RUNNER_EXECUTION_FENCE_MARGIN_SECONDS: num({
-    desc: 'Additional provider-side margin, in seconds, after the local execution fence before an expired lease may authorize provider termination.',
+    desc: `Additional provider-side margin, in seconds, after the local execution fence before an expired lease may authorize provider termination. Set this between 1 and ${RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS}.`,
     default: 30,
   }),
   RUNNER_SESSION_MANUAL_RETENTION_DAYS: num({
@@ -452,10 +452,11 @@ if (
 
 if (
   !Number.isInteger(config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS) ||
-  config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS < 1
+  config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS < 1 ||
+  config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS > RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS
 ) {
   throw new Error(
-    `RUNNER_EXECUTION_FENCE_MARGIN_SECONDS (${config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS}) must be a whole number of seconds >= 1.`,
+    `RUNNER_EXECUTION_FENCE_MARGIN_SECONDS (${config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS}) must be a whole number of seconds between 1 and ${RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS}.`,
   );
 }
 

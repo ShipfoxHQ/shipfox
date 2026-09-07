@@ -139,7 +139,6 @@ function hasLocalExecutionFenceCapability(
 }
 
 interface ExpiredJobLeaseRow {
-  workspaceId: string;
   runnerSessionId: string;
   provisionerId: string | null;
   providerRunnerId: string | null;
@@ -1181,7 +1180,6 @@ export async function expireStuckJobExecutions(params: {
         id: runningJobExecutions.id,
         jobExecutionId: runningJobExecutions.jobExecutionId,
         runnerSessionId: runningJobExecutions.runnerSessionId,
-        workspaceId: runningJobExecutions.workspaceId,
         provisionerId: runningJobExecutions.provisionerId,
         providerRunnerId: runningJobExecutions.providerRunnerId,
         startedAt: runningJobExecutions.startedAt,
@@ -1231,7 +1229,6 @@ export async function expireStuckJobExecutions(params: {
         jobId: runningJobExecutions.jobId,
         jobExecutionId: runningJobExecutions.jobExecutionId,
         runnerSessionId: runningJobExecutions.runnerSessionId,
-        workspaceId: runningJobExecutions.workspaceId,
         provisionerId: runningJobExecutions.provisionerId,
         providerRunnerId: runningJobExecutions.providerRunnerId,
         startedAt: runningJobExecutions.startedAt,
