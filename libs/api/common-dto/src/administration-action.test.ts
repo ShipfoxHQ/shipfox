@@ -1,9 +1,11 @@
 import {
   ADMINISTRATION_ACTION_PERFORMED,
+  ADMINISTRATION_AUTHORIZATION_BASES,
   type AdministrationActionEventMap,
   administrationActionEventSchema,
   administrationActionEventSchemas,
   administrationActionResultSchema,
+  administrationAuthorizationBasisSchema,
   administrationRoleSchema,
   createAdministrationActionEvent,
   createAdministrationActionEventFixture,
@@ -31,10 +33,91 @@ describe('administrationActionEventSchema', () => {
     expect(roundTripped).toEqual(eventInput);
   });
 
+  it('accepts each authorization basis shape', () => {
+    const validEvents = [
+      {...eventInput, authorizationBasis: 'current-role'},
+      {...eventInput, authorizationBasis: 'current-role', actorRoleAtStart: 'admin-operator'},
+      {
+        ...eventInput,
+        authorizationBasis: 'impersonation-window-owner',
+        actorRole: null,
+        requiredRole: null,
+        actorRoleAtStart: 'admin-operator',
+      },
+      {
+        ...eventInput,
+        authorizationBasis: 'authorization-denied',
+        actorRole: null,
+        requiredRole: 'admin-operator',
+        result: 'failed' as const,
+      },
+    ];
+
+    for (const event of validEvents) {
+      expect(administrationActionEventSchema.safeParse(event).success).toBe(true);
+    }
+  });
+
+  it('rejects invalid authorization basis field combinations', () => {
+    const invalidEvents = [
+      {...eventInput, authorizationBasis: 'current-role', actorRole: null},
+      {...eventInput, authorizationBasis: 'current-role', requiredRole: null},
+      {...eventInput, authorizationBasis: 'current-role', actorRoleAtStart: null},
+      {
+        ...eventInput,
+        authorizationBasis: 'impersonation-window-owner',
+        actorRole: 'admin-operator',
+        requiredRole: null,
+        actorRoleAtStart: 'admin-operator',
+      },
+      {
+        ...eventInput,
+        authorizationBasis: 'impersonation-window-owner',
+        actorRole: null,
+        requiredRole: 'admin-operator',
+        actorRoleAtStart: 'admin-operator',
+      },
+      {
+        ...eventInput,
+        authorizationBasis: 'impersonation-window-owner',
+        actorRole: null,
+        requiredRole: null,
+      },
+      {
+        ...eventInput,
+        authorizationBasis: 'authorization-denied',
+        actorRole: 'admin-operator',
+        requiredRole: 'admin-operator',
+        result: 'failed' as const,
+      },
+      {
+        ...eventInput,
+        authorizationBasis: 'authorization-denied',
+        actorRole: null,
+        requiredRole: null,
+        result: 'failed' as const,
+      },
+      {
+        ...eventInput,
+        authorizationBasis: 'authorization-denied',
+        actorRole: null,
+        requiredRole: 'admin-operator',
+        result: 'succeeded' as const,
+      },
+      {...eventInput, actorRole: null},
+      {...eventInput, authorizationBasis: 'unknown'},
+    ];
+
+    for (const event of invalidEvents) {
+      expect(administrationActionEventSchema.safeParse(event).success).toBe(false);
+    }
+  });
+
   it('provides deterministic safe data for producer contract tests', () => {
     const event = createAdministrationActionEventFixture({result: 'failed'});
 
     expect(event).toMatchObject({
+      authorizationBasis: 'current-role',
       command: 'auth.user.suspend',
       result: 'failed',
       idempotencyKeyFingerprint: 'a'.repeat(64),
@@ -68,7 +151,11 @@ describe('administrationActionEventSchema', () => {
     ).toBe(false);
   });
 
-  it('accepts only the fixed administrator roles and safe action results', () => {
+  it('accepts only the fixed authorization bases, administrator roles, and safe action results', () => {
+    for (const basis of ADMINISTRATION_AUTHORIZATION_BASES) {
+      expect(administrationAuthorizationBasisSchema.safeParse(basis).success).toBe(true);
+    }
+    expect(administrationAuthorizationBasisSchema.safeParse('current-grant').success).toBe(false);
     for (const role of ['admin-observer', 'admin-operator', 'admin-owner']) {
       expect(administrationRoleSchema.safeParse(role).success).toBe(true);
     }

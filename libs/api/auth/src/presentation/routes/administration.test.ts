@@ -1413,8 +1413,10 @@ describe('Auth administration routes', () => {
     result: 'succeeded' | 'failed';
     idempotencyKeyFingerprint: string;
     actorId: string;
-    actorRole: string;
-    requiredRole: string;
+    authorizationBasis: string;
+    actorRole: string | null;
+    actorRoleAtStart?: string;
+    requiredRole: string | null;
     targetType: string;
     targetId: string;
     reason: string;
@@ -1487,6 +1489,7 @@ describe('Auth administration routes', () => {
     const events = await impersonationEvents();
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
+      authorizationBasis: 'current-role',
       command: 'auth.user.impersonate',
       targetType: 'user',
       targetId: target.userId,
@@ -1568,6 +1571,32 @@ describe('Auth administration routes', () => {
     expect(events[0]).toMatchObject({
       actorId: observer.userId,
       actorRole: 'admin-observer',
+      requiredRole: 'admin-operator',
+      result: 'failed',
+    });
+  });
+
+  test('rejects an authenticated role-less actor and audits an authorization denial', async () => {
+    const actor = await createVerifiedSession('impersonate-role-less-actor');
+    const target = await createVerifiedSession('impersonate-role-less-target');
+
+    const response = await impersonateMint({
+      token: actor.token,
+      targetUserId: target.userId,
+      idempotencyKey: 'impersonate-role-less-mint',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      code: 'forbidden',
+      details: {required_role: 'admin-operator'},
+    });
+    const events = await impersonationEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      actorId: actor.userId,
+      authorizationBasis: 'authorization-denied',
+      actorRole: null,
       requiredRole: 'admin-operator',
       result: 'failed',
     });
@@ -1815,12 +1844,19 @@ describe('Auth administration routes', () => {
     });
     expect(replayed.statusCode).toBe(403);
     expect(replayed.json().code).toBe('forbidden');
-    // The initial mint remains the only recorded event: the strict event
-    // schema requires an actor role, and the actor is role-less after the
-    // revocation, so the denial itself is the fail-closed record.
     const events = await impersonationEvents();
-    expect(events).toHaveLength(1);
-    expect(events[0]?.result).toBe('succeeded');
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      authorizationBasis: 'current-role',
+      actorRole: 'admin-operator',
+      result: 'succeeded',
+    });
+    expect(events[1]).toMatchObject({
+      authorizationBasis: 'authorization-denied',
+      actorRole: null,
+      requiredRole: 'admin-operator',
+      result: 'failed',
+    });
   });
 
   test('a replay with the flag turned off fails closed and is audited', async () => {

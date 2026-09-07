@@ -121,6 +121,7 @@ function administrationEvent(params: {
 }) {
   return createAdministrationActionEvent({
     actorId: params.actorId,
+    authorizationBasis: 'current-role',
     actorRole: params.actorRole,
     requiredRole: params.requiredRole ?? ADMIN_OWNER_ROLE,
     command: params.command,

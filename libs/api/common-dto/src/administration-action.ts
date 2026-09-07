@@ -24,36 +24,76 @@ export const ADMINISTRATION_ROLES = ['admin-observer', 'admin-operator', 'admin-
 export const administrationRoleSchema = z.enum(ADMINISTRATION_ROLES);
 export type AdministrationRole = z.infer<typeof administrationRoleSchema>;
 
+export const ADMINISTRATION_AUTHORIZATION_BASES = [
+  'current-role',
+  'impersonation-window-owner',
+  'authorization-denied',
+] as const;
+
+export const administrationAuthorizationBasisSchema = z.enum(ADMINISTRATION_AUTHORIZATION_BASES);
+export type AdministrationAuthorizationBasis = z.infer<
+  typeof administrationAuthorizationBasisSchema
+>;
+
 export const administrationActionResultSchema = z.enum(['succeeded', 'failed']);
 export type AdministrationActionResult = z.infer<typeof administrationActionResultSchema>;
+
+const administrationActionEventFieldsSchema = z.object({
+  actorId: z.string().uuid(),
+  command: safeIdentifierSchema,
+  targetType: safeIdentifierSchema,
+  targetId: z.string().min(1).max(255),
+  reason: safeReasonSchema,
+  result: administrationActionResultSchema,
+  correlationId: z.string().min(1).max(255),
+  idempotencyKeyFingerprint: idempotencyKeyFingerprintSchema,
+  occurredAt: z.string().datetime({offset: true}),
+});
 
 /**
  * The redacted event shared by source-available administration producers.
  * Strict parsing keeps producer mistakes from adding secrets, raw tokens, or
  * unbounded payloads to the event contract.
+ *
+ * The optional basis on the current-role branch preserves payloads emitted
+ * before authorization basis was explicit.
  */
-export const administrationActionEventSchema = z
-  .object({
-    actorId: z.string().uuid(),
-    actorRole: administrationRoleSchema,
-    requiredRole: administrationRoleSchema,
-    command: safeIdentifierSchema,
-    targetType: safeIdentifierSchema,
-    targetId: z.string().min(1).max(255),
-    reason: safeReasonSchema,
-    result: administrationActionResultSchema,
-    correlationId: z.string().min(1).max(255),
-    idempotencyKeyFingerprint: idempotencyKeyFingerprintSchema,
-    occurredAt: z.string().datetime({offset: true}),
-  })
-  .strict();
+export const administrationActionEventSchema = z.union([
+  administrationActionEventFieldsSchema
+    .extend({
+      authorizationBasis: z.literal('current-role').optional(),
+      actorRole: administrationRoleSchema,
+      requiredRole: administrationRoleSchema,
+      actorRoleAtStart: administrationRoleSchema.optional(),
+    })
+    .strict(),
+  administrationActionEventFieldsSchema
+    .extend({
+      authorizationBasis: z.literal('impersonation-window-owner'),
+      actorRole: z.null(),
+      requiredRole: z.null(),
+      actorRoleAtStart: administrationRoleSchema,
+    })
+    .strict(),
+  administrationActionEventFieldsSchema
+    .extend({
+      authorizationBasis: z.literal('authorization-denied'),
+      actorRole: z.null(),
+      requiredRole: administrationRoleSchema,
+      actorRoleAtStart: administrationRoleSchema.optional(),
+      result: z.literal('failed'),
+    })
+    .strict(),
+]);
 
 export type AdministrationActionEvent = z.infer<typeof administrationActionEventSchema>;
 
 export interface CreateAdministrationActionEventInput {
   actorId: string;
-  actorRole: AdministrationRole;
-  requiredRole: AdministrationRole;
+  authorizationBasis?: AdministrationAuthorizationBasis;
+  actorRole: AdministrationRole | null;
+  requiredRole: AdministrationRole | null;
+  actorRoleAtStart?: AdministrationRole | null;
   command: string;
   targetType: string;
   targetId: string;
@@ -77,6 +117,7 @@ export function createAdministrationActionEventFixture(
 ): AdministrationActionEvent {
   return createAdministrationActionEvent({
     actorId: '9b11d65a-f7e7-40ea-b421-06af012a9be5',
+    authorizationBasis: 'current-role',
     actorRole: 'admin-operator',
     requiredRole: 'admin-operator',
     command: 'auth.user.suspend',
