@@ -1,5 +1,43 @@
 # @shipfox/api-workflows
 
+## 23.0.0
+
+### Minor Changes
+
+- bd5acd2: Bounds listener filter snapshots to referenced context paths and a separate 512 KiB `filter_snapshot` execution payload limit.
+
+### Patch Changes
+
+- 8b357d4: Fixes false oversized errors for CEL integer tool outputs. Tool mappings now reject non-finite values, unsafe integers, unsupported objects, cycles, and excessive nesting.
+- 2cd82bc: Stops writing duplicate legacy trigger-event arrays for new listener executions.
+- Updated dependencies [7fed218]
+- Updated dependencies [bd5acd2]
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-auth-dto@23.0.0
+  - @shipfox/api-workflows-dto@23.0.0
+  - @shipfox/expression@2.8.0
+  - @shipfox/api-definitions-dto@23.0.0
+  - @shipfox/api-agent-dto@21.1.0
+  - @shipfox/annotations-dto@20.3.0
+  - @shipfox/api-integration-core-dto@22.0.0
+  - @shipfox/api-logs-dto@20.0.0
+  - @shipfox/api-projects-dto@21.0.0
+  - @shipfox/api-runners-dto@21.1.0
+  - @shipfox/api-secrets-dto@12.0.0
+  - @shipfox/api-workspaces-dto@15.0.0
+  - @shipfox/config@1.2.4
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/runner-labels@0.2.1
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-error-monitoring@0.3.0
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-module@1.0.10
+  - @shipfox/node-opentelemetry@0.6.5
+  - @shipfox/node-outbox@0.2.7
+  - @shipfox/node-postgres@0.5.1
+  - @shipfox/node-temporal@0.5.0
+  - @shipfox/workflow-document@3.5.0
+
 ## 22.0.0
 
 ### Major Changes

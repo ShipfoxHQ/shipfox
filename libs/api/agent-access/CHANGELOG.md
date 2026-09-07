@@ -1,5 +1,61 @@
 # @shipfox/api-agent-access
 
+## 23.0.0
+
+### Major Changes
+
+- 7fed218: Activates Agent Access OAuth, MCP tools, and settings in the default application composition.
+
+  `API_PUBLIC_URL` is required. Set it to the externally reachable API origin
+  before startup. Local development may use `http://localhost:16101`; staging and
+  production must use HTTPS.
+
+  The `apiPublicUrl` option of `createAgentAccessRoutes` and
+  `createAgentAccessModule` now accepts only a bare HTTPS origin or a loopback
+  HTTP origin. Construction rejects paths, queries, fragments, credentials,
+  surrounding whitespace, control characters, and non-loopback HTTP origins.
+
+  OAuth consent responses now distinguish CIMD identities from self-registered
+  clients. API DTO consumers must use `client_identity_kind`;
+  `client_identity_origin` is an origin for CIMD clients and `null` for
+  self-registered clients. In `@shipfox/client-agent`, `OAuthConsent` replaces
+  `clientIdentityOrigin` with the `clientIdentity` discriminated union; use
+  `clientIdentity.kind` and, for CIMD identities, `clientIdentity.origin`.
+
+  Applications that previously appended `createOAuthRoutes`,
+  `createOAuthAuthorizationRoutes`, or `createAgentAccessManagementRoutes` to
+  `createAuthModule().routes` must remove those manual route groups. The standard
+  module composition now registers them, and composing them twice causes duplicate
+  Fastify route registration.
+
+  Applications that replace the standard Auth module with `authModuleFactory`
+  must register `AUTH_AGENT_ACCESS`. Include the `createAgentAccessAuthMethod`
+  export from `@shipfox/api-auth` in the replacement module's auth methods so the
+  default MCP route can authenticate agent-access credentials.
+
+  After deployment, fetch
+  `$API_PUBLIC_URL/.well-known/oauth-authorization-server` and verify that its
+  issuer and endpoint origins match `API_PUBLIC_URL`.
+
+### Patch Changes
+
+- Updated dependencies [7fed218]
+- Updated dependencies [bd5acd2]
+  - @shipfox/api-agent-access-dto@23.0.0
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-workflows-dto@23.0.0
+  - @shipfox/api-definitions-dto@23.0.0
+  - @shipfox/annotations-dto@20.3.0
+  - @shipfox/api-logs-dto@20.0.0
+  - @shipfox/api-projects-dto@21.0.0
+  - @shipfox/api-triggers-dto@22.0.0
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-error-monitoring@0.3.0
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-module@1.0.10
+  - @shipfox/node-opentelemetry@0.6.5
+
 ## 22.0.0
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @shipfox/expression
 
+## 2.8.0
+
+### Minor Changes
+
+- bd5acd2: Bounds listener filter snapshots to referenced context paths and a separate 512 KiB `filter_snapshot` execution payload limit.
+
+### Patch Changes
+
+- @shipfox/workflow-document@3.5.0
+
 ## 2.7.0
 
 ### Minor Changes

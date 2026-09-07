@@ -1,5 +1,18 @@
 # @shipfox/api-workflows-dto
 
+## 23.0.0
+
+### Minor Changes
+
+- bd5acd2: Bounds listener filter snapshots to referenced context paths and a separate 512 KiB `filter_snapshot` execution payload limit.
+
+### Patch Changes
+
+- @shipfox/api-definitions-dto@23.0.0
+- @shipfox/api-agent-dto@21.1.0
+- @shipfox/annotations-dto@20.3.0
+- @shipfox/inter-module@0.2.3
+
 ## 22.0.0
 
 ### Major Changes

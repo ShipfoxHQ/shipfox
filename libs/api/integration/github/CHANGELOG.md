@@ -1,5 +1,21 @@
 # @shipfox/api-integration-github
 
+## 23.0.0
+
+### Patch Changes
+
+- 8a37175: Clears cached GitHub installation tokens and permission backoff after approval.
+- Updated dependencies [7fed218]
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-integration-github-dto@22.0.0
+  - @shipfox/api-integration-spi@4.1.1
+  - @shipfox/config@1.2.4
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-error-monitoring@0.3.0
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-opentelemetry@0.6.5
+  - @shipfox/node-postgres@0.5.1
+
 ## 22.0.0
 
 ### Patch Changes

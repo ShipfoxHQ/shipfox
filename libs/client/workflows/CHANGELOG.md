@@ -1,5 +1,31 @@
 # @shipfox/client-workflows
 
+## 37.0.0
+
+### Minor Changes
+
+- bd5acd2: Bounds listener filter snapshots to referenced context paths and a separate 512 KiB `filter_snapshot` execution payload limit.
+- 7ed04a3: Adds the client pricing seam and usage views to run and job pages.
+
+### Patch Changes
+
+- Updated dependencies [bd5acd2]
+- Updated dependencies [7ed04a3]
+  - @shipfox/api-workflows-dto@23.0.0
+  - @shipfox/client-shell@37.0.0
+  - @shipfox/client-usage@37.0.0
+  - @shipfox/client-projects@37.0.0
+  - @shipfox/api-definitions-dto@23.0.0
+  - @shipfox/annotations-dto@20.3.0
+  - @shipfox/api-triggers-dto@22.0.0
+  - @shipfox/client-api@6.0.1
+  - @shipfox/client-integrations@37.0.0
+  - @shipfox/client-logs@30.0.0
+  - @shipfox/client-triggers@37.0.0
+  - @shipfox/client-ui@31.0.1
+  - @shipfox/regex@0.3.0
+  - @shipfox/react-ui@2.3.4
+
 ## 36.0.0
 
 ### Major Changes
