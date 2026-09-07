@@ -139,8 +139,9 @@ The image owns `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT` and
 `SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE`. The container image sets them only after the
 production-closure verifier passes. The AMI service unit sets them only after `install-runner.sh`
 has run that same verifier, so a partial image bake cannot advertise either helper. A flag-on
-inference image requires an API at or above the compatibility release to be deployed on every API
-instance before the image is used. Provider-rendered environment files must not set either flag.
+inference image requires an API release that accepts `renewable_inference` in runner capability
+reports to be deployed on every API instance before the image is used. Provider-rendered
+environment files must not set either flag.
 
 Older self-managed images remain compatible: they use static checkout credentials. When a persisted
 checkout reaches one, the API writes an upgrade warning to the job annotations without blocking

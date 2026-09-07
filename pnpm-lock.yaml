@@ -545,6 +545,9 @@ importers:
       '@shipfox/api-server':
         specifier: workspace:*
         version: link:../../libs/api/server
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../libs/shared/common/config
       '@shipfox/node-error-monitoring':
         specifier: workspace:*
         version: link:../../libs/shared/node/error-monitoring

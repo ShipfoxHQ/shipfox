@@ -1,9 +1,10 @@
+import {randomUUID} from 'node:crypto';
 import type {
   ManagedModelApi,
   ManagedModelProvider,
   ManagedProviderRuntimeConfig,
 } from '@shipfox/api-agent-dto';
-import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import {type AuthMethod, ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import type {ShipfoxModule} from '@shipfox/node-module';
 
 const E2E_MANAGED_PROVIDER_ID = 'shipfox';
@@ -14,8 +15,12 @@ const E2E_REFRESH_CLAUDE_MODEL = 'e2e-refresh-renewable-claude';
 const E2E_CLAUDE_MODEL_ID = 'claude-opus-4-8';
 const E2E_RESPONSE_TEXT = 'ok';
 const E2E_CREDENTIAL_LIFETIME_MS = 300_000;
+const E2E_CREDENTIAL_STATE_TTL_MS = E2E_CREDENTIAL_LIFETIME_MS * 2;
+const E2E_MAX_CREDENTIAL_STATES = 1_000;
 const E2E_RENEWAL_DELAY_MS = 30_000;
 const E2E_INFERENCE_ROUTE_PREFIX = '/__e2e-managed-inference';
+const E2E_INFERENCE_STATS_ROUTE_PREFIX = '/managed-inference';
+const E2E_MANAGED_INFERENCE_AUTH = 'e2e-managed-inference';
 const TOKEN_PATTERN = /^shipfox-e2e-(.+)-g(\d+)$/u;
 
 const E2E_MODELS = [
@@ -42,6 +47,8 @@ const E2E_MODELS = [
 interface CredentialState {
   nextGeneration: number;
   model: string;
+  renewableInference: boolean;
+  lastTouchedAt: number;
 }
 
 interface InferenceStats {
@@ -50,6 +57,7 @@ interface InferenceStats {
   acceptedRequests: number;
   resolutionsByModel: Record<string, number>;
   requestsByGeneration: Record<string, number>;
+  requestsByModelAndGeneration: Record<string, Record<string, number>>;
 }
 
 interface InferenceState {
@@ -70,6 +78,7 @@ export function createE2eManagedInferenceProvider(
       acceptedRequests: 0,
       resolutionsByModel: {},
       requestsByGeneration: {},
+      requestsByModelAndGeneration: {},
     },
   };
 
@@ -90,15 +99,24 @@ export function createE2eManagedInferenceProvider(
       }
 
       const key = params.stepAttemptId;
+      const now = Date.now();
+      pruneCredentialStates(state, now);
+      const renewableInference = params.renewableInference === true;
       const credentialState = state.credentials.get(key) ?? {
         nextGeneration: 1,
         model: model.id,
+        renewableInference,
+        lastTouchedAt: now,
       };
       if (credentialState.model !== model.id) {
         throw new Error('E2E managed provider model changed during credential renewal');
       }
+      if (credentialState.renewableInference !== renewableInference) {
+        throw new Error('E2E managed provider renewable mode changed during credential renewal');
+      }
       const generation = credentialState.nextGeneration;
       credentialState.nextGeneration += 1;
+      credentialState.lastTouchedAt = now;
       state.credentials.set(key, credentialState);
       state.stats.resolutions += 1;
       state.stats.resolutionsByModel[model.id] =
@@ -110,13 +128,12 @@ export function createE2eManagedInferenceProvider(
         baseUrl,
         credentials: {api_key: token},
       };
-      if (params.renewableInference !== true) return Promise.resolve(runtimeConfig);
+      if (!renewableInference) return Promise.resolve(runtimeConfig);
 
-      const now = Date.now();
       return Promise.resolve({
         ...runtimeConfig,
         expiresAt: new Date(now + E2E_CREDENTIAL_LIFETIME_MS),
-        generation: `generation-${generation}`,
+        generation: randomUUID(),
         renewal: {
           mode: 'refresh-at',
           refreshAt: new Date(
@@ -131,7 +148,9 @@ export function createE2eManagedInferenceProvider(
     provider,
     module: {
       name: 'e2e-managed-inference',
+      auth: [createInferenceAuth(state)],
       routes: [createInferenceRoutes(state)],
+      e2eRoutes: [createInferenceStatsRoutes(state)],
     },
   };
 }
@@ -139,13 +158,8 @@ export function createE2eManagedInferenceProvider(
 function createInferenceRoutes(state: InferenceState): RouteGroup {
   return {
     prefix: E2E_INFERENCE_ROUTE_PREFIX,
+    auth: E2E_MANAGED_INFERENCE_AUTH,
     routes: [
-      defineRoute({
-        method: 'GET',
-        path: '/stats',
-        description: 'Returns non-secret E2E managed inference fixture counters.',
-        handler: () => state.stats,
-      }),
       defineRoute({
         method: 'POST',
         path: '/v1/chat/completions',
@@ -176,6 +190,51 @@ function createInferenceRoutes(state: InferenceState): RouteGroup {
   };
 }
 
+function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
+  return {
+    prefix: E2E_INFERENCE_STATS_ROUTE_PREFIX,
+    routes: [
+      defineRoute({
+        method: 'GET',
+        path: '/stats',
+        description: 'Returns non-secret E2E managed inference fixture counters.',
+        handler: () => state.stats,
+      }),
+    ],
+  };
+}
+
+function createInferenceAuth(state: InferenceState): AuthMethod {
+  return {
+    name: E2E_MANAGED_INFERENCE_AUTH,
+    authenticate: (request) => {
+      const token = requestToken(request.headers);
+      if (token === undefined) {
+        throw new ClientError('Missing credential', 'unauthorized', {status: 401});
+      }
+
+      const tokenDetails = parseToken(token);
+      const credentialState =
+        tokenDetails === undefined
+          ? undefined
+          : currentCredentialState(state, tokenDetails.stepAttemptId);
+      const credential = {tokenDetails, credentialState};
+      if (!isCurrentCredential(credential)) {
+        state.stats.expiredRequests += 1;
+        if (credential.tokenDetails !== undefined) {
+          recordGeneration(
+            state,
+            credential.tokenDetails.generation,
+            credential.credentialState?.model,
+          );
+        }
+        throw new ClientError('Expired credential', 'unauthorized', {status: 401});
+      }
+      return Promise.resolve();
+    },
+  };
+}
+
 function respondToInferenceRequest(params: {
   api: ManagedModelApi;
   body: unknown;
@@ -199,23 +258,29 @@ function respondToInferenceRequest(params: {
   if (token === undefined) {
     return params.reply.code(401).send({code: 'unauthorized', message: 'missing credential'});
   }
-  const currentGeneration =
+  const credentialState =
     tokenDetails === undefined
       ? undefined
-      : currentCredentialGeneration(params.state, tokenDetails.stepAttemptId);
-  if (
-    tokenDetails === undefined ||
-    currentGeneration === undefined ||
-    tokenDetails.generation !== currentGeneration ||
-    tokenDetails.generation === 1
-  ) {
+      : currentCredentialState(params.state, tokenDetails.stepAttemptId);
+  const credential = {tokenDetails, credentialState};
+  if (!isCurrentCredential(credential)) {
     params.state.stats.expiredRequests += 1;
-    if (tokenDetails !== undefined) recordGeneration(params.state, tokenDetails.generation);
+    if (credential.tokenDetails !== undefined) {
+      recordGeneration(
+        params.state,
+        credential.tokenDetails.generation,
+        credential.credentialState?.model,
+      );
+    }
     return params.reply.code(401).send({code: 'unauthorized', message: 'expired'});
   }
 
   params.state.stats.acceptedRequests += 1;
-  recordGeneration(params.state, tokenDetails.generation);
+  recordGeneration(
+    params.state,
+    credential.tokenDetails.generation,
+    credential.credentialState.model,
+  );
   if (params.api === 'openai-completions') {
     return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
   }
@@ -375,12 +440,37 @@ function parseToken(
     : undefined;
 }
 
-function currentCredentialGeneration(
+function currentCredentialState(
   state: InferenceState,
   stepAttemptId: string,
-): number | undefined {
+): CredentialState | undefined {
+  const now = Date.now();
+  pruneCredentialStates(state, now);
   const credentialState = state.credentials.get(stepAttemptId);
-  return credentialState === undefined ? undefined : credentialState.nextGeneration - 1;
+  if (credentialState !== undefined) credentialState.lastTouchedAt = now;
+  return credentialState;
+}
+
+interface CredentialCandidate {
+  tokenDetails: {generation: number} | undefined;
+  credentialState: CredentialState | undefined;
+}
+
+interface CurrentCredentialCandidate {
+  tokenDetails: {generation: number};
+  credentialState: CredentialState;
+}
+
+function isCurrentCredential(
+  credential: CredentialCandidate,
+): credential is CurrentCredentialCandidate {
+  const {tokenDetails, credentialState} = credential;
+  return (
+    tokenDetails !== undefined &&
+    credentialState !== undefined &&
+    tokenDetails.generation === credentialState.nextGeneration - 1 &&
+    (!credentialState.renewableInference || tokenDetails.generation !== 1)
+  );
 }
 
 function headerValue(value: unknown): string | undefined {
@@ -400,9 +490,39 @@ function bodyBoolean(body: unknown, key: string): boolean {
   return (body as Record<string, unknown>)[key] === true;
 }
 
-function recordGeneration(state: InferenceState, generation: number): void {
+function recordGeneration(
+  state: InferenceState,
+  generation: number,
+  model: string | undefined,
+): void {
   const key = String(generation);
   state.stats.requestsByGeneration[key] = (state.stats.requestsByGeneration[key] ?? 0) + 1;
+  if (model === undefined) return;
+
+  const requestsByGeneration = state.stats.requestsByModelAndGeneration[model] ?? {};
+  state.stats.requestsByModelAndGeneration[model] = requestsByGeneration;
+  requestsByGeneration[key] = (requestsByGeneration[key] ?? 0) + 1;
+}
+
+function pruneCredentialStates(state: InferenceState, now: number): void {
+  for (const [key, credentialState] of state.credentials) {
+    if (now - credentialState.lastTouchedAt > E2E_CREDENTIAL_STATE_TTL_MS) {
+      state.credentials.delete(key);
+    }
+  }
+
+  while (state.credentials.size > E2E_MAX_CREDENTIAL_STATES) {
+    let oldestKey: string | undefined;
+    let oldestTouchedAt = Number.POSITIVE_INFINITY;
+    for (const [key, credentialState] of state.credentials) {
+      if (credentialState.lastTouchedAt < oldestTouchedAt) {
+        oldestKey = key;
+        oldestTouchedAt = credentialState.lastTouchedAt;
+      }
+    }
+    if (oldestKey === undefined) return;
+    state.credentials.delete(oldestKey);
+  }
 }
 
 function isRefreshAtModel(model: string): boolean {

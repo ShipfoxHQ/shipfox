@@ -22,6 +22,7 @@
   "dependencies": {
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-server": "workspace:*",
+    "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",
     "@shipfox/node-module": "workspace:*",

@@ -1,5 +1,5 @@
 import {isIP} from 'node:net';
-import {bool, createConfig, port, str, url} from '@shipfox/config';
+import {bool, createConfig, port, str} from '@shipfox/config';
 
 export type ApiTrustProxy = false | true | number | string;
 
@@ -12,10 +12,6 @@ export const config = createConfig({
   }),
   E2E_ADMIN_API_KEY: str({
     desc: 'Bearer token that protects the E2E admin routes. Set it when E2E_ENABLED is true.',
-    default: undefined,
-  }),
-  E2E_MANAGED_PROVIDER_BASE_URL: url({
-    desc: 'Gateway root for the E2E-only managed model provider fixture. Leave unset outside the E2E harness.',
     default: undefined,
   }),
   API_PORT: port({

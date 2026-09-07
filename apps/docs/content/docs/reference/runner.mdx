@@ -46,7 +46,7 @@ labels](/reference/runner-labels).
 | --- | --- | --- |
 | `SHIPFOX_RUNNER_WORKSPACE_ROOT` | OS temp directory | Parent directory for per-job workspaces. The runner only creates and cleans per-job child directories under this root. |
 | `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT` | `false` in source-run mode; `true` in verified managed images | Enables automatic renewal for `persist-credentials: true` Git checkouts. Managed images set this only after verifying the helper and production dependency closure. Do not set it on a self-hosted or unverified image, or add it to provider-rendered runner environment data. |
-| `SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE` | `false` in source-run mode; `true` in verified managed images | Enables renewable credentials for managed Pi and Claude inference sessions. Managed images set this only after verifying the helper and production dependency closure, and only after an API at or above the compatibility release is deployed everywhere. Do not set it on a self-hosted or unverified image, or add it to provider-rendered runner environment data. |
+| `SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE` | `false` in source-run mode; `true` in verified managed images | Enables renewable credentials for managed Pi and Claude inference sessions. Managed images set this only after verifying the helper and production dependency closure, and only after every API instance accepts `renewable_inference` in runner capability reports. Do not set it on a self-hosted or unverified image, or add it to provider-rendered runner environment data. |
 | `SHIPFOX_POLL_INTERVAL_MS` | `1000` | How often the runner asks the API for new jobs. Backs off toward `SHIPFOX_POLL_MAX_INTERVAL_MS` while idle or after errors. |
 | `SHIPFOX_POLL_MAX_INTERVAL_MS` | `5000` | Largest interval the poll backoff can reach. |
 | `SHIPFOX_POLL_MAX_DURATION_MS` | `300000` | How long the runner keeps polling without claiming a job before it exits. Use `0` for runners that should poll forever. |
@@ -90,10 +90,10 @@ Verified managed runner images advertise renewable inference credentials for Pi
 and Claude sessions. The runner refreshes a managed credential when the harness
 needs it while the job attempt remains active.
 
-Only a verified managed image may advertise this capability. An API at or above
-the compatibility release must be deployed on every API instance before the
-image is used. Older or unverified runners keep the flag disabled and remain on
-the compatibility credential path during fleet drain.
+Only a verified managed image may advertise this capability. Before using the
+image, deploy an API release that accepts `renewable_inference` in runner
+capability reports on every API instance. Older or unverified runners keep the
+flag disabled and use static credentials until they are replaced.
 
 ## Agent steps
 

@@ -1543,6 +1543,7 @@ describe('runner container entrypoint', () => {
       "import {assertBundledClaudeCodeVersion} from '@shipfox/runner-agent/claude-code';",
     );
     expect(verifyInstallation).toContain('assertBundledClaudeCodeVersion();');
+    expect(verifyInstallation).toContain('constants.X_OK');
     expect(verifyInstallation).toContain("'@shipfox/runner-agent/claude-auth-helper'");
     expect(verifyInstallation).toContain("'@shipfox/runner-workspace/credential-socket-transport'");
     expect(verifyInstallation).toContain("'@shipfox/runner-execution/git-credential-helper'");

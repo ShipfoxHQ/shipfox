@@ -1,5 +1,5 @@
 ---
-"@shipfox/api-server": patch
+"@shipfox/api-server": minor
 ---
 
-Adds the E2E managed inference gateway configuration export for renewable Pi and Claude credentials.
+Exposes the API server configuration entry point for application composition and E2E route gating.

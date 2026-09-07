@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {createApiClient} from '@shipfox/e2e-core';
+import {createApiClient, config as e2eConfig} from '@shipfox/e2e-core';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {waitForDefinition} from '@shipfox/e2e-observe-definitions';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
@@ -30,6 +30,7 @@ interface InferenceFixtureStats {
   acceptedRequests: number;
   resolutionsByModel: Record<string, number>;
   requestsByGeneration: Record<string, number>;
+  requestsByModelAndGeneration: Record<string, Record<string, number>>;
 }
 
 const RENEWABLE_INFERENCE_WORKFLOW = `
@@ -170,10 +171,10 @@ test('renews managed inference credentials for both harnesses', async ({suite}, 
   const runnerLabel = `e2e-renewable-inference-${uniqueId}`;
   const repo = `renewable-inference-${uniqueId}`;
   const configPath = `.shipfox/workflows/${repo}.yml`;
-  const client = createApiClient({token: suite.sessionToken});
-  const before = await client.requestJson<InferenceFixtureStats>(
+  const adminClient = createApiClient({token: e2eConfig.E2E_ADMIN_API_KEY});
+  const before = await adminClient.requestJson<InferenceFixtureStats>(
     'get',
-    '/__e2e-managed-inference/stats',
+    '/__e2e/managed-inference/stats',
   );
   const project = await seedAndWaitForDefinition({
     suite,
@@ -194,9 +195,9 @@ test('renews managed inference credentials for both harnesses', async ({suite}, 
     renewableGit: false,
     renewableInference: true,
   });
-  const after = await client.requestJson<InferenceFixtureStats>(
+  const after = await adminClient.requestJson<InferenceFixtureStats>(
     'get',
-    '/__e2e-managed-inference/stats',
+    '/__e2e/managed-inference/stats',
   );
   const logs = await Promise.all(logFiles.map((logFile) => readFile(logFile, 'utf8')));
 
@@ -205,12 +206,66 @@ test('renews managed inference credentials for both harnesses', async ({suite}, 
   expect(after.resolutions - before.resolutions).toBeGreaterThanOrEqual(8);
   expect(after.expiredRequests - before.expiredRequests).toBeGreaterThanOrEqual(2);
   expect(after.acceptedRequests - before.acceptedRequests).toBeGreaterThanOrEqual(4);
-  expect(after.resolutionsByModel['e2e-renewable-pi']).toBeGreaterThanOrEqual(2);
-  expect(after.resolutionsByModel['e2e-renewable-claude']).toBeGreaterThanOrEqual(2);
-  expect(after.resolutionsByModel['e2e-refresh-renewable-pi']).toBeGreaterThanOrEqual(2);
-  expect(after.resolutionsByModel['e2e-refresh-renewable-claude']).toBeGreaterThanOrEqual(2);
+  expect(resolutionsForModelDelta(before, after, 'e2e-renewable-pi')).toBeGreaterThanOrEqual(2);
+  expect(resolutionsForModelDelta(before, after, 'e2e-renewable-claude')).toBeGreaterThanOrEqual(2);
+  expect(
+    resolutionsForModelDelta(before, after, 'e2e-refresh-renewable-pi'),
+  ).toBeGreaterThanOrEqual(2);
+  expect(
+    resolutionsForModelDelta(before, after, 'e2e-refresh-renewable-claude'),
+  ).toBeGreaterThanOrEqual(2);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-pi', 1),
+  ).toBeGreaterThanOrEqual(1);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-pi', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-claude', 1),
+  ).toBeGreaterThanOrEqual(1);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-claude', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-pi', 1)).toBe(0);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-pi', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-claude', 1)).toBe(
+    0,
+  );
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-claude', 2),
+  ).toBeGreaterThanOrEqual(1);
   expect(logs.join('\n')).not.toContain('shipfox-e2e-');
 });
+
+function resolutionsForModelDelta(
+  before: InferenceFixtureStats,
+  after: InferenceFixtureStats,
+  model: string,
+): number {
+  return (after.resolutionsByModel[model] ?? 0) - (before.resolutionsByModel[model] ?? 0);
+}
+
+function requestsForModelAndGeneration(
+  stats: InferenceFixtureStats,
+  model: string,
+  generation: number,
+): number {
+  return stats.requestsByModelAndGeneration[model]?.[String(generation)] ?? 0;
+}
+
+function requestsForModelAndGenerationDelta(
+  before: InferenceFixtureStats,
+  after: InferenceFixtureStats,
+  model: string,
+  generation: number,
+): number {
+  return (
+    requestsForModelAndGeneration(after, model, generation) -
+    requestsForModelAndGeneration(before, model, generation)
+  );
+}
 
 test('renews rejected credentials across multiple checkouts', async ({
   suite,

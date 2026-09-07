@@ -27,7 +27,7 @@ export const config = createConfig({
     default: false,
   }),
   SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE: bool({
-    desc: 'Enables renewable managed inference credentials. Source-run defaults remain disabled; verified managed images set this only after an API at or above the compatibility release is deployed everywhere.',
+    desc: 'Enables renewable managed inference credentials. Source-run defaults remain disabled; verified managed images set this only after an API release that accepts renewable_inference in runner capability reports is deployed everywhere.',
     default: false,
   }),
 });
