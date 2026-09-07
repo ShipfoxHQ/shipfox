@@ -117,26 +117,28 @@ describe('Auth impersonation eligibility presentation', () => {
     const client = createClient();
     testConfig.AUTH_IMPERSONATION_ENABLED = false;
 
-    const error = await client
-      .listImpersonationEligibleUserSummaries({search: 'user', limit: 25})
-      .catch((caught: unknown) => caught);
+    try {
+      const error = await client
+        .listImpersonationEligibleUserSummaries({search: 'user', limit: 25})
+        .catch((caught: unknown) => caught);
 
-    expect(
-      isInterModuleKnownError(
-        authInterModuleContract.methods.listImpersonationEligibleUserSummaries,
-        error,
-      ),
-    ).toBe(true);
-    if (
-      isInterModuleKnownError(
-        authInterModuleContract.methods.listImpersonationEligibleUserSummaries,
-        error,
-      )
-    ) {
-      expect(error.code).toBe('impersonation-disabled');
-      expect(error.details).toEqual({});
+      expect(
+        isInterModuleKnownError(
+          authInterModuleContract.methods.listImpersonationEligibleUserSummaries,
+          error,
+        ),
+      ).toBe(true);
+      if (
+        isInterModuleKnownError(
+          authInterModuleContract.methods.listImpersonationEligibleUserSummaries,
+          error,
+        )
+      ) {
+        expect(error.code).toBe('impersonation-disabled');
+        expect(error.details).toEqual({});
+      }
+    } finally {
+      testConfig.AUTH_IMPERSONATION_ENABLED = true;
     }
-
-    testConfig.AUTH_IMPERSONATION_ENABLED = true;
   });
 });
