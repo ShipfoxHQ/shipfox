@@ -2,4 +2,4 @@
 "@shipfox/api-workflows": patch
 ---
 
-Normalizes CEL-native tool output mappings before persisting workflow step results.
+Fixes tool steps with integer CEL output mappings so results such as collection sizes persist instead of reporting an infinite-size failure.

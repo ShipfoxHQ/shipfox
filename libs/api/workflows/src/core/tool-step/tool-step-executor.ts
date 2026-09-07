@@ -14,6 +14,7 @@ import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
+import {JobOutputNotJsonSafeError} from '#core/errors.js';
 import {recordStepProgressionMetrics, recordStepResultInTransaction} from '#core/job-execution.js';
 import {normalizeJobOutputValue} from '#core/step-config/job-output-limits.js';
 import {type Tx, withTransaction} from '#db/db.js';
@@ -455,7 +456,7 @@ function mapToolOutputs(
         {cause: error},
       );
     }
-    const normalizedValue = normalizeJobOutputValue(value, key);
+    const normalizedValue = normalizeToolOutputMappingValue(value, key);
     Object.defineProperty(output, key, {
       configurable: true,
       enumerable: true,
@@ -464,6 +465,48 @@ function mapToolOutputs(
     });
   }
   return output;
+}
+
+type CelIntegerSafety = 'none' | 'safe' | 'unsafe';
+
+function normalizeToolOutputMappingValue(value: unknown, key: string): unknown {
+  const integerSafety = celIntegerSafety(value, new WeakSet<object>());
+  if (integerSafety === 'none') return value;
+  if (integerSafety === 'unsafe') {
+    throw new Error(
+      `Tool output mapping "${key}" cannot be persisted as JSON: integers must be between ${Number.MIN_SAFE_INTEGER} and ${Number.MAX_SAFE_INTEGER}`,
+    );
+  }
+
+  try {
+    return normalizeJobOutputValue(value, key);
+  } catch (error) {
+    if (error instanceof JobOutputNotJsonSafeError) {
+      throw new Error(`Tool output mapping "${key}" cannot be persisted as JSON: ${error.reason}`, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+}
+
+function celIntegerSafety(value: unknown, visited: WeakSet<object>): CelIntegerSafety {
+  if (typeof value === 'bigint') {
+    return Number.isSafeInteger(Number(value)) ? 'safe' : 'unsafe';
+  }
+  if (value === null || typeof value !== 'object' || visited.has(value)) return 'none';
+
+  visited.add(value);
+  let safety: CelIntegerSafety = 'none';
+  const values = Array.isArray(value)
+    ? value
+    : Object.keys(value).map((key) => (value as Record<string, unknown>)[key]);
+  for (const nestedValue of values) {
+    const nestedSafety = celIntegerSafety(nestedValue, visited);
+    if (nestedSafety === 'unsafe') return 'unsafe';
+    if (nestedSafety === 'safe') safety = 'safe';
+  }
+  return safety;
 }
 
 interface ToolExecutionError {

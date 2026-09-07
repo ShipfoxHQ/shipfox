@@ -239,6 +239,57 @@ describe('tool step executor', () => {
     });
   });
 
+  test('rejects unsafe CEL integer output mappings without rounding', async () => {
+    const {jobId} = await arrangeToolStep('read', {
+      outputDeclarations: {
+        result: {type: 'json'},
+        issue_count: {type: 'number'},
+      },
+      outputMappings: {
+        issue_count: createWorkflowExpression({
+          source: '9007199254740993',
+          check: {mode: 'syntax'},
+        }),
+      },
+    });
+    const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
+      outcome: 'success' as const,
+      result: {issues: []},
+      content: [],
+    });
+    const appendServerRecords = vi
+      .fn<LogsModuleClient['appendServerRecords']>()
+      .mockResolvedValue({committedLength: 0, capped: false});
+    const executorParams = {
+      integrations: {callTool} as unknown as IntegrationsModuleClient,
+      logs: {appendServerRecords} as unknown as LogsModuleClient,
+      signal: new AbortController().signal,
+      claimOwner: 'executor-test',
+      concurrency: 8,
+      callTimeoutMs: 30_000,
+    };
+
+    await nextStepForJob(jobId);
+    await runToolStepExecutorCycle(executorParams);
+    await runToolStepExecutorCycle(executorParams);
+
+    const [step] = await getStepsByJobId(jobId);
+    expect(step).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'output_invalid',
+        reason: 'output_invalid',
+        message:
+          'Tool output mapping "issue_count" cannot be persisted as JSON: integers must be between -9007199254740991 and 9007199254740991',
+      },
+    });
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt?.invocations).toEqual([
+      expect.objectContaining({call_index: 0, outcome: 'success'}),
+    ]);
+    expect(callTool).toHaveBeenCalledOnce();
+  });
+
   test.each([
     ['null', {result: null, content: []}, null],
     ['a scalar', {result: null, content: [{type: 'text', text: '42'}]}, 42],
