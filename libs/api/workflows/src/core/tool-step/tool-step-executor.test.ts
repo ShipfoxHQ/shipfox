@@ -199,6 +199,46 @@ describe('tool step executor', () => {
     });
   });
 
+  test('normalizes CEL integer output mappings before persistence', async () => {
+    const {jobId} = await arrangeToolStep('read', {
+      outputDeclarations: {
+        result: {type: 'json'},
+        issue_count: {type: 'number'},
+      },
+      outputMappings: {
+        issue_count: createWorkflowExpression({
+          source: 'result.issues.size()',
+          check: {mode: 'syntax'},
+        }),
+      },
+    });
+    const result = {issues: [{id: 1}, {id: 2}, {id: 3}]};
+    const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
+      outcome: 'success' as const,
+      result,
+      content: [],
+    });
+    const appendServerRecords = vi
+      .fn<LogsModuleClient['appendServerRecords']>()
+      .mockResolvedValue({committedLength: 0, capped: false});
+
+    await nextStepForJob(jobId);
+    await runToolStepExecutorCycle({
+      integrations: {callTool} as unknown as IntegrationsModuleClient,
+      logs: {appendServerRecords} as unknown as LogsModuleClient,
+      signal: new AbortController().signal,
+      claimOwner: 'executor-test',
+      concurrency: 8,
+      callTimeoutMs: 30_000,
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'succeeded',
+      output: {result, issue_count: 3},
+    });
+  });
+
   test.each([
     ['null', {result: null, content: []}, null],
     ['a scalar', {result: null, content: [{type: 'text', text: '42'}]}, 42],

@@ -15,6 +15,7 @@ import type {ModuleService} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import {recordStepProgressionMetrics, recordStepResultInTransaction} from '#core/job-execution.js';
+import {normalizeJobOutputValue} from '#core/step-config/job-output-limits.js';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   claimToolInvocations,
@@ -454,10 +455,11 @@ function mapToolOutputs(
         {cause: error},
       );
     }
+    const normalizedValue = normalizeJobOutputValue(value, key);
     Object.defineProperty(output, key, {
       configurable: true,
       enumerable: true,
-      value,
+      value: normalizedValue,
       writable: true,
     });
   }
