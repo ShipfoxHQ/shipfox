@@ -1773,16 +1773,21 @@ function isValidRfc3339Timestamp(value: string): boolean {
   }
 
   const dateParseValue = isLeapSecond ? `${value.slice(0, 17)}59${value.slice(19)}` : value;
-  const timestamp = Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z'));
-  if (Number.isNaN(timestamp)) return false;
+  const parsedTimestamp = Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z'));
+  if (Number.isNaN(parsedTimestamp)) return false;
   if (!isLeapSecond) return true;
 
-  const normalized = new Date(timestamp);
-  return (
-    normalized.getUTCHours() === 23 &&
-    normalized.getUTCMinutes() === 59 &&
-    normalized.getUTCSeconds() === 59
-  );
+  return isValidNormalizedRfc3339LeapSecond(parsedTimestamp);
+}
+
+function isValidNormalizedRfc3339LeapSecond(parsedTimestamp: number): boolean {
+  const normalizedUtc = new Date(parsedTimestamp);
+  const isLeapSecondTime =
+    normalizedUtc.getUTCHours() === 23 && normalizedUtc.getUTCMinutes() === 59;
+  const isLeapSecondDate =
+    (normalizedUtc.getUTCMonth() === 5 && normalizedUtc.getUTCDate() === 30) ||
+    (normalizedUtc.getUTCMonth() === 11 && normalizedUtc.getUTCDate() === 31);
+  return isLeapSecondTime && isLeapSecondDate;
 }
 
 function daysInCheckRunMonth(year: number, month: number): number {
