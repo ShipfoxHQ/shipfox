@@ -52,8 +52,9 @@ export const clientArchitectureExceptions = {
     {
       file: 'libs/client/shell/src/runtime/auth.tsx',
       owner: 'shell auth runtime',
-      reason: 'Auth transitions clear and reseed private cache state across principal changes.',
-      test: 'libs/client/auth/src/components/auth-provider.test.tsx',
+      reason:
+        'Auth transitions clear and reseed private cache state, and adopted continuation refetches paused active queries after renewal.',
+      test: 'libs/client/shell/src/runtime/adopted-session.test.tsx',
     },
     {
       file: 'libs/client/onboarding/src/workspace-setup-route.ts',

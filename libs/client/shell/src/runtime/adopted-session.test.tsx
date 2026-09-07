@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type {LoginResponseDto, UserDto} from '@shipfox/api-auth-dto';
 import {
+  ApiError,
   checkedApiRequest,
   configureApiClient,
   emptyResponseSchema,
@@ -358,6 +359,57 @@ describe('adopted-session runtime seam', () => {
     await expect(renewPromise).resolves.toBeNull();
     expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION_DTO.token);
     await waitFor(() => expect(apiRef.current?.adoptedSession).toBeNull());
+  });
+
+  test('refetches active gate queries only after continuation succeeds', async () => {
+    const {apiRef, queryClient, store} = renderAuthHarness();
+    await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
+
+    const renewal: AdoptedSessionRenewal = {
+      session: {...ADOPTED_SESSION, accessToken: 'renewed-token'},
+      expiresAt: '2026-08-25T09:00:00.000Z',
+      serverTime: SERVER_TIME,
+    };
+    const renew = vi.fn(() => Promise.resolve(renewal));
+    const api = harnessApi(apiRef);
+    await api.adoptSession(ADOPTED_SESSION, {
+      expiresAt: EXPIRES_AT,
+      serverTime: SERVER_TIME,
+      renew,
+    });
+
+    const refetchQueries = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue();
+    await expect(api.renewAdoptedSession()).resolves.toEqual(renewal);
+
+    expect(refetchQueries).toHaveBeenCalledTimes(1);
+    const filters = refetchQueries.mock.calls[0]?.[0];
+    if (!filters || typeof filters.predicate !== 'function') {
+      throw new Error('Expected the continuation to target a query predicate.');
+    }
+    expect(filters.type).toBe('active');
+    expect(
+      filters.predicate({
+        state: {
+          error: new ApiError({
+            message: 'Renewal is paused.',
+            code: 'adopted-session-paused',
+            status: 0,
+          }),
+        },
+      } as never),
+    ).toBe(true);
+    expect(
+      filters.predicate({
+        state: {
+          error: new ApiError({
+            message: 'The adopted session ended.',
+            code: 'adopted-session-ended',
+            status: 0,
+          }),
+        },
+      } as never),
+    ).toBe(false);
+    expect(filters.predicate({state: {error: new Error('ordinary failure')}} as never)).toBe(false);
   });
 
   test('a null renewal result falls back to the ordinary cookie refresh', async () => {

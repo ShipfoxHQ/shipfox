@@ -13,7 +13,8 @@ export interface LoadErrorCopyOptions {
 // Only the codes that actually reach a plain list/load GET. The API client
 // synthesizes `network-error` (transport failure) and `request-failed` (server
 // error body with no code); the server adds `server-error`, `unauthorized`, and
-// `forbidden`. Provider codes (timeout, rate-limited, provider-unavailable, ...)
+// `forbidden`; the shell adds adopted-session gate codes. Provider codes (timeout,
+// rate-limited, provider-unavailable, ...)
 // belong to setup flows and stay in projectErrorCopy: mapping them here would be
 // dead code on these surfaces.
 const messageByCode: Record<string, string> = {
@@ -22,6 +23,9 @@ const messageByCode: Record<string, string> = {
   'server-error': 'Something went wrong on our side. Try again in a moment.',
   unauthorized: 'Your session may have expired. Try signing in again.',
   forbidden: "You don't have access to this. Try signing in again.",
+  'adopted-session-paused': 'Renewal is paused. Focus this window to continue.',
+  'adopted-session-ended':
+    'The impersonated session ended. Return to the administrator session to continue.',
 };
 
 const GENERIC_MESSAGE = 'Something went wrong. Check your connection and try again.';

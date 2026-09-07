@@ -13,6 +13,8 @@ describe('loadErrorCopy', () => {
     'server-error',
     'unauthorized',
     'forbidden',
+    'adopted-session-paused',
+    'adopted-session-ended',
   ])('maps the %s code to friendly, subject-keyed copy', (code) => {
     const error = new ApiError({message: LEAKY_MESSAGE, code, status: 500});
 
@@ -20,6 +22,21 @@ describe('loadErrorCopy', () => {
 
     expect(copy.title).toBe("Couldn't load integrations");
     expect(copy.message.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['adopted-session-paused', 'Renewal is paused. Focus this window to continue.'],
+    [
+      'adopted-session-ended',
+      'The impersonated session ended. Return to the administrator session to continue.',
+    ],
+  ])('keeps %s copy calm and actionable', (code, message) => {
+    const error = new ApiError({message: LEAKY_MESSAGE, code, status: 0});
+
+    expect(loadErrorCopy(error, {subject: SUBJECT})).toEqual({
+      title: "Couldn't load integrations",
+      message,
+    });
   });
 
   it('falls back to a generic message for an unmapped ApiError code', () => {
