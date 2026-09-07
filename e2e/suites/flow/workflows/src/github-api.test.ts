@@ -86,6 +86,201 @@ describe('GitHub API mock', () => {
     }
   });
 
+  it('records a check-run create request and returns its configured response', async () => {
+    const authorization = `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`;
+    const responseBody = {id: 1234, status: 'in_progress'};
+    const body = {
+      name: 'Shipfox review',
+      head_sha: '0123456789abcdef0123456789abcdef01234567',
+      status: 'in_progress',
+      output: {title: 'Review in progress', summary: 'Shipfox is reviewing this commit.'},
+    };
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      checkRunCreateResponse: responseBody,
+    });
+
+    try {
+      const response = await fetch(new URL('/repos/acme/platform/check-runs', mock.endpoint), {
+        method: 'POST',
+        headers: {authorization, 'content-type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+
+      expect(response.status).toBe(201);
+      await expect(response.json()).resolves.toEqual(responseBody);
+      expect(mock.calls).toEqual([
+        {
+          kind: 'create-check-run',
+          authorization,
+          owner: 'acme',
+          repo: 'platform',
+          body,
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('records a check-run update request and returns its configured response', async () => {
+    const authorization = `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`;
+    const checkRunId = 1234;
+    const responseBody = {id: checkRunId, status: 'completed', conclusion: 'neutral'};
+    const body = {
+      conclusion: 'neutral',
+      completed_at: '2026-09-05T12:00:00.000Z',
+      output: {title: 'Review complete', summary: 'Shipfox completed the review.'},
+    };
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      checkRunCreateResponse: {id: checkRunId},
+      checkRunUpdateResponse: responseBody,
+    });
+
+    try {
+      const response = await fetch(
+        new URL(`/repos/acme/platform/check-runs/${checkRunId}`, mock.endpoint),
+        {
+          method: 'PATCH',
+          headers: {authorization, 'content-type': 'application/json'},
+          body: JSON.stringify(body),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual(responseBody);
+      expect(mock.calls).toEqual([
+        {
+          kind: 'update-check-run',
+          authorization,
+          owner: 'acme',
+          repo: 'platform',
+          checkRunId,
+          body,
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('returns 404 when updating an unknown check run', async () => {
+    const authorization = `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`;
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      checkRunCreateResponse: {id: 1234},
+    });
+
+    try {
+      const response = await fetch(new URL('/repos/acme/platform/check-runs/5678', mock.endpoint), {
+        method: 'PATCH',
+        headers: {authorization, 'content-type': 'application/json'},
+        body: JSON.stringify({conclusion: 'failure'}),
+      });
+
+      expect(response.status).toBe(404);
+      expect(mock.calls).toEqual([
+        {
+          kind: 'update-check-run',
+          authorization,
+          owner: 'acme',
+          repo: 'platform',
+          checkRunId: 5678,
+          body: {conclusion: 'failure'},
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('returns 422 when minting an unapproved permission profile', async () => {
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      unapprovedPermissionProfiles: [{checks: 'write'}],
+    });
+
+    try {
+      const body = {repository_ids: [42], permissions: {checks: 'write'}};
+      const response = await fetch(
+        new URL('/app/installations/1234/access_tokens', mock.endpoint),
+        {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer app-jwt',
+            'content-type': 'application/json',
+            'x-github-stateless-s2s-token': 'enabled',
+          },
+          body: JSON.stringify(body),
+        },
+      );
+
+      expect(response.status).toBe(422);
+      expect(mock.calls).toEqual([
+        {
+          kind: 'mint-token',
+          authorization: 'Bearer app-jwt',
+          tokenFormatOverride: 'enabled',
+          installationId: 1234,
+          body,
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it('does not match omitted permissions against the response fallback', async () => {
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      unapprovedPermissionProfiles: [{issues: 'write'}],
+    });
+
+    try {
+      const mintUrl = new URL('/app/installations/1234/access_tokens', mock.endpoint);
+      const headers = {
+        authorization: 'Bearer app-jwt',
+        'content-type': 'application/json',
+        'x-github-stateless-s2s-token': 'enabled',
+      };
+      const omittedPermissions = await fetch(mintUrl, {
+        method: 'POST',
+        headers,
+        body: '{}',
+      });
+      const explicitPermissions = await fetch(mintUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({permissions: {issues: 'write'}}),
+      });
+
+      expect(omittedPermissions.status).toBe(201);
+      await expect(omittedPermissions.json()).resolves.toMatchObject({
+        permissions: {issues: 'write'},
+      });
+      expect(explicitPermissions.status).toBe(422);
+      expect(mock.calls).toEqual([
+        {
+          kind: 'mint-token',
+          authorization: 'Bearer app-jwt',
+          tokenFormatOverride: 'enabled',
+          installationId: 1234,
+          body: {},
+        },
+        {
+          kind: 'mint-token',
+          authorization: 'Bearer app-jwt',
+          tokenFormatOverride: 'enabled',
+          installationId: 1234,
+          body: {permissions: {issues: 'write'}},
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('serves repository metadata, scoped checkout mints, search, and GraphQL requests', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
