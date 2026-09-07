@@ -239,7 +239,20 @@ describe('tool step executor', () => {
     });
   });
 
-  test('rejects unsafe CEL integer output mappings without rounding', async () => {
+  test.each([
+    {
+      description: 'an unsafe CEL integer without rounding',
+      source: '9007199254740993',
+      result: {issues: []},
+      issue: 'integers must be between -9007199254740991 and 9007199254740991',
+    },
+    {
+      description: 'a non-finite CEL number',
+      source: 'result.open / result.total',
+      result: {open: 1, total: 0},
+      issue: 'numbers must be finite',
+    },
+  ])('rejects $description as output_invalid', async ({source, result, issue}) => {
     const {jobId} = await arrangeToolStep('read', {
       outputDeclarations: {
         result: {type: 'json'},
@@ -247,14 +260,14 @@ describe('tool step executor', () => {
       },
       outputMappings: {
         issue_count: createWorkflowExpression({
-          source: '9007199254740993',
+          source,
           check: {mode: 'syntax'},
         }),
       },
     });
     const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
       outcome: 'success' as const,
-      result: {issues: []},
+      result,
       content: [],
     });
     const appendServerRecords = vi
@@ -279,8 +292,7 @@ describe('tool step executor', () => {
       error: {
         code: 'output_invalid',
         reason: 'output_invalid',
-        message:
-          'Tool output mapping "issue_count" cannot be persisted as JSON: integers must be between -9007199254740991 and 9007199254740991',
+        message: `Tool output mapping "issue_count" cannot be persisted as JSON: ${issue}`,
       },
     });
     const [attempt] = await getStepAttempts(jobId);

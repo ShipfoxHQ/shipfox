@@ -467,18 +467,14 @@ function mapToolOutputs(
   return output;
 }
 
-type CelIntegerSafety = 'none' | 'safe' | 'unsafe';
-
 function normalizeToolOutputMappingValue(value: unknown, key: string): unknown {
-  const integerSafety = celIntegerSafety(value, new WeakSet<object>());
-  if (integerSafety === 'none') return value;
-  if (integerSafety === 'unsafe') {
-    throw new Error(
-      `Tool output mapping "${key}" cannot be persisted as JSON: integers must be between ${Number.MIN_SAFE_INTEGER} and ${Number.MAX_SAFE_INTEGER}`,
-    );
-  }
-
   try {
+    if (containsUnsafeCelInteger(value, new WeakSet<object>())) {
+      throw new JobOutputNotJsonSafeError(
+        key,
+        `integers must be between ${Number.MIN_SAFE_INTEGER} and ${Number.MAX_SAFE_INTEGER}`,
+      );
+    }
     return normalizeJobOutputValue(value, key);
   } catch (error) {
     if (error instanceof JobOutputNotJsonSafeError) {
@@ -490,23 +486,17 @@ function normalizeToolOutputMappingValue(value: unknown, key: string): unknown {
   }
 }
 
-function celIntegerSafety(value: unknown, visited: WeakSet<object>): CelIntegerSafety {
+function containsUnsafeCelInteger(value: unknown, visited: WeakSet<object>): boolean {
   if (typeof value === 'bigint') {
-    return Number.isSafeInteger(Number(value)) ? 'safe' : 'unsafe';
+    return !Number.isSafeInteger(Number(value));
   }
-  if (value === null || typeof value !== 'object' || visited.has(value)) return 'none';
+  if (value === null || typeof value !== 'object' || visited.has(value)) return false;
 
   visited.add(value);
-  let safety: CelIntegerSafety = 'none';
   const values = Array.isArray(value)
     ? value
     : Object.keys(value).map((key) => (value as Record<string, unknown>)[key]);
-  for (const nestedValue of values) {
-    const nestedSafety = celIntegerSafety(nestedValue, visited);
-    if (nestedSafety === 'unsafe') return 'unsafe';
-    if (nestedSafety === 'safe') safety = 'safe';
-  }
-  return safety;
+  return values.some((nestedValue) => containsUnsafeCelInteger(nestedValue, visited));
 }
 
 interface ToolExecutionError {
