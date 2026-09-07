@@ -22,6 +22,25 @@ describe('getAuthRouteRevision', () => {
     expect(getAuthRouteRevision(renewedState)).toBe(getAuthRouteRevision(authenticatedState));
   });
 
+  test('does not change for workspace membership order changes', () => {
+    const secondWorkspace = {
+      ...authenticatedWorkspace,
+      id: 'workspace-2',
+      slug: 'other-workspace',
+      membershipId: 'membership-2',
+    };
+    const orderedState = {
+      ...authenticatedState,
+      workspaces: [authenticatedWorkspace, secondWorkspace],
+    };
+    const reorderedState = {
+      ...authenticatedState,
+      workspaces: [secondWorkspace, authenticatedWorkspace],
+    };
+
+    expect(getAuthRouteRevision(reorderedState)).toBe(getAuthRouteRevision(orderedState));
+  });
+
   test.each([
     ['a different principal', {...authenticatedState, user: {...authenticatedUser, id: 'user-2'}}],
     [

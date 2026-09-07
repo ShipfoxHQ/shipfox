@@ -158,16 +158,23 @@ const authTransitionEpochAtom = atom(0);
 export function getAuthRouteRevision(
   state: Pick<AuthState, 'status' | 'user' | 'workspaces'>,
 ): string {
-  return JSON.stringify({
-    status: state.status,
-    principalId: state.user?.id,
-    principalRole: state.user?.adminRole,
-    workspaces: (state.workspaces ?? []).map((workspace) => ({
+  const workspaces = (state.workspaces ?? [])
+    .map((workspace) => ({
       id: workspace.id,
       slug: workspace.slug,
       membershipId: workspace.membershipId,
       status: workspace.status,
-    })),
+    }))
+    .sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) || left.membershipId.localeCompare(right.membershipId),
+    );
+
+  return JSON.stringify({
+    status: state.status,
+    principalId: state.user?.id,
+    principalRole: state.user?.adminRole,
+    workspaces,
   });
 }
 

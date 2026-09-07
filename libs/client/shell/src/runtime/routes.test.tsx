@@ -52,6 +52,49 @@ describe('composed routes', () => {
     expect(workspaceSetup).not.toHaveBeenCalled();
   });
 
+  test('uses the public href for an unresolved workspace with a same-origin rewrite', async () => {
+    const UnresolvedWorkspace = ({
+      requestedHref,
+      workspaceSlug,
+    }: {
+      requestedHref: string;
+      workspaceSlug: string;
+    }) => (
+      <output data-testid="unresolved-workspace-props">
+        {workspaceSlug}:{requestedHref}
+      </output>
+    );
+
+    await renderComposedShell({
+      features: [
+        defineClientFeature({
+          id: 'acme.overview',
+          routes: [
+            {
+              path: '/w/$workspaceSlug/p/$projectSlug/overview',
+              parent: 'projectLayout',
+              impl: 'overview',
+            },
+          ],
+        }),
+      ],
+      initialPath: '/public/w/missing/p/project/overview?tab=run%2Cfailed#details',
+      rewrite: {
+        input: ({url}) => {
+          url.pathname = url.pathname.slice('/public'.length);
+          return url;
+        },
+      },
+      resolveImpl: () =>
+        defineRoute({staticData: {frame: 'content'}, component: () => <h1>Overview</h1>}),
+      chrome: {UnresolvedWorkspace},
+    });
+
+    expect(await screen.findByTestId('unresolved-workspace-props')).toHaveTextContent(
+      'missing:/public/w/missing/p/project/overview?tab=run%2Cfailed#details',
+    );
+  });
+
   test('keeps the legacy redirect when the unresolved workspace slot is absent', async () => {
     const {router} = await renderComposedShell({
       features: [

@@ -29,9 +29,11 @@ export {routePathForAnchor} from './anchor-paths.js';
 
 function missingWorkspaceRoute(
   context: RouterContext,
-  location: {href: string; external?: boolean},
+  location: {publicHref: string; external?: boolean},
 ): {unresolvedWorkspace: true} {
-  const requestedHref = location.external ? undefined : toSameOriginRelativeHref(location.href);
+  const requestedHref = location.external
+    ? undefined
+    : toSameOriginRelativeHref(location.publicHref);
   if (context.unresolvedWorkspaceAvailable && requestedHref) {
     return {unresolvedWorkspace: true};
   }
@@ -156,7 +158,9 @@ function UnresolvedWorkspaceSlot() {
   const {UnresolvedWorkspace} = useChrome();
   const location = useLocation();
   const {workspaceSlug} = useRouteParams(parseWorkspaceParams);
-  const requestedHref = location.external ? undefined : toSameOriginRelativeHref(location.href);
+  const requestedHref = location.external
+    ? undefined
+    : toSameOriginRelativeHref(location.publicHref);
   if (!UnresolvedWorkspace || !workspaceSlug || !requestedHref) return null;
   return <UnresolvedWorkspace workspaceSlug={workspaceSlug} requestedHref={requestedHref} />;
 }
