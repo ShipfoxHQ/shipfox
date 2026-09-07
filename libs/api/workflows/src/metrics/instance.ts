@@ -145,7 +145,9 @@ const executionPayloadBytes = meter.createHistogram<{
   description: 'Workflow execution payload sizes by bounded owning field',
   unit: 'By',
   advice: {
-    explicitBucketBoundaries: [1_024, 10_240, 65_536, 256_000, 512_000, 868_928, 1_000_000],
+    explicitBucketBoundaries: [
+      1_024, 10_240, 65_536, 256_000, 512_000, 524_288, 868_928, 1_000_000,
+    ],
   },
 });
 
