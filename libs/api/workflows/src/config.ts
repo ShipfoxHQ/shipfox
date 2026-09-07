@@ -8,6 +8,10 @@ export const config = createConfig({
     desc: 'Path to the YAML file that maps runner catalog names to complete label sets. Leave it empty to use every job runner value as a literal label. The file is loaded at startup; restart the API after changing it.',
     default: '',
   }),
+  WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED: bool({
+    desc: 'Whether new listener executions also write the legacy trigger-event array. Keep true during mixed deployments. Set false after canonical readers complete one normal compatibility window, then restart the API.',
+    default: true,
+  }),
   WORKFLOWS_TOOL_STEP_EXECUTOR_ENABLED: bool({
     desc: 'Whether the API process runs the server-side workflow tool-step executor. Set false to disable new tool-step calls until the API restarts.',
     default: true,

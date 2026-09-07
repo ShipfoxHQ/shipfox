@@ -1266,6 +1266,10 @@ describe('drainListenerEventsIntoExecution', () => {
     const byId = await getJobExecutionById(legacyExecution.id);
     const byJob = await getJobExecutionsByJobId(job.id);
     const byAttempt = await getJobExecutionsByWorkflowRunAttemptId(job.workflowRunAttemptId);
+    const byAttemptWithoutTriggerEvents = await getJobExecutionsByWorkflowRunAttemptId(
+      job.workflowRunAttemptId,
+      {includeTriggerEvents: false},
+    );
 
     expect(firstDrain).toMatchObject({kind: 'execution'});
     expect(first?.triggerEvents.map((event) => (event.data as {order: string}).order)).toEqual([
@@ -1282,6 +1286,10 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(byAttempt.map((execution) => execution.triggerEvents)).toEqual([
       first?.triggerEvents,
       [legacyEvent],
+    ]);
+    expect(byAttemptWithoutTriggerEvents.map((execution) => execution.triggerEvents)).toEqual([
+      [],
+      [],
     ]);
 
     const dependencyListener = await createListenerWithDependencies({
@@ -1646,11 +1654,11 @@ describe('getListenerEventStorageStats', () => {
     expect(
       after.consumedListenerEventOldestAgeMilliseconds -
         before.consumedListenerEventOldestAgeMilliseconds,
-    ).toBeGreaterThan(0);
+    ).toBeGreaterThan(24 * 60 * 60 * 1000);
     expect(
       after.pendingListenerEventOldestAgeMilliseconds -
         before.pendingListenerEventOldestAgeMilliseconds,
-    ).toBeGreaterThan(0);
+    ).toBeGreaterThan(24 * 60 * 60 * 1000);
     expect(afterArray.duplicateTriggerEventsBytes).toBeGreaterThan(
       before.duplicateTriggerEventsBytes,
     );

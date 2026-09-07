@@ -9,6 +9,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
+import {config} from '#config.js';
 import {type AgentDefaultsResolver, createAgentDefaultsResolver} from '#core/agent-defaults.js';
 import {
   type AgentToolMaterializationContext,
@@ -886,6 +887,9 @@ async function persistMaterializedListenerExecution(
       runner: params.materialized.runner.length === 0 ? null : [...params.materialized.runner],
       status: params.materialized.status,
       statusReason: params.materialized.statusReason,
+      ...(config.WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED
+        ? {triggerEvents: [...params.materialized.triggerEvents]}
+        : {}),
       evaluationTrace: params.materialized.evaluationTrace,
       ...(params.materialized.status === 'failed' ? {finishedAt: sql`now()`} : {}),
     })

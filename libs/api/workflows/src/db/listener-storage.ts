@@ -56,10 +56,13 @@ export async function getListenerEventStorageStats(): Promise<ListenerEventStora
 }
 
 function listenerEventOldestAge(condition: ReturnType<typeof sql>) {
-  return sql<number>`coalesce(
-    extract(epoch from (
-      statement_timestamp() - min(${jobListenerEvents.receivedAt}) filter (where ${condition})
-    )) * 1000,
+  return sql<number>`greatest(
+    coalesce(
+      extract(epoch from (
+        statement_timestamp() - min(${jobListenerEvents.receivedAt}) filter (where ${condition})
+      )) * 1000,
+      0
+    ),
     0
   )`;
 }

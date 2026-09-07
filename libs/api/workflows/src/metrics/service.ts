@@ -1,4 +1,4 @@
-import {getServiceMetricsProvider} from '@shipfox/node-opentelemetry';
+import {getServiceMetricsProvider, logger} from '@shipfox/node-opentelemetry';
 import {countActiveListeners} from '#db/job-listeners.js';
 import {
   getListenerEventStorageStats,
@@ -83,34 +83,34 @@ export function registerWorkflowsServiceMetrics(): void {
 
   meter.addBatchObservableCallback(
     async (observer) => {
-      const [depth, listenerCount, toolInvocationDepth, storage] = await Promise.allSettled([
+      const [depth, listenerCount, toolInvocationDepth] = await Promise.all([
         getWorkflowJobExecutionDepth(),
         countActiveListeners(),
         getToolInvocationDepth(),
-        getCachedListenerEventStorageStats(),
       ]);
-      if (depth.status === 'fulfilled') {
-        observer.observe(runningRuns, depth.value.runningRuns);
-        observer.observe(runningJobExecutions, depth.value.runningJobExecutions);
+      let storage: ListenerEventStorageStats | undefined;
+      try {
+        storage = await getCachedListenerEventStorageStats();
+      } catch (error) {
+        logger().warn({err: error}, 'Failed to collect workflow listener event storage metrics');
       }
-      if (listenerCount.status === 'fulfilled')
-        observer.observe(activeListeners, listenerCount.value);
-      if (toolInvocationDepth.status === 'fulfilled') {
-        observer.observe(queuedToolInvocations, toolInvocationDepth.value.queued);
-        observer.observe(inFlightToolInvocations, toolInvocationDepth.value.inFlight);
-      }
-      if (storage.status === 'fulfilled') {
-        observer.observe(listenerEventRows, storage.value.listenerEventRows);
-        observer.observe(listenerEventPayloadBytes, storage.value.listenerEventPayloadBytes);
+      observer.observe(runningRuns, depth.runningRuns);
+      observer.observe(runningJobExecutions, depth.runningJobExecutions);
+      observer.observe(activeListeners, listenerCount);
+      observer.observe(queuedToolInvocations, toolInvocationDepth.queued);
+      observer.observe(inFlightToolInvocations, toolInvocationDepth.inFlight);
+      if (storage) {
+        observer.observe(listenerEventRows, storage.listenerEventRows);
+        observer.observe(listenerEventPayloadBytes, storage.listenerEventPayloadBytes);
         observer.observe(
           listenerEventConsumedOldestAge,
-          storage.value.consumedListenerEventOldestAgeMilliseconds,
+          storage.consumedListenerEventOldestAgeMilliseconds,
         );
         observer.observe(
           listenerEventPendingOldestAge,
-          storage.value.pendingListenerEventOldestAgeMilliseconds,
+          storage.pendingListenerEventOldestAgeMilliseconds,
         );
-        observer.observe(duplicateTriggerEventsBytes, storage.value.duplicateTriggerEventsBytes);
+        observer.observe(duplicateTriggerEventsBytes, storage.duplicateTriggerEventsBytes);
       }
     },
     [

@@ -42,6 +42,7 @@ const run = await runWorkflow(definitions, {
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `RUNNER_CATALOG_PATH` | empty | Optional path to a YAML file mapping runner catalog names to complete runner label sets. |
+| `WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED` | `true` | Writes legacy trigger-event arrays alongside canonical rows for new listener executions. Keep `true` during mixed deployments. Set `false` after one normal compatibility window with canonical readers, then restart the API. |
 | `WORKFLOWS_TOOL_STEP_EXECUTOR_ENABLED` | `true` | Starts the server-side tool-step executor. Set `false` to stop claiming new tool invocations after an API restart. |
 | `WORKFLOWS_TOOL_STEP_POLL_INTERVAL_MS` | `1000` | Delay between scans for due server-executed tool-step invocations, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_TOOL_STEP_EXECUTOR_CONCURRENCY` | `8` | Maximum number of tool-step invocations claimed in one executor pass. The value must be a safe whole number greater than `0`. |
@@ -71,11 +72,16 @@ display label and workflow expression value.
 
 Listener event rows are canonical for new execution context. The legacy
 execution array remains readable for retained executions and is not backfilled.
-Deploy canonical readers and complete one normal compatibility window before
-stopping array writes. An array-only reader cannot recover event context from
-new executions after this release. If rollback is needed, restore a release
-that reads canonical rows before deploying it; do not roll back to an
-array-only reader without a dual-write bridge.
+The writer flag defaults to dual writes for mixed deployments. Set it to `false`
+after canonical readers complete one normal compatibility window. An array-only
+reader cannot recover event context from new executions after the flag changes.
+If rollback is needed, restore a release that reads canonical rows first. An
+array-only rollback requires a dual-write bridge.
+
+The duplicate-array storage gauge is transitional. Its cached refresh still
+scans retained execution history. Remove it after the compatibility window and
+legacy-array retention cleanup. The canonical listener-event gauges remain
+useful for retention operations.
 
 Run numbers are sequential within one workflow lineage, start at `1`, and are
 unique for `(definition_id, number)`. `workflow_runs.definition_id` carries the
@@ -115,8 +121,8 @@ remain in logs and traces.
 | `workflows_tool_invocations_in_flight` | Service | none | Current count of tool invocations claimed by an executor. |
 | `workflows_listener_event_rows` | Service | none | Number of retained canonical listener-event rows across the shared database. The value is cached for up to 60 seconds. |
 | `workflows_listener_event_payload_bytes` | Service | none | Stored payload bytes for retained canonical listener-event rows with a payload. The value is cached for up to 60 seconds. |
-| `workflows_listener_event_consumed_oldest_age` | Service | none | Age in milliseconds of the oldest consumed canonical listener-event row still retained. This is a retention-depth signal, not a consumer-liveness signal. The value is cached for up to 60 seconds. |
-| `workflows_listener_event_pending_oldest_age` | Service | none | Age in milliseconds of the oldest pending canonical listener-event row. The value is cached for up to 60 seconds. |
+| `workflows_listener_event_consumed_oldest_age` | Service | none | Age in milliseconds of the oldest consumed canonical listener-event row still retained. This is a retention-depth signal, not a consumer-liveness signal. The value is `0` when no matching row exists or its timestamp is in the future. The value is cached for up to 60 seconds. |
+| `workflows_listener_event_pending_oldest_age` | Service | none | Age in milliseconds of the oldest pending canonical listener-event row. The value is `0` when no matching row exists or its timestamp is in the future. The value is cached for up to 60 seconds. |
 | `workflows_duplicate_trigger_events_bytes` | Service | none | Serialized bytes retained in legacy job-execution trigger-event arrays. The value is cached for up to 60 seconds. |
 
 ## Development

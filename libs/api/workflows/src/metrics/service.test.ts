@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
     getListenerEventStorageStats: vi.fn(),
     getToolInvocationDepth: vi.fn(),
     getWorkflowJobExecutionDepth: vi.fn(),
+    loggerWarn: vi.fn(),
     createObservableGauge: vi.fn((name: string) => {
       const gauge = {};
       gauges.set(name, gauge);
@@ -27,6 +28,7 @@ vi.mock('#db/workflow-runs.js', () => ({
 }));
 vi.mock('@shipfox/node-opentelemetry', () => ({
   getServiceMetricsProvider: mocks.getServiceMetricsProvider,
+  logger: () => ({warn: mocks.loggerWarn}),
 }));
 
 import {registerWorkflowsServiceMetrics} from './service.js';
@@ -38,6 +40,7 @@ describe('registerWorkflowsServiceMetrics', () => {
     mocks.getListenerEventStorageStats.mockReset();
     mocks.getToolInvocationDepth.mockReset();
     mocks.getWorkflowJobExecutionDepth.mockReset();
+    mocks.loggerWarn.mockReset();
     mocks.createObservableGauge.mockClear();
     mocks.gauges.clear();
     mocks.getMeter.mockReset();
@@ -151,6 +154,10 @@ describe('registerWorkflowsServiceMetrics', () => {
         ([gauge]) => gauge === mocks.gauges.get('workflows_listener_event_rows'),
       ),
     ).toBe(false);
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      {err: expect.any(Error)},
+      'Failed to collect workflow listener event storage metrics',
+    );
   });
 
   test('omits expired storage gauges when a refresh fails', async () => {

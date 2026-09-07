@@ -22,6 +22,8 @@ import {
   workflowRunAttemptId,
 } from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
+import {jobExecutions} from '../schema/job-executions.js';
+import {jobListenerEvents} from '../schema/job-listener-events.js';
 import {workflowsOutbox} from '../schema/outbox.js';
 import {
   applyStepResult,
@@ -513,6 +515,60 @@ describe('workflow run job executions', () => {
     expect(Array.isArray(resolved.outputs?.findings)).toBe(true);
     const persisted = await getFirstJobExecutionByJobId(job.id);
     expect(persisted?.outputs).toEqual({findings: [{severity: 'high'}]});
+  });
+
+  test('resolves canonical execution events when materializing job outputs', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: buildModel({
+        jobs: {
+          build: {
+            steps: [{run: 'echo build'}],
+            outputs: {action: template('executions[0].events[0].data.action')},
+          },
+        },
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected workflow job');
+    const execution = await getFirstJobExecutionByJobId(job.id);
+    if (!execution) throw new Error('Expected job execution');
+    await db()
+      .update(jobExecutions)
+      .set({triggerEvents: null})
+      .where(eq(jobExecutions.id, execution.id));
+    await db()
+      .insert(jobListenerEvents)
+      .values({
+        jobId: job.id,
+        disposition: 'fire',
+        outcome: 'consumed',
+        eventRef: 'output-canonical-event',
+        deliveryId: 'output-canonical-delivery',
+        source: 'github',
+        event: 'pull_request',
+        payload: {action: 'opened'},
+        storedPayloadBytes: 19,
+        normalizedEventBytes: 128,
+        receivedAt: new Date('2026-01-01T00:00:00.000Z'),
+        consumedByExecutionId: execution.id,
+      });
+
+    const resolved = await updateJobExecutionStatus({
+      jobExecutionId: execution.id,
+      status: 'succeeded',
+      expectedVersion: execution.version,
+    });
+
+    expect(resolved.outputs).toEqual({action: 'opened'});
   });
 
   test.each([
