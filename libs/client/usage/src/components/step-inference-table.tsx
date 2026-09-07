@@ -11,14 +11,13 @@ import {
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useMemo} from 'react';
 import type {JobExecutionUsage} from '#core/usage.js';
-import {groupInferenceSegmentsByStepAttempt} from '#core/usage.js';
+import {groupInferenceSegmentsByStepAttempt, usageQuantitiesFromTotals} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
 import {
   formatUsageCacheWrite,
   formatUsageNumber,
   formatUsageRate,
-  usageQuantitiesFromTotals,
   usageTokenBreakdownTitle,
 } from './usage-format.js';
 
@@ -53,14 +52,15 @@ export function StepInferenceTable({
 
   if (rows.length === 0) return null;
 
+  const rowSpanByStepAttempt = new Map<string, number>();
+  for (const row of rows) {
+    const key = `step-attempt:${row.stepAttemptId}`;
+    rowSpanByStepAttempt.set(key, (rowSpanByStepAttempt.get(key) ?? 0) + 1);
+  }
   const costByStepAttempt = new Set<string>();
   const showCosts = pricing !== undefined && costs.size > 0;
   return (
-    <Panel
-      aria-label="Inference usage by step"
-      data-usage-step-inference-table
-      className={className}
-    >
+    <Panel data-usage-step-inference-table className={className}>
       <PanelHeader>
         <div className="min-w-0">
           <PanelTitle>Inference usage</PanelTitle>
@@ -161,10 +161,20 @@ export function StepInferenceTable({
                   >
                     {formatUsageNumber(row.webSearchRequests)}
                   </TableCell>
-                  {showCosts ? (
-                    <TableCell className="text-right">
-                      <span className="inline-flex justify-end">
+                  {showCosts && showCostForRow ? (
+                    <TableCell
+                      rowSpan={rowSpanByStepAttempt.get(referenceKey)}
+                      className="text-right align-middle"
+                      title="Total cost for this step attempt"
+                    >
+                      <span className="inline-flex min-w-64 flex-col items-end justify-center gap-2">
                         <UsageCostBadge cost={cost} />
+                        {!cost ? (
+                          <Code as="span" variant="label" className="text-foreground-neutral-muted">
+                            —
+                          </Code>
+                        ) : null}
+                        <span className="sr-only">Step attempt total cost</span>
                       </span>
                     </TableCell>
                   ) : null}

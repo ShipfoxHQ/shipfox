@@ -114,10 +114,11 @@ describe('Usage aggregation', () => {
       cachedInputTokens: 20,
       reasoningTokens: 10,
       totalTokens: 395,
+      cacheHitRate: 20 / 320,
     });
     expect(summary.byModel.map(({model, totalTokens}) => [model, totalTokens])).toEqual([
-      ['claude-sonnet-4', 160],
       ['gpt-5', 235],
+      ['claude-sonnet-4', 160],
     ]);
   });
 
@@ -150,6 +151,7 @@ describe('Usage aggregation', () => {
       inputTokens: 150,
       cachedInputTokens: 20,
       totalTokens: 270,
+      cacheHitRate: 20 / 170,
     });
     expect(rows[1]).toMatchObject({
       stepAttemptId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',

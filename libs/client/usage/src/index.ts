@@ -15,6 +15,7 @@ export {
   type UsageRunSummary,
   type UsageTokenClasses,
   type UsageTokenTotals,
+  usageQuantitiesFromTotals,
   usageTokenTotalsForSegments,
 } from '#core/usage.js';
 export * from './components/index.js';
@@ -25,9 +26,7 @@ export {
   runUsageQueryOptions,
   type UsageJobExecutionQueryOptions,
   type UsageRunQueryOptions,
-  usageJobExecutionQueryOptions,
   usageQueryKeys,
-  usageRunQueryOptions,
   useJobExecutionUsageQuery,
   useRunUsageQuery,
 } from './hooks/api/usage.js';

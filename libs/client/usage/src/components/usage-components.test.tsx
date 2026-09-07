@@ -116,6 +116,12 @@ describe('Usage components', () => {
     expect(screen.queryByText('$1.20')).not.toBeInTheDocument();
   });
 
+  test('does not render job cells when no inference segments were recorded', () => {
+    const {container} = render(<JobUsageCells usage={{...jobUsage, inferenceSegments: []}} />);
+
+    expect(container.querySelector('[data-usage-job-cells]')).not.toBeInTheDocument();
+  });
+
   test('renders resolved cost only when pricing returns one', async () => {
     render(
       <ClientUsagePricingProvider usagePricing={pricing}>

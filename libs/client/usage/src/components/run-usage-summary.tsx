@@ -1,15 +1,9 @@
-import {useUsagePricing} from '@shipfox/client-shell/runtime';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useMemo} from 'react';
-import {type RunUsage, summarizeRunUsage} from '#core/usage.js';
+import {type RunUsage, summarizeRunUsage, usageQuantitiesFromTotals} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
-import {
-  formatUsageDuration,
-  formatUsageNumber,
-  usageQuantitiesFromTotals,
-  usageTokenBreakdownTitle,
-} from './usage-format.js';
+import {formatUsageDuration, formatUsageNumber, usageTokenBreakdownTitle} from './usage-format.js';
 
 export interface RunUsageSummaryProps {
   runId: string;
@@ -19,7 +13,6 @@ export interface RunUsageSummaryProps {
 
 /** Compact quantities for the run header. Pricing is additive and never required for this view. */
 export function RunUsageSummary({runId, usage, className}: RunUsageSummaryProps) {
-  const pricing = useUsagePricing();
   const summary = useMemo(() => (usage ? summarizeRunUsage(usage) : undefined), [usage]);
   const pricingInputs = useMemo(
     () =>
@@ -80,9 +73,6 @@ export function RunUsageSummary({runId, usage, className}: RunUsageSummaryProps)
         </span>
       ))}
       <UsageCostBadge cost={cost} />
-      {pricing && cost?.state === 'estimated' ? (
-        <span className="sr-only">Estimated run cost</span>
-      ) : null}
     </div>
   );
 }

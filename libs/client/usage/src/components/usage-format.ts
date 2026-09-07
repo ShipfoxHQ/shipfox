@@ -5,6 +5,10 @@ const compactNumberFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 const exactNumberFormatter = new Intl.NumberFormat('en-US');
+const percentNumberFormatter = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+});
 
 export function formatUsageNumber(value: number): string {
   return compactNumberFormatter.format(value);
@@ -28,24 +32,9 @@ export function formatUsageDuration(seconds: number | null | undefined): string 
   return `${hours}h ${remainingMinutes}m`;
 }
 
-export function usageQuantitiesFromTotals(totals: UsageTokenTotals, computeSeconds = 0) {
-  return {
-    computeSeconds,
-    requestCount: totals.requestCount,
-    inputTokens: totals.inputTokens,
-    cachedInputTokens: totals.cachedInputTokens,
-    cacheWriteTokens: totals.cacheWriteTokens,
-    outputTokens: totals.outputTokens,
-    webSearchRequests: totals.webSearchRequests,
-  };
-}
-
 export function formatUsageRate(value: number): string {
   if (!Number.isFinite(value) || value < 0 || value > 1) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'percent',
-    maximumFractionDigits: 1,
-  }).format(value);
+  return percentNumberFormatter.format(value);
 }
 
 export function formatUsageCacheWrite(totals: UsageTokenTotals): string {

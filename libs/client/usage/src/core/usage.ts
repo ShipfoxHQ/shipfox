@@ -145,6 +145,18 @@ export function usageTokenTotalsForSegments(
   );
 }
 
+export function usageQuantitiesFromTotals(totals: UsageTokenTotals, computeSeconds = 0) {
+  return {
+    computeSeconds,
+    requestCount: totals.requestCount,
+    inputTokens: totals.inputTokens,
+    cachedInputTokens: totals.cachedInputTokens,
+    cacheWriteTokens: totals.cacheWriteTokens,
+    outputTokens: totals.outputTokens,
+    webSearchRequests: totals.webSearchRequests,
+  };
+}
+
 export function summarizeRunUsage(usage: RunUsage): UsageRunSummary {
   const byModel = new Map<string, UsageTokenTotals>();
   for (const segment of usage.inferenceSegments) {
@@ -159,7 +171,10 @@ export function summarizeRunUsage(usage: RunUsage): UsageRunSummary {
     ),
     totals: usageTokenTotalsForSegments(usage.inferenceSegments),
     byModel: [...byModel.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(
+        ([leftModel, leftTotals], [rightModel, rightTotals]) =>
+          rightTotals.totalTokens - leftTotals.totalTokens || leftModel.localeCompare(rightModel),
+      )
       .map(([model, totals]) => ({model, ...totals})),
   };
 }

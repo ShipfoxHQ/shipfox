@@ -117,6 +117,3 @@ export function useRunUsageQuery(options: UsageRunQueryOptions) {
 export function useJobExecutionUsageQuery(options: UsageJobExecutionQueryOptions) {
   return useQuery(jobExecutionUsageQueryOptions(options));
 }
-
-export const usageRunQueryOptions = runUsageQueryOptions;
-export const usageJobExecutionQueryOptions = jobExecutionUsageQueryOptions;

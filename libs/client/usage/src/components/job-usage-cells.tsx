@@ -1,14 +1,13 @@
 import {Code} from '@shipfox/react-ui/typography';
 import {useMemo} from 'react';
-import {type JobExecutionUsage, usageTokenTotalsForSegments} from '#core/usage.js';
+import {
+  type JobExecutionUsage,
+  usageQuantitiesFromTotals,
+  usageTokenTotalsForSegments,
+} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
-import {
-  formatUsageDuration,
-  formatUsageNumber,
-  usageQuantitiesFromTotals,
-  usageTokenBreakdownTitle,
-} from './usage-format.js';
+import {formatUsageDuration, formatUsageNumber, usageTokenBreakdownTitle} from './usage-format.js';
 
 export interface JobUsageCellsProps {
   usage: JobExecutionUsage | undefined;
@@ -17,10 +16,10 @@ export interface JobUsageCellsProps {
 
 /** The compact usage cells appended to a run's job row or selected-job header. */
 export function JobUsageCells({usage, className}: JobUsageCellsProps) {
-  const inferenceSegments = usage?.inferenceSegments;
+  const inferenceSegments = usage?.inferenceSegments ?? [];
   const totals = useMemo(
-    () => (inferenceSegments ? usageTokenTotalsForSegments(inferenceSegments) : undefined),
-    [inferenceSegments],
+    () => (usage ? usageTokenTotalsForSegments(inferenceSegments) : undefined),
+    [inferenceSegments, usage],
   );
   const jobExecutionId = usage?.jobExecution.jobExecutionId;
   const durationSeconds = usage?.jobExecution.durationSeconds;
@@ -41,7 +40,7 @@ export function JobUsageCells({usage, className}: JobUsageCellsProps) {
   const costs = useUsageCosts(pricingInputs);
   const cost = jobExecutionId ? costs.get(`job-execution:${jobExecutionId}`) : undefined;
 
-  if (!usage || !totals) return null;
+  if (!usage || !totals || inferenceSegments.length === 0) return null;
 
   return (
     <span
