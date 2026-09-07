@@ -102,6 +102,7 @@ describe('GET /admin/workspaces', () => {
         {
           id: workspace.id,
           name: workspace.name,
+          slug: workspace.slug,
           status: 'active',
           member_summary: {count: 1},
           project_summary: {state: 'available', count: 3},
