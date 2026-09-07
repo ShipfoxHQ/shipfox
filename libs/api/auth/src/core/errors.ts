@@ -208,6 +208,13 @@ export class ImpersonationExpiredError extends Error {
   }
 }
 
+export class ImpersonationWindowLimitReachedError extends Error {
+  constructor() {
+    super('The administrator already has the maximum number of open impersonation windows');
+    this.name = 'ImpersonationWindowLimitReachedError';
+  }
+}
+
 export class TokenInvalidError extends Error {
   constructor(reason?: string) {
     super(reason ? `Invalid token: ${reason}` : 'Invalid token');

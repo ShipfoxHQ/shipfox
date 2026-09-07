@@ -1,1 +1,1 @@
-export {userFactory} from './factories/index.js';
+export {impersonationWindowFactory, userFactory} from './factories/index.js';

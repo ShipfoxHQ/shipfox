@@ -103,6 +103,13 @@ export {
 export type {EmailOwner, FindUserByEmailParams} from '#core/email-owner.js';
 export {findUserByEmail} from '#core/email-owner.js';
 export type {AdminGrant} from '#core/entities/admin-grant.js';
+export {
+  type EffectiveImpersonationWindow,
+  type ImpersonationWindow,
+  type ImpersonationWindowEndedReason,
+  type ImpersonationWindowState,
+  MAX_OPEN_IMPERSONATION_WINDOWS,
+} from '#core/entities/impersonation-window.js';
 export type {User, UserStatus} from '#core/entities/user.js';
 export type {AgentAccessWorkspaceErrorCode} from '#core/errors.js';
 export {
@@ -120,6 +127,7 @@ export {
   ImpersonationDisabledError,
   ImpersonationExpiredError,
   ImpersonationTargetNotActiveError,
+  ImpersonationWindowLimitReachedError,
   InvalidAdminBootstrapTokenError,
   InvalidAdministratorUserDirectoryFilterError,
   InvalidAgentAccessScopeError,

@@ -198,7 +198,7 @@ export async function impersonateUserWithAudit(
     // the mint against it closes the race where a concurrent grant mutation
     // changes actor or target eligibility after the ladder read but before
     // the token is signed.
-    await lockAdminOwnerGrants(tx);
+    await lockAdminOwnerGrants(tx, 'shared');
 
     const existing = await findAdminCommandResult(tx, {
       actorId: params.actorId,
