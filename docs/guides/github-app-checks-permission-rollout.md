@@ -18,7 +18,7 @@ and evidence.
 | Permission invalidation is deployed | [ENG-2002](https://linear.app/shipfox/issue/ENG-2002/invalidate-github-installation-tokens-after-permission-approval) is implemented and its merged [PR #1705](https://github.com/ShipfoxHQ/shipfox/pull/1705) is known. Record the production deployment identifier and time separately. A merge is not deployment evidence. |
 | The live App has an operational owner | Record the App administrator's name, GitHub handle, team, and backup on [ENG-2005](https://linear.app/shipfox/issue/ENG-2005/request-github-app-checks-permission). Noé Charmet is the rollout coordinator for this issue. Confirm that the coordinator or a named delegate can edit the live App registration. |
 | An internal installation is selected | Use the live ShipfoxHQ organization installation that covers `ShipfoxHQ/shipfox`, unless the App administrator selects another internal test repository. Confirm the installation and repository scope before testing. |
-| Check-run behavior is deployed | Confirm that the deployed environment can make a `check_run_write` call and that the [ENG-2007](https://linear.app/shipfox/issue/ENG-2007/verify-and-release-github-check-run-tools) smoke-test path is available. |
+| Check-run behavior is deployed | The [ENG-2007](https://linear.app/shipfox/issue/ENG-2007/verify-and-release-github-check-run-tools) issue supplies the check-run smoke invocation and its deployed release. Confirm that both are available and that the deployed environment can make a `check_run_write` call. Block the rollout until that release is available. |
 | The rollout window is staffed | Record the rollout window, the Shipfox on-call, and the GitHub App administrator. Pause if either owner is unavailable. |
 
 The repository contains the permission invalidation implementation, but it does
@@ -85,6 +85,7 @@ not accepted the GitHub prompt.
 The expected operational signals are:
 
 - `github_installation_token_mint` records a failed mint.
+- The `github_installation_token_mint` failure count does not increase across the immediate repeat.
 - `github_installation_token_backoff` records reason `provider-rejected`,
   class `terminal`, and profile `scoped`.
 - `github_installation_token_lookup` records `backoff` for the immediate
@@ -172,6 +173,7 @@ to redacted dashboards or audit records only.
 - Check-run route called: no
 - Terminal backoff observed: yes
 - Immediate retry observed backoff without mint: yes
+- Mint failure count unchanged on immediate retry: yes
 - Evidence: [redacted link]
 
 ### Approval event
@@ -205,10 +207,14 @@ Stop the rollout and leave the issue in progress when:
 - the live App administrator or internal installation owner is unknown;
 - the pre-approval call does not return `provider-rejected` with upstream
   `422`;
+- the ENG-2007 check-run smoke invocation or its deployed release is unavailable;
+- check-run write behavior is not deployed;
 - the pre-approval call reaches a GitHub check-run route;
 - the approval event is missing or names another installation;
 - namespace cleanup or permission-profile backoff clearing cannot be proven;
-- the post-approval call waits for or returns the old terminal backoff; or
+- the post-approval call waits for or returns the old terminal backoff;
+- the exact log warning `github installation token backoff write failed` is
+  observed; or
 - an external installation would need approval from a Shipfox operator.
 
 Do not announce general availability from this runbook. Continue the rollout
