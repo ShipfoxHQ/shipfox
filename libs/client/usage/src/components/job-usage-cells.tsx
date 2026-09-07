@@ -1,4 +1,3 @@
-import {Code} from '@shipfox/react-ui/typography';
 import {useMemo} from 'react';
 import {
   type JobExecutionUsage,
@@ -6,69 +5,60 @@ import {
   usageTokenTotalsForSegments,
 } from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
-import {UsageCostBadge} from './usage-cost-badge.js';
-import {formatUsageDuration, formatUsageNumber, usageTokenBreakdownTitle} from './usage-format.js';
+import {UsageDetails} from './usage-details.js';
 
 export interface JobUsageCellsProps {
   usage: JobExecutionUsage | undefined;
   className?: string | undefined;
+  stepLabels?: ReadonlyMap<string, string> | undefined;
+  stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
 }
 
-/** The compact usage cells appended to a run's job row or selected-job header. */
-export function JobUsageCells({usage, className}: JobUsageCellsProps) {
-  const inferenceSegments = usage?.inferenceSegments ?? [];
-  const totals = useMemo(
-    () => (usage ? usageTokenTotalsForSegments(inferenceSegments) : undefined),
-    [inferenceSegments, usage],
-  );
-  const jobExecutionId = usage?.jobExecution.jobExecutionId;
-  const durationSeconds = usage?.jobExecution.durationSeconds;
-  const pricingInputs = useMemo(
+export function JobUsageCells({
+  usage,
+  className,
+  stepLabels,
+  stepAttemptLabels,
+}: JobUsageCellsProps) {
+  const runUsage = useMemo(
     () =>
-      jobExecutionId && totals
-        ? [
-            {
-              reference: {kind: 'job-execution' as const, id: jobExecutionId},
-              ...(durationSeconds === null || durationSeconds === undefined
-                ? {}
-                : {quantities: usageQuantitiesFromTotals(totals, durationSeconds)}),
-            },
-          ]
-        : [],
-    [durationSeconds, jobExecutionId, totals],
+      usage
+        ? {
+            jobExecutions: [usage.jobExecution],
+            inferenceSegments: usage.inferenceSegments,
+          }
+        : undefined,
+    [usage],
   );
+  const pricingInputs = useMemo(() => {
+    if (!usage) return [];
+    const {jobExecution} = usage;
+    return [
+      {
+        reference: {kind: 'job-execution' as const, id: jobExecution.jobExecutionId},
+        ...(jobExecution.durationSeconds === null
+          ? {}
+          : {
+              quantities: usageQuantitiesFromTotals(
+                usageTokenTotalsForSegments(usage.inferenceSegments),
+                jobExecution.durationSeconds,
+              ),
+            }),
+      },
+    ];
+  }, [usage]);
   const costs = useUsageCosts(pricingInputs);
-  const cost = jobExecutionId ? costs.get(`job-execution:${jobExecutionId}`) : undefined;
-
-  if (!usage || !totals || inferenceSegments.length === 0) return null;
+  if (!usage || !runUsage) return null;
 
   return (
-    <span
-      data-usage-job-cells
-      className={`flex shrink-0 items-center gap-inline text-foreground-neutral-muted${className ? ` ${className}` : ''}`}
-    >
-      <Code as="span" variant="label" className="whitespace-nowrap text-current">
-        {formatUsageDuration(durationSeconds)} compute
-      </Code>
-      <span title={`Total inference tokens. ${usageTokenBreakdownTitle(totals)}`}>
-        <Code as="span" variant="label" className="whitespace-nowrap text-current">
-          {formatUsageNumber(totals.totalTokens)} tokens
-        </Code>
-      </span>
-      {totals.webSearchRequests > 0 ? (
-        <Code
-          as="span"
-          variant="label"
-          className="whitespace-nowrap text-current"
-          title={`Total web searches. ${usageTokenBreakdownTitle(totals)}`}
-        >
-          {formatUsageNumber(totals.webSearchRequests)} web searches
-        </Code>
-      ) : null}
-      <Code as="span" variant="label" className="whitespace-nowrap text-current">
-        {formatUsageNumber(totals.requestCount)} requests
-      </Code>
-      <UsageCostBadge cost={cost} />
+    <span data-usage-job-cells className={className}>
+      <UsageDetails
+        scope="Job"
+        usage={runUsage}
+        cost={costs.get(`job-execution:${usage.jobExecution.jobExecutionId}`)}
+        stepLabels={stepLabels}
+        stepAttemptLabels={stepAttemptLabels}
+      />
     </span>
   );
 }

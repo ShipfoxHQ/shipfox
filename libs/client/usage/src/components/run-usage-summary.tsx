@@ -1,9 +1,7 @@
-import {Code, Text} from '@shipfox/react-ui/typography';
 import {useMemo} from 'react';
 import {type RunUsage, summarizeRunUsage, usageQuantitiesFromTotals} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
-import {UsageCostBadge} from './usage-cost-badge.js';
-import {formatUsageDuration, formatUsageNumber, usageTokenBreakdownTitle} from './usage-format.js';
+import {UsageDetails} from './usage-details.js';
 
 export interface RunUsageSummaryProps {
   runId: string;
@@ -11,68 +9,29 @@ export interface RunUsageSummaryProps {
   className?: string | undefined;
 }
 
-/** Compact quantities for the run header. Pricing is additive and never required for this view. */
 export function RunUsageSummary({runId, usage, className}: RunUsageSummaryProps) {
   const summary = useMemo(() => (usage ? summarizeRunUsage(usage) : undefined), [usage]);
+  const completeDuration = usage?.jobExecutions.every((job) => job.durationSeconds !== null);
   const pricingInputs = useMemo(
     () =>
       summary
         ? [
             {
               reference: {kind: 'run' as const, id: runId},
-              quantities: usageQuantitiesFromTotals(summary.totals, summary.computeSeconds),
+              ...(completeDuration
+                ? {quantities: usageQuantitiesFromTotals(summary.totals, summary.computeSeconds)}
+                : {}),
             },
           ]
         : [],
-    [runId, summary],
+    [runId, summary, completeDuration],
   );
   const costs = useUsageCosts(pricingInputs);
-  const cost = costs.get(`run:${runId}`);
-
-  if (!summary) return null;
+  if (!usage) return null;
 
   return (
-    <div
-      data-usage-run-summary
-      className={`flex min-w-0 flex-wrap items-center gap-inline text-xs text-foreground-neutral-subtle${className ? ` ${className}` : ''}`}
-    >
-      <span title="Total compute time">
-        <Code as="span" variant="label" className="text-current">
-          compute {formatUsageDuration(summary.computeSeconds)}
-        </Code>
-      </span>
-      <span title={`Total inference tokens. ${usageTokenBreakdownTitle(summary.totals)}`}>
-        <Code as="span" variant="label" className="text-current">
-          {formatUsageNumber(summary.totals.totalTokens)} tokens
-        </Code>
-      </span>
-      {summary.totals.webSearchRequests > 0 ? (
-        <span title={`Total web searches. ${usageTokenBreakdownTitle(summary.totals)}`}>
-          <Code as="span" variant="label" className="text-current">
-            {formatUsageNumber(summary.totals.webSearchRequests)} web searches
-          </Code>
-        </span>
-      ) : null}
-      <span title="Total inference requests">
-        <Code as="span" variant="label" className="text-current">
-          {formatUsageNumber(summary.totals.requestCount)} requests
-        </Code>
-      </span>
-      {summary.byModel.map((model) => (
-        <span
-          key={model.model}
-          className="max-w-200 truncate"
-          title={`${model.model} tokens. ${usageTokenBreakdownTitle(model)}`}
-        >
-          <Text as="span" size="xs" className="text-current">
-            <Code as="span" variant="label" className="text-current">
-              {model.model}
-            </Code>{' '}
-            {formatUsageNumber(model.totalTokens)}
-          </Text>
-        </span>
-      ))}
-      <UsageCostBadge cost={cost} />
-    </div>
+    <span data-usage-run-summary className={className}>
+      <UsageDetails scope="Run" usage={usage} cost={costs.get(`run:${runId}`)} />
+    </span>
   );
 }

@@ -209,6 +209,23 @@ export function groupInferenceSegmentsByStepAttempt(
   );
 }
 
+export function groupUsageByModel(segments: readonly UsageInferenceSegment[]) {
+  const grouped = new Map<string, {model: string; upstream: string; totals: UsageTokenTotals}>();
+  for (const segment of segments) {
+    const key = JSON.stringify([segment.upstream, segment.model]);
+    const current = grouped.get(key);
+    grouped.set(key, {
+      model: segment.model,
+      upstream: segment.upstream,
+      totals: addUsageTokenTotals(current?.totals ?? emptyUsageTokenTotals(), segment),
+    });
+  }
+  return [...grouped.values()].sort(
+    (left, right) =>
+      right.totals.totalTokens - left.totals.totalTokens || left.model.localeCompare(right.model),
+  );
+}
+
 function addUsageTokenTotals(
   totals: UsageTokenTotals,
   segment: Pick<

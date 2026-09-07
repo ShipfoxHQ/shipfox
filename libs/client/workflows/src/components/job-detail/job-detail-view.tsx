@@ -3,7 +3,7 @@
 
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {StepInferenceTable, useJobExecutionUsageQuery} from '@shipfox/client-usage';
+import {useJobExecutionUsageQuery} from '@shipfox/client-usage';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -323,6 +323,8 @@ export function JobDetailView({
                 executionCountVisible={detailData.executionCountVisible}
                 executionDisplayStatus={detailData.executionDisplayStatus}
                 usage={usageQuery.data}
+                stepLabels={stepLabels}
+                stepAttemptLabels={stepAttemptLabels}
                 jobContext={
                   selectedJobExecution ? (
                     <JobContextPanel
@@ -333,15 +335,6 @@ export function JobDetailView({
                   ) : undefined
                 }
               />
-              {usageQuery.data?.inferenceSegments.length ? (
-                <div className="px-row pb-row">
-                  <StepInferenceTable
-                    usage={usageQuery.data}
-                    stepLabels={stepLabels}
-                    stepAttemptLabels={stepAttemptLabels}
-                  />
-                </div>
-              ) : null}
               <Panel data-job-log-panel className="min-w-0">
                 <JobLogPanelHeader
                   stepLabel={expandedLogSelection?.stepLabel}

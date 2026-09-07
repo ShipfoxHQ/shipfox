@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {type ClientUsagePricing, ClientUsagePricingProvider} from '@shipfox/client-shell/runtime';
-import {render, screen, waitFor} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import type {
   JobExecutionUsage,
   RunUsage,
@@ -107,19 +107,111 @@ const pricing: ClientUsagePricing = {
 };
 
 describe('Usage components', () => {
-  test('renders quantities without a pricing seam', () => {
+  test('drills into application-priced models and SKUs without estimating an allocation', async () => {
+    const estimate = vi.fn(() => null);
+    render(
+      <ClientUsagePricingProvider
+        usagePricing={{
+          ...pricing,
+          estimate,
+          resolveCosts: () =>
+            new Map([
+              [
+                `run:${RUN_ID}`,
+                {
+                  amount: 1.2,
+                  state: 'resolved',
+                  breakdown: {
+                    machine: {amount: 0.2, state: 'resolved'},
+                    modelUsage: {amount: 1, state: 'resolved'},
+                    models: [
+                      {
+                        model: segment.model,
+                        upstream: segment.upstream,
+                        cost: {amount: 1, state: 'resolved'},
+                        skus: [
+                          {
+                            sku: 'output',
+                            label: 'Output tokens',
+                            quantity: 500,
+                            unit: 'tokens',
+                            rate: '$2.00 / 1K tokens',
+                            cost: {amount: 1, state: 'resolved'},
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            ]),
+        }}
+      >
+        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
+      </ClientUsagePricingProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', {name: 'View run cost details'}));
+    const dialog = screen.getByRole('dialog', {name: 'Run cost'});
+    expect(within(dialog).getByText('$0.20')).toBeVisible();
+    expect(within(dialog).getByText(segment.model)).not.toBeVisible();
+    fireEvent.click(within(dialog).getByText('Model usage'));
+    fireEvent.click(within(dialog).getByText(segment.model));
+
+    expect(within(dialog).getByText('Output tokens')).toBeVisible();
+    expect(within(dialog).getByText('500 tokens · $2.00 / 1K tokens')).toBeVisible();
+    expect(estimate).not.toHaveBeenCalled();
+  });
+
+  test('does not assign a total-only price to machine or model usage', async () => {
+    render(
+      <ClientUsagePricingProvider usagePricing={pricing}>
+        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
+      </ClientUsagePricingProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', {name: 'View run cost details'}));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getAllByText('$1.20')).toHaveLength(1);
+    expect(
+      within(dialog).getByText('Cost breakdown unavailable. Recorded usage is shown below.'),
+    ).toBeVisible();
+  });
+
+  test('does not estimate a run total from incomplete machine durations', async () => {
+    const estimate = vi.fn(() => null);
+    const resolveCosts = vi.fn(() => new Map());
+    render(
+      <ClientUsagePricingProvider usagePricing={{...pricing, estimate, resolveCosts}}>
+        <RunUsageSummary
+          runId={RUN_ID}
+          usage={{...runUsage, jobExecutions: [{...jobExecution, durationSeconds: null}]}}
+        />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
+
+    expect(estimate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', {name: 'View run usage details'})).toBeVisible();
+  });
+
+  test('keeps quantities behind the usage control without pricing', () => {
     render(<RunUsageSummary runId={RUN_ID} usage={runUsage} />);
 
-    expect(screen.getByText('1.8K tokens')).toBeVisible();
-    expect(screen.getByText('2 web searches')).toBeVisible();
-    expect(screen.getByText('2 requests')).toBeVisible();
+    expect(screen.getByRole('button', {name: 'View run usage details'})).toBeVisible();
+    expect(screen.queryByText('claude-sonnet-4')).not.toBeInTheDocument();
     expect(screen.queryByText('$1.20')).not.toBeInTheDocument();
   });
 
-  test('does not render job cells when no inference segments were recorded', () => {
+  test('allows inspecting machine-only jobs', () => {
     const {container} = render(<JobUsageCells usage={{...jobUsage, inferenceSegments: []}} />);
 
-    expect(container.querySelector('[data-usage-job-cells]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-usage-job-cells]')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'View job usage details'}));
+    expect(screen.getByText('Machine')).toBeVisible();
+    expect(screen.getByText('1m 0s')).toBeVisible();
   });
 
   test('renders resolved cost only when pricing returns one', async () => {
@@ -144,9 +236,9 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('1.8K tokens')).toBeVisible();
-    await waitFor(() => expect(screen.getByText('est. $0.90')).toBeVisible());
-    expect(screen.getByText('est. $0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
+    expect(screen.queryByText('1.8K tokens')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Est. $0.90')).toBeVisible());
+    expect(screen.getByText('Est. $0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
   });
 
   test('does not estimate a running job with an unknown duration', async () => {
@@ -168,7 +260,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('— compute')).toBeVisible();
+    expect(screen.getByRole('button', {name: 'View job usage details'})).toBeVisible();
     await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
     expect(estimate).not.toHaveBeenCalled();
   });
@@ -182,8 +274,8 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('1.8K tokens')).toBeVisible();
-    await waitFor(() => expect(screen.getByText('est. $0.90')).toBeVisible());
+    expect(screen.queryByText('1.8K tokens')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Est. $0.90')).toBeVisible());
   });
 
   test('estimates one aggregate cost for multiple rows sharing a step attempt', async () => {
@@ -220,7 +312,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('est. $5.00')).toBeVisible());
+    await waitFor(() => expect(screen.getByText('Est. $5.00')).toBeVisible());
     expect(estimate).toHaveBeenCalledTimes(1);
     expect(estimate).toHaveBeenCalledWith({
       reference: {kind: 'step-attempt', id: STEP_ATTEMPT_ID},

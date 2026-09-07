@@ -11,11 +11,11 @@ export function UsageCostBadge({cost}: {cost: UsagePricingCost | undefined}) {
   return (
     <Badge
       data-usage-cost-state={cost?.state}
-      variant={cost?.state === 'estimated' ? 'warning' : 'success'}
+      variant="neutral"
       size="2xs"
       title={cost?.state === 'estimated' ? 'Estimated cost' : 'Resolved cost'}
     >
-      {cost?.state === 'estimated' ? 'est. ' : ''}
+      {cost?.state === 'estimated' ? 'Est. ' : ''}
       {formatted}
     </Badge>
   );

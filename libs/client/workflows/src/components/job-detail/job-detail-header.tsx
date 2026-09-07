@@ -37,6 +37,8 @@ export interface JobDetailHeaderProps {
   executionCountVisible?: boolean | undefined;
   executionDisplayStatus?: JobExecutionDisplayStatus | undefined;
   usage?: JobExecutionUsage | undefined;
+  stepLabels?: ReadonlyMap<string, string> | undefined;
+  stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
 }
 
 export function JobDetailHeader({
@@ -53,6 +55,8 @@ export function JobDetailHeader({
   executionCountVisible,
   executionDisplayStatus,
   usage,
+  stepLabels,
+  stepAttemptLabels,
 }: JobDetailHeaderProps) {
   const selectedStatus = selectedExecutionStatus(job, selectedJobExecution, executionDisplayStatus);
   const jobStatus = getWorkflowStatusVisual(selectedStatus);
@@ -97,7 +101,11 @@ export function JobDetailHeader({
                   <JobDurationMeta execution={selectedJobExecution} kind="run" />
                 </>
               ) : null}
-              <JobUsageCells usage={usage} />
+              <JobUsageCells
+                usage={usage}
+                stepLabels={stepLabels}
+                stepAttemptLabels={stepAttemptLabels}
+              />
               <RunAnnotationCountChip
                 summary={annotationSummary}
                 workspaceSlug={workspaceSlug}

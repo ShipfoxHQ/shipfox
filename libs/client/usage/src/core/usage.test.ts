@@ -1,11 +1,22 @@
 import {
   groupInferenceSegmentsByStepAttempt,
+  groupUsageByModel,
   summarizeRunUsage,
   type UsageInferenceSegment,
   type UsageJobExecution,
 } from './usage.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
+
+test('keeps the same model on different providers separate when grouping costs', () => {
+  const result = groupUsageByModel([segment(), segment(), segment({upstream: 'another-provider'})]);
+
+  expect(result).toHaveLength(2);
+  expect(result.find((model) => model.upstream === 'anthropic')?.totals.requestCount).toBe(2);
+  expect(result.find((model) => model.upstream === 'another-provider')?.totals.requestCount).toBe(
+    1,
+  );
+});
 
 function segment(overrides: Partial<UsageInferenceSegment> = {}): UsageInferenceSegment {
   return {

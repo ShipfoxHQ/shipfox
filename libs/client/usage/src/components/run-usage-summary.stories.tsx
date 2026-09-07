@@ -1,7 +1,13 @@
-import {type ClientUsagePricing, ClientUsagePricingProvider} from '@shipfox/client-shell/runtime';
+import {
+  type ClientUsagePricing,
+  ClientUsagePricingProvider,
+  type UsagePricingCost,
+} from '@shipfox/client-shell/runtime';
 import type {Meta, StoryObj} from '@storybook/react';
+import {expect, userEvent, waitFor, within} from 'storybook/test';
 import type {RunUsage} from '#core/usage.js';
 import {RunUsageSummary} from './run-usage-summary.js';
+import {UsageDetails} from './usage-details.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -112,4 +118,104 @@ export const WithPricing: Story = {
       </ClientUsagePricingProvider>
     ),
   ],
+};
+
+const detailedCost: UsagePricingCost = {
+  amount: 0.42,
+  state: 'resolved',
+  breakdown: {
+    machine: {amount: 0.12, state: 'resolved'},
+    modelUsage: {amount: 0.3, state: 'resolved'},
+    models: [
+      {
+        model: 'claude-sonnet-4',
+        upstream: 'anthropic',
+        cost: {amount: 0.3, state: 'resolved'},
+        skus: [
+          {
+            sku: 'input',
+            label: 'Input tokens',
+            quantity: 1200,
+            unit: 'tokens',
+            rate: '$100.00 / 1M tokens',
+            cost: {amount: 0.12, state: 'resolved'},
+          },
+          {
+            sku: 'cached-input',
+            label: 'Cached input tokens',
+            quantity: 100,
+            unit: 'tokens',
+            rate: '$100.00 / 1M tokens',
+            cost: {amount: 0.01, state: 'resolved'},
+          },
+          {
+            sku: 'output',
+            label: 'Output tokens',
+            quantity: 500,
+            unit: 'tokens',
+            rate: '$300.00 / 1M tokens',
+            cost: {amount: 0.15, state: 'resolved'},
+          },
+          {
+            sku: 'web-search',
+            label: 'Web searches',
+            quantity: 2,
+            unit: 'searches',
+            rate: '$10.00 / 1K searches',
+            cost: {amount: 0.02, state: 'resolved'},
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const CostBreakdown: Story = {
+  args: {runId: RUN_ID, usage},
+  render: () => (
+    <ClientUsagePricingProvider usagePricing={pricing}>
+      <UsageDetails scope="Run" usage={usage} cost={detailedCost} defaultOpen />
+    </ClientUsagePricingProvider>
+  ),
+};
+
+export const UsageWithoutPricing: Story = {
+  args: {runId: RUN_ID, usage},
+  render: () => <UsageDetails scope="Run" usage={usage} cost={undefined} defaultOpen />,
+};
+
+export const TestSkuDrillDown: Story = {
+  ...CostBreakdown,
+  play: async ({canvasElement}) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(body.getByText('Model usage'));
+    await userEvent.click(body.getByText('claude-sonnet-4'));
+    await expect(body.getByText('Output tokens')).toBeVisible();
+    await expect(body.getByText('500 tokens · $300.00 / 1M tokens')).toBeVisible();
+  },
+};
+
+export const TestMobileSkuDrillDown: Story = {
+  ...TestSkuDrillDown,
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '390px', height: '844px'}, type: 'mobile'},
+      },
+    },
+  },
+};
+
+export const TestKeyboardDismissal: Story = {
+  ...WithPricing,
+  play: async ({canvasElement}) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = await body.findByRole('button', {name: 'View run cost details'});
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(body.getByRole('dialog', {name: 'Run cost'})).toBeVisible());
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
 };

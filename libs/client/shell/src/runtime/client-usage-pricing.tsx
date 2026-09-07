@@ -25,9 +25,35 @@ export interface UsagePricingEstimateInput {
 
 export type UsagePricingCostState = 'resolved' | 'estimated';
 
-export interface UsagePricingCost {
+export interface UsagePricingAmount {
   amount: number;
   state: UsagePricingCostState;
+}
+
+export interface UsagePricingSku {
+  sku: string;
+  label: string;
+  quantity: number;
+  unit: string;
+  /** Application-formatted rate, including its currency and billing unit. */
+  rate: string;
+  cost: UsagePricingAmount;
+}
+
+export interface UsagePricingModel {
+  model: string;
+  upstream: string;
+  cost: UsagePricingAmount;
+  skus: readonly UsagePricingSku[];
+}
+
+export interface UsagePricingCost extends UsagePricingAmount {
+  /** Complete allocation of this total, supplied by the pricing application, never inferred from tokens. */
+  breakdown?: {
+    machine: UsagePricingAmount;
+    modelUsage: UsagePricingAmount;
+    models: readonly UsagePricingModel[];
+  };
 }
 
 export interface UsagePricingCostEntry extends UsagePricingReference, UsagePricingCost {}
