@@ -2,6 +2,7 @@ import {
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
   type RunnerJobStopReasonDto,
+  type RunnerLifecycleCapabilitiesDto,
   type RunnersEventMap,
   type RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
@@ -61,6 +62,7 @@ import {runningJobExecutions} from './schema/running-job-executions.js';
 
 const runnerJobExecutionLockPrefix = 'runners_job_execution:';
 const defaultJobStopHandoffCleanupLimit = 100;
+const localExecutionFenceCapability = 'local_execution_fence_v1' as const;
 
 export interface JobStopHandoffCleanupResult {
   removed: number;
@@ -72,6 +74,23 @@ async function lockJobExecution(tx: Tx, jobExecutionId: string): Promise<void> {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext(${`${runnerJobExecutionLockPrefix}${jobExecutionId}`}))`,
   );
+}
+
+async function lockJobExecutionRunnerSessionsTx(tx: Tx, jobExecutionId: string): Promise<void> {
+  const runningRows = await tx
+    .select({runnerSessionId: runningJobExecutions.runnerSessionId})
+    .from(runningJobExecutions)
+    .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId))
+    .orderBy(asc(runningJobExecutions.runnerSessionId));
+  const runnerSessionIds = [...new Set(runningRows.map((row) => row.runnerSessionId))];
+  if (runnerSessionIds.length === 0) return;
+
+  await tx
+    .select({id: runnerSessions.id})
+    .from(runnerSessions)
+    .where(inArray(runnerSessions.id, runnerSessionIds))
+    .orderBy(asc(runnerSessions.id))
+    .for('update');
 }
 
 async function releaseReservationsForTerminalRunningRows(
@@ -111,6 +130,133 @@ async function releaseReservationsForTerminalRunningRows(
 
 function protectedJobLeasePredicate() {
   return isNull(runningJobExecutions.cancellationRequestedAt);
+}
+
+function hasLocalExecutionFenceCapability(
+  capabilities: RunnerLifecycleCapabilitiesDto | null,
+): boolean {
+  return capabilities?.includes(localExecutionFenceCapability) ?? false;
+}
+
+interface ExpiredJobLeaseRow {
+  runnerSessionId: string;
+  provisionerId: string | null;
+  providerRunnerId: string | null;
+  startedAt: Date | string;
+  lastHeartbeatAt: Date | string;
+  expiredAt: Date | string;
+}
+
+async function lockStaleRunnerSessionsTx(
+  tx: Tx,
+  rows: ReadonlyArray<{runnerSessionId: string}>,
+): Promise<Map<string, boolean>> {
+  const runnerSessionIds = [...new Set(rows.map((row) => row.runnerSessionId))].sort();
+  if (runnerSessionIds.length === 0) return new Map();
+
+  const sessions = await tx
+    .select({id: runnerSessions.id, lifecycleCapabilities: runnerSessions.lifecycleCapabilities})
+    .from(runnerSessions)
+    .where(inArray(runnerSessions.id, runnerSessionIds))
+    .orderBy(asc(runnerSessions.id))
+    .for('update');
+
+  return new Map(
+    sessions.map((session) => [
+      session.id,
+      hasLocalExecutionFenceCapability(session.lifecycleCapabilities),
+    ]),
+  );
+}
+
+function executionFenceUntilForExpiredLease(row: {
+  startedAt: Date | string;
+  lastHeartbeatAt: Date | string;
+}): Date {
+  const startedAt = toDate(row.startedAt);
+  const lastHeartbeatAt = toDate(row.lastHeartbeatAt);
+  const lastConfirmedAt = Math.max(startedAt.getTime(), lastHeartbeatAt.getTime());
+  const fenceSeconds =
+    config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS + config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS;
+  return new Date(lastConfirmedAt + fenceSeconds * 1000);
+}
+
+async function persistExpiredLeaseStateTx(
+  tx: Tx,
+  rows: ReadonlyArray<ExpiredJobLeaseRow>,
+  sessionCapabilitiesById: ReadonlyMap<string, boolean>,
+): Promise<void> {
+  const managedRows = rows.filter(
+    (row): row is ExpiredJobLeaseRow & {provisionerId: string; providerRunnerId: string} =>
+      row.provisionerId !== null && row.providerRunnerId !== null,
+  );
+  if (managedRows.length === 0) return;
+
+  const sessionIds = [...new Set(managedRows.map((row) => row.runnerSessionId))].sort();
+  await tx
+    .update(runnerSessions)
+    .set({
+      revokedAt: sql`coalesce(${runnerSessions.revokedAt}, statement_timestamp())`,
+      updatedAt: sql`statement_timestamp()`,
+    })
+    .where(and(inArray(runnerSessions.id, sessionIds), isNull(runnerSessions.revokedAt)));
+
+  type ProviderFence = {
+    provisionerId: string;
+    providerRunnerId: string;
+    leaseExpiredAt: Date;
+    executionFenceUntil: Date | null;
+  };
+  const fences = new Map<string, ProviderFence>();
+  for (const row of managedRows) {
+    // Provider runner identity is unique within a provisioner. The provider row's workspace
+    // remains nullable for installation capacity, so it cannot be part of this update key.
+    const key = `${row.provisionerId}:${row.providerRunnerId}`;
+    const leaseExpiredAt = toDate(row.expiredAt);
+    const executionFenceUntil = sessionCapabilitiesById.get(row.runnerSessionId)
+      ? executionFenceUntilForExpiredLease(row)
+      : null;
+    const existing = fences.get(key);
+    if (!existing) {
+      fences.set(key, {
+        provisionerId: row.provisionerId,
+        providerRunnerId: row.providerRunnerId,
+        leaseExpiredAt,
+        executionFenceUntil,
+      });
+      continue;
+    }
+    if (executionFenceUntil) {
+      existing.executionFenceUntil = existing.executionFenceUntil
+        ? new Date(Math.max(existing.executionFenceUntil.getTime(), executionFenceUntil.getTime()))
+        : executionFenceUntil;
+    }
+  }
+
+  for (const fence of fences.values()) {
+    await tx
+      .update(providerRunners)
+      .set({
+        leaseExpiredAt: sql`coalesce(${providerRunners.leaseExpiredAt}, ${fence.leaseExpiredAt})`,
+        // Keep an existing durable decision. Provider delivery suppresses it while the
+        // execution fence is active, then resumes it after the bounded fence expires.
+        ...(fence.executionFenceUntil
+          ? {
+              executionFenceUntil: sql`greatest(
+                coalesce(${providerRunners.executionFenceUntil}, ${fence.executionFenceUntil}),
+                ${fence.executionFenceUntil}
+              )`,
+            }
+          : {}),
+        updatedAt: sql`statement_timestamp()`,
+      })
+      .where(
+        and(
+          eq(providerRunners.provisionerId, fence.provisionerId),
+          eq(providerRunners.providerRunnerId, fence.providerRunnerId),
+        ),
+      );
+  }
 }
 
 export interface JobExecutionCleanupStats {
@@ -1033,6 +1179,11 @@ export async function expireStuckJobExecutions(params: {
       .select({
         id: runningJobExecutions.id,
         jobExecutionId: runningJobExecutions.jobExecutionId,
+        runnerSessionId: runningJobExecutions.runnerSessionId,
+        provisionerId: runningJobExecutions.provisionerId,
+        providerRunnerId: runningJobExecutions.providerRunnerId,
+        startedAt: runningJobExecutions.startedAt,
+        lastHeartbeatAt: runningJobExecutions.lastHeartbeatAt,
       })
       .from(runningJobExecutions)
       .where(
@@ -1057,6 +1208,9 @@ export async function expireStuckJobExecutions(params: {
 
     const staleIds = staleRows.map((row) => row.id);
     const staleJobExecutionIds = staleRows.map((row) => row.jobExecutionId);
+    // Job claim locks the session before it creates a running row. Take those same session locks
+    // before deleting stale rows so a managed session cannot claim replacement work mid-expiry.
+    const sessionCapabilitiesById = await lockStaleRunnerSessionsTx(tx, staleRows);
 
     // Sweep pending rows first so this transaction cannot hold a running-row lock while waiting
     // for a pending-row lock held by reconciliation or a claim of an orphan pending row. The
@@ -1074,13 +1228,18 @@ export async function expireStuckJobExecutions(params: {
         workflowRunAttemptId: runningJobExecutions.workflowRunAttemptId,
         jobId: runningJobExecutions.jobId,
         jobExecutionId: runningJobExecutions.jobExecutionId,
+        runnerSessionId: runningJobExecutions.runnerSessionId,
         provisionerId: runningJobExecutions.provisionerId,
         providerRunnerId: runningJobExecutions.providerRunnerId,
+        startedAt: runningJobExecutions.startedAt,
+        lastHeartbeatAt: runningJobExecutions.lastHeartbeatAt,
         // Use the database clock, matching claimedAt. This records reaper detection time.
         expiredAt: sql<string>`statement_timestamp()`,
       });
 
     if (deleted.length === 0) return [];
+
+    await persistExpiredLeaseStateTx(tx, deleted, sessionCapabilitiesById);
 
     await releaseReservationsForTerminalRunningRows(tx, deleted);
 
@@ -1307,6 +1466,16 @@ export async function recordHeartbeat(params: {
   };
 }> {
   const result = await db().transaction(async (tx) => {
+    // Claims and lease expiry lock the session before they touch running rows. Keep heartbeat
+    // acquisition in that order so a reaper cannot wait on a running row held by a heartbeat that
+    // is waiting for the same session lock.
+    const [previous] = await tx
+      .select({toolCapabilities: runnerSessions.toolCapabilities})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, params.runnerSessionId))
+      .limit(1)
+      .for('update');
+
     const updated = await tx
       .update(runningJobExecutions)
       .set({
@@ -1355,13 +1524,6 @@ export async function recordHeartbeat(params: {
           ),
         );
     }
-
-    const [previous] = await tx
-      .select({toolCapabilities: runnerSessions.toolCapabilities})
-      .from(runnerSessions)
-      .where(eq(runnerSessions.id, params.runnerSessionId))
-      .limit(1)
-      .for('update');
 
     const [session] = await tx
       .update(runnerSessions)
@@ -1446,6 +1608,11 @@ export async function reconcileTerminalJobExecution(params: {
     if (!initialWorkspaceId) {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workspaceId}))`);
     }
+
+    // Heartbeat and lease expiry acquire runner session locks before touching running rows. Lock
+    // the sessions for this execution first as well, so terminal reconciliation cannot hold a
+    // running-row lock while waiting for a session lock a heartbeat already owns.
+    await lockJobExecutionRunnerSessionsTx(tx, params.jobExecutionId);
 
     // Delete pending before updating running to match lock order with claim. Claim locks pending
     // rows before inserting the running lease, so this ordering makes terminal reconciliation

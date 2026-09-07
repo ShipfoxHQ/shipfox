@@ -56,6 +56,7 @@ export async function issueRunnerActivationTokenTx(
       state: providerRunners.state,
       runnerSessionId: providerRunners.runnerSessionId,
       terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+      leaseExpiredAt: providerRunners.leaseExpiredAt,
       providerRunnerId: providerRunners.providerRunnerId,
       provisionerId: providerRunners.provisionerId,
     })
@@ -121,6 +122,7 @@ export async function getRunnerAssignment(params: {
       workspaceId: providerRunners.workspaceId,
       state: providerRunners.state,
       terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+      leaseExpiredAt: providerRunners.leaseExpiredAt,
       providerRunnerId: providerRunners.providerRunnerId,
     })
     .from(providerRunners)
@@ -135,6 +137,7 @@ export async function getRunnerAssignment(params: {
     !runner?.workspaceId ||
     !runner.providerRunnerId ||
     runner.terminationAuthorizedAt ||
+    runner.leaseExpiredAt ||
     runner.state !== 'running'
   )
     return null;
@@ -154,12 +157,14 @@ export async function getRunnerAssignment(params: {
 }
 
 function getRunnerActivationTokenNotIssuedReason(
-  runner: Pick<RunnerInstanceDb, 'workspaceId' | 'state' | 'terminationAuthorizedAt'> | undefined,
+  runner:
+    | Pick<RunnerInstanceDb, 'workspaceId' | 'state' | 'terminationAuthorizedAt' | 'leaseExpiredAt'>
+    | undefined,
   enrolledSession: boolean,
 ): RunnerActivationTokenNotIssuedReason | null {
   if (!runner) return 'runner-not-found';
   if (!runner.workspaceId) return 'missing-workspace';
-  if (runner.terminationAuthorizedAt) return 'termination-authorized';
+  if (runner.terminationAuthorizedAt || runner.leaseExpiredAt) return 'termination-authorized';
   if (enrolledSession) return 'existing-session';
   if (runner.state !== 'running') return 'not-running';
   return null;

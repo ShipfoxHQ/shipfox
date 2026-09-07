@@ -303,10 +303,12 @@ export async function reconcileRunnerInstances(
   const runners = reconciledRunnersAfterCleanup.map((runner) => {
     const candidateAuthorization = authorizationByCandidateRunnerId.get(runner.providerRunnerId);
     const observedRow = observedRowByRunnerId.get(runner.providerRunnerId);
-    const reason =
-      authorizationByRunnerId.get(runner.providerRunnerId) ??
-      observedRow?.terminationReason ??
-      null;
+    const durableAuthorizationReason =
+      observedRow && isExecutionFenceActive(observedRow, now, isTerminalState(observedRow.state))
+        ? null
+        : (authorizationByRunnerId.get(runner.providerRunnerId) ??
+          observedRow?.terminationReason ??
+          null);
     const hasFreshHealthyJob =
       runner.boundJobExecution !== null &&
       runner.boundJobExecution.cancellationRequestedAt === null &&
@@ -314,7 +316,7 @@ export async function reconcileRunnerInstances(
       !isTerminalState(runner.state);
     const effectiveReason = hasFreshHealthyJob
       ? null
-      : (reason ??
+      : (durableAuthorizationReason ??
         (candidateAuthorization?.desiredIntent === 'terminate'
           ? candidateAuthorization.terminationReason
           : null));
@@ -416,16 +418,62 @@ function getDesiredIntentReason(
   cleanupGraceSeconds = config.RUNNER_JOB_CLEANUP_GRACE_SECONDS,
 ): RunnerTerminationReason | null {
   if (!row) return null;
-  const jobStopReason = terminationReasonForJobStop(boundJobExecution);
   const localWorkStopped = isTerminalState(row.state);
+  if (hasFreshBoundJobExecution(boundJobExecution, localWorkStopped)) return null;
+  if (isExecutionFenceActive(row, now, localWorkStopped)) return null;
+  const jobStopReason = terminationReasonForJobStop(boundJobExecution);
   const cleanupGraceStartedAt = cleanupGraceStart(boundJobExecution);
   const cleanupGraceExpired =
     cleanupGraceStartedAt !== null &&
     now.getTime() >= cleanupGraceStartedAt.getTime() + cleanupGraceSeconds * 1000;
   if (jobStopReason && (localWorkStopped || cleanupGraceExpired)) return jobStopReason;
+
+  const leaseExpiredIntentReason = getLeaseExpiredIntentReason(row, localWorkStopped, now);
+  if (leaseExpiredIntentReason) return leaseExpiredIntentReason;
+
   if (localWorkStopped) return 'terminal-state';
   if (row.terminationAuthorizedAt && row.terminationReason) return row.terminationReason;
   return null;
+}
+
+function getLeaseExpiredIntentReason(
+  row: RunnerInstance,
+  localWorkStopped: boolean,
+  now: Date,
+): RunnerTerminationReason | null {
+  if (localWorkStopped || row.leaseExpiredAt === null || row.executionFenceUntil == null)
+    return null;
+  return isExecutionFenceElapsed(row, now) ? 'lease-expired' : null;
+}
+
+function hasFreshBoundJobExecution(
+  boundJobExecution: RunnerInstanceBoundJobExecution | undefined,
+  localWorkStopped: boolean,
+): boolean {
+  return boundJobExecution?.cancellationRequestedAt === null && !localWorkStopped;
+}
+
+function isExecutionFenceActive(
+  row: RunnerInstance,
+  now: Date,
+  localWorkStopped: boolean,
+): boolean {
+  const executionFenceUntil = row.executionFenceUntil;
+  return (
+    !localWorkStopped &&
+    executionFenceUntil !== null &&
+    executionFenceUntil !== undefined &&
+    now.getTime() < executionFenceUntil.getTime()
+  );
+}
+
+function isExecutionFenceElapsed(row: RunnerInstance, now: Date): boolean {
+  const executionFenceUntil = row.executionFenceUntil;
+  return (
+    executionFenceUntil !== null &&
+    executionFenceUntil !== undefined &&
+    now.getTime() >= executionFenceUntil.getTime()
+  );
 }
 
 function cleanupGraceStart(jobExecution: JobStopExecution | undefined): Date | null {

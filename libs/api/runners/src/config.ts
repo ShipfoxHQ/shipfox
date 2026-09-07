@@ -143,6 +143,10 @@ export const config = createConfig({
     desc: 'Server-selected local isolation timeout returned to runners advertising local_execution_fence_v1. This is a bounded protocol value, not provider termination authorization.',
     default: 300,
   }),
+  RUNNER_EXECUTION_FENCE_MARGIN_SECONDS: num({
+    desc: `Additional provider-side margin, in seconds, after the local execution fence before an expired lease may authorize provider termination. Set this between 1 and ${RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS}.`,
+    default: 30,
+  }),
   RUNNER_SESSION_MANUAL_RETENTION_DAYS: num({
     desc: 'How long manual runner sessions are retained before maintenance deletes them, in days. Set this longer than AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN so a valid session token never outlives its row.',
     default: 30,
@@ -188,7 +192,7 @@ export const config = createConfig({
     default: false,
   }),
   RUNNER_TERMINATION_REASON_LEASE_EXPIRED_ENABLED: bool({
-    desc: 'Allow lease-expired termination authorization.',
+    desc: 'Allow lease-expired termination authorization. During rollout, heartbeat, lease-expiry maintenance, and runner-reconciliation replicas must be upgraded or drained together because the old heartbeat lock order is not mixed-version compatible with the session-first order; keep this flag disabled until that rollout is complete.',
     default: false,
   }),
   RUNNER_TERMINATION_REASON_SESSION_EXHAUSTED_ENABLED: bool({
@@ -443,6 +447,16 @@ if (
 ) {
   throw new Error(
     `RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS (${config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS}) must be a whole number of seconds between 1 and ${RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS}.`,
+  );
+}
+
+if (
+  !Number.isInteger(config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS) ||
+  config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS < 1 ||
+  config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS > RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS
+) {
+  throw new Error(
+    `RUNNER_EXECUTION_FENCE_MARGIN_SECONDS (${config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS}) must be a whole number of seconds between 1 and ${RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS}.`,
   );
 }
 

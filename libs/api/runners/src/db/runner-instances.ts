@@ -10,6 +10,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   notExists,
   notInArray,
   or,
@@ -175,6 +176,8 @@ export async function persistRunnerTerminationAuthorizationTx(
       providerRunnerId: providerRunners.providerRunnerId,
       launchKind: providerRunners.launchKind,
       reservationReleasedAt: providerRunners.reservationReleasedAt,
+      leaseExpiredAt: providerRunners.leaseExpiredAt,
+      executionFenceUntil: providerRunners.executionFenceUntil,
       terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
       terminationReason: providerRunners.terminationReason,
     })
@@ -185,6 +188,27 @@ export async function persistRunnerTerminationAuthorizationTx(
     .limit(1)
     .for('update');
   if (!runner) throw new Error('Termination authorization runner disappeared');
+
+  const executionFenceActive =
+    runner.executionFenceUntil !== null && runner.executionFenceUntil.getTime() > Date.now();
+  const legacyLeaseExpiredLeaseTermination =
+    params.reason === 'lease-expired' &&
+    runner.leaseExpiredAt !== null &&
+    runner.executionFenceUntil === null;
+  if (executionFenceActive || legacyLeaseExpiredLeaseTermination) {
+    // Keep an existing durable decision available for delivery once the bounded fence
+    // expires. The provider-delivery queries suppress it while the fence is active.
+    return {
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {
+        outcome: 'rejected',
+        reason: runner.terminationReason ?? 'lease-expired',
+      },
+      reservationReleased: false,
+    };
+  }
 
   if (!runner.terminationAuthorizedAt || !runner.terminationReason)
     return await issueRunnerTerminationAuthorizationTx(tx, runner, params, onRevocation);
@@ -209,6 +233,8 @@ type LockedTerminationRunner = {
   reservationReleasedAt: Date | null;
   terminationAuthorizedAt: Date | null;
   terminationReason: RunnerTerminationReason | null;
+  leaseExpiredAt: Date | null;
+  executionFenceUntil: Date | null;
 };
 
 async function issueRunnerTerminationAuthorizationTx(
@@ -233,6 +259,16 @@ async function issueRunnerTerminationAuthorizationTx(
       terminationAuthorizedAt: null,
       terminationReason: null,
       telemetry: {outcome: 'rejected', reason: resolution.rejectionReason},
+      reservationReleased: false,
+    };
+
+  const fenceRejection = terminationFenceRejection(runner, resolution.reason);
+  if (fenceRejection)
+    return {
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {outcome: 'rejected', reason: fenceRejection},
       reservationReleased: false,
     };
 
@@ -261,6 +297,29 @@ async function issueRunnerTerminationAuthorizationTx(
     telemetry: {outcome: 'issued', reason: authorized.terminationReason},
     reservationReleased,
   };
+}
+
+function terminationFenceRejection(
+  runner: Pick<LockedTerminationRunner, 'leaseExpiredAt' | 'executionFenceUntil'>,
+  reason: RunnerTerminationReason,
+): RunnerTerminationAuthorizationRejectionReason | null {
+  if (runner.executionFenceUntil && runner.executionFenceUntil.getTime() > Date.now())
+    return reason;
+
+  if (
+    reason === 'lease-expired' &&
+    (runner.leaseExpiredAt === null || runner.executionFenceUntil === null)
+  )
+    return 'lease-expired';
+
+  return null;
+}
+
+function providerTerminationFenceElapsedCondition() {
+  return or(
+    isNull(providerRunners.executionFenceUntil),
+    lte(providerRunners.executionFenceUntil, sql`now()`),
+  );
 }
 
 function shouldReleaseDemandReservation(
@@ -1000,6 +1059,7 @@ export async function listProvisionerTerminationAuthorizationsTx(
         // Only active runners await provider termination. Terminal runners
         // are handled by the report path after the provider acknowledges them.
         inArray(providerRunners.state, activeStates),
+        providerTerminationFenceElapsedCondition(),
         isNotNull(providerRunners.providerRunnerId),
         isNotNull(providerRunners.terminationAuthorizedAt),
         isNotNull(providerRunners.terminationReason),
@@ -1176,6 +1236,7 @@ function provisionerTerminateIntentsQuery(
         eq(providerRunners.provisionerId, params.provisionerId),
         isNotNull(providerRunners.providerRunnerId),
         inArray(providerRunners.state, activeStates),
+        providerTerminationFenceElapsedCondition(),
         params.providerRunnerIds && params.providerRunnerIds.length > 0
           ? inArray(providerRunners.providerRunnerId, params.providerRunnerIds)
           : undefined,

@@ -16,7 +16,11 @@ import {
   provisionerTokenFactory,
   runnersTestAuthClient,
 } from '#test/index.js';
-import {EmptyRunnerLabelsError, RunnerLabelsReservedError} from './errors.js';
+import {
+  EmptyRunnerLabelsError,
+  RunnerActivationTokenInvalidError,
+  RunnerLabelsReservedError,
+} from './errors.js';
 import {getRunnerAssignment, issueRunnerActivationToken} from './runner-activation.js';
 import {registerRunnerSession} from './runner-sessions.js';
 
@@ -266,6 +270,23 @@ describe('activation runner sessions', () => {
     expect(assignment).toBeNull();
   });
 
+  it('does not issue an activation token after lease expiry when authorization was cleared', async () => {
+    await db()
+      .update(providerRunners)
+      .set({leaseExpiredAt: new Date(), terminationAuthorizedAt: null, terminationReason: null})
+      .where(eq(providerRunners.id, runnerInstanceId));
+
+    expect(
+      await issueRunnerActivationToken({
+        runnerInstanceId,
+        provisionerId,
+        ttlSeconds: 60,
+        surface: 'poll',
+      }),
+    ).toBeNull();
+    expect(await getRunnerAssignment({runnerInstanceId, provisionerId})).toBeNull();
+  });
+
   it('allows re-enrollment when the runner session pointer is stale', async () => {
     await db()
       .update(providerRunners)
@@ -320,6 +341,38 @@ describe('activation runner sessions', () => {
     } finally {
       addSpy.mockRestore();
     }
+  });
+
+  it('rejects activation after lease expiry when termination authorization was cleared', async () => {
+    const rawToken = await issueRunnerActivationToken({
+      runnerInstanceId,
+      provisionerId,
+      ttlSeconds: 60,
+      surface: 'poll',
+    });
+    const [activationToken] = await db()
+      .select()
+      .from(runnerActivationTokens)
+      .where(eq(runnerActivationTokens.runnerInstanceId, runnerInstanceId));
+    if (!rawToken || !activationToken) throw new Error('Activation token was not created');
+
+    await db()
+      .update(providerRunners)
+      .set({leaseExpiredAt: new Date(), terminationAuthorizedAt: null, terminationReason: null})
+      .where(eq(providerRunners.id, runnerInstanceId));
+
+    await expect(
+      registerRunnerSession({
+        auth: runnersTestAuthClient,
+        credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
+        labels: ['linux'],
+      }),
+    ).rejects.toBeInstanceOf(RunnerActivationTokenInvalidError);
+    const [storedToken] = await db()
+      .select({consumedAt: runnerActivationTokens.consumedAt})
+      .from(runnerActivationTokens)
+      .where(eq(runnerActivationTokens.id, activationToken.id));
+    expect(storedToken?.consumedAt).toBeNull();
   });
 
   it('allows only one concurrent registration to consume an activation token', async () => {

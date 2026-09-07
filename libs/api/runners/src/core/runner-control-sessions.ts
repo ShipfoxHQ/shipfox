@@ -138,9 +138,10 @@ export async function createRunnerInstancesWithBootstrapTokens(params: {
 }
 
 function assertRunnerBootstrapExchangeAllowed(
-  runner: {terminationAuthorizedAt: Date | null} | undefined,
+  runner: {terminationAuthorizedAt: Date | null; leaseExpiredAt: Date | null} | undefined,
 ): void {
-  if (runner?.terminationAuthorizedAt) throw new RunnerBootstrapTokenInvalidError();
+  if (runner?.terminationAuthorizedAt || runner?.leaseExpiredAt)
+    throw new RunnerBootstrapTokenInvalidError();
 }
 
 export async function exchangeRunnerBootstrapToken(params: {
@@ -184,6 +185,7 @@ export async function exchangeRunnerBootstrapToken(params: {
         provider: providerRunners.providerKind,
         launchKind: providerRunners.launchKind,
         terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+        leaseExpiredAt: providerRunners.leaseExpiredAt,
       })
       .from(providerRunners)
       .where(
@@ -236,11 +238,14 @@ export async function resolveRunnerControlSession(rawToken: string) {
       provisionerId: runnerControlSessions.provisionerId,
     })
     .from(runnerControlSessions)
+    .innerJoin(providerRunners, eq(providerRunners.id, runnerControlSessions.runnerInstanceId))
     .leftJoin(provisionerTokens, eq(provisionerTokens.id, runnerControlSessions.provisionerId))
     .where(
       and(
         eq(runnerControlSessions.hashedToken, hashOpaqueToken(rawToken)),
         isNull(runnerControlSessions.closedAt),
+        isNull(providerRunners.leaseExpiredAt),
+        isNull(providerRunners.terminationAuthorizedAt),
         or(isNull(provisionerTokens.id), isNull(provisionerTokens.revokedAt)),
         gt(runnerControlSessions.expiresAt, sql`now()`),
       ),
@@ -285,6 +290,7 @@ export async function enrollRunnerControlSession(params: {
         intendedReservationId: providerRunners.intendedReservationId,
         provisionerScope: provisionerTokens.scope,
         terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+        leaseExpiredAt: providerRunners.leaseExpiredAt,
       })
       .from(providerRunners)
       .innerJoin(provisionerTokens, eq(provisionerTokens.id, providerRunners.provisionerId))
@@ -375,9 +381,10 @@ export async function enrollRunnerControlSession(params: {
 }
 
 function assertRunnerEnrollmentIsAllowed(
-  current: {terminationAuthorizedAt: Date | null} | undefined,
-): asserts current is {terminationAuthorizedAt: Date | null} {
-  if (!current || current.terminationAuthorizedAt) throw new RunnerControlSessionInvalidError();
+  current: {terminationAuthorizedAt: Date | null; leaseExpiredAt: Date | null} | undefined,
+): asserts current is {terminationAuthorizedAt: Date | null; leaseExpiredAt: Date | null} {
+  if (!current || current.terminationAuthorizedAt || current.leaseExpiredAt)
+    throw new RunnerControlSessionInvalidError();
 }
 
 async function promoteEnrollmentReservation(
@@ -455,6 +462,7 @@ export async function attachRunnerControlProviderId(params: {
         eq(providerRunners.id, params.runnerInstanceId),
         eq(providerRunners.provisionerId, params.provisionerId),
         isNull(providerRunners.providerRunnerId),
+        isNull(providerRunners.leaseExpiredAt),
         notInArray(providerRunners.state, [...terminalStates]),
       ),
     )

@@ -1,4 +1,7 @@
-import {RUNNER_ASSIGNMENT_POLL_DEFAULT_WAIT_SECONDS} from '@shipfox/api-runners-dto';
+import {
+  RUNNER_ASSIGNMENT_POLL_DEFAULT_WAIT_SECONDS,
+  RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS,
+} from '@shipfox/api-runners-dto';
 import {vi} from '@shipfox/vitest/vi';
 
 const staleSessionThresholdThrottleError =
@@ -206,6 +209,33 @@ describe('RUNNER_POST_JOB_EXIT_GRACE_SECONDS validation', () => {
     const {config} = await import('#config.js');
 
     expect(config.RUNNER_POST_JOB_EXIT_GRACE_SECONDS).toBe(30);
+  });
+});
+
+describe('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    '0',
+    '-5',
+    '1.5',
+    String(RUNNER_LOCAL_ISOLATION_TIMEOUT_HARD_MAX_SECONDS + 1),
+  ])('fails startup when RUNNER_EXECUTION_FENCE_MARGIN_SECONDS is %s', async (value) => {
+    vi.stubEnv('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS', value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS');
+  });
+
+  it('defaults to a positive thirty-second provider margin', async () => {
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS).toBe(30);
   });
 });
 
