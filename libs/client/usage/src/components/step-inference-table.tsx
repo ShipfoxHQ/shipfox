@@ -1,0 +1,193 @@
+import {useUsagePricing} from '@shipfox/client-shell/runtime';
+import {Panel, PanelBody, PanelHeader, PanelTitle} from '@shipfox/react-ui/panel';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@shipfox/react-ui/table';
+import {Code, Text} from '@shipfox/react-ui/typography';
+import {useMemo} from 'react';
+import type {JobExecutionUsage} from '#core/usage.js';
+import {groupInferenceSegmentsByStepAttempt, usageQuantitiesFromTotals} from '#core/usage.js';
+import {useUsageCosts} from './usage-cost.js';
+import {UsageCostBadge} from './usage-cost-badge.js';
+import {
+  formatUsageCacheWrite,
+  formatUsageNumber,
+  formatUsageRate,
+  usageTokenBreakdownTitle,
+} from './usage-format.js';
+
+export interface StepInferenceTableProps {
+  usage: JobExecutionUsage | undefined;
+  stepLabels?: ReadonlyMap<string, string> | undefined;
+  stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
+  className?: string | undefined;
+}
+
+/** Inference quantities grouped by step attempt, model, and upstream provider. */
+export function StepInferenceTable({
+  usage,
+  stepLabels,
+  stepAttemptLabels,
+  className,
+}: StepInferenceTableProps) {
+  const pricing = useUsagePricing();
+  const rows = useMemo(
+    () => (usage ? groupInferenceSegmentsByStepAttempt(usage.inferenceSegments) : []),
+    [usage],
+  );
+  const pricingInputs = useMemo(
+    () =>
+      rows.map((row) => ({
+        reference: {kind: 'step-attempt' as const, id: row.stepAttemptId},
+        quantities: usageQuantitiesFromTotals(row, 0),
+      })),
+    [rows],
+  );
+  const costs = useUsageCosts(pricingInputs);
+
+  if (rows.length === 0) return null;
+
+  const rowSpanByStepAttempt = new Map<string, number>();
+  for (const row of rows) {
+    const key = `step-attempt:${row.stepAttemptId}`;
+    rowSpanByStepAttempt.set(key, (rowSpanByStepAttempt.get(key) ?? 0) + 1);
+  }
+  const costByStepAttempt = new Set<string>();
+  const showCosts = pricing !== undefined && costs.size > 0;
+  return (
+    <Panel data-usage-step-inference-table className={className}>
+      <PanelHeader>
+        <div className="min-w-0">
+          <PanelTitle>Inference usage</PanelTitle>
+          <Text as="p" size="xs" className="mt-tight text-foreground-neutral-muted">
+            Token classes and web searches recorded by step attempt, model, and provider.
+          </Text>
+        </div>
+      </PanelHeader>
+      <PanelBody className="p-0">
+        <Table tabIndex={0} aria-label="Inference usage" className="focus-visible:outline-auto">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Step attempt</TableHead>
+              <TableHead>Provider</TableHead>
+              <TableHead>Model</TableHead>
+              <TableHead className="text-right">Requests</TableHead>
+              <TableHead className="text-right">Input</TableHead>
+              <TableHead className="text-right">Cached input</TableHead>
+              <TableHead className="text-right">Cache write</TableHead>
+              <TableHead className="text-right">Output</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="text-right">Cache hit</TableHead>
+              <TableHead className="text-right">Web searches</TableHead>
+              {showCosts ? <TableHead className="text-right">Cost</TableHead> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => {
+              const referenceKey = `step-attempt:${row.stepAttemptId}`;
+              const showCostForRow = !costByStepAttempt.has(referenceKey);
+              costByStepAttempt.add(referenceKey);
+              const cost = showCostForRow ? costs.get(referenceKey) : undefined;
+              const tokenDetailsTitle = usageTokenBreakdownTitle(row);
+              return (
+                <TableRow key={JSON.stringify([row.stepAttemptId, row.upstream, row.model])}>
+                  <TableCell>
+                    <Text as="span" size="xs" className="block truncate">
+                      {stepLabels?.get(row.stepId) ?? shortIdentifier(row.stepId)}
+                    </Text>
+                    <Code as="span" variant="label" className="text-foreground-neutral-muted">
+                      attempt{' '}
+                      {stepAttemptLabels?.get(row.stepAttemptId) ??
+                        shortIdentifier(row.stepAttemptId)}
+                    </Code>
+                  </TableCell>
+                  <TableCell>
+                    <Code as="span" variant="label">
+                      {row.upstream}
+                    </Code>
+                  </TableCell>
+                  <TableCell>
+                    <Code as="span" variant="label">
+                      {row.model}
+                    </Code>
+                  </TableCell>
+                  <TableCell className="text-right font-code tabular-nums">
+                    {formatUsageNumber(row.requestCount)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.inputTokens)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.cachedInputTokens)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageCacheWrite(row)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.outputTokens)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.totalTokens)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageRate(row.cacheHitRate)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.webSearchRequests)}
+                  </TableCell>
+                  {showCosts && showCostForRow ? (
+                    <TableCell
+                      rowSpan={rowSpanByStepAttempt.get(referenceKey)}
+                      className="text-right align-middle"
+                      title="Total cost for this step attempt"
+                    >
+                      <span className="inline-flex min-w-64 flex-col items-end justify-center gap-2">
+                        <UsageCostBadge cost={cost} />
+                        {!cost ? (
+                          <Code as="span" variant="label" className="text-foreground-neutral-muted">
+                            —
+                          </Code>
+                        ) : null}
+                        <span className="sr-only">Step attempt total cost</span>
+                      </span>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </PanelBody>
+    </Panel>
+  );
+}
+
+function shortIdentifier(identifier: string): string {
+  return identifier.slice(0, 8);
+}

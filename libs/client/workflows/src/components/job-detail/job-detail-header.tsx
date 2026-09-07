@@ -1,3 +1,5 @@
+import type {JobExecutionUsage} from '@shipfox/client-usage';
+import {JobUsageCells} from '@shipfox/client-usage';
 import {Icon} from '@shipfox/react-ui/icon';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
@@ -34,6 +36,9 @@ export interface JobDetailHeaderProps {
   executionCount?: BoundedExecutionCount | undefined;
   executionCountVisible?: boolean | undefined;
   executionDisplayStatus?: JobExecutionDisplayStatus | undefined;
+  usage?: JobExecutionUsage | undefined;
+  stepLabels?: ReadonlyMap<string, string> | undefined;
+  stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
 }
 
 export function JobDetailHeader({
@@ -49,9 +54,20 @@ export function JobDetailHeader({
   executionCount,
   executionCountVisible,
   executionDisplayStatus,
+  usage,
+  stepLabels,
+  stepAttemptLabels,
 }: JobDetailHeaderProps) {
   const selectedStatus = selectedExecutionStatus(job, selectedJobExecution, executionDisplayStatus);
   const jobStatus = getWorkflowStatusVisual(selectedStatus);
+  const showExecutionSwitcher = Boolean(
+    selectedJobExecution && (executionCountVisible ?? job.executionCountVisible),
+  );
+  const showDuration = Boolean(
+    (selectedJobExecution?.queueTime && selectedJobExecution.queuedAt) ||
+      (selectedJobExecution?.runTime && selectedJobExecution.startedAt),
+  );
+  const showMetadata = showExecutionSwitcher || showDuration || Boolean(annotationSummary?.total);
 
   return (
     <header className="px-row py-row">
@@ -74,11 +90,17 @@ export function JobDetailHeader({
             >
               {job.displayName}
             </Code>
+            <JobUsageCells
+              className="text-foreground-neutral-muted"
+              usage={usage}
+              stepLabels={stepLabels}
+              stepAttemptLabels={stepAttemptLabels}
+            />
           </div>
 
-          {selectedJobExecution || annotationSummary?.total ? (
+          {showMetadata ? (
             <div className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-muted">
-              {selectedJobExecution && (executionCountVisible ?? job.executionCountVisible) ? (
+              {selectedJobExecution && showExecutionSwitcher ? (
                 <JobExecutionSwitcher
                   job={job}
                   selectedJobExecution={selectedJobExecution.id}

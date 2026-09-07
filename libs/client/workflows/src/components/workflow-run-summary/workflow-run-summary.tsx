@@ -1,6 +1,7 @@
 import {useAuthState} from '@shipfox/client-shell/runtime';
 import {TriggerSourceIcon} from '@shipfox/client-triggers';
 import {MetadataSeparator} from '@shipfox/client-ui';
+import {type RunUsage, RunUsageSummary} from '@shipfox/client-usage';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
 import {
@@ -31,6 +32,7 @@ import {
 } from '#core/workflow-run.js';
 import {WorkflowRunDurationLabel} from '../workflow-run-duration-label.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
+import {RunContextPanel} from './run-context-panel.js';
 import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
@@ -52,6 +54,7 @@ export interface WorkflowRunSummaryProps {
   rerunPending?: boolean | undefined;
   onRerun?: ((mode: WorkflowRunRerunMode) => void) | undefined;
   latestAttempt?: number | undefined;
+  usage?: RunUsage | undefined;
 }
 
 export function WorkflowRunSummary({
@@ -63,11 +66,11 @@ export function WorkflowRunSummary({
   rerunPending = false,
   onRerun,
   latestAttempt,
+  usage,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.runAttempt.status);
   const action = workflowRunActionForRun(run);
-  const hasAction = canRenderWorkflowRunAction(action, onCancel, onRerun);
   const attemptSwitcher = workflowAttemptSwitcher(latestAttempt, workspaceSlug, projectSlug);
   const displayDuration = run.runAttempt.displayDuration;
   const hasStarted = workflowRunHasStartedJobExecution(run);
@@ -129,17 +132,16 @@ export function WorkflowRunSummary({
             </div>
           </div>
 
-          {hasAction ? (
-            <div className="col-start-2 row-start-1 flex min-w-max items-center gap-inline justify-self-end max-[480px]:col-start-auto max-[480px]:row-start-auto max-[480px]:justify-self-start">
-              <WorkflowRunActionSlot
-                action={action}
-                cancelling={cancelling}
-                onCancel={onCancel}
-                rerunPending={rerunPending}
-                onRerun={onRerun}
-              />
-            </div>
-          ) : null}
+          <div className="col-start-2 row-start-1 flex min-w-max items-center gap-inline justify-self-end max-[480px]:col-start-auto max-[480px]:row-start-auto max-[480px]:justify-self-start">
+            <WorkflowRunActionSlot
+              action={action}
+              cancelling={cancelling}
+              onCancel={onCancel}
+              rerunPending={rerunPending}
+              onRerun={onRerun}
+            />
+            <RunContextPanel run={run} usage={usage} />
+          </div>
 
           <div className="col-span-2 row-start-2 flex min-w-0 flex-nowrap items-center gap-cluster overflow-hidden text-foreground-neutral-subtle max-[480px]:col-span-1 max-[480px]:row-start-auto max-[480px]:flex-wrap max-[480px]:overflow-visible">
             {run.number !== null ? (
@@ -226,11 +228,17 @@ export function WorkflowRunSummary({
                 />
               </>
             ) : null}
+            <WorkflowRunUsageMetadata runId={run.id} usage={usage} />
           </div>
         </div>
       </section>
     </TimeTickerProvider>
   );
+}
+
+function WorkflowRunUsageMetadata({runId, usage}: {runId: string; usage: RunUsage | undefined}) {
+  if (!usage) return null;
+  return <RunUsageSummary runId={runId} usage={usage} prefix={<MetadataSeparator />} />;
 }
 
 function workflowAttemptSwitcher(
@@ -352,16 +360,6 @@ function workflowRunActionForRun(run: WorkflowRunSummaryRun): WorkflowRunAction 
   if (!isWorkflowRunTerminal(run.runAttempt.status)) return 'cancel';
   if (run.runAttempt.status === 'succeeded' || !hasFailedOrCancelledJobs(run)) return 'rerun-all';
   return 'rerun-menu';
-}
-
-function canRenderWorkflowRunAction(
-  action: WorkflowRunAction,
-  onCancel: (() => void) | undefined,
-  onRerun: ((mode: WorkflowRunRerunMode) => void) | undefined,
-): boolean {
-  if (action === 'cancel') return onCancel !== undefined;
-  if (action === 'rerun-all' || action === 'rerun-menu') return onRerun !== undefined;
-  return false;
 }
 
 /**

@@ -73,6 +73,7 @@
     "@shipfox/client-shell": "workspace:*",
     "@shipfox/client-triggers": "workspace:*",
     "@shipfox/client-ui": "workspace:*",
+    "@shipfox/client-usage": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@shipfox/regex": "workspace:*",
     "@swc/helpers": "catalog:",

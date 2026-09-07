@@ -3,6 +3,13 @@
 
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
 import {type StepLogSnapshot, stepLogsQueryKeys} from '@shipfox/client-logs';
+import {type ClientUsagePricing, ClientUsagePricingProvider} from '@shipfox/client-shell/runtime';
+import {
+  type JobExecutionUsage,
+  type RunUsage,
+  type UsageInferenceSegment,
+  usageQueryKeys,
+} from '@shipfox/client-usage';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
@@ -49,6 +56,8 @@ import {JobDetailView} from './job-detail-view.js';
 
 const WORKSPACE_SLUG = 'acme';
 const PROJECT_SLUG = 'platform';
+const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
+const WORKSPACE_ID = '88888888-8888-4888-8888-888888888888';
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const INSPECTOR_TRIGGER_NAME = /Inspect Run tests/;
 const LOG_RECORDS: StepLogSnapshot['records'] = [
@@ -67,6 +76,23 @@ const LOG_RECORDS: StepLogSnapshot['records'] = [
     data: '370 tests passed\n',
   },
 ];
+
+const storyUsagePricing: ClientUsagePricing = {
+  resolveCosts: (references) =>
+    new Map(
+      references
+        .filter((reference) => reference.kind !== 'step-attempt')
+        .map((reference) => [
+          `${reference.kind}:${reference.id}`,
+          {
+            amount: reference.kind === 'run' ? 2.84 : 1.96,
+            state: 'resolved' as const,
+          },
+        ]),
+    ),
+  estimate: () => ({amount: 0.88, state: 'estimated' as const}),
+  formatMoney: (amount) => `$${amount.toFixed(2)}`,
+};
 
 interface JobDetailStoryArgs {
   run: StoryRun;
@@ -214,6 +240,34 @@ export const RunComposition: Story = {
   render: () => <RunCompositionStory />,
 };
 
+/** The real workflow job page with the selected execution's usage and pricing data loaded. */
+export const Usage: Story = {
+  render: () => <UsageCompositionStory />,
+};
+
+export const TestJobCostTab: Story = {
+  ...Usage,
+  play: async ({canvasElement}) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByRole('button', {name: 'Inspect job details'}));
+    await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
+    await expect(body.getByText('Total cost')).toBeVisible();
+    await expect(body.getByText('Machine')).toBeVisible();
+  },
+};
+
+export const TestMobileJobCostTab: Story = {
+  ...TestJobCostTab,
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '390px', height: '844px'}, type: 'mobile'},
+      },
+    },
+  },
+};
+
 export const TestInvocationLogNavigation: Story = {
   render: () => <InvocationLogNavigationStory />,
   play: async ({canvasElement}) => {
@@ -328,13 +382,19 @@ function storySelectedJobDetail(
 function StoryQueryProvider({
   run,
   stepDetails = [],
+  usage,
+  runUsage,
+  pricing,
   children,
 }: {
   run: StoryRun | undefined;
   stepDetails?: readonly StepAttemptDetail[];
+  usage?: JobExecutionUsage | undefined;
+  runUsage?: RunUsage | undefined;
+  pricing?: ClientUsagePricing | undefined;
   children: ReactNode;
 }) {
-  const [queryClient] = useState(() => createStoryQueryClient(run, stepDetails));
+  const [queryClient] = useState(() => createStoryQueryClient(run, stepDetails, usage, runUsage));
   const [configured, setConfigured] = useState(false);
 
   useEffect(() => {
@@ -375,7 +435,12 @@ function StoryQueryProvider({
 
   if (!configured) return null;
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  const content = <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return pricing ? (
+    <ClientUsagePricingProvider usagePricing={pricing}>{content}</ClientUsagePricingProvider>
+  ) : (
+    content
+  );
 }
 
 function storyRequestUrl(input: RequestInfo | URL): string {
@@ -387,6 +452,8 @@ function storyRequestUrl(input: RequestInfo | URL): string {
 function createStoryQueryClient(
   run: StoryRun | undefined,
   stepDetails: readonly StepAttemptDetail[],
+  usage: JobExecutionUsage | undefined,
+  runUsage: RunUsage | undefined,
 ) {
   const client = new QueryClient({
     defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY}},
@@ -394,6 +461,13 @@ function createStoryQueryClient(
   if (!run) return client;
   seedStoryLogs(client, run);
   seedStoryWorkflowQueries(client, run);
+  if (runUsage) client.setQueryData(usageQueryKeys.run(WORKSPACE_ID, run.id), runUsage);
+  if (usage) {
+    client.setQueryData(
+      usageQueryKeys.jobExecution(WORKSPACE_ID, usage.jobExecution.jobExecutionId),
+      usage,
+    );
+  }
   for (const detail of stepDetails) {
     client.setQueryData(stepAttemptDetailQueryKeys.detail(detail.stepId, detail.attempt), detail);
   }
@@ -844,6 +918,164 @@ function inspectionRun() {
   };
 }
 
+function usageForExecution({
+  runId,
+  runAttemptId,
+  jobId,
+  executionId,
+  stepId,
+  attemptId,
+}: {
+  runId: string;
+  runAttemptId: string;
+  jobId: string;
+  executionId: string;
+  stepId: string;
+  attemptId: string;
+}): JobExecutionUsage {
+  const jobExecution = usageJobExecution({
+    jobId,
+    jobExecutionId: executionId,
+    workflowRunId: runId,
+    workflowRunAttemptId: runAttemptId,
+  });
+  return {
+    jobExecution,
+    inferenceSegments: [
+      usageInferenceSegment({
+        id: 'aaaaaaaa-abab-4aaa-8aaa-aaaaaaaaaaa1',
+        workflowRunId: runId,
+        workflowRunAttemptId: runAttemptId,
+        jobId,
+        jobExecutionId: executionId,
+        stepId,
+        stepAttemptId: attemptId,
+        upstream: 'anthropic',
+        model: 'claude-sonnet-4',
+        dialect: 'anthropic-messages',
+        requestCount: 6,
+        inputTokens: 7_000,
+        outputTokens: 1_500,
+        cacheCreationTokens: 200,
+        cacheReadTokens: 800,
+        reasoningTokens: 100,
+        webSearchRequests: 1,
+        tokenClasses: {
+          inputTokens: 7_000,
+          cachedInputTokens: 800,
+          cacheWriteTokens: 200,
+          outputTokens: 1_500,
+          totalTokens: 9_500,
+          cacheHitRate: 800 / 7_800,
+        },
+      }),
+      usageInferenceSegment({
+        id: 'aaaaaaaa-abab-4aaa-8aaa-aaaaaaaaaaa2',
+        workflowRunId: runId,
+        workflowRunAttemptId: runAttemptId,
+        jobId,
+        jobExecutionId: executionId,
+        stepId,
+        stepAttemptId: attemptId,
+        upstream: 'openai',
+        model: 'gpt-5',
+        dialect: 'openai-responses',
+        requestCount: 3,
+        inputTokens: 4_000,
+        outputTokens: 1_100,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 600,
+        reasoningTokens: 250,
+        webSearchRequests: 0,
+        tokenClasses: {
+          inputTokens: 3_400,
+          cachedInputTokens: 600,
+          cacheWriteTokens: 0,
+          outputTokens: 1_100,
+          totalTokens: 5_100,
+          cacheHitRate: 600 / 4_000,
+        },
+      }),
+    ],
+  };
+}
+
+function usageJobExecution(overrides: Partial<UsageJobExecution> = {}): UsageJobExecution {
+  return {
+    jobId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+    jobExecutionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2',
+    workflowRunId: RUN_ID,
+    workflowRunAttemptId: '11111111-1111-4111-8111-111111111112',
+    workspaceId: WORKSPACE_ID,
+    projectId: PROJECT_ID,
+    definitionId: null,
+    jobKey: 'test',
+    runNumber: 42,
+    requestedLabels: ['linux'],
+    runnerLabels: ['linux'],
+    templateKey: null,
+    provisionerId: null,
+    provisionerScope: null,
+    providerKind: 'managed',
+    launchKind: 'ephemeral',
+    runnerClass: 'standard',
+    runnerArch: 'x86_64',
+    runnerCpu: '4',
+    managed: true,
+    queuedAt: '2026-06-26T11:57:50.000Z',
+    startedAt: '2026-06-26T11:58:00.000Z',
+    finishedAt: '2026-06-26T11:59:00.000Z',
+    leaseExpiredAt: null,
+    status: 'failed',
+    statusReason: 'step_failed',
+    cancellationReason: null,
+    durationSeconds: 60,
+    state: 'terminated',
+    recordedAt: '2026-06-26T11:59:00.000Z',
+    ...overrides,
+  };
+}
+
+function usageInferenceSegment(
+  overrides: Partial<UsageInferenceSegment> = {},
+): UsageInferenceSegment {
+  return {
+    id: 'aaaaaaaa-abab-4aaa-8aaa-aaaaaaaaaaa1',
+    segmentKey: 'gateway:test:run',
+    source: 'gateway',
+    workspaceId: WORKSPACE_ID,
+    projectId: PROJECT_ID,
+    workflowRunId: RUN_ID,
+    workflowRunAttemptId: '11111111-1111-4111-8111-111111111112',
+    jobId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+    jobExecutionId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2',
+    stepId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3',
+    stepAttemptId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4',
+    upstream: 'anthropic',
+    model: 'claude-sonnet-4',
+    dialect: 'anthropic-messages',
+    windowStart: '2026-06-26T11:58:20.000Z',
+    windowEnd: '2026-06-26T11:58:30.000Z',
+    requestCount: 6,
+    inputTokens: 7_000,
+    outputTokens: 1_500,
+    cacheCreationTokens: 200,
+    cacheReadTokens: 800,
+    reasoningTokens: 100,
+    webSearchRequests: 1,
+    tokenClasses: {
+      inputTokens: 7_000,
+      cachedInputTokens: 800,
+      cacheWriteTokens: 200,
+      outputTokens: 1_500,
+      totalTokens: 9_500,
+      cacheHitRate: 800 / 7_800,
+    },
+    recordedAt: '2026-06-26T11:59:00.000Z',
+    ...overrides,
+  };
+}
+
 function stepAttemptDetail({
   stepId,
   attempt,
@@ -1037,6 +1269,44 @@ function RunCompositionStory() {
           workflowRunId={run.id}
           jobId={job.id}
           search={{runAttempt: run.runAttempt.attempt}}
+        />
+      </StoryRouter>
+    </StoryQueryProvider>
+  );
+}
+
+function UsageCompositionStory() {
+  const {run, jobId, executionId, stepId, attemptId, stepDetails} = inspectionRun();
+  const usage = usageForExecution({
+    runId: run.id,
+    runAttemptId: run.runAttempt.id,
+    jobId,
+    executionId,
+    stepId,
+    attemptId,
+  });
+  const runUsage: RunUsage = {
+    jobExecutions: [usage.jobExecution],
+    inferenceSegments: usage.inferenceSegments,
+  };
+
+  return (
+    <StoryQueryProvider
+      run={run}
+      stepDetails={stepDetails}
+      usage={usage}
+      runUsage={runUsage}
+      pricing={storyUsagePricing}
+    >
+      <StoryRouter>
+        <WorkflowJobDetailPage
+          projectId={PROJECT_ID}
+          workspaceId={WORKSPACE_ID}
+          workspaceSlug={WORKSPACE_SLUG}
+          projectSlug={PROJECT_SLUG}
+          workflowRunId={run.id}
+          jobId={jobId}
+          search={{runAttempt: run.runAttempt.attempt, jobExecutionId: executionId}}
         />
       </StoryRouter>
     </StoryQueryProvider>

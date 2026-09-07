@@ -67,6 +67,7 @@
       "@shipfox/client-secrets",
       "@shipfox/client-shell",
       "@shipfox/client-triggers",
+      "@shipfox/client-usage",
       "@shipfox/client-ui",
       "@shipfox/client-workflows",
       "@shipfox/client-workspace-settings"
