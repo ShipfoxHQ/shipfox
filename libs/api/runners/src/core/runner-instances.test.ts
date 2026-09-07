@@ -308,6 +308,36 @@ describe('reconcileRunnerInstancesFromDbResult', () => {
       desiredIntentReason: 'job-cancelled',
     });
   });
+
+  it('preserves a post-grace job-stop reason after a capable lease expires', () => {
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [
+        providerRunner({
+          providerRunnerId: 'provisioned-runner-1',
+          leaseExpiredAt: new Date('2025-01-01T00:01:00.000Z'),
+          executionFenceUntil: new Date('2025-01-01T00:02:00.000Z'),
+        }),
+      ],
+      boundJobExecutionsByRunnerInstanceId: new Map([
+        [
+          'provisioned-runner-1',
+          boundJobExecution({
+            providerRunnerId: 'provisioned-runner-1',
+            cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+            cancellationReason: 'run_cancelled',
+          }),
+        ],
+      ]),
+      now: new Date('2025-01-01T00:03:00.000Z'),
+      cleanupGraceSeconds: 1,
+    });
+
+    expect(result[0]).toMatchObject({
+      desiredIntent: 'terminate',
+      desiredIntentReason: 'job-cancelled',
+    });
+  });
 });
 
 function providerRunner(params: {

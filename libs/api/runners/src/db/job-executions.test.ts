@@ -8,7 +8,11 @@ import {
 import {pgClient} from '@shipfox/node-postgres';
 import {eq, inArray, sql} from 'drizzle-orm';
 import {config} from '#config.js';
-import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
+import {
+  EmptyRequiredLabelsError,
+  RunnerSessionExhaustedError,
+  RunningJobExecutionNotFoundError,
+} from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
 import * as runnerMetrics from '#metrics/instance.js';
@@ -1748,6 +1752,91 @@ describe('detectAndExpireStuckJobs', () => {
     };
   }
 
+  async function makeManagedStaleJobsForOneProvider(): Promise<{
+    providerRunnerId: string;
+    jobExecutionIds: string[];
+    newestCapableHeartbeat: Date;
+  }> {
+    const provisioner = await provisionerTokenFactory.create({scope: 'installation'});
+    const providerRunnerId = crypto.randomUUID();
+    const providerRunner = await providerRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisioner.id,
+      providerRunnerId,
+      state: 'running',
+    });
+    const [capableSession] = await db()
+      .insert(runnerSessions)
+      .values({
+        workspaceId,
+        scope: 'workspace',
+        registrationTokenId: crypto.randomUUID(),
+        registrationTokenKind: 'activation',
+        runnerInstanceId: providerRunner.id,
+        provisionerId: provisioner.id,
+        providerRunnerId,
+        labels: sessionLabels,
+        lifecycleCapabilities: ['local_execution_fence_v1'],
+        maxClaims: 2,
+        claimsUsed: 0,
+      })
+      .returning({id: runnerSessions.id});
+    if (!capableSession) throw new Error('Expected capable managed runner session');
+
+    await db()
+      .update(providerRunners)
+      .set({runnerSessionId: capableSession.id})
+      .where(eq(providerRunners.id, providerRunner.id));
+
+    const [legacySession] = await db()
+      .insert(runnerSessions)
+      .values({
+        workspaceId,
+        scope: 'workspace',
+        registrationTokenId: crypto.randomUUID(),
+        registrationTokenKind: 'ephemeral',
+        runnerInstanceId: null,
+        provisionerId: provisioner.id,
+        providerRunnerId,
+        labels: sessionLabels,
+        lifecycleCapabilities: null,
+        maxClaims: 1,
+        claimsUsed: 0,
+      })
+      .returning({id: runnerSessions.id});
+    if (!legacySession) throw new Error('Expected legacy managed runner session');
+
+    const claims = [
+      {runnerSessionId: capableSession.id, maxClaims: 2},
+      {runnerSessionId: capableSession.id, maxClaims: 2},
+      {runnerSessionId: legacySession.id, maxClaims: 1},
+    ];
+    const claimedJobExecutionIds: string[] = [];
+    for (const claimParams of claims) {
+      await pendingJobFactory.create({workspaceId});
+      const claimed = await claimPendingJobExecution({workspaceId, ...claimParams});
+      if (!claimed) throw new Error('Expected shared-provider job claim');
+      claimedJobExecutionIds.push(claimed.jobExecutionId);
+    }
+
+    const capableHeartbeats = [new Date(Date.now() - 30_000), new Date(Date.now() - 10_000)];
+    const legacyHeartbeat = new Date(Date.now() - 5_000);
+    for (const [index, jobExecutionId] of claimedJobExecutionIds.entries()) {
+      const heartbeatAt =
+        index < capableHeartbeats.length ? capableHeartbeats[index] : legacyHeartbeat;
+      await db()
+        .update(runningJobExecutions)
+        .set({startedAt: heartbeatAt, firstHeartbeatAt: heartbeatAt, lastHeartbeatAt: heartbeatAt})
+        .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+    }
+
+    return {
+      providerRunnerId,
+      jobExecutionIds: claimedJobExecutionIds,
+      newestCapableHeartbeat: capableHeartbeats[1] as Date,
+    };
+  }
+
   async function makeNoFirstHeartbeatJob(ageSeconds: number): Promise<{
     jobId: string;
     jobExecutionId: string;
@@ -1857,6 +1946,31 @@ describe('detectAndExpireStuckJobs', () => {
       .from(runnerSessions)
       .where(eq(runnerSessions.id, stale.runnerSessionId));
     expect(session?.revokedAt).toBeInstanceOf(Date);
+  });
+
+  it('merges capable fences across multiple stale claims without a legacy overwrite', async () => {
+    const stale = await makeManagedStaleJobsForOneProvider();
+    const fenceDurationMilliseconds =
+      (config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS +
+        config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS) *
+      1000;
+
+    const result = await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    expect(result.map(({jobExecutionId}) => jobExecutionId)).toEqual(
+      expect.arrayContaining(stale.jobExecutionIds),
+    );
+    const [runner] = await db()
+      .select({executionFenceUntil: providerRunners.executionFenceUntil})
+      .from(providerRunners)
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+    expect(runner?.executionFenceUntil).toEqual(
+      new Date(stale.newestCapableHeartbeat.getTime() + fenceDurationMilliseconds),
+    );
   });
 
   it('records lease loss but no execution fence for a legacy runner session', async () => {
@@ -2444,6 +2558,53 @@ describe('detectAndExpireStuckJobs', () => {
     expect(
       await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null}),
     ).toBeNull();
+  });
+
+  it('does not deadlock a reaper with a heartbeat that races lease expiry', async () => {
+    const stale = await makeManagedStaleJob(null);
+    const releaseSession = deferred<void>();
+    const sessionLockReady = deferred<void>();
+    const sessionLockHolder = db().transaction(async (tx) => {
+      await tx
+        .select({id: runnerSessions.id})
+        .from(runnerSessions)
+        .where(eq(runnerSessions.id, stale.runnerSessionId))
+        .limit(1)
+        .for('update');
+      sessionLockReady.resolve();
+      await releaseSession.promise;
+    });
+
+    let reaping: ReturnType<typeof expireStuckJobExecutions> | undefined;
+    let heartbeat: ReturnType<typeof recordHeartbeat> | undefined;
+    try {
+      await sessionLockReady.promise;
+      reaping = expireStuckJobExecutions({
+        thresholdSeconds: 1,
+        noFirstHeartbeatGraceSeconds: 1,
+        correlatedStaleOverride: true,
+      });
+      await waitForLockWait({queryLike: '%lifecycle_capabilities%'});
+
+      heartbeat = recordHeartbeat({
+        jobExecutionId: stale.jobExecutionId,
+        runnerSessionId: stale.runnerSessionId,
+      });
+      await waitForLockWait({queryLike: '%tool_capabilities%'});
+    } finally {
+      releaseSession.resolve();
+      await Promise.allSettled([
+        sessionLockHolder,
+        reaping ?? Promise.resolve([]),
+        heartbeat ?? Promise.resolve({}),
+      ]);
+    }
+
+    if (!reaping || !heartbeat) throw new Error('Reaper and heartbeat must both start');
+    await expect(reaping).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({jobExecutionId: stale.jobExecutionId})]),
+    );
+    await expect(heartbeat).rejects.toBeInstanceOf(RunningJobExecutionNotFoundError);
   });
 });
 

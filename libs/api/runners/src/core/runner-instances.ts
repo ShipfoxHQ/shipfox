@@ -421,15 +421,16 @@ function getDesiredIntentReason(
   const localWorkStopped = isTerminalState(row.state);
   if (hasFreshBoundJobExecution(boundJobExecution, localWorkStopped)) return null;
   if (isExecutionFenceActive(row, now, localWorkStopped)) return null;
-  const leaseExpiredIntentReason = getLeaseExpiredIntentReason(row, localWorkStopped, now);
-  if (leaseExpiredIntentReason) return leaseExpiredIntentReason;
-
   const jobStopReason = terminationReasonForJobStop(boundJobExecution);
   const cleanupGraceStartedAt = cleanupGraceStart(boundJobExecution);
   const cleanupGraceExpired =
     cleanupGraceStartedAt !== null &&
     now.getTime() >= cleanupGraceStartedAt.getTime() + cleanupGraceSeconds * 1000;
   if (jobStopReason && (localWorkStopped || cleanupGraceExpired)) return jobStopReason;
+
+  const leaseExpiredIntentReason = getLeaseExpiredIntentReason(row, localWorkStopped, now);
+  if (leaseExpiredIntentReason) return leaseExpiredIntentReason;
+
   if (localWorkStopped) return 'terminal-state';
   if (row.terminationAuthorizedAt && row.terminationReason) return row.terminationReason;
   return null;

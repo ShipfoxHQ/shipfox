@@ -1452,6 +1452,16 @@ export async function recordHeartbeat(params: {
   };
 }> {
   const result = await db().transaction(async (tx) => {
+    // Claims and lease expiry lock the session before they touch running rows. Keep heartbeat
+    // acquisition in that order so a reaper cannot wait on a running row held by a heartbeat that
+    // is waiting for the same session lock.
+    const [previous] = await tx
+      .select({toolCapabilities: runnerSessions.toolCapabilities})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, params.runnerSessionId))
+      .limit(1)
+      .for('update');
+
     const updated = await tx
       .update(runningJobExecutions)
       .set({
@@ -1500,13 +1510,6 @@ export async function recordHeartbeat(params: {
           ),
         );
     }
-
-    const [previous] = await tx
-      .select({toolCapabilities: runnerSessions.toolCapabilities})
-      .from(runnerSessions)
-      .where(eq(runnerSessions.id, params.runnerSessionId))
-      .limit(1)
-      .for('update');
 
     const [session] = await tx
       .update(runnerSessions)
