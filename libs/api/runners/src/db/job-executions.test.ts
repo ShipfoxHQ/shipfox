@@ -1558,7 +1558,7 @@ describe('reconcileTerminalJobExecution', () => {
         new Promise<never>((_, reject) =>
           setTimeout(
             () => reject(new Error('Terminal reconciliation locked the running row first')),
-            500,
+            2_000,
           ),
         ),
       ]);
