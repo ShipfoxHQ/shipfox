@@ -798,6 +798,8 @@ describe('github agent tool catalog', () => {
     const actionsRunTriggerSchema = inputSchemaFor('actions_run_trigger');
     const getJobLogsSchema = inputSchemaFor('get_job_logs');
     const createCommitSchema = inputSchemaFor('create_commit');
+    const createBranch = githubAgentToolCatalog.find((entry) => entry.id === 'create_branch');
+    const createBranchSchema = inputSchemaFor('create_branch');
     const searchIssuesSchema = inputSchemaFor('search_issues');
     const searchPullRequestsSchema = inputSchemaFor('search_pull_requests');
 
@@ -880,6 +882,13 @@ describe('github agent tool catalog', () => {
     expect(createCommitSchema.properties?.deletions).toMatchObject({
       type: 'array',
       items: {type: 'object', required: ['path']},
+    });
+    expect(createBranch).toBeDefined();
+    expect(createBranch?.description).toContain('40- or 64-character commit oid');
+    expect(createBranchSchema.properties?.from).toMatchObject({
+      type: 'string',
+      description:
+        'The 40- or 64-character commit oid or existing branch name the new branch points at',
     });
   });
 
@@ -2715,6 +2724,44 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it.each([
+    '0'.repeat(40),
+    '0'.repeat(64),
+  ])('rejects an all-zero expected head object id before the provider request', async (expectedHeadOid) => {
+    const request = vi.fn();
+    const graphql = vi.fn();
+    const provider = createAgentToolsProvider({request, graphql});
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [createCommitTool()],
+      scope: undefined,
+    });
+
+    const result = await session.call({
+      toolId: 'create_commit',
+      arguments: {
+        repository: 'shipfox/platform',
+        branch: 'feature',
+        expected_head_oid: expectedHeadOid,
+        message: {headline: 'Zero oid'},
+        additions: [{path: 'a.txt', contents: 'x'}],
+      },
+    });
+
+    expect(result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'Parameter expected_head_oid must be a 40- or 64-character commit oid',
+        },
+      ],
+      structuredContent: {code: 'invalid-request'},
+    });
+    expect(request).not.toHaveBeenCalled();
+    expect(graphql).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed create_commit arguments at validation', async () => {
     const request = vi.fn();
     const graphql = vi.fn();
@@ -3434,6 +3481,39 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it.each([
+    'A'.repeat(40),
+    'B'.repeat(64),
+  ])('accepts a non-zero %s-character object id in from', async (oid) => {
+    const request = vi.fn(() =>
+      Promise.resolve({
+        data: {
+          ref: 'refs/heads/shipfox/implement-1',
+          url: 'https://api.github.com/repos/shipfox/platform/git/refs/heads/shipfox/implement-1',
+          object: {sha: oid, type: 'commit'},
+        },
+      }),
+    );
+
+    const result = await callGithubToolWithRequest(
+      'create_branch',
+      {
+        repository: 'shipfox/platform',
+        branch: 'shipfox/implement-1',
+        from: oid,
+      },
+      request,
+    );
+
+    expect(request).toHaveBeenCalledWith('POST /repos/{owner}/{repo}/git/refs', {
+      owner: 'shipfox',
+      repo: 'platform',
+      ref: 'refs/heads/shipfox/implement-1',
+      sha: oid,
+    });
+    expect(result).toMatchObject({structuredContent: {oid}});
+  });
+
   it('resolves a from branch name to its head before creating the branch', async () => {
     const request = vi
       .fn()
@@ -3488,6 +3568,66 @@ describe('github agent tool catalog', () => {
         url: 'https://api.github.com/repos/shipfox/platform/git/refs/heads/feature',
       },
     });
+  });
+
+  it('accepts a 64-character object id resolved from a branch name', async () => {
+    const oid = 'C'.repeat(64);
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          ref: 'refs/heads/main',
+          object: {sha: oid, type: 'commit'},
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ref: 'refs/heads/feature',
+          url: 'https://api.github.com/repos/shipfox/platform/git/refs/heads/feature',
+          object: {sha: oid, type: 'commit'},
+        },
+      });
+
+    const result = await callGithubToolWithRequest(
+      'create_branch',
+      {repository: 'shipfox/platform', branch: 'feature', from: 'main'},
+      request,
+    );
+
+    expect(request).toHaveBeenNthCalledWith(2, 'POST /repos/{owner}/{repo}/git/refs', {
+      owner: 'shipfox',
+      repo: 'platform',
+      ref: 'refs/heads/feature',
+      sha: oid,
+    });
+    expect(result).toMatchObject({structuredContent: {oid}});
+  });
+
+  it.each([
+    {label: 'a malformed value', sha: 'not-an-oid'},
+    {label: 'an all-zero SHA-1 value', sha: '0'.repeat(40)},
+    {label: 'an all-zero SHA-256 value', sha: '0'.repeat(64)},
+  ])('rejects $label from a branch head resolution response', async ({sha}) => {
+    const request = vi.fn(() =>
+      Promise.resolve({
+        data: {
+          ref: 'refs/heads/main',
+          object: {sha, type: 'commit'},
+        },
+      }),
+    );
+
+    await expect(
+      callGithubToolWithRequest(
+        'create_branch',
+        {repository: 'shipfox/platform', branch: 'feature', from: 'main'},
+        request,
+      ),
+    ).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+      message: 'GitHub branch head resolution response was malformed',
+    });
+    expect(request).toHaveBeenCalledOnce();
   });
 
   it('reports a provider-rejected error when the branch already exists at a different commit', async () => {
@@ -3641,7 +3781,7 @@ describe('github agent tool catalog', () => {
     ).rejects.toMatchObject({
       reason: 'provider-rejected',
       message:
-        "Branch 'missing' does not exist in repository shipfox/platform; from must be a 40-character commit oid or an existing branch name",
+        "Branch 'missing' does not exist in repository shipfox/platform; from must be a 40- or 64-character commit oid or an existing branch name",
       status: 404,
     });
   });
@@ -3772,7 +3912,7 @@ describe('github agent tool catalog', () => {
       ),
     ).rejects.toMatchObject({
       reason: 'ref-invalid',
-      message: 'Parameter from must be a 40-character commit oid or a branch name',
+      message: 'Parameter from must be a 40- or 64-character commit oid or a branch name',
     });
   });
 
@@ -3790,7 +3930,7 @@ describe('github agent tool catalog', () => {
     ).rejects.toMatchObject({
       reason: 'ref-invalid',
       message:
-        'Parameter from must be a 40-character commit oid or a branch name without a refs/ prefix',
+        'Parameter from must be a 40- or 64-character commit oid or a branch name without a refs/ prefix',
     });
   });
 
