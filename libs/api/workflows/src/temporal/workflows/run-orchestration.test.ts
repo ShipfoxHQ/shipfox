@@ -306,6 +306,63 @@ describe('runOrchestration', () => {
     expect(finalRunAttemptStatus?.params.version).toBeGreaterThan(0);
   });
 
+  test('promoted waiter receives a full timeout after the holder exceeds half its budget', async () => {
+    const runTimeoutMs = 2_000;
+    const executionDelayMs = 1_200;
+    expect(executionDelayMs).toBeGreaterThan(runTimeoutMs / 2);
+
+    const holderRunId = `holder-${randomUUID()}`;
+    const waiterRunId = `waiter-${randomUUID()}`;
+    const holderAttemptId = `${holderRunId}-attempt-1`;
+    const waiterAttemptId = `${waiterRunId}-attempt-1`;
+    const holderJobId = `${holderRunId}-job`;
+    const waiterJobId = `${waiterRunId}-job`;
+
+    const startRun = (runId: string, runAttemptId: string) =>
+      testEnv.client.workflow.start('runOrchestration', {
+        taskQueue: TASK_QUEUE,
+        workflowId: `workflow-run-attempt:${runAttemptId}`,
+        args: [{workflowRunId: runId, runAttemptId, workspaceId}],
+      });
+
+    setCfg({
+      dag: {
+        ...makeDag([dagJob(holderJobId, 'build')], holderRunId),
+        runTimeoutMs,
+      },
+      jobResults: new Map(),
+      jobOutcomeDelayMs: executionDelayMs,
+    });
+    const holder = await startRun(holderRunId, holderAttemptId);
+    await waitForActivity('setJobExecutionStatus');
+    await testEnv.sleep(executionDelayMs);
+    await holder.result();
+
+    expect(
+      setRunAttemptStatusCalls()
+        .filter((call) => call.params.runAttemptId === holderAttemptId)
+        .map((call) => call.params.status),
+    ).toEqual(['running', 'succeeded']);
+
+    setCfg({
+      dag: {
+        ...makeDag([dagJob(waiterJobId, 'build')], waiterRunId),
+        runTimeoutMs,
+      },
+      jobResults: new Map(),
+      jobOutcomeDelayMs: executionDelayMs,
+    });
+    // Starting the waiter now models the durable promotion boundary.
+    const waiter = await startRun(waiterRunId, waiterAttemptId);
+    await waiter.result();
+
+    expect(
+      setRunAttemptStatusCalls()
+        .filter((call) => call.params.runAttemptId === waiterAttemptId)
+        .map((call) => call.params.status),
+    ).toEqual(['running', 'succeeded']);
+  });
+
   test('cancel signal stops scheduling without calling runners directly', async () => {
     const jobs = [dagJob('j1', 'build'), dagJob('j2', 'deploy', ['build'])];
     setCfg({dag: makeDag(jobs, 'r-cancel'), jobResults: new Map(), skipSignal: true});

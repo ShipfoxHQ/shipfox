@@ -228,10 +228,14 @@ The one-active-attempt partial index must treat `waiting`, `pending`, and `runni
 Existing list, detail, filter, aggregate, metric, and client status handling must recognize
 `waiting`; it is not presented as running.
 
-Concurrency wait time does not consume the workflow run timeout. The timeout begins after the
-attempt acquires the group and starts normal orchestration. There is no separate concurrency wait
-timeout in the first version. A waiter can remain blocked for the holder's remaining run timeout,
-which is 30 days by default.
+Concurrency wait time does not consume the workflow run timeout. Waiting orchestration must defer
+computing `runDeadline` until the attempt acquires the durable group claim, or re-derive it at the
+`waiting` to `running` transition. There is no separate concurrency wait timeout in the first
+version. A waiter can remain blocked for the holder's remaining run timeout, which is 30 days by
+default.
+
+The Temporal coverage must keep a holder active for more than half of the configured run timeout,
+promote a waiter, and verify that the promoted waiter receives its full execution budget.
 
 A rerun acts as a new group participant. It copies the source attempt's resolved display key,
 canonical key, scope, `cancel_in_progress`, and origin scope. It receives a new generation and does
