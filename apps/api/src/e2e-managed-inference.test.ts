@@ -216,6 +216,19 @@ describe('E2E managed inference fixture', () => {
     });
     expect(evicted.statusCode).toBe(401);
 
+    await expect(
+      Promise.resolve().then(() =>
+        fixture.provider.resolveCredentials({
+          workspaceId: 'workspace',
+          runId: 'run',
+          stepAttemptId: 'bounded-step-0',
+          jobIdentity: JOB_IDENTITY,
+          model: 'e2e-renewable-claude',
+          renewableInference: false,
+        }),
+      ),
+    ).rejects.toThrow('model changed during credential renewal');
+
     const newest = await app.inject({
       method: 'POST',
       url: '/__e2e-managed-inference/v1/chat/completions',

@@ -70,6 +70,7 @@ interface InferenceStats {
 
 interface InferenceState {
   readonly credentials: Map<string, CredentialState>;
+  readonly tombstones: Map<string, CredentialState>;
   readonly stats: InferenceStats;
 }
 
@@ -81,6 +82,7 @@ export function createE2eManagedInferenceProvider(
 
   const state: InferenceState = {
     credentials: new Map(),
+    tombstones: new Map(),
     stats: {
       resolutions: 0,
       expiredRequests: 0,
@@ -111,12 +113,13 @@ export function createE2eManagedInferenceProvider(
       const now = Date.now();
       pruneCredentialStates(state, now);
       const renewableInference = params.renewableInference === true;
-      const credentialState = state.credentials.get(key) ?? {
-        nextGeneration: 1,
-        model: model.id,
-        renewableInference,
-        lastTouchedAt: now,
-      };
+      const credentialState = state.credentials.get(key) ??
+        state.tombstones.get(key) ?? {
+          nextGeneration: 1,
+          model: model.id,
+          renewableInference,
+          lastTouchedAt: now,
+        };
       if (credentialState.model !== model.id) {
         throw new Error('E2E managed provider model changed during credential renewal');
       }
@@ -126,6 +129,7 @@ export function createE2eManagedInferenceProvider(
       const generation = credentialState.nextGeneration;
       credentialState.nextGeneration += 1;
       credentialState.lastTouchedAt = now;
+      state.tombstones.delete(key);
       state.credentials.set(key, credentialState);
       state.stats.resolutions += 1;
       state.stats.resolutionsByModel[model.id] =
@@ -158,13 +162,13 @@ export function createE2eManagedInferenceProvider(
     module: {
       name: 'e2e-managed-inference',
       auth: [createInferenceAuth(state, adminApiKey)],
-      routes: [createInferenceRoutes(state, adminApiKey)],
+      routes: [createInferenceRoutes()],
       e2eRoutes: [createInferenceStatsRoutes(state)],
     },
   };
 }
 
-function createInferenceRoutes(state: InferenceState, adminApiKey: string | undefined): RouteGroup {
+function createInferenceRoutes(): RouteGroup {
   return {
     prefix: E2E_INFERENCE_ROUTE_PREFIX,
     auth: E2E_MANAGED_INFERENCE_AUTH,
@@ -178,10 +182,7 @@ function createInferenceRoutes(state: InferenceState, adminApiKey: string | unde
           respondToInferenceRequest({
             api: 'openai-completions',
             body: request.body,
-            headers: request.headers,
-            adminApiKey,
             reply,
-            state,
           }),
       }),
       defineRoute({
@@ -193,10 +194,7 @@ function createInferenceRoutes(state: InferenceState, adminApiKey: string | unde
           respondToInferenceRequest({
             api: 'anthropic-messages',
             body: request.body,
-            headers: request.headers,
-            adminApiKey,
             reply,
-            state,
           }),
       }),
     ],
@@ -225,7 +223,10 @@ function createInferenceAuth(state: InferenceState, adminApiKey: string | undefi
       if (token === undefined) {
         throw new ClientError('Missing credential', 'unauthorized', {status: 401});
       }
-      if (adminApiKey !== undefined && tokensMatch(token, adminApiKey)) return Promise.resolve();
+      if (adminApiKey !== undefined && tokensMatch(token, adminApiKey)) {
+        state.stats.acceptedRequests += 1;
+        return Promise.resolve();
+      }
 
       const tokenDetails = parseToken(token);
       const credentialState =
@@ -244,6 +245,8 @@ function createInferenceAuth(state: InferenceState, adminApiKey: string | undefi
         }
         throw new ClientError('Expired credential', 'unauthorized', {status: 401});
       }
+      state.stats.acceptedRequests += 1;
+      recordGeneration(state, credential.tokenDetails.generation, credential.credentialState.model);
       return Promise.resolve();
     },
   };
@@ -270,10 +273,7 @@ function inferenceAuthenticationErrorHandler(
 function respondToInferenceRequest(params: {
   api: ManagedModelApi;
   body: unknown;
-  headers: Record<string, unknown>;
-  adminApiKey: string | undefined;
   reply: {
-    code(statusCode: number): {send(payload: unknown): unknown};
     header(name: string, value: string): unknown;
     hijack(): unknown;
     raw: {
@@ -283,44 +283,8 @@ function respondToInferenceRequest(params: {
     };
     send(payload: unknown): unknown;
   };
-  state: InferenceState;
 }): unknown {
-  const token = requestToken(params.headers);
-  const tokenDetails = parseToken(token);
   const requestModel = bodyString(params.body, 'model') ?? 'unknown';
-  if (token === undefined) {
-    return params.reply.code(401).send({code: 'unauthorized', message: 'missing credential'});
-  }
-  if (params.adminApiKey !== undefined && tokensMatch(token, params.adminApiKey)) {
-    params.state.stats.acceptedRequests += 1;
-    if (params.api === 'openai-completions') {
-      return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
-    }
-    return respondWithAnthropicMessage(params.reply, requestModel, params.body);
-  }
-  const credentialState =
-    tokenDetails === undefined
-      ? undefined
-      : currentCredentialState(params.state, tokenDetails.stepAttemptId);
-  const credential = {tokenDetails, credentialState};
-  if (!isCurrentCredential(credential)) {
-    params.state.stats.expiredRequests += 1;
-    if (credential.tokenDetails !== undefined && credential.credentialState !== undefined) {
-      recordGeneration(
-        params.state,
-        credential.tokenDetails.generation,
-        credential.credentialState.model,
-      );
-    }
-    return params.reply.code(401).send({code: 'unauthorized', message: 'expired'});
-  }
-
-  params.state.stats.acceptedRequests += 1;
-  recordGeneration(
-    params.state,
-    credential.tokenDetails.generation,
-    credential.credentialState.model,
-  );
   if (params.api === 'openai-completions') {
     return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
   }
@@ -559,6 +523,7 @@ function pruneCredentialStates(state: InferenceState, now: number): void {
       now - credentialState.lastTouchedAt > E2E_CREDENTIAL_STATE_TTL_MS
     ) {
       state.credentials.delete(key);
+      rememberCredentialTombstone(state, key, credentialState);
     }
   }
 
@@ -572,7 +537,29 @@ function pruneCredentialStates(state: InferenceState, now: number): void {
       }
     }
     if (oldestKey === undefined) return;
+    const oldestState = state.credentials.get(oldestKey);
     state.credentials.delete(oldestKey);
+    if (oldestState !== undefined) rememberCredentialTombstone(state, oldestKey, oldestState);
+  }
+}
+
+function rememberCredentialTombstone(
+  state: InferenceState,
+  key: string,
+  credentialState: CredentialState,
+): void {
+  state.tombstones.set(key, credentialState);
+  while (state.tombstones.size > E2E_MAX_CREDENTIAL_STATES) {
+    let oldestKey: string | undefined;
+    let oldestTouchedAt = Number.POSITIVE_INFINITY;
+    for (const [tombstoneKey, tombstone] of state.tombstones) {
+      if (tombstone.lastTouchedAt < oldestTouchedAt) {
+        oldestKey = tombstoneKey;
+        oldestTouchedAt = tombstone.lastTouchedAt;
+      }
+    }
+    if (oldestKey === undefined) return;
+    state.tombstones.delete(oldestKey);
   }
 }
 
