@@ -53,6 +53,12 @@ export {
   type StepOutputCoercionErrorReason,
   validateJsonSchema,
 } from './outputs/index.js';
+export {
+  analyzeHistoricalEventPayloadAccess,
+  type HistoricalEventPayloadAccess,
+  type HistoricalEventPayloadAccessAnalysis,
+  type HistoricalEventPayloadAccessKind,
+} from './plan/analyze-historical-event-payload-access.js';
 export {isBareContextReference} from './plan/bare-reference.js';
 export {
   analyzeContextKeyAccess,

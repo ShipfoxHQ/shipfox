@@ -8,10 +8,12 @@ export type {
   ListDefinitionsParams,
   ListDefinitionsResult,
   SoftDeleteVcsDefinitionsParams,
+  StoredWorkflowDefinitionHistoricalEventPayloadAudit,
   UpsertDefinitionParams,
 } from './definitions.js';
 export {
   applyVcsDefinitionsBatch,
+  auditStoredDefinitions,
   findOrCreateWorkflowLineage,
   getDefinitionById,
   invalidateCache,

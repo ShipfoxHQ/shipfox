@@ -24,6 +24,10 @@ import type {
   WorkflowSourceSnapshot,
 } from '#core/entities/workflow-definition.js';
 import type {WorkflowModel} from '#core/entities/workflow-model.js';
+import {
+  auditStoredWorkflowDefinitionModels,
+  type StoredWorkflowDefinitionHistoricalEventPayloadAudit,
+} from '#core/workflow-model/historical-event-payload-dependencies.js';
 import {db} from './db.js';
 import {definitionTriggersFor} from './definition-triggers.js';
 import {type DefinitionDb, toDefinition, workflowDefinitions} from './schema/definitions.js';
@@ -31,6 +35,8 @@ import {definitionsOutbox} from './schema/outbox.js';
 import {workflowWorkflows} from './schema/workflows.js';
 
 type Tx = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
+export type {StoredWorkflowDefinitionHistoricalEventPayloadAudit};
 
 export interface UpsertDefinitionParams {
   projectId: string;
@@ -434,6 +440,19 @@ export async function listDefinitions(
 export async function listDefinitionsByProject(projectId: string): Promise<WorkflowDefinition[]> {
   const result = await listDefinitions({projectId, limit: 100});
   return result.definitions;
+}
+
+/**
+ * Audits active stored models before the historical event-payload contract is
+ * enforced. Unknown expressions remain an explicit audit class.
+ */
+export async function auditStoredDefinitions(): Promise<StoredWorkflowDefinitionHistoricalEventPayloadAudit> {
+  const rows = await db()
+    .select({model: workflowDefinitions.definition})
+    .from(workflowDefinitions)
+    .where(isNull(workflowDefinitions.deletedAt));
+
+  return auditStoredWorkflowDefinitionModels(rows.map((row) => row.model.model));
 }
 
 export interface SoftDeleteVcsDefinitionsParams {
