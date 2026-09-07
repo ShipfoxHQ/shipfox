@@ -9,6 +9,7 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {and, asc, count, eq, inArray, isNull, notInArray, sql} from 'drizzle-orm';
+import {config} from '#config.js';
 import {type AgentDefaultsResolver, createAgentDefaultsResolver} from '#core/agent-defaults.js';
 import {
   type AgentToolMaterializationContext,
@@ -55,6 +56,7 @@ import {
   recordWorkflowListenerResolved,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
+import {loadJobExecutionsWithCanonicalTriggerEvents} from './execution-trigger-events.js';
 import {
   type FinalizedListenerEventCounts,
   finalizePendingListenerEvents,
@@ -63,8 +65,8 @@ import {
 import {writeWorkflowsOutboxEvent} from './outbox-writes.js';
 import {
   type JobExecutionDb,
-  type JobExecutionDbWithoutTriggerEvents,
   jobExecutions,
+  jobExecutionWithoutTriggerEventsSelection,
   toJobExecution,
 } from './schema/job-executions.js';
 import {type JobListenerEventDb, jobListenerEvents} from './schema/job-listener-events.js';
@@ -92,6 +94,13 @@ const LISTENER_EVENT_SQL_BYTE_LIMIT =
 // a batch count. The application packer remains the byte authority.
 const LISTENER_EVENT_SQL_CANDIDATE_COUNT_LIMIT = 100;
 
+export function legacyTriggerEventsInsertValues(
+  triggerEvents: readonly WorkflowExecutionEvent[],
+  enabled = config.WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED,
+): Partial<Record<'triggerEvents', WorkflowExecutionEvent[]>> {
+  return enabled ? {triggerEvents: [...triggerEvents]} : {};
+}
+
 function pendingListenerEventCondition() {
   return and(
     eq(jobListenerEvents.outcome, 'pending'),
@@ -110,32 +119,6 @@ function recordFinalizedListenerEventMetrics(
     recordWorkflowListenerEventOutcome('abandoned', reason, counts.abandoned);
   }
 }
-
-const listenerPriorExecutionSelection = {
-  id: jobExecutions.id,
-  jobId: jobExecutions.jobId,
-  sequence: jobExecutions.sequence,
-  name: jobExecutions.name,
-  runner: jobExecutions.runner,
-  runnerLabels: jobExecutions.runnerLabels,
-  templateKey: jobExecutions.templateKey,
-  provisionerId: jobExecutions.provisionerId,
-  provisionerScope: jobExecutions.provisionerScope,
-  providerKind: jobExecutions.providerKind,
-  launchKind: jobExecutions.launchKind,
-  status: jobExecutions.status,
-  statusReason: jobExecutions.statusReason,
-  statusReasonMessage: jobExecutions.statusReasonMessage,
-  outputs: jobExecutions.outputs,
-  evaluationTrace: jobExecutions.evaluationTrace,
-  version: jobExecutions.version,
-  createdAt: jobExecutions.createdAt,
-  updatedAt: jobExecutions.updatedAt,
-  queuedAt: jobExecutions.queuedAt,
-  startedAt: jobExecutions.startedAt,
-  finishedAt: jobExecutions.finishedAt,
-  timedOutAt: jobExecutions.timedOutAt,
-} satisfies Record<keyof JobExecutionDbWithoutTriggerEvents, unknown>;
 
 export interface ActivateJobListenerParams {
   jobId: string;
@@ -621,21 +604,19 @@ async function deriveJobListenerResolutionDecision(
   });
 
   const [executionRows, dependencyJobs] = await Promise.all([
-    (includePriorExecutionTriggerEvents
-      ? db().select().from(jobExecutions)
-      : db().select(listenerPriorExecutionSelection).from(jobExecutions)
-    )
-      .where(eq(jobExecutions.jobId, jobId))
-      .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id)),
+    loadListenerPriorExecutions(
+      jobId,
+      jobRow.name ?? jobRow.key,
+      db(),
+      includePriorExecutionTriggerEvents,
+    ),
     getDirectDependencyJobContexts(jobId),
   ]);
   return {
     expectedVersion: jobRow.version,
     ...deriveJobSuccess({
       success: jobRow.success,
-      executions: executionRows.map((execution) =>
-        toJobExecution(execution, jobRow.name ?? jobRow.key),
-      ),
+      executions: executionRows,
       jobs: dependencyJobs,
       vars: target.attempt.vars ?? undefined,
     }),
@@ -967,7 +948,7 @@ async function persistMaterializedListenerExecution(
       runner: params.materialized.runner.length === 0 ? null : [...params.materialized.runner],
       status: params.materialized.status,
       statusReason: params.materialized.statusReason,
-      triggerEvents: [...params.materialized.triggerEvents],
+      ...legacyTriggerEventsInsertValues(params.materialized.triggerEvents),
       evaluationTrace: params.materialized.evaluationTrace,
       ...(params.materialized.status === 'failed' ? {finishedAt: sql`now()`} : {}),
     })
@@ -1039,7 +1020,6 @@ async function persistRejectedMaterializedListenerExecution(
       status: 'failed',
       statusReason: 'output_too_large',
       statusReasonMessage: boundedListenerDiagnosticMessage(error.message),
-      triggerEvents: [],
       evaluationTrace: null,
       finishedAt: sql`now()`,
     })
@@ -1138,14 +1118,28 @@ async function loadListenerMaterializationTarget(jobId: string, tx?: Tx) {
 async function loadListenerPriorExecutions(
   jobId: string,
   fallbackName: string,
-  tx: Tx,
+  source: ReturnType<typeof db> | Tx,
   includeTriggerEvents: boolean,
 ): Promise<JobExecution[]> {
-  const priorExecutions = await (includeTriggerEvents
-    ? tx.select().from(jobExecutions)
-    : tx.select(listenerPriorExecutionSelection).from(jobExecutions)
-  )
+  if (!includeTriggerEvents) {
+    const priorExecutions = await source
+      .select(jobExecutionWithoutTriggerEventsSelection)
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, jobId))
+      .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
+    return priorExecutions.map((execution) => toJobExecution(execution, fallbackName));
+  }
+
+  const priorExecutions = await source
+    .select()
+    .from(jobExecutions)
     .where(eq(jobExecutions.jobId, jobId))
     .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-  return priorExecutions.map((execution) => toJobExecution(execution, fallbackName));
+  const hydratedExecutions = await loadJobExecutionsWithCanonicalTriggerEvents(
+    source,
+    priorExecutions,
+  );
+  return priorExecutions.map((execution) =>
+    toJobExecution(hydratedExecutions.get(execution.id) ?? execution, fallbackName),
+  );
 }

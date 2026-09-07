@@ -3,8 +3,10 @@ const mocks = vi.hoisted(() => {
   return {
     addBatchObservableCallback: vi.fn(),
     countActiveListeners: vi.fn(),
+    getListenerEventStorageStats: vi.fn(),
     getToolInvocationDepth: vi.fn(),
     getWorkflowJobExecutionDepth: vi.fn(),
+    loggerWarn: vi.fn(),
     createObservableGauge: vi.fn((name: string) => {
       const gauge = {};
       gauges.set(name, gauge);
@@ -17,12 +19,16 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('#db/job-listeners.js', () => ({countActiveListeners: mocks.countActiveListeners}));
+vi.mock('#db/listener-storage.js', () => ({
+  getListenerEventStorageStats: mocks.getListenerEventStorageStats,
+}));
 vi.mock('#db/workflow-runs.js', () => ({
   getToolInvocationDepth: mocks.getToolInvocationDepth,
   getWorkflowJobExecutionDepth: mocks.getWorkflowJobExecutionDepth,
 }));
 vi.mock('@shipfox/node-opentelemetry', () => ({
   getServiceMetricsProvider: mocks.getServiceMetricsProvider,
+  logger: () => ({warn: mocks.loggerWarn}),
 }));
 
 import {registerWorkflowsServiceMetrics} from './service.js';
@@ -31,8 +37,10 @@ describe('registerWorkflowsServiceMetrics', () => {
   beforeEach(() => {
     mocks.addBatchObservableCallback.mockReset();
     mocks.countActiveListeners.mockReset();
+    mocks.getListenerEventStorageStats.mockReset();
     mocks.getToolInvocationDepth.mockReset();
     mocks.getWorkflowJobExecutionDepth.mockReset();
+    mocks.loggerWarn.mockReset();
     mocks.createObservableGauge.mockClear();
     mocks.gauges.clear();
     mocks.getMeter.mockReset();
@@ -48,6 +56,75 @@ describe('registerWorkflowsServiceMetrics', () => {
     mocks.getWorkflowJobExecutionDepth.mockResolvedValue({runningRuns: 2, runningJobExecutions: 3});
     mocks.countActiveListeners.mockResolvedValue(4);
     mocks.getToolInvocationDepth.mockResolvedValue({queued: 5, inFlight: 6});
+    mocks.getListenerEventStorageStats.mockResolvedValue({
+      listenerEventRows: 7,
+      listenerEventPayloadBytes: 8,
+      consumedListenerEventOldestAgeMilliseconds: 9,
+      pendingListenerEventOldestAgeMilliseconds: 10,
+      duplicateTriggerEventsBytes: 11,
+    });
+
+    registerWorkflowsServiceMetrics();
+    const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+    const observer = {observe: vi.fn()};
+
+    await callback?.(observer);
+    await callback?.(observer);
+    expect(mocks.getListenerEventStorageStats).toHaveBeenCalledTimes(1);
+
+    expect(observer.observe).toHaveBeenCalledWith(mocks.gauges.get('workflows_running_runs'), 2);
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_running_job_executions'),
+      3,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_active_listeners'),
+      4,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_tool_invocations_queued'),
+      5,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_tool_invocations_in_flight'),
+      6,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_listener_event_rows'),
+      7,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_listener_event_payload_bytes'),
+      8,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_listener_event_consumed_oldest_age'),
+      9,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_listener_event_pending_oldest_age'),
+      10,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_duplicate_trigger_events_bytes'),
+      11,
+    );
+    expect(mocks.addBatchObservableCallback.mock.calls[0]?.[1]).toEqual(
+      expect.arrayContaining([
+        mocks.gauges.get('workflows_listener_event_rows'),
+        mocks.gauges.get('workflows_listener_event_payload_bytes'),
+        mocks.gauges.get('workflows_listener_event_consumed_oldest_age'),
+        mocks.gauges.get('workflows_listener_event_pending_oldest_age'),
+        mocks.gauges.get('workflows_duplicate_trigger_events_bytes'),
+      ]),
+    );
+  });
+
+  test('keeps existing gauges observable when storage stats fail', async () => {
+    mocks.getWorkflowJobExecutionDepth.mockResolvedValue({runningRuns: 2, runningJobExecutions: 3});
+    mocks.countActiveListeners.mockResolvedValue(4);
+    mocks.getToolInvocationDepth.mockResolvedValue({queued: 5, inFlight: 6});
+    mocks.getListenerEventStorageStats.mockRejectedValue(new Error('storage unavailable'));
 
     registerWorkflowsServiceMetrics();
     const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
@@ -72,5 +149,97 @@ describe('registerWorkflowsServiceMetrics', () => {
       mocks.gauges.get('workflows_tool_invocations_in_flight'),
       6,
     );
+    expect(
+      observer.observe.mock.calls.some(
+        ([gauge]) => gauge === mocks.gauges.get('workflows_listener_event_rows'),
+      ),
+    ).toBe(false);
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      {err: expect.any(Error)},
+      'Failed to collect workflow listener event storage metrics',
+    );
+  });
+
+  test('keeps independent gauges observable when a core query fails', async () => {
+    mocks.getWorkflowJobExecutionDepth.mockRejectedValue(new Error('depth unavailable'));
+    mocks.countActiveListeners.mockResolvedValue(4);
+    mocks.getToolInvocationDepth.mockResolvedValue({queued: 5, inFlight: 6});
+    mocks.getListenerEventStorageStats.mockResolvedValue({
+      listenerEventRows: 7,
+      listenerEventPayloadBytes: 8,
+      consumedListenerEventOldestAgeMilliseconds: 9,
+      pendingListenerEventOldestAgeMilliseconds: 10,
+      duplicateTriggerEventsBytes: 11,
+    });
+
+    registerWorkflowsServiceMetrics();
+    const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+    const observer = {observe: vi.fn()};
+
+    await callback?.(observer);
+
+    expect(
+      observer.observe.mock.calls.some(
+        ([gauge]) => gauge === mocks.gauges.get('workflows_running_runs'),
+      ),
+    ).toBe(false);
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_active_listeners'),
+      4,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_tool_invocations_queued'),
+      5,
+    );
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      {err: expect.any(Error)},
+      'Failed to collect workflow execution depth metrics',
+    );
+  });
+
+  test('omits expired storage gauges when a refresh fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const storageStats = {
+        listenerEventRows: 7,
+        listenerEventPayloadBytes: 8,
+        consumedListenerEventOldestAgeMilliseconds: 9,
+        pendingListenerEventOldestAgeMilliseconds: 10,
+        duplicateTriggerEventsBytes: 11,
+      };
+      mocks.getWorkflowJobExecutionDepth.mockResolvedValue({
+        runningRuns: 2,
+        runningJobExecutions: 3,
+      });
+      mocks.countActiveListeners.mockResolvedValue(4);
+      mocks.getToolInvocationDepth.mockResolvedValue({queued: 5, inFlight: 6});
+      mocks.getListenerEventStorageStats
+        .mockResolvedValueOnce(storageStats)
+        .mockRejectedValueOnce(new Error('storage unavailable'));
+
+      registerWorkflowsServiceMetrics();
+      const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+      const observer = {observe: vi.fn()};
+
+      await callback?.(observer);
+      expect(observer.observe).toHaveBeenCalledWith(
+        mocks.gauges.get('workflows_duplicate_trigger_events_bytes'),
+        11,
+      );
+
+      vi.advanceTimersByTime(60_001);
+      observer.observe.mockClear();
+      await callback?.(observer);
+
+      expect(observer.observe).toHaveBeenCalledWith(mocks.gauges.get('workflows_running_runs'), 2);
+      expect(
+        observer.observe.mock.calls.some(
+          ([gauge]) => gauge === mocks.gauges.get('workflows_listener_event_rows'),
+        ),
+      ).toBe(false);
+      expect(mocks.getListenerEventStorageStats).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

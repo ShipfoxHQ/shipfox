@@ -3,6 +3,7 @@ import {MAX_JOB_OUTPUTS_TOTAL_BYTES} from '#core/step-config/job-output-limits.j
 import {buildModel, createTestRun, jobTerminatedEvents} from '#test/helpers/workflow-runs.js';
 import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
+import {jobListenerEvents} from '../schema/job-listener-events.js';
 import {jobs} from '../schema/jobs.js';
 import {
   createWorkflowRun,
@@ -196,6 +197,57 @@ describe('workflow run queries', () => {
       const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
 
       expect(resolved.status).toBe('succeeded');
+    });
+
+    test('resolves job status expressions from canonical execution events', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              success: 'executions[0].events[0].data.action == "opened"',
+              steps: [{run: 'npm test'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Expected workflow job');
+      const execution = await getFirstJobExecutionByJobId(job.id);
+      if (!execution) throw new Error('Expected workflow job execution');
+      await db()
+        .update(jobExecutions)
+        .set({status: 'succeeded', triggerEvents: null})
+        .where(eq(jobExecutions.id, execution.id));
+      await db()
+        .insert(jobListenerEvents)
+        .values({
+          jobId: job.id,
+          disposition: 'fire',
+          outcome: 'consumed',
+          eventRef: 'status-canonical-event',
+          deliveryId: 'status-canonical-delivery',
+          source: 'github',
+          event: 'pull_request',
+          payload: {action: 'opened'},
+          storedPayloadBytes: 19,
+          normalizedEventBytes: 128,
+          receivedAt: new Date('2026-01-01T00:00:00.000Z'),
+          consumedByExecutionId: execution.id,
+        });
+
+      const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
+
+      expect(resolved.status).toBe('succeeded');
+      expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({status: 'succeeded'});
     });
 
     test('resolves custom job success expressions over direct dependency outputs', async () => {
