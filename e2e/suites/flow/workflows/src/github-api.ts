@@ -313,7 +313,8 @@ async function handleCreateCheckRunRequest(
   params: GithubRequestContext,
   match: RegExpMatchArray,
 ): Promise<void> {
-  const body = await readJsonBody(params.request);
+  const body = await readCheckRunBody(params);
+  if (body === undefined) return;
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({
       kind: 'create-check-run',
@@ -331,7 +332,8 @@ async function handleUpdateCheckRunRequest(
   params: GithubRequestContext,
   match: RegExpMatchArray,
 ): Promise<void> {
-  const body = await readJsonBody(params.request);
+  const body = await readCheckRunBody(params);
+  if (body === undefined) return;
   const checkRunId = Number(match[3]);
   if (isCurrentInstallationAuthorization(params)) {
     params.calls.push({
@@ -516,6 +518,17 @@ async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
 async function close(server: HttpServer): Promise<void> {
   server.close();
   await once(server, 'close');
+}
+
+async function readCheckRunBody(
+  params: GithubRequestContext,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    return await readJsonBody(params.request);
+  } catch {
+    sendJson(params.response, 400, {message: 'Invalid JSON body'});
+    return undefined;
+  }
 }
 
 async function readJsonBody(request: NodeJS.ReadableStream): Promise<Record<string, unknown>> {
