@@ -175,6 +175,8 @@ export async function persistRunnerTerminationAuthorizationTx(
       providerRunnerId: providerRunners.providerRunnerId,
       launchKind: providerRunners.launchKind,
       reservationReleasedAt: providerRunners.reservationReleasedAt,
+      leaseExpiredAt: providerRunners.leaseExpiredAt,
+      executionFenceUntil: providerRunners.executionFenceUntil,
       terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
       terminationReason: providerRunners.terminationReason,
     })
@@ -185,6 +187,31 @@ export async function persistRunnerTerminationAuthorizationTx(
     .limit(1)
     .for('update');
   if (!runner) throw new Error('Termination authorization runner disappeared');
+
+  const executionFenceActive =
+    runner.executionFenceUntil !== null && runner.executionFenceUntil.getTime() > Date.now();
+  const legacyLeaseExpired = runner.leaseExpiredAt !== null && runner.executionFenceUntil === null;
+  if (executionFenceActive || legacyLeaseExpired) {
+    if (runner.terminationAuthorizedAt && runner.terminationReason)
+      await tx
+        .update(providerRunners)
+        .set({
+          terminationAuthorizedAt: null,
+          terminationReason: null,
+          updatedAt: sql`statement_timestamp()`,
+        })
+        .where(eq(providerRunners.id, runner.id));
+    return {
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {
+        outcome: 'rejected',
+        reason: runner.terminationReason ?? 'lease-expired',
+      },
+      reservationReleased: false,
+    };
+  }
 
   if (!runner.terminationAuthorizedAt || !runner.terminationReason)
     return await issueRunnerTerminationAuthorizationTx(tx, runner, params, onRevocation);
@@ -209,6 +236,8 @@ type LockedTerminationRunner = {
   reservationReleasedAt: Date | null;
   terminationAuthorizedAt: Date | null;
   terminationReason: RunnerTerminationReason | null;
+  leaseExpiredAt: Date | null;
+  executionFenceUntil: Date | null;
 };
 
 async function issueRunnerTerminationAuthorizationTx(
@@ -233,6 +262,16 @@ async function issueRunnerTerminationAuthorizationTx(
       terminationAuthorizedAt: null,
       terminationReason: null,
       telemetry: {outcome: 'rejected', reason: resolution.rejectionReason},
+      reservationReleased: false,
+    };
+
+  const fenceRejection = terminationFenceRejection(runner, resolution.reason);
+  if (fenceRejection)
+    return {
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {outcome: 'rejected', reason: fenceRejection},
       reservationReleased: false,
     };
 
@@ -261,6 +300,24 @@ async function issueRunnerTerminationAuthorizationTx(
     telemetry: {outcome: 'issued', reason: authorized.terminationReason},
     reservationReleased,
   };
+}
+
+function terminationFenceRejection(
+  runner: Pick<LockedTerminationRunner, 'leaseExpiredAt' | 'executionFenceUntil'>,
+  reason: RunnerTerminationReason,
+): RunnerTerminationAuthorizationRejectionReason | null {
+  if (runner.executionFenceUntil && runner.executionFenceUntil.getTime() > Date.now())
+    return reason;
+
+  if (
+    reason === 'lease-expired' &&
+    (runner.leaseExpiredAt === null || runner.executionFenceUntil === null)
+  )
+    return 'lease-expired';
+
+  if (runner.leaseExpiredAt !== null && reason !== 'lease-expired') return reason;
+
+  return null;
 }
 
 function shouldReleaseDemandReservation(

@@ -1,11 +1,13 @@
 import {
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
+  type RunnerLifecycleCapabilitiesDto,
   runnerJobClaimedEventSchema,
   runnerJobLeaseExpiredEventSchema,
 } from '@shipfox/api-runners-dto';
 import {pgClient} from '@shipfox/node-postgres';
 import {eq, inArray, sql} from 'drizzle-orm';
+import {config} from '#config.js';
 import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
@@ -1674,6 +1676,74 @@ describe('detectAndExpireStuckJobs', () => {
     };
   }
 
+  async function makeManagedStaleJob(
+    lifecycleCapabilities: RunnerLifecycleCapabilitiesDto | null,
+  ): Promise<{
+    jobId: string;
+    jobExecutionId: string;
+    providerRunnerId: string;
+    runnerSessionId: string;
+  }> {
+    const provisioner = await provisionerTokenFactory.create({scope: 'installation'});
+    const providerRunner = await providerRunnerFactory.create({
+      workspaceId,
+      provisionerId: provisioner.id,
+      providerRunnerId: crypto.randomUUID(),
+      state: 'running',
+    });
+    const [session] = await db()
+      .insert(runnerSessions)
+      .values({
+        workspaceId,
+        scope: 'workspace',
+        registrationTokenId: crypto.randomUUID(),
+        registrationTokenKind: 'activation',
+        runnerInstanceId: providerRunner.id,
+        provisionerId: provisioner.id,
+        providerRunnerId: providerRunner.providerRunnerId,
+        labels: sessionLabels,
+        lifecycleCapabilities,
+        maxClaims: 1,
+        claimsUsed: 0,
+      })
+      .returning({id: runnerSessions.id});
+    if (!session) throw new Error('Expected managed runner session');
+    await db()
+      .update(providerRunners)
+      .set({runnerSessionId: session.id})
+      .where(eq(providerRunners.id, providerRunner.id));
+
+    await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({
+      workspaceId,
+      runnerSessionId: session.id,
+      maxClaims: 1,
+    });
+    if (!claimed) throw new Error('Expected managed job claim');
+    await db()
+      .update(runningJobExecutions)
+      .set({
+        firstHeartbeatAt: sql`now() - interval '5 seconds'`,
+        lastHeartbeatAt: sql`now() - interval '5 seconds'`,
+      })
+      .where(eq(runningJobExecutions.jobExecutionId, claimed.jobExecutionId));
+
+    await db()
+      .update(providerRunners)
+      .set({
+        terminationAuthorizedAt: sql`now()`,
+        terminationReason: 'job-cancelled',
+      })
+      .where(eq(providerRunners.id, providerRunner.id));
+
+    return {
+      jobId: claimed.jobId,
+      jobExecutionId: claimed.jobExecutionId,
+      providerRunnerId: providerRunner.providerRunnerId,
+      runnerSessionId: session.id,
+    };
+  }
+
   async function makeNoFirstHeartbeatJob(ageSeconds: number): Promise<{
     jobId: string;
     jobExecutionId: string;
@@ -1743,6 +1813,64 @@ describe('detectAndExpireStuckJobs', () => {
     // The lease-expired event carries only the assignment identifiers and expiry timestamp.
     expect(outbox[0]?.payload).not.toHaveProperty('status');
     expect(outbox[0]?.payload).not.toHaveProperty('steps');
+  });
+
+  it('persists a capable runner execution fence before provider termination', async () => {
+    const stale = await makeManagedStaleJob(['local_execution_fence_v1']);
+
+    const result = await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    expect(result.map(({jobExecutionId}) => jobExecutionId)).toContain(stale.jobExecutionId);
+    expect(
+      await db()
+        .select()
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.jobExecutionId, stale.jobExecutionId)),
+    ).toHaveLength(0);
+
+    const [runner] = await db()
+      .select()
+      .from(providerRunners)
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+    expect(runner?.state).toBe('running');
+    expect(runner?.leaseExpiredAt).toBeInstanceOf(Date);
+    expect(runner?.executionFenceUntil).toBeInstanceOf(Date);
+    expect(runner?.executionFenceUntil?.getTime()).toBeGreaterThan(Date.now());
+    expect(runner?.executionFenceUntil?.getTime()).toBeGreaterThan(
+      Date.now() + (config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS - 10) * 1000,
+    );
+    expect(runner?.terminationAuthorizedAt).toBeNull();
+    expect(runner?.terminationReason).toBeNull();
+
+    const [session] = await db()
+      .select({revokedAt: runnerSessions.revokedAt})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, stale.runnerSessionId));
+    expect(session?.revokedAt).toBeInstanceOf(Date);
+  });
+
+  it('records lease loss but no execution fence for a legacy runner session', async () => {
+    const stale = await makeManagedStaleJob(null);
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const [runner] = await db()
+      .select({
+        leaseExpiredAt: providerRunners.leaseExpiredAt,
+        executionFenceUntil: providerRunners.executionFenceUntil,
+      })
+      .from(providerRunners)
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+    expect(runner?.leaseExpiredAt).toBeInstanceOf(Date);
+    expect(runner?.executionFenceUntil).toBeNull();
   });
 
   it('defers a correlated stale batch and recovers it with the operator override', async () => {

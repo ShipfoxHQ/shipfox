@@ -1,0 +1,2 @@
+ALTER TABLE "runners_runner_instances" ADD COLUMN "lease_expired_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "runners_runner_instances" ADD COLUMN "execution_fence_until" timestamp with time zone;

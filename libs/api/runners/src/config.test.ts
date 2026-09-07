@@ -209,6 +209,32 @@ describe('RUNNER_POST_JOB_EXIT_GRACE_SECONDS validation', () => {
   });
 });
 
+describe('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS validation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    '0',
+    '-5',
+    '1.5',
+  ])('fails startup when RUNNER_EXECUTION_FENCE_MARGIN_SECONDS is %s', async (value) => {
+    vi.stubEnv('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS', value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('RUNNER_EXECUTION_FENCE_MARGIN_SECONDS');
+  });
+
+  it('defaults to a positive thirty-second provider margin', async () => {
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.RUNNER_EXECUTION_FENCE_MARGIN_SECONDS).toBe(30);
+  });
+});
+
 describe('termination reason defaults', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

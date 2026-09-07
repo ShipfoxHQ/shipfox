@@ -181,6 +181,104 @@ describe('reconcileRunnerInstancesFromDbResult', () => {
       intendedReservationId,
     });
   });
+
+  it('keeps a capable runner inside the execution fence after its lease expires', () => {
+    const executionFenceUntil = new Date('2025-01-01T00:05:00.000Z');
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [
+        providerRunner({
+          providerRunnerId: 'provisioned-runner-1',
+          leaseExpiredAt: new Date('2025-01-01T00:01:00.000Z'),
+          executionFenceUntil,
+        }),
+      ],
+      boundJobExecutionsByRunnerInstanceId: new Map([
+        [
+          'provisioned-runner-1',
+          boundJobExecution({
+            providerRunnerId: 'provisioned-runner-1',
+            cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+            cancellationReason: 'run_cancelled',
+          }),
+        ],
+      ]),
+      now: new Date('2025-01-01T00:03:00.000Z'),
+      cleanupGraceSeconds: 1,
+    });
+
+    expect(result[0]).toMatchObject({
+      desiredIntent: 'keep',
+      desiredIntentReason: null,
+    });
+  });
+
+  it('requests lease-expired termination after a capable runner fence elapses', () => {
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [
+        providerRunner({
+          providerRunnerId: 'provisioned-runner-1',
+          leaseExpiredAt: new Date('2025-01-01T00:01:00.000Z'),
+          executionFenceUntil: new Date('2025-01-01T00:02:00.000Z'),
+        }),
+      ],
+      boundJobExecutionsByRunnerInstanceId: new Map(),
+      now: new Date('2025-01-01T00:03:00.000Z'),
+    });
+
+    expect(result[0]).toMatchObject({
+      desiredIntent: 'terminate',
+      desiredIntentReason: 'lease-expired',
+    });
+  });
+
+  it('keeps a runner with a fresh bound job despite a prior expired lease fence', () => {
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [
+        providerRunner({
+          providerRunnerId: 'provisioned-runner-1',
+          leaseExpiredAt: new Date('2025-01-01T00:01:00.000Z'),
+          executionFenceUntil: new Date('2025-01-01T00:02:00.000Z'),
+        }),
+      ],
+      boundJobExecutionsByRunnerInstanceId: new Map([
+        [
+          'provisioned-runner-1',
+          boundJobExecution({
+            providerRunnerId: 'provisioned-runner-1',
+            lastHeartbeatAt: new Date('2025-01-01T00:03:00.000Z'),
+          }),
+        ],
+      ]),
+      now: new Date('2025-01-01T00:04:00.000Z'),
+    });
+
+    expect(result[0]).toMatchObject({
+      desiredIntent: 'keep',
+      desiredIntentReason: null,
+    });
+  });
+
+  it('keeps a legacy expired lease without an execution fence', () => {
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [
+        providerRunner({
+          providerRunnerId: 'provisioned-runner-1',
+          leaseExpiredAt: new Date('2025-01-01T00:01:00.000Z'),
+        }),
+      ],
+      boundJobExecutionsByRunnerInstanceId: new Map(),
+      now: new Date('2025-01-01T00:03:00.000Z'),
+    });
+
+    expect(result[0]).toMatchObject({
+      desiredIntent: 'keep',
+      desiredIntentReason: null,
+    });
+  });
 });
 
 function providerRunner(params: {
@@ -188,6 +286,8 @@ function providerRunner(params: {
   state?: 'starting' | 'running' | 'stopping' | 'stopped' | 'failed' | 'terminated';
   intendedReservationId?: string | null;
   stoppingAt?: Date | null;
+  leaseExpiredAt?: Date | null;
+  executionFenceUntil?: Date | null;
 }) {
   return {
     id: crypto.randomUUID(),
@@ -209,6 +309,8 @@ function providerRunner(params: {
     stoppedAt: null,
     failedAt: null,
     terminatedAt: null,
+    leaseExpiredAt: params.leaseExpiredAt ?? null,
+    executionFenceUntil: params.executionFenceUntil ?? null,
     terminationAuthorizedAt: null,
     terminationReason: null,
     reservationReleasedAt: null,

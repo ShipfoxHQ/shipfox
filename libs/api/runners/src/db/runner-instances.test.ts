@@ -237,6 +237,83 @@ describe('authorizeRunnerTermination', () => {
       terminationReason: 'terminal-state',
     });
   });
+
+  it('keeps a legacy runner with an expired lease from being authorized', async () => {
+    const runner = await providerRunnerFactory.create({
+      workspaceId: crypto.randomUUID(),
+      leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'),
+      executionFenceUntil: null,
+    });
+
+    const result = await db().transaction((tx) =>
+      persistRunnerTerminationAuthorizationTx(tx, {
+        provisionerId: runner.provisionerId,
+        providerRunnerId: runner.providerRunnerId,
+        reason: 'lease-expired',
+        resolveTerminationReason: () => ({reason: 'lease-expired'}),
+      }),
+    );
+
+    expect(result).toEqual({
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {outcome: 'rejected', reason: 'lease-expired'},
+      reservationReleased: false,
+    });
+    expect(
+      await db()
+        .select({terminationAuthorizedAt: providerRunners.terminationAuthorizedAt})
+        .from(providerRunners)
+        .where(eq(providerRunners.id, runner.id)),
+    ).toEqual([{terminationAuthorizedAt: null}]);
+  });
+
+  it('keeps a capable runner until its execution fence elapses', async () => {
+    const runner = await providerRunnerFactory.create({
+      workspaceId: crypto.randomUUID(),
+      leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'),
+      executionFenceUntil: new Date(Date.now() + 60_000),
+    });
+
+    const result = await db().transaction((tx) =>
+      persistRunnerTerminationAuthorizationTx(tx, {
+        provisionerId: runner.provisionerId,
+        providerRunnerId: runner.providerRunnerId,
+        reason: 'lease-expired',
+        resolveTerminationReason: () => ({reason: 'lease-expired'}),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {outcome: 'rejected', reason: 'lease-expired'},
+      reservationReleased: false,
+    });
+  });
+
+  it('authorizes a capable runner after its execution fence elapses', async () => {
+    const runner = await providerRunnerFactory.create({
+      workspaceId: crypto.randomUUID(),
+      leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'),
+      executionFenceUntil: new Date(Date.now() - 60_000),
+    });
+
+    const result = await db().transaction((tx) =>
+      persistRunnerTerminationAuthorizationTx(tx, {
+        provisionerId: runner.provisionerId,
+        providerRunnerId: runner.providerRunnerId,
+        reason: 'lease-expired',
+        resolveTerminationReason: () => ({reason: 'lease-expired'}),
+      }),
+    );
+
+    expect(result.desiredIntent).toBe('terminate');
+    expect(result.terminationReason).toBe('lease-expired');
+    expect(result.terminationAuthorizedAt).toBeInstanceOf(Date);
+  });
 });
 
 describe('recoverStaleIdleRunnerSessions', () => {

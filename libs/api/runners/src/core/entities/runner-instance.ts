@@ -41,6 +41,10 @@ export interface RunnerInstance {
   stoppedAt: Date | null;
   failedAt: Date | null;
   terminatedAt: Date | null;
+  /** The provider runner's job lease was expired by backend maintenance. */
+  leaseExpiredAt?: Date | null;
+  /** The deadline after which local work from the expired lease is fenced. */
+  executionFenceUntil?: Date | null;
   terminationAuthorizedAt?: Date | null;
   terminationReason?: RunnerTerminationReason | null;
   reservationReleasedAt: Date | null;
