@@ -422,7 +422,8 @@ function matchesUnapprovedPermissionProfile(
   body: Record<string, unknown>,
   profiles: readonly Record<string, string>[],
 ): boolean {
-  const requestedPermissions = permissionsFromMint(body);
+  if (!isRecord(body.permissions)) return false;
+  const requestedPermissions = body.permissions;
   return profiles.some((profile) => {
     const requestedEntries = Object.entries(requestedPermissions);
     const profileEntries = Object.entries(profile);

@@ -231,6 +231,56 @@ describe('GitHub API mock', () => {
     }
   });
 
+  it('does not match omitted permissions against the response fallback', async () => {
+    const mock = await startGithubApiMock({
+      endpoint: new URL('http://127.0.0.1:0'),
+      unapprovedPermissionProfiles: [{issues: 'write'}],
+    });
+
+    try {
+      const mintUrl = new URL('/app/installations/1234/access_tokens', mock.endpoint);
+      const headers = {
+        authorization: 'Bearer app-jwt',
+        'content-type': 'application/json',
+        'x-github-stateless-s2s-token': 'enabled',
+      };
+      const omittedPermissions = await fetch(mintUrl, {
+        method: 'POST',
+        headers,
+        body: '{}',
+      });
+      const explicitPermissions = await fetch(mintUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({permissions: {issues: 'write'}}),
+      });
+
+      expect(omittedPermissions.status).toBe(201);
+      await expect(omittedPermissions.json()).resolves.toMatchObject({
+        permissions: {issues: 'write'},
+      });
+      expect(explicitPermissions.status).toBe(422);
+      expect(mock.calls).toEqual([
+        {
+          kind: 'mint-token',
+          authorization: 'Bearer app-jwt',
+          tokenFormatOverride: 'enabled',
+          installationId: 1234,
+          body: {},
+        },
+        {
+          kind: 'mint-token',
+          authorization: 'Bearer app-jwt',
+          tokenFormatOverride: 'enabled',
+          installationId: 1234,
+          body: {permissions: {issues: 'write'}},
+        },
+      ]);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it('serves repository metadata, scoped checkout mints, search, and GraphQL requests', async () => {
     const mock = await startGithubApiMock({endpoint: new URL('http://127.0.0.1:0')});
 
