@@ -304,7 +304,12 @@ async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Pro
       error instanceof ApiError &&
       shouldRefreshAccessToken({error, path, usedConfiguredAccessToken})
     ) {
-      const refreshedToken = await retryAccessToken(accessToken, options.signal);
+      let refreshedToken: string | undefined;
+      try {
+        refreshedToken = await retryAccessToken(accessToken, options.signal);
+      } catch {
+        throw error;
+      }
       if (refreshedToken) {
         headers.set('authorization', `Bearer ${refreshedToken}`);
         return await sendApiRequest<T>(url, requestInit);

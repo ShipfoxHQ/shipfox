@@ -165,6 +165,33 @@ describe('checked API transport', () => {
     expect(secondRequest.headers.get('authorization')).toBe('Bearer renewed-target-token');
   });
 
+  test('preserves an unauthorized error when preparing a retry token fails', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      );
+    const prepareAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce('expired-target-token')
+      .mockRejectedValueOnce(new Error('renewal failed'));
+    const refreshAccessToken = vi.fn().mockResolvedValue('administrator-token');
+    configureApiClient({
+      fetchImpl,
+      getAccessToken: () => 'configured-token',
+      prepareAccessToken,
+      refreshAccessToken,
+    });
+
+    const result = transportRequest('/workspaces');
+
+    await expect(result).rejects.toMatchObject({code: 'unauthorized', status: 401});
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.headers.get('authorization')).toBe('Bearer expired-target-token');
+  });
+
   test('does not prepare, replace, or retry an explicit caller authorization header', async () => {
     const fetchImpl = vi
       .fn()
