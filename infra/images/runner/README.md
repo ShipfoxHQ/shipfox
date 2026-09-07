@@ -135,10 +135,12 @@ The image derives its tool capabilities from its baked runner runtime and sends 
 enrollment. Providers do not inject capabilities, workspace IDs, workspace registration tokens,
 or activation tokens into user data.
 
-The image owns `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT`. The container image sets it only after the
-production-closure verifier passes. The AMI service unit sets it only after `install-runner.sh`
-has run that same verifier, so a partial image bake cannot advertise the helper. Provider-rendered
-environment files must not set this flag.
+The image owns `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT` and
+`SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE`. The container image sets them only after the
+production-closure verifier passes. The AMI service unit sets them only after `install-runner.sh`
+has run that same verifier, so a partial image bake cannot advertise either helper. A flag-on
+inference image requires an API at or above the compatibility release to be deployed on every API
+instance before the image is used. Provider-rendered environment files must not set either flag.
 
 Older self-managed images remain compatible: they use static checkout credentials. When a persisted
 checkout reaches one, the API writes an upgrade warning to the job annotations without blocking

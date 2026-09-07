@@ -78,6 +78,7 @@ configured root is empty, the filesystem root (`/`), or a home directory.
 | `SHIPFOX_RUNNER_PROTOCOL_VERSION` | `1` | Protocol version the managed runner declares during enrollment. |
 | `SHIPFOX_RUNNER_LABELS` | N/A | Comma-separated labels registered on this runner session, such as `linux,x64,self-hosted`. |
 | `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT` | `false` | Enables the runner-local renewable Git credential broker. Verified managed images set this to `true` after the helper and production-closure checks pass. Keep `false` on self-hosted or unverified images. |
+| `SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE` | `false` | Enables renewable managed inference credentials. Verified managed images set this to `true` after the helper and production-closure checks pass, and only with an API at or above the compatibility release deployed everywhere. Keep `false` on self-hosted or unverified images. |
 | `SHIPFOX_RUNNER_WORKSPACE_ROOT` | OS temp dir | Parent directory for per-job workspaces (see above). |
 | `SHIPFOX_POLL_INTERVAL_MS` | `1000` | Base poll interval when requesting jobs. |
 | `SHIPFOX_POLL_MAX_INTERVAL_MS` | `5000` | Maximum backoff interval when no jobs are available or the API errors. |

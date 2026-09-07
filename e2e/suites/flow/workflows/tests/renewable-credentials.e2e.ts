@@ -17,12 +17,56 @@ import {ON_REJECTION_WORKFLOW} from '#renewable-credentials-workflows.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
+import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const RUNNER_TERMINAL_TIMEOUT_MS = 180_000;
 const TEST_TIMEOUT_MS = 300_000;
 const TEST_VCS_TOKEN_PATTERN = /test-vcs-[0-9a-f-]{20,}/u;
 const TEST_VCS_REFRESH_WAIT_SECONDS = 2;
+interface InferenceFixtureStats {
+  resolutions: number;
+  expiredRequests: number;
+  acceptedRequests: number;
+  resolutionsByModel: Record<string, number>;
+  requestsByGeneration: Record<string, number>;
+}
+
+const RENEWABLE_INFERENCE_WORKFLOW = `
+name: Renewable managed inference
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  build:
+    steps:
+      - key: pi-rejection
+        harness: pi
+        provider: shipfox
+        model: e2e-renewable-pi
+        thinking: off
+        prompt: 'Reply with exactly: ok'
+      - key: claude-rejection
+        harness: claude
+        provider: shipfox
+        model: e2e-renewable-claude
+        thinking: low
+        prompt: 'Reply with exactly: ok'
+      - key: pi-refresh-at
+        harness: pi
+        provider: shipfox
+        model: e2e-refresh-renewable-pi
+        thinking: off
+        prompt: 'Reply with exactly: ok'
+      - key: claude-refresh-at
+        harness: claude
+        provider: shipfox
+        model: e2e-refresh-renewable-claude
+        thinking: low
+        prompt: 'Reply with exactly: ok'
+`;
 
 const REFRESH_AT_WORKFLOW = `
 name: Renewable Git refresh at
@@ -119,6 +163,54 @@ jobs:
 `;
 
 test.describe.configure({mode: 'serial'});
+
+test('renews managed inference credentials for both harnesses', async ({suite}, testInfo) => {
+  test.setTimeout(TEST_TIMEOUT_MS);
+  const uniqueId = shortId();
+  const runnerLabel = `e2e-renewable-inference-${uniqueId}`;
+  const repo = `renewable-inference-${uniqueId}`;
+  const configPath = `.shipfox/workflows/${repo}.yml`;
+  const client = createApiClient({token: suite.sessionToken});
+  const before = await client.requestJson<InferenceFixtureStats>(
+    'get',
+    '/__e2e-managed-inference/stats',
+  );
+  const project = await seedAndWaitForDefinition({
+    suite,
+    token: suite.sessionToken,
+    name: 'renewable-inference',
+    repo,
+    runnerLabel,
+    workflowYaml: RENEWABLE_INFERENCE_WORKFLOW,
+    configPath,
+  });
+
+  const {terminal, logFiles} = await runWorkflow({
+    suite,
+    testInfo,
+    definitionId: project.definition.id,
+    scenario: 'renewable-inference',
+    runnerLabel,
+    renewableGit: false,
+    renewableInference: true,
+  });
+  const after = await client.requestJson<InferenceFixtureStats>(
+    'get',
+    '/__e2e-managed-inference/stats',
+  );
+  const logs = await Promise.all(logFiles.map((logFile) => readFile(logFile, 'utf8')));
+
+  expect(terminal.status).toBe('succeeded');
+  expect(terminal.jobs.find((job) => job.key === 'build')?.status).toBe('succeeded');
+  expect(after.resolutions - before.resolutions).toBeGreaterThanOrEqual(8);
+  expect(after.expiredRequests - before.expiredRequests).toBeGreaterThanOrEqual(2);
+  expect(after.acceptedRequests - before.acceptedRequests).toBeGreaterThanOrEqual(4);
+  expect(after.resolutionsByModel['e2e-renewable-pi']).toBeGreaterThanOrEqual(2);
+  expect(after.resolutionsByModel['e2e-renewable-claude']).toBeGreaterThanOrEqual(2);
+  expect(after.resolutionsByModel['e2e-refresh-renewable-pi']).toBeGreaterThanOrEqual(2);
+  expect(after.resolutionsByModel['e2e-refresh-renewable-claude']).toBeGreaterThanOrEqual(2);
+  expect(logs.join('\n')).not.toContain('shipfox-e2e-');
+});
 
 test('renews rejected credentials across multiple checkouts', async ({
   suite,
@@ -456,6 +548,7 @@ async function runWorkflow(params: {
   runnerCount?: number | undefined;
   runnerLabels?: readonly string[] | undefined;
   renewableGit: boolean;
+  renewableInference?: boolean | undefined;
 }): Promise<{terminal: WorkflowRunObservation; logFiles: string[]}> {
   const token = params.suite.sessionToken;
   const client = createApiClient({token});
@@ -480,6 +573,7 @@ async function runWorkflow(params: {
             SHIPFOX_POLL_MAX_DURATION_MS: String(RUNNER_TERMINAL_TIMEOUT_MS),
           },
           renewableGit: params.renewableGit,
+          renewableInference: params.renewableInference,
         }),
       );
     }

@@ -10,6 +10,8 @@ import {runnerToolCapabilities} from '#core/tool-capabilities.js';
 
 beforeEach(() => {
   isPiExtensionAvailableMock.mockReturnValue(true);
+  vi.stubEnv('SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT', undefined);
+  vi.stubEnv('SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE', undefined);
 });
 
 afterEach(() => {
@@ -67,5 +69,34 @@ describe('runnerToolCapabilities', () => {
     );
 
     expect(enabledCapabilities().features).toEqual({renewable_git: true});
+  });
+
+  it('advertises renewable inference only when explicitly enabled', async () => {
+    vi.stubEnv('SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE', 'true');
+    vi.resetModules();
+
+    const {runnerToolCapabilities: enabledCapabilities} = await import(
+      '#core/tool-capabilities.js'
+    );
+
+    expect(enabledCapabilities().features).toEqual({
+      renewable_git: false,
+      renewable_inference: true,
+    });
+  });
+
+  it('advertises both renewable capabilities when both are enabled', async () => {
+    vi.stubEnv('SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT', 'true');
+    vi.stubEnv('SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE', 'true');
+    vi.resetModules();
+
+    const {runnerToolCapabilities: enabledCapabilities} = await import(
+      '#core/tool-capabilities.js'
+    );
+
+    expect(enabledCapabilities().features).toEqual({
+      renewable_git: true,
+      renewable_inference: true,
+    });
   });
 });

@@ -20,8 +20,11 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-server": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
+    "@shipfox/node-fastify": "workspace:*",
+    "@shipfox/node-module": "workspace:*",
     "@shipfox/node-opentelemetry": "workspace:*"
   },
   "devDependencies": {

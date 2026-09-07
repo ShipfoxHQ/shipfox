@@ -59,6 +59,16 @@
         "default": "./dist/claude-code.js"
       }
     },
+    "./claude-auth-helper": {
+      "workspace-source": {
+        "types": "./src/core/claude-auth-helper.ts",
+        "default": "./src/core/claude-auth-helper.ts"
+      },
+      "default": {
+        "types": "./dist/core/claude-auth-helper.d.ts",
+        "default": "./dist/core/claude-auth-helper.js"
+      }
+    },
     "./tool-capabilities": {
       "workspace-source": {
         "types": "./src/core/tool-capabilities.ts",

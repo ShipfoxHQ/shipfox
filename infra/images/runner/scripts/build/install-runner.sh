@@ -13,9 +13,9 @@ cd "$(dirname "$lockfile")"
 corepack prepare pnpm@11.7.0 --activate
 pnpm install --frozen-lockfile
 pnpm --filter=@shipfox/runner deploy --prod --legacy --config.strict-peer-dependencies=false "$runner_dir"
-# Verify the deployed production closure contains every Pi extension entry and the Git credential
-# helper before the image is published. This runs against the deployed flat layout, not the pnpm
-# development tree.
+# Verify the deployed production closure contains every Pi extension entry, the renewable
+# credential helpers, and the bundled Claude Code binary before the image is published. This runs
+# against the deployed flat layout, not the pnpm development tree.
 node "$runner_dir/dist/verify-installation.js"
 # The runner package is the deployed root rather than an installed dependency, so its package bin
 # is not linked onto PATH by pnpm. Keep Git's name-based helper resolution usable in production.

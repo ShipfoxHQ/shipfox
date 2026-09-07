@@ -77,6 +77,10 @@ describe('e2eEnv', () => {
 
     assert.equal(env.API_URL, 'http://localhost:55351');
     assert.equal(env.API_PUBLIC_URL, 'http://localhost:55351');
+    assert.equal(
+      env.E2E_MANAGED_PROVIDER_BASE_URL,
+      'http://localhost:55351/__e2e-managed-inference',
+    );
     assert.equal(env.CLIENT_BASE_URL, 'http://localhost:55350');
     assert.equal(env.CLIENT_URL, 'http://localhost:55350');
     assert.equal(env.E2E_GITEA_URL, 'http://localhost:55356');
