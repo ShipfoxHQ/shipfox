@@ -110,7 +110,7 @@ expression:
 
 ```yaml
 concurrency:
-  group: pull-request-${{ event != null ? event.pull_request.number : inputs.pull_request_number }}
+  group: 'pull-request-${{ event != null ? event.pull_request.number : inputs.pull_request_number }}'
 ```
 
 The evaluator resolves only the selected conditional branch. The form above works for an event
