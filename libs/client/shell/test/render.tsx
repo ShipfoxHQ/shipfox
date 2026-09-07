@@ -73,6 +73,7 @@ export async function renderComposedShell({
       queryClient,
       workspaceSetup: workspaceSetup ?? (async () => ({hideProjectNavigation: false})),
       projectSlugResolver: chrome.projectSlugResolver,
+      unresolvedWorkspaceAvailable: Boolean(chrome.UnresolvedWorkspace),
     },
   });
   render(

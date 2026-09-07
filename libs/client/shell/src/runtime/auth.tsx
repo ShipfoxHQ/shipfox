@@ -139,6 +139,8 @@ export interface AuthState {
 }
 
 export interface AuthStateValue extends AuthState {
+  /** Changes when the principal or workspace memberships can affect routing. */
+  routeRevision?: string;
   isLoading: boolean;
   isAuthenticated: boolean;
   workspaces: Workspace[];
@@ -148,6 +150,27 @@ export interface AuthStateValue extends AuthState {
 export const initialAuthState: AuthState = {status: 'loading'};
 export const authStateAtom = atom<AuthState>(initialAuthState);
 const authTransitionEpochAtom = atom(0);
+
+/**
+ * Identifies authentication changes that can affect route guards without
+ * including the bearer token used for ordinary request renewal.
+ */
+export function getAuthRouteRevision(
+  state: Pick<AuthState, 'status' | 'user' | 'workspaces'>,
+): string {
+  return JSON.stringify({
+    status: state.status,
+    principalId: state.user?.id,
+    principalRole: state.user?.adminRole,
+    workspaces: (state.workspaces ?? []).map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      membershipId: workspace.membershipId,
+      status: workspace.status,
+    })),
+  });
+}
 
 export function toAuthenticatedState(
   session: AuthenticatedSession,
@@ -166,6 +189,7 @@ export function useAuthState(): AuthStateValue {
   return useMemo(
     () => ({
       ...state,
+      routeRevision: getAuthRouteRevision(state),
       workspaces: state.workspaces ?? [],
       isLoading: state.status === 'loading',
       isAuthenticated: state.status === 'authenticated',

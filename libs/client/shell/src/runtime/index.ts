@@ -40,6 +40,7 @@ export * from './last-workspace.js';
 export * from './layout-navigation.js';
 export * from './nav-order.js';
 export * from './query-client.js';
+export * from './relative-href.js';
 export * from './route-frame.js';
 export * from './route-inputs.js';
 export * from './router-context.js';

@@ -1,13 +1,21 @@
 import {ShipfoxLoader} from '@shipfox/react-ui/loader';
 import {Header, Text} from '@shipfox/react-ui/typography';
-import {createRootRouteWithContext, createRoute, Outlet, redirect} from '@tanstack/react-router';
+import {
+  createRootRouteWithContext,
+  createRoute,
+  Outlet,
+  redirect,
+  useLocation,
+} from '@tanstack/react-router';
 import {MainLayout} from '#components/main-layout.js';
 import {NotFoundPage} from '#components/not-found-page.js';
 import {SettingsNav} from '#components/settings-nav.js';
 import type {NavTabEntry, SettingsSectionEntry} from '#contract.js';
 import {useMaybeActiveWorkspace} from './active-workspace.js';
 import {anchorPaths} from './anchor-paths.js';
+import {useChrome} from './chrome-context.js';
 import {rememberLastWorkspaceId} from './last-workspace.js';
+import {toSameOriginRelativeHref} from './relative-href.js';
 import {parseWorkspaceParams, parseWorkspaceProjectParams, useRouteParams} from './route-inputs.js';
 import type {RouterContext} from './router-context.js';
 import type {WorkspaceSetupState} from './workspace-setup.js';
@@ -18,6 +26,17 @@ import {
 } from './workspace-setup.js';
 
 export {routePathForAnchor} from './anchor-paths.js';
+
+function missingWorkspaceRoute(
+  context: RouterContext,
+  location: {href: string; external?: boolean},
+): {unresolvedWorkspace: true} {
+  const requestedHref = location.external ? undefined : toSameOriginRelativeHref(location.href);
+  if (context.unresolvedWorkspaceAvailable && requestedHref) {
+    return {unresolvedWorkspace: true};
+  }
+  throw redirect({to: '/'});
+}
 
 export function buildAnchorSkeleton({
   navigation,
@@ -42,7 +61,7 @@ export function buildAnchorSkeleton({
       const workspace = auth.workspaces.find(
         (candidate) => candidate.slug === params.workspaceSlug,
       );
-      if (!workspace) throw redirect({to: '/'});
+      if (!workspace) return missingWorkspaceRoute(context, location);
       try {
         if (auth.user?.id) rememberLastWorkspaceId(auth.user.id, workspace.id);
       } catch {
@@ -64,21 +83,9 @@ export function buildAnchorSkeleton({
     ),
     errorComponent: WorkspaceLayoutErrorRoute,
     component: () => {
-      const setupState = workspaceLayout.useRouteContext() as {
-        hideProjectNavigation?: boolean;
-        unavailable?: boolean;
-      };
-      const workspace = useMaybeActiveWorkspace();
-      if (setupState.hideProjectNavigation === undefined) return <WorkspaceSetupPending />;
-      if (setupState.unavailable) {
-        return <WorkspaceUnavailablePage workspaceName={workspace?.name} />;
-      }
-      return (
-        <MainLayout
-          navigation={navigation}
-          hideProjectNavigation={setupState.hideProjectNavigation}
-        />
-      );
+      const setupState = workspaceLayout.useRouteContext() as WorkspaceAnchorRouteState;
+      if (setupState.unresolvedWorkspace) return <UnresolvedWorkspaceSlot />;
+      return <WorkspaceLayoutContent navigation={navigation} setupState={setupState} />;
     },
   });
   const projectLayout = createRoute({
@@ -88,7 +95,9 @@ export function buildAnchorSkeleton({
     beforeLoad: async ({context, params}) => {
       const auth = context.auth;
       if (!auth || auth.isLoading || !context.queryClient) return;
-      if ((context as RouterContext & Partial<WorkspaceSetupState>).unavailable) return;
+      const workspaceContext = context as RouterContext &
+        Partial<WorkspaceSetupState> & {unresolvedWorkspace?: boolean};
+      if (workspaceContext.unresolvedWorkspace || workspaceContext.unavailable) return;
       const workspace = auth.workspaces.find(
         (candidate) => candidate.slug === params.workspaceSlug,
       );
@@ -137,6 +146,36 @@ export function buildAnchorSkeleton({
     workspaceSettings,
     projectSettings,
   };
+}
+
+type WorkspaceAnchorRouteState = Partial<WorkspaceSetupState> & {
+  unresolvedWorkspace?: boolean;
+};
+
+function UnresolvedWorkspaceSlot() {
+  const {UnresolvedWorkspace} = useChrome();
+  const location = useLocation();
+  const {workspaceSlug} = useRouteParams(parseWorkspaceParams);
+  const requestedHref = location.external ? undefined : toSameOriginRelativeHref(location.href);
+  if (!UnresolvedWorkspace || !workspaceSlug || !requestedHref) return null;
+  return <UnresolvedWorkspace workspaceSlug={workspaceSlug} requestedHref={requestedHref} />;
+}
+
+function WorkspaceLayoutContent({
+  navigation,
+  setupState,
+}: {
+  navigation: readonly NavTabEntry[];
+  setupState: WorkspaceAnchorRouteState;
+}) {
+  const workspace = useMaybeActiveWorkspace();
+  if (setupState.hideProjectNavigation === undefined) return <WorkspaceSetupPending />;
+  if (setupState.unavailable) {
+    return <WorkspaceUnavailablePage workspaceName={workspace?.name} />;
+  }
+  return (
+    <MainLayout navigation={navigation} hideProjectNavigation={setupState.hideProjectNavigation} />
+  );
 }
 
 function SettingsAnchorLayout({
