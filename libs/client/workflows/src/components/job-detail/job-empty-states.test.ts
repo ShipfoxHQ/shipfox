@@ -203,4 +203,27 @@ describe('materialized output failure descriptions', () => {
       description: fallback,
     });
   });
+
+  test('explains an oversized listener filter snapshot without an execution', () => {
+    expect(
+      emptyStateForMissingExecution(
+        workflowJob({mode: 'listening', status: 'failed', status_reason: 'output_too_large'}),
+      ),
+    ).toMatchObject({
+      title: 'Job failed before an execution was created',
+      description:
+        'The listener filter snapshot exceeded its configured size limit. Review the listener filter and dependency data before re-running the workflow.',
+    });
+  });
+
+  test('keeps one-shot output-size failures on the materialized-output copy', () => {
+    expect(
+      emptyStateForMissingExecution(
+        workflowJob({status: 'failed', status_reason: 'output_too_large'}),
+      ),
+    ).toMatchObject({
+      description:
+        'The materialized job output exceeded its configured size limit. Review the failure details before re-running the workflow.',
+    });
+  });
 });

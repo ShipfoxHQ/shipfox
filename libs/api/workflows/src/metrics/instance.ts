@@ -1,6 +1,7 @@
-import type {
-  WorkflowDiagnosticFieldDto,
-  WorkflowExecutionPayloadFieldDto,
+import {
+  MAX_LISTENER_FILTER_SNAPSHOT_BYTES,
+  type WorkflowDiagnosticFieldDto,
+  type WorkflowExecutionPayloadFieldDto,
 } from '@shipfox/api-workflows-dto';
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
 import type {JobStatus, ResolutionReason} from '#core/entities/job.js';
@@ -145,7 +146,16 @@ const executionPayloadBytes = meter.createHistogram<{
   description: 'Workflow execution payload sizes by bounded owning field',
   unit: 'By',
   advice: {
-    explicitBucketBoundaries: [1_024, 10_240, 65_536, 256_000, 512_000, 868_928, 1_000_000],
+    explicitBucketBoundaries: [
+      1_024,
+      10_240,
+      65_536,
+      256_000,
+      512_000,
+      MAX_LISTENER_FILTER_SNAPSHOT_BYTES,
+      868_928,
+      1_000_000,
+    ],
   },
 });
 

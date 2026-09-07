@@ -16,6 +16,7 @@ import {
 } from '#core/agent-tools.js';
 import {
   assertWorkflowExecutionPayloadSize,
+  executionPayloadValueByteLength,
   observeWorkflowDiagnosticSize,
 } from '#core/diagnostics.js';
 import {isJobTerminal, type JobStatus, type ResolutionReason} from '#core/entities/job.js';
@@ -245,7 +246,9 @@ async function writeListenerActivatedEvent(
   };
   const snapshotPlan = planListenerFilterSnapshots(matchers);
   const dependencyJobs =
-    snapshotPlan.jobKeys.size === 0 ? [] : await getDirectDependencyJobContexts(jobId, tx);
+    snapshotPlan.jobKeys.size === 0 && !snapshotPlan.jobsAreBroad
+      ? []
+      : await getDirectDependencyJobContexts(jobId, tx);
   const snapshotContext = assembleListenerSnapshotContext({
     job: toJob(target.job),
     run: toWorkflowRun(target.run),
@@ -256,6 +259,38 @@ async function writeListenerActivatedEvent(
     dependencyJobs,
   });
   const listenerOutputTypes = listenerFilterOutputTypesForJobs(dependencyJobs);
+  const on = applyActivatedListenerFilterSnapshots(
+    snapshotPlan.on,
+    snapshotContext,
+    listenerOutputTypes,
+  );
+  const until =
+    matchers.until === null
+      ? null
+      : applyActivatedListenerFilterSnapshots(
+          snapshotPlan.until,
+          snapshotContext,
+          listenerOutputTypes,
+        );
+  const filterSnapshots = [...on, ...(until ?? [])].flatMap(({filter_snapshot}) =>
+    filter_snapshot === undefined ? [] : [filter_snapshot],
+  );
+  if (filterSnapshots.length > 0) {
+    try {
+      assertWorkflowExecutionPayloadSize('filter_snapshot', filterSnapshots);
+    } catch (error) {
+      if (error instanceof WorkflowExecutionPayloadTooLargeError) {
+        logOversizedListenerFilterSnapshots({
+          jobId,
+          jobKey: target.job.key,
+          on,
+          until: until ?? [],
+          error,
+        });
+      }
+      throw error;
+    }
+  }
 
   await writeWorkflowsOutboxEvent(tx, {
     type: WORKFLOWS_JOB_ACTIVATED,
@@ -264,21 +299,40 @@ async function writeListenerActivatedEvent(
       workflowRunId: target.run.id,
       workspaceId: target.run.workspaceId,
       mode: 'listening',
-      on: applyActivatedListenerFilterSnapshots(
-        snapshotPlan.on,
-        snapshotContext,
-        listenerOutputTypes,
-      ),
-      until:
-        matchers.until === null
-          ? null
-          : applyActivatedListenerFilterSnapshots(
-              snapshotPlan.until,
-              snapshotContext,
-              listenerOutputTypes,
-            ),
+      on,
+      until,
     },
   });
+}
+
+function logOversizedListenerFilterSnapshots(params: {
+  readonly jobId: string;
+  readonly jobKey: string;
+  readonly on: readonly ListenerTriggerWithSnapshot[];
+  readonly until: readonly ListenerTriggerWithSnapshot[];
+  readonly error: WorkflowExecutionPayloadTooLargeError;
+}): void {
+  for (const [matcherKind, matchers] of [
+    ['on', params.on] as const,
+    ['until', params.until] as const,
+  ]) {
+    for (const [matcherIndex, matcher] of matchers.entries()) {
+      if (matcher.filter_snapshot === undefined) continue;
+      logger().warn(
+        {
+          aggregateMeasuredBytes: params.error.measuredBytes,
+          filterSource: matcher.filter?.slice(0, 256),
+          jobId: params.jobId,
+          jobKey: params.jobKey,
+          limitBytes: params.error.limitBytes,
+          measuredBytes: executionPayloadValueByteLength(matcher.filter_snapshot),
+          matcherIndex,
+          matcherKind,
+        },
+        'Listener filter snapshot contributed to aggregate execution byte limit overflow',
+      );
+    }
+  }
 }
 
 export type DrainListenerEventsResult =
