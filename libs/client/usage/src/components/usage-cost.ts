@@ -41,6 +41,7 @@ export function useUsageCosts(
       };
     }
 
+    setCosts(new Map());
     void loadUsageCosts({pricing, requests}).then((nextCosts) => {
       if (!cancelled) setCosts(nextCosts);
     });
