@@ -186,7 +186,6 @@ async function persistExpiredLeaseStateTx(
     .where(and(inArray(runnerSessions.id, sessionIds), isNull(runnerSessions.revokedAt)));
 
   type ProviderFence = {
-    workspaceId: string;
     provisionerId: string;
     providerRunnerId: string;
     leaseExpiredAt: Date;
@@ -194,7 +193,9 @@ async function persistExpiredLeaseStateTx(
   };
   const fences = new Map<string, ProviderFence>();
   for (const row of managedRows) {
-    const key = `${row.workspaceId}:${row.provisionerId}:${row.providerRunnerId}`;
+    // Provider runner identity is unique within a provisioner. The provider row's workspace
+    // remains nullable for installation capacity, so it cannot be part of this update key.
+    const key = `${row.provisionerId}:${row.providerRunnerId}`;
     const leaseExpiredAt = toDate(row.expiredAt);
     const executionFenceUntil = sessionCapabilitiesById.get(row.runnerSessionId)
       ? executionFenceUntilForExpiredLease(row)
@@ -202,7 +203,6 @@ async function persistExpiredLeaseStateTx(
     const existing = fences.get(key);
     if (!existing) {
       fences.set(key, {
-        workspaceId: row.workspaceId,
         provisionerId: row.provisionerId,
         providerRunnerId: row.providerRunnerId,
         leaseExpiredAt,
@@ -236,7 +236,6 @@ async function persistExpiredLeaseStateTx(
       })
       .where(
         and(
-          eq(providerRunners.workspaceId, fence.workspaceId),
           eq(providerRunners.provisionerId, fence.provisionerId),
           eq(providerRunners.providerRunnerId, fence.providerRunnerId),
         ),

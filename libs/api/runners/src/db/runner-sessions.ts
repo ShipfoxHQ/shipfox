@@ -189,12 +189,16 @@ async function lockAndAssertRunnerEnrollmentAvailableTx(
     runnerInstanceId: runner.runnerInstanceId,
   });
   const [lockedRunner] = await tx
-    .select({terminationAuthorizedAt: providerRunners.terminationAuthorizedAt})
+    .select({
+      terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+      leaseExpiredAt: providerRunners.leaseExpiredAt,
+    })
     .from(providerRunners)
     .where(eq(providerRunners.id, runner.runnerInstanceId))
     .limit(1)
     .for('update');
-  if (lockedRunner?.terminationAuthorizedAt) throw new RunnerActivationTokenInvalidError();
+  if (lockedRunner?.terminationAuthorizedAt || lockedRunner?.leaseExpiredAt)
+    throw new RunnerActivationTokenInvalidError();
   const [enrolledSession] = await tx
     .select({id: runnerSessions.id})
     .from(runnerSessions)

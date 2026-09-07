@@ -190,8 +190,11 @@ export async function persistRunnerTerminationAuthorizationTx(
 
   const executionFenceActive =
     runner.executionFenceUntil !== null && runner.executionFenceUntil.getTime() > Date.now();
-  const legacyLeaseExpired = runner.leaseExpiredAt !== null && runner.executionFenceUntil === null;
-  if (executionFenceActive || legacyLeaseExpired) {
+  const legacyLeaseExpiredLeaseTermination =
+    params.reason === 'lease-expired' &&
+    runner.leaseExpiredAt !== null &&
+    runner.executionFenceUntil === null;
+  if (executionFenceActive || legacyLeaseExpiredLeaseTermination) {
     if (runner.terminationAuthorizedAt && runner.terminationReason)
       await tx
         .update(providerRunners)
@@ -314,8 +317,6 @@ function terminationFenceRejection(
     (runner.leaseExpiredAt === null || runner.executionFenceUntil === null)
   )
     return 'lease-expired';
-
-  if (runner.leaseExpiredAt !== null && reason !== 'lease-expired') return reason;
 
   return null;
 }

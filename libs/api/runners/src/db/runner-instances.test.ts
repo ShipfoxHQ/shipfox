@@ -294,6 +294,96 @@ describe('authorizeRunnerTermination', () => {
     });
   });
 
+  it.each([
+    ['legacy', {leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'), executionFenceUntil: null}],
+    [
+      'capable runner inside its fence',
+      {
+        leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'),
+        executionFenceUntil: new Date(Date.now() + 60_000),
+      },
+    ],
+  ] as const)('clears a prior authorization while keeping %s in the lease-expiry fence', async (_name, fence) => {
+    const runner = await providerRunnerFactory.create({
+      workspaceId: crypto.randomUUID(),
+      ...fence,
+      terminationAuthorizedAt: new Date('2025-12-01T00:00:00.000Z'),
+      terminationReason: 'job-timeout',
+    });
+
+    const result = await db().transaction((tx) =>
+      persistRunnerTerminationAuthorizationTx(tx, {
+        provisionerId: runner.provisionerId,
+        providerRunnerId: runner.providerRunnerId,
+        reason: 'lease-expired',
+        resolveTerminationReason: () => ({reason: 'lease-expired'}),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      desiredIntent: 'keep',
+      terminationAuthorizedAt: null,
+      terminationReason: null,
+      telemetry: {outcome: 'rejected', reason: 'job-timeout'},
+      reservationReleased: false,
+    });
+    expect(
+      await db()
+        .select({
+          terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+          terminationReason: providerRunners.terminationReason,
+        })
+        .from(providerRunners)
+        .where(eq(providerRunners.id, runner.id)),
+    ).toEqual([{terminationAuthorizedAt: null, terminationReason: null}]);
+  });
+
+  it('authorizes an unrelated reason after a capable runner fence elapses', async () => {
+    const runner = await providerRunnerFactory.create({
+      workspaceId: crypto.randomUUID(),
+      leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'),
+      executionFenceUntil: new Date(Date.now() - 60_000),
+    });
+
+    const result = await db().transaction((tx) =>
+      persistRunnerTerminationAuthorizationTx(tx, {
+        provisionerId: runner.provisionerId,
+        providerRunnerId: runner.providerRunnerId,
+        reason: 'terminal-state',
+        resolveTerminationReason: () => ({reason: 'terminal-state'}),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      desiredIntent: 'terminate',
+      terminationReason: 'terminal-state',
+      terminationAuthorizedAt: expect.any(Date),
+    });
+  });
+
+  it('authorizes an unrelated reason for a legacy runner after lease expiry', async () => {
+    const runner = await providerRunnerFactory.create({
+      workspaceId: crypto.randomUUID(),
+      leaseExpiredAt: new Date('2026-01-01T00:00:00.000Z'),
+      executionFenceUntil: null,
+    });
+
+    const result = await db().transaction((tx) =>
+      persistRunnerTerminationAuthorizationTx(tx, {
+        provisionerId: runner.provisionerId,
+        providerRunnerId: runner.providerRunnerId,
+        reason: 'terminal-state',
+        resolveTerminationReason: () => ({reason: 'terminal-state'}),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      desiredIntent: 'terminate',
+      terminationReason: 'terminal-state',
+      terminationAuthorizedAt: expect.any(Date),
+    });
+  });
+
   it('authorizes a capable runner after its execution fence elapses', async () => {
     const runner = await providerRunnerFactory.create({
       workspaceId: crypto.randomUUID(),

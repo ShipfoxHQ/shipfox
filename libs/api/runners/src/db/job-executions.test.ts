@@ -1678,6 +1678,7 @@ describe('detectAndExpireStuckJobs', () => {
 
   async function makeManagedStaleJob(
     lifecycleCapabilities: RunnerLifecycleCapabilitiesDto | null,
+    options: {providerRunnerWorkspaceId?: string | null} = {},
   ): Promise<{
     jobId: string;
     jobExecutionId: string;
@@ -1686,7 +1687,10 @@ describe('detectAndExpireStuckJobs', () => {
   }> {
     const provisioner = await provisionerTokenFactory.create({scope: 'installation'});
     const providerRunner = await providerRunnerFactory.create({
-      workspaceId,
+      workspaceId:
+        options.providerRunnerWorkspaceId === undefined
+          ? workspaceId
+          : options.providerRunnerWorkspaceId,
       provisionerId: provisioner.id,
       providerRunnerId: crypto.randomUUID(),
       state: 'running',
@@ -1816,7 +1820,9 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('persists a capable runner execution fence before provider termination', async () => {
-    const stale = await makeManagedStaleJob(['local_execution_fence_v1']);
+    const stale = await makeManagedStaleJob(['local_execution_fence_v1'], {
+      providerRunnerWorkspaceId: null,
+    });
 
     const result = await expireStuckJobExecutions({
       thresholdSeconds: 1,

@@ -99,6 +99,41 @@ describe('exchangeRunnerBootstrapToken', () => {
     expect(bootstrap?.consumedAt).toBeNull();
     expect(sessions).toHaveLength(0);
   });
+
+  it('rejects exchange after lease expiry even when termination authorization was cleared', async () => {
+    const provisionerId = crypto.randomUUID();
+    const runnerInstanceId = await createRunner({
+      provisionerId,
+      workspaceId: crypto.randomUUID(),
+    });
+    const rawToken = crypto.randomUUID();
+    await db()
+      .delete(runnerControlSessions)
+      .where(eq(runnerControlSessions.runnerInstanceId, runnerInstanceId));
+    await db()
+      .insert(runnerBootstrapTokens)
+      .values({
+        runnerInstanceId,
+        provisionerId,
+        hashedToken: hashOpaqueToken(rawToken),
+        prefix: 'test',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+    await db()
+      .update(providerRunners)
+      .set({leaseExpiredAt: new Date(), terminationAuthorizedAt: null, terminationReason: null})
+      .where(eq(providerRunners.id, runnerInstanceId));
+
+    await expect(exchangeRunnerBootstrapToken({rawToken, ttlSeconds: 60})).rejects.toBeInstanceOf(
+      RunnerBootstrapTokenInvalidError,
+    );
+
+    const [bootstrap] = await db()
+      .select({consumedAt: runnerBootstrapTokens.consumedAt})
+      .from(runnerBootstrapTokens)
+      .where(eq(runnerBootstrapTokens.runnerInstanceId, runnerInstanceId));
+    expect(bootstrap?.consumedAt).toBeNull();
+  });
 });
 
 describe('enrollRunnerControlSession', () => {
@@ -139,6 +174,30 @@ describe('enrollRunnerControlSession', () => {
       .from(runnerControlSessions)
       .where(eq(runnerControlSessions.runnerInstanceId, runnerInstanceId));
     expect(sessions).toHaveLength(0);
+  });
+
+  it('rejects enrollment after lease expiry even when termination authorization was cleared', async () => {
+    const provisionerId = crypto.randomUUID();
+    const runnerInstanceId = await createRunner({
+      provisionerId,
+      workspaceId: crypto.randomUUID(),
+      providerRunnerId: crypto.randomUUID(),
+      createControlSession: false,
+    });
+    await db()
+      .update(providerRunners)
+      .set({leaseExpiredAt: new Date(), terminationAuthorizedAt: null, terminationReason: null})
+      .where(eq(providerRunners.id, runnerInstanceId));
+
+    await expect(
+      enrollRunnerControlSession({
+        runnerInstanceId,
+        provisionerId,
+        labels: ['linux'],
+        providerKind: 'docker',
+        protocolVersion: '1',
+      }),
+    ).rejects.toBeInstanceOf(RunnerControlSessionInvalidError);
   });
 
   it('counts expired reservation promotion failures', async () => {
