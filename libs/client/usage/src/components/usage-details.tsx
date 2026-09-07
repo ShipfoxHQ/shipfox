@@ -3,8 +3,6 @@ import {
   type UsagePricingModel,
   useUsagePricing,
 } from '@shipfox/client-shell/runtime';
-import {Button} from '@shipfox/react-ui/button';
-import {Icon} from '@shipfox/react-ui/icon';
 import {
   Sheet,
   SheetBody,
@@ -45,19 +43,15 @@ export function UsageDetails({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button
+        <button
           type="button"
-          variant="transparent"
-          size="xs"
-          className="shrink-0 whitespace-nowrap text-foreground-neutral-subtle"
+          className="inline-flex cursor-pointer shrink-0 items-center rounded-4 whitespace-nowrap font-code text-xs font-normal leading-20 text-foreground-neutral-muted underline-offset-4 hover:text-foreground-neutral-base hover:underline focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
           aria-label={`View ${scope.toLowerCase()} ${formatted ? 'cost' : 'usage'} details`}
         >
-          {formatted ? <span>Cost</span> : null}
           <span data-usage-cost-state={cost?.state} className="tabular-nums">
             {label}
           </span>
-          <Icon name="arrowRightSLine" size={12} aria-hidden="true" />
-        </Button>
+        </button>
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-xl">
         <SheetHeader>

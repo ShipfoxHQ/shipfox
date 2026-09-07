@@ -60,6 +60,14 @@ export function JobDetailHeader({
 }: JobDetailHeaderProps) {
   const selectedStatus = selectedExecutionStatus(job, selectedJobExecution, executionDisplayStatus);
   const jobStatus = getWorkflowStatusVisual(selectedStatus);
+  const showExecutionSwitcher = Boolean(
+    selectedJobExecution && (executionCountVisible ?? job.executionCountVisible),
+  );
+  const showDuration = Boolean(
+    (selectedJobExecution?.queueTime && selectedJobExecution.queuedAt) ||
+      (selectedJobExecution?.runTime && selectedJobExecution.startedAt),
+  );
+  const showMetadata = showExecutionSwitcher || showDuration || Boolean(annotationSummary?.total);
 
   return (
     <header className="px-row py-row">
@@ -82,11 +90,17 @@ export function JobDetailHeader({
             >
               {job.displayName}
             </Code>
+            <JobUsageCells
+              className="ml-tight"
+              usage={usage}
+              stepLabels={stepLabels}
+              stepAttemptLabels={stepAttemptLabels}
+            />
           </div>
 
-          {selectedJobExecution || annotationSummary?.total ? (
+          {showMetadata ? (
             <div className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-muted">
-              {selectedJobExecution && (executionCountVisible ?? job.executionCountVisible) ? (
+              {selectedJobExecution && showExecutionSwitcher ? (
                 <JobExecutionSwitcher
                   job={job}
                   selectedJobExecution={selectedJobExecution.id}
@@ -101,11 +115,6 @@ export function JobDetailHeader({
                   <JobDurationMeta execution={selectedJobExecution} kind="run" />
                 </>
               ) : null}
-              <JobUsageCells
-                usage={usage}
-                stepLabels={stepLabels}
-                stepAttemptLabels={stepAttemptLabels}
-              />
               <RunAnnotationCountChip
                 summary={annotationSummary}
                 workspaceSlug={workspaceSlug}

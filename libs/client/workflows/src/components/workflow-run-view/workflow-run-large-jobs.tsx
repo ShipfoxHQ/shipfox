@@ -189,10 +189,10 @@ function LargeWorkflowJobRow({
     </>
   );
   const className =
-    'flex min-h-40 min-w-0 flex-1 items-center gap-inline px-row py-tight text-left transition-colors hover:bg-background-neutral-hover focus-visible:shadow-focus-inset focus-visible:outline-none';
+    'flex min-h-40 min-w-0 flex-1 items-center gap-inline py-tight text-left transition-colors hover:bg-background-neutral-hover focus-visible:shadow-focus-inset focus-visible:outline-none';
 
   return (
-    <li className="flex items-center gap-inline pr-row">
+    <li className="flex items-center gap-cluster px-row">
       {workspaceSlug && projectSlug ? (
         <Link
           to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId/jobs/$jobId"
