@@ -155,6 +155,8 @@ export {
   type ImpersonationWindowStopParamsDto,
   type ImpersonationWindowStopResponseDto,
   type ImpersonationWindowSummaryDto,
+  type ImpersonationWindowsQueryDto,
+  type ImpersonationWindowsResponseDto,
   impersonateWindowContinueResponseSchema,
   impersonateWindowStartBodySchema,
   impersonateWindowStartResponseSchema,
