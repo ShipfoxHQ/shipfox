@@ -15,6 +15,7 @@ try {
       ? undefined
       : (await import('./e2e-managed-inference.js')).createE2eManagedInferenceProvider(
           e2eManagedProviderBaseUrl,
+          apiServerConfig.E2E_ADMIN_API_KEY,
         );
   await runServer({
     modules: await defaultModules(

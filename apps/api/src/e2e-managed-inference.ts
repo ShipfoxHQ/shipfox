@@ -4,7 +4,15 @@ import type {
   ManagedModelProvider,
   ManagedProviderRuntimeConfig,
 } from '@shipfox/api-agent-dto';
-import {type AuthMethod, ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import {
+  type AuthMethod,
+  ClientError,
+  errorHandler as defaultErrorHandler,
+  defineRoute,
+  type FastifyReply,
+  type FastifyRequest,
+  type RouteGroup,
+} from '@shipfox/node-fastify';
 import type {ShipfoxModule} from '@shipfox/node-module';
 
 const E2E_MANAGED_PROVIDER_ID = 'shipfox';
@@ -67,6 +75,7 @@ interface InferenceState {
 
 export function createE2eManagedInferenceProvider(
   baseUrl: string | undefined,
+  adminApiKey?: string,
 ): {provider: ManagedModelProvider; module: ShipfoxModule} | undefined {
   if (baseUrl === undefined) return undefined;
 
@@ -148,14 +157,14 @@ export function createE2eManagedInferenceProvider(
     provider,
     module: {
       name: 'e2e-managed-inference',
-      auth: [createInferenceAuth(state)],
-      routes: [createInferenceRoutes(state)],
+      auth: [createInferenceAuth(state, adminApiKey)],
+      routes: [createInferenceRoutes(state, adminApiKey)],
       e2eRoutes: [createInferenceStatsRoutes(state)],
     },
   };
 }
 
-function createInferenceRoutes(state: InferenceState): RouteGroup {
+function createInferenceRoutes(state: InferenceState, adminApiKey: string | undefined): RouteGroup {
   return {
     prefix: E2E_INFERENCE_ROUTE_PREFIX,
     auth: E2E_MANAGED_INFERENCE_AUTH,
@@ -164,11 +173,13 @@ function createInferenceRoutes(state: InferenceState): RouteGroup {
         method: 'POST',
         path: '/v1/chat/completions',
         description: 'Serves the scripted OpenAI-compatible E2E managed inference response.',
+        errorHandler: inferenceAuthenticationErrorHandler,
         handler: (request, reply) =>
           respondToInferenceRequest({
             api: 'openai-completions',
             body: request.body,
             headers: request.headers,
+            adminApiKey,
             reply,
             state,
           }),
@@ -177,11 +188,13 @@ function createInferenceRoutes(state: InferenceState): RouteGroup {
         method: 'POST',
         path: '/v1/messages',
         description: 'Serves the scripted Anthropic-compatible E2E managed inference response.',
+        errorHandler: inferenceAuthenticationErrorHandler,
         handler: (request, reply) =>
           respondToInferenceRequest({
             api: 'anthropic-messages',
             body: request.body,
             headers: request.headers,
+            adminApiKey,
             reply,
             state,
           }),
@@ -204,7 +217,7 @@ function createInferenceStatsRoutes(state: InferenceState): RouteGroup {
   };
 }
 
-function createInferenceAuth(state: InferenceState): AuthMethod {
+function createInferenceAuth(state: InferenceState, adminApiKey: string | undefined): AuthMethod {
   return {
     name: E2E_MANAGED_INFERENCE_AUTH,
     authenticate: (request) => {
@@ -212,6 +225,7 @@ function createInferenceAuth(state: InferenceState): AuthMethod {
       if (token === undefined) {
         throw new ClientError('Missing credential', 'unauthorized', {status: 401});
       }
+      if (adminApiKey !== undefined && token === adminApiKey) return Promise.resolve();
 
       const tokenDetails = parseToken(token);
       const credentialState =
@@ -235,10 +249,29 @@ function createInferenceAuth(state: InferenceState): AuthMethod {
   };
 }
 
+function inferenceAuthenticationErrorHandler(
+  error: unknown,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): unknown {
+  if (!(error instanceof ClientError) || error.code !== 'unauthorized') {
+    return defaultErrorHandler(error, request, reply);
+  }
+
+  if (request.url.includes('/v1/messages')) {
+    return reply.code(401).send({
+      type: 'error',
+      error: {type: 'authentication_error', message: 'unauthorized'},
+    });
+  }
+  return reply.code(401).send({error: {code: 'unauthorized'}});
+}
+
 function respondToInferenceRequest(params: {
   api: ManagedModelApi;
   body: unknown;
   headers: Record<string, unknown>;
+  adminApiKey: string | undefined;
   reply: {
     code(statusCode: number): {send(payload: unknown): unknown};
     header(name: string, value: string): unknown;
@@ -257,6 +290,13 @@ function respondToInferenceRequest(params: {
   const requestModel = bodyString(params.body, 'model') ?? 'unknown';
   if (token === undefined) {
     return params.reply.code(401).send({code: 'unauthorized', message: 'missing credential'});
+  }
+  if (params.adminApiKey !== undefined && token === params.adminApiKey) {
+    params.state.stats.acceptedRequests += 1;
+    if (params.api === 'openai-completions') {
+      return respondWithOpenAiCompletion(params.reply, requestModel, params.body);
+    }
+    return respondWithAnthropicMessage(params.reply, requestModel, params.body);
   }
   const credentialState =
     tokenDetails === undefined

@@ -17,7 +17,7 @@ afterEach(async () => {
 
 describe('E2E managed inference fixture', () => {
   it('accepts generation one for static credentials', async () => {
-    const fixture = createE2eManagedInferenceProvider('http://provider.test');
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const app = await createApp({
       auth: fixture.module.auth ?? [],
@@ -41,10 +41,18 @@ describe('E2E managed inference fixture', () => {
     });
 
     expect(response.statusCode).toBe(200);
+
+    const adminResponse = await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers: {authorization: 'Bearer e2e-admin-key'},
+      payload: {model: 'e2e-renewable-pi'},
+    });
+    expect(adminResponse.statusCode).toBe(200);
   });
 
   it('rejects renewable generation one and accepts the refreshed generation', async () => {
-    const fixture = createE2eManagedInferenceProvider('http://provider.test');
+    const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const app = await createApp({
       auth: fixture.module.auth ?? [],
@@ -68,6 +76,7 @@ describe('E2E managed inference fixture', () => {
       payload: {model: 'e2e-renewable-pi'},
     });
     expect(rejected.statusCode).toBe(401);
+    expect(rejected.json()).toEqual({error: {code: 'unauthorized'}});
 
     const refreshed = await fixture.provider.resolveCredentials({
       workspaceId: 'workspace',
