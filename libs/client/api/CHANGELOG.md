@@ -1,5 +1,11 @@
 # @shipfox/client-api
 
+## 38.0.0
+
+### Minor Changes
+
+- 3af9b96: Adds cookie-only requests, asynchronous access-token preparation, adopted-session gate errors, and target-only bearer retry behavior.
+
 ## 6.0.1
 
 ### Patch Changes

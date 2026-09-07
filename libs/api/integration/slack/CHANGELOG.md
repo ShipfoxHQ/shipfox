@@ -1,5 +1,13 @@
 # @shipfox/api-integration-slack
 
+## 23.1.0
+
+### Patch Changes
+
+- Updated dependencies [038a38c]
+  - @shipfox/api-workspaces-dto@23.1.0
+  - @shipfox/api-auth-context@23.1.0
+
 ## 23.0.0
 
 ### Patch Changes

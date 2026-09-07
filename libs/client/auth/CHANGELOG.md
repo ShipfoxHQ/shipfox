@@ -1,5 +1,19 @@
 # @shipfox/client-auth
 
+## 38.0.0
+
+### Patch Changes
+
+- 0dbc3f6: Centralizes adopted-session query gate handling across client composition paths.
+- Updated dependencies [0dbc3f6]
+- Updated dependencies [3af9b96]
+- Updated dependencies [038a38c]
+  - @shipfox/client-shell@38.0.0
+  - @shipfox/client-ui@38.0.0
+  - @shipfox/client-api@38.0.0
+  - @shipfox/api-workspaces-dto@23.1.0
+  - @shipfox/client-invitations@38.0.0
+
 ## 37.0.0
 
 ### Patch Changes

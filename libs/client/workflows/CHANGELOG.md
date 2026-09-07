@@ -1,5 +1,20 @@
 # @shipfox/client-workflows
 
+## 38.0.0
+
+### Patch Changes
+
+- Updated dependencies [0dbc3f6]
+- Updated dependencies [3af9b96]
+  - @shipfox/client-shell@38.0.0
+  - @shipfox/client-ui@38.0.0
+  - @shipfox/client-api@38.0.0
+  - @shipfox/client-integrations@38.0.0
+  - @shipfox/client-projects@38.0.0
+  - @shipfox/client-triggers@38.0.0
+  - @shipfox/client-usage@38.0.0
+  - @shipfox/client-logs@38.0.0
+
 ## 37.0.0
 
 ### Minor Changes

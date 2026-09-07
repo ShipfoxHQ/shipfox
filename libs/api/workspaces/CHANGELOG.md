@@ -1,5 +1,17 @@
 # @shipfox/api-workspaces
 
+## 23.1.0
+
+### Minor Changes
+
+- 038a38c: Adds the workspace slug and eligible-member contract needed for administrator impersonation target discovery.
+
+### Patch Changes
+
+- Updated dependencies [038a38c]
+  - @shipfox/api-workspaces-dto@23.1.0
+  - @shipfox/api-auth-context@23.1.0
+
 ## 23.0.0
 
 ### Patch Changes

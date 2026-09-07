@@ -1,5 +1,12 @@
 # @shipfox/client-logs
 
+## 38.0.0
+
+### Patch Changes
+
+- Updated dependencies [3af9b96]
+  - @shipfox/client-api@38.0.0
+
 ## 30.0.0
 
 ### Patch Changes
