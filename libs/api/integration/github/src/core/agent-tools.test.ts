@@ -4746,6 +4746,7 @@ describe('github agent tool catalog', () => {
   it.each([
     '2026-09-05t12:00:00z',
     '2016-12-31T23:59:60Z',
+    '2016-12-31T18:59:60-05:00',
   ])('accepts RFC 3339 boundary timestamp %s for input and response projection', async (timestamp) => {
     const headSha = 'a'.repeat(40);
     const data = {
@@ -4805,7 +4806,6 @@ describe('github agent tool catalog', () => {
         check_run_id: 123456,
         conclusion: 'neutral',
         output: {title: 'Review complete', summary: 'Shipfox completed the review.'},
-        head_sha: 'must not be forwarded',
       },
       request,
     );
@@ -4835,6 +4835,28 @@ describe('github agent tool catalog', () => {
   });
 
   it.each([
+    {
+      label: 'a create with an update-only check-run ID',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        check_run_id: 123456,
+      },
+    },
+    {
+      label: 'an update with a create-only head SHA',
+      arguments: {
+        method: 'update',
+        owner: 'shipfox',
+        repo: 'platform',
+        check_run_id: 123456,
+        status: 'in_progress',
+        head_sha: 'a'.repeat(40),
+      },
+    },
     {
       label: 'an update without mutable fields',
       arguments: {

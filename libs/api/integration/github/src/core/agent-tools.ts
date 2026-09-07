@@ -1625,6 +1625,9 @@ function validateCheckRunArguments(arguments_: Record<string, unknown>): string 
 function validateCheckRunCreateArguments(arguments_: Record<string, unknown>): string | undefined {
   const headSha = arguments_.head_sha;
   return firstCheckRunValidationError([
+    arguments_.check_run_id !== undefined
+      ? 'Parameter check_run_id is not accepted by create'
+      : undefined,
     validateNonEmptyCheckRunString(arguments_, 'name'),
     typeof headSha === 'string' && isValidGitObjectId(headSha)
       ? undefined
@@ -1634,12 +1637,15 @@ function validateCheckRunCreateArguments(arguments_: Record<string, unknown>): s
 
 function validateCheckRunUpdateArguments(arguments_: Record<string, unknown>): string | undefined {
   const checkRunId = arguments_.check_run_id;
-  if (typeof checkRunId !== 'number' || !Number.isSafeInteger(checkRunId) || checkRunId < 1) {
-    return 'Parameter check_run_id must be a positive integer';
-  }
-  return CHECK_RUN_MUTABLE_FIELDS.some((field) => arguments_[field] !== undefined)
-    ? undefined
-    : 'An update must include at least one mutable check-run field';
+  return firstCheckRunValidationError([
+    arguments_.head_sha !== undefined ? 'Parameter head_sha is not accepted by update' : undefined,
+    typeof checkRunId === 'number' && Number.isSafeInteger(checkRunId) && checkRunId >= 1
+      ? undefined
+      : 'Parameter check_run_id must be a positive integer',
+    CHECK_RUN_MUTABLE_FIELDS.some((field) => arguments_[field] !== undefined)
+      ? undefined
+      : 'An update must include at least one mutable check-run field',
+  ]);
 }
 
 function validateCheckRunFields(arguments_: Record<string, unknown>): string | undefined {
@@ -1754,8 +1760,7 @@ function isValidRfc3339Timestamp(value: string): boolean {
     day > daysInCheckRunMonth(year, month) ||
     hour > 23 ||
     minute > 59 ||
-    second > 60 ||
-    (isLeapSecond && (hour !== 23 || minute !== 59))
+    second > 60
   ) {
     return false;
   }
@@ -1768,7 +1773,16 @@ function isValidRfc3339Timestamp(value: string): boolean {
   }
 
   const dateParseValue = isLeapSecond ? `${value.slice(0, 17)}59${value.slice(19)}` : value;
-  return !Number.isNaN(Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z')));
+  const timestamp = Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z'));
+  if (Number.isNaN(timestamp)) return false;
+  if (!isLeapSecond) return true;
+
+  const normalized = new Date(timestamp);
+  return (
+    normalized.getUTCHours() === 23 &&
+    normalized.getUTCMinutes() === 59 &&
+    normalized.getUTCSeconds() === 59
+  );
 }
 
 function daysInCheckRunMonth(year: number, month: number): number {
