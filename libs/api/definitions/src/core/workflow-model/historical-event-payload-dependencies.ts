@@ -59,16 +59,12 @@ export function findHistoricalEventPayloadDependencies(
   scanTemplateRecord(model.templates?.env, ['env'], dependencies);
 
   for (const [triggerIndex, trigger] of model.triggers.entries()) {
-    scanExpressionSource(trigger.filter, ['triggers', trigger.key, 'filter'], dependencies);
-    // Keep the index in the traversal for malformed legacy models where the
-    // normalized trigger key is missing or duplicated.
-    if (trigger.key === '') {
-      scanExpressionSource(trigger.filter, ['triggers', triggerIndex, 'filter'], dependencies);
-    }
+    const triggerPath = ['triggers', trigger.key === '' ? triggerIndex : trigger.key] as const;
+    scanExpressionSource(trigger.filter, [...triggerPath, 'filter'], dependencies);
   }
 
   for (const [jobIndex, job] of model.jobs.entries()) {
-    const jobPath = ['jobs', job.key] as const;
+    const jobPath = ['jobs', job.key === '' ? jobIndex : job.key] as const;
     scanExpression(job.if, [...jobPath, 'if'], dependencies);
     scanExpressionSource(job.success, [...jobPath, 'success'], dependencies);
     scanTemplate(job.executionName, [...jobPath, 'execution_name'], dependencies);
@@ -82,12 +78,6 @@ export function findHistoricalEventPayloadDependencies(
 
     for (const [stepIndex, step] of job.steps.entries()) {
       scanWorkflowStep(step, [...jobPath, 'steps', stepIndex], dependencies);
-    }
-
-    // A future or malformed stored model can omit a job key. Keep its findings
-    // auditable rather than dropping them into a safe bucket.
-    if (job.key === '') {
-      scanExpression(job.if, ['jobs', jobIndex, 'if'], dependencies);
     }
   }
 
@@ -281,7 +271,9 @@ function scanTemplateTree(
     return;
   }
   if (Array.isArray(value)) {
-    for (const child of value) scanTemplateTree(child, path, dependencies);
+    for (const [index, child] of value.entries()) {
+      scanTemplateTree(child, [...path, index], dependencies);
+    }
     return;
   }
   if (typeof value !== 'object') return;

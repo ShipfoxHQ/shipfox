@@ -74,12 +74,12 @@ describe('historical event-payload definition analysis', () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: 'historical-event-payload-dependency',
-          path: ['jobs', 'build', 'steps', 0, 'checkout', 'repository'],
+          path: ['jobs', 'build', 'steps', 0, 'checkout', 'repository', 0],
           details: expect.objectContaining({classification: 'payload', expression: source}),
         }),
         expect.objectContaining({
           code: 'historical-event-payload-dependency',
-          path: ['jobs', 'build', 'steps', 0, 'checkout', 'ref'],
+          path: ['jobs', 'build', 'steps', 0, 'checkout', 'ref', 0],
           details: expect.objectContaining({classification: 'payload', expression: source}),
         }),
       ]),
@@ -125,11 +125,11 @@ describe('historical event-payload definition analysis', () => {
     expect(warnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          path: ['run_name'],
+          path: ['run_name', 0],
           details: expect.objectContaining({classification: 'unknown', expression: filterSource}),
         }),
         expect.objectContaining({
-          path: ['jobs', 'inspect', 'steps', 0, 'with', 'history'],
+          path: ['jobs', 'inspect', 'steps', 0, 'with', 'history', 0],
           details: expect.objectContaining({classification: 'unknown', expression: mapSource}),
         }),
       ]),
@@ -137,6 +137,79 @@ describe('historical event-payload definition analysis', () => {
     expect(auditWorkflowModelHistoricalEventPayloadDependencies(plannedModel).classification).toBe(
       'unknown',
     );
+  });
+
+  it('keeps indexed warning paths for duplicate expressions in template arrays', () => {
+    const source = 'executions[0].events[0].data.action';
+    const {model} = normalize({
+      name: 'array historical paths',
+      jobs: {
+        inspect: {
+          steps: [
+            {
+              tool: 'get_issue',
+              connection: 'linear-main',
+              with: {items: [interpolation(source), interpolation(source)]},
+            },
+          ],
+        },
+      },
+    });
+
+    const warnings = historicalEventPayloadDependencyIssues(model).filter(
+      (diagnostic) => diagnostic.code === 'historical-event-payload-dependency',
+    );
+    expect(warnings).toHaveLength(2);
+    expect(warnings.map((warning) => warning.path)).toEqual(
+      expect.arrayContaining([
+        ['jobs', 'inspect', 'steps', 0, 'with', 'items', 0, 0],
+        ['jobs', 'inspect', 'steps', 0, 'with', 'items', 1, 0],
+      ]),
+    );
+  });
+
+  it('uses indexed canonical paths for empty-key trigger and job entries', () => {
+    const source = 'executions[0].events[0].data.action';
+    const {model} = normalize({
+      name: 'empty-key historical paths',
+      triggers: {
+        push: {
+          source: 'github',
+          event: 'push',
+          filter: 'event.action == "opened"',
+        },
+      },
+      jobs: {
+        review: {
+          steps: [{run: 'echo ok'}],
+        },
+      },
+    });
+    const malformedModel = {
+      ...model,
+      triggers: model.triggers.map((trigger) => ({
+        ...trigger,
+        key: '',
+        filter: `${source} == "opened"`,
+      })),
+      jobs: model.jobs.map((job) => ({
+        ...job,
+        key: '',
+        if: createWorkflowExpression({
+          source: `${source} == "opened"`,
+          check: {mode: 'syntax'},
+        }),
+      })),
+    };
+
+    const warnings = historicalEventPayloadDependencyIssues(malformedModel).filter(
+      (diagnostic) => diagnostic.code === 'historical-event-payload-dependency',
+    );
+    expect(warnings).toHaveLength(2);
+    expect(warnings.map((warning) => warning.path)).toEqual([
+      ['triggers', 0, 'filter'],
+      ['jobs', 0, 'if'],
+    ]);
   });
 
   it('bounds dynamic warning messages while retaining the full expression details', () => {
@@ -188,7 +261,7 @@ describe('historical event-payload definition analysis', () => {
     expect(warnings.map((warning) => warning.path)).toEqual(
       expect.arrayContaining([
         ['jobs', 'a.outputs', 'success'],
-        ['jobs', 'a', 'outputs', 'success'],
+        ['jobs', 'a', 'outputs', 'success', 0],
       ]),
     );
   });
@@ -291,7 +364,7 @@ describe('historical event-payload definition analysis', () => {
     const audit = auditWorkflowModelHistoricalEventPayloadDependencies(plannedModel);
     expect(audit.classification).toBe('payload');
     expect(audit.dependencies).toEqual(
-      expect.arrayContaining([expect.objectContaining({path: ['run_name']})]),
+      expect.arrayContaining([expect.objectContaining({path: ['run_name', 0]})]),
     );
   });
 
