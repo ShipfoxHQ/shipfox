@@ -1,5 +1,9 @@
 import {timingSafeEqual} from 'node:crypto';
 import type {AdminRole} from '@shipfox/api-auth-dto';
+import {
+  IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE,
+  IMPERSONATION_ELIGIBILITY_MAX_USER_IDS,
+} from '@shipfox/api-auth-dto/inter-module';
 import {createAdministrationActionEvent} from '@shipfox/api-common-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import type {TimestampIdCursor} from '@shipfox/node-drizzle';
@@ -21,6 +25,7 @@ import {
 import {
   findAdministratorUser as findAdministratorUserInDb,
   listAdministratorUsers as listAdministratorUsersInDb,
+  listImpersonationEligibleUserSummaries as listImpersonationEligibleUserSummariesInDb,
 } from '#db/admin-users.js';
 import {
   type ImpersonationResult,
@@ -264,6 +269,69 @@ export async function listAdministratorUsers(
     rows: result.rows,
     // Keep the original `rows` result while exposing the domain-named field
     // used by the directory route.
+    users: result.rows,
+    nextCursor: result.nextCursor,
+  };
+}
+
+export interface ListImpersonationEligibleUserSummariesParams {
+  userIds?: string[] | undefined;
+  search?: string | undefined;
+  cursor?: TimestampIdCursor | undefined;
+  limit: number;
+}
+
+export interface ListImpersonationEligibleUserSummariesResult {
+  users: AdministratorUserSummary[];
+  nextCursor: TimestampIdCursor | null;
+}
+
+function validateImpersonationEligibilityLookup(
+  params: ListImpersonationEligibleUserSummariesParams,
+): string | undefined {
+  if (
+    params.userIds !== undefined &&
+    params.userIds.length > IMPERSONATION_ELIGIBILITY_MAX_USER_IDS
+  ) {
+    throw new InvalidAdministratorUserDirectoryFilterError(
+      `Impersonation eligibility accepts at most ${IMPERSONATION_ELIGIBILITY_MAX_USER_IDS} user IDs`,
+    );
+  }
+  if (params.userIds !== undefined && params.search !== undefined) {
+    throw new InvalidAdministratorUserDirectoryFilterError(
+      'userIds and search are mutually exclusive',
+    );
+  }
+  if (params.userIds !== undefined && params.cursor !== undefined) {
+    throw new InvalidAdministratorUserDirectoryFilterError(
+      'userIds and cursor are mutually exclusive',
+    );
+  }
+  if (
+    !Number.isInteger(params.limit) ||
+    params.limit < 1 ||
+    params.limit > IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE
+  ) {
+    throw new InvalidAdministratorUserDirectoryFilterError(
+      `Impersonation eligibility limit must be between 1 and ${IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE}`,
+    );
+  }
+
+  return normalizeAdministratorUserDirectorySearch(params.search);
+}
+
+export async function listImpersonationEligibleUserSummaries(
+  params: ListImpersonationEligibleUserSummariesParams,
+): Promise<ListImpersonationEligibleUserSummariesResult> {
+  if (!config.AUTH_IMPERSONATION_ENABLED) throw new ImpersonationDisabledError();
+  const normalizedSearch = validateImpersonationEligibilityLookup(params);
+  const result = await listImpersonationEligibleUserSummariesInDb({
+    limit: params.limit,
+    ...(params.userIds !== undefined ? {userIds: params.userIds} : {}),
+    ...(normalizedSearch !== undefined ? {search: normalizedSearch} : {}),
+    ...(params.cursor !== undefined ? {cursor: params.cursor} : {}),
+  });
+  return {
     users: result.rows,
     nextCursor: result.nextCursor,
   };

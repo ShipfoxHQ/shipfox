@@ -3,7 +3,9 @@ import type {AdministratorUserSummary} from '#core/entities/administrator-read-m
 import {
   findAdministratorUserSummary,
   type ListAdministratorUserSummariesResult,
+  type ListImpersonationEligibleUserSummariesParams,
   listAdministratorUserSummaries,
+  listImpersonationEligibleUserSummaries as listImpersonationEligibleUserSummariesInDb,
 } from './admin-user-summary.js';
 import {db} from './db.js';
 
@@ -30,4 +32,10 @@ export async function listAdministratorUsers(
   params: ListAdministratorUsersParams,
 ): Promise<ListAdministratorUserSummariesResult> {
   return await listAdministratorUserSummaries(db(), params);
+}
+
+export async function listImpersonationEligibleUserSummaries(
+  params: ListImpersonationEligibleUserSummariesParams,
+): Promise<ListAdministratorUserSummariesResult> {
+  return await listImpersonationEligibleUserSummariesInDb(db(), params);
 }

@@ -16,4 +16,9 @@ export const workflowsTestAuthClient: AuthInterModuleClient = {
       new Error('Administrator role checks are not configured in workflow tests'),
     );
   },
+  listImpersonationEligibleUserSummaries() {
+    return Promise.reject(
+      new Error('Impersonation eligibility is not configured in workflow tests'),
+    );
+  },
 };

@@ -1,5 +1,9 @@
 import type {AdminRole} from '@shipfox/api-auth-dto';
 import {
+  IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE,
+  IMPERSONATION_ELIGIBILITY_MAX_USER_IDS,
+} from '@shipfox/api-auth-dto/inter-module';
+import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
   timestampIdCursorWhere,
@@ -8,6 +12,7 @@ import {
   and,
   desc,
   eq,
+  inArray,
   isNotNull,
   isNull,
   ne,
@@ -60,15 +65,16 @@ function containsTerm(column: SQLWrapper, term: string): SQLWrapper {
 
 function addEligibilityCondition(
   conditions: SQL[],
-  params: Pick<ListAdministratorUserSummariesParams, 'actorId' | 'eligible'>,
+  params: {actorId?: string; eligible?: boolean | undefined},
   activeAdminRoleUserId: SQLWrapper,
 ): void {
-  const eligibleCondition = and(
+  const eligibleConditions = [
     eq(users.status, 'active'),
     isNotNull(users.emailVerifiedAt),
     isNull(activeAdminRoleUserId),
-    ne(users.id, params.actorId),
-  );
+  ];
+  if (params.actorId) eligibleConditions.push(ne(users.id, params.actorId));
+  const eligibleCondition = and(...eligibleConditions);
   if (eligibleCondition && params.eligible === true) conditions.push(eligibleCondition);
   if (eligibleCondition && params.eligible === false) conditions.push(not(eligibleCondition));
 }
@@ -190,4 +196,155 @@ export async function listAdministratorUserSummaries(
   });
 
   return {rows: page.pageRows, nextCursor: page.nextCursor};
+}
+
+export interface ListImpersonationEligibleUserSummariesParams {
+  userIds?: string[] | undefined;
+  search?: string | undefined;
+  cursor?: TimestampIdCursor | undefined;
+  limit: number;
+}
+
+/**
+ * Reads impersonation-eligible users for the Workspaces boundary.
+ *
+ * ID mode uses one batch query and restores the caller's order after the
+ * database filters users. Search mode uses the same eligibility predicate and
+ * a descending created-at and ID keyset.
+ */
+export async function listImpersonationEligibleUserSummaries(
+  executor: AdministratorUserSummaryExecutor,
+  params: ListImpersonationEligibleUserSummariesParams,
+): Promise<ListAdministratorUserSummariesResult> {
+  if (params.userIds !== undefined) {
+    return await listImpersonationEligibleUserIds(executor, params, params.userIds);
+  }
+  return await listImpersonationEligibleUserSearch(executor, params);
+}
+
+async function listImpersonationEligibleUserIds(
+  executor: AdministratorUserSummaryExecutor,
+  params: ListImpersonationEligibleUserSummariesParams,
+  userIds: string[],
+): Promise<ListAdministratorUserSummariesResult> {
+  if (userIds.length > IMPERSONATION_ELIGIBILITY_MAX_USER_IDS) {
+    throw new RangeError(
+      `Impersonation eligibility accepts at most ${IMPERSONATION_ELIGIBILITY_MAX_USER_IDS} user IDs`,
+    );
+  }
+  if (userIds.length === 0) return {rows: [], nextCursor: null};
+
+  const activeAdminRoles = executor
+    .select({
+      userId: adminGrants.userId,
+      roles: sql<AdminRole[]>`json_agg(${adminGrants.role})`.as('roles'),
+    })
+    .from(adminGrants)
+    .where(isNull(adminGrants.revokedAt))
+    .groupBy(adminGrants.userId)
+    .as('active_admin_roles');
+  const conditions: SQL[] = [];
+  addEligibilityCondition(conditions, {eligible: true}, activeAdminRoles.userId);
+  conditions.push(inArray(users.id, userIds));
+
+  const rows = await executor
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      emailVerifiedAt: users.emailVerifiedAt,
+      status: users.status,
+      createdAt: users.createdAt,
+      adminRoles: activeAdminRoles.roles,
+    })
+    .from(users)
+    .leftJoin(activeAdminRoles, eq(activeAdminRoles.userId, users.id))
+    .where(and(...conditions));
+
+  const summaries = rows.map(
+    ({adminRoles, ...row}): AdministratorUserSummary => ({
+      ...row,
+      adminRole: row.status === 'active' ? highestAdminRole(adminRoles ?? []) : null,
+    }),
+  );
+  const summariesById = new Map(summaries.map((summary) => [summary.id.toLowerCase(), summary]));
+  const orderedSummaries: AdministratorUserSummary[] = [];
+  const seenIds = new Set<string>();
+  for (const userId of userIds) {
+    const normalizedUserId = userId.toLowerCase();
+    if (seenIds.has(normalizedUserId)) continue;
+    seenIds.add(normalizedUserId);
+    const summary = summariesById.get(normalizedUserId);
+    if (summary) orderedSummaries.push(summary);
+  }
+
+  return {
+    rows: orderedSummaries.slice(0, params.limit),
+    nextCursor: null,
+  };
+}
+
+async function listImpersonationEligibleUserSearch(
+  executor: AdministratorUserSummaryExecutor,
+  params: ListImpersonationEligibleUserSummariesParams,
+): Promise<ListAdministratorUserSummariesResult> {
+  const activeAdminRoles = executor
+    .select({
+      userId: adminGrants.userId,
+      roles: sql<AdminRole[]>`json_agg(${adminGrants.role})`.as('roles'),
+    })
+    .from(adminGrants)
+    .where(isNull(adminGrants.revokedAt))
+    .groupBy(adminGrants.userId)
+    .as('active_admin_roles');
+  const conditions: SQL[] = [];
+  const cursorCondition = timestampIdCursorWhere({
+    timestampColumn: users.createdAt,
+    idColumn: users.id,
+    cursor: params.cursor,
+  });
+  if (cursorCondition) conditions.push(cursorCondition);
+  addEligibilityCondition(conditions, {eligible: true}, activeAdminRoles.userId);
+  addSearchConditions(conditions, params.search);
+
+  const queryLimit =
+    params.limit < IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE
+      ? params.limit + 1
+      : IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE;
+  const rows = await executor
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      emailVerifiedAt: users.emailVerifiedAt,
+      status: users.status,
+      createdAt: users.createdAt,
+      adminRoles: activeAdminRoles.roles,
+    })
+    .from(users)
+    .leftJoin(activeAdminRoles, eq(activeAdminRoles.userId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(users.createdAt), desc(users.id))
+    .limit(queryLimit);
+
+  const mappedRows = rows.map(
+    ({adminRoles, ...row}): AdministratorUserSummary => ({
+      ...row,
+      adminRole: row.status === 'active' ? highestAdminRole(adminRoles ?? []) : null,
+    }),
+  );
+  const page = paginateTimestampIdRows({
+    rows: mappedRows,
+    limit: params.limit,
+    timestampKey: 'createdAt',
+  });
+  const lastScanned = mappedRows.at(-1);
+  const maxPageReached =
+    params.limit === IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE &&
+    mappedRows.length === IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE;
+  const nextCursor =
+    page.nextCursor ??
+    (maxPageReached && lastScanned ? {createdAt: lastScanned.createdAt, id: lastScanned.id} : null);
+
+  return {rows: page.pageRows, nextCursor};
 }
