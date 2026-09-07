@@ -1,5 +1,21 @@
 # Changelog
 
+## 37.0.0
+
+### Minor Changes
+
+- 7ed04a3: Adds the client pricing seam and usage views to run and job pages.
+
+### Patch Changes
+
+- Updated dependencies [7fed218]
+  - @shipfox/api-auth-dto@23.0.0
+  - @shipfox/api-workspaces-dto@15.0.0
+  - @shipfox/client-api@6.0.1
+  - @shipfox/client-config@30.0.0
+  - @shipfox/client-ui@31.0.1
+  - @shipfox/react-ui@2.3.4
+
 ## 32.0.0
 
 ### Patch Changes

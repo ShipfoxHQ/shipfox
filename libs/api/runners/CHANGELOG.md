@@ -1,5 +1,30 @@
 # @shipfox/api-runners
 
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [7fed218]
+- Updated dependencies [bd5acd2]
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-auth-dto@23.0.0
+  - @shipfox/api-workflows-dto@23.0.0
+  - @shipfox/api-common-dto@15.0.0
+  - @shipfox/api-runners-dto@21.1.0
+  - @shipfox/config@1.2.4
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/runner-labels@0.2.1
+  - @shipfox/node-auth-root-key@0.3.0
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-error-monitoring@0.3.0
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-module@1.0.10
+  - @shipfox/node-opentelemetry@0.6.5
+  - @shipfox/node-outbox@0.2.7
+  - @shipfox/node-postgres@0.5.1
+  - @shipfox/node-temporal@0.5.0
+  - @shipfox/node-tokens@1.2.0
+
 ## 22.0.0
 
 ### Patch Changes

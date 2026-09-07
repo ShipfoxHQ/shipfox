@@ -1,5 +1,21 @@
 # @shipfox/api-integration-slack
 
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [7fed218]
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-integration-slack-dto@22.0.0
+  - @shipfox/api-integration-spi@4.1.1
+  - @shipfox/api-workspaces-dto@15.0.0
+  - @shipfox/config@1.2.4
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-opentelemetry@0.6.5
+  - @shipfox/node-postgres@0.5.1
+
 ## 22.0.0
 
 ### Patch Changes

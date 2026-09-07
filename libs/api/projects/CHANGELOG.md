@@ -1,5 +1,24 @@
 # @shipfox/api-projects
 
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [7fed218]
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-auth-dto@23.0.0
+  - @shipfox/api-common-dto@15.0.0
+  - @shipfox/api-integration-core-dto@22.0.0
+  - @shipfox/api-projects-dto@21.0.0
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-module@1.0.10
+  - @shipfox/node-opentelemetry@0.6.5
+  - @shipfox/node-outbox@0.2.7
+  - @shipfox/node-postgres@0.5.1
+  - @shipfox/node-temporal@0.5.0
+
 ## 22.0.0
 
 ### Patch Changes

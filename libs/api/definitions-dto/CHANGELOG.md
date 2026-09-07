@@ -1,5 +1,15 @@
 # @shipfox/api-definitions-dto
 
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [bd5acd2]
+  - @shipfox/expression@2.8.0
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/regex@0.3.0
+  - @shipfox/workflow-document@3.5.0
+
 ## 21.2.0
 
 ### Patch Changes

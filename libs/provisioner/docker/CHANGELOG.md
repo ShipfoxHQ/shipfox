@@ -1,5 +1,15 @@
 # @shipfox/provisioner-docker-provider
 
+## 2.0.21
+
+### Patch Changes
+
+- @shipfox/provisioner-core@1.2.14
+- @shipfox/api-runners-dto@21.1.0
+- @shipfox/config@1.2.4
+- @shipfox/runner-labels@0.2.1
+- @shipfox/node-opentelemetry@0.6.5
+
 ## 2.0.20
 
 ### Patch Changes

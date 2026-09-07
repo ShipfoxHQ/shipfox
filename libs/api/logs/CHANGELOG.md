@@ -1,5 +1,27 @@
 # @shipfox/api-logs
 
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [7fed218]
+- Updated dependencies [bd5acd2]
+  - @shipfox/api-auth-context@23.0.0
+  - @shipfox/api-workflows-dto@23.0.0
+  - @shipfox/api-logs-dto@20.0.0
+  - @shipfox/config@1.2.4
+  - @shipfox/inter-module@0.2.3
+  - @shipfox/node-drizzle@0.3.5
+  - @shipfox/node-error-monitoring@0.3.0
+  - @shipfox/node-fastify@0.4.4
+  - @shipfox/node-module@1.0.10
+  - @shipfox/node-object-storage@0.2.0
+  - @shipfox/node-opentelemetry@0.6.5
+  - @shipfox/node-outbox@0.2.7
+  - @shipfox/node-postgres@0.5.1
+  - @shipfox/node-temporal@0.5.0
+  - @shipfox/workflow-document@3.5.0
+
 ## 22.0.0
 
 ### Patch Changes
