@@ -1,9 +1,13 @@
 import {z} from 'zod';
 import * as clientApi from './index.js';
 import {
+  ADOPTED_SESSION_ENDED_CODE,
+  ADOPTED_SESSION_PAUSED_CODE,
   ApiError,
   checkedApiRequest,
   configureApiClient,
+  createAdoptedSessionEndedError,
+  createAdoptedSessionPausedError,
   getErrorCode,
   isErrorWithCode,
   isInvalidApiResponseError,
@@ -28,6 +32,7 @@ describe('checked API transport', () => {
       baseUrl: 'https://api.example.test',
       fetchImpl: undefined,
       getAccessToken: undefined,
+      prepareAccessToken: undefined,
       refreshAccessToken: undefined,
     });
   });
@@ -109,6 +114,124 @@ describe('checked API transport', () => {
     expect(secondRequest.headers.get('authorization')).toBe('Bearer fresh-token');
   });
 
+  test('prepares configured access tokens asynchronously before sending them', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ok: true}));
+    const signal = new AbortController().signal;
+    const getAccessToken = vi.fn().mockReturnValue('configured-token');
+    const prepareAccessToken = vi.fn().mockResolvedValue('prepared-token');
+    configureApiClient({fetchImpl, getAccessToken, prepareAccessToken});
+
+    await transportRequest('/workspaces', {signal});
+
+    expect(getAccessToken).toHaveBeenCalledOnce();
+    expect(prepareAccessToken).toHaveBeenCalledWith({
+      accessToken: 'configured-token',
+      signal,
+    });
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.headers.get('authorization')).toBe('Bearer prepared-token');
+  });
+
+  test('routes a 401 retry through prepared access tokens instead of the legacy refresh hook', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      )
+      .mockResolvedValueOnce(jsonResponse({ok: true}));
+    const prepareAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce('expired-target-token')
+      .mockResolvedValueOnce('renewed-target-token');
+    const refreshAccessToken = vi.fn().mockResolvedValue('administrator-token');
+    configureApiClient({
+      fetchImpl,
+      getAccessToken: () => 'configured-token',
+      prepareAccessToken,
+      refreshAccessToken,
+    });
+
+    const result = await transportRequest<{ok: boolean}>('/workspaces');
+
+    expect(result.ok).toBe(true);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(prepareAccessToken).toHaveBeenNthCalledWith(2, {
+      accessToken: 'expired-target-token',
+      signal: undefined,
+    });
+    const firstRequest = fetchImpl.mock.calls[0]?.[0] as Request;
+    const secondRequest = fetchImpl.mock.calls[1]?.[0] as Request;
+    expect(firstRequest.headers.get('authorization')).toBe('Bearer expired-target-token');
+    expect(secondRequest.headers.get('authorization')).toBe('Bearer renewed-target-token');
+  });
+
+  test('does not prepare, replace, or retry an explicit caller authorization header', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      );
+    const getAccessToken = vi.fn().mockReturnValue('adopted-token');
+    const prepareAccessToken = vi.fn().mockResolvedValue('prepared-token');
+    const refreshAccessToken = vi.fn().mockResolvedValue('refreshed-token');
+    configureApiClient({fetchImpl, getAccessToken, prepareAccessToken, refreshAccessToken});
+
+    const result = transportRequest('/admin/continue', {
+      headers: {authorization: 'Bearer administrator-token'},
+    });
+
+    await expect(result).rejects.toMatchObject({code: 'unauthorized', status: 401});
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(getAccessToken).toHaveBeenCalledOnce();
+    expect(prepareAccessToken).not.toHaveBeenCalled();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.headers.get('authorization')).toBe('Bearer administrator-token');
+  });
+
+  test('cookie-only requests use cookies without reading or preparing a configured bearer', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      );
+    const getAccessToken = vi.fn().mockReturnValue('adopted-token');
+    const prepareAccessToken = vi.fn().mockResolvedValue('prepared-token');
+    const refreshAccessToken = vi.fn().mockResolvedValue('refreshed-token');
+    configureApiClient({fetchImpl, getAccessToken, prepareAccessToken, refreshAccessToken});
+
+    const result = transportRequest('/auth/refresh', {
+      method: 'POST',
+      authentication: 'cookie-only',
+    });
+
+    await expect(result).rejects.toMatchObject({code: 'unauthorized', status: 401});
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(getAccessToken).not.toHaveBeenCalled();
+    expect(prepareAccessToken).not.toHaveBeenCalled();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.credentials).toBe('include');
+    expect(request.headers.get('authorization')).toBeNull();
+  });
+
+  test('rejects cookie-only requests that include an explicit authorization header', async () => {
+    const fetchImpl = vi.fn();
+    const getAccessToken = vi.fn().mockReturnValue('adopted-token');
+    const prepareAccessToken = vi.fn().mockResolvedValue('prepared-token');
+    configureApiClient({fetchImpl, getAccessToken, prepareAccessToken});
+
+    const result = transportRequest('/auth/refresh', {
+      authentication: 'cookie-only',
+      headers: {Authorization: 'Bearer administrator-token'},
+    });
+
+    await expect(result).rejects.toMatchObject({code: 'invalid-request', status: 0});
+    expect(getAccessToken).not.toHaveBeenCalled();
+    expect(prepareAccessToken).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   test('does not refresh unauthenticated 401s', async () => {
     const fetchImpl = vi
       .fn()
@@ -134,6 +257,27 @@ describe('checked API transport', () => {
 
     await expect(result).rejects.toBeInstanceOf(ApiError);
     await expect(result).rejects.toMatchObject({code: 'network-error', status: 0});
+  });
+
+  test('creates safe adopted-session gate errors', () => {
+    const paused = createAdoptedSessionPausedError();
+    const ended = createAdoptedSessionEndedError('manual-stop');
+    const unsafeEnded = createAdoptedSessionEndedError('administrator-token');
+
+    expect(paused).toMatchObject({
+      code: ADOPTED_SESSION_PAUSED_CODE,
+      message: 'Adopted session renewal is paused.',
+      status: 0,
+      details: undefined,
+    });
+    expect(ended).toMatchObject({
+      code: ADOPTED_SESSION_ENDED_CODE,
+      message: 'The adopted session has ended.',
+      status: 0,
+      details: {reason: 'manual-stop'},
+    });
+    expect(unsafeEnded.details).toBeUndefined();
+    expect(JSON.stringify(unsafeEnded)).not.toContain('administrator-token');
   });
 
   test('matches error codes', () => {

@@ -5,15 +5,24 @@ export {apiConfigShape} from './config.js';
 export interface ApiClientOptions {
   baseUrl?: string | undefined;
   getAccessToken?: (() => string | undefined) | undefined;
+  prepareAccessToken?:
+    | ((input: {
+        accessToken: string | undefined;
+        signal: AbortSignal | undefined;
+      }) => Promise<string | undefined>)
+    | undefined;
   refreshAccessToken?: (() => Promise<string | undefined> | string | undefined) | undefined;
   fetchImpl?: typeof fetch | undefined;
 }
+
+export type ApiRequestAuthentication = 'cookie-only';
 
 export interface ApiRequestOptions {
   method?: string;
   body?: unknown;
   headers?: HeadersInit;
   signal?: AbortSignal | undefined;
+  authentication?: ApiRequestAuthentication | undefined;
 }
 
 export interface StandardSchema<Input = unknown, Output = Input> {
@@ -52,6 +61,48 @@ export class ApiError extends Error {
     this.status = params.status;
     this.details = params.details;
   }
+}
+
+export const ADOPTED_SESSION_PAUSED_CODE = 'adopted-session-paused';
+export const ADOPTED_SESSION_ENDED_CODE = 'adopted-session-ended';
+
+export const ADOPTED_SESSION_RELEASE_REASONS = Object.freeze([
+  'manual-stop',
+  'hard-deadline',
+  'continuation-terminal',
+  'adopted-unauthorized',
+  'replaced',
+  'logout',
+] as const);
+
+export type AdoptedSessionReleaseReason = (typeof ADOPTED_SESSION_RELEASE_REASONS)[number];
+
+export function isAdoptedSessionReleaseReason(
+  value: unknown,
+): value is AdoptedSessionReleaseReason {
+  return (
+    typeof value === 'string' &&
+    (ADOPTED_SESSION_RELEASE_REASONS as readonly string[]).includes(value)
+  );
+}
+
+/** Creates the safe request-gate error used while adopted renewal is paused. */
+export function createAdoptedSessionPausedError(): ApiError {
+  return new ApiError({
+    message: 'Adopted session renewal is paused.',
+    code: ADOPTED_SESSION_PAUSED_CODE,
+    status: 0,
+  });
+}
+
+/** Creates the safe request-gate error used after an adopted session ends. */
+export function createAdoptedSessionEndedError(reason: unknown): ApiError {
+  return new ApiError({
+    message: 'The adopted session has ended.',
+    code: ADOPTED_SESSION_ENDED_CODE,
+    status: 0,
+    details: isAdoptedSessionReleaseReason(reason) ? {reason} : undefined,
+  });
 }
 
 export class InvalidApiResponseError extends Error {
@@ -166,6 +217,39 @@ function shouldRefreshAccessToken(params: {
   );
 }
 
+async function prepareConfiguredAccessToken(
+  options: ApiRequestOptions,
+  hasCallerAuthorization: boolean,
+): Promise<{accessToken: string | undefined; usedConfiguredAccessToken: boolean}> {
+  if (options.authentication === 'cookie-only') {
+    return {accessToken: undefined, usedConfiguredAccessToken: false};
+  }
+
+  const accessToken = apiOptions.getAccessToken?.();
+  if (hasCallerAuthorization) {
+    return {accessToken: undefined, usedConfiguredAccessToken: false};
+  }
+
+  const preparedAccessToken = apiOptions.prepareAccessToken
+    ? await apiOptions.prepareAccessToken({accessToken, signal: options.signal})
+    : accessToken;
+
+  return {
+    accessToken: preparedAccessToken,
+    usedConfiguredAccessToken: Boolean(preparedAccessToken),
+  };
+}
+
+async function retryAccessToken(
+  accessToken: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<string | undefined> {
+  if (apiOptions.prepareAccessToken) {
+    return await apiOptions.prepareAccessToken({accessToken, signal});
+  }
+  return await apiOptions.refreshAccessToken?.();
+}
+
 function createRequestInit(options: ApiRequestOptions, headers: Headers): KyOptions {
   const requestInit: KyOptions = {
     method: options.method ?? 'GET',
@@ -193,25 +277,34 @@ function createRequestInit(options: ApiRequestOptions, headers: Headers): KyOpti
 async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const hasCallerAuthorization = headers.has('authorization');
-  const accessToken = apiOptions.getAccessToken?.();
+  if (options.authentication === 'cookie-only' && hasCallerAuthorization) {
+    throw new ApiError({
+      message: 'Cookie-only requests cannot include an authorization header.',
+      code: 'invalid-request',
+      status: 0,
+    });
+  }
+
+  const {accessToken, usedConfiguredAccessToken} = await prepareConfiguredAccessToken(
+    options,
+    hasCallerAuthorization,
+  );
   const baseUrl = defaultBaseUrl();
   const url = joinUrl(baseUrl, path);
   const requestInit = createRequestInit(options, headers);
 
-  if (accessToken && !headers.has('authorization')) {
+  if (accessToken && !hasCallerAuthorization) {
     headers.set('authorization', `Bearer ${accessToken}`);
   }
 
-  const usedConfiguredAccessToken = Boolean(accessToken && !hasCallerAuthorization);
   try {
     return await sendApiRequest<T>(url, requestInit);
   } catch (error) {
     if (
       error instanceof ApiError &&
-      apiOptions.refreshAccessToken &&
       shouldRefreshAccessToken({error, path, usedConfiguredAccessToken})
     ) {
-      const refreshedToken = await apiOptions.refreshAccessToken();
+      const refreshedToken = await retryAccessToken(accessToken, options.signal);
       if (refreshedToken) {
         headers.set('authorization', `Bearer ${refreshedToken}`);
         return await sendApiRequest<T>(url, requestInit);
