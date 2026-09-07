@@ -3,15 +3,6 @@ import {
   type UsagePricingModel,
   useUsagePricing,
 } from '@shipfox/client-shell/runtime';
-import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@shipfox/react-ui/sheet';
 import {useMemo, useState} from 'react';
 import {groupUsageByModel, type RunUsage, type UsageTokenTotals} from '#core/usage.js';
 import {StepInferenceTable} from './step-inference-table.js';
@@ -19,70 +10,13 @@ import {formatUsageCost} from './usage-cost.js';
 import {formatUsageDuration, formatUsageNumber, formatUsageRate} from './usage-format.js';
 
 interface UsageDetailsProps {
-  scope: 'Run' | 'Job';
   usage: RunUsage;
   cost: UsagePricingCost | undefined;
   stepLabels?: ReadonlyMap<string, string> | undefined;
   stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
-  defaultOpen?: boolean;
 }
 
-export function UsageDetails({
-  scope,
-  usage,
-  cost,
-  stepLabels,
-  stepAttemptLabels,
-  defaultOpen = false,
-}: UsageDetailsProps) {
-  const [open, setOpen] = useState(defaultOpen);
-  const pricing = useUsagePricing();
-  const formatted = formatUsageCost(pricing, cost);
-  const label = formatted ? `${cost?.state === 'estimated' ? 'Est. ' : ''}${formatted}` : 'Usage';
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex cursor-pointer shrink-0 items-center rounded-4 whitespace-nowrap font-code text-xs font-normal leading-20 text-foreground-neutral-muted underline-offset-4 hover:text-foreground-neutral-base hover:underline focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
-          aria-label={`View ${scope.toLowerCase()} ${formatted ? 'cost' : 'usage'} details`}
-        >
-          <span data-usage-cost-state={cost?.state} className="tabular-nums">
-            {label}
-          </span>
-        </button>
-      </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>
-            {scope} {formatted ? 'cost' : 'usage'}
-          </SheetTitle>
-          <SheetDescription>
-            Machine and model usage for this {scope.toLowerCase()}.
-          </SheetDescription>
-        </SheetHeader>
-        <SheetBody>
-          {open ? (
-            <UsageBreakdown
-              usage={usage}
-              cost={cost}
-              stepLabels={stepLabels}
-              stepAttemptLabels={stepAttemptLabels}
-            />
-          ) : null}
-        </SheetBody>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-export function UsageBreakdown({
-  usage,
-  cost,
-  stepLabels,
-  stepAttemptLabels,
-}: Omit<UsageDetailsProps, 'scope'>) {
+export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: UsageDetailsProps) {
   const pricing = useUsagePricing();
   const showPrices = Boolean(formatUsageCost(pricing, cost));
   const recordedModels = useMemo(

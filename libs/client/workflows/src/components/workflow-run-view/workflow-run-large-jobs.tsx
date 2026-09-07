@@ -186,13 +186,14 @@ function LargeWorkflowJobRow({
       <span className="w-72 shrink-0 text-right font-code text-xs tabular-nums text-foreground-neutral-muted">
         {job.displayDuration ? <JobExecutionTimeText time={job.displayDuration} /> : '-'}
       </span>
+      <JobUsageCells usage={jobUsage} className="font-code text-xs text-foreground-neutral-muted" />
     </>
   );
   const className =
-    'flex min-h-40 min-w-0 flex-1 items-center gap-inline py-tight text-left transition-colors hover:bg-background-neutral-hover focus-visible:shadow-focus-inset focus-visible:outline-none';
+    'flex min-h-40 min-w-0 flex-1 items-center gap-inline px-row py-tight text-left transition-colors hover:bg-background-neutral-hover focus-visible:shadow-focus-inset focus-visible:outline-none';
 
   return (
-    <li className="flex items-center gap-cluster px-row">
+    <li className="flex">
       {workspaceSlug && projectSlug ? (
         <Link
           to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId/jobs/$jobId"
@@ -205,7 +206,6 @@ function LargeWorkflowJobRow({
       ) : (
         <div className={className}>{content}</div>
       )}
-      <JobUsageCells usage={jobUsage} />
     </li>
   );
 }

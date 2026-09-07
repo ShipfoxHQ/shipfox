@@ -17,6 +17,7 @@ import {
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {type ReactNode, useEffect, useState} from 'react';
+import {expect, userEvent, waitFor, within} from 'storybook/test';
 import {runAttemptsResponseDto} from '#test/fixtures/workflow-run.js';
 import {WorkflowRunView} from './workflow-run-view.js';
 
@@ -554,6 +555,20 @@ export const LargeWorkflow: Story = {
 export const Usage: Story = {
   parameters: {workflowSize: 'large', includeUsage: true},
   args: {workspaceId: WORKSPACE_ID},
+};
+
+export const TestRunCostTab: Story = {
+  ...Usage,
+  play: async ({canvasElement}) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = await body.findByRole('button', {name: 'Inspect run details'});
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
+    await expect(body.getByText('Machine')).toBeVisible();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
 };
 
 function annotationDto(overrides: Partial<AnnotationDto> & {id: string}): AnnotationDto {

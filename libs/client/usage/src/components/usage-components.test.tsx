@@ -7,8 +7,8 @@ import type {
   UsageInferenceSegment,
   UsageJobExecution,
 } from '#core/usage.js';
-import {JobUsageCells} from './job-usage-cells.js';
-import {RunUsageSummary} from './run-usage-summary.js';
+import {JobUsageBreakdown, JobUsageCells} from './job-usage-cells.js';
+import {RunUsageBreakdown, RunUsageSummary} from './run-usage-summary.js';
 import {StepInferenceTable} from './step-inference-table.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
@@ -147,12 +147,12 @@ describe('Usage components', () => {
             ]),
         }}
       >
-        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
+        <RunUsageBreakdown runId={RUN_ID} usage={runUsage} />
       </ClientUsagePricingProvider>,
     );
 
-    fireEvent.click(await screen.findByRole('button', {name: 'View run cost details'}));
-    const dialog = screen.getByRole('dialog', {name: 'Run cost'});
+    await screen.findByText('$0.20');
+    const dialog = document.body;
     expect(within(dialog).getByText('$0.20')).toBeVisible();
     expect(within(dialog).getByText(segment.model)).not.toBeVisible();
     fireEvent.click(within(dialog).getByText('Model usage'));
@@ -166,13 +166,13 @@ describe('Usage components', () => {
   test('does not assign a total-only price to machine or model usage', async () => {
     render(
       <ClientUsagePricingProvider usagePricing={pricing}>
-        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
+        <RunUsageBreakdown runId={RUN_ID} usage={runUsage} />
       </ClientUsagePricingProvider>,
     );
 
-    fireEvent.click(await screen.findByRole('button', {name: 'View run cost details'}));
+    await screen.findByText('$1.20');
 
-    const dialog = screen.getByRole('dialog');
+    const dialog = document.body;
     expect(within(dialog).getAllByText('$1.20')).toHaveLength(1);
     expect(
       within(dialog).getByText('Cost breakdown unavailable. Recorded usage is shown below.'),
@@ -194,22 +194,20 @@ describe('Usage components', () => {
     await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
 
     expect(estimate).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', {name: 'View run usage details'})).toBeVisible();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  test('keeps quantities behind the usage control without pricing', () => {
+  test('does not add a summary item when pricing is unavailable', () => {
     render(<RunUsageSummary runId={RUN_ID} usage={runUsage} />);
 
-    expect(screen.getByRole('button', {name: 'View run usage details'})).toBeVisible();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('claude-sonnet-4')).not.toBeInTheDocument();
     expect(screen.queryByText('$1.20')).not.toBeInTheDocument();
   });
 
   test('allows inspecting machine-only jobs', () => {
-    const {container} = render(<JobUsageCells usage={{...jobUsage, inferenceSegments: []}} />);
+    render(<JobUsageBreakdown usage={{...jobUsage, inferenceSegments: []}} />);
 
-    expect(container.querySelector('[data-usage-job-cells]')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'View job usage details'}));
     expect(screen.getByText('Machine')).toBeVisible();
     expect(screen.getByText('1m 0s')).toBeVisible();
   });
@@ -223,6 +221,7 @@ describe('Usage components', () => {
 
     await waitFor(() => expect(screen.getByText('$1.20')).toBeVisible());
     expect(screen.getByText('$1.20')).toHaveAttribute('data-usage-cost-state', 'resolved');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   test('renders an estimated job cost while preserving job quantities', async () => {
@@ -260,7 +259,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByRole('button', {name: 'View job usage details'})).toBeVisible();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
     expect(estimate).not.toHaveBeenCalled();
   });

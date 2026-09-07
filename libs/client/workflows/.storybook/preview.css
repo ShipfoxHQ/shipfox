@@ -12,3 +12,4 @@
    Without this the classes are silently dropped and every Argos snapshot of a story that
    renders one is a picture of unstyled markup, which is worse than no snapshot. */
 @source "../../ui/src";
+@source "../../usage/src";

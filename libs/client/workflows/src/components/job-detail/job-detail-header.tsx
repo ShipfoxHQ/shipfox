@@ -91,7 +91,7 @@ export function JobDetailHeader({
               {job.displayName}
             </Code>
             <JobUsageCells
-              className="ml-tight"
+              className="text-foreground-neutral-muted"
               usage={usage}
               stepLabels={stepLabels}
               stepAttemptLabels={stepAttemptLabels}

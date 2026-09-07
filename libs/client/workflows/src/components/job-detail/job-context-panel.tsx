@@ -11,7 +11,7 @@ import {
 } from '@shipfox/react-ui/sheet';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
-import {useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {
   type EvaluationTraceEntry,
   isTerminalJobExecutionStatus,
@@ -22,6 +22,7 @@ import {
   type WorkflowJobExecutionDetail,
 } from '#core/workflow-run.js';
 import {useWorkflowJobExecutionContextQuery} from '#hooks/api/workflow-job-detail.js';
+import {DetailsTabs} from '../details-tabs.js';
 import {
   DiagnosticUnavailableAnnouncement,
   DiagnosticUnavailableField,
@@ -34,16 +35,23 @@ export function JobContextPanel({
   job,
   execution,
   selectedExecution,
+  cost,
 }: {
   job: Job;
   execution: JobExecution;
   selectedExecution?: WorkflowJobExecutionDetail | undefined;
+  cost?: ReactNode;
 }) {
   if (selectedExecution !== undefined) {
-    if (!selectedExecution.hasContext && !hasJobExecutionSummaryContext(job, execution))
+    if (!cost && !selectedExecution.hasContext && !hasJobExecutionSummaryContext(job, execution))
       return null;
     return (
-      <LazyJobContextSheet job={job} execution={execution} selectedExecution={selectedExecution} />
+      <LazyJobContextSheet
+        job={job}
+        execution={execution}
+        selectedExecution={selectedExecution}
+        cost={cost}
+      />
     );
   }
 
@@ -63,7 +71,7 @@ export function JobContextPanel({
       hasTiming,
   );
 
-  if (!hasContext) return null;
+  if (!hasContext && !cost) return null;
 
   return (
     <JobContextSheet
@@ -73,6 +81,7 @@ export function JobContextPanel({
       outputs={outputs}
       trace={trace}
       statusReason={statusReason}
+      cost={cost}
     />
   );
 }
@@ -81,10 +90,12 @@ function LazyJobContextSheet({
   job,
   execution,
   selectedExecution,
+  cost,
 }: {
   job: Job;
   execution: JobExecution;
   selectedExecution: WorkflowJobExecutionDetail;
+  cost?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const contextQuery = useWorkflowJobExecutionContextQuery({
@@ -117,18 +128,20 @@ function LazyJobContextSheet({
             Execution #{execution.sequence} · {execution.displayName}
           </SheetDescription>
         </SheetHeader>
-        <SheetBody className="gap-section">
-          {contextQuery.isPending ? <JobContextLoading /> : null}
-          {contextQuery.isError && context === undefined ? (
-            <JobContextError query={contextQuery} />
-          ) : null}
-          {contextQuery.isError && context !== undefined ? (
-            <JobContextStaleError query={contextQuery} />
-          ) : null}
-          {context ? (
-            <LazyJobContextContent context={context} job={job} execution={execution} />
-          ) : null}
-        </SheetBody>
+        <DetailsTabs cost={cost}>
+          <SheetBody className="gap-section">
+            {contextQuery.isPending ? <JobContextLoading /> : null}
+            {contextQuery.isError && context === undefined ? (
+              <JobContextError query={contextQuery} />
+            ) : null}
+            {contextQuery.isError && context !== undefined ? (
+              <JobContextStaleError query={contextQuery} />
+            ) : null}
+            {context ? (
+              <LazyJobContextContent context={context} job={job} execution={execution} />
+            ) : null}
+          </SheetBody>
+        </DetailsTabs>
       </SheetContent>
     </Sheet>
   );
@@ -385,6 +398,7 @@ function JobContextSheet({
   outputs,
   trace,
   statusReason,
+  cost,
 }: {
   job: Job;
   execution: JobExecution;
@@ -392,6 +406,7 @@ function JobContextSheet({
   outputs: Record<string, unknown> | null;
   trace: EvaluationTraceEntry[];
   statusReason: JobExecution['statusReason'];
+  cost?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const {conditionTrace, executionNameTrace} = splitJobEvaluationTrace(trace);
@@ -418,58 +433,60 @@ function JobContextSheet({
             Execution #{execution.sequence} · {execution.displayName}
           </SheetDescription>
         </SheetHeader>
-        <SheetBody className="gap-section">
-          <div className="grid w-full min-w-0 gap-group min-[640px]:grid-cols-2">
-            {runner?.length ? <ContextList label="Runner" values={runner} mono /> : null}
-            {execution.queueTime || execution.runTime ? (
-              <div className="flex min-w-0 flex-col gap-tight">
-                <Text size="xs" bold className="text-foreground-neutral-base">
-                  Timing
-                </Text>
-                <div className="flex flex-wrap gap-inline text-xs text-foreground-neutral-muted">
-                  {execution.queueTime ? (
-                    <span>Queue {formatJobExecutionTime(execution.queueTime)}</span>
-                  ) : null}
-                  {execution.runTime ? (
-                    <span>Run {formatJobExecutionTime(execution.runTime)}</span>
-                  ) : null}
+        <DetailsTabs cost={cost}>
+          <SheetBody className="gap-section">
+            <div className="grid w-full min-w-0 gap-group min-[640px]:grid-cols-2">
+              {runner?.length ? <ContextList label="Runner" values={runner} mono /> : null}
+              {execution.queueTime || execution.runTime ? (
+                <div className="flex min-w-0 flex-col gap-tight">
+                  <Text size="xs" bold className="text-foreground-neutral-base">
+                    Timing
+                  </Text>
+                  <div className="flex flex-wrap gap-inline text-xs text-foreground-neutral-muted">
+                    {execution.queueTime ? (
+                      <span>Queue {formatJobExecutionTime(execution.queueTime)}</span>
+                    ) : null}
+                    {execution.runTime ? (
+                      <span>Run {formatJobExecutionTime(execution.runTime)}</span>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            {outputs ? (
-              <JsonCode
-                title="Outputs"
-                value={outputs}
-                emptyMessage="No outputs declared; the `outputs:` mapping is empty."
-              />
-            ) : null}
-            {job.success ? <ContextValue label="Condition" value={job.success} mono /> : null}
-            {statusReason ? (
-              <ContextValue label="Status reason" value={humanize(statusReason)} />
-            ) : null}
-            {execution.statusReasonMessage ? (
-              <ContextValue label="Failure details" value={execution.statusReasonMessage} />
-            ) : null}
-            {execution.triggerEvents.length ? (
-              <JsonCode
-                title={`Trigger events (${execution.triggerEvents.length})`}
-                value={execution.triggerEvents}
-              />
-            ) : null}
-            {executionNameTrace.length ? (
-              <EvaluationTraceSection
-                title={`Execution name evaluation (${executionNameTrace.length})`}
-                trace={executionNameTrace}
-              />
-            ) : null}
-            {conditionTrace.length ? (
-              <EvaluationTraceSection
-                title={`Condition evaluation (${conditionTrace.length})`}
-                trace={conditionTrace}
-              />
-            ) : null}
-          </div>
-        </SheetBody>
+              ) : null}
+              {outputs ? (
+                <JsonCode
+                  title="Outputs"
+                  value={outputs}
+                  emptyMessage="No outputs declared; the `outputs:` mapping is empty."
+                />
+              ) : null}
+              {job.success ? <ContextValue label="Condition" value={job.success} mono /> : null}
+              {statusReason ? (
+                <ContextValue label="Status reason" value={humanize(statusReason)} />
+              ) : null}
+              {execution.statusReasonMessage ? (
+                <ContextValue label="Failure details" value={execution.statusReasonMessage} />
+              ) : null}
+              {execution.triggerEvents.length ? (
+                <JsonCode
+                  title={`Trigger events (${execution.triggerEvents.length})`}
+                  value={execution.triggerEvents}
+                />
+              ) : null}
+              {executionNameTrace.length ? (
+                <EvaluationTraceSection
+                  title={`Execution name evaluation (${executionNameTrace.length})`}
+                  trace={executionNameTrace}
+                />
+              ) : null}
+              {conditionTrace.length ? (
+                <EvaluationTraceSection
+                  title={`Condition evaluation (${conditionTrace.length})`}
+                  trace={conditionTrace}
+                />
+              ) : null}
+            </div>
+          </SheetBody>
+        </DetailsTabs>
       </SheetContent>
     </Sheet>
   );

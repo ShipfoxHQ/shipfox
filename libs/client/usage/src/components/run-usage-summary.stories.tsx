@@ -4,10 +4,10 @@ import {
   type UsagePricingCost,
 } from '@shipfox/client-shell/runtime';
 import type {Meta, StoryObj} from '@storybook/react';
-import {expect, userEvent, waitFor, within} from 'storybook/test';
+import {expect, userEvent, within} from 'storybook/test';
 import type {RunUsage} from '#core/usage.js';
 import {RunUsageSummary} from './run-usage-summary.js';
-import {UsageDetails} from './usage-details.js';
+import {UsageBreakdown} from './usage-details.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -174,14 +174,14 @@ export const CostBreakdown: Story = {
   args: {runId: RUN_ID, usage},
   render: () => (
     <ClientUsagePricingProvider usagePricing={pricing}>
-      <UsageDetails scope="Run" usage={usage} cost={detailedCost} defaultOpen />
+      <UsageBreakdown usage={usage} cost={detailedCost} />
     </ClientUsagePricingProvider>
   ),
 };
 
 export const UsageWithoutPricing: Story = {
   args: {runId: RUN_ID, usage},
-  render: () => <UsageDetails scope="Run" usage={usage} cost={undefined} defaultOpen />,
+  render: () => <UsageBreakdown usage={usage} cost={undefined} />,
 };
 
 export const TestSkuDrillDown: Story = {
@@ -204,18 +204,5 @@ export const TestMobileSkuDrillDown: Story = {
         mobile: {name: 'Mobile', styles: {width: '390px', height: '844px'}, type: 'mobile'},
       },
     },
-  },
-};
-
-export const TestKeyboardDismissal: Story = {
-  ...WithPricing,
-  play: async ({canvasElement}) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const trigger = await body.findByRole('button', {name: 'View run cost details'});
-    trigger.focus();
-    await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(body.getByRole('dialog', {name: 'Run cost'})).toBeVisible());
-    await userEvent.keyboard('{Escape}');
-    await waitFor(() => expect(trigger).toHaveFocus());
   },
 };

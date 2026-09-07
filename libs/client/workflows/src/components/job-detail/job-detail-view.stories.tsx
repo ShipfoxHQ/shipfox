@@ -245,6 +245,29 @@ export const Usage: Story = {
   render: () => <UsageCompositionStory />,
 };
 
+export const TestJobCostTab: Story = {
+  ...Usage,
+  play: async ({canvasElement}) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByRole('button', {name: 'Inspect job details'}));
+    await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
+    await expect(body.getByText('Total cost')).toBeVisible();
+    await expect(body.getByText('Machine')).toBeVisible();
+  },
+};
+
+export const TestMobileJobCostTab: Story = {
+  ...TestJobCostTab,
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '390px', height: '844px'}, type: 'mobile'},
+      },
+    },
+  },
+};
+
 export const TestInvocationLogNavigation: Story = {
   render: () => <InvocationLogNavigationStory />,
   play: async ({canvasElement}) => {

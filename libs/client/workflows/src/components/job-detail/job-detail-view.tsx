@@ -3,7 +3,7 @@
 
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {useJobExecutionUsageQuery} from '@shipfox/client-usage';
+import {JobUsageBreakdown, useJobExecutionUsageQuery} from '@shipfox/client-usage';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -328,6 +328,13 @@ export function JobDetailView({
                 jobContext={
                   selectedJobExecution ? (
                     <JobContextPanel
+                      cost={
+                        <JobUsageBreakdown
+                          usage={usageQuery.data}
+                          stepLabels={stepLabels}
+                          stepAttemptLabels={stepAttemptLabels}
+                        />
+                      }
                       job={job}
                       execution={selectedJobExecution}
                       selectedExecution={selectedJobResources.selectedDetailExecution}
