@@ -445,15 +445,22 @@ function isExecutionFenceActive(
   now: Date,
   localWorkStopped: boolean,
 ): boolean {
+  const executionFenceUntil = row.executionFenceUntil;
   return (
     !localWorkStopped &&
-    row.executionFenceUntil !== null &&
-    now.getTime() < row.executionFenceUntil.getTime()
+    executionFenceUntil !== null &&
+    executionFenceUntil !== undefined &&
+    now.getTime() < executionFenceUntil.getTime()
   );
 }
 
 function isExecutionFenceElapsed(row: RunnerInstance, now: Date): boolean {
-  return row.executionFenceUntil !== null && now.getTime() >= row.executionFenceUntil.getTime();
+  const executionFenceUntil = row.executionFenceUntil;
+  return (
+    executionFenceUntil !== null &&
+    executionFenceUntil !== undefined &&
+    now.getTime() >= executionFenceUntil.getTime()
+  );
 }
 
 function cleanupGraceStart(jobExecution: JobStopExecution | undefined): Date | null {
