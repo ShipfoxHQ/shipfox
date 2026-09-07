@@ -110,7 +110,7 @@ describe('Usage components', () => {
   test('renders quantities without a pricing seam', () => {
     render(<RunUsageSummary runId={RUN_ID} usage={runUsage} />);
 
-    expect(screen.getByText('1,800 tokens')).toBeVisible();
+    expect(screen.getByText('1.8K tokens')).toBeVisible();
     expect(screen.getByText('2 web searches')).toBeVisible();
     expect(screen.getByText('2 requests')).toBeVisible();
     expect(screen.queryByText('$1.20')).not.toBeInTheDocument();
@@ -138,7 +138,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('1,800 tokens')).toBeVisible();
+    expect(screen.getByText('1.8K tokens')).toBeVisible();
     await waitFor(() => expect(screen.getByText('est. $0.90')).toBeVisible());
     expect(screen.getByText('est. $0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
   });
@@ -176,7 +176,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('1,800 tokens')).toBeVisible();
+    expect(screen.getByText('1.8K tokens')).toBeVisible();
     await waitFor(() => expect(screen.getByText('est. $0.90')).toBeVisible());
   });
 
@@ -263,7 +263,7 @@ describe('Usage components', () => {
 
     expect(screen.getByText('Generate release notes')).toBeVisible();
     expect(screen.getByText('claude-sonnet-4')).toBeVisible();
-    expect(screen.getByText('1,800')).toBeVisible();
+    expect(screen.getByText('1.8K')).toBeVisible();
     expect(screen.queryByRole('columnheader', {name: 'Cost'})).not.toBeInTheDocument();
   });
 

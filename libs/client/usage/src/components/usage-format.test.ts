@@ -1,7 +1,9 @@
 import type {UsageTokenTotals} from '#core/usage.js';
 import {
+  formatExactUsageNumber,
   formatUsageCacheWrite,
   formatUsageDuration,
+  formatUsageNumber,
   formatUsageRate,
   usageTokenBreakdownTitle,
 } from './usage-format.js';
@@ -45,6 +47,8 @@ describe('formatUsageDuration', () => {
 
 describe('usage token formatting', () => {
   test('formats cache hit rates and reported token details', () => {
+    expect(formatUsageNumber(1_840)).toBe('1.8K');
+    expect(formatExactUsageNumber(1_840)).toBe('1,840');
     expect(formatUsageRate(100 / 1_300)).toBe('7.7%');
     expect(formatUsageCacheWrite(totals)).toBe('40');
     expect(usageTokenBreakdownTitle(totals)).toContain(
