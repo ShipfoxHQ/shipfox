@@ -25,6 +25,10 @@ can change the values marked configurable.
 | Declared outputs per step | 128 entries | No | The `outputs:` map on one step. |
 | Agent output re-prompts | 2 | No | An agent step missing a declared output is re-prompted this many times before the step fails. |
 
+Persisted step outputs use JSON-safe values. Tool mappings convert safe CEL
+integers to JSON numbers. They reject unsafe integers, non-finite numbers,
+unsupported objects, cyclic values, and values nested beyond 64 levels.
+
 ## Job outputs
 
 | Limit | Default | Configurable | Details |

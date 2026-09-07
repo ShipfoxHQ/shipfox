@@ -14,7 +14,9 @@ import {reportError} from '@shipfox/node-error-monitoring';
 import type {ModuleService} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
+import {JobOutputNotJsonSafeError} from '#core/errors.js';
 import {recordStepProgressionMetrics, recordStepResultInTransaction} from '#core/job-execution.js';
+import {normalizeJobOutputValue} from '#core/step-config/job-output-limits.js';
 import {type Tx, withTransaction} from '#db/db.js';
 import {
   claimToolInvocations,
@@ -454,14 +456,48 @@ function mapToolOutputs(
         {cause: error},
       );
     }
+    const normalizedValue = normalizeToolOutputMappingValue(value, key);
     Object.defineProperty(output, key, {
       configurable: true,
       enumerable: true,
-      value,
+      value: normalizedValue,
       writable: true,
     });
   }
   return output;
+}
+
+function normalizeToolOutputMappingValue(value: unknown, key: string): unknown {
+  try {
+    const normalizedValue = normalizeJobOutputValue(value, key);
+    if (containsUnsafeCelInteger(value, new WeakSet<object>())) {
+      throw new JobOutputNotJsonSafeError(
+        key,
+        `integers must be between ${Number.MIN_SAFE_INTEGER} and ${Number.MAX_SAFE_INTEGER}`,
+      );
+    }
+    return normalizedValue;
+  } catch (error) {
+    if (error instanceof JobOutputNotJsonSafeError) {
+      throw new Error(`Tool output mapping "${key}" cannot be persisted as JSON: ${error.reason}`, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+}
+
+function containsUnsafeCelInteger(value: unknown, visited: WeakSet<object>): boolean {
+  if (typeof value === 'bigint') {
+    return !Number.isSafeInteger(Number(value));
+  }
+  if (value === null || typeof value !== 'object' || visited.has(value)) return false;
+
+  visited.add(value);
+  const values = Array.isArray(value)
+    ? value
+    : Object.keys(value).map((key) => (value as Record<string, unknown>)[key]);
+  return values.some((nestedValue) => containsUnsafeCelInteger(nestedValue, visited));
 }
 
 interface ToolExecutionError {
