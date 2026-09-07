@@ -41,8 +41,47 @@ export async function lockAdminCommand(
   );
 }
 
-export async function lockAdminOwnerGrants(tx: Tx): Promise<void> {
+export type AdminOwnerGrantsLockMode = 'shared' | 'exclusive';
+
+/**
+ * Shared locks protect reads that depend on administrator-grant state. Grant
+ * mutations keep the exclusive default, so mints for different actors can
+ * proceed together without racing a role change.
+ */
+export async function lockAdminOwnerGrants(
+  tx: Tx,
+  mode: AdminOwnerGrantsLockMode = 'exclusive',
+): Promise<void> {
+  if (mode === 'shared') {
+    await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtext('auth_admin_owner_grants'))`);
+    return;
+  }
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('auth_admin_owner_grants'))`);
+}
+
+/**
+ * Window mutations acquire this actor-scoped lock after the command lock and,
+ * when needed, the shared grant lock. No window path acquires a grant lock
+ * after this lock.
+ */
+export async function lockImpersonationWindowActor(tx: Tx, actorId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`auth_impersonation_window:${actorId}`}))`,
+  );
+}
+
+/**
+ * Applies the lock order used by window commands. Owned Stop omits the grant
+ * lock; Start, Continue, and owner Stop pass `shared`.
+ */
+export async function lockImpersonationWindowMutation(
+  tx: Tx,
+  params: Pick<AdminCommandTransactionParams, 'actorId' | 'idempotencyKeyFingerprint'>,
+  options: {windowActorId: string; grantLock: 'shared' | null},
+): Promise<void> {
+  await lockAdminCommand(tx, params);
+  if (options.grantLock) await lockAdminOwnerGrants(tx, options.grantLock);
+  await lockImpersonationWindowActor(tx, options.windowActorId);
 }
 
 export async function findAdminCommandResult(

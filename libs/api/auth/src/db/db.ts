@@ -9,6 +9,7 @@ import {
   agentGrants,
   agentRefreshTokens,
 } from './schema/agent-access.js';
+import {impersonationWindows} from './schema/impersonation-windows.js';
 import {authOutbox} from './schema/outbox.js';
 import {passwordResets} from './schema/password-resets.js';
 import {authRateLimits} from './schema/rate-limits.js';
@@ -28,6 +29,7 @@ export const schema = {
   refreshTokens,
   authOutbox,
   authRateLimits,
+  impersonationWindows,
 };
 
 let _db: NodePgDatabase<typeof schema> | undefined;
