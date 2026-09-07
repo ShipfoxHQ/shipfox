@@ -93,7 +93,7 @@ export interface CreateAdministrationActionEventInput {
   authorizationBasis?: AdministrationAuthorizationBasis;
   actorRole: AdministrationRole | null;
   requiredRole: AdministrationRole | null;
-  actorRoleAtStart?: AdministrationRole | null;
+  actorRoleAtStart?: AdministrationRole;
   command: string;
   targetType: string;
   targetId: string;
