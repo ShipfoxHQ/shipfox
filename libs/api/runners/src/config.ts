@@ -192,7 +192,7 @@ export const config = createConfig({
     default: false,
   }),
   RUNNER_TERMINATION_REASON_LEASE_EXPIRED_ENABLED: bool({
-    desc: 'Allow lease-expired termination authorization. Keep disabled until heartbeat, lease-expiry maintenance, and runner-reconciliation replicas have been upgraded together because the old heartbeat lock order is not mixed-version compatible with the session-first order.',
+    desc: 'Allow lease-expired termination authorization. During rollout, heartbeat, lease-expiry maintenance, and runner-reconciliation replicas must be upgraded or drained together because the old heartbeat lock order is not mixed-version compatible with the session-first order; keep this flag disabled until that rollout is complete.',
     default: false,
   }),
   RUNNER_TERMINATION_REASON_SESSION_EXHAUSTED_ENABLED: bool({
