@@ -469,13 +469,14 @@ function mapToolOutputs(
 
 function normalizeToolOutputMappingValue(value: unknown, key: string): unknown {
   try {
+    const normalizedValue = normalizeJobOutputValue(value, key);
     if (containsUnsafeCelInteger(value, new WeakSet<object>())) {
       throw new JobOutputNotJsonSafeError(
         key,
         `integers must be between ${Number.MIN_SAFE_INTEGER} and ${Number.MAX_SAFE_INTEGER}`,
       );
     }
-    return normalizeJobOutputValue(value, key);
+    return normalizedValue;
   } catch (error) {
     if (error instanceof JobOutputNotJsonSafeError) {
       throw new Error(`Tool output mapping "${key}" cannot be persisted as JSON: ${error.reason}`, {

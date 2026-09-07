@@ -2,4 +2,4 @@
 "@shipfox/api-workflows": patch
 ---
 
-Fixes false oversized errors for valid CEL integer tool outputs. The platform now rejects values that JSON cannot represent safely.
+Fixes false oversized errors for CEL integer tool outputs. Tool mappings now reject non-finite values, unsafe integers, unsupported objects, cycles, and excessive nesting.

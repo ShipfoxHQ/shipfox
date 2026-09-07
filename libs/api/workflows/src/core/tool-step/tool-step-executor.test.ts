@@ -5,6 +5,7 @@ import {createWorkflowExpression, type OutputDeclarations} from '@shipfox/expres
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {createOutboxRegistry} from '@shipfox/node-module';
 import {eq} from 'drizzle-orm';
+import {MAX_JOB_OUTPUT_NESTING_DEPTH} from '#core/step-config/job-output-limits.js';
 import {db} from '#db/db.js';
 import {stepAttempts as stepAttemptsTable} from '#db/schema/step-attempts.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
@@ -239,10 +240,61 @@ describe('tool step executor', () => {
     });
   });
 
+  test('preserves the largest safe CEL integer output mapping', async () => {
+    const {jobId} = await arrangeToolStep('read', {
+      outputDeclarations: {
+        result: {type: 'json'},
+        issue_count: {type: 'number'},
+      },
+      outputMappings: {
+        issue_count: createWorkflowExpression({
+          source: '9007199254740991',
+          check: {mode: 'syntax'},
+        }),
+      },
+    });
+    const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
+      outcome: 'success' as const,
+      result: {issues: []},
+      content: [],
+    });
+    const appendServerRecords = vi
+      .fn<LogsModuleClient['appendServerRecords']>()
+      .mockResolvedValue({committedLength: 0, capped: false});
+
+    await nextStepForJob(jobId);
+    await runToolStepExecutorCycle({
+      integrations: {callTool} as unknown as IntegrationsModuleClient,
+      logs: {appendServerRecords} as unknown as LogsModuleClient,
+      signal: new AbortController().signal,
+      claimOwner: 'executor-test',
+      concurrency: 8,
+      callTimeoutMs: 30_000,
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'succeeded',
+      output: {result: {issues: []}, issue_count: Number.MAX_SAFE_INTEGER},
+    });
+  });
+
   test.each([
     {
       description: 'an unsafe CEL integer without rounding',
       source: '9007199254740993',
+      result: {issues: []},
+      issue: 'integers must be between -9007199254740991 and 9007199254740991',
+    },
+    {
+      description: 'an unsafe CEL integer nested in a list',
+      source: '[9007199254740993]',
+      result: {issues: []},
+      issue: 'integers must be between -9007199254740991 and 9007199254740991',
+    },
+    {
+      description: 'an unsafe negative CEL integer',
+      source: '-9007199254740992',
       result: {issues: []},
       issue: 'integers must be between -9007199254740991 and 9007199254740991',
     },
@@ -296,10 +348,55 @@ describe('tool step executor', () => {
       },
     });
     const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({status: 'failed', output: null});
     expect(attempt?.invocations).toEqual([
       expect.objectContaining({call_index: 0, outcome: 'success'}),
     ]);
     expect(callTool).toHaveBeenCalledOnce();
+  });
+
+  test('reports the canonical nesting-limit error for deeply nested mappings', async () => {
+    let result: Record<string, unknown> = {value: 'leaf'};
+    for (let depth = 1; depth <= MAX_JOB_OUTPUT_NESTING_DEPTH; depth += 1) {
+      result = {value: result};
+    }
+    const {jobId} = await arrangeToolStep('read', {
+      outputDeclarations: {
+        result: {type: 'json'},
+        payload: {type: 'json'},
+      },
+      outputMappings: {
+        payload: createWorkflowExpression({source: 'result', check: {mode: 'syntax'}}),
+      },
+    });
+    const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
+      outcome: 'success' as const,
+      result,
+      content: [],
+    });
+    const appendServerRecords = vi
+      .fn<LogsModuleClient['appendServerRecords']>()
+      .mockResolvedValue({committedLength: 0, capped: false});
+
+    await nextStepForJob(jobId);
+    await runToolStepExecutorCycle({
+      integrations: {callTool} as unknown as IntegrationsModuleClient,
+      logs: {appendServerRecords} as unknown as LogsModuleClient,
+      signal: new AbortController().signal,
+      claimOwner: 'executor-test',
+      concurrency: 8,
+      callTimeoutMs: 30_000,
+    });
+
+    const [step] = await getStepsByJobId(jobId);
+    expect(step).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'output_invalid',
+        reason: 'output_invalid',
+        message: `Tool output mapping "payload" cannot be persisted as JSON: values cannot be nested deeper than ${MAX_JOB_OUTPUT_NESTING_DEPTH} levels`,
+      },
+    });
   });
 
   test.each([
