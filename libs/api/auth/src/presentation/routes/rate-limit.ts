@@ -8,7 +8,7 @@ import {
   checkAuthRateLimit,
 } from '#core/rate-limit.js';
 
-const policies: Record<
+export const authRateLimitPolicies: Record<
   AuthRateLimitAction,
   Partial<Record<AuthRateLimitScope, AuthRateLimitPolicy>>
 > = {
@@ -43,6 +43,18 @@ const policies: Record<
     ip: {limit: 20, windowSeconds: 15 * 60},
     actor: {limit: 20, windowSeconds: 15 * 60},
   },
+  'impersonate-continue': {
+    ip: {limit: 240, windowSeconds: 15 * 60},
+    actor: {limit: 120, windowSeconds: 15 * 60},
+  },
+  'impersonate-stop': {
+    ip: {limit: 60, windowSeconds: 15 * 60},
+    actor: {limit: 60, windowSeconds: 15 * 60},
+  },
+  'impersonation-windows': {
+    ip: {limit: 120, windowSeconds: 15 * 60},
+    actor: {limit: 60, windowSeconds: 15 * 60},
+  },
   'oauth-register': {
     ip: {limit: 10, windowSeconds: 60 * 60},
   },
@@ -72,7 +84,7 @@ async function enforceRateLimit(params: {
   scope: AuthRateLimitScope;
   identifier: string;
 }): Promise<void> {
-  const policy = policies[params.action][params.scope];
+  const policy = authRateLimitPolicies[params.action][params.scope];
   if (!policy) return;
 
   await enforceSharedRateLimit({

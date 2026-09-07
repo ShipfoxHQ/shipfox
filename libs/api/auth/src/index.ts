@@ -44,6 +44,16 @@ export type {
   RunnerSessionTokenClaims,
 } from '@shipfox/api-auth-dto';
 export {
+  IMPERSONATION_WINDOW_MAX_COUNT,
+  MAX_IMPERSONATION_WINDOWS,
+} from '@shipfox/api-auth-dto';
+export {
+  config,
+  IMPERSONATION_WINDOW_MAX_SECONDS,
+  IMPERSONATION_WINDOW_MIN_SECONDS,
+  impersonationWindowMaxSeconds,
+} from '#config.js';
+export {
   ADMIN_ROLES,
   getCurrentAdminRole,
   hasMinimumAdminRole,
@@ -126,8 +136,13 @@ export {
   EmailNotVerifiedError,
   ImpersonationDisabledError,
   ImpersonationExpiredError,
+  ImpersonationStopReasonRequiredError,
   ImpersonationTargetNotActiveError,
+  ImpersonationTargetNotWorkspaceMemberError,
+  ImpersonationWindowDeadlineReachedError,
   ImpersonationWindowLimitReachedError,
+  ImpersonationWindowNotFoundError,
+  ImpersonationWindowStoppedError,
   InvalidAdminBootstrapTokenError,
   InvalidAdministratorUserDirectoryFilterError,
   InvalidAgentAccessScopeError,

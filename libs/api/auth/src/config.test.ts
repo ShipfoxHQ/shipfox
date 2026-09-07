@@ -9,10 +9,56 @@ describe('signup gate configuration', () => {
 
     const {config} = await import('#config.js');
 
+    expect(config.AUTH_IMPERSONATION_ENABLED).toBe(false);
+    expect(config.AUTH_IMPERSONATION_WINDOW_MAX).toBe('60m');
     expect(config.AUTH_SIGNUP_GATE_ENABLED).toBe(false);
     expect(config.AUTH_SIGNUP_ALLOWED_EMAIL_DOMAINS).toBe('');
     expect(config.AUTH_SIGNUP_ALLOWED_EMAILS).toBe('');
     expect(config.AUTH_SIGNUP_NOT_ALLOWED_MESSAGE).toBeUndefined();
+  });
+
+  test('accepts the one-minute and 60-minute window boundaries', async () => {
+    vi.stubEnv('AUTH_IMPERSONATION_WINDOW_MAX', '1m');
+    vi.resetModules();
+
+    const minimum = await import('#config.js');
+    expect(minimum.impersonationWindowMaxSeconds).toBe(60);
+
+    vi.resetModules();
+    vi.stubEnv('AUTH_IMPERSONATION_WINDOW_MAX', '60m');
+    const maximum = await import('#config.js');
+    expect(maximum.impersonationWindowMaxSeconds).toBe(60 * 60);
+  });
+
+  test.each([
+    '59s',
+    '61m',
+    '2h',
+    'not-a-duration',
+  ])('rejects an impersonation window duration outside the one-to-60-minute range: %s', async (value) => {
+    vi.stubEnv('AUTH_IMPERSONATION_WINDOW_MAX', value);
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('AUTH_IMPERSONATION_WINDOW_MAX');
+  });
+
+  test('requires a useful JWT lifetime when impersonation is enabled', async () => {
+    vi.stubEnv('AUTH_IMPERSONATION_ENABLED', 'true');
+    vi.stubEnv('AUTH_JWT_EXPIRES_IN', '59s');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow(
+      'AUTH_JWT_EXPIRES_IN must be at least 1 minute',
+    );
+  });
+
+  test('keeps short legacy JWT lifetimes valid while impersonation is disabled', async () => {
+    vi.stubEnv('AUTH_IMPERSONATION_ENABLED', 'false');
+    vi.stubEnv('AUTH_JWT_EXPIRES_IN', '30s');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+    expect(config.AUTH_JWT_EXPIRES_IN).toBe('30s');
   });
 
   test('requires API_PUBLIC_URL or API_URL', async () => {

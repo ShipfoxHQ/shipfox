@@ -11,6 +11,9 @@ export type AuthRateLimitAction =
   | 'lookup'
   | 'directory'
   | 'impersonate'
+  | 'impersonate-continue'
+  | 'impersonate-stop'
+  | 'impersonation-windows'
   | 'oauth-register'
   | 'oauth-cimd'
   | 'oauth-authorize'
@@ -18,6 +21,7 @@ export type AuthRateLimitAction =
 export type AuthRateLimitScope = 'ip' | 'email' | 'actor';
 export type AuthRateLimitOutcome = 'allowed' | 'blocked' | 'unavailable';
 export type AuthImpersonationOutcome = 'succeeded' | 'failed';
+export type AuthImpersonationWindowEndedReason = 'stopped' | 'expired';
 
 const meter = instanceMetrics.getMeter('auth');
 
@@ -50,6 +54,37 @@ const rateLimitPruneFailureCount = meter.createCounter('auth_rate_limit_prune_fa
 const impersonationCommandCount = meter.createCounter<{outcome: AuthImpersonationOutcome}>(
   'auth_impersonation_commands',
   {description: 'Impersonation mint command attempts by outcome'},
+);
+
+const impersonationWindowStartCount = meter.createCounter<{
+  outcome: AuthImpersonationOutcome;
+}>('auth_impersonation_window_starts', {
+  description: 'Impersonation window Start attempts by outcome',
+});
+
+const impersonationContinuationCount = meter.createCounter<{
+  outcome: AuthImpersonationOutcome;
+}>('auth_impersonation_continuations', {
+  description: 'Impersonation window Continue attempts by outcome',
+});
+
+const impersonationStopCount = meter.createCounter<{outcome: AuthImpersonationOutcome}>(
+  'auth_impersonation_stops',
+  {description: 'Impersonation window Stop attempts by outcome'},
+);
+
+const impersonationWindowEndedCount = meter.createCounter<{
+  reason: AuthImpersonationWindowEndedReason;
+}>('auth_impersonation_windows_ended', {
+  description: 'Impersonation windows reaching a terminal state by reason',
+});
+
+const impersonationWindowDuration = meter.createHistogram<Record<string, never>>(
+  'auth_impersonation_window_duration_seconds',
+  {
+    description: 'Observed impersonation window duration at terminal transition',
+    unit: 's',
+  },
 );
 
 function recordMetric(record: () => void): void {
@@ -95,4 +130,25 @@ export function recordAuthRateLimitPruneFailure(): void {
 
 export function recordImpersonationOutcome(outcome: AuthImpersonationOutcome): void {
   recordMetric(() => impersonationCommandCount.add(1, {outcome}));
+}
+
+export function recordImpersonationWindowStartOutcome(outcome: AuthImpersonationOutcome): void {
+  recordMetric(() => impersonationWindowStartCount.add(1, {outcome}));
+}
+
+export function recordImpersonationContinuationOutcome(outcome: AuthImpersonationOutcome): void {
+  recordMetric(() => impersonationContinuationCount.add(1, {outcome}));
+}
+
+export function recordImpersonationStopOutcome(outcome: AuthImpersonationOutcome): void {
+  recordMetric(() => impersonationStopCount.add(1, {outcome}));
+}
+
+export function recordImpersonationWindowEnded(reason: AuthImpersonationWindowEndedReason): void {
+  recordMetric(() => impersonationWindowEndedCount.add(1, {reason}));
+}
+
+export function recordImpersonationWindowDuration(durationSeconds: number): void {
+  if (!Number.isFinite(durationSeconds) || durationSeconds < 0) return;
+  recordMetric(() => impersonationWindowDuration.record(durationSeconds));
 }

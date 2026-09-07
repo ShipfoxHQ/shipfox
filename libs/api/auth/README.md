@@ -58,6 +58,7 @@ Required environment:
 | `AUTH_ROOT_KEY` | none | Canonical base64 for 32 random bytes used to derive separate authentication and email-challenge keys. Generate it with `openssl rand -base64 32`. |
 | `AUTH_JWT_EXPIRES_IN` | `15m` | Access token lifetime. |
 | `AUTH_IMPERSONATION_ENABLED` | `false` | Enables the administrator impersonation mint command. Defaults to `false` because the source-available client ships no impersonation banner; enable it only where every signed-in surface renders one. |
+| `AUTH_IMPERSONATION_WINDOW_MAX` | `60m` | Maximum impersonation window lifetime. Use a duration from `1m` through `60m`; deployments can reduce the limit but cannot increase it. |
 | `AUTH_JOB_LEASE_TOKEN_EXPIRES_IN` | `90m` | Job lease token lifetime. |
 | `AUTH_RUNNER_SESSION_TOKEN_EXPIRES_IN` | `1h` | Runner session token lifetime. |
 | `AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS` | `14` | Refresh token and cookie lifetime. |

@@ -71,6 +71,7 @@ describe('job-lease-token', () => {
               throw new Error('metrics unavailable');
             },
           }),
+          createHistogram: () => ({record: () => undefined}),
         }),
       },
     }));

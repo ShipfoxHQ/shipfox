@@ -1,5 +1,9 @@
 import {bool, createConfig, num, str, url} from '@shipfox/config';
+import {durationToSeconds} from '@shipfox/node-jwt';
 import {SIGNUP_DENIAL_MESSAGE_MAX_LENGTH} from '#core/ports.js';
+
+export const IMPERSONATION_WINDOW_MIN_SECONDS = 60;
+export const IMPERSONATION_WINDOW_MAX_SECONDS = 60 * 60;
 
 const configSchema = {
   ADMIN_BOOTSTRAP_TOKEN: str({
@@ -10,12 +14,16 @@ const configSchema = {
     desc: 'Public origin of the API used by Agent Access OAuth metadata and redirect flows. Defaults to API_URL. Set an externally reachable URL including the scheme. Use HTTPS outside localhost.',
   }),
   AUTH_JWT_EXPIRES_IN: str({
-    desc: 'How long an access token stays valid. Accepts a duration string such as 15m, 1h, or 7d.',
+    desc: 'How long an access token stays valid. Accepts a duration string such as 15m, 1h, or 7d. When AUTH_IMPERSONATION_ENABLED is true, set it to at least 1 minute.',
     default: '15m',
   }),
   AUTH_IMPERSONATION_ENABLED: bool({
     desc: 'Whether administrators can mint impersonated sessions for target users. Defaults to false: the source-available client ships no impersonation banner, so enable it only where every signed-in surface renders one.',
     default: false,
+  }),
+  AUTH_IMPERSONATION_WINDOW_MAX: str({
+    desc: 'Maximum lifetime of an impersonation window. Accepts a duration from 1 minute through 60 minutes. Defaults to 60 minutes, and cannot exceed the 60-minute hard maximum. When AUTH_IMPERSONATION_ENABLED is true, AUTH_JWT_EXPIRES_IN must be at least 1 minute.',
+    default: '60m',
   }),
   AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: str({
     desc: 'How long a job lease token stays valid. Set it longer than the longest job (JOB_MAX_DURATION is 60 minutes) plus a safety margin.',
@@ -67,6 +75,32 @@ export const config = createConfig(configSchema, {
   API_PUBLIC_URL: process.env.API_PUBLIC_URL ?? process.env.API_URL,
 });
 
+export const impersonationWindowMaxSeconds = parseDurationSetting(
+  'AUTH_IMPERSONATION_WINDOW_MAX',
+  config.AUTH_IMPERSONATION_WINDOW_MAX,
+);
+
+if (
+  impersonationWindowMaxSeconds < IMPERSONATION_WINDOW_MIN_SECONDS ||
+  impersonationWindowMaxSeconds > IMPERSONATION_WINDOW_MAX_SECONDS
+) {
+  throw new Error(
+    `AUTH_IMPERSONATION_WINDOW_MAX must be between 1 minute and 60 minutes, got ${config.AUTH_IMPERSONATION_WINDOW_MAX}.`,
+  );
+}
+
+if (config.AUTH_IMPERSONATION_ENABLED) {
+  const jwtExpiresInSeconds = parseDurationSetting(
+    'AUTH_JWT_EXPIRES_IN',
+    config.AUTH_JWT_EXPIRES_IN,
+  );
+  if (jwtExpiresInSeconds < IMPERSONATION_WINDOW_MIN_SECONDS) {
+    throw new Error(
+      'AUTH_JWT_EXPIRES_IN must be at least 1 minute when AUTH_IMPERSONATION_ENABLED is true.',
+    );
+  }
+}
+
 if (
   config.AUTH_SIGNUP_GATE_ENABLED &&
   !hasSignupAllowlistEntry(config.AUTH_SIGNUP_ALLOWED_EMAIL_DOMAINS) &&
@@ -84,6 +118,18 @@ if (
   throw new Error(
     `AUTH_SIGNUP_NOT_ALLOWED_MESSAGE must contain at most ${SIGNUP_DENIAL_MESSAGE_MAX_LENGTH} characters.`,
   );
+}
+
+function parseDurationSetting(name: string, value: string): number {
+  try {
+    const seconds = durationToSeconds(value);
+    if (!Number.isSafeInteger(seconds) || seconds <= 0) {
+      throw new TypeError('duration must be a positive whole number of seconds');
+    }
+    return seconds;
+  } catch (error) {
+    throw new Error(`${name} must be a valid duration, got ${value}.`, {cause: error});
+  }
 }
 
 function hasSignupAllowlistEntry(value: string): boolean {

@@ -1,18 +1,25 @@
 const metricMocks = vi.hoisted(() => {
   const counters = new Map<string, {add: ReturnType<typeof vi.fn>}>();
+  const histograms = new Map<string, {record: ReturnType<typeof vi.fn>}>();
   const createCounter = vi.fn((name: string) => {
     const counter = {add: vi.fn()};
     counters.set(name, counter);
     return counter;
   });
+  const createHistogram = vi.fn((name: string) => {
+    const histogram = {record: vi.fn()};
+    histograms.set(name, histogram);
+    return histogram;
+  });
 
-  return {counters, createCounter};
+  return {counters, createCounter, createHistogram, histograms};
 });
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
   instanceMetrics: {
     getMeter: () => ({
       createCounter: metricMocks.createCounter,
+      createHistogram: metricMocks.createHistogram,
     }),
   },
 }));
@@ -29,6 +36,9 @@ describe('auth metrics', () => {
   beforeEach(() => {
     for (const counter of metricMocks.counters.values()) {
       counter.add.mockReset();
+    }
+    for (const histogram of metricMocks.histograms.values()) {
+      histogram.record.mockReset();
     }
   });
 
@@ -71,6 +81,39 @@ describe('auth metrics', () => {
     expect(counterAdd('auth_token_refreshed')).toHaveBeenCalledWith(1, {
       outcome: 'reused',
     });
+  });
+
+  it('records window lifecycle metrics without identifier labels', () => {
+    metrics.recordImpersonationWindowStartOutcome('succeeded');
+    metrics.recordImpersonationContinuationOutcome('failed');
+    metrics.recordImpersonationStopOutcome('succeeded');
+    metrics.recordImpersonationWindowEnded('expired');
+    metrics.recordImpersonationWindowDuration(42);
+
+    expect(counterAdd('auth_impersonation_window_starts')).toHaveBeenCalledWith(1, {
+      outcome: 'succeeded',
+    });
+    expect(counterAdd('auth_impersonation_continuations')).toHaveBeenCalledWith(1, {
+      outcome: 'failed',
+    });
+    expect(counterAdd('auth_impersonation_stops')).toHaveBeenCalledWith(1, {
+      outcome: 'succeeded',
+    });
+    expect(counterAdd('auth_impersonation_windows_ended')).toHaveBeenCalledWith(1, {
+      reason: 'expired',
+    });
+    expect(
+      metricMocks.histograms.get('auth_impersonation_window_duration_seconds')?.record,
+    ).toHaveBeenCalledWith(42);
+  });
+
+  it('does not record invalid window durations', () => {
+    metrics.recordImpersonationWindowDuration(-1);
+    metrics.recordImpersonationWindowDuration(Number.NaN);
+
+    expect(
+      metricMocks.histograms.get('auth_impersonation_window_duration_seconds')?.record,
+    ).not.toHaveBeenCalled();
   });
 
   it('does not let metric failures affect callers', () => {
