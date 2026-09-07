@@ -187,9 +187,9 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
           }
         }
       : undefined;
-  const deleteInstallationTokenSecret = deleteInstallationSecrets
-    ? (params: {workspaceId: string; installationId: number}) => deleteInstallationSecrets(params)
-    : undefined;
+  const deleteInstallationTokenSecret =
+    deleteInstallationSecrets ??
+    (installationTokenProvider.deleteInstallation ? deleteInstallationToken : undefined);
   const deleteConnectionSecrets = deleteInstallationSecrets
     ? async (connection: IntegrationConnection<'github'>): Promise<void> => {
         const {externalAccountId} = connection;

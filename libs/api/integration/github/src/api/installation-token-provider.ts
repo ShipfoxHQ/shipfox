@@ -94,7 +94,10 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
     installationId: number,
     options?: DeleteInstallationOptions,
   ): Promise<number> {
-    return (await this.cache.deleteInstallation?.(installationId, options)) ?? 0;
+    if (this.cache.deleteInstallation) {
+      return await this.cache.deleteInstallation(installationId, options);
+    }
+    return options?.deleteNamespace ? await options.deleteNamespace(installationId) : 0;
   }
 
   private async assertInstallationIsActive(installationId: number): Promise<void> {
@@ -229,9 +232,10 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
 
     const freshToken = mint()
       .then((token) => {
-        if ((this.epochs.get(installationId) ?? 0) === epoch) {
-          this.tokens.set(cacheKey, {token, generation});
+        if ((this.epochs.get(installationId) ?? 0) !== epoch) {
+          return this.getOrMint(installationId, permissionFingerprint, mint);
         }
+        this.tokens.set(cacheKey, {token, generation});
         return token;
       })
       .finally(() => {
