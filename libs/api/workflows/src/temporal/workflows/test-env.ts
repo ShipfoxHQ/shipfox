@@ -31,6 +31,8 @@ export interface TestConfig {
   duplicateSignal?: boolean;
   /** If true, queueJobExecutionActivity does nothing without a signal for timeout testing */
   skipSignal?: boolean;
+  /** If set, delay the mock runner outcome by this many milliseconds. */
+  jobOutcomeDelayMs?: number;
   /** If true, emit the claim but hold back the terminal outcome (for deadline testing) */
   skipOutcomeSignal?: boolean;
   /** Runner-owned claim timestamp used by the mock claim event */
@@ -218,6 +220,11 @@ export async function teardownEnv(): Promise<void> {
   await testEnv?.teardown();
 }
 
+async function delayMockJobOutcome(): Promise<void> {
+  const delayMs = cfg.jobOutcomeDelayMs;
+  if (delayMs !== undefined) await testEnv.sleep(delayMs);
+}
+
 function createMockActivities() {
   return {
     loadRunAttemptDag: (runAttemptId: string): RunDag => {
@@ -230,6 +237,10 @@ function createMockActivities() {
       const status =
         params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;
       return {newVersion: nextVersion(), status};
+    },
+
+    failRunAsTimedOutActivity: (params: {runAttemptId: string}) => {
+      calls.push({name: 'failRunAsTimedOutActivity', params});
     },
 
     setJobStatus: (params: {
@@ -269,6 +280,7 @@ function createMockActivities() {
         const outcome = pendingJobOutcomes.get(params.jobExecutionId);
         pendingJobOutcomes.delete(params.jobExecutionId);
         if (outcome && status === 'running') {
+          await delayMockJobOutcome();
           await outcome.handle.signal(JOB_FINISHED_SIGNAL, {
             status: outcome.status,
             jobExecutionId: params.jobExecutionId,
