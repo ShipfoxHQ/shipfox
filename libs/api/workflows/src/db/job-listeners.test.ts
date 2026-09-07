@@ -175,6 +175,7 @@ async function createInactiveListeningJobWithMatchers(params: {
 
 async function createListenerWithDependencies(params: {
   readonly on: readonly JobListeningTrigger[];
+  readonly until?: readonly JobListeningTrigger[] | null;
   readonly inputs?: Record<string, unknown>;
 }) {
   const run = await workflowRunFactory.create(
@@ -220,7 +221,7 @@ async function createListenerWithDependencies(params: {
       status: 'pending',
       listenerStatus: 'inactive',
       listeningOn: [...params.on],
-      listeningUntil: null,
+      listeningUntil: params.until ? [...params.until] : null,
     })
     .where(eq(jobs.id, listener.id));
   await db().delete(jobExecutions).where(eq(jobExecutions.jobId, listener.id));
@@ -463,6 +464,37 @@ describe('activateJobListener', () => {
     await db()
       .update(jobs)
       .set({outputs: {payload: 'x'.repeat(Math.floor(MAX_LISTENER_FILTER_SNAPSHOT_BYTES / 2))}})
+      .where(eq(jobs.id, job.buildId));
+
+    await expect(
+      activateJobListener({jobId: job.id, expectedVersion: job.version}),
+    ).rejects.toMatchObject({
+      name: 'WorkflowExecutionPayloadTooLargeError',
+      field: 'filter_snapshot',
+      limitBytes: MAX_LISTENER_FILTER_SNAPSHOT_BYTES,
+      measuredBytes: expect.any(Number),
+      overshootBytes: expect.any(Number),
+    });
+
+    const stored = await readJob(job.id);
+    expect(stored).toMatchObject({status: 'pending', listenerStatus: 'inactive'});
+    const activatedEvents = await db()
+      .select()
+      .from(workflowsOutbox)
+      .where(eq(workflowsOutbox.eventType, WORKFLOWS_JOB_ACTIVATED));
+    expect(
+      activatedEvents.filter((row) => (row.payload as Record<string, unknown>).jobId === job.id),
+    ).toHaveLength(0);
+  });
+
+  it('rejects oversized until filter snapshots before writing activation', async () => {
+    const job = await createListenerWithDependencies({
+      on: [],
+      until: [{source: 'github', event: 'pull_request', filter: 'jobs.build'}],
+    });
+    await db()
+      .update(jobs)
+      .set({outputs: {payload: 'x'.repeat(MAX_LISTENER_FILTER_SNAPSHOT_BYTES)}})
       .where(eq(jobs.id, job.buildId));
 
     await expect(

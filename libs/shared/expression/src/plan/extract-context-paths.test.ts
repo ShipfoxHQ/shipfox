@@ -35,6 +35,19 @@ describe('analyzeContextPathAccess', () => {
     });
   });
 
+  it('keeps a literal wildcard key distinct from a comprehension wildcard', () => {
+    expect(analyzeContextPathAccess('jobs.build.outputs["*"]', ['jobs'])).toEqual({
+      references: [
+        {
+          root: 'jobs',
+          segments: ['build', 'outputs', {kind: 'literal', value: '*'}],
+          source: 'jobs.build.outputs["*"]',
+        },
+      ],
+      unknown: [],
+    });
+  });
+
   it('reports dynamic access explicitly instead of treating it as exact', () => {
     expect(analyzeContextPathAccess('jobs[inputs.target].outputs.pr_number', ['jobs'])).toEqual({
       references: [],

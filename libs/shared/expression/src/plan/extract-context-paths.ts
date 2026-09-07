@@ -18,8 +18,14 @@ const binaryOperators = new Set<BinaryOperator>([
 
 const comprehensionMethods = new Set(['all', 'exists', 'exists_one', 'filter', 'map']);
 
+/** Distinguishes a literal `"*"` key from the comprehension wildcard sentinel. */
+export interface ContextPathLiteralSegment {
+  readonly kind: 'literal';
+  readonly value: string;
+}
+
 /** A literal object key, array index, or comprehension element in a context path. */
-export type ContextPathSegment = string | number | '*';
+export type ContextPathSegment = string | number | ContextPathLiteralSegment | '*';
 
 export interface ContextPathReference {
   readonly root: string;
@@ -514,7 +520,9 @@ function accessChain(node: ASTNode, scopedPaths: ScopedPaths): PathChain | undef
 
 function literalPathSegment(node: ASTNode): ContextPathSegment | undefined {
   if (node.op !== 'value') return undefined;
-  if (typeof node.args === 'string') return node.args;
+  if (typeof node.args === 'string') {
+    return node.args === '*' ? {kind: 'literal', value: node.args} : node.args;
+  }
   if (typeof node.args === 'number' && Number.isSafeInteger(node.args)) return node.args;
   if (
     typeof node.args === 'bigint' &&

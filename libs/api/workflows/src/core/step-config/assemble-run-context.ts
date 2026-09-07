@@ -1,5 +1,6 @@
 import {
   analyzeContextPathAccess,
+  type ContextPathLiteralSegment,
   type ContextPathReference,
   type ContextPathSegment,
   type ExpressionType,
@@ -321,7 +322,9 @@ function planMatcherFilterSnapshot(
   const jobKeys = new Set(
     jobPaths.flatMap((reference) => {
       const [jobKey] = reference.segments;
-      return typeof jobKey === 'string' && jobKey !== '*' ? [jobKey] : [];
+      if (jobKey === undefined || jobKey === '*') return [];
+      const jobKeyValue = contextPathSegmentValue(jobKey);
+      return typeof jobKeyValue === 'string' ? [jobKeyValue] : [];
     }),
   );
   return {matcher, roots: new Set(roots), jobKeys, jobPaths, jobsAreBroad};
@@ -329,7 +332,9 @@ function planMatcherFilterSnapshot(
 
 function isBroadJobsPathReference(reference: ContextPathReference): boolean {
   const [jobKey] = reference.segments;
-  return jobKey === undefined || jobKey === '*' || typeof jobKey !== 'string';
+  return (
+    jobKey === undefined || jobKey === '*' || typeof contextPathSegmentValue(jobKey) !== 'string'
+  );
 }
 
 function isListenerSnapshotRoot(
@@ -552,11 +557,17 @@ function projectJobsContext(
 
       const paths = plan.jobPaths.flatMap((reference) => {
         const [referenceJobKey, ...path] = reference.segments;
-        return referenceJobKey === jobKey ? [path] : [];
+        return referenceJobKey !== undefined && contextPathSegmentValue(referenceJobKey) === jobKey
+          ? [path]
+          : [];
       });
       const wholeElementPaths = plan.jobPaths.flatMap((reference) => {
         const [referenceJobKey, ...path] = reference.segments;
-        return referenceJobKey === jobKey && reference.wholeElement === true ? [path] : [];
+        return referenceJobKey !== undefined &&
+          contextPathSegmentValue(referenceJobKey) === jobKey &&
+          reference.wholeElement === true
+          ? [path]
+          : [];
       });
       return [[jobKey, projectJobContext(job, paths, wholeElementPaths)] as const];
     }),
@@ -602,7 +613,7 @@ function compactProjectionPaths(
 }
 
 function isPathPrefix(prefix: readonly ContextPathSegment[], path: readonly ContextPathSegment[]) {
-  return prefix.every((segment, index) => segment === path[index]);
+  return prefix.every((segment, index) => sameContextPathSegment(segment, path[index]));
 }
 
 function projectValueByPaths(
@@ -617,10 +628,11 @@ function projectValueByPaths(
   const projected: Record<string, unknown> = {};
   for (const path of paths) {
     const segment = path[0];
-    if (typeof segment !== 'string' || !Object.hasOwn(value, segment)) continue;
+    const key = segment === undefined ? undefined : contextPathSegmentValue(segment);
+    if (typeof key !== 'string' || !Object.hasOwn(value, key)) continue;
 
-    const child = projectValueByPaths(value[segment], [path.slice(1)]);
-    setOwnRecordValue(projected, segment, mergeProjectedValues(projected[segment], child));
+    const child = projectValueByPaths(value[key], [path.slice(1)]);
+    setOwnRecordValue(projected, key, mergeProjectedValues(projected[key], child));
   }
   return projected;
 }
@@ -698,7 +710,9 @@ function outputTypePathsForJob(
   const wholeElementJobPaths: (readonly ContextPathSegment[])[] = [];
   for (const reference of plan.jobPaths) {
     const [referenceJobKey, ...jobPath] = reference.segments;
-    if (referenceJobKey !== jobKey) continue;
+    if (referenceJobKey === undefined || contextPathSegmentValue(referenceJobKey) !== jobKey) {
+      continue;
+    }
     jobPaths.push(jobPath);
     const outputPath = outputPathFromJobPath(jobPath);
     if (reference.wholeElement === true) wholeElementJobPaths.push(jobPath);
@@ -753,19 +767,46 @@ function projectExpressionTypeRecord(
   const projected: Record<string, ExpressionType> = {};
   for (const path of paths) {
     const [key, ...rest] = path;
-    if (key === '*' || typeof key !== 'string') return {...types};
-    const type = types[key];
+    if (key === '*') return {...types};
+    const keyValue = key === undefined ? undefined : contextPathSegmentValue(key);
+    if (typeof keyValue !== 'string') return {...types};
+    const type = types[keyValue];
     if (type === undefined) continue;
     const projectedType = projectExpressionType(type, [rest]);
     if (projectedType !== undefined) {
       setOwnRecordValue(
         projected,
-        key,
-        mergeProjectedExpressionTypes(projected[key], projectedType),
+        keyValue,
+        mergeProjectedExpressionTypes(projected[keyValue], projectedType),
       );
     }
   }
   return projected;
+}
+
+function contextPathSegmentValue(segment: ContextPathSegment): string | number | undefined {
+  if (typeof segment === 'string' || typeof segment === 'number') return segment;
+  if (isContextPathLiteralSegment(segment)) return segment.value;
+  return undefined;
+}
+
+function isContextPathLiteralSegment(
+  segment: ContextPathSegment,
+): segment is ContextPathLiteralSegment {
+  return typeof segment === 'object' && segment.kind === 'literal';
+}
+
+function sameContextPathSegment(
+  left: ContextPathSegment,
+  right: ContextPathSegment | undefined,
+): boolean {
+  if (left === right) return true;
+  return (
+    isContextPathLiteralSegment(left) &&
+    right !== undefined &&
+    isContextPathLiteralSegment(right) &&
+    left.value === right.value
+  );
 }
 
 function mergeProjectedExpressionTypes(

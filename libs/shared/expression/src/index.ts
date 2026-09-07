@@ -80,6 +80,7 @@ export {
   analyzeContextPathAccess,
   type ContextPathAccessAnalysis,
   type ContextPathAccessUnknown,
+  type ContextPathLiteralSegment,
   type ContextPathReference,
   type ContextPathSegment,
 } from './plan/extract-context-paths.js';

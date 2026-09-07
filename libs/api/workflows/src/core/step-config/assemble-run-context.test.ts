@@ -661,6 +661,54 @@ describe('listener filter snapshots', () => {
     expect(matcher?.filter_output_types).toEqual({build: {pr_number: 'int'}});
   });
 
+  it('projects a literal wildcard output key without broadening the snapshot', () => {
+    const plan = planListenerFilterSnapshots({
+      on: [
+        {
+          source: 'github',
+          event: 'pull_request',
+          filter: 'jobs.build.outputs["*"] == "ready"',
+        },
+      ],
+      until: null,
+    });
+    const dependencyJobs = [
+      {
+        job: {
+          key: 'build',
+          status: 'succeeded' as const,
+          outputs: {'*': 'ready', unrelated: 'large'},
+        },
+        outputTypes: {'*': 'string' as const, unrelated: 'string' as const},
+        executions: [],
+      },
+    ];
+    const context = assembleListenerSnapshotContext({
+      job: {key: 'await'},
+      run,
+      triggerPayload,
+      plan,
+      dependencyJobs,
+    });
+
+    const [matcher] = applyListenerFilterSnapshots(
+      plan.on,
+      context,
+      listenerFilterOutputTypesForJobs(dependencyJobs),
+    );
+
+    expect(matcher?.filter_snapshot).toEqual({
+      jobs: {
+        build: {
+          key: 'build',
+          status: 'succeeded',
+          outputs: {'*': 'ready'},
+        },
+      },
+    });
+    expect(matcher?.filter_output_types).toEqual({build: {'*': 'string'}});
+  });
+
   it('retains map values when a comprehension iterates over outputs', () => {
     const plan = planListenerFilterSnapshots({
       on: [

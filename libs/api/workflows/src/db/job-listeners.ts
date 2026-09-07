@@ -16,6 +16,7 @@ import {
 } from '#core/agent-tools.js';
 import {
   assertWorkflowExecutionPayloadSize,
+  executionPayloadValueByteLength,
   observeWorkflowDiagnosticSize,
 } from '#core/diagnostics.js';
 import {isJobTerminal, type JobStatus, type ResolutionReason} from '#core/entities/job.js';
@@ -275,7 +276,20 @@ async function writeListenerActivatedEvent(
     filter_snapshot === undefined ? [] : [filter_snapshot],
   );
   if (filterSnapshots.length > 0) {
-    assertWorkflowExecutionPayloadSize('filter_snapshot', filterSnapshots);
+    try {
+      assertWorkflowExecutionPayloadSize('filter_snapshot', filterSnapshots);
+    } catch (error) {
+      if (error instanceof WorkflowExecutionPayloadTooLargeError) {
+        logOversizedListenerFilterSnapshots({
+          jobId,
+          jobKey: target.job.key,
+          on,
+          until: until ?? [],
+          error,
+        });
+      }
+      throw error;
+    }
   }
 
   await writeWorkflowsOutboxEvent(tx, {
@@ -289,6 +303,36 @@ async function writeListenerActivatedEvent(
       until,
     },
   });
+}
+
+function logOversizedListenerFilterSnapshots(params: {
+  readonly jobId: string;
+  readonly jobKey: string;
+  readonly on: readonly ListenerTriggerWithSnapshot[];
+  readonly until: readonly ListenerTriggerWithSnapshot[];
+  readonly error: WorkflowExecutionPayloadTooLargeError;
+}): void {
+  for (const [matcherKind, matchers] of [
+    ['on', params.on] as const,
+    ['until', params.until] as const,
+  ]) {
+    for (const [matcherIndex, matcher] of matchers.entries()) {
+      if (matcher.filter_snapshot === undefined) continue;
+      logger().warn(
+        {
+          aggregateMeasuredBytes: params.error.measuredBytes,
+          filterSource: matcher.filter?.slice(0, 256),
+          jobId: params.jobId,
+          jobKey: params.jobKey,
+          limitBytes: params.error.limitBytes,
+          measuredBytes: executionPayloadValueByteLength(matcher.filter_snapshot),
+          matcherIndex,
+          matcherKind,
+        },
+        'Listener filter snapshot exceeded the aggregate execution byte limit',
+      );
+    }
+  }
 }
 
 export type DrainListenerEventsResult =

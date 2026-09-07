@@ -79,6 +79,17 @@ describe('workflow payload policies', () => {
     );
   });
 
+  test('accepts a listener filter snapshot exactly at its execution budget', () => {
+    const value = {
+      payload: 'x'.repeat(
+        MAX_LISTENER_FILTER_SNAPSHOT_BYTES - JSON.stringify({payload: ''}).length,
+      ),
+    };
+
+    expect(executionPayloadValueByteLength(value)).toBe(MAX_LISTENER_FILTER_SNAPSHOT_BYTES);
+    expect(() => assertWorkflowExecutionPayloadSize('filter_snapshot', value)).not.toThrow();
+  });
+
   test('observes oversized diagnostics without rejecting the owning write', () => {
     expect(() =>
       observeWorkflowDiagnosticSize('config', {
