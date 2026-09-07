@@ -15,15 +15,35 @@ describe('signup gate configuration', () => {
     expect(config.AUTH_SIGNUP_NOT_ALLOWED_MESSAGE).toBeUndefined();
   });
 
-  test('requires the public API URL', async () => {
+  test('requires API_PUBLIC_URL or API_URL', async () => {
     vi.stubEnv('API_PUBLIC_URL', undefined);
+    vi.stubEnv('API_URL', undefined);
     vi.resetModules();
 
     await expect(import('#config.js')).rejects.toThrow('process.exit unexpectedly called with "1"');
   });
 
-  test('accepts an HTTPS public API URL', async () => {
+  test('defaults the public API URL to API_URL', async () => {
+    vi.stubEnv('API_PUBLIC_URL', undefined);
+    vi.stubEnv('API_URL', 'https://internal-api.example.test');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.API_PUBLIC_URL).toBe('https://internal-api.example.test');
+  });
+
+  test('rejects an invalid API_URL fallback', async () => {
+    vi.stubEnv('API_PUBLIC_URL', undefined);
+    vi.stubEnv('API_URL', 'internal-api.example.test');
+    vi.resetModules();
+
+    await expect(import('#config.js')).rejects.toThrow('process.exit unexpectedly called with "1"');
+  });
+
+  test('prefers API_PUBLIC_URL to API_URL', async () => {
     vi.stubEnv('API_PUBLIC_URL', 'https://api.example.test');
+    vi.stubEnv('API_URL', 'https://internal-api.example.test');
     vi.resetModules();
 
     const {config} = await import('#config.js');

@@ -68,12 +68,13 @@ Required environment:
 | `AUTH_SIGNUP_ALLOWED_EMAIL_DOMAINS` | none | Comma-separated email domains allowed to create accounts, such as `shipfox.io,acme.com`. |
 | `AUTH_SIGNUP_ALLOWED_EMAILS` | none | Comma-separated exact email addresses allowed to create accounts. |
 | `AUTH_SIGNUP_NOT_ALLOWED_MESSAGE` | none | Markdown message returned when the signup gate blocks an account. Accepts at most 500 characters. Defaults to "This Shipfox deployment does not accept new accounts right now." |
-| `API_PUBLIC_URL` | none | Required public API origin used by Agent Access OAuth metadata and redirect flows. Local development may use `http://localhost:16101`; use HTTPS elsewhere. |
+| `API_PUBLIC_URL` | `API_URL` | Public API origin used by Agent Access OAuth metadata and redirect flows. Local development may use `http://localhost:16101`; use HTTPS elsewhere. |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in email verification and password reset links. |
 | `ADMIN_BOOTSTRAP_TOKEN` | none | Deployment secret accepted once to create the first administrator owner. Set it before bootstrap and remove or rotate it after successful bootstrap. |
 
-`API_PUBLIC_URL` has no default. Set it before startup. OAuth route construction
-rejects non-loopback HTTP origins.
+`API_PUBLIC_URL` defaults to `API_URL`. Set it when the externally reachable
+origin differs from `API_URL`. OAuth route construction rejects non-loopback
+HTTP origins.
 
 The recommended access-token lifetime is 15 minutes. Because user JWTs are
 verified from their claims, a token issued before logout, password changes,
