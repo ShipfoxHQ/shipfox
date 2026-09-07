@@ -10,6 +10,7 @@ import {
   isNotNull,
   isNull,
   lt,
+  lte,
   notExists,
   notInArray,
   or,
@@ -195,15 +196,8 @@ export async function persistRunnerTerminationAuthorizationTx(
     runner.leaseExpiredAt !== null &&
     runner.executionFenceUntil === null;
   if (executionFenceActive || legacyLeaseExpiredLeaseTermination) {
-    if (runner.terminationAuthorizedAt && runner.terminationReason)
-      await tx
-        .update(providerRunners)
-        .set({
-          terminationAuthorizedAt: null,
-          terminationReason: null,
-          updatedAt: sql`statement_timestamp()`,
-        })
-        .where(eq(providerRunners.id, runner.id));
+    // Keep an existing durable decision available for delivery once the bounded fence
+    // expires. The provider-delivery queries suppress it while the fence is active.
     return {
       desiredIntent: 'keep',
       terminationAuthorizedAt: null,
@@ -319,6 +313,13 @@ function terminationFenceRejection(
     return 'lease-expired';
 
   return null;
+}
+
+function providerTerminationFenceElapsedCondition() {
+  return or(
+    isNull(providerRunners.executionFenceUntil),
+    lte(providerRunners.executionFenceUntil, sql`now()`),
+  );
 }
 
 function shouldReleaseDemandReservation(
@@ -1058,6 +1059,7 @@ export async function listProvisionerTerminationAuthorizationsTx(
         // Only active runners await provider termination. Terminal runners
         // are handled by the report path after the provider acknowledges them.
         inArray(providerRunners.state, activeStates),
+        providerTerminationFenceElapsedCondition(),
         isNotNull(providerRunners.providerRunnerId),
         isNotNull(providerRunners.terminationAuthorizedAt),
         isNotNull(providerRunners.terminationReason),
@@ -1234,6 +1236,7 @@ function provisionerTerminateIntentsQuery(
         eq(providerRunners.provisionerId, params.provisionerId),
         isNotNull(providerRunners.providerRunnerId),
         inArray(providerRunners.state, activeStates),
+        providerTerminationFenceElapsedCondition(),
         params.providerRunnerIds && params.providerRunnerIds.length > 0
           ? inArray(providerRunners.providerRunnerId, params.providerRunnerIds)
           : undefined,

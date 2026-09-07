@@ -303,10 +303,12 @@ export async function reconcileRunnerInstances(
   const runners = reconciledRunnersAfterCleanup.map((runner) => {
     const candidateAuthorization = authorizationByCandidateRunnerId.get(runner.providerRunnerId);
     const observedRow = observedRowByRunnerId.get(runner.providerRunnerId);
-    const reason =
-      authorizationByRunnerId.get(runner.providerRunnerId) ??
-      observedRow?.terminationReason ??
-      null;
+    const durableAuthorizationReason =
+      observedRow && isExecutionFenceActive(observedRow, now, isTerminalState(observedRow.state))
+        ? null
+        : (authorizationByRunnerId.get(runner.providerRunnerId) ??
+          observedRow?.terminationReason ??
+          null);
     const hasFreshHealthyJob =
       runner.boundJobExecution !== null &&
       runner.boundJobExecution.cancellationRequestedAt === null &&
@@ -314,7 +316,7 @@ export async function reconcileRunnerInstances(
       !isTerminalState(runner.state);
     const effectiveReason = hasFreshHealthyJob
       ? null
-      : (reason ??
+      : (durableAuthorizationReason ??
         (candidateAuthorization?.desiredIntent === 'terminate'
           ? candidateAuthorization.terminationReason
           : null));

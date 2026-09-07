@@ -222,8 +222,8 @@ async function persistExpiredLeaseStateTx(
       .update(providerRunners)
       .set({
         leaseExpiredAt: sql`coalesce(${providerRunners.leaseExpiredAt}, ${fence.leaseExpiredAt})`,
-        terminationAuthorizedAt: null,
-        terminationReason: null,
+        // Keep an existing durable decision. Provider delivery suppresses it while the
+        // execution fence is active, then resumes it after the bounded fence expires.
         ...(fence.executionFenceUntil
           ? {
               executionFenceUntil: sql`greatest(

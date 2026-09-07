@@ -1849,8 +1849,8 @@ describe('detectAndExpireStuckJobs', () => {
     expect(runner?.executionFenceUntil?.getTime()).toBeGreaterThan(
       Date.now() + (config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS - 10) * 1000,
     );
-    expect(runner?.terminationAuthorizedAt).toBeNull();
-    expect(runner?.terminationReason).toBeNull();
+    expect(runner?.terminationAuthorizedAt).toBeInstanceOf(Date);
+    expect(runner?.terminationReason).toBe('job-cancelled');
 
     const [session] = await db()
       .select({revokedAt: runnerSessions.revokedAt})

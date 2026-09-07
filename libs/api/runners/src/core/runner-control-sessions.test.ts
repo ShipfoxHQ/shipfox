@@ -15,10 +15,12 @@ import {
   runnerReservationPromotionFailureCount,
 } from '#metrics/instance.js';
 import {
+  attachRunnerControlProviderId,
   enrollRunnerControlSession,
   exchangeRunnerBootstrapToken,
   RunnerBootstrapTokenInvalidError,
   RunnerControlSessionInvalidError,
+  resolveRunnerControlSession,
 } from './runner-control-sessions.js';
 
 const createdReservationIds = new Set<string>();
@@ -133,6 +135,86 @@ describe('exchangeRunnerBootstrapToken', () => {
       .from(runnerBootstrapTokens)
       .where(eq(runnerBootstrapTokens.runnerInstanceId, runnerInstanceId));
     expect(bootstrap?.consumedAt).toBeNull();
+  });
+});
+
+describe('resolveRunnerControlSession', () => {
+  it.each([
+    ['lease expiry', {leaseExpiredAt: new Date()}],
+    [
+      'termination authorization',
+      {terminationAuthorizedAt: new Date(), terminationReason: 'registration-deadline' as const},
+    ],
+  ])('rejects an open session after %s', async (_name, rejection) => {
+    const provisionerId = crypto.randomUUID();
+    const runnerInstanceId = await createRunner({
+      provisionerId,
+      workspaceId: crypto.randomUUID(),
+      createControlSession: false,
+    });
+    const rawToken = crypto.randomUUID();
+    await db()
+      .insert(runnerControlSessions)
+      .values({
+        runnerInstanceId,
+        provisionerId,
+        hashedToken: hashOpaqueToken(rawToken),
+        prefix: 'test',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+    await expect(resolveRunnerControlSession(rawToken)).resolves.toMatchObject({
+      runnerInstanceId,
+      provisionerId,
+    });
+
+    await db()
+      .update(providerRunners)
+      .set(rejection)
+      .where(eq(providerRunners.id, runnerInstanceId));
+
+    await expect(resolveRunnerControlSession(rawToken)).resolves.toBeUndefined();
+  });
+});
+
+describe('attachRunnerControlProviderId', () => {
+  it('does not attach a provider identity after lease expiry', async () => {
+    const provisionerId = crypto.randomUUID();
+    const runnerInstanceId = await createRunner({
+      provisionerId,
+      workspaceId: crypto.randomUUID(),
+      createControlSession: false,
+    });
+    await db()
+      .update(providerRunners)
+      .set({providerRunnerId: null, leaseExpiredAt: new Date()})
+      .where(eq(providerRunners.id, runnerInstanceId));
+
+    await expect(
+      attachRunnerControlProviderId({
+        runnerInstanceId,
+        provisionerId,
+        providerRunnerId: 'expired-runner',
+      }),
+    ).resolves.toBe(false);
+
+    const [unattached] = await db()
+      .select({providerRunnerId: providerRunners.providerRunnerId})
+      .from(providerRunners)
+      .where(eq(providerRunners.id, runnerInstanceId));
+    expect(unattached?.providerRunnerId).toBeNull();
+
+    await db()
+      .update(providerRunners)
+      .set({leaseExpiredAt: null})
+      .where(eq(providerRunners.id, runnerInstanceId));
+    await expect(
+      attachRunnerControlProviderId({
+        runnerInstanceId,
+        provisionerId,
+        providerRunnerId: 'active-runner',
+      }),
+    ).resolves.toBe(true);
   });
 });
 
