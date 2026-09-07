@@ -1,3 +1,4 @@
+export {shouldMountE2eRoutes} from './e2e.js';
 export {
   type DefaultAgentModuleFactory,
   type DefaultAgentModuleOptions,

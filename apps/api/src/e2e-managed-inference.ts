@@ -235,11 +235,11 @@ function createInferenceAuth(state: InferenceState, adminApiKey: string | undefi
       const credential = {tokenDetails, credentialState};
       if (!isCurrentCredential(credential)) {
         state.stats.expiredRequests += 1;
-        if (credential.tokenDetails !== undefined) {
+        if (credential.tokenDetails !== undefined && credential.credentialState !== undefined) {
           recordGeneration(
             state,
             credential.tokenDetails.generation,
-            credential.credentialState?.model,
+            credential.credentialState.model,
           );
         }
         throw new ClientError('Expired credential', 'unauthorized', {status: 401});
@@ -305,11 +305,11 @@ function respondToInferenceRequest(params: {
   const credential = {tokenDetails, credentialState};
   if (!isCurrentCredential(credential)) {
     params.state.stats.expiredRequests += 1;
-    if (credential.tokenDetails !== undefined) {
+    if (credential.tokenDetails !== undefined && credential.credentialState !== undefined) {
       recordGeneration(
         params.state,
         credential.tokenDetails.generation,
-        credential.credentialState?.model,
+        credential.credentialState.model,
       );
     }
     return params.reply.code(401).send({code: 'unauthorized', message: 'expired'});
@@ -546,7 +546,10 @@ function recordGeneration(
 
 function pruneCredentialStates(state: InferenceState, now: number): void {
   for (const [key, credentialState] of state.credentials) {
-    if (now - credentialState.lastTouchedAt > E2E_CREDENTIAL_STATE_TTL_MS) {
+    if (
+      credentialState.renewableInference &&
+      now - credentialState.lastTouchedAt > E2E_CREDENTIAL_STATE_TTL_MS
+    ) {
       state.credentials.delete(key);
     }
   }

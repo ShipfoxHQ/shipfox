@@ -1,4 +1,4 @@
-import {defaultModules, runServer} from '@shipfox/api-server';
+import {defaultModules, runServer, shouldMountE2eRoutes} from '@shipfox/api-server';
 import {config as apiServerConfig} from '@shipfox/api-server/config';
 import {closeErrorMonitoring, reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -6,10 +6,9 @@ import {config as apiConfig} from './config.js';
 
 const STARTUP_ERROR_MONITORING_SHUTDOWN_TIMEOUT_MS = 2_000;
 try {
-  const e2eManagedProviderBaseUrl =
-    apiServerConfig.E2E_ENABLED && apiServerConfig.E2E_ADMIN_API_KEY
-      ? apiConfig.E2E_MANAGED_PROVIDER_BASE_URL
-      : undefined;
+  const e2eManagedProviderBaseUrl = shouldMountE2eRoutes(apiServerConfig)
+    ? apiConfig.E2E_MANAGED_PROVIDER_BASE_URL
+    : undefined;
   const e2eManagedInference =
     e2eManagedProviderBaseUrl === undefined
       ? undefined

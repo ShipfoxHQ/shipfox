@@ -1,5 +1,41 @@
 const TEST_VCS_REJECTION_COOLDOWN_WAIT_SECONDS = 2;
 
+export const RENEWABLE_INFERENCE_WORKFLOW = `
+name: Renewable managed inference
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  build:
+    steps:
+      - key: pi-rejection
+        harness: pi
+        provider: shipfox
+        model: e2e-renewable-pi
+        thinking: off
+        prompt: 'Reply with exactly: ok'
+      - key: claude-rejection
+        harness: claude
+        provider: shipfox
+        model: e2e-renewable-claude
+        thinking: low
+        prompt: 'Reply with exactly: ok'
+      - key: pi-refresh-at
+        harness: pi
+        provider: shipfox
+        model: e2e-refresh-renewable-pi
+        thinking: off
+        prompt: 'Reply with exactly: ok'
+      - key: claude-refresh-at
+        harness: claude
+        provider: shipfox
+        model: e2e-refresh-renewable-claude
+        thinking: low
+        prompt: 'Reply with exactly: ok'
+`;
+
 export const ON_REJECTION_WORKFLOW = `
 name: Renewable Git on rejection
 runner: __RUNNER_LABEL__

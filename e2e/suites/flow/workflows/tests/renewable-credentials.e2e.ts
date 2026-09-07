@@ -13,7 +13,10 @@ import {
 import {createProject as createE2eProject} from '@shipfox/e2e-setup-projects';
 import {attachLocalRunnerLog} from '#attachments.js';
 import {createProject} from '#create-project.js';
-import {ON_REJECTION_WORKFLOW} from '#renewable-credentials-workflows.js';
+import {
+  ON_REJECTION_WORKFLOW,
+  RENEWABLE_INFERENCE_WORKFLOW,
+} from '#renewable-credentials-workflows.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
@@ -32,42 +35,6 @@ interface InferenceFixtureStats {
   requestsByGeneration: Record<string, number>;
   requestsByModelAndGeneration: Record<string, Record<string, number>>;
 }
-
-const RENEWABLE_INFERENCE_WORKFLOW = `
-name: Renewable managed inference
-runner: __RUNNER_LABEL__
-triggers:
-  manual:
-    source: manual
-    event: fire
-jobs:
-  build:
-    steps:
-      - key: pi-rejection
-        harness: pi
-        provider: shipfox
-        model: e2e-renewable-pi
-        thinking: off
-        prompt: 'Reply with exactly: ok'
-      - key: claude-rejection
-        harness: claude
-        provider: shipfox
-        model: e2e-renewable-claude
-        thinking: low
-        prompt: 'Reply with exactly: ok'
-      - key: pi-refresh-at
-        harness: pi
-        provider: shipfox
-        model: e2e-refresh-renewable-pi
-        thinking: off
-        prompt: 'Reply with exactly: ok'
-      - key: claude-refresh-at
-        harness: claude
-        provider: shipfox
-        model: e2e-refresh-renewable-claude
-        thinking: low
-        prompt: 'Reply with exactly: ok'
-`;
 
 const REFRESH_AT_WORKFLOW = `
 name: Renewable Git refresh at
