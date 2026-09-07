@@ -1513,6 +1513,64 @@ describe('reconcileTerminalJobExecution', () => {
     await lockHolder;
   });
 
+  it('locks the runner session before terminal reconciliation updates the running row', async () => {
+    const pending = await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    expect(claimed?.jobExecutionId).toBe(pending.jobExecutionId);
+
+    const releaseSession = deferred<void>();
+    const sessionLockReady = deferred<void>();
+    const sessionLockHolder = db().transaction(async (tx) => {
+      await tx
+        .select({id: runnerSessions.id})
+        .from(runnerSessions)
+        .where(eq(runnerSessions.id, runnerSessionId))
+        .limit(1)
+        .for('update');
+      sessionLockReady.resolve();
+      await releaseSession.promise;
+    });
+
+    await sessionLockReady.promise;
+
+    const releaseProbe = deferred<void>();
+    const probeAcquired = deferred<void>();
+    const runningRowProbe = db().transaction(async (tx) => {
+      await tx
+        .select({id: runningJobExecutions.id})
+        .from(runningJobExecutions)
+        .where(eq(runningJobExecutions.jobExecutionId, pending.jobExecutionId))
+        .limit(1)
+        .for('update');
+      probeAcquired.resolve();
+      await releaseProbe.promise;
+    });
+
+    const reconciliation = reconcileTerminalJobExecution({
+      jobExecutionId: pending.jobExecutionId,
+      cancellationReason: 'timed_out',
+    });
+
+    try {
+      await waitForLockWait({queryLike: '%runner_sessions%'});
+      await Promise.race([
+        probeAcquired.promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Terminal reconciliation locked the running row first')),
+            500,
+          ),
+        ),
+      ]);
+    } finally {
+      releaseProbe.resolve();
+      releaseSession.resolve();
+      await Promise.allSettled([sessionLockHolder, runningRowProbe, reconciliation]);
+    }
+
+    await expect(reconciliation).resolves.toBeUndefined();
+  });
+
   it('leaves a pending sibling for the same job untouched', async () => {
     const target = await pendingJobFactory.create({workspaceId});
     const sibling = await pendingJobFactory.create({workspaceId, jobId: target.jobId});

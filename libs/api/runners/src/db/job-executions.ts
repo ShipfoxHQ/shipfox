@@ -76,6 +76,23 @@ async function lockJobExecution(tx: Tx, jobExecutionId: string): Promise<void> {
   );
 }
 
+async function lockJobExecutionRunnerSessionsTx(tx: Tx, jobExecutionId: string): Promise<void> {
+  const runningRows = await tx
+    .select({runnerSessionId: runningJobExecutions.runnerSessionId})
+    .from(runningJobExecutions)
+    .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId))
+    .orderBy(asc(runningJobExecutions.runnerSessionId));
+  const runnerSessionIds = [...new Set(runningRows.map((row) => row.runnerSessionId))];
+  if (runnerSessionIds.length === 0) return;
+
+  await tx
+    .select({id: runnerSessions.id})
+    .from(runnerSessions)
+    .where(inArray(runnerSessions.id, runnerSessionIds))
+    .orderBy(asc(runnerSessions.id))
+    .for('update');
+}
+
 async function releaseReservationsForTerminalRunningRows(
   tx: Tx,
   rows: ReadonlyArray<{
@@ -1594,6 +1611,11 @@ export async function reconcileTerminalJobExecution(params: {
     if (!initialWorkspaceId) {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workspaceId}))`);
     }
+
+    // Heartbeat and lease expiry acquire runner session locks before touching running rows. Lock
+    // the sessions for this execution first as well, so terminal reconciliation cannot hold a
+    // running-row lock while waiting for a session lock a heartbeat already owns.
+    await lockJobExecutionRunnerSessionsTx(tx, params.jobExecutionId);
 
     // Delete pending before updating running to match lock order with claim. Claim locks pending
     // rows before inserting the running lease, so this ordering makes terminal reconciliation
