@@ -1,10 +1,11 @@
 import {setLoadedConfig} from '@shipfox/client-config';
 import type {Decorator} from '@storybook/react';
-import {QueryClient, type QueryClient as QueryClientInstance} from '@tanstack/react-query';
+import type {QueryClient as QueryClientInstance} from '@tanstack/react-query';
 import {createStore} from 'jotai';
 import {type PropsWithChildren, useState} from 'react';
 import type {ClientFeature} from '#contract.js';
 import {ShellProviderStack} from '../runtime/provider-stack.js';
+import {createShellQueryClient} from '../runtime/query-client.js';
 
 type Store = ReturnType<typeof createStore>;
 
@@ -22,8 +23,8 @@ export function ShellProviders({
   config,
   children,
 }: PropsWithChildren<ShellProvidersOptions>) {
-  const [defaultQueryClient] = useState(
-    () => new QueryClient({defaultOptions: {queries: {retry: false}}}),
+  const [defaultQueryClient] = useState(() =>
+    createShellQueryClient({defaultOptions: {queries: {retry: false}}}),
   );
   const [defaultStore] = useState(createStore);
   if (config !== undefined) setLoadedConfig(config);

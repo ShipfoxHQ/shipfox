@@ -10,6 +10,7 @@ import {
   userWorkspacesQueryOptions,
 } from '#hooks/api/session-auth.js';
 import {lastWorkspaceIdAtom} from './last-workspace.js';
+import {isAdoptedSessionPausedError} from './query-client.js';
 
 const REFRESH_EARLY_MS = 5 * 60 * 1000;
 const REFRESH_RETRY_DELAY_MS = 60_000;
@@ -117,6 +118,13 @@ const adoptedRenewalReservationAtom = atom(0);
 
 function invalidateRefresh(queryClient: QueryClient): void {
   refreshPromises.delete(queryClient);
+}
+
+async function refetchPausedActiveQueries(queryClient: QueryClient): Promise<void> {
+  await queryClient.refetchQueries({
+    type: 'active',
+    predicate: (query) => isAdoptedSessionPausedError(query.state.error),
+  });
 }
 
 export type AuthStatus = 'loading' | 'authenticated' | 'guest';
@@ -506,13 +514,15 @@ export function useAdoptedSession() {
       // re-run the renew effect while the transition is still pending.
       store.set(adoptedRenewalReservationAtom, candidate.expiryMs);
     }
-    return await adoptRenewalResult({
+    const renewal = await adoptRenewalResult({
       result,
       candidateExpiryMs: candidate.expiryMs,
       generation,
       adopted,
     });
-  }, [adoptRenewalResult, endAdoption, handleNonAdvancingRenewal, store]);
+    if (renewal !== null) await refetchPausedActiveQueries(queryClient);
+    return renewal;
+  }, [adoptRenewalResult, endAdoption, handleNonAdvancingRenewal, queryClient, store]);
 
   const releaseAdoptedSession = useCallback(async () => {
     // Always advance the generation and fall back to the cookie: a release

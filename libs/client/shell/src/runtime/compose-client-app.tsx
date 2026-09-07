@@ -8,7 +8,7 @@ import {
 import {ThemeProvider} from '@shipfox/react-ui/theme';
 import {Toaster} from '@shipfox/react-ui/toast';
 import {TooltipProvider} from '@shipfox/react-ui/tooltip';
-import {QueryClient} from '@tanstack/react-query';
+import type {QueryClient} from '@tanstack/react-query';
 import {type AnyRouter, RouterProvider} from '@tanstack/react-router';
 import {createStore} from 'jotai';
 import {StrictMode, useEffect} from 'react';
@@ -20,6 +20,7 @@ import {ChromeProvider, type ChromeSlots} from './chrome-context.js';
 import {type ClientAnalytics, ClientAnalyticsProvider} from './client-analytics.js';
 import {type ClientUsagePricing, ClientUsagePricingProvider} from './client-usage-pricing.js';
 import {ShellProviderStack} from './provider-stack.js';
+import {createShellQueryClient} from './query-client.js';
 import type {WorkspaceSetupGate} from './workspace-setup.js';
 
 export function composeClientApp({
@@ -62,7 +63,7 @@ export function composeClientApp({
       }
 
       configureApiClient({baseUrl: configApiUrl(config.config)});
-      const queryClient = new QueryClient();
+      const queryClient = createShellQueryClient();
       root.render(
         <StrictMode>
           <ChromeProvider chrome={chrome}>
