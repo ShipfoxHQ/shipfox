@@ -113,6 +113,7 @@ function toWorkspaceAdministratorSummaryDto(summary: WorkspaceAdministratorSumma
   return {
     id: summary.id,
     name: summary.name,
+    slug: summary.slug,
     status: summary.status,
     member_summary: summary.memberSummary,
     project_summary: summary.projectSummary,

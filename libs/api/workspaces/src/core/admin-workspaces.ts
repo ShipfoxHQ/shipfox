@@ -109,6 +109,7 @@ export async function reactivateWorkspace(
 export interface WorkspaceAdministratorSummary {
   id: string;
   name: string;
+  slug: string;
   status: 'active' | 'suspended' | 'deleted';
   memberSummary: {count: number};
   projectSummary: {state: 'available'; count: number} | {state: 'unknown'};
@@ -146,6 +147,7 @@ export async function listWorkspaceAdministratorSummaries(
     workspaces: result.workspaces.map((workspace) => ({
       id: workspace.id,
       name: workspace.name,
+      slug: workspace.slug,
       status: workspace.status,
       memberSummary: {count: workspace.memberCount},
       projectSummary: projectCounts?.get(workspace.id) ?? {state: 'unknown'},
