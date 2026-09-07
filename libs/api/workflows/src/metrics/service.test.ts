@@ -160,6 +160,43 @@ describe('registerWorkflowsServiceMetrics', () => {
     );
   });
 
+  test('keeps independent gauges observable when a core query fails', async () => {
+    mocks.getWorkflowJobExecutionDepth.mockRejectedValue(new Error('depth unavailable'));
+    mocks.countActiveListeners.mockResolvedValue(4);
+    mocks.getToolInvocationDepth.mockResolvedValue({queued: 5, inFlight: 6});
+    mocks.getListenerEventStorageStats.mockResolvedValue({
+      listenerEventRows: 7,
+      listenerEventPayloadBytes: 8,
+      consumedListenerEventOldestAgeMilliseconds: 9,
+      pendingListenerEventOldestAgeMilliseconds: 10,
+      duplicateTriggerEventsBytes: 11,
+    });
+
+    registerWorkflowsServiceMetrics();
+    const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+    const observer = {observe: vi.fn()};
+
+    await callback?.(observer);
+
+    expect(
+      observer.observe.mock.calls.some(
+        ([gauge]) => gauge === mocks.gauges.get('workflows_running_runs'),
+      ),
+    ).toBe(false);
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_active_listeners'),
+      4,
+    );
+    expect(observer.observe).toHaveBeenCalledWith(
+      mocks.gauges.get('workflows_tool_invocations_queued'),
+      5,
+    );
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      {err: expect.any(Error)},
+      'Failed to collect workflow execution depth metrics',
+    );
+  });
+
   test('omits expired storage gauges when a refresh fails', async () => {
     vi.useFakeTimers();
     try {

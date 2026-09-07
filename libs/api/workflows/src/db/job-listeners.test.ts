@@ -18,6 +18,7 @@ import {deliverEventToListener} from '#db/job-listener-events.js';
 import {
   activateJobListener,
   drainListenerEventsIntoExecution,
+  legacyTriggerEventsInsertValues,
   peekListenerBuffer,
   resolveJobListener,
   settleListenerJobExecution,
@@ -117,6 +118,26 @@ function bufferEvent(
     receivedAt,
   });
 }
+
+describe('legacyTriggerEventsInsertValues', () => {
+  it('retains legacy arrays when the mixed-deployment gate is enabled', () => {
+    const event: WorkflowExecutionEvent = {
+      source: 'github',
+      event: 'push',
+      delivery_id: 'legacy-writer-gate',
+      received_at: '2026-01-01T00:00:00.000Z',
+      project: null,
+      repository: null,
+      ref: null,
+      commit: null,
+      data: {action: 'opened'},
+    };
+
+    expect(legacyTriggerEventsInsertValues([event], true)).toEqual({triggerEvents: [event]});
+    expect(legacyTriggerEventsInsertValues([event], false)).toEqual({});
+    expect(legacyTriggerEventsInsertValues([event])).toEqual({});
+  });
+});
 
 function readJob(jobId: string) {
   return db()

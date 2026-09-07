@@ -83,7 +83,7 @@ export function registerWorkflowsServiceMetrics(): void {
 
   meter.addBatchObservableCallback(
     async (observer) => {
-      const [depth, listenerCount, toolInvocationDepth] = await Promise.all([
+      const [depth, listenerCount, toolInvocationDepth] = await Promise.allSettled([
         getWorkflowJobExecutionDepth(),
         countActiveListeners(),
         getToolInvocationDepth(),
@@ -94,11 +94,26 @@ export function registerWorkflowsServiceMetrics(): void {
       } catch (error) {
         logger().warn({err: error}, 'Failed to collect workflow listener event storage metrics');
       }
-      observer.observe(runningRuns, depth.runningRuns);
-      observer.observe(runningJobExecutions, depth.runningJobExecutions);
-      observer.observe(activeListeners, listenerCount);
-      observer.observe(queuedToolInvocations, toolInvocationDepth.queued);
-      observer.observe(inFlightToolInvocations, toolInvocationDepth.inFlight);
+      if (depth.status === 'fulfilled') {
+        observer.observe(runningRuns, depth.value.runningRuns);
+        observer.observe(runningJobExecutions, depth.value.runningJobExecutions);
+      } else {
+        logger().warn({err: depth.reason}, 'Failed to collect workflow execution depth metrics');
+      }
+      if (listenerCount.status === 'fulfilled') {
+        observer.observe(activeListeners, listenerCount.value);
+      } else {
+        logger().warn({err: listenerCount.reason}, 'Failed to collect active listener metrics');
+      }
+      if (toolInvocationDepth.status === 'fulfilled') {
+        observer.observe(queuedToolInvocations, toolInvocationDepth.value.queued);
+        observer.observe(inFlightToolInvocations, toolInvocationDepth.value.inFlight);
+      } else {
+        logger().warn(
+          {err: toolInvocationDepth.reason},
+          'Failed to collect workflow tool invocation metrics',
+        );
+      }
       if (storage) {
         observer.observe(listenerEventRows, storage.listenerEventRows);
         observer.observe(listenerEventPayloadBytes, storage.listenerEventPayloadBytes);

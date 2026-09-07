@@ -93,6 +93,13 @@ const LISTENER_EVENT_SQL_BYTE_LIMIT =
 // a batch count. The application packer remains the byte authority.
 const LISTENER_EVENT_SQL_CANDIDATE_COUNT_LIMIT = 100;
 
+export function legacyTriggerEventsInsertValues(
+  triggerEvents: readonly WorkflowExecutionEvent[],
+  enabled = config.WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED,
+): Partial<Record<'triggerEvents', WorkflowExecutionEvent[]>> {
+  return enabled ? {triggerEvents: [...triggerEvents]} : {};
+}
+
 function pendingListenerEventCondition() {
   return and(
     eq(jobListenerEvents.outcome, 'pending'),
@@ -887,9 +894,7 @@ async function persistMaterializedListenerExecution(
       runner: params.materialized.runner.length === 0 ? null : [...params.materialized.runner],
       status: params.materialized.status,
       statusReason: params.materialized.statusReason,
-      ...(config.WORKFLOWS_LEGACY_TRIGGER_EVENTS_WRITE_ENABLED
-        ? {triggerEvents: [...params.materialized.triggerEvents]}
-        : {}),
+      ...legacyTriggerEventsInsertValues(params.materialized.triggerEvents),
       evaluationTrace: params.materialized.evaluationTrace,
       ...(params.materialized.status === 'failed' ? {finishedAt: sql`now()`} : {}),
     })
