@@ -329,7 +329,7 @@ function logOversizedListenerFilterSnapshots(params: {
           matcherIndex,
           matcherKind,
         },
-        'Listener filter snapshot exceeded the aggregate execution byte limit',
+        'Listener filter snapshot contributed to aggregate execution byte limit overflow',
       );
     }
   }
