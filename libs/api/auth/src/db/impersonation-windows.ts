@@ -68,6 +68,7 @@ export interface ImpersonationWindowActorTimeParams {
 export interface StopImpersonationWindowParams {
   id: string;
   endedAt: Date;
+  now: Date;
 }
 
 function isExecutor(value: unknown): value is ImpersonationWindowExecutor {
@@ -394,7 +395,18 @@ export async function stopImpersonationWindow(
   const {executor, params} = resolveExecutorAndParams(first, second);
   const rows = await executor
     .update(impersonationWindows)
-    .set({endedAt: params.endedAt, endedReason: 'stopped'})
+    .set({
+      endedAt: sql`CASE
+        WHEN ${impersonationWindows.deadlineAt} <= ${params.now}
+          THEN ${impersonationWindows.deadlineAt}
+        ELSE ${params.endedAt}
+      END`,
+      endedReason: sql`CASE
+        WHEN ${impersonationWindows.deadlineAt} <= ${params.now}
+          THEN 'expired'
+        ELSE 'stopped'
+      END`,
+    })
     .where(and(eq(impersonationWindows.id, params.id), isNull(impersonationWindows.endedAt)))
     .returning();
   const row = rows[0];

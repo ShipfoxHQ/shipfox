@@ -13,6 +13,7 @@ import {
   listOpenImpersonationWindows,
   materializeImpersonationWindowExpiry,
   requireImpersonationWindowCapacity,
+  stopImpersonationWindow,
 } from './impersonation-windows.js';
 import {impersonationWindows} from './schema/impersonation-windows.js';
 
@@ -76,6 +77,37 @@ describe('impersonation windows db', () => {
 
     const storedAfterMaterialization = await findImpersonationWindow({id: window.id});
     expect(storedAfterMaterialization).toMatchObject({
+      endedAt: deadlineAt,
+      endedReason: 'expired',
+    });
+  });
+
+  test('materializes expiry before a late stop', async () => {
+    const actor = await userFactory.create({emailVerifiedAt: new Date()});
+    const target = await userFactory.create({emailVerifiedAt: new Date()});
+    const deadlineAt = new Date('2026-01-01T00:30:00.000Z');
+    const capturedAt = new Date('2026-01-01T00:31:00.000Z');
+
+    const window = await createImpersonationWindow({
+      actorId: actor.id,
+      targetUserId: target.id,
+      reason: 'Investigate a support report',
+      actorRoleAtStart: 'admin-owner',
+      startedAt: new Date('2026-01-01T00:00:00.000Z'),
+      deadlineAt,
+    });
+
+    await expect(
+      stopImpersonationWindow({id: window.id, endedAt: capturedAt, now: capturedAt}),
+    ).resolves.toMatchObject({endedAt: deadlineAt, endedReason: 'expired'});
+
+    const stored = await findImpersonationWindow({id: window.id});
+    expect(stored).toMatchObject({endedAt: deadlineAt, endedReason: 'expired'});
+
+    await expect(
+      getEffectiveImpersonationWindow({id: window.id, now: capturedAt}),
+    ).resolves.toMatchObject({
+      state: 'expired',
       endedAt: deadlineAt,
       endedReason: 'expired',
     });
