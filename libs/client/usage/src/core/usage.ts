@@ -5,6 +5,25 @@ export type UsageInferenceDialect =
   | 'openai-completions'
   | 'openai-responses';
 
+export interface UsageTokenClasses {
+  inputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheHitRate: number;
+}
+
+export interface UsageReportedTokenTotals {
+  dialect: UsageInferenceDialect;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  reasoningTokens: number;
+  webSearchRequests: number;
+}
+
 export interface UsageJobExecution {
   jobId: string;
   jobExecutionId: string;
@@ -61,6 +80,8 @@ export interface UsageInferenceSegment {
   cacheCreationTokens: number;
   cacheReadTokens: number;
   reasoningTokens: number;
+  webSearchRequests: number;
+  tokenClasses: UsageTokenClasses;
   recordedAt: string;
 }
 
@@ -74,14 +95,12 @@ export interface JobExecutionUsage {
   inferenceSegments: UsageInferenceSegment[];
 }
 
-export interface UsageTokenTotals {
+export interface UsageTokenTotals extends UsageTokenClasses {
   requestCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
+  /** Raw reasoning tokens are included in outputTokens and retained for detail views. */
   reasoningTokens: number;
-  totalTokens: number;
+  webSearchRequests: number;
+  reportedTokenCounts: readonly UsageReportedTokenTotals[];
 }
 
 export interface UsageModelTotals extends UsageTokenTotals {
@@ -106,11 +125,14 @@ export function emptyUsageTokenTotals(): UsageTokenTotals {
   return {
     requestCount: 0,
     inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
     outputTokens: 0,
-    cacheCreationTokens: 0,
-    cacheReadTokens: 0,
-    reasoningTokens: 0,
     totalTokens: 0,
+    cacheHitRate: 0,
+    reasoningTokens: 0,
+    webSearchRequests: 0,
+    reportedTokenCounts: [],
   };
 }
 
@@ -176,57 +198,108 @@ function addUsageTokenTotals(
   totals: UsageTokenTotals,
   segment: Pick<
     UsageInferenceSegment,
+    | 'dialect'
     | 'requestCount'
     | 'inputTokens'
     | 'outputTokens'
     | 'cacheCreationTokens'
     | 'cacheReadTokens'
     | 'reasoningTokens'
+    | 'webSearchRequests'
+    | 'tokenClasses'
   >,
 ): UsageTokenTotals {
+  const {tokenClasses} = segment;
   const next = {
     requestCount: totals.requestCount + segment.requestCount,
-    inputTokens: totals.inputTokens + segment.inputTokens,
-    outputTokens: totals.outputTokens + segment.outputTokens,
-    cacheCreationTokens: totals.cacheCreationTokens + segment.cacheCreationTokens,
-    cacheReadTokens: totals.cacheReadTokens + segment.cacheReadTokens,
+    inputTokens: totals.inputTokens + tokenClasses.inputTokens,
+    cachedInputTokens: totals.cachedInputTokens + tokenClasses.cachedInputTokens,
+    cacheWriteTokens: totals.cacheWriteTokens + tokenClasses.cacheWriteTokens,
+    outputTokens: totals.outputTokens + tokenClasses.outputTokens,
+    totalTokens: totals.totalTokens + tokenClasses.totalTokens,
+    cacheHitRate: 0,
     reasoningTokens: totals.reasoningTokens + segment.reasoningTokens,
+    webSearchRequests: totals.webSearchRequests + segment.webSearchRequests,
+    reportedTokenCounts: addReportedTokenTotals(totals.reportedTokenCounts, segment),
   };
-  return {...next, totalTokens: totalTokenCount(next)};
+  return {...next, cacheHitRate: aggregateCacheHitRate(next)};
 }
 
 function addUsageTokenTotalsInPlace(
   totals: UsageTokenTotals,
   segment: Pick<
     UsageInferenceSegment,
+    | 'dialect'
     | 'requestCount'
     | 'inputTokens'
     | 'outputTokens'
     | 'cacheCreationTokens'
     | 'cacheReadTokens'
     | 'reasoningTokens'
+    | 'webSearchRequests'
+    | 'tokenClasses'
   >,
 ): void {
+  const {tokenClasses} = segment;
   totals.requestCount += segment.requestCount;
-  totals.inputTokens += segment.inputTokens;
-  totals.outputTokens += segment.outputTokens;
-  totals.cacheCreationTokens += segment.cacheCreationTokens;
-  totals.cacheReadTokens += segment.cacheReadTokens;
+  totals.inputTokens += tokenClasses.inputTokens;
+  totals.cachedInputTokens += tokenClasses.cachedInputTokens;
+  totals.cacheWriteTokens += tokenClasses.cacheWriteTokens;
+  totals.outputTokens += tokenClasses.outputTokens;
+  totals.totalTokens += tokenClasses.totalTokens;
   totals.reasoningTokens += segment.reasoningTokens;
-  totals.totalTokens = totalTokenCount(totals);
+  totals.webSearchRequests += segment.webSearchRequests;
+  totals.reportedTokenCounts = addReportedTokenTotals(totals.reportedTokenCounts, segment);
+  totals.cacheHitRate = aggregateCacheHitRate(totals);
 }
 
-function totalTokenCount(
-  totals: Pick<
-    UsageTokenTotals,
-    'inputTokens' | 'outputTokens' | 'cacheCreationTokens' | 'cacheReadTokens' | 'reasoningTokens'
+function addReportedTokenTotals(
+  reportedTokenCounts: readonly UsageReportedTokenTotals[],
+  segment: Pick<
+    UsageInferenceSegment,
+    | 'dialect'
+    | 'inputTokens'
+    | 'outputTokens'
+    | 'cacheCreationTokens'
+    | 'cacheReadTokens'
+    | 'reasoningTokens'
+    | 'webSearchRequests'
   >,
-): number {
-  return (
-    totals.inputTokens +
-    totals.outputTokens +
-    totals.cacheCreationTokens +
-    totals.cacheReadTokens +
-    totals.reasoningTokens
+): readonly UsageReportedTokenTotals[] {
+  const current = reportedTokenCounts.find(({dialect}) => dialect === segment.dialect);
+  if (!current) {
+    return [
+      ...reportedTokenCounts,
+      {
+        dialect: segment.dialect,
+        inputTokens: segment.inputTokens,
+        outputTokens: segment.outputTokens,
+        cacheCreationTokens: segment.cacheCreationTokens,
+        cacheReadTokens: segment.cacheReadTokens,
+        reasoningTokens: segment.reasoningTokens,
+        webSearchRequests: segment.webSearchRequests,
+      },
+    ];
+  }
+
+  return reportedTokenCounts.map((reported) =>
+    reported.dialect === segment.dialect
+      ? {
+          ...reported,
+          inputTokens: reported.inputTokens + segment.inputTokens,
+          outputTokens: reported.outputTokens + segment.outputTokens,
+          cacheCreationTokens: reported.cacheCreationTokens + segment.cacheCreationTokens,
+          cacheReadTokens: reported.cacheReadTokens + segment.cacheReadTokens,
+          reasoningTokens: reported.reasoningTokens + segment.reasoningTokens,
+          webSearchRequests: reported.webSearchRequests + segment.webSearchRequests,
+        }
+      : reported,
   );
+}
+
+function aggregateCacheHitRate(
+  totals: Pick<UsageTokenTotals, 'inputTokens' | 'cachedInputTokens'>,
+): number {
+  const totalInputTokens = totals.inputTokens + totals.cachedInputTokens;
+  return totalInputTokens === 0 ? 0 : totals.cachedInputTokens / totalInputTokens;
 }

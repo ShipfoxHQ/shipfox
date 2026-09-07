@@ -66,6 +66,7 @@ const segment: InferenceSegmentUsageHttpDto = {
   cache_creation_tokens: 0,
   cache_read_tokens: 100,
   reasoning_tokens: 80,
+  web_search_requests: 2,
   recorded_at: '2026-06-26T11:59:30.000Z',
 };
 
@@ -135,9 +136,45 @@ describe('Usage DTO mapper', () => {
           cacheCreationTokens: 0,
           cacheReadTokens: 100,
           reasoningTokens: 80,
+          webSearchRequests: 2,
+          tokenClasses: {
+            inputTokens: 1_200,
+            cachedInputTokens: 100,
+            cacheWriteTokens: 0,
+            outputTokens: 500,
+            totalTokens: 1_800,
+            cacheHitRate: 100 / 1_300,
+          },
           recordedAt: '2026-06-26T11:59:30.000Z',
         },
       ],
+    });
+  });
+
+  test('normalises OpenAI cache subsets with the shared token-class helper', () => {
+    const result = toRunUsage({
+      job_executions: [],
+      inference_segments: [
+        {
+          ...segment,
+          dialect: 'openai-responses',
+          input_tokens: 2_000,
+          output_tokens: 600,
+          cache_read_tokens: 200,
+          cache_creation_tokens: 0,
+          reasoning_tokens: 120,
+          web_search_requests: 1,
+        },
+      ],
+    } satisfies RunUsageResponseDto);
+
+    expect(result.inferenceSegments[0]?.tokenClasses).toEqual({
+      inputTokens: 1_800,
+      cachedInputTokens: 200,
+      cacheWriteTokens: 0,
+      outputTokens: 600,
+      totalTokens: 2_600,
+      cacheHitRate: 0.1,
     });
   });
 });

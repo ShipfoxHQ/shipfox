@@ -25,9 +25,41 @@ export function usageQuantitiesFromTotals(totals: UsageTokenTotals, computeSecon
     computeSeconds,
     requestCount: totals.requestCount,
     inputTokens: totals.inputTokens,
+    cachedInputTokens: totals.cachedInputTokens,
+    cacheWriteTokens: totals.cacheWriteTokens,
     outputTokens: totals.outputTokens,
-    cacheCreationTokens: totals.cacheCreationTokens,
-    cacheReadTokens: totals.cacheReadTokens,
-    reasoningTokens: totals.reasoningTokens,
+    webSearchRequests: totals.webSearchRequests,
   };
+}
+
+export function formatUsageRate(value: number): string {
+  if (!Number.isFinite(value) || value < 0 || value > 1) return '—';
+  return new Intl.NumberFormat('en-US', {
+    style: 'percent',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+export function formatUsageCacheWrite(totals: UsageTokenTotals): string {
+  const isReported = totals.reportedTokenCounts.some(
+    ({dialect}) => dialect === 'anthropic-messages',
+  );
+  return isReported ? formatUsageNumber(totals.cacheWriteTokens) : '—';
+}
+
+export function usageTokenBreakdownTitle(totals: UsageTokenTotals): string {
+  const derived = [
+    `Input ${formatUsageNumber(totals.inputTokens)}`,
+    `Cached input ${formatUsageNumber(totals.cachedInputTokens)}`,
+    `Cache write ${formatUsageNumber(totals.cacheWriteTokens)}`,
+    `Output ${formatUsageNumber(totals.outputTokens)}`,
+    `Cache hit ${formatUsageRate(totals.cacheHitRate)}`,
+  ].join(' · ');
+  const reported = totals.reportedTokenCounts
+    .map(
+      (counts) =>
+        `${counts.dialect}: input ${formatUsageNumber(counts.inputTokens)}, output ${formatUsageNumber(counts.outputTokens)}, cache write ${formatUsageNumber(counts.cacheCreationTokens)}, cache read ${formatUsageNumber(counts.cacheReadTokens)}, reasoning ${formatUsageNumber(counts.reasoningTokens)}, web searches ${formatUsageNumber(counts.webSearchRequests)}`,
+    )
+    .join('; ');
+  return reported ? `${derived} · As reported: ${reported}` : derived;
 }

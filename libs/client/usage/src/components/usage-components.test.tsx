@@ -72,6 +72,15 @@ const segment: UsageInferenceSegment = {
   cacheCreationTokens: 0,
   cacheReadTokens: 100,
   reasoningTokens: 80,
+  webSearchRequests: 2,
+  tokenClasses: {
+    inputTokens: 1_200,
+    cachedInputTokens: 100,
+    cacheWriteTokens: 0,
+    outputTokens: 500,
+    totalTokens: 1_800,
+    cacheHitRate: 100 / 1_300,
+  },
   recordedAt: '2026-06-26T11:59:30.000Z',
 };
 
@@ -101,7 +110,8 @@ describe('Usage components', () => {
   test('renders quantities without a pricing seam', () => {
     render(<RunUsageSummary runId={RUN_ID} usage={runUsage} />);
 
-    expect(screen.getByText('1,880 tokens')).toBeVisible();
+    expect(screen.getByText('1,800 tokens')).toBeVisible();
+    expect(screen.getByText('2 web searches')).toBeVisible();
     expect(screen.getByText('2 requests')).toBeVisible();
     expect(screen.queryByText('$1.20')).not.toBeInTheDocument();
   });
@@ -128,7 +138,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('1,880 tokens')).toBeVisible();
+    expect(screen.getByText('1,800 tokens')).toBeVisible();
     await waitFor(() => expect(screen.getByText('est. $0.90')).toBeVisible());
     expect(screen.getByText('est. $0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
   });
@@ -166,7 +176,7 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    expect(screen.getByText('1,880 tokens')).toBeVisible();
+    expect(screen.getByText('1,800 tokens')).toBeVisible();
     await waitFor(() => expect(screen.getByText('est. $0.90')).toBeVisible());
   });
 
@@ -180,8 +190,17 @@ describe('Usage components', () => {
       id: '77777777-7777-4777-8777-777777777777',
       upstream: 'openai',
       model: 'gpt-5',
+      dialect: 'openai-responses',
       requestCount: 3,
       inputTokens: 400,
+      tokenClasses: {
+        inputTokens: 300,
+        cachedInputTokens: 100,
+        cacheWriteTokens: 0,
+        outputTokens: 500,
+        totalTokens: 900,
+        cacheHitRate: 100 / 400,
+      },
     };
     const multipleRowsUsage: JobExecutionUsage = {
       ...jobUsage,
@@ -199,7 +218,12 @@ describe('Usage components', () => {
     expect(estimate).toHaveBeenCalledTimes(1);
     expect(estimate).toHaveBeenCalledWith({
       reference: {kind: 'step-attempt', id: STEP_ATTEMPT_ID},
-      quantities: expect.objectContaining({requestCount: 5, inputTokens: 1_600}),
+      quantities: expect.objectContaining({
+        requestCount: 5,
+        inputTokens: 1_500,
+        cachedInputTokens: 200,
+        cacheWriteTokens: 0,
+      }),
     });
   });
 
@@ -239,7 +263,7 @@ describe('Usage components', () => {
 
     expect(screen.getByText('Generate release notes')).toBeVisible();
     expect(screen.getByText('claude-sonnet-4')).toBeVisible();
-    expect(screen.getByText('1,880')).toBeVisible();
+    expect(screen.getByText('1,800')).toBeVisible();
     expect(screen.queryByRole('columnheader', {name: 'Cost'})).not.toBeInTheDocument();
   });
 

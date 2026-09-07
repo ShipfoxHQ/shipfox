@@ -14,7 +14,13 @@ import type {JobExecutionUsage} from '#core/usage.js';
 import {groupInferenceSegmentsByStepAttempt} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
-import {formatUsageNumber, usageQuantitiesFromTotals} from './usage-format.js';
+import {
+  formatUsageCacheWrite,
+  formatUsageNumber,
+  formatUsageRate,
+  usageQuantitiesFromTotals,
+  usageTokenBreakdownTitle,
+} from './usage-format.js';
 
 export interface StepInferenceTableProps {
   usage: JobExecutionUsage | undefined;
@@ -59,7 +65,7 @@ export function StepInferenceTable({
         <div className="min-w-0">
           <PanelTitle>Inference usage</PanelTitle>
           <Text as="p" size="xs" className="mt-tight text-foreground-neutral-muted">
-            Tokens recorded by step attempt, model, and provider.
+            Token classes and web searches recorded by step attempt, model, and provider.
           </Text>
         </div>
       </PanelHeader>
@@ -72,8 +78,12 @@ export function StepInferenceTable({
               <TableHead>Model</TableHead>
               <TableHead className="text-right">Requests</TableHead>
               <TableHead className="text-right">Input</TableHead>
+              <TableHead className="text-right">Cached input</TableHead>
+              <TableHead className="text-right">Cache write</TableHead>
               <TableHead className="text-right">Output</TableHead>
               <TableHead className="text-right">Total</TableHead>
+              <TableHead className="text-right">Cache hit</TableHead>
+              <TableHead className="text-right">Web searches</TableHead>
               {showCosts ? <TableHead className="text-right">Cost</TableHead> : null}
             </TableRow>
           </TableHeader>
@@ -83,6 +93,7 @@ export function StepInferenceTable({
               const showCostForRow = !costByStepAttempt.has(referenceKey);
               costByStepAttempt.add(referenceKey);
               const cost = showCostForRow ? costs.get(referenceKey) : undefined;
+              const tokenDetailsTitle = usageTokenBreakdownTitle(row);
               return (
                 <TableRow key={JSON.stringify([row.stepAttemptId, row.upstream, row.model])}>
                   <TableCell>
@@ -108,14 +119,47 @@ export function StepInferenceTable({
                   <TableCell className="text-right font-code tabular-nums">
                     {formatUsageNumber(row.requestCount)}
                   </TableCell>
-                  <TableCell className="text-right font-code tabular-nums">
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
                     {formatUsageNumber(row.inputTokens)}
                   </TableCell>
-                  <TableCell className="text-right font-code tabular-nums">
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.cachedInputTokens)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageCacheWrite(row)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
                     {formatUsageNumber(row.outputTokens)}
                   </TableCell>
-                  <TableCell className="text-right font-code tabular-nums">
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
                     {formatUsageNumber(row.totalTokens)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageRate(row.cacheHitRate)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right font-code tabular-nums"
+                    title={tokenDetailsTitle}
+                  >
+                    {formatUsageNumber(row.webSearchRequests)}
                   </TableCell>
                   {showCosts ? (
                     <TableCell className="text-right">

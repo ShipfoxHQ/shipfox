@@ -152,10 +152,10 @@ function usageCostRequestSignature(inputs: readonly UsageCostRequest[]): string 
       quantities?.computeSeconds ?? null,
       quantities?.requestCount ?? null,
       quantities?.inputTokens ?? null,
+      quantities?.cachedInputTokens ?? null,
+      quantities?.cacheWriteTokens ?? null,
       quantities?.outputTokens ?? null,
-      quantities?.cacheCreationTokens ?? null,
-      quantities?.cacheReadTokens ?? null,
-      quantities?.reasoningTokens ?? null,
+      quantities?.webSearchRequests ?? null,
     ]),
   );
 }
@@ -168,10 +168,10 @@ function addUsagePricingQuantities(
     computeSeconds: left.computeSeconds + right.computeSeconds,
     requestCount: left.requestCount + right.requestCount,
     inputTokens: left.inputTokens + right.inputTokens,
+    cachedInputTokens: left.cachedInputTokens + right.cachedInputTokens,
+    cacheWriteTokens: left.cacheWriteTokens + right.cacheWriteTokens,
     outputTokens: left.outputTokens + right.outputTokens,
-    cacheCreationTokens: left.cacheCreationTokens + right.cacheCreationTokens,
-    cacheReadTokens: left.cacheReadTokens + right.cacheReadTokens,
-    reasoningTokens: left.reasoningTokens + right.reasoningTokens,
+    webSearchRequests: left.webSearchRequests + right.webSearchRequests,
   };
 }
 

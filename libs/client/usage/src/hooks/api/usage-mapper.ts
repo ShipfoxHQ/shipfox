@@ -4,6 +4,7 @@ import type {
   JobExecutionUsageResponseDto,
   RunUsageResponseDto,
 } from '@shipfox/api-usage-dto';
+import {normaliseTokenClasses} from '@shipfox/api-usage-dto';
 import type {
   JobExecutionUsage,
   RunUsage,
@@ -70,6 +71,15 @@ export function toUsageInferenceSegment(dto: InferenceSegmentUsageHttpDto): Usag
     cacheCreationTokens: dto.cache_creation_tokens,
     cacheReadTokens: dto.cache_read_tokens,
     reasoningTokens: dto.reasoning_tokens,
+    webSearchRequests: dto.web_search_requests,
+    tokenClasses: normaliseTokenClasses({
+      dialect: dto.dialect,
+      inputTokens: dto.input_tokens,
+      outputTokens: dto.output_tokens,
+      cacheCreationTokens: dto.cache_creation_tokens,
+      cacheReadTokens: dto.cache_read_tokens,
+      reasoningTokens: dto.reasoning_tokens,
+    }),
     recordedAt: dto.recorded_at,
   };
 }

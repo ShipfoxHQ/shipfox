@@ -31,6 +31,15 @@ function segment(overrides: Partial<UsageInferenceSegment> = {}): UsageInference
     cacheCreationTokens: 0,
     cacheReadTokens: 10,
     reasoningTokens: 5,
+    webSearchRequests: 0,
+    tokenClasses: {
+      inputTokens: 100,
+      cachedInputTokens: 10,
+      cacheWriteTokens: 0,
+      outputTokens: 50,
+      totalTokens: 160,
+      cacheHitRate: 10 / 110,
+    },
     recordedAt: '2026-06-26T11:59:30.000Z',
     ...overrides,
   };
@@ -83,6 +92,14 @@ describe('Usage aggregation', () => {
           requestCount: 2,
           inputTokens: 200,
           outputTokens: 25,
+          tokenClasses: {
+            inputTokens: 200,
+            cachedInputTokens: 10,
+            cacheWriteTokens: 0,
+            outputTokens: 25,
+            totalTokens: 235,
+            cacheHitRate: 10 / 210,
+          },
         }),
       ],
     };
@@ -94,13 +111,13 @@ describe('Usage aggregation', () => {
       requestCount: 3,
       inputTokens: 300,
       outputTokens: 75,
-      cacheReadTokens: 20,
+      cachedInputTokens: 20,
       reasoningTokens: 10,
-      totalTokens: 405,
+      totalTokens: 395,
     });
     expect(summary.byModel.map(({model, totalTokens}) => [model, totalTokens])).toEqual([
-      ['claude-sonnet-4', 165],
-      ['gpt-5', 240],
+      ['claude-sonnet-4', 160],
+      ['gpt-5', 235],
     ]);
   });
 
@@ -111,6 +128,14 @@ describe('Usage aggregation', () => {
         id: '77777777-7777-4777-8777-777777777777',
         requestCount: 2,
         inputTokens: 50,
+        tokenClasses: {
+          inputTokens: 50,
+          cachedInputTokens: 10,
+          cacheWriteTokens: 0,
+          outputTokens: 50,
+          totalTokens: 110,
+          cacheHitRate: 10 / 60,
+        },
       }),
       segment({
         id: '66666666-6666-4666-8666-666666666666',
@@ -123,7 +148,8 @@ describe('Usage aggregation', () => {
       stepAttemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       requestCount: 3,
       inputTokens: 150,
-      totalTokens: 280,
+      cachedInputTokens: 20,
+      totalTokens: 270,
     });
     expect(rows[1]).toMatchObject({
       stepAttemptId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -141,5 +167,35 @@ describe('Usage aggregation', () => {
       ['provider', 'one:model'],
       ['provider:one', 'model'],
     ]);
+  });
+
+  test('aggregates OpenAI counts from the shared token classes', () => {
+    const rows = groupInferenceSegmentsByStepAttempt([
+      segment({
+        dialect: 'openai-responses',
+        inputTokens: 100,
+        outputTokens: 30,
+        cacheReadTokens: 20,
+        reasoningTokens: 9,
+        tokenClasses: {
+          inputTokens: 80,
+          cachedInputTokens: 20,
+          cacheWriteTokens: 0,
+          outputTokens: 30,
+          totalTokens: 130,
+          cacheHitRate: 0.2,
+        },
+      }),
+    ]);
+
+    expect(rows[0]).toMatchObject({
+      inputTokens: 80,
+      cachedInputTokens: 20,
+      cacheWriteTokens: 0,
+      outputTokens: 30,
+      totalTokens: 130,
+      cacheHitRate: 0.2,
+      reasoningTokens: 9,
+    });
   });
 });

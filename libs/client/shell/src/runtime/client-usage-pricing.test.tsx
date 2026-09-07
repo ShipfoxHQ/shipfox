@@ -23,10 +23,10 @@ function PricingProbe() {
         computeSeconds: 1,
         requestCount: 1,
         inputTokens: 1,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
         outputTokens: 1,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
-        reasoningTokens: 0,
+        webSearchRequests: 0,
       },
     });
     pricing.formatMoney(1);

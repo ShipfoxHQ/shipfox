@@ -4,7 +4,12 @@ import {useMemo} from 'react';
 import {type RunUsage, summarizeRunUsage} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
-import {formatUsageDuration, formatUsageNumber, usageQuantitiesFromTotals} from './usage-format.js';
+import {
+  formatUsageDuration,
+  formatUsageNumber,
+  usageQuantitiesFromTotals,
+  usageTokenBreakdownTitle,
+} from './usage-format.js';
 
 export interface RunUsageSummaryProps {
   runId: string;
@@ -43,18 +48,29 @@ export function RunUsageSummary({runId, usage, className}: RunUsageSummaryProps)
           compute {formatUsageDuration(summary.computeSeconds)}
         </Code>
       </span>
-      <span title="Total inference tokens">
+      <span title={`Total inference tokens. ${usageTokenBreakdownTitle(summary.totals)}`}>
         <Code as="span" variant="label" className="text-current">
           {formatUsageNumber(summary.totals.totalTokens)} tokens
         </Code>
       </span>
+      {summary.totals.webSearchRequests > 0 ? (
+        <span title={`Total web searches. ${usageTokenBreakdownTitle(summary.totals)}`}>
+          <Code as="span" variant="label" className="text-current">
+            {formatUsageNumber(summary.totals.webSearchRequests)} web searches
+          </Code>
+        </span>
+      ) : null}
       <span title="Total inference requests">
         <Code as="span" variant="label" className="text-current">
           {formatUsageNumber(summary.totals.requestCount)} requests
         </Code>
       </span>
       {summary.byModel.map((model) => (
-        <span key={model.model} className="max-w-200 truncate" title={`${model.model} tokens`}>
+        <span
+          key={model.model}
+          className="max-w-200 truncate"
+          title={`${model.model} tokens. ${usageTokenBreakdownTitle(model)}`}
+        >
           <Text as="span" size="xs" className="text-current">
             <Code as="span" variant="label" className="text-current">
               {model.model}

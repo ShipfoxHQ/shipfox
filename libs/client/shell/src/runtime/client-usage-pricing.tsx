@@ -12,10 +12,10 @@ export interface UsagePricingQuantities {
   computeSeconds: number;
   requestCount: number;
   inputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteTokens: number;
   outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  reasoningTokens: number;
+  webSearchRequests: number;
 }
 
 export interface UsagePricingEstimateInput {

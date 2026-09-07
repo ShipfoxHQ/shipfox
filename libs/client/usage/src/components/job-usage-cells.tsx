@@ -3,7 +3,12 @@ import {useMemo} from 'react';
 import {type JobExecutionUsage, usageTokenTotalsForSegments} from '#core/usage.js';
 import {useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
-import {formatUsageDuration, formatUsageNumber, usageQuantitiesFromTotals} from './usage-format.js';
+import {
+  formatUsageDuration,
+  formatUsageNumber,
+  usageQuantitiesFromTotals,
+  usageTokenBreakdownTitle,
+} from './usage-format.js';
 
 export interface JobUsageCellsProps {
   usage: JobExecutionUsage | undefined;
@@ -46,9 +51,21 @@ export function JobUsageCells({usage, className}: JobUsageCellsProps) {
       <Code as="span" variant="label" className="whitespace-nowrap text-current">
         {formatUsageDuration(durationSeconds)} compute
       </Code>
-      <Code as="span" variant="label" className="whitespace-nowrap text-current">
-        {formatUsageNumber(totals.totalTokens)} tokens
-      </Code>
+      <span title={`Total inference tokens. ${usageTokenBreakdownTitle(totals)}`}>
+        <Code as="span" variant="label" className="whitespace-nowrap text-current">
+          {formatUsageNumber(totals.totalTokens)} tokens
+        </Code>
+      </span>
+      {totals.webSearchRequests > 0 ? (
+        <Code
+          as="span"
+          variant="label"
+          className="whitespace-nowrap text-current"
+          title={`Total web searches. ${usageTokenBreakdownTitle(totals)}`}
+        >
+          {formatUsageNumber(totals.webSearchRequests)} web searches
+        </Code>
+      ) : null}
       <Code as="span" variant="label" className="whitespace-nowrap text-current">
         {formatUsageNumber(totals.requestCount)} requests
       </Code>
