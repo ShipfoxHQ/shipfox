@@ -16,6 +16,7 @@ describe('toSameOriginRelativeHref', () => {
     'workspace/acme',
     '//attacker.example/w/acme',
     '/\\attacker.example/w/acme',
+    '/\\shipfox-relative.invalid/w/acme',
     'https://shipfox.example/w/acme',
     'https://attacker.example/w/acme',
     'javascript:alert(1)',

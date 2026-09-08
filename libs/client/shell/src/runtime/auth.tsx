@@ -190,6 +190,14 @@ export function toAuthenticatedState(
   };
 }
 
+function workspacesForHydrationFailure(
+  previousState: AuthState,
+  principalChanged: boolean,
+): WorkspaceSummary[] {
+  if (principalChanged || previousState.status !== 'authenticated') return [];
+  return previousState.workspaces ?? [];
+}
+
 export function useAuthState(): AuthStateValue {
   const state = useAtomValue(authStateAtom);
   return useMemo(
@@ -303,14 +311,14 @@ export function useAuthTransition() {
       }
 
       queryClient.setQueryData(authRefreshQueryKey, session);
-      let workspaces: WorkspaceSummary[] = [];
+      let workspaces = workspacesForHydrationFailure(previousState, principalChanged);
       try {
         const hydratedWorkspaces = await queryClient.fetchQuery(
           userWorkspacesQueryOptions(session.accessToken),
         );
         workspaces = hydratedWorkspaces.memberships;
       } catch {
-        // The authenticated session remains usable while workspace hydration retries on the next route load.
+        // A failed request does not prove that the same principal lost its memberships.
       }
       if (store.get(authTransitionEpochAtom) !== epoch) return false;
 

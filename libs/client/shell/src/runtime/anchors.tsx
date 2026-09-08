@@ -3,9 +3,10 @@ import {Header, Text} from '@shipfox/react-ui/typography';
 import {
   createRootRouteWithContext,
   createRoute,
+  type NotFoundRouteProps,
+  notFound,
   Outlet,
   redirect,
-  useLocation,
 } from '@tanstack/react-router';
 import {MainLayout} from '#components/main-layout.js';
 import {NotFoundPage} from '#components/not-found-page.js';
@@ -27,15 +28,34 @@ import {
 
 export {routePathForAnchor} from './anchor-paths.js';
 
+interface UnresolvedWorkspaceRouteData {
+  kind: 'unresolved-workspace';
+  requestedHref: string;
+  workspaceSlug: string;
+}
+
+function isUnresolvedWorkspaceRouteData(value: unknown): value is UnresolvedWorkspaceRouteData {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<UnresolvedWorkspaceRouteData>;
+  return (
+    candidate.kind === 'unresolved-workspace' &&
+    typeof candidate.requestedHref === 'string' &&
+    typeof candidate.workspaceSlug === 'string'
+  );
+}
+
 function missingWorkspaceRoute(
   context: RouterContext,
   location: {publicHref: string; external?: boolean},
-): {unresolvedWorkspace: true} {
+  workspaceSlug: string,
+): never {
   const requestedHref = location.external
     ? undefined
     : toSameOriginRelativeHref(location.publicHref);
   if (context.unresolvedWorkspaceAvailable && requestedHref) {
-    return {unresolvedWorkspace: true};
+    throw notFound({
+      data: {kind: 'unresolved-workspace', requestedHref, workspaceSlug},
+    });
   }
   throw redirect({to: '/'});
 }
@@ -63,7 +83,7 @@ export function buildAnchorSkeleton({
       const workspace = auth.workspaces.find(
         (candidate) => candidate.slug === params.workspaceSlug,
       );
-      if (!workspace) return missingWorkspaceRoute(context, location);
+      if (!workspace) return missingWorkspaceRoute(context, location, params.workspaceSlug);
       try {
         if (auth.user?.id) rememberLastWorkspaceId(auth.user.id, workspace.id);
       } catch {
@@ -84,9 +104,9 @@ export function buildAnchorSkeleton({
       </div>
     ),
     errorComponent: WorkspaceLayoutErrorRoute,
+    notFoundComponent: WorkspaceNotFoundRoute,
     component: () => {
       const setupState = workspaceLayout.useRouteContext() as WorkspaceAnchorRouteState;
-      if (setupState.unresolvedWorkspace) return <UnresolvedWorkspaceSlot />;
       return <WorkspaceLayoutContent navigation={navigation} setupState={setupState} />;
     },
   });
@@ -97,9 +117,8 @@ export function buildAnchorSkeleton({
     beforeLoad: async ({context, params}) => {
       const auth = context.auth;
       if (!auth || auth.isLoading || !context.queryClient) return;
-      const workspaceContext = context as RouterContext &
-        Partial<WorkspaceSetupState> & {unresolvedWorkspace?: boolean};
-      if (workspaceContext.unresolvedWorkspace || workspaceContext.unavailable) return;
+      const workspaceContext = context as RouterContext & Partial<WorkspaceSetupState>;
+      if (workspaceContext.unavailable) return;
       const workspace = auth.workspaces.find(
         (candidate) => candidate.slug === params.workspaceSlug,
       );
@@ -150,19 +169,15 @@ export function buildAnchorSkeleton({
   };
 }
 
-type WorkspaceAnchorRouteState = Partial<WorkspaceSetupState> & {
-  unresolvedWorkspace?: boolean;
-};
+type WorkspaceAnchorRouteState = Partial<WorkspaceSetupState>;
 
-function UnresolvedWorkspaceSlot() {
+function WorkspaceNotFoundRoute({data}: NotFoundRouteProps) {
   const {UnresolvedWorkspace} = useChrome();
-  const location = useLocation();
-  const {workspaceSlug} = useRouteParams(parseWorkspaceParams);
-  const requestedHref = location.external
-    ? undefined
-    : toSameOriginRelativeHref(location.publicHref);
-  if (!UnresolvedWorkspace || !workspaceSlug || !requestedHref) return null;
-  return <UnresolvedWorkspace workspaceSlug={workspaceSlug} requestedHref={requestedHref} />;
+  if (!isUnresolvedWorkspaceRouteData(data)) return <NotFoundPage />;
+  if (!UnresolvedWorkspace) return null;
+  return (
+    <UnresolvedWorkspace workspaceSlug={data.workspaceSlug} requestedHref={data.requestedHref} />
+  );
 }
 
 function WorkspaceLayoutContent({

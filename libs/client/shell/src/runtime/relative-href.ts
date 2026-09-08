@@ -5,7 +5,12 @@ const RELATIVE_HREF_ORIGIN = 'https://shipfox-relative.invalid';
  * Absolute, protocol-relative, and malformed values return undefined.
  */
 export function toSameOriginRelativeHref(value: unknown): string | undefined {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+  if (
+    typeof value !== 'string' ||
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.startsWith('/\\')
+  ) {
     return undefined;
   }
 

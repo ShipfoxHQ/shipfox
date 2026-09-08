@@ -7,6 +7,8 @@ import {useLayoutNavigation} from './layout-navigation.js';
 
 describe('composed routes', () => {
   test('renders an unresolved workspace slot before setup and project resolution', async () => {
+    const routeBeforeLoad = vi.fn();
+    const routeLoader = vi.fn();
     const projectSlugResolver = vi.fn(async () => 'project');
     const workspaceSetup = vi.fn(async () => ({hideProjectNavigation: false}));
     const UnresolvedWorkspace = ({
@@ -39,7 +41,12 @@ describe('composed routes', () => {
       ],
       initialPath: '/w/missing/p/project/overview?tab=run%2Cfailed#details',
       resolveImpl: () =>
-        defineRoute({staticData: {frame: 'content'}, component: () => <h1>Overview</h1>}),
+        defineRoute({
+          staticData: {frame: 'content'},
+          beforeLoad: routeBeforeLoad,
+          loader: routeLoader,
+          component: () => <h1>Overview</h1>,
+        }),
       chrome: {UnresolvedWorkspace, projectSlugResolver},
       workspaceSetup,
     });
@@ -50,6 +57,8 @@ describe('composed routes', () => {
     );
     expect(projectSlugResolver).not.toHaveBeenCalled();
     expect(workspaceSetup).not.toHaveBeenCalled();
+    expect(routeBeforeLoad).not.toHaveBeenCalled();
+    expect(routeLoader).not.toHaveBeenCalled();
   });
 
   test('uses the public href for an unresolved workspace with a same-origin rewrite', async () => {
