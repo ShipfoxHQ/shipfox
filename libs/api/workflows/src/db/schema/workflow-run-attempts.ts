@@ -38,7 +38,7 @@ export const workflowRunAttempts = pgTable(
     check('workflows_wra_attempt_positive_ck', sql`${table.attempt} > 0`),
     uniqueIndex('workflows_wra_one_active_attempt_unique')
       .on(table.workflowRunId)
-      .where(sql`${table.status} in ('waiting', 'pending', 'running')`),
+      .where(sql`${table.status} not in ('succeeded', 'failed', 'cancelled')`),
   ],
 );
 

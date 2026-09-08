@@ -1670,7 +1670,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"workflows_workflow_run_attempts\".\"status\" in ('waiting', 'pending', 'running')",
+          "where": "\"workflows_workflow_run_attempts\".\"status\" not in ('succeeded', 'failed', 'cancelled')",
           "concurrently": false,
           "method": "btree",
           "with": {}
