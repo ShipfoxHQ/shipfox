@@ -10,6 +10,7 @@ import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   type AgentStepSessionIntentDto,
+  agentStepSessionDescriptorSchema,
   agentStepSessionIntentSchema,
 } from '@shipfox/api-workflows-dto';
 import type {ResolvedField, SiteResolvedField} from '@shipfox/expression';
@@ -123,22 +124,21 @@ export async function completeAgentConfig(params: {
           template: agent.provider,
           params,
         });
-
-  const defaults = await completeAgentDefaults({
-    harness: agent.harness ?? readConfigHarness(params.config),
+  const thinking =
+    agent.thinking === undefined
+      ? readConfigThinking(params.config)
+      : completeAgentField({field: 'agent.thinking', template: agent.thinking, params});
+  const harness = agent.harness ?? readConfigHarness(params.config);
+  await applyAgentDefaultsForDispatch({
+    agent,
+    config: params.config,
+    harness,
     provider,
     model,
-    thinking:
-      agent.thinking === undefined
-        ? readConfigThinking(params.config)
-        : completeAgentField({field: 'agent.thinking', template: agent.thinking, params}),
+    thinking,
     resolveAgentDefaults: params.resolveAgentDefaults,
     definitionId: params.definitionId,
   });
-  params.config.harness = defaults.harness;
-  params.config.provider = defaults.provider;
-  params.config.model = defaults.model;
-  params.config.thinking = defaults.thinking;
   params.config.prompt = prompt;
   let sessionIntent: AgentStepSessionIntentDto | undefined;
   if (agent.session !== undefined) {
@@ -163,6 +163,42 @@ export async function completeAgentConfig(params: {
   return sessionIntent;
 }
 
+async function applyAgentDefaultsForDispatch(params: {
+  readonly agent: NonNullable<StepConfigDispatchPlan['agent']>;
+  readonly config: Record<string, unknown>;
+  readonly harness: WorkflowModelAgentStep['harness'] | undefined;
+  readonly provider: string | undefined;
+  readonly model: string | undefined;
+  readonly thinking: string | undefined;
+  readonly resolveAgentDefaults: AgentDefaultsResolver | undefined;
+  readonly definitionId: string;
+}): Promise<void> {
+  const hasDefaultsPlan =
+    params.agent.harness !== undefined ||
+    params.agent.provider !== undefined ||
+    params.agent.model !== undefined ||
+    params.agent.thinking !== undefined;
+  const hasMaterializedDefaults =
+    params.harness !== undefined &&
+    params.provider !== undefined &&
+    params.model !== undefined &&
+    params.thinking !== undefined;
+  if (!hasDefaultsPlan && hasMaterializedDefaults) return;
+
+  const defaults = await completeAgentDefaults({
+    harness: params.harness,
+    provider: params.provider,
+    model: params.model,
+    thinking: params.thinking,
+    resolveAgentDefaults: params.resolveAgentDefaults,
+    definitionId: params.definitionId,
+  });
+  params.config.harness = defaults.harness;
+  params.config.provider = defaults.provider;
+  params.config.model = defaults.model;
+  params.config.thinking = defaults.thinking;
+}
+
 /**
  * Decodes the intent retained in a running step after the dispatch transaction
  * has committed. The shared schema is the single source of truth for this
@@ -174,6 +210,36 @@ export function readAgentStepSessionIntent(
 ): AgentStepSessionIntentDto | undefined {
   const parsed = agentStepSessionIntentSchema.safeParse(config.session);
   return parsed.success ? parsed.data : undefined;
+}
+
+/** Restore the materialized session intent before redispatch replaces it with a new claim. */
+export function restoreAgentSessionIntentForRedispatch(params: {
+  readonly config: Record<string, unknown>;
+  readonly configPlan: StepConfigDispatchPlan | null;
+  readonly authoredConfig: Record<string, unknown> | null;
+}): Record<string, unknown> {
+  const config = {...params.config};
+
+  // New materializations preserve the resolved intent in the plan. Removing
+  // the prior descriptor lets normal dispatch completion restore that value.
+  if (params.configPlan?.agent?.session !== undefined) {
+    delete config.session;
+    return config;
+  }
+
+  // Older materializations have no session plan. A descriptor still contains
+  // the resolved key, so prefer it over the authored template source.
+  const descriptor = agentStepSessionDescriptorSchema.safeParse(config.session);
+  if (descriptor.success) {
+    config.session = {key: descriptor.data.key, mode: descriptor.data.mode};
+    return config;
+  }
+  if (readAgentStepSessionIntent(config) !== undefined) return config;
+
+  const authored = agentStepSessionIntentSchema.safeParse(params.authoredConfig?.session);
+  if (authored.success) config.session = authored.data;
+  else delete config.session;
+  return config;
 }
 
 function completeAgentField(args: {
@@ -388,6 +454,14 @@ async function agentStepConfigWithDefaults(
       configPlan: {
         agent: {
           prompt: dispatchPlanField(fields.prompt),
+          ...(fields.session === undefined
+            ? {}
+            : {
+                session: {
+                  key: dispatchPlanField(fields.session.key),
+                  mode: fields.session.mode,
+                },
+              }),
           ...agentToolsConfig(step),
           ...agentToolSurfaceConfig(step),
           ...materializedAgentIntegrationsConfig(params),
@@ -414,7 +488,17 @@ async function agentStepConfigWithDefaults(
       ...materializedAgentIntegrationsConfig(params),
       prompt: promptValue,
     },
-    configPlan: null,
+    configPlan:
+      fields.session === undefined
+        ? null
+        : {
+            agent: {
+              session: {
+                key: dispatchPlanField(fields.session.key),
+                mode: fields.session.mode,
+              },
+            },
+          },
     diagnostics: fields.diagnostics,
     trace: fields.trace,
     hasTemplates: fields.hasTemplates,

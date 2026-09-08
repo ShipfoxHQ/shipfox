@@ -57,7 +57,11 @@ import {
   WorkflowExecutionPayloadTooLargeError,
   WorkflowStepResultTooLargeError,
 } from './errors.js';
-import {completeAgentDefaults, readAgentStepSessionIntent} from './step-config/agent.js';
+import {
+  completeAgentDefaults,
+  readAgentStepSessionIntent,
+  restoreAgentSessionIntentForRedispatch,
+} from './step-config/agent.js';
 import {assembleStepDispatchContext} from './step-config/assemble-run-context.js';
 import {completeStepDispatchConfig} from './step-config/complete-step-dispatch-config.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
@@ -341,14 +345,10 @@ async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<N
 function pendingStepForDispatch(step: Step): Step {
   if (step.type !== 'agent' || step.currentAttempt === 1) return step;
 
-  // A successful claim replaces the intent with a descriptor. Gate rewinds
-  // preserve step config, so every retried dispatch must restore the authored
-  // intent before it can acquire a claim for the new attempt.
-  const config = {...step.config};
-  const session = step.authoredConfig?.session;
-  if (session === undefined) delete config.session;
-  else config.session = session;
-  return {...step, config};
+  return {
+    ...step,
+    config: restoreAgentSessionIntentForRedispatch(step),
+  };
 }
 
 async function dispatchPendingStepWithConfigPlan({

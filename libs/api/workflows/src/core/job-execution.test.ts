@@ -2090,7 +2090,12 @@ describe('durable gate restart', () => {
     return (await restartEvents(jobId)).length;
   }
 
-  async function arrangeGatedAgentJob(): Promise<{
+  async function arrangeGatedAgentJob(
+    params: {
+      session?: string | {key: string; mode?: 'resume' | 'fork'};
+      inputs?: Record<string, unknown>;
+    } = {},
+  ): Promise<{
     jobId: string;
     producer: string;
     reviewer: string;
@@ -2102,7 +2107,7 @@ describe('durable gate restart', () => {
             {
               key: 'producer',
               prompt: 'Implement the change.',
-              session: {key: 'main', mode: 'resume'},
+              session: params.session ?? {key: 'main', mode: 'resume'},
             },
             {
               key: 'reviewer',
@@ -2130,6 +2135,7 @@ describe('durable gate restart', () => {
         subscriptionId: crypto.randomUUID(),
         userId: crypto.randomUUID(),
       },
+      ...(params.inputs === undefined ? {} : {inputs: params.inputs}),
       resolveAgentDefaults: resolveTestAgentDefaults,
     });
     const jobs = await getJobsByWorkflowRunId(run.id);
@@ -2340,6 +2346,87 @@ describe('durable gate restart', () => {
       {attempt: 1, session: {id: sessionId, key: 'main', mode: 'resume', segment: 3}},
       {attempt: 2, session: {id: sessionId, key: 'main', mode: 'resume', segment: 4}},
       {attempt: 3, session: {id: sessionId, key: 'main', mode: 'resume', segment: 5}},
+    ]);
+  });
+
+  test('reclaims the materialized key of a templated resume session after a gate restart', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedAgentJob({
+      session: {key: `triage-\${{ inputs.ticket }}`, mode: 'resume'},
+      inputs: {ticket: 'abc123'},
+    });
+    const sessionId = crypto.randomUUID();
+    const claimSession = vi.mocked(agentTestClient.claimSession);
+    claimSession.mockReset();
+    claimSession.mockImplementation(() =>
+      Promise.resolve({
+        descriptor: {
+          id: sessionId,
+          key: 'triage-abc123',
+          mode: 'resume',
+          segment: claimSession.mock.calls.length + 2,
+        },
+        harness: 'pi',
+      }),
+    );
+
+    await nextStepForJob(jobId, agentTestClient);
+    await recordStepResult({jobId, stepId: producer, status: 'succeeded'});
+    await runStep(jobId, reviewer, 1);
+    await nextStepForJob(jobId, agentTestClient);
+
+    expect(claimSession).toHaveBeenCalledTimes(2);
+    expect(claimSession.mock.calls.map(([claim]) => claim.key)).toEqual([
+      'triage-abc123',
+      'triage-abc123',
+    ]);
+  });
+
+  test('reclaims a templated fork session after a claim without a descriptor', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedAgentJob({
+      session: {key: `triage-\${{ inputs.ticket }}`, mode: 'fork'},
+      inputs: {ticket: 'abc123'},
+    });
+    const sessionId = crypto.randomUUID();
+    const claimSession = vi.mocked(agentTestClient.claimSession);
+    claimSession.mockReset();
+    claimSession.mockImplementation(() => {
+      const claimNumber = claimSession.mock.calls.length;
+      return Promise.resolve({
+        descriptor:
+          claimNumber === 2
+            ? null
+            : {
+                id: sessionId,
+                key: 'triage-abc123',
+                mode: 'fork',
+                segment: claimNumber + 2,
+              },
+        harness: 'pi',
+      });
+    });
+
+    const first = await nextStepForJob(jobId, agentTestClient);
+    await recordStepResult({jobId, stepId: producer, status: 'succeeded'});
+    await runStep(jobId, reviewer, 1);
+    const second = await nextStepForJob(jobId, agentTestClient);
+    await recordStepResult({jobId, stepId: producer, status: 'succeeded'});
+    await runStep(jobId, reviewer, 1);
+    const third = await nextStepForJob(jobId, agentTestClient);
+
+    expect(claimSession).toHaveBeenCalledTimes(3);
+    expect(claimSession.mock.calls.map(([claim]) => ({key: claim.key, mode: claim.mode}))).toEqual([
+      {key: 'triage-abc123', mode: 'fork'},
+      {key: 'triage-abc123', mode: 'fork'},
+      {key: 'triage-abc123', mode: 'fork'},
+    ]);
+    expect(
+      [first, second, third].map((result) =>
+        result.kind === 'step' ? result.step.config.session : undefined,
+      ),
+    ).toEqual([
+      {id: sessionId, key: 'triage-abc123', mode: 'fork', segment: 3},
+      undefined,
+      {id: sessionId, key: 'triage-abc123', mode: 'fork', segment: 5},
     ]);
   });
 
