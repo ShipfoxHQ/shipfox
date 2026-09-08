@@ -1,5 +1,11 @@
 # @shipfox/api-auth-dto
 
+## 24.0.0
+
+### Minor Changes
+
+- a43b3c5: Adds impersonation window command and read contracts plus `AUTH_IMPERSONATION_WINDOW_MAX`; when impersonation is enabled, `@shipfox/api-auth` rejects JWT lifetimes below one minute at startup.
+
 ## 23.2.0
 
 ### Patch Changes

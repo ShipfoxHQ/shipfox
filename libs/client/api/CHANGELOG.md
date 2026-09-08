@@ -1,5 +1,12 @@
 # @shipfox/client-api
 
+## 40.0.0
+
+### Minor Changes
+
+- 543f5b2: Add MCP setup guidance with a copyable endpoint and Claude and Codex connection instructions.
+  Expose API URL resolution for links that use the configured API base.
+
 ## 38.0.0
 
 ### Minor Changes

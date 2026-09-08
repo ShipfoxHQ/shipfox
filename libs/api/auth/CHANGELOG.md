@@ -1,5 +1,18 @@
 # @shipfox/api-auth
 
+## 24.0.0
+
+### Major Changes
+
+- a43b3c5: Adds impersonation window command and read contracts plus `AUTH_IMPERSONATION_WINDOW_MAX`; when impersonation is enabled, `@shipfox/api-auth` rejects JWT lifetimes below one minute at startup.
+
+### Patch Changes
+
+- d479f78: Fixes pinned CIMD HTTPS requests on Node runtimes with automatic network family selection and records sanitized fetch failure diagnostics.
+- Updated dependencies [a43b3c5]
+  - @shipfox/api-auth-dto@24.0.0
+  - @shipfox/api-auth-context@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

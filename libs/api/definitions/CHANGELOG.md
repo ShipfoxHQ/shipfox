@@ -1,5 +1,21 @@
 # @shipfox/api-definitions
 
+## 24.0.0
+
+### Minor Changes
+
+- 10f23f7: Detects historical workflow event-payload dependencies and reports listener batch partition warnings.
+
+### Patch Changes
+
+- Updated dependencies [10f23f7]
+- Updated dependencies [33f575e]
+  - @shipfox/expression@2.9.0
+  - @shipfox/workflow-document@3.6.0
+  - @shipfox/api-definitions-dto@24.0.0
+  - @shipfox/api-agent-dto@24.0.0
+  - @shipfox/api-auth-context@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

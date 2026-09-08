@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 2.3.5
+
+### Patch Changes
+
+- 543f5b2: Use semantic group spacing between tabs so multiword labels remain distinct.
+
 ## 2.3.4
 
 ### Patch Changes

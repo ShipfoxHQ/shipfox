@@ -1,5 +1,23 @@
 # @shipfox/api-integration-core
 
+## 24.0.0
+
+### Patch Changes
+
+- c786b48: Fences GitHub installation-token cache entries across API replicas after permission approval.
+- Updated dependencies [5c9472a]
+- Updated dependencies [c786b48]
+  - @shipfox/api-integration-github@24.0.0
+  - @shipfox/api-agent-dto@24.0.0
+  - @shipfox/api-auth-context@24.0.0
+  - @shipfox/api-workflows-dto@24.0.0
+  - @shipfox/api-integration-gitea@24.0.0
+  - @shipfox/api-integration-jira@24.0.0
+  - @shipfox/api-integration-linear@24.0.0
+  - @shipfox/api-integration-sentry@24.0.0
+  - @shipfox/api-integration-slack@24.0.0
+  - @shipfox/api-integration-webhook@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

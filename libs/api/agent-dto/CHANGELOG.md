@@ -1,5 +1,12 @@
 # @shipfox/api-agent-dto
 
+## 24.0.0
+
+### Patch Changes
+
+- Updated dependencies [33f575e]
+  - @shipfox/workflow-document@3.6.0
+
 ## 21.1.0
 
 ### Minor Changes
