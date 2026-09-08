@@ -1,6 +1,12 @@
+import {useUsagePricing} from '@shipfox/client-shell/runtime';
 import {type ReactNode, useMemo} from 'react';
-import {type RunUsage, summarizeRunUsage, usageQuantitiesFromTotals} from '#core/usage.js';
-import {useUsageCosts} from './usage-cost.js';
+import {
+  groupUsageByModel,
+  type RunUsage,
+  summarizeRunUsage,
+  usageQuantitiesFromTotals,
+} from '#core/usage.js';
+import {usagePricingDisclosure, useUsageCosts} from './usage-cost.js';
 import {UsageCostText} from './usage-cost-text.js';
 import {UsageBreakdown} from './usage-details.js';
 
@@ -12,7 +18,9 @@ export interface RunUsageSummaryProps {
 }
 
 export function RunUsageSummary({runId, usage, className, prefix}: RunUsageSummaryProps) {
+  const pricing = useUsagePricing();
   const cost = useRunCost(runId, usage);
+  const disclosure = usagePricingDisclosure(pricing, cost);
   if (!usage || !cost) return null;
   return (
     <>
@@ -20,6 +28,14 @@ export function RunUsageSummary({runId, usage, className, prefix}: RunUsageSumma
       <span data-usage-run-summary className={`inline-flex items-center ${className ?? ''}`}>
         <UsageCostText cost={cost} />
       </span>
+      {disclosure ? (
+        <span
+          data-usage-pricing-disclosure
+          className="ml-tight text-xs text-foreground-neutral-subtle"
+        >
+          {disclosure}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -37,17 +53,32 @@ function useRunCost(runId: string, usage: RunUsage | undefined) {
     usage?.jobExecutions.every((job) => job.durationSeconds !== null);
   const pricingInputs = useMemo(
     () =>
-      summary
+      summary && usage
         ? [
             {
               reference: {kind: 'run' as const, id: runId},
               ...(completeDuration
-                ? {quantities: usageQuantitiesFromTotals(summary.totals, summary.computeSeconds)}
+                ? {
+                    quantities: usageQuantitiesFromTotals(summary.totals, summary.computeSeconds),
+                    compute: usage.jobExecutions.map((job) => ({
+                      jobExecutionId: job.jobExecutionId,
+                      runnerLabels: job.runnerLabels ?? [],
+                      templateKey: job.templateKey,
+                      seconds: job.durationSeconds ?? 0,
+                    })),
+                  }
                 : {}),
+              models: groupUsageByModel(usage.inferenceSegments).map(
+                ({model, upstream, totals}) => ({
+                  model,
+                  upstream,
+                  quantities: usageQuantitiesFromTotals(totals),
+                }),
+              ),
             },
           ]
         : [],
-    [runId, summary, completeDuration],
+    [runId, summary, usage, completeDuration],
   );
   const costs = useUsageCosts(pricingInputs);
   return costs.get(`run:${runId}`);

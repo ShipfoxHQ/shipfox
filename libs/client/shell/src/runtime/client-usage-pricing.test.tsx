@@ -5,6 +5,7 @@ import {defineClientFeature} from '#contract.js';
 import {
   type ClientUsagePricing,
   type UsagePricingReference,
+  usagePricingReferenceKey,
   useUsagePricing,
 } from '#runtime/client-usage-pricing.js';
 import {renderComposedShell} from '#test/render.js';
@@ -62,12 +63,85 @@ describe('ClientUsagePricing', () => {
     const estimate = vi.fn(() => ({amount: 1, state: 'estimated' as const}));
     const formatMoney = vi.fn(() => '$1.00');
 
-    await renderPricingProbe({resolveCosts, estimate, formatMoney});
+    await renderPricingProbe({
+      resolveCosts,
+      estimate,
+      formatMoney,
+      disclosure: 'Estimated from list prices. Nothing is billed.',
+    });
 
     expect(await screen.findByRole('heading', {name: 'Pricing configured'})).toBeVisible();
     expect(resolveCosts).toHaveBeenCalledWith([reference]);
     expect(estimate).toHaveBeenCalled();
     expect(formatMoney).toHaveBeenCalledWith(1);
+  });
+
+  test('keeps model and upstream references distinct', () => {
+    const first = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model-a',
+      upstream: 'upstream-a',
+    });
+    const second = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model-b',
+      upstream: 'upstream-a',
+    });
+
+    expect(first).toBe('step-attempt:attempt-1:["model-a","upstream-a"]');
+    expect(second).not.toBe(first);
+  });
+
+  test('encodes partial and colon-containing model identity without collisions', () => {
+    const aggregate = usagePricingReferenceKey({kind: 'step-attempt', id: 'attempt-1'});
+    const modelOnly = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model-a',
+    });
+    const upstreamOnly = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      upstream: 'model-a',
+    });
+    const firstColonValue = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model:a',
+      upstream: 'upstream',
+    });
+    const secondColonValue = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model',
+      upstream: 'a:upstream',
+    });
+
+    expect(aggregate).toBe('step-attempt:attempt-1');
+    expect(modelOnly).not.toBe(upstreamOnly);
+    expect(firstColonValue).not.toBe(secondColonValue);
+  });
+
+  test('preserves a pricing disclosure through the safe provider', async () => {
+    function DisclosureProbe() {
+      return <p>{useUsagePricing()?.disclosure}</p>;
+    }
+
+    await renderComposedShell({
+      features: [pricingFeature()],
+      initialPath: '/w/workspace/pricing',
+      resolveImpl: () => defineRoute({staticData: {frame: 'content'}, component: DisclosureProbe}),
+      usagePricing: {
+        resolveCosts: () => new Map(),
+        estimate: () => null,
+        formatMoney: () => '$0.00',
+        disclosure: 'Estimated from list prices. Nothing is billed.',
+      },
+    });
+
+    expect(await screen.findByText('Estimated from list prices. Nothing is billed.')).toBeVisible();
   });
 
   test('contains synchronous implementation failures', async () => {

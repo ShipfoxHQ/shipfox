@@ -1,6 +1,8 @@
 import {
   type ClientUsagePricing,
   type UsagePricingCost,
+  type UsagePricingEstimateCompute,
+  type UsagePricingEstimateModel,
   type UsagePricingQuantities,
   type UsagePricingReference,
   type UsagePricingResolution,
@@ -12,6 +14,8 @@ import {useEffect, useRef, useState} from 'react';
 export interface UsageCostRequest {
   reference: UsagePricingReference;
   quantities?: UsagePricingQuantities;
+  compute?: readonly UsagePricingEstimateCompute[];
+  models?: readonly UsagePricingEstimateModel[];
 }
 
 interface ActiveCostRequest {
@@ -81,17 +85,25 @@ export function usagePricingCostFromResolution(
   reference: UsagePricingReference,
 ): UsagePricingCost | undefined {
   const key = usagePricingReferenceKey(reference);
+  const baseKey = `${reference.kind}:${reference.id}`;
   let candidate: UsagePricingCost | null | undefined;
   if (Array.isArray(resolution)) {
-    const entry = resolution.find(
-      (item) => item.kind === reference.kind && item.id === reference.id,
+    candidate = resolution.find(
+      (item) =>
+        item.kind === reference.kind &&
+        item.id === reference.id &&
+        item.model === reference.model &&
+        item.upstream === reference.upstream,
     );
-    candidate = entry;
   } else if (isMapLike(resolution)) {
-    candidate = resolution.get(key) ?? resolution.get(reference.id);
+    candidate = hasModelIdentity(reference)
+      ? resolution.get(key)
+      : (resolution.get(key) ?? resolution.get(baseKey) ?? resolution.get(reference.id));
   } else {
     const record = resolution as Readonly<Record<string, UsagePricingCost | null | undefined>>;
-    candidate = record[key] ?? record[reference.id];
+    candidate = hasModelIdentity(reference)
+      ? record[key]
+      : (record[key] ?? record[baseKey] ?? record[reference.id]);
   }
 
   return validUsagePricingCost(candidate) ? candidate : undefined;
@@ -110,6 +122,14 @@ export function formatUsageCost(
   }
 }
 
+export function usagePricingDisclosure(
+  pricing: ClientUsagePricing | undefined,
+  cost: UsagePricingCost | undefined,
+): string | undefined {
+  if (cost?.state !== 'estimated') return undefined;
+  return pricing?.disclosure || undefined;
+}
+
 async function loadUsageCosts({
   pricing,
   requests,
@@ -126,51 +146,81 @@ async function loadUsageCosts({
   }
 
   const costs = new Map<string, UsagePricingCost>();
-  const missing = new Map<string, UsageCostRequest>();
-  for (const request of requests) {
-    const {reference} = request;
-    const cost = usagePricingCostFromResolution(resolution, reference);
-    const key = usagePricingReferenceKey(reference);
-    if (cost) {
-      costs.set(key, cost);
-      continue;
-    }
-    if (!request.quantities) continue;
-    const current = missing.get(key);
-    missing.set(
-      key,
-      current
-        ? {
-            ...request,
-            quantities: addUsagePricingQuantities(
-              current.quantities ?? request.quantities,
-              request.quantities,
-            ),
-          }
-        : request,
-    );
-  }
-
+  const missing = collectMissingUsageCosts(requests, resolution, costs);
   await Promise.all(
-    [...missing.values()].map(async ({reference, quantities}) => {
-      if (!quantities) return;
-      try {
-        const estimate = await pricing.estimate({reference, quantities});
-        if (!validUsagePricingCost(estimate)) return;
-        costs.set(usagePricingReferenceKey(reference), estimate);
-      } catch {
-        // A pricing failure is an absent cost, so quantity-only views remain usable.
-      }
+    [...missing.values()].map(async (request) => {
+      const estimate = await estimateUsageCost(pricing, request);
+      if (estimate) costs.set(usagePricingReferenceKey(request.reference), estimate);
     }),
   );
   return costs;
 }
 
+function collectMissingUsageCosts(
+  requests: readonly UsageCostRequest[],
+  resolution: UsagePricingResolution,
+  costs: Map<string, UsagePricingCost>,
+): Map<string, UsageCostRequest> {
+  const missing = new Map<string, UsageCostRequest>();
+  for (const request of requests) {
+    const {reference} = request;
+    const key = usagePricingReferenceKey(reference);
+    const cost = usagePricingCostFromResolution(resolution, reference);
+    if (cost) {
+      costs.set(key, cost);
+      continue;
+    }
+    const missingRequest = mergeMissingUsageRequest(missing.get(key), request);
+    if (missingRequest) missing.set(key, missingRequest);
+  }
+  return missing;
+}
+
+function mergeMissingUsageRequest(
+  current: UsageCostRequest | undefined,
+  request: UsageCostRequest,
+): UsageCostRequest | undefined {
+  if (!request.quantities) return undefined;
+  if (!current) return request;
+  const compute = mergeComputeInputs(current.compute, request.compute);
+  const models = mergeModelInputs(current.models, request.models);
+  return {
+    ...request,
+    quantities: addUsagePricingQuantities(
+      current.quantities ?? request.quantities,
+      request.quantities,
+    ),
+    ...(compute !== undefined ? {compute} : {}),
+    ...(models !== undefined ? {models} : {}),
+  };
+}
+
+async function estimateUsageCost(
+  pricing: ClientUsagePricing,
+  request: UsageCostRequest,
+): Promise<UsagePricingCost | undefined> {
+  if (!request.quantities) return undefined;
+  try {
+    const estimate = await pricing.estimate({
+      reference: request.reference,
+      quantities: request.quantities,
+      ...(request.compute ? {compute: request.compute} : {}),
+      ...(request.models ? {models: request.models} : {}),
+    });
+    return validUsagePricingCost(estimate) ? estimate : undefined;
+  } catch {
+    // A pricing failure is an absent cost, so quantity-only views remain usable.
+    return undefined;
+  }
+}
+
 function usageCostRequestSignature(inputs: readonly UsageCostRequest[]): string {
   return JSON.stringify(
-    inputs.map(({reference, quantities}) => [
+    inputs.map(({reference, quantities, compute, models}) => [
       reference.kind,
       reference.id,
+      reference.model ?? null,
+      reference.upstream ?? null,
       quantities?.computeSeconds ?? null,
       quantities?.requestCount ?? null,
       quantities?.inputTokens ?? null,
@@ -178,6 +228,8 @@ function usageCostRequestSignature(inputs: readonly UsageCostRequest[]): string 
       quantities?.cacheWriteTokens ?? null,
       quantities?.outputTokens ?? null,
       quantities?.webSearchRequests ?? null,
+      compute ?? null,
+      models ?? null,
     ]),
   );
 }
@@ -197,6 +249,44 @@ function addUsagePricingQuantities(
   };
 }
 
+function mergeComputeInputs(
+  left: readonly UsagePricingEstimateCompute[] | undefined,
+  right: readonly UsagePricingEstimateCompute[] | undefined,
+): readonly UsagePricingEstimateCompute[] | undefined {
+  if (left === undefined && right === undefined) return undefined;
+  const byExecutionId = new Map<string, UsagePricingEstimateCompute>();
+  for (const input of [...(left ?? []), ...(right ?? [])]) {
+    const current = byExecutionId.get(input.jobExecutionId);
+    byExecutionId.set(
+      input.jobExecutionId,
+      current ? {...current, seconds: current.seconds + input.seconds} : input,
+    );
+  }
+  return [...byExecutionId.values()];
+}
+
+function mergeModelInputs(
+  left: readonly UsagePricingEstimateModel[] | undefined,
+  right: readonly UsagePricingEstimateModel[] | undefined,
+): readonly UsagePricingEstimateModel[] | undefined {
+  if (left === undefined && right === undefined) return undefined;
+  const byModel = new Map<string, UsagePricingEstimateModel>();
+  for (const input of [...(left ?? []), ...(right ?? [])]) {
+    const key = JSON.stringify([input.model, input.upstream]);
+    const current = byModel.get(key);
+    byModel.set(
+      key,
+      current
+        ? {
+            ...input,
+            quantities: addUsagePricingQuantities(current.quantities, input.quantities),
+          }
+        : input,
+    );
+  }
+  return [...byModel.values()];
+}
+
 function uniqueReferences(references: readonly UsagePricingReference[]): UsagePricingReference[] {
   const seen = new Set<string>();
   return references.filter((reference) => {
@@ -205,6 +295,10 @@ function uniqueReferences(references: readonly UsagePricingReference[]): UsagePr
     seen.add(key);
     return true;
   });
+}
+
+function hasModelIdentity(reference: UsagePricingReference): boolean {
+  return reference.model !== undefined || reference.upstream !== undefined;
 }
 
 function isMapLike(

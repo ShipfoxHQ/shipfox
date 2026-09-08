@@ -1,11 +1,12 @@
 import type {UsagePricingCost} from '@shipfox/client-shell/runtime';
 import {useUsagePricing} from '@shipfox/client-shell/runtime';
 import {Badge} from '@shipfox/react-ui/badge';
-import {formatUsageCost} from './usage-cost.js';
+import {formatUsageCost, usagePricingDisclosure} from './usage-cost.js';
 
 export function UsageCostBadge({cost}: {cost: UsagePricingCost | undefined}) {
   const pricing = useUsagePricing();
   const formatted = formatUsageCost(pricing, cost);
+  const disclosure = usagePricingDisclosure(pricing, cost);
   if (!formatted) return null;
 
   return (
@@ -13,7 +14,7 @@ export function UsageCostBadge({cost}: {cost: UsagePricingCost | undefined}) {
       data-usage-cost-state={cost?.state}
       variant="neutral"
       size="2xs"
-      title={cost?.state === 'estimated' ? 'Estimated cost' : 'Resolved cost'}
+      title={disclosure ?? (cost?.state === 'estimated' ? 'Estimated cost' : 'Resolved cost')}
     >
       {cost?.state === 'estimated' ? 'Est. ' : ''}
       {formatted}

@@ -6,6 +6,8 @@ export type UsagePricingReferenceKind = 'run' | 'job-execution' | 'step-attempt'
 export interface UsagePricingReference {
   kind: UsagePricingReferenceKind;
   id: string;
+  model?: string;
+  upstream?: string;
 }
 
 export interface UsagePricingQuantities {
@@ -18,9 +20,24 @@ export interface UsagePricingQuantities {
   webSearchRequests: number;
 }
 
+export interface UsagePricingEstimateCompute {
+  jobExecutionId: string;
+  runnerLabels: readonly string[];
+  templateKey: string | null;
+  seconds: number;
+}
+
+export interface UsagePricingEstimateModel {
+  model: string;
+  upstream: string;
+  quantities: UsagePricingQuantities;
+}
+
 export interface UsagePricingEstimateInput {
   reference: UsagePricingReference;
   quantities: UsagePricingQuantities;
+  compute?: readonly UsagePricingEstimateCompute[];
+  models?: readonly UsagePricingEstimateModel[];
 }
 
 export type UsagePricingCostState = 'resolved' | 'estimated';
@@ -71,6 +88,8 @@ export type UsagePricingResolution =
  * the shell provider so an unavailable billing service cannot interrupt the client.
  */
 export interface ClientUsagePricing {
+  /** Disclosure text shown for estimated costs, such as a list-price notice. */
+  disclosure?: string;
   resolveCosts(
     refs: readonly UsagePricingReference[],
   ): UsagePricingResolution | PromiseLike<UsagePricingResolution>;
@@ -106,11 +125,14 @@ export function useUsagePricing(): ClientUsagePricing | undefined {
 }
 
 export function usagePricingReferenceKey(reference: UsagePricingReference): string {
-  return `${reference.kind}:${reference.id}`;
+  const baseKey = `${reference.kind}:${reference.id}`;
+  if (reference.model === undefined && reference.upstream === undefined) return baseKey;
+  return `${baseKey}:${JSON.stringify([reference.model ?? null, reference.upstream ?? null])}`;
 }
 
 function createSafeClientUsagePricing(pricing: ClientUsagePricing): ClientUsagePricing {
   return {
+    ...(pricing.disclosure !== undefined ? {disclosure: pricing.disclosure} : {}),
     resolveCosts(refs) {
       try {
         return Promise.resolve(pricing.resolveCosts(refs))
