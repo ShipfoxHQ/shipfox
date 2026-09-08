@@ -1,5 +1,22 @@
 # @shipfox/api-workflows
 
+## 24.0.0
+
+### Patch Changes
+
+- 33f575e: Workflows honors materialized gate limits from 1 through 1,000 with WORKFLOW_GATE_MAX_ATTEMPTS_MAX and preserves the three-attempt behavior when the limit is absent.
+- 86b6e05: Continue named agent sessions from the latest session segment when workflows retry a step.
+- Updated dependencies [10f23f7]
+- Updated dependencies [33f575e]
+- Updated dependencies [a43b3c5]
+  - @shipfox/expression@2.9.0
+  - @shipfox/workflow-document@3.6.0
+  - @shipfox/api-auth-dto@24.0.0
+  - @shipfox/api-definitions-dto@24.0.0
+  - @shipfox/api-agent-dto@24.0.0
+  - @shipfox/api-auth-context@24.0.0
+  - @shipfox/api-workflows-dto@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # Changelog
 
+## 40.0.0
+
+### Minor Changes
+
+- 72d8146: Adds a generic unresolved-workspace slot that preserves safe relative URLs for composing applications.
+
+### Patch Changes
+
+- 08a551b: Collapses registered session-banner slots when they render no content.
+- Updated dependencies [543f5b2]
+- Updated dependencies [a43b3c5]
+- Updated dependencies [543f5b2]
+  - @shipfox/react-ui@2.3.5
+  - @shipfox/api-auth-dto@24.0.0
+  - @shipfox/client-api@40.0.0
+  - @shipfox/client-config@40.0.0
+  - @shipfox/client-ui@40.0.0
+
 ## 39.0.0
 
 ### Minor Changes

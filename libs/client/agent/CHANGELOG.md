@@ -1,5 +1,23 @@
 # @shipfox/client-agent
 
+## 40.0.0
+
+### Patch Changes
+
+- 543f5b2: Add MCP setup guidance with a copyable endpoint and Claude and Codex connection instructions.
+  Expose API URL resolution for links that use the configured API base.
+- Updated dependencies [08a551b]
+- Updated dependencies [543f5b2]
+- Updated dependencies [a43b3c5]
+- Updated dependencies [72d8146]
+- Updated dependencies [543f5b2]
+  - @shipfox/client-shell@40.0.0
+  - @shipfox/react-ui@2.3.5
+  - @shipfox/api-auth-dto@24.0.0
+  - @shipfox/client-api@40.0.0
+  - @shipfox/api-agent-dto@24.0.0
+  - @shipfox/client-ui@40.0.0
+
 ## 39.0.0
 
 ### Patch Changes

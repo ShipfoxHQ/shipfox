@@ -1,5 +1,39 @@
 # @shipfox/api-server
 
+## 24.0.0
+
+### Minor Changes
+
+- 5cd9e70: Adds the ./config entry point for server and E2E route settings, and exposes shouldMountE2eRoutes for composition roots.
+
+### Patch Changes
+
+- Updated dependencies [10f23f7]
+- Updated dependencies [33f575e]
+- Updated dependencies [c786b48]
+- Updated dependencies [d479f78]
+- Updated dependencies [86b6e05]
+- Updated dependencies [a43b3c5]
+  - @shipfox/api-definitions@24.0.0
+  - @shipfox/api-workflows@24.0.0
+  - @shipfox/api-integration-core@24.0.0
+  - @shipfox/api-auth@24.0.0
+  - @shipfox/api-auth-dto@24.0.0
+  - @shipfox/api-definitions-dto@24.0.0
+  - @shipfox/api-triggers@24.0.0
+  - @shipfox/api-agent@24.0.0
+  - @shipfox/api-agent-dto@24.0.0
+  - @shipfox/api-logs@24.0.0
+  - @shipfox/annotations@24.0.0
+  - @shipfox/api-projects@24.0.0
+  - @shipfox/api-runners@24.0.0
+  - @shipfox/api-workspaces@24.0.0
+  - @shipfox/api-agent-access@24.0.0
+  - @shipfox/api-dispatcher@21.2.0
+  - @shipfox/api-workflows-dto@24.0.0
+  - @shipfox/api-secrets@24.0.0
+  - @shipfox/api-usage@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

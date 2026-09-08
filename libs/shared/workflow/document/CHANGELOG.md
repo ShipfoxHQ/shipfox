@@ -1,5 +1,11 @@
 # @shipfox/workflow-document
 
+## 3.6.0
+
+### Minor Changes
+
+- 33f575e: Workflows honors materialized gate limits from 1 through 1,000 with WORKFLOW_GATE_MAX_ATTEMPTS_MAX and preserves the three-attempt behavior when the limit is absent.
+
 ## 3.5.0
 
 ### Minor Changes

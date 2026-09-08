@@ -1,5 +1,16 @@
 # @shipfox/api-integration-github
 
+## 24.0.0
+
+### Minor Changes
+
+- 5c9472a: Adds GitHub check-run create and update methods and supports 40- or 64-character commit object IDs.
+
+### Patch Changes
+
+- c786b48: Fences GitHub installation-token cache entries across API replicas after permission approval.
+  - @shipfox/api-auth-context@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

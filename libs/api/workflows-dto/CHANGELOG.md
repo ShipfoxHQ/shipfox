@@ -1,5 +1,12 @@
 # @shipfox/api-workflows-dto
 
+## 24.0.0
+
+### Patch Changes
+
+- @shipfox/api-definitions-dto@24.0.0
+- @shipfox/api-agent-dto@24.0.0
+
 ## 23.0.0
 
 ### Minor Changes

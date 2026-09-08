@@ -1,5 +1,11 @@
 # @shipfox/api-integration-slack
 
+## 24.0.0
+
+### Patch Changes
+
+- @shipfox/api-auth-context@24.0.0
+
 ## 23.2.0
 
 ### Patch Changes

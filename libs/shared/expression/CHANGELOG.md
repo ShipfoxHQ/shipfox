@@ -1,5 +1,16 @@
 # @shipfox/expression
 
+## 2.9.0
+
+### Minor Changes
+
+- 10f23f7: Detects historical workflow event-payload dependencies and reports listener batch partition warnings.
+
+### Patch Changes
+
+- Updated dependencies [33f575e]
+  - @shipfox/workflow-document@3.6.0
+
 ## 2.8.0
 
 ### Minor Changes

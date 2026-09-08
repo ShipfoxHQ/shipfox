@@ -1,5 +1,21 @@
 # @shipfox/client-onboarding
 
+## 40.0.0
+
+### Patch Changes
+
+- Updated dependencies [08a551b]
+- Updated dependencies [543f5b2]
+- Updated dependencies [72d8146]
+- Updated dependencies [543f5b2]
+  - @shipfox/client-shell@40.0.0
+  - @shipfox/react-ui@2.3.5
+  - @shipfox/client-agent@40.0.0
+  - @shipfox/client-integrations@40.0.0
+  - @shipfox/client-projects@40.0.0
+  - @shipfox/client-runners@40.0.0
+  - @shipfox/client-workspace-settings@40.0.0
+
 ## 39.0.0
 
 ### Patch Changes

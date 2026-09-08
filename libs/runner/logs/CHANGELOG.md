@@ -1,5 +1,11 @@
 # @shipfox/runner-logs
 
+## 0.1.44
+
+### Patch Changes
+
+- @shipfox/runner-protocol@0.2.38
+
 ## 0.1.43
 
 ### Patch Changes
