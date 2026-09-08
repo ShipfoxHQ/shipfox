@@ -223,9 +223,11 @@ export async function startImpersonationWindow(
     const outcome = await startImpersonationWindowCommand(command);
     const result = resolveWindowCommandOutcome(outcome);
     recordImpersonationWindowStartOutcome('succeeded');
+    recordImpersonationOutcome('succeeded');
     return result;
   } catch (error) {
     recordImpersonationWindowStartOutcome('failed');
+    recordImpersonationOutcome('failed');
     throw error;
   }
 }

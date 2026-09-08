@@ -103,6 +103,46 @@ describe('impersonation window routes', () => {
     );
   }
 
+  test('records shared and window-specific outcomes for a successful Window Start', async () => {
+    const owner = await bootstrapOwner('window-start-metrics-success');
+    const target = await createVerifiedSession('window-start-metrics-success-target');
+    const recordOutcome = vi.spyOn(authMetrics, 'recordImpersonationOutcome');
+    const recordWindowStartOutcome = vi.spyOn(authMetrics, 'recordImpersonationWindowStartOutcome');
+
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-start-metrics-success-start',
+    });
+
+    expect(started.statusCode).toBe(200);
+    expect(recordOutcome).toHaveBeenCalledTimes(1);
+    expect(recordOutcome).toHaveBeenCalledWith('succeeded');
+    expect(recordWindowStartOutcome).toHaveBeenCalledTimes(1);
+    expect(recordWindowStartOutcome).toHaveBeenCalledWith('succeeded');
+  });
+
+  test('records shared and window-specific outcomes for a denied Window Start', async () => {
+    const owner = await bootstrapOwner('window-start-metrics-denied');
+    const target = await createVerifiedSession('window-start-metrics-denied-target');
+    setImpersonationEnabled(false);
+    const recordOutcome = vi.spyOn(authMetrics, 'recordImpersonationOutcome');
+    const recordWindowStartOutcome = vi.spyOn(authMetrics, 'recordImpersonationWindowStartOutcome');
+
+    const rejected = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-start-metrics-denied-start',
+    });
+
+    expect(rejected.statusCode).toBe(403);
+    expect(rejected.json()).toEqual({code: 'impersonation-disabled'});
+    expect(recordOutcome).toHaveBeenCalledTimes(1);
+    expect(recordOutcome).toHaveBeenCalledWith('failed');
+    expect(recordWindowStartOutcome).toHaveBeenCalledTimes(1);
+    expect(recordWindowStartOutcome).toHaveBeenCalledWith('failed');
+  });
+
   test('registers the complete protocol and makes Stop terminal and idempotent', async () => {
     const owner = await bootstrapOwner('window-protocol');
     const target = await createVerifiedSession('window-protocol-target');
