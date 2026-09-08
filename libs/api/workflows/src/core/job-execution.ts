@@ -320,21 +320,35 @@ async function resolveNextPendingStep({
 }
 
 async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<NextStepResolution> {
-  const hasConfigPlan = params.pending.configPlan !== null || params.pending.type === 'tool';
-  if (hasConfigPlan) return dispatchPendingStepWithConfigPlan(params);
+  const pending = pendingStepForDispatch(params.pending);
+  const dispatchParams = pending === params.pending ? params : {...params, pending};
+  const hasConfigPlan = pending.configPlan !== null || pending.type === 'tool';
+  if (hasConfigPlan) return dispatchPendingStepWithConfigPlan(dispatchParams);
 
   // A fully resolved agent step still carries a session intent in its config.
   // Route it through the claim path even though no other field needs dispatch
   // completion.
-  const hasSessionIntent =
-    params.pending.type === 'agent' && params.pending.config.session !== undefined;
-  if (hasSessionIntent) return dispatchPendingStepWithConfigPlan(params);
+  const hasSessionIntent = pending.type === 'agent' && pending.config.session !== undefined;
+  if (hasSessionIntent) return dispatchPendingStepWithConfigPlan(dispatchParams);
 
   const marked = await markStepRunning(
-    {jobExecutionId: params.jobExecutionId, stepId: params.pending.id},
+    {jobExecutionId: params.jobExecutionId, stepId: pending.id},
     params.tx,
   );
-  return {kind: 'step', step: marked ?? params.pending, dispatched: true};
+  return {kind: 'step', step: marked ?? pending, dispatched: true};
+}
+
+function pendingStepForDispatch(step: Step): Step {
+  if (step.type !== 'agent' || step.currentAttempt === 1) return step;
+
+  // A successful claim replaces the intent with a descriptor. Gate rewinds
+  // preserve step config, so every retried dispatch must restore the authored
+  // intent before it can acquire a claim for the new attempt.
+  const config = {...step.config};
+  const session = step.authoredConfig?.session;
+  if (session === undefined) delete config.session;
+  else config.session = session;
+  return {...step, config};
 }
 
 async function dispatchPendingStepWithConfigPlan({

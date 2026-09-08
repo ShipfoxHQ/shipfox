@@ -2090,6 +2090,62 @@ describe('durable gate restart', () => {
     return (await restartEvents(jobId)).length;
   }
 
+  async function arrangeGatedAgentJob(): Promise<{
+    jobId: string;
+    producer: string;
+    reviewer: string;
+  }> {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {
+              key: 'producer',
+              prompt: 'Implement the change.',
+              session: {key: 'main', mode: 'resume'},
+            },
+            {
+              key: 'reviewer',
+              run: 'review',
+              gate: {
+                success: createWorkflowExpression({
+                  source: 'step.exit_code == 0',
+                  check: {mode: 'syntax'},
+                }),
+                onFailure: {restartFrom: 'producer'},
+              },
+            },
+          ],
+        },
+      },
+    });
+    const run = await createWorkflowRun({
+      workspaceId: crypto.randomUUID(),
+      projectId: crypto.randomUUID(),
+      definitionId: crypto.randomUUID(),
+      model,
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+      resolveAgentDefaults: resolveTestAgentDefaults,
+    });
+    const jobs = await getJobsByWorkflowRunId(run.id);
+    const jobId = jobs[0]?.id as string;
+
+    await stripSetupStep(jobId);
+
+    const steps = await getStepsByJobId(jobId);
+    const producer = steps.find((step) => step.key === 'producer')?.id;
+    const reviewer = steps.find((step) => step.key === 'reviewer')?.id;
+    if (producer === undefined || reviewer === undefined) {
+      throw new Error('Expected gated agent steps');
+    }
+    return {jobId, producer, reviewer};
+  }
+
   // producer (named) → reviewer (gated `success: step.exit_code == 0`, on_failure restart_from producer)
   async function arrangeGatedJob(params: {
     source: string;
@@ -2227,6 +2283,63 @@ describe('durable gate restart', () => {
       {stepId: reviewer, attempt: 1, executionOrder: 2},
       {stepId: producer, attempt: 2, executionOrder: 3},
       {stepId: reviewer, attempt: 2, executionOrder: 4},
+    ]);
+  });
+
+  test('reclaims a named resume session after every gate restart', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedAgentJob();
+    const sessionId = crypto.randomUUID();
+    const claimSession = vi.mocked(agentTestClient.claimSession);
+    claimSession.mockReset();
+    let nextSegment = 3;
+    claimSession.mockImplementation(() => {
+      const segment = nextSegment;
+      nextSegment += 1;
+      return Promise.resolve({
+        descriptor: {id: sessionId, key: 'main', mode: 'resume', segment},
+        harness: 'pi',
+      });
+    });
+
+    const first = await nextStepForJob(jobId, agentTestClient);
+    await recordStepResult({jobId, stepId: producer, status: 'succeeded'});
+    await runStep(jobId, reviewer, 1);
+    const second = await nextStepForJob(jobId, agentTestClient);
+    await recordStepResult({jobId, stepId: producer, status: 'succeeded'});
+    await runStep(jobId, reviewer, 1);
+    const third = await nextStepForJob(jobId, agentTestClient);
+
+    expect(claimSession).toHaveBeenCalledTimes(3);
+    expect(
+      claimSession.mock.calls.map(([claim]) => ({
+        key: claim.key,
+        mode: claim.mode,
+        stepAttemptId: claim.stepAttemptId,
+      })),
+    ).toEqual([
+      {key: 'main', mode: 'resume', stepAttemptId: expect.any(String)},
+      {key: 'main', mode: 'resume', stepAttemptId: expect.any(String)},
+      {key: 'main', mode: 'resume', stepAttemptId: expect.any(String)},
+    ]);
+    expect(new Set(claimSession.mock.calls.map(([claim]) => claim.stepAttemptId)).size).toBe(3);
+    expect(
+      [first, second, third].map((result) =>
+        result.kind === 'step' ? result.step.config.session : undefined,
+      ),
+    ).toEqual([
+      {id: sessionId, key: 'main', mode: 'resume', segment: 3},
+      {id: sessionId, key: 'main', mode: 'resume', segment: 4},
+      {id: sessionId, key: 'main', mode: 'resume', segment: 5},
+    ]);
+    const attempts = await getStepAttempts(jobId);
+    expect(
+      attempts
+        .filter((attempt) => attempt.stepId === producer)
+        .map((attempt) => ({attempt: attempt.attempt, session: attempt.config?.session})),
+    ).toEqual([
+      {attempt: 1, session: {id: sessionId, key: 'main', mode: 'resume', segment: 3}},
+      {attempt: 2, session: {id: sessionId, key: 'main', mode: 'resume', segment: 4}},
+      {attempt: 3, session: {id: sessionId, key: 'main', mode: 'resume', segment: 5}},
     ]);
   });
 
