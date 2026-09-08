@@ -121,6 +121,23 @@ describe('workflow tool invocation metrics', () => {
   });
 });
 
+describe('gate restart metrics', () => {
+  test('records exhaustion without labels', () => {
+    const counterCall = (
+      metricMocks.createCounter.mock.calls as unknown as Array<[string, {description?: string}]>
+    ).find(([name]) => name === 'workflows_step_restart_exhausted');
+
+    expect(counterCall).toEqual([
+      'workflows_step_restart_exhausted',
+      expect.objectContaining({description: expect.any(String)}),
+    ]);
+
+    metrics.recordWorkflowStepRestartExhausted();
+
+    expect(counterAdd('workflows_step_restart_exhausted')).toHaveBeenCalledWith(1);
+  });
+});
+
 describe('listener batch metrics', () => {
   test('records bounded partition reasons', () => {
     metrics.recordListenerBatchPartition('byte_limit');

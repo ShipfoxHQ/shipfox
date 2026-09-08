@@ -23,6 +23,7 @@ export type StepProgressionOutcome =
 export interface StepProgressionMetrics {
   jobStepsSettledStatus?: 'succeeded' | 'failed';
   stepRestartEnqueued?: boolean;
+  stepRestartExhausted?: boolean;
 }
 
 export interface StepProgressionResult {
@@ -133,13 +134,20 @@ async function applyFailedStepTransition(
     failedStepId: decision.failedStepId,
     error: decision.failureError ?? {message: 'Step failed'},
   });
+  const stepRestartExhausted = decision.kind === 'fail-job-restart-exhausted';
   if (status !== null) {
     return {
       outcome: {jobFinished: true, status},
-      metrics: {jobStepsSettledStatus: status},
+      metrics: {
+        jobStepsSettledStatus: status,
+        ...(stepRestartExhausted ? {stepRestartExhausted: true} : {}),
+      },
     };
   }
-  return {outcome: {jobFinished: false}, metrics: {}};
+  return {
+    outcome: {jobFinished: false},
+    metrics: stepRestartExhausted ? {stepRestartExhausted: true} : {},
+  };
 }
 
 async function applyRestartStepTransition(

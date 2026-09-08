@@ -5,6 +5,7 @@ import {
   type ResolvedField,
   type WorkflowExpression,
 } from '@shipfox/expression';
+import {WORKFLOW_GATE_MAX_ATTEMPTS_MAX} from '@shipfox/workflow-document';
 import type {StepType} from '../entities/step.js';
 import {assembleGateContext} from '../step-config/assemble-run-context.js';
 import {completeStepField} from '../step-config/fields.js';
@@ -19,7 +20,12 @@ export const GATE_EVALUATION_ERROR_REASON = 'gate expression evaluation failed';
 // The gate as parsed from a step's materialized `config.gate` (snake_case JSON).
 export interface StepGate {
   success?: WorkflowExpression;
-  onFailure?: {restartFrom: string; feedback?: string; feedbackTemplate?: ResolvedField};
+  onFailure?: {
+    restartFrom: string;
+    feedback?: string;
+    feedbackTemplate?: ResolvedField;
+    maxAttempts?: number;
+  };
 }
 
 // Read the gate persisted on a step's config by the materializer. Returns
@@ -49,12 +55,30 @@ function readGateOnFailure(value: unknown): StepGate['onFailure'] {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Record<string, unknown>;
   if (typeof raw.restart_from !== 'string') return undefined;
+
+  const maxAttempts = readGateMaxAttempts(raw.max_attempts);
+  if (maxAttempts === 'invalid') return undefined;
+
   const feedbackTemplate = readGateFeedbackTemplate(raw.feedback_template);
   return {
     restartFrom: raw.restart_from,
     ...(typeof raw.feedback === 'string' ? {feedback: raw.feedback} : {}),
     ...(feedbackTemplate === undefined ? {} : {feedbackTemplate}),
+    ...(maxAttempts === undefined ? {} : {maxAttempts}),
   };
+}
+
+function readGateMaxAttempts(value: unknown): number | 'invalid' | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > WORKFLOW_GATE_MAX_ATTEMPTS_MAX
+  ) {
+    return 'invalid';
+  }
+  return value;
 }
 
 function readGateFeedbackTemplate(value: unknown): ResolvedField | undefined {
