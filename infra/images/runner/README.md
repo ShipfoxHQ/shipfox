@@ -166,6 +166,10 @@ The image build and canary prove different boundaries. A passing Packer or Docke
 helper is packaged. The canary proves the managed runner selects it against the deployed API and
 provider. Neither check makes a live rollout green without its monitoring evidence.
 
+The same image-first ordering applies to renewable inference. Replace the flag-on image with a
+static image before downgrading any API below the release that accepts `renewable_inference` in
+runner capability reports.
+
 `shipfox-runner.service` powers off immediately when the runner exits. Its SIGTERM drain budget is 90 seconds, after which systemd can force-kill the process and the backend re-reserves the job. The image accepts `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS` for compatibility but does not arm an age-based timer or fallback poweroff from that key. Before an orchestration-owned exit, the runner writes one bounded `runner.shutdown_intent` event to the structured logger and the direct EC2 console descriptor, identifying a success, controlled exit, or fatal failure. AWS builds also enable a Spot IMDSv2 watcher that stops the runner, allows it to drain briefly, then powers off.
 
 With `InstanceInitiatedShutdownBehavior=terminate` and Spot `InstanceInterruptionBehavior=terminate`, provider-side settings convert these poweroffs into EC2 termination. The systemd lifecycle action is the fast path. The durable backstop remains tagged-instance reconciliation, the backend staleness reaper, and terminate-on-shutdown because privileged job steps or a wedged kernel can prevent normal process exit.

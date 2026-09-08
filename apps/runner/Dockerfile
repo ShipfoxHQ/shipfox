@@ -124,8 +124,9 @@ RUN node ./dist/verify-installation.js
 
 # This image has passed the installation gate, so managed containers may advertise
 # renewable Git and inference credentials. Source-run and older images retain the
-# flags' false defaults. An API at or above the compatibility release must be
-# deployed everywhere before this image is used for renewable inference.
+# flags' false defaults. An API release that accepts `renewable_inference` in
+# runner capability reports must be deployed everywhere before this image is
+# used for renewable inference.
 ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT=true
 ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true
 
