@@ -9,6 +9,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {type AuthMethod, closeApp, createApp} from '@shipfox/node-fastify';
+import {InterModuleValidationError} from '@shipfox/node-module/inter-module';
 import {eq, sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
@@ -262,6 +263,26 @@ describe('GET /admin/workspaces', () => {
       cursor: 'auth-next-cursor',
       limit: 200,
     });
+  });
+
+  test('maps Auth input validation to a client validation response', async () => {
+    const workspace = await createWorkspace({name: `Invalid search ${crypto.randomUUID()}`});
+    const search = 'x'.repeat(101);
+    vi.mocked(auth.listImpersonationEligibleUserSummaries).mockRejectedValueOnce(
+      new InterModuleValidationError(
+        authInterModuleContract.module,
+        authInterModuleContract.methods.listImpersonationEligibleUserSummaries.method,
+      ),
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${workspace.id}/members?search=${search}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({code: 'validation-error'});
   });
 
   test.each([

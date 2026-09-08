@@ -149,7 +149,7 @@ export async function listWorkspaceMembershipsPage(
   };
 }
 
-/** Returns the membership IDs that are still active in one workspace-owned query. */
+/** Returns the user IDs that have memberships in one workspace-owned query. */
 export async function listWorkspaceMembershipUserIds(params: {
   workspaceId: string;
   userIds: string[];

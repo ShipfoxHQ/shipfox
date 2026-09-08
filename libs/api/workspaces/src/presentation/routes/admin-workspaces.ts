@@ -23,6 +23,7 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {decodeStringIdCursor, encodeStringIdCursor} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute, type RouteGroup} from '@shipfox/node-fastify';
+import {InterModuleValidationError} from '@shipfox/node-module/inter-module';
 import type {FastifyRequest} from 'fastify';
 import {z} from 'zod';
 import {
@@ -215,12 +216,16 @@ function translateWorkspaceAdministratorMembersError(error: unknown): never {
   if (error instanceof WorkspaceNotFoundError) {
     throw new ClientError('Workspace not found', 'workspace-not-found', {status: 404});
   }
+  const impersonationEligibilityMethod =
+    authInterModuleContract.methods.listImpersonationEligibleUserSummaries;
   if (
-    isInterModuleKnownError(
-      authInterModuleContract.methods.listImpersonationEligibleUserSummaries,
-      error,
-    )
+    error instanceof InterModuleValidationError &&
+    error.module === impersonationEligibilityMethod.module &&
+    error.method === impersonationEligibilityMethod.method
   ) {
+    throw new ClientError('Invalid member lookup input', 'validation-error', {status: 400});
+  }
+  if (isInterModuleKnownError(impersonationEligibilityMethod, error)) {
     if (error.code === 'impersonation-disabled') {
       throw new ClientError('Impersonation is disabled', 'impersonation-disabled', {status: 403});
     }
