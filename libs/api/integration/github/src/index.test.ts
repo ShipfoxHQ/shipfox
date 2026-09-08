@@ -43,6 +43,46 @@ describe('createGithubIntegrationProvider', () => {
     expect(provider.adapters?.source_control?.checkoutRepositoryAuthorization).toBe('enforced');
   });
 
+  it('registers installation cleanup for a token provider without durable cleanup', async () => {
+    const deleteInstallation = vi.fn(() => Promise.resolve(1));
+    const provider = createGithubIntegrationProvider({
+      github: {} as never,
+      getExistingGithubConnection: vi.fn(() => Promise.resolve(undefined)),
+      connectGithubInstallation: vi.fn() as never,
+      coreDb: vi.fn() as never,
+      publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
+      publishSourceRepositoryUpdated: vi.fn(() => Promise.resolve({published: false})),
+      publishSourcePush: vi.fn(() => Promise.resolve({published: false})),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
+      agentTools: {
+        tokenProvider: {
+          getInstallationAccessToken: vi.fn(),
+          deleteInstallation,
+        },
+      },
+    });
+
+    expect(provider.deleteConnectionSecrets).toBeUndefined();
+    const processorOptions = state.processorOptions as {
+      deleteInstallationTokenSecret?: (params: {
+        workspaceId: string;
+        installationId: number;
+      }) => Promise<unknown>;
+    };
+    expect(processorOptions.deleteInstallationTokenSecret).toBeDefined();
+
+    await processorOptions.deleteInstallationTokenSecret?.({
+      workspaceId: 'workspace-1',
+      installationId: 123,
+    });
+
+    expect(deleteInstallation).toHaveBeenCalledWith(123, {
+      workspaceId: 'workspace-1',
+      deleteNamespace: undefined,
+    });
+  });
+
   it('shares installation-token cleanup with the direct and composed processors', async () => {
     const deleteSecrets = vi.fn(() => Promise.resolve(1));
     const provider = createGithubIntegrationProvider({
@@ -168,6 +208,57 @@ describe('createGithubIntegrationProvider', () => {
       workspaceId: 'workspace-1',
       namespace: githubInstallationTokenNamespace(123),
     });
+  });
+
+  it('starts checkout cleanup when fenced installation invalidation rejects', async () => {
+    const deleteSecrets = vi.fn(() => Promise.resolve(1));
+    const deleteInstallation = vi.fn(() => Promise.reject(new Error('fence unavailable')));
+    const deleteCheckoutInstallation = vi.fn(() => Promise.resolve(1));
+    const provider = createGithubIntegrationProvider({
+      github: {} as never,
+      getExistingGithubConnection: vi.fn(() => Promise.resolve(undefined)),
+      connectGithubInstallation: vi.fn() as never,
+      coreDb: vi.fn() as never,
+      publishIntegrationEventReceived: vi.fn(() => Promise.resolve({published: false})),
+      publishSourceRepositoryUpdated: vi.fn(() => Promise.resolve({published: false})),
+      publishSourcePush: vi.fn(() => Promise.resolve({published: false})),
+      recordDeliveryOnly: vi.fn(() => Promise.resolve()),
+      getIntegrationConnectionById: vi.fn(() => Promise.resolve(undefined)),
+      deleteSecrets,
+      agentTools: {
+        tokenProvider: {
+          getInstallationAccessToken: vi.fn(),
+          deleteInstallation,
+        },
+      },
+      checkoutTokenCache: {
+        getOrMint: vi.fn(),
+        deleteInstallation: deleteCheckoutInstallation,
+      },
+    });
+    const deleteConnectionSecrets = provider.deleteConnectionSecrets;
+    if (!deleteConnectionSecrets) throw new Error('Expected connection secret cleanup');
+
+    await expect(
+      deleteConnectionSecrets({
+        id: 'connection-1',
+        provider: 'github',
+        workspaceId: 'workspace-1',
+        externalAccountId: '123',
+        slug: 'github_shipfox',
+        displayName: 'GitHub',
+        lifecycleStatus: 'active',
+        repositoryAccessMode: 'selected',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    ).rejects.toThrow('fence unavailable');
+
+    expect(deleteCheckoutInstallation).toHaveBeenCalledWith(
+      'workspace-1',
+      githubProviderInstanceFingerprint('https://api.github.com', '1'),
+      123,
+    );
   });
 
   it('falls back to namespace deletion when a cache cannot delete shared entries', async () => {

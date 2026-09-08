@@ -32,8 +32,10 @@ async function loadGithubModuleParts(
     createGithubCheckoutTokenCache,
     createGithubE2eRoutes,
     encodeInstallationTokenEnvelope,
+    GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
     createGithubIntegrationProvider,
     getGithubInstallationByInstallationId,
+    githubInstallationTokenGenerationNamespace,
     githubInstallationTokenNamespace,
     db: githubDb,
     migrationsPath: githubMigrationsPath,
@@ -90,6 +92,19 @@ async function loadGithubModuleParts(
               workspaceId,
               namespace: githubInstallationTokenNamespace(installationId),
               values: {[key]: encodeInstallationTokenEnvelope(envelope)},
+            });
+          },
+          readGeneration: async (workspaceId, installationId) =>
+            (await githubSecrets.getSecret({
+              workspaceId,
+              namespace: githubInstallationTokenGenerationNamespace(installationId),
+              key: GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
+            })) ?? null,
+          writeGeneration: async (workspaceId, installationId, generation) => {
+            await githubSecrets.setSecrets({
+              workspaceId,
+              namespace: githubInstallationTokenGenerationNamespace(installationId),
+              values: {[GITHUB_INSTALLATION_TOKEN_GENERATION_KEY]: generation},
             });
           },
         }

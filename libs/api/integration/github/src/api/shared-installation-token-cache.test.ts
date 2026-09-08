@@ -1,11 +1,13 @@
 import {createHash} from 'node:crypto';
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {GithubIntegrationProviderError} from '#core/errors.js';
+import type {GithubInstallationAccessToken} from './client.js';
 import {
   backoffActive,
   encodeInstallationTokenEnvelope,
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
+  GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
   githubInstallationTokenBackoffKey,
   githubInstallationTokenKey,
   needsRefresh,
@@ -33,12 +35,16 @@ function createStore(): InstallationTokenSecretStore & {
   values: Map<string, string>;
   failWrites: boolean;
   failReads: boolean;
+  failGenerationReads: boolean;
+  failGenerationWrites: boolean;
 } {
   const values = new Map<string, string>();
   const store = {
     values,
     failWrites: false,
     failReads: false,
+    failGenerationReads: false,
+    failGenerationWrites: false,
     read(readWorkspaceId: string, readInstallationId: number, key: string) {
       if (!secretKeySchema.safeParse(key).success) {
         return Promise.reject(new Error(`invalid secret key: ${key}`));
@@ -62,6 +68,22 @@ function createStore(): InstallationTokenSecretStore & {
       );
       return Promise.resolve();
     },
+    readGeneration(readWorkspaceId: string, readInstallationId: number) {
+      if (store.failGenerationReads) return Promise.reject(new Error('generation read failed'));
+      return Promise.resolve(
+        values.get(
+          `${readWorkspaceId}:${readInstallationId}:${GITHUB_INSTALLATION_TOKEN_GENERATION_KEY}`,
+        ) ?? null,
+      );
+    },
+    writeGeneration(writeWorkspaceId: string, writeInstallationId: number, generation: string) {
+      if (store.failGenerationWrites) return Promise.reject(new Error('generation write failed'));
+      values.set(
+        `${writeWorkspaceId}:${writeInstallationId}:${GITHUB_INSTALLATION_TOKEN_GENERATION_KEY}`,
+        generation,
+      );
+      return Promise.resolve();
+    },
   };
   return store;
 }
@@ -77,6 +99,13 @@ function cache(
           fn: () => Promise<T>,
         ) => Promise<InstallationTokenLockResult<T>>)
       | undefined;
+    withBackoffLock?:
+      | (<T>(
+          installationId: number,
+          permissionFingerprint: string,
+          fn: () => Promise<T>,
+        ) => Promise<InstallationTokenLockResult<T>>)
+      | undefined;
     resolveWorkspaceId?: ((installationId: number) => Promise<string>) | undefined;
     sleep?: ((ms: number) => Promise<void>) | undefined;
     pollDelaysMs?: number[] | undefined;
@@ -86,6 +115,9 @@ function cache(
     secretStore: options.store ?? createStore(),
     withLock:
       options.withLock ??
+      (async (_id, _permissionFingerprint, fn) => ({acquired: true, value: await fn()})),
+    withBackoffLock:
+      options.withBackoffLock ??
       (async (_id, _permissionFingerprint, fn) => ({acquired: true, value: await fn()})),
     resolveWorkspaceId: options.resolveWorkspaceId ?? (() => Promise.resolve(workspaceId)),
     now: () => options.now ?? new Date('2026-06-10T11:00:00.000Z'),
@@ -160,6 +192,158 @@ describe('SharedInstallationTokenCache', () => {
         `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
       ),
     ).toContain('ghs_new');
+  });
+
+  it('writes token and backoff envelopes under a caller-owned compatibility lock', async () => {
+    const store = createStore();
+    let lockHeld = false;
+    const withNonReentrantLock = async <T>(
+      _installationId: number,
+      _permissionFingerprint: string,
+      fn: () => Promise<T>,
+    ): Promise<InstallationTokenLockResult<T>> => {
+      if (lockHeld) return {acquired: false};
+      lockHeld = true;
+      try {
+        return {acquired: true, value: await fn()};
+      } finally {
+        lockHeld = false;
+      }
+    };
+    const shared = cache({
+      store,
+      withLock: withNonReentrantLock,
+      withBackoffLock: withNonReentrantLock,
+    });
+
+    await expect(
+      shared.getOrMint(installationId, GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT, () =>
+        Promise.resolve(token('ghs_new')),
+      ),
+    ).resolves.toEqual(token('ghs_new'));
+    expect(
+      store.values.get(
+        `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
+      ),
+    ).toContain('ghs_new');
+
+    setEnvelope(store, token('ghs_existing', '2026-06-10T11:04:30.000Z'));
+    const failedMint = vi
+      .fn()
+      .mockRejectedValue(new GithubIntegrationProviderError('provider-rejected', 'rejected'));
+
+    await expect(
+      shared.getOrMint(installationId, GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT, failedMint),
+    ).rejects.toMatchObject({reason: 'provider-rejected'});
+    expect(
+      store.values.get(
+        `${workspaceId}:${installationId}:${githubInstallationTokenBackoffKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
+      ),
+    ).toContain('provider-rejected');
+  });
+
+  it('rejects a legacy envelope after a new invalidation generation is published', async () => {
+    const store = createStore();
+    setEnvelope(store, token('ghs_before-approval'), 'broad');
+    await store.writeGeneration?.(workspaceId, installationId, 'generation-after-approval');
+    const mint = vi.fn(() => Promise.resolve(token('ghs_after-approval')));
+    const shared = cache({store});
+
+    await expect(shared.getOrMint(installationId, 'broad', mint)).resolves.toEqual(
+      token('ghs_after-approval'),
+    );
+    expect(mint).toHaveBeenCalledOnce();
+    expect(
+      store.values.get(`${workspaceId}:${installationId}:${githubInstallationTokenKey('broad')}`),
+    ).toContain('generation-after-approval');
+  });
+
+  it('fails closed when the generation fence cannot be read', async () => {
+    const store = createStore();
+    setEnvelope(store, token('ghs_stale'), 'broad');
+    store.failGenerationReads = true;
+    const shared = cache({store});
+
+    await expect(
+      shared.getOrMint(installationId, 'broad', () => Promise.resolve(token('ghs_fresh'))),
+    ).rejects.toMatchObject({reason: 'provider-unavailable'});
+  });
+
+  it('fences a mint that completes after installation invalidation', async () => {
+    const store = createStore();
+    let resolveFirstMint: (value: GithubInstallationAccessToken) => void = () => undefined;
+    let resolveFirstMintStarted: () => void = () => undefined;
+    const firstMintStarted = new Promise<void>((resolve) => {
+      resolveFirstMintStarted = resolve;
+    });
+    let mintCalls = 0;
+    const mint = vi.fn(() => {
+      mintCalls += 1;
+      if (mintCalls === 1) {
+        resolveFirstMintStarted();
+        return new Promise<GithubInstallationAccessToken>((resolve) => {
+          resolveFirstMint = resolve;
+        });
+      }
+      return Promise.resolve(token('ghs_fresh'));
+    });
+    const withLock = async <T>(
+      _installationId: number,
+      _permissionFingerprint: string,
+      fn: () => Promise<T>,
+    ): Promise<InstallationTokenLockResult<T>> => ({
+      acquired: true,
+      value: await fn(),
+    });
+    const shared = cache({store, withLock});
+    const pending = shared.getOrMint(installationId, 'broad', mint);
+    await firstMintStarted;
+    await shared.deleteInstallation(installationId, {
+      workspaceId,
+      deleteNamespace: () => {
+        store.values.clear();
+        return Promise.resolve(1);
+      },
+    });
+    resolveFirstMint(token('ghs_stale'));
+
+    await expect(pending).resolves.toEqual(token('ghs_fresh'));
+    expect(mint).toHaveBeenCalledTimes(2);
+    expect(store.values.get(`${workspaceId}:${installationId}:GENERATION`)).toBeDefined();
+    expect(
+      store.values.get(`${workspaceId}:${installationId}:${githubInstallationTokenKey('broad')}`),
+    ).toContain('ghs_fresh');
+  });
+
+  it('keeps the invalidation fence after a failed cleanup and retries it', async () => {
+    const store = createStore();
+    const shared = cache({store});
+    await shared.getOrMint(installationId, 'broad', () => Promise.resolve(token('ghs_old')));
+    store.failGenerationWrites = true;
+
+    await expect(
+      shared.deleteInstallation(installationId, {
+        workspaceId,
+        deleteNamespace: () => {
+          store.values.clear();
+          return Promise.resolve(1);
+        },
+      }),
+    ).rejects.toMatchObject({reason: 'provider-unavailable'});
+
+    store.failGenerationWrites = false;
+    await expect(
+      shared.deleteInstallation(installationId, {
+        workspaceId,
+        deleteNamespace: () => {
+          store.values.clear();
+          return Promise.resolve(1);
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      shared.getOrMint(installationId, 'broad', () => Promise.resolve(token('ghs_new'))),
+    ).resolves.toEqual(token('ghs_new'));
   });
 
   it('isolates profile tokens while allowing different profiles to mint independently', async () => {
@@ -356,6 +540,21 @@ describe('SharedInstallationTokenCache', () => {
 
     expect(result).toEqual(token('ghs_cached'));
     expect(mint).not.toHaveBeenCalled();
+  });
+
+  it('serves a same-generation cached hit without reacquiring the compatibility lock', async () => {
+    const store = createStore();
+    await store.writeGeneration?.(workspaceId, installationId, 'generation-1');
+    setEnvelope(store, {...token('ghs_cached'), generation: 'generation-1'});
+    const withBackoffLock = vi.fn(() => Promise.resolve({acquired: false as const}));
+    const mint = vi.fn(() => Promise.resolve(token('ghs_new')));
+    const shared = cache({store, withBackoffLock});
+
+    await expect(
+      shared.getOrMint(installationId, GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT, mint),
+    ).resolves.toEqual(token('ghs_cached'));
+    expect(mint).not.toHaveBeenCalled();
+    expect(withBackoffLock).not.toHaveBeenCalled();
   });
 
   it('serves a still-valid token on a contended refresh path', async () => {

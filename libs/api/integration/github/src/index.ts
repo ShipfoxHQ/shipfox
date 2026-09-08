@@ -55,11 +55,14 @@ export {
   encodeInstallationTokenEnvelope,
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
+  GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
+  githubInstallationTokenGenerationNamespace,
   githubInstallationTokenKey,
   githubInstallationTokenNamespace,
 } from '#api/installation-token-envelope.js';
 export {
   createGithubInstallationTokenProvider,
+  type DeleteInstallationOptions,
   type GithubInstallationTokenProvider,
 } from '#api/installation-token-provider.js';
 export {
@@ -126,25 +129,43 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
     options.getGithubInstallationByConnectionId ?? getGithubInstallationByConnectionId;
   const deleteSecrets = options.deleteSecrets;
   const checkoutTokenCache = options.checkoutTokenCache;
+  const installationTokenProvider =
+    options.agentTools?.tokenProvider ??
+    createGithubInstallationTokenProvider({
+      getGithubInstallationByInstallationId:
+        options.getGithubInstallationByInstallationId ?? getGithubInstallationByInstallationId,
+    });
   const checkoutTokenProviderInstance =
     deleteSecrets || checkoutTokenCache
       ? githubProviderInstanceFingerprint(normalizedGithubApiBaseUrl(), config.GITHUB_APP_ID)
       : undefined;
+  const deleteInstallationToken = async (params: {
+    workspaceId: string;
+    installationId: number;
+  }): Promise<void> => {
+    const deleteNamespace = deleteSecrets
+      ? (installationId: number) =>
+          deleteGithubInstallationTokenSecret({
+            workspaceId: params.workspaceId,
+            installationId,
+            deleteSecrets,
+          })
+      : undefined;
+    if (installationTokenProvider.deleteInstallation) {
+      await installationTokenProvider.deleteInstallation(params.installationId, {
+        workspaceId: params.workspaceId,
+        deleteNamespace,
+      });
+      return;
+    }
+    await deleteNamespace?.(params.installationId);
+  };
   const deleteInstallationSecrets =
     deleteSecrets || checkoutTokenCache
       ? async (params: {workspaceId: string; installationId: number}): Promise<void> => {
-          const cleanup: Promise<unknown>[] = [];
-          if (deleteSecrets) {
-            cleanup.push(
-              deleteGithubInstallationTokenSecret({
-                workspaceId: params.workspaceId,
-                installationId: params.installationId,
-                deleteSecrets,
-              }),
-            );
-          }
+          const cleanupOperations: Promise<unknown>[] = [deleteInstallationToken(params)];
           if (checkoutTokenProviderInstance) {
-            cleanup.push(
+            cleanupOperations.push(
               (async () => {
                 const deleted = checkoutTokenCache?.deleteInstallation
                   ? await checkoutTokenCache.deleteInstallation(
@@ -166,12 +187,12 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
               })(),
             );
           }
-          await Promise.all(cleanup);
+          await Promise.all(cleanupOperations);
         }
       : undefined;
-  const deleteInstallationTokenSecret = deleteInstallationSecrets
-    ? (params: {workspaceId: string; installationId: number}) => deleteInstallationSecrets(params)
-    : undefined;
+  const deleteInstallationTokenSecret =
+    deleteInstallationSecrets ??
+    (installationTokenProvider.deleteInstallation ? deleteInstallationToken : undefined);
   const deleteConnectionSecrets = deleteInstallationSecrets
     ? async (connection: IntegrationConnection<'github'>): Promise<void> => {
         const {externalAccountId} = connection;
@@ -202,13 +223,7 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
       source_control: new GithubSourceControlProvider(github, undefined, checkoutTokenCache),
       agent_tools: new GithubAgentToolsProvider({
         getInstallationByConnectionId: getInstallationByConnectionId,
-        tokenProvider:
-          options.agentTools?.tokenProvider ??
-          createGithubInstallationTokenProvider({
-            getGithubInstallationByInstallationId:
-              options.getGithubInstallationByInstallationId ??
-              getGithubInstallationByInstallationId,
-          }),
+        tokenProvider: installationTokenProvider,
       }),
     },
     ...(deleteConnectionSecrets ? {deleteConnectionSecrets} : {}),
