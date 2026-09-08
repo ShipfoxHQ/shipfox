@@ -594,6 +594,11 @@ type ContinuationAttempt =
   | {kind: 'terminal'; reason: AdoptedSessionReleaseReason}
   | {kind: 'stale'};
 
+type RenewalAdoptionResult =
+  | {kind: 'success'; renewal: AdoptedSessionRenewal}
+  | {kind: 'terminal'; reason: AdoptedSessionReleaseReason}
+  | {kind: 'stale'};
+
 interface AdoptedSessionControl {
   continuation: {
     generation: number;
@@ -1005,8 +1010,12 @@ export function useAdoptedSession() {
       candidateExpiryMs: number;
       generation: number;
       adopted: AdoptedSessionRuntimeState;
-    }): Promise<AdoptedSessionRenewal | null> => {
-      if (result.session.user.id !== adopted.session.user.id) return null;
+    }): Promise<RenewalAdoptionResult> => {
+      if (store.get(adoptionGenerationAtom) !== generation) return {kind: 'stale'};
+      if (result.session.user.id !== adopted.session.user.id) {
+        store.set(adoptedRenewalReservationAtom, 0);
+        return {kind: 'terminal', reason: 'continuation-terminal'};
+      }
       const receivedAtMs = monotonicNow();
       const transitionEpoch = beginAuthTransition();
       invalidateRefresh(queryClient);
@@ -1015,7 +1024,7 @@ export function useAdoptedSession() {
         if (store.get(adoptedRenewalReservationAtom) === candidateExpiryMs) {
           store.set(adoptedRenewalReservationAtom, 0);
         }
-        return null;
+        return {kind: 'stale'};
       }
       const latest = store.get(adoptedSessionAtom) ?? adopted;
       const lifetimeMs = observedLifetimeMs(result.expiresAt, result.serverTime);
@@ -1036,7 +1045,7 @@ export function useAdoptedSession() {
         retryAttempt: 0,
         stalledRenewals: 0,
       });
-      return result;
+      return {kind: 'success', renewal: result};
     },
     [beginAuthTransition, enterAuthenticated, isAttended, queryClient, store],
   );
@@ -1105,6 +1114,11 @@ export function useAdoptedSession() {
 
       const current = store.get(adoptedSessionAtom);
       if (current === null || current.generation !== generation) return {kind: 'stale'};
+      if (result.session.user.id !== current.session.user.id) {
+        if (store.get(adoptionGenerationAtom) !== generation) return {kind: 'stale'};
+        store.set(adoptedRenewalReservationAtom, 0);
+        return {kind: 'terminal', reason: 'continuation-terminal'};
+      }
       if (
         current.hardDeadlineMs !== undefined &&
         Date.parse(result.serverTime) >= current.hardDeadlineMs
@@ -1132,15 +1146,16 @@ export function useAdoptedSession() {
       if (candidate.expiryMs > store.get(adoptedRenewalReservationAtom)) {
         store.set(adoptedRenewalReservationAtom, candidate.expiryMs);
       }
-      const renewal = await adoptRenewalResult({
+      const adoption = await adoptRenewalResult({
         result,
         candidateExpiryMs: candidate.expiryMs,
         generation,
         adopted: current,
       });
-      if (renewal === null) return {kind: 'stale'};
+      if (adoption.kind === 'terminal') return adoption;
+      if (adoption.kind === 'stale') return {kind: 'stale'};
       await refetchPausedActiveQueries(queryClient);
-      return {kind: 'success', renewal};
+      return {kind: 'success', renewal: adoption.renewal};
     },
     [adoptRenewalResult, isAttended, queryClient, setRetryableState, store, waitForRelease],
   );
@@ -1208,6 +1223,12 @@ export function useAdoptedSession() {
       }
       const current = store.get(adoptedSessionAtom);
       if (current === null) return null;
+      if (result.session.user.id !== current.session.user.id) {
+        if (store.get(adoptionGenerationAtom) !== generation) return null;
+        store.set(adoptedRenewalReservationAtom, 0);
+        await endAdoption('continuation-terminal');
+        return null;
+      }
       const candidate = renewalCandidate(result, current, store.get(adoptedRenewalReservationAtom));
       if (!candidate.advancesWindow) {
         await handleNonAdvancingRenewal(candidate, current, adopted);
@@ -1216,14 +1237,19 @@ export function useAdoptedSession() {
       if (candidate.expiryMs > store.get(adoptedRenewalReservationAtom)) {
         store.set(adoptedRenewalReservationAtom, candidate.expiryMs);
       }
-      const renewal = await adoptRenewalResult({
+      const adoption = await adoptRenewalResult({
         result,
         candidateExpiryMs: candidate.expiryMs,
         generation,
         adopted,
       });
-      if (renewal !== null) await refetchPausedActiveQueries(queryClient);
-      return renewal;
+      if (adoption.kind === 'terminal') {
+        await endAdoption(adoption.reason);
+        return null;
+      }
+      if (adoption.kind === 'stale') return null;
+      await refetchPausedActiveQueries(queryClient);
+      return adoption.renewal;
     },
     [
       adoptRenewalResult,

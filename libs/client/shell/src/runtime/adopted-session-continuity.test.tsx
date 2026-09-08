@@ -274,6 +274,43 @@ describe('continuity-aware adopted sessions', () => {
     );
   });
 
+  test('a renewal for a different principal ends continuity without retrying', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    const times = adoptionTimes();
+    const wrongPrincipalRenewal = {
+      session: {
+        ...TARGET_SESSION,
+        accessToken: 'wrong-principal-token',
+        user: ADMIN_SESSION.user,
+      },
+      ...adoptionTimes(120_000),
+    };
+    const renew = vi.fn(() => Promise.resolve(wrongPrincipalRenewal));
+    const api = apiRef.current;
+    if (api === null) throw new Error('The auth harness was not mounted.');
+    await act(async () => {
+      await expect(api.adoptSession(TARGET_SESSION, {...times, renew})).resolves.toBe(true);
+    });
+
+    await expect(api.continueForRequest({source: 'request'}, true)).rejects.toMatchObject({
+      code: 'adopted-session-ended',
+      status: 0,
+      details: {reason: 'continuation-terminal'},
+    });
+
+    expect(renew).toHaveBeenCalledOnce();
+    expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken);
+  });
+
   test('does not return a continuation token after the request aborts', async () => {
     setDocumentAttendance({visible: true, focused: true});
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {

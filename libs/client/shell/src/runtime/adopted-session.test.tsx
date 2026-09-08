@@ -486,6 +486,36 @@ describe('adopted-session runtime seam', () => {
     await waitFor(() => expect(apiRef.current?.adoptedSession).toBeNull());
   });
 
+  test('a renewal for a different principal ends the legacy adoption', async () => {
+    const {apiRef, fetchImpl, store} = renderAuthHarness();
+    await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
+
+    const api = harnessApi(apiRef);
+    const renewal: AdoptedSessionRenewal = {
+      session: {
+        ...ADOPTED_SESSION,
+        accessToken: 'wrong-principal-token',
+        user: {id: ADMIN_USER.id, email: ADMIN_USER.email, adminRole: 'admin-owner'},
+      },
+      expiresAt: '2026-08-25T09:00:00.000Z',
+      serverTime: SERVER_TIME,
+    };
+    const renew = vi.fn(() => Promise.resolve(renewal));
+    await api.adoptSession(ADOPTED_SESSION, {
+      expiresAt: EXPIRES_AT,
+      serverTime: SERVER_TIME,
+      renew,
+    });
+
+    const refreshCallsBeforeRenewal = refreshCallCount(fetchImpl);
+    await expect(api.renewAdoptedSession()).resolves.toBeNull();
+
+    expect(renew).toHaveBeenCalledOnce();
+    await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
+    expect(refreshCallCount(fetchImpl)).toBe(refreshCallsBeforeRenewal + 1);
+    await waitFor(() => expect(apiRef.current?.adoptedSession).toBeNull());
+  });
+
   test('a throwing renewal degrades like a refused one', async () => {
     const {apiRef, store} = renderAuthHarness();
     await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
