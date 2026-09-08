@@ -5061,6 +5061,31 @@ describe('github agent tool catalog', () => {
     ).rejects.toMatchObject({reason: 'provider-rejected', status: 404});
   });
 
+  it('maps a create 404 to repository-not-found', async () => {
+    const providerError = new RequestError('Not Found', 404, {
+      request: {
+        method: 'POST',
+        url: 'https://api.github.com/repos/shipfox/platform/check-runs',
+        headers: {},
+      },
+    });
+    const request = vi.fn(() => Promise.reject(providerError));
+
+    await expect(
+      callGithubToolWithRequest(
+        'check_run_write',
+        {
+          method: 'create',
+          owner: 'shipfox',
+          repo: 'platform',
+          name: 'Shipfox review',
+          head_sha: 'a'.repeat(40),
+        },
+        request,
+      ),
+    ).rejects.toMatchObject({reason: 'repository-not-found', status: 404});
+  });
+
   it('denies check-run calls when the minted token lacks checks write', async () => {
     const request = vi.fn();
     const checkRunWrite = githubAgentToolCatalog.find((entry) => entry.id === 'check_run_write');

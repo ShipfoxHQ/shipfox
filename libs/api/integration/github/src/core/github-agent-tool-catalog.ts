@@ -333,7 +333,8 @@ const checkRunWriteMethods = [
   ),
 ] as const satisfies readonly GithubAgentToolCatalogMethod[];
 
-const checkRunInputConclusions = [
+export const checkRunInputStatuses = ['queued', 'in_progress', 'completed'] as const;
+export const checkRunInputConclusions = [
   'action_required',
   'cancelled',
   'failure',
@@ -341,17 +342,17 @@ const checkRunInputConclusions = [
   'success',
   'skipped',
   'timed_out',
-];
-const checkRunOutputStatuses = [
+] as const;
+export const checkRunOutputStatuses = [
   'queued',
   'in_progress',
   'completed',
   'waiting',
   'requested',
   'pending',
-];
-const checkRunOutputConclusions = [...checkRunInputConclusions, 'stale'];
-const checkRunMutableFields = [
+] as const;
+export const checkRunOutputConclusions = [...checkRunInputConclusions, 'stale'] as const;
+export const checkRunMutableFields = [
   'name',
   'details_url',
   'external_id',
@@ -360,7 +361,7 @@ const checkRunMutableFields = [
   'conclusion',
   'completed_at',
   'output',
-];
+] as const;
 
 const checkRunInputSchema = repositoryInputSchema(
   {
@@ -372,11 +373,11 @@ const checkRunInputSchema = repositoryInputSchema(
     head_sha: stringSchema('Full, non-zero 40- or 64-character hexadecimal commit object ID'),
     details_url: stringSchema('Absolute HTTP or HTTPS link with more details'),
     external_id: stringSchema('Caller-owned correlation key'),
-    status: enumSchema(['queued', 'in_progress', 'completed'], 'Check-run lifecycle status'),
+    status: enumSchema([...checkRunInputStatuses], 'Check-run lifecycle status'),
     started_at: stringSchema(
       'RFC 3339 timestamp when the check started; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
     ),
-    conclusion: enumSchema(checkRunInputConclusions, 'Final check-run conclusion'),
+    conclusion: enumSchema([...checkRunInputConclusions], 'Final check-run conclusion'),
     completed_at: stringSchema(
       'RFC 3339 timestamp when the check completed; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
     ),
@@ -412,8 +413,11 @@ const checkRunOutputSchema = objectSchema(
         external_id: nullableStringSchema('Caller-owned correlation key'),
         details_url: nullableStringSchema('Absolute HTTP or HTTPS details link'),
         html_url: stringSchema('GitHub check-run URL'),
-        status: enumSchema(checkRunOutputStatuses, 'GitHub check-run lifecycle status'),
-        conclusion: nullableEnumSchema(checkRunOutputConclusions, 'GitHub check-run conclusion'),
+        status: enumSchema([...checkRunOutputStatuses], 'GitHub check-run lifecycle status'),
+        conclusion: nullableEnumSchema(
+          [...checkRunOutputConclusions],
+          'GitHub check-run conclusion',
+        ),
         started_at: nullableStringSchema(
           'RFC 3339 start timestamp; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
         ),
