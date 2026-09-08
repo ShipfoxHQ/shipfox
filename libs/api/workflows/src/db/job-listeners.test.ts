@@ -1323,7 +1323,7 @@ describe('drainListenerEventsIntoExecution', () => {
       jobs: {
         review: {
           runner: ['linux'],
-          runnerTemplates: [template('executions[0].events[0].data.runner')],
+          runnerTemplates: [template('execution.events[0].data.runner')],
           steps: [{run: 'echo review'}],
         },
       },
@@ -1354,7 +1354,7 @@ describe('drainListenerEventsIntoExecution', () => {
       .where(eq(jobExecutions.jobId, job.id))
       .orderBy(asc(jobExecutions.sequence));
     expect(first).toMatchObject({kind: 'execution', requiredLabels: ['gpu', 'linux']});
-    expect(second).toMatchObject({kind: 'execution', requiredLabels: ['gpu', 'linux']});
+    expect(second).toMatchObject({kind: 'execution', requiredLabels: ['arm', 'linux']});
     expect(persistedSecond?.triggerEvents).toMatchObject([{data: {runner: 'ARM'}}]);
     expect(executions.map((execution) => execution.triggerEvents)).toEqual([null, null]);
   });

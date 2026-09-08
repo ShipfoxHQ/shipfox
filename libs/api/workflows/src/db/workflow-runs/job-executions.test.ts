@@ -526,7 +526,7 @@ describe('workflow run job executions', () => {
         jobs: {
           build: {
             steps: [{run: 'echo build'}],
-            outputs: {action: template('executions[0].events[0].data.action')},
+            outputs: {action: template('execution.events[0].data.action')},
           },
         },
       }),

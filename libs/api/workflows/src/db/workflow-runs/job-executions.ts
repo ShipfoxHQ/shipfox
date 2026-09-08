@@ -23,7 +23,10 @@ import {
   recordWorkflowJobExecutionTimedOut,
 } from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
-import {loadJobExecutionsWithCanonicalTriggerEvents} from '../execution-trigger-events.js';
+import {
+  loadJobExecutionsWithCanonicalTriggerEventMetadata,
+  loadJobExecutionsWithCanonicalTriggerEvents,
+} from '../execution-trigger-events.js';
 import {
   type JobExecutionDb,
   jobExecutions,
@@ -226,23 +229,27 @@ async function resolveJobExecutionOutputs(
   if (!modelJob || modelJob.outputs === undefined) return null;
 
   const executionRows = await tx
-    .select()
+    .select(jobExecutionWithoutTriggerEventsSelection)
     .from(jobExecutions)
     .where(eq(jobExecutions.jobId, target.job.id))
     .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-  const hydratedExecutionRows = await loadJobExecutionsWithCanonicalTriggerEvents(
-    tx,
-    executionRows,
-  );
+  const currentExecutionRows = await loadJobExecutionsWithCanonicalTriggerEvents(tx, [
+    target.execution,
+  ]);
+  const eventMetadata = await loadJobExecutionsWithCanonicalTriggerEventMetadata(tx, executionRows);
   const fallbackName = target.job.name ?? target.job.key;
   const executions = executionRows.map((row) => {
-    const hydrated = hydratedExecutionRows.get(row.id) ?? row;
-    return row.id === target.execution.id
-      ? toJobExecution(
-          {...hydrated, status: params.status, statusReason: params.statusReason},
-          fallbackName,
-        )
-      : toJobExecution(hydrated, fallbackName);
+    if (row.id === target.execution.id) {
+      const current = currentExecutionRows.get(row.id) ?? target.execution;
+      return toJobExecution(
+        {...current, status: params.status, statusReason: params.statusReason},
+        fallbackName,
+      );
+    }
+    return {
+      ...toJobExecution(row, fallbackName),
+      triggerEventMetadata: eventMetadata.get(row.id) ?? [],
+    };
   });
   const jobExecution = executions.find((execution) => execution.id === target.execution.id);
   if (!jobExecution) throw new JobNotFoundError(params.jobExecutionId);
@@ -257,7 +264,9 @@ async function resolveJobExecutionOutputs(
     .from(stepAttempts)
     .where(eq(stepAttempts.jobExecutionId, params.jobExecutionId))
     .orderBy(asc(stepAttempts.executionOrder), asc(stepAttempts.id));
-  const dependencyJobs = await getDirectDependencyJobContexts(target.job.id, tx);
+  const dependencyJobs = await getDirectDependencyJobContexts(target.job.id, tx, {
+    includeTriggerEventPayloads: false,
+  });
 
   const outputs = deriveJobExecutionOutputs({
     run: toWorkflowRun(target.run),

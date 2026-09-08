@@ -169,11 +169,17 @@ const jobTypeEnvironment = {
 const executionEventType = {
   kind: 'object',
   fields: {
+    event_ref: 'string',
     source: 'string',
     event: 'string',
     delivery_id: 'string',
     received_at: 'timestamp',
     ...triggerReferenceFields,
+    disposition: 'string',
+    outcome: 'string',
+    outcome_reason: 'string',
+    stored_payload_bytes: 'int',
+    normalized_event_bytes: 'int',
     data: {
       kind: 'map',
     },

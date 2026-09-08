@@ -338,7 +338,10 @@ describe('assembleExecutionCreationContext', () => {
             status: 'failed',
             started_at: date,
             finished_at: date,
-            events: prior.triggerEvents.map((event) => ({...event, received_at: date})),
+            events: prior.triggerEvents.map(({data: _data, ...event}) => ({
+              ...event,
+              received_at: date,
+            })),
             outputs: {},
           },
           {
@@ -387,6 +390,73 @@ describe('assembleExecutionCreationContext', () => {
         },
       },
     });
+  });
+
+  it('keeps current payloads while projecting prior event metadata', () => {
+    const prior = jobExecution({
+      id: 'prior-execution',
+      triggerEventMetadata: [
+        {
+          event_ref: 'event-1',
+          source: 'github',
+          event: 'push',
+          delivery_id: 'delivery-1',
+          received_at: '2026-06-30T12:00:00.000Z',
+          project: null,
+          repository: null,
+          ref: null,
+          commit: null,
+          disposition: 'fire',
+          outcome: 'consumed',
+          outcome_reason: null,
+          stored_payload_bytes: 17,
+          normalized_event_bytes: 42,
+        },
+      ],
+    });
+
+    const context = assembleExecutionCreationContext({
+      run,
+      triggerPayload: {
+        source: 'github',
+        event: 'push',
+        deliveryId: 'delivery-current',
+        data: {ref: 'refs/heads/main'},
+      },
+      job: {id: 'job-1', key: 'build', name: 'Build'},
+      sequence: 2,
+      nameOverride: null,
+      executionName: 'Build #2',
+      status: 'pending',
+      triggerEvents: [
+        {
+          source: 'github',
+          event: 'push',
+          delivery_id: 'delivery-current',
+          received_at: '2026-06-30T12:01:00.000Z',
+          project: null,
+          repository: null,
+          ref: null,
+          commit: null,
+          data: {action: 'opened'},
+        },
+      ],
+      priorExecutions: [prior],
+    });
+
+    const executions = context.values.executions as Array<{
+      events: Array<Record<string, unknown>>;
+    }>;
+    expect(executions[0]?.events).toEqual([
+      expect.objectContaining({
+        event_ref: 'event-1',
+        outcome: 'consumed',
+        stored_payload_bytes: 17,
+        normalized_event_bytes: 42,
+      }),
+    ]);
+    expect(executions[0]?.events[0]).not.toHaveProperty('data');
+    expect(executions[1]?.events[0]).toMatchObject({data: {action: 'opened'}});
   });
 });
 
@@ -461,7 +531,7 @@ describe('assembleJobActivationContext', () => {
                 status: 'succeeded',
                 started_at: date,
                 finished_at: null,
-                events: buildExecution.triggerEvents.map((event) => ({
+                events: buildExecution.triggerEvents.map(({data: _data, ...event}) => ({
                   ...event,
                   received_at: date,
                 })),
@@ -488,7 +558,7 @@ describe('assembleJobActivationContext', () => {
                 status: 'succeeded',
                 started_at: date,
                 finished_at: null,
-                events: buildExecution.triggerEvents.map((event) => ({
+                events: buildExecution.triggerEvents.map(({data: _data, ...event}) => ({
                   ...event,
                   received_at: date,
                 })),
@@ -2277,8 +2347,20 @@ describe('assembleGateContext', () => {
 describe('assembleJobResolutionContext', () => {
   it('wraps executions with the job-resolution site', () => {
     const executions = [
-      jobExecution({sequence: 0, name: 'First', status: 'failed', finishedAt: date}),
-      jobExecution({sequence: 1, name: 'Second', status: 'succeeded', finishedAt: date}),
+      jobExecution({
+        id: 'exec-first',
+        sequence: 0,
+        name: 'First',
+        status: 'failed',
+        finishedAt: date,
+      }),
+      jobExecution({
+        id: 'exec-second',
+        sequence: 1,
+        name: 'Second',
+        status: 'succeeded',
+        finishedAt: date,
+      }),
     ];
 
     const context = assembleJobResolutionContext({executions, jobs: []});
@@ -2308,7 +2390,6 @@ describe('assembleJobResolutionContext', () => {
                 repository: null,
                 ref: null,
                 commit: null,
-                data: {ref: 'refs/heads/main'},
               },
             ],
             outputs: {},

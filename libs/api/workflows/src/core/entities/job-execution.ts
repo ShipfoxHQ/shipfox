@@ -1,4 +1,9 @@
 import type {JobStatus, JobStatusReason} from './job.js';
+import type {
+  JobListenerEventDisposition,
+  JobListenerEventOutcome,
+  JobListenerEventOutcomeReason,
+} from './job-listener-event.js';
 import type {PersistedEvaluationTraceEntry} from './step.js';
 import type {WorkflowRunTriggerReference} from './workflow-run.js';
 
@@ -14,6 +19,15 @@ export interface WorkflowExecutionEvent {
   ref: WorkflowRunTriggerReference['ref'];
   commit: WorkflowRunTriggerReference['commit'];
   data: unknown;
+}
+
+export interface WorkflowExecutionEventMetadata extends Omit<WorkflowExecutionEvent, 'data'> {
+  event_ref?: string;
+  disposition?: JobListenerEventDisposition;
+  outcome?: JobListenerEventOutcome;
+  outcome_reason?: JobListenerEventOutcomeReason | null;
+  stored_payload_bytes?: number;
+  normalized_event_bytes?: number;
 }
 
 export function normalizeWorkflowExecutionEvent(
@@ -45,6 +59,8 @@ export interface JobExecution {
   statusReason: JobStatusReason | null;
   statusReasonMessage?: string | null;
   triggerEvents: WorkflowExecutionEvent[];
+  /** Metadata-only event projection used for historical execution context. */
+  triggerEventMetadata?: WorkflowExecutionEventMetadata[];
   outputs: Record<string, unknown> | null;
   evaluationTrace?: readonly PersistedEvaluationTraceEntry[] | null;
   version: number;
