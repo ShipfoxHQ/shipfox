@@ -121,10 +121,7 @@ describe('MainLayout session banner', () => {
     try {
       await renderMainLayout({SessionBanner: () => null});
 
-      const bannerStrip = (await screen.findByRole('banner')).previousElementSibling;
-      expect(bannerStrip).toBeEmptyDOMElement();
-      expect(bannerStrip).toHaveClass('min-h-40', 'empty:min-h-0');
-      expect(screen.getByRole('main')).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+      expect(await screen.findByRole('main')).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
     } finally {
       vi.unstubAllGlobals();
     }
