@@ -1,5 +1,11 @@
 # @shipfox/api-agent-access
 
+## 23.1.0
+
+### Patch Changes
+
+- @shipfox/api-auth-context@23.1.0
+
 ## 23.0.0
 
 ### Major Changes

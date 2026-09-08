@@ -1,5 +1,18 @@
 # @shipfox/api-auth
 
+## 23.1.0
+
+### Minor Changes
+
+- b8bacf5: Adds inert impersonation-window storage and actor-scoped locking primitives.
+
+### Patch Changes
+
+- 3fdff15: Defaults API_PUBLIC_URL to API_URL when an explicit public URL is not set.
+- Updated dependencies [038a38c]
+  - @shipfox/api-workspaces-dto@23.1.0
+  - @shipfox/api-auth-context@23.1.0
+
 ## 23.0.0
 
 ### Major Changes

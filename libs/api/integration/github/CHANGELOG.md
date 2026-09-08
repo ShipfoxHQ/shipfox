@@ -1,5 +1,15 @@
 # @shipfox/api-integration-github
 
+## 23.1.0
+
+### Minor Changes
+
+- 535db7d: Adds 64-character Git object ID support to `create_branch` and rejects all-zero expected head object IDs in `create_commit` through the shared validator.
+
+### Patch Changes
+
+- @shipfox/api-auth-context@23.1.0
+
 ## 23.0.0
 
 ### Patch Changes
