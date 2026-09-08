@@ -208,10 +208,45 @@ export class ImpersonationExpiredError extends Error {
   }
 }
 
+export class ImpersonationWindowNotFoundError extends Error {
+  constructor() {
+    super('Impersonation window not found');
+    this.name = 'ImpersonationWindowNotFoundError';
+  }
+}
+
+export class ImpersonationWindowStoppedError extends Error {
+  constructor() {
+    super('Impersonation window has already stopped');
+    this.name = 'ImpersonationWindowStoppedError';
+  }
+}
+
+export class ImpersonationWindowDeadlineReachedError extends Error {
+  constructor() {
+    super('Impersonation window deadline has been reached');
+    this.name = 'ImpersonationWindowDeadlineReachedError';
+  }
+}
+
 export class ImpersonationWindowLimitReachedError extends Error {
   constructor() {
     super('The administrator already has the maximum number of open impersonation windows');
     this.name = 'ImpersonationWindowLimitReachedError';
+  }
+}
+
+export class ImpersonationStopReasonRequiredError extends Error {
+  constructor() {
+    super("A reason is required to stop another actor's impersonation window");
+    this.name = 'ImpersonationStopReasonRequiredError';
+  }
+}
+
+export class ImpersonationTargetNotWorkspaceMemberError extends Error {
+  constructor() {
+    super('Impersonation target is not an active member of the required workspace');
+    this.name = 'ImpersonationTargetNotWorkspaceMemberError';
   }
 }
 

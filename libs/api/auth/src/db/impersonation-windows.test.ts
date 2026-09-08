@@ -5,6 +5,7 @@ import {impersonationWindowFactory, userFactory} from '#test/index.js';
 import {lockAdminOwnerGrants, lockImpersonationWindowActor} from './admin-command.js';
 import {db} from './db.js';
 import {
+  countAllOpenImpersonationWindows,
   countOpenImpersonationWindows,
   createImpersonationWindow,
   findImpersonationWindow,
@@ -209,6 +210,43 @@ describe('impersonation windows db', () => {
     await expect(
       requireImpersonationWindowCapacity({actorId: actor.id, now}),
     ).rejects.toBeInstanceOf(ImpersonationWindowLimitReachedError);
+  });
+
+  test('counts currently open windows across actors for service metrics', async () => {
+    const firstActor = await userFactory.create({emailVerifiedAt: new Date()});
+    const secondActor = await userFactory.create({emailVerifiedAt: new Date()});
+    const target = await userFactory.create({emailVerifiedAt: new Date()});
+    const now = new Date();
+    const openDeadline = new Date(now.getTime() + 60_000);
+    const expiredDeadline = new Date(now.getTime() - 60_000);
+    const before = await countAllOpenImpersonationWindows(now);
+
+    await createImpersonationWindow({
+      actorId: firstActor.id,
+      targetUserId: target.id,
+      reason: 'First open window',
+      actorRoleAtStart: 'admin-operator',
+      startedAt: now,
+      deadlineAt: openDeadline,
+    });
+    await createImpersonationWindow({
+      actorId: secondActor.id,
+      targetUserId: target.id,
+      reason: 'Second open window',
+      actorRoleAtStart: 'admin-operator',
+      startedAt: now,
+      deadlineAt: openDeadline,
+    });
+    await createImpersonationWindow({
+      actorId: firstActor.id,
+      targetUserId: target.id,
+      reason: 'Expired window',
+      actorRoleAtStart: 'admin-operator',
+      startedAt: new Date(now.getTime() - 120_000),
+      deadlineAt: expiredDeadline,
+    });
+
+    await expect(countAllOpenImpersonationWindows(now)).resolves.toBe(before + 2);
   });
 
   test('enforces terminal consistency and a deadline after the start', async () => {

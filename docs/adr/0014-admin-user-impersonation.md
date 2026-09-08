@@ -79,10 +79,13 @@ An impersonated session is a signed user access token and nothing else:
   logging, so no surface can describe the session untruthfully.
 - The token carries no `refreshSessionId`. The command creates no refresh session and no
   cookie, and the administrator's own refresh cookie stays untouched.
-- The token time-to-live (TTL) is min(`AUTH_JWT_EXPIRES_IN`, 15 minutes).
-- `AUTH_JWT_EXPIRES_IN` must be a valid duration of at least 1 second. A malformed or
-  non-positive value is a configuration error. The mint command fails closed before signing
-  when its effective TTL is at or below zero.
+- The legacy impersonation token time-to-live (TTL) is min(`AUTH_JWT_EXPIRES_IN`, 15 minutes).
+  Window Start and Continue additionally clamp the TTL to the remaining window deadline.
+- `AUTH_JWT_EXPIRES_IN` must be a valid duration of at least 1 second when impersonation is
+  disabled. When `AUTH_IMPERSONATION_ENABLED` is true, it must be at least 1 minute so every
+  window issuance can produce a useful short-lived token; startup rejects a shorter value.
+  A malformed or non-positive value is always a configuration error. The mint command fails
+  closed before signing when its effective TTL is at or below zero.
 - The adopted bearer token is the only request credential for product routes. The client never
   falls back to the administrator's refresh cookie or uses that cookie as a request credential.
   The cookie is used only by the explicit refresh path, which restores the administrator's

@@ -133,6 +133,25 @@ function createCapturingLogger(logs: unknown[]): LoggerInstance {
   return logger as unknown as LoggerInstance;
 }
 
+describe('auth rate-limit contract', () => {
+  it('defines independent continuation, Stop, and shared window-read buckets', async () => {
+    const {authRateLimitPolicies} = await import('./rate-limit.js');
+
+    expect(authRateLimitPolicies['impersonate-continue']).toEqual({
+      ip: {limit: 240, windowSeconds: 15 * 60},
+      actor: {limit: 120, windowSeconds: 15 * 60},
+    });
+    expect(authRateLimitPolicies['impersonate-stop']).toEqual({
+      ip: {limit: 60, windowSeconds: 15 * 60},
+      actor: {limit: 60, windowSeconds: 15 * 60},
+    });
+    expect(authRateLimitPolicies['impersonation-windows']).toEqual({
+      ip: {limit: 120, windowSeconds: 15 * 60},
+      actor: {limit: 60, windowSeconds: 15 * 60},
+    });
+  });
+});
+
 describe('auth rate-limit routes', () => {
   let app: FastifyInstance;
 

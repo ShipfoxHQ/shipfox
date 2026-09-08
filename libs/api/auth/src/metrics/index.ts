@@ -1,5 +1,6 @@
 export {
   type AuthImpersonationOutcome,
+  type AuthImpersonationWindowEndedReason,
   type AuthRateLimitAction,
   type AuthRateLimitOutcome,
   type AuthRateLimitScope,
@@ -8,8 +9,14 @@ export {
   type AuthTokenVerificationOutcome,
   recordAuthRateLimitCheck,
   recordAuthRateLimitPruneFailure,
+  recordImpersonationContinuationOutcome,
   recordImpersonationOutcome,
+  recordImpersonationStopOutcome,
+  recordImpersonationWindowDuration,
+  recordImpersonationWindowEnded,
+  recordImpersonationWindowStartOutcome,
   recordTokenIssued,
   recordTokenRefreshed,
   recordTokenVerified,
 } from './instance.js';
+export {type AuthServiceMetricsReader, registerAuthServiceMetrics} from './service.js';
