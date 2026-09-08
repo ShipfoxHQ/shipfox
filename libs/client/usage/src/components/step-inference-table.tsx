@@ -1,4 +1,8 @@
-import {useUsagePricing} from '@shipfox/client-shell/runtime';
+import {
+  type UsagePricingEstimateModel,
+  usagePricingReferenceKey,
+  useUsagePricing,
+} from '@shipfox/client-shell/runtime';
 import {Panel, PanelBody, PanelHeader, PanelTitle} from '@shipfox/react-ui/panel';
 import {
   Table,
@@ -11,8 +15,12 @@ import {
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {useMemo} from 'react';
 import type {JobExecutionUsage} from '#core/usage.js';
-import {groupInferenceSegmentsByStepAttempt, usageQuantitiesFromTotals} from '#core/usage.js';
-import {useUsageCosts} from './usage-cost.js';
+import {
+  groupInferenceSegmentsByStepAttempt,
+  usageQuantitiesFromTotals,
+  usageTokenTotalsForSegments,
+} from '#core/usage.js';
+import {usagePricingDisclosure, useUsageCosts} from './usage-cost.js';
 import {UsageCostBadge} from './usage-cost-badge.js';
 import {
   formatUsageCacheWrite,
@@ -40,24 +48,55 @@ export function StepInferenceTable({
     () => (usage ? groupInferenceSegmentsByStepAttempt(usage.inferenceSegments) : []),
     [usage],
   );
+  const quantitiesByStepAttempt = useMemo(() => {
+    if (!usage) return new Map<string, ReturnType<typeof usageQuantitiesFromTotals>>();
+    const segmentsByStepAttempt = new Map<string, typeof usage.inferenceSegments>();
+    for (const segment of usage.inferenceSegments) {
+      const segments = segmentsByStepAttempt.get(segment.stepAttemptId) ?? [];
+      segments.push(segment);
+      segmentsByStepAttempt.set(segment.stepAttemptId, segments);
+    }
+    return new Map(
+      [...segmentsByStepAttempt].map(([stepAttemptId, segments]) => [
+        stepAttemptId,
+        usageQuantitiesFromTotals(usageTokenTotalsForSegments(segments), 0),
+      ]),
+    );
+  }, [usage]);
+  const modelsByStepAttempt = useMemo(() => {
+    const grouped = new Map<string, UsagePricingEstimateModel[]>();
+    for (const row of rows) {
+      const models = grouped.get(row.stepAttemptId) ?? [];
+      models.push({
+        model: row.model,
+        upstream: row.upstream,
+        quantities: usageQuantitiesFromTotals(row, 0),
+      });
+      grouped.set(row.stepAttemptId, models);
+    }
+    return grouped;
+  }, [rows]);
   const pricingInputs = useMemo(
     () =>
       rows.map((row) => ({
-        reference: {kind: 'step-attempt' as const, id: row.stepAttemptId},
-        quantities: usageQuantitiesFromTotals(row, 0),
+        reference: {
+          kind: 'step-attempt' as const,
+          id: row.stepAttemptId,
+          model: row.model,
+          upstream: row.upstream,
+        },
+        quantities:
+          quantitiesByStepAttempt.get(row.stepAttemptId) ?? usageQuantitiesFromTotals(row, 0),
+        models: modelsByStepAttempt.get(row.stepAttemptId) ?? [],
       })),
-    [rows],
+    [modelsByStepAttempt, quantitiesByStepAttempt, rows],
   );
   const costs = useUsageCosts(pricingInputs);
 
   if (rows.length === 0) return null;
 
-  const rowSpanByStepAttempt = new Map<string, number>();
-  for (const row of rows) {
-    const key = `step-attempt:${row.stepAttemptId}`;
-    rowSpanByStepAttempt.set(key, (rowSpanByStepAttempt.get(key) ?? 0) + 1);
-  }
-  const costByStepAttempt = new Set<string>();
+  const estimatedCost = [...costs.values()].find((cost) => cost.state === 'estimated');
+  const disclosure = usagePricingDisclosure(pricing, estimatedCost);
   const showCosts = pricing !== undefined && costs.size > 0;
   return (
     <Panel data-usage-step-inference-table className={className}>
@@ -89,10 +128,13 @@ export function StepInferenceTable({
           </TableHeader>
           <TableBody>
             {rows.map((row) => {
-              const referenceKey = `step-attempt:${row.stepAttemptId}`;
-              const showCostForRow = !costByStepAttempt.has(referenceKey);
-              costByStepAttempt.add(referenceKey);
-              const cost = showCostForRow ? costs.get(referenceKey) : undefined;
+              const referenceKey = usagePricingReferenceKey({
+                kind: 'step-attempt',
+                id: row.stepAttemptId,
+                model: row.model,
+                upstream: row.upstream,
+              });
+              const cost = costs.get(referenceKey);
               const tokenDetailsTitle = usageTokenBreakdownTitle(row);
               return (
                 <TableRow key={JSON.stringify([row.stepAttemptId, row.upstream, row.model])}>
@@ -161,11 +203,10 @@ export function StepInferenceTable({
                   >
                     {formatUsageNumber(row.webSearchRequests)}
                   </TableCell>
-                  {showCosts && showCostForRow ? (
+                  {showCosts ? (
                     <TableCell
-                      rowSpan={rowSpanByStepAttempt.get(referenceKey)}
                       className="text-right align-middle"
-                      title="Total cost for this step attempt"
+                      title="Cost for this step attempt model"
                     >
                       <span className="inline-flex min-w-64 flex-col items-end justify-center gap-2">
                         <UsageCostBadge cost={cost} />
@@ -174,7 +215,7 @@ export function StepInferenceTable({
                             —
                           </Code>
                         ) : null}
-                        <span className="sr-only">Step attempt total cost</span>
+                        <span className="sr-only">Step attempt model cost</span>
                       </span>
                     </TableCell>
                   ) : null}
@@ -184,6 +225,16 @@ export function StepInferenceTable({
           </TableBody>
         </Table>
       </PanelBody>
+      {disclosure ? (
+        <Text
+          as="p"
+          data-usage-pricing-disclosure
+          size="xs"
+          className="border-t border-border-neutral-base px-panel-compact py-row text-foreground-neutral-subtle"
+        >
+          {disclosure}
+        </Text>
+      ) : null}
     </Panel>
   );
 }

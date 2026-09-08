@@ -15,6 +15,26 @@ describe('usage pricing values', () => {
     expect(usagePricingCostFromResolution(resolution, reference)).toMatchObject(cost);
   });
 
+  test('matches model and upstream dimensions in array resolutions', () => {
+    const first = {
+      kind: 'step-attempt' as const,
+      id: 'attempt-1',
+      model: 'model-a',
+      upstream: 'upstream-a',
+    };
+    const second = {...first, model: 'model-b'};
+
+    expect(
+      usagePricingCostFromResolution(
+        [
+          {...first, amount: 1, state: 'resolved' as const},
+          {...second, amount: 2, state: 'resolved' as const},
+        ],
+        second,
+      ),
+    ).toMatchObject({amount: 2});
+  });
+
   test.each([
     Number.NaN,
     Number.POSITIVE_INFINITY,

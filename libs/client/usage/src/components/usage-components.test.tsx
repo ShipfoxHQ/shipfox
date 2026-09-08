@@ -134,6 +134,62 @@ describe('Usage components', () => {
     expect(estimate).toHaveBeenCalledTimes(2);
   });
 
+  test('passes runner identity and model quantities for run and job estimates', async () => {
+    const estimate = vi.fn(() => ({amount: 0.9, state: 'estimated' as const}));
+    const usagePricing = {...pricing, resolveCosts: () => new Map(), estimate};
+    const {unmount} = render(
+      <ClientUsagePricingProvider usagePricing={usagePricing}>
+        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
+    expect(estimate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reference: {kind: 'run', id: RUN_ID},
+        compute: [
+          {
+            jobExecutionId: EXECUTION_ID,
+            runnerLabels: ['linux'],
+            templateKey: null,
+            seconds: 60,
+          },
+        ],
+        models: [
+          expect.objectContaining({
+            model: segment.model,
+            upstream: segment.upstream,
+            quantities: expect.objectContaining({requestCount: 2}),
+          }),
+        ],
+      }),
+    );
+
+    unmount();
+    estimate.mockClear();
+    render(
+      <ClientUsagePricingProvider usagePricing={usagePricing}>
+        <JobUsageCells usage={jobUsage} />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
+    expect(estimate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reference: {kind: 'job-execution', id: EXECUTION_ID},
+        compute: [
+          {
+            jobExecutionId: EXECUTION_ID,
+            runnerLabels: ['linux'],
+            templateKey: null,
+            seconds: 60,
+          },
+        ],
+        models: [expect.objectContaining({model: segment.model, upstream: segment.upstream})],
+      }),
+    );
+  });
+
   test('does not leave an empty job metadata item without pricing', () => {
     const {container} = render(<JobUsageCells usage={jobUsage} />);
     expect(container).toBeEmptyDOMElement();
@@ -280,6 +336,23 @@ describe('Usage components', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  test('renders an estimate disclosure once on each usage surface', async () => {
+    const disclosure = 'Estimated from list prices. Nothing is billed.';
+    const estimate = vi.fn(() => ({amount: 0.9, state: 'estimated' as const}));
+    render(
+      <ClientUsagePricingProvider
+        usagePricing={{...pricing, resolveCosts: () => new Map(), estimate, disclosure}}
+      >
+        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
+        <JobUsageCells usage={jobUsage} />
+        <StepInferenceTable usage={jobUsage} />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText(disclosure)).toHaveLength(3));
+    expect(screen.getByTitle(disclosure)).toBeVisible();
+  });
+
   test('renders an estimated job cost while preserving job quantities', async () => {
     const estimatingPricing: ClientUsagePricing = {
       ...pricing,
@@ -333,11 +406,26 @@ describe('Usage components', () => {
     await waitFor(() => expect(screen.getByText('Est. $0.90')).toBeVisible());
   });
 
-  test('estimates one aggregate cost for multiple rows sharing a step attempt', async () => {
-    const estimate = vi.fn(({quantities}: {quantities: {requestCount: number}}) => ({
-      amount: quantities.requestCount,
-      state: 'estimated' as const,
-    }));
+  test('estimates each model row separately for a shared step attempt', async () => {
+    const estimate = vi.fn(
+      ({
+        reference,
+        models,
+      }: {
+        reference: {model?: string; upstream?: string};
+        models?: readonly {
+          model: string;
+          upstream: string;
+          quantities: {requestCount: number};
+        }[];
+      }) => ({
+        amount:
+          (models ?? []).find(
+            (model) => model.model === reference.model && model.upstream === reference.upstream,
+          )?.quantities.requestCount ?? 0,
+        state: 'estimated' as const,
+      }),
+    );
     const secondSegment: UsageInferenceSegment = {
       ...segment,
       id: '77777777-7777-4777-8777-777777777777',
@@ -367,17 +455,35 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('Est. $5.00')).toBeVisible());
-    expect(estimate).toHaveBeenCalledTimes(1);
-    expect(estimate).toHaveBeenCalledWith({
-      reference: {kind: 'step-attempt', id: STEP_ATTEMPT_ID},
-      quantities: expect.objectContaining({
-        requestCount: 5,
-        inputTokens: 1_500,
-        cachedInputTokens: 200,
-        cacheWriteTokens: 0,
+    await waitFor(() => expect(screen.getByText('Est. $2.00')).toBeVisible());
+    expect(screen.getByText('Est. $3.00')).toBeVisible();
+    expect(estimate).toHaveBeenCalledTimes(2);
+    expect(estimate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reference: {
+          kind: 'step-attempt',
+          id: STEP_ATTEMPT_ID,
+          model: segment.model,
+          upstream: segment.upstream,
+        },
+        quantities: expect.objectContaining({requestCount: 5}),
+        models: expect.arrayContaining([
+          expect.objectContaining({model: segment.model, upstream: segment.upstream}),
+          expect.objectContaining({model: 'gpt-5', upstream: 'openai'}),
+        ]),
       }),
-    });
+    );
+    expect(estimate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reference: {
+          kind: 'step-attempt',
+          id: STEP_ATTEMPT_ID,
+          model: 'gpt-5',
+          upstream: 'openai',
+        },
+        quantities: expect.objectContaining({requestCount: 5}),
+      }),
+    );
   });
 
   test('does not reload pricing when equivalent request inputs are recreated', async () => {

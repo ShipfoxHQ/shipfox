@@ -1,10 +1,12 @@
+import {useUsagePricing} from '@shipfox/client-shell/runtime';
 import {useMemo} from 'react';
 import {
+  groupUsageByModel,
   type JobExecutionUsage,
   usageQuantitiesFromTotals,
   usageTokenTotalsForSegments,
 } from '#core/usage.js';
-import {useUsageCosts} from './usage-cost.js';
+import {usagePricingDisclosure, useUsageCosts} from './usage-cost.js';
 import {UsageCostText} from './usage-cost-text.js';
 import {UsageBreakdown} from './usage-details.js';
 
@@ -16,11 +18,21 @@ export interface JobUsageCellsProps {
 }
 
 export function JobUsageCells({usage, className}: JobUsageCellsProps) {
+  const pricing = useUsagePricing();
   const {cost} = useJobCost(usage);
+  const disclosure = usagePricingDisclosure(pricing, cost);
   if (!usage || !cost) return null;
   return (
     <span data-usage-job-cells className={`inline-flex items-center ${className ?? ''}`}>
       <UsageCostText cost={cost} />
+      {disclosure ? (
+        <span
+          data-usage-pricing-disclosure
+          className="ml-tight text-xs text-foreground-neutral-subtle"
+        >
+          {disclosure}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -55,17 +67,30 @@ function useJobCost(usage: JobExecutionUsage | undefined) {
   const pricingInputs = useMemo(() => {
     if (!usage) return [];
     const {jobExecution} = usage;
+    const totals = usageTokenTotalsForSegments(usage.inferenceSegments);
     return [
       {
         reference: {kind: 'job-execution' as const, id: jobExecution.jobExecutionId},
         ...(jobExecution.durationSeconds === null
           ? {}
           : {
-              quantities: usageQuantitiesFromTotals(
-                usageTokenTotalsForSegments(usage.inferenceSegments),
-                jobExecution.durationSeconds,
-              ),
+              quantities: usageQuantitiesFromTotals(totals, jobExecution.durationSeconds),
+              compute: [
+                {
+                  jobExecutionId: jobExecution.jobExecutionId,
+                  runnerLabels: jobExecution.runnerLabels ?? [],
+                  templateKey: jobExecution.templateKey,
+                  seconds: jobExecution.durationSeconds,
+                },
+              ],
             }),
+        models: groupUsageByModel(usage.inferenceSegments).map(
+          ({model, upstream, totals: modelTotals}) => ({
+            model,
+            upstream,
+            quantities: usageQuantitiesFromTotals(modelTotals),
+          }),
+        ),
       },
     ];
   }, [usage]);
