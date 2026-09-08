@@ -12,6 +12,7 @@ import {
   getLatestAttempt,
   getLatestRunAttempt,
   getWorkflowJobExecutionDepth,
+  getWorkflowRunAggregates,
   getWorkflowRunById,
   getWorkflowRunLineageHead,
   getWorkflowRunSelection,
@@ -704,6 +705,28 @@ describe('workflow run queries', () => {
       expect(runs[0]?.createdAt.getTime()).toBeGreaterThanOrEqual(
         runs[1]?.createdAt.getTime() as number,
       );
+    });
+
+    test('returns waiting runs in listings and aggregates', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'waiting',
+        expectedVersion: run.version,
+      });
+
+      const listing = await listWorkflowRuns({
+        projectId,
+        limit: 100,
+        filters: {status: 'waiting'},
+        includeTotal: true,
+      });
+      const aggregates = await getWorkflowRunAggregates({projectId});
+
+      expect(listing.runs).toHaveLength(1);
+      expect(listing.runs[0]?.status).toBe('waiting');
+      expect(listing.filteredTotalCount).toBe(1);
+      expect(aggregates.status).toEqual([{value: 'waiting', count: 1}]);
     });
 
     test('returns empty array for unknown project', async () => {

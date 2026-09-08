@@ -1,4 +1,10 @@
-export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type WorkflowRunStatus =
+  | 'waiting'
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
 
 export type WorkflowRunOrigin = 'synced' | 'dev';
 

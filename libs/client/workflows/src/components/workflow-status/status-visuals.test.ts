@@ -7,6 +7,7 @@ import {
 import {getWorkflowStatusVisual} from './status-visuals.js';
 
 const EXPECTED_RUN_LABELS: Record<WorkflowRunStatusDto, string> = {
+  waiting: 'Waiting',
   pending: 'Pending',
   running: 'Running',
   succeeded: 'Succeeded',

@@ -225,6 +225,7 @@ export const Cancelling: Story = {
 };
 
 const ALL_STATUSES: WorkflowRunStatus[] = [
+  'waiting',
   'pending',
   'running',
   'succeeded',

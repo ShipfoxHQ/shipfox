@@ -105,6 +105,11 @@ describe('runMatchesStatusFilter', () => {
     expect(runMatchesStatusFilter('running', ['running'])).toBe(true);
     expect(runMatchesStatusFilter('succeeded', ['running'])).toBe(false);
   });
+
+  test('keeps waiting separate from the running filter', () => {
+    expect(runMatchesStatusFilter('waiting', ['waiting'])).toBe(true);
+    expect(runMatchesStatusFilter('waiting', ['running'])).toBe(false);
+  });
 });
 
 describe('runMatchesFilters', () => {

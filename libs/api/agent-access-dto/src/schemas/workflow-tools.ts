@@ -66,7 +66,14 @@ export type ListWorkflowExecutionStepsInputDto = z.output<
 >;
 export type ListWorkflowStepAttemptsInputDto = z.output<typeof listWorkflowStepAttemptsInputSchema>;
 
-const workflowRunStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
+const workflowRunStatusSchema = z.enum([
+  'waiting',
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+]);
 const workflowRunOriginSchema = z.enum(['synced', 'dev']);
 const workflowRunRerunModeSchema = z.enum(['all', 'failed']);
 const jobStatusSchema = z.enum([
@@ -395,7 +402,10 @@ const workflowRunAttemptJsonSchema = {
     id: uuid,
     workflow_run_id: uuid,
     attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
-    status: {type: 'string', enum: ['pending', 'running', 'succeeded', 'failed', 'cancelled']},
+    status: {
+      type: 'string',
+      enum: ['waiting', 'pending', 'running', 'succeeded', 'failed', 'cancelled'],
+    },
     created_at: dateTime,
     started_at: nullable(dateTime),
     finished_at: nullable(dateTime),
@@ -574,7 +584,10 @@ export const getWorkflowRunResultJsonSchema = {
     number: {type: 'integer', minimum: 1},
     name: text,
     workflow_name: text,
-    status: {type: 'string', enum: ['pending', 'running', 'succeeded', 'failed', 'cancelled']},
+    status: {
+      type: 'string',
+      enum: ['waiting', 'pending', 'running', 'succeeded', 'failed', 'cancelled'],
+    },
     origin: {type: 'string', enum: ['synced', 'dev']},
     dev_source: nullable(devSourceJsonSchema),
     trigger_provider: nullable(text),

@@ -31,6 +31,12 @@ describe('paged agent-access schemas', () => {
     );
   });
 
+  test('accepts waiting as a workflow-run status filter', () => {
+    expect(
+      listWorkflowRunsInputSchema.parse({project_id: projectId, status: 'waiting'}).status,
+    ).toBe('waiting');
+  });
+
   test('keeps output schemas as one strict object envelope result', () => {
     expect(listProjectsResultJsonSchema).not.toHaveProperty('oneOf');
     expect(listProjectsResultJsonSchema.properties.projects).toBeDefined();

@@ -166,14 +166,14 @@ describe('paged agent-access tools', () => {
     const mocks = clients();
     mocks.projectHandlers.requireProjectForWorkspace.mockResolvedValue({project: project()});
     mocks.workflowHandlers.listWorkflowRuns.mockResolvedValue({
-      runs: [run()],
+      runs: [run('waiting')],
       nextCursor: null,
       filteredTotalCount: 1,
     });
 
     const response = await tool(mocks, 'list_workflow_runs').execute({
       context,
-      arguments: {project_id: projectId, status: 'failed', trigger_source: 'push'},
+      arguments: {project_id: projectId, status: 'waiting', trigger_source: 'push'},
     });
     const result = expectSuccess<RunTestResult>(response);
 
@@ -185,7 +185,7 @@ describe('paged agent-access tools', () => {
       workspaceId,
       projectId,
       limit: 50,
-      filters: {status: 'failed', triggerSource: 'push'},
+      filters: {status: 'waiting', triggerSource: 'push'},
     });
     expect(result.runs[0]).not.toHaveProperty('trigger_payload');
     expect(result.runs[0]).not.toHaveProperty('inputs');
@@ -639,7 +639,7 @@ function definition() {
   };
 }
 
-function run() {
+function run(status: 'failed' | 'waiting' = 'failed') {
   return {
     id: runId,
     project_id: projectId,
@@ -647,7 +647,7 @@ function run() {
     number: 1,
     name: 'Run',
     workflow_name: 'Workflow',
-    status: 'failed' as const,
+    status,
     origin: 'synced' as const,
     dev_source: null,
     current_attempt: 1,

@@ -25,6 +25,7 @@ import type {
 import {pgTable} from './common.js';
 
 export const workflowRunStatusEnum = pgEnum('workflows_run_status', [
+  'waiting',
   'pending',
   'running',
   'succeeded',

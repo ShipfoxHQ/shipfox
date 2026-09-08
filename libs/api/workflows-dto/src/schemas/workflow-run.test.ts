@@ -76,6 +76,28 @@ describe('workflow source snapshot schemas', () => {
 
     expect(result.source_snapshot).toEqual({content: 'name: Build\njobs: {}\n', format: 'yaml'});
   });
+
+  test('accepts waiting for runs and attempts', () => {
+    const run = workflowRunDtoSchema.parse({...baseRun, status: 'waiting'});
+    const attempt = workflowRunAttemptsPageSchema.parse({
+      items: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          workflow_run_id: baseRun.id,
+          attempt: 1,
+          status: 'waiting',
+          created_at: '2026-06-16T00:00:00.000Z',
+          started_at: null,
+          finished_at: null,
+          rerun_mode: null,
+        },
+      ],
+      next_cursor: null,
+    });
+
+    expect(run.status).toBe('waiting');
+    expect(attempt.items[0]?.status).toBe('waiting');
+  });
 });
 
 describe('workflow run trigger reference schema', () => {

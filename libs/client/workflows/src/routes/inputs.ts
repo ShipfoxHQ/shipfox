@@ -7,7 +7,13 @@ import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
  * Statuses the run list can filter by. Absent means all; there is deliberately no `all`
  * value, so "no filter" and "every filter" are the same URL rather than two.
  */
-export const WORKFLOW_RUN_LIST_STATUSES = ['succeeded', 'failed', 'running', 'cancelled'] as const;
+export const WORKFLOW_RUN_LIST_STATUSES = [
+  'succeeded',
+  'failed',
+  'running',
+  'waiting',
+  'cancelled',
+] as const;
 
 export type WorkflowRunListStatus = (typeof WORKFLOW_RUN_LIST_STATUSES)[number];
 

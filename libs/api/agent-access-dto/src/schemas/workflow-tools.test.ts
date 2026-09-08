@@ -59,6 +59,18 @@ describe('workflow agent-access schemas', () => {
     );
   });
 
+  test('accepts waiting for run and attempt results', () => {
+    const result = runResult();
+    const waiting = {
+      ...result,
+      status: 'waiting' as const,
+      attempt: {...result.attempt, status: 'waiting' as const},
+    };
+
+    expect(getWorkflowRunResultSchema.safeParse(waiting).success).toBe(true);
+    expect(getWorkflowRunResultJsonSchema.properties.status.enum).toContain('waiting');
+  });
+
   test('declares one object result schema without embedded traversal children', () => {
     const schemas = [
       getWorkflowRunResultJsonSchema,
