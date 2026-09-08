@@ -84,9 +84,8 @@ export function listenerPriorExecutionEventsRequired(params: {
 }
 
 function historicalExecutionPathNeedsEventMetadata(reference: ContextPathReference): boolean {
-  const referencesEventCollection = reference.segments.some(
-    (segment) => segment === 'events' || segment === 'trigger_events',
-  );
+  const referencesEventCollection =
+    reference.segments[1] === 'events' || reference.segments[1] === 'trigger_events';
   if (reference.cardinalityOnly === true && !referencesEventCollection) return false;
   if (reference.wholeElement === true || reference.segments.length <= 1) return true;
   return referencesEventCollection;

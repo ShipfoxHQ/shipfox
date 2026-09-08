@@ -79,6 +79,22 @@ describe('listenerPriorExecutionEventsRequired', () => {
     }
   });
 
+  test('does not load metadata for cardinality checks over an output named events', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          success: 'executions[0].outputs.events.size() > 0',
+          steps: [{run: 'echo review'}],
+        },
+      },
+    });
+
+    const plan = planListenerPriorExecutionContext({model, jobKey: 'review'});
+
+    expect(plan.referencesHistoricalExecutions).toBe(true);
+    expect(plan.includePriorExecutionEventMetadata).toBe(false);
+  });
+
   test('keeps prior event arrays for deferred execution names and runner selectors', () => {
     const model = workflowModel({
       jobs: {
