@@ -158,6 +158,56 @@ function toWorkspaceAdministratorMemberDto(member: {
   };
 }
 
+function workspaceAdministratorMembersResultCountBucket(
+  count: number,
+): '0' | '1-10' | '11-50' | '51-100' {
+  if (count === 0) return '0';
+  if (count <= 10) return '1-10';
+  if (count <= 50) return '11-50';
+  return '51-100';
+}
+
+type WorkspaceAdministratorMembersReadOutcome = 'succeeded' | 'failed';
+type WorkspaceAdministratorMembersReadMode = 'exact' | 'membership' | 'search';
+
+function workspaceAdministratorMembersReadMode(
+  query: WorkspaceAdminMembersQueryDto,
+): WorkspaceAdministratorMembersReadMode {
+  if ('user_id' in query) return 'exact';
+  if (query.search === undefined) return 'membership';
+  return 'search';
+}
+
+function logWorkspaceAdministratorMembersRead(params: {
+  request: FastifyRequest;
+  actorId: string;
+  outcome: WorkspaceAdministratorMembersReadOutcome;
+  durationMs: number;
+  resultCount: number;
+  mode: WorkspaceAdministratorMembersReadMode;
+  nextPagePresent: boolean;
+}): void {
+  try {
+    params.request.log.info(
+      {
+        actorId: params.actorId,
+        requiredRole: 'admin-operator',
+        targetType: 'workspace-members',
+        requestId: params.request.id,
+        result: params.outcome,
+        outcome: params.outcome,
+        durationMs: params.durationMs,
+        resultCountBucket: workspaceAdministratorMembersResultCountBucket(params.resultCount),
+        mode: params.mode,
+        nextPagePresent: params.nextPagePresent,
+      },
+      'Listed workspace administrator members',
+    );
+  } catch {
+    // Logging must not change the member read outcome.
+  }
+}
+
 const workspaceAdministratorMembersCursorSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('membership'),
@@ -411,18 +461,40 @@ export function createAdminWorkspacesRoutes(params: {
       if (!client) {
         throw new ClientError('Authentication required', 'unauthorized', {status: 401});
       }
+      const actorId = client.userId;
       await params.auth.requireAdminRole({
-        userId: client.userId,
+        userId: actorId,
         minimumRole: 'admin-operator',
       });
 
-      const result = await resolveWorkspaceAdministratorMembers({
-        workspaceId: request.params.workspaceId,
-        auth: params.auth,
-        query: request.query,
-      });
+      const mode = workspaceAdministratorMembersReadMode(request.query);
+      const startedAt = performance.now();
+      let resultCount = 0;
+      let nextPagePresent = false;
+      let outcome: WorkspaceAdministratorMembersReadOutcome = 'failed';
 
-      return toWorkspaceAdministratorMembersResponse(result);
+      try {
+        const result = await resolveWorkspaceAdministratorMembers({
+          workspaceId: request.params.workspaceId,
+          auth: params.auth,
+          query: request.query,
+        });
+        resultCount = result.members.length;
+        nextPagePresent = result.nextCursor !== null;
+        outcome = 'succeeded';
+
+        return toWorkspaceAdministratorMembersResponse(result);
+      } finally {
+        logWorkspaceAdministratorMembersRead({
+          request,
+          actorId,
+          outcome,
+          durationMs: Math.round(performance.now() - startedAt),
+          resultCount,
+          mode,
+          nextPagePresent,
+        });
+      }
     },
   });
 
