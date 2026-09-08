@@ -1,4 +1,4 @@
-import {waitForRunObservationMatching} from './polling.js';
+import {waitForDefinitionSyncTerminal, waitForRunObservationMatching} from './polling.js';
 
 const runId = '33333333-3333-4333-8333-333333333333';
 const timestamp = '2026-07-04T10:00:00.000Z';
@@ -86,5 +86,21 @@ describe('waitForRunObservationMatching', () => {
       name: 'E2eApiError',
       status: 500,
     });
+  });
+});
+
+describe('waitForDefinitionSyncTerminal', () => {
+  test('reports the project and last response when sync never becomes observable', async () => {
+    const projectId = '11111111-1111-4111-8111-111111111111';
+    const result = waitForDefinitionSyncTerminal({
+      fetch: () => response({definitions: [], sync: null, next_cursor: null}),
+      projectId,
+      timeoutMs: 5,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toThrow(
+      `projectId=${projectId}, syncStatus=null, lastResponse={"definitions":[],"sync":null,"next_cursor":null}`,
+    );
   });
 });

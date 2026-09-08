@@ -81,11 +81,15 @@ export async function waitForDefinitionSyncTerminal(
     const status = lastResponse.sync?.status;
     if (status === 'failed' || status === 'succeeded') return lastResponse;
 
-    await delay(250, undefined, {signal: options.signal});
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    await delay(Math.min(250, remainingMs), undefined, {signal: options.signal});
   }
 
   const status = lastResponse?.sync?.status ?? 'null';
-  throw new Error(`Timed out waiting for definition sync to settle: syncStatus=${status}`);
+  throw new Error(
+    `Timed out waiting for definition sync to settle: projectId=${options.projectId}, syncStatus=${status}, lastResponse=${JSON.stringify(lastResponse)}`,
+  );
 }
 
 export async function waitForNoWorkflowRuns(

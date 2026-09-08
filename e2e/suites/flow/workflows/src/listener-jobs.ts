@@ -208,6 +208,7 @@ export async function sendFire(
     jobKey: LISTENER_JOB,
     listenerStatus: 'listening',
     timeoutMs: LISTENER_DELIVERY_TIMEOUT_MS,
+    runner: testCase.runner,
   });
 
   // Retry delivery IDs are distinct listener events and can consume multiple executions.

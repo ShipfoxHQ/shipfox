@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import type {WebhookConnectionDto} from '@shipfox/api-integration-webhook-dto';
 import type {
   JobStatusDto,
@@ -5,6 +6,7 @@ import type {
   ResolutionReasonDto,
 } from '@shipfox/api-workflows-dto';
 import {type createApiClient, pollUntil, requestJson} from '@shipfox/e2e-core';
+import {type LocalRunnerHandle, localRunnerLogTail} from '@shipfox/e2e-driver-runner-process';
 import type {
   WorkflowExecutionObservation,
   WorkflowJobObservation,
@@ -13,6 +15,8 @@ import type {
 import {observeRun} from '@shipfox/e2e-observe-workflows';
 import {waitForRunObservationMatching} from './polling.js';
 import {postWebhookDelivery} from './webhook.js';
+
+const RUNNER_SESSION_ID_PATTERN = /"runnerSessionId":"([^"]+)"/gu;
 
 export interface ListenerPredicateResult {
   matched: boolean;
@@ -56,6 +60,33 @@ export function listenerStatusMatches(params: {
     matched: job.listener_status === params.listenerStatus,
     diagnostic: `listener job ${params.jobKey} listenerStatus=${job.listener_status}, expected=${params.listenerStatus}`,
   };
+}
+
+function workflowDispatchState(observation: WorkflowRunObservation): string {
+  const jobs = observation.jobs.map((job) => {
+    const execution = job.default_execution;
+    const executionState = execution
+      ? `executionStatus=${execution.status}, queuedAt=${execution.queued_at}, startedAt=${execution.started_at}`
+      : 'execution=null';
+    return `${job.key}{status=${job.status}, listenerStatus=${job.listener_status}, ${executionState}}`;
+  });
+  return `runStatus=${observation.status}, attemptStatus=${observation.attempt.status}, hasStartedJobExecution=${observation.has_started_job_execution}, jobs=[${jobs.join('; ')}]`;
+}
+
+function runnerReadinessDiagnostic(
+  runner: Pick<LocalRunnerHandle, 'labels' | 'logFile' | 'pid'> | undefined,
+): string {
+  if (runner === undefined) return '';
+  const logTail = localRunnerLogTail(runner.logFile);
+  let runnerSessionId = 'not-observed';
+  try {
+    for (const match of readFileSync(runner.logFile, 'utf8').matchAll(RUNNER_SESSION_ID_PATTERN)) {
+      runnerSessionId = match[1] ?? runnerSessionId;
+    }
+  } catch {
+    // Keep the original readiness timeout when its best-effort log diagnostic cannot be read.
+  }
+  return `; runnerPid=${runner.pid}, runnerLabels=[${runner.labels.join(', ')}], runnerSessionId=${runnerSessionId}${logTail}`;
 }
 
 export function listenerResolutionMatches(params: {
@@ -225,16 +256,19 @@ export async function waitForListenerStatus(params: {
   jobKey: string;
   listenerStatus: ListenerStatusDto;
   timeoutMs: number;
+  runner?: Pick<LocalRunnerHandle, 'labels' | 'logFile' | 'pid'> | undefined;
 }): Promise<WorkflowRunObservation> {
   const requestSignal = AbortSignal.timeout(params.timeoutMs);
   let diagnostic = `listener job ${params.jobKey} missing`;
+  const transitions: string[] = [];
+  let lastDispatchState: string | undefined;
   return await pollUntil(
     {
       timeoutMs: params.timeoutMs,
       intervalMs: 250,
       maxIntervalMs: 250,
       describe: () =>
-        `listener job ${params.jobKey} status ${params.listenerStatus}: ${diagnostic}`,
+        `listener job ${params.jobKey} status ${params.listenerStatus}: runId=${params.runId}; ${diagnostic}; dispatchTransitions=[${transitions.join(' -> ')}]${runnerReadinessDiagnostic(params.runner)}`,
     },
     async () => {
       const observation = await observeRun({
@@ -243,6 +277,11 @@ export async function waitForListenerStatus(params: {
         signal: requestSignal,
         token: params.token,
       });
+      const dispatchState = workflowDispatchState(observation);
+      if (dispatchState !== lastDispatchState) {
+        transitions.push(dispatchState);
+        lastDispatchState = dispatchState;
+      }
       const status = listenerStatusMatches({...params, observation});
       diagnostic = status.diagnostic;
       if (!status.matched) return null;

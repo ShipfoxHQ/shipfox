@@ -106,6 +106,7 @@ test('resumes one Pi session across jobs and listening event batches', async ({
       jobKey: LISTENER_JOB,
       listenerStatus: 'listening',
       timeoutMs: SESSION_FLOW_OBSERVATION_TIMEOUT_MS,
+      runner: testCase.runner,
     });
 
     const firstBatch = await sendBatchAndAwaitMaterialization({
