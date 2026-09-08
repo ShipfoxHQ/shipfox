@@ -29,6 +29,7 @@ describe('Auth impersonation eligibility inter-module contract', () => {
       }).success,
     ).toBe(true);
     expect(parseInput({search: 'alex', limit: 25}).success).toBe(true);
+    expect(parseInput({userIds: [], limit: 25}).success).toBe(true);
     expect(
       parseInput({
         search: 'alex',
@@ -36,6 +37,12 @@ describe('Auth impersonation eligibility inter-module contract', () => {
         limit: 25,
       }).success,
     ).toBe(true);
+  });
+
+  it('rejects requests without exactly one meaningful lookup mode', () => {
+    expect(parseInput({limit: 25}).success).toBe(false);
+    expect(parseInput({search: '   ', limit: 25}).success).toBe(false);
+    expect(parseInput({cursor: 'cursor', limit: 25}).success).toBe(false);
   });
 
   it('rejects mixed modes and values outside the lookup bounds', () => {
@@ -69,10 +76,18 @@ describe('Auth impersonation eligibility inter-module contract', () => {
     expect(parseInput({search: 'alex\nshipfox', limit: 25}).success).toBe(false);
     expect(parseInput({cursor: 'cursor\u200Bvalue', limit: 25}).success).toBe(false);
     expect(parseInput({search: 'a'.repeat(257), limit: 25}).success).toBe(false);
+    expect(
+      parseInput({
+        search: Array.from({length: 11}, () => 'term').join(' '),
+        limit: 25,
+      }).success,
+    ).toBe(false);
+    expect(parseInput({search: 'a'.repeat(101), limit: 25}).success).toBe(false);
   });
 
-  it('defines an empty impersonation-disabled error and a redacted summary output', () => {
+  it('defines empty known errors and a redacted summary output', () => {
     expect(method.errors['impersonation-disabled'].parse({})).toEqual({});
+    expect(method.errors['invalid-cursor'].parse({})).toEqual({});
     expect(
       method.output.parse({
         users: [

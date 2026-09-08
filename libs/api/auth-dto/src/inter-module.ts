@@ -13,6 +13,9 @@ export const IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE = 200;
 
 const idSchema = z.string().uuid();
 const CONTROL_OR_FORMAT_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
+const SEARCH_TERM_SEPARATOR = /\s+/g;
+const SEARCH_MAX_TERMS = 10;
+const SEARCH_MAX_TERM_LENGTH = 100;
 const cursorSchema = z
   .string()
   .min(1)
@@ -25,6 +28,24 @@ const searchSchema = z
   .max(256)
   .refine((value) => !CONTROL_OR_FORMAT_CHARACTER_RE.test(value), {
     message: 'must not contain control or format characters',
+  })
+  .superRefine((value, context) => {
+    const normalizedSearch = value.trim().replace(SEARCH_TERM_SEPARATOR, ' ');
+    if (!normalizedSearch) {
+      context.addIssue({code: 'custom', message: 'must not be blank'});
+      return;
+    }
+
+    const terms = normalizedSearch.split(' ');
+    if (terms.length > SEARCH_MAX_TERMS) {
+      context.addIssue({code: 'custom', message: `accepts at most ${SEARCH_MAX_TERMS} terms`});
+    }
+    if (terms.some((term) => term.length > SEARCH_MAX_TERM_LENGTH)) {
+      context.addIssue({
+        code: 'custom',
+        message: `terms must be at most ${SEARCH_MAX_TERM_LENGTH} characters`,
+      });
+    }
   })
   .optional();
 const administratorUserSummaryInterModuleSchema = z.object({
@@ -44,6 +65,13 @@ const listImpersonationEligibleUserSummariesInputSchema = z
     limit: z.number().int().min(1).max(IMPERSONATION_ELIGIBILITY_MAX_PAGE_SIZE),
   })
   .superRefine((value, context) => {
+    if (value.userIds === undefined && value.search === undefined) {
+      context.addIssue({
+        code: 'custom',
+        message: 'exactly one of userIds or search is required',
+        path: ['search'],
+      });
+    }
     if (value.userIds !== undefined && value.search !== undefined) {
       context.addIssue({
         code: 'custom',
@@ -94,7 +122,10 @@ export const authInterModuleContract = defineInterModuleContract({
     },
     /**
      * Lists safe users that can be impersonated. ID mode preserves the caller's
-     * order; search mode uses a producer-owned opaque keyset cursor.
+     * order; search mode uses a producer-owned opaque keyset cursor that is valid
+     * only with the normalized search that produced it. This trusted internal
+     * operation is not an authorization boundary; callers must authorize access
+     * before passing identity data.
      */
     listImpersonationEligibleUserSummaries: {
       input: listImpersonationEligibleUserSummariesInputSchema,
@@ -106,6 +137,7 @@ export const authInterModuleContract = defineInterModuleContract({
       }),
       errors: {
         'impersonation-disabled': z.object({}),
+        'invalid-cursor': z.object({}),
       },
     },
   },

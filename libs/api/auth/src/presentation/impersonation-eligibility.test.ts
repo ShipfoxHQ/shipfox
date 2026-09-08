@@ -113,6 +113,45 @@ describe('Auth impersonation eligibility presentation', () => {
     ).rejects.toThrow();
   });
 
+  it.each([
+    ['malformed', 'not-a-cursor'],
+    [
+      'schema-invalid',
+      Buffer.from(
+        JSON.stringify({
+          mode: 'ids',
+          createdAt: '2026-08-31T12:00:00.000Z',
+          id: '11111111-1111-4111-8111-111111111111',
+        }),
+        'utf8',
+      ).toString('base64url'),
+    ],
+    [
+      'calendar-invalid',
+      Buffer.from(
+        JSON.stringify({
+          mode: 'search',
+          createdAt: '2026-99-99T99:99:99.999Z',
+          id: '11111111-1111-4111-8111-111111111111',
+        }),
+        'utf8',
+      ).toString('base64url'),
+    ],
+  ])('maps a %s cursor to the declared known error', async (_case, cursor) => {
+    const client = createClient();
+    const method = authInterModuleContract.methods.listImpersonationEligibleUserSummaries;
+
+    const error = await client
+      .listImpersonationEligibleUserSummaries({search: 'user', cursor, limit: 25})
+      .catch((caught: unknown) => caught);
+
+    expect(isInterModuleKnownError(method, error)).toBe(true);
+    if (isInterModuleKnownError(method, error)) {
+      expect(error.code).toBe('invalid-cursor');
+      expect(error.details).toEqual({});
+    }
+  });
+
   it('maps the disabled feature to the declared known error', async () => {
     const client = createClient();
     testConfig.AUTH_IMPERSONATION_ENABLED = false;

@@ -38,7 +38,9 @@ function decodeImpersonationEligibilityCursor(cursor: string): TimestampIdCursor
       JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')),
     );
     if (!parsed.success) return undefined;
-    return {createdAt: new Date(parsed.data.createdAt), id: parsed.data.id};
+    const createdAt = new Date(parsed.data.createdAt);
+    if (Number.isNaN(createdAt.getTime())) return undefined;
+    return {createdAt, id: parsed.data.id};
   } catch {
     return undefined;
   }
@@ -71,7 +73,7 @@ async function listImpersonationEligibleUserSummariesPresentation(
   const decodedCursor =
     input.cursor === undefined ? undefined : decodeImpersonationEligibilityCursor(input.cursor);
   if (input.cursor !== undefined && decodedCursor === undefined) {
-    throw new Error('Invalid impersonation eligibility cursor');
+    throw createInterModuleKnownError(method, 'invalid-cursor', {});
   }
 
   try {
