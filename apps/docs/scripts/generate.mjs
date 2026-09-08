@@ -240,6 +240,7 @@ function renderToolMethod(tool, method) {
     '',
     `**Required permissions:** ${formatScope(method.requiredScope)}`,
     ...alternativeScopeLines(method),
+    ...repositoryClassificationLines(tool.inputSchema, method),
     '',
     methodRequirements(tool.inputSchema, method.id),
   ];
@@ -262,6 +263,7 @@ function renderTool(tool, selectionCatalog) {
     `**Sensitive:** ${tool.sensitive ? 'Yes.' : 'No.'}`,
     '',
     `**Required permissions:** ${formatScope(tool.requiredScope)}`,
+    ...repositoryClassificationLines(tool.inputSchema, tool),
     '',
     `**Selector tokens:** ${formatSelectors(tool.id, selectionCatalog)}`,
     '',
@@ -286,6 +288,51 @@ function renderToolCatalog(catalog, selectionCatalog) {
     }
   }
   return lines.join('\n').trimEnd();
+}
+
+const repositoryCoordinateSamples = {
+  owner: 'example-owner',
+  repo: 'example-repository',
+  base_owner: 'example-base-owner',
+  base_repo: 'example-base-repository',
+  head_owner: 'example-head-owner',
+  head_repo: 'example-head-repository',
+  repository_owner: 'example-owner',
+  repository_name: 'example-repository',
+  repository: 'example-owner/example-repository',
+};
+
+function repositoryClassificationLines(inputSchema, catalogEntry) {
+  if (typeof catalogEntry.repositoryScope !== 'function') return [];
+
+  const directScope = catalogEntry.repositoryScope(repositoryArguments(inputSchema));
+  const connectionScope = catalogEntry.repositoryScope({});
+  const classification = formatRepositoryClassification(directScope, connectionScope);
+  const indirectTargetNote =
+    catalogEntry.indirectTargetNote ??
+    directScope.indirectTargetNote ??
+    connectionScope.indirectTargetNote;
+
+  return [
+    '',
+    `**Repository classification:** ${classification}`,
+    ...(indirectTargetNote ? ['', `**Indirect target:** ${indirectTargetNote}`] : []),
+  ];
+}
+
+function repositoryArguments(inputSchema) {
+  const properties = object(inputSchema.properties);
+  return Object.fromEntries(
+    Object.entries(repositoryCoordinateSamples).filter(([name]) => name in properties),
+  );
+}
+
+function formatRepositoryClassification(directScope, connectionScope) {
+  if (directScope.kind === 'connection') return 'Integration connection.';
+  if (connectionScope.kind !== 'connection' || !connectionScope.requiresExplicitRepository) {
+    return 'Declared targets.';
+  }
+  return 'Declared targets with `owner` and `repo`. Selected mode requires both. Without them, all mode uses the integration connection.';
 }
 
 function unwrapNullableProperty(property) {

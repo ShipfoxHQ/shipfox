@@ -83,6 +83,20 @@ checkout credential. An agent can therefore have this mix:
 
 These separate paths mean that "GitHub access" is never one broad permission.
 
+## Repository access adds two boundaries
+
+The provider sets the outer repository boundary. For GitHub, this is the
+repository selection on the GitHub App installation.
+
+Shipfox can add a direct-target guardrail inside that boundary. In `selected`
+mode, explicit checkouts and direct tool targets must match repositories used by
+Shipfox projects. In `all` mode, Shipfox skips that project check.
+
+This guardrail does not resolve opaque IDs or every indirect provider effect.
+The provider installation remains the boundary for those operations. The
+[GitHub tool catalog](/integrations/github/tools) marks each classification and
+indirect target.
+
 ## The workflow never receives the credential
 
 The workflow names an integration connection and the selected operations. It
@@ -106,8 +120,8 @@ Start with no integration tool. Add a read operation when the agent needs
 external context. Add a write operation only when the workflow intends an
 external change.
 
-Keep the repository scope as narrow as the work. When the task concerns one
-repository, the project source default is safer than broad account access.
+Keep the repository boundary as narrow as the work. For GitHub, use `selected`
+mode and a narrow App installation when the task concerns one repository.
 
 A general credential supports many operations but hides the real reach of the
 step. A small tool selection makes that reach visible in the workflow and at
@@ -117,4 +131,6 @@ Use [Agent access](/how-to/author-workflows/use-integration-tools) for the
 authoring task. The reference for [agent integration
 fields](/reference/workflow-schema#agent-integration-fields) lists the exact
 selection and write fields. [Agents](/understand/agents) explains how this
-access fits with the harness, model, and native tools.
+access fits with the harness, model, and native tools. [Manage GitHub repository
+access](/how-to/set-up-work/manage-github-repository-access) explains how to
+change both repository boundaries.

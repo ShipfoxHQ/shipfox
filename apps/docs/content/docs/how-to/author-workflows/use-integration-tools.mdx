@@ -45,8 +45,8 @@ jobs:
           - include: [pull_request_read]
 ```
 
-The workflow omits `connection` and repository scope. It uses the project's
-GitHub source and repository. See [Agent integration
+The workflow omits `connection`, so Shipfox selects the project's source
+integration connection. See [Agent integration
 fields](/reference/workflow-schema#agent-integration-fields) for other choices.
 
 Commit and push the file to the project's default branch. Wait for **Read a new

@@ -27,10 +27,11 @@ To verify a run, you also need an online runner with the `shipfox` label.
   </Step>
   <Step>
 
-    **Choose repository access**
+    **Set the GitHub repository boundary**
 
-    Select the GitHub account or organization. Grant access only to the
-    repositories Shipfox should use. GitHub returns you to Shipfox.
+    Select the GitHub account or organization. Choose only the repositories
+    Shipfox should reach. This selection is the hard repository boundary.
+    GitHub returns you to Shipfox.
   </Step>
   <Step>
 
@@ -41,6 +42,15 @@ To verify a run, you also need an online runner with the `shipfox` label.
   </Step>
 </Steps>
 
+New GitHub integration connections use **Only your projects' repositories** by
+default.
+This setting applies to explicit checkouts and repositories named by GitHub
+tools.
+
+Use [Manage GitHub repository
+access](/how-to/set-up-work/manage-github-repository-access) to change the
+setting or the repositories selected in GitHub.
+
 ## Check event delivery
 
 Make sure the integration connection is enabled in **Settings → Integrations**. Select
@@ -49,9 +59,10 @@ show the GitHub event.
 
 ## Verify a triggered run
 
-[Create a project](/how-to/set-up-work/create-project) from one allowed
-repository. Add `.shipfox/workflows/check-github-connection.yml` to that
-repository. Replace `github_acme` with the integration connection slug. This is a complete
+[Create a project](/how-to/set-up-work/create-project) from one repository
+selected in GitHub. Add
+`.shipfox/workflows/check-github-connection.yml` to that repository. Replace
+`github_acme` with the integration connection slug. This is a complete
 workflow:
 
 ```yaml

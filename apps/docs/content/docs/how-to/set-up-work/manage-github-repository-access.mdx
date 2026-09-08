@@ -1,0 +1,73 @@
+---
+title: "Manage GitHub Repository Access"
+sidebarTitle: "Manage GitHub Access"
+description: "Change which repositories Shipfox can access through a GitHub integration connection."
+---
+
+Use this guide to change which repositories Shipfox can access through an
+existing GitHub integration connection.
+
+GitHub controls which repositories Shipfox can access. Shipfox controls which
+of those repositories a workflow can name.
+
+## Before you begin
+
+You need permission to manage workspace integrations and an active GitHub
+integration connection.
+
+To change the GitHub repository list, you also need permission to manage the
+GitHub App installation.
+
+## Open repository access settings
+
+Open **Settings → Integrations**. Open the integration connection's menu. Select
+**Manage repository access**.
+
+## Change the repositories available from GitHub
+
+Skip this section if GitHub already lists the repositories you need.
+
+Select **Change repositories on GitHub**. Select the repositories Shipfox
+needs. Save the GitHub App installation. Return to Shipfox.
+
+Shipfox cannot access any repository outside this selection.
+
+## Choose a Shipfox access mode
+
+By default, a job checks out its project's repository. The access mode applies
+when a workflow explicitly checks out a repository or a GitHub tool names one.
+
+Choose a mode:
+
+| Mode | Repositories a workflow can name |
+| --- | --- |
+| **Only your projects' repositories** | Repositories used by Shipfox projects. [Create a project](/how-to/set-up-work/create-project) to add another repository. |
+| **Every repository this integration can access** | All repositories in the GitHub App selection. |
+
+Select **Save changes**.
+
+## Keep GitHub access narrow
+
+The **Only your projects' repositories** mode cannot check every GitHub action:
+
+- Some tools use an item ID instead of a repository name. The GitHub App
+  selection controls which items those tools can reach.
+- Some tools can affect another repository. The [GitHub tool
+  catalog](/integrations/github/tools) identifies these tools.
+- Shipfox uses saved project repository names. A rename or transfer can make
+  those names outdated.
+- The mode does not check who created an incoming event. Events from other users
+  can still match a workflow trigger.
+
+Use separate GitHub App installations when repository groups must stay
+isolated.
+
+## Verify repository access
+
+Return to **Manage repository access**.
+
+1. Confirm that the saved mode matches your choice.
+2. If you chose **Only your projects' repositories**, confirm that each required
+   project repository appears.
+3. Select **Change repositories on GitHub**. Confirm that GitHub lists only the
+   repositories Shipfox needs.
