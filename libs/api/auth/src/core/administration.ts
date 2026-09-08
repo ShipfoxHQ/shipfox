@@ -153,6 +153,9 @@ function recordWindowTerminalTransition(
 function resolveWindowCommandOutcome<T>(outcome: ImpersonationWindowCommandOutcome<T>): T {
   recordWindowTerminalTransition(outcome.terminalTransition);
   if (outcome.kind === 'failure') throw outcome.error;
+  for (const transition of outcome.terminalTransitions ?? []) {
+    recordWindowTerminalTransition(transition);
+  }
   return outcome.result;
 }
 

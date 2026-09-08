@@ -126,6 +126,7 @@ export type ImpersonationWindowCommandOutcome<T> =
       kind: 'success';
       result: T;
       terminalTransition?: ImpersonationWindowTerminalTransition;
+      terminalTransitions?: ImpersonationWindowTerminalTransition[];
     }
   | {
       kind: 'failure';
@@ -389,11 +390,9 @@ async function writeWindowStateFailure(
     correlationId: params.correlationId,
     occurredAt: params.occurredAt,
   });
-  const transition = terminalTransition(params.window);
   return {
     kind: 'failure',
     error: params.error,
-    ...(transition ? {terminalTransition: transition} : {}),
   };
 }
 
@@ -568,7 +567,14 @@ async function executeWindowMint(
     context.actorRole = actorRole;
     context.actorRoleAtStart = actorRole;
 
-    await requireImpersonationWindowCapacity(tx, {actorId: params.actorId, now});
+    const expiredWindows = await requireImpersonationWindowCapacity(tx, {
+      actorId: params.actorId,
+      now,
+    });
+    const terminalTransitions = expiredWindows.flatMap((expiredWindow) => {
+      const transition = terminalTransition(expiredWindow);
+      return transition ? [transition] : [];
+    });
 
     const target = await readTargetUser(tx, params.targetUserId);
     const memberships = await loadTokenMemberships(target.id, params.workspaces);
@@ -629,7 +635,11 @@ async function executeWindowMint(
         occurredAt: now,
       }),
     );
-    return {kind: 'success', result};
+    return {
+      kind: 'success',
+      result,
+      ...(terminalTransitions.length > 0 ? {terminalTransitions} : {}),
+    };
   } catch (error) {
     if (error instanceof AdminIdempotencyKeyReuseError || error instanceof UserNotFoundError) {
       throw error;
@@ -868,12 +878,27 @@ export async function stopImpersonationWindowCommand(
 
     const now = new Date();
     if (window.endedAt !== null) {
+      const stored: StoredImpersonationWindowStopResult = {
+        windowId: window.id,
+        state: window.endedReason === 'expired' ? 'expired' : 'stopped',
+        endedAt: window.endedAt.toISOString(),
+      };
+      await storeAdminCommandResult(
+        tx,
+        {
+          actorId: params.actorId,
+          idempotencyKeyFingerprint: params.idempotencyKeyFingerprint,
+          requestFingerprint: params.requestFingerprint,
+          command: IMPERSONATION_WINDOW_STOP_COMMAND,
+        },
+        {impersonationWindowStop: stored},
+      );
       return {
         kind: 'success',
         result: {
-          windowId: window.id,
-          state: window.endedReason === 'expired' ? 'expired' : 'stopped',
-          endedAt: window.endedAt,
+          windowId: stored.windowId,
+          state: stored.state,
+          endedAt: new Date(stored.endedAt),
         },
       };
     }
@@ -885,7 +910,6 @@ export async function stopImpersonationWindowCommand(
       });
       const expired = materialized ?? (await findImpersonationWindow(tx, {id: window.id}));
       if (!expired) throw new ImpersonationWindowNotFoundError();
-      const transition = terminalTransition(expired);
       const stored: StoredImpersonationWindowStopResult = {
         windowId: expired.id,
         state: 'expired',
@@ -901,6 +925,24 @@ export async function stopImpersonationWindowCommand(
         },
         {impersonationWindowStop: stored},
       );
+      if (materialized) {
+        const reason = params.reason ?? window.reason;
+        await writeAdminAction(
+          tx,
+          stopEvent({
+            actorId: params.actorId,
+            windowId: expired.id,
+            actorRole,
+            actorRoleAtStart: window.actorRoleAtStart,
+            reason,
+            idempotencyKeyFingerprint: params.idempotencyKeyFingerprint,
+            correlationId: params.correlationId,
+            occurredAt: now,
+            owned,
+          }),
+        );
+      }
+      const transition = materialized ? terminalTransition(expired) : undefined;
       return {
         kind: 'success',
         result: {

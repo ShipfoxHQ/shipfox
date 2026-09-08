@@ -412,21 +412,22 @@ export async function countAllOpenImpersonationWindows(now = new Date()): Promis
 export async function requireImpersonationWindowCapacity(
   params: ImpersonationWindowActorTimeParams,
   executor?: ImpersonationWindowExecutor,
-): Promise<void>;
+): Promise<ImpersonationWindow[]>;
 export async function requireImpersonationWindowCapacity(
   executor: ImpersonationWindowExecutor,
   params: ImpersonationWindowActorTimeParams,
-): Promise<void>;
+): Promise<ImpersonationWindow[]>;
 export async function requireImpersonationWindowCapacity(
   first: ImpersonationWindowActorTimeParams | ImpersonationWindowExecutor,
   second?: ImpersonationWindowActorTimeParams | ImpersonationWindowExecutor,
-): Promise<void> {
+): Promise<ImpersonationWindow[]> {
   const {executor, params} = resolveExecutorAndParams(first, second);
-  await materializeExpiredImpersonationWindows(executor, params);
+  const expiredWindows = await materializeExpiredImpersonationWindows(executor, params);
   const openCount = await countOpenImpersonationWindows(executor, params);
   if (openCount >= MAX_OPEN_IMPERSONATION_WINDOWS) {
     throw new ImpersonationWindowLimitReachedError();
   }
+  return expiredWindows;
 }
 
 export const assertImpersonationWindowCapacity = requireImpersonationWindowCapacity;

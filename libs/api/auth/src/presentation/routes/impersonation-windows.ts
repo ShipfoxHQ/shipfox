@@ -117,7 +117,7 @@ export function createImpersonationWindowRoutes(
           ? {requiredWorkspaceId: request.body.required_workspace_id}
           : {}),
         idempotencyKey: requireIdempotencyKey(request),
-        correlationId: crypto.randomUUID(),
+        correlationId: request.id,
         workspaces,
       });
       return toWindowTokenResponse(result);
@@ -143,7 +143,7 @@ export function createImpersonationWindowRoutes(
         actorId: requireActorId(request),
         windowId: request.params.windowId,
         idempotencyKey: requireIdempotencyKey(request),
-        correlationId: crypto.randomUUID(),
+        correlationId: request.id,
         workspaces,
       });
       return toWindowTokenResponse(result);
@@ -167,7 +167,7 @@ export function createImpersonationWindowRoutes(
         windowId: request.params.windowId,
         ...(request.body.reason ? {reason: request.body.reason} : {}),
         idempotencyKey: requireIdempotencyKey(request),
-        correlationId: crypto.randomUUID(),
+        correlationId: request.id,
       });
       return {
         window_id: result.windowId,

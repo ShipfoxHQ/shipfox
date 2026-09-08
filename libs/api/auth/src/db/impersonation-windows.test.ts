@@ -183,7 +183,7 @@ describe('impersonation windows db', () => {
     await expect(countOpenImpersonationWindows({actorId: actor.id, now})).resolves.toBe(4);
     await expect(
       requireImpersonationWindowCapacity({actorId: actor.id, now}),
-    ).resolves.toBeUndefined();
+    ).resolves.toHaveLength(1);
 
     const expired = await db()
       .select({

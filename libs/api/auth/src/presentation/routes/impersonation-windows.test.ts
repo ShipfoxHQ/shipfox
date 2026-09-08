@@ -14,6 +14,7 @@ import {db} from '#db/db.js';
 import {adminCommandResults} from '#db/schema/admin-command-results.js';
 import {impersonationWindows} from '#db/schema/impersonation-windows.js';
 import {authOutbox} from '#db/schema/outbox.js';
+import * as authMetrics from '#metrics/index.js';
 import {
   createAuthTestApp,
   createVerifiedSession,
@@ -25,10 +26,11 @@ import {
 
 const BOOTSTRAP_TOKEN = 'test-bootstrap-token';
 
-function authHeaders(token: string, idempotencyKey: string) {
+function authHeaders(token: string, idempotencyKey: string, requestId?: string) {
   return {
     authorization: `Bearer ${token}`,
     'idempotency-key': idempotencyKey,
+    ...(requestId ? {'x-request-id': requestId} : {}),
   };
 }
 
@@ -45,7 +47,7 @@ describe('impersonation window routes', () => {
   let app: Awaited<ReturnType<typeof createAuthTestApp>>;
 
   beforeAll(async () => {
-    app = await createAuthTestApp();
+    app = await createAuthTestApp({fastifyOptions: {requestIdHeader: 'x-request-id'}});
   });
 
   beforeEach(async () => {
@@ -75,11 +77,12 @@ describe('impersonation window routes', () => {
     key: string;
     reason?: string;
     requiredWorkspaceId?: string;
+    requestId?: string;
   }) {
     return await app.inject({
       method: 'POST',
       url: '/admin/auth/impersonation/windows',
-      headers: authHeaders(params.token, params.key),
+      headers: authHeaders(params.token, params.key, params.requestId),
       payload: {
         target_user_id: params.targetUserId,
         reason: params.reason ?? 'Support reproduction',
@@ -108,6 +111,7 @@ describe('impersonation window routes', () => {
       token: owner.token,
       targetUserId: target.userId,
       key: 'window-start',
+      requestId: 'window-protocol-start',
     });
     expect(started.statusCode).toBe(200);
     const startBody = impersonationWindowStartResponseSchema.parse(started.json());
@@ -133,7 +137,7 @@ describe('impersonation window routes', () => {
     const continued = await app.inject({
       method: 'POST',
       url: `/admin/auth/impersonation/windows/${startBody.window_id}/continue`,
-      headers: authHeaders(owner.token, 'window-continue'),
+      headers: authHeaders(owner.token, 'window-continue', 'window-protocol-continue'),
       payload: {},
     });
     expect(continued.statusCode).toBe(200);
@@ -157,7 +161,7 @@ describe('impersonation window routes', () => {
     const stopped = await app.inject({
       method: 'POST',
       url: `/admin/auth/impersonation/windows/${startBody.window_id}/stop`,
-      headers: authHeaders(owner.token, 'window-stop'),
+      headers: authHeaders(owner.token, 'window-stop', 'window-protocol-stop'),
       payload: {},
     });
     expect(stopped.statusCode).toBe(200);
@@ -195,6 +199,15 @@ describe('impersonation window routes', () => {
       'auth.impersonation.window.continue',
       'auth.impersonation.window.stop',
     ]);
+    expect((events[0]?.payload as {correlationId: string}).correlationId).toBe(
+      'window-protocol-start',
+    );
+    expect((events[1]?.payload as {correlationId: string}).correlationId).toBe(
+      'window-protocol-continue',
+    );
+    expect((events[3]?.payload as {correlationId: string}).correlationId).toBe(
+      'window-protocol-stop',
+    );
     expect(events.at(-1)?.payload).toMatchObject({
       authorizationBasis: 'impersonation-window-owner',
       actorRole: null,
@@ -379,6 +392,80 @@ describe('impersonation window routes', () => {
     ).resolves.toHaveLength(0);
   });
 
+  test('records expiry metrics once across a repeated terminal Continue failure', async () => {
+    const owner = await bootstrapOwner('window-expiry-metrics');
+    const target = await createVerifiedSession('window-expiry-metrics-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-expiry-metrics-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+    await db()
+      .update(impersonationWindows)
+      .set({
+        startedAt: new Date(Date.now() - 2_000),
+        deadlineAt: new Date(Date.now() - 1_000),
+      })
+      .where(eq(impersonationWindows.id, windowId));
+
+    const recordEnded = vi.spyOn(authMetrics, 'recordImpersonationWindowEnded');
+    const recordDuration = vi.spyOn(authMetrics, 'recordImpersonationWindowDuration');
+    const first = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+      headers: authHeaders(owner.token, 'window-expiry-metrics-continue'),
+      payload: {},
+    });
+    const replay = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+      headers: authHeaders(owner.token, 'window-expiry-metrics-continue'),
+      payload: {},
+    });
+
+    expect(first.statusCode).toBe(410);
+    expect(replay.statusCode).toBe(410);
+    expect(recordEnded).toHaveBeenCalledTimes(1);
+    expect(recordEnded).toHaveBeenCalledWith('expired');
+    expect(recordDuration).toHaveBeenCalledTimes(1);
+    expect(recordDuration).toHaveBeenCalledWith(expect.any(Number));
+  });
+
+  test('records expiry metrics for a capacity sweep committed by Start', async () => {
+    const owner = await bootstrapOwner('window-capacity-metrics');
+    const target = await createVerifiedSession('window-capacity-metrics-target');
+    const expiredStart = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-capacity-metrics-expired',
+    });
+    const expiredWindowId = impersonationWindowStartResponseSchema.parse(
+      expiredStart.json(),
+    ).window_id;
+    await db()
+      .update(impersonationWindows)
+      .set({
+        startedAt: new Date(Date.now() - 2_000),
+        deadlineAt: new Date(Date.now() - 1_000),
+      })
+      .where(eq(impersonationWindows.id, expiredWindowId));
+
+    const recordEnded = vi.spyOn(authMetrics, 'recordImpersonationWindowEnded');
+    const recordDuration = vi.spyOn(authMetrics, 'recordImpersonationWindowDuration');
+    const replacement = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-capacity-metrics-replacement',
+    });
+
+    expect(replacement.statusCode).toBe(200);
+    expect(recordEnded).toHaveBeenCalledTimes(1);
+    expect(recordEnded).toHaveBeenCalledWith('expired');
+    expect(recordDuration).toHaveBeenCalledTimes(1);
+    expect(recordDuration).toHaveBeenCalledWith(expect.any(Number));
+  });
+
   test('owner Stop requires a fresh reason and emits current-role audit context', async () => {
     const owner = await bootstrapOwner('window-owner-stop');
     const actor = await createVerifiedSession('window-owner-stop-actor');
@@ -425,6 +512,113 @@ describe('impersonation window routes', () => {
     });
     expect(events.at(-1)?.payload).not.toHaveProperty('actorRoleAtStart');
     expect(JSON.stringify(events.at(-1)?.payload)).not.toContain('window-owner-stop');
+  });
+
+  test('audits only the first expired Stop materialization and stores terminal replays', async () => {
+    const owner = await bootstrapOwner('window-expired-stop');
+    const target = await createVerifiedSession('window-expired-stop-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-expired-stop-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+    await db()
+      .update(impersonationWindows)
+      .set({
+        startedAt: new Date(Date.now() - 2_000),
+        deadlineAt: new Date(Date.now() - 1_000),
+      })
+      .where(eq(impersonationWindows.id, windowId));
+
+    const first = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/stop`,
+      headers: authHeaders(owner.token, 'window-expired-stop-first'),
+      payload: {},
+    });
+    const replay = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/stop`,
+      headers: authHeaders(owner.token, 'window-expired-stop-replay'),
+      payload: {},
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    const events = await actionEvents();
+    expect(events.map((event) => (event.payload as {command: string}).command)).toEqual([
+      'auth.impersonation.window.start',
+      'auth.impersonation.window.stop',
+    ]);
+    expect(events.at(-1)?.payload).toMatchObject({
+      command: 'auth.impersonation.window.stop',
+      authorizationBasis: 'impersonation-window-owner',
+      actorRole: null,
+      requiredRole: null,
+      actorRoleAtStart: 'admin-owner',
+      targetType: 'impersonation-window',
+      targetId: windowId,
+      reason: 'Support reproduction',
+      result: 'succeeded',
+    });
+    await expect(
+      db()
+        .select()
+        .from(adminCommandResults)
+        .where(
+          and(
+            eq(adminCommandResults.actorId, owner.userId),
+            eq(adminCommandResults.command, 'auth.impersonation.window.stop'),
+          ),
+        ),
+    ).resolves.toHaveLength(2);
+  });
+
+  test('rejects reuse of a terminal Stop key on another window', async () => {
+    const owner = await bootstrapOwner('window-terminal-stop-key');
+    const target = await createVerifiedSession('window-terminal-stop-key-target');
+    const firstStart = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-terminal-stop-key-first-start',
+    });
+    const firstWindowId = impersonationWindowStartResponseSchema.parse(firstStart.json()).window_id;
+    const firstStop = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${firstWindowId}/stop`,
+      headers: authHeaders(owner.token, 'window-terminal-stop-key-first-stop'),
+      payload: {},
+    });
+    expect(firstStop.statusCode).toBe(200);
+
+    const terminalKey = 'window-terminal-stop-key-reused';
+    const terminalReplay = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${firstWindowId}/stop`,
+      headers: authHeaders(owner.token, terminalKey),
+      payload: {},
+    });
+    expect(terminalReplay.statusCode).toBe(200);
+
+    const secondStart = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-terminal-stop-key-second-start',
+    });
+    const secondWindowId = impersonationWindowStartResponseSchema.parse(
+      secondStart.json(),
+    ).window_id;
+    const reused = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${secondWindowId}/stop`,
+      headers: authHeaders(owner.token, terminalKey),
+      payload: {},
+    });
+
+    expect(reused.statusCode).toBe(409);
+    expect(reused.json()).toEqual({code: 'idempotency-key-reused'});
   });
 
   test('stores only token fingerprints for window command results', async () => {
