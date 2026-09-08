@@ -271,7 +271,7 @@ function materializeRerunGraphJob(
         status: carriedOver ? step.status : 'pending',
         statusReason: carriedOver ? step.statusReason : null,
         type: step.type,
-        config: rerunStepConfig(step),
+        config: carriedOver ? {...step.config} : rerunStepConfig(step),
         condition: step.condition ?? null,
         configPlan: step.configPlan,
         authoredConfig: step.authoredConfig,

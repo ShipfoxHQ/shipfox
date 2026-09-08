@@ -4,6 +4,7 @@ import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {assembleWorkflowRunContext} from '#core/step-config/assemble-run-context.js';
+import {literalField} from '#core/step-config/fields.js';
 import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
@@ -592,6 +593,56 @@ describe('workflow run queries', () => {
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
         expect(jobSteps.every((step) => step.error === null)).toBe(true);
       }
+    });
+
+    test('failed mode preserves the claimed session on a carried-over agent step', async () => {
+      const source = await createTerminalSourceRun();
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      const sourceBuild = sourceJobs.find((job) => job.key === 'build');
+      if (!sourceBuild) throw new Error('Missing source build job');
+      const sourceBuildSteps = await getStepsByJobId(sourceBuild.id);
+      const sourceAgentStep = sourceBuildSteps.find((step) => step.type === 'run');
+      if (!sourceAgentStep) throw new Error('Missing source build step');
+      const session = {
+        id: crypto.randomUUID(),
+        key: 'main',
+        mode: 'resume' as const,
+        segment: 3,
+      };
+      await db()
+        .update(stepsTable)
+        .set({
+          type: 'agent',
+          config: {
+            harness: 'pi',
+            provider: 'openai',
+            model: 'gpt-5.5-pro',
+            thinking: 'medium',
+            prompt: 'Continue.',
+            session,
+          },
+          configPlan: {
+            agent: {session: {key: literalField('main'), mode: 'resume'}},
+          },
+          authoredConfig: {prompt: 'Continue.', session: {key: 'main', mode: 'resume'}},
+        })
+        .where(eq(stepsTable.id, sourceAgentStep.id));
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
+      const rerunBuild = rerunJobs.find((job) => job.key === 'build');
+      if (!rerunBuild) throw new Error('Missing rerun build job');
+      const rerunBuildSteps = await getStepsByJobId(rerunBuild.id);
+
+      expect(rerunBuild).toMatchObject({status: 'succeeded', carriedOver: true});
+      expect(rerunBuildSteps.find((step) => step.type === 'agent')).toMatchObject({
+        status: 'succeeded',
+        config: expect.objectContaining({session}),
+      });
     });
 
     test('increments attempts across a lineage', async () => {
