@@ -90,4 +90,7 @@ export const runnersTestAuthClient: AuthInterModuleClient = {
       new Error('Administrator role checks are not configured in runner tests'),
     );
   },
+  listImpersonationEligibleUserSummaries(_input) {
+    return Promise.reject(new Error('Impersonation eligibility is not configured in runner tests'));
+  },
 };

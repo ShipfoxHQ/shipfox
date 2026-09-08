@@ -180,6 +180,7 @@ describe('defaultModules', () => {
             mintRunnerSessionToken: vi.fn(),
             getCurrentAdminRole: vi.fn(),
             requireAdminRole: vi.fn(),
+            listImpersonationEligibleUserSummaries: vi.fn(),
           },
         },
       ],
