@@ -27,6 +27,7 @@ jobs:
     steps:
       - key: reply
         harness: claude
+        provider: anthropic
         thinking: low
         prompt: 'Reply with exactly: ok'
 `;
@@ -43,6 +44,7 @@ jobs:
     steps:
       - key: produce
         harness: claude
+        provider: anthropic
         thinking: low
         prompt: |
           Set the message output.
