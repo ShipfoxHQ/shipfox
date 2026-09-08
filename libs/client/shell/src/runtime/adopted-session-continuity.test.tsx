@@ -758,6 +758,76 @@ describe('continuity-aware adopted sessions', () => {
     expect(widgetCalls).toBe(1);
   });
 
+  test.each([
+    {
+      label: 'an invalid issuer lifetime',
+      getExpiresAt: (times: ReturnType<typeof adoptionTimes>) => times.serverTime,
+      delayMs: 20,
+    },
+    {
+      label: 'a known issuer lifetime after it has elapsed',
+      getExpiresAt: (times: ReturnType<typeof adoptionTimes>) => times.expiresAt,
+      delayMs: 20,
+    },
+  ])('does not replay a delayed released bearer with the administrator credential after $label', async ({
+    getExpiresAt,
+    delayMs,
+  }) => {
+    useFakeTimersWithWaitFor();
+    setDocumentAttendance({visible: true, focused: true});
+    let resolveInitialResponse: ((response: Response) => void) | undefined;
+    let releasePromise: Promise<void> | undefined;
+    let widgetCalls = 0;
+    let refreshCalls = 0;
+    const apiRef: {current: HarnessApi | null} = {current: null};
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) {
+        refreshCalls += 1;
+        return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      }
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      if (url.endsWith('/widgets')) {
+        widgetCalls += 1;
+        if (widgetCalls === 1) {
+          releasePromise = apiRef.current?.releaseAdoptedSession('manual-stop');
+          return new Promise<Response>((resolve) => {
+            resolveInitialResponse = resolve;
+          });
+        }
+        return Promise.resolve(jsonResponse({}));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {store} = renderHarness(fetchImpl, apiRef);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    const times = adoptionTimes(10);
+    await act(async () => {
+      await expect(
+        apiRef.current?.adoptSession(TARGET_SESSION, {
+          ...times,
+          expiresAt: getExpiresAt(times),
+          renew: vi.fn(async () => null),
+        }),
+      ).resolves.toBe(true);
+    });
+
+    const request = checkedApiRequest(emptyResponseSchema, '/widgets');
+    await waitFor(() => expect(widgetCalls).toBe(1));
+    expect(releasePromise).toBeDefined();
+    await releasePromise;
+    const refreshCallsAfterRelease = refreshCalls;
+    await vi.advanceTimersByTimeAsync(delayMs);
+    resolveInitialResponse?.(
+      jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+    );
+
+    await expect(request).rejects.toMatchObject({code: 'unauthorized', status: 401});
+    expect(widgetCalls).toBe(1);
+    expect(refreshCalls).toBe(refreshCallsAfterRelease);
+  });
+
   test('does not retry a superseded adopted bearer after renewal and release', async () => {
     setDocumentAttendance({visible: true, focused: true});
     let resolveInitialResponse: ((response: Response) => void) | undefined;

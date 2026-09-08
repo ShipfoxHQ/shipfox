@@ -600,10 +600,12 @@ interface AdoptedSessionControl {
   /**
    * A request can receive a 401 after its adopted session has ended, including
    * after another adoption has started. Keep those credentials as an
-   * in-memory retry guard until their known token lifetime ends; they are
-   * never persisted or logged.
+   * in-memory retry guard for the lifetime of this runtime. The transport does
+   * not expose request completion, so expiry-based eviction could let a late
+   * retry fall back to the administrator credential; they are never persisted
+   * or logged.
    */
-  releasedAdoptedTokens: Map<string, number>;
+  releasedAdoptedTokens: Set<string>;
   releaseNotified: Set<number>;
   lastReleaseReason: AdoptedSessionReleaseReason;
   wakeWaiters: Set<() => void>;
@@ -619,7 +621,7 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
     continuation: null,
     terminal: null,
     pendingRelease: null,
-    releasedAdoptedTokens: new Map(),
+    releasedAdoptedTokens: new Set(),
     releaseNotified: new Set(),
     lastReleaseReason: 'manual-stop',
     wakeWaiters: new Set(),
@@ -629,21 +631,8 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
   return control;
 }
 
-function pruneReleasedAdoptedTokens(control: AdoptedSessionControl, now = monotonicNow()): void {
-  for (const [accessToken, tokenExpiresAtMs] of control.releasedAdoptedTokens) {
-    if (tokenExpiresAtMs <= now) control.releasedAdoptedTokens.delete(accessToken);
-  }
-}
-
-function rememberReleasedAdoptedToken(
-  control: AdoptedSessionControl,
-  accessToken: string,
-  tokenExpiresAtMs: number,
-): void {
-  const now = monotonicNow();
-  pruneReleasedAdoptedTokens(control, now);
-  if (!Number.isFinite(tokenExpiresAtMs) || tokenExpiresAtMs <= now) return;
-  control.releasedAdoptedTokens.set(accessToken, tokenExpiresAtMs);
+function rememberReleasedAdoptedToken(control: AdoptedSessionControl, accessToken: string): void {
+  control.releasedAdoptedTokens.add(accessToken);
 }
 
 function rememberSupersededAdoptedToken(
@@ -652,7 +641,7 @@ function rememberSupersededAdoptedToken(
   replacement: AuthenticatedSession,
 ): void {
   if (current.session.accessToken === replacement.accessToken) return;
-  rememberReleasedAdoptedToken(control, current.session.accessToken, current.tokenExpiresAtMs);
+  rememberReleasedAdoptedToken(control, current.session.accessToken);
 }
 
 function isStaleAdoptedRetry(
@@ -661,7 +650,6 @@ function isStaleAdoptedRetry(
   control: AdoptedSessionControl,
 ): boolean {
   if (accessToken === undefined) return false;
-  pruneReleasedAdoptedTokens(control);
   if (control.releasedAdoptedTokens.has(accessToken)) return true;
   return current !== null && current.session.accessToken !== accessToken;
 }
@@ -791,13 +779,9 @@ export function useAdoptedSession() {
       const releaseGeneration = current?.generation ?? pending?.generation ?? previousGeneration;
       const release = current?.release ?? pending?.release;
       if (current !== null) {
-        rememberReleasedAdoptedToken(
-          control,
-          current.session.accessToken,
-          current.tokenExpiresAtMs,
-        );
+        rememberReleasedAdoptedToken(control, current.session.accessToken);
       } else if (pending !== null) {
-        rememberReleasedAdoptedToken(control, pending.accessToken, pending.tokenExpiresAtMs);
+        rememberReleasedAdoptedToken(control, pending.accessToken);
       }
       const endedError = createAdoptedSessionEndedError(reason);
       control.lastReleaseReason = reason;
@@ -859,15 +843,11 @@ export function useAdoptedSession() {
         wakeContinuationWaiters();
       }
       if (previous !== null) {
-        rememberReleasedAdoptedToken(
-          control,
-          previous.session.accessToken,
-          previous.tokenExpiresAtMs,
-        );
+        rememberReleasedAdoptedToken(control, previous.session.accessToken);
         void notifyRelease(previous.generation, previous.release, 'replaced');
       }
       if (pending !== null) {
-        rememberReleasedAdoptedToken(control, pending.accessToken, pending.tokenExpiresAtMs);
+        rememberReleasedAdoptedToken(control, pending.accessToken);
         void notifyRelease(pending.generation, pending.release, 'replaced');
       }
       if (control.terminal) {
