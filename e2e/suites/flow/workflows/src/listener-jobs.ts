@@ -14,6 +14,7 @@ import {logText} from './expect.js';
 import {
   batchedListenerExecutionMatches,
   sendWebhookDeliveryUntilObserved,
+  waitForListenerStatus,
 } from './listener-helpers.js';
 import {waitForRunObservationMatching} from './polling.js';
 import {startSuiteLocalRunner} from './runner.js';
@@ -28,6 +29,7 @@ import {
 import {seedProjectWithApiDefinition} from './workflow-project.js';
 
 export const LISTENER_JOB = 'listen';
+const LISTENER_DELIVERY_TIMEOUT_MS = 60_000;
 const FIRE_SOURCE_PLACEHOLDER = '__FIRE_WEBHOOK_SOURCE__';
 const RESOLVE_SOURCE_PLACEHOLDER = '__RESOLVE_WEBHOOK_SOURCE__';
 
@@ -200,6 +202,15 @@ export async function sendFire(
   label: string,
   message: string,
 ) {
+  await waitForListenerStatus({
+    token: testCase.token,
+    runId,
+    jobKey: LISTENER_JOB,
+    listenerStatus: 'listening',
+    timeoutMs: LISTENER_DELIVERY_TIMEOUT_MS,
+  });
+
+  // Retry delivery IDs are distinct listener events and can consume multiple executions.
   const result = await sendWebhookDeliveryUntilObserved({
     client: testCase.client,
     connection: testCase.fireConnection,
@@ -207,7 +218,8 @@ export async function sendFire(
     token: testCase.token,
     jobKey: LISTENER_JOB,
     deliveryIdPrefix: `${testCase.uniqueId}-${label}`,
-    attemptTimeoutMs: 15_000,
+    maxAttempts: 1,
+    attemptTimeoutMs: LISTENER_DELIVERY_TIMEOUT_MS,
     body: (_attempt, deliveryId) => ({message, delivery_id: deliveryId}),
   });
   testCase.fireDiagnostics.deliveryIds.push(...result.deliveryIds);

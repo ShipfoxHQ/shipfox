@@ -226,6 +226,7 @@ export async function waitForListenerStatus(params: {
   listenerStatus: ListenerStatusDto;
   timeoutMs: number;
 }): Promise<WorkflowRunObservation> {
+  const requestSignal = AbortSignal.timeout(params.timeoutMs);
   let diagnostic = `listener job ${params.jobKey} missing`;
   return await pollUntil(
     {
@@ -239,6 +240,7 @@ export async function waitForListenerStatus(params: {
       const observation = await observeRun({
         runId: params.runId,
         selection: {jobs: [{jobKey: params.jobKey}]},
+        signal: requestSignal,
         token: params.token,
       });
       const status = listenerStatusMatches({...params, observation});
@@ -250,7 +252,7 @@ export async function waitForListenerStatus(params: {
       const readiness = await requestJson<{ready: boolean}>(
         'get',
         `/__e2e/triggers/listeners/${encodeURIComponent(job.id)}/readiness`,
-        {},
+        {signal: requestSignal},
       );
       diagnostic = readiness.ready
         ? `${status.diagnostic}, trigger subscriptions ready`
