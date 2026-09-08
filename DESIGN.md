@@ -635,6 +635,8 @@ Navigation never wears a standalone bordered tile. A grid of openable things is
 
 ### Navigation
 
+- **TabsList** uses `gap-group` between triggers so multiword labels read as
+  separate choices. Consumers and stories inherit this spacing from the shared component.
 - **NavBar** `h-56`, sticky, `bg-background-subtle-base`, hairline bottom border,
   holding a theme-aware `Logo`, split-affordance workspace and project crumbs (name
   links to the entity, chevron opens a `Command`+`Popover` switcher), and a

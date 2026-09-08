@@ -12,6 +12,7 @@ import {
   isErrorWithCode,
   isInvalidApiResponseError,
   resetApiClient,
+  resolveApiUrl,
 } from './index.js';
 
 function transportRequest<T>(path: string, options: Parameters<typeof checkedApiRequest>[2] = {}) {
@@ -27,6 +28,15 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 }
 
 describe('checked API transport', () => {
+  test.each([
+    ['https://api.example.test', 'https://api.example.test/mcp'],
+    ['https://api.example.test/proxy/', 'https://api.example.test/proxy/mcp'],
+    ['', '/mcp'],
+  ])('resolves MCP URLs with API base %s', (baseUrl, expected) => {
+    configureApiClient({baseUrl});
+
+    expect(resolveApiUrl('/mcp')).toBe(expected);
+  });
   beforeEach(() => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
