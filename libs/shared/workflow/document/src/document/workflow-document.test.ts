@@ -1086,6 +1086,23 @@ describe('workflowDocumentSchema', () => {
       },
     ],
     [
+      'unpublished gate on_failure max_attempts field',
+      {
+        name: 'simple build',
+        jobs: {
+          build: {
+            steps: [
+              {name: 'producer', run: 'npm test'},
+              {
+                run: 'npm test',
+                gate: {on_failure: {restart_from: 'producer', max_attempts: 8}},
+              },
+            ],
+          },
+        },
+      },
+    ],
+    [
       'unknown checkout field',
       {
         name: 'simple build',

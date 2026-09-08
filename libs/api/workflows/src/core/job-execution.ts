@@ -33,6 +33,7 @@ import {
 import {
   recordWorkflowJobExecutionStepsSettled,
   recordWorkflowStepRestartEnqueued,
+  recordWorkflowStepRestartExhausted,
 } from '#metrics/instance.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
 import {defaultStepConditionTrace, explicitConditionTrace} from './condition-trace.js';
@@ -1236,6 +1237,9 @@ async function decideReportedStepTransition(params: {
     result: params.result,
     gateOutcome,
     ...(gate?.onFailure ? {gateOnFailure: gate.onFailure} : {}),
+    ...(gate?.onFailure?.maxAttempts !== undefined
+      ? {maxAttempts: gate.onFailure.maxAttempts}
+      : {}),
     ...(gatingAttemptCount !== undefined ? {gatingAttemptCount} : {}),
   });
   const gateResult = gateResultPayload(gateOutcome, params.result.exitCode);
@@ -1381,4 +1385,7 @@ export function recordStepProgressionMetrics(metrics: StepProgressionMetrics): v
 
   const restartWasEnqueued = metrics.stepRestartEnqueued === true;
   if (restartWasEnqueued) recordWorkflowStepRestartEnqueued();
+
+  const restartWasExhausted = metrics.stepRestartExhausted === true;
+  if (restartWasExhausted) recordWorkflowStepRestartExhausted();
 }

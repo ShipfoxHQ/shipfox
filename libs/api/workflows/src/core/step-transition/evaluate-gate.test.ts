@@ -6,12 +6,23 @@ import {
   readStepGate,
 } from './evaluate-gate.js';
 
-function gateConfig(source: string, restartFrom?: string): Record<string, unknown> {
+function gateConfig(
+  source: string,
+  restartFrom?: string,
+  maxAttempts?: unknown,
+): Record<string, unknown> {
   return {
     run: 'echo hi',
     gate: {
       success: {language: 'cel', check: 'syntax', source},
-      ...(restartFrom ? {on_failure: {restart_from: restartFrom}} : {}),
+      ...(restartFrom
+        ? {
+            on_failure: {
+              restart_from: restartFrom,
+              ...(maxAttempts === undefined ? {} : {max_attempts: maxAttempts}),
+            },
+          }
+        : {}),
     },
   };
 }
@@ -60,6 +71,33 @@ describe('readStepGate', () => {
   test('parses success and on_failure', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
     expect(gate?.success?.source).toBe('step.exit_code == 0');
+    expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
+  });
+
+  test.each([1, 11, 1_000])('parses max_attempts: %s', (maxAttempts) => {
+    const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer', maxAttempts));
+
+    expect(gate?.onFailure).toMatchObject({restartFrom: 'producer', maxAttempts});
+  });
+
+  test.each([
+    0,
+    1.5,
+    -1,
+    '3',
+    true,
+    null,
+    1_001,
+  ])('rejects malformed max_attempts: %s without a restart policy', (maxAttempts) => {
+    const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer', maxAttempts));
+
+    expect(gate?.success?.source).toBe('step.exit_code == 0');
+    expect(gate?.onFailure).toBeUndefined();
+  });
+
+  test('leaves a missing max_attempts for the legacy transition default', () => {
+    const gate = readStepGate(gateConfig('step.exit_code == 0', 'producer'));
+
     expect(gate?.onFailure).toEqual({restartFrom: 'producer'});
   });
 

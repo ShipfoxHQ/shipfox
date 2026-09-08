@@ -2158,6 +2158,7 @@ describe('durable gate restart', () => {
     outputs?: Record<string, unknown>;
     feedback?: string;
     feedbackTemplate?: ReturnType<typeof plannedField>;
+    maxAttempts?: unknown;
   }): Promise<{jobId: string; producer: string; reviewer: string}> {
     const {jobId, steps} = await arrangeJobWithSteps(2);
     const producer = steps[0]?.id as string;
@@ -2177,6 +2178,7 @@ describe('durable gate restart', () => {
               ...(params.feedbackTemplate === undefined
                 ? {}
                 : {feedback_template: params.feedbackTemplate}),
+              ...(params.maxAttempts === undefined ? {} : {max_attempts: params.maxAttempts}),
             },
           },
         },
@@ -2217,6 +2219,83 @@ describe('durable gate restart', () => {
     expect(reviewerAttempt?.status).toBe('failed');
     expect(reviewerAttempt?.response).toBe('Needs another build.');
     expect(reviewerAttempt?.restartFeedback).toBeTruthy();
+  });
+
+  test.each([
+    11, 1_000,
+  ])('passes an explicit max_attempts of %s to the transition', async (maxAttempts) => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      maxAttempts,
+    });
+
+    await runStep(jobId, producer, 0);
+    const restart = await runStep(jobId, reviewer, 1);
+
+    expect(restart).toEqual({jobFinished: false});
+    expect(await restartEventCount(jobId)).toBe(1);
+  });
+
+  test('uses the legacy limit of three when max_attempts is missing', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({source: 'step.exit_code == 0'});
+
+    await runStep(jobId, producer, 0);
+    await runStep(jobId, reviewer, 1);
+    await runStep(jobId, producer, 0);
+    await runStep(jobId, reviewer, 1);
+    await runStep(jobId, producer, 0);
+    const exhausted = await runStep(jobId, reviewer, 1);
+
+    expect(exhausted).toEqual({jobFinished: true, status: 'failed'});
+    expect(await restartEventCount(jobId)).toBe(2);
+    const attempts = await getStepAttempts(jobId);
+    expect(
+      attempts.find((attempt) => attempt.stepId === reviewer && attempt.attempt === 3),
+    ).toMatchObject({
+      error: {kind: 'restart_exhausted', maxAttempts: 3},
+    });
+  });
+
+  test('does not restart when max_attempts is one', async () => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      maxAttempts: 1,
+    });
+
+    await runStep(jobId, producer, 0);
+    const exhausted = await runStep(jobId, reviewer, 1);
+
+    expect(exhausted).toEqual({jobFinished: true, status: 'failed'});
+    expect(await restartEventCount(jobId)).toBe(0);
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === reviewer)).toMatchObject({
+      error: {kind: 'restart_exhausted', maxAttempts: 1},
+    });
+  });
+
+  test.each([
+    0,
+    1.5,
+    -1,
+    '3',
+    true,
+    null,
+    1_001,
+  ])('fails closed without restarting for malformed max_attempts %p', async (maxAttempts) => {
+    const {jobId, producer, reviewer} = await arrangeGatedJob({
+      source: 'step.exit_code == 0',
+      maxAttempts,
+    });
+
+    await runStep(jobId, producer, 0);
+    const failed = await runStep(jobId, reviewer, 1);
+
+    expect(failed).toEqual({jobFinished: true, status: 'failed'});
+    expect(await restartEventCount(jobId)).toBe(0);
+    const attempts = await getStepAttempts(jobId);
+    expect(attempts.find((attempt) => attempt.stepId === reviewer)).toMatchObject({
+      error: {kind: 'gate_failed'},
+    });
   });
 
   test('a retried step materializes restart feedback and source attempt output', async () => {

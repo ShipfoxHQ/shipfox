@@ -225,6 +225,27 @@ describe('decideStepTransition', () => {
     });
   });
 
+  test.each([1, 11, 1_000])('honors maxAttempts: %s at exhaustion', (maxAttempts) => {
+    const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
+    const target = step({id: 's1', position: 1, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [restartTarget, target],
+      target,
+      reportedAttempt: maxAttempts,
+      maxAttempts,
+      result: {status: 'failed', exitCode: 1},
+      gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
+      gateOnFailure: {restartFrom: 'producer'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'fail-job-restart-exhausted',
+      maxAttempts,
+      failureError: {kind: 'restart_exhausted'},
+    });
+  });
+
   test('restart_from that resolves to no earlier named step fails closed (unresolved)', () => {
     const target = step({id: 's1', position: 1, status: 'running'});
 
