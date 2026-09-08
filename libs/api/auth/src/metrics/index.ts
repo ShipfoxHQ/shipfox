@@ -9,6 +9,7 @@ export {
   type AuthTokenVerificationOutcome,
   recordAuthRateLimitCheck,
   recordAuthRateLimitPruneFailure,
+  recordImpersonationAuditWriteFailure,
   recordImpersonationContinuationOutcome,
   recordImpersonationOutcome,
   recordImpersonationStopOutcome,

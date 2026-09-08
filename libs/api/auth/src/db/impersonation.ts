@@ -6,6 +6,7 @@ import {
   createAdministrationActionEvent,
 } from '@shipfox/api-common-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, eq, isNull, sql} from 'drizzle-orm';
 import {highestAdminRole} from '#core/admin-role-model.js';
@@ -20,6 +21,7 @@ import {
   ImpersonationTargetNotActiveError,
   UserNotFoundError,
 } from '#core/errors.js';
+import {recordImpersonationAuditWriteFailure} from '#metrics/index.js';
 import {
   findAdminCommandResult,
   lockAdminCommand,
@@ -321,7 +323,12 @@ export async function publishImpersonationFailure(params: {
     await db().transaction(async (tx) => {
       await writeAdminAction(tx, event);
     });
-  } catch {
+  } catch (error) {
+    recordImpersonationAuditWriteFailure();
+    logger().warn(
+      {err: error, command: IMPERSONATE_COMMAND, correlationId: params.correlationId},
+      'Failed to record impersonation failure audit event',
+    );
     // The failure event must never mask the original command error.
   }
 }
