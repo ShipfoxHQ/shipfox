@@ -23,4 +23,15 @@ permissions. Write tools (for example `create_branch` and `merge_pull_request`)
 require the workflow step's `integrations` entry to set `allow_write: true`;
 without it, Shipfox rejects the step at validation.
 
+The generated catalog also states each operation's repository classification:
+
+- **Declared targets:** Shipfox can check repository coordinates from the tool
+  input against the integration connection's repository-access mode.
+- **Integration connection:** The input does not identify a complete repository
+  target that Shipfox can check locally.
+
+An **indirect target** note identifies a GitHub-side effect that can reach beyond
+the declared target. See [GitHub repository
+access](/integrations/github#repository-access) for the boundary and its limits.
+
 <GithubTools />

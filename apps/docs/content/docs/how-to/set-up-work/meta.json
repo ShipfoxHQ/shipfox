@@ -4,6 +4,7 @@
     "index",
     "create-project",
     "manage-integration-connections",
+    "manage-github-repository-access",
     "disable-integration-connection",
     "delete-integration-connection",
     "configure-model-providers",

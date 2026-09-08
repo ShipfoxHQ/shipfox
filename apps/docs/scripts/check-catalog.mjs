@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {githubAgentToolCatalog} from '@shipfox/api-integration-github/agent-tools';
 import {githubEventCatalog} from '@shipfox/api-integration-github-dto';
 import {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
@@ -74,3 +75,34 @@ assert.throws(
   () => validateIntegrationCatalog(providers, {unknown: ['events']}),
   /Generated DTO catalog.*no matching provider page/,
 );
+
+const generatedGithubTools = readFileSync(
+  'content/generated/integrations/github/tools.mdx',
+  'utf8',
+);
+const classifiedGithubOperations = githubAgentToolCatalog.reduce(
+  (count, tool) =>
+    count +
+    (typeof tool.repositoryScope === 'function' ? 1 : 0) +
+    (tool.methods?.filter((method) => typeof method.repositoryScope === 'function').length ?? 0),
+  0,
+);
+assert.equal(
+  generatedGithubTools.split('**Repository classification:**').length - 1,
+  classifiedGithubOperations,
+);
+
+const indirectTargetNotes = new Set(
+  githubAgentToolCatalog.flatMap((tool) => [
+    tool.indirectTargetNote,
+    tool.repositoryScope({}).indirectTargetNote,
+    ...(tool.methods ?? []).flatMap((method) => [
+      method.indirectTargetNote,
+      method.repositoryScope({}).indirectTargetNote,
+    ]),
+  ]),
+);
+indirectTargetNotes.delete(undefined);
+for (const note of indirectTargetNotes) {
+  assert.ok(generatedGithubTools.includes(`**Indirect target:** ${note}`));
+}
