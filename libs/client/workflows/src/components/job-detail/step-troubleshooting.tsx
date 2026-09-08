@@ -949,6 +949,20 @@ function failureTitle(reason: string | JobStatusReason): string {
   }
 }
 
+function restartExhaustionDescription(error: StepError | null): string {
+  const attemptCount = error?.attemptCount;
+  const hasNoSuccessGateDiagnostic = error?.message.startsWith('The step failed after ') ?? false;
+  if (attemptCount !== undefined) {
+    const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
+    return hasNoSuccessGateDiagnostic
+      ? `The step failed after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result before starting a new run.`
+      : `The success condition did not pass after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.`;
+  }
+  return hasNoSuccessGateDiagnostic
+    ? 'The restart attempt cap is fixed. Fix the failed result before starting a new run.'
+    : 'The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.';
+}
+
 function failureDescription(
   reason: string | JobStatusReason,
   step: Step,
@@ -999,14 +1013,8 @@ function failureDescription(
       return "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.";
     case 'restart_unresolved':
       return 'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.';
-    case 'restart_exhausted': {
-      const attemptCount = error?.attemptCount;
-      if (attemptCount !== undefined) {
-        const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
-        return `The success condition did not pass after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.`;
-      }
-      return 'The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.';
-    }
+    case 'restart_exhausted':
+      return restartExhaustionDescription(error);
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';
     case 'output_too_large':
