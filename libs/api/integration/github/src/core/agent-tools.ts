@@ -74,6 +74,37 @@ const NO_PENDING_REVIEW_MESSAGE =
   'No pending pull request review found for the authenticated GitHub user.';
 const NO_REVIEW_THREAD_MESSAGE =
   'GitHub did not create the review thread. Check that path, line, side, and any start_line range describe a line in the pull request diff.';
+const CHECK_RUN_INPUT_STATUSES = new Set(['queued', 'in_progress', 'completed']);
+const CHECK_RUN_INPUT_CONCLUSIONS = new Set([
+  'action_required',
+  'cancelled',
+  'failure',
+  'neutral',
+  'success',
+  'skipped',
+  'timed_out',
+]);
+const CHECK_RUN_OUTPUT_STATUSES = new Set([
+  'queued',
+  'in_progress',
+  'completed',
+  'waiting',
+  'requested',
+  'pending',
+]);
+const CHECK_RUN_OUTPUT_CONCLUSIONS = new Set([...CHECK_RUN_INPUT_CONCLUSIONS, 'stale']);
+const CHECK_RUN_MUTABLE_FIELDS = [
+  'name',
+  'details_url',
+  'external_id',
+  'status',
+  'started_at',
+  'conclusion',
+  'completed_at',
+  'output',
+] as const;
+const RFC3339_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/u;
 
 const ADD_PENDING_REVIEW_COMMENT_MUTATION = `
   mutation AddCommentToPendingReview($input: AddPullRequestReviewThreadInput!) {
@@ -264,8 +295,9 @@ async function executeGithubToolOperation(
   if (parameters === undefined) {
     return githubToolError(NO_PENDING_REVIEW_MESSAGE, 'provider-rejected');
   }
-  const response = await mapGithubError(() =>
-    executeGithubRestOperation(client, operation.route, parameters, toolId),
+  const response = await mapGithubError(
+    () => executeGithubRestOperation(client, operation.route, parameters, toolId),
+    toolId === 'check_run_write' && method === 'update' ? 'provider-rejected' : undefined,
   );
   return githubToolResult(toolId, response.data, response, parameters, operation.route);
 }
@@ -461,6 +493,7 @@ export function githubOperationRoute(
   const pull = '{pull_number}';
   const run = '{run_id}';
   const resource = '{resource_id}';
+  const checkRun = '{check_run_id}';
   const repoPath = `/repos/${owner}/${repo}`;
 
   switch (`${toolId}.${method ?? ''}`) {
@@ -517,6 +550,10 @@ export function githubOperationRoute(
       return `GET ${repoPath}/issues/${pull}/comments`;
     case 'pull_request_read.get_check_runs':
       return `GET ${repoPath}/commits/{ref}/check-runs`;
+    case 'check_run_write.create':
+      return `POST ${repoPath}/check-runs`;
+    case 'check_run_write.update':
+      return `PATCH ${repoPath}/check-runs/${checkRun}`;
     case 'list_pull_requests.':
       return `GET ${repoPath}/pulls`;
     case 'search_pull_requests.':
@@ -799,6 +836,9 @@ export function projectGithubOperationParameters(
   method: string | undefined,
   args: Record<string, unknown>,
 ): Record<string, unknown> {
+  if (toolId === 'check_run_write') {
+    return projectGithubCheckRunParameters(method, args);
+  }
   if (toolId === 'search_issues' || toolId === 'search_pull_requests') {
     return projectGithubSearchOperationParameters(args);
   }
@@ -812,6 +852,55 @@ export function projectGithubOperationParameters(
     parameters.headers = {accept: 'application/vnd.github.diff'};
   }
   return parameters;
+}
+
+function projectGithubCheckRunParameters(
+  method: string | undefined,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const acceptedFields =
+    method === 'create'
+      ? [
+          'name',
+          'head_sha',
+          'details_url',
+          'external_id',
+          'status',
+          'started_at',
+          'conclusion',
+          'completed_at',
+          'output',
+        ]
+      : [
+          'check_run_id',
+          'name',
+          'details_url',
+          'external_id',
+          'status',
+          'started_at',
+          'conclusion',
+          'completed_at',
+          'output',
+        ];
+  const parameters: Record<string, unknown> = {owner: args.owner, repo: args.repo};
+  for (const field of acceptedFields) {
+    if (args[field] === undefined) continue;
+    parameters[field] =
+      field === 'output' ? projectCheckRunOutputParameters(args.output) : args[field];
+  }
+  if (args.conclusion !== undefined && args.status === undefined) {
+    parameters.status = 'completed';
+  }
+  return parameters;
+}
+
+function projectCheckRunOutputParameters(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  return {
+    title: value.title,
+    summary: value.summary,
+    ...(value.text === undefined ? {} : {text: value.text}),
+  };
 }
 
 function projectGithubSearchOperationParameters(
@@ -1334,6 +1423,8 @@ function projectGithubToolOutput(
       return {pull_request: data};
     case 'create_branch':
       return projectGithubCreateBranchOutput(data);
+    case 'check_run_write':
+      return {check_run: projectGithubCheckRunOutput(data)};
     case 'merge_pull_request':
       return {merge: data};
     case 'create_commit': {
@@ -1369,6 +1460,79 @@ function projectGithubCreateBranchOutput(data: unknown): Record<string, unknown>
   if (typeof data.url !== 'string') throw malformedCreateBranchResponse();
 
   return {branch, oid, url: data.url};
+}
+
+function projectGithubCheckRunOutput(data: unknown): Record<string, unknown> {
+  if (!isRecord(data)) throw malformedCheckRunResponse();
+
+  const id = data.id;
+  const name = data.name;
+  const headSha = data.head_sha;
+  const htmlUrl = data.html_url;
+  const status = data.status;
+  if (
+    typeof id !== 'number' ||
+    !Number.isSafeInteger(id) ||
+    id < 1 ||
+    typeof name !== 'string' ||
+    name.length === 0 ||
+    typeof headSha !== 'string' ||
+    !isValidGitObjectId(headSha) ||
+    typeof htmlUrl !== 'string' ||
+    htmlUrl.length === 0 ||
+    typeof status !== 'string' ||
+    !CHECK_RUN_OUTPUT_STATUSES.has(status)
+  ) {
+    throw malformedCheckRunResponse();
+  }
+
+  const externalId = nullableCheckRunResponseString(data.external_id, true);
+  const detailsUrl = nullableCheckRunResponseString(data.details_url, false);
+  const conclusion = nullableCheckRunConclusion(data.conclusion);
+  const startedAt = nullableCheckRunTimestamp(data.started_at);
+  const completedAt = nullableCheckRunTimestamp(data.completed_at);
+
+  return {
+    id,
+    name,
+    head_sha: headSha,
+    external_id: externalId,
+    details_url: detailsUrl,
+    html_url: htmlUrl,
+    status,
+    conclusion,
+    started_at: startedAt,
+    completed_at: completedAt,
+  };
+}
+
+function nullableCheckRunResponseString(value: unknown, emptyIsNull: boolean): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') throw malformedCheckRunResponse();
+  return emptyIsNull && value.length === 0 ? null : value;
+}
+
+function nullableCheckRunConclusion(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || !CHECK_RUN_OUTPUT_CONCLUSIONS.has(value)) {
+    throw malformedCheckRunResponse();
+  }
+  return value;
+}
+
+function nullableCheckRunTimestamp(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || !isValidRfc3339Timestamp(value)) {
+    throw malformedCheckRunResponse();
+  }
+  return value;
+}
+
+function malformedCheckRunResponse(): GithubIntegrationProviderError {
+  return new GithubIntegrationProviderError(
+    'malformed-provider-response',
+    'GitHub check run response was malformed',
+  );
 }
 
 function malformedCreateBranchResponse(): GithubIntegrationProviderError {
@@ -1438,7 +1602,210 @@ function validateGithubToolArguments(
   if (tool.id === 'add_comment_to_pending_review') {
     return validatePendingReviewCommentArguments(arguments_);
   }
+  if (tool.id === 'check_run_write') return validateCheckRunArguments(arguments_);
   return tool.id === 'create_commit' ? validateCreateCommitArguments(arguments_) : undefined;
+}
+
+function validateCheckRunArguments(arguments_: Record<string, unknown>): string | undefined {
+  const repositoryError = firstCheckRunValidationError([
+    validateNonEmptyCheckRunString(arguments_, 'owner'),
+    validateNonEmptyCheckRunString(arguments_, 'repo'),
+  ]);
+  if (repositoryError !== undefined) return repositoryError;
+
+  const methodError =
+    arguments_.method === 'create'
+      ? validateCheckRunCreateArguments(arguments_)
+      : validateCheckRunUpdateArguments(arguments_);
+  if (methodError !== undefined) return methodError;
+
+  return validateCheckRunFields(arguments_) ?? validateCheckRunState(arguments_);
+}
+
+function validateCheckRunCreateArguments(arguments_: Record<string, unknown>): string | undefined {
+  const headSha = arguments_.head_sha;
+  return firstCheckRunValidationError([
+    arguments_.check_run_id !== undefined
+      ? 'Parameter check_run_id is not accepted by create'
+      : undefined,
+    validateNonEmptyCheckRunString(arguments_, 'name'),
+    typeof headSha === 'string' && isValidGitObjectId(headSha)
+      ? undefined
+      : 'Parameter head_sha must be a non-zero 40- or 64-character commit object ID',
+  ]);
+}
+
+function validateCheckRunUpdateArguments(arguments_: Record<string, unknown>): string | undefined {
+  const checkRunId = arguments_.check_run_id;
+  return firstCheckRunValidationError([
+    arguments_.head_sha !== undefined ? 'Parameter head_sha is not accepted by update' : undefined,
+    typeof checkRunId === 'number' && Number.isSafeInteger(checkRunId) && checkRunId >= 1
+      ? undefined
+      : 'Parameter check_run_id must be a positive integer',
+    CHECK_RUN_MUTABLE_FIELDS.some((field) => arguments_[field] !== undefined)
+      ? undefined
+      : 'An update must include at least one mutable check-run field',
+  ]);
+}
+
+function validateCheckRunFields(arguments_: Record<string, unknown>): string | undefined {
+  return firstCheckRunValidationError([
+    validateOptionalNonEmptyCheckRunString(arguments_, 'name'),
+    validateOptionalCheckRunString(arguments_, 'external_id'),
+    validateCheckRunDetailsUrl(arguments_.details_url),
+    validateCheckRunEnum(arguments_.status, CHECK_RUN_INPUT_STATUSES, 'status'),
+    validateCheckRunEnum(arguments_.conclusion, CHECK_RUN_INPUT_CONCLUSIONS, 'conclusion'),
+    validateCheckRunTimestamp(arguments_.started_at, 'started_at'),
+    validateCheckRunTimestamp(arguments_.completed_at, 'completed_at'),
+    validateCheckRunOutput(arguments_.output),
+  ]);
+}
+
+function validateCheckRunState(arguments_: Record<string, unknown>): string | undefined {
+  const status = arguments_.status;
+  const conclusion = arguments_.conclusion;
+  if (
+    typeof status === 'string' &&
+    status !== 'completed' &&
+    (conclusion !== undefined || arguments_.completed_at !== undefined)
+  ) {
+    return 'A non-completed status cannot include conclusion or completed_at';
+  }
+  if (status === 'completed' && conclusion === undefined) {
+    return 'A completed check run requires conclusion';
+  }
+  if (arguments_.completed_at !== undefined && conclusion === undefined) {
+    return 'Parameter completed_at requires conclusion';
+  }
+  return undefined;
+}
+
+function firstCheckRunValidationError(errors: readonly (string | undefined)[]): string | undefined {
+  return errors.find((error): error is string => error !== undefined);
+}
+
+function validateNonEmptyCheckRunString(
+  arguments_: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  const value = arguments_[name];
+  return typeof value === 'string' && value.trim().length > 0
+    ? undefined
+    : `Parameter ${name} must be a non-empty string`;
+}
+
+function validateOptionalNonEmptyCheckRunString(
+  arguments_: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  if (arguments_[name] === undefined) return undefined;
+  return validateNonEmptyCheckRunString(arguments_, name);
+}
+
+function validateOptionalCheckRunString(
+  arguments_: Record<string, unknown>,
+  name: string,
+): string | undefined {
+  if (arguments_[name] === undefined || typeof arguments_[name] === 'string') return undefined;
+  return `Parameter ${name} must be a string`;
+}
+
+function validateCheckRunDetailsUrl(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') return 'Parameter details_url must be a string';
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.hostname.length === 0) {
+      return 'Parameter details_url must be an absolute HTTP or HTTPS URL';
+    }
+  } catch {
+    return 'Parameter details_url must be an absolute HTTP or HTTPS URL';
+  }
+  return undefined;
+}
+
+function validateCheckRunEnum(
+  value: unknown,
+  allowed: ReadonlySet<string>,
+  name: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === 'string' && allowed.has(value)
+    ? undefined
+    : `Parameter ${name} has an unsupported value`;
+}
+
+function validateCheckRunTimestamp(value: unknown, name: string): string | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === 'string' && isValidRfc3339Timestamp(value)
+    ? undefined
+    : `Parameter ${name} must be an RFC 3339 timestamp`;
+}
+
+function isValidRfc3339Timestamp(value: string): boolean {
+  const match = RFC3339_TIMESTAMP_PATTERN.exec(value);
+  if (match === null) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const isLeapSecond = second === 60;
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInCheckRunMonth(year, month) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 60
+  ) {
+    return false;
+  }
+
+  const offset = match[7];
+  if (offset !== undefined && offset.toUpperCase() !== 'Z') {
+    const offsetHour = Number(offset.slice(1, 3));
+    const offsetMinute = Number(offset.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return false;
+  }
+
+  const dateParseValue = isLeapSecond ? `${value.slice(0, 17)}59${value.slice(19)}` : value;
+  const timestamp = Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z'));
+  if (Number.isNaN(timestamp)) return false;
+  if (!isLeapSecond) return true;
+
+  const normalized = new Date(timestamp);
+  return (
+    normalized.getUTCHours() === 23 &&
+    normalized.getUTCMinutes() === 59 &&
+    normalized.getUTCSeconds() === 59
+  );
+}
+
+function daysInCheckRunMonth(year: number, month: number): number {
+  if (month === 2) {
+    const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return leapYear ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function validateCheckRunOutput(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) return 'Parameter output must be an object';
+  if (typeof value.title !== 'string' || value.title.trim().length === 0) {
+    return 'Parameter output.title must be a non-empty string';
+  }
+  if (typeof value.summary !== 'string' || value.summary.trim().length === 0) {
+    return 'Parameter output.summary must be a non-empty string';
+  }
+  if (value.text !== undefined && typeof value.text !== 'string') {
+    return 'Parameter output.text must be a string';
+  }
+  return undefined;
 }
 
 // The shared input schema lists every review field; GitHub only accepts each field on one
