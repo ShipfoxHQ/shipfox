@@ -1,5 +1,16 @@
 # Changelog
 
+## 39.0.0
+
+### Minor Changes
+
+- b4a5de1: Show estimated pricing per model and disclose that it is not billed.
+
+### Patch Changes
+
+- @shipfox/api-auth-dto@23.2.0
+- @shipfox/api-workspaces-dto@23.2.0
+
 ## 38.0.0
 
 ### Minor Changes

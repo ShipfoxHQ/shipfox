@@ -1,5 +1,17 @@
 # @shipfox/api-auth
 
+## 23.2.0
+
+### Patch Changes
+
+- a5c2ebd: Adds explicit authorization-basis variants and historical-role context to administration action events.
+- Updated dependencies [a5c2ebd]
+  - @shipfox/api-common-dto@23.2.0
+  - @shipfox/api-auth-dto@23.2.0
+  - @shipfox/api-email-challenges@1.1.16
+  - @shipfox/api-workspaces-dto@23.2.0
+  - @shipfox/api-auth-context@23.2.0
+
 ## 23.1.0
 
 ### Minor Changes

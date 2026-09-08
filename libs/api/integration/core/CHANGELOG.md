@@ -1,5 +1,20 @@
 # @shipfox/api-integration-core
 
+## 23.2.0
+
+### Patch Changes
+
+- @shipfox/api-projects-dto@23.2.0
+- @shipfox/api-workspaces-dto@23.2.0
+- @shipfox/api-auth-context@23.2.0
+- @shipfox/api-integration-slack@23.2.0
+- @shipfox/api-integration-gitea@23.2.0
+- @shipfox/api-integration-github@23.2.0
+- @shipfox/api-integration-jira@23.2.0
+- @shipfox/api-integration-linear@23.2.0
+- @shipfox/api-integration-sentry@23.2.0
+- @shipfox/api-integration-webhook@23.2.0
+
 ## 23.1.0
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @shipfox/client-integrations
 
+## 39.0.0
+
+### Patch Changes
+
+- Updated dependencies [b4a5de1]
+  - @shipfox/client-shell@39.0.0
+  - @shipfox/client-auth@39.0.0
+
 ## 38.0.0
 
 ### Patch Changes

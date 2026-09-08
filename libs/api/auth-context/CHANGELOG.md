@@ -1,5 +1,12 @@
 # @shipfox/api-auth-context
 
+## 23.2.0
+
+### Patch Changes
+
+- @shipfox/api-auth-dto@23.2.0
+- @shipfox/api-workspaces-dto@23.2.0
+
 ## 23.1.0
 
 ### Patch Changes

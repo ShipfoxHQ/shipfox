@@ -1,5 +1,12 @@
 # @shipfox/api-projects-dto
 
+## 23.2.0
+
+### Patch Changes
+
+- Updated dependencies [a5c2ebd]
+  - @shipfox/api-common-dto@23.2.0
+
 ## 21.0.0
 
 ### Minor Changes
