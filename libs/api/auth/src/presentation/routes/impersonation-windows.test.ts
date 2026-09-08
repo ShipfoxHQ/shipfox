@@ -8,7 +8,7 @@ import {
 import {ADMINISTRATION_ACTION_PERFORMED} from '@shipfox/api-common-dto';
 import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
-import {and, eq, sql} from 'drizzle-orm';
+import {and, eq, isNull, sql} from 'drizzle-orm';
 import {verifyUserToken} from '#core/jwt.js';
 import {db} from '#db/db.js';
 import {adminCommandResults} from '#db/schema/admin-command-results.js';
@@ -32,6 +32,14 @@ function authHeaders(token: string, idempotencyKey: string, requestId?: string) 
     'idempotency-key': idempotencyKey,
     ...(requestId ? {'x-request-id': requestId} : {}),
   };
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return {promise, resolve};
 }
 
 async function resetState(): Promise<void> {
@@ -186,6 +194,7 @@ describe('impersonation window routes', () => {
     expect(continueBody.window_deadline).toBe(startBody.window_deadline);
     const claims = await verifyUserToken({token: continueBody.token, secret: userAccessTokenKey()});
     expect(claims.sub).toBe(target.userId);
+    expect(claims.exp * 1000).toBeLessThanOrEqual(Date.parse(continueBody.window_deadline));
 
     const replayedContinue = await app.inject({
       method: 'POST',
@@ -197,6 +206,11 @@ describe('impersonation window routes', () => {
     const replayBody = impersonationWindowContinueResponseSchema.parse(replayedContinue.json());
     expect(replayBody.token).not.toBe(continueBody.token);
     expect(replayBody.expires_at).toBe(continueBody.expires_at);
+    const replayClaims = await verifyUserToken({
+      token: replayBody.token,
+      secret: userAccessTokenKey(),
+    });
+    expect(replayClaims.exp * 1000).toBe(Date.parse(replayBody.expires_at));
 
     const stopped = await app.inject({
       method: 'POST',
@@ -360,6 +374,7 @@ describe('impersonation window routes', () => {
     const owner = await bootstrapOwner('window-workspace');
     const target = await createVerifiedSession('window-workspace-target');
     const workspaceId = crypto.randomUUID();
+    const requestWorkspaceId = workspaceId.toUpperCase();
     listMembershipsByUserMock.mockResolvedValue({
       memberships: [{workspaceId, role: 'admin', workspaceStatus: 'active'}],
     });
@@ -368,7 +383,7 @@ describe('impersonation window routes', () => {
       token: owner.token,
       targetUserId: target.userId,
       key: 'window-workspace-start',
-      requiredWorkspaceId: workspaceId,
+      requiredWorkspaceId: requestWorkspaceId,
     });
     expect(started.statusCode).toBe(200);
     const body = impersonationWindowStartResponseSchema.parse(started.json());
@@ -382,7 +397,7 @@ describe('impersonation window routes', () => {
       token: owner.token,
       targetUserId: target.userId,
       key: 'window-workspace-suspended',
-      requiredWorkspaceId: workspaceId,
+      requiredWorkspaceId: requestWorkspaceId,
     });
     expect(rejected.statusCode).toBe(409);
     expect(rejected.json()).toEqual({code: 'impersonation-target-not-workspace-member'});
@@ -504,6 +519,139 @@ describe('impersonation window routes', () => {
     expect(recordEnded).toHaveBeenCalledWith('expired');
     expect(recordDuration).toHaveBeenCalledTimes(1);
     expect(recordDuration).toHaveBeenCalledWith(expect.any(Number));
+  });
+
+  test('records expiry metrics when a capacity sweep precedes a failed Start', async () => {
+    const owner = await bootstrapOwner('window-capacity-metrics-failure');
+    const target = await createVerifiedSession('window-capacity-metrics-failure-target');
+    const expiredStart = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-capacity-metrics-failure-expired',
+    });
+    const expiredWindowId = impersonationWindowStartResponseSchema.parse(
+      expiredStart.json(),
+    ).window_id;
+    await db()
+      .update(impersonationWindows)
+      .set({
+        startedAt: new Date(Date.now() - 2_000),
+        deadlineAt: new Date(Date.now() - 1_000),
+      })
+      .where(eq(impersonationWindows.id, expiredWindowId));
+
+    listMembershipsByUserMock.mockResolvedValue({memberships: []});
+    const recordEnded = vi.spyOn(authMetrics, 'recordImpersonationWindowEnded');
+    const recordDuration = vi.spyOn(authMetrics, 'recordImpersonationWindowDuration');
+    const rejected = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-capacity-metrics-failure-start',
+      requiredWorkspaceId: crypto.randomUUID(),
+    });
+
+    expect(rejected.statusCode).toBe(409);
+    expect(rejected.json()).toEqual({code: 'impersonation-target-not-workspace-member'});
+    expect(recordEnded).toHaveBeenCalledTimes(1);
+    expect(recordEnded).toHaveBeenCalledWith('expired');
+    expect(recordDuration).toHaveBeenCalledTimes(1);
+    expect(recordDuration).toHaveBeenCalledWith(expect.any(Number));
+    await expect(
+      db()
+        .select({endedReason: impersonationWindows.endedReason})
+        .from(impersonationWindows)
+        .where(eq(impersonationWindows.id, expiredWindowId)),
+    ).resolves.toEqual([{endedReason: 'expired'}]);
+  });
+
+  test('audits and materializes a window in the final partial token second', async () => {
+    const owner = await bootstrapOwner('window-final-second');
+    const target = await createVerifiedSession('window-final-second-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-final-second-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+    const deadlineAt = new Date(Date.now() + 500);
+    await db()
+      .update(impersonationWindows)
+      .set({deadlineAt})
+      .where(eq(impersonationWindows.id, windowId));
+
+    const continued = await app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+      headers: authHeaders(owner.token, 'window-final-second-continue'),
+      payload: {},
+    });
+
+    expect(continued.statusCode).toBe(410);
+    expect(continued.json()).toEqual({code: 'impersonation-window-deadline-reached'});
+    await expect(
+      db()
+        .select({
+          endedAt: impersonationWindows.endedAt,
+          endedReason: impersonationWindows.endedReason,
+        })
+        .from(impersonationWindows)
+        .where(eq(impersonationWindows.id, windowId)),
+    ).resolves.toEqual([{endedAt: deadlineAt, endedReason: 'expired'}]);
+    const events = await actionEvents();
+    expect(events.at(-1)?.payload).toMatchObject({
+      command: 'auth.impersonation.window.continue',
+      result: 'failed',
+    });
+  });
+
+  test('does not mint after membership loading crosses the window deadline', async () => {
+    const owner = await bootstrapOwner('window-slow-memberships');
+    const target = await createVerifiedSession('window-slow-memberships-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-slow-memberships-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+    const deadlineAt = new Date(Date.now() + 2_000);
+    await db()
+      .update(impersonationWindows)
+      .set({deadlineAt})
+      .where(eq(impersonationWindows.id, windowId));
+
+    const membershipsEntered = deferred();
+    const releaseMemberships = deferred();
+    listMembershipsByUserMock.mockImplementationOnce(async () => {
+      membershipsEntered.resolve();
+      await releaseMemberships.promise;
+      return {memberships: []};
+    });
+    const pendingContinue = app.inject({
+      method: 'POST',
+      url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+      headers: authHeaders(owner.token, 'window-slow-memberships-continue'),
+      payload: {},
+    });
+
+    await membershipsEntered.promise;
+    const remainingMilliseconds = deadlineAt.getTime() - Date.now();
+    if (remainingMilliseconds > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingMilliseconds + 50));
+    }
+    releaseMemberships.resolve();
+    const continued = await pendingContinue;
+
+    expect(continued.statusCode).toBe(410);
+    expect(continued.json()).toEqual({code: 'impersonation-window-deadline-reached'});
+    await expect(
+      db()
+        .select({
+          endedAt: impersonationWindows.endedAt,
+          endedReason: impersonationWindows.endedReason,
+        })
+        .from(impersonationWindows)
+        .where(eq(impersonationWindows.id, windowId)),
+    ).resolves.toEqual([{endedAt: deadlineAt, endedReason: 'expired'}]);
   });
 
   test('owner Stop requires a fresh reason and emits current-role audit context', async () => {
@@ -659,6 +807,162 @@ describe('impersonation window routes', () => {
 
     expect(reused.statusCode).toBe(409);
     expect(reused.json()).toEqual({code: 'idempotency-key-reused'});
+  });
+
+  test('serializes a same-actor Start/Start race at the five-window limit', async () => {
+    const owner = await bootstrapOwner('window-race-start-start');
+    const target = await createVerifiedSession('window-race-start-start-target');
+    for (let index = 0; index < 4; index += 1) {
+      const response = await startWindow({
+        token: owner.token,
+        targetUserId: target.userId,
+        key: `window-race-start-start-${index}`,
+      });
+      expect(response.statusCode).toBe(200);
+    }
+
+    const responses = await Promise.all([
+      startWindow({
+        token: owner.token,
+        targetUserId: target.userId,
+        key: 'window-race-start-start-a',
+      }),
+      startWindow({
+        token: owner.token,
+        targetUserId: target.userId,
+        key: 'window-race-start-start-b',
+      }),
+    ]);
+
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 409]);
+    await expect(
+      db()
+        .select()
+        .from(impersonationWindows)
+        .where(
+          and(eq(impersonationWindows.actorId, owner.userId), isNull(impersonationWindows.endedAt)),
+        ),
+    ).resolves.toHaveLength(5);
+  });
+
+  test('serializes a same-actor Start/Continue race', async () => {
+    const owner = await bootstrapOwner('window-race-start-continue');
+    const target = await createVerifiedSession('window-race-start-continue-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-race-start-continue-existing',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+
+    const [newStart, continued] = await Promise.all([
+      startWindow({
+        token: owner.token,
+        targetUserId: target.userId,
+        key: 'window-race-start-continue-start',
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+        headers: authHeaders(owner.token, 'window-race-start-continue-continue'),
+        payload: {},
+      }),
+    ]);
+
+    expect(newStart.statusCode).toBe(200);
+    expect(continued.statusCode).toBe(200);
+    await expect(
+      db()
+        .select()
+        .from(impersonationWindows)
+        .where(
+          and(eq(impersonationWindows.actorId, owner.userId), isNull(impersonationWindows.endedAt)),
+        ),
+    ).resolves.toHaveLength(2);
+  });
+
+  test('serializes a same-actor Continue/Stop race', async () => {
+    const owner = await bootstrapOwner('window-race-continue-stop');
+    const target = await createVerifiedSession('window-race-continue-stop-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-race-continue-stop-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+
+    const [continued, stopped] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/admin/auth/impersonation/windows/${windowId}/continue`,
+        headers: authHeaders(owner.token, 'window-race-continue-stop-continue'),
+        payload: {},
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/admin/auth/impersonation/windows/${windowId}/stop`,
+        headers: authHeaders(owner.token, 'window-race-continue-stop-stop'),
+        payload: {},
+      }),
+    ]);
+
+    expect([200, 410]).toContain(continued.statusCode);
+    expect(stopped.statusCode).toBe(200);
+    const exact = await app.inject({
+      method: 'GET',
+      url: `/admin/auth/impersonation/windows/${windowId}`,
+      headers: {authorization: `Bearer ${owner.token}`},
+    });
+    expect(exact.statusCode).toBe(200);
+    expect(impersonationWindowExactResponseSchema.parse(exact.json())).toMatchObject({
+      window_id: windowId,
+      state: 'stopped',
+      ended_reason: 'stopped',
+    });
+  });
+
+  test('serializes a same-actor Stop/Stop race with one terminal transition', async () => {
+    const owner = await bootstrapOwner('window-race-stop-stop');
+    const target = await createVerifiedSession('window-race-stop-stop-target');
+    const started = await startWindow({
+      token: owner.token,
+      targetUserId: target.userId,
+      key: 'window-race-stop-stop-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+
+    const responses = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/admin/auth/impersonation/windows/${windowId}/stop`,
+        headers: authHeaders(owner.token, 'window-race-stop-stop-a'),
+        payload: {},
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/admin/auth/impersonation/windows/${windowId}/stop`,
+        headers: authHeaders(owner.token, 'window-race-stop-stop-b'),
+        payload: {},
+      }),
+    ]);
+
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200]);
+    expect(responses.map((response) => response.json().state)).toEqual(['stopped', 'stopped']);
+    const events = await actionEvents();
+    expect(
+      events.filter((event) => (event.payload as {command: string}).command.endsWith('.stop')),
+    ).toHaveLength(1);
+    await expect(
+      db()
+        .select()
+        .from(adminCommandResults)
+        .where(
+          and(
+            eq(adminCommandResults.actorId, owner.userId),
+            eq(adminCommandResults.command, 'auth.impersonation.window.stop'),
+          ),
+        ),
+    ).resolves.toHaveLength(2);
   });
 
   test('stores only token fingerprints for window command results', async () => {

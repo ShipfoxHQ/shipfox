@@ -2,4 +2,4 @@
 "@shipfox/api-auth": minor
 ---
 
-Adds server-authoritative impersonation window commands and routes.
+Adds impersonation window commands and routes.

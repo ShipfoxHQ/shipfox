@@ -35,6 +35,7 @@ import {
   continueImpersonationWindowCommand,
   IMPERSONATION_WINDOW_CONTINUE_COMMAND,
   IMPERSONATION_WINDOW_START_COMMAND,
+  IMPERSONATION_WINDOW_STOP_COMMAND,
   type ImpersonationWindowCommandOutcome,
   type ImpersonationWindowContinueCommandParams,
   type ImpersonationWindowMintCommandParams,
@@ -106,7 +107,7 @@ const REVOKE_USER_SESSIONS_COMMAND = 'auth.user.revoke-sessions';
 const IMPERSONATE_COMMAND = 'auth.user.impersonate';
 const IMPERSONATION_WINDOW_START_COMMAND_NAME = IMPERSONATION_WINDOW_START_COMMAND;
 const IMPERSONATION_WINDOW_CONTINUE_COMMAND_NAME = IMPERSONATION_WINDOW_CONTINUE_COMMAND;
-const IMPERSONATION_WINDOW_STOP_COMMAND_NAME = 'auth.impersonation.window.stop';
+const IMPERSONATION_WINDOW_STOP_COMMAND_NAME = IMPERSONATION_WINDOW_STOP_COMMAND;
 
 /**
  * Client-contract errors are reported to the caller, not the denial stream: a
@@ -152,7 +153,12 @@ function recordWindowTerminalTransition(
 
 function resolveWindowCommandOutcome<T>(outcome: ImpersonationWindowCommandOutcome<T>): T {
   recordWindowTerminalTransition(outcome.terminalTransition);
-  if (outcome.kind === 'failure') throw outcome.error;
+  if (outcome.kind === 'failure') {
+    for (const transition of outcome.terminalTransitions ?? []) {
+      recordWindowTerminalTransition(transition);
+    }
+    throw outcome.error;
+  }
   for (const transition of outcome.terminalTransitions ?? []) {
     recordWindowTerminalTransition(transition);
   }
@@ -283,7 +289,6 @@ export async function stopImpersonationWindow(
   );
 
   try {
-    const preliminary = await findImpersonationWindow({id: params.windowId});
     const command: ImpersonationWindowStopCommandParams = {
       actorId: params.actorId,
       windowId: params.windowId,
@@ -291,7 +296,6 @@ export async function stopImpersonationWindow(
       requestFingerprint,
       correlationId: params.correlationId,
       ...(params.reason === undefined ? {} : {reason: params.reason}),
-      ...(preliminary ? {preliminaryWindowActorId: preliminary.actorId} : {}),
     };
     const outcome = await stopImpersonationWindowCommand(command);
     const result = resolveWindowCommandOutcome(outcome);

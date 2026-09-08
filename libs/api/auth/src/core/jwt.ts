@@ -14,8 +14,8 @@ export type TokenMembership = z.infer<typeof tokenMembershipSchema>;
 const impersonatorIdSchema = z.string().uuid();
 
 // UUIDs are case-insensitive hex strings: compare normalized values so a
-// re-cased impersonatorId cannot pass off the subject as its own impersonator.
-function isSameUuid(a: string, b: string): boolean {
+// re-cased identifier cannot change an authorization decision.
+export function isSameUuid(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
