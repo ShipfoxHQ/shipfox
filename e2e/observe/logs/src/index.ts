@@ -114,20 +114,25 @@ export async function fetchStepLogs(options: FetchStepLogsOptions): Promise<Step
 export async function waitForStepLogsContaining(
   options: WaitForStepLogsContainingOptions,
 ): Promise<StepLogs> {
-  const {expectedText, pollIntervalMs, timeoutMs, ...fetchOptions} = options;
+  const {expectedText, pollIntervalMs, signal, timeoutMs, ...fetchOptions} = options;
+  const intervalMs = pollIntervalMs === undefined ? undefined : Math.max(1, pollIntervalMs);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const probeSignal =
+    signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal]);
 
   return await pollUntil(
     {
       describe: () =>
         `step ${options.stepId} attempt ${options.attempt} logs to contain ${JSON.stringify(expectedText)}`,
-      ...(pollIntervalMs === undefined ? {} : {intervalMs: pollIntervalMs}),
-      ...(options.signal === undefined ? {} : {signal: options.signal}),
+      ...(intervalMs === undefined ? {} : {intervalMs}),
+      ...(signal === undefined ? {} : {signal}),
       timeoutMs,
     },
     async () => {
       const logs = await fetchStepLogs({
         ...fetchOptions,
         missingStreamRetryTimeoutMs: 0,
+        signal: probeSignal,
       });
       const outputText = logs.records
         .filter(
