@@ -1,6 +1,6 @@
 import {loginResponseSchema} from '@shipfox/api-auth-dto';
 import {listUserWorkspacesResponseSchema} from '@shipfox/api-workspaces-dto';
-import {checkedApiRequest} from '@shipfox/client-api';
+import {type ApiRequestAuthentication, checkedApiRequest} from '@shipfox/client-api';
 import {type FetchQueryOptions, queryOptions} from '@tanstack/react-query';
 import type {AuthenticatedSession, WorkspaceSummary} from '#core/session.js';
 import {toAuthenticatedSession} from './session-mapper.js';
@@ -66,10 +66,20 @@ export function userWorkspacesQueryOptions(token?: string): UserWorkspacesQueryO
 
 export async function refreshAuthenticatedSession(
   signal?: AbortSignal,
+  authentication?: ApiRequestAuthentication,
 ): Promise<AuthenticatedSession> {
   const response = await checkedApiRequest(loginResponseSchema, '/auth/refresh', {
     method: 'POST',
     signal,
+    ...(authentication ? {authentication} : {}),
   });
   return toAuthenticatedSession(response);
+}
+
+/**
+ * Reads the ordinary cookie session without entering it into the refresh query
+ * or the shell's ambient authentication state.
+ */
+export function snapshotAuthenticatedSession(signal?: AbortSignal): Promise<AuthenticatedSession> {
+  return refreshAuthenticatedSession(signal, 'cookie-only');
 }

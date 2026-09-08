@@ -1,0 +1,352 @@
+// @vitest-environment jsdom
+import {
+  checkedApiRequest,
+  configureApiClient,
+  emptyResponseSchema,
+  resetApiClient,
+} from '@shipfox/client-api';
+import {QueryClient} from '@tanstack/react-query';
+import {act, cleanup, render, waitFor} from '@testing-library/react';
+import {createStore} from 'jotai';
+import type {AuthenticatedSession} from '#core/session.js';
+import {authStateAtom, useAdoptedSession, useAuthState, useAuthTransition} from './auth.js';
+import {ShellProviderStack} from './provider-stack.js';
+
+const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
+const TARGET_ID = '22222222-2222-4222-8222-222222222222';
+const ADMIN_SESSION: AuthenticatedSession = {
+  accessToken: 'administrator-token',
+  user: {id: ADMIN_ID, email: 'admin@example.com', adminRole: 'admin-owner'},
+};
+const TARGET_SESSION: AuthenticatedSession = {
+  accessToken: 'target-token',
+  user: {id: TARGET_ID, email: 'target@example.com'},
+  impersonatorId: ADMIN_ID,
+};
+
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    headers: {'content-type': 'application/json'},
+    status: 200,
+    ...init,
+  });
+}
+
+function sessionResponse(session: AuthenticatedSession): Response {
+  return jsonResponse({
+    token: session.accessToken,
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: null,
+      email_verified_at: null,
+      status: 'active',
+      created_at: '2026-08-25T08:00:00.000Z',
+      updated_at: '2026-08-25T08:00:00.000Z',
+    },
+    admin_role: session.user.adminRole ?? null,
+    impersonator_id: session.impersonatorId ?? null,
+  });
+}
+
+function requestUrl(input: RequestInfo | URL): string {
+  return input instanceof Request ? input.url : String(input);
+}
+
+function requestAuthorization(input: RequestInfo | URL): string | null {
+  return input instanceof Request ? input.headers.get('authorization') : null;
+}
+
+interface HarnessApi {
+  adoptSession: (
+    session: AuthenticatedSession,
+    options: {
+      expiresAt: string;
+      serverTime: string;
+      hardDeadline: string;
+      renew: (input?: {source?: string}) => Promise<{
+        session: AuthenticatedSession;
+        expiresAt: string;
+        serverTime: string;
+      } | null>;
+      onRelease?: (reason: string) => void;
+    },
+  ) => Promise<boolean>;
+  releaseAdoptedSession: (reason?: 'manual-stop' | 'hard-deadline') => Promise<void>;
+  enterGuest: () => Promise<boolean>;
+}
+
+function Harness({apiRef}: {apiRef: {current: HarnessApi | null}}) {
+  const {adoptSession, releaseAdoptedSession} = useAdoptedSession();
+  const {enterGuest} = useAuthTransition();
+  apiRef.current = {adoptSession, releaseAdoptedSession, enterGuest};
+  return null;
+}
+
+function renderHarness(fetchImpl: typeof fetch) {
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+  const store = createStore();
+  const apiRef: {current: HarnessApi | null} = {current: null};
+  resetApiClient();
+  configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+  render(
+    <ShellProviderStack
+      features={[]}
+      queryClient={queryClient}
+      store={store}
+      auth={{effects: true}}
+    >
+      <Harness apiRef={apiRef} />
+    </ShellProviderStack>,
+  );
+  return {apiRef, store};
+}
+
+function setDocumentAttendance({visible, focused}: {visible: boolean; focused: boolean}): void {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: visible ? 'visible' : 'hidden',
+  });
+  vi.spyOn(document, 'hasFocus').mockReturnValue(focused);
+}
+
+function adoptionTimes(lifetimeMs = 60_000, deadlineMs = 10 * 60_000) {
+  const serverTime = new Date().toISOString();
+  return {
+    serverTime,
+    expiresAt: new Date(Date.now() + lifetimeMs).toISOString(),
+    hardDeadline: new Date(Date.now() + deadlineMs).toISOString(),
+  };
+}
+
+describe('continuity-aware adopted sessions', () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    resetApiClient();
+  });
+
+  test('restores a target at boot without making the ordinary snapshot ambient', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const seenTokens: string[] = [];
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) {
+        const authorization = requestAuthorization(input);
+        if (authorization) seenTokens.push(authorization);
+        return Promise.resolve(jsonResponse({memberships: []}));
+      }
+      return Promise.resolve(
+        jsonResponse({message: 'Not found', code: 'not-found'}, {status: 404}),
+      );
+    });
+    const targetTimes = adoptionTimes();
+    const restorer = vi.fn(
+      async ({
+        getOrdinarySessionSnapshot,
+      }: {
+        getOrdinarySessionSnapshot: () => Promise<AuthenticatedSession>;
+      }) => {
+        const ordinary = await getOrdinarySessionSnapshot();
+        expect(ordinary.user.id).toBe(ADMIN_ID);
+        return {
+          session: TARGET_SESSION,
+          options: {
+            ...targetTimes,
+            renew: vi.fn(async () => null),
+          },
+        };
+      },
+    );
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const store = createStore();
+    const seenStates: string[] = [];
+    function Probe() {
+      const auth = useAuthState();
+      if (auth.status !== 'loading' && auth.token) seenStates.push(auth.token);
+      return null;
+    }
+
+    resetApiClient();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    render(
+      <ShellProviderStack
+        features={[]}
+        queryClient={queryClient}
+        store={store}
+        auth={{effects: true, bootRestorer: restorer}}
+      >
+        <Probe />
+      </ShellProviderStack>,
+    );
+
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(TARGET_SESSION.accessToken));
+    expect(restorer).toHaveBeenCalledOnce();
+    expect(seenStates).toContain(TARGET_SESSION.accessToken);
+    expect(seenStates).not.toContain(ADMIN_SESSION.accessToken);
+    expect(seenTokens).toEqual([`Bearer ${TARGET_SESSION.accessToken}`]);
+  });
+
+  test('coalesces an adopted 401 recovery and retries once with the renewed target token', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    let widgetCalls = 0;
+    let resolveRenewal:
+      | ((value: {session: AuthenticatedSession; expiresAt: string; serverTime: string}) => void)
+      | undefined;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      if (url.endsWith('/widgets')) {
+        widgetCalls += 1;
+        if (widgetCalls <= 2) {
+          return Promise.resolve(
+            jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+          );
+        }
+        return Promise.resolve(jsonResponse({}));
+      }
+      return Promise.resolve(
+        jsonResponse({message: 'Not found', code: 'not-found'}, {status: 404}),
+      );
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const times = adoptionTimes();
+    const renew = vi.fn(
+      () =>
+        new Promise<{
+          session: AuthenticatedSession;
+          expiresAt: string;
+          serverTime: string;
+        }>((resolve) => {
+          resolveRenewal = resolve;
+        }),
+    );
+    await act(async () => {
+      await expect(apiRef.current?.adoptSession(TARGET_SESSION, {...times, renew})).resolves.toBe(
+        true,
+      );
+    });
+
+    const firstRequest = checkedApiRequest(emptyResponseSchema, '/widgets');
+    const secondRequest = checkedApiRequest(emptyResponseSchema, '/widgets');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await waitFor(() => expect(renew).toHaveBeenCalledOnce());
+    const renewedTimes = adoptionTimes(120_000);
+    resolveRenewal?.({
+      session: {...TARGET_SESSION, accessToken: 'renewed-target-token'},
+      ...renewedTimes,
+    });
+
+    await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(renew).toHaveBeenCalledOnce();
+    expect(
+      fetchImpl.mock.calls.filter(([input]) => requestUrl(input).endsWith('/widgets')),
+    ).toHaveLength(4);
+    const widgetRequests = fetchImpl.mock.calls.filter(([input]) =>
+      requestUrl(input).endsWith('/widgets'),
+    );
+    expect(requestAuthorization(widgetRequests[0]?.[0] as Request)).toBe(
+      `Bearer ${TARGET_SESSION.accessToken}`,
+    );
+    expect(requestAuthorization(widgetRequests[2]?.[0] as Request)).toBe(
+      'Bearer renewed-target-token',
+    );
+  });
+
+  test('gates expired requests while the document is hidden', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const widgetFetch = vi.fn(() => Promise.resolve(jsonResponse({})));
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      if (url.endsWith('/widgets')) return widgetFetch();
+      return Promise.resolve(
+        jsonResponse({message: 'Not found', code: 'not-found'}, {status: 404}),
+      );
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const times = adoptionTimes(20, 60_000);
+    await act(async () => {
+      await apiRef.current?.adoptSession(TARGET_SESSION, {
+        ...times,
+        renew: vi.fn(async () => null),
+      });
+    });
+
+    setDocumentAttendance({visible: false, focused: false});
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    await expect(checkedApiRequest(emptyResponseSchema, '/widgets')).rejects.toMatchObject({
+      code: 'adopted-session-paused',
+      status: 0,
+    });
+    expect(widgetFetch).not.toHaveBeenCalled();
+  });
+
+  test('delivers logout to the release callback once', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const reasons: string[] = [];
+    await act(async () => {
+      await apiRef.current?.adoptSession(TARGET_SESSION, {
+        ...adoptionTimes(),
+        renew: vi.fn(async () => null),
+        onRelease: (reason) => reasons.push(reason),
+      });
+    });
+
+    await apiRef.current?.enterGuest();
+    await waitFor(() => expect(store.get(authStateAtom).status).toBe('guest'));
+    await waitFor(() => expect(reasons).toEqual(['logout']));
+  });
+
+  test('rejects a request waiting for continuation when the adoption is released', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    let resolveRenewal: ((value: null) => void) | undefined;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const times = adoptionTimes(-1, 60_000);
+    const renew = vi.fn(
+      () =>
+        new Promise<null>((resolve) => {
+          resolveRenewal = resolve;
+        }),
+    );
+    await act(async () => {
+      await apiRef.current?.adoptSession(TARGET_SESSION, {...times, renew});
+    });
+
+    const waitingRequest = checkedApiRequest(emptyResponseSchema, '/widgets');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await waitFor(() => expect(renew).toHaveBeenCalledOnce());
+    await apiRef.current?.releaseAdoptedSession('manual-stop');
+    await expect(waitingRequest).rejects.toMatchObject({
+      code: 'adopted-session-ended',
+      status: 0,
+      details: {reason: 'manual-stop'},
+    });
+    resolveRenewal?.(null);
+  });
+});
