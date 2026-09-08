@@ -3,6 +3,7 @@ import {canonicalizeLabels} from '@shipfox/runner-labels';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {WorkflowModel, WorkflowStepSourceLocationMap} from '../entities/workflow-model.js';
+import {historicalEventPayloadDependencyIssues} from './historical-event-payload-dependencies.js';
 import {
   InvalidWorkflowModelError,
   type WorkflowModelValidationIssue,
@@ -65,6 +66,17 @@ export function normalizeWorkflowDocument(
 
   validateCycles(document.jobs, jobIdBySourceName, issues);
 
+  const model: WorkflowModel = {
+    kind: 'workflow',
+    name: unescapeLiteralName(document.name),
+    ...(runName === undefined ? {} : {runName}),
+    ...workflowEnv,
+    triggers,
+    jobs,
+    dependencies,
+  };
+  issues.push(...historicalEventPayloadDependencyIssues(model));
+
   const diagnostics = issues.filter(
     (issue) => !(issue.severity === 'error' && issue.scope === 'definition'),
   );
@@ -75,13 +87,5 @@ export function normalizeWorkflowDocument(
   );
   if (errors.length > 0) throw new InvalidWorkflowModelError(errors);
 
-  return {
-    kind: 'workflow',
-    name: unescapeLiteralName(document.name),
-    ...(runName === undefined ? {} : {runName}),
-    ...workflowEnv,
-    triggers,
-    jobs,
-    dependencies,
-  };
+  return model;
 }

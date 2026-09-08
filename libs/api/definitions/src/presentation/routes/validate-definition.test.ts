@@ -96,6 +96,33 @@ jobs:
     expect(getValidationCatalogV2).toHaveBeenCalledWith({workspaceId: null});
   });
 
+  test('bounds long historical dependency warning messages in the validation response', async () => {
+    const expression = `executions[vars.index].events[0].data.action${' '.repeat(2200)}== "opened"`;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/definitions/validate',
+      payload: {
+        yaml: `
+name: Long historical expression
+runner: ubuntu-latest
+jobs:
+  review:
+    success: ${JSON.stringify(expression)}
+    steps:
+      - run: echo hello
+`,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.valid).toBe(true);
+    expect(body.diagnostics).toHaveLength(1);
+    expect(body.diagnostics[0].message.length).toBeLessThan(2048);
+    expect(body.diagnostics[0].message).toContain('…');
+    expect(body.diagnostics[0].message).not.toContain(expression);
+  });
+
   test('uses the project workspace default when project context is provided', async () => {
     const res = await app.inject({
       method: 'POST',

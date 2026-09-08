@@ -40,6 +40,9 @@ CEL checks and run-time evaluation for Shipfox workflow expressions.
   `ContextPath*` types describe path segments, references, and unknown accesses.
   Comprehensions used only for cardinality by `size()` remain projectable; element
   inspection remains unknown when it cannot be represented by literal paths.
+- **`analyzeHistoricalEventPayloadAccess`**: Classifies prior execution event
+  payload references as known or conservatively unknown while leaving current
+  execution events and historical metadata separate.
 - **Typed errors**: Reports bad text and run failures with stable error classes.
 - **`workflowContextDefinitions`**: Names the workflow contexts (`run`,
   `trigger`, `event`, `inputs`, `job`, `executions`, `execution`, `jobs`, `step`) and
@@ -109,6 +112,9 @@ const passed = evaluateWorkflowPredicate(expression, {
 - Predicate evaluation narrows the supplied context to the roots
   `workflowPredicateContextRoots` declares for that field, so a reference
   outside the policy fails closed rather than reading an incidental value.
+- Historical payload analysis treats `execution.events` as current execution
+  data. It treats `executions[*].events` and `executions[*].trigger_events` as
+  prior-event data when the path can reach an event body.
 - `evaluateWorkflowPredicate` preserves its boolean-only mapping: only `true`
   passes, while a non-boolean result returns `false`. Use
   `evaluateWorkflowPredicateFailClosed` when callers must distinguish that

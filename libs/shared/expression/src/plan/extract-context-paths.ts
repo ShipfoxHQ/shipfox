@@ -32,6 +32,7 @@ export interface ContextPathReference {
   readonly segments: readonly ContextPathSegment[];
   readonly source: string;
   readonly wholeElement?: true;
+  readonly cardinalityOnly?: true;
 }
 
 export interface ContextPathAccessUnknown {
@@ -55,6 +56,7 @@ type ScopedPaths = ReadonlyMap<string, PathChain | null>;
 
 interface RecordPathOptions {
   readonly wholeElement?: boolean;
+  readonly cardinalityOnly?: boolean;
 }
 
 /**
@@ -66,12 +68,36 @@ export function analyzeContextPathAccess(
   expression: WorkflowExpression | string,
   roots?: readonly string[],
 ): ContextPathAccessAnalysis {
+  return analyzeContextPathAccessWithOptions(expression, roots, false);
+}
+
+/** Enables conservative whole-result classification for persisted historical plans. */
+export function analyzeContextPathAccessForHistoricalPayload(
+  expression: WorkflowExpression | string,
+  roots?: readonly string[],
+): ContextPathAccessAnalysis {
+  return analyzeContextPathAccessWithOptions(expression, roots, true);
+}
+
+function analyzeContextPathAccessWithOptions(
+  expression: WorkflowExpression | string,
+  roots: readonly string[] | undefined,
+  allowComprehensionResultUnknown: boolean,
+): ContextPathAccessAnalysis {
   const source = typeof expression === 'string' ? expression : expression.source;
   const references: ContextPathReference[] = [];
   const unknown: ContextPathAccessUnknown[] = [];
   const selectedRoots = roots === undefined ? undefined : new Set(roots);
 
-  collectContextPaths(parseCel(source).ast, source, new Map(), selectedRoots, references, unknown);
+  collectContextPaths(
+    parseCel(source).ast,
+    source,
+    new Map(),
+    selectedRoots,
+    references,
+    unknown,
+    allowComprehensionResultUnknown,
+  );
 
   return {references, unknown};
 }
@@ -84,6 +110,7 @@ function collectContextPaths(
   references: ContextPathReference[],
   unknown: ContextPathAccessUnknown[],
   allowComprehensionResultUnknown = false,
+  cardinalityOnly = false,
 ): void {
   if (binaryOperators.has(node.op as BinaryOperator) || node.op === '||' || node.op === '&&') {
     collectBinaryContextPaths(
@@ -101,6 +128,7 @@ function collectContextPaths(
   if (chain !== undefined) {
     recordPath(chain, sourceForNode(node, source), selectedRoots, references, unknown, {
       wholeElement: node.op === 'id' && scopedPaths.has(node.args) && chain.segments.at(-1) === '*',
+      cardinalityOnly,
     });
     if (chain.unknown !== undefined) {
       collectDynamicDependencies(node, source, scopedPaths, selectedRoots, references, unknown);
@@ -132,6 +160,7 @@ function collectContextPaths(
     references,
     unknown,
     allowComprehensionResultUnknown,
+    cardinalityOnly,
   );
 }
 
@@ -143,6 +172,7 @@ function collectContextPathChildren(
   references: ContextPathReference[],
   unknown: ContextPathAccessUnknown[],
   allowComprehensionResultUnknown = false,
+  cardinalityOnly = false,
 ): void {
   switch (node.op) {
     case 'id':
@@ -167,6 +197,7 @@ function collectContextPathChildren(
         // `size()` consumes only cardinality, so its comprehension result does
         // not need to retain whole elements in a snapshot.
         node.args[0] !== 'size',
+        node.args[0] === 'size',
       );
       return;
     case 'rcall':
@@ -178,6 +209,7 @@ function collectContextPathChildren(
         references,
         unknown,
         allowComprehensionResultUnknown,
+        cardinalityOnly,
       );
       return;
     case 'list':
@@ -222,6 +254,7 @@ function collectContextPathArguments(
   references: ContextPathReference[],
   unknown: ContextPathAccessUnknown[],
   allowComprehensionResultUnknown: boolean,
+  cardinalityOnly = false,
 ): void {
   for (const argument of arguments_) {
     collectContextPaths(
@@ -232,6 +265,7 @@ function collectContextPathArguments(
       references,
       unknown,
       allowComprehensionResultUnknown,
+      cardinalityOnly,
     );
   }
 }
@@ -260,6 +294,7 @@ function collectRelativeCallContextPaths(
   references: ContextPathReference[],
   unknown: ContextPathAccessUnknown[],
   allowComprehensionResultUnknown: boolean,
+  cardinalityOnly: boolean,
 ): void {
   const [method, receiver, args] = node.args as [string, ASTNode, ASTNode[]];
   if (comprehensionMethods.has(method) && args[0]?.op === 'id') {
@@ -270,6 +305,7 @@ function collectRelativeCallContextPaths(
       selectedRoots,
       references,
       unknown,
+      cardinalityOnly,
     );
   } else {
     collectContextPaths(
@@ -282,6 +318,7 @@ function collectRelativeCallContextPaths(
       // The member form `filtered.size()` has the same cardinality-only
       // semantics as `size(filtered)`.
       method !== 'size',
+      method === 'size',
     );
   }
 
@@ -335,6 +372,7 @@ function collectComprehensionReceiverPath(
   selectedRoots: ReadonlySet<string> | undefined,
   references: ContextPathReference[],
   unknown: ContextPathAccessUnknown[],
+  cardinalityOnly: boolean,
 ): void {
   const chain = accessChain(receiver, scopedPaths);
   if (chain === undefined) {
@@ -348,6 +386,7 @@ function collectComprehensionReceiverPath(
     selectedRoots,
     references,
     unknown,
+    {cardinalityOnly},
   );
   if (chain.unknown !== undefined) {
     collectDynamicDependencies(receiver, source, scopedPaths, selectedRoots, references, unknown);
@@ -431,6 +470,7 @@ function recordPath(
     segments: chain.segments,
     source: expressionSource,
     ...(options.wholeElement === true ? {wholeElement: true} : {}),
+    ...(options.cardinalityOnly === true ? {cardinalityOnly: true} : {}),
   });
 }
 

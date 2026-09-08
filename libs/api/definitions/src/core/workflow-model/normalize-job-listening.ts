@@ -1,7 +1,7 @@
 import type {WorkflowDocumentJob} from '@shipfox/workflow-document';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {WorkflowModelJobListening} from '../entities/workflow-model.js';
-import {DEFAULT_RUN_TIMEOUT_MS} from './constants.js';
+import {DEFAULT_RUN_TIMEOUT_MS, LISTENER_BATCH_PLATFORM_EVENT_COUNT_LIMIT} from './constants.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {normalizeTriggerEntry} from './normalize-triggers.js';
 import {parseDurationMs} from './parse-duration-ms.js';
@@ -122,6 +122,24 @@ export function normalizeJobListening(params: {
   }
 
   const batch = normalizeListeningBatch(listening, debounceMs, maxWaitMs);
+  if (
+    listening.batch?.max_size !== undefined &&
+    listening.batch.max_size > LISTENER_BATCH_PLATFORM_EVENT_COUNT_LIMIT
+  ) {
+    params.issues.push(
+      issue({
+        code: 'listener-batch-max-size-may-partition',
+        message: `Listening batch.max_size is ${listening.batch.max_size} events, above the platform's effective ${LISTENER_BATCH_PLATFORM_EVENT_COUNT_LIMIT}-event count ceiling. Byte-limited partitions may create multiple executions and consume multiple max_executions slots; reduce batch.max_size or plan for additional slots.`,
+        path: [...path, 'listening', 'batch', 'max_size'],
+        details: {
+          authoredMaxSize: listening.batch.max_size,
+          effectiveMaxSize: LISTENER_BATCH_PLATFORM_EVENT_COUNT_LIMIT,
+          remediation: 'Reduce batch.max_size or plan max_executions for byte-created partitions.',
+        },
+        severity: 'warning',
+      }),
+    );
+  }
 
   return {
     on,

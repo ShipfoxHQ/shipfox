@@ -34,6 +34,17 @@ export {
   UNRESOLVED_SYNC_REF,
 } from './sync-definitions.js';
 export {DEFAULT_RUN_TIMEOUT_MS} from './workflow-model/constants.js';
-export {normalizeWorkflowDocument} from './workflow-model/index.js';
+export {
+  auditStoredWorkflowDefinitionModels,
+  auditWorkflowModelHistoricalEventPayloadDependencies,
+  findHistoricalEventPayloadDependencies,
+  HISTORICAL_EVENT_PAYLOAD_DEPENDENCY_CODE,
+  type HistoricalEventPayloadDependency,
+  type HistoricalEventPayloadDependencyClassification,
+  historicalEventPayloadDependencyIssues,
+  normalizeWorkflowDocument,
+  type StoredWorkflowDefinitionHistoricalEventPayloadAudit,
+  type WorkflowModelHistoricalEventPayloadAudit,
+} from './workflow-model/index.js';
 export {DEFAULT_JOB_CHECKOUT} from './workflow-model/normalize-job-checkout.js';
 export {DEFAULT_JOB_SUCCESS} from './workflow-model/normalize-job-success.js';

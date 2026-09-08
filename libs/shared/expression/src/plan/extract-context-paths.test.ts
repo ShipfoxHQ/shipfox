@@ -204,7 +204,12 @@ describe('analyzeContextPathAccess', () => {
   ])('keeps cardinality-only comprehension results projectable: %s', (source) => {
     expect(analyzeContextPathAccess(source, ['jobs'])).toEqual({
       references: [
-        {root: 'jobs', segments: ['build', 'executions', '*'], source: 'jobs.build.executions'},
+        {
+          root: 'jobs',
+          segments: ['build', 'executions', '*'],
+          source: 'jobs.build.executions',
+          cardinalityOnly: true,
+        },
         {
           root: 'jobs',
           segments: ['build', 'executions', '*', 'status'],

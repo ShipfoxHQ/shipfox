@@ -21,6 +21,7 @@ import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {logger} from '@shipfox/node-opentelemetry';
 import {createDefinitionsSourceControl} from '#core/integrations.js';
 import {db, definitionsOutbox, migrationsPath} from '#db/index.js';
+import {registerDefinitionsServiceMetrics} from '#metrics/index.js';
 import {createDefinitionRoutes} from '#presentation/index.js';
 import {createDefinitionsInterModulePresentation} from '#presentation/inter-module.js';
 import {
@@ -32,21 +33,36 @@ import {createDefinitionSyncActivities, DEFINITIONS_TASK_QUEUE} from '#temporal/
 import {definitionWorkflowPath} from './config.js';
 
 export type {
+  HistoricalEventPayloadDependency,
+  HistoricalEventPayloadDependencyClassification,
+  StoredWorkflowDefinitionHistoricalEventPayloadAudit,
   WorkflowDefinition,
   WorkflowDefinitionPayload,
   WorkflowEnvTemplates,
   WorkflowModel,
+  WorkflowModelHistoricalEventPayloadAudit,
   WorkflowModelJobCheckout,
   WorkflowSourceSnapshot,
   WorkflowSpec,
 } from '#core/index.js';
 export {
+  auditStoredWorkflowDefinitionModels,
+  auditWorkflowModelHistoricalEventPayloadDependencies,
   DEFAULT_JOB_CHECKOUT,
   DEFAULT_JOB_SUCCESS,
   DEFAULT_RUN_TIMEOUT_MS,
+  findHistoricalEventPayloadDependencies,
+  HISTORICAL_EVENT_PAYLOAD_DEPENDENCY_CODE,
+  historicalEventPayloadDependencyIssues,
   normalizeWorkflowDocument,
 } from '#core/index.js';
-export {db, definitionsOutbox, getDefinitionById, migrationsPath} from '#db/index.js';
+export {
+  auditStoredDefinitions,
+  db,
+  definitionsOutbox,
+  getDefinitionById,
+  migrationsPath,
+} from '#db/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workflowsPath = resolve(packageRoot, 'dist/temporal/workflows/index.js');
@@ -75,6 +91,7 @@ export function createDefinitionsModule({
     publishers: [
       {name: 'definitions', table: definitionsOutbox, db, eventSchemas: definitionsEventSchemas},
     ],
+    metrics: registerDefinitionsServiceMetrics,
     subscribers: [
       subscriber(DEFINITION_RESOLVED, (_payload, event) => {
         logger().info({event}, 'Definition resolved');
