@@ -91,7 +91,7 @@ export function WorkflowStatusIcon({
     );
   } else if (visual.kind === 'running') {
     glyph = <Dot variant="info" ripple={ripple} className={box} />;
-  } else if (visual.kind === 'pending') {
+  } else if (visual.kind === 'waiting' || visual.kind === 'pending') {
     glyph = (
       <span
         className={cn('rounded-full bg-current', box, toneByVariant.neutral)}

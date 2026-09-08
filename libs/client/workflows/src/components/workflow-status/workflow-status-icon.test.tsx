@@ -9,6 +9,13 @@ describe('WorkflowStatusIcon', () => {
     expect(container.querySelector('svg')).toBeNull();
   });
 
+  test('uses the neutral pending ring for the waiting status', () => {
+    const {container} = render(<WorkflowStatusIcon status="waiting" tooltip={false} />);
+
+    expect(screen.getByRole('img', {name: 'Waiting'})).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
   test('uses the pulse glyph for the listening status', () => {
     const {container} = render(<WorkflowStatusIcon status="listening" tooltip={false} />);
 
