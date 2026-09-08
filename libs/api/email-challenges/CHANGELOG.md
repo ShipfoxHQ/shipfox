@@ -1,5 +1,12 @@
 # @shipfox/api-email-challenges
 
+## 1.1.16
+
+### Patch Changes
+
+- Updated dependencies [a5c2ebd]
+  - @shipfox/api-common-dto@23.2.0
+
 ## 1.1.15
 
 ### Patch Changes

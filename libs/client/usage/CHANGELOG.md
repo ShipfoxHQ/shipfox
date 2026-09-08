@@ -1,5 +1,16 @@
 # @shipfox/client-usage
 
+## 39.0.0
+
+### Minor Changes
+
+- b4a5de1: Show estimated pricing per model and disclose that it is not billed.
+
+### Patch Changes
+
+- Updated dependencies [b4a5de1]
+  - @shipfox/client-shell@39.0.0
+
 ## 38.0.0
 
 ### Patch Changes

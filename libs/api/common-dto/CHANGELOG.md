@@ -1,5 +1,11 @@
 # @shipfox/api-common-dto
 
+## 23.2.0
+
+### Minor Changes
+
+- a5c2ebd: Adds explicit authorization-basis variants and historical-role context to administration action events.
+
 ## 15.0.0
 
 ### Patch Changes
