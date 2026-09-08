@@ -174,6 +174,31 @@ describe('MainLayout session banner', () => {
     }
   });
 
+  test('tracks banner presence when ResizeObserver is unavailable', async () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    const bannerVisibleAtom = atom(false);
+    function ConditionalSessionBanner() {
+      return useAtomValue(bannerVisibleAtom) ? <div>Session banner</div> : null;
+    }
+
+    try {
+      const {store} = await renderMainLayout({SessionBanner: ConditionalSessionBanner});
+
+      const main = await screen.findByRole('main');
+      expect(main).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+
+      act(() => store.set(bannerVisibleAtom, true));
+      expect(await screen.findByText('Session banner')).toBeVisible();
+      await waitFor(() => expect(main).toHaveStyle('--app-content-h: calc(100dvh - 136px)'));
+
+      act(() => store.set(bannerVisibleAtom, false));
+      expect(screen.queryByText('Session banner')).not.toBeInTheDocument();
+      await waitFor(() => expect(main).toHaveStyle('--app-content-h: calc(100dvh - 96px)'));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test('renders a composed session banner above the navigation bar', async () => {
     await renderMainLayout({SessionBanner: () => <div>Session banner</div>});
 

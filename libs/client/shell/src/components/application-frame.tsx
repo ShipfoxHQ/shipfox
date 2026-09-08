@@ -168,6 +168,25 @@ function SessionBannerStrip({
     return () => observer.disconnect();
   }, [bannerFailed, onHeightChange]);
 
+  // Keep the presence-based fallback current in runtimes without
+  // ResizeObserver. The minimum is the best available height in that case.
+  useEffect(() => {
+    if (
+      bannerFailed ||
+      typeof ResizeObserver !== 'undefined' ||
+      typeof MutationObserver === 'undefined'
+    ) {
+      return;
+    }
+    const strip = stripRef.current;
+    if (!strip) return;
+    const observer = new MutationObserver(() => {
+      onHeightChange(strip.hasChildNodes() ? SESSION_BANNER_HEIGHT_PX : 0);
+    });
+    observer.observe(strip, {childList: true, subtree: true});
+    return () => observer.disconnect();
+  }, [bannerFailed, onHeightChange]);
+
   return (
     <ReportErrorBoundary
       label="Failed to render session banner."
@@ -177,7 +196,8 @@ function SessionBannerStrip({
     >
       <div
         ref={stripRef}
-        className="flex min-h-40 shrink-0 items-center bg-background-subtle-base empty:min-h-0"
+        className="flex min-h-(--session-banner-min-height) shrink-0 items-center bg-background-subtle-base empty:min-h-0"
+        style={{'--session-banner-min-height': `${SESSION_BANNER_HEIGHT_PX}px`} as CSSProperties}
       >
         <SessionBanner />
       </div>

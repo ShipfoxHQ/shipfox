@@ -187,6 +187,12 @@ export const Playground: Story = {
 
 export const WithoutBanner: Story = {
   args: {
+    withSessionBanner: false,
+  },
+};
+
+export const EmptyBanner: Story = {
+  args: {
     showSessionBanner: false,
   },
 };
