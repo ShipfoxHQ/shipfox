@@ -6,11 +6,15 @@ const mocks = vi.hoisted(() => {
     gauge,
     getMeter: vi.fn(),
     getServiceMetricsProvider: vi.fn(),
+    countAllOpenImpersonationWindows: vi.fn(),
   };
 });
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
   getServiceMetricsProvider: mocks.getServiceMetricsProvider,
+}));
+vi.mock('#db/impersonation-windows.js', () => ({
+  countAllOpenImpersonationWindows: mocks.countAllOpenImpersonationWindows,
 }));
 
 const {registerAuthServiceMetrics} = await import('./service.js');
@@ -21,6 +25,7 @@ describe('registerAuthServiceMetrics', () => {
     mocks.createObservableGauge.mockClear();
     mocks.getMeter.mockReset();
     mocks.getServiceMetricsProvider.mockReset();
+    mocks.countAllOpenImpersonationWindows.mockReset();
     mocks.getMeter.mockReturnValue({
       addBatchObservableCallback: mocks.addBatchObservableCallback,
       createObservableGauge: mocks.createObservableGauge,
@@ -43,5 +48,19 @@ describe('registerAuthServiceMetrics', () => {
 
     expect(reader.countOpenImpersonationWindows).toHaveBeenCalledOnce();
     expect(observer.observe).toHaveBeenCalledWith(mocks.gauge, 3);
+  });
+
+  it('uses the shared database reader by default', async () => {
+    mocks.countAllOpenImpersonationWindows.mockResolvedValue(4);
+    registerAuthServiceMetrics();
+
+    const callback = mocks.addBatchObservableCallback.mock.calls[0]?.[0];
+    if (typeof callback !== 'function') throw new Error('Expected metrics callback');
+    const observer = {observe: vi.fn()};
+
+    await callback(observer);
+
+    expect(mocks.countAllOpenImpersonationWindows).toHaveBeenCalledOnce();
+    expect(observer.observe).toHaveBeenCalledWith(mocks.gauge, 4);
   });
 });

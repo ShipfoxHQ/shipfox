@@ -14,6 +14,7 @@ import {createEnvironmentSignupPolicy} from '#core/signup-policy.js';
 import {db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {authOutbox} from '#db/schema/outbox.js';
+import {registerAuthServiceMetrics} from '#metrics/service.js';
 import {createAgentAccessAuthMethod} from '#presentation/auth/agent-access-auth.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
@@ -42,10 +43,6 @@ export type {
   AgentAccessTokenClaims,
   JobLeaseTokenClaims,
   RunnerSessionTokenClaims,
-} from '@shipfox/api-auth-dto';
-export {
-  IMPERSONATION_WINDOW_MAX_COUNT,
-  MAX_IMPERSONATION_WINDOWS,
 } from '@shipfox/api-auth-dto';
 export {
   config,
@@ -292,6 +289,7 @@ export function createAuthModule({
       createAgentAccessManagementRoutes(),
     ],
     e2eRoutes: [createAuthE2eRoutes(workspaces)],
+    metrics: () => registerAuthServiceMetrics(),
     publishers: [{name: 'auth', table: authOutbox, db, eventSchemas: authPublisherEventSchemas}],
     subscribers: [subscriber(AUTH_PASSWORD_RESET_SEND_REQUESTED, onPasswordResetSendRequested)],
     workers: [

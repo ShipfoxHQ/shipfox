@@ -2,8 +2,6 @@ import {z} from 'zod';
 import {administratorUserSummarySchema} from './admin.js';
 import {impersonateResponseSchema} from './auth.js';
 
-export const IMPERSONATION_WINDOW_MAX_COUNT = 5;
-export const MAX_IMPERSONATION_WINDOWS = IMPERSONATION_WINDOW_MAX_COUNT;
 export const IMPERSONATION_WINDOW_PAGE_LIMIT = 50;
 export const IMPERSONATION_WINDOW_PAGE_MAX = 100;
 
@@ -15,6 +13,7 @@ const WINDOW_LIMIT_PATTERN = /^\d+$/u;
 
 const windowReasonSchema = z
   .string()
+  .trim()
   .min(1)
   .max(512)
   .refine((value) => !CONTROL_OR_FORMAT_CHARACTER_RE.test(value), {
@@ -217,18 +216,3 @@ export const impersonationWindowErrorResponseSchema = impersonationWindowErrorSc
 export type ImpersonationWindowErrorResponseDto = z.infer<
   typeof impersonationWindowErrorResponseSchema
 >;
-
-export const listImpersonationWindowsQuerySchema = impersonationWindowsQuerySchema;
-export const listImpersonationWindowsResponseSchema = impersonationWindowsResponseSchema;
-export const getImpersonationWindowResponseSchema = impersonationWindowExactResponseSchema;
-export const impersonateWindowStartBodySchema = impersonationWindowStartBodySchema;
-export const impersonateWindowStartResponseSchema = impersonationWindowStartResponseSchema;
-export const impersonateWindowContinueResponseSchema = impersonationWindowContinueResponseSchema;
-export const impersonateWindowStopBodySchema = impersonationWindowStopBodySchema;
-export const impersonateWindowStopResponseSchema = impersonationWindowStopResponseSchema;
-
-export type ImpersonateWindowStartBodyDto = ImpersonationWindowStartBodyDto;
-export type ImpersonateWindowStartResponseDto = ImpersonationWindowStartResponseDto;
-export type ImpersonateWindowContinueResponseDto = ImpersonationWindowContinueResponseDto;
-export type ImpersonateWindowStopBodyDto = ImpersonationWindowStopBodyDto;
-export type ImpersonateWindowStopResponseDto = ImpersonationWindowStopResponseDto;

@@ -129,15 +129,8 @@ export {
   e2eCreateUserResponseSchema,
 } from './e2e.js';
 export {
-  getImpersonationWindowResponseSchema,
-  IMPERSONATION_WINDOW_MAX_COUNT,
   IMPERSONATION_WINDOW_PAGE_LIMIT,
   IMPERSONATION_WINDOW_PAGE_MAX,
-  type ImpersonateWindowContinueResponseDto,
-  type ImpersonateWindowStartBodyDto,
-  type ImpersonateWindowStartResponseDto,
-  type ImpersonateWindowStopBodyDto,
-  type ImpersonateWindowStopResponseDto,
   type ImpersonationWindowContinueBodyDto,
   type ImpersonationWindowContinueParamsDto,
   type ImpersonationWindowContinueResponseDto,
@@ -157,11 +150,6 @@ export {
   type ImpersonationWindowSummaryDto,
   type ImpersonationWindowsQueryDto,
   type ImpersonationWindowsResponseDto,
-  impersonateWindowContinueResponseSchema,
-  impersonateWindowStartBodySchema,
-  impersonateWindowStartResponseSchema,
-  impersonateWindowStopBodySchema,
-  impersonateWindowStopResponseSchema,
   impersonationStopReasonRequiredErrorSchema,
   impersonationTargetNotWorkspaceMemberErrorSchema,
   impersonationWindowContinueBodySchema,
@@ -188,9 +176,6 @@ export {
   impersonationWindowSummarySchema,
   impersonationWindowsQuerySchema,
   impersonationWindowsResponseSchema,
-  listImpersonationWindowsQuerySchema,
-  listImpersonationWindowsResponseSchema,
-  MAX_IMPERSONATION_WINDOWS,
 } from './impersonation-window.js';
 export {
   JOB_LEASE_TOKEN_AUDIENCE,

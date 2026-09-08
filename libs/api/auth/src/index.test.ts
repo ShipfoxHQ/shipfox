@@ -121,6 +121,10 @@ describe('authModule', () => {
     expect(events).toEqual(expect.arrayContaining([AUTH_PASSWORD_RESET_SEND_REQUESTED]));
   });
 
+  test('registers shared auth service metrics', () => {
+    expect(authModule.metrics).toEqual(expect.any(Function));
+  });
+
   test('registers the agent-access retention worker', () => {
     const worker = authModule.workers?.[0];
     expect(worker).toEqual(

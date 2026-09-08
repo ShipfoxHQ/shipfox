@@ -102,6 +102,13 @@ describe('impersonation window DTOs', () => {
     expect(impersonationWindowStopBodySchema.parse({reason: 'Finished investigating'})).toEqual({
       reason: 'Finished investigating',
     });
+    expect(
+      impersonationWindowStartBodySchema.safeParse({
+        target_user_id: target.id,
+        reason: '   ',
+      }).success,
+    ).toBe(false);
+    expect(impersonationWindowStopBodySchema.safeParse({reason: '   '}).success).toBe(false);
   });
 
   it('defaults and bounds collection reads', () => {

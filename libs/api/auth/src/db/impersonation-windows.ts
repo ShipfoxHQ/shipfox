@@ -358,6 +358,14 @@ export async function countOpenImpersonationWindows(
   return Number(rows[0]?.count ?? 0);
 }
 
+export async function countAllOpenImpersonationWindows(now = new Date()): Promise<number> {
+  const rows = await db()
+    .select({count: count()})
+    .from(impersonationWindows)
+    .where(and(isNull(impersonationWindows.endedAt), gt(impersonationWindows.deadlineAt, now)));
+  return Number(rows[0]?.count ?? 0);
+}
+
 export async function requireImpersonationWindowCapacity(
   params: ImpersonationWindowActorTimeParams,
   executor?: ImpersonationWindowExecutor,
