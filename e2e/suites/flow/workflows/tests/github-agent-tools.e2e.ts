@@ -3,6 +3,7 @@ import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {createApiClient} from '@shipfox/e2e-core';
 import {message, startFakeOpenAiModelProvider, toolCall} from '@shipfox/e2e-driver-model-provider';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
+import {waitForStepLogsContaining} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservationSelection} from '@shipfox/e2e-observe-workflows';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
 import {createGithubConnection} from '@shipfox/e2e-setup-integrations';
@@ -30,11 +31,16 @@ import {renderWorkflowYaml, seedAndWaitForDefinition} from '#workflow-project.js
 import {expect, test} from './fixtures.js';
 
 const CLAUDE_AGENT_MODEL = 'deterministic-github-tools-agent';
+const FAILURE_LOG_SETTLE_TIMEOUT_MS = 10_000;
 const TERMINAL_TIMEOUT_MS = 60_000;
 const GITHUB_REPOSITORY_ID = 42;
 const GITHUB_REPOSITORY_EXTERNAL_ID = `github:${GITHUB_REPOSITORY_ID}`;
 const GITHUB_OUTSIDE_REPOSITORY_NAME = 'shipfox/outside';
 const BEARER_AUTHORIZATION = /^bearer /iu;
+const REPOSITORY_NOT_AUTHORIZED_MESSAGE =
+  'Repository is not authorized for this integration connection';
+const REPOSITORY_REQUIRED_MESSAGE = 'Selected repository access requires owner and repo parameters';
+const SEARCH_QUALIFIER_MESSAGE = 'Search query cannot contain repo:, org:, or user: qualifiers';
 const GITHUB_TOKEN_CASES = [
   {
     format: 'stateless',
@@ -282,6 +288,7 @@ test('denies a selected GitHub tool target outside Shipfox projects', async ({su
 
   try {
     const result = await runGithubWorkflow({
+      expectedFailureLogText: REPOSITORY_NOT_AUTHORIZED_MESSAGE,
       suite,
       testInfo,
       uniqueId,
@@ -295,9 +302,7 @@ test('denies a selected GitHub tool target outside Shipfox projects', async ({su
 
     expect(result.terminal.status).toBe('failed');
     expect(result.terminal.jobs.find((job) => job.key === 'tools')?.status).toBe('failed');
-    expect(result.failureLogs).toContain(
-      'Repository is not authorized for this integration connection',
-    );
+    expect(result.failureLogs).toContain(REPOSITORY_NOT_AUTHORIZED_MESSAGE);
     expect(result.failureLogs).not.toContain(fixture.installationToken);
     expect(githubAgentToolCalls(fixture.githubApi)).toEqual([]);
   } finally {
@@ -311,6 +316,7 @@ test('requires an explicit repository for selected GitHub search', async ({suite
 
   try {
     const result = await runGithubWorkflow({
+      expectedFailureLogText: REPOSITORY_REQUIRED_MESSAGE,
       suite,
       testInfo,
       uniqueId,
@@ -323,9 +329,7 @@ test('requires an explicit repository for selected GitHub search', async ({suite
     });
 
     expect(result.terminal.status).toBe('failed');
-    expect(result.failureLogs).toContain(
-      'Selected repository access requires owner and repo parameters',
-    );
+    expect(result.failureLogs).toContain(REPOSITORY_REQUIRED_MESSAGE);
     expect(result.failureLogs).not.toContain(fixture.installationToken);
     expect(githubAgentToolCalls(fixture.githubApi)).toEqual([]);
   } finally {
@@ -339,6 +343,7 @@ test('rejects GitHub search qualifiers before provider dispatch', async ({suite}
 
   try {
     const result = await runGithubWorkflow({
+      expectedFailureLogText: SEARCH_QUALIFIER_MESSAGE,
       suite,
       testInfo,
       uniqueId,
@@ -351,9 +356,7 @@ test('rejects GitHub search qualifiers before provider dispatch', async ({suite}
     });
 
     expect(result.terminal.status).toBe('failed');
-    expect(result.failureLogs).toContain(
-      'Search query cannot contain repo:, org:, or user: qualifiers',
-    );
+    expect(result.failureLogs).toContain(SEARCH_QUALIFIER_MESSAGE);
     expect(result.failureLogs).not.toContain(fixture.installationToken);
     expect(githubAgentToolCalls(fixture.githubApi)).toEqual([]);
   } finally {
@@ -593,7 +596,67 @@ async function setRepositoryAccessMode(
   });
 }
 
+async function waitForExpectedFailureLog(params: {
+  expectedText: string | undefined;
+  requests: ReturnType<typeof collectStepLogAttachmentRequests>;
+  scenario: string;
+  token: string;
+}): Promise<void> {
+  if (params.expectedText === undefined) return;
+  if (params.requests.length !== 1) {
+    throw new Error(
+      `Expected one selected step log for ${params.scenario}, received ${params.requests.length}`,
+    );
+  }
+
+  const request = params.requests[0];
+  if (request === undefined) throw new Error('Selected step log request is missing');
+  await waitForStepLogsContaining({
+    attempt: request.attempt,
+    expectedText: params.expectedText,
+    stepId: request.stepId,
+    timeoutMs: FAILURE_LOG_SETTLE_TIMEOUT_MS,
+    token: params.token,
+  });
+}
+
+async function collectGithubFailureLogs(params: {
+  expectedText: string | undefined;
+  scenario: string;
+  terminal: Awaited<ReturnType<typeof waitForRunTerminalOrFailedRunner>>;
+  testInfo: {
+    attach: (name: string, options: {body: Buffer | string; contentType: string}) => Promise<void>;
+  };
+  token: string;
+}): Promise<string> {
+  const requests = collectStepLogAttachmentRequests(params.terminal);
+  let logWaitError: unknown;
+  try {
+    await waitForExpectedFailureLog({
+      expectedText: params.expectedText,
+      requests,
+      scenario: params.scenario,
+      token: params.token,
+    });
+  } catch (error) {
+    logWaitError = error;
+  }
+
+  let failureLogs = '';
+  for (const request of requests) {
+    const attachment = await fetchLogAttachment(request, params.token);
+    failureLogs += `\n${attachment.body}`;
+    await params.testInfo.attach(attachment.name, {
+      body: attachment.body,
+      contentType: attachment.contentType,
+    });
+  }
+  if (logWaitError !== undefined) throw logWaitError;
+  return failureLogs;
+}
+
 async function runGithubWorkflow(params: {
+  expectedFailureLogText?: string | undefined;
   suite: SuiteContext;
   testInfo: {
     attach: (name: string, options: {body: Buffer | string; contentType: string}) => Promise<void>;
@@ -620,7 +683,6 @@ async function runGithubWorkflow(params: {
     extraEnv: {SHIPFOX_POLL_MAX_DURATION_MS: String(TERMINAL_TIMEOUT_MS)},
   });
 
-  let failureLogs = '';
   try {
     const definition =
       params.project === undefined
@@ -663,16 +725,16 @@ async function runGithubWorkflow(params: {
       },
     });
 
-    if (terminal.status !== 'succeeded') {
-      for (const request of collectStepLogAttachmentRequests(terminal)) {
-        const attachment = await fetchLogAttachment(request, token);
-        failureLogs += `\n${attachment.body}`;
-        await params.testInfo.attach(attachment.name, {
-          body: attachment.body,
-          contentType: attachment.contentType,
-        });
-      }
-    }
+    const failureLogs =
+      terminal.status === 'succeeded'
+        ? ''
+        : await collectGithubFailureLogs({
+            expectedText: params.expectedFailureLogText,
+            scenario: params.scenario,
+            terminal,
+            testInfo: params.testInfo,
+            token,
+          });
     return {terminal, failureLogs};
   } finally {
     await attachLocalRunnerLog(
