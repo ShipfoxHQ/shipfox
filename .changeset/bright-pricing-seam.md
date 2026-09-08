@@ -4,4 +4,4 @@
 '@shipfox/client-workflows': minor
 ---
 
-Extend the Usage pricing seam with runner and model identity and estimated-cost disclosures.
+Show estimated pricing per model and disclose that it is not billed.

@@ -125,10 +125,9 @@ export function useUsagePricing(): ClientUsagePricing | undefined {
 }
 
 export function usagePricingReferenceKey(reference: UsagePricingReference): string {
-  let key = `${reference.kind}:${reference.id}`;
-  if (reference.model !== undefined) key += `:${reference.model}`;
-  if (reference.upstream !== undefined) key += `:${reference.upstream}`;
-  return key;
+  const baseKey = `${reference.kind}:${reference.id}`;
+  if (reference.model === undefined && reference.upstream === undefined) return baseKey;
+  return `${baseKey}:${JSON.stringify([reference.model ?? null, reference.upstream ?? null])}`;
 }
 
 function createSafeClientUsagePricing(pricing: ClientUsagePricing): ClientUsagePricing {

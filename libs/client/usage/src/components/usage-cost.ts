@@ -88,35 +88,22 @@ export function usagePricingCostFromResolution(
   const baseKey = `${reference.kind}:${reference.id}`;
   let candidate: UsagePricingCost | null | undefined;
   if (Array.isArray(resolution)) {
-    const entry = resolution.find(
+    candidate = resolution.find(
       (item) =>
         item.kind === reference.kind &&
         item.id === reference.id &&
         item.model === reference.model &&
         item.upstream === reference.upstream,
     );
-    candidate =
-      entry ??
-      (hasModelIdentity(reference)
-        ? resolution.find(
-            (item) =>
-              item.kind === reference.kind &&
-              item.id === reference.id &&
-              item.model === undefined &&
-              item.upstream === undefined,
-          )
-        : undefined);
   } else if (isMapLike(resolution)) {
-    candidate = resolution.get(key) ?? resolution.get(baseKey);
-    if (candidate === undefined && !hasModelIdentity(reference)) {
-      candidate = resolution.get(reference.id);
-    }
+    candidate = hasModelIdentity(reference)
+      ? resolution.get(key)
+      : (resolution.get(key) ?? resolution.get(baseKey) ?? resolution.get(reference.id));
   } else {
     const record = resolution as Readonly<Record<string, UsagePricingCost | null | undefined>>;
-    candidate = record[key] ?? record[baseKey];
-    if (candidate === undefined && !hasModelIdentity(reference)) {
-      candidate = record[reference.id];
-    }
+    candidate = hasModelIdentity(reference)
+      ? record[key]
+      : (record[key] ?? record[baseKey] ?? record[reference.id]);
   }
 
   return validUsagePricingCost(candidate) ? candidate : undefined;
@@ -269,7 +256,11 @@ function mergeComputeInputs(
   if (left === undefined && right === undefined) return undefined;
   const byExecutionId = new Map<string, UsagePricingEstimateCompute>();
   for (const input of [...(left ?? []), ...(right ?? [])]) {
-    byExecutionId.set(input.jobExecutionId, input);
+    const current = byExecutionId.get(input.jobExecutionId);
+    byExecutionId.set(
+      input.jobExecutionId,
+      current ? {...input, seconds: current.seconds + input.seconds} : input,
+    );
   }
   return [...byExecutionId.values()];
 }

@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import {type ClientUsagePricing, ClientUsagePricingProvider} from '@shipfox/client-shell/runtime';
+import {
+  type ClientUsagePricing,
+  ClientUsagePricingProvider,
+  usagePricingReferenceKey,
+} from '@shipfox/client-shell/runtime';
 import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import type {
   JobExecutionUsage,
@@ -10,6 +14,7 @@ import type {
 import {JobUsageBreakdown, JobUsageCells} from './job-usage-cells.js';
 import {RunUsageBreakdown, RunUsageSummary} from './run-usage-summary.js';
 import {StepInferenceTable} from './step-inference-table.js';
+import {type UsageCostRequest, useUsageCosts} from './usage-cost.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const EXECUTION_ID = '33333333-3333-4333-8333-333333333333';
@@ -98,13 +103,30 @@ const pricing: ClientUsagePricing = {
   resolveCosts: (refs) =>
     new Map(
       refs.map((reference) => [
-        `${reference.kind}:${reference.id}`,
+        usagePricingReferenceKey(reference),
         {amount: 1.2, state: 'resolved'},
       ]),
     ),
   estimate: () => ({amount: 0.9, state: 'estimated'}),
   formatMoney: (amount) => `$${amount.toFixed(2)}`,
 };
+
+function UsageCostProbe({inputs}: {inputs: readonly UsageCostRequest[]}) {
+  useUsageCosts(inputs);
+  return null;
+}
+
+function usageQuantities(computeSeconds: number, requestCount: number) {
+  return {
+    computeSeconds,
+    requestCount,
+    inputTokens: requestCount * 10,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 0,
+    outputTokens: requestCount * 5,
+    webSearchRequests: 0,
+  };
+}
 
 describe('Usage components', () => {
   test('shares a job pricing snapshot with details and releases it after unmount', async () => {
@@ -188,6 +210,62 @@ describe('Usage components', () => {
         models: [expect.objectContaining({model: segment.model, upstream: segment.upstream})],
       }),
     );
+  });
+
+  test('sums compute seconds for duplicate job execution inputs', async () => {
+    const estimate = vi.fn(() => ({amount: 1, state: 'estimated' as const}));
+    const usagePricing: ClientUsagePricing = {
+      resolveCosts: () => new Map(),
+      estimate,
+      formatMoney: (amount) => `$${amount}`,
+    };
+    const reference = {kind: 'run' as const, id: 'run-1'};
+    const inputs: UsageCostRequest[] = [
+      {
+        reference,
+        quantities: usageQuantities(2, 1),
+        compute: [
+          {
+            jobExecutionId: 'execution-1',
+            runnerLabels: ['linux'],
+            templateKey: null,
+            seconds: 2,
+          },
+        ],
+      },
+      {
+        reference,
+        quantities: usageQuantities(4, 2),
+        compute: [
+          {
+            jobExecutionId: 'execution-1',
+            runnerLabels: ['linux'],
+            templateKey: null,
+            seconds: 4,
+          },
+        ],
+      },
+    ];
+
+    render(
+      <ClientUsagePricingProvider usagePricing={usagePricing}>
+        <UsageCostProbe inputs={inputs} />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
+    expect(estimate).toHaveBeenCalledWith({
+      reference,
+      quantities: usageQuantities(6, 3),
+      compute: [
+        {
+          jobExecutionId: 'execution-1',
+          runnerLabels: ['linux'],
+          templateKey: null,
+          seconds: 6,
+        },
+      ],
+    });
   });
 
   test('does not leave an empty job metadata item without pricing', () => {

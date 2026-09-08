@@ -90,8 +90,38 @@ describe('ClientUsagePricing', () => {
       upstream: 'upstream-a',
     });
 
-    expect(first).toBe('step-attempt:attempt-1:model-a:upstream-a');
+    expect(first).toBe('step-attempt:attempt-1:["model-a","upstream-a"]');
     expect(second).not.toBe(first);
+  });
+
+  test('encodes partial and colon-containing model identity without collisions', () => {
+    const aggregate = usagePricingReferenceKey({kind: 'step-attempt', id: 'attempt-1'});
+    const modelOnly = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model-a',
+    });
+    const upstreamOnly = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      upstream: 'model-a',
+    });
+    const firstColonValue = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model:a',
+      upstream: 'upstream',
+    });
+    const secondColonValue = usagePricingReferenceKey({
+      kind: 'step-attempt',
+      id: 'attempt-1',
+      model: 'model',
+      upstream: 'a:upstream',
+    });
+
+    expect(aggregate).toBe('step-attempt:attempt-1');
+    expect(modelOnly).not.toBe(upstreamOnly);
+    expect(firstColonValue).not.toBe(secondColonValue);
   });
 
   test('preserves a pricing disclosure through the safe provider', async () => {
