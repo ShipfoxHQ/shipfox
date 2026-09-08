@@ -1,9 +1,15 @@
+import {readFile} from 'node:fs/promises';
+import {createServer as createHttpsServer} from 'node:https';
+import {getDefaultAutoSelectFamily, setDefaultAutoSelectFamily} from 'node:net';
+import {getCACertificates, setDefaultCACertificates} from 'node:tls';
 import {describe, expect, it, vi} from '@shipfox/vitest/vi';
 import {
   type CimdAddress,
   type CimdHttpResponse,
   fetchClientIdMetadata,
   isPublicUnicastAddress,
+  OAUTH_CIMD_MAX_BODY_BYTES,
+  requestPinnedHttps,
 } from './cimd.js';
 import {InvalidOAuthClientMetadataError} from './errors.js';
 
@@ -29,6 +35,57 @@ function response(
 }
 
 describe('CIMD fetch', () => {
+  it('uses the pinned address when Node family autoselection is enabled', async () => {
+    const key = await readFile(new URL('../../test/fixtures/cimd-server-key.pem', import.meta.url));
+    const certificate = await readFile(
+      new URL('../../test/fixtures/cimd-server-cert.pem', import.meta.url),
+    );
+    const server = createHttpsServer({key, cert: certificate}, (_request, serverResponse) => {
+      serverResponse.setHeader('content-type', 'application/json');
+      serverResponse.end(JSON.stringify(validDocument));
+    });
+    let secureConnections = 0;
+    server.on('secureConnection', () => {
+      secureConnections += 1;
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', () => {
+        server.off('error', reject);
+        resolve();
+      });
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Test HTTPS server did not bind');
+
+    const previousCertificates = getCACertificates('default');
+    const previousAutoSelectFamily = getDefaultAutoSelectFamily();
+    setDefaultCACertificates([...previousCertificates, certificate]);
+    setDefaultAutoSelectFamily(true);
+    try {
+      const request = () =>
+        requestPinnedHttps({
+          url: new URL(`https://client.example:${address.port}/.well-known/oauth-client`),
+          address: {address: '127.0.0.1', family: 4},
+          timeoutMs: 1_000,
+          maxBodyBytes: OAUTH_CIMD_MAX_BODY_BYTES,
+        });
+      const firstResult = await request();
+      const secondResult = await request();
+
+      expect(firstResult.statusCode).toBe(200);
+      expect(secondResult.statusCode).toBe(200);
+      expect(JSON.parse(Buffer.from(firstResult.body).toString('utf8'))).toEqual(validDocument);
+      expect(secureConnections).toBe(2);
+    } finally {
+      setDefaultAutoSelectFamily(previousAutoSelectFamily);
+      setDefaultCACertificates(previousCertificates);
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it('allows global unicast addresses and rejects special-use ranges', () => {
     expect(isPublicUnicastAddress('93.184.216.34', 4)).toBe(true);
     for (const address of [

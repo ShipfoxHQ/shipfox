@@ -127,7 +127,7 @@ function oauthAuthorizationErrorRedirect(error: OAuthProtocolError): string {
 
 function translateOAuthAuthorizationError(
   error: unknown,
-  _request: FastifyRequest,
+  request: FastifyRequest,
   reply: FastifyReply,
 ): unknown {
   if (error instanceof OAuthProtocolError) {
@@ -146,6 +146,7 @@ function translateOAuthAuthorizationError(
     error instanceof InvalidOAuthClientMetadataError ||
     error instanceof OAuthMetadataFetchError
   ) {
+    if (error instanceof OAuthMetadataFetchError) logOAuthMetadataFetchFailure(error, request);
     return reply.code(400).send({error: 'invalid_client'});
   }
   if (error instanceof InvalidOAuthConfigurationError) {
@@ -154,6 +155,24 @@ function translateOAuthAuthorizationError(
     });
   }
   throw error;
+}
+
+function logOAuthMetadataFetchFailure(
+  error: OAuthMetadataFetchError,
+  request: FastifyRequest,
+): void {
+  const context = {
+    err: error,
+    boundary: 'auth.oauth',
+    operation: 'fetch-client-metadata',
+    requestId: request.id,
+    failureReason: error.reason,
+  };
+  try {
+    request.log.warn(context, 'OAuth client metadata fetch failed');
+  } catch {
+    // Logging must not change the protocol-safe OAuth response.
+  }
 }
 
 function translateOAuthTokenError(

@@ -4,14 +4,15 @@ import {
   workspacesInterModuleContract,
 } from '@shipfox/api-workspaces-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
-import {createApp, type FastifyInstance} from '@shipfox/node-fastify';
+import {type AppConfig, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {describe, expect, it, vi} from '@shipfox/vitest/vi';
 import {eq} from 'drizzle-orm';
 import {config} from '#config.js';
 import {verifyAgentAccessToken} from '#core/agent-access-token.js';
+import {OAuthMetadataFetchError} from '#core/errors.js';
 import {signUserToken} from '#core/jwt.js';
-import {createOAuthClientResolver} from '#core/oauth-client-resolver.js';
+import {createOAuthClientResolver, type OAuthClientResolver} from '#core/oauth-client-resolver.js';
 import {OAUTH_AUTHORIZATION_REQUEST_TTL_SECONDS} from '#core/oauth-flow.js';
 import {createAgentClient, findAgentClientByClientId} from '#db/agent-access.js';
 import {db} from '#db/db.js';
@@ -57,7 +58,12 @@ async function createTestClient() {
 
 async function createTestApp(
   workspaces: WorkspacesInterModuleClient,
-  options: {clientBaseUrl?: string; now?: () => Date} = {},
+  options: {
+    clientBaseUrl?: string;
+    clientResolver?: OAuthClientResolver;
+    fastifyOptions?: AppConfig['fastifyOptions'];
+    now?: () => Date;
+  } = {},
 ): Promise<FastifyInstance> {
   const resolver = createOAuthClientResolver({
     findClient: async ({clientId}) => await findAgentClientByClientId({clientId}),
@@ -68,13 +74,36 @@ async function createTestApp(
       createOAuthAuthorizationRoutes({
         apiPublicUrl: `${API_ORIGIN}/`,
         clientBaseUrl: options.clientBaseUrl ?? 'https://app.example.test',
-        clientResolver: resolver,
+        clientResolver: options.clientResolver ?? resolver,
         workspaces,
         ...(options.now ? {now: options.now} : {}),
       }),
     ],
     swagger: false,
+    ...(options.fastifyOptions ? {fastifyOptions: options.fastifyOptions} : {}),
   });
+}
+
+type LoggerInstance = NonNullable<NonNullable<AppConfig['fastifyOptions']>['loggerInstance']>;
+
+interface CapturedLog {
+  level: string;
+  args: unknown[];
+}
+
+function createCapturingLogger(logs: CapturedLog[]): LoggerInstance {
+  const logger = {
+    child: () => logger,
+    level: 'info',
+    silent: (...args: unknown[]) => logs.push({level: 'silent', args}),
+    fatal: (...args: unknown[]) => logs.push({level: 'fatal', args}),
+    error: (...args: unknown[]) => logs.push({level: 'error', args}),
+    warn: (...args: unknown[]) => logs.push({level: 'warn', args}),
+    info: (...args: unknown[]) => logs.push({level: 'info', args}),
+    debug: (...args: unknown[]) => logs.push({level: 'debug', args}),
+    trace: (...args: unknown[]) => logs.push({level: 'trace', args}),
+  };
+  return logger as unknown as LoggerInstance;
 }
 
 function authorizationUrl(clientId: string, challenge: string, state = 'client-state'): string {
@@ -113,6 +142,45 @@ describe('dormant OAuth authorization and token routes', () => {
 
   afterEach(async () => {
     await app?.close();
+  });
+
+  it('logs a structured CIMD connection failure while returning invalid_client', async () => {
+    const logs: CapturedLog[] = [];
+    const cause = new TypeError('Invalid IP address: undefined');
+    const error = new OAuthMetadataFetchError('connection-failed', cause);
+    const clientResolver: OAuthClientResolver = {
+      resolve: vi.fn(() => Promise.reject(error)),
+      clearCache: vi.fn(),
+    };
+    app = await createTestApp(workspaceClient(crypto.randomUUID()), {
+      clientResolver,
+      fastifyOptions: {loggerInstance: createCapturingLogger(logs)},
+    });
+    const {challenge} = pkce();
+    const cimdClientId = 'https://chatgpt.com/oauth/codex/client.json';
+
+    const authorization = await app.inject({
+      method: 'GET',
+      url: authorizationUrl(cimdClientId, challenge, 'sensitive-client-state'),
+      headers: {'x-forwarded-for': '198.51.100.14'},
+    });
+
+    expect(authorization.statusCode).toBe(400);
+    expect(authorization.json()).toEqual({error: 'invalid_client'});
+    const failureLog = logs.find(({args}) => args[1] === 'OAuth client metadata fetch failed');
+    expect(failureLog).toEqual({
+      level: 'warn',
+      args: [
+        {
+          err: error,
+          boundary: 'auth.oauth',
+          operation: 'fetch-client-metadata',
+          requestId: expect.any(String),
+          failureReason: 'connection-failed',
+        },
+        'OAuth client metadata fetch failed',
+      ],
+    });
   });
 
   it('keeps validated parameters server-side through approval and exchanges a PKCE code', async () => {

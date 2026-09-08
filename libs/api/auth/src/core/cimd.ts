@@ -1,6 +1,6 @@
 import {promises as dnsPromises} from 'node:dns';
 import type {IncomingMessage} from 'node:http';
-import {request as httpsRequest} from 'node:https';
+import {type RequestOptions as HttpsRequestOptions, request as httpsRequest} from 'node:https';
 import {isIP} from 'node:net';
 import {oauthClientMetadataDocumentSchema} from '@shipfox/api-auth-dto';
 import {InvalidOAuthClientMetadataError, OAuthMetadataFetchError} from './errors.js';
@@ -275,7 +275,7 @@ function withTimeout<T>(
   });
 }
 
-function requestPinnedHttps(params: {
+export function requestPinnedHttps(params: {
   url: URL;
   address: CimdAddress;
   timeoutMs: number;
@@ -302,27 +302,27 @@ function requestPinnedHttps(params: {
       return;
     }
 
-    const request = httpsRequest(
-      {
-        hostname,
-        port: params.url.port || 443,
-        path: `${params.url.pathname || '/'}${params.url.search}`,
-        method: 'GET',
-        headers: {accept: 'application/json'},
-        rejectUnauthorized: true,
-        servername: hostname,
-        timeout: params.timeoutMs,
-        signal: params.signal,
-        // The address was resolved before this request and is the only value
-        // the TLS connection is allowed to use.
-        lookup: (_lookupHostname, _options, callback) => {
-          callback(null, params.address.address, params.address.family);
-        },
+    const requestOptions: HttpsRequestOptions & {autoSelectFamily: boolean} = {
+      hostname,
+      port: params.url.port || 443,
+      path: `${params.url.pathname || '/'}${params.url.search}`,
+      method: 'GET',
+      headers: {accept: 'application/json'},
+      rejectUnauthorized: true,
+      servername: hostname,
+      timeout: params.timeoutMs,
+      signal: params.signal,
+      agent: false,
+      autoSelectFamily: false,
+      // The address was resolved before this request and is the only value
+      // the TLS connection is allowed to use.
+      lookup: (_lookupHostname, _options, callback) => {
+        callback(null, params.address.address, params.address.family);
       },
-      (response) => {
-        handleCimdResponse(response, params.maxBodyBytes, fail, succeed);
-      },
-    );
+    };
+    const request = httpsRequest(requestOptions, (response) => {
+      handleCimdResponse(response, params.maxBodyBytes, fail, succeed);
+    });
     request.once('error', (error) => fail(error));
     request.once('timeout', () => {
       request.destroy();
