@@ -80,6 +80,10 @@ const stepErrorReasons = [
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'gate_failed',
+  'gate_uncheckable',
+  'restart_unresolved',
+  'restart_exhausted',
 ] as const;
 
 const agentConfigIssues = [
@@ -158,6 +162,9 @@ const stepErrorSchema = z
     reason: z.enum(stepErrorReasons).optional(),
     field: textSchema.optional(),
     source: textSchema.optional(),
+    attempt_count: z.number().int().positive().optional(),
+    max_attempts: z.number().int().positive().optional(),
+    restart_from: textSchema.optional(),
     agent_config_issue: z.enum(agentConfigIssues).optional(),
     category: z.enum(errorCategories).optional(),
     retryable: z.boolean().optional(),
@@ -478,6 +485,9 @@ const stepErrorJson = {
     reason: {type: 'string', enum: stepErrorReasons},
     field: text,
     source: text,
+    attempt_count: {type: 'integer', minimum: 1},
+    max_attempts: {type: 'integer', minimum: 1},
+    restart_from: text,
     agent_config_issue: {type: 'string', enum: agentConfigIssues},
     category: {type: 'string', enum: errorCategories},
     retryable: {type: 'boolean'},

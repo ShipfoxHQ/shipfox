@@ -95,6 +95,50 @@ describe('fromStepErrorDto', () => {
     });
   });
 
+  it('round-trips gate restart diagnostics through the HTTP DTO', () => {
+    const persisted = fromStepErrorDto({
+      message: 'The gate did not pass after 1 attempt.',
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+      retryable: false,
+    });
+
+    expect(persisted).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attemptCount: 1,
+      maxAttempts: 1,
+      restartFrom: 'implement',
+      retryable: false,
+    });
+    expect(toStepDto(step({type: 'run', error: persisted})).error).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+      retryable: false,
+    });
+  });
+
+  it('derives a gate reason from a legacy internal kind', () => {
+    expect(
+      toStepDto(
+        step({
+          type: 'run',
+          error: {
+            kind: 'gate_failed',
+            message: 'gate condition not met',
+            source: 'step.exit_code == 0',
+          },
+        }),
+      ).error,
+    ).toMatchObject({reason: 'gate_failed', source: 'step.exit_code == 0'});
+  });
+
   it('round-trips measured size details for a bounded step result', () => {
     const persisted = fromStepErrorDto({
       message: 'Workflow step result is too large.',

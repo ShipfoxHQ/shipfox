@@ -118,7 +118,11 @@ describe('decideStepTransition', () => {
     expect(decision).toMatchObject({
       kind: 'fail-job',
       failedStepId: 's0',
-      failureError: {kind: 'gate_failed', source: 'exit_code == 0'},
+      failureError: {
+        kind: 'gate_failed',
+        reason: 'gate_failed',
+        source: 'exit_code == 0',
+      },
     });
   });
 
@@ -163,8 +167,11 @@ describe('decideStepTransition', () => {
       attempt: 1,
       failureError: {
         kind: 'gate_failed',
+        reason: 'gate_failed',
         message: 'gate condition not met',
+        retryable: false,
         source: 'step.outputs.result.ok == true',
+        restartFrom: 'producer',
       },
     });
   });
@@ -221,7 +228,41 @@ describe('decideStepTransition', () => {
     expect(decision).toMatchObject({
       kind: 'fail-job-restart-exhausted',
       maxAttempts: 3,
-      failureError: {kind: 'restart_exhausted'},
+      failureError: {
+        kind: 'restart_exhausted',
+        reason: 'restart_exhausted',
+        message: 'The gate did not pass after 3 attempts.',
+        retryable: false,
+        source: 'exit_code == 0',
+        attemptCount: 3,
+        maxAttempts: 3,
+        restartFrom: 'producer',
+      },
+    });
+  });
+
+  test('exhaustion uses singular attempt copy at a one-attempt limit', () => {
+    const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
+    const target = step({id: 's1', position: 1, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [restartTarget, target],
+      target,
+      reportedAttempt: 1,
+      maxAttempts: 1,
+      result: {status: 'failed', exitCode: 1},
+      gateOutcome: {kind: 'failed', source: 'exit_code == 0'},
+      gateOnFailure: {restartFrom: 'producer'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'fail-job-restart-exhausted',
+      failureError: {
+        reason: 'restart_exhausted',
+        message: 'The gate did not pass after 1 attempt.',
+        attemptCount: 1,
+        maxAttempts: 1,
+      },
     });
   });
 
@@ -260,7 +301,12 @@ describe('decideStepTransition', () => {
 
     expect(decision).toMatchObject({
       kind: 'fail-job',
-      failureError: {kind: 'restart_unresolved', restart_from: 'does-not-exist'},
+      failureError: {
+        kind: 'restart_unresolved',
+        reason: 'restart_unresolved',
+        source: 'exit_code == 0',
+        restartFrom: 'does-not-exist',
+      },
     });
   });
 
@@ -272,11 +318,21 @@ describe('decideStepTransition', () => {
       target,
       reportedAttempt: 1,
       result: {status: 'failed', exitCode: null, error: {message: 'killed'}},
-      gateOutcome: {kind: 'uncheckable', reason: 'no exit code'},
+      gateOutcome: {kind: 'uncheckable', reason: 'no exit code', source: 'step.exit_code == 0'},
       gateOnFailure: {restartFrom: 's0'},
     });
 
-    expect(decision).toMatchObject({kind: 'fail-job', failureError: {message: 'killed'}});
+    expect(decision).toMatchObject({
+      kind: 'fail-job',
+      failureError: {
+        kind: 'gate_uncheckable',
+        reason: 'gate_uncheckable',
+        message: 'killed',
+        retryable: false,
+        source: 'step.exit_code == 0',
+        restartFrom: 's0',
+      },
+    });
   });
 
   test('echoes the reported attempt in the decision', () => {

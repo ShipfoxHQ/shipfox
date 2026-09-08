@@ -210,6 +210,39 @@ describe('stepErrorDtoSchema', () => {
 
     expect(result?.reason).toBe(reason);
   });
+
+  it.each([
+    'gate_failed',
+    'gate_uncheckable',
+    'restart_unresolved',
+    'restart_exhausted',
+  ] as const)('accepts the server gate failure reason %s', (reason) => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'Gate failed.',
+      reason,
+    });
+
+    expect(result?.reason).toBe(reason);
+  });
+
+  it('accepts restart diagnostics in snake case', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'The gate did not pass after 1 attempt.',
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+    });
+
+    expect(result).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+    });
+  });
 });
 
 describe('agentStepSessionDescriptorSchema', () => {

@@ -24,7 +24,11 @@ export type StepErrorReason =
   | 'diagnostic_too_large'
   | 'tool_error'
   | 'tool_config_invalid'
-  | 'invocation_interrupted';
+  | 'invocation_interrupted'
+  | 'gate_failed'
+  | 'gate_uncheckable'
+  | 'restart_unresolved'
+  | 'restart_exhausted';
 export type AgentConfigIssue =
   | 'step_config_invalid'
   | 'provider_not_configured'
@@ -57,6 +61,10 @@ export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'gate_failed',
+  'gate_uncheckable',
+  'restart_unresolved',
+  'restart_exhausted',
 ]);
 export const AGENT_CONFIG_ISSUES = new Set<AgentConfigIssue>([
   'step_config_invalid',
@@ -82,6 +90,10 @@ export interface StepError {
   reason: StepErrorReason | undefined;
   agentConfigIssue: AgentConfigIssue | undefined;
   category: StepErrorCategory | undefined;
+  retryable?: boolean | undefined;
+  attemptCount?: number | undefined;
+  maxAttempts?: number | undefined;
+  restartFrom?: string | undefined;
 }
 
 export interface AgentStepConfig {

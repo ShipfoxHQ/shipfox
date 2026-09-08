@@ -138,6 +138,26 @@ const STEP_FAILURE_COPY: Readonly<
     title: 'Tool configuration needs attention',
     description: 'Review the connection and tool inputs before trying again.',
   },
+  gate_failed: {
+    title: 'Step validation failed',
+    description:
+      "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.",
+  },
+  gate_uncheckable: {
+    title: 'Step validation failed',
+    description:
+      "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.",
+  },
+  restart_unresolved: {
+    title: 'Gate restart target could not be resolved',
+    description:
+      'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.',
+  },
+  restart_exhausted: {
+    title: 'Gate attempt limit reached',
+    description:
+      'The gate reached its configured attempt limit. Review the failed result before trying again.',
+  },
 };
 
 const AGENT_CONFIG_FAILURE_COPY: Readonly<Record<AgentConfigIssueDto, FailureCopy>> = {

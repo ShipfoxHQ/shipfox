@@ -36,7 +36,7 @@ export type GateOutcome =
   | {
       kind: 'uncheckable';
       reason: string;
-      source?: string;
+      source: string;
       trace?: readonly PersistedEvaluationTraceEntry[];
     };
 
@@ -143,7 +143,7 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
   // 2. It failed. Classify the failure error and whether it is restartable.
   //    Tool provider calls can have side effects, so a tool step never rewinds.
   const restartAllowed = target.type !== 'tool' && gate.kind !== 'uncheckable';
-  const failureError = stepFailureError(gate, result);
+  const failureError = stepFailureError(gate, result, gateOnFailure?.restartFrom);
 
   // 3. Restart when a policy is configured and the failure is checkable.
   if (gateOnFailure?.restartFrom && restartAllowed) {
@@ -159,14 +159,40 @@ function stepReportPassed(gate: GateOutcome, result: StepReport): boolean {
   return gate.kind === 'passed';
 }
 
-function stepFailureError(gate: GateOutcome, result: StepReport): Record<string, unknown> | null {
+function stepFailureError(
+  gate: GateOutcome,
+  result: StepReport,
+  restartFrom: string | undefined,
+): Record<string, unknown> | null {
+  const restartFields = restartFrom === undefined ? {} : {restartFrom};
+
   if (gate.kind === 'failed') {
-    return {kind: 'gate_failed', message: 'gate condition not met', source: gate.source};
+    return {
+      kind: 'gate_failed',
+      reason: 'gate_failed',
+      message: 'gate condition not met',
+      retryable: false,
+      source: gate.source,
+      ...restartFields,
+    };
   }
   if (gate.kind === 'uncheckable') {
-    return result.error ?? {kind: 'gate_uncheckable', message: gate.reason};
+    return {
+      ...(result.error ?? {}),
+      kind: 'gate_uncheckable',
+      reason: 'gate_uncheckable',
+      message: errorMessage(result.error) ?? gate.reason,
+      retryable: false,
+      source: gate.source,
+      ...restartFields,
+    };
   }
   return result.error ?? null;
+}
+
+function errorMessage(error: Record<string, unknown> | null | undefined): string | undefined {
+  const message = error?.message;
+  return typeof message === 'string' && message.length > 0 ? message : undefined;
 }
 
 function restartStepTransition(
@@ -184,22 +210,31 @@ function restartStepTransition(
   );
   if (!restartStep) {
     return fail(target, reportedAttempt, {
+      ...(failureError ?? {}),
       kind: 'restart_unresolved',
+      reason: 'restart_unresolved',
       message: `could not resolve restart_from "${gateOnFailure.restartFrom}"`,
-      restart_from: gateOnFailure.restartFrom,
+      retryable: false,
+      restartFrom: gateOnFailure.restartFrom,
     });
   }
   const gatingAttemptCount = input.gatingAttemptCount ?? reportedAttempt;
   if (gatingAttemptCount >= maxAttempts) {
+    const attemptLabel = gatingAttemptCount === 1 ? 'attempt' : 'attempts';
     return {
       kind: 'fail-job-restart-exhausted',
       failedStepId: target.id,
       attempt: reportedAttempt,
       maxAttempts,
       failureError: {
+        ...(failureError ?? {}),
         kind: 'restart_exhausted',
+        reason: 'restart_exhausted',
+        message: `The gate did not pass after ${gatingAttemptCount} ${attemptLabel}.`,
+        retryable: false,
+        attemptCount: gatingAttemptCount,
         maxAttempts,
-        restart_from: gateOnFailure.restartFrom,
+        restartFrom: gateOnFailure.restartFrom,
       },
     };
   }

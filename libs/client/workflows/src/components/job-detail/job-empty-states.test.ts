@@ -52,6 +52,25 @@ describe('toSelectedAttemptError', () => {
     });
   });
 
+  test('maps legacy gate kind and restart diagnostics from a historical attempt', () => {
+    const error = toSelectedAttemptError({type: 'run'} as Step, {
+      kind: 'restart_exhausted',
+      message: 'The gate did not pass after 1 attempt.',
+      source: 'step.exit_code == 0',
+      attemptCount: 1,
+      maxAttempts: 1,
+      restartFrom: 'implement',
+    });
+
+    expect(error).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attemptCount: 1,
+      maxAttempts: 1,
+      restartFrom: 'implement',
+    });
+  });
+
   test.each([
     'setup',
     'checkout',

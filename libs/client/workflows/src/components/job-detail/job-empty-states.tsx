@@ -281,7 +281,7 @@ export function toSelectedAttemptError(
 ): StepError | null {
   if (error === null) return null;
 
-  const parsedReason = parsedStepErrorReason(error.reason);
+  const parsedReason = parsedStepErrorReason(error.reason) ?? parsedStepErrorReason(error.kind);
   const rawAgentConfigIssue = error.agentConfigIssue ?? error.agent_config_issue;
   const agentConfigIssue = parsedAgentConfigIssue(rawAgentConfigIssue);
   const exitCode = error.exitCode ?? error.exit_code;
@@ -290,14 +290,17 @@ export function toSelectedAttemptError(
   if (resolvedReason === undefined) return null;
 
   const stringFields = selectedErrorStringFields(error);
+  const diagnosticFields = selectedGateDiagnosticFields(error);
   const managedProviderId = selectedManagedProviderId(error);
 
   return {
     message: typeof error.message === 'string' ? error.message : '',
     ...stringFields,
+    ...diagnosticFields,
     ...(managedProviderId === undefined ? {} : {managedProviderId}),
     exitCode: exitCode === null || typeof exitCode === 'number' ? exitCode : null,
     signal: typeof error.signal === 'string' ? error.signal : undefined,
+    ...(typeof error.retryable === 'boolean' ? {retryable: error.retryable} : {}),
     reason: resolvedReason,
     agentConfigIssue,
     category: deriveStepErrorCategory(step.type, resolvedReason),
@@ -312,6 +315,29 @@ function selectedErrorStringFields(
     ...(typeof error.field === 'string' ? {field: error.field} : {}),
     ...(typeof error.source === 'string' ? {source: error.source} : {}),
   };
+}
+
+function selectedGateDiagnosticFields(
+  error: Record<string, unknown>,
+): Pick<StepError, 'attemptCount' | 'maxAttempts' | 'restartFrom'> {
+  const attemptCount = positiveInteger(error.attemptCount ?? error.attempt_count);
+  const maxAttempts = positiveInteger(error.maxAttempts ?? error.max_attempts);
+  const restartFrom = selectedRestartFrom(error);
+  return {
+    ...(attemptCount === undefined ? {} : {attemptCount}),
+    ...(maxAttempts === undefined ? {} : {maxAttempts}),
+    ...(restartFrom === undefined ? {} : {restartFrom}),
+  };
+}
+
+function selectedRestartFrom(error: Record<string, unknown>): string | undefined {
+  if (typeof error.restartFrom === 'string') return error.restartFrom;
+  if (typeof error.restart_from === 'string') return error.restart_from;
+  return undefined;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
 function parsedStepErrorReason(value: unknown): NonNullable<StepError['reason']> | undefined {

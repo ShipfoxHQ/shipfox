@@ -162,6 +162,34 @@ const STEP_FAILURE_CASES = [
     description: 'Start a new session or try again.',
   },
   {
+    reason: 'gate_failed',
+    type: 'run',
+    title: 'Step validation failed',
+    description:
+      "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.",
+  },
+  {
+    reason: 'gate_uncheckable',
+    type: 'run',
+    title: 'Step validation failed',
+    description:
+      "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.",
+  },
+  {
+    reason: 'restart_unresolved',
+    type: 'run',
+    title: 'Gate restart target could not be resolved',
+    description:
+      'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.',
+  },
+  {
+    reason: 'restart_exhausted',
+    type: 'run',
+    title: 'Gate attempt limit reached',
+    description:
+      'The gate reached its configured attempt limit. Review the failed result before trying again.',
+  },
+  {
     reason: 'tool_error',
     type: 'tool',
     title: 'Tool call failed',

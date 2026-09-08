@@ -258,7 +258,15 @@ describe('workflow diagnostic agent-access tools', () => {
       output: {closed: {kind: 'typed', value: 7}, schema_less: [true, 'value']},
       outputs: {mapped: {answer: 42}},
       response: 'done',
-      error: {message: 'tool failed', code: 'tool_error', reason: 'tool_error'},
+      error: {
+        message: 'tool failed',
+        code: 'tool_error',
+        reason: 'restart_exhausted',
+        source: 'step.exit_code == 0',
+        attempt_count: 1,
+        max_attempts: 1,
+        restart_from: 'implement',
+      },
       gate_result: {kind: 'passed', passed: true, source: 'test -f result', exit_code: 0},
       invocations: [
         {
@@ -302,7 +310,11 @@ describe('workflow diagnostic agent-access tools', () => {
     expect(result.error).toEqual({
       message: 'tool failed',
       code: 'tool_error',
-      reason: 'tool_error',
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
     });
     expect(result.gate_result).toEqual({
       kind: 'passed',

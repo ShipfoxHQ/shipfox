@@ -913,6 +913,13 @@ function failureTitle(reason: string | JobStatusReason): string {
       return 'Tool configuration is invalid';
     case 'invocation_interrupted':
       return 'Tool invocation was interrupted';
+    case 'gate_failed':
+    case 'gate_uncheckable':
+      return 'Step validation failed';
+    case 'restart_unresolved':
+      return 'Gate restart target could not be resolved';
+    case 'restart_exhausted':
+      return 'Gate attempt limit reached';
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
@@ -986,6 +993,20 @@ function failureDescription(
       return step.toolConfig?.sensitivity === 'write'
         ? 'The provider call was interrupted. Confirm whether the write completed before re-running it.'
         : 'The provider call was interrupted before its outcome could be recorded. Review the invocation log before retrying.';
+    case 'gate_failed':
+      return "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.";
+    case 'gate_uncheckable':
+      return "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.";
+    case 'restart_unresolved':
+      return 'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.';
+    case 'restart_exhausted': {
+      const attemptCount = error?.attemptCount;
+      if (attemptCount !== undefined) {
+        const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
+        return `The success condition did not pass after ${attemptCount} ${attemptLabel}. Review the failed result. To allow more attempts, update gate.on_failure.max_attempts and start a new run.`;
+      }
+      return 'The gate reached its configured attempt limit. Review the failed result before trying again.';
+    }
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';
     case 'output_too_large':
@@ -1061,7 +1082,11 @@ function sourceLinkForFailure(reason: string | JobStatusReason): boolean {
     reason === 'output_invalid' ||
     reason === 'default_gate_rejected' ||
     reason === 'condition_rejected' ||
-    reason === 'condition_errored'
+    reason === 'condition_errored' ||
+    reason === 'gate_failed' ||
+    reason === 'gate_uncheckable' ||
+    reason === 'restart_unresolved' ||
+    reason === 'restart_exhausted'
   );
 }
 

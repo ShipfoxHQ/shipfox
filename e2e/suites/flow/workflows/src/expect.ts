@@ -70,6 +70,10 @@ const stepErrorReasonSchema = z.enum([
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'gate_failed',
+  'gate_uncheckable',
+  'restart_unresolved',
+  'restart_exhausted',
 ]);
 type AssertExact<Actual, Expected> = [Actual] extends [Expected]
   ? [Expected] extends [Actual]

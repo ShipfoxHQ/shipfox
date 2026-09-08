@@ -26,6 +26,10 @@ export function toWorkflowJobStepError(dto: StepErrorDto): StepError | null {
     reason: dto.reason,
     agentConfigIssue: dto.agent_config_issue,
     category: dto.category,
+    ...(dto.retryable === undefined ? {} : {retryable: dto.retryable}),
+    ...(dto.attempt_count === undefined ? {} : {attemptCount: dto.attempt_count}),
+    ...(dto.max_attempts === undefined ? {} : {maxAttempts: dto.max_attempts}),
+    ...(dto.restart_from === undefined ? {} : {restartFrom: dto.restart_from}),
   };
 }
 
