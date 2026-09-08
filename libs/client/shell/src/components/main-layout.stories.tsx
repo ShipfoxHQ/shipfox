@@ -59,6 +59,10 @@ function DemoSessionBanner() {
   );
 }
 
+function EmptySessionBanner() {
+  return null;
+}
+
 function OverviewPage() {
   return (
     <div className="flex flex-col gap-cluster">
@@ -74,9 +78,11 @@ function OverviewPage() {
 
 function MainLayoutStory({
   withSessionBanner,
+  showSessionBanner,
   hideProjectNavigation,
 }: {
   withSessionBanner: boolean;
+  showSessionBanner: boolean;
   hideProjectNavigation: boolean;
 }) {
   const queryClient = useMemo(
@@ -92,9 +98,11 @@ function MainLayoutStory({
     () => ({
       ProjectBreadcrumb: () => null,
       projectSlugResolver: async () => 'project',
-      ...(withSessionBanner ? {SessionBanner: DemoSessionBanner} : {}),
+      ...(withSessionBanner
+        ? {SessionBanner: showSessionBanner ? DemoSessionBanner : EmptySessionBanner}
+        : {}),
     }),
-    [withSessionBanner],
+    [showSessionBanner, withSessionBanner],
   );
   const [router, setRouter] = useState<AnyRouter | null>(null);
 
@@ -151,6 +159,7 @@ const meta = {
   },
   args: {
     withSessionBanner: true,
+    showSessionBanner: true,
     hideProjectNavigation: false,
   },
 } satisfies Meta<typeof MainLayoutStory>;
@@ -179,6 +188,12 @@ export const Playground: Story = {
 export const WithoutBanner: Story = {
   args: {
     withSessionBanner: false,
+  },
+};
+
+export const EmptyBanner: Story = {
+  args: {
+    showSessionBanner: false,
   },
 };
 

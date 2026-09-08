@@ -1,5 +1,5 @@
 import type {AnyRouter} from '@tanstack/react-router';
-import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {atom, useAtomValue} from 'jotai';
 import {defineClientFeature} from '#contract.js';
 import type {ChromeSlots} from '#runtime/chrome-context.js';
@@ -113,6 +113,90 @@ describe('MainLayout session banner', () => {
 
     expect(screen.queryByText('Session banner')).not.toBeInTheDocument();
     expect(await screen.findByRole('main')).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+  });
+
+  test('collapses a registered session banner that renders nothing', async () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+
+    try {
+      await renderMainLayout({SessionBanner: () => null});
+
+      expect(await screen.findByRole('main')).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test('tracks when a registered session banner starts and stops rendering content', async () => {
+    let resize: ResizeObserverCallback | undefined;
+    class ResizeObserverProbe {
+      constructor(callback: ResizeObserverCallback) {
+        resize = callback;
+      }
+      observe(): void {
+        // The test invokes the captured callback directly.
+      }
+      unobserve(): void {
+        // The test invokes the captured callback directly.
+      }
+      disconnect(): void {
+        // The test invokes the captured callback directly.
+      }
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverProbe);
+    const bannerVisibleAtom = atom(false);
+    function ConditionalSessionBanner() {
+      return useAtomValue(bannerVisibleAtom) ? <div>Session banner</div> : null;
+    }
+
+    try {
+      const {store} = await renderMainLayout({SessionBanner: ConditionalSessionBanner});
+
+      const main = await screen.findByRole('main');
+      expect(main).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+      await waitFor(() => expect(resize).toBeTypeOf('function'));
+
+      act(() => store.set(bannerVisibleAtom, true));
+      expect(await screen.findByText('Session banner')).toBeVisible();
+      act(() => {
+        resize?.([{contentRect: {height: 40}} as ResizeObserverEntry], {} as ResizeObserver);
+      });
+      expect(main).toHaveStyle('--app-content-h: calc(100dvh - 136px)');
+
+      act(() => store.set(bannerVisibleAtom, false));
+      expect(screen.queryByText('Session banner')).not.toBeInTheDocument();
+      act(() => {
+        resize?.([{contentRect: {height: 0}} as ResizeObserverEntry], {} as ResizeObserver);
+      });
+      expect(main).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test('tracks banner presence when ResizeObserver is unavailable', async () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    const bannerVisibleAtom = atom(false);
+    function ConditionalSessionBanner() {
+      return useAtomValue(bannerVisibleAtom) ? <div>Session banner</div> : null;
+    }
+
+    try {
+      const {store} = await renderMainLayout({SessionBanner: ConditionalSessionBanner});
+
+      const main = await screen.findByRole('main');
+      expect(main).toHaveStyle('--app-content-h: calc(100dvh - 96px)');
+
+      act(() => store.set(bannerVisibleAtom, true));
+      expect(await screen.findByText('Session banner')).toBeVisible();
+      await waitFor(() => expect(main).toHaveStyle('--app-content-h: calc(100dvh - 136px)'));
+
+      act(() => store.set(bannerVisibleAtom, false));
+      expect(screen.queryByText('Session banner')).not.toBeInTheDocument();
+      await waitFor(() => expect(main).toHaveStyle('--app-content-h: calc(100dvh - 96px)'));
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   test('renders a composed session banner above the navigation bar', async () => {

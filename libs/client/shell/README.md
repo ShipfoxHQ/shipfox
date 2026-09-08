@@ -112,7 +112,8 @@ composition and collision rules.
 - The shared header owns the Docs link, user identity, theme selection, account
   menu slot, and logout action.
 - The shared frame resolves the deepest route's `content`, `data`, or `focused`
-  declaration and accounts for the measured session-banner height.
+  declaration and accounts for the measured session-banner height. A registered
+  session banner that returns `null` reserves no space.
 - Consumers import browser components from `@shipfox/client-shell/runtime`.
   The package root remains safe for build-time feature evaluation.
 
