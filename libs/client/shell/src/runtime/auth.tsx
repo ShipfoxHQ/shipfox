@@ -7,8 +7,8 @@ import {
 } from '@shipfox/client-api';
 import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {atom, useAtomValue, useSetAtom, useStore} from 'jotai';
-import type {PropsWithChildren} from 'react';
-import {useCallback, useEffect, useMemo, useRef} from 'react';
+import type {PropsWithChildren, ReactNode} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {AuthenticatedSession, UserIdentity, WorkspaceSummary} from '#core/session.js';
 import {
   authRefreshQueryKey,
@@ -74,8 +74,9 @@ export interface AdoptedSessionContinuationInput {
 
 /**
  * Supplies a replacement token. Existing suppliers that take no arguments
- * remain valid; continuity-aware suppliers can use the signal and source to
- * attach the continuation to their own request policy.
+ * remain valid. A supplier must use cookie-only authentication or provide its
+ * own explicit authorization header; calling the ambient configured transport
+ * can re-enter the continuation currently waiting for the supplier.
  */
 export type AdoptedSessionRenewalSupplier = (
   input?: AdoptedSessionContinuationInput,
@@ -87,30 +88,15 @@ export type AdoptedSessionReleaseCallback = (
 
 export type AdoptedSessionRenewalState = 'active' | 'paused' | 'recovering';
 
-/**
- * Options for an adopted session. The `renew` spelling is retained for the
- * original shell seam; `continue` and `continuation` are additive aliases for
- * composing applications that model the server operation explicitly.
- */
+/** Options for an adopted session. Set `continuity` to enable bounded renewal. */
 export interface AdoptSessionOptions {
   expiresAt: string;
   serverTime: string;
   renew?: AdoptedSessionRenewalSupplier;
-  continue?: AdoptedSessionRenewalSupplier;
-  continuation?: AdoptedSessionRenewalSupplier;
-  /** Frozen server deadline for a continuable adoption. */
+  /** Frozen server deadline required for a continuity adoption. */
   hardDeadline?: string;
-  /** Alias accepted at the shell boundary for server response terminology. */
-  deadlineAt?: string;
-  /** Short alias for composing applications that already call the bound a deadline. */
-  deadline?: string;
-  /** Enables continuity scheduling when a deadline is not supplied by a test. */
   continuity?: boolean;
   onRelease?: AdoptedSessionReleaseCallback;
-  /** Additive aliases for integrations that call the callback a release hook. */
-  release?: AdoptedSessionReleaseCallback;
-  onReleased?: AdoptedSessionReleaseCallback;
-  onReleaseReason?: AdoptedSessionReleaseCallback;
 }
 
 /** The adopted session as exposed to composing consumers. */
@@ -119,8 +105,6 @@ export interface AdoptedSessionState {
   expiresAt: string;
   serverTime: string;
   hardDeadline?: string;
-  deadlineAt?: string;
-  deadline?: string;
   renewalState: AdoptedSessionRenewalState;
   isRenewalPaused: boolean;
 }
@@ -157,12 +141,20 @@ export interface AdoptedSessionBootContext {
 /**
  * Optional boot hook. It may return a decision object, call `adoptSession`
  * itself, or return null/undefined to continue with the ordinary cookie
- * session. The broad result type keeps the shell compatible with composing
- * applications that already own a restoration controller.
+ * session. Retryable failures should be returned as `{type: 'recovery'}` so a
+ * composing application can render its recovery surface.
  */
 export type AdoptedSessionBootRestorer = (
   context: AdoptedSessionBootContext,
 ) => unknown | Promise<unknown>;
+
+export interface AdoptedSessionBootRecoveryProps {
+  error: unknown;
+  retry: () => void;
+}
+
+/** Renders the composing application's recovery surface for boot failures. */
+export type AdoptedSessionBootRecovery = (props: AdoptedSessionBootRecoveryProps) => ReactNode;
 
 export type {AdoptedSessionReleaseReason};
 
@@ -203,28 +195,15 @@ async function requestAdoptedRenewal(
 }
 
 function renewalSupplier(options: AdoptSessionOptions): AdoptedSessionRenewalSupplier {
-  return options.continue ?? options.continuation ?? options.renew ?? (() => Promise.resolve(null));
+  return options.renew ?? (() => Promise.resolve(null));
 }
 
 function releaseCallback(options: AdoptSessionOptions): AdoptedSessionReleaseCallback | undefined {
-  return options.onRelease ?? options.release ?? options.onReleased ?? options.onReleaseReason;
-}
-
-function hardDeadline(options: AdoptSessionOptions): string | undefined {
-  return options.hardDeadline ?? options.deadlineAt ?? options.deadline;
+  return options.onRelease;
 }
 
 function isContinuityOptions(options: AdoptSessionOptions): boolean {
-  return Boolean(
-    options.continuity ||
-      hardDeadline(options) ||
-      options.continue ||
-      options.continuation ||
-      options.onRelease ||
-      options.release ||
-      options.onReleased ||
-      options.onReleaseReason,
-  );
+  return options.continuity === true;
 }
 
 function observedLifetimeMs(expiresAt: string, serverTime: string): number {
@@ -758,11 +737,12 @@ export function useAdoptedSession() {
       if (current === null && pending === null) return;
 
       const previousGeneration = store.get(adoptionGenerationAtom);
+      const nextGeneration = previousGeneration + 1;
       const releaseGeneration = current?.generation ?? pending?.generation ?? previousGeneration;
       const release = current?.release ?? pending?.release;
       const endedError = createAdoptedSessionEndedError(reason);
       control.lastReleaseReason = reason;
-      store.set(adoptionGenerationAtom, previousGeneration + 1);
+      store.set(adoptionGenerationAtom, nextGeneration);
       store.set(adoptedRenewalReservationAtom, 0);
       store.set(adoptedSessionAtom, null);
       control.pendingRelease = null;
@@ -774,6 +754,7 @@ export function useAdoptedSession() {
       }
       if (release !== undefined) await notifyRelease(releaseGeneration, release, reason);
       if (!restoreCookie) return;
+      if (store.get(adoptionGenerationAtom) !== nextGeneration) return;
 
       try {
         await refreshAuth();
@@ -798,6 +779,12 @@ export function useAdoptedSession() {
   const adoptSession = useCallback(
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the transition boundary must validate every state before publishing it.
     async (session: AuthenticatedSession, options: AdoptSessionOptions): Promise<boolean> => {
+      const continuity = isContinuityOptions(options);
+      const deadlineText = continuity ? options.hardDeadline : undefined;
+      const deadlineMs = deadlineText ? Date.parse(deadlineText) : Number.NaN;
+      if (continuity && (deadlineText === undefined || !Number.isFinite(deadlineMs))) {
+        throw new Error('Continuity adoptions require a valid hardDeadline.');
+      }
       const previous = store.get(adoptedSessionAtom);
       const pending = control.pendingRelease;
       if (previous !== null || pending !== null) {
@@ -833,14 +820,11 @@ export function useAdoptedSession() {
           : document.visibilityState === 'visible' && document.hasFocus();
       const receivedAtMs = monotonicNow();
       const lifetimeMs = observedLifetimeMs(options.expiresAt, options.serverTime);
-      const deadlineText = hardDeadline(options);
-      const deadlineMs = deadlineText ? Date.parse(deadlineText) : Number.NaN;
       const serverTimeMs = Date.parse(options.serverTime);
       const hardDeadlineMonotonicMs =
         Number.isFinite(deadlineMs) && Number.isFinite(serverTimeMs)
           ? receivedAtMs + Math.max(0, deadlineMs - serverTimeMs)
           : undefined;
-      const continuity = isContinuityOptions(options);
       const initialState: AdoptedSessionRuntimeState = {
         generation,
         receivedAtMs,
@@ -851,9 +835,7 @@ export function useAdoptedSession() {
         session,
         expiresAt: options.expiresAt,
         serverTime: options.serverTime,
-        ...(deadlineText
-          ? {hardDeadline: deadlineText, deadlineAt: deadlineText, deadline: deadlineText}
-          : {}),
+        ...(deadlineText ? {hardDeadline: deadlineText} : {}),
         renewalState: continuity && !hasVisibleFocusedDocument() ? 'paused' : 'active',
         isRenewalPaused: continuity && !hasVisibleFocusedDocument(),
         renew: renewalSupplier(options),
@@ -1300,7 +1282,10 @@ export function useAdoptedSession() {
           throwIfRequestAborted(signal);
           throw createAdoptedSessionEndedError('hard-deadline');
         }
-        const attempt = await waitForRequestSignal(runContinuityRenewal(input), signal);
+        const attempt = await waitForRequestSignal(
+          runContinuityRenewal({...input, signal: undefined}),
+          signal,
+        );
         throwIfRequestAborted(signal);
         if (attempt.kind === 'success') {
           throwIfRequestAborted(signal);
@@ -1407,19 +1392,14 @@ function bootAdoptionDecision(
 export interface AuthRuntimeProps extends PropsWithChildren {
   effects?: boolean;
   bootRestorer?: AdoptedSessionBootRestorer;
-  /** Short alias for the optional one-shot boot decision. */
-  boot?: AdoptedSessionBootRestorer;
-  restoreAdoptedSession?: AdoptedSessionBootRestorer;
-  adoptedSessionRestorer?: AdoptedSessionBootRestorer;
+  bootRecovery?: AdoptedSessionBootRecovery;
 }
 
 export function AuthRuntime({
   children,
   effects = true,
   bootRestorer,
-  boot,
-  restoreAdoptedSession,
-  adoptedSessionRestorer,
+  bootRecovery,
 }: AuthRuntimeProps) {
   const store = useStore();
   const authState = useAtomValue(authStateAtom);
@@ -1436,8 +1416,11 @@ export function AuthRuntime({
     isAdoptedSessionAttended,
   } = useAdoptedSession();
   const bootStartedRef = useRef(false);
+  const [bootAttempt, setBootAttempt] = useState(0);
+  const [bootError, setBootError] = useState<unknown>();
   const previousAuthStatusRef = useRef(authState.status);
-  const restorer = bootRestorer ?? boot ?? restoreAdoptedSession ?? adoptedSessionRestorer;
+  const retryBoot = useCallback(() => setBootAttempt((attempt) => attempt + 1), []);
+  const restorer = bootRestorer;
 
   useEffect(() => {
     if (!effects) return;
@@ -1474,10 +1457,11 @@ export function AuthRuntime({
   }, [continueForRequest, effects, refreshAuth, releaseAdoptedSession, store]);
 
   useEffect(() => {
-    if (!effects || bootStartedRef.current) return;
+    if (!effects || (bootStartedRef.current && bootAttempt === 0)) return;
     bootStartedRef.current = true;
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: boot must not enter the ordinary principal before the restorer decides.
     const runBoot = async () => {
+      setBootError(undefined);
       if (!restorer) {
         await refreshAuth().catch(() => undefined);
         return;
@@ -1509,9 +1493,9 @@ export function AuthRuntime({
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           await enterGuest();
+          return;
         }
-        // A retryable restoration error intentionally leaves auth loading so
-        // the composing recovery surface can decide when to continue.
+        setBootError(error);
       }
     };
     void runBoot();
@@ -1524,6 +1508,7 @@ export function AuthRuntime({
     releaseAdoptedSession,
     restorer,
     store,
+    bootAttempt,
   ]);
 
   useEffect(() => {
@@ -1733,6 +1718,10 @@ export function AuthRuntime({
     store,
     updateAdoptedAttendance,
   ]);
+
+  if (bootError !== undefined && bootRecovery !== undefined) {
+    return bootRecovery({error: bootError, retry: retryBoot});
+  }
 
   return children;
 }

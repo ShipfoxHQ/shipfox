@@ -12,6 +12,7 @@ import {createStore} from 'jotai';
 import type {AuthenticatedSession} from '#core/session.js';
 import {
   type AdoptedSessionContinuationInput,
+  type AdoptedSessionRenewal,
   authStateAtom,
   useAdoptedSession,
   useAuthState,
@@ -70,7 +71,8 @@ interface HarnessApi {
     options: {
       expiresAt: string;
       serverTime: string;
-      hardDeadline: string;
+      hardDeadline?: string;
+      continuity?: boolean;
       renew: (input?: AdoptedSessionContinuationInput) => Promise<{
         session: AuthenticatedSession;
         expiresAt: string;
@@ -203,6 +205,75 @@ describe('continuity-aware adopted sessions', () => {
     expect(seenTokens).toEqual([`Bearer ${TARGET_SESSION.accessToken}`]);
   });
 
+  test('surfaces retryable boot failures and retries without entering a principal', async () => {
+    const restorationError = new Error('temporary restoration failure');
+    let retryBoot: (() => void) | undefined;
+    let recoveryError: unknown;
+    let attempts = 0;
+    const restorer = vi.fn(() => {
+      attempts += 1;
+      if (attempts === 1) throw restorationError;
+      return {type: 'guest'};
+    });
+    const fetchImpl = vi.fn(() => Promise.resolve(jsonResponse({memberships: []})));
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const store = createStore();
+
+    resetApiClient();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    render(
+      <ShellProviderStack
+        features={[]}
+        queryClient={queryClient}
+        store={store}
+        auth={{
+          effects: true,
+          bootRestorer: restorer,
+          bootRecovery: ({error, retry}) => {
+            recoveryError = error;
+            retryBoot = retry;
+            return <div data-testid="boot-recovery" />;
+          },
+        }}
+      >
+        <div data-testid="app" />
+      </ShellProviderStack>,
+    );
+
+    await waitFor(() => expect(recoveryError).toBe(restorationError));
+    expect(store.get(authStateAtom).status).toBe('loading');
+    expect(retryBoot).toEqual(expect.any(Function));
+
+    await act(async () => retryBoot?.());
+    await waitFor(() => expect(store.get(authStateAtom).status).toBe('guest'));
+    expect(restorer).toHaveBeenCalledTimes(2);
+  });
+
+  test('requires a hard deadline when continuity is explicitly enabled', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const times = adoptionTimes(-1);
+    const withoutDeadline = {expiresAt: times.expiresAt, serverTime: times.serverTime};
+    const api = apiRef.current;
+    if (api === null) throw new Error('The auth harness was not mounted.');
+
+    await expect(
+      api.adoptSession(TARGET_SESSION, {
+        ...withoutDeadline,
+        continuity: true,
+        renew: vi.fn(async () => null),
+      }),
+    ).rejects.toThrow('Continuity adoptions require a valid hardDeadline.');
+    expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken);
+  });
+
   test('coalesces an adopted 401 recovery and retries once with the renewed target token', async () => {
     setDocumentAttendance({visible: true, focused: true});
     let widgetCalls = 0;
@@ -240,9 +311,9 @@ describe('continuity-aware adopted sessions', () => {
         }),
     );
     await act(async () => {
-      await expect(apiRef.current?.adoptSession(TARGET_SESSION, {...times, renew})).resolves.toBe(
-        true,
-      );
+      await expect(
+        apiRef.current?.adoptSession(TARGET_SESSION, {...times, continuity: true, renew}),
+      ).resolves.toBe(true);
     });
 
     const firstRequest = checkedApiRequest(emptyResponseSchema, '/widgets');
@@ -298,7 +369,9 @@ describe('continuity-aware adopted sessions', () => {
     const api = apiRef.current;
     if (api === null) throw new Error('The auth harness was not mounted.');
     await act(async () => {
-      await expect(api.adoptSession(TARGET_SESSION, {...times, renew})).resolves.toBe(true);
+      await expect(
+        api.adoptSession(TARGET_SESSION, {...times, continuity: true, renew}),
+      ).resolves.toBe(true);
     });
 
     await expect(api.continueForRequest({source: 'request'}, true)).rejects.toMatchObject({
@@ -322,10 +395,10 @@ describe('continuity-aware adopted sessions', () => {
     const {apiRef, store} = renderHarness(fetchImpl);
     await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
 
-    let resolveRenewal: ((value: null) => void) | undefined;
+    let resolveRenewal: ((value: AdoptedSessionRenewal | null) => void) | undefined;
     const renew = vi.fn(
       (_input?: AdoptedSessionContinuationInput) =>
-        new Promise<null>((resolve) => {
+        new Promise<AdoptedSessionRenewal | null>((resolve) => {
           resolveRenewal = resolve;
         }),
     );
@@ -333,7 +406,9 @@ describe('continuity-aware adopted sessions', () => {
     const api = apiRef.current;
     if (api === null) throw new Error('The auth harness was not mounted.');
     await act(async () => {
-      await expect(api.adoptSession(TARGET_SESSION, {...times, renew})).resolves.toBe(true);
+      await expect(
+        api.adoptSession(TARGET_SESSION, {...times, continuity: true, renew}),
+      ).resolves.toBe(true);
     });
 
     const abortError = new Error('Request aborted');
@@ -350,16 +425,26 @@ describe('continuity-aware adopted sessions', () => {
       false,
     );
     await waitFor(() => expect(renew).toHaveBeenCalledOnce());
-    expect(renew).toHaveBeenCalledWith({signal: controller.signal, source: 'request'});
+    expect(renew).toHaveBeenCalledWith({signal: undefined, source: 'request'});
+
+    const secondController = new AbortController();
+    const secondRequest = api.continueForRequest(
+      {signal: secondController.signal, source: 'request'},
+      false,
+    );
 
     controller.abort(abortError);
     await expect(waitingRequest).rejects.toBe(abortError);
+    resolveRenewal?.({
+      session: {...TARGET_SESSION, accessToken: 'renewed-target-token'},
+      ...adoptionTimes(120_000),
+    });
+    await expect(secondRequest).resolves.toBe('renewed-target-token');
     expect(
       fetchImpl.mock.calls.filter(([input]) => requestUrl(input).endsWith('/widgets')),
     ).toHaveLength(0);
 
     await api.releaseAdoptedSession('manual-stop');
-    resolveRenewal?.(null);
   });
 
   test('honors nested rate-limit retry-after seconds before retrying continuation', async () => {
@@ -399,9 +484,13 @@ describe('continuity-aware adopted sessions', () => {
     const api = apiRef.current;
     if (api === null) throw new Error('The auth harness was not mounted.');
     await act(async () => {
-      await expect(api.adoptSession(TARGET_SESSION, {...adoptionTimes(-1), renew})).resolves.toBe(
-        true,
-      );
+      await expect(
+        api.adoptSession(TARGET_SESSION, {
+          ...adoptionTimes(-1),
+          continuity: true,
+          renew,
+        }),
+      ).resolves.toBe(true);
     });
 
     const continuation = api.continueForRequest({source: 'request'}, false);
@@ -432,6 +521,7 @@ describe('continuity-aware adopted sessions', () => {
     await act(async () => {
       await apiRef.current?.adoptSession(TARGET_SESSION, {
         ...times,
+        continuity: true,
         renew: vi.fn(async () => null),
       });
     });
@@ -461,6 +551,7 @@ describe('continuity-aware adopted sessions', () => {
     await act(async () => {
       await apiRef.current?.adoptSession(TARGET_SESSION, {
         ...adoptionTimes(),
+        continuity: true,
         renew: vi.fn(async () => null),
         onRelease: (reason) => reasons.push(reason),
       });
@@ -490,7 +581,7 @@ describe('continuity-aware adopted sessions', () => {
         }),
     );
     await act(async () => {
-      await apiRef.current?.adoptSession(TARGET_SESSION, {...times, renew});
+      await apiRef.current?.adoptSession(TARGET_SESSION, {...times, continuity: true, renew});
     });
 
     const waitingRequest = checkedApiRequest(emptyResponseSchema, '/widgets');

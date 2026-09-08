@@ -38,10 +38,7 @@ export function composeClientApp({
   workspaceSetup?: WorkspaceSetupGate;
   clientAnalytics?: ClientAnalytics;
   usagePricing?: ClientUsagePricing;
-  auth?: Pick<
-    AuthRuntimeProps,
-    'effects' | 'bootRestorer' | 'boot' | 'restoreAdoptedSession' | 'adoptedSessionRestorer'
-  >;
+  auth?: Pick<AuthRuntimeProps, 'effects' | 'bootRestorer' | 'bootRecovery'>;
 }) {
   const composition = composeClientFeatures(features);
   const config = loadConfig(composition.configShape, {

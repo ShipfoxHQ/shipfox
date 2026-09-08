@@ -13,6 +13,7 @@ import {act, cleanup, render, waitFor} from '@testing-library/react';
 import {createStore} from 'jotai';
 import type {AuthenticatedSession, UserIdentity} from '#core/session.js';
 import {
+  type AdoptedSessionReleaseReason,
   type AdoptedSessionRenewal,
   type AdoptedSessionState,
   type AdoptSessionOptions,
@@ -102,7 +103,7 @@ function refreshCallCount(fetchImpl: ReturnType<typeof vi.fn>): number {
 interface AdoptedSessionApi {
   adoptSession: (session: AuthenticatedSession, options: AdoptSessionOptions) => Promise<boolean>;
   renewAdoptedSession: () => Promise<AdoptedSessionRenewal | null>;
-  releaseAdoptedSession: () => Promise<void>;
+  releaseAdoptedSession: (reason?: AdoptedSessionReleaseReason) => Promise<void>;
   adoptedSession: AdoptedSessionState | null;
   refreshAuth: () => Promise<AuthenticatedSession>;
 }
@@ -668,6 +669,47 @@ describe('adopted-session runtime seam', () => {
     );
   });
 
+  test('a pending release callback cannot evict a newer adoption', async () => {
+    const {apiRef, store} = renderAuthHarness();
+    await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
+
+    let resolveRelease: (() => void) | undefined;
+    const onRelease = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRelease = resolve;
+        }),
+    );
+    const api = harnessApi(apiRef);
+    await api.adoptSession(ADOPTED_SESSION, {
+      expiresAt: EXPIRES_AT,
+      serverTime: SERVER_TIME,
+      renew: vi.fn(() => Promise.resolve(null)),
+      onRelease,
+    });
+
+    const releasePromise = api.releaseAdoptedSession('manual-stop');
+    await waitFor(() => expect(onRelease).toHaveBeenCalledWith('manual-stop'));
+
+    const nextSession: AuthenticatedSession = {
+      ...ADOPTED_SESSION,
+      accessToken: 'second-adopted-token',
+    };
+    await api.adoptSession(nextSession, {
+      expiresAt: EXPIRES_AT,
+      serverTime: SERVER_TIME,
+      renew: vi.fn(() => Promise.resolve(null)),
+    });
+
+    resolveRelease?.();
+    await expect(releasePromise).resolves.toBeUndefined();
+    expect(store.get(authStateAtom).status).toBe('authenticated');
+    expect(store.get(authStateAtom).token).toBe('second-adopted-token');
+    await waitFor(() =>
+      expect(apiRef.current?.adoptedSession?.session.accessToken).toBe('second-adopted-token'),
+    );
+  });
+
   test('keeps the token with the later expires_at when renewal responses race', async () => {
     const {apiRef, store} = renderAuthHarness();
     await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
@@ -1019,6 +1061,7 @@ describe('adopted-session runtime seam', () => {
       continuity: true,
       expiresAt,
       serverTime,
+      hardDeadline: new Date(Date.now() + 10 * 60_000).toISOString(),
       renew,
     });
 

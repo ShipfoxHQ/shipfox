@@ -19,10 +19,7 @@ export function ShellProviderStack({
   features: readonly ClientFeature[];
   queryClient: QueryClient;
   store: Store;
-  auth?: Pick<
-    AuthRuntimeProps,
-    'effects' | 'bootRestorer' | 'boot' | 'restoreAdoptedSession' | 'adoptedSessionRestorer'
-  >;
+  auth?: Pick<AuthRuntimeProps, 'effects' | 'bootRestorer' | 'bootRecovery'>;
 }>) {
   const featureProviders = features.flatMap((feature) => feature.providers ?? []);
   const nestedProviders = featureProviders.reduceRight<ReactNode>(
