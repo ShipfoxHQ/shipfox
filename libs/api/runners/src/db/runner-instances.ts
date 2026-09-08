@@ -702,6 +702,7 @@ async function guardReportedReservationIdsTx(
         inArray(providerRunners.providerRunnerId, providerRunnerIds),
       ),
     )
+    .orderBy(asc(providerRunners.id))
     .for('update');
   const existingByProviderRunnerId = new Map(
     existingRows.flatMap((row) =>
