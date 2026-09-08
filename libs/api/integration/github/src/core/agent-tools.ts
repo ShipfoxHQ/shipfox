@@ -21,6 +21,11 @@ import type {GithubInstallation} from '#db/installations.js';
 import {githubAppBotLogin} from './bot-identity.js';
 import {GithubIntegrationProviderError} from './errors.js';
 import {
+  checkRunInputConclusions,
+  checkRunInputStatuses,
+  checkRunMutableFields,
+  checkRunOutputConclusions,
+  checkRunOutputStatuses,
   type GithubAgentToolCatalogEntry,
   type GithubAgentToolId,
   type GithubAgentToolRequiredScope,
@@ -74,35 +79,10 @@ const NO_PENDING_REVIEW_MESSAGE =
   'No pending pull request review found for the authenticated GitHub user.';
 const NO_REVIEW_THREAD_MESSAGE =
   'GitHub did not create the review thread. Check that path, line, side, and any start_line range describe a line in the pull request diff.';
-const CHECK_RUN_INPUT_STATUSES = new Set(['queued', 'in_progress', 'completed']);
-const CHECK_RUN_INPUT_CONCLUSIONS = new Set([
-  'action_required',
-  'cancelled',
-  'failure',
-  'neutral',
-  'success',
-  'skipped',
-  'timed_out',
-]);
-const CHECK_RUN_OUTPUT_STATUSES = new Set([
-  'queued',
-  'in_progress',
-  'completed',
-  'waiting',
-  'requested',
-  'pending',
-]);
-const CHECK_RUN_OUTPUT_CONCLUSIONS = new Set([...CHECK_RUN_INPUT_CONCLUSIONS, 'stale']);
-const CHECK_RUN_MUTABLE_FIELDS = [
-  'name',
-  'details_url',
-  'external_id',
-  'status',
-  'started_at',
-  'conclusion',
-  'completed_at',
-  'output',
-] as const;
+const CHECK_RUN_INPUT_STATUSES = new Set<string>(checkRunInputStatuses);
+const CHECK_RUN_INPUT_CONCLUSIONS = new Set<string>(checkRunInputConclusions);
+const CHECK_RUN_OUTPUT_STATUSES = new Set<string>(checkRunOutputStatuses);
+const CHECK_RUN_OUTPUT_CONCLUSIONS = new Set<string>(checkRunOutputConclusions);
 const RFC3339_TIMESTAMP_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/u;
 
@@ -295,11 +275,25 @@ async function executeGithubToolOperation(
   if (parameters === undefined) {
     return githubToolError(NO_PENDING_REVIEW_MESSAGE, 'provider-rejected');
   }
-  const response = await mapGithubError(
-    () => executeGithubRestOperation(client, operation.route, parameters, toolId),
-    toolId === 'check_run_write' && method === 'update' ? 'provider-rejected' : undefined,
-  );
+  const response =
+    toolId === 'check_run_write'
+      ? await executeGithubCheckRunRequest(client, operation.route, parameters, method)
+      : await mapGithubError(() =>
+          executeGithubRestOperation(client, operation.route, parameters, toolId),
+        );
   return githubToolResult(toolId, response.data, response, parameters, operation.route);
+}
+
+async function executeGithubCheckRunRequest(
+  client: GithubToolClient,
+  route: string,
+  parameters: Record<string, unknown>,
+  method: string | undefined,
+): Promise<GithubToolResponse> {
+  return await mapGithubError(
+    () => client.request(route, parameters),
+    method === 'update' ? 'provider-rejected' : undefined,
+  );
 }
 
 // GitHub answers a malformed thread position with a null thread and no error, so the
@@ -860,28 +854,8 @@ function projectGithubCheckRunParameters(
 ): Record<string, unknown> {
   const acceptedFields =
     method === 'create'
-      ? [
-          'name',
-          'head_sha',
-          'details_url',
-          'external_id',
-          'status',
-          'started_at',
-          'conclusion',
-          'completed_at',
-          'output',
-        ]
-      : [
-          'check_run_id',
-          'name',
-          'details_url',
-          'external_id',
-          'status',
-          'started_at',
-          'conclusion',
-          'completed_at',
-          'output',
-        ];
+      ? ['head_sha', ...checkRunMutableFields]
+      : ['check_run_id', ...checkRunMutableFields];
   const parameters: Record<string, unknown> = {owner: args.owner, repo: args.repo};
   for (const field of acceptedFields) {
     if (args[field] === undefined) continue;
@@ -1642,7 +1616,7 @@ function validateCheckRunUpdateArguments(arguments_: Record<string, unknown>): s
     typeof checkRunId === 'number' && Number.isSafeInteger(checkRunId) && checkRunId >= 1
       ? undefined
       : 'Parameter check_run_id must be a positive integer',
-    CHECK_RUN_MUTABLE_FIELDS.some((field) => arguments_[field] !== undefined)
+    checkRunMutableFields.some((field) => arguments_[field] !== undefined)
       ? undefined
       : 'An update must include at least one mutable check-run field',
   ]);
@@ -1739,7 +1713,7 @@ function validateCheckRunTimestamp(value: unknown, name: string): string | undef
   if (value === undefined) return undefined;
   return typeof value === 'string' && isValidRfc3339Timestamp(value)
     ? undefined
-    : `Parameter ${name} must be an RFC 3339 timestamp`;
+    : `Parameter ${name} must be an RFC 3339 timestamp; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31`;
 }
 
 function isValidRfc3339Timestamp(value: string): boolean {
@@ -1773,16 +1747,21 @@ function isValidRfc3339Timestamp(value: string): boolean {
   }
 
   const dateParseValue = isLeapSecond ? `${value.slice(0, 17)}59${value.slice(19)}` : value;
-  const timestamp = Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z'));
-  if (Number.isNaN(timestamp)) return false;
+  const parsedTimestamp = Date.parse(dateParseValue.replace('t', 'T').replace('z', 'Z'));
+  if (Number.isNaN(parsedTimestamp)) return false;
   if (!isLeapSecond) return true;
 
-  const normalized = new Date(timestamp);
-  return (
-    normalized.getUTCHours() === 23 &&
-    normalized.getUTCMinutes() === 59 &&
-    normalized.getUTCSeconds() === 59
-  );
+  return isValidNormalizedRfc3339LeapSecond(parsedTimestamp);
+}
+
+function isValidNormalizedRfc3339LeapSecond(parsedTimestamp: number): boolean {
+  const normalizedUtc = new Date(parsedTimestamp);
+  const isLeapSecondTime =
+    normalizedUtc.getUTCHours() === 23 && normalizedUtc.getUTCMinutes() === 59;
+  const isLeapSecondDate =
+    (normalizedUtc.getUTCMonth() === 5 && normalizedUtc.getUTCDate() === 30) ||
+    (normalizedUtc.getUTCMonth() === 11 && normalizedUtc.getUTCDate() === 31);
+  return isLeapSecondTime && isLeapSecondDate;
 }
 
 function daysInCheckRunMonth(year: number, month: number): number {

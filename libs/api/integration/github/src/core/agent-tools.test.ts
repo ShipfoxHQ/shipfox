@@ -4747,6 +4747,8 @@ describe('github agent tool catalog', () => {
     '2026-09-05t12:00:00z',
     '2016-12-31T23:59:60Z',
     '2016-12-31T18:59:60-05:00',
+    '2017-01-01T00:59:60+01:00',
+    '2016-07-01T00:59:60+01:00',
   ])('accepts RFC 3339 boundary timestamp %s for input and response projection', async (timestamp) => {
     const headSha = 'a'.repeat(40);
     const data = {
@@ -4923,6 +4925,28 @@ describe('github agent tool catalog', () => {
       },
     },
     {
+      label: 'a leap second on a non-boundary date',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        started_at: '2017-01-31T23:59:60Z',
+      },
+    },
+    {
+      label: 'a leap second outside the normalized UTC boundary',
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+        started_at: '2016-12-31T23:59:60+01:00',
+      },
+    },
+    {
       label: 'an output without a summary',
       arguments: {
         method: 'create',
@@ -5035,6 +5059,31 @@ describe('github agent tool catalog', () => {
         request,
       ),
     ).rejects.toMatchObject({reason: 'provider-rejected', status: 404});
+  });
+
+  it('maps a create 404 to repository-not-found', async () => {
+    const providerError = new RequestError('Not Found', 404, {
+      request: {
+        method: 'POST',
+        url: 'https://api.github.com/repos/shipfox/platform/check-runs',
+        headers: {},
+      },
+    });
+    const request = vi.fn(() => Promise.reject(providerError));
+
+    await expect(
+      callGithubToolWithRequest(
+        'check_run_write',
+        {
+          method: 'create',
+          owner: 'shipfox',
+          repo: 'platform',
+          name: 'Shipfox review',
+          head_sha: 'a'.repeat(40),
+        },
+        request,
+      ),
+    ).rejects.toMatchObject({reason: 'repository-not-found', status: 404});
   });
 
   it('denies check-run calls when the minted token lacks checks write', async () => {
