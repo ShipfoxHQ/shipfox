@@ -82,14 +82,24 @@ interface HarnessApi {
     },
   ) => Promise<boolean>;
   continueForRequest: (input: AdoptedSessionContinuationInput, force: boolean) => Promise<string>;
+  renewAdoptedSession: (
+    input?: AdoptedSessionContinuationInput,
+  ) => Promise<AdoptedSessionRenewal | null>;
   releaseAdoptedSession: (reason?: 'manual-stop' | 'hard-deadline') => Promise<void>;
   enterGuest: () => Promise<boolean>;
 }
 
 function Harness({apiRef}: {apiRef: {current: HarnessApi | null}}) {
-  const {adoptSession, continueForRequest, releaseAdoptedSession} = useAdoptedSession();
+  const {adoptSession, continueForRequest, renewAdoptedSession, releaseAdoptedSession} =
+    useAdoptedSession();
   const {enterGuest} = useAuthTransition();
-  apiRef.current = {adoptSession, continueForRequest, releaseAdoptedSession, enterGuest};
+  apiRef.current = {
+    adoptSession,
+    continueForRequest,
+    renewAdoptedSession,
+    releaseAdoptedSession,
+    enterGuest,
+  };
   return null;
 }
 
@@ -205,6 +215,39 @@ describe('continuity-aware adopted sessions', () => {
     expect(seenTokens).toEqual([`Bearer ${TARGET_SESSION.accessToken}`]);
   });
 
+  test('renders an explicit boot recovery decision without entering a principal', async () => {
+    const recoveryError = new Error('window needs recovery');
+    let receivedError: unknown;
+    const restorer = vi.fn(() => ({type: 'recovery', error: recoveryError}));
+    const fetchImpl = vi.fn(() => Promise.resolve(jsonResponse({memberships: []})));
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const store = createStore();
+
+    resetApiClient();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    render(
+      <ShellProviderStack
+        features={[]}
+        queryClient={queryClient}
+        store={store}
+        auth={{
+          effects: true,
+          bootRestorer: restorer,
+          bootRecovery: ({error}) => {
+            receivedError = error;
+            return <div data-testid="boot-recovery" />;
+          },
+        }}
+      >
+        <div data-testid="app" />
+      </ShellProviderStack>,
+    );
+
+    await waitFor(() => expect(receivedError).toBe(recoveryError));
+    expect(store.get(authStateAtom).status).toBe('loading');
+    expect(restorer).toHaveBeenCalledOnce();
+  });
+
   test('surfaces retryable boot failures and retries without entering a principal', async () => {
     const restorationError = new Error('temporary restoration failure');
     let retryBoot: (() => void) | undefined;
@@ -249,6 +292,56 @@ describe('continuity-aware adopted sessions', () => {
     expect(restorer).toHaveBeenCalledTimes(2);
   });
 
+  test('does not rerun boot when the restorer identity changes after retry', async () => {
+    const restorationError = new Error('temporary restoration failure');
+    const firstRestorer = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw restorationError;
+      })
+      .mockImplementation(() => ({type: 'guest'}));
+    const secondRestorer = vi.fn(() => ({type: 'guest'}));
+    let retryBoot: (() => void) | undefined;
+    let recoveryError: unknown;
+    const fetchImpl = vi.fn(() => Promise.resolve(jsonResponse({memberships: []})));
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const store = createStore();
+
+    function BootApp({version}: {version: number}) {
+      const bootRestorer = version === 0 ? firstRestorer : secondRestorer;
+      return (
+        <ShellProviderStack
+          features={[]}
+          queryClient={queryClient}
+          store={store}
+          auth={{
+            effects: true,
+            bootRestorer,
+            bootRecovery: ({error, retry}) => {
+              recoveryError = error;
+              retryBoot = retry;
+              return <div data-testid="boot-recovery" />;
+            },
+          }}
+        >
+          <div data-testid="app" />
+        </ShellProviderStack>
+      );
+    }
+
+    resetApiClient();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const {rerender} = render(<BootApp version={0} />);
+
+    await waitFor(() => expect(recoveryError).toBe(restorationError));
+    await act(async () => retryBoot?.());
+    await waitFor(() => expect(store.get(authStateAtom).status).toBe('guest'));
+    expect(firstRestorer).toHaveBeenCalledTimes(2);
+
+    await act(async () => rerender(<BootApp version={1} />));
+    expect(secondRestorer).not.toHaveBeenCalled();
+  });
+
   test('requires a hard deadline when continuity is explicitly enabled', async () => {
     setDocumentAttendance({visible: true, focused: true});
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
@@ -270,7 +363,32 @@ describe('continuity-aware adopted sessions', () => {
         continuity: true,
         renew: vi.fn(async () => null),
       }),
-    ).rejects.toThrow('Continuity adoptions require a valid hardDeadline.');
+    ).rejects.toThrow('Continuity adoptions require valid hardDeadline and serverTime.');
+    expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken);
+  });
+
+  test('requires a valid server time when continuity is explicitly enabled', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+    const times = adoptionTimes(-1);
+    const api = apiRef.current;
+    if (api === null) throw new Error('The auth harness was not mounted.');
+
+    await expect(
+      api.adoptSession(TARGET_SESSION, {
+        ...times,
+        serverTime: 'not-a-timestamp',
+        continuity: true,
+        renew: vi.fn(async () => null),
+      }),
+    ).rejects.toThrow('Continuity adoptions require valid hardDeadline and serverTime.');
     expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken);
   });
 
@@ -444,6 +562,47 @@ describe('continuity-aware adopted sessions', () => {
       fetchImpl.mock.calls.filter(([input]) => requestUrl(input).endsWith('/widgets')),
     ).toHaveLength(0);
 
+    await api.releaseAdoptedSession('manual-stop');
+  });
+
+  test('does not let a direct renewal signal cancel shared continuation', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    let resolveRenewal: ((value: AdoptedSessionRenewal | null) => void) | undefined;
+    const renew = vi.fn((input?: AdoptedSessionContinuationInput) => {
+      expect(input).toEqual({signal: undefined, source: 'manual'});
+      return new Promise<AdoptedSessionRenewal | null>((resolve) => {
+        resolveRenewal = resolve;
+      });
+    });
+    const api = apiRef.current;
+    if (api === null) throw new Error('The auth harness was not mounted.');
+    await act(async () => {
+      await expect(
+        api.adoptSession(TARGET_SESSION, {...adoptionTimes(-1), continuity: true, renew}),
+      ).resolves.toBe(true);
+    });
+
+    const abortError = new Error('Direct renewal aborted');
+    const controller = new AbortController();
+    const renewal = api.renewAdoptedSession({signal: controller.signal, source: 'manual'});
+    await waitFor(() => expect(renew).toHaveBeenCalledOnce());
+    controller.abort(abortError);
+    await expect(renewal).rejects.toBe(abortError);
+
+    resolveRenewal?.({
+      session: {...TARGET_SESSION, accessToken: 'renewed-target-token'},
+      ...adoptionTimes(120_000),
+    });
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe('renewed-target-token'));
     await api.releaseAdoptedSession('manual-stop');
   });
 

@@ -142,7 +142,10 @@ export interface AdoptedSessionBootContext {
  * Optional boot hook. It may return a decision object, call `adoptSession`
  * itself, or return null/undefined to continue with the ordinary cookie
  * session. Retryable failures should be returned as `{type: 'recovery'}` so a
- * composing application can render its recovery surface.
+ * composing application can render its recovery surface. An adopted decision
+ * from this hook is continuity-enabled by default and must include a valid
+ * `hardDeadline`; direct `adoptSession` callers retain the legacy default
+ * unless they explicitly set `continuity: true`.
  */
 export type AdoptedSessionBootRestorer = (
   context: AdoptedSessionBootContext,
@@ -782,8 +785,14 @@ export function useAdoptedSession() {
       const continuity = isContinuityOptions(options);
       const deadlineText = continuity ? options.hardDeadline : undefined;
       const deadlineMs = deadlineText ? Date.parse(deadlineText) : Number.NaN;
-      if (continuity && (deadlineText === undefined || !Number.isFinite(deadlineMs))) {
-        throw new Error('Continuity adoptions require a valid hardDeadline.');
+      const serverTimeMs = Date.parse(options.serverTime);
+      if (
+        continuity &&
+        (deadlineText === undefined ||
+          !Number.isFinite(deadlineMs) ||
+          !Number.isFinite(serverTimeMs))
+      ) {
+        throw new Error('Continuity adoptions require valid hardDeadline and serverTime.');
       }
       const previous = store.get(adoptedSessionAtom);
       const pending = control.pendingRelease;
@@ -820,7 +829,6 @@ export function useAdoptedSession() {
           : document.visibilityState === 'visible' && document.hasFocus();
       const receivedAtMs = monotonicNow();
       const lifetimeMs = observedLifetimeMs(options.expiresAt, options.serverTime);
-      const serverTimeMs = Date.parse(options.serverTime);
       const hardDeadlineMonotonicMs =
         Number.isFinite(deadlineMs) && Number.isFinite(serverTimeMs)
           ? receivedAtMs + Math.max(0, deadlineMs - serverTimeMs)
@@ -1190,7 +1198,10 @@ export function useAdoptedSession() {
       const adopted = store.get(adoptedSessionAtom);
       if (adopted === null) return null;
       if (adopted.continuity) {
-        const attempt = await runContinuityRenewal(input);
+        const attempt = await waitForRequestSignal(
+          runContinuityRenewal({...input, signal: undefined}),
+          input.signal,
+        );
         if (attempt.kind === 'success') return attempt.renewal;
         if (attempt.kind === 'terminal') await endAdoption(attempt.reason);
         return null;
@@ -1350,6 +1361,7 @@ function bootAdoptionDecision(
   | {kind: 'adopt'; session: AuthenticatedSession; options: AdoptSessionOptions}
   | {kind: 'ordinary'}
   | {kind: 'guest'}
+  | {kind: 'recovery'; error: unknown}
   | {kind: 'pending'} {
   if (value === null || value === undefined || value === false) return {kind: 'ordinary'};
   if (value === true) return {kind: 'pending'};
@@ -1360,7 +1372,13 @@ function bootAdoptionDecision(
   if (!isRecord(value)) return {kind: 'ordinary'};
   const type = value.type ?? value.status ?? value.decision;
   if (type === 'guest') return {kind: 'guest'};
-  if (type === 'pending' || type === 'recovery' || type === 'retryable') {
+  if (type === 'recovery' || type === 'retryable') {
+    return {
+      kind: 'recovery',
+      error: value.error ?? new Error('Adopted-session boot restoration requires recovery.'),
+    };
+  }
+  if (type === 'pending') {
     return {kind: 'pending'};
   }
   if (type === 'ordinary' || type === 'administrator' || type === 'continue-as-administrator') {
@@ -1415,7 +1433,7 @@ export function AuthRuntime({
     updateAdoptedAttendance,
     isAdoptedSessionAttended,
   } = useAdoptedSession();
-  const bootStartedRef = useRef(false);
+  const lastBootAttemptRef = useRef<number | undefined>(undefined);
   const [bootAttempt, setBootAttempt] = useState(0);
   const [bootError, setBootError] = useState<unknown>();
   const previousAuthStatusRef = useRef(authState.status);
@@ -1457,8 +1475,8 @@ export function AuthRuntime({
   }, [continueForRequest, effects, refreshAuth, releaseAdoptedSession, store]);
 
   useEffect(() => {
-    if (!effects || (bootStartedRef.current && bootAttempt === 0)) return;
-    bootStartedRef.current = true;
+    if (!effects || lastBootAttemptRef.current === bootAttempt) return;
+    lastBootAttemptRef.current = bootAttempt;
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: boot must not enter the ordinary principal before the restorer decides.
     const runBoot = async () => {
       setBootError(undefined);
@@ -1486,6 +1504,10 @@ export function AuthRuntime({
         }
         if (decision.kind === 'guest') {
           await enterGuest();
+          return;
+        }
+        if (decision.kind === 'recovery') {
+          setBootError(decision.error);
           return;
         }
         if (decision.kind === 'pending') return;
