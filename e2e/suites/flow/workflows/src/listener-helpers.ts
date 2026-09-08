@@ -16,7 +16,7 @@ import {observeRun} from '@shipfox/e2e-observe-workflows';
 import {waitForRunObservationMatching} from './polling.js';
 import {postWebhookDelivery} from './webhook.js';
 
-const RUNNER_SESSION_ID_PATTERN = /"runnerSessionId":"([^"]+)"/u;
+const RUNNER_SESSION_ID_PATTERN = /"runnerSessionId":"([^"]+)"/gu;
 
 export interface ListenerPredicateResult {
   matched: boolean;
@@ -80,10 +80,11 @@ function runnerReadinessDiagnostic(
   const logTail = localRunnerLogTail(runner.logFile);
   let runnerSessionId = 'not-observed';
   try {
-    runnerSessionId =
-      RUNNER_SESSION_ID_PATTERN.exec(readFileSync(runner.logFile, 'utf8'))?.[1] ?? runnerSessionId;
+    for (const match of readFileSync(runner.logFile, 'utf8').matchAll(RUNNER_SESSION_ID_PATTERN)) {
+      runnerSessionId = match[1] ?? runnerSessionId;
+    }
   } catch {
-    // The timeout still includes process metadata when the runner never created its log.
+    // Keep the original readiness timeout when its best-effort log diagnostic cannot be read.
   }
   return `; runnerPid=${runner.pid}, runnerLabels=[${runner.labels.join(', ')}], runnerSessionId=${runnerSessionId}${logTail}`;
 }
