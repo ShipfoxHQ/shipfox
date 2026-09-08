@@ -147,7 +147,13 @@ export function decideStepTransition(input: DecideStepTransitionInput): StepTran
 
   // 3. Restart when a policy is configured and the failure is checkable.
   if (gateOnFailure?.restartFrom && restartAllowed) {
-    return restartStepTransition(input, gateOnFailure, failureError, maxAttempts);
+    return restartStepTransition(
+      input,
+      gateOnFailure,
+      failureError,
+      maxAttempts,
+      gate.kind !== 'no-gate',
+    );
   }
 
   // 4. No restart → plain fail-and-cancel.
@@ -177,8 +183,11 @@ function stepFailureError(
     };
   }
   if (gate.kind === 'uncheckable') {
+    const errorFields = {...(result.error ?? {})};
+    delete errorFields.agentConfigIssue;
+    delete errorFields.agent_config_issue;
     return {
-      ...(result.error ?? {}),
+      ...errorFields,
       kind: 'gate_uncheckable',
       reason: 'gate_uncheckable',
       message: errorMessage(result.error) ?? gate.reason,
@@ -200,6 +209,7 @@ function restartStepTransition(
   gateOnFailure: NonNullable<DecideStepTransitionInput['gateOnFailure']>,
   failureError: Record<string, unknown> | null,
   maxAttempts: number,
+  hasSuccessGate: boolean,
 ): StepTransitionDecision {
   const {steps, target, reportedAttempt} = input;
   const restartStep = steps.find(
@@ -221,6 +231,9 @@ function restartStepTransition(
   const gatingAttemptCount = input.gatingAttemptCount ?? reportedAttempt;
   if (gatingAttemptCount >= maxAttempts) {
     const attemptLabel = gatingAttemptCount === 1 ? 'attempt' : 'attempts';
+    const exhaustionMessage = hasSuccessGate
+      ? `The gate did not pass after ${gatingAttemptCount} ${attemptLabel}.`
+      : `The step failed after ${gatingAttemptCount} ${attemptLabel}.`;
     return {
       kind: 'fail-job-restart-exhausted',
       failedStepId: target.id,
@@ -230,7 +243,7 @@ function restartStepTransition(
         ...(failureError ?? {}),
         kind: 'restart_exhausted',
         reason: 'restart_exhausted',
-        message: `The gate did not pass after ${gatingAttemptCount} ${attemptLabel}.`,
+        message: exhaustionMessage,
         retryable: false,
         attemptCount: gatingAttemptCount,
         maxAttempts,

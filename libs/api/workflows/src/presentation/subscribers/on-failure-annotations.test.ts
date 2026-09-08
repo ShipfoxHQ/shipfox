@@ -188,6 +188,7 @@ const STEP_FAILURE_CASES = [
     title: 'Gate attempt limit reached',
     description:
       'The gate reached its configured attempt limit. Review the failed result before trying again.',
+    gateResult: {passed: false, source: 'step.exit_code == 0', exit_code: 73},
   },
   {
     reason: 'tool_error',
@@ -207,6 +208,7 @@ const STEP_FAILURE_CASES = [
   type: Step['type'];
   title: string;
   description: string;
+  gateResult?: StepAttempt['gateResult'];
 }[];
 
 const AGENT_CONFIG_FAILURE_CASES = [
@@ -363,12 +365,9 @@ describe('failure annotations', () => {
     );
   });
 
-  it.each(STEP_FAILURE_CASES)('uses safe exact copy for $reason', async ({
-    reason,
-    type,
-    title,
-    description,
-  }) => {
+  it.each(STEP_FAILURE_CASES)('uses safe exact copy for $reason', async (failureCase) => {
+    const {reason, type, title, description} = failureCase;
+    const gateResult = 'gateResult' in failureCase ? failureCase.gateResult : null;
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
       id: payload.stepId,
@@ -379,6 +378,7 @@ describe('failure annotations', () => {
       stepId: step.id,
       error: {reason, message: 'internal runtime detail'},
       exitCode: 73,
+      gateResult,
     });
     dbMocks.getStepAttemptDetail.mockResolvedValue({
       workflowRunId: payload.workflowRunId,

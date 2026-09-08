@@ -1003,9 +1003,9 @@ function failureDescription(
       const attemptCount = error?.attemptCount;
       if (attemptCount !== undefined) {
         const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
-        return `The success condition did not pass after ${attemptCount} ${attemptLabel}. Review the failed result. To allow more attempts, update gate.on_failure.max_attempts and start a new run.`;
+        return `The success condition did not pass after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.`;
       }
-      return 'The gate reached its configured attempt limit. Review the failed result before trying again.';
+      return 'The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.';
     }
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';

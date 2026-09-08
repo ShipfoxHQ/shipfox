@@ -241,6 +241,38 @@ describe('decideStepTransition', () => {
     });
   });
 
+  test('exhaustion uses neutral step-failure copy without a success gate', () => {
+    const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
+    const target = step({id: 's1', position: 1, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [restartTarget, target],
+      target,
+      reportedAttempt: 3,
+      maxAttempts: 3,
+      result: {
+        status: 'failed',
+        exitCode: 1,
+        error: {code: 'command_failed', message: 'command failed'},
+      },
+      // No gateOutcome (no success) but a restart policy is configured.
+      gateOnFailure: {restartFrom: 'producer'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'fail-job-restart-exhausted',
+      failureError: {
+        kind: 'restart_exhausted',
+        reason: 'restart_exhausted',
+        message: 'The step failed after 3 attempts.',
+        code: 'command_failed',
+        attemptCount: 3,
+        maxAttempts: 3,
+        restartFrom: 'producer',
+      },
+    });
+  });
+
   test('exhaustion uses singular attempt copy at a one-attempt limit', () => {
     const restartTarget = step({id: 's0', key: 'producer', position: 0, status: 'succeeded'});
     const target = step({id: 's1', position: 1, status: 'running'});

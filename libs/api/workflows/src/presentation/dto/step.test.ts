@@ -1,10 +1,12 @@
 import {
+  stepErrorDtoSchema,
   WORKFLOW_DIAGNOSTIC_ERROR_MAX_BYTES,
   WORKFLOW_DIAGNOSTIC_RESPONSE_MAX_BYTES,
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
 } from '@shipfox/api-workflows-dto';
 import {diagnosticValueByteLength} from '#core/diagnostics.js';
 import type {Step, StepAttempt} from '#core/entities/step.js';
+import {decideStepTransition} from '#core/step-transition/decide-step-transition.js';
 import {fromStepErrorDto, toStepAttemptDetailResponseDto, toStepDto} from './step.js';
 
 function step(overrides: Partial<Step> & {type: string}): Step {
@@ -122,6 +124,38 @@ describe('fromStepErrorDto', () => {
       restart_from: 'implement',
       retryable: false,
     });
+  });
+
+  it('maps an uncheckable gate over an agent config issue to a valid DTO error', () => {
+    const target = step({type: 'agent', status: 'running'});
+    const decision = decideStepTransition({
+      steps: [target],
+      target,
+      reportedAttempt: 1,
+      result: {
+        status: 'failed',
+        exitCode: null,
+        error: {
+          reason: 'agent_config_invalid',
+          agentConfigIssue: 'provider_not_configured',
+          message: 'Model provider is not configured',
+        },
+      },
+      gateOutcome: {
+        kind: 'uncheckable',
+        reason: 'step produced no exit code',
+        source: 'step.exit_code == 0',
+      },
+    });
+
+    expect(decision.kind).toBe('fail-job');
+    if (decision.kind !== 'fail-job') throw new Error('Expected the step to fail');
+
+    const dto = toStepDto(step({type: 'agent', error: decision.failureError}));
+
+    expect(stepErrorDtoSchema.safeParse(dto.error).success).toBe(true);
+    expect(dto.error).toMatchObject({reason: 'gate_uncheckable'});
+    expect(dto.error).not.toHaveProperty('agent_config_issue');
   });
 
   it('derives a gate reason from a legacy internal kind', () => {

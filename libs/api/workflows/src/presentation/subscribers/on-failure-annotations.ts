@@ -429,6 +429,10 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
   if (toolFailure !== undefined) return toolFailure;
 
+  if (reason === 'restart_unresolved' || reason === 'restart_exhausted') {
+    return knownStepFailureCopy(reason);
+  }
+
   const gateFailure = gateFailureCopy(attempt, reason);
   if (gateFailure !== undefined) return gateFailure;
 
