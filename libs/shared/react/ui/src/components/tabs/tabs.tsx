@@ -196,7 +196,7 @@ function TabsList({
       ref={listRef}
       role="tablist"
       data-slot="tabs-list"
-      className={cn('relative inline-flex items-center gap-8', className)}
+      className={cn('relative inline-flex items-center gap-group', className)}
       {...(props as ComponentProps<'div'>)}
     >
       {children}

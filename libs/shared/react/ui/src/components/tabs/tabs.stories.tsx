@@ -26,7 +26,7 @@ export const Playground: Story = {
   render: () => (
     <div className="bg-background-subtle-base p-24 w-[80vw]">
       <Tabs defaultValue="analytics">
-        <TabsList className="gap-12 border-b border-neutral-strong">
+        <TabsList className="border-b border-neutral-strong">
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="jobs">Jobs</TabsTrigger>
         </TabsList>
@@ -46,7 +46,7 @@ export const Controlled: Story = {
     return (
       <div className="bg-background-subtle-base p-24 w-[80vw]">
         <Tabs value={value} onValueChange={setValue}>
-          <TabsList className="gap-12 border-b border-neutral-strong">
+          <TabsList className="border-b border-neutral-strong">
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="jobs">Jobs</TabsTrigger>
           </TabsList>
@@ -81,7 +81,7 @@ export const MultipleTabs: Story = {
   render: () => (
     <div className="bg-background-subtle-base p-24 w-[80vw]">
       <Tabs defaultValue="tab1">
-        <TabsList className="gap-12 border-b border-neutral-strong">
+        <TabsList className="border-b border-neutral-strong">
           <TabsTrigger value="tab1">Tab 1</TabsTrigger>
           <TabsTrigger value="tab2">Tab 2</TabsTrigger>
           <TabsTrigger value="tab3">Tab 3</TabsTrigger>

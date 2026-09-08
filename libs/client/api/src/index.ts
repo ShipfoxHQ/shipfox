@@ -168,6 +168,11 @@ function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(TRAILING_SLASH_RE, '')}/${path.replace(LEADING_SLASH_RE, '')}`;
 }
 
+/** Resolves a path against the configured API base. Same-origin URLs remain relative. */
+export function resolveApiUrl(path: string): string {
+  return joinUrl(defaultBaseUrl(), path);
+}
+
 function defaultFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   return globalThis.fetch(input, init);
 }

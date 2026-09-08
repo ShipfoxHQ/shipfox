@@ -25,6 +25,26 @@ function renderSettings(element: ReactElement) {
 }
 
 describe('AgentAccessSettingsPage', () => {
+  test('guides setup and copies the selected client commands before any app is connected', async () => {
+    const user = userEvent.setup();
+    configureApiClient({
+      baseUrl: 'https://api.example.test/proxy/',
+      fetchImpl: vi.fn().mockResolvedValue(jsonResponse({grants: []})),
+    });
+    renderSettings(<AgentAccessSettingsPage workspaceId={WORKSPACE_ID} />);
+
+    expect(await screen.findByText('No connected apps')).toBeVisible();
+    expect(screen.getByText('https://api.example.test/proxy/mcp')).toBeVisible();
+    await user.click(screen.getByRole('tab', {name: 'Codex'}));
+    const instructions = screen.getByRole('tabpanel');
+    await user.click(within(instructions).getByRole('button', {name: 'Copy Codex commands'}));
+
+    expect(await navigator.clipboard.readText()).toBe(
+      "codex mcp add shipfox --url 'https://api.example.test/proxy/mcp'\ncodex mcp login shipfox",
+    );
+    expect(within(instructions).queryByText('Claude Code command')).not.toBeInTheDocument();
+  });
+
   test('shows only OAuth apps authorized for the active workspace', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({

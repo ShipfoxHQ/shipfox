@@ -31,39 +31,43 @@ import {
 } from '#hooks/api/agent-access/credentials.js';
 import {agentAccessErrorMessage} from './errors.js';
 import {formatAgentAccessDate, formatAgentAccessTimestamp} from './format.js';
+import {McpSetup} from './mcp-setup.js';
 
 export function AgentAccessSettingsPage({workspaceId}: {workspaceId: string}) {
   const grantsQuery = useAgentGrantsQuery();
   const grants = (grantsQuery.data ?? []).filter((grant) => grant.workspaceId === workspaceId);
 
   return (
-    <section className="flex min-w-0 flex-col gap-group" aria-labelledby="connected-apps-title">
-      <div className="flex flex-col gap-tight">
-        <Header id="connected-apps-title" variant="h3">
-          Connected apps
-        </Header>
-        <Text size="sm" className="text-foreground-neutral-muted">
-          Tools connected to this workspace through MCP.
-        </Text>
-      </div>
-      {grantsQuery.isPending ? <GrantListSkeleton /> : null}
-      {grantsQuery.isError && grantsQuery.data === undefined ? (
-        <Panel>
-          <QueryLoadError query={grantsQuery} subject="connected apps" variant="panel" />
-        </Panel>
-      ) : null}
-      {grantsQuery.data !== undefined && grants.length === 0 ? (
-        <Panel>
-          <EmptyState
-            icon="terminalBoxLine"
-            title="No connected apps"
-            description="Apps you connect to this workspace through MCP will appear here."
-            variant="panel"
-          />
-        </Panel>
-      ) : null}
-      {grants.length > 0 ? <AgentGrantList grants={grants} /> : null}
-    </section>
+    <div className="flex min-w-0 flex-col gap-section">
+      <McpSetup />
+      <section className="flex min-w-0 flex-col gap-group" aria-labelledby="connected-apps-title">
+        <div className="flex flex-col gap-tight">
+          <Header id="connected-apps-title" variant="h3">
+            Connected apps
+          </Header>
+          <Text size="sm" className="text-foreground-neutral-muted">
+            Tools connected to this workspace through MCP.
+          </Text>
+        </div>
+        {grantsQuery.isPending ? <GrantListSkeleton /> : null}
+        {grantsQuery.isError && grantsQuery.data === undefined ? (
+          <Panel>
+            <QueryLoadError query={grantsQuery} subject="connected apps" variant="panel" />
+          </Panel>
+        ) : null}
+        {grantsQuery.data !== undefined && grants.length === 0 ? (
+          <Panel>
+            <EmptyState
+              icon="terminalBoxLine"
+              title="No connected apps"
+              description="Follow the setup steps above to connect your first app."
+              variant="panel"
+            />
+          </Panel>
+        ) : null}
+        {grants.length > 0 ? <AgentGrantList grants={grants} /> : null}
+      </section>
+    </div>
   );
 }
 
