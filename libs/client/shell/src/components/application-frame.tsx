@@ -37,10 +37,10 @@ const frameClassNames: Record<RouteFrame, string> = {
 };
 
 /**
- * Minimum height of the reserved SessionBanner strip, in pixels. The layout
- * reserves this much for the slot and the app-content viewport arithmetic
- * starts from it; the rendered strip height is measured and feeds the
- * arithmetic so taller banners keep the content area consistent.
+ * Minimum height of a rendered SessionBanner strip, in pixels. The layout
+ * reserves this much when the slot renders content; the rendered strip height
+ * is measured and feeds the app-content viewport arithmetic so taller banners
+ * keep the content area consistent.
  */
 const SESSION_BANNER_HEIGHT_PX = 40;
 
@@ -147,9 +147,11 @@ function SessionBannerStrip({
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [bannerFailed, setBannerFailed] = useState(false);
 
-  // Reset stale or failed measurements before paint when the slot state changes.
+  // Reset stale measurements from the committed output before paint. A slot
+  // may remain registered while returning null for the current session.
   useLayoutEffect(() => {
-    onHeightChange(bannerFailed ? 0 : SESSION_BANNER_HEIGHT_PX);
+    const hasBannerContent = stripRef.current?.hasChildNodes() ?? false;
+    onHeightChange(bannerFailed || !hasBannerContent ? 0 : SESSION_BANNER_HEIGHT_PX);
   }, [bannerFailed, onHeightChange]);
 
   // The strip exists only after authentication succeeds, so observation starts
@@ -175,8 +177,7 @@ function SessionBannerStrip({
     >
       <div
         ref={stripRef}
-        className="flex shrink-0 items-center bg-background-subtle-base"
-        style={{minHeight: SESSION_BANNER_HEIGHT_PX}}
+        className="flex min-h-40 shrink-0 items-center bg-background-subtle-base empty:min-h-0"
       >
         <SessionBanner />
       </div>
