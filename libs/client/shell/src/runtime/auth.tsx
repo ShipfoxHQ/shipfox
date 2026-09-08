@@ -593,8 +593,15 @@ interface AdoptedSessionControl {
   } | null;
   pendingRelease: {
     generation: number;
+    accessToken: string;
     release?: AdoptedSessionReleaseCallback | undefined;
   } | null;
+  /**
+   * A request can receive a 401 after its adopted session has ended, including
+   * after another adoption has started. Keep those credentials as an
+   * in-memory retry guard; they are never persisted or logged.
+   */
+  releasedAdoptedTokens: Set<string>;
   releaseNotified: Set<number>;
   lastReleaseReason: AdoptedSessionReleaseReason;
   wakeWaiters: Set<() => void>;
@@ -610,6 +617,7 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
     continuation: null,
     terminal: null,
     pendingRelease: null,
+    releasedAdoptedTokens: new Set(),
     releaseNotified: new Set(),
     lastReleaseReason: 'manual-stop',
     wakeWaiters: new Set(),
@@ -617,6 +625,16 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
   };
   store.set(adoptedSessionControlAtom, control);
   return control;
+}
+
+function isStaleAdoptedRetry(
+  accessToken: string | undefined,
+  current: AdoptedSessionRuntimeState | null,
+  control: AdoptedSessionControl,
+): boolean {
+  if (accessToken === undefined) return false;
+  if (control.releasedAdoptedTokens.has(accessToken)) return true;
+  return current !== null && current.session.accessToken !== accessToken;
 }
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
@@ -743,6 +761,10 @@ export function useAdoptedSession() {
       const nextGeneration = previousGeneration + 1;
       const releaseGeneration = current?.generation ?? pending?.generation ?? previousGeneration;
       const release = current?.release ?? pending?.release;
+      const releasedAccessToken = current?.session.accessToken ?? pending?.accessToken;
+      if (releasedAccessToken !== undefined) {
+        control.releasedAdoptedTokens.add(releasedAccessToken);
+      }
       const endedError = createAdoptedSessionEndedError(reason);
       control.lastReleaseReason = reason;
       store.set(adoptionGenerationAtom, nextGeneration);
@@ -802,8 +824,11 @@ export function useAdoptedSession() {
         wakeContinuationWaiters();
       }
       if (previous !== null) {
+        control.releasedAdoptedTokens.add(previous.session.accessToken);
         void notifyRelease(previous.generation, previous.release, 'replaced');
-      } else if (pending !== null) {
+      }
+      if (pending !== null) {
+        control.releasedAdoptedTokens.add(pending.accessToken);
         void notifyRelease(pending.generation, pending.release, 'replaced');
       }
       if (control.terminal) {
@@ -819,6 +844,7 @@ export function useAdoptedSession() {
       const release = releaseCallback(options);
       control.pendingRelease = {
         generation,
+        accessToken: session.accessToken,
         ...(release === undefined ? {} : {release}),
       };
       const transitionEpoch = beginAuthTransition();
@@ -1198,6 +1224,7 @@ export function useAdoptedSession() {
       const adopted = store.get(adoptedSessionAtom);
       if (adopted === null) return null;
       if (adopted.continuity) {
+        throwIfRequestAborted(input.signal);
         const attempt = await waitForRequestSignal(
           runContinuityRenewal({...input, signal: undefined}),
           input.signal,
@@ -1409,7 +1436,14 @@ function bootAdoptionDecision(
 
 export interface AuthRuntimeProps extends PropsWithChildren {
   effects?: boolean;
+  /**
+   * Restores a composing application's adopted session during boot. When a
+   * restorer is supplied, the composing application must also supply
+   * `bootRecovery` for non-authentication failures; the shell intentionally
+   * does not invent product-specific recovery UI.
+   */
   bootRestorer?: AdoptedSessionBootRestorer;
+  /** Renders the composing application's recovery surface for boot failures. */
   bootRecovery?: AdoptedSessionBootRecovery;
 }
 
@@ -1420,6 +1454,7 @@ export function AuthRuntime({
   bootRecovery,
 }: AuthRuntimeProps) {
   const store = useStore();
+  const adoptedControl = getAdoptedSessionControl(store);
   const authState = useAtomValue(authStateAtom);
   const refreshAuth = useRefreshAuth();
   const {enterGuest} = useAuthTransition();
@@ -1449,8 +1484,9 @@ export function AuthRuntime({
         if (current === null || !current.continuity) return accessToken;
         return await continueForRequest({signal, source: 'request'}, false);
       },
-      retryAccessToken: async ({signal}) => {
+      retryAccessToken: async ({accessToken, signal}) => {
         const current = store.get(adoptedSessionAtom);
+        if (isStaleAdoptedRetry(accessToken, current, adoptedControl)) return undefined;
         if (current?.continuity) {
           return await continueForRequest({signal, source: 'unauthorized'}, true);
         }
@@ -1460,8 +1496,9 @@ export function AuthRuntime({
         }
         return (await refreshAuth()).accessToken;
       },
-      refreshAccessToken: async () => {
+      refreshAccessToken: async (input) => {
         const current = store.get(adoptedSessionAtom);
+        if (isStaleAdoptedRetry(input?.accessToken, current, adoptedControl)) return undefined;
         if (current !== null) {
           if (current.continuity) {
             return await continueForRequest({source: 'unauthorized'}, true);
@@ -1472,7 +1509,7 @@ export function AuthRuntime({
         return (await refreshAuth()).accessToken;
       },
     });
-  }, [continueForRequest, effects, refreshAuth, releaseAdoptedSession, store]);
+  }, [adoptedControl, continueForRequest, effects, refreshAuth, releaseAdoptedSession, store]);
 
   useEffect(() => {
     if (!effects || lastBootAttemptRef.current === bootAttempt) return;
@@ -1613,12 +1650,36 @@ export function AuthRuntime({
     if (!effects || adoptedSession === null) return;
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let deadlineTimeout: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
     let renewing = false;
     let nextFireAtMs = 0;
     const clearRenewTimer = () => {
       if (timeout !== undefined) clearTimeout(timeout);
       timeout = undefined;
+    };
+    const clearDeadlineTimer = () => {
+      if (deadlineTimeout !== undefined) clearTimeout(deadlineTimeout);
+      deadlineTimeout = undefined;
+    };
+    const runHardDeadline = () => {
+      if (disposed) return;
+      const current = store.get(adoptedSessionAtom);
+      const hardDeadline = current?.hardDeadlineMonotonicMs;
+      if (current === null || hardDeadline === undefined) return;
+      const remaining = hardDeadline - monotonicNow();
+      if (remaining > 0) {
+        deadlineTimeout = setTimeout(runHardDeadline, remaining);
+        return;
+      }
+      void releaseAdoptedSession('hard-deadline');
+    };
+    const scheduleHardDeadline = () => {
+      clearDeadlineTimer();
+      const current = store.get(adoptedSessionAtom);
+      const hardDeadline = current?.hardDeadlineMonotonicMs;
+      if (hardDeadline === undefined) return;
+      deadlineTimeout = setTimeout(runHardDeadline, Math.max(0, hardDeadline - monotonicNow()));
     };
     const scheduleRenew = () => {
       clearRenewTimer();
@@ -1718,6 +1779,7 @@ export function AuthRuntime({
     const onBlur = () => wake('blur');
     const onOnline = () => wake('online');
     const onVisibilityChange = () => wake('visibility');
+    scheduleHardDeadline();
     scheduleRenew();
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
@@ -1726,6 +1788,7 @@ export function AuthRuntime({
     return () => {
       disposed = true;
       clearRenewTimer();
+      clearDeadlineTimer();
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('online', onOnline);

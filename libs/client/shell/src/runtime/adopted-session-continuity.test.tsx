@@ -13,6 +13,7 @@ import type {AuthenticatedSession} from '#core/session.js';
 import {
   type AdoptedSessionContinuationInput,
   type AdoptedSessionRenewal,
+  type AdoptedSessionState,
   authStateAtom,
   useAdoptedSession,
   useAuthState,
@@ -86,27 +87,34 @@ interface HarnessApi {
     input?: AdoptedSessionContinuationInput,
   ) => Promise<AdoptedSessionRenewal | null>;
   releaseAdoptedSession: (reason?: 'manual-stop' | 'hard-deadline') => Promise<void>;
+  adoptedSession: AdoptedSessionState | null;
   enterGuest: () => Promise<boolean>;
 }
 
 function Harness({apiRef}: {apiRef: {current: HarnessApi | null}}) {
-  const {adoptSession, continueForRequest, renewAdoptedSession, releaseAdoptedSession} =
-    useAdoptedSession();
+  const {
+    adoptSession,
+    continueForRequest,
+    renewAdoptedSession,
+    releaseAdoptedSession,
+    adoptedSession,
+  } = useAdoptedSession();
   const {enterGuest} = useAuthTransition();
   apiRef.current = {
     adoptSession,
     continueForRequest,
     renewAdoptedSession,
     releaseAdoptedSession,
+    adoptedSession,
     enterGuest,
   };
   return null;
 }
 
-function renderHarness(fetchImpl: typeof fetch) {
+function renderHarness(fetchImpl: typeof fetch, providedApiRef?: {current: HarnessApi | null}) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   const store = createStore();
-  const apiRef: {current: HarnessApi | null} = {current: null};
+  const apiRef = providedApiRef ?? {current: null};
   resetApiClient();
   configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
   render(
@@ -604,6 +612,150 @@ describe('continuity-aware adopted sessions', () => {
     });
     await waitFor(() => expect(store.get(authStateAtom).token).toBe('renewed-target-token'));
     await api.releaseAdoptedSession('manual-stop');
+  });
+
+  test('does not start direct renewal for an already-aborted signal', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    const renew = vi.fn(async () => null);
+    const api = apiRef.current;
+    if (api === null) throw new Error('The auth harness was not mounted.');
+    await act(async () => {
+      await expect(
+        api.adoptSession(TARGET_SESSION, {...adoptionTimes(60_000), continuity: true, renew}),
+      ).resolves.toBe(true);
+    });
+
+    const abortError = new Error('Direct renewal aborted before start');
+    const controller = new AbortController();
+    controller.abort(abortError);
+    await expect(
+      api.renewAdoptedSession({signal: controller.signal, source: 'manual'}),
+    ).rejects.toBe(abortError);
+    expect(renew).not.toHaveBeenCalled();
+
+    await api.releaseAdoptedSession('manual-stop');
+  });
+
+  test('ends a hanging continuation at the hard deadline', async () => {
+    useFakeTimersWithWaitFor();
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    const renew = vi.fn(() => new Promise<AdoptedSessionRenewal | null>(() => undefined));
+    const api = apiRef.current;
+    if (api === null) throw new Error('The auth harness was not mounted.');
+    await act(async () => {
+      await expect(
+        api.adoptSession(TARGET_SESSION, {
+          ...adoptionTimes(-1, 1_000),
+          continuity: true,
+          renew,
+        }),
+      ).resolves.toBe(true);
+    });
+
+    const continuationRejection = expect(
+      api.continueForRequest({source: 'request'}, false),
+    ).rejects.toMatchObject({
+      code: 'adopted-session-ended',
+      status: 0,
+      details: {reason: 'hard-deadline'},
+    });
+    await waitFor(() => expect(renew).toHaveBeenCalledOnce());
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await continuationRejection;
+    await waitFor(() => expect(apiRef.current?.adoptedSession).toBeNull());
+  });
+
+  test('releases a hidden continuity session at the hard deadline after token expiry', async () => {
+    useFakeTimersWithWaitFor();
+    setDocumentAttendance({visible: true, focused: true});
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    const reasons: string[] = [];
+    await act(async () => {
+      await expect(
+        apiRef.current?.adoptSession(TARGET_SESSION, {
+          ...adoptionTimes(20, 100),
+          continuity: true,
+          renew: vi.fn(async () => null),
+          onRelease: (reason) => reasons.push(reason),
+        }),
+      ).resolves.toBe(true);
+    });
+
+    setDocumentAttendance({visible: false, focused: false});
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(100);
+
+    await waitFor(() => expect(reasons).toEqual(['hard-deadline']));
+    await waitFor(() => expect(apiRef.current?.adoptedSession).toBeNull());
+  });
+
+  test('does not retry a released adopted bearer with ordinary credentials', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    const apiRef: {current: HarnessApi | null} = {current: null};
+    let releasePromise: Promise<void> | undefined;
+    let widgetCalls = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      if (url.endsWith('/widgets')) {
+        widgetCalls += 1;
+        if (releasePromise === undefined) {
+          releasePromise = apiRef.current?.releaseAdoptedSession('manual-stop');
+        }
+        return Promise.resolve(
+          jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {store} = renderHarness(fetchImpl, apiRef);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    await act(async () => {
+      await expect(
+        apiRef.current?.adoptSession(TARGET_SESSION, {
+          ...adoptionTimes(60_000),
+          continuity: true,
+          renew: vi.fn(async () => null),
+        }),
+      ).resolves.toBe(true);
+    });
+
+    await expect(checkedApiRequest(emptyResponseSchema, '/widgets')).rejects.toMatchObject({
+      code: 'unauthorized',
+      status: 401,
+    });
+    expect(releasePromise).toBeDefined();
+    await releasePromise;
+    expect(widgetCalls).toBe(1);
   });
 
   test('honors nested rate-limit retry-after seconds before retrying continuation', async () => {

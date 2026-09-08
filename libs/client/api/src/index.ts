@@ -11,7 +11,12 @@ export interface ApiClientOptions {
         signal: AbortSignal | undefined;
       }) => Promise<string | undefined>)
     | undefined;
-  refreshAccessToken?: (() => Promise<string | undefined> | string | undefined) | undefined;
+  refreshAccessToken?:
+    | ((input?: {
+        accessToken: string | undefined;
+        signal: AbortSignal | undefined;
+      }) => Promise<string | undefined> | string | undefined)
+    | undefined;
   /**
    * Optional credential supplier used only for the single retry after an
    * authenticated 401. It is separate from prepareAccessToken so an adopted
@@ -274,7 +279,7 @@ async function retryAccessToken(
   if (apiOptions.prepareAccessToken) {
     return await apiOptions.prepareAccessToken({accessToken, signal});
   }
-  return await apiOptions.refreshAccessToken?.();
+  return await apiOptions.refreshAccessToken?.({accessToken, signal});
 }
 
 async function getRetryAccessTokenOrThrowOriginal(

@@ -119,6 +119,10 @@ describe('checked API transport', () => {
 
     expect(result.ok).toBe(true);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).toHaveBeenCalledWith({
+      accessToken: 'expired-token',
+      signal: undefined,
+    });
     const firstRequest = fetchImpl.mock.calls[0]?.[0] as Request;
     const secondRequest = fetchImpl.mock.calls[1]?.[0] as Request;
     expect(firstRequest.headers.get('authorization')).toBe('Bearer expired-token');
