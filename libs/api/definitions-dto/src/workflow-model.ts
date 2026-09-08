@@ -236,6 +236,8 @@ export interface WorkflowModelStepFailureAction {
   readonly restartFrom: string;
   readonly feedback?: string;
   readonly feedbackTemplate?: WorkflowFieldTemplate;
+  /** Optional for legacy v2 and v3 snapshots that predate persisted gate limits. */
+  readonly maxAttempts?: number;
 }
 export interface WorkflowModelDependency {
   readonly from: string;

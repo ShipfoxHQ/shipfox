@@ -54,6 +54,8 @@ const envNameSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);
 const envStringValueSchema = z.string().refine((value) => !value.includes('\u0000'), {
   message: 'Env string values cannot contain null bytes',
 });
+/** Default total executions for a gate retry policy, including the first execution. */
+export const WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS = 5;
 /** Maximum total executions supported by a gate retry policy, including the first execution. */
 export const WORKFLOW_GATE_MAX_ATTEMPTS_MAX = 1_000;
 export const WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES = 128;

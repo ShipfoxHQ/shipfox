@@ -6,15 +6,17 @@ import {
 import type {DefinitionSyncState} from '#core/entities/sync-state.js';
 import type {WorkflowDefinition} from '#core/entities/workflow-definition.js';
 import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
+import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
 
 /**
  * Maps a definition to the JSON-safe camelCase shape shared by HTTP and
  * inter-module presentations.
  */
 export function toDefinitionReadModel(definition: WorkflowDefinition) {
+  const workflowModel = populateDefaultGateMaxAttempts(definition.model);
   // The model excludes inert triggers, so an inert manual trigger yields no Run
   // button instead of a fire-route 404. The document keeps the authored entry.
-  const manualTrigger = definition.model.triggers.find((trigger) => trigger.source === 'manual');
+  const manualTrigger = workflowModel.triggers.find((trigger) => trigger.source === 'manual');
   return {
     id: definition.id,
     projectId: definition.projectId,
@@ -24,7 +26,7 @@ export function toDefinitionReadModel(definition: WorkflowDefinition) {
     ref: definition.ref,
     name: definition.name,
     workflowDocument: definition.document,
-    workflowModel: definition.model,
+    workflowModel,
     manualTrigger: manualTrigger ? {name: manualTrigger.key} : null,
     fetchedAt: definition.fetchedAt.toISOString(),
     createdAt: definition.createdAt.toISOString(),

@@ -1,6 +1,9 @@
 import type {AgentValidationCatalogV2} from '@shipfox/api-agent-dto/inter-module';
 import type {WorkflowDocument} from '@shipfox/workflow-document';
-import {parseWorkflowDocument} from '@shipfox/workflow-document';
+import {
+  parseWorkflowDocument,
+  WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
+} from '@shipfox/workflow-document';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {WorkflowModel, WorkflowModelToolStep} from '../entities/workflow-model.js';
@@ -640,7 +643,9 @@ describe('normalizeWorkflowDocument', () => {
       harness: 'claude',
       provider: 'anthropic',
       thinking: 'low',
-      gate: {onFailure: {restartFrom: 'implement'}},
+      gate: {
+        onFailure: {restartFrom: 'implement', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS},
+      },
     });
   });
 
@@ -3503,6 +3508,7 @@ describe('normalizeWorkflowDocument', () => {
         onFailure: {
           restartFrom: 'producer',
           feedback: reviewFeedback,
+          maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
           feedbackTemplate: [
             {kind: 'literal', value: 'Agent rejected the PR '},
             expect.objectContaining({kind: 'deferred'}),
@@ -4818,7 +4824,7 @@ describe('normalizeWorkflowDocument', () => {
     const model = normalizeWorkflowDocument(document);
 
     expect(model.jobs[0]?.steps[1]?.gate).toEqual({
-      onFailure: {restartFrom: 'install'},
+      onFailure: {restartFrom: 'install', maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS},
     });
   });
 

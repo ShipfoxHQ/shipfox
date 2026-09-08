@@ -3,7 +3,10 @@ import type {
   WorkflowExpression,
   WorkflowStepKind,
 } from '@shipfox/expression';
-import type {WorkflowDocumentStep} from '@shipfox/workflow-document';
+import {
+  WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
+  type WorkflowDocumentStep,
+} from '@shipfox/workflow-document';
 import type {WorkflowModelStepGate} from '../entities/workflow-model.js';
 import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
 import {parseInterpolationField} from './parse-interpolation-field.js';
@@ -51,6 +54,7 @@ export function normalizeStepGate(params: {
           restartFrom: gate.on_failure.restart_from,
           ...(gate.on_failure.feedback === undefined ? {} : {feedback: gate.on_failure.feedback}),
           ...(feedbackTemplate === undefined ? {} : {feedbackTemplate}),
+          maxAttempts: WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
         };
 
   if (gate.on_failure !== undefined && !params.previousStepKeys.has(gate.on_failure.restart_from)) {

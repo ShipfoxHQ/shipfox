@@ -218,7 +218,7 @@ describe('materializeWorkflowModel', () => {
               run: 'npm run build',
               gate: {
                 success: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
-                on_failure: {restart_from: 'install', feedback: 'Build failed'},
+                on_failure: {restart_from: 'install', max_attempts: 3, feedback: 'Build failed'},
               },
             },
             authoredConfig: null,
@@ -248,6 +248,28 @@ describe('materializeWorkflowModel', () => {
         ],
       },
     ]);
+  });
+
+  it('persists an explicit gate attempt limit in materialized configuration', async () => {
+    const model = workflowModel({
+      jobs: {
+        build: {
+          steps: [
+            {key: 'install', run: 'npm install'},
+            {
+              run: 'npm run build',
+              gate: {onFailure: {restartFrom: 'install', maxAttempts: 25}},
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = await materializeWorkflowModel({model});
+
+    expect(rows[0]?.steps[2]?.config).toMatchObject({
+      gate: {on_failure: {restart_from: 'install', max_attempts: 25}},
+    });
   });
 
   it('materializes an agent step as type "agent" with its config, alongside run steps', async () => {
@@ -311,7 +333,7 @@ describe('materializeWorkflowModel', () => {
         prompt: 'Review it.',
         gate: {
           success: {language: 'cel', check: 'typed', source: 'step.exit_code == 0'},
-          on_failure: {restart_from: 'implement'},
+          on_failure: {restart_from: 'implement', max_attempts: 3},
         },
       },
       authoredConfig: null,
