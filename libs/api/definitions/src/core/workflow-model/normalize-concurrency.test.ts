@@ -1,0 +1,180 @@
+import type {WorkflowDocument} from '@shipfox/workflow-document';
+import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
+import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.js';
+import {InvalidWorkflowModelError} from './invalid-workflow-model-error.js';
+import {normalizeWorkflowDocument} from './normalize-workflow-document.js';
+
+function normalize(
+  document: WorkflowDocument,
+  concurrency: Parameters<typeof normalizeWorkflowDocument>[1]['concurrency'],
+): {
+  model: ReturnType<typeof normalizeWorkflowDocument>;
+  diagnostics: WorkflowModelValidationIssue[];
+} {
+  const diagnostics: WorkflowModelValidationIssue[] = [];
+  const model = normalizeWorkflowDocument(document, {
+    agentValidationCatalog,
+    concurrency,
+    diagnostics,
+  });
+  return {model, diagnostics};
+}
+
+function interpolation(source: string): string {
+  return '$'.concat('{{ ', source, ' }}');
+}
+
+function baseDocument(overrides: Partial<WorkflowDocument> = {}): WorkflowDocument {
+  return {
+    name: 'Concurrency workflow',
+    runner: 'ubuntu-latest',
+    jobs: {
+      build: {steps: [{run: 'echo ok'}]},
+    },
+    ...overrides,
+  };
+}
+
+describe('normalizeWorkflowConcurrency', () => {
+  it('normalizes the group and applies workflow and false defaults', () => {
+    const {model, diagnostics} = normalize(baseDocument(), {group: 'production'});
+
+    expect(model.concurrency).toEqual({
+      group: [{kind: 'literal', value: 'production'}],
+      scope: 'workflow',
+      cancelInProgress: false,
+    });
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('keeps project scope and literal cancel_in_progress', () => {
+    const {model, diagnostics} = normalize(baseDocument(), {
+      group: 'production',
+      scope: 'project',
+      cancel_in_progress: true,
+    });
+
+    expect(model.concurrency).toEqual({
+      group: [{kind: 'literal', value: 'production'}],
+      scope: 'project',
+      cancelInProgress: true,
+    });
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('warns when the group references a root that can be null for a trigger', () => {
+    const {model, diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual'},
+          push: {source: 'github', event: 'push'},
+        },
+      }),
+      {group: interpolation('event.pull_request.number')},
+    );
+
+    expect(model.concurrency?.group[0]).toMatchObject({
+      kind: 'deferred',
+      roots: ['event'],
+      fillTarget: 'run-creation',
+    });
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        message: expect.stringContaining('manual'),
+        path: ['concurrency', 'group'],
+        severity: 'warning',
+        scope: 'definition',
+      }),
+    ]);
+  });
+
+  it('does not treat a conditional guard as proof of root availability', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {pull_request_number: 10}},
+          push: {source: 'github', event: 'push', with: {pull_request_number: 10}},
+        },
+      }),
+      {
+        group: interpolation(
+          'event != null ? event.pull_request.number : inputs.pull_request_number',
+        ),
+      },
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['event'], triggers: ['manual']},
+      }),
+    ]);
+  });
+
+  it('does not warn when inputs are configured for every trigger', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {environment: 'production'}},
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+        },
+      }),
+      {group: interpolation('inputs.environment')},
+    );
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('rejects concurrency for listening jobs', () => {
+    let error: unknown;
+    try {
+      normalize(
+        baseDocument({
+          jobs: {
+            listen: {
+              listening: {
+                on: [{source: 'github', event: 'pull_request'}],
+                timeout: '1h',
+              },
+              steps: [{run: 'echo event'}],
+            },
+          },
+        }),
+        {group: 'production'},
+      );
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+    expect((error as InvalidWorkflowModelError).issues).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-listening-job-unsupported',
+        path: ['concurrency'],
+      }),
+    ]);
+  });
+
+  it('rejects a non-literal cancel_in_progress value', () => {
+    let error: unknown;
+    try {
+      normalize(baseDocument(), {
+        group: 'production',
+        cancel_in_progress: interpolation('inputs.cancel') as never,
+      });
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+    expect((error as InvalidWorkflowModelError).issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-concurrency-cancel-in-progress',
+        path: ['concurrency', 'cancel_in_progress'],
+      }),
+    ]);
+  });
+});

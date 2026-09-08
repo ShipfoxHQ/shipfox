@@ -1,12 +1,16 @@
 import {definitionsInterModuleContract} from './inter-module.js';
-import {readPersistedWorkflowModel} from './workflow-model.js';
+import {
+  createWorkflowModelSnapshot,
+  readPersistedWorkflowModel,
+  type WorkflowModel,
+} from './workflow-model.js';
 
 const PROJECT_ID = '00000000-0000-4000-8000-000000000001';
 const WORKFLOW_ID = '00000000-0000-4000-8000-000000000002';
 const REF = 'refs/heads/main';
 const CONFIG_PATH = '.shipfox/workflows/ci.yml';
 const COMMIT = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
-const MODEL = {version: 3 as const, model: {kind: 'workflow'}};
+const MODEL = {version: 4 as const, model: {kind: 'workflow'}};
 
 describe('definitionsInterModuleContract', () => {
   test('exposes a versioned workflow snapshot', () => {
@@ -16,12 +20,12 @@ describe('definitionsInterModuleContract', () => {
         workflowId: '00000000-0000-4000-8000-000000000003',
         projectId: '00000000-0000-4000-8000-000000000002',
         name: 'Deploy',
-        model: {version: 3, model: {kind: 'workflow'}},
+        model: {version: 4, model: {kind: 'workflow'}},
         sourceSnapshot: null,
       },
     });
 
-    expect(result.definition?.model.version).toBe(3);
+    expect(result.definition?.model.version).toBe(4);
     expect(result.definition?.workflowId).toBe('00000000-0000-4000-8000-000000000003');
   });
 
@@ -31,8 +35,28 @@ describe('definitionsInterModuleContract', () => {
     ).toThrow();
   });
 
-  test('keeps v2 persisted snapshots readable', () => {
-    expect(readPersistedWorkflowModel({version: 2, model: {kind: 'workflow'}} as never)).toEqual({
+  test('round trips concurrency in the published snapshot shape', () => {
+    const model = {
+      kind: 'workflow',
+      name: 'Deploy',
+      triggers: [],
+      jobs: [],
+      dependencies: [],
+      concurrency: {
+        group: [{kind: 'literal', value: 'production'}],
+        scope: 'project',
+        cancelInProgress: true,
+      },
+    } satisfies WorkflowModel;
+
+    const snapshot = createWorkflowModelSnapshot(model);
+
+    expect(snapshot).toEqual({version: 4, model});
+    expect(readPersistedWorkflowModel(snapshot)).toEqual(model);
+  });
+
+  test.each([2, 3] as const)('keeps v%s persisted snapshots readable', (version) => {
+    expect(readPersistedWorkflowModel({version, model: {kind: 'workflow'}} as never)).toEqual({
       kind: 'workflow',
     });
   });

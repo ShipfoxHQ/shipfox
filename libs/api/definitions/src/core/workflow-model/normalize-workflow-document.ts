@@ -9,6 +9,10 @@ import {
   type WorkflowModelValidationIssue,
 } from './invalid-workflow-model-error.js';
 import {mapJobIds} from './map-job-ids.js';
+import {
+  normalizeWorkflowConcurrency,
+  type WorkflowModelConcurrencyInput,
+} from './normalize-concurrency.js';
 import {normalizeDependencies, validateCycles} from './normalize-dependencies.js';
 import {normalizeEnv} from './normalize-env.js';
 import {normalizeJobs} from './normalize-jobs.js';
@@ -25,6 +29,7 @@ export function normalizeWorkflowDocument(
     stepSourceLocations?: WorkflowStepSourceLocationMap | undefined;
     /** Provide a fresh array for each call to collect non-fatal validation issues. */
     diagnostics?: WorkflowModelValidationIssue[] | undefined;
+    concurrency?: WorkflowModelConcurrencyInput | undefined;
   },
 ): WorkflowModel {
   const issues: WorkflowModelValidationIssue[] = [];
@@ -52,6 +57,15 @@ export function normalizeWorkflowDocument(
     context,
   );
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
+  const documentWithConcurrency = document as WorkflowDocument & {
+    readonly concurrency?: WorkflowModelConcurrencyInput;
+  };
+  const concurrency = normalizeWorkflowConcurrency({
+    concurrency: options.concurrency ?? documentWithConcurrency.concurrency,
+    jobs,
+    declaredTriggers: document.triggers,
+    issues,
+  });
   const workflowEnv = normalizeEnv({env: document.env, path: ['env'], issues});
   const runName =
     document.run_name === undefined
@@ -70,6 +84,7 @@ export function normalizeWorkflowDocument(
     kind: 'workflow',
     name: unescapeLiteralName(document.name),
     ...(runName === undefined ? {} : {runName}),
+    ...(concurrency === undefined ? {} : {concurrency}),
     ...workflowEnv,
     triggers,
     jobs,

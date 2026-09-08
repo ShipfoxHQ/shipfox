@@ -19,5 +19,9 @@ export {
   type WorkflowModelValidationIssueScope,
   type WorkflowModelValidationIssueSeverity,
 } from './invalid-workflow-model-error.js';
+export {
+  normalizeWorkflowConcurrency,
+  type WorkflowModelConcurrencyInput,
+} from './normalize-concurrency.js';
 export {normalizeWorkflowDocument} from './normalize-workflow-document.js';
 export {populateDefaultGateMaxAttempts} from './populate-default-gate-max-attempts.js';

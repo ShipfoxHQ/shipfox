@@ -81,6 +81,27 @@ describe('parseDefinition', () => {
     });
   });
 
+  test('keeps authored concurrency rejected until its document field is enabled', () => {
+    try {
+      parseDefinition(`
+name: Concurrency
+runner: ubuntu-latest
+concurrency:
+  group: production
+jobs:
+  build:
+    steps:
+      - run: echo ok
+`);
+      expect.fail('Expected DefinitionParseError');
+    } catch (error) {
+      expect(error).toBeInstanceOf(DefinitionParseError);
+      expect((error as DefinitionParseError).details).toEqual([
+        expect.objectContaining({message: 'Unrecognized key: "concurrency"'}),
+      ]);
+    }
+  });
+
   test('attaches source line locations to workflow model steps', () => {
     const yaml = `name: Source locations
 runner: ubuntu-latest
