@@ -126,6 +126,44 @@ describe('normalizeWorkflowConcurrency', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('warns when a trigger provides an unrelated input key', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {region: 'us-east-1'}},
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+        },
+      }),
+      {group: interpolation('inputs.environment')},
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['inputs'], triggers: ['manual']},
+      }),
+    ]);
+  });
+
+  it('warns when a trigger provides an empty input map', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {}},
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+        },
+      }),
+      {group: interpolation('inputs.environment')},
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['inputs'], triggers: ['manual']},
+      }),
+    ]);
+  });
+
   it('rejects concurrency for listening jobs', () => {
     let error: unknown;
     try {

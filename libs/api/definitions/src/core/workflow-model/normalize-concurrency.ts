@@ -1,3 +1,4 @@
+import {analyzeContextRootKeyAccess} from '@shipfox/expression';
 import type {
   WorkflowFieldTemplate,
   WorkflowModelConcurrency,
@@ -145,8 +146,9 @@ function warnForNullableRoots(params: {
   if (params.declaredTriggers === undefined) return;
 
   const roots = referencedRoots(params.group);
+  const inputKeys = referencedInputKeys(params.group);
   const nullableByTrigger = Object.entries(params.declaredTriggers).flatMap(([key, trigger]) => {
-    const nullableRoots = roots.filter((root) => rootCanBeNullForTrigger(root, trigger));
+    const nullableRoots = roots.filter((root) => rootCanBeNullForTrigger(root, trigger, inputKeys));
     return nullableRoots.length === 0 ? [] : [{key, roots: nullableRoots}];
   });
   if (nullableByTrigger.length === 0) return;
@@ -167,14 +169,30 @@ function warnForNullableRoots(params: {
   );
 }
 
-function rootCanBeNullForTrigger(root: string, trigger: DeclaredTrigger): boolean {
+function rootCanBeNullForTrigger(
+  root: string,
+  trigger: DeclaredTrigger,
+  inputKeys: readonly string[],
+): boolean {
   if (root === 'event') return trigger.source === 'manual' || trigger.source === 'cron';
   if (root !== 'inputs') return false;
-  return trigger.with === undefined;
+  if (inputKeys.length === 0) return trigger.with === undefined;
+  return inputKeys.some((key) => trigger.with === undefined || !Object.hasOwn(trigger.with, key));
 }
 
 function referencedRoots(template: WorkflowFieldTemplate): readonly string[] {
   return unique(template.flatMap((segment) => (segment.kind === 'deferred' ? segment.roots : [])));
+}
+
+function referencedInputKeys(template: WorkflowFieldTemplate): readonly string[] {
+  return unique(
+    template.flatMap((segment) => {
+      if (segment.kind !== 'deferred' || !segment.roots.includes('inputs')) return [];
+      return analyzeContextRootKeyAccess(segment.expression, ['inputs']).references.map(
+        (reference) => reference.key,
+      );
+    }),
+  );
 }
 
 function unique(values: readonly string[]): readonly string[] {
