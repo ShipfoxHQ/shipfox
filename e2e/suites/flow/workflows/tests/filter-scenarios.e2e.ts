@@ -27,6 +27,7 @@ import {
   listenerStatusMatches,
   sendWebhookDeliveryUntilObserved,
   waitForListenerResolution,
+  waitForListenerStatus,
 } from '#listener-helpers.js';
 import {
   cleanupListenerCase,
@@ -36,7 +37,6 @@ import {
   setupListenerCase,
   stopRunner,
 } from '#listener-jobs.js';
-import {waitForRunObservationMatching} from '#polling.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {postWebhookDelivery} from '#webhook.js';
@@ -45,6 +45,7 @@ import {expect, test} from './fixtures.js';
 
 const TRIGGER_FILTER_NO_RUN_TIMEOUT_MS = 8_000;
 const LISTENER_NEGATIVE_ASSERTION_MS = 5_000;
+const LISTENER_FILTER_DELIVERY_TIMEOUT_MS = 60_000;
 const MATCHING_PR_NUMBER = '42';
 const NONMATCHING_PR_NUMBER = '41';
 
@@ -355,18 +356,12 @@ test.describe('filter scenarios', () => {
       });
       runId = await fireManualRun(testCase);
 
-      await waitForRunObservationMatching({
+      await waitForListenerStatus({
         token: testCase.token,
         runId,
-        timeoutMs: 90_000,
-        description: 'listener filter job to start listening',
-        selection: {jobs: [{jobKey: LISTENER_JOB}]},
-        matches: (observation) =>
-          listenerStatusMatches({
-            observation,
-            jobKey: LISTENER_JOB,
-            listenerStatus: 'listening',
-          }),
+        jobKey: LISTENER_JOB,
+        listenerStatus: 'listening',
+        timeoutMs: LISTENER_FILTER_DELIVERY_TIMEOUT_MS,
       });
 
       const nonmatchingFireDeliveryId = `${testCase.uniqueId}-fire-filtered`;
@@ -415,7 +410,8 @@ test.describe('filter scenarios', () => {
         token: testCase.token,
         jobKey: LISTENER_JOB,
         deliveryIdPrefix: `${testCase.uniqueId}-fire-matching`,
-        attemptTimeoutMs: 15_000,
+        maxAttempts: 1,
+        attemptTimeoutMs: LISTENER_FILTER_DELIVERY_TIMEOUT_MS,
         body: (_attempt, deliveryId) => ({
           issue: {number: MATCHING_PR_NUMBER},
           delivery_id: deliveryId,
