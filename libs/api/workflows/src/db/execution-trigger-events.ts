@@ -1,11 +1,12 @@
 import {and, asc, inArray} from 'drizzle-orm';
-import type {
-  WorkflowExecutionEvent,
-  WorkflowExecutionEventMetadata,
+import {
+  normalizeWorkflowExecutionEvent,
+  type WorkflowExecutionEvent,
+  type WorkflowExecutionEventMetadata,
 } from '#core/entities/job-execution.js';
 import type {db, Tx} from './db.js';
 import {normalizeListenerEvent} from './job-listener-events.js';
-import type {JobExecutionDb} from './schema/job-executions.js';
+import {type JobExecutionDb, jobExecutions} from './schema/job-executions.js';
 import {jobListenerEvents} from './schema/job-listener-events.js';
 
 /**
@@ -51,11 +52,13 @@ export async function loadJobExecutionsWithCanonicalTriggerEventMetadata(
       ),
     )
     .orderBy(asc(jobListenerEvents.receivedAt), asc(jobListenerEvents.id));
+  const canonicalExecutionIds = new Set<string>();
 
   for (const eventRow of eventRows) {
     if (eventRow.consumedByExecutionId === null) continue;
     const metadata = metadataByExecutionId.get(eventRow.consumedByExecutionId);
     if (metadata === undefined) continue;
+    canonicalExecutionIds.add(eventRow.consumedByExecutionId);
     metadata.push({
       event_ref: eventRow.eventRef,
       source: eventRow.source,
@@ -74,7 +77,40 @@ export async function loadJobExecutionsWithCanonicalTriggerEventMetadata(
     });
   }
 
+  const legacyExecutionIds = executions
+    .map((execution) => execution.id)
+    .filter((executionId) => !canonicalExecutionIds.has(executionId));
+  for (const [executionId, metadata] of await loadLegacyTriggerEventMetadata(
+    source,
+    legacyExecutionIds,
+  )) {
+    metadataByExecutionId.set(executionId, metadata);
+  }
+
   return metadataByExecutionId;
+}
+
+async function loadLegacyTriggerEventMetadata(
+  source: ReturnType<typeof db> | Tx,
+  executionIds: readonly string[],
+): Promise<ReadonlyMap<string, WorkflowExecutionEventMetadata[]>> {
+  if (executionIds.length === 0) return new Map();
+
+  const legacyRows = await source
+    .select({id: jobExecutions.id, triggerEvents: jobExecutions.triggerEvents})
+    .from(jobExecutions)
+    .where(inArray(jobExecutions.id, executionIds));
+  const metadataByExecutionId = new Map<string, WorkflowExecutionEventMetadata[]>();
+  for (const legacyRow of legacyRows) {
+    if (!Array.isArray(legacyRow.triggerEvents)) continue;
+    metadataByExecutionId.set(legacyRow.id, legacyRow.triggerEvents.map(metadataFromLegacyEvent));
+  }
+  return metadataByExecutionId;
+}
+
+function metadataFromLegacyEvent(event: WorkflowExecutionEvent): WorkflowExecutionEventMetadata {
+  const {data: _data, ...metadata} = normalizeWorkflowExecutionEvent(event);
+  return metadata;
 }
 
 /**

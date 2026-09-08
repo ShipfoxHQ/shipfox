@@ -250,6 +250,56 @@ describe('workflow run queries', () => {
       expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({status: 'succeeded'});
     });
 
+    test('resolves job status expressions from retained legacy execution events', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              success: 'executions[0].events[0].data.action == "opened"',
+              steps: [{run: 'npm test'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [job] = await getJobsByWorkflowRunId(run.id);
+      if (!job) throw new Error('Expected workflow job');
+      const execution = await getFirstJobExecutionByJobId(job.id);
+      if (!execution) throw new Error('Expected workflow job execution');
+      await db()
+        .update(jobExecutions)
+        .set({
+          status: 'succeeded',
+          triggerEvents: [
+            {
+              source: 'github',
+              event: 'pull_request',
+              delivery_id: 'legacy-status-delivery',
+              received_at: '2026-01-01T00:00:00.000Z',
+              project: null,
+              repository: null,
+              ref: null,
+              commit: null,
+              data: {action: 'opened'},
+            },
+          ],
+        })
+        .where(eq(jobExecutions.id, execution.id));
+
+      const resolved = await resolveJobStatusFromJobExecutions({jobId: job.id});
+
+      expect(resolved.status).toBe('succeeded');
+      expect((await getJobsByWorkflowRunId(run.id))[0]).toMatchObject({status: 'succeeded'});
+    });
+
     test('resolves custom job success expressions over direct dependency outputs', async () => {
       const run = await createWorkflowRun({
         workspaceId,

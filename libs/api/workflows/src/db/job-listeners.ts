@@ -1143,11 +1143,20 @@ async function loadListenerPriorExecutions(
     source,
     priorExecutions,
   );
-  const currentExecution = includeCurrentExecutionPayload ? priorExecutions.at(-1) : undefined;
+  const currentExecutionReference = includeCurrentExecutionPayload
+    ? priorExecutions.at(-1)
+    : undefined;
+  const currentExecution = currentExecutionReference
+    ? (
+        await source
+          .select()
+          .from(jobExecutions)
+          .where(eq(jobExecutions.id, currentExecutionReference.id))
+          .limit(1)
+      )[0]
+    : undefined;
   const currentExecutionEvents = currentExecution
-    ? await loadJobExecutionsWithCanonicalTriggerEvents(source, [
-        currentExecution as JobExecutionDb,
-      ])
+    ? await loadJobExecutionsWithCanonicalTriggerEvents(source, [currentExecution])
     : new Map<string, JobExecutionDb>();
   return priorExecutions.map((execution) => {
     const hydratedCurrent = currentExecutionEvents.get(execution.id);

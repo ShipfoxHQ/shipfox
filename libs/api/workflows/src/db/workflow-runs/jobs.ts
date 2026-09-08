@@ -599,11 +599,18 @@ export async function resolveJobStatusFromJobExecutions(params: {
       tx,
       jobExecutionRows,
     );
-    const currentExecutionRow = jobExecutionRows.at(-1);
+    const currentExecutionReference = jobExecutionRows.at(-1);
+    const currentExecutionRow = currentExecutionReference
+      ? (
+          await tx
+            .select()
+            .from(jobExecutions)
+            .where(eq(jobExecutions.id, currentExecutionReference.id))
+            .limit(1)
+        )[0]
+      : undefined;
     const currentExecution = currentExecutionRow
-      ? await loadJobExecutionsWithCanonicalTriggerEvents(tx, [
-          currentExecutionRow as JobExecutionDb,
-        ])
+      ? await loadJobExecutionsWithCanonicalTriggerEvents(tx, [currentExecutionRow])
       : new Map<string, JobExecutionDb>();
 
     const {status, statusReason, trace} = evaluateJobSuccess({

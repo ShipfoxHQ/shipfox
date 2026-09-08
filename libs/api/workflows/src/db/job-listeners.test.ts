@@ -15,6 +15,7 @@ import {
   MAX_LISTENER_TRIGGER_EVENTS_BYTES,
 } from '#core/listener-event-batching.js';
 import {db} from '#db/db.js';
+import {loadJobExecutionsWithCanonicalTriggerEventMetadata} from '#db/execution-trigger-events.js';
 import {deliverEventToListener} from '#db/job-listener-events.js';
 import {
   activateJobListener,
@@ -655,6 +656,43 @@ describe('resolveJobListener', () => {
     expect(stored?.status).toBe('succeeded');
     expect(stored?.listenerStatus).toBe('resolved');
     expect(stored?.resolutionReason).toBe('until');
+  });
+
+  it('resolves a listener from a retained legacy current execution event', async () => {
+    const job = await createListeningJobFromModel({
+      jobs: {
+        review: {
+          success: 'executions[0].events[0].data.action == "opened"',
+          steps: [{run: 'echo review'}],
+        },
+      },
+    });
+    const execution = await insertExecution(job.id, 1, 'succeeded');
+    await db()
+      .update(jobExecutions)
+      .set({
+        triggerEvents: [
+          {
+            source: 'github',
+            event: 'pull_request',
+            delivery_id: 'legacy-listener-delivery',
+            received_at: '2026-01-01T00:00:00.000Z',
+            project: null,
+            repository: null,
+            ref: null,
+            commit: null,
+            data: {action: 'opened'},
+          },
+        ],
+      })
+      .where(eq(jobExecutions.id, execution.id));
+
+    const result = await resolveJobListener({jobId: job.id, reason: 'until'});
+
+    const stored = await readJob(job.id);
+    expect(result.status).toBe('succeeded');
+    expect(stored?.status).toBe('succeeded');
+    expect(stored?.listenerStatus).toBe('resolved');
   });
 
   it('resolves a listener with zero firings under the default success rule', async () => {
@@ -1436,6 +1474,38 @@ describe('drainListenerEventsIntoExecution', () => {
     expect(byAttemptWithoutTriggerEvents.map((execution) => execution.triggerEvents)).toEqual([
       [],
       [],
+    ]);
+
+    const executionRows = await db()
+      .select()
+      .from(jobExecutions)
+      .where(eq(jobExecutions.jobId, job.id))
+      .orderBy(asc(jobExecutions.sequence));
+    const eventMetadata = await loadJobExecutionsWithCanonicalTriggerEventMetadata(
+      db(),
+      executionRows,
+    );
+    expect(eventMetadata.get(first?.id ?? '')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_ref: expect.any(String),
+          delivery_id: expect.any(String),
+          source: 'github',
+        }),
+      ]),
+    );
+    expect(eventMetadata.get(first?.id ?? '')?.[0]).not.toHaveProperty('data');
+    expect(eventMetadata.get(legacyExecution.id)).toEqual([
+      {
+        source: 'github',
+        event: 'push',
+        delivery_id: 'legacy-fallback',
+        received_at: '2026-01-01T00:03:00.000Z',
+        project: null,
+        repository: null,
+        ref: null,
+        commit: null,
+      },
     ]);
 
     const dependencyListener = await createListenerWithDependencies({

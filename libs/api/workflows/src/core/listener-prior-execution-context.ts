@@ -1,8 +1,8 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
   analyzeContextPathAccess,
+  type ContextPathAccessAnalysis,
   type ContextPathReference,
-  extractExactContextRoots,
   type ResolvedFieldSegment,
   type WorkflowExpression,
 } from '@shipfox/expression';
@@ -37,14 +37,13 @@ export function planListenerPriorExecutionContext(params: {
   const historicalExecutionPaths: ContextPathReference[] = [];
   let hasDynamicHistoricalExecutionAccess = false;
   const pathPlan = {
-    add(source: string) {
-      try {
-        const analysis = analyzeContextPathAccess(source, ['executions']);
-        historicalExecutionPaths.push(...analysis.references);
-        hasDynamicHistoricalExecutionAccess ||= analysis.unknown.length > 0;
-      } catch {
-        hasDynamicHistoricalExecutionAccess = true;
-      }
+    add(analysis: ContextPathAccessAnalysis) {
+      historicalExecutionPaths.push(
+        ...analysis.references.filter((reference) => reference.root === 'executions'),
+      );
+      hasDynamicHistoricalExecutionAccess ||= analysis.unknown.some(
+        (access) => access.root === 'executions',
+      );
     },
   };
 
@@ -85,13 +84,16 @@ export function listenerPriorExecutionEventsRequired(params: {
 }
 
 function historicalExecutionPathNeedsEventMetadata(reference: ContextPathReference): boolean {
-  if (reference.cardinalityOnly === true) return false;
+  const referencesEventCollection = reference.segments.some(
+    (segment) => segment === 'events' || segment === 'trigger_events',
+  );
+  if (reference.cardinalityOnly === true && !referencesEventCollection) return false;
   if (reference.wholeElement === true || reference.segments.length <= 1) return true;
-  return reference.segments.some((segment) => segment === 'events' || segment === 'trigger_events');
+  return referencesEventCollection;
 }
 
 interface ExpressionPathPlan {
-  add(source: string): void;
+  add(analysis: ContextPathAccessAnalysis): void;
 }
 
 function collectExpressionRoots(
@@ -123,8 +125,10 @@ function collectExpressionRoots(
 }
 
 function addExpressionPlan(source: string, roots: Set<string>, pathPlan: ExpressionPathPlan): void {
-  for (const root of extractExactContextRoots(source)) roots.add(root);
-  pathPlan.add(source);
+  const analysis = analyzeContextPathAccess(source);
+  for (const reference of analysis.references) roots.add(reference.root);
+  for (const access of analysis.unknown) roots.add(access.root);
+  pathPlan.add(analysis);
 }
 
 function isWorkflowExpression(value: object): value is WorkflowExpression {
