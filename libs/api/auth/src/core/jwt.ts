@@ -14,8 +14,8 @@ export type TokenMembership = z.infer<typeof tokenMembershipSchema>;
 const impersonatorIdSchema = z.string().uuid();
 
 // UUIDs are case-insensitive hex strings: compare normalized values so a
-// re-cased impersonatorId cannot pass off the subject as its own impersonator.
-function isSameUuid(a: string, b: string): boolean {
+// re-cased identifier cannot change an authorization decision.
+export function isSameUuid(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
@@ -32,6 +32,7 @@ export const userTokenClaimsSchema = z
     memberships: z.array(tokenMembershipSchema),
     iat: z.number().int(),
     exp: z.number().int(),
+    jti: z.string().uuid().optional(),
   })
   .refine(
     (claims) =>
@@ -48,6 +49,7 @@ export interface SignUserTokenParams {
   email: string;
   name?: string | null | undefined;
   memberships: TokenMembership[];
+  jti?: string | undefined;
   secret: string | Uint8Array;
   expiresIn: string;
 }
@@ -74,6 +76,7 @@ export async function signUserToken(params: SignUserTokenParams): Promise<string
       memberships: params.memberships,
       refreshSessionId: params.refreshSessionId,
       impersonatorId: params.impersonatorId,
+      jti: params.jti,
     },
     secret: params.secret,
     expiresIn: params.expiresIn,

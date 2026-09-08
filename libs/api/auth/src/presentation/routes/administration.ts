@@ -61,7 +61,13 @@ import {
   EmailNotVerifiedError,
   ImpersonationDisabledError,
   ImpersonationExpiredError,
+  ImpersonationStopReasonRequiredError,
   ImpersonationTargetNotActiveError,
+  ImpersonationTargetNotWorkspaceMemberError,
+  ImpersonationWindowDeadlineReachedError,
+  ImpersonationWindowLimitReachedError,
+  ImpersonationWindowNotFoundError,
+  ImpersonationWindowStoppedError,
   InvalidAdminBootstrapTokenError,
   InvalidAdministratorUserDirectoryFilterError,
   InvalidCredentialsError,
@@ -74,7 +80,7 @@ import {createAuthActorRateLimitPreHandler, createAuthIpRateLimitPreHandler} fro
 
 const idempotencyKeyMaxLength = 256;
 
-function requireActorId(request: FastifyRequest): string {
+export function requireActorId(request: FastifyRequest): string {
   const client = getClientContext(request);
   if (!client) {
     throw new ClientError('Authentication required', 'unauthorized', {status: 401});
@@ -82,7 +88,7 @@ function requireActorId(request: FastifyRequest): string {
   return client.userId;
 }
 
-function requireIdempotencyKey(request: FastifyRequest): string {
+export function requireIdempotencyKey(request: FastifyRequest): string {
   const value = request.headers['idempotency-key'];
   const key = Array.isArray(value) ? value[0] : value;
   if (!key || key.trim().length === 0 || key.length > idempotencyKeyMaxLength) {
@@ -108,7 +114,7 @@ function toAdminGrantDto(grant: AdminGrant) {
   };
 }
 
-function toAdministratorUserSummaryDto(user: AdministratorUserSummary) {
+export function toAdministratorUserSummaryDto(user: AdministratorUserSummary) {
   return {
     id: user.id,
     email: user.email,
@@ -199,7 +205,53 @@ function translateImpersonationEligibilityError(error: unknown): ClientError | u
   return undefined;
 }
 
-function translateAdministrationError(error: unknown): never {
+function translateImpersonationWindowError(error: unknown): ClientError | undefined {
+  if (error instanceof ImpersonationWindowNotFoundError) {
+    return new ClientError('Impersonation window not found', 'impersonation-window-not-found', {
+      status: 404,
+    });
+  }
+  if (error instanceof ImpersonationWindowStoppedError) {
+    return new ClientError(
+      'Impersonation window has already stopped',
+      'impersonation-window-stopped',
+      {status: 409},
+    );
+  }
+  if (error instanceof ImpersonationWindowDeadlineReachedError) {
+    return new ClientError(
+      'Impersonation window deadline has been reached',
+      'impersonation-window-deadline-reached',
+      {status: 410},
+    );
+  }
+  if (error instanceof ImpersonationWindowLimitReachedError) {
+    return new ClientError(
+      'The administrator already has the maximum number of open impersonation windows',
+      'impersonation-window-limit-reached',
+      {status: 409},
+    );
+  }
+  if (error instanceof ImpersonationStopReasonRequiredError) {
+    return new ClientError(
+      "A reason is required to stop another actor's impersonation window",
+      'impersonation-stop-reason-required',
+      {status: 400},
+    );
+  }
+  if (error instanceof ImpersonationTargetNotWorkspaceMemberError) {
+    return new ClientError(
+      'Impersonation target is not an active member of the required workspace',
+      'impersonation-target-not-workspace-member',
+      {status: 409},
+    );
+  }
+  return undefined;
+}
+
+export function translateAdministrationError(error: unknown): never {
+  const impersonationWindowError = translateImpersonationWindowError(error);
+  if (impersonationWindowError) throw impersonationWindowError;
   const impersonationEligibilityError = translateImpersonationEligibilityError(error);
   if (impersonationEligibilityError) throw impersonationEligibilityError;
   if (error instanceof AdminRoleRequiredError) {

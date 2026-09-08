@@ -27,6 +27,7 @@ import {
   createAdministrationUserRoutes,
 } from '#presentation/routes/administration.js';
 import {createAgentAccessManagementRoutes} from '#presentation/routes/agent-access.js';
+import {createImpersonationWindowRoutes} from '#presentation/routes/impersonation-windows.js';
 import {buildAuthRoutes} from '#presentation/routes/index.js';
 import {createOAuthAuthorizationRoutes, createOAuthRoutes} from '#presentation/routes/oauth.js';
 import {onPasswordResetSendRequested} from '#presentation/subscribers/index.js';
@@ -59,17 +60,26 @@ export {
   revokeAdminGrant,
 } from '#core/admin-role.js';
 export type {
+  ContinueImpersonationWindowParams,
+  ImpersonationWindowView,
   ListAdministratorUsersParams,
   ListAdministratorUsersResult,
+  StartImpersonationWindowParams,
+  StopImpersonationWindowParams,
 } from '#core/administration.js';
 export {
   bootstrapFirstAdminOwner,
+  continueImpersonationWindow,
+  getImpersonationWindow,
   grantAdministratorRole,
   impersonateUser,
   listAdministratorUsers,
+  listImpersonationWindows,
   reactivateAdministratorUser,
   revokeAdministratorGrant,
   revokeAdministratorUserSessions,
+  startImpersonationWindow,
+  stopImpersonationWindow,
   suspendAdministratorUser,
 } from '#core/administration.js';
 export type {AgentGrantSummary} from '#core/agent-access.js';
@@ -281,6 +291,7 @@ export function createAuthModule({
       administrationBootstrapRoutes,
       administrationRoutes,
       ...createAdministrationUserRoutes(workspaces),
+      createImpersonationWindowRoutes(workspaces),
       createOAuthRoutes({apiPublicUrl: config.API_PUBLIC_URL}),
       createOAuthAuthorizationRoutes({
         apiPublicUrl: config.API_PUBLIC_URL,

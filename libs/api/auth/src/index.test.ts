@@ -88,10 +88,24 @@ describe('authModule', () => {
         getWorkspaceOperatingState: vi.fn(),
       },
     });
-    expect(module.routes).toHaveLength(8);
+    expect(module.routes).toHaveLength(9);
     expect(module.routes).toEqual(
       expect.arrayContaining([expect.objectContaining({prefix: '/admin/auth'})]),
     );
+    const windowRoute = module.routes?.find(
+      (route) => 'prefix' in route && route.prefix === '/admin/auth/impersonation/windows',
+    );
+    const windowRoutePaths =
+      windowRoute && 'routes' in windowRoute
+        ? windowRoute.routes.map((route) => ('path' in route ? route.path : route.prefix))
+        : undefined;
+    expect(windowRoutePaths).toEqual([
+      '/',
+      '/:windowId/continue',
+      '/:windowId/stop',
+      '/',
+      '/:windowId',
+    ]);
     const signupPolicy = buildAuthRoutes.mock.calls[0]?.[2];
 
     expect(signupPolicy).toEqual(expect.objectContaining({isSignupAllowed: expect.any(Function)}));

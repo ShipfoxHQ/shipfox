@@ -73,6 +73,11 @@ const impersonationStopCount = meter.createCounter<{outcome: AuthImpersonationOu
   {description: 'Impersonation window Stop attempts by outcome'},
 );
 
+const impersonationAuditWriteFailureCount = meter.createCounter(
+  'auth_impersonation_audit_write_failures',
+  {description: 'Impersonation failure audit writes that could not be persisted'},
+);
+
 const impersonationWindowEndedCount = meter.createCounter<{
   reason: AuthImpersonationWindowEndedReason;
 }>('auth_impersonation_windows_ended', {
@@ -142,6 +147,10 @@ export function recordImpersonationContinuationOutcome(outcome: AuthImpersonatio
 
 export function recordImpersonationStopOutcome(outcome: AuthImpersonationOutcome): void {
   recordMetric(() => impersonationStopCount.add(1, {outcome}));
+}
+
+export function recordImpersonationAuditWriteFailure(): void {
+  recordMetric(() => impersonationAuditWriteFailureCount.add(1));
 }
 
 export function recordImpersonationWindowEnded(reason: AuthImpersonationWindowEndedReason): void {

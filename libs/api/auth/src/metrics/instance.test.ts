@@ -107,6 +107,12 @@ describe('auth metrics', () => {
     ).toHaveBeenCalledWith(42);
   });
 
+  it('records impersonation audit write failures without labels', () => {
+    metrics.recordImpersonationAuditWriteFailure();
+
+    expect(counterAdd('auth_impersonation_audit_write_failures')).toHaveBeenCalledWith(1);
+  });
+
   it('does not record invalid window durations', () => {
     metrics.recordImpersonationWindowDuration(-1);
     metrics.recordImpersonationWindowDuration(Number.NaN);

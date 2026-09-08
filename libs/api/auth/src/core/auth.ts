@@ -102,7 +102,7 @@ function recordRefreshOutcome(outcome: AuthTokenRefreshOutcome): void {
 
 type TokenMemberships = TokenMembership[];
 
-async function loadTokenMemberships(
+export async function loadTokenMemberships(
   userId: string,
   workspaces: WorkspacesInterModuleClient,
 ): Promise<TokenMemberships> {
@@ -487,7 +487,7 @@ export interface CreateImpersonatedSessionTokenResult {
   user: User;
 }
 
-function impersonationTtlSeconds(): number {
+export function impersonationTtlSeconds(): number {
   const configuredSeconds = durationToSeconds(config.AUTH_JWT_EXPIRES_IN);
   const ttlSeconds = Math.min(configuredSeconds, IMPERSONATION_MAX_TTL_SECONDS);
   if (ttlSeconds <= 0) {
@@ -496,6 +496,48 @@ function impersonationTtlSeconds(): number {
     );
   }
   return ttlSeconds;
+}
+
+export interface CreateImpersonatedSessionTokenFromClaimsParams {
+  user: User;
+  memberships: TokenMemberships;
+  impersonatorId: string;
+  expiresIn?: string | undefined;
+  unique?: boolean | undefined;
+}
+
+/**
+ * Signs an impersonated token from one already-loaded user and membership
+ * snapshot. Window commands use this form so a required-workspace check and
+ * the JWT claims cannot observe different membership snapshots.
+ */
+export async function createImpersonatedSessionTokenFromClaims(
+  params: CreateImpersonatedSessionTokenFromClaimsParams,
+): Promise<CreateImpersonatedSessionTokenResult> {
+  if (!config.AUTH_IMPERSONATION_ENABLED) throw new ImpersonationDisabledError();
+
+  const ttlSeconds =
+    params.expiresIn === undefined
+      ? impersonationTtlSeconds()
+      : Math.min(durationToSeconds(params.expiresIn), IMPERSONATION_MAX_TTL_SECONDS);
+  if (ttlSeconds <= 0) {
+    throw new TypeError(
+      `Impersonation token TTL must be at least 1 second, got ${params.expiresIn}`,
+    );
+  }
+
+  const token = await signUserToken({
+    userId: params.user.id,
+    email: params.user.email,
+    name: params.user.name,
+    memberships: params.memberships,
+    impersonatorId: params.impersonatorId,
+    ...(params.unique ? {jti: crypto.randomUUID()} : {}),
+    secret: userAccessTokenKey(),
+    expiresIn: `${ttlSeconds}s`,
+  });
+  const claims = await verifyUserToken({token, secret: userAccessTokenKey()});
+  return {token, expiresAt: new Date(claims.exp * 1000), user: params.user};
 }
 
 /**
@@ -525,35 +567,12 @@ export async function createImpersonatedSessionToken(
   }
 
   const memberships = await loadTokenMemberships(user.id, params.workspaces);
-  const ttlSeconds =
-    params.expiresIn === undefined
-      ? impersonationTtlSeconds()
-      : Math.min(durationToSeconds(params.expiresIn), IMPERSONATION_MAX_TTL_SECONDS);
-  if (ttlSeconds <= 0) {
-    throw new TypeError(
-      `Impersonation token TTL must be at least 1 second, got ${params.expiresIn}`,
-    );
-  }
-
-  const token = await signUserToken({
-    userId: user.id,
-    email: user.email,
-    name: user.name,
+  return await createImpersonatedSessionTokenFromClaims({
+    user,
     memberships,
     impersonatorId: params.impersonatorId,
-    secret: userAccessTokenKey(),
-    expiresIn: `${ttlSeconds}s`,
+    ...(params.expiresIn === undefined ? {} : {expiresIn: params.expiresIn}),
   });
-
-  // The advertised expiry is the token's actual signed `exp`, never a
-  // clock-derived estimate: the signer stamps `iat`/`exp` in whole seconds, so
-  // `Date.now() + ttl` could drift up to a second from the signed claims in
-  // either direction. Deriving `expiresAt` from the signed token keeps the
-  // response, the stored command result, and the bearer token exactly aligned,
-  // which is what lets a replay re-sign with a TTL that never extends the
-  // window (`exp` of the re-signed token is at most the original `exp`).
-  const claims = await verifyUserToken({token, secret: userAccessTokenKey()});
-  return {token, expiresAt: new Date(claims.exp * 1000), user};
 }
 
 export interface RefreshAccessTokenResult {

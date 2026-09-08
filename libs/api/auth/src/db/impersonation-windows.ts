@@ -205,6 +205,49 @@ export async function listOpenImpersonationWindows(
 
 export const listOpenImpersonationWindowsForActor = listOpenImpersonationWindows;
 
+export interface ListAllOpenImpersonationWindowsParams {
+  now: Date;
+  limit: number;
+  cursor?: TimestampIdCursor | undefined;
+}
+
+export async function listAllOpenImpersonationWindows(
+  params: ListAllOpenImpersonationWindowsParams,
+  executor?: ImpersonationWindowExecutor,
+): Promise<ImpersonationWindowPage>;
+export async function listAllOpenImpersonationWindows(
+  executor: ImpersonationWindowExecutor,
+  params: ListAllOpenImpersonationWindowsParams,
+): Promise<ImpersonationWindowPage>;
+export async function listAllOpenImpersonationWindows(
+  first: ListAllOpenImpersonationWindowsParams | ImpersonationWindowExecutor,
+  second?: ListAllOpenImpersonationWindowsParams | ImpersonationWindowExecutor,
+): Promise<ImpersonationWindowPage> {
+  const {executor, params} = resolveExecutorAndParams(first, second);
+  const cursorCondition = timestampIdCursorWhere({
+    timestampColumn: impersonationWindows.startedAt,
+    idColumn: impersonationWindows.id,
+    cursor: params.cursor,
+  });
+  const conditions = [
+    isNull(impersonationWindows.endedAt),
+    gt(impersonationWindows.deadlineAt, params.now),
+    ...(cursorCondition ? [cursorCondition] : []),
+  ];
+  const rows = await executor
+    .select()
+    .from(impersonationWindows)
+    .where(and(...conditions))
+    .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id))
+    .limit(params.limit + 1);
+  const page = paginateTimestampIdRows({
+    rows: rows.map(toImpersonationWindow),
+    limit: params.limit,
+    timestampKey: 'startedAt',
+  });
+  return {rows: page.pageRows, nextCursor: page.nextCursor};
+}
+
 export async function listImpersonationWindowsByTarget(
   params: ListImpersonationWindowsByTargetParams,
   executor?: ImpersonationWindowExecutor,
@@ -369,21 +412,22 @@ export async function countAllOpenImpersonationWindows(now = new Date()): Promis
 export async function requireImpersonationWindowCapacity(
   params: ImpersonationWindowActorTimeParams,
   executor?: ImpersonationWindowExecutor,
-): Promise<void>;
+): Promise<ImpersonationWindow[]>;
 export async function requireImpersonationWindowCapacity(
   executor: ImpersonationWindowExecutor,
   params: ImpersonationWindowActorTimeParams,
-): Promise<void>;
+): Promise<ImpersonationWindow[]>;
 export async function requireImpersonationWindowCapacity(
   first: ImpersonationWindowActorTimeParams | ImpersonationWindowExecutor,
   second?: ImpersonationWindowActorTimeParams | ImpersonationWindowExecutor,
-): Promise<void> {
+): Promise<ImpersonationWindow[]> {
   const {executor, params} = resolveExecutorAndParams(first, second);
-  await materializeExpiredImpersonationWindows(executor, params);
+  const expiredWindows = await materializeExpiredImpersonationWindows(executor, params);
   const openCount = await countOpenImpersonationWindows(executor, params);
   if (openCount >= MAX_OPEN_IMPERSONATION_WINDOWS) {
     throw new ImpersonationWindowLimitReachedError();
   }
+  return expiredWindows;
 }
 
 export const assertImpersonationWindowCapacity = requireImpersonationWindowCapacity;
