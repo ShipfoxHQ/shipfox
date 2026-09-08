@@ -58,7 +58,10 @@ export default defineConfig(
             browser: {
               enabled: true,
               headless: true,
-              provider: playwright(),
+              provider: playwright({
+                // Framer Motion honors this preference; Argos CSS alone cannot stop JS animations.
+                contextOptions: {reducedMotion: 'reduce'},
+              }),
               instances: [{browser: 'chromium'}],
             },
           },
