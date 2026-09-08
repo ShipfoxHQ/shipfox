@@ -44,6 +44,10 @@ describe('CIMD fetch', () => {
       serverResponse.setHeader('content-type', 'application/json');
       serverResponse.end(JSON.stringify(validDocument));
     });
+    let secureConnections = 0;
+    server.on('secureConnection', () => {
+      secureConnections += 1;
+    });
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
       server.listen(0, '127.0.0.1', () => {
@@ -59,15 +63,20 @@ describe('CIMD fetch', () => {
     setDefaultCACertificates([...previousCertificates, certificate]);
     setDefaultAutoSelectFamily(true);
     try {
-      const result = await requestPinnedHttps({
-        url: new URL(`https://client.example:${address.port}/.well-known/oauth-client`),
-        address: {address: '127.0.0.1', family: 4},
-        timeoutMs: 1_000,
-        maxBodyBytes: OAUTH_CIMD_MAX_BODY_BYTES,
-      });
+      const request = () =>
+        requestPinnedHttps({
+          url: new URL(`https://client.example:${address.port}/.well-known/oauth-client`),
+          address: {address: '127.0.0.1', family: 4},
+          timeoutMs: 1_000,
+          maxBodyBytes: OAUTH_CIMD_MAX_BODY_BYTES,
+        });
+      const firstResult = await request();
+      const secondResult = await request();
 
-      expect(result.statusCode).toBe(200);
-      expect(JSON.parse(Buffer.from(result.body).toString('utf8'))).toEqual(validDocument);
+      expect(firstResult.statusCode).toBe(200);
+      expect(secondResult.statusCode).toBe(200);
+      expect(JSON.parse(Buffer.from(firstResult.body).toString('utf8'))).toEqual(validDocument);
+      expect(secureConnections).toBe(2);
     } finally {
       setDefaultAutoSelectFamily(previousAutoSelectFamily);
       setDefaultCACertificates(previousCertificates);

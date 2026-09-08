@@ -169,10 +169,6 @@ function logOAuthMetadataFetchFailure(
     failureReason: error.reason,
   };
   try {
-    if (error.reason === 'dns-failed' || error.reason === 'connection-failed') {
-      request.log.error(context, 'OAuth client metadata fetch failed');
-      return;
-    }
     request.log.warn(context, 'OAuth client metadata fetch failed');
   } catch {
     // Logging must not change the protocol-safe OAuth response.

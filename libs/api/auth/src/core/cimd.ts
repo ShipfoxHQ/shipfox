@@ -312,6 +312,7 @@ export function requestPinnedHttps(params: {
       servername: hostname,
       timeout: params.timeoutMs,
       signal: params.signal,
+      agent: false,
       autoSelectFamily: false,
       // The address was resolved before this request and is the only value
       // the TLS connection is allowed to use.

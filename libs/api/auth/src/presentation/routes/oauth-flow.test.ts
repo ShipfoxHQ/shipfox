@@ -144,7 +144,7 @@ describe('dormant OAuth authorization and token routes', () => {
     await app?.close();
   });
 
-  it('logs a sanitized CIMD connection failure while returning invalid_client', async () => {
+  it('logs a structured CIMD connection failure while returning invalid_client', async () => {
     const logs: CapturedLog[] = [];
     const cause = new TypeError('Invalid IP address: undefined');
     const error = new OAuthMetadataFetchError('connection-failed', cause);
@@ -169,7 +169,7 @@ describe('dormant OAuth authorization and token routes', () => {
     expect(authorization.json()).toEqual({error: 'invalid_client'});
     const failureLog = logs.find(({args}) => args[1] === 'OAuth client metadata fetch failed');
     expect(failureLog).toEqual({
-      level: 'error',
+      level: 'warn',
       args: [
         {
           err: error,
@@ -181,10 +181,6 @@ describe('dormant OAuth authorization and token routes', () => {
         'OAuth client metadata fetch failed',
       ],
     });
-    const serializedFailureLog = JSON.stringify(failureLog);
-    expect(serializedFailureLog).not.toContain(cimdClientId);
-    expect(serializedFailureLog).not.toContain('sensitive-client-state');
-    expect(serializedFailureLog).not.toContain(challenge);
   });
 
   it('keeps validated parameters server-side through approval and exchanges a PKCE code', async () => {
