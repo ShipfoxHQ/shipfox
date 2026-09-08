@@ -182,7 +182,7 @@ describe('E2E managed inference fixture', () => {
     expect(acceptedRefreshAt.statusCode).toBe(200);
   });
 
-  it('keeps credential state bounded and excludes unknown tokens from generation stats', async () => {
+  it('keeps credential state bounded and excludes unissued generations from stats', async () => {
     const fixture = createE2eManagedInferenceProvider('http://provider.test', 'e2e-admin-key');
     if (fixture === undefined) throw new Error('fixture should be configured');
     const app = await createApp({
@@ -238,6 +238,14 @@ describe('E2E managed inference fixture', () => {
     expect(newest.statusCode).toBe(200);
 
     const before = await app.inject({method: 'GET', url: '/managed-inference/stats'});
+    const unissuedGeneration = await app.inject({
+      method: 'POST',
+      url: '/__e2e-managed-inference/v1/chat/completions',
+      headers: {authorization: 'Bearer shipfox-e2e-bounded-step-1000-g999'},
+      payload: {model: 'e2e-renewable-pi'},
+    });
+    expect(unissuedGeneration.statusCode).toBe(401);
+
     for (let index = 0; index < 10; index += 1) {
       const unknown = await app.inject({
         method: 'POST',

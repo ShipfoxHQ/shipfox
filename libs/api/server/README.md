@@ -12,6 +12,7 @@ Runs a Shipfox API server.
 - **`createServer()`**: Builds an API server. The caller owns process signals.
 - **`runServer()`**: Starts the server. It listens for SIGTERM and SIGINT.
 - **`./config`**: Exposes the API server's runtime configuration, including E2E route settings.
+- **`shouldMountE2eRoutes()`**: Reports whether the E2E routes should mount for a server configuration.
 - **`createLoginMethodsRoute()`**: Builds the public login-method catalog route. `createServer` mounts it automatically.
 - **Instrumentation preload**: Starts metrics and optional logs early. Load it before feature modules.
 

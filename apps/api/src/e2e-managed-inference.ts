@@ -237,16 +237,12 @@ function createInferenceAuth(state: InferenceState, adminApiKey: string | undefi
       if (!isCurrentCredential(credential)) {
         state.stats.expiredRequests += 1;
         if (credential.tokenDetails !== undefined && credential.credentialState !== undefined) {
-          recordGeneration(
-            state,
-            credential.tokenDetails.generation,
-            credential.credentialState.model,
-          );
+          recordGeneration(state, credential.tokenDetails.generation, credential.credentialState);
         }
         throw new ClientError('Expired credential', 'unauthorized', {status: 401});
       }
       state.stats.acceptedRequests += 1;
-      recordGeneration(state, credential.tokenDetails.generation, credential.credentialState.model);
+      recordGeneration(state, credential.tokenDetails.generation, credential.credentialState);
       return Promise.resolve();
     },
   };
@@ -505,14 +501,16 @@ function bodyBoolean(body: unknown, key: string): boolean {
 function recordGeneration(
   state: InferenceState,
   generation: number,
-  model: string | undefined,
+  credentialState: CredentialState,
 ): void {
+  if (generation >= credentialState.nextGeneration) return;
+
   const key = String(generation);
   state.stats.requestsByGeneration[key] = (state.stats.requestsByGeneration[key] ?? 0) + 1;
-  if (model === undefined) return;
 
-  const requestsByGeneration = state.stats.requestsByModelAndGeneration[model] ?? {};
-  state.stats.requestsByModelAndGeneration[model] = requestsByGeneration;
+  const requestsByGeneration =
+    state.stats.requestsByModelAndGeneration[credentialState.model] ?? {};
+  state.stats.requestsByModelAndGeneration[credentialState.model] = requestsByGeneration;
   requestsByGeneration[key] = (requestsByGeneration[key] ?? 0) + 1;
 }
 
