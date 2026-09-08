@@ -10,7 +10,8 @@ export default defineConfig({
   globalTeardown: './tests/global-teardown.ts',
   reporter: process.env.CI ? 'github' : 'list',
   fullyParallel: true,
-  workers: 4,
+  // CI shares one API, dispatcher, and Temporal stack with other E2E packages.
+  workers: process.env.CI ? 2 : 4,
   // A scenario waits on real provisioning and execution; its own poll budgets
   // (expect.yaml timeout_seconds, plus the helper defaults) are the real deadlines,
   // so keep the Playwright per-test timeout comfortably above them.

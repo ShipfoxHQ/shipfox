@@ -83,10 +83,11 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
         sourceDefaultBranch: 'main',
       });
       await activateGithubConnection(suite, connection.id);
-      await waitForDefinitionSyncTerminal({
+      await waitForGithubDefinitionSync({
+        connectionId: connection.id,
+        githubApi,
         projectId: project.id,
-        token: suite.sessionToken,
-        timeoutMs: TERMINAL_TIMEOUT_MS,
+        suite,
       });
       githubApi.calls.length = 0;
       const issueReadTool = `mcp__shipfox_integration_tools__${connection.slug}__issue_read`;
@@ -554,10 +555,11 @@ async function createGithubFixture(suite: SuiteContext, uniqueId: string): Promi
       sourceDefaultBranch: 'main',
     });
     await activateGithubConnection(suite, connection.id);
-    await waitForDefinitionSyncTerminal({
+    await waitForGithubDefinitionSync({
+      connectionId: connection.id,
+      githubApi,
       projectId: project.id,
-      token: suite.sessionToken,
-      timeoutMs: TERMINAL_TIMEOUT_MS,
+      suite,
     });
     githubApi.calls.length = 0;
     return {connection, githubApi, installationId, installationToken, project};
@@ -573,6 +575,28 @@ interface GithubFixture {
   installationId: number;
   installationToken: string;
   project: ProjectResponseDto;
+}
+
+async function waitForGithubDefinitionSync(params: {
+  connectionId: string;
+  githubApi: GithubApiMock;
+  projectId: string;
+  suite: SuiteContext;
+}): Promise<void> {
+  try {
+    await waitForDefinitionSyncTerminal({
+      projectId: params.projectId,
+      token: params.suite.sessionToken,
+      timeoutMs: TERMINAL_TIMEOUT_MS,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const providerCallKinds = params.githubApi.calls.map((call) => call.kind);
+    throw new Error(
+      `GitHub definition sync readiness failed: connectionId=${params.connectionId}, projectId=${params.projectId}, expectedWorkflowIdPrefix=definition-sync:${params.projectId}:integration:, providerCallKinds=[${providerCallKinds.join(', ')}]; ${message}`,
+      {cause: error},
+    );
+  }
 }
 
 async function activateGithubConnection(suite: SuiteContext, connectionId: string): Promise<void> {
