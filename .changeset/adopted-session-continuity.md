@@ -3,4 +3,4 @@
 "@shipfox/client-api": minor
 ---
 
-Adds bounded adopted-session boot restoration, token continuation, attendance-aware renewal, request gating, and release lifecycle callbacks.
+Restores adopted sessions at boot, exposes continuation and renewal options with bounded release-reason callbacks, and gates requests until renewal succeeds or the session ends.

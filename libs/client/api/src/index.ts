@@ -285,7 +285,7 @@ async function getRetryAccessTokenOrThrowOriginal(
   try {
     return await retryAccessToken(accessToken, signal);
   } catch (retryError) {
-    if (isAdoptedSessionGateError(retryError)) throw retryError;
+    if (isAdoptedSessionGateError(retryError) || signal?.aborted) throw retryError;
     throw originalError;
   }
 }

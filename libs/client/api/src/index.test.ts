@@ -255,6 +255,32 @@ describe('checked API transport', () => {
     expect(request.headers.get('authorization')).toBe('Bearer administrator-token');
   });
 
+  test('propagates an aborted retry supplier failure', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      );
+    const controller = new AbortController();
+    const abortError = new Error('Request aborted');
+    const retryAccessToken = vi.fn(({signal}: {signal: AbortSignal | undefined}): string => {
+      expect(signal).toBe(controller.signal);
+      controller.abort(abortError);
+      throw abortError;
+    });
+    configureApiClient({
+      fetchImpl,
+      getAccessToken: () => 'expired-token',
+      retryAccessToken,
+    });
+
+    const result = transportRequest('/workspaces', {signal: controller.signal});
+
+    await expect(result).rejects.toBe(abortError);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(retryAccessToken).toHaveBeenCalledOnce();
+  });
+
   test('cookie-only requests use cookies without reading or preparing a configured bearer', async () => {
     const fetchImpl = vi
       .fn()

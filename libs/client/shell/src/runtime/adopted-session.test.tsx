@@ -966,6 +966,45 @@ describe('adopted-session runtime seam', () => {
     expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION_DTO.token);
   });
 
+  test('continuity stalled renewals reach the terminal limit', async () => {
+    useFakeTimersWithWaitFor();
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    const {apiRef, store} = renderAuthHarness();
+    await waitForCookieSession(store, ADMIN_SESSION_DTO.token);
+
+    const serverTime = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 60_000).toISOString();
+    const renewal: AdoptedSessionRenewal = {
+      session: {...ADOPTED_SESSION, accessToken: 'same-expiry-token'},
+      expiresAt,
+      serverTime,
+    };
+    const renew = vi.fn(() => Promise.resolve(renewal));
+    const api = harnessApi(apiRef);
+    await api.adoptSession(ADOPTED_SESSION, {
+      continuity: true,
+      expiresAt,
+      serverTime,
+      renew,
+    });
+
+    await expect(api.renewAdoptedSession()).resolves.toBeNull();
+    const secondRenewal = api.renewAdoptedSession();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(secondRenewal).resolves.toBeNull();
+    const thirdRenewal = api.renewAdoptedSession();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(thirdRenewal).resolves.toBeNull();
+
+    expect(renew).toHaveBeenCalledTimes(3);
+    await waitFor(() => expect(apiRef.current?.adoptedSession).toBeNull());
+    expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION_DTO.token);
+  });
+
   test('a malformed renewal response is never adopted and degrades to the cookie refresh', async () => {
     useFakeTimersWithWaitFor();
     const {apiRef, store} = renderAuthHarness();

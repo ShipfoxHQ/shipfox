@@ -251,6 +251,31 @@ function monotonicNow(): number {
   return performance.now();
 }
 
+function throwIfRequestAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw signal.reason ?? new Error('Operation aborted');
+}
+
+async function waitForRequestSignal<T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  throwIfRequestAborted(signal);
+  if (signal === undefined) return await promise;
+
+  let onAbort: (() => void) | undefined;
+  const abort = new Promise<never>((_, reject) => {
+    const handleAbort = () => reject(signal.reason ?? new Error('Operation aborted'));
+    onAbort = handleAbort;
+    signal.addEventListener('abort', handleAbort, {once: true});
+    if (signal.aborted) handleAbort();
+  });
+  try {
+    return await Promise.race([promise, abort]);
+  } finally {
+    if (onAbort !== undefined) signal.removeEventListener('abort', onAbort);
+  }
+}
+
 function hasVisibleFocusedDocument(): boolean {
   return (
     typeof document !== 'undefined' &&
@@ -607,25 +632,41 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
   return control;
 }
 
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function retryAfterSecondsMs(value: unknown): number | undefined {
+  let seconds: number;
+  if (typeof value === 'number') {
+    seconds = value;
+  } else if (typeof value === 'string' && RETRY_AFTER_SECONDS_RE.test(value)) {
+    seconds = Number(value);
+  } else {
+    return undefined;
+  }
+  if (!isNonNegativeFiniteNumber(seconds)) return undefined;
+  const delayMs = seconds * 1_000;
+  return Number.isFinite(delayMs) ? delayMs : undefined;
+}
+
 function retryAfterMs(error: unknown): number | undefined {
   const candidate = error as {retryAfterMs?: unknown; retryAfter?: unknown};
-  if (typeof candidate.retryAfterMs === 'number' && candidate.retryAfterMs >= 0) {
-    return candidate.retryAfterMs;
-  }
-  if (typeof candidate.retryAfter === 'number' && candidate.retryAfter >= 0) {
-    return candidate.retryAfter;
-  }
+  if (isNonNegativeFiniteNumber(candidate.retryAfterMs)) return candidate.retryAfterMs;
+  if (isNonNegativeFiniteNumber(candidate.retryAfter)) return candidate.retryAfter;
   if (!(error instanceof ApiError) || typeof error.details !== 'object' || error.details === null) {
     return undefined;
   }
-  const details = error.details as Record<string, unknown>;
+  const envelope = error.details as Record<string, unknown>;
+  const details =
+    typeof envelope.details === 'object' && envelope.details !== null
+      ? (envelope.details as Record<string, unknown>)
+      : envelope;
+  const retryAfterSeconds = retryAfterSecondsMs(details.retry_after_seconds);
+  if (retryAfterSeconds !== undefined) return retryAfterSeconds;
   const value = details.retry_after ?? details.retryAfter ?? details['retry-after'];
-  if (typeof value === 'number' && value >= 0) return value;
-  if (typeof value === 'string' && RETRY_AFTER_SECONDS_RE.test(value)) {
-    const seconds = Number(value);
-    return Number.isFinite(seconds) ? seconds * 1_000 : undefined;
-  }
-  return undefined;
+  if (isNonNegativeFiniteNumber(value)) return value;
+  return retryAfterSecondsMs(value);
 }
 
 function continuationFailure(
@@ -905,15 +946,30 @@ export function useAdoptedSession() {
   );
 
   const waitForDelay = useCallback(
-    async (delayMs: number, generation: number, wakeable = false): Promise<void> => {
+    async (
+      delayMs: number,
+      generation: number,
+      wakeable = false,
+      signal?: AbortSignal,
+    ): Promise<void> => {
+      throwIfRequestAborted(signal);
       if (delayMs <= 0) return;
       const timer = new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+      let wakeResolver: (() => void) | undefined;
       const wake = wakeable
         ? new Promise<void>((resolve) => {
-            control.wakeWaiters.add(resolve);
+            wakeResolver = () => resolve();
+            control.wakeWaiters.add(wakeResolver);
           })
         : undefined;
-      await waitForRelease(wake ? Promise.race([timer, wake]) : timer, generation);
+      try {
+        await waitForRequestSignal(
+          waitForRelease(wake ? Promise.race([timer, wake]) : timer, generation),
+          signal,
+        );
+      } finally {
+        if (wakeResolver !== undefined) control.wakeWaiters.delete(wakeResolver);
+      }
     },
     [control, waitForRelease],
   );
@@ -1062,10 +1118,12 @@ export function useAdoptedSession() {
           (candidate.expiryMs > candidate.currentExpiryMs ||
             candidate.currentExpiryMs > Date.parse(adopted.expiresAt));
         if (lostRace) return {kind: 'stale'};
-        if (current.stalledRenewals + 1 >= CONTINUATION_STALL_LIMIT) {
+        const stalled = {...current, stalledRenewals: current.stalledRenewals + 1};
+        store.set(adoptedSessionAtom, stalled);
+        if (stalled.stalledRenewals >= CONTINUATION_STALL_LIMIT) {
           return {kind: 'terminal', reason: 'continuation-terminal'};
         }
-        const delayMs = setRetryableState(current, 0);
+        const delayMs = setRetryableState(stalled, 0);
         return {kind: 'retryable', delayMs};
       }
       if (current.hardDeadlineMs !== undefined && candidate.expiryMs > current.hardDeadlineMs) {
@@ -1181,11 +1239,14 @@ export function useAdoptedSession() {
   const continueForRequest = useCallback(
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: every terminal and retryable gate outcome is handled at the request boundary.
     async (input: AdoptedSessionContinuationInput, force: boolean): Promise<string> => {
+      const signal = input.signal;
+      throwIfRequestAborted(signal);
       const requestGeneration = store.get(adoptedSessionAtom)?.generation;
       if (requestGeneration === undefined) {
         throw createAdoptedSessionEndedError(control.lastReleaseReason);
       }
       while (true) {
+        throwIfRequestAborted(signal);
         const current = store.get(adoptedSessionAtom);
         if (current === null || current.generation !== requestGeneration) {
           throw createAdoptedSessionEndedError(control.lastReleaseReason);
@@ -1193,7 +1254,10 @@ export function useAdoptedSession() {
         const now = monotonicNow();
         const tokenExpired = now >= current.tokenExpiresAtMs;
 
-        if (!force && !tokenExpired) return current.session.accessToken;
+        if (!force && !tokenExpired) {
+          throwIfRequestAborted(signal);
+          return current.session.accessToken;
+        }
         if (!isAttended(current, now)) {
           store.set(adoptedSessionAtom, {
             ...current,
@@ -1206,23 +1270,30 @@ export function useAdoptedSession() {
           current.hardDeadlineMonotonicMs !== undefined &&
           now >= current.hardDeadlineMonotonicMs
         ) {
-          await endAdoption('hard-deadline');
+          await waitForRequestSignal(endAdoption('hard-deadline'), signal);
+          throwIfRequestAborted(signal);
           throw createAdoptedSessionEndedError('hard-deadline');
         }
-        const attempt = await runContinuityRenewal(input);
-        if (attempt.kind === 'success') return attempt.renewal.session.accessToken;
+        const attempt = await waitForRequestSignal(runContinuityRenewal(input), signal);
+        throwIfRequestAborted(signal);
+        if (attempt.kind === 'success') {
+          throwIfRequestAborted(signal);
+          return attempt.renewal.session.accessToken;
+        }
         if (attempt.kind === 'paused') throw createAdoptedSessionPausedError();
         if (attempt.kind === 'terminal') {
-          await endAdoption(attempt.reason);
+          await waitForRequestSignal(endAdoption(attempt.reason), signal);
+          throwIfRequestAborted(signal);
           throw createAdoptedSessionEndedError(attempt.reason);
         }
         if (attempt.kind === 'stale') continue;
 
         const latest = store.get(adoptedSessionAtom);
         if (latest === null) throw createAdoptedSessionEndedError(control.lastReleaseReason);
+        throwIfRequestAborted(signal);
         if (!isAttended(latest)) throw createAdoptedSessionPausedError();
         const retryAt = latest.retryAtMs ?? monotonicNow();
-        await waitForDelay(Math.max(0, retryAt - monotonicNow()), latest.generation, true);
+        await waitForDelay(Math.max(0, retryAt - monotonicNow()), latest.generation, true, signal);
         force = true;
       }
     },
