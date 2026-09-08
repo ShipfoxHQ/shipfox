@@ -26,6 +26,7 @@ export async function startSuiteLocalRunner(params: {
   runnerInstanceId?: string | undefined;
   extraEnv?: Record<string, string> | undefined;
   renewableGit?: boolean | undefined;
+  renewableInference?: boolean | undefined;
 }): Promise<{runner: LocalRunnerHandle; logFile: string}> {
   const registrationToken = await mintManualRegistrationToken({
     workspaceId: params.workspaceId,
@@ -50,6 +51,9 @@ export async function startSuiteLocalRunner(params: {
       extraEnv: {
         ...(params.extraEnv ?? {}),
         ...(params.renewableGit === true ? {SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT: 'true'} : {}),
+        ...(params.renewableInference === true
+          ? {SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE: 'true'}
+          : {}),
       },
     }),
     logFile,

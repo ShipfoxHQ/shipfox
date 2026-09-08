@@ -187,6 +187,7 @@ jobs:
     steps:
       - key: linear
         harness: claude
+        provider: anthropic
         thinking: low
         prompt: Use the selected Linear tools.
         integrations:

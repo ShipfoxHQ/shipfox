@@ -539,12 +539,24 @@ importers:
 
   apps/api:
     dependencies:
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/agent-dto
       '@shipfox/api-server':
         specifier: workspace:*
         version: link:../../libs/api/server
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../libs/shared/common/config
       '@shipfox/node-error-monitoring':
         specifier: workspace:*
         version: link:../../libs/shared/node/error-monitoring
+      '@shipfox/node-fastify':
+        specifier: workspace:*
+        version: link:../../libs/shared/node/fastify
+      '@shipfox/node-module':
+        specifier: workspace:*
+        version: link:../../libs/shared/node/module
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../libs/shared/node/opentelemetry

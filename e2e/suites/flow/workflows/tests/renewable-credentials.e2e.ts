@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {createApiClient} from '@shipfox/e2e-core';
+import {createApiClient, config as e2eConfig} from '@shipfox/e2e-core';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {waitForDefinition} from '@shipfox/e2e-observe-definitions';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
@@ -13,16 +13,28 @@ import {
 import {createProject as createE2eProject} from '@shipfox/e2e-setup-projects';
 import {attachLocalRunnerLog} from '#attachments.js';
 import {createProject} from '#create-project.js';
-import {ON_REJECTION_WORKFLOW} from '#renewable-credentials-workflows.js';
+import {
+  ON_REJECTION_WORKFLOW,
+  RENEWABLE_INFERENCE_WORKFLOW,
+} from '#renewable-credentials-workflows.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
+import {seedAndWaitForDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const RUNNER_TERMINAL_TIMEOUT_MS = 180_000;
 const TEST_TIMEOUT_MS = 300_000;
 const TEST_VCS_TOKEN_PATTERN = /test-vcs-[0-9a-f-]{20,}/u;
 const TEST_VCS_REFRESH_WAIT_SECONDS = 2;
+interface InferenceFixtureStats {
+  resolutions: number;
+  expiredRequests: number;
+  acceptedRequests: number;
+  resolutionsByModel: Record<string, number>;
+  requestsByGeneration: Record<string, number>;
+  requestsByModelAndGeneration: Record<string, Record<string, number>>;
+}
 
 const REFRESH_AT_WORKFLOW = `
 name: Renewable Git refresh at
@@ -119,6 +131,108 @@ jobs:
 `;
 
 test.describe.configure({mode: 'serial'});
+
+test('renews managed inference credentials for both harnesses', async ({suite}, testInfo) => {
+  test.setTimeout(TEST_TIMEOUT_MS);
+  const uniqueId = shortId();
+  const runnerLabel = `e2e-renewable-inference-${uniqueId}`;
+  const repo = `renewable-inference-${uniqueId}`;
+  const configPath = `.shipfox/workflows/${repo}.yml`;
+  const adminClient = createApiClient({token: e2eConfig.E2E_ADMIN_API_KEY});
+  const before = await adminClient.requestJson<InferenceFixtureStats>(
+    'get',
+    '/__e2e/managed-inference/stats',
+  );
+  const project = await seedAndWaitForDefinition({
+    suite,
+    token: suite.sessionToken,
+    name: 'renewable-inference',
+    repo,
+    runnerLabel,
+    workflowYaml: RENEWABLE_INFERENCE_WORKFLOW,
+    configPath,
+  });
+
+  const {terminal, logFiles} = await runWorkflow({
+    suite,
+    testInfo,
+    definitionId: project.definition.id,
+    scenario: 'renewable-inference',
+    runnerLabel,
+    renewableGit: false,
+    renewableInference: true,
+  });
+  const after = await adminClient.requestJson<InferenceFixtureStats>(
+    'get',
+    '/__e2e/managed-inference/stats',
+  );
+  const logs = await Promise.all(logFiles.map((logFile) => readFile(logFile, 'utf8')));
+
+  expect(terminal.status).toBe('succeeded');
+  expect(terminal.jobs.find((job) => job.key === 'build')?.status).toBe('succeeded');
+  expect(after.resolutions - before.resolutions).toBeGreaterThanOrEqual(8);
+  expect(after.expiredRequests - before.expiredRequests).toBeGreaterThanOrEqual(2);
+  expect(after.acceptedRequests - before.acceptedRequests).toBeGreaterThanOrEqual(4);
+  expect(resolutionsForModelDelta(before, after, 'e2e-renewable-pi')).toBeGreaterThanOrEqual(2);
+  expect(resolutionsForModelDelta(before, after, 'e2e-renewable-claude')).toBeGreaterThanOrEqual(2);
+  expect(
+    resolutionsForModelDelta(before, after, 'e2e-refresh-renewable-pi'),
+  ).toBeGreaterThanOrEqual(2);
+  expect(
+    resolutionsForModelDelta(before, after, 'e2e-refresh-renewable-claude'),
+  ).toBeGreaterThanOrEqual(2);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-pi', 1),
+  ).toBeGreaterThanOrEqual(1);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-pi', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-claude', 1),
+  ).toBeGreaterThanOrEqual(1);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-renewable-claude', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-pi', 1)).toBe(0);
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-pi', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-claude', 1)).toBe(
+    0,
+  );
+  expect(
+    requestsForModelAndGenerationDelta(before, after, 'e2e-refresh-renewable-claude', 2),
+  ).toBeGreaterThanOrEqual(1);
+  expect(logs.join('\n')).not.toContain('shipfox-e2e-');
+});
+
+function resolutionsForModelDelta(
+  before: InferenceFixtureStats,
+  after: InferenceFixtureStats,
+  model: string,
+): number {
+  return (after.resolutionsByModel[model] ?? 0) - (before.resolutionsByModel[model] ?? 0);
+}
+
+function requestsForModelAndGeneration(
+  stats: InferenceFixtureStats,
+  model: string,
+  generation: number,
+): number {
+  return stats.requestsByModelAndGeneration[model]?.[String(generation)] ?? 0;
+}
+
+function requestsForModelAndGenerationDelta(
+  before: InferenceFixtureStats,
+  after: InferenceFixtureStats,
+  model: string,
+  generation: number,
+): number {
+  return (
+    requestsForModelAndGeneration(after, model, generation) -
+    requestsForModelAndGeneration(before, model, generation)
+  );
+}
 
 test('renews rejected credentials across multiple checkouts', async ({
   suite,
@@ -456,6 +570,7 @@ async function runWorkflow(params: {
   runnerCount?: number | undefined;
   runnerLabels?: readonly string[] | undefined;
   renewableGit: boolean;
+  renewableInference?: boolean | undefined;
 }): Promise<{terminal: WorkflowRunObservation; logFiles: string[]}> {
   const token = params.suite.sessionToken;
   const client = createApiClient({token});
@@ -480,6 +595,7 @@ async function runWorkflow(params: {
             SHIPFOX_POLL_MAX_DURATION_MS: String(RUNNER_TERMINAL_TIMEOUT_MS),
           },
           renewableGit: params.renewableGit,
+          renewableInference: params.renewableInference,
         }),
       );
     }

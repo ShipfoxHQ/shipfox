@@ -108,6 +108,7 @@ jobs:
     steps:
       - key: slack
         harness: claude
+        provider: anthropic
         thinking: low
         prompt: Read the thread and reply.
         integrations:

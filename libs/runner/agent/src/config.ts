@@ -26,6 +26,10 @@ export const config = createConfig({
     desc: 'Enables the runner-local renewable Git credential broker. Source-run defaults remain disabled; verified managed images set this after the helper and production closure are checked.',
     default: false,
   }),
+  SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE: bool({
+    desc: 'Enables renewable managed inference credentials. Source-run defaults remain disabled; verified managed images set this only after an API release that accepts renewable_inference in runner capability reports is deployed everywhere.',
+    default: false,
+  }),
 });
 
 export function runnerEgressPolicy(): EgressPolicy {

@@ -37,6 +37,16 @@
         "types": "./dist/instrumentation.d.ts",
         "default": "./dist/instrumentation.js"
       }
+    },
+    "./config": {
+      "workspace-source": {
+        "types": "./src/config.ts",
+        "default": "./src/config.ts"
+      },
+      "default": {
+        "types": "./dist/config.d.ts",
+        "default": "./dist/config.js"
+      }
     }
   },
   "scripts": {

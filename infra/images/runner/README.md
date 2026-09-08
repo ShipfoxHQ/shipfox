@@ -135,10 +135,13 @@ The image derives its tool capabilities from its baked runner runtime and sends 
 enrollment. Providers do not inject capabilities, workspace IDs, workspace registration tokens,
 or activation tokens into user data.
 
-The image owns `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT`. The container image sets it only after the
-production-closure verifier passes. The AMI service unit sets it only after `install-runner.sh`
-has run that same verifier, so a partial image bake cannot advertise the helper. Provider-rendered
-environment files must not set this flag.
+The image owns `SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT` and
+`SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE`. The container image sets them only after the
+production-closure verifier passes. The AMI service unit sets them only after `install-runner.sh`
+has run that same verifier, so a partial image bake cannot advertise either helper. A flag-on
+inference image requires an API release that accepts `renewable_inference` in runner capability
+reports to be deployed on every API instance before the image is used. Provider-rendered
+environment files must not set either flag.
 
 Older self-managed images remain compatible: they use static checkout credentials. When a persisted
 checkout reaches one, the API writes an upgrade warning to the job annotations without blocking
@@ -162,6 +165,10 @@ Roll out a verified image through a candidate and one managed canary before flee
 The image build and canary prove different boundaries. A passing Packer or Docker build proves the
 helper is packaged. The canary proves the managed runner selects it against the deployed API and
 provider. Neither check makes a live rollout green without its monitoring evidence.
+
+The same image-first ordering applies to renewable inference. Replace the flag-on image with a
+static image before downgrading any API below the release that accepts `renewable_inference` in
+runner capability reports.
 
 `shipfox-runner.service` powers off immediately when the runner exits. Its SIGTERM drain budget is 90 seconds, after which systemd can force-kill the process and the backend re-reserves the job. The image accepts `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS` for compatibility but does not arm an age-based timer or fallback poweroff from that key. Before an orchestration-owned exit, the runner writes one bounded `runner.shutdown_intent` event to the structured logger and the direct EC2 console descriptor, identifying a success, controlled exit, or fatal failure. AWS builds also enable a Spot IMDSv2 watcher that stops the runner, allows it to drain briefly, then powers off.
 

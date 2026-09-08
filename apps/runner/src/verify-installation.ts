@@ -1,3 +1,5 @@
+import {constants} from 'node:fs';
+import {access} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {assertBundledClaudeCodeVersion} from '@shipfox/runner-agent/claude-code';
 import {assertPiHarnessExtensionsAvailable} from '@shipfox/runner-agent/pi-extensions';
@@ -8,6 +10,7 @@ const RUNNER_RUNTIME_EXPORTS = [
   '@shipfox/runner-agent/pi-image-rasterizer',
   '@shipfox/runner-agent/tool-capabilities',
   '@shipfox/runner-agent/step',
+  '@shipfox/runner-agent/claude-auth-helper',
   '@shipfox/runner-execution/git-credential-helper',
   './git-credential-helper.js',
 ] as const;
@@ -19,6 +22,26 @@ for (const specifier of RUNNER_RUNTIME_EXPORTS) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Unable to resolve runner runtime export "${specifier}": ${reason}`);
   }
+}
+
+const claudeAuthHelperPath = require.resolve('@shipfox/runner-agent/claude-auth-helper');
+const runnerAgentRequire = createRequire(claudeAuthHelperPath);
+try {
+  runnerAgentRequire.resolve('@shipfox/runner-workspace/credential-socket-transport');
+} catch (error) {
+  const reason = error instanceof Error ? error.message : String(error);
+  throw new Error(
+    `Unable to resolve runner runtime export "@shipfox/runner-workspace/credential-socket-transport": ${reason}`,
+  );
+}
+
+try {
+  await access(claudeAuthHelperPath, constants.X_OK);
+} catch (error) {
+  const reason = error instanceof Error ? error.message : String(error);
+  throw new Error(
+    `Claude credential helper is not executable at "${claudeAuthHelperPath}": ${reason}`,
+  );
 }
 
 // Runs during the container and AMI image builds, against the deployed production closure rather

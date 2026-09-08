@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import {accessSync, constants, existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
@@ -13,9 +14,26 @@ import {
   CLAUDE_CREDENTIAL_TIMEOUT_ENV,
 } from '#core/claude-credential-broker.js';
 
-export const CLAUDE_AUTH_HELPER_PATH = fileURLToPath(
-  new URL('./claude-auth-helper.js', import.meta.url),
+const localHelperPath = fileURLToPath(new URL('./claude-auth-helper.js', import.meta.url));
+const bundledHelperPath = fileURLToPath(
+  new URL('../../dist/core/claude-auth-helper.js', import.meta.url),
 );
+
+// Workspace-source runners execute TypeScript through tsx, but Claude Code starts the helper as
+// an operating-system child process. Use the chmod'd package build for that child while keeping
+// the normal dist-relative path when this module itself is bundled into the image.
+const selectedHelperPath = existsSync(localHelperPath) ? localHelperPath : bundledHelperPath;
+
+try {
+  accessSync(selectedHelperPath, constants.X_OK);
+} catch (error) {
+  const reason = error instanceof Error ? error.message : String(error);
+  throw new Error(
+    `Claude credential helper is missing or not executable at "${selectedHelperPath}": ${reason}`,
+  );
+}
+
+export const CLAUDE_AUTH_HELPER_PATH = selectedHelperPath;
 
 interface WritableOutput {
   write(chunk: string): unknown;

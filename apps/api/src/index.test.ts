@@ -6,11 +6,13 @@ const mocks = vi.hoisted(() => ({
   },
   defaultModules: vi.fn(),
   runServer: vi.fn(),
+  shouldMountE2eRoutes: vi.fn(),
 }));
 
 vi.mock('@shipfox/api-server', () => ({
   defaultModules: mocks.defaultModules,
   runServer: mocks.runServer,
+  shouldMountE2eRoutes: mocks.shouldMountE2eRoutes,
 }));
 
 vi.mock('@shipfox/node-error-monitoring', () => ({
@@ -30,8 +32,10 @@ describe('index', () => {
     mocks.logger.error.mockReset();
     mocks.defaultModules.mockReset();
     mocks.runServer.mockReset();
+    mocks.shouldMountE2eRoutes.mockReset();
     mocks.closeErrorMonitoring.mockResolvedValue(true);
     mocks.defaultModules.mockResolvedValue([]);
+    mocks.shouldMountE2eRoutes.mockReturnValue(false);
   });
 
   afterEach(() => {

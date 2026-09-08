@@ -927,6 +927,7 @@ describe('systemd boot activation', () => {
     expect(systemdDirective(unit, 'Unit', 'FailureAction')).toBe('poweroff-immediate');
     expect(systemdDirective(unit, 'Service', 'StandardOutput')).toBe('journal+console');
     expect(unit).toContain('Environment=SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT=true');
+    expect(unit).toContain('Environment=SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true');
     expect(unit).not.toContain('--enable-source-maps');
   });
 
@@ -1542,11 +1543,18 @@ describe('runner container entrypoint', () => {
       "import {assertBundledClaudeCodeVersion} from '@shipfox/runner-agent/claude-code';",
     );
     expect(verifyInstallation).toContain('assertBundledClaudeCodeVersion();');
+    expect(verifyInstallation).toContain('constants.X_OK');
+    expect(verifyInstallation).toContain("'@shipfox/runner-agent/claude-auth-helper'");
+    expect(verifyInstallation).toContain("'@shipfox/runner-workspace/credential-socket-transport'");
     expect(verifyInstallation).toContain("'@shipfox/runner-execution/git-credential-helper'");
     expect(verifyInstallation).toContain("'./git-credential-helper.js'");
     expect(dockerfile).toContain('ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT=true');
+    expect(dockerfile).toContain('ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true');
     expect(dockerfile.indexOf('RUN node ./dist/verify-installation.js')).toBeLessThan(
       dockerfile.indexOf('ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT=true'),
+    );
+    expect(dockerfile.indexOf('RUN node ./dist/verify-installation.js')).toBeLessThan(
+      dockerfile.indexOf('ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true'),
     );
     expect(dockerfile).toContain('ENTRYPOINT ["tini", "--"]');
     expect(dockerfile).toContain('CMD ["node", "./dist/index.js"]');

@@ -116,15 +116,19 @@ COPY --from=build /prod ./
 # is not linked onto PATH by pnpm. Keep Git's name-based helper resolution usable in production.
 RUN ln -s /app/dist/git-credential-helper.js /usr/local/bin/git-credential-shipfox
 
-# Verify the production dependency closure contains every Pi extension entry and the
-# WASM-backed SVG image-preparation assets, plus the Git credential helper, before
-# the image can be published. This runs against the deployed flat layout, not the
-# pnpm development tree.
+# Verify the production dependency closure contains every Pi extension entry, the
+# WASM-backed SVG image-preparation assets, the renewable credential helpers, and
+# the bundled Claude Code binary before the image can be published. This runs
+# against the deployed flat layout, not the pnpm development tree.
 RUN node ./dist/verify-installation.js
 
 # This image has passed the installation gate, so managed containers may advertise
-# renewable Git credentials. Source-run and older images retain the flag's false default.
+# renewable Git and inference credentials. Source-run and older images retain the
+# flags' false defaults. An API release that accepts `renewable_inference` in
+# runner capability reports must be deployed everywhere before this image is
+# used for renewable inference.
 ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT=true
+ENV SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE=true
 
 USER shipfox
 

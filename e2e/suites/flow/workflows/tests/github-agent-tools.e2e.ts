@@ -876,6 +876,7 @@ jobs:
     steps:
       - key: github
         harness: claude
+        provider: anthropic
         thinking: low
         prompt: Use the selected GitHub tools.
         integrations:

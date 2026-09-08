@@ -222,6 +222,10 @@ export function e2eEnv(sourceEnv) {
     CLIENT_URL: clientUrl,
     E2E_ADMIN_API_KEY: valueOr(sourceEnv.E2E_ADMIN_API_KEY, defaultE2eAdminApiKey),
     E2E_ENABLED: valueOr(sourceEnv.E2E_ENABLED, 'true'),
+    E2E_MANAGED_PROVIDER_BASE_URL: valueOr(
+      sourceEnv.E2E_MANAGED_PROVIDER_BASE_URL,
+      `${apiUrl}/__e2e-managed-inference`,
+    ),
     AUTH_ROOT_KEY: valueOr(sourceEnv.AUTH_ROOT_KEY, 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY='),
     // Impersonation ships disabled by default; the E2E deployment opts in so
     // the mint route is live for the suite that exercises it. The admin
