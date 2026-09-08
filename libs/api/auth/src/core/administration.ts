@@ -3,6 +3,7 @@ import type {AdminRole} from '@shipfox/api-auth-dto';
 import {createAdministrationActionEvent} from '@shipfox/api-common-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import type {TimestampIdCursor} from '@shipfox/node-drizzle';
+import {durationToSeconds} from '@shipfox/node-jwt';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {config} from '#config.js';
 import {
@@ -18,23 +19,57 @@ import {
   suspendUserWithAudit,
   type UserModerationResult,
 } from '#db/admin-user-moderation.js';
+import {findAdministratorUserSummary as findAdministratorUserSummaryInDb} from '#db/admin-user-summary.js';
 import {
   findAdministratorUser as findAdministratorUserInDb,
   listAdministratorUsers as listAdministratorUsersInDb,
 } from '#db/admin-users.js';
+import {db} from '#db/db.js';
 import {
   type ImpersonationResult,
   impersonateUserWithAudit,
   impersonationSucceededEventExists,
   publishImpersonationFailure,
 } from '#db/impersonation.js';
-import {recordImpersonationOutcome} from '#metrics/index.js';
+import {
+  continueImpersonationWindowCommand,
+  IMPERSONATION_WINDOW_CONTINUE_COMMAND,
+  IMPERSONATION_WINDOW_START_COMMAND,
+  type ImpersonationWindowCommandOutcome,
+  type ImpersonationWindowContinueCommandParams,
+  type ImpersonationWindowMintCommandParams,
+  type ImpersonationWindowMintResult,
+  type ImpersonationWindowStopCommandParams,
+  type ImpersonationWindowStopResult,
+  type ImpersonationWindowTerminalTransition,
+  publishImpersonationWindowFailure,
+  startImpersonationWindowCommand,
+  stopImpersonationWindowCommand,
+} from '#db/impersonation-window-commands.js';
+import {
+  findImpersonationWindow,
+  getEffectiveImpersonationWindow,
+  listAllOpenImpersonationWindows,
+  listOpenImpersonationWindows,
+} from '#db/impersonation-windows.js';
+import {
+  recordImpersonationContinuationOutcome,
+  recordImpersonationOutcome,
+  recordImpersonationStopOutcome,
+  recordImpersonationWindowDuration,
+  recordImpersonationWindowEnded,
+  recordImpersonationWindowStartOutcome,
+} from '#metrics/index.js';
 import {getCurrentAdminRole, requireAdminRole} from './admin-role.js';
 import type {AdminGrant} from './entities/admin-grant.js';
 import type {
   AdministratorGrantSummary,
   AdministratorUserSummary,
 } from './entities/administrator-read-model.js';
+import type {
+  EffectiveImpersonationWindow,
+  ImpersonationWindow,
+} from './entities/impersonation-window.js';
 import {
   AdminBootstrapClosedError,
   AdminGrantAlreadyExistsError,
@@ -47,6 +82,7 @@ import {
   ImpersonationDisabledError,
   ImpersonationExpiredError,
   ImpersonationTargetNotActiveError,
+  ImpersonationWindowNotFoundError,
   InvalidAdminBootstrapTokenError,
   InvalidAdministratorUserDirectoryFilterError,
   InvalidCredentialsError,
@@ -68,6 +104,9 @@ const SUSPEND_USER_COMMAND = 'auth.user.suspend';
 const REACTIVATE_USER_COMMAND = 'auth.user.reactivate';
 const REVOKE_USER_SESSIONS_COMMAND = 'auth.user.revoke-sessions';
 const IMPERSONATE_COMMAND = 'auth.user.impersonate';
+const IMPERSONATION_WINDOW_START_COMMAND_NAME = IMPERSONATION_WINDOW_START_COMMAND;
+const IMPERSONATION_WINDOW_CONTINUE_COMMAND_NAME = IMPERSONATION_WINDOW_CONTINUE_COMMAND;
+const IMPERSONATION_WINDOW_STOP_COMMAND_NAME = 'auth.impersonation.window.stop';
 
 /**
  * Client-contract errors are reported to the caller, not the denial stream: a
@@ -99,6 +138,250 @@ function isImpersonationDenial(error: unknown): boolean {
 
 export function administrationCommandFingerprint(command: string, input: unknown): string {
   return hashOpaqueToken(`${command}:${JSON.stringify(input)}`);
+}
+
+function recordWindowTerminalTransition(
+  transition: ImpersonationWindowTerminalTransition | undefined,
+): void {
+  if (!transition) return;
+  recordImpersonationWindowEnded(transition.reason);
+  recordImpersonationWindowDuration(
+    Math.max(0, transition.endedAt.getTime() - transition.startedAt.getTime()) / 1000,
+  );
+}
+
+function resolveWindowCommandOutcome<T>(outcome: ImpersonationWindowCommandOutcome<T>): T {
+  recordWindowTerminalTransition(outcome.terminalTransition);
+  if (outcome.kind === 'failure') throw outcome.error;
+  return outcome.result;
+}
+
+function impersonationWindowMaxSeconds(): number {
+  return durationToSeconds(config.AUTH_IMPERSONATION_WINDOW_MAX);
+}
+
+export interface StartImpersonationWindowParams extends AdministrationMutationContext {
+  targetUserId: string;
+  reason: string;
+  requiredWorkspaceId?: string | undefined;
+  workspaces: WorkspacesInterModuleClient;
+}
+
+export interface ContinueImpersonationWindowParams extends AdministrationMutationContext {
+  windowId: string;
+  workspaces: WorkspacesInterModuleClient;
+}
+
+export interface StopImpersonationWindowParams extends AdministrationMutationContext {
+  windowId: string;
+  reason?: string | undefined;
+}
+
+export async function startImpersonationWindow(
+  params: StartImpersonationWindowParams,
+): Promise<ImpersonationWindowMintResult> {
+  const idempotencyKeyFingerprint = hashOpaqueToken(params.idempotencyKey);
+  const requestFingerprint = administrationCommandFingerprint(
+    IMPERSONATION_WINDOW_START_COMMAND_NAME,
+    {
+      targetUserId: params.targetUserId,
+      reason: params.reason,
+      requiredWorkspaceId: params.requiredWorkspaceId ?? null,
+    },
+  );
+
+  try {
+    if (!config.AUTH_IMPERSONATION_ENABLED) {
+      await publishImpersonationWindowFailure({
+        command: IMPERSONATION_WINDOW_START_COMMAND_NAME,
+        actorId: params.actorId,
+        targetType: 'user',
+        targetId: params.targetUserId,
+        reason: params.reason,
+        idempotencyKeyFingerprint,
+        correlationId: params.correlationId,
+      });
+      throw new ImpersonationDisabledError();
+    }
+
+    const command: ImpersonationWindowMintCommandParams = {
+      actorId: params.actorId,
+      targetUserId: params.targetUserId,
+      reason: params.reason,
+      idempotencyKeyFingerprint,
+      requestFingerprint,
+      correlationId: params.correlationId,
+      workspaces: params.workspaces,
+      windowMaxSeconds: impersonationWindowMaxSeconds(),
+      ...(params.requiredWorkspaceId === undefined
+        ? {}
+        : {requiredWorkspaceId: params.requiredWorkspaceId}),
+    };
+    const outcome = await startImpersonationWindowCommand(command);
+    const result = resolveWindowCommandOutcome(outcome);
+    recordImpersonationWindowStartOutcome('succeeded');
+    return result;
+  } catch (error) {
+    recordImpersonationWindowStartOutcome('failed');
+    throw error;
+  }
+}
+
+export async function continueImpersonationWindow(
+  params: ContinueImpersonationWindowParams,
+): Promise<ImpersonationWindowMintResult> {
+  const idempotencyKeyFingerprint = hashOpaqueToken(params.idempotencyKey);
+  const requestFingerprint = administrationCommandFingerprint(
+    IMPERSONATION_WINDOW_CONTINUE_COMMAND_NAME,
+    {windowId: params.windowId},
+  );
+
+  try {
+    if (!config.AUTH_IMPERSONATION_ENABLED) {
+      await publishImpersonationWindowFailure({
+        command: IMPERSONATION_WINDOW_CONTINUE_COMMAND_NAME,
+        actorId: params.actorId,
+        targetType: 'impersonation-window',
+        targetId: params.windowId,
+        reason: 'Impersonation window continuation requested',
+        idempotencyKeyFingerprint,
+        correlationId: params.correlationId,
+      });
+      throw new ImpersonationDisabledError();
+    }
+
+    const command: ImpersonationWindowContinueCommandParams = {
+      actorId: params.actorId,
+      windowId: params.windowId,
+      idempotencyKeyFingerprint,
+      requestFingerprint,
+      correlationId: params.correlationId,
+      workspaces: params.workspaces,
+    };
+    const outcome = await continueImpersonationWindowCommand(command);
+    const result = resolveWindowCommandOutcome(outcome);
+    recordImpersonationContinuationOutcome('succeeded');
+    return result;
+  } catch (error) {
+    recordImpersonationContinuationOutcome('failed');
+    throw error;
+  }
+}
+
+export async function stopImpersonationWindow(
+  params: StopImpersonationWindowParams,
+): Promise<ImpersonationWindowStopResult> {
+  const idempotencyKeyFingerprint = hashOpaqueToken(params.idempotencyKey);
+  const requestFingerprint = administrationCommandFingerprint(
+    IMPERSONATION_WINDOW_STOP_COMMAND_NAME,
+    {windowId: params.windowId, reason: params.reason ?? null},
+  );
+
+  try {
+    const preliminary = await findImpersonationWindow({id: params.windowId});
+    const command: ImpersonationWindowStopCommandParams = {
+      actorId: params.actorId,
+      windowId: params.windowId,
+      idempotencyKeyFingerprint,
+      requestFingerprint,
+      correlationId: params.correlationId,
+      ...(params.reason === undefined ? {} : {reason: params.reason}),
+      ...(preliminary ? {preliminaryWindowActorId: preliminary.actorId} : {}),
+    };
+    const outcome = await stopImpersonationWindowCommand(command);
+    const result = resolveWindowCommandOutcome(outcome);
+    recordImpersonationStopOutcome('succeeded');
+    return result;
+  } catch (error) {
+    recordImpersonationStopOutcome('failed');
+    throw error;
+  }
+}
+
+export interface ImpersonationWindowView {
+  windowId: string;
+  actor: AdministratorUserSummary;
+  target: AdministratorUserSummary;
+  reason: string;
+  startedAt: Date;
+  deadlineAt: Date;
+  state: EffectiveImpersonationWindow['state'];
+  endedAt: Date | null;
+  endedReason: EffectiveImpersonationWindow['endedReason'];
+}
+
+async function toImpersonationWindowView(
+  window: ImpersonationWindow | EffectiveImpersonationWindow,
+): Promise<ImpersonationWindowView> {
+  const [actor, target] = await Promise.all([
+    findAdministratorUserSummaryInDb(db(), {id: window.actorId}),
+    findAdministratorUserSummaryInDb(db(), {id: window.targetUserId}),
+  ]);
+  if (!actor || !target) throw new UserNotFoundError(window.targetUserId);
+  const state = 'state' in window ? window.state : 'open';
+  return {
+    windowId: window.id,
+    actor,
+    target,
+    reason: window.reason,
+    startedAt: window.startedAt,
+    deadlineAt: window.deadlineAt,
+    state,
+    endedAt: window.endedAt,
+    endedReason: window.endedReason,
+  };
+}
+
+export async function listImpersonationWindows(params: {
+  actorId: string;
+  scope: 'owned' | 'all';
+  limit: number;
+  cursor?: TimestampIdCursor | undefined;
+}): Promise<{rows: ImpersonationWindowView[]; nextCursor: TimestampIdCursor | null}> {
+  if (params.scope === 'all') {
+    await requireAdminRole({userId: params.actorId, minimumRole: ADMIN_OWNER_ROLE});
+  }
+
+  const result =
+    params.scope === 'all'
+      ? await listAllOpenImpersonationWindows({
+          now: new Date(),
+          limit: params.limit,
+          ...(params.cursor ? {cursor: params.cursor} : {}),
+        })
+      : await listOpenImpersonationWindows({
+          actorId: params.actorId,
+          now: new Date(),
+          limit: params.limit,
+          ...(params.cursor ? {cursor: params.cursor} : {}),
+        });
+
+  return {
+    rows: await Promise.all(result.rows.map((window) => toImpersonationWindowView(window))),
+    nextCursor: result.nextCursor,
+  };
+}
+
+export async function getImpersonationWindow(params: {
+  actorId: string;
+  windowId: string;
+}): Promise<ImpersonationWindowView> {
+  const window = await findImpersonationWindow({id: params.windowId});
+  if (!window) throw new ImpersonationWindowNotFoundError();
+  if (window.actorId !== params.actorId) {
+    try {
+      await requireAdminRole({userId: params.actorId, minimumRole: ADMIN_OWNER_ROLE});
+    } catch (error) {
+      if (error instanceof AdminRoleRequiredError) {
+        throw new ImpersonationWindowNotFoundError();
+      }
+      throw error;
+    }
+  }
+
+  const effective = await getEffectiveImpersonationWindow({id: window.id, now: new Date()});
+  if (!effective) throw new ImpersonationWindowNotFoundError();
+  return await toImpersonationWindowView(effective);
 }
 
 function bootstrapTokenMatches(candidate: string, expected: string | undefined): boolean {

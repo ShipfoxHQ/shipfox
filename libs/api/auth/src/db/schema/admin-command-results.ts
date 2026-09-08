@@ -45,6 +45,21 @@ export interface StoredImpersonationResult {
   tokenFingerprints: string[];
 }
 
+export interface StoredImpersonationWindowResult {
+  windowId: string;
+  targetUserId: string;
+  windowStartedAt: string;
+  windowDeadline: string;
+  expiresAt: string;
+  tokenFingerprints: string[];
+}
+
+export interface StoredImpersonationWindowStopResult {
+  windowId: string;
+  state: 'stopped' | 'expired';
+  endedAt: string;
+}
+
 export type StoredAdminCommandResult =
   | {
       grant: StoredAdminGrant;
@@ -54,6 +69,12 @@ export type StoredAdminCommandResult =
     }
   | {
       impersonation: StoredImpersonationResult;
+    }
+  | {
+      impersonationWindow: StoredImpersonationWindowResult;
+    }
+  | {
+      impersonationWindowStop: StoredImpersonationWindowStopResult;
     };
 
 export const adminCommandResults = pgTable(

@@ -134,7 +134,7 @@ async function requireNonAdministratorTarget(tx: Tx, targetUserId: string): Prom
  * in this transaction, so the audit event records the role that actually
  * authorized the mint rather than a pre-transaction snapshot.
  */
-async function runImpersonationLadder(
+export async function runImpersonationLadder(
   tx: Tx,
   params: {actorId: string; targetUserId: string},
 ): Promise<AdminRole> {

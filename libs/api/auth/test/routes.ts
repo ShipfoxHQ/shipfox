@@ -13,6 +13,7 @@ import {
   administrationRoutes,
   createAdministrationUserRoutes,
 } from '#presentation/routes/administration.js';
+import {createImpersonationWindowRoutes} from '#presentation/routes/impersonation-windows.js';
 import {buildAuthRoutes} from '#presentation/routes/index.js';
 
 const testConfig = vi.hoisted(
@@ -25,6 +26,7 @@ const testConfig = vi.hoisted(
       ADMIN_BOOTSTRAP_TOKEN: string;
       AUTH_JWT_EXPIRES_IN: string;
       AUTH_IMPERSONATION_ENABLED: boolean;
+      AUTH_IMPERSONATION_WINDOW_MAX: string;
       AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: number;
       AUTH_REFRESH_ROTATION_GRACE_SECONDS: number;
       AUTH_REFRESH_COOKIE_NAME: string;
@@ -47,6 +49,7 @@ const testConfig = vi.hoisted(
       ADMIN_BOOTSTRAP_TOKEN: 'test-bootstrap-token',
       AUTH_JWT_EXPIRES_IN: '15m',
       AUTH_IMPERSONATION_ENABLED: true,
+      AUTH_IMPERSONATION_WINDOW_MAX: '60m',
       AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS: 14,
       AUTH_REFRESH_ROTATION_GRACE_SECONDS: 30,
       AUTH_REFRESH_COOKIE_NAME: 'shipfox_refresh_token',
@@ -192,6 +195,7 @@ export async function createAuthTestApp(params?: {
       administrationBootstrapRoutes,
       administrationRoutes,
       ...createAdministrationUserRoutes(workspaces),
+      createImpersonationWindowRoutes(workspaces),
     ],
     swagger: false,
   };

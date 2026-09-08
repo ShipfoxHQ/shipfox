@@ -32,6 +32,7 @@ export const userTokenClaimsSchema = z
     memberships: z.array(tokenMembershipSchema),
     iat: z.number().int(),
     exp: z.number().int(),
+    jti: z.string().uuid().optional(),
   })
   .refine(
     (claims) =>
@@ -48,6 +49,7 @@ export interface SignUserTokenParams {
   email: string;
   name?: string | null | undefined;
   memberships: TokenMembership[];
+  jti?: string | undefined;
   secret: string | Uint8Array;
   expiresIn: string;
 }
@@ -74,6 +76,7 @@ export async function signUserToken(params: SignUserTokenParams): Promise<string
       memberships: params.memberships,
       refreshSessionId: params.refreshSessionId,
       impersonatorId: params.impersonatorId,
+      jti: params.jti,
     },
     secret: params.secret,
     expiresIn: params.expiresIn,
