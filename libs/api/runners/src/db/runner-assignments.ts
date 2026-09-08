@@ -133,7 +133,7 @@ export async function assignRunnerInstancesTx(
     controlSessionCreatedAt: controlSessionCreatedAtByRunner.get(runner.id) ?? null,
   }));
 
-  assertNoConflictingRunnerAssignment(runners, reservation.id);
+  assertNoConflictingRunnerAssignment(runners, reservation.id, params.runnerInstanceIds);
   const newRunners = runners.filter(
     (runner) =>
       runner.reservationId === null ||
@@ -246,8 +246,15 @@ function assertAllAssignmentRunnersFound(
 function assertNoConflictingRunnerAssignment(
   runners: readonly AssignmentRunnerRow[],
   reservationId: string,
+  requestedRunnerInstanceIds: readonly string[],
 ): void {
-  const assigned = runners.filter((runner) => runner.reservationId !== null);
+  const runnersById = new Map(runners.map((runner) => [runner.id, runner]));
+  const assigned = requestedRunnerInstanceIds
+    .map((runnerInstanceId) => runnersById.get(runnerInstanceId))
+    .filter(
+      (runner): runner is AssignmentRunnerRow =>
+        runner !== undefined && runner.reservationId !== null,
+    );
   const hasConflict = assigned.some((runner) => runner.reservationId !== reservationId);
   if (hasConflict) throw new RunnerInstanceAlreadyAssignedError(assigned[0]?.id ?? '');
 }
