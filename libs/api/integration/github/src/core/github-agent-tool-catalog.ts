@@ -414,8 +414,12 @@ const checkRunOutputSchema = objectSchema(
         html_url: stringSchema('GitHub check-run URL'),
         status: enumSchema(checkRunOutputStatuses, 'GitHub check-run lifecycle status'),
         conclusion: nullableEnumSchema(checkRunOutputConclusions, 'GitHub check-run conclusion'),
-        started_at: nullableStringSchema('RFC 3339 start timestamp'),
-        completed_at: nullableStringSchema('RFC 3339 completion timestamp'),
+        started_at: nullableStringSchema(
+          'RFC 3339 start timestamp; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
+        ),
+        completed_at: nullableStringSchema(
+          'RFC 3339 completion timestamp; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
+        ),
       },
       [
         'id',
