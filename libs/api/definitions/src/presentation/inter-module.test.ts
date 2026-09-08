@@ -59,6 +59,63 @@ describe('definitions inter-module presentation', () => {
     mocks.requireProjectForWorkspace.mockReset();
   });
 
+  it('fills the new-run gate default when serving a legacy stored model', async () => {
+    const definitionId = '00000000-0000-4000-8000-000000000020';
+    const legacyModel = {
+      kind: 'workflow',
+      name: 'CI',
+      triggers: [],
+      dependencies: [],
+      jobs: [
+        {
+          id: 'job-1',
+          key: 'build',
+          mode: 'one_shot',
+          runner: [],
+          checkout: false,
+          dependencies: [],
+          steps: [
+            {
+              id: 'step-1',
+              kind: 'run',
+              command: {kind: 'shell', value: 'npm test'},
+              gate: {onFailure: {restartFrom: 'build'}},
+            },
+          ],
+        },
+      ],
+    };
+    mocks.getDefinitionById.mockResolvedValue({
+      id: definitionId,
+      workflowId: '00000000-0000-4000-8000-000000000021',
+      projectId: PROJECT_ID,
+      name: 'CI',
+      model: legacyModel,
+      sourceSnapshot: null,
+    });
+
+    const result = await presentation().handlers.getDefinitionForWorkflowRun(
+      {definitionId},
+      {signal: new AbortController().signal},
+    );
+
+    expect(result).toMatchObject({
+      definition: {
+        model: {
+          version: 3,
+          model: {
+            jobs: [
+              {
+                steps: [{gate: {onFailure: {restartFrom: 'build', maxAttempts: 5}}}],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(legacyModel.jobs[0]?.steps[0]?.gate?.onFailure).toEqual({restartFrom: 'build'});
+  });
+
   it('lists project definitions with the route shape and sync summary', async () => {
     const workspaceId = '00000000-0000-4000-8000-000000000010';
     const sourceConnectionId = '00000000-0000-4000-8000-000000000011';

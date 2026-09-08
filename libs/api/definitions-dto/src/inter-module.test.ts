@@ -37,6 +37,22 @@ describe('definitionsInterModuleContract', () => {
     });
   });
 
+  test('keeps maxAttempts optional for legacy snapshots', () => {
+    const model = {
+      kind: 'workflow',
+      jobs: [
+        {
+          steps: [{gate: {onFailure: {restartFrom: 'build', maxAttempts: 5}}}],
+        },
+      ],
+    };
+
+    expect(readPersistedWorkflowModel({version: 3, model} as never)).toEqual(model);
+    expect(readPersistedWorkflowModel({version: 3, model: {kind: 'workflow'}} as never)).toEqual({
+      kind: 'workflow',
+    });
+  });
+
   test('parses at-ref inputs and outputs', () => {
     const resolve = definitionsInterModuleContract.methods.resolveDefinitionAtRef;
     const list = definitionsInterModuleContract.methods.listDefinitionsAtRef;

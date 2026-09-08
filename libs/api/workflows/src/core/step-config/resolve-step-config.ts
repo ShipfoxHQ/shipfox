@@ -12,6 +12,7 @@ import type {
   AgentToolMaterializationSnapshot,
 } from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import {DEFAULT_RESTART_ATTEMPT_CAP} from '../step-transition/decide-step-transition.js';
 import {resolveAgentStepConfig} from './agent.js';
 import {
   freezeStepField,
@@ -372,6 +373,7 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
   const hasOnFailure = gate.onFailure !== undefined;
   const hasOnFailureFeedback = gate.onFailure?.feedback !== undefined;
   const hasOnFailureFeedbackTemplate = gate.onFailure?.feedbackTemplate !== undefined;
+  const maxAttempts = gate.onFailure?.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP;
 
   return {
     ...(hasSuccess
@@ -387,6 +389,7 @@ function stepGateConfig(gate: NonNullable<WorkflowModelStep['gate']>): Record<st
       ? {
           on_failure: {
             restart_from: gate.onFailure.restartFrom,
+            max_attempts: maxAttempts,
             ...(hasOnFailureFeedback ? {feedback: gate.onFailure.feedback} : {}),
             ...(hasOnFailureFeedbackTemplate
               ? {feedback_template: {segments: gate.onFailure.feedbackTemplate}}

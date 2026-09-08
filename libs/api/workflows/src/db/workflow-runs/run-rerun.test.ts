@@ -155,6 +155,64 @@ describe('workflow run queries', () => {
       expect(reloadedRerunAttempt?.model).toEqual(sourceAttempt?.model);
     });
 
+    test('failed and full reruns preserve the materialized gate attempt limit', async () => {
+      async function createTerminalGatedSourceRun() {
+        const source = await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: buildModel({
+            jobs: {
+              build: {
+                steps: [
+                  {key: 'producer', run: 'echo producer'},
+                  {
+                    key: 'review',
+                    run: 'echo review',
+                    gate: {onFailure: {restartFrom: 'producer', maxAttempts: 25}},
+                  },
+                ],
+              },
+            },
+          }),
+          triggerPayload: {
+            source: 'manual',
+            event: 'fire',
+            subscriptionId: crypto.randomUUID(),
+            userId: crypto.randomUUID(),
+          },
+        });
+        const sourceJobs = await getJobsByWorkflowRunId(source.id);
+        await markJob(sourceJobs, 'build', 'failed');
+        await updateWorkflowRunStatus({
+          workflowRunId: source.id,
+          status: 'failed',
+          expectedVersion: 1,
+        });
+        return source;
+      }
+
+      for (const mode of ['failed', 'all'] as const) {
+        const source = await createTerminalGatedSourceRun();
+        await createRerunWorkflowRun({
+          workflowRunId: source.id,
+          mode,
+          actorUserId: crypto.randomUUID(),
+        });
+
+        const rerunJob = (await getJobsByWorkflowRunId(source.id)).find(
+          (job) => job.key === 'build',
+        );
+        if (!rerunJob) throw new Error('Missing rerun job');
+        const rerunGateStep = (await getStepsByJobId(rerunJob.id)).find(
+          (step) => step.position === 2,
+        );
+        expect(rerunGateStep?.config).toMatchObject({
+          gate: {on_failure: {max_attempts: 25}},
+        });
+      }
+    });
+
     test('reruns clone the frozen agent tool materialization snapshot', async () => {
       const source = await createTerminalSourceRun();
       const [sourceAttempt] = await listTestRunAttempts({workflowRunId: source.id, projectId});

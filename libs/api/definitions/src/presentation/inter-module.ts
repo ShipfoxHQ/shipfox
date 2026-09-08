@@ -14,6 +14,7 @@ import {
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
 import {DefinitionAtRefError, listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/index.js';
+import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
 import {getDefinitionById} from '#db/definitions.js';
 import {toDefinitionReadModel, toDefinitionSyncSummary} from '#presentation/dto/index.js';
 import {listDefinitionsWithSync} from '#presentation/list-definitions.js';
@@ -38,7 +39,7 @@ export function createDefinitionsInterModulePresentation(
           workflowId: definition.workflowId,
           projectId: definition.projectId,
           name: definition.name,
-          model: createWorkflowModelSnapshot(definition.model),
+          model: createWorkflowModelSnapshot(populateDefaultGateMaxAttempts(definition.model)),
           sourceSnapshot: definition.sourceSnapshot,
         },
       };
