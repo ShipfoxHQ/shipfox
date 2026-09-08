@@ -594,14 +594,16 @@ interface AdoptedSessionControl {
   pendingRelease: {
     generation: number;
     accessToken: string;
+    tokenExpiresAtMs: number;
     release?: AdoptedSessionReleaseCallback | undefined;
   } | null;
   /**
    * A request can receive a 401 after its adopted session has ended, including
    * after another adoption has started. Keep those credentials as an
-   * in-memory retry guard; they are never persisted or logged.
+   * in-memory retry guard until their known token lifetime ends; they are
+   * never persisted or logged.
    */
-  releasedAdoptedTokens: Set<string>;
+  releasedAdoptedTokens: Map<string, number>;
   releaseNotified: Set<number>;
   lastReleaseReason: AdoptedSessionReleaseReason;
   wakeWaiters: Set<() => void>;
@@ -617,7 +619,7 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
     continuation: null,
     terminal: null,
     pendingRelease: null,
-    releasedAdoptedTokens: new Set(),
+    releasedAdoptedTokens: new Map(),
     releaseNotified: new Set(),
     lastReleaseReason: 'manual-stop',
     wakeWaiters: new Set(),
@@ -627,12 +629,39 @@ function getAdoptedSessionControl(store: ReturnType<typeof useStore>): AdoptedSe
   return control;
 }
 
+function pruneReleasedAdoptedTokens(control: AdoptedSessionControl, now = monotonicNow()): void {
+  for (const [accessToken, tokenExpiresAtMs] of control.releasedAdoptedTokens) {
+    if (tokenExpiresAtMs <= now) control.releasedAdoptedTokens.delete(accessToken);
+  }
+}
+
+function rememberReleasedAdoptedToken(
+  control: AdoptedSessionControl,
+  accessToken: string,
+  tokenExpiresAtMs: number,
+): void {
+  const now = monotonicNow();
+  pruneReleasedAdoptedTokens(control, now);
+  if (!Number.isFinite(tokenExpiresAtMs) || tokenExpiresAtMs <= now) return;
+  control.releasedAdoptedTokens.set(accessToken, tokenExpiresAtMs);
+}
+
+function rememberSupersededAdoptedToken(
+  control: AdoptedSessionControl,
+  current: AdoptedSessionRuntimeState,
+  replacement: AuthenticatedSession,
+): void {
+  if (current.session.accessToken === replacement.accessToken) return;
+  rememberReleasedAdoptedToken(control, current.session.accessToken, current.tokenExpiresAtMs);
+}
+
 function isStaleAdoptedRetry(
   accessToken: string | undefined,
   current: AdoptedSessionRuntimeState | null,
   control: AdoptedSessionControl,
 ): boolean {
   if (accessToken === undefined) return false;
+  pruneReleasedAdoptedTokens(control);
   if (control.releasedAdoptedTokens.has(accessToken)) return true;
   return current !== null && current.session.accessToken !== accessToken;
 }
@@ -761,9 +790,14 @@ export function useAdoptedSession() {
       const nextGeneration = previousGeneration + 1;
       const releaseGeneration = current?.generation ?? pending?.generation ?? previousGeneration;
       const release = current?.release ?? pending?.release;
-      const releasedAccessToken = current?.session.accessToken ?? pending?.accessToken;
-      if (releasedAccessToken !== undefined) {
-        control.releasedAdoptedTokens.add(releasedAccessToken);
+      if (current !== null) {
+        rememberReleasedAdoptedToken(
+          control,
+          current.session.accessToken,
+          current.tokenExpiresAtMs,
+        );
+      } else if (pending !== null) {
+        rememberReleasedAdoptedToken(control, pending.accessToken, pending.tokenExpiresAtMs);
       }
       const endedError = createAdoptedSessionEndedError(reason);
       control.lastReleaseReason = reason;
@@ -792,6 +826,7 @@ export function useAdoptedSession() {
         ) {
           return;
         }
+        if (store.get(adoptionGenerationAtom) !== nextGeneration) return;
         // The adopted token must never remain ambient after release, even if
         // the ordinary cookie has expired or the network is unavailable.
         if (store.get(authStateAtom).status !== 'guest') await enterGuest();
@@ -824,11 +859,15 @@ export function useAdoptedSession() {
         wakeContinuationWaiters();
       }
       if (previous !== null) {
-        control.releasedAdoptedTokens.add(previous.session.accessToken);
+        rememberReleasedAdoptedToken(
+          control,
+          previous.session.accessToken,
+          previous.tokenExpiresAtMs,
+        );
         void notifyRelease(previous.generation, previous.release, 'replaced');
       }
       if (pending !== null) {
-        control.releasedAdoptedTokens.add(pending.accessToken);
+        rememberReleasedAdoptedToken(control, pending.accessToken, pending.tokenExpiresAtMs);
         void notifyRelease(pending.generation, pending.release, 'replaced');
       }
       if (control.terminal) {
@@ -842,9 +881,12 @@ export function useAdoptedSession() {
       store.set(adoptionGenerationAtom, generation);
       store.set(adoptedRenewalReservationAtom, 0);
       const release = releaseCallback(options);
+      const receivedAtMs = monotonicNow();
+      const lifetimeMs = observedLifetimeMs(options.expiresAt, options.serverTime);
       control.pendingRelease = {
         generation,
         accessToken: session.accessToken,
+        tokenExpiresAtMs: receivedAtMs + lifetimeMs,
         ...(release === undefined ? {} : {release}),
       };
       const transitionEpoch = beginAuthTransition();
@@ -853,8 +895,6 @@ export function useAdoptedSession() {
         typeof document === 'undefined'
           ? true
           : document.visibilityState === 'visible' && document.hasFocus();
-      const receivedAtMs = monotonicNow();
-      const lifetimeMs = observedLifetimeMs(options.expiresAt, options.serverTime);
       const hardDeadlineMonotonicMs =
         Number.isFinite(deadlineMs) && Number.isFinite(serverTimeMs)
           ? receivedAtMs + Math.max(0, deadlineMs - serverTimeMs)
@@ -1045,6 +1085,7 @@ export function useAdoptedSession() {
       const latest = store.get(adoptedSessionAtom) ?? adopted;
       const lifetimeMs = observedLifetimeMs(result.expiresAt, result.serverTime);
       const attended = isAttended(latest, receivedAtMs);
+      rememberSupersededAdoptedToken(control, latest, result.session);
       store.set(adoptedRenewalReservationAtom, 0);
       store.set(adoptedSessionAtom, {
         ...latest,
@@ -1063,7 +1104,7 @@ export function useAdoptedSession() {
       });
       return {kind: 'success', renewal: result};
     },
-    [beginAuthTransition, enterAuthenticated, isAttended, queryClient, store],
+    [beginAuthTransition, control, enterAuthenticated, isAttended, queryClient, store],
   );
 
   const handleNonAdvancingRenewal = useCallback(

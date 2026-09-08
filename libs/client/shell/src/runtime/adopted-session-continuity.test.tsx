@@ -758,6 +758,106 @@ describe('continuity-aware adopted sessions', () => {
     expect(widgetCalls).toBe(1);
   });
 
+  test('does not retry a superseded adopted bearer after renewal and release', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    let resolveInitialResponse: ((response: Response) => void) | undefined;
+    let widgetCalls = 0;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      if (url.endsWith('/widgets')) {
+        widgetCalls += 1;
+        if (widgetCalls === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveInitialResponse = resolve;
+          });
+        }
+        return Promise.resolve(jsonResponse({}));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    const renewal = {
+      session: {...TARGET_SESSION, accessToken: 'renewed-target-token'},
+      ...adoptionTimes(120_000),
+    };
+    const renew = vi.fn(async () => renewal);
+    await act(async () => {
+      await expect(
+        apiRef.current?.adoptSession(TARGET_SESSION, {
+          ...adoptionTimes(60_000),
+          continuity: true,
+          renew,
+        }),
+      ).resolves.toBe(true);
+    });
+
+    const request = checkedApiRequest(emptyResponseSchema, '/widgets');
+    await waitFor(() => expect(widgetCalls).toBe(1));
+    await expect(apiRef.current?.renewAdoptedSession({source: 'manual'})).resolves.toEqual(renewal);
+    await expect(apiRef.current?.releaseAdoptedSession('manual-stop')).resolves.toBeUndefined();
+
+    resolveInitialResponse?.(
+      jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+    );
+    await expect(request).rejects.toMatchObject({code: 'unauthorized', status: 401});
+    expect(widgetCalls).toBe(1);
+  });
+
+  test('a failed release restore cannot evict a newer adoption', async () => {
+    setDocumentAttendance({visible: true, focused: true});
+    let refreshCalls = 0;
+    let rejectReleaseRestore: ((error: unknown) => void) | undefined;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.endsWith('/auth/refresh')) {
+        refreshCalls += 1;
+        if (refreshCalls === 1) return Promise.resolve(sessionResponse(ADMIN_SESSION));
+        return new Promise<Response>((_, reject) => {
+          rejectReleaseRestore = reject;
+        });
+      }
+      if (url.endsWith('/workspaces')) return Promise.resolve(jsonResponse({memberships: []}));
+      return Promise.resolve(jsonResponse({}));
+    });
+    const {apiRef, store} = renderHarness(fetchImpl);
+    await waitFor(() => expect(store.get(authStateAtom).token).toBe(ADMIN_SESSION.accessToken));
+
+    await act(async () => {
+      await expect(
+        apiRef.current?.adoptSession(TARGET_SESSION, {
+          ...adoptionTimes(60_000),
+          continuity: true,
+          renew: vi.fn(async () => null),
+        }),
+      ).resolves.toBe(true);
+    });
+
+    const releasePromise = apiRef.current?.releaseAdoptedSession('manual-stop');
+    await waitFor(() => expect(refreshCalls).toBe(2));
+
+    const nextSession = {...TARGET_SESSION, accessToken: 'second-adopted-token'};
+    await act(async () => {
+      await expect(
+        apiRef.current?.adoptSession(nextSession, {
+          ...adoptionTimes(60_000),
+          continuity: true,
+          renew: vi.fn(async () => null),
+        }),
+      ).resolves.toBe(true);
+    });
+
+    rejectReleaseRestore?.(new TypeError('Failed to fetch'));
+    await expect(releasePromise).resolves.toBeUndefined();
+    expect(store.get(authStateAtom).token).toBe(nextSession.accessToken);
+    await waitFor(() =>
+      expect(apiRef.current?.adoptedSession?.session.accessToken).toBe(nextSession.accessToken),
+    );
+  });
+
   test('honors nested rate-limit retry-after seconds before retrying continuation', async () => {
     useFakeTimersWithWaitFor();
     setDocumentAttendance({visible: true, focused: true});
