@@ -22,8 +22,8 @@ Shipfox has additional constraints:
 
 - A workflow can be started by an integration event, cron, a manual action, or a dev replay.
   Context roots such as `event` and `inputs` can be `null`, depending on the trigger.
-- Integration outbox rows currently have no ordering key. Competing dispatcher consumers can
-  process two persisted events from one integration connection in the opposite order.
+- Providers, ingress requests, and dispatcher consumers can deliver and process events in any
+  order. Concurrency leaves delivery order undefined.
 - Reruns create a new attempt from stored run state and do not rebuild all context.
 - Dev runs are explicit user intents and do not have trigger idempotency keys.
 - Listening jobs consume later events inside one long-lived run. They can remain active for the
@@ -190,31 +190,13 @@ Latest means the greatest generation committed by Shipfox while holding the effe
 The generation is allocated only after trigger idempotency succeeds. It does not use provider
 timestamps, delivery identifiers, HTTP receipt time, run numbers, or Temporal start time.
 
-Integration-triggered concurrency has one prerequisite: every integration provider derives an
-ordering scope before publishing `INTEGRATION_EVENT_RECEIVED`:
+Integration-triggered runs can reach arbitration in any order. Shipfox does not order them by
+provider, integration connection, repository, receipt time, or persisted outbox position. The run
+whose arbitration commits later receives the greater generation, regardless of when its source
+event occurred or reached Shipfox.
 
-- When the event identifies one repository, the ordering key combines `connectionId` with the
-  provider-owned repository ID.
-- When the provider cannot derive a repository, the ordering key falls back to `connectionId`.
-
-The three SPI publish ports carry the optional ordering scope: `PublishIntegrationEventReceivedFn`,
-`PublishSourcePushFn`, and `PublishSourceRepositoryUpdatedFn`. The provider adapter owns repository
-extraction. GitHub and Gitea supply provider-owned repository IDs. Integration Core stays
-provider-neutral and writes the supplied key or the fallback based on the integration connection.
-The repository-scoped key preserves persisted event order for one repository. It removes reversal
-by competing dispatcher consumers without serializing every repository in a GitHub App installation.
-
-A non-empty outbox ordering key blocks later rows with the same key until the first row dispatches
-or dead-letters. A transient failure therefore delays later events for that repository. The current
-outbox defaults allow five claims and cap each requested retry delay at 30 minutes. Events that use
-the fallback for an integration connection have the wider delay and throughput boundary.
-
-Ordering does not repair events that the provider delivered out of order. It also does not reorder
-concurrent webhook transactions that persisted in another order. In those cases, the last event
-processed by Shipfox still wins.
-
-A duplicate trigger delivery returns its existing run. It does not allocate a generation, replace a
-waiter, or request cancellation again.
+A duplicate trigger delivery returns its existing run. It does not allocate a generation, replace
+a waiter, or request cancellation again.
 
 ### Run state and reruns
 
@@ -310,9 +292,8 @@ groups are identified as shared across workflows.
 
 Definitions must not accept the field until every affected contract supports it. This includes the
 authoring schema, normalized snapshot, and generated schema and reference. It also includes API
-DTOs, database statuses, filters, aggregates, metrics, provider ordering scopes, and Runners stop
-reasons. A partially deployed system must not parse concurrency and then execute a run without
-arbitration.
+DTOs, database statuses, filters, aggregates, metrics, and Runners stop reasons. A partially
+deployed system must not parse concurrency and then execute a run without arbitration.
 
 ## Consequences
 
@@ -323,10 +304,10 @@ arbitration.
   confirmation.
 - Dev concurrency is isolated by initiating user as well as from synced work.
 - Listening workflows cannot use concurrency in the first version.
-- Persisted events are ordered per repository when the provider can identify one. Other events use
-  their integration connection as the wider ordering boundary.
-- Ordering can delay all later events in that boundary while an earlier event retries. It also
-  serializes dispatch within the boundary.
+- Integration delivery and processing remain unordered. An older provider event can supersede work
+  from a newer event when its run reaches arbitration later.
+- Concurrency coordinates admitted workflow runs. It does not determine the provider's latest
+  source state.
 - Concurrency has no queue timeout. A waiter can remain blocked for the holder's remaining timeout,
   which is 30 days by default.
 - The run status model gains `waiting` before the platform contract is deployed broadly.
@@ -346,18 +327,17 @@ A listening run can hold a group for weeks and can consume the same event that s
 replacement. Supporting that interaction needs a separate definition of whether the listener loop,
 each materialized execution, or another lifecycle owns the slot.
 
-### Order by provider timestamps or an author expression
+### Infer the latest provider event
 
-Providers differ in ordering fields and semantics. An `order_by` expression adds provider-specific
-comparison and missing-value behavior. Shipfox instead preserves per-repository order when possible
-and defines precedence at arbitration.
+Providers differ in sequence fields and event semantics. Provider timestamps and author expressions
+cannot define one reliable order across integrations. Concurrency defines precedence only at
+Workflows arbitration.
 
-### Order every event by integration connection
+### Add integration delivery ordering
 
-A GitHub App integration connection can cover an organization with many repositories. One key for
-the whole integration connection would make a failed event stall later events for that organization.
-It would also make a busy organization single-threaded. Repository keys reduce the blast radius.
-The fallback for an integration connection still covers events without repository identity.
+Repository queues or queues scoped to one integration connection would serialize local delivery.
+They would create head-of-line blocking without recovering provider event order. Shipfox keeps
+integration delivery unordered.
 
 ### Store only a mutex in Temporal
 
