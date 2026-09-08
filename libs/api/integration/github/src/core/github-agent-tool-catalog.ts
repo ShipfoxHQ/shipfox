@@ -373,9 +373,13 @@ const checkRunInputSchema = repositoryInputSchema(
     details_url: stringSchema('Absolute HTTP or HTTPS link with more details'),
     external_id: stringSchema('Caller-owned correlation key'),
     status: enumSchema(['queued', 'in_progress', 'completed'], 'Check-run lifecycle status'),
-    started_at: stringSchema('RFC 3339 timestamp when the check started'),
+    started_at: stringSchema(
+      'RFC 3339 timestamp when the check started; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
+    ),
     conclusion: enumSchema(checkRunInputConclusions, 'Final check-run conclusion'),
-    completed_at: stringSchema('RFC 3339 timestamp when the check completed'),
+    completed_at: stringSchema(
+      'RFC 3339 timestamp when the check completed; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31',
+    ),
     output: objectSchema(
       {
         title: stringSchema('Check output title'),

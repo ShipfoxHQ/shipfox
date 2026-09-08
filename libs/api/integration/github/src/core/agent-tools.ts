@@ -1739,7 +1739,7 @@ function validateCheckRunTimestamp(value: unknown, name: string): string | undef
   if (value === undefined) return undefined;
   return typeof value === 'string' && isValidRfc3339Timestamp(value)
     ? undefined
-    : `Parameter ${name} must be an RFC 3339 timestamp`;
+    : `Parameter ${name} must be an RFC 3339 timestamp; leap seconds are accepted only when the normalized UTC instant is 23:59:60 on June 30 or December 31`;
 }
 
 function isValidRfc3339Timestamp(value: string): boolean {
