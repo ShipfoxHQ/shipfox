@@ -1,0 +1,135 @@
+---
+title: "Review a Pull Request with a GitHub Check Run"
+sidebarTitle: "GitHub Check Run"
+description: "Create a visible GitHub check, run a review job, and complete or clean up the check with direct workflow steps."
+---
+
+Use this recipe when a Shipfox review should appear as a GitHub check run. The
+workflow owns the check lifecycle with direct tool steps. The review job can be
+a shell test, an agent step, or both.
+
+## Before you begin
+
+You need:
+
+- A project [connected to GitHub](/integrations/github/setup).
+- The slug of its GitHub integration connection. This recipe uses `github_acme` as a placeholder.
+- GitHub App **Checks: Read and write** permission approved by the account or organization owner.
+- An online runner with the `shipfox` label.
+- A configured model provider and workspace agent defaults if the review uses an agent step.
+- A pull-request workflow that runs against the same repository as the project. Fork pull requests are not supported by this lifecycle.
+
+## Add the workflow
+
+Create `.shipfox/workflows/review-with-github-check.yml`. Replace
+`github_acme` with the slug of your GitHub integration connection. Replace the
+repository values if the project uses another repository. This is a complete
+workflow:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Review a pull request with a GitHub check
+runner: shipfox
+
+triggers:
+  opened:
+    source: github_acme # Replace with the GitHub integration connection slug.
+    event: pull_request.opened
+  ready:
+    source: github_acme
+    event: pull_request.ready_for_review
+  reopened:
+    source: github_acme
+    event: pull_request.reopened
+  updated:
+    source: github_acme
+    event: pull_request.synchronize
+
+jobs:
+  review:
+    steps:
+      - key: start_check
+        tool: check_run_write.create
+        connection: github_acme
+        with:
+          owner: acme
+          repo: platform
+          name: Shipfox review
+          head_sha: "${{ event.pull_request.head.sha }}"
+          status: in_progress
+          external_id: "shipfox-${{ run.id }}"
+          output:
+            title: Review in progress
+            summary: Shipfox is reviewing this pull request.
+        outputs:
+          check_run_id: "${{ result.check_run.id }}"
+
+      - key: checks
+        run: npm test
+
+      - key: complete_check
+        if: '${{ steps.checks.status == "succeeded" }}'
+        tool: check_run_write.update
+        connection: github_acme
+        with:
+          owner: acme
+          repo: platform
+          check_run_id: "${{ steps.start_check.outputs.check_run_id }}"
+          conclusion: neutral
+          output:
+            title: Review complete
+            summary: Shipfox completed the review. See the Shipfox run for details.
+
+      - key: cleanup_check
+        if: '${{ steps.start_check.status == "succeeded" && steps.checks.status == "failed" }}'
+        tool: check_run_write.update
+        connection: github_acme
+        with:
+          owner: acme
+          repo: platform
+          check_run_id: "${{ steps.start_check.outputs.check_run_id }}"
+          conclusion: failure
+          output:
+            title: Review failed
+            summary: Shipfox could not complete the review.
+```
+
+The create step must run after the runner leases the job. Its mapped output
+stores `result.check_run.id` as `check_run_id`. The update steps read that
+stable value from `steps.start_check.outputs.check_run_id`.
+
+`neutral` is a completed, advisory conclusion. It lets the check finish
+without claiming that the review passed. Use `success` only when the review
+itself is a passing required check. The `cleanup_check` condition runs after a
+failed review job and prevents an incomplete check from remaining visible.
+
+Commit and push the workflow file to the project's default branch. Wait for
+**Review a pull request with a GitHub check** to sync before opening a test pull
+request or pushing another commit.
+
+## Verify the check lifecycle
+
+Open a same-repository pull request and inspect its Shipfox run.
+
+1. Confirm that the check appears after the `start_check` step and has status
+   `in_progress`.
+2. Confirm that `checks` runs, then `complete_check` updates the same check run
+   with conclusion `neutral`.
+3. Make `npm test` fail in a safe test commit. Confirm that `cleanup_check`
+   updates the existing check to conclusion `failure`.
+4. Confirm that the check output links to the details you provide. Shipfox does
+   not add a Shipfox run URL automatically. Set `details_url` yourself when
+   GitHub should show a custom link.
+
+Hard cancellation or runner loss can prevent cleanup. A cleanup step is best
+effort and does not run after every abrupt termination. Fork pull requests are
+also outside this recipe because the current webhook path supports the base
+repository lifecycle only.
+
+If GitHub rejects the check-run request because the installation lacks
+**Checks: Read and write**, approve that permission in the GitHub App
+installation and retry the run. Token minting uses the full installation
+grant and does not request a separate Checks scope. See [Connect GitHub to a
+Shipfox workspace](/integrations/github/setup#permissions-and-approval) for
+the approval boundary and [the GitHub agent tools reference](/integrations/github/tools)
+for the complete check-run input and output schema.

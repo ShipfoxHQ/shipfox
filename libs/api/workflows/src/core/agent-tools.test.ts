@@ -25,9 +25,38 @@ function materializationContext(): AgentToolMaterializationContext {
       },
     ],
   };
+  const checkRunTool: AgentToolCatalogEntry = {
+    id: 'check_run_write',
+    description: 'Create or update check runs.',
+    sensitivity: 'write',
+    sensitive: false,
+    requiredScope: [{permission: 'checks', access: 'write'}],
+    inputSchema: {type: 'object', properties: {method: {type: 'string'}}},
+    outputSchema: {
+      type: 'object',
+      properties: {check_run: {type: 'object'}},
+      required: ['check_run'],
+    },
+    methods: [
+      {
+        id: 'create',
+        description: 'Create a check run.',
+        sensitivity: 'write',
+        sensitive: false,
+        requiredScope: [{permission: 'checks', access: 'write'}],
+      },
+      {
+        id: 'update',
+        description: 'Update a check run.',
+        sensitivity: 'write',
+        sensitive: false,
+        requiredScope: [{permission: 'checks', access: 'write'}],
+      },
+    ],
+  };
 
   return {
-    catalogs: new Map([['github', [tool]]]),
+    catalogs: new Map([['github', [tool, checkRunTool]]]),
     workspaceConnectionSnapshot: new Map([
       ['github-main', {id: 'connection-1', provider: 'github', capabilities: ['agent_tools']}],
     ]),
@@ -138,6 +167,34 @@ describe('loadAgentToolMaterializationContext', () => {
       inputSchema: {type: 'object'},
     });
     expect(Object.isFrozen(materialized)).toBe(true);
+  });
+
+  test('materializes a check-run method with its write scope and output schema', () => {
+    const materialized = materializeToolStep({
+      jobKey: 'build',
+      stepId: 'finish-check',
+      tool: {id: 'check_run_write', method: 'update'},
+      connection: 'github-main',
+      context: materializationContext(),
+      snapshot: undefined,
+    });
+
+    expect(materialized).toEqual({
+      connectionId: 'connection-1',
+      connectionSlug: 'github-main',
+      provider: 'github',
+      id: 'check_run_write',
+      method: 'update',
+      sensitivity: 'write',
+      sensitive: false,
+      requiredScope: [{permission: 'checks', access: 'write'}],
+      inputSchema: {type: 'object', properties: {method: {type: 'string'}}},
+      outputSchema: {
+        type: 'object',
+        properties: {check_run: {type: 'object'}},
+        required: ['check_run'],
+      },
+    });
   });
 
   test('includes tool steps in the run-attempt materialization snapshot', () => {

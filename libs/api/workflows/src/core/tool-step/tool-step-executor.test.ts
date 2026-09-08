@@ -200,6 +200,46 @@ describe('tool step executor', () => {
     });
   });
 
+  test('persists the stable check-run id from a mapped provider result', async () => {
+    const {jobId} = await arrangeToolStep('write', {
+      outputDeclarations: {
+        result: {type: 'json'},
+        check_run_id: {type: 'number'},
+      },
+      outputMappings: {
+        check_run_id: createWorkflowExpression({
+          source: 'result.check_run.id',
+          check: {mode: 'syntax'},
+        }),
+      },
+    });
+    const result = {check_run: {id: 123456, status: 'in_progress'}};
+    const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
+      outcome: 'success' as const,
+      result,
+      content: [],
+    });
+    const appendServerRecords = vi
+      .fn<LogsModuleClient['appendServerRecords']>()
+      .mockResolvedValue({committedLength: 0, capped: false});
+
+    await nextStepForJob(jobId);
+    await runToolStepExecutorCycle({
+      integrations: {callTool} as unknown as IntegrationsModuleClient,
+      logs: {appendServerRecords} as unknown as LogsModuleClient,
+      signal: new AbortController().signal,
+      claimOwner: 'executor-test',
+      concurrency: 8,
+      callTimeoutMs: 30_000,
+    });
+
+    const [attempt] = await getStepAttempts(jobId);
+    expect(attempt).toMatchObject({
+      status: 'succeeded',
+      output: {result, check_run_id: 123456},
+    });
+  });
+
   test('normalizes CEL integer output mappings before persistence', async () => {
     const {jobId} = await arrangeToolStep('read', {
       outputDeclarations: {

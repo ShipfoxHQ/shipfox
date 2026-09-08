@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "checks-on-push",
+    "review-with-github-check",
     "triage-sentry-issues",
     "parallel-ci-agent-review",
     "event-to-verified-pull-request"

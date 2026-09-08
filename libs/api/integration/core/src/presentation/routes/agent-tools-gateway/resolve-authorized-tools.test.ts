@@ -12,6 +12,7 @@ import {
   connection,
   leaseContext,
   materializedIntegration,
+  materializedTool,
   registryWithAgentTools,
 } from '#test/agent-tools-gateway-helpers.js';
 import {
@@ -81,6 +82,78 @@ describe('resolveAuthorizedIntegrationTools', () => {
     expect(properties.method).toMatchObject({
       enum: ['get', 'get_comments'],
     });
+    expect(authorizedTool?.inputSchema.oneOf).toBeUndefined();
+  });
+
+  it('narrows a selected GitHub check-run family to its authorized method', async () => {
+    const request = {};
+    const lease = leaseContext();
+    const entry = catalogTool({
+      id: 'check_run_write',
+      description: 'Create or update a check run.',
+      sensitivity: 'write',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          method: {type: 'string', enum: ['create', 'update']},
+          owner: {type: 'string'},
+          repo: {type: 'string'},
+        },
+        required: ['method', 'owner', 'repo'],
+        oneOf: [
+          {properties: {method: {const: 'create'}}},
+          {properties: {method: {const: 'update'}}},
+        ],
+      },
+      methods: [
+        {
+          id: 'update',
+          description: 'Update a check run.',
+          sensitivity: 'write',
+          sensitive: false,
+          requiredScope: [],
+        },
+      ],
+    });
+    const integration = materializedIntegration({
+      tools: [
+        materializedTool({
+          id: 'check_run_write',
+          sensitivity: 'write',
+          inputSchema: entry.inputSchema,
+          methods: [
+            {
+              id: 'update',
+              token: 'check_run_write.update',
+              description: 'Update a check run.',
+              sensitivity: 'write',
+              sensitive: false,
+              requiredScope: [],
+            },
+          ],
+        }),
+      ],
+    });
+    setLeasedJobContext(request, lease);
+
+    const result = await resolveAuthorizedIntegrationTools({
+      request,
+      registry: registryWithAgentTools([entry]),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: 'connection-1',
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+    });
+
+    const authorizedTool = result.get('github_main__check_run_write');
+    const properties = authorizedTool?.inputSchema.properties as Record<string, unknown>;
+    expect(properties.method).toMatchObject({enum: ['update']});
     expect(authorizedTool?.inputSchema.oneOf).toBeUndefined();
   });
 

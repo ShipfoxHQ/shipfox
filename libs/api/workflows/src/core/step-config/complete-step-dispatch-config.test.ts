@@ -98,6 +98,28 @@ function methodConditionedToolInputSchema() {
   };
 }
 
+function checkRunToolInputSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      method: {type: 'string', enum: ['create', 'update']},
+      owner: {type: 'string'},
+      repo: {type: 'string'},
+      check_run_id: {type: 'integer', minimum: 1},
+      conclusion: {type: 'string'},
+    },
+    required: ['method', 'owner', 'repo'],
+    oneOf: [
+      {properties: {method: {const: 'create'}}, required: []},
+      {
+        properties: {method: {const: 'update'}},
+        required: ['check_run_id', 'conclusion'],
+      },
+    ],
+  };
+}
+
 const resolveAgentDefaults: AgentDefaultsResolver = (params) => ({
   harness: params.harness ?? 'pi',
   provider: params.provider ?? 'openai',
@@ -553,6 +575,51 @@ describe('completeStepDispatchConfig', () => {
         method: 'update',
       },
       output_mappings: {identifier: {source: 'result.identifier'}},
+    });
+  });
+
+  it('injects the selected check-run method into the provider input', async () => {
+    const pending = step({
+      type: 'tool',
+      config: {
+        tool: {
+          connection_id: 'connection-1',
+          connection_slug: 'github-main',
+          provider: 'github',
+          id: 'check_run_write',
+          method: 'update',
+          sensitivity: 'write',
+          sensitive: false,
+          required_scope: [{permission: 'checks', access: 'write'}],
+          input_schema: checkRunToolInputSchema(),
+          with: {
+            owner: 'acme',
+            repo: 'platform',
+            check_run_id: 123456,
+            conclusion: 'neutral',
+          },
+        },
+      },
+      configPlan: null,
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context,
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config.tool).toMatchObject({
+      id: 'check_run_write',
+      method: 'update',
+      with: {
+        owner: 'acme',
+        repo: 'platform',
+        check_run_id: 123456,
+        conclusion: 'neutral',
+        method: 'update',
+      },
     });
   });
 
