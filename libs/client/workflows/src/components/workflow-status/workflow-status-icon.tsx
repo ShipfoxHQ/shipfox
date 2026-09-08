@@ -15,8 +15,9 @@ const toneByVariant: Record<DotVariant, string> = {
   error: 'text-tag-error-icon',
 };
 
-// Terminal states are self-contained solid discs; the shape names the state. Running and
-// pending render their own shapes (the live Dot and a bold ring), so they aren't here.
+// Terminal states are self-contained solid discs; the shape names the state. Running,
+// waiting, and pending render their own shapes (the live Dot and a bold ring), so they aren't
+// here.
 const glyphByKind: Partial<Record<WorkflowDisplayStatus, IconName>> = {
   succeeded: 'checkCircleSolid',
   failed: 'xCircleSolid',
