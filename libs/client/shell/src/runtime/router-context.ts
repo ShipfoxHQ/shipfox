@@ -17,4 +17,6 @@ export interface RouterContext {
   queryClient: QueryClient | undefined;
   workspaceSetup?: WorkspaceSetupGate;
   projectSlugResolver?: ProjectSlugResolver;
+  /** Whether the composing application supplied the unresolved-workspace slot. */
+  unresolvedWorkspaceAvailable?: boolean;
 }

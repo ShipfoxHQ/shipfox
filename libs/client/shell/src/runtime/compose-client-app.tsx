@@ -79,6 +79,7 @@ export function composeClientApp({
                     queryClient={queryClient}
                     workspaceSetup={workspaceSetup}
                     projectSlugResolver={chrome?.projectSlugResolver}
+                    unresolvedWorkspaceAvailable={Boolean(chrome?.UnresolvedWorkspace)}
                   />
                   <Toaster />
                 </ShellProviderStack>
@@ -97,22 +98,32 @@ function RoutedApp({
   queryClient,
   workspaceSetup,
   projectSlugResolver,
+  unresolvedWorkspaceAvailable,
 }: {
   router: AnyRouter;
   queryClient: QueryClient;
   workspaceSetup: WorkspaceSetupGate | undefined;
   projectSlugResolver: ChromeSlots['projectSlugResolver'] | undefined;
+  unresolvedWorkspaceAvailable: boolean;
 }) {
   const auth = useAuthState();
 
   useEffect(() => {
-    if (!auth.isLoading) router.invalidate();
-  }, [auth.isLoading, router]);
+    if (!auth.isLoading && auth.routeRevision !== undefined) router.invalidate();
+  }, [auth.isLoading, auth.routeRevision, router]);
 
   return (
     <RouterProvider
       router={router as never}
-      context={{auth, queryClient, workspaceSetup, projectSlugResolver} as never}
+      context={
+        {
+          auth,
+          queryClient,
+          workspaceSetup,
+          projectSlugResolver,
+          unresolvedWorkspaceAvailable,
+        } as never
+      }
     />
   );
 }

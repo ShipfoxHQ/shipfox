@@ -139,6 +139,8 @@ export interface AuthState {
 }
 
 export interface AuthStateValue extends AuthState {
+  /** Changes when the principal or workspace memberships can affect routing. */
+  routeRevision?: string;
   isLoading: boolean;
   isAuthenticated: boolean;
   workspaces: Workspace[];
@@ -148,6 +150,33 @@ export interface AuthStateValue extends AuthState {
 export const initialAuthState: AuthState = {status: 'loading'};
 export const authStateAtom = atom<AuthState>(initialAuthState);
 const authTransitionEpochAtom = atom(0);
+
+/**
+ * Identifies authentication changes that can affect route guards without
+ * including the bearer token used for ordinary request renewal.
+ */
+export function getAuthRouteRevision(
+  state: Pick<AuthState, 'status' | 'user' | 'workspaces'>,
+): string {
+  const workspaces = (state.workspaces ?? [])
+    .map((workspace) => ({
+      id: workspace.id,
+      slug: workspace.slug,
+      membershipId: workspace.membershipId,
+      status: workspace.status,
+    }))
+    .sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) || left.membershipId.localeCompare(right.membershipId),
+    );
+
+  return JSON.stringify({
+    status: state.status,
+    principalId: state.user?.id,
+    principalRole: state.user?.adminRole,
+    workspaces,
+  });
+}
 
 export function toAuthenticatedState(
   session: AuthenticatedSession,
@@ -161,11 +190,20 @@ export function toAuthenticatedState(
   };
 }
 
+function workspacesForHydrationFailure(
+  previousState: AuthState,
+  principalChanged: boolean,
+): WorkspaceSummary[] {
+  if (principalChanged || previousState.status !== 'authenticated') return [];
+  return previousState.workspaces ?? [];
+}
+
 export function useAuthState(): AuthStateValue {
   const state = useAtomValue(authStateAtom);
   return useMemo(
     () => ({
       ...state,
+      routeRevision: getAuthRouteRevision(state),
       workspaces: state.workspaces ?? [],
       isLoading: state.status === 'loading',
       isAuthenticated: state.status === 'authenticated',
@@ -273,14 +311,14 @@ export function useAuthTransition() {
       }
 
       queryClient.setQueryData(authRefreshQueryKey, session);
-      let workspaces: WorkspaceSummary[] = [];
+      let workspaces = workspacesForHydrationFailure(previousState, principalChanged);
       try {
         const hydratedWorkspaces = await queryClient.fetchQuery(
           userWorkspacesQueryOptions(session.accessToken),
         );
         workspaces = hydratedWorkspaces.memberships;
       } catch {
-        // The authenticated session remains usable while workspace hydration retries on the next route load.
+        // A failed request does not prove that the same principal lost its memberships.
       }
       if (store.get(authTransitionEpochAtom) !== epoch) return false;
 

@@ -1,5 +1,10 @@
 import {QueryClient} from '@tanstack/react-query';
-import {createMemoryHistory, createRouter, RouterProvider} from '@tanstack/react-router';
+import {
+  createMemoryHistory,
+  createRouter,
+  type LocationRewrite,
+  RouterProvider,
+} from '@tanstack/react-router';
 import {render} from '@testing-library/react';
 import {createStore} from 'jotai';
 import {composeClientFeatures} from '#compose/compose-client-features.js';
@@ -20,6 +25,7 @@ export async function renderComposedShell({
   auth: authOverride,
   features,
   initialPath,
+  rewrite,
   resolveImpl,
   chrome: chromeOverrides,
   workspaceSetup,
@@ -29,6 +35,7 @@ export async function renderComposedShell({
   auth?: AuthStateValue;
   features: readonly ClientFeature[];
   initialPath: string;
+  rewrite?: LocationRewrite;
   resolveImpl: ResolveRouteImpl;
   chrome?: Partial<ChromeSlots>;
   workspaceSetup?: WorkspaceSetupGate;
@@ -67,12 +74,14 @@ export async function renderComposedShell({
   store.set(authStateAtom, auth);
   const router = createRouter({
     history: createMemoryHistory({initialEntries: [initialPath]}),
+    ...(rewrite ? {rewrite} : {}),
     routeTree,
     context: {
       auth,
       queryClient,
       workspaceSetup: workspaceSetup ?? (async () => ({hideProjectNavigation: false})),
       projectSlugResolver: chrome.projectSlugResolver,
+      unresolvedWorkspaceAvailable: Boolean(chrome.UnresolvedWorkspace),
     },
   });
   render(

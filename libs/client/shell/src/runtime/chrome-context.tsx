@@ -6,6 +6,15 @@ export interface ChromeSlots {
   ProjectBreadcrumb: ComponentType;
   projectSlugResolver: ProjectSlugResolver;
   /**
+   * Optional component rendered when the URL workspace is not in the current
+   * session's memberships. The composing application receives the workspace
+   * slug and the exact root-relative URL, including its query and fragment.
+   */
+  UnresolvedWorkspace?: ComponentType<{
+    workspaceSlug: string;
+    requestedHref: string;
+  }>;
+  /**
    * Optional content rendered in the account menu before the shell-owned logout
    * action. The composing component must render one DropdownMenuItem or return
    * null, and owns whether this content renders from the current session.

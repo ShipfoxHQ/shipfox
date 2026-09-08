@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type {LoginResponseDto, UserDto} from '@shipfox/api-auth-dto';
+import type {MembershipWithWorkspaceDto} from '@shipfox/api-workspaces-dto';
 import {
   ApiError,
   checkedApiRequest,
@@ -8,7 +9,7 @@ import {
   resetApiClient,
 } from '@shipfox/client-api';
 import {QueryClient} from '@tanstack/react-query';
-import {cleanup, render, waitFor} from '@testing-library/react';
+import {act, cleanup, render, waitFor} from '@testing-library/react';
 import {createStore} from 'jotai';
 import type {AuthenticatedSession, UserIdentity} from '#core/session.js';
 import {
@@ -49,6 +50,17 @@ const ADMIN_SESSION_DTO: LoginResponseDto = {
 };
 
 const TARGET_IDENTITY: UserIdentity = {id: TARGET_USER.id, email: TARGET_USER.email};
+
+const ADMIN_WORKSPACE_MEMBERSHIP: MembershipWithWorkspaceDto = {
+  id: '33333333-3333-4333-8333-333333333333',
+  user_id: ADMIN_USER.id,
+  workspace_id: '44444444-4444-4444-8444-444444444444',
+  workspace_name: 'Acme',
+  workspace_slug: 'acme',
+  workspace_status: 'active',
+  created_at: '2026-08-25T08:00:00.000Z',
+  updated_at: '2026-08-25T08:00:00.000Z',
+};
 
 const ADOPTED_SESSION: AuthenticatedSession = {
   accessToken: 'adopted-token',
@@ -114,8 +126,10 @@ function renderAuthHarness(
   options: {
     holdSecondRefresh?: boolean;
     failRefreshFromCall?: number;
+    failWorkspacesFromCall?: number;
     unauthorizedPaths?: string[];
     holdWorkspacesFromCall?: number;
+    workspaceMemberships?: MembershipWithWorkspaceDto[];
   } = {},
 ) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
@@ -156,8 +170,10 @@ function renderAuthHarness(
 type AuthHarnessOptions = {
   holdSecondRefresh?: boolean;
   failRefreshFromCall?: number;
+  failWorkspacesFromCall?: number;
   unauthorizedPaths?: string[];
   holdWorkspacesFromCall?: number;
+  workspaceMemberships?: MembershipWithWorkspaceDto[];
 };
 
 type AuthHarnessFetchState = {
@@ -196,6 +212,12 @@ function authHarnessWorkspaces(
 ): Promise<Response> {
   state.workspacesCalls += 1;
   if (
+    options.failWorkspacesFromCall !== undefined &&
+    state.workspacesCalls >= options.failWorkspacesFromCall
+  ) {
+    return Promise.reject(new TypeError('Failed to fetch'));
+  }
+  if (
     options.holdWorkspacesFromCall !== undefined &&
     state.workspacesCalls >= options.holdWorkspacesFromCall
   ) {
@@ -203,7 +225,7 @@ function authHarnessWorkspaces(
       state.releaseHeldWorkspaces = () => resolve(jsonResponse({memberships: []}));
     });
   }
-  return jsonResponsePromise({memberships: []});
+  return jsonResponsePromise({memberships: options.workspaceMemberships ?? []});
 }
 
 function harnessApi(apiRef: {current: AdoptedSessionApi | null}): AdoptedSessionApi {
@@ -239,6 +261,38 @@ describe('adopted-session runtime seam', () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     resetApiClient();
+  });
+
+  test('keeps same-principal memberships when refresh hydration fails', async () => {
+    const {apiRef, store} = renderAuthHarness(ADMIN_SESSION_DTO.token, {
+      failWorkspacesFromCall: 2,
+      workspaceMemberships: [ADMIN_WORKSPACE_MEMBERSHIP],
+    });
+    await waitFor(() =>
+      expect(store.get(authStateAtom).workspaces).toEqual([
+        {
+          id: ADMIN_WORKSPACE_MEMBERSHIP.workspace_id,
+          name: ADMIN_WORKSPACE_MEMBERSHIP.workspace_name,
+          slug: ADMIN_WORKSPACE_MEMBERSHIP.workspace_slug,
+          membershipId: ADMIN_WORKSPACE_MEMBERSHIP.id,
+          status: ADMIN_WORKSPACE_MEMBERSHIP.workspace_status,
+        },
+      ]),
+    );
+
+    await act(async () => {
+      await expect(harnessApi(apiRef).refreshAuth()).resolves.toBeDefined();
+    });
+
+    expect(store.get(authStateAtom).workspaces).toEqual([
+      {
+        id: ADMIN_WORKSPACE_MEMBERSHIP.workspace_id,
+        name: ADMIN_WORKSPACE_MEMBERSHIP.workspace_name,
+        slug: ADMIN_WORKSPACE_MEMBERSHIP.workspace_slug,
+        membershipId: ADMIN_WORKSPACE_MEMBERSHIP.id,
+        status: ADMIN_WORKSPACE_MEMBERSHIP.workspace_status,
+      },
+    ]);
   });
 
   test('adopts an externally minted session and release restores the cookie principal', async () => {

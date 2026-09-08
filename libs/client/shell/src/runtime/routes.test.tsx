@@ -1,11 +1,133 @@
 import {Link, Outlet} from '@tanstack/react-router';
-import {screen, within} from '@testing-library/react';
+import {screen, waitFor, within} from '@testing-library/react';
 import {defineClientFeature} from '#contract.js';
 import {renderComposedShell} from '#test/render.js';
 import {defineRoute} from './define-route.js';
 import {useLayoutNavigation} from './layout-navigation.js';
 
 describe('composed routes', () => {
+  test('renders an unresolved workspace slot before setup and project resolution', async () => {
+    const routeBeforeLoad = vi.fn();
+    const routeLoader = vi.fn();
+    const projectSlugResolver = vi.fn(async () => 'project');
+    const workspaceSetup = vi.fn(async () => ({hideProjectNavigation: false}));
+    const UnresolvedWorkspace = ({
+      requestedHref,
+      workspaceSlug,
+    }: {
+      requestedHref: string;
+      workspaceSlug: string;
+    }) => (
+      <div>
+        <h1>Workspace recovery</h1>
+        <output data-testid="unresolved-workspace-props">
+          {workspaceSlug}:{requestedHref}
+        </output>
+      </div>
+    );
+
+    await renderComposedShell({
+      features: [
+        defineClientFeature({
+          id: 'acme.overview',
+          routes: [
+            {
+              path: '/w/$workspaceSlug/p/$projectSlug/overview',
+              parent: 'projectLayout',
+              impl: 'overview',
+            },
+          ],
+        }),
+      ],
+      initialPath: '/w/missing/p/project/overview?tab=run%2Cfailed#details',
+      resolveImpl: () =>
+        defineRoute({
+          staticData: {frame: 'content'},
+          beforeLoad: routeBeforeLoad,
+          loader: routeLoader,
+          component: () => <h1>Overview</h1>,
+        }),
+      chrome: {UnresolvedWorkspace, projectSlugResolver},
+      workspaceSetup,
+    });
+
+    expect(await screen.findByRole('heading', {name: 'Workspace recovery'})).toBeVisible();
+    expect(screen.getByTestId('unresolved-workspace-props')).toHaveTextContent(
+      'missing:/w/missing/p/project/overview?tab=run%2Cfailed#details',
+    );
+    expect(projectSlugResolver).not.toHaveBeenCalled();
+    expect(workspaceSetup).not.toHaveBeenCalled();
+    expect(routeBeforeLoad).not.toHaveBeenCalled();
+    expect(routeLoader).not.toHaveBeenCalled();
+  });
+
+  test('uses the public href for an unresolved workspace with a same-origin rewrite', async () => {
+    const UnresolvedWorkspace = ({
+      requestedHref,
+      workspaceSlug,
+    }: {
+      requestedHref: string;
+      workspaceSlug: string;
+    }) => (
+      <output data-testid="unresolved-workspace-props">
+        {workspaceSlug}:{requestedHref}
+      </output>
+    );
+
+    await renderComposedShell({
+      features: [
+        defineClientFeature({
+          id: 'acme.overview',
+          routes: [
+            {
+              path: '/w/$workspaceSlug/p/$projectSlug/overview',
+              parent: 'projectLayout',
+              impl: 'overview',
+            },
+          ],
+        }),
+      ],
+      initialPath: '/public/w/missing/p/project/overview?tab=run%2Cfailed#details',
+      rewrite: {
+        input: ({url}) => {
+          url.pathname = url.pathname.slice('/public'.length);
+          return url;
+        },
+      },
+      resolveImpl: () =>
+        defineRoute({staticData: {frame: 'content'}, component: () => <h1>Overview</h1>}),
+      chrome: {UnresolvedWorkspace},
+    });
+
+    expect(await screen.findByTestId('unresolved-workspace-props')).toHaveTextContent(
+      'missing:/public/w/missing/p/project/overview?tab=run%2Cfailed#details',
+    );
+  });
+
+  test('keeps the legacy redirect when the unresolved workspace slot is absent', async () => {
+    const {router} = await renderComposedShell({
+      features: [
+        defineClientFeature({
+          id: 'acme.overview',
+          routes: [
+            {
+              path: '/w/$workspaceSlug/overview',
+              parent: 'workspaceLayout',
+              impl: 'overview',
+            },
+          ],
+        }),
+      ],
+      initialPath: '/w/missing/overview?tab=run#details',
+      resolveImpl: () =>
+        defineRoute({staticData: {frame: 'content'}, component: () => <h1>Overview</h1>}),
+    });
+
+    await waitFor(() => {
+      expect((router as {state: {location: {href: string}}}).state.location.href).toBe('/');
+    });
+  });
+
   test('renders a feature-added route through memory history', async () => {
     const feature = defineClientFeature({
       id: 'acme.insights',
