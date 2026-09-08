@@ -49,6 +49,7 @@ function administrationEvent(params: {
 }) {
   return createAdministrationActionEvent({
     actorId: params.actorId,
+    authorizationBasis: 'current-role',
     actorRole: params.actorRole,
     requiredRole: ADMIN_OPERATOR_ROLE,
     command: params.command,

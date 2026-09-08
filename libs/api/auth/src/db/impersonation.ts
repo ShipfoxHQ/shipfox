@@ -61,7 +61,9 @@ interface ImpersonationEventFields {
   actorId: string;
   targetUserId: string;
   reason: string;
-  actorRole: AdminRole;
+  actorRole: AdminRole | null;
+  actorRoleAtStart?: AdminRole;
+  authorizationBasis?: 'current-role' | 'authorization-denied';
   idempotencyKeyFingerprint: string;
   correlationId: string;
 }
@@ -72,8 +74,11 @@ function impersonationEvent(
 ): AdministrationActionEvent {
   return createAdministrationActionEvent({
     actorId: params.actorId,
+    authorizationBasis:
+      params.authorizationBasis ?? (params.actorRole ? 'current-role' : 'authorization-denied'),
     actorRole: params.actorRole,
     requiredRole: IMPERSONATE_REQUIRED_ROLE,
+    ...(params.actorRoleAtStart === undefined ? {} : {actorRoleAtStart: params.actorRoleAtStart}),
     command: IMPERSONATE_COMMAND,
     targetType: 'user',
     targetId: params.targetUserId,
@@ -290,8 +295,8 @@ export async function impersonateUserWithAudit(
  * transaction. The main command transaction rolls back on failure and the role
  * check runs before it opens, so an event written inside it would disappear;
  * without this a denied attempt leaves no trace on the one route where failed
- * attempts matter most. The strict event schema requires an actor role, so a
- * role-less actor's denial (nothing but the role gate itself) is not recorded.
+ * attempts matter most. A role-less actor uses the explicit denied basis
+ * instead of being attributed a role they do not hold.
  */
 export async function publishImpersonationFailure(params: {
   actorId: string;
@@ -301,7 +306,6 @@ export async function publishImpersonationFailure(params: {
   idempotencyKeyFingerprint: string;
   correlationId: string;
 }): Promise<void> {
-  if (!params.actorRole) return;
   const event = impersonationEvent(
     {
       actorId: params.actorId,
