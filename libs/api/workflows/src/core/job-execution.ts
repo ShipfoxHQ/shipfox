@@ -57,7 +57,11 @@ import {
   WorkflowExecutionPayloadTooLargeError,
   WorkflowStepResultTooLargeError,
 } from './errors.js';
-import {completeAgentDefaults, readAgentStepSessionIntent} from './step-config/agent.js';
+import {
+  completeAgentDefaults,
+  readAgentStepSessionIntent,
+  restoreAgentSessionIntentForRedispatch,
+} from './step-config/agent.js';
 import {assembleStepDispatchContext} from './step-config/assemble-run-context.js';
 import {completeStepDispatchConfig} from './step-config/complete-step-dispatch-config.js';
 import type {WorkflowEvaluationContext} from './step-config/workflow-evaluation-context.js';
@@ -320,21 +324,31 @@ async function resolveNextPendingStep({
 }
 
 async function dispatchPendingStep(params: PendingStepDispatchParams): Promise<NextStepResolution> {
-  const hasConfigPlan = params.pending.configPlan !== null || params.pending.type === 'tool';
-  if (hasConfigPlan) return dispatchPendingStepWithConfigPlan(params);
+  const pending = pendingStepForDispatch(params.pending);
+  const dispatchParams = pending === params.pending ? params : {...params, pending};
+  const hasConfigPlan = pending.configPlan !== null || pending.type === 'tool';
+  if (hasConfigPlan) return dispatchPendingStepWithConfigPlan(dispatchParams);
 
   // A fully resolved agent step still carries a session intent in its config.
   // Route it through the claim path even though no other field needs dispatch
   // completion.
-  const hasSessionIntent =
-    params.pending.type === 'agent' && params.pending.config.session !== undefined;
-  if (hasSessionIntent) return dispatchPendingStepWithConfigPlan(params);
+  const hasSessionIntent = pending.type === 'agent' && pending.config.session !== undefined;
+  if (hasSessionIntent) return dispatchPendingStepWithConfigPlan(dispatchParams);
 
   const marked = await markStepRunning(
-    {jobExecutionId: params.jobExecutionId, stepId: params.pending.id},
+    {jobExecutionId: params.jobExecutionId, stepId: pending.id},
     params.tx,
   );
-  return {kind: 'step', step: marked ?? params.pending, dispatched: true};
+  return {kind: 'step', step: marked ?? pending, dispatched: true};
+}
+
+function pendingStepForDispatch(step: Step): Step {
+  if (step.type !== 'agent' || step.currentAttempt === 1) return step;
+
+  return {
+    ...step,
+    config: restoreAgentSessionIntentForRedispatch(step),
+  };
 }
 
 async function dispatchPendingStepWithConfigPlan({

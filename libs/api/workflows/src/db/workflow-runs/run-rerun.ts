@@ -2,6 +2,7 @@ import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {and, asc, eq, inArray, sql} from 'drizzle-orm';
 import {isWorkflowRunTerminal, type WorkflowRun} from '#core/entities/workflow-run.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
+import {restoreAgentSessionIntentForRedispatch} from '#core/step-config/agent.js';
 import {deriveJobExecutionRunner} from '#core/workflow-run-creation.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
@@ -177,11 +178,9 @@ async function loadRerunSourceGraph(
 }
 
 function rerunStepConfig(step: StepDb): Record<string, unknown> {
-  const config = {...step.config};
+  const config =
+    step.type === 'agent' ? restoreAgentSessionIntentForRedispatch(step) : {...step.config};
   const authoredConfig = step.authoredConfig;
-  const session = authoredConfig?.session;
-  if (session === undefined) delete config.session;
-  else config.session = session;
   if (authoredConfig?.harness !== undefined) config.harness = authoredConfig.harness;
   return config;
 }
@@ -272,7 +271,7 @@ function materializeRerunGraphJob(
         status: carriedOver ? step.status : 'pending',
         statusReason: carriedOver ? step.statusReason : null,
         type: step.type,
-        config: rerunStepConfig(step),
+        config: carriedOver ? {...step.config} : rerunStepConfig(step),
         condition: step.condition ?? null,
         configPlan: step.configPlan,
         authoredConfig: step.authoredConfig,
