@@ -84,6 +84,7 @@ export interface AdminWorkspaceRow extends Workspace {
 
 export interface ListAdminWorkspaceParams {
   workspaceId?: string | undefined;
+  workspaceSlug?: string | undefined;
   search?: string | undefined;
   status?: WorkspaceStatus | undefined;
   limit: number;
@@ -108,6 +109,7 @@ export async function listAdminWorkspaces(
 ): Promise<ListAdminWorkspaceResult> {
   const conditions = [] as SQL[];
   if (params.workspaceId) conditions.push(eq(workspaces.id, params.workspaceId));
+  if (params.workspaceSlug) conditions.push(eq(workspaces.slug, params.workspaceSlug));
   if (params.search) {
     conditions.push(ilike(workspaces.name, `%${escapeIlikePattern(params.search)}%`));
   }

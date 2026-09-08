@@ -20,6 +20,11 @@ export const memberships = pgTable(
   (table) => [
     uniqueIndex('workspaces_memberships_user_workspace_unique').on(table.userId, table.workspaceId),
     index('workspaces_memberships_workspace_id_idx').on(table.workspaceId),
+    index('workspaces_memberships_workspace_created_id_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id,
+    ),
   ],
 );
 

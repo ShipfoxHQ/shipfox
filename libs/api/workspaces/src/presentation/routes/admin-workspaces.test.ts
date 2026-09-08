@@ -1,5 +1,6 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {
+  type AdministratorUserSummaryInterModule,
   type AuthInterModuleClient,
   authInterModuleContract,
 } from '@shipfox/api-auth-dto/inter-module';
@@ -19,6 +20,23 @@ import {createWorkspace, getWorkspaceById, updateWorkspace} from '#db/workspaces
 import {createAdminWorkspacesRoutes} from './admin-workspaces.js';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
+
+function administratorUserSummary(params: {
+  id: string;
+  email?: string;
+  name?: string | null;
+}): AdministratorUserSummaryInterModule {
+  const timestamp = '2026-09-05T12:00:00.000Z';
+  return {
+    id: params.id,
+    email: params.email ?? `member-${params.id}@example.com`,
+    name: params.name ?? 'Workspace member',
+    status: 'active',
+    emailVerifiedAt: timestamp,
+    createdAt: timestamp,
+    adminRole: null,
+  };
+}
 
 function adminHeaders(idempotencyKey: string) {
   return {
@@ -55,12 +73,16 @@ describe('GET /admin/workspaces', () => {
     await closeApp();
     authenticatedImpersonatorId = undefined;
     await db().execute(
-      sql`TRUNCATE workspaces_admin_command_results, workspaces_outbox, workspaces_workspaces CASCADE`,
+      sql`TRUNCATE workspaces_admin_command_results, workspaces_outbox, workspaces_rate_limits, workspaces_workspaces CASCADE`,
     );
     auth = {
       requireAdminRole: vi
         .fn()
         .mockImplementation(({minimumRole}) => Promise.resolve({role: minimumRole})),
+      listImpersonationEligibleUserSummaries: vi.fn().mockResolvedValue({
+        users: [],
+        nextCursor: null,
+      }),
     } as unknown as AuthInterModuleClient;
     projects = {
       getWorkspaceProjectCounts: vi.fn().mockResolvedValue({counts: []}),
@@ -117,6 +139,207 @@ describe('GET /admin/workspaces', () => {
       userId: USER_ID,
       minimumRole: 'admin-observer',
     });
+  });
+
+  test('resolves an exact workspace slug without paginating the collection', async () => {
+    const slug = `exact-${crypto.randomUUID().slice(0, 8)}`;
+    const workspace = await createWorkspace({
+      name: `Exact ${crypto.randomUUID()}`,
+      slug,
+    });
+    await createWorkspace({name: `Other ${crypto.randomUUID()}`});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces?workspace_slug=${slug}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      workspaces: [expect.objectContaining({id: workspace.id, slug})],
+      next_cursor: null,
+    });
+  });
+
+  test('lists only eligible workspace members through one bounded Auth call', async () => {
+    const workspace = await createWorkspace({name: `Targets ${crypto.randomUUID()}`});
+    const first = await createMembership({
+      userId: crypto.randomUUID(),
+      userEmail: `first-${crypto.randomUUID()}@example.com`,
+      workspaceId: workspace.id,
+    });
+    const second = await createMembership({
+      userId: crypto.randomUUID(),
+      userEmail: `second-${crypto.randomUUID()}@example.com`,
+      workspaceId: workspace.id,
+    });
+    vi.mocked(auth.listImpersonationEligibleUserSummaries).mockImplementation(
+      async ({userIds}) => ({
+        users: (userIds ?? []).map((id, index) =>
+          administratorUserSummary({id, name: `Eligible ${index}`}),
+        ),
+        nextCursor: null,
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${workspace.id}/members`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      workspace_id: workspace.id,
+      workspace_slug: workspace.slug,
+      workspace_name: workspace.name,
+      workspace_status: 'active',
+      members: expect.arrayContaining([
+        expect.objectContaining({id: first.userId, status: 'active'}),
+        expect.objectContaining({id: second.userId, status: 'active'}),
+      ]),
+      next_cursor: null,
+    });
+    expect(auth.requireAdminRole).toHaveBeenCalledWith({
+      userId: USER_ID,
+      minimumRole: 'admin-operator',
+    });
+    expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenCalledTimes(1);
+    expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenCalledWith({
+      userIds: expect.arrayContaining([first.userId, second.userId]),
+      limit: 200,
+    });
+  });
+
+  test('uses Auth candidate order for exact email search and preserves its cursor', async () => {
+    const workspace = await createWorkspace({name: `Search targets ${crypto.randomUUID()}`});
+    const first = await createMembership({
+      userId: crypto.randomUUID(),
+      userEmail: `first-${crypto.randomUUID()}@example.com`,
+      workspaceId: workspace.id,
+    });
+    const second = await createMembership({
+      userId: crypto.randomUUID(),
+      userEmail: `exact-${crypto.randomUUID()}@example.com`,
+      workspaceId: workspace.id,
+    });
+    vi.mocked(auth.listImpersonationEligibleUserSummaries).mockResolvedValueOnce({
+      users: [administratorUserSummary({id: second.userId, email: second.userEmail})],
+      nextCursor: 'auth-next-cursor',
+    });
+
+    const firstResponse = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${workspace.id}/members?search=${encodeURIComponent(second.userEmail)}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(firstResponse.statusCode).toBe(200);
+    expect(firstResponse.json()).toMatchObject({
+      members: [expect.objectContaining({id: second.userId, email: second.userEmail})],
+      next_cursor: expect.any(String),
+    });
+    expect(firstResponse.json().members.map((member: {id: string}) => member.id)).not.toContain(
+      first.userId,
+    );
+
+    const nextCursor = firstResponse.json().next_cursor;
+    vi.mocked(auth.listImpersonationEligibleUserSummaries).mockResolvedValueOnce({
+      users: [],
+      nextCursor: null,
+    });
+    const secondResponse = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${workspace.id}/members?search=${encodeURIComponent(second.userEmail)}&cursor=${encodeURIComponent(nextCursor)}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(secondResponse.statusCode).toBe(200);
+    expect(secondResponse.json()).toMatchObject({members: [], next_cursor: null});
+    expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenLastCalledWith({
+      search: second.userEmail,
+      cursor: 'auth-next-cursor',
+      limit: 200,
+    });
+  });
+
+  test.each([
+    'suspended',
+    'deleted',
+  ] as const)('returns a %s workspace summary without members', async (status) => {
+    const workspace = await createWorkspace({name: `${status} targets ${crypto.randomUUID()}`});
+    await updateWorkspace({id: workspace.id, status});
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${workspace.id}/members`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      workspace_id: workspace.id,
+      workspace_status: status,
+      members: [],
+      next_cursor: null,
+    });
+    expect(auth.listImpersonationEligibleUserSummaries).not.toHaveBeenCalled();
+  });
+
+  test('validates an exact recent target through membership and Auth eligibility', async () => {
+    const workspace = await createWorkspace({name: `Exact target ${crypto.randomUUID()}`});
+    const membership = await createMembership({
+      userId: crypto.randomUUID(),
+      userEmail: `exact-target-${crypto.randomUUID()}@example.com`,
+      workspaceId: workspace.id,
+    });
+    vi.mocked(auth.listImpersonationEligibleUserSummaries).mockResolvedValue({
+      users: [administratorUserSummary({id: membership.userId, email: membership.userEmail})],
+      nextCursor: null,
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${workspace.id}/members?user_id=${membership.userId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      members: [expect.objectContaining({id: membership.userId})],
+      next_cursor: null,
+    });
+    expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenCalledWith({
+      userIds: [membership.userId],
+      limit: 1,
+    });
+  });
+
+  test('keeps member resources UUID-addressed and requires an operator', async () => {
+    const slugResponse = await app.inject({
+      method: 'GET',
+      url: '/admin/workspaces/acme/members',
+      headers: {authorization: 'Bearer user'},
+    });
+    expect(slugResponse.statusCode).toBe(400);
+
+    vi.mocked(auth.requireAdminRole).mockRejectedValue(
+      createInterModuleKnownError(
+        authInterModuleContract.methods.requireAdminRole,
+        'admin-role-required',
+        {requiredRole: 'admin-operator'},
+      ),
+    );
+    const response = await app.inject({
+      method: 'GET',
+      url: `/admin/workspaces/${crypto.randomUUID()}/members`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({code: 'forbidden'});
+    expect(auth.listImpersonationEligibleUserSummaries).not.toHaveBeenCalled();
   });
 
   test('suspends a workspace without deleting its data and writes one redacted event', async () => {
