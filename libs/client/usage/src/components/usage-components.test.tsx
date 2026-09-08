@@ -212,7 +212,7 @@ describe('Usage components', () => {
     );
   });
 
-  test('sums compute seconds for duplicate job execution inputs', async () => {
+  test('preserves the first compute identity while summing duplicate seconds', async () => {
     const estimate = vi.fn(() => ({amount: 1, state: 'estimated' as const}));
     const usagePricing: ClientUsagePricing = {
       resolveCosts: () => new Map(),
@@ -239,8 +239,8 @@ describe('Usage components', () => {
         compute: [
           {
             jobExecutionId: 'execution-1',
-            runnerLabels: ['linux'],
-            templateKey: null,
+            runnerLabels: ['arm64'],
+            templateKey: 'ubuntu',
             seconds: 4,
           },
         ],

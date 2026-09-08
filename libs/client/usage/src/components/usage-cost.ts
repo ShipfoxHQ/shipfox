@@ -259,7 +259,7 @@ function mergeComputeInputs(
     const current = byExecutionId.get(input.jobExecutionId);
     byExecutionId.set(
       input.jobExecutionId,
-      current ? {...input, seconds: current.seconds + input.seconds} : input,
+      current ? {...current, seconds: current.seconds + input.seconds} : input,
     );
   }
   return [...byExecutionId.values()];
