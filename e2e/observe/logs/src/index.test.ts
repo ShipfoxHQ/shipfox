@@ -1,5 +1,6 @@
 import type {LogRecord, ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {fetchStepLogs} from './index.js';
+import {PollTimeoutError} from '@shipfox/e2e-core';
+import {fetchStepLogs, waitForStepLogsContaining} from './index.js';
 
 const stepId = '11111111-1111-4111-8111-111111111111';
 
@@ -173,5 +174,65 @@ describe('fetchStepLogs', () => {
     });
 
     await expect(result).rejects.toMatchObject({name: 'AbortError'});
+  });
+});
+
+describe('waitForStepLogsContaining', () => {
+  test('polls past partial logs and stops when the expected output arrives', async () => {
+    const argumentRecord = output('{"query":"is:open"}\n');
+    const resultRecord = output(
+      'Selected repository access requires owner and repo parameters\n',
+      2,
+    );
+    let requests = 0;
+
+    const result = await waitForStepLogsContaining({
+      attempt: 1,
+      expectedText: 'Selected repository access requires owner and repo parameters',
+      fetch: () => {
+        requests += 1;
+        const records = requests === 1 ? [argumentRecord] : [argumentRecord, resultRecord];
+        return Promise.resolve(
+          Response.json(inline({ndjson: records.map((record) => line(record)).join('')})),
+        );
+      },
+      pollIntervalMs: 1,
+      stepId,
+      timeoutMs: 100,
+      token: 'user-token',
+    });
+
+    expect(result.records).toEqual([argumentRecord, resultRecord]);
+    expect(requests).toBe(2);
+  });
+
+  test('aborts an in-flight log request when the timeout expires', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const result = waitForStepLogsContaining({
+      attempt: 1,
+      expectedText: 'eventual result',
+      fetch: (_url, init) => {
+        const signal = init?.signal;
+        requestSignal = signal ?? undefined;
+        return new Promise<Response>((_resolve, reject) => {
+          if (signal == null) {
+            reject(new Error('Expected the log request to carry a timeout signal'));
+            return;
+          }
+          signal.addEventListener('abort', () => reject(signal.reason), {once: true});
+        });
+      },
+      pollIntervalMs: 1,
+      stepId,
+      timeoutMs: 20,
+      token: 'user-token',
+    });
+
+    await expect(result).rejects.toBeInstanceOf(PollTimeoutError);
+    await expect(result).rejects.toMatchObject({
+      description: `step ${stepId} attempt 1 logs to contain "eventual result"`,
+      timeoutMs: 20,
+    });
+    expect(requestSignal?.aborted).toBe(true);
   });
 });

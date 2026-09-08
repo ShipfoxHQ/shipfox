@@ -1,5 +1,5 @@
 import {type LogRecord, parseLogRecordLine, type ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {type ApiFetch, createApiClient, E2eApiError} from '@shipfox/e2e-core';
+import {type ApiFetch, createApiClient, E2eApiError, pollUntil} from '@shipfox/e2e-core';
 
 const NDJSON_LINE_SPLIT_RE = /\r?\n/u;
 const MISSING_STREAM_RETRY_DELAY_MS = 750;
@@ -20,6 +20,13 @@ export interface StepLogs {
   ndjson: string;
   records: LogRecord[];
   truncated: boolean;
+}
+
+export interface WaitForStepLogsContainingOptions
+  extends Omit<FetchStepLogsOptions, 'missingStreamRetryDelayMs' | 'missingStreamRetryTimeoutMs'> {
+  expectedText: string;
+  pollIntervalMs?: number | undefined;
+  timeoutMs: number;
 }
 
 function parseLogNdjson(ndjson: string): LogRecord[] {
@@ -101,6 +108,41 @@ export async function fetchStepLogs(options: FetchStepLogsOptions): Promise<Step
     records: parseLogNdjson(ndjson),
     truncated,
   };
+}
+
+/** Waits for an output fragment that may be appended after the observed step settles. */
+export async function waitForStepLogsContaining(
+  options: WaitForStepLogsContainingOptions,
+): Promise<StepLogs> {
+  const {expectedText, pollIntervalMs, signal, timeoutMs, ...fetchOptions} = options;
+  const intervalMs = pollIntervalMs === undefined ? undefined : Math.max(1, pollIntervalMs);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const probeSignal =
+    signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal]);
+
+  return await pollUntil(
+    {
+      describe: () =>
+        `step ${options.stepId} attempt ${options.attempt} logs to contain ${JSON.stringify(expectedText)}`,
+      ...(intervalMs === undefined ? {} : {intervalMs}),
+      ...(signal === undefined ? {} : {signal}),
+      timeoutMs,
+    },
+    async () => {
+      const logs = await fetchStepLogs({
+        ...fetchOptions,
+        missingStreamRetryTimeoutMs: 0,
+        signal: probeSignal,
+      });
+      const outputText = logs.records
+        .filter(
+          (record): record is Extract<LogRecord, {type: 'output'}> => record.type === 'output',
+        )
+        .map((record) => record.data)
+        .join('');
+      return outputText.includes(expectedText) ? logs : null;
+    },
+  );
 }
 
 function isMissingStreamError(error: unknown): boolean {
