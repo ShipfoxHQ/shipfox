@@ -15,6 +15,11 @@ type DeclaredTrigger = {
   readonly with?: Readonly<Record<string, unknown>> | undefined;
 };
 
+type ReferencedInputKeys = {
+  readonly keys: readonly string[];
+  readonly hasUnknownAccess: boolean;
+};
+
 export interface WorkflowModelConcurrencyInput {
   readonly group: string;
   readonly scope?: 'workflow' | 'project' | undefined;
@@ -172,27 +177,42 @@ function warnForNullableRoots(params: {
 function rootCanBeNullForTrigger(
   root: string,
   trigger: DeclaredTrigger,
-  inputKeys: readonly string[],
+  inputKeys: ReferencedInputKeys,
 ): boolean {
   if (root === 'event') return trigger.source === 'manual' || trigger.source === 'cron';
   if (root !== 'inputs') return false;
-  if (inputKeys.length === 0) return trigger.with === undefined;
-  return inputKeys.some((key) => trigger.with === undefined || !Object.hasOwn(trigger.with, key));
+  if (inputKeys.hasUnknownAccess) return true;
+  if (inputKeys.keys.length === 0) return trigger.with === undefined;
+  return inputKeys.keys.some(
+    (key) => trigger.with === undefined || !Object.hasOwn(trigger.with, key),
+  );
 }
 
 function referencedRoots(template: WorkflowFieldTemplate): readonly string[] {
   return unique(template.flatMap((segment) => (segment.kind === 'deferred' ? segment.roots : [])));
 }
 
-function referencedInputKeys(template: WorkflowFieldTemplate): readonly string[] {
-  return unique(
-    template.flatMap((segment) => {
-      if (segment.kind !== 'deferred' || !segment.roots.includes('inputs')) return [];
-      return analyzeContextRootKeyAccess(segment.expression, ['inputs']).references.map(
-        (reference) => reference.key,
-      );
-    }),
-  );
+function referencedInputKeys(template: WorkflowFieldTemplate): ReferencedInputKeys {
+  const keys: string[] = [];
+  let hasUnknownAccess = false;
+
+  for (const segment of template) {
+    if (segment.kind !== 'deferred' || !segment.roots.includes('inputs')) continue;
+
+    const access = analyzeContextRootKeyAccess(segment.expression, ['inputs']);
+    keys.push(...access.references.map((reference) => reference.key));
+    const computedInputAccesses = access.violations.filter(
+      (violation) => violation.root === 'inputs',
+    );
+    keys.push(
+      ...computedInputAccesses.flatMap((violation) =>
+        violation.key === undefined ? [] : [violation.key],
+      ),
+    );
+    hasUnknownAccess ||= computedInputAccesses.some((violation) => violation.key === undefined);
+  }
+
+  return {keys: unique(keys), hasUnknownAccess};
 }
 
 function unique(values: readonly string[]): readonly string[] {

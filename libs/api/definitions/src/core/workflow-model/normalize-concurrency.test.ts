@@ -164,6 +164,28 @@ describe('normalizeWorkflowConcurrency', () => {
     ]);
   });
 
+  it.each([
+    ['an unrelated input key', {region: 'us-east-1'}],
+    ['an empty input map', {}],
+  ] as const)('warns for computed input access with %s', (_caseDescription, inputs) => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: inputs},
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+        },
+      }),
+      {group: interpolation('inputs["environment"]')},
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['inputs'], triggers: ['manual']},
+      }),
+    ]);
+  });
+
   it('rejects concurrency for listening jobs', () => {
     let error: unknown;
     try {
