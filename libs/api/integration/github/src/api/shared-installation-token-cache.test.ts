@@ -194,6 +194,54 @@ describe('SharedInstallationTokenCache', () => {
     ).toContain('ghs_new');
   });
 
+  it('writes token and backoff envelopes under a caller-owned compatibility lock', async () => {
+    const store = createStore();
+    let lockHeld = false;
+    const withNonReentrantLock = async <T>(
+      _installationId: number,
+      _permissionFingerprint: string,
+      fn: () => Promise<T>,
+    ): Promise<InstallationTokenLockResult<T>> => {
+      if (lockHeld) return {acquired: false};
+      lockHeld = true;
+      try {
+        return {acquired: true, value: await fn()};
+      } finally {
+        lockHeld = false;
+      }
+    };
+    const shared = cache({
+      store,
+      withLock: withNonReentrantLock,
+      withBackoffLock: withNonReentrantLock,
+    });
+
+    await expect(
+      shared.getOrMint(installationId, GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT, () =>
+        Promise.resolve(token('ghs_new')),
+      ),
+    ).resolves.toEqual(token('ghs_new'));
+    expect(
+      store.values.get(
+        `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
+      ),
+    ).toContain('ghs_new');
+
+    setEnvelope(store, token('ghs_existing', '2026-06-10T11:04:30.000Z'));
+    const failedMint = vi
+      .fn()
+      .mockRejectedValue(new GithubIntegrationProviderError('provider-rejected', 'rejected'));
+
+    await expect(
+      shared.getOrMint(installationId, GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT, failedMint),
+    ).rejects.toMatchObject({reason: 'provider-rejected'});
+    expect(
+      store.values.get(
+        `${workspaceId}:${installationId}:${githubInstallationTokenBackoffKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
+      ),
+    ).toContain('provider-rejected');
+  });
+
   it('rejects a legacy envelope after a new invalidation generation is published', async () => {
     const store = createStore();
     setEnvelope(store, token('ghs_before-approval'), 'broad');
@@ -492,6 +540,21 @@ describe('SharedInstallationTokenCache', () => {
 
     expect(result).toEqual(token('ghs_cached'));
     expect(mint).not.toHaveBeenCalled();
+  });
+
+  it('serves a same-generation cached hit without reacquiring the compatibility lock', async () => {
+    const store = createStore();
+    await store.writeGeneration?.(workspaceId, installationId, 'generation-1');
+    setEnvelope(store, {...token('ghs_cached'), generation: 'generation-1'});
+    const withBackoffLock = vi.fn(() => Promise.resolve({acquired: false as const}));
+    const mint = vi.fn(() => Promise.resolve(token('ghs_new')));
+    const shared = cache({store, withBackoffLock});
+
+    await expect(
+      shared.getOrMint(installationId, GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT, mint),
+    ).resolves.toEqual(token('ghs_cached'));
+    expect(mint).not.toHaveBeenCalled();
+    expect(withBackoffLock).not.toHaveBeenCalled();
   });
 
   it('serves a still-valid token on a contended refresh path', async () => {

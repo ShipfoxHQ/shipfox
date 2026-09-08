@@ -56,7 +56,6 @@ export {
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY,
   GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
-  GITHUB_INSTALLATION_TOKEN_INVALIDATION_BOUND_MS,
   githubInstallationTokenGenerationNamespace,
   githubInstallationTokenKey,
   githubInstallationTokenNamespace,
@@ -164,27 +163,31 @@ export function createGithubIntegrationProvider(options: CreateGithubIntegration
   const deleteInstallationSecrets =
     deleteSecrets || checkoutTokenCache
       ? async (params: {workspaceId: string; installationId: number}): Promise<void> => {
-          await deleteInstallationToken(params);
-
+          const cleanupOperations: Promise<unknown>[] = [deleteInstallationToken(params)];
           if (checkoutTokenProviderInstance) {
-            const deleted = checkoutTokenCache?.deleteInstallation
-              ? await checkoutTokenCache.deleteInstallation(
-                  params.workspaceId,
-                  checkoutTokenProviderInstance,
-                  params.installationId,
-                )
-              : 0;
-            // A cache without a shared store can still evict its RAM copy but
-            // must fall through to the authoritative namespace deletion.
-            if (deleted === 0 && deleteSecrets) {
-              await deleteGithubCheckoutTokenSecretGroup({
-                workspaceId: params.workspaceId,
-                providerInstance: checkoutTokenProviderInstance,
-                installationId: params.installationId,
-                deleteSecrets,
-              });
-            }
+            cleanupOperations.push(
+              (async () => {
+                const deleted = checkoutTokenCache?.deleteInstallation
+                  ? await checkoutTokenCache.deleteInstallation(
+                      params.workspaceId,
+                      checkoutTokenProviderInstance,
+                      params.installationId,
+                    )
+                  : 0;
+                // A cache without a shared store can still evict its RAM copy but
+                // must fall through to the authoritative namespace deletion.
+                if (deleted === 0 && deleteSecrets) {
+                  await deleteGithubCheckoutTokenSecretGroup({
+                    workspaceId: params.workspaceId,
+                    providerInstance: checkoutTokenProviderInstance,
+                    installationId: params.installationId,
+                    deleteSecrets,
+                  });
+                }
+              })(),
+            );
           }
+          await Promise.all(cleanupOperations);
         }
       : undefined;
   const deleteInstallationTokenSecret =

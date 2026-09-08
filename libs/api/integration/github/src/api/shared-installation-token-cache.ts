@@ -200,7 +200,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       generation,
     );
     if (usable(envelope, this.now())) {
-      const current = await this.generationMatches(
+      const current = await this.generationMatchesDirect(
         workspaceId,
         installationId,
         generation,
@@ -240,7 +240,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
         failure: error,
         generation,
       });
-      const current = await this.generationMatches(
+      const current = await this.generationMatchesDirect(
         workspaceId,
         installationId,
         generation,
@@ -293,7 +293,12 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
         generation,
       });
       if (
-        await this.generationMatches(workspaceId, installationId, generation, reportReadFailure)
+        await this.generationMatchesDirect(
+          workspaceId,
+          installationId,
+          generation,
+          reportReadFailure,
+        )
       ) {
         return result.value;
       }
@@ -344,12 +349,11 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     );
     const now = this.now();
     if (usable(envelope, now)) {
-      const current = await this.generationMatches(
+      const current = await this.generationMatchesDirect(
         params.workspaceId,
         params.installationId,
         generation,
         params.reportReadFailure,
-        params.compatibilityLockHeld,
       );
       if (!current) return undefined;
       recordInstallationTokenLookup('db-hit');
@@ -358,12 +362,11 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
 
     if (activeBackoff(envelope, now)) {
       if (canServeStale(envelope, now)) {
-        const current = await this.generationMatches(
+        const current = await this.generationMatchesDirect(
           params.workspaceId,
           params.installationId,
           generation,
           params.reportReadFailure,
-          params.compatibilityLockHeld,
         );
         if (!current) return undefined;
         recordInstallationTokenLookup('served-stale');
@@ -711,7 +714,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     generation: InstallationTokenGeneration;
     mint: () => Promise<GithubInstallationAccessToken>;
   }): Promise<GithubInstallationAccessToken> {
-    const current = await this.generationMatches(
+    const current = await this.generationMatchesDirect(
       params.workspaceId,
       params.installationId,
       params.generation,
@@ -748,7 +751,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       const now = this.now();
       if (usable(envelope, now)) {
         if (
-          await this.generationMatches(
+          await this.generationMatchesDirect(
             params.workspaceId,
             params.installationId,
             params.generation,
@@ -902,8 +905,8 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
   ): Promise<boolean> {
     if (!this.generationFenceEnabled) return true;
     if (generation === undefined) return false;
-    const read = async () =>
-      (await this.readGeneration(workspaceId, installationId, reportReadFailure)) === generation;
+    const read = () =>
+      this.generationMatchesDirect(workspaceId, installationId, generation, reportReadFailure);
     if (lockHeld) return await read();
     const result = await this.withBackoffLock(
       installationId,
@@ -920,6 +923,19 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     return result.value;
   }
 
+  private async generationMatchesDirect(
+    workspaceId: string,
+    installationId: number,
+    generation: InstallationTokenGeneration,
+    reportReadFailure?: (error: unknown) => void,
+  ): Promise<boolean> {
+    if (!this.generationFenceEnabled) return true;
+    if (generation === undefined) return false;
+    return (
+      (await this.readGeneration(workspaceId, installationId, reportReadFailure)) === generation
+    );
+  }
+
   private async writeEnvelope(
     workspaceId: string,
     installationId: number,
@@ -929,10 +945,18 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     lockHeld = false,
     reportReadFailure?: (error: unknown) => void,
   ): Promise<InstallationTokenEnvelopeWriteResult> {
-    const write = async (): Promise<InstallationTokenEnvelopeWriteResult> => {
+    const write = async (
+      lockHeldByCaller: boolean,
+    ): Promise<InstallationTokenEnvelopeWriteResult> => {
       if (
         this.generationFenceEnabled &&
-        !(await this.generationMatches(workspaceId, installationId, generation, reportReadFailure))
+        !(await this.generationMatches(
+          workspaceId,
+          installationId,
+          generation,
+          reportReadFailure,
+          lockHeldByCaller,
+        ))
       ) {
         return 'skipped';
       }
@@ -942,11 +966,11 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       });
       return 'written';
     };
-    if (!this.generationFenceEnabled || lockHeld) return await write();
+    if (!this.generationFenceEnabled || lockHeld) return await write(lockHeld);
     const result = await this.withBackoffLock(
       installationId,
       GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
-      write,
+      () => write(true),
     );
     if (!result.acquired) return 'contended';
     return result.value;

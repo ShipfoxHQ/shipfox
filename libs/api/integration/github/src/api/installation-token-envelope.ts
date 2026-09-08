@@ -87,7 +87,6 @@ export interface ClassifiedMintError {
 
 export const GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY = 'ENVELOPE';
 export const GITHUB_INSTALLATION_TOKEN_GENERATION_KEY = 'GENERATION';
-export const GITHUB_INSTALLATION_TOKEN_INVALIDATION_BOUND_MS = 2_000;
 
 export type GithubInstallationTokenPermissions = Record<string, 'read' | 'write'>;
 export type MintBackoffScope = 'installation' | 'profile';

@@ -51,6 +51,8 @@ The caller waits for a fresh mint or receives the existing provider failure.
 
 The cluster guarantee begins only after every API replica that can serve GitHub tokens runs the fence-aware version.
 Older replicas do not read `GENERATION` and can continue serving their local RAM entry until it expires.
+They can also write generation-less envelopes and backoff entries.
+New replicas discard those values or cannot share their backoff, which can cause extra mints and weaker shared backoff until all old replicas drain.
 Drain older replicas before relying on approval invalidation, or pause permission approvals during the rollout.
 
 The new reader accepts legacy envelopes while the fence is absent.
