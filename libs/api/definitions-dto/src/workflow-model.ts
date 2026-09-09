@@ -60,6 +60,12 @@ export type WorkflowFieldTemplate = readonly ResolvedFieldSegment[];
 export type WorkflowEnvTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 export type WorkflowOutputTemplates = Readonly<Record<string, WorkflowFieldTemplate>>;
 
+export interface WorkflowModelConcurrency {
+  readonly group: WorkflowFieldTemplate;
+  readonly scope: 'workflow' | 'project';
+  readonly cancelInProgress: boolean;
+}
+
 /** A JSON-compatible value tree, the shape of a tool step's `with` payload. */
 export type WorkflowJsonValue =
   | null
@@ -84,6 +90,7 @@ export interface WorkflowModel {
   readonly kind: 'workflow';
   readonly name: string;
   readonly runName?: WorkflowFieldTemplate;
+  readonly concurrency?: WorkflowModelConcurrency;
   readonly env?: Readonly<Record<string, string>>;
   readonly templates?: {readonly env?: WorkflowEnvTemplates};
   readonly triggers: readonly WorkflowModelTrigger[];
@@ -258,22 +265,24 @@ const workflowModelSchema = z.custom<WorkflowModel>(
 );
 
 export const workflowModelSnapshotSchema = z.object({
-  // v2 snapshots predate tool steps and stay readable; new snapshots are v3.
-  version: z.union([z.literal(3), z.literal(2)]),
+  // v2 snapshots predate tool steps, and v3 snapshots predate concurrency.
+  // Historical versions stay readable while snapshots containing concurrency use v4.
+  version: z.union([z.literal(4), z.literal(3), z.literal(2)]),
   model: workflowModelSchema,
 });
 export type WorkflowModelSnapshot = z.infer<typeof workflowModelSnapshotSchema>;
 
 export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModelSnapshot {
-  return {version: 3, model};
+  return {version: model.concurrency === undefined ? 3 : 4, model};
 }
 
 export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): WorkflowModel {
   switch (snapshot.version) {
-    // v2 persisted snapshots carry a pre-tool-step model; the model shape
-    // itself is unchanged, so they load as-is and re-serialize as v3.
+    // Historical snapshots carry older model shapes; optional model fields
+    // make them readable as-is.
     case 2:
     case 3:
+    case 4:
       return snapshot.model;
     default:
       // Callers that bypass the zod boundary (or a future version) get a
@@ -281,7 +290,7 @@ export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): Work
       throw new Error(
         `Unsupported workflow model snapshot version ${String(
           snapshot.version,
-        )}; supported versions are 2 and 3.`,
+        )}; supported versions are 2, 3, and 4.`,
       );
   }
 }
