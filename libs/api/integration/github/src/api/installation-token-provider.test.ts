@@ -85,7 +85,7 @@ describe('GithubInstallationTokenProvider', () => {
     });
   });
 
-  it('uses the compatibility identity at the shared-cache boundary', async () => {
+  it('passes the installation mint callback to the cache boundary', async () => {
     createInstallationAccessTokenMock.mockResolvedValue({
       data: {
         token: GITHUB_STATELESS_INSTALLATION_TOKEN,
@@ -93,17 +93,13 @@ describe('GithubInstallationTokenProvider', () => {
       },
     });
     const getOrMint = vi.fn((...args: Parameters<InstallationTokenCache['getOrMint']>) =>
-      args[2](),
+      args[1](),
     );
     const provider = createGithubInstallationTokenProvider({cache: {getOrMint}});
 
     await provider.getInstallationAccessToken(1);
 
-    expect(getOrMint).toHaveBeenCalledWith(
-      1,
-      GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
-      expect.any(Function),
-    );
+    expect(getOrMint).toHaveBeenCalledWith(1, expect.any(Function));
   });
 
   it('passes through a stateful full-grant installation token', async () => {
@@ -289,11 +285,7 @@ describe('GithubInstallationTokenProvider', () => {
     await githubInstallationFactory.create({installationId: String(installationId), connectionId});
     const values = new Map<string, string>();
     let lockCalls = 0;
-    function withLock<T>(
-      _installationId: number,
-      _permissionFingerprint: string,
-      fn: () => Promise<T>,
-    ) {
+    function withLock<T>(_installationId: number, fn: () => Promise<T>) {
       lockCalls += 1;
       return fn().then((value) => ({acquired: true as const, value}));
     }
@@ -422,7 +414,7 @@ describe('GithubInstallationTokenProvider', () => {
       getIntegrationConnectionById,
       getGithubInstallationByInstallationId,
       secretStore,
-      withLock: <T>(_id: number, _profile: string, fn: () => Promise<T>) =>
+      withLock: <T>(_id: number, fn: () => Promise<T>) =>
         fn().then((value) => ({acquired: true as const, value})),
       now: () => new Date(),
     };

@@ -29,9 +29,11 @@ A request that completed its final check before the fence was published may fini
 The default lock retry window is 2 seconds, which is the cache coordination bound for lock contention.
 Secret-store operation latency and GitHub mint latency remain part of the surrounding request SLO.
 
-Permission profiles retain independent token and backoff keys.
-The generation fence covers every profile without merging their permissions.
-Terminal backoff entries remain profile-scoped or installation-scoped according to their existing error classification.
+Backend tools use one persisted compatibility token key and one `BACKOFF` key per installation.
+The generation fence covers this full-grant identity.
+Legacy profile-keyed entries remain distinct and are not read or relabeled by the new backend cache.
+Mint backoff records represent token-mint failures only.
+GitHub operation denials do not write or activate them.
 
 ## Failure and degradation behavior
 
@@ -51,11 +53,14 @@ The caller waits for a fresh mint or receives the existing provider failure.
 
 The cluster guarantee begins only after every API replica that can serve GitHub tokens runs the fence-aware version.
 Older replicas do not read `GENERATION` and can continue serving their local RAM entry until it expires.
-They can also write generation-less envelopes and backoff entries.
-New replicas discard those values or cannot share their backoff, which can cause extra mints and weaker shared backoff until all old replicas drain.
+They can also write generation-less envelopes and profile-specific backoff entries.
+New replicas read only the compatibility token and `BACKOFF` identities.
+Legacy profile entries remain isolated, which can cause extra mints and weaker shared backoff until all old replicas drain.
 Drain older replicas before relying on approval invalidation, or pause permission approvals during the rollout.
 
-The new reader accepts legacy envelopes while the fence is absent.
+The new reader accepts legacy compatibility envelopes while the fence is absent.
+It keeps the fixed `ENVELOPE` fallback for older storage writers.
+It does not treat a narrowed profile entry as a full-grant token.
 After the first new-version invalidation publishes a fence, it rejects those envelopes and mints a fresh token.
 This permits a rolling data migration without persisting an approved-permission snapshot.
 

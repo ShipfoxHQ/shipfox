@@ -8,7 +8,6 @@ import {recordInstallationTokenFormat, recordInstallationTokenLookup} from '#met
 import {type GithubInstallationAccessToken, mapGithubError} from './client.js';
 import {githubInstallationTokenFormatPlugin} from './github-octokit.js';
 import {
-  GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   githubInstallationTokenNamespace,
   TOKEN_REFRESH_MARGIN_MS,
 } from './installation-token-envelope.js';
@@ -61,10 +60,8 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
 
   async getInstallationAccessToken(installationId: number): Promise<GithubInstallationAccessToken> {
     await this.assertInstallationIsActive(installationId);
-    return await this.cache.getOrMint(
-      installationId,
-      GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
-      () => this.mintInstallationAccessToken(installationId),
+    return await this.cache.getOrMint(installationId, () =>
+      this.mintInstallationAccessToken(installationId),
     );
   }
 
@@ -187,7 +184,6 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
 
   getOrMint(
     installationId: number,
-    _permissionFingerprint: string,
     mint: () => Promise<GithubInstallationAccessToken>,
   ): Promise<GithubInstallationAccessToken> {
     const epoch = this.epochs.get(installationId) ?? 0;
@@ -208,7 +204,7 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
     const freshToken = mint()
       .then((token) => {
         if ((this.epochs.get(installationId) ?? 0) !== epoch) {
-          return this.getOrMint(installationId, _permissionFingerprint, mint);
+          return this.getOrMint(installationId, mint);
         }
         this.tokens.set(installationId, {token, generation});
         return token;
@@ -251,19 +247,18 @@ class TieredInstallationTokenCache implements InstallationTokenCache {
 
   async getOrMint(
     installationId: number,
-    permissionFingerprint: string,
     mint: () => Promise<GithubInstallationAccessToken>,
   ): Promise<GithubInstallationAccessToken> {
     const generation = await this.readGeneration(installationId);
     this.ram.observeGeneration?.(installationId, generation);
-    const result = await this.ram.getOrMint(installationId, permissionFingerprint, () =>
-      this.shared.getOrMint(installationId, permissionFingerprint, mint),
+    const result = await this.ram.getOrMint(installationId, () =>
+      this.shared.getOrMint(installationId, mint),
     );
     const currentGeneration = await this.readGeneration(installationId);
     if (currentGeneration === generation) return result;
 
     this.ram.observeGeneration?.(installationId, currentGeneration);
-    return await this.getOrMint(installationId, permissionFingerprint, mint);
+    return await this.getOrMint(installationId, mint);
   }
 
   async deleteInstallation(
@@ -303,8 +298,6 @@ function createInstallationTokenCache(
   const shared = new SharedInstallationTokenCache({
     secretStore: options.secretStore,
     withLock,
-    withBackoffLock: withLock,
-    shareCompatibilityLock: true,
     resolveWorkspaceId: createGithubInstallationWorkspaceResolver(
       options.getIntegrationConnectionById,
     ),
