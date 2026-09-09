@@ -229,7 +229,7 @@ describe('OctokitGithubApiClient.getBotUser', () => {
 });
 
 describe('mapGithubError', () => {
-  it.each([400, 409, 422])('maps HTTP %i to a terminal provider rejection', async (status) => {
+  it.each([400, 404, 409, 422])('maps HTTP %i to a terminal provider rejection', async (status) => {
     const error = new RequestErrorMock(`GitHub rejected request with HTTP ${status}`, status);
 
     const result = mapGithubError(() => Promise.reject(error));
@@ -255,13 +255,13 @@ describe('mapGithubError', () => {
     });
   });
 
-  it('keeps the provider message when a denial carries no accepted-permissions header', async () => {
+  it('keeps an ambiguous 403 as a provider rejection', async () => {
     const error = new RequestErrorMock('Resource not accessible by integration', 403);
 
     const result = mapGithubError(() => Promise.reject(error));
 
     await expect(result).rejects.toMatchObject({
-      reason: 'access-denied',
+      reason: 'provider-rejected',
       message: 'Resource not accessible by integration',
     });
   });
