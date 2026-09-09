@@ -1,5 +1,12 @@
 # @shipfox/expression
 
+## 2.9.1
+
+### Patch Changes
+
+- Updated dependencies [d559bdb]
+  - @shipfox/workflow-document@3.7.0
+
 ## 2.9.0
 
 ### Minor Changes

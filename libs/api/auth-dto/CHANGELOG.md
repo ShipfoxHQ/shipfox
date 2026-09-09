@@ -1,5 +1,11 @@
 # @shipfox/api-auth-dto
 
+## 24.1.0
+
+### Minor Changes
+
+- edc3705: Adds a bounded Auth lookup for impersonation-eligible user summaries in ID and search modes.
+
 ## 24.0.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @shipfox/workflow-document
 
+## 3.7.0
+
+### Minor Changes
+
+- d559bdb: Persist the effective gate attempt limit for each run, defaulting new Definitions to five while retaining the legacy three-attempt fallback for older run data.
+
 ## 3.6.0
 
 ### Minor Changes

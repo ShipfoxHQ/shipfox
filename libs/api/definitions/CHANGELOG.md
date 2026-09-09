@@ -1,5 +1,34 @@
 # @shipfox/api-definitions
 
+## 24.1.0
+
+### Minor Changes
+
+- 34b5267: Workflow models expose `group`, `scope`, and `cancelInProgress` concurrency fields.
+  Definitions warn when groups reference contexts unavailable to declared triggers.
+  Snapshots containing concurrency use version 4. Versions 2 and 3 remain readable.
+  Earlier readers reject version 4 snapshots. Upgrade every reader before writing concurrency-bearing snapshots.
+
+### Patch Changes
+
+- d559bdb: Persist the effective gate attempt limit for each run, defaulting new Definitions to five while retaining the legacy three-attempt fallback for older run data.
+- Updated dependencies [d559bdb]
+- Updated dependencies [34b5267]
+- Updated dependencies [dd01977]
+  - @shipfox/workflow-document@3.7.0
+  - @shipfox/api-definitions-dto@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/api-agent-dto@24.1.0
+  - @shipfox/expression@2.9.1
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-temporal@0.5.1
+  - @shipfox/node-module@1.0.11
+  - @shipfox/node-outbox@0.2.7
+
 ## 24.0.0
 
 ### Minor Changes

@@ -1,5 +1,21 @@
 # @shipfox/api-integration-github
 
+## 24.1.0
+
+### Patch Changes
+
+- 680a980: Use the full GitHub installation grant for backend agent tools.
+- 6dbb7bd: Collapses backend GitHub installation-token caching and mint backoff to one compatibility identity per installation while preserving generation fences and mixed-version storage compatibility.
+  Removes the obsolete permission-profile label from the installation-token backoff metric.
+- 3a742f4: Simplifies the backend GitHub token provider and local cache around one full-grant installation identity.
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+
 ## 24.0.0
 
 ### Minor Changes

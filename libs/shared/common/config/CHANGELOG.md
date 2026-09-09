@@ -1,5 +1,11 @@
 # @shipfox/config
 
+## 1.3.0
+
+### Minor Changes
+
+- dd01977: Adds typed configuration-key fallbacks. API Auth now requires a validated API_URL in production and uses it when API_PUBLIC_URL is unset.
+
 ## 1.2.4
 
 ### Patch Changes

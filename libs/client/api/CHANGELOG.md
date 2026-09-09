@@ -1,5 +1,11 @@
 # @shipfox/client-api
 
+## 41.0.0
+
+### Minor Changes
+
+- f22cfe7: Restores adopted sessions at boot, supports bounded same-principal token continuation and renewal, gates requests until renewal succeeds or the session ends, invokes each release reason once, and publishes the client-api and client-shell hooks as one compatible release train.
+
 ## 40.0.0
 
 ### Minor Changes

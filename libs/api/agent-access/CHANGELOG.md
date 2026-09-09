@@ -1,5 +1,27 @@
 # @shipfox/api-agent-access
 
+## 24.1.0
+
+### Minor Changes
+
+- cdc9dfe: Adds the waiting workflow run status to DTO, database, server, and client contracts without producing it during run creation.
+
+### Patch Changes
+
+- Updated dependencies [d559bdb]
+- Updated dependencies [c730a68]
+- Updated dependencies [34b5267]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/api-definitions-dto@24.1.0
+  - @shipfox/api-agent-access-dto@24.1.0
+  - @shipfox/api-logs-dto@24.1.0
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-module@1.0.11
+
 ## 24.0.0
 
 ### Patch Changes

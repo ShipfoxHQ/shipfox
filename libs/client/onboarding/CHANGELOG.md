@@ -1,5 +1,18 @@
 # @shipfox/client-onboarding
 
+## 41.0.0
+
+### Patch Changes
+
+- Updated dependencies [f22cfe7]
+- Updated dependencies [89ad9f0]
+  - @shipfox/client-shell@41.0.0
+  - @shipfox/client-agent@41.0.0
+  - @shipfox/client-integrations@41.0.0
+  - @shipfox/client-projects@41.0.0
+  - @shipfox/client-runners@41.0.0
+  - @shipfox/client-workspace-settings@41.0.0
+
 ## 40.0.0
 
 ### Patch Changes

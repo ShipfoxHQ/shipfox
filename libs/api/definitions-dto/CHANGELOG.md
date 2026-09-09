@@ -1,5 +1,21 @@
 # @shipfox/api-definitions-dto
 
+## 24.1.0
+
+### Minor Changes
+
+- d559bdb: Persist the effective gate attempt limit for each run, defaulting new Definitions to five while retaining the legacy three-attempt fallback for older run data.
+- 34b5267: Workflow models expose `group`, `scope`, and `cancelInProgress` concurrency fields.
+  Definitions warn when groups reference contexts unavailable to declared triggers.
+  Snapshots containing concurrency use version 4. Versions 2 and 3 remain readable.
+  Earlier readers reject version 4 snapshots. Upgrade every reader before writing concurrency-bearing snapshots.
+
+### Patch Changes
+
+- Updated dependencies [d559bdb]
+  - @shipfox/workflow-document@3.7.0
+  - @shipfox/expression@2.9.1
+
 ## 24.0.0
 
 ### Patch Changes

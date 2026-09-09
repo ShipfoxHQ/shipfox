@@ -1,5 +1,45 @@
 # @shipfox/api-server
 
+## 24.1.0
+
+### Patch Changes
+
+- Updated dependencies [edc3705]
+- Updated dependencies [d559bdb]
+- Updated dependencies [c730a68]
+- Updated dependencies [34b5267]
+- Updated dependencies [ab0d008]
+- Updated dependencies [cdc9dfe]
+- Updated dependencies [dd01977]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/api-auth@24.1.0
+  - @shipfox/api-auth-dto@24.1.0
+  - @shipfox/api-definitions-dto@24.1.0
+  - @shipfox/api-definitions@24.1.0
+  - @shipfox/api-workflows@24.1.0
+  - @shipfox/api-logs-dto@24.1.0
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/api-logs@24.1.0
+  - @shipfox/api-runners@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-agent-access@24.1.0
+  - @shipfox/api-agent@24.1.0
+  - @shipfox/annotations@24.1.0
+  - @shipfox/api-projects@24.1.0
+  - @shipfox/api-workspaces@24.1.0
+  - @shipfox/api-integration-core@24.1.0
+  - @shipfox/api-agent-dto@24.1.0
+  - @shipfox/api-triggers@24.1.0
+  - @shipfox/api-dispatcher@24.1.0
+  - @shipfox/api-usage@24.1.0
+  - @shipfox/api-email-challenges@1.1.17
+  - @shipfox/api-secrets@24.1.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-module@1.0.11
+
 ## 24.0.0
 
 ### Minor Changes

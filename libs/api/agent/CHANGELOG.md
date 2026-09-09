@@ -1,5 +1,26 @@
 # @shipfox/api-agent
 
+## 24.1.0
+
+### Patch Changes
+
+- Updated dependencies [d559bdb]
+- Updated dependencies [c730a68]
+- Updated dependencies [dd01977]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/workflow-document@3.7.0
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/api-agent-dto@24.1.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-object-storage@0.2.1
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-temporal@0.5.1
+  - @shipfox/node-module@1.0.11
+
 ## 24.0.0
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @shipfox/client-secrets
 
+## 41.0.0
+
+### Patch Changes
+
+- Updated dependencies [f22cfe7]
+  - @shipfox/client-shell@41.0.0
+  - @shipfox/client-api@41.0.0
+  - @shipfox/client-ui@41.0.0
+
 ## 40.0.0
 
 ### Patch Changes
