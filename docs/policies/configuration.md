@@ -17,8 +17,18 @@ validator for each variable it reads. Keep the schema first. Derive helpers
 below it.
 
 Use the validator that matches the value: `str`, `num`, `bool`, `host`, `port`,
-`url`, or `email`. A validator with a `default` is optional. Without a default,
-the setting is required. Startup fails when it is missing or invalid.
+`url`, or `email`. A `default` supplies a missing value in every environment.
+Without an active default or fallback, the setting is required. Startup fails
+when a required value is missing or any explicit value is invalid.
+
+Use `devDefault` when a value is safe only outside production. It applies when
+`NODE_ENV` is set and is not `production`; production still requires the
+setting. Use `testDefault` when tests need a separate value.
+
+Wrap a validator with `fallbackTo('SOURCE_KEY', validator)` when one setting
+uses another setting as its fallback. Both keys must be in the same schema and
+produce compatible types. The source default resolves before the dependent
+validator checks the value.
 
 `@shipfox/config` owns the library API and validator behavior. Read its
 [package README](../../libs/shared/common/config/README.md) when using or

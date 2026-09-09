@@ -61,9 +61,22 @@ describe('signup gate configuration', () => {
     expect(config.AUTH_JWT_EXPIRES_IN).toBe('30s');
   });
 
-  test('requires API_PUBLIC_URL or API_URL', async () => {
+  test('defaults both API URLs to localhost in tests', async () => {
     vi.stubEnv('API_PUBLIC_URL', undefined);
     vi.stubEnv('API_URL', undefined);
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.resetModules();
+
+    const {config} = await import('#config.js');
+
+    expect(config.API_URL).toBe('http://localhost:3000');
+    expect(config.API_PUBLIC_URL).toBe('http://localhost:3000');
+  });
+
+  test('requires an explicit API URL in production', async () => {
+    vi.stubEnv('API_PUBLIC_URL', 'https://api.example.test');
+    vi.stubEnv('API_URL', undefined);
+    vi.stubEnv('NODE_ENV', 'production');
     vi.resetModules();
 
     await expect(import('#config.js')).rejects.toThrow('process.exit unexpectedly called with "1"');
