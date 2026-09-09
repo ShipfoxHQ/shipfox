@@ -14,15 +14,15 @@ export function McpSetup() {
     <section className="flex min-w-0 flex-col gap-group" aria-labelledby="mcp-setup-title">
       <div className="flex flex-col gap-tight">
         <Header id="mcp-setup-title" variant="h3">
-          Connect your agent
+          Connect an MCP app
         </Header>
         <Text size="sm" className="text-foreground-neutral-muted">
-          Give Claude, Codex, or another MCP app access to your Shipfox workspace.
+          Connect Claude, Codex, or another MCP app to the Shipfox MCP server.
         </Text>
       </div>
       <Panel>
         <div className="border-b border-border-neutral-base p-panel-compact">
-          <SetupCode label="MCP endpoint" code={endpoint} showLabel />
+          <SetupCode label="Shipfox MCP server endpoint" code={endpoint} showLabel />
         </div>
         <div className="flex flex-col gap-group p-panel-compact">
           <Tabs defaultValue="claude-code">
@@ -65,8 +65,9 @@ export function McpSetup() {
             </TabsContent>
           </Tabs>
           <Text size="sm" className="text-foreground-neutral-muted">
-            When Shipfox opens, select this workspace and review the requested access. Once you
-            approve, the app will appear below. Other MCP apps can use the same endpoint with OAuth.
+            When the Shipfox access page opens, select this workspace and review the requested
+            access. Once you approve, the app will appear below. Other MCP apps can use the same
+            endpoint with OAuth.
           </Text>
         </div>
       </Panel>

@@ -38,13 +38,13 @@ export function OAuthConsentRoutePage({
   if (!search.requestId) {
     return (
       <AuthShell
-        title="Connection request unavailable"
+        title="Access request unavailable"
         description="The link is missing its request identifier."
       >
         <Panel>
           <EmptyState
             icon="linkUnlink"
-            title="Open a new connection request"
+            title="Open a new access request"
             description="Return to your MCP client and start the connection again."
             variant="panel"
           />
@@ -73,13 +73,13 @@ export function OAuthConsentPage({
   if (consentQuery.data === undefined) {
     return (
       <AuthShell
-        title="Connection request unavailable"
-        description="Shipfox could not open this connection request."
+        title="Access request unavailable"
+        description="Shipfox could not open this access request."
       >
         <Panel>
           <EmptyState
             icon="linkUnlink"
-            title="Could not load connection request"
+            title="Could not load access request"
             description={oauthConsentErrorMessage(consentQuery.error)}
             action={
               <Button
@@ -232,9 +232,7 @@ function OAuthConsentLoaded({
           ) : null}
           {consent.workspaces.length === 0 ? (
             <Callout type="warning">
-              <Text size="sm">
-                No eligible workspaces are available for this connection request.
-              </Text>
+              <Text size="sm">No eligible workspaces are available for this access request.</Text>
             </Callout>
           ) : null}
 
@@ -272,11 +270,8 @@ function OAuthConsentLoaded({
 
 function OAuthConsentLoading() {
   return (
-    <AuthShell
-      title="Review connection request"
-      description="Loading the verified connection request."
-    >
-      <Panel role="status" aria-label="Loading connection request" className="p-panel">
+    <AuthShell title="Review access request" description="Loading the verified access request.">
+      <Panel role="status" aria-label="Loading access request" className="p-panel">
         <div className="flex flex-col gap-group">
           <Skeleton className="h-20 w-192" />
           <Skeleton className="h-80 w-full" />

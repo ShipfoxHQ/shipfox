@@ -90,7 +90,7 @@ function StoryProviders({children, view}: {children: ReactNode; view: View}) {
 }
 
 const meta = {
-  title: 'MCP connections/Surfaces',
+  title: 'Shipfox MCP server/Surfaces',
   component: AgentAccessStory,
   parameters: {layout: 'fullscreen'},
   decorators: [withStoryProviders],

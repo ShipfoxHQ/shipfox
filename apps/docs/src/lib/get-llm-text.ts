@@ -63,6 +63,9 @@ function requiredFactsForPage(pageUrl: string): string[] {
       '| Property | Type | Description |',
     ];
   }
+  if (path === '/reference/mcp-server') {
+    return ['## Tool catalog', '#### `list_projects`', '##### Input'];
+  }
   if (path === '/reference/model-providers') {
     return ['## Supported providers', '| Provider | `provider` ID |'];
   }

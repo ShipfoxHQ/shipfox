@@ -154,7 +154,7 @@ describe('AgentAccessSettingsPage', () => {
     await user.click(confirmButton);
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'MCP connections are temporarily unavailable. Try again in a moment.',
+      'The Shipfox MCP server is temporarily unavailable. Try again in a moment.',
     );
     expect(dialog).toBeVisible();
     expect(confirmButton).toBeEnabled();

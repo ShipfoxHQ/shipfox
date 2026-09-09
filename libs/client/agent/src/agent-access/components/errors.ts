@@ -7,15 +7,15 @@ export function agentAccessErrorMessage(error: unknown): string {
     case 'network-error':
       return "We couldn't reach the server. Check your connection and try again.";
     case 'workspace-suspended':
-      return 'This workspace is suspended. Restore it before managing MCP connections.';
+      return 'This workspace is suspended. Restore it before managing the Shipfox MCP server.';
     case 'workspace-inactive':
-      return 'This workspace is not active, so its MCP connections cannot be changed.';
+      return 'This workspace is not active, so the Shipfox MCP server cannot be managed.';
     case 'forbidden':
-      return "You don't have permission to manage MCP connections for this workspace.";
+      return "You don't have permission to manage the Shipfox MCP server for this workspace.";
     case 'auth-dependency-unavailable':
-      return 'MCP connections are temporarily unavailable. Try again in a moment.';
+      return 'The Shipfox MCP server is temporarily unavailable. Try again in a moment.';
     case 'not-found':
-      return 'This connection no longer exists. Refresh the page to see the latest list.';
+      return 'This connected app no longer exists. Refresh the page to see the latest list.';
     default:
       return error.message;
   }
@@ -28,17 +28,17 @@ export function oauthConsentErrorMessage(error: unknown): string {
     case 'network-error':
       return "We couldn't reach the server. Check your connection and try again.";
     case 'workspace-suspended':
-      return 'This workspace is suspended. Restore it before approving this connection request.';
+      return 'This workspace is suspended. Restore it before approving this access request.';
     case 'workspace-inactive':
-      return 'This workspace is not active, so this connection request cannot be approved.';
+      return 'This workspace is not active, so this access request cannot be approved.';
     case 'forbidden':
-      return "You don't have permission to approve this connection for this workspace.";
+      return "You don't have permission to approve this access request for this workspace.";
     case 'auth-dependency-unavailable':
-      return 'This connection request is temporarily unavailable. Try again in a moment.';
+      return 'This access request is temporarily unavailable. Try again in a moment.';
     case 'not-found':
-      return 'This connection request expired or is no longer available. Return to your MCP client and start again.';
+      return 'This access request expired or is no longer available. Return to your MCP client and start again.';
     case 'invalid-request':
-      return 'This connection request is invalid. Return to your MCP client and start again.';
+      return 'This access request is invalid. Return to your MCP client and start again.';
     default:
       return error.message;
   }

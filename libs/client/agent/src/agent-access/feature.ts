@@ -4,7 +4,7 @@ export const agentAccessSettingsSections = [
   {
     id: 'settings.agent-access',
     pathSegment: 'agent-access',
-    label: 'MCP connections',
+    label: 'Shipfox MCP server',
     icon: 'terminalBoxLine',
     order: 450,
   },

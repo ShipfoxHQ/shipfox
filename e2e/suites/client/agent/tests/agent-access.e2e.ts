@@ -2,7 +2,7 @@ import {config} from '@shipfox/e2e-core';
 import {requestAgentAccessConsent} from '@shipfox/e2e-setup-auth';
 import {expect, test} from './test.js';
 
-test('routes the composed MCP connections settings surface and loads grant state', async ({
+test('routes the composed Shipfox MCP server settings surface and loads grant state', async ({
   agentAccessSettings,
   createReadyWorkspace,
   page,

@@ -15,6 +15,7 @@ const routes = new Set(pages.map(routeFor));
 const generatedFragmentsByRoute = new Map([
   ['/reference/model-providers', ['reference/model-providers.mdx']],
   ['/reference/workflow-schema', ['reference/workflow-schema.mdx']],
+  ['/reference/mcp-server', ['reference/mcp-server-tools.mdx', 'reference/mcp-server-limits.mdx']],
   ['/integrations/github/events', ['integrations/github/events.mdx']],
   ['/integrations/github/tools', ['integrations/github/tools.mdx']],
   ['/integrations/sentry/events', ['integrations/sentry/events.mdx']],
