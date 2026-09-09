@@ -118,12 +118,30 @@ describe('normalizeWorkflowConcurrency', () => {
     expect(diagnostics).toEqual([
       expect.objectContaining({
         code: 'concurrency-group-root-may-be-null',
-        details: {roots: ['event'], triggers: ['manual']},
+        details: {roots: ['event', 'inputs'], triggers: ['manual']},
       }),
     ]);
   });
 
-  it('does not warn when inputs are configured for every trigger', () => {
+  it('does not warn when inputs are configured for every non-overridable trigger', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+          pullRequest: {
+            source: 'github',
+            event: 'pull_request',
+            with: {environment: 'production'},
+          },
+        },
+      }),
+      {group: interpolation('inputs.environment')},
+    );
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('warns when manual request inputs can override configured defaults', () => {
     const {diagnostics} = normalize(
       baseDocument({
         triggers: {
@@ -134,15 +152,24 @@ describe('normalizeWorkflowConcurrency', () => {
       {group: interpolation('inputs.environment')},
     );
 
-    expect(diagnostics).toEqual([]);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['inputs'], triggers: ['manual']},
+      }),
+    ]);
   });
 
   it('tracks literal bracket input keys', () => {
     const {diagnostics} = normalize(
       baseDocument({
         triggers: {
-          manual: {source: 'manual', with: {environment: 'production'}},
           push: {source: 'github', event: 'push', with: {environment: 'production'}},
+          pullRequest: {
+            source: 'github',
+            event: 'pull_request',
+            with: {environment: 'production'},
+          },
         },
       }),
       {group: interpolation('inputs["environment"]')},

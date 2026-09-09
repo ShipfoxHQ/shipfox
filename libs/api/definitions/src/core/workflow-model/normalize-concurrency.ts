@@ -181,6 +181,7 @@ function rootCanBeNullForTrigger(
 ): boolean {
   if (root === 'event') return trigger.source === 'manual' || trigger.source === 'cron';
   if (root !== 'inputs') return false;
+  if (trigger.source === 'manual') return true;
   if (inputKeys.hasUnknownAccess) return true;
   if (inputKeys.keys.length === 0) return trigger.with === undefined;
   return inputKeys.keys.some(
