@@ -130,8 +130,9 @@ you to approve the sign-in and opens your browser.
   </Step>
 </Steps>
 
-The approval page expires after five minutes. If the request is unavailable or
-expired, restart the sign-in from your client.
+The approval page expires after [five
+minutes](/reference/mcp-server#access-lifetime). If the request is unavailable
+or expired, restart the sign-in from your client.
 
 ## Verify the connected app
 
@@ -177,8 +178,8 @@ longer need it.
 
 - **The browser did not open.** Copy the sign-in URL from the client output.
   Open the URL in your browser.
-- **The request expired.** The approval page expires after five minutes.
-  Start again from the client.
+- **The request expired.** Start again from the client. See [Access
+  lifetime](/reference/mcp-server#access-lifetime).
 - **Shipfox rejected the callback.** Shipfox accepts HTTPS and localhost
   callback URLs only. Use one of the clients above, or update your client.
 - **A self-hosted endpoint does not respond.** Ask your administrator to

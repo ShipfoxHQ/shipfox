@@ -59,8 +59,8 @@ export function McpSetup() {
             <TabsContent value="claude" className="flex flex-col gap-inline pt-panel-compact">
               <Text size="sm">
                 In Claude on web or desktop, open Settings → Connectors → Add custom connector. Name
-                it Shipfox, paste the MCP endpoint above as the remote server URL, then connect and
-                sign in.
+                it Shipfox, paste the Shipfox MCP server endpoint above as the remote server URL,
+                then connect and sign in.
               </Text>
             </TabsContent>
           </Tabs>
