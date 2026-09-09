@@ -9,10 +9,7 @@ import {type GithubInstallationAccessToken, mapGithubError} from './client.js';
 import {githubInstallationTokenFormatPlugin} from './github-octokit.js';
 import {
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
-  type GithubInstallationTokenPermissions,
-  githubInstallationTokenKey,
   githubInstallationTokenNamespace,
-  githubInstallationTokenPermissionFingerprint,
   TOKEN_REFRESH_MARGIN_MS,
 } from './installation-token-envelope.js';
 import {
@@ -26,11 +23,12 @@ import {
 export type {DeleteInstallationOptions};
 
 export interface GithubInstallationTokenProvider {
-  getInstallationAccessToken(
-    installationId: number,
-    permissionFingerprint?: string,
-    permissions?: GithubInstallationTokenPermissions,
-  ): Promise<GithubInstallationAccessToken>;
+  /**
+   * Returns the full GitHub installation grant for backend tool execution.
+   * GitHub determines provider permissions from the installation configuration.
+   * The installation ID is the only cache identity for this provider path.
+   */
+  getInstallationAccessToken(installationId: number): Promise<GithubInstallationAccessToken>;
   deleteInstallation?(installationId: number, options?: DeleteInstallationOptions): Promise<number>;
 }
 
@@ -61,32 +59,12 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
     private readonly getInstallationByInstallationId?: typeof getGithubInstallationByInstallationId,
   ) {}
 
-  async getInstallationAccessToken(
-    installationId: number,
-    permissionFingerprint?: string,
-    permissions?: GithubInstallationTokenPermissions,
-  ): Promise<GithubInstallationAccessToken> {
+  async getInstallationAccessToken(installationId: number): Promise<GithubInstallationAccessToken> {
     await this.assertInstallationIsActive(installationId);
-    const derivedPermissionFingerprint =
-      permissions === undefined
-        ? undefined
-        : githubInstallationTokenPermissionFingerprint(permissions);
-    if (
-      permissionFingerprint !== undefined &&
-      derivedPermissionFingerprint !== undefined &&
-      permissionFingerprint !== derivedPermissionFingerprint
-    ) {
-      throw new TypeError(
-        'GitHub installation token permission fingerprint does not match permissions',
-      );
-    }
-    const effectivePermissionFingerprint =
-      derivedPermissionFingerprint ??
-      permissionFingerprint ??
-      GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT;
-    const requestedPermissions = permissions === undefined ? undefined : {...permissions};
-    return await this.cache.getOrMint(installationId, effectivePermissionFingerprint, () =>
-      this.mintInstallationAccessToken(installationId, requestedPermissions),
+    return await this.cache.getOrMint(
+      installationId,
+      GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
+      () => this.mintInstallationAccessToken(installationId),
     );
   }
 
@@ -115,13 +93,11 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
 
   private async mintInstallationAccessToken(
     installationId: number,
-    permissions: GithubInstallationTokenPermissions | undefined,
   ): Promise<GithubInstallationAccessToken> {
     const response = await mapGithubError(
       () =>
         this.getApp().octokit.rest.apps.createInstallationAccessToken({
           installation_id: installationId,
-          ...(permissions === undefined ? {} : {permissions}),
         }),
       'installation-not-found',
     );
@@ -180,11 +156,11 @@ class OctokitGithubInstallationTokenProvider implements GithubInstallationTokenP
 
 class InMemoryInstallationTokenCache implements InstallationTokenCache {
   private readonly tokens = new Map<
-    string,
+    number,
     {token: GithubInstallationAccessToken; generation: string | null}
   >();
-  private readonly inFlightMints = new Map<string, Promise<GithubInstallationAccessToken>>();
-  private readonly inFlightEpochs = new Map<string, number>();
+  private readonly inFlightMints = new Map<number, Promise<GithubInstallationAccessToken>>();
+  private readonly inFlightEpochs = new Map<number, number>();
   private readonly generations = new Map<number, string | null>();
   private readonly epochs = new Map<number, number>();
 
@@ -211,13 +187,12 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
 
   getOrMint(
     installationId: number,
-    permissionFingerprint: string,
+    _permissionFingerprint: string,
     mint: () => Promise<GithubInstallationAccessToken>,
   ): Promise<GithubInstallationAccessToken> {
-    const cacheKey = installationTokenCacheKey(installationId, permissionFingerprint);
     const epoch = this.epochs.get(installationId) ?? 0;
     const generation = this.generations.get(installationId) ?? null;
-    const cached = this.tokens.get(cacheKey);
+    const cached = this.tokens.get(installationId);
     if (
       cached &&
       cached.generation === generation &&
@@ -227,25 +202,25 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
       return Promise.resolve(cached.token);
     }
 
-    const inFlightMint = this.inFlightMints.get(cacheKey);
-    if (inFlightMint && this.inFlightEpochs.get(cacheKey) === epoch) return inFlightMint;
+    const inFlightMint = this.inFlightMints.get(installationId);
+    if (inFlightMint && this.inFlightEpochs.get(installationId) === epoch) return inFlightMint;
 
     const freshToken = mint()
       .then((token) => {
         if ((this.epochs.get(installationId) ?? 0) !== epoch) {
-          return this.getOrMint(installationId, permissionFingerprint, mint);
+          return this.getOrMint(installationId, _permissionFingerprint, mint);
         }
-        this.tokens.set(cacheKey, {token, generation});
+        this.tokens.set(installationId, {token, generation});
         return token;
       })
       .finally(() => {
-        if (this.inFlightMints.get(cacheKey) === freshToken) {
-          this.inFlightMints.delete(cacheKey);
-          this.inFlightEpochs.delete(cacheKey);
+        if (this.inFlightMints.get(installationId) === freshToken) {
+          this.inFlightMints.delete(installationId);
+          this.inFlightEpochs.delete(installationId);
         }
       });
-    this.inFlightMints.set(cacheKey, freshToken);
-    this.inFlightEpochs.set(cacheKey, epoch);
+    this.inFlightMints.set(installationId, freshToken);
+    this.inFlightEpochs.set(installationId, epoch);
     return freshToken;
   }
 
@@ -260,23 +235,12 @@ class InMemoryInstallationTokenCache implements InstallationTokenCache {
 
   private invalidateLocal(installationId: number): number {
     this.epochs.set(installationId, (this.epochs.get(installationId) ?? 0) + 1);
-    const prefix = `${installationId}\u0000`;
-    let deleted = 0;
-    for (const cacheKey of this.tokens.keys()) {
-      if (!cacheKey.startsWith(prefix)) continue;
-      this.tokens.delete(cacheKey);
-      deleted += 1;
-    }
-    return deleted;
+    return this.tokens.delete(installationId) ? 1 : 0;
   }
 
   private isInsideRefreshMargin(expiresAt: Date): boolean {
     return expiresAt.getTime() <= this.options.now().getTime() + this.options.refreshMarginMs;
   }
-}
-
-function installationTokenCacheKey(installationId: number, permissionFingerprint: string): string {
-  return `${installationId}\u0000${githubInstallationTokenKey(permissionFingerprint)}`;
 }
 
 class TieredInstallationTokenCache implements InstallationTokenCache {

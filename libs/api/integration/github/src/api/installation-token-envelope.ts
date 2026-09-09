@@ -88,7 +88,6 @@ export interface ClassifiedMintError {
 export const GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY = 'ENVELOPE';
 export const GITHUB_INSTALLATION_TOKEN_GENERATION_KEY = 'GENERATION';
 
-export type GithubInstallationTokenPermissions = Record<string, 'read' | 'write'>;
 export type MintBackoffScope = 'installation' | 'profile';
 
 const installationWideMintErrorReasons = new Set<IntegrationProviderErrorReason>([
@@ -130,20 +129,6 @@ export function githubInstallationTokenBackoffKeys(
   return profileBackoffKey === GITHUB_INSTALLATION_TOKEN_BACKOFF_KEY
     ? [profileBackoffKey]
     : [profileBackoffKey, GITHUB_INSTALLATION_TOKEN_BACKOFF_KEY];
-}
-
-export function githubInstallationTokenPermissionFingerprint(
-  permissions: Readonly<GithubInstallationTokenPermissions>,
-): string {
-  return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(permissions).sort(([first], [second]) => {
-        if (first < second) return -1;
-        if (first > second) return 1;
-        return 0;
-      }),
-    ),
-  );
 }
 
 export function encodeInstallationTokenEnvelope(envelope: InstallationTokenEnvelope): string {
