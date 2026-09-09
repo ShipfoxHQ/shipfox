@@ -76,7 +76,7 @@ interface ParsedBody {
  * budget charges the normalized body built from these parsed records.
  *
  * Each line is validated against the raw record union (a forged server-only
- * server-only tombstone fails here); the declared total is pulled from an `end`
+ * tombstone fails here); the declared total is pulled from an `end`
  * record. A line that is a valid server-only record under the read union surfaces
  * its type via `forgedType` for the narrowed audit warn.
  */

@@ -34,10 +34,13 @@ export async function onJobTerminated(payload: WorkflowsJobTerminatedEventDto): 
   }
 }
 
-function terminalCauseForJob(payload: WorkflowsJobTerminatedEventDto): StepAttemptTerminalCauseDto {
+function terminalCauseForJob(
+  payload: WorkflowsJobTerminatedEventDto,
+): StepAttemptTerminalCauseDto | null {
   if (payload.statusReason === 'timed_out') return 'timed_out';
   if (payload.statusReason === 'run_cancelled' || payload.statusReason === 'user_cancelled') {
     return 'run_cancelled';
   }
-  return 'runner_lost';
+  if (payload.statusReason === 'runner_lost') return 'runner_lost';
+  return null;
 }

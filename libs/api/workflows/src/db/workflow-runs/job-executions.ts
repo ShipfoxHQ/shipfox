@@ -519,6 +519,17 @@ export async function failJobExecutionAsTimedOut(params: {
       failureMessage: `Optimistic lock failure: job execution ${params.jobExecutionId} version ${params.expectedVersion}`,
     });
 
+    if (updated.changed) {
+      await bulkUpdateStepStatuses(
+        {
+          jobExecutionId: params.jobExecutionId,
+          status: 'failed',
+          terminalCause: 'timed_out',
+        },
+        tx,
+      );
+    }
+
     return updated;
   });
 

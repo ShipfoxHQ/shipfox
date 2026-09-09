@@ -101,6 +101,23 @@ describe('LogView', () => {
     expect(screen.queryByText('No output yet')).toBeNull();
   });
 
+  test('ends open groups and explains a truncated stream without a terminal marker', () => {
+    render(
+      <LogView truncated records={[groupStart('build', 'Build'), output('partial output\n')]} />,
+    );
+
+    expect(screen.getByText('Log stream incomplete')).toBeInTheDocument();
+    expect(screen.getByText('some final output may be missing')).toBeInTheDocument();
+    expect(screen.queryByText('Running')).not.toBeInTheDocument();
+  });
+
+  test('does not duplicate an authoritative terminal marker for a truncated stream', () => {
+    render(<LogView truncated records={[{v: 1, ts, type: 'timed_out'}]} />);
+
+    expect(screen.getByText('Execution timed out')).toBeInTheDocument();
+    expect(screen.queryByText('Log stream incomplete')).not.toBeInTheDocument();
+  });
+
   test('filters output and session rows by the log search term', () => {
     render(
       <LogView

@@ -34,7 +34,6 @@ const {
   setJobStatus,
   setJobExecutionStatus,
   queueJobExecutionActivity,
-  bulkSetStepStatuses,
   failJobExecutionAsTimedOutActivity,
   resolveLeaseExpiredJobExecutionActivity,
 } = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
@@ -253,11 +252,6 @@ async function resolveTimedOutJobExecution({
     jobExecutionId: input.jobExecutionId,
     runAttemptId: input.runAttemptId,
     expectedVersion: runningVersion,
-  });
-  await bulkSetStepStatuses({
-    jobExecutionId: input.jobExecutionId,
-    status: 'failed',
-    terminalCause: 'timed_out',
   });
   if (input.resolveJobStatus === false) {
     log.info('job execution terminated', {

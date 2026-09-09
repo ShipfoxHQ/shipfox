@@ -29,6 +29,7 @@ import {workflowsOutbox} from '../schema/outbox.js';
 import {
   applyStepResult,
   createWorkflowRun,
+  failJobExecutionAsTimedOut,
   finishStepAttempt,
   getFirstJobExecutionByJobId,
   getJobsByWorkflowRunId,
@@ -410,6 +411,81 @@ describe('workflow run job executions', () => {
     });
     expect(await stepAttemptTerminatedEvents(job.id)).toMatchObject([
       expect.objectContaining({terminalCause: 'runner_lost'}),
+    ]);
+  });
+
+  test('atomically times out an execution and its active step before accepting a late result', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: buildModel({jobs: {build: {steps: [{run: 'echo build'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected workflow job');
+    const execution = await getFirstJobExecutionByJobId(job.id);
+    if (!execution) throw new Error('Expected job execution');
+    const actualAttemptId = await workflowRunAttemptId(run.id);
+    const runningExecution = await updateJobExecutionStatus({
+      jobExecutionId: execution.id,
+      status: 'running',
+      expectedVersion: execution.version,
+    });
+    const [activeStep] = await getStepsByJobId(job.id);
+    if (!activeStep) throw new Error('Expected active step');
+    const runningStep = await db().transaction((tx) =>
+      markStepRunning({jobExecutionId: execution.id, stepId: activeStep.id}, tx),
+    );
+    if (!runningStep) throw new Error('Expected running step');
+
+    await failJobExecutionAsTimedOut({
+      jobExecutionId: execution.id,
+      workflowRunAttemptId: actualAttemptId,
+      expectedVersion: runningExecution.version,
+    });
+    await db().transaction(async (tx) => {
+      await finishStepAttempt(
+        {
+          stepId: runningStep.id,
+          attempt: runningStep.currentAttempt,
+          status: 'succeeded',
+          logOutcome: 'drained',
+        },
+        tx,
+      );
+      await applyStepResult(
+        {
+          jobExecutionId: execution.id,
+          stepId: runningStep.id,
+          status: 'succeeded',
+          error: null,
+        },
+        tx,
+      );
+    });
+
+    expect(await getFirstJobExecutionByJobId(job.id)).toMatchObject({
+      status: 'failed',
+      statusReason: 'timed_out',
+    });
+    expect(
+      (await getStepsByJobId(job.id)).find((step) => step.id === runningStep.id),
+    ).toMatchObject({
+      status: 'failed',
+      statusReason: 'timed_out',
+    });
+    expect(await stepAttemptTerminatedEvents(job.id)).toMatchObject([
+      expect.objectContaining({
+        status: 'failed',
+        logOutcome: 'abandoned',
+        terminalCause: 'timed_out',
+      }),
     ]);
   });
 

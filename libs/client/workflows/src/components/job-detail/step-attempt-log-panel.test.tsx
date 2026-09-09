@@ -40,6 +40,10 @@ function snapshot(records: TestLogRecord[]): StepLogSnapshot {
   };
 }
 
+function truncatedSnapshot(records: TestLogRecord[]): StepLogSnapshot {
+  return {...snapshot(records), truncated: true};
+}
+
 function renderPanel(
   props: Partial<Parameters<typeof StepAttemptLogPanel>[0]> = {},
   options: {queryClient?: QueryClient} = {},
@@ -223,6 +227,29 @@ describe('StepAttemptLogPanel', () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.getByRole('log')).toBeInTheDocument();
+  });
+
+  test('renders the neutral incomplete marker for a cause-free truncated stream', async () => {
+    const body = truncatedSnapshot([outputRecord('partial\n')]);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() =>
+        Promise.resolve(
+          jsonResponse({
+            mode: 'inline',
+            ndjson: `${body.records.map((record) => JSON.stringify(record)).join('\n')}\n`,
+            next_cursor: body.nextCursor,
+            has_more: false,
+            state: body.state,
+            truncated: body.truncated,
+          }),
+        ),
+      ),
+    });
+
+    renderPanel({attemptStatus: 'failed'});
+
+    expect(await screen.findByText('Log stream incomplete')).toBeInTheDocument();
   });
 
   test('keeps stale logs visible when a refresh fails', async () => {

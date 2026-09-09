@@ -9,7 +9,7 @@ const {closeAbandonedStreamsActivity} = proxyActivities<ReturnType<typeof create
 export interface CloseAbandonedStreamsInput {
   jobId: string;
   graceSeconds: number;
-  terminalCause?: StepAttemptTerminalCauseDto | undefined;
+  terminalCause?: StepAttemptTerminalCauseDto | null | undefined;
 }
 
 /**
@@ -22,7 +22,7 @@ export async function closeAbandonedStreams(input: CloseAbandonedStreamsInput): 
 
   const {closed} = await closeAbandonedStreamsActivity({
     jobId: input.jobId,
-    terminalCause: input.terminalCause ?? 'runner_lost',
+    terminalCause: input.terminalCause === undefined ? 'runner_lost' : input.terminalCause,
   });
   if (closed > 0) {
     log.info('Force-closed abandoned log streams', {jobId: input.jobId, closed});

@@ -35,7 +35,7 @@ describe('onJobTerminated', () => {
     startMock.mockResolvedValue({});
   });
 
-  it('arms the close-abandoned-streams workflow keyed on the job id', async () => {
+  it('arms a cause-free close workflow for an ordinary terminal job', async () => {
     const jobId = crypto.randomUUID();
 
     await onJobTerminated(buildPayload(jobId));
@@ -48,7 +48,7 @@ describe('onJobTerminated', () => {
         {
           jobId,
           graceSeconds: config.LOG_STREAM_CLOSE_GRACE_SECONDS,
-          terminalCause: 'runner_lost',
+          terminalCause: null,
         },
       ],
     });
@@ -57,6 +57,7 @@ describe('onJobTerminated', () => {
   it.each([
     {statusReason: 'timed_out' as const, terminalCause: 'timed_out'},
     {statusReason: 'run_cancelled' as const, terminalCause: 'run_cancelled'},
+    {statusReason: 'user_cancelled' as const, terminalCause: 'run_cancelled'},
     {statusReason: 'runner_lost' as const, terminalCause: 'runner_lost'},
   ])('passes $terminalCause into the grace sweep', async ({statusReason, terminalCause}) => {
     const payload = {...buildPayload(crypto.randomUUID()), statusReason};

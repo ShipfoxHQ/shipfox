@@ -26,6 +26,8 @@ const metricsMocks = vi.hoisted(() => {
 
   const counters = new Map<string, {add: ReturnType<typeof vi.fn>}>();
   const add = (name: string) => {
+    const existing = counters.get(name);
+    if (existing) return existing;
     const counter = {add: vi.fn()};
     counters.set(name, counter);
     return counter;

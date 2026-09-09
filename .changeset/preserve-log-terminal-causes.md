@@ -5,6 +5,7 @@
 "@shipfox/client-logs": minor
 "@shipfox/api-logs": patch
 "@shipfox/api-workflows": patch
+"@shipfox/client-workflows": patch
 ---
 
-Preserves job timeout, run cancellation, and runner loss causes when abandoned log streams are closed.
+Adds timeout and run-cancellation log records, and preserves the authoritative cause while closing an abandoned stream.

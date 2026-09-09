@@ -166,6 +166,7 @@ export function StepAttemptLogPanel({
         wrap={wrap}
         showLineNumbers={showLineNumbers}
         emptyState={query.data?.complete ? 'complete' : 'pending'}
+        truncated={query.data?.truncated}
         anchorToFailure={anchorToFailure}
         ariaLive={!search.trim() && attemptStatus === 'running' ? 'polite' : 'off'}
         className={surfaceClassName}

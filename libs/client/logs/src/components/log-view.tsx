@@ -38,6 +38,7 @@ export interface LogViewProps {
   wrap?: boolean;
   showLineNumbers?: boolean;
   emptyState?: 'complete' | 'pending';
+  truncated?: boolean | undefined;
   defaultGroupsOpen?: boolean;
   anchorToFailure?: boolean;
   search?: string;
@@ -57,6 +58,7 @@ export function LogView({
   wrap = false,
   showLineNumbers = true,
   emptyState = 'complete',
+  truncated = false,
   defaultGroupsOpen = false,
   anchorToFailure = false,
   search = '',
@@ -65,7 +67,11 @@ export function LogView({
   onScroll,
 }: LogViewProps) {
   const rowsRef = useRef<HTMLDivElement>(null);
-  const tree = useMemo(() => buildLogTree(records), [records]);
+  const recordTree = useMemo(() => buildLogTree(records), [records]);
+  const tree = useMemo(
+    () => (truncated && !recordTree.terminated ? {...recordTree, terminated: true} : recordTree),
+    [recordTree, truncated],
+  );
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
   const searchIndex = useMemo(() => buildLogSearchIndex(tree.nodes), [tree.nodes]);
@@ -134,8 +140,30 @@ export function LogView({
           Boolean(normalizedSearch),
           resolvedToolCalls,
         )}
+        {truncated && !recordTree.terminated && !normalizedSearch ? <IncompleteLogRow /> : null}
       </LogRows>
     </>
+  );
+}
+
+function IncompleteLogRow() {
+  return (
+    <LogRow lineNumber={null} tone="warning">
+      <LogContent className="text-foreground-contrast-primary">
+        <span className="inline-flex min-w-0 items-center gap-inline">
+          <Icon
+            name="errorWarningLine"
+            className="size-14 flex-none text-tag-warning-icon"
+            aria-hidden="true"
+          />
+          <span className="min-w-0">
+            <span className="font-medium">Log stream incomplete</span>
+            {' · '}
+            <span className="font-normal opacity-80">some final output may be missing</span>
+          </span>
+        </span>
+      </LogContent>
+    </LogRow>
   );
 }
 
