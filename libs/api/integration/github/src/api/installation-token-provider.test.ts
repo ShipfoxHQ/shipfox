@@ -10,10 +10,12 @@ import {
   GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
   GITHUB_INSTALLATION_TOKEN_GENERATION_KEY,
   githubInstallationTokenKey,
-  githubInstallationTokenPermissionFingerprint,
 } from './installation-token-envelope.js';
 import {createGithubInstallationTokenProvider} from './installation-token-provider.js';
-import type {InstallationTokenSecretStore} from './shared-installation-token-cache.js';
+import type {
+  InstallationTokenCache,
+  InstallationTokenSecretStore,
+} from './shared-installation-token-cache.js';
 
 const GITHUB_INSTALLATION_TOKEN_PATTERN = /^ghs_[A-Za-z0-9._-]{36,}$/u;
 
@@ -61,7 +63,7 @@ describe('GithubInstallationTokenProvider', () => {
     vi.useRealTimers();
   });
 
-  it('mints a broad installation token on a cache miss', async () => {
+  it('mints a full-grant installation token on a cache miss', async () => {
     createInstallationAccessTokenMock.mockResolvedValue({
       data: {
         token: GITHUB_STATELESS_INSTALLATION_TOKEN,
@@ -83,86 +85,28 @@ describe('GithubInstallationTokenProvider', () => {
     });
   });
 
-  it('mints an installation token with the requested permission profile', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-10T11:00:00.000Z'));
+  it('uses the compatibility identity at the shared-cache boundary', async () => {
     createInstallationAccessTokenMock.mockResolvedValue({
       data: {
         token: GITHUB_STATELESS_INSTALLATION_TOKEN,
         expires_at: '2026-06-10T12:00:00.000Z',
       },
     });
-    const provider = createGithubInstallationTokenProvider();
-    const permissions = {pull_requests: 'read' as const, contents: 'write' as const};
+    const getOrMint = vi.fn((...args: Parameters<InstallationTokenCache['getOrMint']>) =>
+      args[2](),
+    );
+    const provider = createGithubInstallationTokenProvider({cache: {getOrMint}});
 
-    await provider.getInstallationAccessToken(1, undefined, permissions);
-    await provider.getInstallationAccessToken(1, undefined, {
-      contents: 'write',
-      pull_requests: 'read',
-    });
+    await provider.getInstallationAccessToken(1);
 
-    expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(1);
-    expect(createInstallationAccessTokenMock).toHaveBeenCalledWith({
-      installation_id: 1,
-      permissions,
-    });
-    expect(githubInstallationTokenPermissionFingerprint(permissions)).toBe(
-      '{"contents":"write","pull_requests":"read"}',
+    expect(getOrMint).toHaveBeenCalledWith(
+      1,
+      GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT,
+      expect.any(Function),
     );
   });
 
-  it('uses byte-stable ordering for permission fingerprints', () => {
-    expect(githubInstallationTokenPermissionFingerprint({é: 'read', z: 'read', a: 'write'})).toBe(
-      '{"a":"write","z":"read","é":"read"}',
-    );
-  });
-
-  it('rejects a permission profile whose explicit fingerprint does not match', async () => {
-    const provider = createGithubInstallationTokenProvider();
-
-    await expect(
-      provider.getInstallationAccessToken(1, 'wrong', {contents: 'read'}),
-    ).rejects.toThrow('permission fingerprint does not match permissions');
-    expect(createInstallationAccessTokenMock).not.toHaveBeenCalled();
-  });
-
-  it('keeps the compatibility and permissions-derived cache profiles separate', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-10T11:00:00.000Z'));
-    createInstallationAccessTokenMock
-      .mockResolvedValueOnce({
-        data: {
-          token: 'ghs_broad',
-          expires_at: '2026-06-10T12:00:00.000Z',
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          token: 'ghs_narrow',
-          expires_at: '2026-06-10T12:00:00.000Z',
-        },
-      });
-    const provider = createGithubInstallationTokenProvider();
-    const permissions = {contents: 'read' as const};
-
-    const broad = await provider.getInstallationAccessToken(1);
-    const narrow = await provider.getInstallationAccessToken(1, undefined, permissions);
-    const narrowAgain = await provider.getInstallationAccessToken(1, undefined, permissions);
-
-    expect(broad.token).toBe('ghs_broad');
-    expect(narrow.token).toBe('ghs_narrow');
-    expect(narrowAgain.token).toBe('ghs_narrow');
-    expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(2);
-    expect(createInstallationAccessTokenMock).toHaveBeenNthCalledWith(1, {
-      installation_id: 1,
-    });
-    expect(createInstallationAccessTokenMock).toHaveBeenNthCalledWith(2, {
-      installation_id: 1,
-      permissions,
-    });
-  });
-
-  it('passes through a stateful broad installation token', async () => {
+  it('passes through a stateful full-grant installation token', async () => {
     createInstallationAccessTokenMock.mockResolvedValue({
       data: {
         token: GITHUB_STATEFUL_INSTALLATION_TOKEN,
@@ -260,26 +204,32 @@ describe('GithubInstallationTokenProvider', () => {
     expect(createInstallationAccessTokenMock).not.toHaveBeenCalled();
   });
 
-  it('does not share a cached token between permission profiles', async () => {
+  it('isolates local tokens by installation identity', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-10T11:00:00.000Z'));
     createInstallationAccessTokenMock
       .mockResolvedValueOnce({
-        data: {token: 'ghs_broad', expires_at: '2026-06-10T12:00:00.000Z'},
+        data: {token: 'ghs_first_installation', expires_at: '2026-06-10T12:00:00.000Z'},
       })
       .mockResolvedValueOnce({
-        data: {token: 'ghs_narrow', expires_at: '2026-06-10T12:00:00.000Z'},
+        data: {token: 'ghs_second_installation', expires_at: '2026-06-10T12:00:00.000Z'},
       });
     const provider = createGithubInstallationTokenProvider();
 
-    const broad = await provider.getInstallationAccessToken(1, 'broad');
-    const narrow = await provider.getInstallationAccessToken(1, 'narrow');
-    const broadAgain = await provider.getInstallationAccessToken(1, 'broad');
+    const first = await provider.getInstallationAccessToken(1);
+    const second = await provider.getInstallationAccessToken(2);
+    const firstAgain = await provider.getInstallationAccessToken(1);
 
-    expect(broad.token).toBe('ghs_broad');
-    expect(narrow.token).toBe('ghs_narrow');
-    expect(broadAgain.token).toBe('ghs_broad');
+    expect(first.token).toBe('ghs_first_installation');
+    expect(second.token).toBe('ghs_second_installation');
+    expect(firstAgain.token).toBe('ghs_first_installation');
     expect(createInstallationAccessTokenMock).toHaveBeenCalledTimes(2);
+    expect(createInstallationAccessTokenMock).toHaveBeenNthCalledWith(1, {
+      installation_id: 1,
+    });
+    expect(createInstallationAccessTokenMock).toHaveBeenNthCalledWith(2, {
+      installation_id: 2,
+    });
   });
 
   it('mints a fresh token inside the expiry refresh margin', async () => {
