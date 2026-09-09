@@ -26,6 +26,7 @@ documentation model and other engineering sources, start with the
 | [0014: Admin user impersonation](0014-admin-user-impersonation.md) | Accepted; amends ADR 0001; supersedes the private 2026-07-27 "User impersonation" non-goal by reference | The access-token-only session model, renewal semantics, the administrator-authority and durable-artefact hardening rules, and capability placement. |
 | [0015: Usage context and application seams](0015-usage-context-and-application-seams.md) | Accepted; amends ADR 0001 and ADR 0002 | The Usage bounded context and its per-entity scope, the `usagePricing` client seam, the workflow admission policy seam, and the server-only admission decision. |
 | [0016: Workflow run concurrency](0016-workflow-run-concurrency.md) | Proposed | Workflow group scope, latest-wins arbitration, dev isolation, waiting and rerun behavior, unordered integration delivery, lock order, and cancellation boundaries. |
+| [0017: Full installation access for backend GitHub tools](0017-github-backend-tool-authorization.md) | Accepted | Backend GitHub agent-tool credential boundaries, authorization split, provider-error handling, and workflow-file writes. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the

@@ -4,7 +4,7 @@ sidebarTitle: "Overview"
 description: "Connect GitHub repositories for project code, event triggers, and workflow tools."
 catalog:
   name: "GitHub"
-  summary: "Connect repositories, receive events, and call scoped GitHub tools from workflows."
+  summary: "Connect repositories, receive events, and call authorized GitHub tools from workflows."
   capabilities: ["source_control", "events", "agent_tools"]
   categories: ["source-control"]
   aliases: ["git", "vcs", "ci"]
@@ -15,6 +15,11 @@ catalog:
 
 Shipfox connects through a GitHub App. Install the App on the target account or
 organization. Grant it access only to the repositories Shipfox needs.
+
+Backend GitHub agent tools use the full access granted to the installation. Shipfox
+still authorizes the caller, selected tool and method, write access, inputs, and
+declared repository target. Runner checkout credentials remain scoped to the
+repository being checked out.
 
 ## Repository access
 

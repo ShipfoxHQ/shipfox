@@ -228,8 +228,9 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
   }
 
   async getInstallation(installationId: number): Promise<GithubInstallationDetails> {
-    const response = await mapGithubError(() =>
-      this.getApp().octokit.rest.apps.getInstallation({installation_id: installationId}),
+    const response = await mapGithubError(
+      () => this.getApp().octokit.rest.apps.getInstallation({installation_id: installationId}),
+      'installation-not-found',
     );
     const data = response.data;
     const account = data.account;
@@ -259,15 +260,18 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     limit: number;
     cursor?: string | undefined;
   }): Promise<GithubRepositoryPage> {
-    const octokit = await mapGithubError(() =>
-      getGithubInstallationOctokit(this.getApp(), input.installationId),
+    const octokit = await mapGithubError(
+      () => getGithubInstallationOctokit(this.getApp(), input.installationId),
+      'installation-not-found',
     );
     const page = cursorToPage(input.cursor);
-    const response = await mapGithubError(() =>
-      octokit.rest.apps.listReposAccessibleToInstallation({
-        per_page: input.limit,
-        page,
-      }),
+    const response = await mapGithubError(
+      () =>
+        octokit.rest.apps.listReposAccessibleToInstallation({
+          per_page: input.limit,
+          page,
+        }),
+      'installation-not-found',
     );
 
     return {
@@ -280,14 +284,17 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     installationId: number;
     repositoryId: number;
   }): Promise<GithubRepository> {
-    const octokit = await mapGithubError(() =>
-      getGithubInstallationOctokit(this.getApp(), input.installationId),
+    const octokit = await mapGithubError(
+      () => getGithubInstallationOctokit(this.getApp(), input.installationId),
+      'installation-not-found',
     );
-    const response = await mapGithubError(() =>
-      octokit.request('GET /repositories/{repository_id}', {
-        repository_id: input.repositoryId,
-        request: {signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)},
-      }),
+    const response = await mapGithubError(
+      () =>
+        octokit.request('GET /repositories/{repository_id}', {
+          repository_id: input.repositoryId,
+          request: {signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)},
+        }),
+      'repository-not-found',
     );
 
     return toGithubRepository(response.data);
@@ -301,8 +308,9 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     limit: number;
     cursor?: string | undefined;
   }): Promise<GithubFilePage> {
-    const octokit = await mapGithubError(() =>
-      getGithubInstallationOctokit(this.getApp(), input.installationId),
+    const octokit = await mapGithubError(
+      () => getGithubInstallationOctokit(this.getApp(), input.installationId),
+      'installation-not-found',
     );
     const repository = await this.getRepository({
       installationId: input.installationId,
@@ -381,8 +389,9 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     ref: string;
     path: string;
   }): Promise<GithubFileContent> {
-    const octokit = await mapGithubError(() =>
-      getGithubInstallationOctokit(this.getApp(), input.installationId),
+    const octokit = await mapGithubError(
+      () => getGithubInstallationOctokit(this.getApp(), input.installationId),
+      'installation-not-found',
     );
     const repository = await this.getRepository({
       installationId: input.installationId,
@@ -428,8 +437,9 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     repositoryId: number;
     ref: string;
   }): Promise<GithubCommit[]> {
-    const octokit = await mapGithubError(() =>
-      getGithubInstallationOctokit(this.getApp(), input.installationId),
+    const octokit = await mapGithubError(
+      () => getGithubInstallationOctokit(this.getApp(), input.installationId),
+      'installation-not-found',
     );
     const repository = await this.getRepository({
       installationId: input.installationId,
@@ -471,12 +481,14 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
         'GitHub installation access token request did not include a repository',
       );
     }
-    const response = await mapGithubError(() =>
-      this.getApp().octokit.rest.apps.createInstallationAccessToken({
-        installation_id: input.installationId,
-        ...repositorySelector,
-        permissions: input.permissions ?? {contents: 'read'},
-      }),
+    const response = await mapGithubError(
+      () =>
+        this.getApp().octokit.rest.apps.createInstallationAccessToken({
+          installation_id: input.installationId,
+          ...repositorySelector,
+          permissions: input.permissions ?? {contents: 'read'},
+        }),
+      'repository-not-found',
     );
 
     if (typeof response.data.token !== 'string') {
@@ -627,7 +639,7 @@ export async function mapGithubError<T>(
     | 'installation-not-found'
     | 'file-not-found'
     | 'ref-not-found'
-    | 'provider-rejected' = 'repository-not-found',
+    | 'provider-rejected' = 'provider-rejected',
 ): Promise<T> {
   try {
     return await operation();
@@ -659,9 +671,11 @@ function mapGithubRequestError(
   } else if (error.status === 429 || isGithubRateLimitError(error)) {
     reason = 'rate-limited';
     retryAfter = retryAfterSeconds(error);
-  } else if (error.status === 401 || error.status === 403) {
+  } else if (error.status === 401 || isGithubAccessDenied(error)) {
     reason = 'access-denied';
     retryAfter = retryAfterSeconds(error);
+  } else if (error.status === 403) {
+    reason = 'provider-rejected';
   } else if (error.status >= 500) {
     reason = 'provider-unavailable';
   } else if (error.status >= 400) {
@@ -674,9 +688,19 @@ function mapGithubRequestError(
 // GitHub names the grants that would have satisfied a denied request in this header. It is
 // the only way to tell a missing permission apart from a resource the token cannot see.
 function withAcceptedPermissions(error: RequestError): string {
-  const accepted = error.response?.headers['x-accepted-github-permissions'];
-  if (typeof accepted !== 'string' || accepted.length === 0) return error.message;
+  const accepted = acceptedGithubPermissions(error);
+  if (accepted === undefined) return error.message;
   return `${error.message} (GitHub accepts permissions: ${accepted})`;
+}
+
+function acceptedGithubPermissions(error: RequestError): string | undefined {
+  const accepted = error.response?.headers['x-accepted-github-permissions'];
+  if (typeof accepted !== 'string' || accepted.trim().length === 0) return undefined;
+  return accepted.trim();
+}
+
+function isGithubAccessDenied(error: RequestError): boolean {
+  return error.status === 403 && acceptedGithubPermissions(error) !== undefined;
 }
 
 function isGithubTimeoutError(error: unknown): boolean {

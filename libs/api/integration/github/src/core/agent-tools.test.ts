@@ -1254,7 +1254,7 @@ describe('github agent tool catalog', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it('derives the token profile from live catalog ids and method allowlists', async () => {
+  it('applies live catalog authorization without deriving a token profile', async () => {
     const request = vi.fn(() => Promise.resolve({data: {number: 1}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1334,13 +1334,10 @@ describe('github agent tool catalog', () => {
       }),
     ).resolves.toMatchObject({structuredContent: {number: 1}});
 
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {
-      contents: 'write',
-      issues: 'read',
-    });
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('requests issue and pull request write access for issue comments', async () => {
+  it('uses the full installation token for issue comments', async () => {
     const request = vi.fn(() => Promise.resolve({data: {id: 7}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1378,13 +1375,10 @@ describe('github agent tool catalog', () => {
     });
 
     expect(result).toMatchObject({structuredContent: {id: 7}});
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {
-      issues: 'write',
-      pull_requests: 'write',
-    });
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('keeps the strongest permission when selected tools share a scope', async () => {
+  it('does not derive a token profile from selected tool scopes', async () => {
     const request = vi.fn(() => Promise.resolve({data: {number: 1}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1415,10 +1409,10 @@ describe('github agent tool catalog', () => {
       }),
     ).resolves.toMatchObject({structuredContent: {number: 1}});
 
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {issues: 'write'});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('uses the full integration scope for a single-tool session profile', async () => {
+  it('ignores frozen tool scope when requesting the full installation token', async () => {
     const request = vi.fn(() => Promise.resolve({data: {number: 1}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1449,10 +1443,10 @@ describe('github agent tool catalog', () => {
       }),
     ).resolves.toMatchObject({structuredContent: {number: 1}});
 
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {issues: 'write'});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('requests checks read for check-run reads', async () => {
+  it('uses the full installation token for check-run reads', async () => {
     const request = vi.fn(() => Promise.resolve({data: {total_count: 1}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1493,10 +1487,10 @@ describe('github agent tool catalog', () => {
       }),
     ).resolves.toMatchObject({structuredContent: {total_count: 1}});
 
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {checks: 'read'});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('requests contents read for pull request diffs', async () => {
+  it('uses the full installation token for pull request diffs', async () => {
     const request = vi.fn(() => Promise.resolve({data: 'diff --git a/file b/file'}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1529,22 +1523,21 @@ describe('github agent tool catalog', () => {
       }),
     ).resolves.toMatchObject({structuredContent: {result: 'diff --git a/file b/file'}});
 
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {contents: 'read'});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('denies a pull request diff when the token lacks contents read', async () => {
-    const request = vi.fn();
+  it('sends a pull request diff to GitHub when token metadata is incomplete', async () => {
+    const request = vi.fn(() => Promise.resolve({data: 'diff --git a/file b/file'}));
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {pull_requests: 'read' as const},
+      }),
+    );
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {pull_requests: 'read' as const},
-          }),
-        ),
-      },
+      tokenProvider: {getInstallationAccessToken},
       createClient: vi.fn(() => ({request})),
     });
     const session = await provider.openSession({
@@ -1558,20 +1551,12 @@ describe('github agent tool catalog', () => {
       arguments: {method: 'get_diff', owner: 'shipfox', repo: 'platform', pull_number: 1},
     });
 
-    expect(request).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: pull_request_read requires contents: read',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(request).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({structuredContent: {result: 'diff --git a/file b/file'}});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
-  it('requests commit statuses read for combined status reads', async () => {
+  it('uses the full installation token for combined status reads', async () => {
     const request = vi.fn(() => Promise.resolve({data: {state: 'success'}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -1616,13 +1601,15 @@ describe('github agent tool catalog', () => {
       pull_number: 1,
       ref: 'abc123',
     });
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {statuses: 'read'});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
   it.each([
     {label: 'pull_requests read', permissions: {pull_requests: 'read' as const}},
     {label: 'issues read', permissions: {issues: 'read' as const}},
-  ])('reads pull request timeline comments with $label', async ({permissions}) => {
+  ])('reads pull request timeline comments with incomplete token metadata: $label', async ({
+    permissions,
+  }) => {
     const request = vi.fn(() => Promise.resolve({data: [{id: 1}]}));
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
@@ -1660,19 +1647,18 @@ describe('github agent tool catalog', () => {
     );
   });
 
-  it('names the alternative grant when pull request timeline comments are denied', async () => {
-    const request = vi.fn();
+  it('does not preflight timeline comments from token metadata', async () => {
+    const request = vi.fn(() => Promise.resolve({data: [{id: 1}]}));
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {checks: 'read' as const},
+      }),
+    );
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {checks: 'read' as const},
-          }),
-        ),
-      },
+      tokenProvider: {getInstallationAccessToken},
       createClient: vi.fn(() => ({request})),
     });
     const pullRequestRead = githubAgentToolCatalog.find(
@@ -1690,17 +1676,9 @@ describe('github agent tool catalog', () => {
       arguments: {method: 'get_comments', owner: 'shipfox', repo: 'platform', pull_number: 1},
     });
 
-    expect(request).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: pull_request_read requires pull_requests: read (or issues: read)',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(request).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({structuredContent: {result: [{id: 1}]}});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
   it('removes a sub-issue through the singular endpoint with the child id in the body', async () => {
@@ -2004,8 +1982,13 @@ describe('github agent tool catalog', () => {
     });
   });
 
-  it('rejects workflow file changes when the token lacks workflows write', async () => {
-    const graphql = vi.fn();
+  it('sends authorized workflow file changes to GitHub', async () => {
+    const oid = '0'.repeat(40);
+    const graphql = vi.fn().mockResolvedValueOnce({
+      createCommitOnBranch: {
+        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
+      },
+    });
     const provider = createAgentToolsProvider({request: vi.fn(), graphql});
     const session = await provider.openSession({
       connection: connection(),
@@ -2024,25 +2007,11 @@ describe('github agent tool catalog', () => {
       },
     });
 
-    expect(graphql).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: create_commit requires workflows: write to change .github/workflows/ci.yml',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(graphql).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({structuredContent: {commit: {oid}}});
   });
 
   it.each([
-    {
-      label: 'a deleted workflow file',
-      changes: {deletions: [{path: '.github/workflows/old.yml'}]},
-      code: 'access-denied',
-    },
     {
       label: 'a relative workflow path',
       changes: {additions: [{path: './.github/workflows/ci.yml', contents: 'name: ci\n'}]},
@@ -2053,7 +2022,7 @@ describe('github agent tool catalog', () => {
       changes: {additions: [{path: 'docs/../.github/workflows/ci.yml', contents: 'name: ci\n'}]},
       code: 'invalid-request',
     },
-  ])('rejects $label when the token lacks workflows write', async ({changes, code}) => {
+  ])('rejects $label before GitHub', async ({changes, code}) => {
     const graphql = vi.fn();
     const provider = createAgentToolsProvider({request: vi.fn(), graphql});
     const session = await provider.openSession({
@@ -2077,19 +2046,19 @@ describe('github agent tool catalog', () => {
     expect(result).toMatchObject({isError: true, structuredContent: {code}});
   });
 
-  it('denies workflow file commits under the production create_commit profile', async () => {
-    const graphql = vi.fn();
-    const getInstallationAccessToken = vi.fn(
-      (
-        _installationId: number,
-        _permissionFingerprint?: string,
-        permissions?: Record<string, 'read' | 'write'>,
-      ) =>
-        Promise.resolve({
-          token: 'installation-token',
-          expiresAt: new Date(),
-          permissions: permissions ?? {},
-        }),
+  it('sends workflow file commits when token metadata is incomplete', async () => {
+    const oid = '0'.repeat(40);
+    const graphql = vi.fn().mockResolvedValueOnce({
+      createCommitOnBranch: {
+        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
+      },
+    });
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {},
+      }),
     );
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
@@ -2113,53 +2082,9 @@ describe('github agent tool catalog', () => {
       },
     });
 
-    // The live profile never requests workflows, so the allow path stays closed until the
-    // catalog scope declares it.
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {contents: 'write'});
-    expect(graphql).not.toHaveBeenCalled();
-    expect(result).toMatchObject({isError: true, structuredContent: {code: 'access-denied'}});
-  });
-
-  it('commits workflow file changes only when the minted token carries workflows write', async () => {
-    const oid = '0'.repeat(40);
-    const graphql = vi.fn().mockResolvedValueOnce({
-      createCommitOnBranch: {
-        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
-      },
-    });
-    const provider = new GithubAgentToolsProvider({
-      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {contents: 'write' as const, workflows: 'write' as const},
-          }),
-        ),
-      },
-      createClient: vi.fn(() => ({request: vi.fn(), graphql})),
-    });
-    const session = await provider.openSession({
-      connection: connection(),
-      tools: [createCommitTool()],
-      scope: undefined,
-    });
-
-    await expect(
-      session.call({
-        toolId: 'create_commit',
-        arguments: {
-          repository: 'shipfox/platform',
-          branch: 'feature',
-          expected_head_oid: 'a'.repeat(40),
-          message: {headline: 'Remove CI'},
-          deletions: [{path: '.github/workflows/old.yml'}],
-        },
-      }),
-    ).resolves.toMatchObject({structuredContent: {commit: {oid}}});
-
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
     expect(graphql).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({structuredContent: {commit: {oid}}});
   });
 
   it('returns artifact download metadata without buffering archive bytes', async () => {
@@ -3021,18 +2946,26 @@ describe('github agent tool catalog', () => {
     expect(graphql).not.toHaveBeenCalled();
   });
 
-  it('rejects a create_commit call when the installation lacks contents write', async () => {
+  it('sends create_commit to GitHub when token metadata is incomplete', async () => {
+    const oid = '0'.repeat(40);
+    const graphql = vi.fn().mockResolvedValueOnce({
+      createCommitOnBranch: {
+        commit: {oid, url: `https://github.com/shipfox/platform/commit/${oid}`},
+      },
+    });
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {issues: 'write' as const, pull_requests: 'write' as const},
+      }),
+    );
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
       tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {issues: 'write' as const, pull_requests: 'write' as const},
-          }),
-        ),
+        getInstallationAccessToken,
       },
+      createClient: vi.fn(() => ({request: vi.fn(), graphql})),
     });
     const session = await provider.openSession({
       connection: connection(),
@@ -3051,16 +2984,9 @@ describe('github agent tool catalog', () => {
       },
     });
 
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: create_commit requires contents: write',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(result).toMatchObject({structuredContent: {commit: {oid}}});
+    expect(graphql).toHaveBeenCalledOnce();
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
   it('rejects a createCommitOnBranch response without a commit', async () => {
@@ -3393,18 +3319,19 @@ describe('github agent tool catalog', () => {
     });
   });
 
-  it('returns an access-denied code when the installation lacks a required permission', async () => {
+  it('sends issue reads to GitHub when token metadata is incomplete', async () => {
+    const request = vi.fn(() => Promise.resolve({data: []}));
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {},
+      }),
+    );
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {},
-          }),
-        ),
-      },
+      tokenProvider: {getInstallationAccessToken},
+      createClient: vi.fn(() => ({request})),
     });
     const tool = githubAgentToolCatalog.find((entry) => entry.id === 'list_issues');
     if (!tool) throw new Error('Missing list_issues tool');
@@ -3419,16 +3346,9 @@ describe('github agent tool catalog', () => {
       arguments: {owner: 'shipfox', repo: 'platform'},
     });
 
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: list_issues requires issues: read',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(result).toMatchObject({structuredContent: {issues: []}});
+    expect(request).toHaveBeenCalledOnce();
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
   it.each([
@@ -3440,9 +3360,10 @@ describe('github agent tool catalog', () => {
       missingPermission: 'pull_requests',
       permissions: {contents: 'write' as const},
     },
-  ])('rejects update_pull_request_branch when $missingPermission write is missing', async ({
+  ])('sends update_pull_request_branch when token metadata is incomplete: $missingPermission', async ({
     permissions,
   }) => {
+    const request = vi.fn(() => Promise.resolve({data: {message: 'Branch updated'}}));
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
       tokenProvider: {
@@ -3454,6 +3375,7 @@ describe('github agent tool catalog', () => {
           }),
         ),
       },
+      createClient: vi.fn(() => ({request})),
     });
     const tool = githubAgentToolCatalog.find((entry) => entry.id === 'update_pull_request_branch');
     if (!tool) throw new Error('Missing update_pull_request_branch tool');
@@ -3468,19 +3390,11 @@ describe('github agent tool catalog', () => {
       arguments: {owner: 'shipfox', repo: 'platform', pull_number: 1},
     });
 
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: update_pull_request_branch requires pull_requests: write, contents: write',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(result).toMatchObject({structuredContent: {message: 'Branch updated'}});
+    expect(request).toHaveBeenCalledOnce();
   });
 
-  it('authorizes update_pull_request_branch when the installation grants both permissions', async () => {
+  it('uses the full installation token for update_pull_request_branch', async () => {
     const request = vi.fn(() => Promise.resolve({data: {message: 'Branch updated'}}));
     const getInstallationAccessToken = vi.fn(() =>
       Promise.resolve({
@@ -3528,10 +3442,7 @@ describe('github agent tool catalog', () => {
       content: [{type: 'text', text: '{"message":"Branch updated"}'}],
       structuredContent: {message: 'Branch updated'},
     });
-    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {
-      contents: 'write',
-      pull_requests: 'write',
-    });
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
   it('creates a branch from a commit oid through the provider session', async () => {
@@ -3890,18 +3801,27 @@ describe('github agent tool catalog', () => {
     });
   });
 
-  it('returns an access-denied code when the installation lacks contents write permission', async () => {
+  it('sends branch creation to GitHub when token metadata is incomplete', async () => {
+    const request = vi.fn(() =>
+      Promise.resolve({
+        data: {
+          ref: 'refs/heads/feature',
+          url: 'https://api.github.com/repos/shipfox/platform/git/refs/heads/feature',
+          object: {sha: 'aa218f56b14c9653891f9e74264a383fa43fefbd'},
+        },
+      }),
+    );
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {pull_requests: 'write' as const},
+      }),
+    );
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {pull_requests: 'write' as const},
-          }),
-        ),
-      },
+      tokenProvider: {getInstallationAccessToken},
+      createClient: vi.fn(() => ({request})),
     });
     const tool = githubAgentToolCatalog.find((entry) => entry.id === 'create_branch');
     if (!tool) throw new Error('Missing create_branch tool');
@@ -3920,16 +3840,9 @@ describe('github agent tool catalog', () => {
       },
     });
 
-    expect(result).toEqual({
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: 'GitHub installation token is missing permission for this operation: create_branch requires contents: write',
-        },
-      ],
-      structuredContent: {code: 'access-denied'},
-    });
+    expect(result).toMatchObject({structuredContent: {branch: 'feature'}});
+    expect(request).toHaveBeenCalledOnce();
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 
   it('rejects a repository argument that is not in owner/name form', async () => {
@@ -5061,7 +4974,7 @@ describe('github agent tool catalog', () => {
     ).rejects.toMatchObject({reason: 'provider-rejected', status: 404});
   });
 
-  it('maps a create 404 to repository-not-found', async () => {
+  it('keeps a create 404 as a provider rejection', async () => {
     const providerError = new RequestError('Not Found', 404, {
       request: {
         method: 'POST',
@@ -5083,24 +4996,33 @@ describe('github agent tool catalog', () => {
         },
         request,
       ),
-    ).rejects.toMatchObject({reason: 'repository-not-found', status: 404});
+    ).rejects.toMatchObject({reason: 'provider-rejected', status: 404});
   });
 
-  it('denies check-run calls when the minted token lacks checks write', async () => {
-    const request = vi.fn();
+  it('sends check-run calls when token metadata is incomplete', async () => {
+    const request = vi.fn(() =>
+      Promise.resolve({
+        data: {
+          id: 123456,
+          name: 'Shipfox review',
+          head_sha: 'a'.repeat(40),
+          html_url: 'https://github.com/shipfox/platform/runs/123456',
+          status: 'queued',
+        },
+      }),
+    );
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'installation-token',
+        expiresAt: new Date(),
+        permissions: {checks: 'read' as const},
+      }),
+    );
     const checkRunWrite = githubAgentToolCatalog.find((entry) => entry.id === 'check_run_write');
     if (!checkRunWrite) throw new Error('Missing check-run write catalog entry');
     const provider = new GithubAgentToolsProvider({
       getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
-      tokenProvider: {
-        getInstallationAccessToken: vi.fn(() =>
-          Promise.resolve({
-            token: 'installation-token',
-            expiresAt: new Date(),
-            permissions: {checks: 'read' as const},
-          }),
-        ),
-      },
+      tokenProvider: {getInstallationAccessToken},
       createClient: vi.fn(() => ({request})),
     });
     const session = await provider.openSession({
@@ -5120,11 +5042,9 @@ describe('github agent tool catalog', () => {
       },
     });
 
-    expect(result).toMatchObject({
-      isError: true,
-      structuredContent: {code: 'access-denied'},
-    });
-    expect(request).not.toHaveBeenCalled();
+    expect(result).toMatchObject({structuredContent: {check_run: {id: 123456}}});
+    expect(request).toHaveBeenCalledOnce();
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1);
   });
 });
 

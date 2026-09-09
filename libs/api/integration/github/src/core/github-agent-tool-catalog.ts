@@ -15,8 +15,8 @@ interface GithubCatalogMethod<RequiredScope = unknown>
   repositoryScope: GithubRepositoryScopeClassifier;
   indirectTargetNote?: string | undefined;
   /**
-   * Permission sets GitHub documents as sufficient instead of `requiredScope`. Only
-   * `requiredScope` shapes the minted token profile; alternatives are honored at call time.
+   * Permission sets GitHub documents as sufficient instead of `requiredScope`. Both fields are
+   * advisory provider requirements for catalog documentation and diagnostics.
    */
   alternativeScopes?: readonly RequiredScope[] | undefined;
 }
@@ -295,9 +295,8 @@ const pullRequestReadMethods = [
     scopes.pullRequestsRead,
   ),
   {
-    // GitHub accepts pull_requests read or issues read for timeline comments. Pull requests read
-    // drives the token profile like every sibling method; issues read is honored when a token
-    // already carries it.
+    // GitHub accepts pull_requests read or issues read for timeline comments. Keep both grants in
+    // the catalog so the provider requirement remains visible to callers and diagnostics.
     ...method(
       'get_comments',
       'Get conversation comments for a specific pull request.',
@@ -850,7 +849,7 @@ export const githubAgentToolCatalog = [
     id: 'create_commit',
     category: 'repository',
     description:
-      'Create a commit on an existing branch in a GitHub repository. The commit is authored and signed by GitHub on behalf of the Shipfox bot (shipfox-ai[bot]) and shows the Verified badge. Renames are expressed as a deletion of the old path plus an addition of the new path. File contents are validated server-side and limited to a total of about 1 MiB per call; keep edits small and explicit. Text contents are sent as utf8 and transcoded to base64 by the server; binary contents can be provided with encoding base64. The expected_head_oid must be the current head of the branch (compare-and-swap): if the branch moved, the commit is rejected with a stale-head error and the call should be retried with the new head. When issuing several dependent commits, derive each expected_head_oid from the returned oid of the previous commit so the commits land in order. Branch protection rules are the only barrier to writing the default branch. Files under .github/workflows need the workflows permission, which the installation token may not carry; such changes are rejected with access-denied when it is missing.',
+      "Create a commit on an existing branch in a GitHub repository. The commit is authored and signed by GitHub on behalf of the Shipfox bot (shipfox-ai[bot]) and shows the Verified badge. Renames are expressed as a deletion of the old path plus an addition of the new path. File contents are validated server-side and limited to a total of about 1 MiB per call; keep edits small and explicit. Text contents are sent as utf8 and transcoded to base64 by the server; binary contents can be provided with encoding base64. The expected_head_oid must be the current head of the branch (compare-and-swap): if the branch moved, the commit is rejected with a stale-head error and the call should be retried with the new head. When issuing several dependent commits, derive each expected_head_oid from the returned oid of the previous commit so the commits land in order. Branch protection rules are the only barrier to writing the default branch. Authorized changes to files under .github/workflows are sent to GitHub, which returns success or denial based on the installation's grants and repository rules.",
     sensitivity: 'write',
     sensitive: false,
     requiredScope: scopes.contentsWrite,

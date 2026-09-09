@@ -191,7 +191,7 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
           authorization: expect.stringMatching(BEARER_AUTHORIZATION),
           tokenFormatOverride: 'enabled',
           installationId,
-          body: {permissions: {issues: 'write', pull_requests: 'write'}},
+          body: {},
         },
         {
           kind: 'read-issue',
@@ -268,7 +268,7 @@ test('enforces selected GitHub authorization for deterministic tools', async ({
         authorization: expect.any(String),
         tokenFormatOverride: 'enabled',
         installationId: fixture.installationId,
-        body: {permissions: {issues: 'read'}},
+        body: {},
       },
       {
         kind: 'read-issue',
@@ -392,7 +392,7 @@ test('allows an all-mode GitHub tool target outside Shipfox projects', async ({
         authorization: expect.any(String),
         tokenFormatOverride: 'enabled',
         installationId: fixture.installationId,
-        body: {permissions: {issues: 'read'}},
+        body: {},
       },
       {
         kind: 'read-issue',

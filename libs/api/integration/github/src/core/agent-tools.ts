@@ -11,7 +11,6 @@ import type {
 import {isValidGitObjectId, MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
 import {Octokit} from 'octokit';
 import {mapGithubError} from '#api/client.js';
-import type {GithubInstallationTokenPermissions} from '#api/installation-token-envelope.js';
 import {
   createGithubInstallationTokenProvider,
   type GithubInstallationTokenProvider,
@@ -213,12 +212,6 @@ export class GithubAgentToolsProvider
     }
     const liveCatalog = this.catalog();
     const authorizedTools = intersectGithubToolsWithLiveCatalog(input.tools, liveCatalog);
-    // The core tool-call service opens one-tool sessions, while scope retains
-    // the full frozen integration selection. Aggregate the token profile from
-    // that selection so sequential calls reuse one token profile.
-    const selectedTools = input.scope?.tools ?? input.tools;
-    const profileTools = intersectGithubToolsWithLiveCatalog(selectedTools, liveCatalog);
-    const permissionProfile = githubToolPermissionProfile(profileTools);
     let tokenPromise:
       | ReturnType<GithubInstallationTokenProvider['getInstallationAccessToken']>
       | undefined;
@@ -236,15 +229,8 @@ export class GithubAgentToolsProvider
             ? githubToolError(validationError, 'invalid-request')
             : githubToolError(validationError.message, validationError.code);
         }
-        tokenPromise ??= this.tokenProvider.getInstallationAccessToken(
-          installationId,
-          undefined,
-          permissionProfile.permissions,
-        );
+        tokenPromise ??= this.tokenProvider.getInstallationAccessToken(installationId);
         const token = await tokenPromise;
-        const permissionDenial = githubPermissionDenial(token.permissions ?? {}, tool, call);
-        if (permissionDenial !== undefined)
-          return githubToolError(permissionDenial, 'access-denied');
         const client = (this.options.createClient ?? createOctokitClient)(token.token);
         const method =
           typeof call.arguments.method === 'string' ? call.arguments.method : undefined;
@@ -262,24 +248,27 @@ async function executeGithubToolOperation(
 ): Promise<GithubToolCallResult> {
   const toolId = tool.id as GithubAgentToolId;
   if (operation.kind === 'graphql') {
-    const data = await mapGithubError(() =>
-      executeGithubGraphqlOperation(client, toolId, method, operation.parameters),
+    const data = await mapGithubError(
+      () => executeGithubGraphqlOperation(client, toolId, method, operation.parameters),
+      'provider-rejected',
     );
     return toolId === 'add_comment_to_pending_review'
       ? pendingReviewCommentResult(data)
       : githubToolResult(toolId, data);
   }
-  const parameters = await mapGithubError(() =>
-    resolveGithubOperationParameters(client, operation.parameters, toolId, method),
+  const parameters = await mapGithubError(
+    () => resolveGithubOperationParameters(client, operation.parameters, toolId, method),
+    'provider-rejected',
   );
   if (parameters === undefined) {
     return githubToolError(NO_PENDING_REVIEW_MESSAGE, 'provider-rejected');
   }
   const response =
     toolId === 'check_run_write'
-      ? await executeGithubCheckRunRequest(client, operation.route, parameters, method)
-      : await mapGithubError(() =>
-          executeGithubRestOperation(client, operation.route, parameters, toolId),
+      ? await executeGithubCheckRunRequest(client, operation.route, parameters)
+      : await mapGithubError(
+          () => executeGithubRestOperation(client, operation.route, parameters, toolId),
+          'provider-rejected',
         );
   return githubToolResult(toolId, response.data, response, parameters, operation.route);
 }
@@ -288,12 +277,8 @@ async function executeGithubCheckRunRequest(
   client: GithubToolClient,
   route: string,
   parameters: Record<string, unknown>,
-  method: string | undefined,
 ): Promise<GithubToolResponse> {
-  return await mapGithubError(
-    () => client.request(route, parameters),
-    method === 'update' ? 'provider-rejected' : undefined,
-  );
+  return await mapGithubError(() => client.request(route, parameters), 'provider-rejected');
 }
 
 // GitHub answers a malformed thread position with a null thread and no error, so the
@@ -320,10 +305,6 @@ export interface GithubAgentToolsProviderOptions {
     | undefined;
   tokenProvider?: GithubInstallationTokenProvider | undefined;
   createClient?: GithubToolClientFactory | undefined;
-}
-
-interface GithubToolPermissionProfile {
-  permissions: GithubInstallationTokenPermissions;
 }
 
 interface GithubToolSelection {
@@ -361,43 +342,6 @@ function intersectGithubToolWithLiveCatalog(
   const allowedMethods = new Set(tool.methods.map((method) => method.id));
   const methods = liveTool.methods.filter((method) => allowedMethods.has(method.id));
   return methods.length === 0 ? undefined : {...liveTool, methods};
-}
-
-function githubToolPermissionProfile(
-  authorizedTools: readonly AgentToolCatalogEntry<GithubAgentToolRequiredScope>[],
-): GithubToolPermissionProfile {
-  const permissionsByName = new Map<string, 'read' | 'write'>();
-
-  for (const tool of authorizedTools) {
-    if (tool.methods === undefined) {
-      addGithubRequiredScope(permissionsByName, tool.requiredScope);
-      continue;
-    }
-    for (const method of tool.methods) {
-      addGithubRequiredScope(permissionsByName, method.requiredScope);
-    }
-  }
-
-  const permissions = Object.fromEntries(
-    [...permissionsByName.entries()].sort(([first], [second]) => {
-      if (first < second) return -1;
-      if (first > second) return 1;
-      return 0;
-    }),
-  ) as GithubInstallationTokenPermissions;
-  return {
-    permissions,
-  };
-}
-
-function addGithubRequiredScope(
-  permissions: Map<string, 'read' | 'write'>,
-  requiredScope: GithubAgentToolRequiredScope,
-): void {
-  for (const {permission, access} of requiredScope) {
-    if (permissions.get(permission) === 'write') continue;
-    permissions.set(permission, access);
-  }
 }
 
 export interface GithubToolResponse {
@@ -1106,13 +1050,15 @@ async function createGitBranch(
   const sha = parameters.sha;
   let response: GithubToolResponse;
   try {
-    response = await mapGithubError(() =>
-      client.request('POST /repos/{owner}/{repo}/git/refs', {
-        owner,
-        repo,
-        ref: `refs/heads/${branch}`,
-        sha,
-      }),
+    response = await mapGithubError(
+      () =>
+        client.request('POST /repos/{owner}/{repo}/git/refs', {
+          owner,
+          repo,
+          ref: `refs/heads/${branch}`,
+          sha,
+        }),
+      'provider-rejected',
     );
   } catch (error) {
     if (
@@ -1135,12 +1081,14 @@ async function reconcileExistingBranch(
   sha: unknown,
 ): Promise<GithubToolResponse> {
   try {
-    const existing = await mapGithubError(() =>
-      client.request('GET /repos/{owner}/{repo}/git/ref/heads/{branch}', {
-        owner,
-        repo,
-        branch,
-      }),
+    const existing = await mapGithubError(
+      () =>
+        client.request('GET /repos/{owner}/{repo}/git/ref/heads/{branch}', {
+          owner,
+          repo,
+          branch,
+        }),
+      'provider-rejected',
     );
     const object =
       isRecord(existing.data) && isRecord(existing.data.object) ? existing.data.object : undefined;
@@ -2128,80 +2076,4 @@ function methodRequiredParameters(
   }
 
   return [];
-}
-
-function githubPermissionDeniedMessage(
-  tool: GithubAgentToolCatalogEntry,
-  call: AgentToolCallInput,
-): string {
-  const [required, ...alternatives] = acceptedScopes(tool, call);
-  const alternativeText =
-    alternatives.length === 0 ? '' : ` (or ${alternatives.map(formatGithubScope).join('; ')})`;
-  return `GitHub installation token is missing permission for this operation: ${tool.id} requires ${formatGithubScope(required)}${alternativeText}`;
-}
-
-function formatGithubScope(scope: GithubAgentToolRequiredScope): string {
-  return scope.map(({permission, access}) => `${permission}: ${access}`).join(', ');
-}
-
-/** The declared scope first, then every alternative GitHub documents for the same operation. */
-function acceptedScopes(
-  tool: GithubAgentToolCatalogEntry,
-  call: AgentToolCallInput,
-): readonly [GithubAgentToolRequiredScope, ...GithubAgentToolRequiredScope[]] {
-  const methodId = typeof call.arguments.method === 'string' ? call.arguments.method : undefined;
-  const method = tool.methods?.find((candidate) => candidate.id === methodId);
-  if (method === undefined) return [tool.requiredScope];
-  return [method.requiredScope, ...(method.alternativeScopes ?? [])];
-}
-
-const GITHUB_WORKFLOWS_DIRECTORY = '.github/workflows/';
-
-function githubPermissionDenial(
-  granted: Record<string, 'read' | 'write' | 'admin'>,
-  tool: GithubAgentToolCatalogEntry,
-  call: AgentToolCallInput,
-): string | undefined {
-  if (!hasGrantedPermissions(granted, tool, call)) return githubPermissionDeniedMessage(tool, call);
-  return githubWorkflowsPermissionDenial(tool, call, granted);
-}
-
-// GitHub refuses any commit that adds or changes an Actions workflow file unless the token
-// carries the workflows permission, which no catalog scope requests. Deny locally so the
-// agent gets a deterministic access-denied instead of an opaque provider rejection.
-function githubWorkflowsPermissionDenial(
-  tool: AgentToolCatalogEntry<GithubAgentToolRequiredScope>,
-  call: AgentToolCallInput,
-  granted: Record<string, 'read' | 'write' | 'admin'>,
-): string | undefined {
-  if (tool.id !== 'create_commit') return undefined;
-  if (granted.workflows === 'write' || granted.workflows === 'admin') return undefined;
-  // Argument validation already rejects leading slashes and dot segments, so a plain prefix
-  // test cannot be bypassed by an alternative spelling of the workflows directory.
-  const workflowPath = [
-    ...fileChangePaths(call.arguments.additions),
-    ...fileChangePaths(call.arguments.deletions),
-  ].find((path) => path.startsWith(GITHUB_WORKFLOWS_DIRECTORY));
-  if (workflowPath === undefined) return undefined;
-  return `GitHub installation token is missing permission for this operation: ${tool.id} requires workflows: write to change ${workflowPath}`;
-}
-
-function fileChangePaths(changes: unknown): string[] {
-  if (!Array.isArray(changes)) return [];
-  return changes.flatMap((change) =>
-    isRecord(change) && typeof change.path === 'string' ? [change.path] : [],
-  );
-}
-
-function hasGrantedPermissions(
-  granted: Record<string, 'read' | 'write' | 'admin'>,
-  tool: GithubAgentToolCatalogEntry,
-  call: AgentToolCallInput,
-): boolean {
-  return acceptedScopes(tool, call).some((scope) =>
-    scope.every(({permission, access}) => {
-      const actual = granted[permission];
-      return actual === 'write' || actual === 'admin' || actual === access;
-    }),
-  );
 }

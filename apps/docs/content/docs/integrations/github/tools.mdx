@@ -22,12 +22,20 @@ fields](/reference/workflow-schema#agent-integration-fields).
 
 ## Tool catalog
 
-Grant the GitHub App only the repository permissions required by selected tools.
-The catalog states each tool's read or write sensitivity and its required GitHub
-permissions. An agent step's `integrations` entry must set `allow_write: true`
-to include a write tool such as `merge_pull_request`, or Shipfox rejects the
-step at validation. A tool step needs no flag: naming the write tool is the
-choice.
+The permission fields in this catalog are advisory provider requirements. Backend
+GitHub agent tools use the full access granted to the GitHub App installation, and
+GitHub determines whether the requested operation is permitted. Shipfox still
+checks the caller, selected tool and method, write access, inputs, and declared
+repository target.
+
+Authorized `create_commit` calls can write files under `.github/workflows/`. Those
+writes reach GitHub, which returns success or denial based on the installation's
+grants and repository rules. They do not use a separate workflow-file switch.
+
+Write tools (for example `create_branch` and `merge_pull_request`) in an agent
+step require the workflow step's `integrations` entry to set `allow_write: true`;
+without it, Shipfox rejects the step at validation. A tool step needs no flag:
+naming the write tool is the choice.
 
 The generated catalog also states each operation's repository classification:
 
