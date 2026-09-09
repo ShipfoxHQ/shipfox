@@ -44,12 +44,16 @@ export async function reapStaleOpenStreams(
   for (const stream of stale) {
     try {
       const closed = await db().transaction((tx) =>
-        closeStream(tx, {streamId: stream.id, reason: 'timeout'}),
+        closeStream(tx, {
+          streamId: stream.id,
+          reason: 'timeout',
+          terminalCause: 'runner_lost',
+        }),
       );
       if (closed) {
         result.reaped += 1;
         recordAppendedCount.add(1, {kind: 'runner_lost'});
-        streamClosedCount.add(1, {reason: 'timeout'});
+        streamClosedCount.add(1, {reason: 'runner_lost'});
       }
     } catch (error) {
       result.failed += 1;

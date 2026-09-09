@@ -81,6 +81,8 @@ describe('LogView', () => {
 
   test.each([
     {record: {v: 1, ts, type: 'runner_lost'} as const, label: 'Runner disconnected'},
+    {record: {v: 1, ts, type: 'timed_out'} as const, label: 'Execution timed out'},
+    {record: {v: 1, ts, type: 'run_cancelled'} as const, label: 'Run cancelled'},
     {record: {v: 1, ts, type: 'gap', droppedBytes: 2048} as const, label: 'Output missing'},
     {record: {v: 1, ts, type: 'capped'} as const, label: 'Log size limit reached'},
   ])('does not show no-output copy for a $record.type marker-only stream', ({record, label}) => {
@@ -97,6 +99,31 @@ describe('LogView', () => {
     expect(screen.getByText('hello')).toBeDefined();
     expect(screen.queryByText('Step produced no output')).toBeNull();
     expect(screen.queryByText('No output yet')).toBeNull();
+  });
+
+  test('ends open groups and explains a truncated stream without a terminal marker', () => {
+    render(
+      <LogView truncated records={[groupStart('build', 'Build'), output('partial output\n')]} />,
+    );
+
+    expect(screen.getByText('Log stream incomplete')).toBeInTheDocument();
+    expect(screen.getByText('some final output may be missing')).toBeInTheDocument();
+    expect(screen.getByText('incomplete')).toBeInTheDocument();
+  });
+
+  test('renders only the incomplete state for an empty truncated stream', () => {
+    render(<LogView truncated records={[]} />);
+
+    expect(screen.getByText('Log stream incomplete')).toBeInTheDocument();
+    expect(screen.queryByText('Step produced no output')).not.toBeInTheDocument();
+    expect(screen.queryByText('No output yet')).not.toBeInTheDocument();
+  });
+
+  test('does not duplicate an authoritative terminal marker for a truncated stream', () => {
+    render(<LogView truncated records={[{v: 1, ts, type: 'timed_out'}]} />);
+
+    expect(screen.getByText('Execution timed out')).toBeInTheDocument();
+    expect(screen.queryByText('Log stream incomplete')).not.toBeInTheDocument();
   });
 
   test('filters output and session rows by the log search term', () => {

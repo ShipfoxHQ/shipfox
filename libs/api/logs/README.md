@@ -56,6 +56,8 @@ output; control records are flat by `type`:
 {v: 1, ts, type: 'gap',           dropped_bytes}
 {v: 1, ts, type: 'agent_session', row}                                // normalized SessionView row
 {v: 1, ts, type: 'capped'}        // server-only
+{v: 1, ts, type: 'timed_out'}     // server-only
+{v: 1, ts, type: 'run_cancelled'} // server-only
 {v: 1, ts, type: 'runner_lost'}   // server-only
 ```
 
@@ -66,7 +68,7 @@ Two layers stop a runner from writing what it should not:
 1. **Lease scope**: the lease binds writes to the job's own `(step, attempt)`, so cross-job
    injection is structurally impossible.
 2. **Distinct raw/write and stored/read unions**: every line is validated against the **raw**
-   record union. The server-only `capped`/`runner_lost` tombstones are members of the read union
+   record union. Server-only tombstones are members of the read union
    only, not the raw write union, so a forged tombstone append is rejected (400). A forged
    tombstone that is otherwise a valid record is logged as a narrowed audit warning (no payload,
    no token).
@@ -155,8 +157,11 @@ abandoned it (carried on the event's `logOutcome`); the job-terminated sweep for
 job's still-open streams once the job goes terminal, after a grace period
 (`LOG_STREAM_CLOSE_GRACE_SECONDS`); and the reaper cron force-closes any stream still open past the
 lease window (`LOG_STREAM_REAP_AFTER_SECONDS`), the backstop for a stream the one-shot sweeps missed
-(one whose first append landed after they ran). Every timeout close sets `truncated` and injects a
-`runner_lost` tombstone; each close writes one `logs.stream.closed` event, which drives compaction.
+(one whose first append landed after they ran). Every timeout close sets `truncated`. When the
+terminal cause is known, the close also writes a `timed_out`, `run_cancelled`, or `runner_lost`
+tombstone. `runner_lost` is reserved for an unexpected runner disappearance, lease expiry, and
+legacy close workflows that predate explicit causes. A cause-free abandoned close writes no
+tombstone. Each close writes one `logs.stream.closed` event, which drives compaction.
 
 ## Setup
 

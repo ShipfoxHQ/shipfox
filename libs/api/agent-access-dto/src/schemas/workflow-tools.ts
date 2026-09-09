@@ -108,6 +108,9 @@ const stepStatusReasonSchema = z.enum([
   'default_gate_rejected',
   'condition_rejected',
   'condition_errored',
+  'timed_out',
+  'run_cancelled',
+  'runner_lost',
 ]);
 const boundedExecutionCountSchema = z.union([
   z.number().int().nonnegative().max(AGENT_ACCESS_WORKFLOW_EXECUTION_COUNT_MAX),
@@ -652,7 +655,14 @@ const stepsJsonSchema = {
     status: jobStatusJsonSchema,
     status_reason: nullable({
       type: 'string',
-      enum: ['default_gate_rejected', 'condition_rejected', 'condition_errored'],
+      enum: [
+        'default_gate_rejected',
+        'condition_rejected',
+        'condition_errored',
+        'timed_out',
+        'run_cancelled',
+        'runner_lost',
+      ],
     }),
     current_attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
   },

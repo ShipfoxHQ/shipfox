@@ -284,6 +284,8 @@ export {
   type ListenerFilterExpressionType,
   type ListenerFilterOutputTypes,
   listenerFilterOutputTypesSchema,
+  type StepAttemptTerminalCauseDto,
+  stepAttemptTerminalCauseSchema,
   terminalStatusSchema,
   WORKFLOWS_JOB_ACTIVATED,
   WORKFLOWS_JOB_EVENT_DELIVERED,

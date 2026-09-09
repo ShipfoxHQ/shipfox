@@ -1,5 +1,6 @@
 import {
   type LogOutcomeDto,
+  type StepAttemptTerminalCauseDto,
   WORKFLOW_DIAGNOSTIC_ERROR_MAX_BYTES,
   WORKFLOW_DIAGNOSTIC_EVALUATION_TRACE_MAX_BYTES,
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
@@ -328,6 +329,7 @@ export async function getStepsByJobExecutionId(jobExecutionId: string): Promise<
 export interface BulkUpdateStepStatusesParams {
   jobExecutionId: string;
   status: Extract<StepStatus, 'failed' | 'cancelled'>;
+  terminalCause?: StepAttemptTerminalCauseDto | undefined;
 }
 
 export async function bulkUpdateStepStatuses(
@@ -339,11 +341,16 @@ export async function bulkUpdateStepStatuses(
     return;
   }
 
+  const terminalStatusReason: StepStatusReason | undefined = params.terminalCause;
+
   await tx
     .update(steps)
     .set({
       status: params.status,
-      statusReason: null,
+      statusReason:
+        terminalStatusReason === undefined
+          ? null
+          : sql`case when ${steps.status} = 'running' then ${terminalStatusReason}::workflows_step_status_reason else null end`,
       updatedAt: new Date(),
     })
     .where(and(eq(steps.jobExecutionId, params.jobExecutionId), NON_TERMINAL_STEP_STATUS_FILTER));
@@ -397,6 +404,7 @@ export async function bulkUpdateStepStatuses(
         attempt: attempt.attempt,
         status: params.status,
         logOutcome: attempt.logOutcome ?? 'abandoned',
+        terminalCause: params.terminalCause,
       });
     }
   }

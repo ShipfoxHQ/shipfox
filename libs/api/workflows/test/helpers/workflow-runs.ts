@@ -75,9 +75,10 @@ export function shellRef(name: string): string {
 export async function bulkUpdateJobStepStatuses(
   params: Omit<Parameters<typeof bulkUpdateStepStatuses>[0], 'jobExecutionId'> & {jobId: string},
 ) {
-  const jobExecution = await getFirstJobExecutionByJobId(params.jobId);
-  if (!jobExecution) throw new JobNotFoundError(params.jobId);
-  await bulkUpdateStepStatuses({jobExecutionId: jobExecution.id, status: params.status});
+  const {jobId, ...update} = params;
+  const jobExecution = await getFirstJobExecutionByJobId(jobId);
+  if (!jobExecution) throw new JobNotFoundError(jobId);
+  await bulkUpdateStepStatuses({jobExecutionId: jobExecution.id, ...update});
 }
 
 export function createTestRun(scope: {

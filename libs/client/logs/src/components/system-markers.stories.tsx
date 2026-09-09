@@ -1,6 +1,13 @@
 import {LogRows} from '@shipfox/react-ui/log';
 import type {Meta, StoryObj} from '@storybook/react';
-import {CappedMarker, EndMarker, GapMarker, RunnerLostMarker} from './system-markers.js';
+import {
+  CappedMarker,
+  EndMarker,
+  GapMarker,
+  RunCancelledMarker,
+  RunnerLostMarker,
+  TimedOutMarker,
+} from './system-markers.js';
 
 const ts = new Date('2026-06-23T10:00:00.000Z').getTime();
 
@@ -34,6 +41,8 @@ export const Variants: Story = {
       <LogRows>
         <GapMarker record={{v: 1, ts, type: 'gap', droppedBytes: 2048}} />
         <CappedMarker record={{v: 1, ts, type: 'capped'}} />
+        <TimedOutMarker record={{v: 1, ts, type: 'timed_out'}} />
+        <RunCancelledMarker record={{v: 1, ts, type: 'run_cancelled'}} />
         <RunnerLostMarker record={{v: 1, ts, type: 'runner_lost'}} />
         <EndMarker
           record={{v: 1, ts, type: 'end', totalBytes: 15_360}}

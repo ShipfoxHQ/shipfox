@@ -1,3 +1,4 @@
+import type {StepAttemptTerminalCauseDto} from '@shipfox/api-workflows-dto';
 import {log, proxyActivities, sleep} from '@temporalio/workflow';
 import type {createLogsActivities} from '../activities/index.js';
 
@@ -8,6 +9,7 @@ const {closeAbandonedStreamsActivity} = proxyActivities<ReturnType<typeof create
 export interface CloseAbandonedStreamsInput {
   jobId: string;
   graceSeconds: number;
+  terminalCause?: StepAttemptTerminalCauseDto | null | undefined;
 }
 
 /**
@@ -18,7 +20,10 @@ export interface CloseAbandonedStreamsInput {
 export async function closeAbandonedStreams(input: CloseAbandonedStreamsInput): Promise<void> {
   await sleep(input.graceSeconds * 1000);
 
-  const {closed} = await closeAbandonedStreamsActivity({jobId: input.jobId});
+  const {closed} = await closeAbandonedStreamsActivity({
+    jobId: input.jobId,
+    terminalCause: input.terminalCause,
+  });
   if (closed > 0) {
     log.info('Force-closed abandoned log streams', {jobId: input.jobId, closed});
   }

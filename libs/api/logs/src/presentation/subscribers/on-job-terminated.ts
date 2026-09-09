@@ -1,4 +1,7 @@
-import type {WorkflowsJobTerminatedEventDto} from '@shipfox/api-workflows-dto';
+import type {
+  StepAttemptTerminalCauseDto,
+  WorkflowsJobTerminatedEventDto,
+} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {temporalClient} from '@shipfox/node-temporal';
 import {config} from '#config.js';
@@ -14,7 +17,13 @@ export async function onJobTerminated(payload: WorkflowsJobTerminatedEventDto): 
     await temporalClient().workflow.start('closeAbandonedStreams', {
       taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,
       workflowId: `logs-close:${payload.jobId}`,
-      args: [{jobId: payload.jobId, graceSeconds: config.LOG_STREAM_CLOSE_GRACE_SECONDS}],
+      args: [
+        {
+          jobId: payload.jobId,
+          graceSeconds: config.LOG_STREAM_CLOSE_GRACE_SECONDS,
+          terminalCause: terminalCauseForJob(payload),
+        },
+      ],
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'WorkflowExecutionAlreadyStartedError') {
@@ -23,4 +32,15 @@ export async function onJobTerminated(payload: WorkflowsJobTerminatedEventDto): 
     }
     throw error;
   }
+}
+
+function terminalCauseForJob(
+  payload: WorkflowsJobTerminatedEventDto,
+): StepAttemptTerminalCauseDto | null {
+  if (payload.statusReason === 'timed_out') return 'timed_out';
+  if (payload.statusReason === 'run_cancelled' || payload.statusReason === 'user_cancelled') {
+    return 'run_cancelled';
+  }
+  if (payload.statusReason === 'runner_lost') return 'runner_lost';
+  return null;
 }

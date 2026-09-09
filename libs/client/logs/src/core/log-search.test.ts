@@ -71,6 +71,7 @@ describe('filterLogNodes', () => {
     const records: LogRecord[] = [
       output('\u001b[32mSuccess\u001b[0m: compiled'),
       {v: 1, ts: 0, type: 'gap', droppedBytes: 64},
+      {v: 1, ts: 0, type: 'timed_out'},
       {
         v: 1,
         ts: 0,
@@ -91,6 +92,7 @@ describe('filterLogNodes', () => {
 
     expect(filterLogNodes(tree.nodes, '  SUCCESS  ', index)).toHaveLength(1);
     expect(filterLogNodes(tree.nodes, 'output missing', index)).toHaveLength(1);
+    expect(filterLogNodes(tree.nodes, 'execution timed out', index)).toHaveLength(1);
     expect(filterLogNodes(tree.nodes, 'error', index)).toHaveLength(0);
   });
 });

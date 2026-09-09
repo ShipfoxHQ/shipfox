@@ -60,6 +60,8 @@ export type LogRecord =
   | (LogRecordBase & {type: 'gap'; droppedBytes: number})
   | (LogRecordBase & {type: 'agent_session'; row: SessionViewRow})
   | (LogRecordBase & {type: 'capped'})
+  | (LogRecordBase & {type: 'timed_out'})
+  | (LogRecordBase & {type: 'run_cancelled'})
   | (LogRecordBase & {type: 'runner_lost'});
 
 export type LogSource = 'inline' | 'presigned';

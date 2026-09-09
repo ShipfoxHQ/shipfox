@@ -11,5 +11,7 @@ export {
   EndMarker,
   type EndMarkerProps,
   GapMarker,
+  RunCancelledMarker,
   RunnerLostMarker,
+  TimedOutMarker,
 } from './system-markers.js';

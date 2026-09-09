@@ -40,6 +40,8 @@ const gap = (droppedBytes = 0, ts = 0): LogRecord => ({
   droppedBytes,
 });
 const capped = (ts = 0): LogRecord => ({v: 1, ts, type: 'capped'});
+const timedOut = (ts = 0): LogRecord => ({v: 1, ts, type: 'timed_out'});
+const runCancelled = (ts = 0): LogRecord => ({v: 1, ts, type: 'run_cancelled'});
 const runnerLost = (ts = 0): LogRecord => ({v: 1, ts, type: 'runner_lost'});
 const agentSession = (
   row: Extract<LogRecord, {type: 'agent_session'}>['row'] = {
@@ -291,6 +293,8 @@ describe('buildLogTree', () => {
 
   test.each([
     ['end', [end()], true],
+    ['timed_out', [timedOut()], true],
+    ['run_cancelled', [runCancelled()], true],
     ['runner_lost', [runnerLost()], true],
     ['capped', [capped()], false],
     ['none', [out('a')], false],
@@ -307,6 +311,18 @@ describe('buildLogTree', () => {
       const group = asGroup(buildLogTree(records).nodes[0]);
 
       expect(group.hasError).toBe(true);
+    });
+
+    test('a timed_out marker is an error while run_cancelled is neutral', () => {
+      const timedOutGroup = asGroup(
+        buildLogTree([gstart('g1', 'Run'), timedOut(), gend('g1')]).nodes[0],
+      );
+      const cancelledGroup = asGroup(
+        buildLogTree([gstart('g1', 'Run'), runCancelled(), gend('g1')]).nodes[0],
+      );
+
+      expect(timedOutGroup.hasError).toBe(true);
+      expect(cancelledGroup.hasError).toBe(false);
     });
 
     test('stderr does NOT set hasError (a channel, not a failure)', () => {

@@ -12,5 +12,8 @@ export async function onStepAttemptTerminated(
     stepId: payload.stepId,
     attempt: payload.attempt,
     logOutcome: payload.logOutcome,
+    // Preserve the old runner-loss behavior for pre-change events while new
+    // producers use null to distinguish an abandoned drain from runner loss.
+    terminalCause: payload.terminalCause === undefined ? 'runner_lost' : payload.terminalCause,
   });
 }

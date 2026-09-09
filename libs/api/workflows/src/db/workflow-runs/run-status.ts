@@ -177,7 +177,11 @@ async function terminateRunAttempt(
         launchKind: jobExecution.launchKind,
       });
       await bulkUpdateStepStatuses(
-        {jobExecutionId: jobExecution.id, status: spec.terminalStatus},
+        {
+          jobExecutionId: jobExecution.id,
+          status: spec.terminalStatus,
+          terminalCause: spec.statusReason,
+        },
         tx,
       );
     }

@@ -493,6 +493,8 @@ export async function failJobExecutionAsTimedOut(params: {
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<JobExecution> {
   const result = await db().transaction(async (tx) => {
+    await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
+
     const updated = await optimisticLockRetry({
       updateFn: () =>
         updateJobExecutionStatusAtVersion(tx, {
@@ -518,6 +520,17 @@ export async function failJobExecutionAsTimedOut(params: {
       matchFn: (execution) => (execution.timedOutAt !== null ? {execution, changed: false} : null),
       failureMessage: `Optimistic lock failure: job execution ${params.jobExecutionId} version ${params.expectedVersion}`,
     });
+
+    if (updated.changed) {
+      await bulkUpdateStepStatuses(
+        {
+          jobExecutionId: params.jobExecutionId,
+          status: 'failed',
+          terminalCause: 'timed_out',
+        },
+        tx,
+      );
+    }
 
     return updated;
   });
@@ -564,7 +577,11 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
       if (updated?.changed) {
         changedJobExecution = updated.execution;
         await bulkUpdateStepStatuses(
-          {jobExecutionId: params.jobExecutionId, status: 'cancelled'},
+          {
+            jobExecutionId: params.jobExecutionId,
+            status: 'cancelled',
+            terminalCause: 'runner_lost',
+          },
           tx,
         );
       }

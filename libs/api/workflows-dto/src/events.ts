@@ -53,6 +53,9 @@ export const workflowRunTerminalStatusSchema = z.enum(['succeeded', 'failed', 'c
 export const jobTerminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled', 'skipped']);
 export const terminalStatusSchema = workflowRunTerminalStatusSchema;
 
+export const stepAttemptTerminalCauseSchema = z.enum(['timed_out', 'run_cancelled', 'runner_lost']);
+export type StepAttemptTerminalCauseDto = z.infer<typeof stepAttemptTerminalCauseSchema>;
+
 export const workflowsWorkflowRunTerminatedSchema = z.object({
   workflowRunId: nonEmptyStringSchema,
   workflowRunAttemptId: nonEmptyStringSchema,
@@ -247,6 +250,10 @@ export const workflowsStepAttemptTerminatedSchema = z.object({
   // before the status field was added. New outbox events always include it.
   status: terminalStatusSchema.optional(),
   logOutcome: logOutcomeSchema,
+  // Optional for events written before terminal cause was separated from the
+  // log-drain outcome. New events always include either the authoritative cause
+  // or null when an abandoned drain is not a runner termination.
+  terminalCause: stepAttemptTerminalCauseSchema.nullable().optional(),
   // Optional so the subscriber can continue to consume terminal events written
   // before the field was added. New outbox events always include the step-attempt
   // id; consumers that need the exact attempt identity (e.g. session claim

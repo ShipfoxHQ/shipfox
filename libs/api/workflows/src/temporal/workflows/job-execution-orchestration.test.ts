@@ -415,10 +415,7 @@ describe('jobExecutionOrchestration', () => {
     expect(result.status).toBe('failed');
     expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(1);
     expect(finalStatusesFor('job-timeout')).toEqual([]);
-    expect(callsNamed('bulkSetStepStatuses')).toContainEqual({
-      name: 'bulkSetStepStatuses',
-      params: {jobExecutionId: 'job-timeout', status: 'failed'},
-    });
+    expect(callsNamed('bulkSetStepStatuses')).toHaveLength(0);
     expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(0);
   });
 

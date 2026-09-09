@@ -42,6 +42,8 @@ const recordsByType: Array<{record: LogRecord; raw: boolean}> = [
     raw: false,
   },
   {record: {v: 1, ts, type: 'capped'}, raw: false},
+  {record: {v: 1, ts, type: 'timed_out'}, raw: false},
+  {record: {v: 1, ts, type: 'run_cancelled'}, raw: false},
   {record: {v: 1, ts, type: 'runner_lost'}, raw: false},
 ];
 
@@ -270,6 +272,8 @@ describe('parseRawLogRecordLine', () => {
 
   it('rejects a forged server-only tombstone', () => {
     expect(() => parseRawLogRecordLine('{"v":1,"ts":1,"type":"capped"}')).toThrow();
+    expect(() => parseRawLogRecordLine('{"v":1,"ts":1,"type":"timed_out"}')).toThrow();
+    expect(() => parseRawLogRecordLine('{"v":1,"ts":1,"type":"run_cancelled"}')).toThrow();
     expect(() => parseRawLogRecordLine('{"v":1,"ts":1,"type":"runner_lost"}')).toThrow();
   });
 });

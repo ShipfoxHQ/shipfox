@@ -66,7 +66,9 @@ function searchableNodeText(node: LogNode): string {
   }
 }
 
-function markerText(type: 'end' | 'gap' | 'capped' | 'runner_lost'): string {
+function markerText(
+  type: 'end' | 'gap' | 'capped' | 'timed_out' | 'run_cancelled' | 'runner_lost',
+): string {
   switch (type) {
     case 'end':
       return 'End of log';
@@ -74,6 +76,10 @@ function markerText(type: 'end' | 'gap' | 'capped' | 'runner_lost'): string {
       return 'Output missing';
     case 'capped':
       return 'Log size limit reached';
+    case 'timed_out':
+      return 'Execution timed out';
+    case 'run_cancelled':
+      return 'Run cancelled';
     case 'runner_lost':
       return 'Runner disconnected';
     default:

@@ -120,6 +120,7 @@ const validStepAttemptTerminated = {
   attempt: 1,
   status: 'failed',
   logOutcome: 'drained',
+  terminalCause: null,
   stepAttemptId: 'step-attempt-1',
 };
 
@@ -562,6 +563,24 @@ describe('workflowsStepAttemptTerminatedSchema', () => {
     const result = workflowsStepAttemptTerminatedSchema.parse(withoutStepAttemptId);
 
     expect(result.stepAttemptId).toBeUndefined();
+  });
+
+  it('accepts each authoritative terminal cause', () => {
+    for (const terminalCause of ['timed_out', 'run_cancelled', 'runner_lost'] as const) {
+      expect(
+        workflowsStepAttemptTerminatedSchema.parse({
+          ...validStepAttemptTerminated,
+          logOutcome: 'abandoned',
+          terminalCause,
+        }).terminalCause,
+      ).toBe(terminalCause);
+    }
+  });
+
+  it('accepts a payload without terminalCause from a pre-change producer', () => {
+    const {terminalCause: _terminalCause, ...legacy} = validStepAttemptTerminated;
+
+    expect(workflowsStepAttemptTerminatedSchema.parse(legacy).terminalCause).toBeUndefined();
   });
 });
 

@@ -32,6 +32,18 @@ describe('parseLogNdjson', () => {
   test('rejects an invalid external record before a snapshot can be merged', () => {
     expect(() => parseLogNdjson('{"v":1,"ts":1,"type":"nope"}\n')).toThrow();
   });
+
+  test('maps every server terminal cause marker', () => {
+    const ndjson = ['timed_out', 'run_cancelled', 'runner_lost']
+      .map((type) => JSON.stringify({v: 1, ts: 1, type}))
+      .join('\n');
+
+    expect(parseLogNdjson(`${ndjson}\n`).map((record) => record.type)).toEqual([
+      'timed_out',
+      'run_cancelled',
+      'runner_lost',
+    ]);
+  });
 });
 
 describe('toLogRead', () => {
