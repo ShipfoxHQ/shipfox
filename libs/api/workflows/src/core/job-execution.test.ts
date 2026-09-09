@@ -267,6 +267,45 @@ describe('nextStepForJob', () => {
     ]);
   });
 
+  test('rejects invalid final tool config before queuing an invocation', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(1);
+    const pending = steps[0];
+    if (!pending) throw new Error('Expected a tool step');
+    await db()
+      .update(stepsTable)
+      .set({
+        type: 'tool',
+        config: {
+          tool: {
+            connection_id: 'connection-1',
+            id: 'issue_read',
+            input_schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {owner: {type: 'string'}},
+              required: ['owner'],
+            },
+            with: {owner: 42},
+          },
+        },
+        configPlan: null,
+      })
+      .where(eq(stepsTable.id, pending.id));
+
+    const next = await nextStepForJob(jobId);
+
+    expect(next).toEqual({kind: 'done', status: 'failed'});
+    expect(await getToolInvocationsByJobExecutionId(pending.jobExecutionId)).toEqual([]);
+    expect((await getStepsByJobId(jobId))[0]).toMatchObject({
+      status: 'failed',
+      error: {
+        reason: 'agent_config_invalid',
+        field: 'tool',
+        code: 'tool_config_invalid',
+      },
+    });
+  });
+
   test('after a step succeeds, the next pull returns the next pending step', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
     await nextStepForJob(jobId);

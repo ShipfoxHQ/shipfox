@@ -196,6 +196,28 @@ function typedToolCatalog(): readonly AgentToolCatalogEntry[] {
   ];
 }
 
+function checkRunToolCatalog(): readonly AgentToolCatalogEntry[] {
+  return [
+    {
+      id: 'check_run_write',
+      description: 'Write check runs.',
+      sensitivity: 'write',
+      sensitive: false,
+      requiredScope: [{permission: 'checks', access: 'write'}],
+      inputSchema: {type: 'object'},
+      methods: [
+        {
+          id: 'create',
+          description: 'Create a check run.',
+          sensitivity: 'write',
+          sensitive: false,
+          requiredScope: [{permission: 'checks', access: 'write'}],
+        },
+      ],
+    },
+  ];
+}
+
 describe('materializeJobExecutionSteps', () => {
   it('resolves static job names through the job execution context', async () => {
     const model = workflowModel({
@@ -649,6 +671,114 @@ describe('materializeJobExecutionSteps', () => {
 
     expect(steps[1]?.config.tool).toMatchObject({
       with: {count: 3, enabled: true, options: {mode: 'fast'}},
+    });
+  });
+
+  it('freezes documented event and run tool inputs while retaining late nested input', async () => {
+    const model = workflowModel({
+      jobs: {
+        call: {
+          steps: [
+            {
+              tool: 'check_run_write.create',
+              connection: 'github-main',
+              with: {
+                owner: template('event.repository.owner.login'),
+                repo: template('event.repository.name'),
+                name: 'Shipfox PR review',
+                head_sha: template('event.pull_request.head.sha'),
+                status: 'in_progress',
+                external_id: `shipfox-${template('run.id')}`,
+                output: {
+                  title: 'Review in progress',
+                  summary: template('steps.review.outputs.summary'),
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+    const baseContext = jobExecutionContext();
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: {
+        site: 'run-creation',
+        values: {
+          ...baseContext.values,
+          event: {
+            repository: {owner: {login: 'ShipfoxHQ'}, name: 'cloud'},
+            pull_request: {head: {sha: 'e964e53dd9826c418b65033d0c209737cfe9ef98'}},
+          },
+        },
+      },
+      agentToolContext: githubAgentToolContext(checkRunToolCatalog()),
+    });
+
+    expect(steps[1]?.config.tool).toMatchObject({
+      method: 'create',
+      with: {
+        owner: 'ShipfoxHQ',
+        repo: 'cloud',
+        name: 'Shipfox PR review',
+        head_sha: 'e964e53dd9826c418b65033d0c209737cfe9ef98',
+        status: 'in_progress',
+        external_id: 'shipfox-run-1',
+        output: {title: 'Review in progress'},
+      },
+    });
+    expect(steps[1]?.configPlan?.tool?.with).toMatchObject({
+      output: {
+        summary: [
+          expect.objectContaining({
+            kind: 'deferred',
+            roots: ['steps'],
+            fillTarget: 'step-dispatch',
+          }),
+        ],
+      },
+    });
+    expect(Object.keys(steps[1]?.configPlan?.tool?.with ?? {})).toEqual(['output']);
+  });
+
+  it('reports a missing required event tool input with its source path', async () => {
+    const model = workflowModel({
+      jobs: {
+        call: {
+          steps: [
+            {
+              tool: 'typed_tool',
+              connection: 'github-main',
+              with: {options: template('event.repository.name')},
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+    const baseContext = jobExecutionContext();
+
+    const materialize = () =>
+      materializeJobExecutionSteps({
+        model,
+        job,
+        context: {
+          site: 'run-creation',
+          values: {...baseContext.values, event: {repository: {}}},
+        },
+        definitionId: 'def-1',
+        agentToolContext: githubAgentToolContext(typedToolCatalog()),
+      });
+
+    await expect(materialize()).rejects.toMatchObject({
+      name: 'InterpolationUnresolvableError',
+      field: 'tool.with',
+      source: 'event.repository.name',
     });
   });
 

@@ -838,7 +838,7 @@ describe('workflow context registry', () => {
     });
 
     it('declares the minimum fill target of every interpolation field', () => {
-      expect(getWorkflowInterpolationFieldMinimumFillTarget('tool.with')).toBe('step-dispatch');
+      expect(getWorkflowInterpolationFieldMinimumFillTarget('tool.with')).toBeUndefined();
       expect(getWorkflowInterpolationFieldMinimumFillTarget('tool.outputs')).toBe('step-report');
       expect(getWorkflowInterpolationFieldMinimumFillTarget('run')).toBeUndefined();
       expect(getWorkflowInterpolationFieldMinimumFillTarget('job.outputs')).toBe(

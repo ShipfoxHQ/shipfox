@@ -38,6 +38,15 @@ function plannedSessionField(source: string) {
   return plan.plan.field;
 }
 
+function plannedToolField(source: string) {
+  const plan = planInterpolationField({
+    field: 'tool.with',
+    segments: parseWorkflowTemplate(source),
+  });
+  if (!plan.ok) throw new Error('Expected tool input field plan to be valid');
+  return plan.plan.field;
+}
+
 function template(source: string): string {
   return '$'.concat('{{ ', source, ' }}');
 }
@@ -106,12 +115,25 @@ function checkRunToolInputSchema() {
       method: {type: 'string', enum: ['create', 'update']},
       owner: {type: 'string'},
       repo: {type: 'string'},
+      name: {type: 'string'},
+      head_sha: {type: 'string'},
+      status: {type: 'string'},
+      external_id: {type: 'string'},
       check_run_id: {type: 'integer', minimum: 1},
       conclusion: {type: 'string'},
+      output: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {title: {type: 'string'}, summary: {type: 'string'}},
+        required: ['title', 'summary'],
+      },
     },
     required: ['method', 'owner', 'repo'],
     oneOf: [
-      {properties: {method: {const: 'create'}}, required: []},
+      {
+        properties: {method: {const: 'create'}},
+        required: ['name', 'head_sha', 'status', 'external_id', 'output'],
+      },
       {
         properties: {method: {const: 'update'}},
         required: ['check_run_id', 'conclusion'],
@@ -621,6 +643,80 @@ describe('completeStepDispatchConfig', () => {
         method: 'update',
       },
     });
+  });
+
+  it('merges frozen check-run inputs with a late result before validation and method injection', async () => {
+    const pending = step({
+      type: 'tool',
+      config: {
+        tool: {
+          connection_id: 'connection-1',
+          connection_slug: 'github-main',
+          provider: 'github',
+          id: 'check_run_write',
+          method: 'create',
+          sensitivity: 'write',
+          sensitive: false,
+          required_scope: [{permission: 'checks', access: 'write'}],
+          input_schema: checkRunToolInputSchema(),
+          with: {
+            owner: 'ShipfoxHQ',
+            repo: 'cloud',
+            name: 'Shipfox PR review',
+            head_sha: 'e964e53dd9826c418b65033d0c209737cfe9ef98',
+            status: 'in_progress',
+            external_id: 'shipfox-run-1',
+            output: {title: 'Review in progress'},
+          },
+        },
+      },
+      configPlan: {
+        tool: {
+          with: {
+            output: {
+              summary: plannedToolField(template('steps.review.outputs.summary')).segments,
+            },
+          },
+        },
+      },
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context: {
+        ...context,
+        values: {
+          ...context.values,
+          steps: {review: {outputs: {summary: 'Shipfox finished the review.'}}},
+        },
+      },
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(result.config.tool).toMatchObject({
+      with: {
+        method: 'create',
+        owner: 'ShipfoxHQ',
+        repo: 'cloud',
+        name: 'Shipfox PR review',
+        head_sha: 'e964e53dd9826c418b65033d0c209737cfe9ef98',
+        status: 'in_progress',
+        external_id: 'shipfox-run-1',
+        output: {
+          title: 'Review in progress',
+          summary: 'Shipfox finished the review.',
+        },
+      },
+    });
+    expect(result.trace).toContainEqual(
+      expect.objectContaining({
+        expression: 'steps.review.outputs.summary',
+        fillTarget: 'step-dispatch',
+        evaluatedAt: 'step-dispatch',
+        field: 'tool.with',
+      }),
+    );
   });
 
   it.each([
