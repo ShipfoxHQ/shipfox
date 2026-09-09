@@ -11,7 +11,24 @@ export interface ApiClientOptions {
         signal: AbortSignal | undefined;
       }) => Promise<string | undefined>)
     | undefined;
-  refreshAccessToken?: (() => Promise<string | undefined> | string | undefined) | undefined;
+  refreshAccessToken?:
+    | ((input?: {
+        accessToken: string | undefined;
+        signal: AbortSignal | undefined;
+      }) => Promise<string | undefined> | string | undefined)
+    | undefined;
+  /**
+   * Optional credential supplier used only for the single retry after an
+   * authenticated 401. It is separate from prepareAccessToken so an adopted
+   * session can renew only after the transport has observed that the bearer
+   * was rejected.
+   */
+  retryAccessToken?:
+    | ((input: {
+        accessToken: string | undefined;
+        signal: AbortSignal | undefined;
+      }) => Promise<string | undefined> | string | undefined)
+    | undefined;
   fetchImpl?: typeof fetch | undefined;
 }
 
@@ -209,6 +226,13 @@ async function sendApiRequest<T>(url: string, requestInit: KyOptions): Promise<T
   return parsed as T;
 }
 
+function isAdoptedSessionGateError(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    (error.code === ADOPTED_SESSION_PAUSED_CODE || error.code === ADOPTED_SESSION_ENDED_CODE)
+  );
+}
+
 function shouldRefreshAccessToken(params: {
   error: ApiError;
   path: string;
@@ -249,10 +273,26 @@ async function retryAccessToken(
   accessToken: string | undefined,
   signal: AbortSignal | undefined,
 ): Promise<string | undefined> {
+  if (apiOptions.retryAccessToken) {
+    return await apiOptions.retryAccessToken({accessToken, signal});
+  }
   if (apiOptions.prepareAccessToken) {
     return await apiOptions.prepareAccessToken({accessToken, signal});
   }
-  return await apiOptions.refreshAccessToken?.();
+  return await apiOptions.refreshAccessToken?.({accessToken, signal});
+}
+
+async function getRetryAccessTokenOrThrowOriginal(
+  accessToken: string | undefined,
+  signal: AbortSignal | undefined,
+  originalError: ApiError,
+): Promise<string | undefined> {
+  try {
+    return await retryAccessToken(accessToken, signal);
+  } catch (retryError) {
+    if (isAdoptedSessionGateError(retryError) || signal?.aborted) throw retryError;
+    throw originalError;
+  }
 }
 
 function createRequestInit(options: ApiRequestOptions, headers: Headers): KyOptions {
@@ -309,12 +349,11 @@ async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Pro
       error instanceof ApiError &&
       shouldRefreshAccessToken({error, path, usedConfiguredAccessToken})
     ) {
-      let refreshedToken: string | undefined;
-      try {
-        refreshedToken = await retryAccessToken(accessToken, options.signal);
-      } catch {
-        throw error;
-      }
+      const refreshedToken = await getRetryAccessTokenOrThrowOriginal(
+        accessToken,
+        options.signal,
+        error,
+      );
       if (refreshedToken) {
         headers.set('authorization', `Bearer ${refreshedToken}`);
         return await sendApiRequest<T>(url, requestInit);

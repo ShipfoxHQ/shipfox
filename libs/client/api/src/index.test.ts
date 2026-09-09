@@ -44,6 +44,7 @@ describe('checked API transport', () => {
       getAccessToken: undefined,
       prepareAccessToken: undefined,
       refreshAccessToken: undefined,
+      retryAccessToken: undefined,
     });
   });
 
@@ -118,6 +119,10 @@ describe('checked API transport', () => {
 
     expect(result.ok).toBe(true);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).toHaveBeenCalledWith({
+      accessToken: 'expired-token',
+      signal: undefined,
+    });
     const firstRequest = fetchImpl.mock.calls[0]?.[0] as Request;
     const secondRequest = fetchImpl.mock.calls[1]?.[0] as Request;
     expect(firstRequest.headers.get('authorization')).toBe('Bearer expired-token');
@@ -175,6 +180,34 @@ describe('checked API transport', () => {
     expect(secondRequest.headers.get('authorization')).toBe('Bearer renewed-target-token');
   });
 
+  test('uses a dedicated retry supplier only after an authenticated 401', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      )
+      .mockResolvedValueOnce(jsonResponse({ok: true}));
+    const prepareAccessToken = vi.fn().mockResolvedValue('target-token');
+    const retryAccessToken = vi.fn().mockResolvedValue('renewed-target-token');
+    configureApiClient({
+      fetchImpl,
+      getAccessToken: () => 'target-token',
+      prepareAccessToken,
+      retryAccessToken,
+      refreshAccessToken: vi.fn().mockResolvedValue('administrator-token'),
+    });
+
+    await expect(transportRequest<{ok: boolean}>('/widgets')).resolves.toEqual({ok: true});
+    expect(prepareAccessToken).toHaveBeenCalledOnce();
+    expect(retryAccessToken).toHaveBeenCalledOnce();
+    expect(retryAccessToken).toHaveBeenCalledWith({
+      accessToken: 'target-token',
+      signal: undefined,
+    });
+    const retryRequest = fetchImpl.mock.calls[1]?.[0] as Request;
+    expect(retryRequest.headers.get('authorization')).toBe('Bearer renewed-target-token');
+  });
+
   test('preserves an unauthorized error when preparing a retry token fails', async () => {
     const fetchImpl = vi
       .fn()
@@ -224,6 +257,32 @@ describe('checked API transport', () => {
     expect(refreshAccessToken).not.toHaveBeenCalled();
     const request = fetchImpl.mock.calls[0]?.[0] as Request;
     expect(request.headers.get('authorization')).toBe('Bearer administrator-token');
+  });
+
+  test('propagates an aborted retry supplier failure', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({message: 'Unauthorized', code: 'unauthorized'}, {status: 401}),
+      );
+    const controller = new AbortController();
+    const abortError = new Error('Request aborted');
+    const retryAccessToken = vi.fn(({signal}: {signal: AbortSignal | undefined}): string => {
+      expect(signal).toBe(controller.signal);
+      controller.abort(abortError);
+      throw abortError;
+    });
+    configureApiClient({
+      fetchImpl,
+      getAccessToken: () => 'expired-token',
+      retryAccessToken,
+    });
+
+    const result = transportRequest('/workspaces', {signal: controller.signal});
+
+    await expect(result).rejects.toBe(abortError);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(retryAccessToken).toHaveBeenCalledOnce();
   });
 
   test('cookie-only requests use cookies without reading or preparing a configured bearer', async () => {

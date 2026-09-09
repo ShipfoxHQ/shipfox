@@ -15,7 +15,7 @@ import {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import {composeClientFeatures} from '#compose/compose-client-features.js';
 import type {ClientFeature} from '#contract.js';
-import {useAuthState} from './auth.js';
+import {type AuthRuntimeProps, useAuthState} from './auth.js';
 import {ChromeProvider, type ChromeSlots} from './chrome-context.js';
 import {type ClientAnalytics, ClientAnalyticsProvider} from './client-analytics.js';
 import {type ClientUsagePricing, ClientUsagePricingProvider} from './client-usage-pricing.js';
@@ -30,6 +30,7 @@ export function composeClientApp({
   workspaceSetup,
   clientAnalytics,
   usagePricing,
+  auth,
 }: {
   features: readonly ClientFeature[];
   router: AnyRouter;
@@ -37,6 +38,7 @@ export function composeClientApp({
   workspaceSetup?: WorkspaceSetupGate;
   clientAnalytics?: ClientAnalytics;
   usagePricing?: ClientUsagePricing;
+  auth?: Pick<AuthRuntimeProps, 'effects' | 'bootRestorer' | 'bootRecovery'>;
 }) {
   const composition = composeClientFeatures(features);
   const config = loadConfig(composition.configShape, {
@@ -73,6 +75,7 @@ export function composeClientApp({
                   features={features}
                   queryClient={queryClient}
                   store={createStore()}
+                  {...(auth ? {auth} : {})}
                 >
                   <RoutedApp
                     router={router}
