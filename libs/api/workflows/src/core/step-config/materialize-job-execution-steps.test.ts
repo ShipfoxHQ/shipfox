@@ -51,6 +51,8 @@ function jobExecutionContext(): WorkflowEvaluationContext {
     values: {
       run: {
         id: 'run-1',
+        number: 42n,
+        attempt: 1n,
         name: 'Reviews',
         definition_id: 'def-1',
         project_id: 'proj-1',
@@ -674,6 +676,40 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
+  it('normalizes exact CEL integer tool inputs before persistence', async () => {
+    const model = workflowModel({
+      jobs: {
+        call: {
+          steps: [
+            {
+              tool: 'typed_tool',
+              connection: 'github-main',
+              with: {
+                count: template('run.number'),
+                enabled: true,
+                options: {mode: 'fast'},
+              },
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: {...jobExecutionContext(), site: 'run-creation'},
+      agentToolContext: githubAgentToolContext(typedToolCatalog()),
+    });
+
+    expect(steps[1]?.config.tool).toMatchObject({
+      with: {count: 42, enabled: true, options: {mode: 'fast'}},
+    });
+    expect(() => JSON.stringify(steps[1]?.config)).not.toThrow();
+  });
+
   it('freezes documented event and run tool inputs while retaining late nested input', async () => {
     const model = workflowModel({
       jobs: {
@@ -691,7 +727,9 @@ describe('materializeJobExecutionSteps', () => {
                 external_id: `shipfox-${template('run.id')}`,
                 output: {
                   title: 'Review in progress',
-                  summary: template('steps.review.outputs.summary'),
+                  summary: `Run ${template('run.number')}: ${template(
+                    'steps.review.outputs.summary',
+                  )}`,
                 },
               },
             },
@@ -734,6 +772,9 @@ describe('materializeJobExecutionSteps', () => {
     expect(steps[1]?.configPlan?.tool?.with).toMatchObject({
       output: {
         summary: [
+          {kind: 'literal', value: 'Run '},
+          {kind: 'literal', value: '42'},
+          {kind: 'literal', value: ': '},
           expect.objectContaining({
             kind: 'deferred',
             roots: ['steps'],

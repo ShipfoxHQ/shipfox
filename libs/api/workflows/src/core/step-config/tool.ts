@@ -111,8 +111,20 @@ function resolveWithField(params: ResolveWithParams): ResolveWithResult {
     definitionId: params.definitionId,
     errorField: 'tool.with',
   });
-  if (resolved.kind === 'frozen') return {value: resolved.value};
-  return {value: undefined, plan: params.tree};
+  if (resolved.kind === 'frozen') return {value: normalizeCelIntegersForJson(resolved.value)};
+  return {value: undefined, plan: resolved.field.segments};
+}
+
+function normalizeCelIntegersForJson(value: unknown): unknown {
+  if (typeof value === 'bigint') {
+    const numberValue = Number(value);
+    return Number.isSafeInteger(numberValue) ? numberValue : value.toString();
+  }
+  if (Array.isArray(value)) return value.map(normalizeCelIntegersForJson);
+  if (value === null || typeof value !== 'object' || value instanceof Date) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [key, normalizeCelIntegersForJson(child)]),
+  );
 }
 
 function resolveWithArray(params: ResolveWithParams): ResolveWithResult {

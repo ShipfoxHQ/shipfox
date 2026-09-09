@@ -674,7 +674,8 @@ describe('completeStepDispatchConfig', () => {
         tool: {
           with: {
             output: {
-              summary: plannedToolField(template('steps.review.outputs.summary')).segments,
+              summary: plannedToolField(`Run 42: ${template('steps.review.outputs.summary')}`)
+                .segments,
             },
           },
         },
@@ -705,7 +706,7 @@ describe('completeStepDispatchConfig', () => {
         external_id: 'shipfox-run-1',
         output: {
           title: 'Review in progress',
-          summary: 'Shipfox finished the review.',
+          summary: 'Run 42: Shipfox finished the review.',
         },
       },
     });
