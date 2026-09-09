@@ -30,6 +30,7 @@ const glossaryHeadings = [
   'Run step',
   'Secret',
   'Workflow step',
+  'Tool step',
   'Thinking level',
   'Workflow trigger',
   'Variable',

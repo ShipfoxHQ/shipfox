@@ -359,7 +359,7 @@ function IntegrationDirectoryItem({
     provider.eventCount > 0 &&
       `${provider.eventCount} ${provider.eventCount === 1 ? 'event' : 'events'}`,
     provider.toolCount > 0 &&
-      `${provider.toolCount} ${provider.toolCount === 1 ? 'agent tool' : 'agent tools'}`,
+      `${provider.toolCount} ${provider.toolCount === 1 ? 'tool' : 'tools'}`,
   ].filter(Boolean);
 
   return (

@@ -1,0 +1,125 @@
+---
+title: "Call an Integration Tool from a Workflow"
+sidebarTitle: "Call a Tool"
+description: "Call one integration operation with values already available in a workflow run."
+---
+
+**Use a tool step when the workflow already knows which integration operation
+to call and which values to send.** Shipfox calls the tool and saves its
+response as step outputs. An agent does not choose the operation.
+
+This guide posts a Slack message. For another tool, replace the tool id, the
+slug of the integration connection, inputs, and output mapping.
+
+## Before you begin
+
+You need:
+
+- An integration connection for a provider with tools. Find a provider in the
+  [integrations catalog](/integrations).
+- The slug of the integration connection. This guide uses `slack_acme`.
+- Values for each required input. Open the provider in the [integrations
+  catalog](/integrations), then select **Tools** to find the input names and
+  descriptions.
+- A Slack channel ID for this example. Invite the Shipfox app to the channel.
+
+## Call the tool
+
+<Steps>
+  <Step>
+
+    **Choose the operation**
+
+    Open the provider's tools page from the [integrations
+    catalog](/integrations). Choose an operation and copy its id. Record its
+    required inputs and whether it reads or writes data.
+
+    This guide uses `send_message` from the [Slack
+    tools](/integrations/slack/tools) page.
+
+  </Step>
+  <Step>
+
+    **Create the workflow**
+
+    Create `.shipfox/workflows/call-a-tool.yml`. Replace the slug of the
+    integration connection, tool id, and inputs. This is a complete workflow:
+
+    ```yaml
+    # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+    name: Call a tool
+    runner: shipfox
+
+    triggers:
+      manual:
+        source: manual
+
+    jobs:
+      call:
+        steps:
+          - key: call_tool
+            tool: send_message # Replace with an id from the provider's tools page.
+            connection: slack_acme # Replace with the slug of your integration connection.
+            with: # Replace with the tool's inputs.
+              channel_id: C0ABC12345
+              message: "Run #${{ run.number }} of ${{ workflow.name }} started."
+            outputs:
+              ts: ${{ result.ts }} # Replace with a field from the tool result.
+          - env:
+              TOOL_RESULT: ${{ steps.call_tool.outputs.ts }}
+            run: printf 'Tool result field: %s\n' "$TOOL_RESULT"
+    ```
+
+    Adapt these fields:
+
+    | Field | Value |
+    | --- | --- |
+    | `tool` | The id from the provider's tools page. GitHub tools use `family.method`. |
+    | `connection` | The slug of the integration connection. Omit this field only when the tool uses the project's source integration connection. |
+    | `with` | The tool inputs, using the names from the provider's tools page. String values can include `${{ }}` expressions. |
+    | `outputs` | Fields from the tool result that later steps need. The complete response remains available as `steps.<key>.outputs.result`. |
+
+    See [Tool step fields](/reference/workflow-schema#tool-step-fields) for the
+    complete contract.
+  </Step>
+</Steps>
+
+## Verify the result
+
+<Steps>
+  <Step>
+
+    **Start the workflow**
+
+    Select **Run**, then open the new run.
+  </Step>
+  <Step>
+
+    **Inspect the tool call**
+
+    Open the tool step. Confirm that **Arguments** shows the resolved inputs.
+    Confirm that **Result** shows the provider response.
+  </Step>
+  <Step>
+
+    **Inspect the mapped output**
+
+    Open the run step. Confirm that its log contains the mapped result field.
+  </Step>
+  <Step>
+
+    **Check Slack**
+
+    Open the Slack channel. Confirm that the message appears once.
+  </Step>
+</Steps>
+
+## If Shipfox denies the tool call
+
+Check the provider permissions for the integration connection.
+For this example, confirm that the Shipfox app is in the Slack channel.
+Then inspect the integration connection in **Settings → Integrations**.
+
+To pass a tool result to a later step, read it as `steps.<key>.outputs`. To
+let an agent choose operations, [post a pull-request
+review](/how-to/author-workflows/post-pull-request-review).

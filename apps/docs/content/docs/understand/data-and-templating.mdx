@@ -23,6 +23,10 @@ Context is a flow, not one global object. Data joins it at five points:
 5. **Runner execution** resolves secret bindings for the command that needs
    them. The secret value never enters the run plan.
 
+A tool step adds one short-lived value. Its provider response is readable as
+`result` only while that step maps its outputs, right after the call returns.
+Later steps read the stored value as `steps.<key>.outputs.result`.
+
 Workspace variables and project settings hold long-lived configuration. Events
 and outputs describe this run. Secrets grant access and follow a stricter path.
 

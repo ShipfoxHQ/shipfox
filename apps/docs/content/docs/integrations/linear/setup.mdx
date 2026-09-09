@@ -1,7 +1,7 @@
 ---
 title: "Connect Linear to a Shipfox workspace"
 sidebarTitle: "Setup"
-description: "Authorize a Linear workspace, copy the integration connection slug, and use Linear events or agent tools."
+description: "Authorize a Linear workspace, copy the integration connection slug, and use Linear events or tools."
 ---
 
 Connect Linear to trigger workflows from workspace events or let agents read and
@@ -28,15 +28,15 @@ authorize an OAuth app in the target Linear workspace.
     **Authorize the workspace**
 
     Select the target Linear workspace and authorize the Shipfox app. Grant the
-    requested access so Shipfox can receive Linear events and use agent tools.
+    requested access so Shipfox can receive Linear events and call Linear tools.
   </Step>
   <Step>
 
     **Record the integration connection slug**
 
     Open the new integration connection's menu. Select **Use this integration**.
-    Copy the slug. Triggers use that value as `source`. Agent steps use it as
-    `connection`.
+    Copy the slug. Triggers use that value as `source`. Tool steps and agent
+    steps use it as `connection`.
   </Step>
 </Steps>
 
@@ -44,4 +44,4 @@ authorize an OAuth app in the target Linear workspace.
 
 Open **Settings → Integrations** and check that the Linear integration connection
 is active. Use the saved slug with a [Linear event](/integrations/linear/events)
-or a selector from the [Linear agent-tool reference](/integrations/linear/tools).
+or a tool from the [Linear tool reference](/integrations/linear/tools).

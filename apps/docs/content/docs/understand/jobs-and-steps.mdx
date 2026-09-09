@@ -5,11 +5,32 @@ description: "Understand how the split into jobs affects shared files, parallel 
 ---
 
 A **job** is the unit that Shipfox places on a runner. A **step** is one ordered
-action inside that job.
+action inside that job. A step is a run step, an agent step, or a tool step.
 
 The main design choice is where one job ends and the next begins. That choice
 decides which steps share a checkout, what can run at the same time, and which
 results must pass from one job to another.
+
+## Three kinds of step
+
+Each kind of step performs a different kind of work.
+
+| Step | Performs | Runs on |
+| --- | --- | --- |
+| Run step | A shell command in the job's checkout. | The runner. |
+| Agent step | A goal that an agent pursues in the checkout. | The runner. |
+| Tool step | One integration operation with inputs the workflow supplies. | The Shipfox API, through an integration connection. |
+
+A tool step has no working tree. It can't read files, set `env`, or use
+`secrets`. Its inputs come from run data, and its result becomes step outputs
+for later steps. Shipfox makes the call, so the provider credential never
+reaches the runner.
+
+The job still holds its runner while a tool step runs. The runner waits for
+the call to finish and then continues with the next step. A job made only of
+tool steps still needs a runner. [Integrations, integration connections, and
+tools](/understand/integrations-connections-and-tools) explains when a tool
+step fits better than an agent with tools.
 
 ## When to keep steps in one job
 
@@ -109,13 +130,15 @@ private network, special hardware, or another operating system. Keep it
 together when every step needs the same environment.
 
 Repository checkout permission also applies to the whole job. Each agent step
-selects its own integration tools, separate from Git access. This matters when
-an agent reads code but only one later step must write to an external system.
+selects its own integration tools, and each tool step names one operation.
+Both are separate from Git access. This matters when an agent reads code but
+only one later step must write to an external system.
 
 [Runners and execution
 environments](/understand/runners-and-execution-environments) explains
 placement. [Agent access](/how-to/author-workflows/use-integration-tools) shows
-the separate repository and integration controls.
+the separate repository and integration controls. [Call an integration
+tool](/how-to/author-workflows/call-integration-tool) shows a tool step.
 
 ## Retries and later events stay inside the job
 

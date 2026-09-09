@@ -26,7 +26,7 @@ export type CatalogIcon = (typeof INTEGRATION_CATALOG_ICONS)[number];
 export const catalogCapabilityLabels: Record<CatalogCapability, string> = {
   source_control: 'Code checkout',
   events: 'Events',
-  agent_tools: 'Agent tools',
+  agent_tools: 'Tools',
 };
 
 export const catalogCategoryLabels: Record<CatalogCategory, string> = {

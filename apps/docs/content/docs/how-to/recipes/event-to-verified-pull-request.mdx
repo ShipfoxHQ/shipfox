@@ -12,14 +12,11 @@ workflow pushes and opens a pull request only after the tests pass.
 
 You need:
 
-- A Shipfox project connected to the GitHub repository that will receive the
-  branch and pull request.
 - A Sentry integration connection and its slug. This recipe uses `sentry_acme` as a
   placeholder.
-- A GitHub integration connection used as the project source. It must be able
-  to push repository contents and use the `create_pull_request` agent tool.
-- An online runner with the `shipfox` label.
-- A configured model provider and workspace agent defaults.
+- The repository source must use an integration connection for GitHub. That
+  integration connection must be able to push repository contents and use the
+  `create_pull_request` agent tool.
 - A Node.js repository with a lockfile and an `npm test` command.
 - A safe Sentry project and repository where an automated test branch is
   acceptable.

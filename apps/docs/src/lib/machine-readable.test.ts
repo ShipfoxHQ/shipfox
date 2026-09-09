@@ -117,7 +117,7 @@ test('serializes integration catalog placeholders as complete Markdown facts', (
       '| Events | 18 ([event catalog](https://www.shipfox.io/docs/integrations/github/events)) |',
     ),
   );
-  assert.ok(markdown.includes('| Agent tools | 21'));
+  assert.ok(markdown.includes('| Tools | 21'));
   assert.equal(markdown.includes('](/'), false);
 });
 

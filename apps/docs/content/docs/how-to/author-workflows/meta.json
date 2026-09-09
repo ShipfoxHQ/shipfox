@@ -10,6 +10,7 @@
     "trigger-ready-pull-requests",
     "choose-runners",
     "add-agent-steps",
+    "call-integration-tool",
     "use-integration-tools",
     "post-pull-request-review",
     "push-repository-changes",

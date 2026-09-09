@@ -5,7 +5,7 @@ description: "Install the GitHub App, limit repository scope, and prove that a p
 ---
 
 Connect GitHub so Shipfox can read a repository and receive events. The same
-integration connection can give selected GitHub tools to an agent. See the
+integration connection lets a workflow call selected GitHub tools. See the
 [GitHub overview](/integrations/github) for its capabilities.
 
 ## Before you begin
@@ -91,5 +91,5 @@ Open the second push event and its linked run. Check the Git ref in the log.
 Check that the job uses the same allowed repository.
 
 The [GitHub events reference](/integrations/github/events) lists the shipped
-event names and payload behavior. The [reference for GitHub agent tools](/integrations/github/tools)
-lists the tools an agent can use.
+event names and payload behavior. The [reference for GitHub
+tools](/integrations/github/tools) lists the tools a workflow can call.

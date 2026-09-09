@@ -1,27 +1,33 @@
 ---
-title: "GitHub agent tools"
+title: "GitHub tools"
 sidebarTitle: "Tools"
-description: "Look up the GitHub tools, selectors, permissions, inputs, and outputs available to agent steps."
+description: "Look up the GitHub tools, selectors, permissions, inputs, and outputs available to tool steps and agent steps."
 ---
 
 import GithubTools from '../../../generated/integrations/github/tools.mdx';
 
-This reference lists the shipped GitHub agent-tool catalog. See the [GitHub
+This reference lists the shipped GitHub tool catalog. See the [GitHub
 overview](/integrations/github) for authentication and setup.
 
 ## Selectors
 
-Use a tool family, `family.method`, or `family.*` in an agent step's
-`integrations:` block. For the agent integration contract, see the [workflow
-schema reference](/reference/workflow-schema#agent-integration-fields).
+A tool step names one method as `family.method`, such as `issue_write.update`,
+in its `tool` field. A family name alone or `family.*` is rejected on a tool
+step, because a tool step calls exactly one operation.
+
+An agent step accepts a family, `family.method`, or `family.*` in its
+`integrations:` block. For the field contracts, see [Tool step
+fields](/reference/workflow-schema#tool-step-fields) and [Agent integration
+fields](/reference/workflow-schema#agent-integration-fields).
 
 ## Tool catalog
 
 Grant the GitHub App only the repository permissions required by selected tools.
 The catalog states each tool's read or write sensitivity and its required GitHub
-permissions. Write tools (for example `create_branch` and `merge_pull_request`)
-require the workflow step's `integrations` entry to set `allow_write: true`;
-without it, Shipfox rejects the step at validation.
+permissions. An agent step's `integrations` entry must set `allow_write: true`
+to include a write tool such as `merge_pull_request`, or Shipfox rejects the
+step at validation. A tool step needs no flag: naming the write tool is the
+choice.
 
 The generated catalog also states each operation's repository classification:
 
