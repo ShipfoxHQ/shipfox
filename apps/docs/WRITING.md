@@ -31,6 +31,32 @@ page. Split a page when its subject requires more than one reader mode.
 
 ## Product terminology
 
+### Product definition and workflows
+
+The canonical product category is **AI software factory**. Start every
+machine-facing Shipfox summary with this sentence:
+
+> Shipfox is an AI software factory for engineering teams.
+
+Keep the sentence unchanged across public metadata, structured data, and
+machine-readable summaries. Add surface-specific supporting detail after it.
+
+Use this product headline on public overview surfaces:
+
+> Your AI software factory
+
+Use this primary tagline with the headline:
+
+> Ship more work. Manage less of it.
+
+Use this supporting copy when the surface has room for the full pitch:
+
+> Delegate recurring work across code, delivery, documentation, and operations. Shipfox keeps it moving with AI agents and brings your team in where human judgment matters.
+
+Use **workflow** for the Shipfox concept. Use **pipeline** only when quoting or
+contrasting an external system, or when explaining that it is an informal
+synonym for workflow. Keep literal names from external systems unchanged.
+
 Use **integration connection** for the workspace resource created when an
 integration is connected. Do not use **connection** by itself for this resource,
 especially in titles, navigation, prerequisites, and other text that readers may
@@ -615,7 +641,6 @@ the reader to run it, and never let it appear to document shipped behavior.
   permits it.
 - Do not imply that separate jobs share a filesystem, process environment, logs,
   or undeclared results.
-- Use "workflow", never "pipeline" except when quoting another system.
 
 ## Page-type review checklist
 
