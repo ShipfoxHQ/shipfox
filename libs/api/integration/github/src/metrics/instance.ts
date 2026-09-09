@@ -52,10 +52,8 @@ const installationTokenLockWaitDuration = meter.createHistogram<Record<string, n
 const installationTokenBackoffCount = meter.createCounter<{
   reason: IntegrationProviderErrorReason;
   class: MintErrorClass;
-  profile: 'compatibility' | 'scoped';
 }>('github_installation_token_backoff', {
-  description:
-    'GitHub installation token mint backoff activations by reason, class, and profile kind',
+  description: 'GitHub installation token mint backoff activations by reason and class',
 });
 
 export type GithubCheckoutTokenLookupOutcome =
@@ -128,7 +126,6 @@ export function recordInstallationTokenLockWait(durationMs: number): void {
 export function recordInstallationTokenBackoff(params: {
   reason: IntegrationProviderErrorReason;
   class: MintErrorClass;
-  profile: 'compatibility' | 'scoped';
 }): void {
   recordMetric(() => installationTokenBackoffCount.add(1, params));
 }
