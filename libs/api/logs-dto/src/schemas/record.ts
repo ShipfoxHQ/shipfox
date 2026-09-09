@@ -14,9 +14,9 @@ import {sessionViewRowSchema} from './session-view.js';
  * other field is fixed-shape.
  *
  * The envelope is `{v, ts}`, and every record is discriminated by a single flat
- * `type`. The raw/write and stored/read unions are distinct types: the server-only
- * `capped` / `runner_lost` tombstones are members of the read union only, so a forged
- * tombstone cannot pass append validation.
+ * `type`. The raw/write and stored/read unions are distinct types: server-only
+ * tombstones are members of the read union only, so a forged tombstone cannot
+ * pass append validation.
  *
  * The append-side `agent_session` record carries one verbatim agent session entry line
  * in `data`, forwarded opaquely by the runner. On successful ingest, the API normalizes
@@ -110,6 +110,8 @@ const agentSession = z.object({
 
 // Server-only tombstones: NOT members of the raw write union.
 const logCapped = z.object({...envelope, type: z.literal('capped')});
+const logTimedOut = z.object({...envelope, type: z.literal('timed_out')});
+const logRunCancelled = z.object({...envelope, type: z.literal('run_cancelled')});
 const logRunnerLost = z.object({...envelope, type: z.literal('runner_lost')});
 
 /** Records a lease-scoped runner may append. The write path validates against this. */
@@ -135,6 +137,8 @@ const storedLogRecordSchemas = [
 export const logRecordSchema = z.discriminatedUnion('type', [
   ...storedLogRecordSchemas,
   logCapped,
+  logTimedOut,
+  logRunCancelled,
   logRunnerLost,
 ]);
 
@@ -151,7 +155,7 @@ export function parseLogRecordLine(line: string): LogRecord {
 
 /**
  * Parses one NDJSON line against the raw write union. A forged
- * server-only `capped` / `runner_lost` record fails here even though it is valid
+ * server-only tombstone record fails here even though it is valid
  * under the read union: this is the write-path forgery guard.
  */
 export function parseRawLogRecordLine(line: string): RawLogRecord {

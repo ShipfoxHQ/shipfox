@@ -30,7 +30,7 @@ export const streamOpenedCount = meter.createCounter<Record<string, never>>('log
 // appends share the axis; the server-origin append derives its offset from the stream tail.
 //
 // `logs_bytes_stored` counts only normalized bodies durably written as chunk rows, so a
-// capped job's dropped straggler and server-injected `capped`/`runner_lost` tombstones do
+// capped job's dropped straggler and server-injected tombstones do
 // not inflate it. ingested - stored is the normalization delta plus cap/close drops.
 export const bytesIngestedCount = meter.createCounter<Record<string, never>>(
   'logs_bytes_ingested',
@@ -47,7 +47,14 @@ export const bytesStoredCount = meter.createCounter<Record<string, never>>('logs
   unit: 'By',
 });
 
-export const streamClosedCount = meter.createCounter<{reason: 'declared' | 'timeout'}>(
+export type StreamClosedMetricReason =
+  | 'declared'
+  | 'abandoned'
+  | 'job_timeout'
+  | 'run_cancelled'
+  | 'runner_lost';
+
+export const streamClosedCount = meter.createCounter<{reason: StreamClosedMetricReason}>(
   'logs_stream_closed',
   {description: 'Log streams closed by reason'},
 );

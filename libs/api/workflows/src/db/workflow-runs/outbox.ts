@@ -1,5 +1,6 @@
 import {
   type LogOutcomeDto,
+  type StepAttemptTerminalCauseDto,
   WORKFLOWS_JOB_EXECUTION_QUEUED,
   WORKFLOWS_JOB_EXECUTION_TERMINATED,
   WORKFLOWS_JOB_STEPS_SETTLED,
@@ -137,6 +138,7 @@ export async function writeStepAttemptTerminatedOutbox(
     attempt: number;
     status: 'succeeded' | 'failed' | 'cancelled';
     logOutcome: LogOutcomeDto;
+    terminalCause?: StepAttemptTerminalCauseDto | undefined;
   },
 ): Promise<void> {
   const identity = await getStepAttemptTerminatedOutboxIdentity(tx, params.stepId);
@@ -153,6 +155,7 @@ export async function writeStepAttemptTerminatedOutbox(
       attempt: params.attempt,
       status: params.status,
       logOutcome: params.logOutcome,
+      terminalCause: params.terminalCause ?? null,
       stepAttemptId: params.stepAttemptId,
     },
   });

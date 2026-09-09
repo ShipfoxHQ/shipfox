@@ -564,7 +564,11 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
       if (updated?.changed) {
         changedJobExecution = updated.execution;
         await bulkUpdateStepStatuses(
-          {jobExecutionId: params.jobExecutionId, status: 'cancelled'},
+          {
+            jobExecutionId: params.jobExecutionId,
+            status: 'cancelled',
+            terminalCause: 'runner_lost',
+          },
           tx,
         );
       }

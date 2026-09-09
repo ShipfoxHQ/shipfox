@@ -1,3 +1,4 @@
+import type {StepAttemptTerminalCauseDto} from '@shipfox/api-workflows-dto';
 import {closeStream} from '#core/close-stream.js';
 import {db} from '#db/db.js';
 import {listOpenStreamsByJob} from '#db/streams.js';
@@ -11,18 +12,25 @@ import {recordAppendedCount, streamClosedCount} from '#metrics/instance.js';
  */
 export async function closeAbandonedStreamsActivity(params: {
   jobId: string;
+  terminalCause: StepAttemptTerminalCauseDto;
 }): Promise<{closed: number}> {
   const open = await listOpenStreamsByJob(params.jobId);
 
   let closed = 0;
   for (const stream of open) {
     const result = await db().transaction((tx) =>
-      closeStream(tx, {streamId: stream.id, reason: 'timeout'}),
+      closeStream(tx, {
+        streamId: stream.id,
+        reason: 'timeout',
+        terminalCause: params.terminalCause,
+      }),
     );
     if (result) {
       closed += 1;
-      recordAppendedCount.add(1, {kind: 'runner_lost'});
-      streamClosedCount.add(1, {reason: 'timeout'});
+      recordAppendedCount.add(1, {kind: params.terminalCause});
+      streamClosedCount.add(1, {
+        reason: params.terminalCause === 'timed_out' ? 'job_timeout' : params.terminalCause,
+      });
     }
   }
 

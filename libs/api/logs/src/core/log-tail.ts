@@ -187,6 +187,10 @@ function formatRecordText(record: LogRecord): string {
       return formatSessionRow(record.row);
     case 'capped':
       return 'log capped';
+    case 'timed_out':
+      return 'execution timed out';
+    case 'run_cancelled':
+      return 'run cancelled';
     case 'runner_lost':
       return 'runner lost';
   }

@@ -18,6 +18,7 @@ import {
 import {
   buildModel,
   jobExecutionTerminatedEvents,
+  stepAttemptTerminatedEvents,
   template,
   workflowRunAttemptId,
 } from '#test/helpers/workflow-runs.js';
@@ -378,6 +379,11 @@ describe('workflow run job executions', () => {
         launchKind: 'demand',
       },
     });
+    const [activeStep] = await getStepsByJobId(job.id);
+    if (!activeStep) throw new Error('Expected active step');
+    await db().transaction((tx) =>
+      markStepRunning({jobExecutionId: execution.id, stepId: activeStep.id}, tx),
+    );
 
     await resolveJobExecutionAfterLeaseExpiry({
       jobExecutionId: execution.id,
@@ -397,6 +403,13 @@ describe('workflow run job executions', () => {
         providerKind: 'ec2',
         launchKind: 'demand',
       }),
+    ]);
+    expect((await getStepsByJobId(job.id))[0]).toMatchObject({
+      status: 'cancelled',
+      statusReason: 'runner_lost',
+    });
+    expect(await stepAttemptTerminatedEvents(job.id)).toMatchObject([
+      expect.objectContaining({terminalCause: 'runner_lost'}),
     ]);
   });
 

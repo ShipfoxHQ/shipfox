@@ -720,7 +720,11 @@ export async function settleListenerJobExecution(params: {
       launchKind: execution.launchKind,
     });
     await bulkUpdateStepStatuses(
-      {jobExecutionId: params.jobExecutionId, status: params.status},
+      {
+        jobExecutionId: params.jobExecutionId,
+        status: params.status,
+        ...(params.status === 'cancelled' ? {terminalCause: 'run_cancelled' as const} : {}),
+      },
       tx,
     );
     return true;

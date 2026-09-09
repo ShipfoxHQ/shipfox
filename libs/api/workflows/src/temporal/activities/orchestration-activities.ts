@@ -2,6 +2,7 @@ import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
+import type {StepAttemptTerminalCauseDto} from '@shipfox/api-workflows-dto';
 import {ApplicationFailure} from '@temporalio/common';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
 import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
@@ -189,6 +190,7 @@ export async function setJobExecutionStatus(
 export async function bulkSetStepStatuses(params: {
   jobExecutionId: string;
   status: Extract<StepStatus, 'failed' | 'cancelled'>;
+  terminalCause?: StepAttemptTerminalCauseDto | undefined;
 }): Promise<void> {
   await bulkUpdateStepStatuses(params);
 }

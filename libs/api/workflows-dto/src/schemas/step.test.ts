@@ -310,7 +310,7 @@ describe('stepStatusReasonSchema', () => {
   });
 
   it('rejects an unknown step status reason', () => {
-    expect(stepStatusReasonSchema.safeParse('runner_lost').success).toBe(false);
+    expect(stepStatusReasonSchema.safeParse('not_a_reason').success).toBe(false);
   });
 });
 

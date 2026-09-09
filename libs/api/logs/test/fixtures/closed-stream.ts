@@ -46,6 +46,7 @@ export function arrangeClosedStream(
     const closed = await closeStream(tx, {
       streamId: stream.id,
       reason: options.tombstone ? 'timeout' : 'declared',
+      terminalCause: options.tombstone ? 'runner_lost' : null,
     });
 
     return closed ?? stream;

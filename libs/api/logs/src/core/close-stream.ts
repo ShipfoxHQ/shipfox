@@ -1,5 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {LOG_STREAM_CLOSED, type LogRecord, type LogsEventMap} from '@shipfox/api-logs-dto';
+import type {StepAttemptTerminalCauseDto} from '@shipfox/api-workflows-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
 import type {AttemptStream, StreamCloseReason} from '#core/entities/attempt-stream.js';
 import {insertChunk} from '#db/chunks.js';
@@ -7,7 +8,7 @@ import type {Transaction} from '#db/db.js';
 import {logsOutbox} from '#db/schema/outbox.js';
 import {markStreamClosed} from '#db/streams.js';
 
-export type TombstoneKind = 'capped' | 'runner_lost';
+export type TombstoneKind = 'capped' | StepAttemptTerminalCauseDto;
 
 /**
  * Frames a server tombstone as one newline-terminated record. Typed against the
@@ -23,6 +24,7 @@ export function controlTombstone(kind: TombstoneKind): Buffer {
 export interface CloseStreamParams {
   streamId: string;
   reason: StreamCloseReason;
+  terminalCause?: StepAttemptTerminalCauseDto | null | undefined;
 }
 
 /**
@@ -31,8 +33,8 @@ export interface CloseStreamParams {
  * declared close vs the job-terminated timeout sweep) returns null, so no duplicate
  * `LOG_STREAM_CLOSED` is written and no second tombstone lands. A pending Claude result
  * is materialized before the close event, then a timeout close sets `truncated` and injects
- * a `runner_lost` tombstone in-band (a `capped` tombstone, if any, was injected earlier at
- * the append that tripped the cap).
+ * its authoritative terminal cause in-band when one is known (a `capped` tombstone, if any,
+ * was injected earlier at the append that tripped the cap).
  *
  * The event drives compaction; it is written in the same transaction as the flip.
  */
@@ -81,8 +83,8 @@ export async function closeStream(
     });
   }
 
-  if (params.reason === 'timeout') {
-    const tombstone = controlTombstone('runner_lost');
+  if (params.reason === 'timeout' && params.terminalCause != null) {
+    const tombstone = controlTombstone(params.terminalCause);
     await insertChunk(tx, {
       streamId: closed.id,
       streamOffset: closed.committedLength,

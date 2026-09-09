@@ -18,9 +18,17 @@ export type GroupStartLogRecord = Extract<LogRecord, {type: 'group_start'}>;
 export type EndLogRecord = Extract<LogRecord, {type: 'end'}>;
 export type GapLogRecord = Extract<LogRecord, {type: 'gap'}>;
 export type CappedLogRecord = Extract<LogRecord, {type: 'capped'}>;
+export type TimedOutLogRecord = Extract<LogRecord, {type: 'timed_out'}>;
+export type RunCancelledLogRecord = Extract<LogRecord, {type: 'run_cancelled'}>;
 export type RunnerLostLogRecord = Extract<LogRecord, {type: 'runner_lost'}>;
 export type AgentSessionLogRecord = Extract<LogRecord, {type: 'agent_session'}>;
-export type MarkerLogRecord = EndLogRecord | GapLogRecord | CappedLogRecord | RunnerLostLogRecord;
+export type MarkerLogRecord =
+  | EndLogRecord
+  | GapLogRecord
+  | CappedLogRecord
+  | TimedOutLogRecord
+  | RunCancelledLogRecord
+  | RunnerLostLogRecord;
 
 /**
  * Stable, unique render key in creation order. A natural key is not enough: `group_id`
@@ -50,7 +58,7 @@ export interface GroupLogNode extends LogNodeBase {
   closed: boolean;
   /** `group_end` timestamp when closed by its matching end, else null. */
   endTs: number | null;
-  /** Precomputed: subtree contains a `runner_lost` (a genuine failure). `stderr` is a channel, not an error, so it never sets this. */
+  /** Precomputed: subtree contains a terminal failure. `stderr` is a channel, not an error, so it never sets this. */
   hasError: boolean;
   /** Precomputed output-line count in the subtree, for the collapsed summary. */
   lineCount: number;
@@ -66,7 +74,7 @@ export type LogNode = OutputLogNode | MarkerLogNode | GroupLogNode | SessionLogN
 
 export interface LogTree {
   nodes: LogNode[];
-  /** The stream is closed: the records contain an `end` or a `runner_lost`. */
+  /** The stream is closed: the records contain an `end` or terminal-cause marker. */
   terminated: boolean;
   /** First record's timestamp; the baseline for relative timestamps. Null when empty. */
   originTs: number | null;
@@ -140,10 +148,15 @@ function appendLogRecord(state: LogTreeBuildState, record: LogRecord): void {
       if (record.type === 'end') state.terminated = true;
       childrenOf(state).push({kind: 'marker', seq: state.seq++, record});
       return;
+    case 'timed_out':
     case 'runner_lost':
       state.terminated = true;
       childrenOf(state).push({kind: 'marker', seq: state.seq++, record});
       for (const frame of state.stack) frame.hasError = true;
+      return;
+    case 'run_cancelled':
+      state.terminated = true;
+      childrenOf(state).push({kind: 'marker', seq: state.seq++, record});
       return;
     case 'agent_session':
       childrenOf(state).push({kind: 'session', seq: state.seq++, record});

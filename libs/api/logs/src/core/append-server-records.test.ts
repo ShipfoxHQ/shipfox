@@ -11,14 +11,28 @@ import {jobAccountingFactory} from '#test/factories/job-accounting.js';
 import {ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
 import {findAccounting, findStream, listChunks, listStreamClosedEvents} from '#test/queries.js';
 
+interface MetricsMockState {
+  counters: Map<string, {add: ReturnType<typeof vi.fn>}>;
+  add: (name: string) => {add: ReturnType<typeof vi.fn>};
+}
+
 const metricsMocks = vi.hoisted(() => {
+  const testGlobal = globalThis as typeof globalThis & {
+    __shipfoxApiLogsMetricsMocks?: MetricsMockState;
+  };
+  if (testGlobal.__shipfoxApiLogsMetricsMocks) {
+    return testGlobal.__shipfoxApiLogsMetricsMocks;
+  }
+
   const counters = new Map<string, {add: ReturnType<typeof vi.fn>}>();
   const add = (name: string) => {
     const counter = {add: vi.fn()};
     counters.set(name, counter);
     return counter;
   };
-  return {counters, add};
+  const state = {counters, add};
+  testGlobal.__shipfoxApiLogsMetricsMocks = state;
+  return state;
 });
 
 vi.mock('#metrics/instance.js', () => ({

@@ -254,7 +254,11 @@ async function resolveTimedOutJobExecution({
     runAttemptId: input.runAttemptId,
     expectedVersion: runningVersion,
   });
-  await bulkSetStepStatuses({jobExecutionId: input.jobExecutionId, status: 'failed'});
+  await bulkSetStepStatuses({
+    jobExecutionId: input.jobExecutionId,
+    status: 'failed',
+    terminalCause: 'timed_out',
+  });
   if (input.resolveJobStatus === false) {
     log.info('job execution terminated', {
       jobId: input.jobId,

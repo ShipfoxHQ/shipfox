@@ -76,7 +76,7 @@ interface ParsedBody {
  * budget charges the normalized body built from these parsed records.
  *
  * Each line is validated against the raw record union (a forged server-only
- * `capped`/`runner_lost` fails here); the declared total is pulled from an `end`
+ * server-only tombstone fails here); the declared total is pulled from an `end`
  * record. A line that is a valid server-only record under the read union surfaces
  * its type via `forgedType` for the narrowed audit warn.
  */
@@ -130,7 +130,7 @@ function parseAppendBody(body: Buffer): ParsedBody {
 
 /**
  * A line that fails the raw write union but is a valid record under the read union
- * can only be a server-only `capped`/`runner_lost` tombstone: i.e. a forgery
+ * can only be a server-only tombstone: i.e. a forgery
  * attempt. Returns its type for the audit warn, or undefined for plain garbage.
  */
 function detectForgedType(line: string): string | undefined {

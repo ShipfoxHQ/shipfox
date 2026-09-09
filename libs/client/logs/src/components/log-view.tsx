@@ -23,7 +23,14 @@ import {
 import {AgentSessionRows} from './agent-session-rows.js';
 import {LogGroup} from './log-group.js';
 import {OutputLogRow} from './output-log-row.js';
-import {CappedMarker, EndMarker, GapMarker, RunnerLostMarker} from './system-markers.js';
+import {
+  CappedMarker,
+  EndMarker,
+  GapMarker,
+  RunCancelledMarker,
+  RunnerLostMarker,
+  TimedOutMarker,
+} from './system-markers.js';
 
 export interface LogViewProps {
   records: readonly LogRecord[];
@@ -354,6 +361,10 @@ function MarkerRow({record, tree}: {record: MarkerLogRecord; tree: LogTree}): Re
       return <GapMarker record={record} />;
     case 'capped':
       return <CappedMarker record={record} />;
+    case 'timed_out':
+      return <TimedOutMarker record={record} />;
+    case 'run_cancelled':
+      return <RunCancelledMarker record={record} />;
     case 'runner_lost':
       return <RunnerLostMarker record={record} />;
     default:

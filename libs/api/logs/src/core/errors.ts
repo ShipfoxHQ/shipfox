@@ -9,7 +9,7 @@ export class OffsetGapError extends Error {
 /**
  * The append body is not whole, newline-terminated records of the raw log
  * record contract. `forgedType` is set only for the detectable forgery case: a
- * line that is a valid server-only record (`capped`/`runner_lost`) under the read
+ * line that is a valid server-only tombstone under the read
  * union but is not valid on the raw write path. The append path can emit a
  * narrowed audit warning without logging the payload.
  */

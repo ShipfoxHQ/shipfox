@@ -61,6 +61,8 @@ export function toLogRecord(record: LogRecordDto): LogRecord {
     case 'agent_session':
       return {...base, type: record.type, row: toSessionViewRow(record.row)};
     case 'capped':
+    case 'timed_out':
+    case 'run_cancelled':
     case 'runner_lost':
       return {...base, type: record.type};
   }

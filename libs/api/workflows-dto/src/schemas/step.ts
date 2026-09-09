@@ -7,6 +7,9 @@ export const STEP_STATUS_REASONS = [
   'default_gate_rejected',
   'condition_rejected',
   'condition_errored',
+  'timed_out',
+  'run_cancelled',
+  'runner_lost',
 ] as const;
 
 export const stepStatusReasonSchema = z.enum(STEP_STATUS_REASONS);

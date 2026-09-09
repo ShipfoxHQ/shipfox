@@ -164,8 +164,9 @@ export const Truncated: Story = {
 };
 
 /**
- * A genuine subtree failure (a `runner_lost`) draws an inset red bar on the header (a
- * border, not a fill). stderr alone never triggers it: stderr is a channel, not an error.
+ * A genuine subtree failure (`timed_out` or `runner_lost`) draws an inset red bar on the
+ * header (a border, not a fill). stderr alone never triggers it: stderr is a channel, not
+ * an error.
  */
 export const ErrorBar: Story = {
   render: () => (

@@ -34,6 +34,7 @@ function newIdentity(
     projectId: crypto.randomUUID(),
     workflowRunAttemptId: crypto.randomUUID(),
     logOutcome: 'drained',
+    terminalCause: null,
     ...overrides,
   };
 }
@@ -57,8 +58,8 @@ describe('finalizeAttemptLogStream', () => {
     expect(metrics.recordAppendedAdd).not.toHaveBeenCalled();
   });
 
-  it('closes an abandoned open stream with a runner_lost tombstone', async () => {
-    const identity = newIdentity({logOutcome: 'abandoned'});
+  it('closes an abandoned runner-loss stream with a runner_lost tombstone', async () => {
+    const identity = newIdentity({logOutcome: 'abandoned', terminalCause: 'runner_lost'});
     await db().transaction((tx) => getOrCreateAttemptStream(tx, identity));
 
     const stream = await finalizeAttemptLogStream(identity);
@@ -76,13 +77,42 @@ describe('finalizeAttemptLogStream', () => {
       .map(parseLogRecordLine);
     expect(records).toMatchObject([{type: 'runner_lost'}]);
     expect(await listStreamClosedEvents(stream.id)).toHaveLength(1);
-    expect(metrics.streamClosedAdd).toHaveBeenCalledWith(1, {reason: 'timeout'});
+    expect(metrics.streamClosedAdd).toHaveBeenCalledWith(1, {reason: 'runner_lost'});
     expect(metrics.recordAppendedAdd).toHaveBeenCalledWith(1, {kind: 'runner_lost'});
   });
 
   it.each([
+    {terminalCause: 'timed_out' as const, metricReason: 'job_timeout' as const},
+    {terminalCause: 'run_cancelled' as const, metricReason: 'run_cancelled' as const},
+  ])('preserves $terminalCause separately from the abandoned drain', async (params) => {
+    const identity = newIdentity({logOutcome: 'abandoned', terminalCause: params.terminalCause});
+
+    const stream = await finalizeAttemptLogStream(identity);
+    const records = (await listChunks(stream.id)).flatMap((chunk) =>
+      chunk.data.toString('utf8').split('\n').filter(Boolean).map(parseLogRecordLine),
+    );
+
+    expect(stream.closeReason).toBe('timeout');
+    expect(stream.truncated).toBe(true);
+    expect(records).toMatchObject([{type: params.terminalCause}]);
+    expect(metrics.streamClosedAdd).toHaveBeenCalledWith(1, {reason: params.metricReason});
+    expect(metrics.recordAppendedAdd).toHaveBeenCalledWith(1, {kind: params.terminalCause});
+  });
+
+  it('marks a cause-free abandoned drain truncated without inventing runner loss', async () => {
+    const stream = await finalizeAttemptLogStream(
+      newIdentity({logOutcome: 'abandoned', terminalCause: null}),
+    );
+
+    expect(stream.truncated).toBe(true);
+    expect(await listChunks(stream.id)).toHaveLength(0);
+    expect(metrics.streamClosedAdd).toHaveBeenCalledWith(1, {reason: 'abandoned'});
+    expect(metrics.recordAppendedAdd).not.toHaveBeenCalled();
+  });
+
+  it.each([
     {logOutcome: 'drained' as const, expectedOrigins: ['runner', 'control']},
-    {logOutcome: 'abandoned' as const, expectedOrigins: ['runner', 'control', 'control']},
+    {logOutcome: 'abandoned' as const, expectedOrigins: ['runner', 'control']},
   ])('flushes a pending Claude result before a $logOutcome close', async ({
     logOutcome,
     expectedOrigins,
@@ -144,18 +174,12 @@ describe('finalizeAttemptLogStream', () => {
           : [],
       ),
     ).toEqual(['Session started', 'Session completed']);
-    if (logOutcome === 'abandoned') {
-      expect(records.map((record) => record.type)).toEqual([
-        'agent_session',
-        'agent_session',
-        'runner_lost',
-      ]);
-    }
+    expect(records.map((record) => record.type)).toEqual(['agent_session', 'agent_session']);
     expect(stream.claudePendingResult).toBeNull();
   });
 
   it('does not emit another tombstone or close event when finalized again', async () => {
-    const identity = newIdentity({logOutcome: 'abandoned'});
+    const identity = newIdentity({logOutcome: 'abandoned', terminalCause: 'runner_lost'});
 
     const first = await finalizeAttemptLogStream(identity);
     const second = await finalizeAttemptLogStream(identity);

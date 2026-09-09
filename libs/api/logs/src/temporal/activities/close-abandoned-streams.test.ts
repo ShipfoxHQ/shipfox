@@ -1,3 +1,4 @@
+import {parseLogRecordLine} from '@shipfox/api-logs-dto';
 import {appendLogs} from '#core/append-logs.js';
 import {closeAbandonedStreamsActivity} from '#temporal/activities/close-abandoned-streams.js';
 import {endLine, ndjsonBody, outputLine} from '#test/fixtures/ndjson.js';
@@ -22,12 +23,16 @@ function newCtx(): Ctx {
 }
 
 describe('closeAbandonedStreamsActivity', () => {
-  it('force-closes an open stream with a runner_lost tombstone and one event', async () => {
+  it.each([
+    'timed_out',
+    'run_cancelled',
+    'runner_lost',
+  ] as const)('force-closes an open stream with a %s tombstone and one event', async (terminalCause) => {
     const ctx = newCtx();
     await appendLogs({...ctx, attempt: 1, offset: 0, body: ndjsonBody(outputLine('partial\n'))});
     const open = await findStream({...ctx, attempt: 1});
 
-    const {closed} = await closeAbandonedStreamsActivity({jobId: ctx.jobId});
+    const {closed} = await closeAbandonedStreamsActivity({jobId: ctx.jobId, terminalCause});
 
     expect(closed).toBe(1);
     const after = await findStream({...ctx, attempt: 1});
@@ -35,10 +40,13 @@ describe('closeAbandonedStreamsActivity', () => {
     expect(after?.closeReason).toBe('timeout');
     expect(after?.truncated).toBe(true);
     expect(after?.committedLength).toBe(open?.committedLength);
-    expect((await listChunks(after?.id as string)).map((c) => c.origin)).toEqual([
-      'runner',
-      'control',
-    ]);
+    const chunks = await listChunks(after?.id as string);
+    expect(chunks.map((c) => c.origin)).toEqual(['runner', 'control']);
+    expect(
+      chunks.flatMap((chunk) =>
+        chunk.data.toString('utf8').split('\n').filter(Boolean).map(parseLogRecordLine),
+      ),
+    ).toEqual(expect.arrayContaining([expect.objectContaining({type: terminalCause})]));
     expect(await listStreamClosedEvents(after?.id as string)).toHaveLength(1);
   });
 
@@ -62,7 +70,10 @@ describe('closeAbandonedStreamsActivity', () => {
     });
     const doneStream = await findStream({jobId: ctx.jobId, stepId: stepDone, attempt: 1});
 
-    const {closed} = await closeAbandonedStreamsActivity({jobId: ctx.jobId});
+    const {closed} = await closeAbandonedStreamsActivity({
+      jobId: ctx.jobId,
+      terminalCause: 'runner_lost',
+    });
 
     expect(closed).toBe(1);
     const openAfter = await findStream({jobId: ctx.jobId, stepId: stepOpen, attempt: 1});
@@ -77,7 +88,10 @@ describe('closeAbandonedStreamsActivity', () => {
   it('is a no-op for a job with no open streams', async () => {
     const ctx = newCtx();
 
-    const {closed} = await closeAbandonedStreamsActivity({jobId: ctx.jobId});
+    const {closed} = await closeAbandonedStreamsActivity({
+      jobId: ctx.jobId,
+      terminalCause: 'runner_lost',
+    });
 
     expect(closed).toBe(0);
   });

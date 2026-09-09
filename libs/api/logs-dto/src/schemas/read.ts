@@ -4,7 +4,7 @@ import {z} from 'zod';
  * Read endpoint contract: `GET .../steps/:stepId/attempts/:attempt/logs?cursor=N`.
  *
  * `cursor` is an opaque chunk-sequence position, not a byte offset. Server-injected
- * control tombstones (`capped`, `runner_lost`) do not advance the runner byte axis, so
+ * control tombstones do not advance the runner byte axis, so
  * the read walks chunks by insertion `seq` to keep every record in stream order. The
  * same `seq` walk backs compaction, so the inline `ndjson` is byte-identical to the
  * decompressed compacted object. Start at 0 and echo back `next_cursor` to page forward.

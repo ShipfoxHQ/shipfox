@@ -17,6 +17,7 @@ import {db} from '../db.js';
 import {stepAttempts as stepAttemptsTable} from '../schema/step-attempts.js';
 import {steps as stepsTable} from '../schema/steps.js';
 import {
+  applyStepResult,
   createWorkflowRun,
   finishStepAttempt,
   getFirstJobExecutionByJobId,
@@ -566,10 +567,16 @@ describe('workflow run queries', () => {
       await stripSetupStep(jobId);
       await nextStepForJob(jobId);
 
-      await bulkUpdateJobStepStatuses({jobId, status: 'cancelled'});
+      await bulkUpdateJobStepStatuses({
+        jobId,
+        status: 'failed',
+        terminalCause: 'timed_out',
+      });
 
       const [attempt] = await getStepAttempts(jobId);
-      expect(attempt).toMatchObject({status: 'cancelled', logOutcome: 'abandoned'});
+      const [timedOutStep] = await getStepsByJobId(jobId);
+      expect(timedOutStep).toMatchObject({status: 'failed', statusReason: 'timed_out'});
+      expect(attempt).toMatchObject({status: 'failed', logOutcome: 'abandoned'});
       expect(await stepAttemptTerminatedEvents(jobId)).toMatchObject([
         {
           jobId,
@@ -578,10 +585,37 @@ describe('workflow run queries', () => {
           projectId,
           stepId: attempt?.stepId,
           attempt: 1,
-          status: 'cancelled',
+          status: 'failed',
           logOutcome: 'abandoned',
+          terminalCause: 'timed_out',
         },
       ]);
+
+      await db().transaction(async (tx) => {
+        await finishStepAttempt(
+          {
+            stepId: attempt?.stepId as string,
+            attempt: 1,
+            status: 'succeeded',
+            logOutcome: 'drained',
+          },
+          tx,
+        );
+        await applyStepResult(
+          {
+            jobExecutionId: timedOutStep?.jobExecutionId as string,
+            stepId: attempt?.stepId as string,
+            status: 'succeeded',
+            error: null,
+          },
+          tx,
+        );
+      });
+
+      expect(await getStepsByJobId(jobId)).toMatchObject([
+        expect.objectContaining({status: 'failed', statusReason: 'timed_out'}),
+      ]);
+      expect(await stepAttemptTerminatedEvents(jobId)).toHaveLength(1);
     });
   });
 });

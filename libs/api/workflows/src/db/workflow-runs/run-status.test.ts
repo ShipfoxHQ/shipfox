@@ -327,11 +327,15 @@ describe('workflow run queries', () => {
         status: 'skipped',
         statusReason: 'dependency_not_completed',
       });
-      expect((await getStepsByJobId(runningJobExecution.id)).map((step) => step.status)).toEqual([
+      const cancelledSteps = await getStepsByJobId(runningJobExecution.id);
+      expect(cancelledSteps.map((step) => step.status)).toEqual([
         'cancelled',
         'cancelled',
         'cancelled',
       ]);
+      expect(cancelledSteps.filter((step) => step.statusReason === 'run_cancelled')).toHaveLength(
+        1,
+      );
       expect(
         (await getStepsByJobId(skippedJob.id)).every((step) => step.status === 'pending'),
       ).toBe(true);
@@ -358,7 +362,9 @@ describe('workflow run queries', () => {
           statusReason: 'run_cancelled',
         }),
       ]);
-      expect(await stepAttemptTerminatedEvents(runningJobExecution.id)).toHaveLength(1);
+      expect(await stepAttemptTerminatedEvents(runningJobExecution.id)).toMatchObject([
+        expect.objectContaining({terminalCause: 'run_cancelled'}),
+      ]);
       expect(await jobTerminatedEvents(succeededJob.id)).toHaveLength(1);
       expect(await jobTerminatedEvents(skippedJob.id)).toHaveLength(1);
     });

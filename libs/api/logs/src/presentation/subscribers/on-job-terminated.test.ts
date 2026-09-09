@@ -44,8 +44,29 @@ describe('onJobTerminated', () => {
     expect(startMock).toHaveBeenCalledWith('closeAbandonedStreams', {
       taskQueue: LOGS_LIFECYCLE_TASK_QUEUE,
       workflowId: `logs-close:${jobId}`,
-      args: [{jobId, graceSeconds: config.LOG_STREAM_CLOSE_GRACE_SECONDS}],
+      args: [
+        {
+          jobId,
+          graceSeconds: config.LOG_STREAM_CLOSE_GRACE_SECONDS,
+          terminalCause: 'runner_lost',
+        },
+      ],
     });
+  });
+
+  it.each([
+    {statusReason: 'timed_out' as const, terminalCause: 'timed_out'},
+    {statusReason: 'run_cancelled' as const, terminalCause: 'run_cancelled'},
+    {statusReason: 'runner_lost' as const, terminalCause: 'runner_lost'},
+  ])('passes $terminalCause into the grace sweep', async ({statusReason, terminalCause}) => {
+    const payload = {...buildPayload(crypto.randomUUID()), statusReason};
+
+    await onJobTerminated(payload);
+
+    expect(startMock).toHaveBeenCalledWith(
+      'closeAbandonedStreams',
+      expect.objectContaining({args: [expect.objectContaining({terminalCause})]}),
+    );
   });
 
   it('swallows a redelivered event when the workflow is already started', async () => {

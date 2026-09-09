@@ -81,6 +81,8 @@ describe('LogView', () => {
 
   test.each([
     {record: {v: 1, ts, type: 'runner_lost'} as const, label: 'Runner disconnected'},
+    {record: {v: 1, ts, type: 'timed_out'} as const, label: 'Execution timed out'},
+    {record: {v: 1, ts, type: 'run_cancelled'} as const, label: 'Run cancelled'},
     {record: {v: 1, ts, type: 'gap', droppedBytes: 2048} as const, label: 'Output missing'},
     {record: {v: 1, ts, type: 'capped'} as const, label: 'Log size limit reached'},
   ])('does not show no-output copy for a $record.type marker-only stream', ({record, label}) => {

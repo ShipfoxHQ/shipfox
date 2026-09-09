@@ -5,7 +5,9 @@ import type {
   CappedLogRecord,
   EndLogRecord,
   GapLogRecord,
+  RunCancelledLogRecord,
   RunnerLostLogRecord,
+  TimedOutLogRecord,
 } from '#core/log-tree.js';
 
 type MarkerTone = 'default' | 'warning' | 'error';
@@ -138,6 +140,35 @@ export function CappedMarker({record}: {record: CappedLogRecord}) {
       detail="later output isn't shown; the step kept running"
     >
       Log size limit reached
+    </LogMarkerRow>
+  );
+}
+
+/** The job reached its configured execution limit and interrupted the active stream. */
+export function TimedOutMarker({record}: {record: TimedOutLogRecord}) {
+  return (
+    <LogMarkerRow
+      icon="closeCircleLine"
+      tone="error"
+      timestamp={new Date(record.ts)}
+      detail="the job exceeded its configured execution time and the log may be incomplete"
+      terminalFailure
+    >
+      Execution timed out
+    </LogMarkerRow>
+  );
+}
+
+/** Run cancellation interrupted the active stream intentionally. */
+export function RunCancelledMarker({record}: {record: RunCancelledLogRecord}) {
+  return (
+    <LogMarkerRow
+      icon="forbidLine"
+      tone="default"
+      timestamp={new Date(record.ts)}
+      detail="the active log stream was interrupted and may be incomplete"
+    >
+      Run cancelled
     </LogMarkerRow>
   );
 }
