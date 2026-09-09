@@ -274,6 +274,30 @@ describe('SharedInstallationTokenCache', () => {
     ).toContain('ghs_after-approval');
   });
 
+  it('does not read a legacy profile backoff without an invalidation fence', async () => {
+    const store = createStore();
+    const profileTokenKey = githubInstallationTokenKey('broad');
+    store.values.set(
+      `${workspaceId}:${installationId}:BACKOFF_${profileTokenKey.slice('TOKEN_'.length)}`,
+      encodeInstallationTokenEnvelope({
+        backoffUntil: new Date('2026-06-10T11:15:00.000Z'),
+        backoffReason: 'provider-rejected',
+      }),
+    );
+    const mint = vi.fn(() => Promise.resolve(token('ghs_after-approval')));
+    const shared = cache({store});
+
+    await expect(shared.getOrMint(installationId, mint)).resolves.toEqual(
+      token('ghs_after-approval'),
+    );
+    expect(mint).toHaveBeenCalledOnce();
+    expect(
+      store.values.get(
+        `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
+      ),
+    ).toContain('ghs_after-approval');
+  });
+
   it('fails closed when the generation fence cannot be read', async () => {
     const store = createStore();
     setEnvelope(store, token('ghs_stale'), 'broad');

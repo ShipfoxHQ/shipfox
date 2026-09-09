@@ -126,7 +126,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     }
 
     const workspaceId = options.workspaceId ?? (await this.resolveWorkspaceId(installationId));
-    const result = await this.withBackoffLock(installationId, async () => {
+    const result = await this.retryWithInstallationLock(installationId, async () => {
       const generation = randomUUID();
       await this.writeGeneration(workspaceId, installationId, generation);
       let deleted = 0;
@@ -427,7 +427,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     if (params.generation === undefined) return {until: candidateUntil, persisted: false};
 
     try {
-      const result = await this.withBackoffLock(params.installationId, () =>
+      const result = await this.retryWithInstallationLock(params.installationId, () =>
         this.persistBackoff({...params, candidateUntil}),
       );
       if (result.acquired) return result.value;
@@ -557,7 +557,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     generation: InstallationTokenGeneration;
   }): Promise<void> {
     try {
-      await this.withBackoffLock(params.installationId, async () => {
+      await this.retryWithInstallationLock(params.installationId, async () => {
         if (
           !(await this.generationMatches(
             params.workspaceId,
@@ -602,7 +602,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     }
   }
 
-  private async withBackoffLock<T>(
+  private async retryWithInstallationLock<T>(
     installationId: number,
     operation: () => Promise<T>,
   ): Promise<InstallationTokenLockResult<T>> {
@@ -794,7 +794,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     const read = () =>
       this.generationMatchesDirect(workspaceId, installationId, generation, reportReadFailure);
     if (lockHeld) return await read();
-    const result = await this.withBackoffLock(installationId, read);
+    const result = await this.retryWithInstallationLock(installationId, read);
     if (!result.acquired) {
       throw new GithubIntegrationProviderError(
         'provider-unavailable',
@@ -849,7 +849,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
       return 'written';
     };
     if (!this.generationFenceEnabled || lockHeld) return await write(lockHeld);
-    const result = await this.withBackoffLock(installationId, () => write(true));
+    const result = await this.retryWithInstallationLock(installationId, () => write(true));
     if (!result.acquired) return 'contended';
     return result.value;
   }
