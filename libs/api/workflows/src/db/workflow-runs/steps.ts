@@ -341,14 +341,16 @@ export async function bulkUpdateStepStatuses(
     return;
   }
 
+  const terminalStatusReason: StepStatusReason | undefined = params.terminalCause;
+
   await tx
     .update(steps)
     .set({
       status: params.status,
       statusReason:
-        params.terminalCause === undefined
+        terminalStatusReason === undefined
           ? null
-          : sql`case when ${steps.status} = 'running' then ${params.terminalCause}::workflows_step_status_reason else null end`,
+          : sql`case when ${steps.status} = 'running' then ${terminalStatusReason}::workflows_step_status_reason else null end`,
       updatedAt: new Date(),
     })
     .where(and(eq(steps.jobExecutionId, params.jobExecutionId), NON_TERMINAL_STEP_STATUS_FILTER));

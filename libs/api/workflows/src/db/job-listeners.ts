@@ -78,6 +78,7 @@ import {lockWorkflowRun} from './workflow-runs/shared.js';
 import {
   bulkUpdateStepStatuses,
   getDirectDependencyJobContexts,
+  getStepsByJobExecutionIdForUpdate,
   loadReferencedVariables,
   updateJobStatusAtVersion,
   writeJobExecutionTerminatedOutbox,
@@ -686,6 +687,8 @@ export async function settleListenerJobExecution(params: {
   status: Extract<JobExecutionStatus, 'failed' | 'cancelled'>;
 }): Promise<void> {
   const changed = await db().transaction(async (tx) => {
+    await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
+
     const [execution] = await tx
       .update(jobExecutions)
       .set({

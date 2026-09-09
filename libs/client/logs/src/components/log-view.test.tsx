@@ -108,7 +108,7 @@ describe('LogView', () => {
 
     expect(screen.getByText('Log stream incomplete')).toBeInTheDocument();
     expect(screen.getByText('some final output may be missing')).toBeInTheDocument();
-    expect(screen.queryByText('Running')).not.toBeInTheDocument();
+    expect(screen.getByText('incomplete')).toBeInTheDocument();
   });
 
   test('renders only the incomplete state for an empty truncated stream', () => {
