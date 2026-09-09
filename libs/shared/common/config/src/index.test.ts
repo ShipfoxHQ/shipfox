@@ -123,6 +123,21 @@ describe('fallbacks', () => {
     );
   });
 
+  test('rejects a default on a key that declares a fallback', () => {
+    const loadConfig = () =>
+      createConfig({
+        TEST_PRIMARY_URL: fallbackTo(
+          'TEST_SOURCE_URL',
+          url({default: 'https://public.example.test'}),
+        ),
+        TEST_SOURCE_URL: url({default: 'https://internal.example.test'}),
+      });
+
+    expect(loadConfig).toThrow(
+      'Configuration key "TEST_PRIMARY_URL" cannot declare both a fallback and a default.',
+    );
+  });
+
   test('fails when a required fallback source has no value', () => {
     const loadConfig = () =>
       createConfig(
