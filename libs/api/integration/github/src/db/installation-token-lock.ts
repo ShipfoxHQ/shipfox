@@ -6,10 +6,6 @@ export type InstallationTokenLockResult<T> = {acquired: true; value: T} | {acqui
 
 export function withInstallationTokenLock<T>(
   installationId: number,
-  fn: () => Promise<T>,
-): Promise<InstallationTokenLockResult<T>>;
-export function withInstallationTokenLock<T>(
-  installationId: number,
   operation: () => Promise<T>,
 ): Promise<InstallationTokenLockResult<T>> {
   const lockKey = installationTokenLockKey(installationId);

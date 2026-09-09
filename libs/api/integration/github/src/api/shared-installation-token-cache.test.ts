@@ -98,12 +98,6 @@ function cache(
           fn: () => Promise<T>,
         ) => Promise<InstallationTokenLockResult<T>>)
       | undefined;
-    withBackoffLock?:
-      | (<T>(
-          installationId: number,
-          fn: () => Promise<T>,
-        ) => Promise<InstallationTokenLockResult<T>>)
-      | undefined;
     resolveWorkspaceId?: ((installationId: number) => Promise<string>) | undefined;
     sleep?: ((ms: number) => Promise<void>) | undefined;
     pollDelaysMs?: number[] | undefined;
@@ -112,8 +106,6 @@ function cache(
   return new SharedInstallationTokenCache({
     secretStore: options.store ?? createStore(),
     withLock: options.withLock ?? (async (_id, fn) => ({acquired: true, value: await fn()})),
-    withBackoffLock:
-      options.withBackoffLock ?? (async (_id, fn) => ({acquired: true, value: await fn()})),
     resolveWorkspaceId: options.resolveWorkspaceId ?? (() => Promise.resolve(workspaceId)),
     now: () => options.now ?? new Date('2026-06-10T11:00:00.000Z'),
     sleep: options.sleep ?? (() => Promise.resolve()),
@@ -166,6 +158,19 @@ describe('SharedInstallationTokenCache', () => {
     expect(errorMonitoring.reportError).not.toHaveBeenCalled();
   });
 
+  it('reads a fixed-key compatibility token envelope without minting', async () => {
+    const store = createStore();
+    store.values.set(
+      `${workspaceId}:${installationId}:${GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY}`,
+      encodeInstallationTokenEnvelope(token('ghs_legacy')),
+    );
+    const mint = vi.fn(() => Promise.resolve(token('ghs_new')));
+    const shared = cache({store});
+
+    await expect(shared.getOrMint(installationId, mint)).resolves.toEqual(token('ghs_legacy'));
+    expect(mint).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     errorMonitoring.reportError.mockReset();
   });
@@ -204,7 +209,6 @@ describe('SharedInstallationTokenCache', () => {
     const shared = cache({
       store,
       withLock: withNonReentrantLock,
-      withBackoffLock: withNonReentrantLock,
     });
 
     await expect(
@@ -363,15 +367,7 @@ describe('SharedInstallationTokenCache', () => {
 
   it('uses one installation backoff key for all mint failures', async () => {
     const store = createStore();
-    const shared = cache({
-      store,
-      withLock: async <T>(
-        _installationId: number,
-        fn: () => Promise<T>,
-      ): Promise<InstallationTokenLockResult<T>> => {
-        return {acquired: true as const, value: await fn()};
-      },
-    });
+    const shared = cache({store});
     const failedMint = vi
       .fn()
       .mockRejectedValue(new GithubIntegrationProviderError('provider-rejected', 'rejected'));
@@ -474,13 +470,13 @@ describe('SharedInstallationTokenCache', () => {
     const store = createStore();
     await store.writeGeneration?.(workspaceId, installationId, 'generation-1');
     setEnvelope(store, {...token('ghs_cached'), generation: 'generation-1'});
-    const withBackoffLock = vi.fn(() => Promise.resolve({acquired: false as const}));
+    const withLock = vi.fn(() => Promise.resolve({acquired: false as const}));
     const mint = vi.fn(() => Promise.resolve(token('ghs_new')));
-    const shared = cache({store, withBackoffLock});
+    const shared = cache({store, withLock});
 
     await expect(shared.getOrMint(installationId, mint)).resolves.toEqual(token('ghs_cached'));
     expect(mint).not.toHaveBeenCalled();
-    expect(withBackoffLock).not.toHaveBeenCalled();
+    expect(withLock).not.toHaveBeenCalled();
   });
 
   it('serves a still-valid token on a contended refresh path', async () => {

@@ -298,7 +298,6 @@ function createInstallationTokenCache(
   const shared = new SharedInstallationTokenCache({
     secretStore: options.secretStore,
     withLock,
-    withBackoffLock: withLock,
     resolveWorkspaceId: createGithubInstallationWorkspaceResolver(
       options.getIntegrationConnectionById,
     ),

@@ -69,7 +69,6 @@ type InstallationTokenLock = <T>(
 export interface SharedInstallationTokenCacheOptions {
   secretStore: InstallationTokenSecretStore;
   withLock: InstallationTokenLock;
-  withBackoffLock?: InstallationTokenLock | undefined;
   resolveWorkspaceId: (installationId: number) => Promise<string>;
   now?: (() => Date) | undefined;
   sleep?: ((ms: number) => Promise<void>) | undefined;
@@ -428,7 +427,7 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     if (params.generation === undefined) return {until: candidateUntil, persisted: false};
 
     try {
-      const result = await this.withBackoffPersistenceLock(params.installationId, () =>
+      const result = await this.withBackoffLock(params.installationId, () =>
         this.persistBackoff({...params, candidateUntil}),
       );
       if (result.acquired) return result.value;
@@ -603,27 +602,13 @@ export class SharedInstallationTokenCache implements InstallationTokenCache {
     }
   }
 
-  private async withBackoffPersistenceLock<T>(
-    installationId: number,
-    operation: () => Promise<T>,
-  ): Promise<InstallationTokenLockResult<T>> {
-    const withLock = this.options.withBackoffLock ?? this.options.withLock;
-    for (const delayMs of [0, ...this.pollDelaysMs]) {
-      if (delayMs > 0) await this.sleep(delayMs);
-      const result = await withLock(installationId, operation);
-      if (result.acquired) return result;
-    }
-    return {acquired: false};
-  }
-
   private async withBackoffLock<T>(
     installationId: number,
     operation: () => Promise<T>,
   ): Promise<InstallationTokenLockResult<T>> {
-    const withLock = this.options.withBackoffLock ?? this.options.withLock;
     for (const delayMs of [0, ...this.pollDelaysMs]) {
       if (delayMs > 0) await this.sleep(delayMs);
-      const result = await withLock(installationId, operation);
+      const result = await this.options.withLock(installationId, operation);
       if (result.acquired) return result;
     }
     return {acquired: false};
