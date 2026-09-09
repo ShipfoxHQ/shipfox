@@ -8,9 +8,15 @@ describe('Shipfox MCP server error copy', () => {
       'This workspace is suspended. Restore it before managing the Shipfox MCP server.',
     ],
     [
+      'workspace-inactive',
+      'This workspace is not active, so the Shipfox MCP server cannot be managed.',
+    ],
+    ['forbidden', "You don't have permission to manage the Shipfox MCP server for this workspace."],
+    [
       'auth-dependency-unavailable',
       'The Shipfox MCP server is temporarily unavailable. Try again in a moment.',
     ],
+    ['not-found', 'This connected app no longer exists. Refresh the page to see the latest list.'],
   ])('owns copy for %s', (code, expected) => {
     expect(agentAccessErrorMessage(new ApiError({code, message: 'Server copy', status: 409}))).toBe(
       expected,
