@@ -1,24 +1,29 @@
 ---
-title: "Slack agent tools"
+title: "Slack tools"
 sidebarTitle: "Tools"
-description: "Look up the Slack tools, selectors, permissions, inputs, and outputs available to agent steps."
+description: "Look up the Slack tools, selectors, permissions, inputs, and outputs available to tool steps and agent steps."
 ---
 
 import SlackTools from '../../../generated/integrations/slack/tools.mdx';
 
-This reference lists the shipped Slack agent-tool catalog. See the [Slack
+This reference lists the shipped Slack tool catalog. See the [Slack
 overview](/integrations/slack) for authentication and setup.
 
 ## Selectors
 
-Use a standalone tool selector in an agent step's `integrations:` block. For the
-agent integration contract, see the [workflow schema reference](/reference/workflow-schema#agent-integration-fields).
+A tool step names one standalone tool id, such as `send_message`, in its `tool`
+field. An agent step lists standalone selectors in its `integrations:` block.
+For the field contracts, see [Tool step
+fields](/reference/workflow-schema#tool-step-fields) and [Agent integration
+fields](/reference/workflow-schema#agent-integration-fields).
 
 ## Tool catalog
 
 The catalog uses the Slack bot scopes required by each tool. Read tools inspect
-workspace data. Write tools change messages, reactions, or canvases, and the
-workflow step's `integrations` entry must set `allow_write: true` or Shipfox
-rejects the step at validation.
+workspace data. Write tools change messages, reactions, or canvases.
+
+An agent step's `integrations` entry must set `allow_write: true` to include a
+write tool, or Shipfox rejects the step at validation. A tool step needs no
+flag: naming the write tool is the choice.
 
 <SlackTools />

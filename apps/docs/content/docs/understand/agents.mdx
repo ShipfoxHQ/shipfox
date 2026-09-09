@@ -12,21 +12,23 @@ The workflow still sets the limits. It chooses the prompt, the harness, the
 model, the tools, the repository access, and the check that follows. The agent
 chooses how to work inside those limits.
 
-A run step follows a known command. An agent step chooses its path from what it
-finds.
+A run step follows a known command. A tool step makes one known integration
+call. An agent step chooses its path from what it finds.
 
 ## When to use an agent step
 
-The two step types make different tradeoffs.
+The three step kinds make different tradeoffs.
 
 | Step | Fits | Tradeoff |
 | --- | --- | --- |
 | Run step | A known command with a repeatable procedure. | Predictable, fast, and easy to compare. |
+| Tool step | One known integration operation with known inputs. | Deterministic and free of model cost, but limited to one call. |
 | Agent step | A goal that needs investigation or judgment. | Flexible, but slower, more costly, and less predictable. |
 
 Use the most predictable step that can finish the work. Tests, builds,
-formatting tools, and deploy scripts belong in run steps. Root-cause analysis,
-code review, and open-ended edits often need an agent.
+formatting tools, and deploy scripts belong in run steps. Posting a message or
+reading a ticket with known values belongs in a tool step. Root-cause
+analysis, code review, and open-ended edits often need an agent.
 
 A long or complex command is still a command. Use an agent only when the
 workflow can't choose the path before it reads the code or the event.
@@ -85,8 +87,9 @@ write after an objective check.
 
 Repository permission applies to the whole job, because every step uses the
 same checkout. Integration tools apply to one step. When a workflow needs local
-edits and one external write, put the write tool on the final agent step, not
-on the step that edits.
+edits and one external write, put the write on a later step, not on the step
+that edits. A tool step fits when the workflow knows the exact call. An agent
+step with a write tool fits when the agent must decide what to write.
 
 [Agent access](/how-to/author-workflows/use-integration-tools) shows the setup
 task. [Integrations, integration connections, and

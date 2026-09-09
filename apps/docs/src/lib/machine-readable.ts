@@ -96,7 +96,7 @@ export function serializeIntegrationCatalog(providers: readonly CatalogProvider[
       `| Categories | ${tableValue(provider.categories.map((value) => catalogCategoryLabels[value]).join(', '))} |`,
       `| Aliases | ${tableValue(provider.aliases.map(inlineCode).join(', '))} |`,
       `| Events | ${tableValue(events)} |`,
-      `| Agent tools | ${tableValue(tools)} |`,
+      `| Tools | ${tableValue(tools)} |`,
       `| Overview | ${tableValue(`[${provider.name}](${provider.overviewHref})`)} |`,
       `| Setup | ${tableValue(provider.setupHref ? `[Connect ${provider.name}](${provider.setupHref})` : 'Not available')} |`,
     ].join('\n');
@@ -105,7 +105,7 @@ export function serializeIntegrationCatalog(providers: readonly CatalogProvider[
   return [
     '## Integration catalog',
     '',
-    'Every integration listed here is available in the documentation and carries the capabilities, event, and agent-tool facts shown below.',
+    'Every integration listed here is available in the documentation and carries the capabilities, event, and tool facts shown below.',
     '',
     sections.join('\n\n'),
   ].join('\n');

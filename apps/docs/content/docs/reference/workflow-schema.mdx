@@ -197,32 +197,55 @@ shell reads it as text and not as part of the command.
 
 ### Tool step fields
 
+A tool step calls one integration tool with inputs from the workflow. Shipfox
+makes the call on its API through the integration connection. The step has no
+working tree, so `run`, `prompt`, `checkout`, `env`, and `working_directory`
+are rejected on it.
+
 <ToolStepFields />
 
 The `tool` value is a literal integration tool id. A tool id can name a
-standalone tool or one method in a tool family with `family.method`. The
-optional `connection` value is the slug of an integration connection. Omit it
-to use the project's source connection.
+standalone tool or one method in a tool family with `family.method`. A family
+name alone or `family.*` is rejected. Each provider's tools page lists the ids;
+see the [GitHub tools](/integrations/github/tools) page for family methods.
+
+The optional `connection` value is the slug of an integration connection. Omit
+it to use the source integration connection of the project. A tool from
+another provider needs an explicit `connection`.
 
 The `with` block contains JSON-compatible tool inputs. String values can use
-workflow expressions. Tool outputs use a mapping from output names to one
-expression over `result` or `vars`.
+workflow expressions over every server-evaluated context listed for
+`jobs.<job_id>.steps[*].with` in [Context
+availability](/reference/contexts#context-availability). `secrets` and
+`runner` are rejected. A leaf that is exactly one expression keeps the
+expression's type. Sync checks required inputs and literal values against the
+tool's input schema.
+
+A write tool needs no `allow_write` flag on a tool step. Naming the tool is the
+choice. Tool outputs use a mapping from output names to one expression over
+`result` or `vars`.
 
 Mappings are checked against the provider catalog's `outputSchema`. A closed
 object whose properties are all required keeps typed field access. Open objects,
-optional properties, and unknown schema shapes resolve to `map` or `dyn`, so a
-mapped value is declared as schema-less JSON and can retain a number, boolean,
-object, or list at runtime. A tool without an `outputSchema` keeps its reserved
-`result` root open.
+optional properties, and unknown schema shapes resolve to `map` or `dyn`. A
+mapped value from such a shape is declared as schema-less JSON. It can retain a
+number, boolean, object, or list at runtime. A tool without an `outputSchema`
+keeps its reserved `result` root open.
 
 Tool-step authoring requires a validation API deployment that supports these
-fields. Deploy the editor schema and validation API together; rolling back the
+fields. Deploy the editor schema and validation API together. Rolling back the
 validation API after tool-step definitions are saved makes those definitions
-fail validation until tool-step support is restored.
+fail validation until support is restored.
 
 ### Tool step outputs
 
 <ToolStepOutputs />
+
+Every tool step exposes `result`, the provider response, as a `json` output.
+Later steps read it as `steps.<key>.outputs.result`. A gate on a tool step
+reads `step.status` and `step.outputs`; `step.exit_code` does not exist on a
+tool step. See [Call an integration
+tool](/how-to/author-workflows/call-integration-tool) for a complete example.
 
 ### Checkout step fields
 

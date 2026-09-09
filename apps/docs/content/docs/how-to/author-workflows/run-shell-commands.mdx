@@ -1,27 +1,18 @@
 ---
-title: "Run Repository Checks on Demand"
-sidebarTitle: "Run Project Checks"
-description: "Add a manual workflow that installs dependencies and runs repository tests."
+title: "Run Shell Commands in a Workflow"
+sidebarTitle: "Run Shell Commands"
+description: "Add a run step that executes shell commands on a runner."
 ---
 
-Use this guide when a repository check should run on demand in a clean Shipfox
-job. The workflow uses fixed shell commands, not an agent.
+**Use a run step to execute a shell command on a runner.** This guide prints a
+message from a manually started workflow. Replace the example with the command
+your workflow needs.
 
-## Before you begin
-
-You need:
-
-- A project that can sync workflows.
-- An online runner with the `shipfox` label.
-- A Node.js repository with a lockfile and an `npm test` command.
-
-## Add the workflow
-
-Create `.shipfox/workflows/project-checks.yml`. This is a complete workflow:
+## Add the commands
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Run project checks
+name: Run shell commands
 runner: shipfox
 
 triggers:
@@ -29,27 +20,35 @@ triggers:
     source: manual
 
 jobs:
-  checks:
+    command:
     steps:
-      - run: npm ci
-      - run: npm test
+      - run: echo "Single-line command"
+      - run: |
+          echo "First line of a multiline command"
+          echo "Second line of a multiline command"
 ```
 
-Commit and push the file to the project's default branch. Wait for **Run project
-checks** to appear in the project's **Workflows** tab.
+## Verify the command
 
-## Verify the checks
+<Steps>
+  <Step>
 
-Select **Run** and open the new run.
+    **Start the workflow**
 
-1. Confirm that `npm ci` finishes successfully.
-2. Open the `npm test` step. Check that its output matches a local test run.
-3. In a test repository, push a safe failing test to the default branch and
-   start another run. Check that the test step fails. Revert the test change
-   afterward.
+    Select **Run**, then open the new run.
+  </Step>
+  <Step>
+
+    **Inspect the output**
+
+    Open both run steps. Confirm that their logs contain the three messages
+    from the example. After adapting the example, confirm that each command
+    produced its expected result.
+  </Step>
+</Steps>
 
 Use [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs) when output is
 missing. See [Run step
-fields](/reference/workflow-schema#run-step-fields) for all fields. See
+fields](/reference/workflow-schema#run-step-fields) for command options. See
 [Environment variables](/reference/workflow-schema#environment-variables) for
 workflow, job, and step order.

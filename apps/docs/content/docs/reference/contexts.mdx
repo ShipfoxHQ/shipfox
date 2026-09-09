@@ -27,6 +27,12 @@ reads `step` and `vars`.
 A field cannot read the value it sets. For example, `run_name` cannot read
 `run.name`.
 
+The `result` context exists only while a tool step maps its outputs, after the
+provider returns. The `outputs` mapping of a tool step reads `result` and
+`vars`. Every other field reads the stored value as
+`steps.<step_key>.outputs.result`. See [Tool step
+fields](/reference/workflow-schema#tool-step-fields).
+
 Reading a context the table does not list for the field fails the sync, with an
 error that names the context. The workflow never runs with an empty value in its
 place. See [Correct a context that is not

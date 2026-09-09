@@ -54,7 +54,7 @@ A group of steps that runs on a single runner. Jobs within a workflow run in par
 
 ## Step key
 
-A stable identifier on a step, set with the `key` field. Unlike `name` (a display label), `key` is what other parts of the workflow reference: `gate.on_failure.restart_from` restarts a job from the step carrying that key, and `steps.<key>.outputs` reads its outputs. Must be at least one character. Valid on both run steps and agent steps.
+A stable identifier on a step, set with the `key` field. Unlike `name` (a display label), `key` is what other parts of the workflow reference: `gate.on_failure.restart_from` restarts a job from the step carrying that key, and `steps.<key>.outputs` reads its outputs. Must be at least one character. Valid on run steps, agent steps, and tool steps.
 
 ## Listening job
 
@@ -93,7 +93,7 @@ The record created when a workflow starts for one event or manual action. A run 
 
 ## Runner
 
-A process you deploy on your own infrastructure that polls Shipfox for jobs. Jobs are dispatched to runners whose labels match the job's `runner:` field. Runners execute both run steps and agent steps. Multiple runners can be registered in a workspace. See [Runners and execution environments](/understand/runners-and-execution-environments).
+A process you deploy on your own infrastructure that polls Shipfox for jobs. Jobs are dispatched to runners whose labels match the job's `runner:` field. Runners execute run steps and agent steps; the Shipfox API executes tool steps while the runner waits. Multiple runners can be registered in a workspace. See [Runners and execution environments](/understand/runners-and-execution-environments).
 
 ## Run step
 
@@ -108,7 +108,16 @@ predicates. See [Secrets and variables](/reference/secrets-variables).
 
 ## Workflow step
 
-The smallest unit of work in a Shipfox workflow. A step is either a run step (executes a shell command) or an agent step (invokes an AI model). Steps within a job run sequentially. Each step can optionally carry a `gate` block for success evaluation and failure recovery.
+The smallest unit of work in a Shipfox workflow. A step is a run step (executes a shell command), an agent step (invokes an AI model), or a tool step (calls one integration tool). Steps within a job run sequentially. Each step can optionally carry a `gate` block for success evaluation and failure recovery.
+
+## Tool step
+
+A workflow step that calls one integration tool with inputs the workflow
+supplies. Defined with `tool` (required), plus optional `connection`, `with`,
+and an `outputs` mapping over `result`. Shipfox makes the call on its API
+through the integration connection, so the runner never sees the credential or
+the arguments. See [Tool step
+fields](/reference/workflow-schema#tool-step-fields).
 
 ## Thinking level
 

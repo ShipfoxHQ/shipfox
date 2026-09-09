@@ -1,10 +1,10 @@
 ---
 title: "Slack integration"
 sidebarTitle: "Overview"
-description: "Connect Slack to trigger workflows from messages, reactions, mentions, or slash commands, and give agents Slack tools."
+description: "Connect Slack to trigger workflows from messages, reactions, mentions, or slash commands, and call Slack tools from workflows."
 catalog:
   name: "Slack"
-  summary: "Connect a Slack workspace, receive events, and give agents scoped Slack tools."
+  summary: "Connect a Slack workspace, receive events, and call scoped Slack tools from workflows."
   capabilities: ["events", "agent_tools"]
   categories: ["messaging"]
   aliases: ["chatops", "notifications"]
@@ -45,7 +45,7 @@ triggers:
     event: app_mention
 ```
 
-For trigger and agent integration fields, see the
+For trigger, tool step, and agent integration fields, see the
 [workflow schema reference](/reference/workflow-schema).
 
 ## Capabilities
@@ -53,6 +53,6 @@ For trigger and agent integration fields, see the
 | Capability | Details |
 | --- | --- |
 | Events | [View Slack events](/integrations/slack/events). |
-| Agent tools | [View Slack agent tools](/integrations/slack/tools). |
+| Tools | [View Slack tools](/integrations/slack/tools). |
 
 [Connect Slack](/integrations/slack/setup) to create an integration connection.

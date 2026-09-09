@@ -317,7 +317,7 @@ these provider-specific homes:
 | Shipfox event names, emission conditions, and fields Shipfox normalizes or exposes on `event` | Provider events page (`events.mdx`) | `libs/api/integration/core-dto/src/events.ts`, each provider's `src/core/webhook.ts`, and its webhook DTO schemas. |
 | Raw pass-through webhook payload fields | The provider's upstream webhook reference | The provider owns and versions this schema. Link to it from `events.mdx`; do not reproduce it. |
 | Tool selectors, methods, sensitivity, sensitive status, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's `src/core/agent-tools.ts` catalog and its schemas. |
-| Trigger `source`, `event`, `filter`, and `with` fields, plus the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
+| Trigger `source`, `event`, `filter`, and `with` fields, tool step fields, and the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
 | Inspecting, pausing, or deleting an integration connection | The matching `how-to/set-up-work/manage-*` guide | The connection lifecycle implementation. |
 
 Shipfox owns the event name, emission condition, and any payload shape it
@@ -358,7 +358,7 @@ triggers:
 | --- | --- |
 | Source control | <Link to the relevant reference.> |
 | Events | [View events](/integrations/<provider>/events). |
-| Agent tools | [View agent tools](/integrations/<provider>/tools). |
+| Tools | [View tools](/integrations/<provider>/tools). |
 
 <If `setup.mdx` exists, link to [Set up this integration](/integrations/<provider>/setup).
 Otherwise, omit this line.>
@@ -469,7 +469,7 @@ the overview and to the workflow schema reference.
 
 ```mdx
 ---
-title: "<Provider> agent tools"
+title: "<Provider> tools"
 sidebarTitle: "Tools"
 description: "<State the provider tools this reference describes.>"
 ---
@@ -478,8 +478,11 @@ description: "<State the provider tools this reference describes.>"
 
 ## Selectors
 
-Use `family`, `family.method`, `family.*`, or a standalone selector. For the
-agent `integrations:` contract, see the [workflow schema reference](/reference/workflow-schema#agent-integration-fields).
+<State which tokens a tool step accepts in `tool` (a standalone id or
+`family.method`) and which selectors an agent step accepts in `integrations:`
+(`family`, `family.method`, `family.*`, or a standalone selector).> For the
+contracts, see [Tool step fields](/reference/workflow-schema#tool-step-fields)
+and [Agent integration fields](/reference/workflow-schema#agent-integration-fields).
 
 ## Tool catalog
 
@@ -520,10 +523,14 @@ tool needs sensitive handling; it is not a separate approval policy.
 4. Write `events.mdx` only when the provider emits Shipfox-named events.
    Otherwise, omit Events from the overview capability table.
 5. Write `tools.mdx` only when `capabilities[]` includes `agent_tools`.
-   Otherwise, omit Agent tools from the overview capability table.
+   Otherwise, omit Tools from the overview capability table.
 6. Add the provider `meta.json`, list only the existing pages in order, and
    register the provider directory in `integrations/meta.json`.
-7. Run the docs checks before review.
+7. Register the provider for generation: add it to
+   `src/lib/registered-integration-providers.ts`, map its DTO catalogs in
+   `scripts/generate.mjs`, add its icon to `src/lib/integration-catalog.ts`
+   and the catalog component, and extend the completeness test fixture.
+8. Run the docs checks before review.
 
 ### Authored and generated reference
 

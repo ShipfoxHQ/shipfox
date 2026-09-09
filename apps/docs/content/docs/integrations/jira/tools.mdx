@@ -1,23 +1,28 @@
 ---
-title: "Jira agent tools"
+title: "Jira tools"
 sidebarTitle: "Tools"
-description: "Look up the Jira tools, selectors, permissions, inputs, and outputs available to agent steps."
+description: "Look up the Jira tools, selectors, permissions, inputs, and outputs available to tool steps and agent steps."
 ---
 
 import JiraTools from '../../../generated/integrations/jira/tools.mdx';
 
-This reference lists the shipped Jira agent-tool catalog. See the [Jira
+This reference lists the shipped Jira tool catalog. See the [Jira
 overview](/integrations/jira) for authentication and setup.
 
 ## Selectors
 
-Use a standalone tool selector in an agent step's `integrations:` block. For the
-agent integration contract, see the [workflow schema reference](/reference/workflow-schema#agent-integration-fields).
+A tool step names one standalone tool id in its `tool` field. An agent step
+lists standalone selectors in its `integrations:` block. For the field
+contracts, see [Tool step fields](/reference/workflow-schema#tool-step-fields)
+and [Agent integration fields](/reference/workflow-schema#agent-integration-fields).
 
 ## Tool catalog
 
 Jira read tools require the `read:jira-work` OAuth scope. Jira write tools
-require `write:jira-work`, and the workflow step's `integrations` entry must set
-`allow_write: true` or Shipfox rejects the step at validation.
+require `write:jira-work`.
+
+An agent step's `integrations` entry must set `allow_write: true` to include a
+write tool, or Shipfox rejects the step at validation. A tool step needs no
+flag: naming the write tool is the choice.
 
 <JiraTools />

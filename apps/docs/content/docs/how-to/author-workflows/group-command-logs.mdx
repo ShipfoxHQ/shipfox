@@ -1,23 +1,20 @@
 ---
 title: "Group Long Command Logs"
 sidebarTitle: "Group Command Logs"
-description: "Print log markers around install and test output so the run view renders two collapsible groups."
+description: "Print log markers around command output so the run view renders collapsible groups."
 ---
 
 Use groups when one command step produces a long stream that is hard to scan.
 
-## Before you begin
-
-You need a project that can sync workflows, an online runner with the
-`shipfox` label, and a Node.js repository with a lockfile and tests.
-
 ## Add the workflow
 
-Create `.shipfox/workflows/grouped-checks.yml`. This is a complete workflow:
+Create `.shipfox/workflows/grouped-logs.yml`. This complete workflow groups
+output from two example commands. Replace the commands between the markers with
+your own.
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Run grouped checks
+name: Group command logs
 runner: shipfox
 
 triggers:
@@ -25,35 +22,30 @@ triggers:
     source: manual
 
 jobs:
-  checks:
+  example:
     steps:
       - run: |
-          echo "::group::Install dependencies"
-          if ! npm ci; then
-            echo "::endgroup::"
-            exit 1
-          fi
+          echo "::group::First command"
+          echo "First line"
+          echo "Second line"
           echo "::endgroup::"
 
-          echo "::group::Run tests"
-          if ! npm test; then
-            echo "::endgroup::"
-            exit 1
-          fi
+          echo "::group::Second command"
+          echo "Third line"
+          echo "Fourth line"
           echo "::endgroup::"
 ```
 
-Commit and push the file to the project's default branch. Wait for **Run grouped
-checks** to sync.
+Commit and push the file to the project's default branch. Wait for **Group
+command logs** to sync.
 
 ## Verify the groups
 
 Start the workflow and open the command step.
 
-1. Confirm that **Install dependencies** and **Run tests** appear as separate
+1. Confirm that **First command** and **Second command** appear as separate
    collapsible groups.
 2. Open each group and confirm that it contains only its command's output.
-3. Confirm that the step status still follows the command exit status.
 
 Use [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs) when output is
 missing, delayed, or truncated. Exact group and log limits live in

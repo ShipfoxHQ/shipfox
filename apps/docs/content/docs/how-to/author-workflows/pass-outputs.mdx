@@ -1,24 +1,17 @@
 ---
-title: "Pass a Computed Version to a Later Job"
-sidebarTitle: "Pass Outputs"
-description: "Publish a version from one job and use it in a later release-preview job."
+title: "Pass Output Between Jobs"
+sidebarTitle: "Pass Output Between Jobs"
+description: "Pass output from one job to another job in the same workflow."
 ---
 
-Use this guide when one job computes a small value that another isolated job
-needs. The workflow derives a version from Git and prints it in a later job.
+Use a job output to pass output between jobs. The first job publishes a step
+output. A dependent job reads it.
 
-## Before you begin
-
-You need a project that can sync workflows and an online runner with the
-`shipfox` label. The repository must contain at least one Git commit.
-
-## Add the workflow
-
-Create `.shipfox/workflows/release-version.yml`. This is a complete workflow:
+## Pass output between jobs
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Preview a release version
+name: Pass output between jobs
 runner: shipfox
 
 triggers:
@@ -26,76 +19,44 @@ triggers:
     source: manual
 
 jobs:
-  package:
+  prepare:
     outputs:
-      version: ${{ steps.read_version.outputs.version }}
+      message: ${{ steps.create_message.outputs.message }}
     steps:
-      - key: read_version
-        run: echo "version=$(git describe --tags --always)" >> "$SHIPFOX_OUTPUT"
+      - key: create_message
+        run: echo "message=Hello from the prepare job" >> "$SHIPFOX_OUTPUT"
         outputs:
-          version: string
+          message: string
 
-  preview:
-    needs: package
+  consume:
+    needs: prepare
     steps:
-      - run: |
-          printf 'Release version: %s\n' "${{ jobs.package.outputs.version }}"
+      - env:
+          MESSAGE: ${{ jobs.prepare.outputs.message }}
+        run: echo "$MESSAGE"
 ```
 
-The `read_version` step declares and writes `version`. The `package` job
-publishes it. The `preview` job declares the dependency, reads the job output,
-and places it in the command.
+The `prepare` job publishes the `message` step output. The `consume` job
+depends on `prepare` and reads the job output.
 
-A job output mapped from one expression preserves an inferred non-string source
-type. This lets a later job read a field from a structured JSON output:
+## Verify the output
 
-```yaml
-# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-jobs:
-  review:
-    outputs:
-      findings: ${{ steps.inspect.outputs.findings }}
-    steps:
-      - key: inspect
-        run: printf 'findings=%s\n' '[{"severity":"high"}]' >> "$SHIPFOX_OUTPUT"
-        outputs:
-          findings:
-            type: json
-            schema:
-              type: array
-              items:
-                type: object
-                additionalProperties: false
-                required:
-                  - severity
-                properties:
-                  severity:
-                    type: string
+<Steps>
+  <Step>
 
-  summarize:
-    needs: review
-    steps:
-      - run: printf 'Severity: %s\n' "${{ jobs.review.outputs.findings[0].severity }}"
-```
+    **Start the workflow**
 
-Mixed templates such as `Finding: ${{ steps.inspect.outputs.findings }}`
-remain strings. Sources without an inferred type also resolve to strings. See
-[Job outputs](/reference/limits#job-outputs) for size limits.
+    Select **Run**, then open the new run.
+  </Step>
+  <Step>
 
-Commit and push the file to the project's default branch. Wait for **Preview a
-release version** to sync.
+    **Compare the output**
 
-## Verify the value
+    Open `prepare` and confirm that its outputs include `message`. Open
+    `consume` and confirm that its log contains `Hello from the prepare job`.
+  </Step>
+</Steps>
 
-Start the workflow from the **Workflows** tab.
-
-1. Open `package` and confirm that its outputs include `version`.
-2. Open `preview` and confirm that the printed version matches the package
-   output.
-3. Confirm that `preview` ran in a separate job execution and did not rely on
-   files from `package`.
-
-Use [Step outputs](/reference/workflow-schema#step-outputs) for declaration
-types and encoding. Use [structured agent
-outputs](/how-to/author-workflows/use-structured-agent-outputs) when an agent,
-rather than a command, must produce the value.
+See [Step outputs](/reference/workflow-schema#step-outputs) for declaration
+types and encoding. See [Job outputs](/reference/limits#job-outputs) for size
+limits.
