@@ -1,5 +1,12 @@
 # @shipfox/node-pg
 
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+
 ## 0.5.1
 
 ### Patch Changes

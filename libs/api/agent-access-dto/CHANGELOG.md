@@ -1,5 +1,17 @@
 # @shipfox/api-agent-access-dto
 
+## 24.1.0
+
+### Minor Changes
+
+- c730a68: Adds `timed_out` and `run_cancelled` log records, exposes terminal causes on step-attempt termination events, and renders timeout, cancellation, and runner loss distinctly.
+- cdc9dfe: Adds the waiting workflow run status to DTO, database, server, and client contracts without producing it during run creation.
+
+### Patch Changes
+
+- Updated dependencies [c730a68]
+  - @shipfox/api-logs-dto@24.1.0
+
 ## 23.0.0
 
 ### Major Changes

@@ -1,5 +1,18 @@
 # @shipfox/api-email-challenges
 
+## 1.1.17
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+  - @shipfox/node-auth-root-key@0.3.1
+  - @shipfox/node-email@0.3.6
+  - @shipfox/node-mailer@0.2.7
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-module@1.0.11
+
 ## 1.1.16
 
 ### Patch Changes

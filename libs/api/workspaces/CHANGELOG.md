@@ -1,5 +1,24 @@
 # @shipfox/api-workspaces
 
+## 24.1.0
+
+### Patch Changes
+
+- Updated dependencies [edc3705]
+- Updated dependencies [dd01977]
+  - @shipfox/api-auth-dto@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/node-auth-root-key@0.3.1
+  - @shipfox/node-email@0.3.6
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-mailer@0.2.7
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-tokens@1.2.1
+  - @shipfox/node-module@1.0.11
+  - @shipfox/node-outbox@0.2.7
+
 ## 24.0.0
 
 ### Patch Changes

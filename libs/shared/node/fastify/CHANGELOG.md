@@ -1,5 +1,14 @@
 # @shipfox/node-fastify
 
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-opentelemetry@0.6.6
+
 ## 0.4.4
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @shipfox/node-error-monitoring
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+
 ## 0.3.0
 
 ### Minor Changes

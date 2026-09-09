@@ -1,5 +1,28 @@
 # @shipfox/api-logs
 
+## 24.1.0
+
+### Patch Changes
+
+- c730a68: Adds `timed_out` and `run_cancelled` log records, exposes terminal causes on step-attempt termination events, and renders timeout, cancellation, and runner loss distinctly.
+- Updated dependencies [d559bdb]
+- Updated dependencies [c730a68]
+- Updated dependencies [dd01977]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/workflow-document@3.7.0
+  - @shipfox/api-logs-dto@24.1.0
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-object-storage@0.2.1
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-temporal@0.5.1
+  - @shipfox/node-module@1.0.11
+  - @shipfox/node-outbox@0.2.7
+
 ## 24.0.0
 
 ### Patch Changes

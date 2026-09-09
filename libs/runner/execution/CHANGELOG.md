@@ -1,5 +1,16 @@
 # @shipfox/runner-execution
 
+## 0.1.46
+
+### Patch Changes
+
+- Updated dependencies [c730a68]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/runner-protocol@0.2.39
+  - @shipfox/runner-workspace@0.0.41
+  - @shipfox/node-opentelemetry@0.6.6
+
 ## 0.1.45
 
 ### Patch Changes

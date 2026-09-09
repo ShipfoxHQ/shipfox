@@ -1,5 +1,13 @@
 # @shipfox/api-auth-context
 
+## 24.1.0
+
+### Patch Changes
+
+- Updated dependencies [edc3705]
+  - @shipfox/api-auth-dto@24.1.0
+  - @shipfox/node-fastify@0.4.5
+
 ## 24.0.0
 
 ### Patch Changes

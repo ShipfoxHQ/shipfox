@@ -1,5 +1,13 @@
 # @shipfox/node-opentelemetry
 
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+  - @shipfox/node-log@0.3.9
+
 ## 0.6.5
 
 ### Patch Changes

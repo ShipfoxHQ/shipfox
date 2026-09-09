@@ -1,5 +1,30 @@
 # @shipfox/client-workflows
 
+## 41.0.0
+
+### Minor Changes
+
+- cdc9dfe: Adds the waiting workflow run status to DTO, database, server, and client contracts without producing it during run creation.
+
+### Patch Changes
+
+- c730a68: Adds `timed_out` and `run_cancelled` log records, exposes terminal causes on step-attempt termination events, and renders timeout, cancellation, and runner loss distinctly.
+- Updated dependencies [f22cfe7]
+- Updated dependencies [d559bdb]
+- Updated dependencies [c730a68]
+- Updated dependencies [34b5267]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/client-shell@41.0.0
+  - @shipfox/client-api@41.0.0
+  - @shipfox/api-definitions-dto@24.1.0
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/client-logs@41.0.0
+  - @shipfox/client-integrations@41.0.0
+  - @shipfox/client-projects@41.0.0
+  - @shipfox/client-triggers@41.0.0
+  - @shipfox/client-usage@41.0.0
+  - @shipfox/client-ui@41.0.0
+
 ## 40.0.0
 
 ### Patch Changes

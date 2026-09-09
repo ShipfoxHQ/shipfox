@@ -1,5 +1,12 @@
 # @shipfox/node-email
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+
 ## 0.3.5
 
 ### Patch Changes

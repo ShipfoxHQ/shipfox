@@ -1,5 +1,14 @@
 # @shipfox/node-temporal
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+  - @shipfox/node-error-monitoring@0.3.1
+  - @shipfox/node-opentelemetry@0.6.6
+
 ## 0.5.0
 
 ### Minor Changes

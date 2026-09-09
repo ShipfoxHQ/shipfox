@@ -1,5 +1,32 @@
 # @shipfox/api-auth
 
+## 24.1.0
+
+### Minor Changes
+
+- edc3705: Adds a bounded Auth lookup for impersonation-eligible user summaries in ID and search modes.
+- ab0d008: Adds impersonation window commands and routes.
+
+### Patch Changes
+
+- dd01977: Adds typed configuration-key fallbacks. API Auth now requires a validated API_URL in production and uses it when API_PUBLIC_URL is unset.
+- Updated dependencies [edc3705]
+- Updated dependencies [dd01977]
+  - @shipfox/api-auth-dto@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/api-email-challenges@1.1.17
+  - @shipfox/node-auth-root-key@0.3.1
+  - @shipfox/node-email@0.3.6
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-mailer@0.2.7
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-temporal@0.5.1
+  - @shipfox/node-tokens@1.2.1
+  - @shipfox/node-module@1.0.11
+  - @shipfox/node-outbox@0.2.7
+
 ## 24.0.0
 
 ### Major Changes

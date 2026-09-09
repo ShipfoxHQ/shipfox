@@ -1,5 +1,22 @@
 # @shipfox/api-usage
 
+## 24.1.0
+
+### Patch Changes
+
+- Updated dependencies [c730a68]
+- Updated dependencies [dd01977]
+- Updated dependencies [cdc9dfe]
+  - @shipfox/api-workflows-dto@24.1.0
+  - @shipfox/config@1.3.0
+  - @shipfox/api-auth-context@24.1.0
+  - @shipfox/node-fastify@0.4.5
+  - @shipfox/node-opentelemetry@0.6.6
+  - @shipfox/node-postgres@0.5.2
+  - @shipfox/node-temporal@0.5.1
+  - @shipfox/node-module@1.0.11
+  - @shipfox/node-outbox@0.2.7
+
 ## 24.0.0
 
 ### Patch Changes

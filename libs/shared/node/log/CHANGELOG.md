@@ -1,5 +1,12 @@
 # @shipfox/node-log
 
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [dd01977]
+  - @shipfox/config@1.3.0
+
 ## 0.3.8
 
 ### Patch Changes
