@@ -84,6 +84,10 @@ const scopes = {
   pullRequestsRead: [{permission: 'pull_requests', access: 'read'}],
   contentsRead: [{permission: 'contents', access: 'read'}],
   pullRequestsWrite: [{permission: 'pull_requests', access: 'write'}],
+  createPullRequest: [
+    {permission: 'pull_requests', access: 'write'},
+    {permission: 'contents', access: 'read'},
+  ],
   actionsRead: [{permission: 'actions', access: 'read'}],
   actionsWrite: [{permission: 'actions', access: 'write'}],
   checksRead: [{permission: 'checks', access: 'read'}],
@@ -829,7 +833,7 @@ export const githubAgentToolCatalog = [
     description: 'Create a new pull request in a GitHub repository.',
     sensitivity: 'write',
     sensitive: false,
-    requiredScope: scopes.pullRequestsWrite,
+    requiredScope: scopes.createPullRequest,
     inputSchema: repositoryInputSchema(
       {
         title: stringSchema('PR title'),

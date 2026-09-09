@@ -17,11 +17,13 @@ export const GITHUB_READ_RESULT_MARKER = 'github-read-result-marker';
 export const GITHUB_WRITE_RESULT_MARKER = 'github-write-result-marker';
 export const GITHUB_SEARCH_RESULT_MARKER = 'github-search-result-marker';
 export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
+export const GITHUB_PULL_REQUEST_RESULT_MARKER = 'github-pull-request-result-marker';
 
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
 const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
+const PULL_REQUESTS_PATH = /^\/repos\/([^/]+)\/([^/]+)\/pulls$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
 const CHECK_RUN_UPDATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs\/(\d+)$/u;
 const SEARCH_ISSUES_PATH = /^\/search\/issues$/u;
@@ -60,6 +62,13 @@ export type GithubApiMockCall =
     }
   | {
       kind: 'create-issue';
+      authorization: string | undefined;
+      owner: string;
+      repo: string;
+      body: Record<string, unknown>;
+    }
+  | {
+      kind: 'create-pull-request';
       authorization: string | undefined;
       owner: string;
       repo: string;
@@ -197,6 +206,11 @@ async function handleGithubRequest(params: {
     await handleCreateIssueRequest(context, createIssueMatch);
     return;
   }
+  const createPullRequestMatch = requestUrl.pathname.match(PULL_REQUESTS_PATH);
+  if (requestMatches(params.request, 'POST', createPullRequestMatch)) {
+    await handleCreatePullRequestRequest(context, createPullRequestMatch);
+    return;
+  }
   const checkRunCreateMatch = requestUrl.pathname.match(CHECK_RUN_CREATE_PATH);
   if (requestMatches(params.request, 'POST', checkRunCreateMatch)) {
     await handleCreateCheckRunRequest(context, checkRunCreateMatch);
@@ -306,6 +320,26 @@ async function handleCreateIssueRequest(
   sendJson(params.response, 201, {
     number: 2,
     marker: GITHUB_WRITE_RESULT_MARKER,
+  });
+}
+
+async function handleCreatePullRequestRequest(
+  params: GithubRequestContext,
+  match: RegExpMatchArray,
+): Promise<void> {
+  const body = await readJsonBody(params.request);
+  if (isCurrentInstallationAuthorization(params)) {
+    params.calls.push({
+      kind: 'create-pull-request',
+      authorization: params.authorization,
+      owner: decodeURIComponent(match[1] ?? ''),
+      repo: decodeURIComponent(match[2] ?? ''),
+      body,
+    });
+  }
+  sendJson(params.response, 201, {
+    number: 3,
+    marker: GITHUB_PULL_REQUEST_RESULT_MARKER,
   });
 }
 

@@ -15,6 +15,7 @@ import {
 } from '#attachments.js';
 import {
   GITHUB_GRAPHQL_RESULT_MARKER,
+  GITHUB_PULL_REQUEST_RESULT_MARKER,
   GITHUB_READ_RESULT_MARKER,
   GITHUB_SEARCH_RESULT_MARKER,
   GITHUB_STATEFUL_INSTALLATION_TOKEN,
@@ -276,6 +277,60 @@ test('enforces selected GitHub authorization for deterministic tools', async ({
         owner: 'shipfox',
         repo: 'e2e',
         issueNumber: 1,
+      },
+    ]);
+  } finally {
+    await fixture.githubApi.stop();
+  }
+});
+
+test('mints private-ref read access for pull request creation', async ({suite}, testInfo) => {
+  const uniqueId = shortId();
+  const fixture = await createGithubFixture(suite, uniqueId);
+
+  try {
+    const result = await runGithubWorkflow({
+      suite,
+      testInfo,
+      uniqueId,
+      scenario: 'github-create-private-pull-request',
+      workflowYaml: deterministicToolWorkflow({
+        connection: fixture.connection.slug,
+        tool: 'create_pull_request',
+        with: {
+          owner: 'shipfox',
+          repo: 'e2e',
+          title: 'Synthetic pull request',
+          head: 'feature',
+          base: 'main',
+        },
+        outputs: {marker: `\${{ result.pull_request.marker }}`},
+        verification: {
+          env: {MARKER: `\${{ steps.github.outputs.marker }}`},
+          run: `test "$MARKER" = "${GITHUB_PULL_REQUEST_RESULT_MARKER}"`,
+        },
+      }),
+    });
+
+    expect(result.terminal.status).toBe('succeeded');
+    expect(githubAgentToolCalls(fixture.githubApi)).toEqual([
+      {
+        kind: 'mint-token',
+        authorization: expect.any(String),
+        tokenFormatOverride: 'enabled',
+        installationId: fixture.installationId,
+        body: {permissions: {contents: 'read', pull_requests: 'write'}},
+      },
+      {
+        kind: 'create-pull-request',
+        authorization: `bearer ${fixture.installationToken}`,
+        owner: 'shipfox',
+        repo: 'e2e',
+        body: {
+          title: 'Synthetic pull request',
+          head: 'feature',
+          base: 'main',
+        },
       },
     ]);
   } finally {

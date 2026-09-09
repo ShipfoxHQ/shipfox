@@ -50,11 +50,12 @@ const graphqlRequirements: Record<string, GithubAppEndpointPermission> = {
 const metadataOnlyRoutes = new Set(['GET /search/issues']);
 
 /**
- * Requirements GitHub applies per media type, which the per-route table cannot express.
- * The pull request diff media type reads file contents and was observed to return 403
- * to a token holding only pull requests read.
+ * Requirements GitHub applies per operation detail, which the per-route table cannot express.
+ * Pull request diffs read file contents, and private pull request creation reads the base and
+ * head refs before GitHub accepts the write.
  */
 const operationRequirements: Record<string, GithubAppEndpointPermission[]> = {
+  create_pull_request: [{permission: 'contents', access: 'read'}],
   'pull_request_read.get_diff': [{permission: 'contents', access: 'read'}],
 };
 

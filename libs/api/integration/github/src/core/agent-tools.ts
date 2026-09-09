@@ -79,6 +79,8 @@ const NO_PENDING_REVIEW_MESSAGE =
   'No pending pull request review found for the authenticated GitHub user.';
 const NO_REVIEW_THREAD_MESSAGE =
   'GitHub did not create the review thread. Check that path, line, side, and any start_line range describe a line in the pull request diff.';
+const UNREADABLE_PULL_REQUEST_REFS_MESSAGE =
+  'GitHub could not read the pull request base or head ref. Verify both refs exist in the target repository and that the GitHub App has Contents: read access.';
 const CHECK_RUN_INPUT_STATUSES = new Set<string>(checkRunInputStatuses);
 const CHECK_RUN_INPUT_CONCLUSIONS = new Set<string>(checkRunInputConclusions);
 const CHECK_RUN_OUTPUT_STATUSES = new Set<string>(checkRunOutputStatuses);
@@ -945,7 +947,7 @@ async function savePullRequestWithReviewers(
   parameters: Record<string, unknown>,
 ): Promise<GithubToolResponse> {
   const {reviewers, ...pullRequestParameters} = parameters;
-  const response = await client.request(route, pullRequestParameters);
+  const response = await savePullRequest(client, route, pullRequestParameters);
   const requested = splitRequestedReviewers(reviewers);
   if (requested === undefined) return response;
 
@@ -972,6 +974,32 @@ async function savePullRequestWithReviewers(
     );
   } catch (error) {
     throw reviewerRequestFailure(pullNumber, error);
+  }
+}
+
+async function savePullRequest(
+  client: GithubToolClient,
+  route: string,
+  parameters: Record<string, unknown>,
+): Promise<GithubToolResponse> {
+  try {
+    return await mapGithubError(() => client.request(route, parameters));
+  } catch (error) {
+    if (
+      route === 'POST /repos/{owner}/{repo}/pulls' &&
+      error instanceof GithubIntegrationProviderError &&
+      error.reason === 'provider-rejected' &&
+      error.status === 422 &&
+      error.message.toLowerCase().includes('not all refs are readable')
+    ) {
+      throw new GithubIntegrationProviderError(
+        'provider-rejected',
+        UNREADABLE_PULL_REQUEST_REFS_MESSAGE,
+        undefined,
+        error.status,
+      );
+    }
+    throw error;
   }
 }
 

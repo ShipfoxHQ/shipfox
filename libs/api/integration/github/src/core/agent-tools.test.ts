@@ -128,7 +128,10 @@ const expectedCatalogRows = [
     category: 'pull_requests',
     sensitivity: 'write',
     sensitive: false,
-    requiredScope: [{permission: 'pull_requests', access: 'write'}],
+    requiredScope: [
+      {permission: 'pull_requests', access: 'write'},
+      {permission: 'contents', access: 'read'},
+    ],
   },
   {
     id: 'create_commit',
@@ -1384,6 +1387,110 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it('requests pull request write and contents read access for private refs', async () => {
+    const request = vi.fn(() => Promise.resolve({data: {number: 7}}));
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'pull-request-token',
+        expiresAt: new Date(),
+        permissions: {
+          contents: 'read' as const,
+          pull_requests: 'write' as const,
+        },
+      }),
+    );
+    const createPullRequest = githubAgentToolCatalog.find(
+      (entry) => entry.id === 'create_pull_request',
+    );
+    if (!createPullRequest) throw new Error('Missing create_pull_request tool');
+    const provider = new GithubAgentToolsProvider({
+      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
+      tokenProvider: {getInstallationAccessToken},
+      createClient: vi.fn(() => ({request})),
+    });
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [createPullRequest],
+      scope: undefined,
+    });
+
+    const result = await session.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        owner: 'shipfox',
+        repo: 'private-repository',
+        title: 'Title',
+        head: 'feature',
+        base: 'main',
+      },
+    });
+
+    expect(result).toMatchObject({structuredContent: {pull_request: {number: 7}}});
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(1, undefined, {
+      contents: 'read',
+      pull_requests: 'write',
+    });
+    expect(request).toHaveBeenCalledWith('POST /repos/{owner}/{repo}/pulls', {
+      owner: 'shipfox',
+      repo: 'private-repository',
+      title: 'Title',
+      head: 'feature',
+      base: 'main',
+    });
+  });
+
+  it.each([
+    {
+      missingPermission: 'contents read',
+      permissions: {pull_requests: 'write' as const},
+    },
+    {
+      missingPermission: 'pull requests write',
+      permissions: {contents: 'read' as const},
+    },
+  ])('rejects private pull request creation without $missingPermission', async ({permissions}) => {
+    const request = vi.fn();
+    const provider = new GithubAgentToolsProvider({
+      getInstallationByConnectionId: vi.fn(() => Promise.resolve(installation())),
+      tokenProvider: {
+        getInstallationAccessToken: vi.fn(() =>
+          Promise.resolve({token: 'installation-token', expiresAt: new Date(), permissions}),
+        ),
+      },
+      createClient: vi.fn(() => ({request})),
+    });
+    const tool = githubAgentToolCatalog.find((entry) => entry.id === 'create_pull_request');
+    if (!tool) throw new Error('Missing create_pull_request tool');
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [tool],
+      scope: undefined,
+    });
+
+    const result = await session.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        owner: 'shipfox',
+        repo: 'private-repository',
+        title: 'Title',
+        head: 'feature',
+        base: 'main',
+      },
+    });
+
+    expect(result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'GitHub installation token is missing permission for this operation: create_pull_request requires pull_requests: write, contents: read',
+        },
+      ],
+      structuredContent: {code: 'access-denied'},
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it('keeps the strongest permission when selected tools share a scope', async () => {
     const request = vi.fn(() => Promise.resolve({data: {number: 1}}));
     const getInstallationAccessToken = vi.fn(() =>
@@ -1826,6 +1933,87 @@ describe('github agent tool catalog', () => {
       repo: 'platform',
       pull_number: 7,
       title: 'Updated',
+    });
+  });
+
+  it('translates unreadable pull request refs into an actionable non-retryable error', async () => {
+    const request = vi.fn(() =>
+      Promise.reject(
+        new RequestError('Validation Failed: not all refs are readable', 422, {
+          request: {
+            method: 'POST',
+            url: 'https://api.github.com/repos/shipfox/private-repository/pulls',
+            headers: {},
+          },
+        }),
+      ),
+    );
+    const provider = createAgentToolsProvider({request});
+    const tool = githubAgentToolCatalog.find((entry) => entry.id === 'create_pull_request');
+    if (!tool) throw new Error('Missing create_pull_request tool');
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [tool],
+      scope: undefined,
+    });
+
+    const result = session.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        owner: 'shipfox',
+        repo: 'private-repository',
+        title: 'Title',
+        head: 'feature',
+        base: 'main',
+      },
+    });
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'provider-rejected',
+      message:
+        'GitHub could not read the pull request base or head ref. Verify both refs exist in the target repository and that the GitHub App has Contents: read access.',
+      retryAfterSeconds: undefined,
+      status: 422,
+    });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it('preserves other pull request validation failures', async () => {
+    const request = vi.fn(() =>
+      Promise.reject(
+        new RequestError('No commits between main and feature', 422, {
+          request: {
+            method: 'POST',
+            url: 'https://api.github.com/repos/shipfox/public-repository/pulls',
+            headers: {},
+          },
+        }),
+      ),
+    );
+    const provider = createAgentToolsProvider({request});
+    const tool = githubAgentToolCatalog.find((entry) => entry.id === 'create_pull_request');
+    if (!tool) throw new Error('Missing create_pull_request tool');
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [tool],
+      scope: undefined,
+    });
+
+    const result = session.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        owner: 'shipfox',
+        repo: 'public-repository',
+        title: 'Title',
+        head: 'feature',
+        base: 'main',
+      },
+    });
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'provider-rejected',
+      message: 'No commits between main and feature',
+      status: 422,
     });
   });
 

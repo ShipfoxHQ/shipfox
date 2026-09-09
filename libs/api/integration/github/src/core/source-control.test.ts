@@ -1,6 +1,7 @@
 import type {GithubApiClient, GithubRepository} from '#api/client.js';
 import type {GithubCheckoutTokenCachePort} from '#api/github-checkout-token-cache.js';
 import {githubInstallationFactory} from '#test/index.js';
+import {GithubAgentToolsProvider, githubAgentToolCatalog} from './agent-tools.js';
 import {GithubIntegrationProviderError} from './errors.js';
 import {GithubSourceControlProvider} from './source-control.js';
 
@@ -687,6 +688,99 @@ describe('GithubSourceControlProvider', () => {
       expect.any(Function),
       'rejected-generation',
     );
+  });
+
+  it('keeps private checkout and pull request tool credentials independently scoped', async () => {
+    await createInstallation();
+    const github = githubClient({
+      createInstallationAccessToken: vi.fn(() =>
+        Promise.resolve({
+          token: 'checkout-token',
+          expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+          permissions: {contents: 'read' as const},
+          repositories: [CHECKOUT_REPOSITORY],
+        }),
+      ),
+    });
+    const getOrMint = vi.fn<GithubCheckoutTokenCachePort['getOrMint']>(async (_scope, mint) => {
+      const minted = await mint();
+      return {
+        token: minted.token,
+        expiresAt: minted.expiresAt,
+        generation: 'checkout-generation',
+      };
+    });
+    const checkoutProvider = new GithubSourceControlProvider(github, undefined, {getOrMint});
+    const getInstallationAccessToken = vi.fn(() =>
+      Promise.resolve({
+        token: 'pull-request-tool-token',
+        expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+        permissions: {
+          contents: 'read' as const,
+          pull_requests: 'write' as const,
+        },
+      }),
+    );
+    const request = vi.fn(() => Promise.resolve({data: {number: 7}}));
+    const agentToolsProvider = new GithubAgentToolsProvider({
+      getInstallationByConnectionId: vi.fn(() =>
+        Promise.resolve(
+          githubInstallationFactory.build({
+            connectionId,
+            installationId: String(installationId),
+          }),
+        ),
+      ),
+      tokenProvider: {getInstallationAccessToken},
+      createClient: vi.fn(() => ({request})),
+    });
+
+    const checkoutCredentials = await checkoutProvider.createCheckoutCredentials({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      permissions: {contents: 'read'},
+    });
+    expect(getInstallationAccessToken).not.toHaveBeenCalled();
+
+    const createPullRequest = githubAgentToolCatalog.find(
+      (entry) => entry.id === 'create_pull_request',
+    );
+    if (!createPullRequest) throw new Error('Missing create_pull_request tool');
+    const session = await agentToolsProvider.openSession({
+      connection: connection(),
+      tools: [createPullRequest],
+      scope: undefined,
+    });
+    const pullRequest = await session.call({
+      toolId: 'create_pull_request',
+      arguments: {
+        owner: 'shipfox',
+        repo: 'platform',
+        title: 'Title',
+        head: 'feature',
+        base: 'main',
+      },
+    });
+
+    expect(checkoutCredentials.token).toBe('checkout-token');
+    expect(pullRequest).toMatchObject({structuredContent: {pull_request: {number: 7}}});
+    expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
+      installationId,
+      repositoryId: 42,
+      permissions: {contents: 'read'},
+    });
+    expect(getOrMint).toHaveBeenCalledOnce();
+    expect(getInstallationAccessToken).toHaveBeenCalledWith(installationId, undefined, {
+      contents: 'read',
+      pull_requests: 'write',
+    });
+    expect(request).toHaveBeenCalledWith('POST /repos/{owner}/{repo}/pulls', {
+      owner: 'shipfox',
+      repo: 'platform',
+      title: 'Title',
+      head: 'feature',
+      base: 'main',
+    });
   });
 
   it('does not return a rejected generation', async () => {
