@@ -3,4 +3,4 @@
 "@shipfox/api-auth": patch
 ---
 
-Adds typed configuration-key fallbacks and uses them to derive API_PUBLIC_URL from the resolved API_URL.
+Adds typed configuration-key fallbacks. API Auth now requires a validated API_URL in production and uses it when API_PUBLIC_URL is unset.

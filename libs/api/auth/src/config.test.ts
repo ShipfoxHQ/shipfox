@@ -92,7 +92,7 @@ describe('signup gate configuration', () => {
     expect(config.API_PUBLIC_URL).toBe('https://internal-api.example.test');
   });
 
-  test('rejects an invalid API_URL fallback', async () => {
+  test('rejects an invalid API_URL', async () => {
     vi.stubEnv('API_PUBLIC_URL', undefined);
     vi.stubEnv('API_URL', 'internal-api.example.test');
     vi.resetModules();

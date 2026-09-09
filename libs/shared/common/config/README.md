@@ -38,8 +38,9 @@ config.DEBUG; // boolean
 ```
 
 `fallbackTo` accepts a key from the same schema with a compatible output type.
-The source value resolves before the dependent validator checks it. A fallback
-target cannot also declare a static or environment-specific default.
+The source value resolves before the dependent validator checks it. A key that
+declares `fallbackTo` cannot also declare a static or environment-specific
+default; the source key can.
 
 Pass `update` in tests to override `process.env`:
 
