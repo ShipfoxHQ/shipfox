@@ -419,7 +419,7 @@ function toWorkflowRunResult(run: {
   number: number;
   name: string;
   workflow_name: string;
-  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  status: 'waiting' | 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   origin: 'synced' | 'dev';
   dev_source: {
     ref: string;

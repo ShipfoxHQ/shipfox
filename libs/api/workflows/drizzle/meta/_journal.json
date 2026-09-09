@@ -71,6 +71,13 @@
       "when": 1788607058447,
       "tag": "0009_luxuriant_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788884361299,
+      "tag": "0010_colossal_prism",
+      "breakpoints": true
     }
   ]
 }

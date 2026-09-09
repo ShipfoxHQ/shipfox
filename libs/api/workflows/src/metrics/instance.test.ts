@@ -64,6 +64,16 @@ function histogramRecord(name: string): ReturnType<typeof vi.fn> {
   return histogram.record;
 }
 
+describe('workflow run status metrics', () => {
+  test('records waiting status transitions', () => {
+    metrics.recordWorkflowRunStatusChanged('waiting');
+
+    expect(counterAdd('workflows_run_status_changed')).toHaveBeenCalledWith(1, {
+      status: 'waiting',
+    });
+  });
+});
+
 describe('workflow tool invocation metrics', () => {
   test('defines the duration histogram and reclaim counter with bounded labels', () => {
     const histogramCall = (

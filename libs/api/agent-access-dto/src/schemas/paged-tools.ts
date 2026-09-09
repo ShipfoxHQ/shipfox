@@ -33,7 +33,14 @@ export const listWorkflowDefinitionsInputSchema = z
   })
   .strict();
 
-const workflowRunStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']);
+const workflowRunStatusSchema = z.enum([
+  'waiting',
+  'pending',
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+]);
 const workflowRunOriginSchema = z.enum(['synced', 'dev']);
 const AGENT_ACCESS_ATTEMPT_MAX = 2_147_483_647;
 const WORKFLOW_RUN_DATE_WINDOW_MAX_MS = 365 * 24 * 60 * 60 * 1000;
@@ -152,7 +159,7 @@ export const listWorkflowRunsInputJsonSchema = {
     project_id: {type: 'string', format: 'uuid'},
     status: {
       type: 'string',
-      enum: ['pending', 'running', 'succeeded', 'failed', 'cancelled'],
+      enum: ['waiting', 'pending', 'running', 'succeeded', 'failed', 'cancelled'],
     },
     definition_id: {type: 'string', format: 'uuid'},
     origin: {type: 'string', enum: ['synced', 'dev']},
@@ -323,7 +330,7 @@ const runResultItemSchema = z
     number: z.number().int().positive(),
     name: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
     workflow_name: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
-    status: z.enum(['pending', 'running', 'succeeded', 'failed', 'cancelled']),
+    status: z.enum(['waiting', 'pending', 'running', 'succeeded', 'failed', 'cancelled']),
     origin: z.enum(['synced', 'dev']),
     dev_source: runDevSourceSchema.nullable(),
     current_attempt: z.number().int().positive(),
@@ -543,7 +550,10 @@ const runResultJsonSchema = {
     number: {type: 'integer', minimum: 1},
     name: cappedText,
     workflow_name: cappedText,
-    status: {type: 'string', enum: ['pending', 'running', 'succeeded', 'failed', 'cancelled']},
+    status: {
+      type: 'string',
+      enum: ['waiting', 'pending', 'running', 'succeeded', 'failed', 'cancelled'],
+    },
     origin: {type: 'string', enum: ['synced', 'dev']},
     dev_source: nullable(runDevSourceJsonSchema),
     current_attempt: {type: 'integer', minimum: 1},

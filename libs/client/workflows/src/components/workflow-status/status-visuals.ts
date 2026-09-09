@@ -16,6 +16,8 @@ export interface WorkflowStatusVisual {
 // status the API grows into (DESIGN.md section 9) into a compile error.
 export function getWorkflowStatusVisual(status: WorkflowDisplayStatus): WorkflowStatusVisual {
   switch (status) {
+    case 'waiting':
+      return {kind: 'waiting', label: 'Waiting', dot: 'neutral', badge: 'neutral'};
     case 'pending':
       return {kind: 'pending', label: 'Pending', dot: 'neutral', badge: 'neutral'};
     case 'running':

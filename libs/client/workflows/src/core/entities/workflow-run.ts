@@ -8,7 +8,13 @@ import {
 import type {JobExecutionStatus} from './job-execution.js';
 import type {WorkflowRunAttemptSummary} from './workflow-run-attempt.js';
 
-export type WorkflowRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type WorkflowRunStatus =
+  | 'waiting'
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
 export type WorkflowRunRerunMode = 'all' | 'failed';
 export type WorkflowStatus = WorkflowRunStatus | (typeof WORKFLOW_JOB_STATUSES)[number];
 
@@ -35,6 +41,7 @@ export interface WorkflowRunDevSource {
 export type WorkflowDisplayStatus = WorkflowStatus | 'listening';
 
 export const WORKFLOW_RUN_STATUSES = [
+  'waiting',
   'pending',
   'running',
   'succeeded',

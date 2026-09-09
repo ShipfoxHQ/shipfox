@@ -50,8 +50,10 @@ describe('validateWorkflowRunsSearch', () => {
   });
 
   test('keeps only the statuses it knows out of a mixed list', () => {
-    expect(validateWorkflowRunsSearch({status: ['failed', 'nonsense', 'running']})).toEqual({
-      status: ['failed', 'running'],
+    expect(
+      validateWorkflowRunsSearch({status: ['failed', 'nonsense', 'running', 'waiting']}),
+    ).toEqual({
+      status: ['failed', 'running', 'waiting'],
     });
   });
 

@@ -65,6 +65,49 @@ describe('workflow run queries', () => {
       expect(updated.version).toBe(2);
     });
 
+    test('accepts waiting without starting the run', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      const waiting = await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'waiting',
+        expectedVersion: run.version,
+      });
+
+      expect(waiting.status).toBe('waiting');
+      expect(waiting.startedAt).toBeNull();
+      expect(waiting.finishedAt).toBeNull();
+    });
+
+    test.each([
+      ['waiting', 'waiting'],
+      ['waiting', 'pending'],
+      ['waiting', 'running'],
+      ['pending', 'waiting'],
+      ['pending', 'pending'],
+      ['pending', 'running'],
+      ['running', 'waiting'],
+      ['running', 'pending'],
+      ['running', 'running'],
+    ] as const)('rejects a second active attempt when the first is %s and the second is %s', async (firstStatus, secondStatus) => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+      if (firstStatus !== 'pending') {
+        await updateWorkflowRunStatus({
+          workflowRunId: run.id,
+          status: firstStatus,
+          expectedVersion: run.version,
+        });
+      }
+
+      await expect(
+        db().insert(workflowRunAttempts).values({
+          workflowRunId: run.id,
+          attempt: 2,
+          status: secondStatus,
+        }),
+      ).rejects.toThrow();
+    });
+
     test('preserves terminal status reason when a later transition is ignored', async () => {
       const run = await createWorkflowRun({
         workspaceId,

@@ -9,6 +9,7 @@ export const WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT = 25;
 export const WORKFLOW_RUN_JOB_POSITION_MAX = 2_147_483_647;
 
 export const workflowRunStatusSchema = z.enum([
+  'waiting',
   'pending',
   'running',
   'succeeded',
