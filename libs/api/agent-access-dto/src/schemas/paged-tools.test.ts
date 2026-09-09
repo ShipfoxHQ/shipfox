@@ -7,7 +7,10 @@ import {
   listProjectsResultSchema,
   listTriggerEventsInputSchema,
   listWorkflowDefinitionsResultSchema,
+  listWorkflowRunsInputJsonSchema,
   listWorkflowRunsInputSchema,
+  listWorkflowRunsResultJsonSchema,
+  listWorkflowRunsResultSchema,
 } from './paged-tools.js';
 
 const projectId = '00000000-0000-4000-8000-000000000001';
@@ -31,10 +34,46 @@ describe('paged agent-access schemas', () => {
     );
   });
 
-  test('accepts waiting as a workflow-run status filter', () => {
+  test('accepts waiting in workflow-run filter and result contracts', () => {
     expect(
       listWorkflowRunsInputSchema.parse({project_id: projectId, status: 'waiting'}).status,
     ).toBe('waiting');
+    expect(listWorkflowRunsInputJsonSchema.properties.status.enum).toContain('waiting');
+
+    const waitingRun = {
+      id: '00000000-0000-4000-8000-000000000002',
+      project_id: projectId,
+      definition_id: '00000000-0000-4000-8000-000000000003',
+      number: 1,
+      name: 'Waiting run',
+      workflow_name: 'Workflow',
+      status: 'waiting',
+      origin: 'synced',
+      dev_source: null,
+      current_attempt: 1,
+      latest_attempt: 1,
+      trigger_provider: null,
+      trigger_source: 'manual',
+      trigger_event: 'fire',
+      trigger_reference: null,
+      job_status_counts: [],
+      has_started_job_execution: false,
+      created_at: '2026-09-08T00:00:00.000Z',
+      updated_at: '2026-09-08T00:00:00.000Z',
+      started_at: null,
+      finished_at: null,
+    };
+
+    expect(
+      listWorkflowRunsResultSchema.safeParse({
+        runs: [waitingRun],
+        next_cursor: null,
+        filtered_total_count: 1,
+      }).success,
+    ).toBe(true);
+    expect(listWorkflowRunsResultJsonSchema.properties.runs.items.properties.status.enum).toContain(
+      'waiting',
+    );
   });
 
   test('keeps output schemas as one strict object envelope result', () => {
