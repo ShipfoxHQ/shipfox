@@ -81,7 +81,9 @@ export function LogView({
     [normalizedSearch, searchIndex, tree.nodes],
   );
   const resolvedToolCalls = useMemo(() => collectResolvedToolCalls(tree.nodes), [tree.nodes]);
-  const noOutputState = normalizedSearch ? null : getNoOutputState(tree, emptyState);
+  const hasIncompleteTerminal = truncated && !recordTree.terminated;
+  const noOutputState =
+    normalizedSearch || hasIncompleteTerminal ? null : getNoOutputState(tree, emptyState);
   const anchorRecordCount = records.length;
   let searchStatus: string | null = null;
   if (normalizedSearch) {
@@ -140,7 +142,7 @@ export function LogView({
           Boolean(normalizedSearch),
           resolvedToolCalls,
         )}
-        {truncated && !recordTree.terminated && !normalizedSearch ? <IncompleteLogRow /> : null}
+        {hasIncompleteTerminal && !normalizedSearch ? <IncompleteLogRow /> : null}
       </LogRows>
     </>
   );

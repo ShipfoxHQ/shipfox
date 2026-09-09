@@ -493,6 +493,8 @@ export async function failJobExecutionAsTimedOut(params: {
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<JobExecution> {
   const result = await db().transaction(async (tx) => {
+    await getStepsByJobExecutionIdForUpdate(params.jobExecutionId, tx);
+
     const updated = await optimisticLockRetry({
       updateFn: () =>
         updateJobExecutionStatusAtVersion(tx, {

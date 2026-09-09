@@ -8,4 +8,4 @@
 "@shipfox/client-workflows": patch
 ---
 
-Adds timeout and run-cancellation log records, and preserves the authoritative cause while closing an abandoned stream.
+Adds `timed_out` and `run_cancelled` log records, exposes terminal causes on step-attempt termination events, and renders timeout, cancellation, and runner loss distinctly.

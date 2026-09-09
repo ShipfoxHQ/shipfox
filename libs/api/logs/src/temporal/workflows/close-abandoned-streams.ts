@@ -22,7 +22,7 @@ export async function closeAbandonedStreams(input: CloseAbandonedStreamsInput): 
 
   const {closed} = await closeAbandonedStreamsActivity({
     jobId: input.jobId,
-    terminalCause: input.terminalCause === undefined ? 'runner_lost' : input.terminalCause,
+    terminalCause: input.terminalCause,
   });
   if (closed > 0) {
     log.info('Force-closed abandoned log streams', {jobId: input.jobId, closed});

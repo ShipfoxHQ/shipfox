@@ -111,6 +111,14 @@ describe('LogView', () => {
     expect(screen.queryByText('Running')).not.toBeInTheDocument();
   });
 
+  test('renders only the incomplete state for an empty truncated stream', () => {
+    render(<LogView truncated records={[]} />);
+
+    expect(screen.getByText('Log stream incomplete')).toBeInTheDocument();
+    expect(screen.queryByText('Step produced no output')).not.toBeInTheDocument();
+    expect(screen.queryByText('No output yet')).not.toBeInTheDocument();
+  });
+
   test('does not duplicate an authoritative terminal marker for a truncated stream', () => {
     render(<LogView truncated records={[{v: 1, ts, type: 'timed_out'}]} />);
 
