@@ -181,6 +181,76 @@ describe('createIntegrationToolDispatcher', () => {
     expect(resolveRepositoryAuthorization).toHaveBeenCalledTimes(1);
     expect(onOpenSession).not.toHaveBeenCalled();
   });
+
+  it('checks repository authorization before dispatching a GitHub check-run write', async () => {
+    const onOpenSession = vi.fn();
+    const repositoryScope = {
+      kind: 'declared-targets' as const,
+      repositories: [{owner: 'shipfox', name: 'platform'}],
+    };
+    const entry = {
+      ...catalogWithRepositoryScope(() => repositoryScope),
+      id: 'check_run_write',
+      sensitivity: 'write' as const,
+      methods: [
+        {
+          id: 'create',
+          description: 'Create a check run.',
+          sensitivity: 'write' as const,
+          sensitive: false,
+          requiredScope: [],
+          repositoryScope: () => repositoryScope,
+        },
+      ],
+    };
+    const resolveRepositoryAuthorization = vi.fn(async () => ({
+      authorized: false as const,
+      reason: 'repository_not_granted' as const,
+    }));
+    const dispatch = createIntegrationToolDispatcher({
+      registry: registryWithAgentTools([entry], {
+        repositoryAuthorization: 'enforced',
+        onOpenSession,
+      }),
+      lease: leaseContext({workspaceId: 'workspace-1', projectId: 'project-run'}),
+      repositoryAuthorizer: {enabled: true, resolveRepositoryAuthorization},
+    });
+
+    const result = await dispatch({
+      authorizedTool: {
+        ...authorizedTool(),
+        tool: materializedTool({
+          id: 'check_run_write',
+          sensitivity: 'write',
+          methods: [
+            {
+              id: 'create',
+              token: 'check_run_write.create',
+              description: 'Create a check run.',
+              sensitivity: 'write',
+              sensitive: false,
+              requiredScope: [],
+            },
+          ],
+        }),
+        catalogEntry: entry,
+      },
+      arguments: {
+        method: 'create',
+        owner: 'shipfox',
+        repo: 'platform',
+        name: 'Shipfox review',
+        head_sha: 'a'.repeat(40),
+      },
+      method: 'create',
+    });
+
+    expect(result).toMatchObject({
+      result: {isError: true, structuredContent: {code: 'repository-not-granted'}},
+    });
+    expect(resolveRepositoryAuthorization).toHaveBeenCalledTimes(1);
+    expect(onOpenSession).not.toHaveBeenCalled();
+  });
 });
 
 function createDispatcher(callError: unknown) {

@@ -69,6 +69,25 @@ const integrationValidationContext = {
           {token: 'issue_read.get', kind: 'method', sensitivity: 'read', sensitive: false},
           {token: 'issue_write', kind: 'family', sensitivity: 'write', sensitive: false},
           {token: 'issue_write.create', kind: 'method', sensitivity: 'write', sensitive: false},
+          {token: 'check_run_write', kind: 'family', sensitivity: 'write', sensitive: false},
+          {
+            token: 'check_run_write.*',
+            kind: 'family_wildcard',
+            sensitivity: 'write',
+            sensitive: false,
+          },
+          {
+            token: 'check_run_write.create',
+            kind: 'method',
+            sensitivity: 'write',
+            sensitive: false,
+          },
+          {
+            token: 'check_run_write.update',
+            kind: 'method',
+            sensitivity: 'write',
+            sensitive: false,
+          },
           {token: 'list_issues', kind: 'standalone', sensitivity: 'read', sensitive: false},
           {
             token: 'merge_pull_request',
@@ -173,6 +192,34 @@ const integrationValidationContext = {
               required: ['number'],
               additionalProperties: false,
             },
+          },
+          {
+            id: 'check_run_write',
+            description: 'Create or update a check run',
+            sensitivity: 'write',
+            sensitive: false,
+            requiredScope: 'write',
+            inputSchema: {
+              type: 'object',
+              properties: {method: {type: 'string', enum: ['create', 'update']}},
+              required: ['method'],
+            },
+            methods: [
+              {
+                id: 'create',
+                description: 'Create a check run',
+                sensitivity: 'write',
+                sensitive: false,
+                requiredScope: 'write',
+              },
+              {
+                id: 'update',
+                description: 'Update a check run',
+                sensitivity: 'write',
+                sensitive: false,
+                requiredScope: 'write',
+              },
+            ],
           },
           {
             id: 'list_issues',
@@ -1701,6 +1748,31 @@ describe('normalizeWorkflowDocument', () => {
       {
         code: 'integration-write-not-allowed',
         details: {tokens: ['create_branch']},
+      },
+    ]);
+  });
+
+  it('requires allow_write for both check-run write methods', () => {
+    const document: WorkflowDocument = {
+      name: 'check-run integrations',
+      jobs: {
+        review: {
+          steps: [
+            {
+              prompt: 'Publish the review check.',
+              integrations: [{include: ['check_run_write.create', 'check_run_write.update']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'integration-write-not-allowed',
+        details: {tokens: ['check_run_write.create', 'check_run_write.update']},
       },
     ]);
   });

@@ -87,13 +87,19 @@ export interface GithubApiMock {
   stop(): Promise<void>;
 }
 
+export interface GithubApiMockFailure {
+  status: number;
+  body?: Record<string, unknown> | undefined;
+}
+
 export interface GithubApiMockOptions {
   endpoint?: URL | undefined;
   installationId?: number | undefined;
   installationToken?: string | undefined;
   checkRunCreateResponse?: Record<string, unknown> | undefined;
   checkRunUpdateResponse?: Record<string, unknown> | undefined;
-  unapprovedPermissionProfiles?: readonly Record<string, string>[] | undefined;
+  checkRunCreateFailure?: GithubApiMockFailure | undefined;
+  checkRunUpdateFailure?: GithubApiMockFailure | undefined;
 }
 
 export async function startGithubApiMock(
@@ -104,10 +110,11 @@ export async function startGithubApiMock(
   const installationToken = options.installationToken ?? GITHUB_STATELESS_INSTALLATION_TOKEN;
   const checkRunCreateResponse = options.checkRunCreateResponse ?? {};
   const checkRunUpdateResponse = options.checkRunUpdateResponse ?? {};
+  const checkRunCreateFailure = options.checkRunCreateFailure;
+  const checkRunUpdateFailure = options.checkRunUpdateFailure;
   const knownCheckRunIds = new Set<number>();
   addConfiguredCheckRunId(knownCheckRunIds, checkRunCreateResponse);
   addConfiguredCheckRunId(knownCheckRunIds, checkRunUpdateResponse);
-  const unapprovedPermissionProfiles = options.unapprovedPermissionProfiles ?? [];
   const endpoint = options.endpoint ?? new URL(requiredGithubApiBaseUrl());
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
@@ -118,8 +125,9 @@ export async function startGithubApiMock(
       installationToken,
       checkRunCreateResponse,
       checkRunUpdateResponse,
+      checkRunCreateFailure,
+      checkRunUpdateFailure,
       knownCheckRunIds,
-      unapprovedPermissionProfiles,
       request,
       response,
     });
@@ -151,8 +159,9 @@ interface GithubRequestContext {
   installationToken: string;
   checkRunCreateResponse: Record<string, unknown>;
   checkRunUpdateResponse: Record<string, unknown>;
+  checkRunCreateFailure: GithubApiMockFailure | undefined;
+  checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
-  unapprovedPermissionProfiles: readonly Record<string, string>[];
   request: IncomingMessage;
   response: ServerResponse;
   requestUrl: URL;
@@ -166,8 +175,9 @@ async function handleGithubRequest(params: {
   installationToken: string;
   checkRunCreateResponse: Record<string, unknown>;
   checkRunUpdateResponse: Record<string, unknown>;
+  checkRunCreateFailure: GithubApiMockFailure | undefined;
+  checkRunUpdateFailure: GithubApiMockFailure | undefined;
   knownCheckRunIds: Set<number>;
-  unapprovedPermissionProfiles: readonly Record<string, string>[];
   request: IncomingMessage;
   response: ServerResponse;
 }): Promise<void> {
@@ -246,10 +256,6 @@ async function handleMintRequest(
     installationId,
     body,
   });
-  if (matchesUnapprovedPermissionProfile(body, params.unapprovedPermissionProfiles)) {
-    sendJson(params.response, 422, {message: 'Unapproved permission profile'});
-    return;
-  }
   const repositories = scopedRepositories(body, params.endpoint);
   sendJson(params.response, 201, {
     token: params.installationToken,
@@ -324,6 +330,14 @@ async function handleCreateCheckRunRequest(
       body,
     });
   }
+  if (params.checkRunCreateFailure !== undefined) {
+    sendJson(
+      params.response,
+      params.checkRunCreateFailure.status,
+      params.checkRunCreateFailure.body ?? {message: 'Check-run creation rejected'},
+    );
+    return;
+  }
   addConfiguredCheckRunId(params.knownCheckRunIds, params.checkRunCreateResponse);
   sendJson(params.response, 201, params.checkRunCreateResponse);
 }
@@ -344,6 +358,14 @@ async function handleUpdateCheckRunRequest(
       checkRunId,
       body,
     });
+  }
+  if (params.checkRunUpdateFailure !== undefined) {
+    sendJson(
+      params.response,
+      params.checkRunUpdateFailure.status,
+      params.checkRunUpdateFailure.body ?? {message: 'Check-run update rejected'},
+    );
+    return;
   }
   if (!params.knownCheckRunIds.has(checkRunId)) {
     sendJson(params.response, 404, {message: 'Not Found'});
@@ -418,22 +440,6 @@ function permissionsFromMint(body: Record<string, unknown>): Record<string, stri
   return isRecord(body.permissions)
     ? (body.permissions as Record<string, string>)
     : {issues: 'write'};
-}
-
-function matchesUnapprovedPermissionProfile(
-  body: Record<string, unknown>,
-  profiles: readonly Record<string, string>[],
-): boolean {
-  if (!isRecord(body.permissions)) return false;
-  const requestedPermissions = body.permissions;
-  return profiles.some((profile) => {
-    const requestedEntries = Object.entries(requestedPermissions);
-    const profileEntries = Object.entries(profile);
-    return (
-      requestedEntries.length === profileEntries.length &&
-      profileEntries.every(([permission, access]) => requestedPermissions[permission] === access)
-    );
-  });
 }
 
 function addConfiguredCheckRunId(

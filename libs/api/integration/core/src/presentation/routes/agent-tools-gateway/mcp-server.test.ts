@@ -72,6 +72,29 @@ describe('buildAgentToolsMcpServer', () => {
     ]);
   });
 
+  it('exposes the namespaced GitHub check-run family with both methods', async () => {
+    const entry = githubAgentToolCatalog.find((candidate) => candidate.id === 'check_run_write');
+    if (!entry) throw new Error('Expected the GitHub check-run catalog entry');
+    const mcpName = 'github_main__check_run_write';
+    const dispatch = vi.fn(async () => ({content: [{type: 'text' as const, text: 'ok'}]}));
+    const {client, close} = await connectClient(
+      dispatch,
+      new Map([[mcpName, authorizedToolForCatalog(mcpName, 'github', entry, 0)]]),
+    );
+
+    const tools = await client.listTools();
+    await close();
+
+    const listedTool = tools.tools.find((tool) => tool.name === mcpName);
+    expect(listedTool).toMatchObject({
+      name: mcpName,
+      description: 'Create or update a check run for a commit in a GitHub repository.',
+      inputSchema: {
+        properties: {method: {enum: ['create', 'update']}},
+      },
+    });
+  });
+
   it('records the shared repository denial returned by the MCP dispatcher', async () => {
     const entry = catalogWithRepositoryScope(() => ({
       kind: 'declared-targets',

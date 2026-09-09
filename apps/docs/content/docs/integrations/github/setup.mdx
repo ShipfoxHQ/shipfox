@@ -51,6 +51,21 @@ Use [Manage GitHub repository
 access](/how-to/set-up-work/manage-github-repository-access) to change the
 setting or the repositories selected in GitHub.
 
+## Permissions and approval
+
+GitHub check-run workflows need the GitHub App's **Checks: Read and write**
+permission. Shipfox uses the full GitHub installation grant for backend tool
+execution and does not request a separate per-step Checks scope. A direct
+`check_run_write.create` or `check_run_write.update` step still needs that
+permission. An agent step also needs `allow_write: true` for its selected
+check-run methods.
+
+GitHub may ask the organization or account owner to approve this permission
+change. Approve the updated permission in the GitHub App installation before
+you retry the workflow. If approval is missing, GitHub can reject the
+check-run request even though token minting succeeds. Existing installations
+may need this approval even when the connection itself is already active.
+
 ## Check event delivery
 
 Make sure the integration connection is enabled in **Settings → Integrations**. Select

@@ -21,6 +21,7 @@ import {
   GITHUB_STATELESS_INSTALLATION_TOKEN,
   GITHUB_WRITE_RESULT_MARKER,
   type GithubApiMock,
+  type GithubApiMockOptions,
   startGithubApiMock,
 } from '#github-api.js';
 import {waitForDefinitionSyncTerminal} from '#polling.js';
@@ -41,6 +42,10 @@ const REPOSITORY_NOT_AUTHORIZED_MESSAGE =
   'Repository is not authorized for this integration connection';
 const REPOSITORY_REQUIRED_MESSAGE = 'Selected repository access requires owner and repo parameters';
 const SEARCH_QUALIFIER_MESSAGE = 'Search query cannot contain repo:, org:, or user: qualifiers';
+const CHECK_RUN_HEAD_SHA = 'a'.repeat(40);
+const CHECK_RUN_ID = 123456;
+const CHECK_RUN_PROVIDER_FAILURE_PATTERN = /404|Not Found|provider-rejected/u;
+const CHECK_RUN_PERMISSION_FAILURE_PATTERN = /403|permission|provider-rejected/u;
 const GITHUB_TOKEN_CASES = [
   {
     format: 'stateless',
@@ -63,6 +68,8 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
     const githubApi = await startGithubApiMock({
       installationId,
       installationToken: tokenCase.token,
+      checkRunCreateResponse: checkRunCreateResponse(),
+      checkRunUpdateResponse: checkRunUpdateResponse(),
     });
     let fakeModelProvider: Awaited<ReturnType<typeof startFakeOpenAiModelProvider>> | undefined;
 
@@ -101,6 +108,7 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       const searchIssuesTool = `mcp__shipfox_integration_tools__${connection.slug}__search_issues`;
       const reviewThreadTool = `mcp__shipfox_integration_tools__${connection.slug}__pull_request_review_thread_write`;
       const addIssueCommentTool = `mcp__shipfox_integration_tools__${connection.slug}__add_issue_comment`;
+      const checkRunTool = `mcp__shipfox_integration_tools__${connection.slug}__check_run_write`;
       const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
         workspaceId: suite.workspaceId,
         fakeModelProvider,
@@ -130,6 +138,20 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
             repo: 'e2e',
             title: 'Synthetic GitHub issue',
           }),
+          toolCall(checkRunTool, {
+            method: 'create',
+            owner: 'shipfox',
+            repo: 'e2e',
+            name: 'Shipfox review',
+            head_sha: CHECK_RUN_HEAD_SHA,
+          }),
+          toolCall(checkRunTool, {
+            method: 'update',
+            owner: 'shipfox',
+            repo: 'e2e',
+            check_run_id: CHECK_RUN_ID,
+            conclusion: 'neutral',
+          }),
           message('done'),
         ],
         assertions: [
@@ -138,6 +160,7 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
           {kind: 'tool_present', name: issueWriteTool},
           {kind: 'tool_present', name: searchIssuesTool},
           {kind: 'tool_present', name: reviewThreadTool},
+          {kind: 'tool_present', name: checkRunTool},
           {kind: 'tool_absent', name: addIssueCommentTool},
           {
             kind: 'message_content_includes',
@@ -174,14 +197,14 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       expect(terminal.status).toBe('succeeded');
       expect(terminal.jobs.find((job) => job.key === 'tools')?.status).toBe('succeeded');
       const providerRequests = await fakeModelProvider.getRequests(scriptId);
-      expect(providerRequests).toHaveLength(6);
+      expect(providerRequests).toHaveLength(8);
       expect(providerRequests[0]).toMatchObject({
         model: `${CLAUDE_AGENT_MODEL}-small-fast`,
         served_response: 'message:non_consuming_model',
       });
       expect(
         providerRequests.filter((request) => request.model === CLAUDE_AGENT_MODEL),
-      ).toHaveLength(5);
+      ).toHaveLength(7);
       expect(providerRequests.every((request) => request.assertion_failures.length === 0)).toBe(
         true,
       );
@@ -217,6 +240,24 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
           owner: 'shipfox',
           repo: 'e2e',
           body: {title: 'Synthetic GitHub issue'},
+        },
+        {
+          kind: 'create-check-run',
+          authorization: tokenCase.authorization,
+          owner: 'shipfox',
+          repo: 'e2e',
+          body: {
+            name: 'Shipfox review',
+            head_sha: CHECK_RUN_HEAD_SHA,
+          },
+        },
+        {
+          kind: 'update-check-run',
+          authorization: tokenCase.authorization,
+          owner: 'shipfox',
+          repo: 'e2e',
+          checkRunId: CHECK_RUN_ID,
+          body: {conclusion: 'neutral', status: 'completed'},
         },
       ]);
     } finally {
@@ -278,6 +319,219 @@ test('enforces selected GitHub authorization for deterministic tools', async ({
         issueNumber: 1,
       },
     ]);
+  } finally {
+    await fixture.githubApi.stop();
+  }
+});
+
+test('runs a direct check-run lifecycle and maps the created id to the update', async ({
+  suite,
+}, testInfo) => {
+  const uniqueId = shortId();
+  const fixture = await createGithubFixture(suite, uniqueId, {
+    checkRunCreateResponse: checkRunCreateResponse(),
+    checkRunUpdateResponse: checkRunUpdateResponse(),
+  });
+
+  try {
+    const result = await runGithubWorkflow({
+      suite,
+      testInfo,
+      uniqueId,
+      project: fixture.project,
+      scenario: 'github-check-run-lifecycle',
+      selection: {
+        jobs: [
+          {
+            jobKey: 'checks',
+            includeDefaultExecution: true,
+            stepKeys: ['start_check', 'finish_check'],
+          },
+        ],
+      },
+      workflowYaml: checkRunLifecycleWorkflow(fixture.connection.slug),
+    });
+
+    expect(result.terminal.status).toBe('succeeded');
+    expect(result.terminal.jobs.find((job) => job.key === 'checks')?.status).toBe('succeeded');
+    expect(githubAgentToolCalls(fixture.githubApi)).toEqual([
+      {
+        kind: 'mint-token',
+        authorization: expect.any(String),
+        tokenFormatOverride: 'enabled',
+        installationId: fixture.installationId,
+        body: {},
+      },
+      {
+        kind: 'create-check-run',
+        authorization: `bearer ${fixture.installationToken}`,
+        owner: 'shipfox',
+        repo: 'e2e',
+        body: {
+          name: 'Shipfox review',
+          head_sha: CHECK_RUN_HEAD_SHA,
+          status: 'in_progress',
+          started_at: '2026-09-08T10:00:00Z',
+          external_id: 'shipfox-review',
+          output: {title: 'Review in progress', summary: 'Shipfox started the review.'},
+        },
+      },
+      {
+        kind: 'update-check-run',
+        authorization: `bearer ${fixture.installationToken}`,
+        owner: 'shipfox',
+        repo: 'e2e',
+        checkRunId: CHECK_RUN_ID,
+        body: {
+          conclusion: 'neutral',
+          status: 'completed',
+          output: {title: 'Review complete', summary: 'Shipfox completed the review.'},
+        },
+      },
+    ]);
+  } finally {
+    await fixture.githubApi.stop();
+  }
+});
+
+test('rejects an unknown direct check-run update as a provider failure', async ({
+  suite,
+}, testInfo) => {
+  const uniqueId = shortId();
+  const fixture = await createGithubFixture(suite, uniqueId, {
+    checkRunCreateResponse: checkRunCreateResponse(),
+    checkRunUpdateResponse: checkRunUpdateResponse(),
+  });
+
+  try {
+    const result = await runGithubWorkflow({
+      suite,
+      testInfo,
+      uniqueId,
+      project: fixture.project,
+      scenario: 'github-check-run-update-404',
+      workflowYaml: deterministicToolWorkflow({
+        connection: fixture.connection.slug,
+        tool: 'check_run_write.update',
+        with: {
+          owner: 'shipfox',
+          repo: 'e2e',
+          check_run_id: 999999,
+          conclusion: 'neutral',
+        },
+      }),
+    });
+
+    expect(result.terminal.status).toBe('failed');
+    expect(result.failureLogs).toMatch(CHECK_RUN_PROVIDER_FAILURE_PATTERN);
+    expect(githubAgentToolCalls(fixture.githubApi)).toEqual([
+      {
+        kind: 'mint-token',
+        authorization: expect.any(String),
+        tokenFormatOverride: 'enabled',
+        installationId: fixture.installationId,
+        body: {},
+      },
+      {
+        kind: 'update-check-run',
+        authorization: `bearer ${fixture.installationToken}`,
+        owner: 'shipfox',
+        repo: 'e2e',
+        checkRunId: 999999,
+        body: {conclusion: 'neutral', status: 'completed'},
+      },
+    ]);
+  } finally {
+    await fixture.githubApi.stop();
+  }
+});
+
+test('reports a provider rejection when Checks write approval is missing', async ({
+  suite,
+}, testInfo) => {
+  const uniqueId = shortId();
+  const fixture = await createGithubFixture(suite, uniqueId, {
+    checkRunCreateResponse: checkRunCreateResponse(),
+    checkRunCreateFailure: {
+      status: 403,
+      body: {message: 'Checks permission is not approved'},
+    },
+  });
+
+  try {
+    const result = await runGithubWorkflow({
+      suite,
+      testInfo,
+      uniqueId,
+      project: fixture.project,
+      scenario: 'github-check-run-unapproved',
+      workflowYaml: deterministicToolWorkflow({
+        connection: fixture.connection.slug,
+        tool: 'check_run_write.create',
+        with: {
+          owner: 'shipfox',
+          repo: 'e2e',
+          name: 'Shipfox review',
+          head_sha: CHECK_RUN_HEAD_SHA,
+        },
+      }),
+    });
+
+    expect(result.terminal.status).toBe('failed');
+    expect(result.failureLogs).toMatch(CHECK_RUN_PERMISSION_FAILURE_PATTERN);
+    expect(githubAgentToolCalls(fixture.githubApi)).toEqual([
+      {
+        kind: 'mint-token',
+        authorization: expect.any(String),
+        tokenFormatOverride: 'enabled',
+        installationId: fixture.installationId,
+        body: {},
+      },
+      {
+        kind: 'create-check-run',
+        authorization: `bearer ${fixture.installationToken}`,
+        owner: 'shipfox',
+        repo: 'e2e',
+        body: {
+          name: 'Shipfox review',
+          head_sha: CHECK_RUN_HEAD_SHA,
+        },
+      },
+    ]);
+  } finally {
+    await fixture.githubApi.stop();
+  }
+});
+
+test('checks repository authorization before a direct check-run dispatch', async ({
+  suite,
+}, testInfo) => {
+  const uniqueId = shortId();
+  const fixture = await createGithubFixture(suite, uniqueId);
+
+  try {
+    const result = await runGithubWorkflow({
+      expectedFailureLogText: REPOSITORY_NOT_AUTHORIZED_MESSAGE,
+      suite,
+      testInfo,
+      uniqueId,
+      project: fixture.project,
+      scenario: 'github-check-run-repository-denied',
+      workflowYaml: deterministicToolWorkflow({
+        connection: fixture.connection.slug,
+        tool: 'check_run_write.create',
+        with: {
+          owner: 'shipfox',
+          repo: 'outside',
+          name: 'Shipfox review',
+          head_sha: CHECK_RUN_HEAD_SHA,
+        },
+      }),
+    });
+
+    expect(result.terminal.status).toBe('failed');
+    expect(result.failureLogs).toContain(REPOSITORY_NOT_AUTHORIZED_MESSAGE);
+    expect(githubAgentToolCalls(fixture.githubApi)).toEqual([]);
   } finally {
     await fixture.githubApi.stop();
   }
@@ -534,10 +788,14 @@ test('mints a GitHub checkout token for an all-mode repository name', async ({su
   }
 });
 
-async function createGithubFixture(suite: SuiteContext, uniqueId: string): Promise<GithubFixture> {
+async function createGithubFixture(
+  suite: SuiteContext,
+  uniqueId: string,
+  mockOptions: Omit<GithubApiMockOptions, 'installationId' | 'installationToken'> = {},
+): Promise<GithubFixture> {
   const installationId = Number.parseInt(uniqueId.slice(0, 7), 16) + 1;
   const installationToken = `ghs_${uniqueId}.${'e'.repeat(36)}.${'f'.repeat(36)}`;
-  const githubApi = await startGithubApiMock({installationId, installationToken});
+  const githubApi = await startGithubApiMock({...mockOptions, installationId, installationToken});
 
   try {
     const connection = await createGithubConnection({
@@ -811,11 +1069,54 @@ triggers:
     event: fire
 jobs:
   tools:
+    checkout: false
     steps:
       - key: github
         tool: ${params.tool}
         connection: ${params.connection}
         with: ${JSON.stringify(params.with)}${outputs}${verification}
+`;
+}
+
+function checkRunLifecycleWorkflow(connection: string): string {
+  return `
+name: GitHub check-run lifecycle
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+    event: fire
+jobs:
+  checks:
+    checkout: false
+    steps:
+      - key: start_check
+        tool: check_run_write.create
+        connection: ${connection}
+        with:
+          owner: shipfox
+          repo: e2e
+          name: Shipfox review
+          head_sha: ${CHECK_RUN_HEAD_SHA}
+          status: in_progress
+          started_at: '2026-09-08T10:00:00Z'
+          external_id: shipfox-review
+          output:
+            title: Review in progress
+            summary: Shipfox started the review.
+        outputs:
+          check_run_id: "\${{ result.check_run.id }}"
+      - key: finish_check
+        tool: check_run_write.update
+        connection: ${connection}
+        with:
+          owner: shipfox
+          repo: e2e
+          check_run_id: "\${{ steps.start_check.outputs.check_run_id }}"
+          conclusion: neutral
+          output:
+            title: Review complete
+            summary: Shipfox completed the review.
 `;
 }
 
@@ -864,6 +1165,36 @@ jobs:
 
 function shortId(): string {
   return crypto.randomUUID().replaceAll('-', '').slice(0, 10);
+}
+
+function checkRunCreateResponse(): Record<string, unknown> {
+  return {
+    id: CHECK_RUN_ID,
+    name: 'Shipfox review',
+    head_sha: CHECK_RUN_HEAD_SHA,
+    external_id: 'shipfox-review',
+    details_url: null,
+    html_url: `https://github.com/shipfox/e2e/runs/${CHECK_RUN_ID}`,
+    status: 'in_progress',
+    conclusion: null,
+    started_at: '2026-09-08T10:00:00Z',
+    completed_at: null,
+  };
+}
+
+function checkRunUpdateResponse(): Record<string, unknown> {
+  return {
+    id: CHECK_RUN_ID,
+    name: 'Shipfox review',
+    head_sha: CHECK_RUN_HEAD_SHA,
+    external_id: 'shipfox-review',
+    details_url: null,
+    html_url: `https://github.com/shipfox/e2e/runs/${CHECK_RUN_ID}`,
+    status: 'completed',
+    conclusion: 'neutral',
+    started_at: '2026-09-08T10:00:00Z',
+    completed_at: '2026-09-08T10:05:00Z',
+  };
 }
 
 function githubAgentToolCalls(githubApi: GithubApiMock): GithubApiMock['calls'] {
@@ -970,6 +1301,7 @@ jobs:
             include:
               - issue_read.get
               - issue_write.create
+              - check_run_write
               - search_issues
               - pull_request_review_thread_write.resolve
             allow_write: true

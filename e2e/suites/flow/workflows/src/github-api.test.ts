@@ -195,10 +195,9 @@ describe('GitHub API mock', () => {
     }
   });
 
-  it('returns 422 when minting an unapproved permission profile', async () => {
+  it('returns an installation token when minting with an explicit permission profile', async () => {
     const mock = await startGithubApiMock({
       endpoint: new URL('http://127.0.0.1:0'),
-      unapprovedPermissionProfiles: [{checks: 'write'}],
     });
 
     try {
@@ -216,7 +215,10 @@ describe('GitHub API mock', () => {
         },
       );
 
-      expect(response.status).toBe(422);
+      expect(response.status).toBe(201);
+      await expect(response.json()).resolves.toMatchObject({
+        permissions: {checks: 'write'},
+      });
       expect(mock.calls).toEqual([
         {
           kind: 'mint-token',
@@ -231,10 +233,9 @@ describe('GitHub API mock', () => {
     }
   });
 
-  it('does not match omitted permissions against the response fallback', async () => {
+  it('returns installation tokens for omitted and explicit permission profiles', async () => {
     const mock = await startGithubApiMock({
       endpoint: new URL('http://127.0.0.1:0'),
-      unapprovedPermissionProfiles: [{issues: 'write'}],
     });
 
     try {
@@ -259,7 +260,10 @@ describe('GitHub API mock', () => {
       await expect(omittedPermissions.json()).resolves.toMatchObject({
         permissions: {issues: 'write'},
       });
-      expect(explicitPermissions.status).toBe(422);
+      expect(explicitPermissions.status).toBe(201);
+      await expect(explicitPermissions.json()).resolves.toMatchObject({
+        permissions: {issues: 'write'},
+      });
       expect(mock.calls).toEqual([
         {
           kind: 'mint-token',

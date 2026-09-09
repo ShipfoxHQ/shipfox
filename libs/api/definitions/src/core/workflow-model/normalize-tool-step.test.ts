@@ -54,6 +54,25 @@ const integrationValidationContext = {
         selectors: [
           {token: 'issue_read', kind: 'family', sensitivity: 'read', sensitive: false},
           {token: 'issue_read.get', kind: 'method', sensitivity: 'read', sensitive: false},
+          {token: 'check_run_write', kind: 'family', sensitivity: 'write', sensitive: false},
+          {
+            token: 'check_run_write.*',
+            kind: 'family_wildcard',
+            sensitivity: 'write',
+            sensitive: false,
+          },
+          {
+            token: 'check_run_write.create',
+            kind: 'method',
+            sensitivity: 'write',
+            sensitive: false,
+          },
+          {
+            token: 'check_run_write.update',
+            kind: 'method',
+            sensitivity: 'write',
+            sensitive: false,
+          },
         ],
       },
     ],
@@ -177,6 +196,60 @@ const integrationValidationContext = {
               {
                 id: 'update',
                 description: 'Update an issue',
+                sensitivity: 'write',
+                sensitive: false,
+                requiredScope: 'write',
+              },
+            ],
+          },
+          {
+            id: 'check_run_write',
+            description: 'Create or update a check run',
+            sensitivity: 'write',
+            sensitive: false,
+            requiredScope: 'write',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                owner: {type: 'string'},
+                repo: {type: 'string'},
+                method: {type: 'string', enum: ['create', 'update']},
+                name: {type: 'string'},
+                head_sha: {type: 'string'},
+                check_run_id: {type: 'integer'},
+                conclusion: {type: 'string'},
+              },
+              required: ['owner', 'repo', 'method'],
+              additionalProperties: false,
+              oneOf: [
+                {properties: {method: {const: 'create'}}, required: ['name', 'head_sha']},
+                {properties: {method: {const: 'update'}}, required: ['check_run_id', 'conclusion']},
+              ],
+            },
+            outputSchema: {
+              type: 'object',
+              properties: {
+                check_run: {
+                  type: 'object',
+                  properties: {id: {type: 'integer'}, status: {type: 'string'}},
+                  required: ['id', 'status'],
+                  additionalProperties: false,
+                },
+              },
+              required: ['check_run'],
+              additionalProperties: false,
+            },
+            methods: [
+              {
+                id: 'create',
+                description: 'Create a check run',
+                sensitivity: 'write',
+                sensitive: false,
+                requiredScope: 'write',
+              },
+              {
+                id: 'update',
+                description: 'Update a check run',
                 sensitivity: 'write',
                 sensitive: false,
                 requiredScope: 'write',
@@ -362,6 +435,57 @@ describe('normalizeToolStep', () => {
       title: {language: 'cel', source: 'result.title'},
     });
     expect(step.outputs).toEqual({title: {type: 'string'}});
+  });
+
+  it('materializes check-run methods and types an id mapping for the next method', () => {
+    const model = normalize(
+      {
+        name: 'check runs',
+        jobs: {
+          use: {
+            steps: [
+              toolStep({
+                key: 'start_check',
+                tool: 'check_run_write.create',
+                connection: 'github-main',
+                with: {
+                  owner: 'acme',
+                  repo: 'platform',
+                  name: 'Shipfox review',
+                  head_sha: 'a'.repeat(40),
+                },
+                outputs: mappingOutputs({check_run_id: '$' + '{{ result.check_run.id }}'}),
+              }),
+              toolStep({
+                key: 'finish_check',
+                tool: 'check_run_write.update',
+                connection: 'github-main',
+                with: {
+                  owner: 'acme',
+                  repo: 'platform',
+                  check_run_id: '$' + '{{ steps.start_check.outputs.check_run_id }}',
+                  conclusion: 'neutral',
+                },
+              }),
+            ],
+          },
+        },
+      },
+      {integrationValidationContext},
+    );
+
+    const start = model.jobs[0]?.steps[0] as WorkflowModelToolStep;
+    const finish = model.jobs[0]?.steps[1] as WorkflowModelToolStep;
+    expect(start.tool).toEqual({id: 'check_run_write', method: 'create'});
+    expect(start.outputMappings?.check_run_id).toMatchObject({
+      check: 'typed',
+      resultType: 'int',
+    });
+    expect(start.outputs).toEqual({check_run_id: {type: 'number'}});
+    expect(finish.tool).toEqual({id: 'check_run_write', method: 'update'});
+    expect(finish.templates?.with).toMatchObject({
+      check_run_id: [{kind: 'deferred', roots: ['steps']}],
+    });
   });
 
   it('records a steps.<key> overlay typed from the catalog output schema', () => {
