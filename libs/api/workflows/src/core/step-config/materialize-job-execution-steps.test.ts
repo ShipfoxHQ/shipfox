@@ -45,13 +45,13 @@ function condition(source: string) {
   return createWorkflowExpression({source, check: {mode: 'syntax'}});
 }
 
-function jobExecutionContext(): WorkflowEvaluationContext {
+function jobExecutionContext(runNumber = 42n): WorkflowEvaluationContext {
   return {
     site: 'execution-creation',
     values: {
       run: {
         id: 'run-1',
-        number: 42n,
+        number: runNumber,
         attempt: 1n,
         name: 'Reviews',
         definition_id: 'def-1',
@@ -676,7 +676,13 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
-  it('normalizes exact CEL integer tool inputs before persistence', async () => {
+  it.each([
+    {kind: 'safe', runNumber: 42n, expected: 42},
+    {kind: 'unsafe', runNumber: 9007199254740993n, expected: '9007199254740993'},
+  ])('normalizes $kind exact CEL integer tool inputs before persistence', async ({
+    runNumber,
+    expected,
+  }) => {
     const model = workflowModel({
       jobs: {
         call: {
@@ -700,14 +706,14 @@ describe('materializeJobExecutionSteps', () => {
     const steps = await materializeJobExecutionSteps({
       model,
       job,
-      context: {...jobExecutionContext(), site: 'run-creation'},
+      context: {...jobExecutionContext(runNumber), site: 'run-creation'},
       agentToolContext: githubAgentToolContext(typedToolCatalog()),
     });
 
     expect(steps[1]?.config.tool).toMatchObject({
-      with: {count: 42, enabled: true, options: {mode: 'fast'}},
+      with: {count: expected, enabled: true, options: {mode: 'fast'}},
     });
-    expect(() => JSON.stringify(steps[1]?.config)).not.toThrow();
+    expect(JSON.parse(JSON.stringify(steps[1]?.config))).toEqual(steps[1]?.config);
   });
 
   it('freezes documented event and run tool inputs while retaining late nested input', async () => {

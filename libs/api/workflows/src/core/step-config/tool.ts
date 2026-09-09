@@ -135,8 +135,9 @@ function resolveWithArray(params: ResolveWithParams): ResolveWithResult {
     if (child === undefined) return;
     const resolved = resolveWith({...params, value: values[index], tree: child});
     values[index] = resolved.value;
+    if (resolved.plan === undefined) return;
     plans[index] = resolved.plan;
-    hasPlan ||= resolved.plan !== undefined;
+    hasPlan = true;
   });
   return {value: values, ...(hasPlan ? {plan: plans} : {})};
 }

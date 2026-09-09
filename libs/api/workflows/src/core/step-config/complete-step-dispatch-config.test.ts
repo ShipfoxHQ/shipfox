@@ -720,6 +720,46 @@ describe('completeStepDispatchConfig', () => {
     );
   });
 
+  it('merges a persisted mixed-array tool input plan', async () => {
+    const configPlan = JSON.parse(
+      JSON.stringify({
+        tool: {
+          with: {
+            items: [undefined, plannedToolField(template('steps.build.outputs.item')).segments],
+          },
+        },
+      }),
+    ) as Step['configPlan'];
+    const pending = step({
+      type: 'tool',
+      config: {
+        tool: {
+          input_schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {items: {type: 'array', items: {type: 'string'}}},
+            required: ['items'],
+          },
+          with: {items: ['run-1', null]},
+        },
+      },
+      configPlan,
+    });
+
+    const result = await completeStepDispatchConfig({
+      step: pending,
+      context: {
+        ...context,
+        values: {steps: {build: {outputs: {item: 'late'}}}},
+      },
+      resolveAgentDefaults,
+      definitionId: 'def-1',
+    });
+
+    expect(configPlan?.tool?.with).toMatchObject({items: [null, expect.any(Array)]});
+    expect(result.config.tool).toMatchObject({with: {items: ['run-1', 'late']}});
+  });
+
   it.each([
     {kind: 'scalar', value: 42},
     {kind: 'array', value: ['a', 'b']},
