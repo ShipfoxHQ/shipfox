@@ -725,6 +725,12 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
+      '@shipfox/api-agent-access':
+        specifier: workspace:*
+        version: link:../../libs/api/agent-access
+      '@shipfox/api-agent-access-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/agent-access-dto
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../libs/api/agent-dto
@@ -4329,12 +4335,12 @@ importers:
       '@shipfox/api-agent':
         specifier: workspace:*
         version: link:../agent
-      '@shipfox/api-agent-dto':
-        specifier: workspace:*
-        version: link:../agent-dto
       '@shipfox/api-agent-access':
         specifier: workspace:*
         version: link:../agent-access
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../agent-dto
       '@shipfox/api-auth':
         specifier: workspace:*
         version: link:../auth
@@ -4386,15 +4392,15 @@ importers:
       '@shipfox/api-triggers':
         specifier: workspace:*
         version: link:../triggers
+      '@shipfox/api-triggers-dto':
+        specifier: workspace:*
+        version: link:../triggers-dto
       '@shipfox/api-usage':
         specifier: workspace:*
         version: link:../usage
       '@shipfox/api-usage-dto':
         specifier: workspace:*
         version: link:../usage-dto
-      '@shipfox/api-triggers-dto':
-        specifier: workspace:*
-        version: link:../triggers-dto
       '@shipfox/api-workflows':
         specifier: workspace:*
         version: link:../workflows

@@ -1,16 +1,22 @@
 import {ApiError} from '@shipfox/client-api';
 import {agentAccessErrorMessage, oauthConsentErrorMessage} from './errors.js';
 
-describe('MCP connection error copy', () => {
+describe('Shipfox MCP server error copy', () => {
   test.each([
     [
       'workspace-suspended',
-      'This workspace is suspended. Restore it before managing MCP connections.',
+      'This workspace is suspended. Restore it before managing the Shipfox MCP server.',
     ],
     [
-      'auth-dependency-unavailable',
-      'MCP connections are temporarily unavailable. Try again in a moment.',
+      'workspace-inactive',
+      'This workspace is not active, so the Shipfox MCP server cannot be managed.',
     ],
+    ['forbidden', "You don't have permission to manage the Shipfox MCP server for this workspace."],
+    [
+      'auth-dependency-unavailable',
+      'The Shipfox MCP server is temporarily unavailable. Try again in a moment.',
+    ],
+    ['not-found', 'This connected app no longer exists. Refresh the page to see the latest list.'],
   ])('owns copy for %s', (code, expected) => {
     expect(agentAccessErrorMessage(new ApiError({code, message: 'Server copy', status: 409}))).toBe(
       expected,
@@ -32,24 +38,24 @@ describe('MCP connection error copy', () => {
   test.each([
     [
       'workspace-suspended',
-      'This workspace is suspended. Restore it before approving this connection request.',
+      'This workspace is suspended. Restore it before approving this access request.',
     ],
     [
       'workspace-inactive',
-      'This workspace is not active, so this connection request cannot be approved.',
+      'This workspace is not active, so this access request cannot be approved.',
     ],
-    ['forbidden', "You don't have permission to approve this connection for this workspace."],
+    ['forbidden', "You don't have permission to approve this access request for this workspace."],
     [
       'auth-dependency-unavailable',
-      'This connection request is temporarily unavailable. Try again in a moment.',
+      'This access request is temporarily unavailable. Try again in a moment.',
     ],
     [
       'not-found',
-      'This connection request expired or is no longer available. Return to your MCP client and start again.',
+      'This access request expired or is no longer available. Return to your MCP client and start again.',
     ],
     [
       'invalid-request',
-      'This connection request is invalid. Return to your MCP client and start again.',
+      'This access request is invalid. Return to your MCP client and start again.',
     ],
   ])('keeps consent copy contextual for %s', (code, expected) => {
     expect(

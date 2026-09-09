@@ -3,6 +3,32 @@ import {randomUUID} from 'node:crypto';
 import {existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {
+  AGENT_ACCESS_TOOL_CALL_LIMIT,
+  AGENT_ACCESS_TOOL_CALL_WINDOW_MS,
+  createAgentAccessDiagnosticTools,
+  createAgentAccessLogTools,
+  createAgentAccessTools,
+  createAgentAccessWorkflowDiagnosticTools,
+} from '@shipfox/api-agent-access';
+import {
+  AGENT_ACCESS_ANNOTATION_BODY_MAX_BYTES,
+  AGENT_ACCESS_DEFAULT_PAGE_LIMIT,
+  AGENT_ACCESS_FACET_MAX_ITEMS,
+  AGENT_ACCESS_FACET_VALUE_MAX_BYTES,
+  AGENT_ACCESS_LOG_CONTENT_MAX_BYTES,
+  AGENT_ACCESS_LOG_SECTION_MAX_ITEMS,
+  AGENT_ACCESS_LOG_TAIL_LINES_DEFAULT,
+  AGENT_ACCESS_LOG_TAIL_LINES_MAX,
+  AGENT_ACCESS_PAGE_LIMIT_MAX,
+  AGENT_ACCESS_RESPONSE_MAX_BYTES,
+  AGENT_ACCESS_SERIALIZED_JSON_MAX_BYTES,
+  AGENT_ACCESS_TEXT_MAX_BYTES,
+  AGENT_ACCESS_TRIGGER_DECISION_MAX_ITEMS,
+  AGENT_ACCESS_TRIGGER_REPLAY_MAX_ITEMS,
+  AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
+  AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
+} from '@shipfox/api-agent-access-dto';
 import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
 import {
   githubAgentToolCatalog,
@@ -112,6 +138,8 @@ const regions = [
     render: renderContextAvailability,
   },
   {file: 'content/generated/reference/context-properties.mdx', render: renderContextProperties},
+  {file: 'content/generated/reference/mcp-server-tools.mdx', render: renderMcpToolCatalog},
+  {file: 'content/generated/reference/mcp-server-limits.mdx', render: renderMcpToolLimits},
 ];
 
 const contextShapeDeps = {
@@ -784,6 +812,341 @@ function environmentFields() {
       description: 'Environment variable value. For example, `NODE_ENV: production`.',
     },
   };
+}
+
+const mcpToolGroups = [
+  {
+    title: 'Discovery',
+    tools: ['list_projects', 'list_workflow_definitions', 'list_workflow_runs'],
+  },
+  {
+    title: 'Workflow run traversal',
+    tools: [
+      'get_workflow_run',
+      'list_workflow_run_attempts',
+      'list_workflow_run_jobs',
+      'get_workflow_job',
+      'list_workflow_job_executions',
+      'list_workflow_execution_steps',
+      'list_workflow_step_attempts',
+      'list_workflow_run_job_explanations',
+    ],
+  },
+  {
+    title: 'Workflow diagnostics',
+    tools: [
+      'get_workflow_run_source',
+      'get_workflow_execution_context',
+      'get_step_attempt',
+      'get_run_annotations',
+      'list_execution_trigger_events',
+      'get_execution_trigger_event',
+    ],
+  },
+  {title: 'Step logs', tools: ['get_step_logs']},
+  {
+    title: 'Trigger events',
+    tools: ['list_trigger_events', 'get_trigger_event', 'get_trigger_event_facets'],
+  },
+];
+
+function listMcpTools() {
+  // The tool factories only capture producer clients for later calls, so inert
+  // stubs are enough to read the registered names, descriptions, and schemas.
+  const stub = {};
+  return [
+    ...createAgentAccessTools({
+      projects: stub,
+      definitions: stub,
+      workflows: stub,
+      annotations: stub,
+      triggers: stub,
+    }),
+    ...createAgentAccessDiagnosticTools({triggers: stub}),
+    ...createAgentAccessWorkflowDiagnosticTools(stub),
+    ...createAgentAccessLogTools({logs: stub, workflows: stub}),
+  ];
+}
+
+function renderMcpToolCatalog() {
+  const tools = new Map(listMcpTools().map((tool) => [tool.name, tool]));
+  const grouped = new Set(mcpToolGroups.flatMap((group) => group.tools));
+  const ungrouped = [...tools.keys()].filter((name) => !grouped.has(name));
+  if (ungrouped.length > 0) {
+    throw new Error(`MCP tools missing from the documentation groups: ${ungrouped.join(', ')}`);
+  }
+
+  const lines = [];
+  for (const group of mcpToolGroups) {
+    lines.push(`### ${group.title}`, '');
+    for (const name of group.tools) {
+      const tool = tools.get(name);
+      if (!tool) throw new Error(`MCP tool ${name} is documented but not registered.`);
+      lines.push(...renderMcpTool(tool));
+    }
+  }
+  return lines.join('\n').trimEnd();
+}
+
+function renderMcpTool(tool) {
+  const result = object(object(tool.outputSchema.properties).result);
+  return [
+    `#### \`${tool.name}\``,
+    '',
+    tool.description,
+    '',
+    '##### Input',
+    '',
+    ...renderMcpSchema(tool.inputSchema, 'This tool takes no input.'),
+    '',
+    '##### Result',
+    '',
+    ...renderMcpSchema(result, 'This tool returns an empty result.'),
+    '',
+  ];
+}
+
+function renderMcpSchema(schema, emptyText) {
+  const variants = objects(schema.oneOf);
+  if (variants.length > 0 && Object.keys(object(schema.properties)).length === 0) {
+    const lines = ['Exactly one of these shapes applies.'];
+    for (const variant of variants) {
+      const label = strings(variant.required).map(inlineCode).join(', ');
+      lines.push('', `**Shape requiring ${label}:**`, '', ...renderMcpFieldTable(variant));
+    }
+    return lines;
+  }
+  const rows = dedupeMcpRows(mcpFieldRows(schema, ''));
+  if (rows.length === 0) return [emptyText];
+  return renderMcpFieldTable(schema);
+}
+
+function renderMcpFieldTable(schema) {
+  const rows = dedupeMcpRows(mcpFieldRows(schema, ''));
+  return [
+    '| Field | Type | Required | Constraints |',
+    '|---|---|---|---|',
+    ...rows.map(
+      (row) =>
+        `| ${inlineCode(row.path)} | ${tableValue(row.type)} | ${row.requirement} | ${tableValue(row.constraints)} |`,
+    ),
+  ];
+}
+
+function mcpFieldRows(schema, prefix) {
+  const properties = object(schema.properties);
+  const required = new Set(strings(schema.required));
+  const conditional = new Set(
+    [...objects(schema.oneOf), ...objects(schema.anyOf)].flatMap((option) =>
+      strings(option.required),
+    ),
+  );
+  return Object.entries(properties).flatMap(([name, raw]) => {
+    let requirement = 'Optional';
+    if (required.has(name)) requirement = 'Required';
+    else if (conditional.has(name)) requirement = 'Conditional';
+    return mcpValueRows(`${prefix}${name}`, object(raw), requirement);
+  });
+}
+
+function mcpValueRows(path, property, requirement) {
+  const {schema, nullable} = unwrapMcpNullable(property);
+  const rows = [
+    {
+      path,
+      type: mcpTypeText(schema, nullable),
+      requirement,
+      constraints: mcpConstraints(schema),
+    },
+  ];
+  const nested = mcpNestedShapes(schema);
+  for (const shape of nested.shapes) {
+    for (const row of mcpFieldRows(shape.schema, `${path}${nested.suffix}`)) {
+      rows.push(shape.conditional ? {...row, requirement: 'Conditional'} : row);
+    }
+  }
+  return rows;
+}
+
+function mcpNestedShapes(schema) {
+  if (schema.type === 'array') {
+    return {suffix: '[].', shapes: mcpObjectShapes(unwrapMcpNullable(object(schema.items)).schema)};
+  }
+  return {suffix: '.', shapes: mcpObjectShapes(schema)};
+}
+
+function mcpObjectShapes(schema) {
+  if (Object.keys(object(schema.properties)).length > 0) return [{schema, conditional: false}];
+  return mcpUnionOptions(schema)
+    .filter((option) => Object.keys(object(option.properties)).length > 0)
+    .map((option) => ({schema: option, conditional: true}));
+}
+
+function mcpUnionOptions(schema) {
+  const options = objects(schema.anyOf).length > 0 ? objects(schema.anyOf) : objects(schema.oneOf);
+  return options.map((option) => unwrapMcpNullable(option).schema);
+}
+
+function dedupeMcpRows(rows) {
+  const byPath = new Map();
+  for (const row of rows) {
+    const existing = byPath.get(row.path);
+    if (!existing) {
+      byPath.set(row.path, {...row});
+      continue;
+    }
+    existing.type = mergeUnique(existing.type, row.type, ' | ');
+    existing.constraints = mergeUnique(existing.constraints, row.constraints, ' ');
+    if (existing.requirement !== row.requirement) existing.requirement = 'Conditional';
+  }
+  return [...byPath.values()];
+}
+
+function mergeUnique(left, right, separator) {
+  if (!right || left === right) return left;
+  if (!left) return right;
+  return left.split(separator).includes(right) ? left : `${left}${separator}${right}`;
+}
+
+function unwrapMcpNullable(property) {
+  const branches = objects(property.anyOf);
+  const nullBranch = branches.find((branch) => branch.type === 'null');
+  const valueBranch = branches.find((branch) => branch !== nullBranch);
+  if (branches.length !== 2 || !nullBranch || !valueBranch)
+    return {schema: property, nullable: false};
+  return {schema: valueBranch, nullable: true};
+}
+
+function mcpTypeText(schema, nullable) {
+  const base = mcpBaseTypeText(schema);
+  return nullable ? `${base} | null` : base;
+}
+
+function mcpBaseTypeText(schema) {
+  if ('const' in schema) return `constant ${inlineCode(JSON.stringify(schema.const))}`;
+  const enumValues = Array.isArray(schema.enum) ? schema.enum : [];
+  if (enumValues.length > 0) {
+    return `${schema.type ?? 'value'}: ${enumValues.map((value) => inlineCode(String(value))).join(', ')}`;
+  }
+  const options = mcpUnionOptions(schema);
+  if (options.length > 0) return mcpUnionTypeText(options);
+  if (schema.type === 'array') {
+    return `array of ${mcpBaseTypeText(unwrapMcpNullable(object(schema.items)).schema)}`;
+  }
+  if (schema.type === 'string') return mcpStringTypeText(schema);
+  if (typeof schema.type === 'string') return schema.type;
+  if (Array.isArray(schema.type)) return schema.type.join(' | ');
+  return 'any JSON value';
+}
+
+function mcpUnionTypeText(options) {
+  if (options.every((option) => Object.keys(object(option.properties)).length > 0)) {
+    return `object (one of ${options.length} shapes)`;
+  }
+  return options.map(mcpBaseTypeText).join(' | ');
+}
+
+function mcpStringTypeText(schema) {
+  if (typeof schema.format === 'string') return `string (${schema.format})`;
+  if (schema.contentMediaType === 'application/json') return 'string (serialized JSON)';
+  return 'string';
+}
+
+function mcpConstraints(schema) {
+  const parts = [];
+  if (typeof schema.minimum === 'number') parts.push(`Minimum ${formatNumber(schema.minimum)}.`);
+  if (typeof schema.maximum === 'number') parts.push(`Maximum ${formatNumber(schema.maximum)}.`);
+  if (typeof schema.minLength === 'number')
+    parts.push(`Minimum length ${formatNumber(schema.minLength)}.`);
+  if (typeof schema.maxLength === 'number')
+    parts.push(`Maximum length ${formatNumber(schema.maxLength)}.`);
+  parts.push(...mcpItemCountConstraints(schema));
+  if (schema.default !== undefined)
+    parts.push(`Default ${inlineCode(JSON.stringify(schema.default))}.`);
+  if (schema.type === 'array') {
+    const itemConstraints = mcpConstraints(unwrapMcpNullable(object(schema.items)).schema);
+    if (itemConstraints) parts.push(`Each item: ${lowercaseFirst(itemConstraints)}`);
+  }
+  return parts.join(' ');
+}
+
+function mcpItemCountConstraints(schema) {
+  const {minItems, maxItems} = schema;
+  const hasMin = typeof minItems === 'number';
+  const hasMax = typeof maxItems === 'number';
+  if (hasMin && hasMax && minItems === maxItems) return [`Exactly ${formatItemCount(minItems)}.`];
+  return [
+    ...(hasMin ? [`Minimum ${formatItemCount(minItems)}.`] : []),
+    ...(hasMax ? [`Maximum ${formatItemCount(maxItems)}.`] : []),
+  ];
+}
+
+function formatItemCount(count) {
+  return `${formatNumber(count)} ${count === 1 ? 'item' : 'items'}`;
+}
+
+function formatNumber(value) {
+  return value.toLocaleString('en-US');
+}
+
+function lowercaseFirst(value) {
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function renderMcpToolLimits() {
+  const kib = (bytes) => `${bytes / 1024} KiB`;
+  const windowMinutes = AGENT_ACCESS_TOOL_CALL_WINDOW_MS / 60_000;
+  const windowLabel = windowMinutes === 1 ? 'minute' : `${windowMinutes} minutes`;
+  const rows = [
+    [
+      'Successful response',
+      `${kib(AGENT_ACCESS_RESPONSE_MAX_BYTES)} of serialized \`structuredContent\``,
+    ],
+    [
+      'Text field',
+      `${AGENT_ACCESS_TEXT_MAX_BYTES} UTF-8 bytes unless a tool table states another limit`,
+    ],
+    [
+      'Page size',
+      `Default ${AGENT_ACCESS_DEFAULT_PAGE_LIMIT}, maximum ${AGENT_ACCESS_PAGE_LIMIT_MAX}. Some tools declare a smaller default in their input table.`,
+    ],
+    ['Annotation body', kib(AGENT_ACCESS_ANNOTATION_BODY_MAX_BYTES)],
+    ['Workflow source snapshot', kib(AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES)],
+    [
+      'Structured workflow value',
+      `${kib(AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES)} per value before it moves to \`oversized_fields\``,
+    ],
+    [
+      'Trigger payload preview',
+      `${kib(AGENT_ACCESS_SERIALIZED_JSON_MAX_BYTES)} of serialized JSON`,
+    ],
+    [
+      'Trigger event detail collections',
+      `${AGENT_ACCESS_TRIGGER_DECISION_MAX_ITEMS} decisions and ${AGENT_ACCESS_TRIGGER_REPLAY_MAX_ITEMS} replays`,
+    ],
+    [
+      'Trigger event facets',
+      `${AGENT_ACCESS_FACET_MAX_ITEMS} values per facet, ${AGENT_ACCESS_FACET_VALUE_MAX_BYTES} UTF-8 bytes per value`,
+    ],
+    [
+      'Step log content',
+      `${kib(AGENT_ACCESS_LOG_CONTENT_MAX_BYTES)} per response, split evenly across sections`,
+    ],
+    [
+      'Step log tail lines',
+      `Default ${AGENT_ACCESS_LOG_TAIL_LINES_DEFAULT}, maximum ${formatNumber(AGENT_ACCESS_LOG_TAIL_LINES_MAX)}`,
+    ],
+    ['Failed-only log sections', `${AGENT_ACCESS_LOG_SECTION_MAX_ITEMS} step attempts`],
+    [
+      'Tool calls',
+      `${AGENT_ACCESS_TOOL_CALL_LIMIT} per credential per ${windowLabel} on each API instance`,
+    ],
+  ];
+  return [
+    '| Limit | Value |',
+    '|---|---|',
+    ...rows.map(([limit, value]) => `| ${limit} | ${tableValue(value)} |`),
+  ].join('\n');
 }
 
 for (const region of regions) {

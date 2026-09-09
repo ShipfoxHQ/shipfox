@@ -8,7 +8,7 @@ export default defineRoute({
     const workspace = useActiveWorkspace();
     return (
       <div className="flex min-w-0 flex-col gap-section">
-        <Header variant="h1">MCP connections</Header>
+        <Header variant="h1">Shipfox MCP server</Header>
         <AgentAccessSettingsPage workspaceId={workspace.id} />
       </div>
     );

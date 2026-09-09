@@ -9,6 +9,7 @@
     "expressions",
     "secrets-variables",
     "model-providers",
+    "mcp-server",
     "limits",
     "glossary",
     "---Operations---",

@@ -39,6 +39,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shipfox/api-agent-access": "workspace:*",
+    "@shipfox/api-agent-access-dto": "workspace:*",
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/expression": "workspace:*",

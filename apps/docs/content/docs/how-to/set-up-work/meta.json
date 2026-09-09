@@ -15,6 +15,7 @@
     "secrets-and-variables",
     "update-workspace-value",
     "delete-workspace-value",
-    "manage-workspace-members"
+    "manage-workspace-members",
+    "connect-mcp-client"
   ]
 }

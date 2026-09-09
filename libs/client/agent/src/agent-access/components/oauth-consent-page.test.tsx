@@ -81,7 +81,7 @@ describe('OAuthConsentPage', () => {
 
   afterEach(() => window.history.replaceState({}, '', '/'));
 
-  test('waits for the auth session before loading the connection request', async () => {
+  test('waits for the auth session before loading the access request', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(consentResponse()));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
     runtimeMocks.useAuthState.mockReturnValue({
@@ -91,8 +91,8 @@ describe('OAuthConsentPage', () => {
     });
     const {rerender, route} = renderConsentRoute();
 
-    expect(screen.getByRole('status', {name: 'Loading connection request'})).toBeVisible();
-    expect(screen.queryByText('Could not load connection request')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', {name: 'Loading access request'})).toBeVisible();
+    expect(screen.queryByText('Could not load access request')).not.toBeInTheDocument();
     expect(fetchImpl).not.toHaveBeenCalled();
 
     runtimeMocks.useAuthState.mockReturnValue({
@@ -105,13 +105,11 @@ describe('OAuthConsentPage', () => {
     expect(
       await screen.findByRole('heading', {name: 'Allow Claude Desktop to access Shipfox?'}),
     ).toBeVisible();
-    expect(
-      screen.queryByRole('status', {name: 'Loading connection request'}),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', {name: 'Loading access request'})).not.toBeInTheDocument();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  test('redirects a guest to sign in before loading the connection request', async () => {
+  test('redirects a guest to sign in before loading the access request', async () => {
     window.history.replaceState({}, '', `/oauth/consent?request_id=${REQUEST_ID}#review`);
     const fetchImpl = vi.fn(async () => jsonResponse({code: 'unauthorized'}, {status: 401}));
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
@@ -130,7 +128,7 @@ describe('OAuthConsentPage', () => {
       ),
     );
     expect(fetchImpl).not.toHaveBeenCalled();
-    expect(screen.queryByText('Could not load connection request')).not.toBeInTheDocument();
+    expect(screen.queryByText('Could not load access request')).not.toBeInTheDocument();
   });
 
   test('shows verified request facts and requires an explicit approval click', async () => {
@@ -241,7 +239,7 @@ describe('OAuthConsentPage', () => {
     );
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This connection request is temporarily unavailable. Try again in a moment.',
+      'This access request is temporarily unavailable. Try again in a moment.',
     );
     expect(approveButton).toBeEnabled();
     expect(denyButton).toBeEnabled();
@@ -278,18 +276,16 @@ describe('OAuthConsentPage', () => {
       screen.getByRole('heading', {name: 'Allow Claude Desktop to access Shipfox?'}),
     ).toBeVisible();
     expect(
+      screen.queryByText('This access request is temporarily unavailable. Try again in a moment.'),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByText(
-        'This connection request is temporarily unavailable. Try again in a moment.',
+        'This access request expired or is no longer available. Return to your MCP client and start again.',
       ),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        'This connection request expired or is no longer available. Return to your MCP client and start again.',
-      ),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        'This connection request is invalid. Return to your MCP client and start again.',
+        'This access request is invalid. Return to your MCP client and start again.',
       ),
     ).not.toBeInTheDocument();
   });

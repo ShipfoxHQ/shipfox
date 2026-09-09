@@ -46,7 +46,7 @@ export function AgentAccessSettingsPage({workspaceId}: {workspaceId: string}) {
             Connected apps
           </Header>
           <Text size="sm" className="text-foreground-neutral-muted">
-            Tools connected to this workspace through MCP.
+            Apps connected to this workspace through the Shipfox MCP server.
           </Text>
         </div>
         {grantsQuery.isPending ? <GrantListSkeleton /> : null}
@@ -60,7 +60,7 @@ export function AgentAccessSettingsPage({workspaceId}: {workspaceId: string}) {
             <EmptyState
               icon="terminalBoxLine"
               title="No connected apps"
-              description="Follow the setup steps above to connect your first app."
+              description="Use the instructions above to connect your first app."
               variant="panel"
             />
           </Panel>

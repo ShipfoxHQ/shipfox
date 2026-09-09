@@ -1,0 +1,188 @@
+---
+title: "Connect to the Shipfox MCP server"
+sidebarTitle: "Shipfox MCP server"
+description: "Connect Claude Code, Codex CLI, Cursor, or VS Code to the Shipfox MCP server. Verify or disconnect the app in Shipfox."
+---
+
+Connect an existing coding agent to the Shipfox MCP server. The agent gets
+read-only access to one workspace. Your browser handles sign-in. For server
+details and the tool list, see the [reference for the Shipfox MCP
+server](/reference/mcp-server).
+
+## Before you begin
+
+You need:
+
+- A Shipfox account with access to the workspace.
+- An MCP client: Claude Code, Codex CLI, Cursor, or VS Code. Other clients work
+  if they support MCP OAuth and browser sign-in.
+- The Shipfox MCP server endpoint. For Shipfox Cloud, use
+  `https://api.shipfox.io/mcp`. For a self-hosted installation, open **Settings
+  → Shipfox MCP server** and copy the **Shipfox MCP server endpoint**.
+
+The commands below use the Shipfox Cloud endpoint. For a self-hosted
+installation, replace it with the endpoint you copied.
+
+## Add the Shipfox MCP server to your client
+
+Follow the section for your client. Each client stores a separate sign-in.
+Repeat these instructions for every client you use.
+
+### Claude Code
+
+Run this command in your terminal:
+
+```sh
+claude mcp add --transport http shipfox https://api.shipfox.io/mcp
+```
+
+Open Claude Code and run `/mcp`. Select **shipfox** and complete the browser
+sign-in.
+
+### Codex CLI
+
+Run these commands in your terminal:
+
+```sh
+codex mcp add shipfox --url https://api.shipfox.io/mcp
+codex mcp login shipfox
+```
+
+The second command opens the Shipfox sign-in page in your browser.
+
+### Cursor
+
+Cursor reads MCP servers from two files. Use `.cursor/mcp.json` for one
+project. Use `~/.cursor/mcp.json` for every project. Add this server entry:
+
+```json
+{
+  "mcpServers": {
+    "shipfox": {
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Don't add Cursor's `auth` block for static OAuth clients. Shipfox registers the
+OAuth client during sign-in.
+
+Open **Customize** from the Cursor sidebar to see the server. Cursor opens the
+browser sign-in when it first connects to Shipfox.
+
+For the file format and the Customize page, see the [Cursor MCP
+documentation](https://cursor.com/docs/mcp).
+
+### VS Code
+
+Add the server to `.vscode/mcp.json` in your project. To use it in every
+workspace, run **MCP: Open User Configuration** instead.
+
+```json
+{
+  "servers": {
+    "shipfox": {
+      "type": "http",
+      "url": "https://api.shipfox.io/mcp"
+    }
+  }
+}
+```
+
+Run **MCP: List Servers** and select **shipfox**. Start the server. VS Code asks
+you to approve the sign-in and opens your browser.
+
+## Approve access in Shipfox
+
+<Steps>
+  <Step>
+
+    **Sign in to Shipfox**
+
+    Your browser displays the Shipfox access request. Sign in if prompted.
+    Shipfox displays the request again after sign-in.
+  </Step>
+  <Step>
+
+    **Check the request**
+
+    Shipfox shows the app name, client identity, requested access, and return
+    destination. Check that the app name matches the client you started. Select
+    **Deny** if it doesn't.
+
+    The requested access is always **Read workspace data**. A local client
+    shows **on this device** as its return destination.
+  </Step>
+  <Step>
+
+    **Choose the workspace**
+
+    If you belong to several workspaces, select the one the agent may read.
+    Each connected app reads one workspace.
+  </Step>
+  <Step>
+
+    **Allow access**
+
+    Select **Allow access**. The browser returns to your client. The client
+    stores and refreshes the credential.
+  </Step>
+</Steps>
+
+The approval page expires after [five
+minutes](/reference/mcp-server#access-lifetime). If the request is unavailable
+or expired, restart the sign-in from your client.
+
+## Verify the connected app
+
+Ask the agent to list the Shipfox projects. It calls `list_projects` and returns
+projects from the workspace you chose.
+
+In Shipfox, open **Shipfox MCP server** under **Settings**. The app appears
+under **Connected apps** with the date when Shipfox connected it.
+
+## Review connected apps
+
+**Connected apps** lists every app for the current workspace. Each row shows
+two dates: when Shipfox connected the app and when the app last refreshed
+access.
+
+Shipfox stops refreshing access when:
+
+- You leave the workspace.
+- Shipfox suspends the workspace.
+- Shipfox suspends your account.
+
+The next refresh fails. The client asks you to connect again.
+
+## Disconnect an app
+
+Select **Disconnect** on the app's row. Confirm **Disconnect app**. The app can
+no longer refresh its access. Existing access can continue for up to 15
+minutes.
+
+Disconnecting does not remove the server from your client. Remove the server
+entry if you no longer need it. Otherwise, the client asks you to sign in
+again.
+
+## Switch to another workspace
+
+A client stores one Shipfox sign-in for each endpoint. That sign-in reads one
+workspace. Clear it before connecting the client to another workspace. In
+Claude Code, select **Clear authentication** in the `/mcp` menu. Connect again
+and choose another workspace. Disconnect the old app in Shipfox when you no
+longer need it.
+
+## If the sign-in fails
+
+- **The browser did not open.** Copy the sign-in URL from the client output.
+  Open the URL in your browser.
+- **The request expired.** Start again from the client. See [Access
+  lifetime](/reference/mcp-server#access-lifetime).
+- **Shipfox rejected the callback.** Shipfox accepts HTTPS and localhost
+  callback URLs only. Use one of the clients above, or update your client.
+- **A self-hosted endpoint does not respond.** Ask your administrator to
+  check that the API's public URL is reachable through HTTPS.
+- **Tool calls fail with `rate-limited`.** The agent reached the tool call
+  limit. See [Limits](/reference/mcp-server#limits).

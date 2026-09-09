@@ -100,7 +100,7 @@ export class AgentAccessSettingsScreen {
   }
 
   heading(): Locator {
-    return this.page.getByRole('heading', {name: 'MCP connections', exact: true});
+    return this.page.getByRole('heading', {name: 'Shipfox MCP server', exact: true});
   }
 
   connectedAppsHeading(): Locator {
