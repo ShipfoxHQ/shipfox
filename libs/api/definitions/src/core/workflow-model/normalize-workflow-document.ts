@@ -57,11 +57,8 @@ export function normalizeWorkflowDocument(
     context,
   );
   const dependencies = normalizeDependencies(document.jobs, jobIdBySourceName, issues);
-  const documentWithConcurrency = document as WorkflowDocument & {
-    readonly concurrency?: WorkflowModelConcurrencyInput;
-  };
   const concurrency = normalizeWorkflowConcurrency({
-    concurrency: options.concurrency ?? documentWithConcurrency.concurrency,
+    concurrency: options.concurrency,
     jobs,
     declaredTriggers: document.triggers,
     issues,

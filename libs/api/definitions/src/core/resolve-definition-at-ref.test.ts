@@ -209,7 +209,7 @@ describe('resolveDefinitionAtRef', () => {
 
     expect(result.commit).toBe(COMMIT);
     expect(result.workflow.configPath).toBe(CONFIG_PATH);
-    expect(result.model).toEqual({version: 4, model: expect.any(Object)});
+    expect(result.model).toEqual({version: 3, model: expect.any(Object)});
     expect(result.sourceSnapshot).toEqual({content: validYaml, format: 'yaml'});
     expect(Object.keys(result.triggers)).toEqual(['on_demand', 'on_push']);
     expect(result.triggers.on_demand).toEqual({source: 'manual', event: 'fire'});

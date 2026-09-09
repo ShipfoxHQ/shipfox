@@ -55,6 +55,18 @@ describe('definitionsInterModuleContract', () => {
     expect(readPersistedWorkflowModel(snapshot)).toEqual(model);
   });
 
+  test('keeps snapshots without concurrency on version 3', () => {
+    const model = {
+      kind: 'workflow',
+      name: 'Deploy',
+      triggers: [],
+      jobs: [],
+      dependencies: [],
+    } satisfies WorkflowModel;
+
+    expect(createWorkflowModelSnapshot(model)).toEqual({version: 3, model});
+  });
+
   test.each([2, 3] as const)('keeps v%s persisted snapshots readable', (version) => {
     expect(readPersistedWorkflowModel({version, model: {kind: 'workflow'}} as never)).toEqual({
       kind: 'workflow',

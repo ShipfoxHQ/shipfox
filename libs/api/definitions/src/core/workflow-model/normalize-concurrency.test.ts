@@ -62,6 +62,17 @@ describe('normalizeWorkflowConcurrency', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('ignores document-carried concurrency outside the typed option', () => {
+    const document = {...baseDocument(), concurrency: null} as WorkflowDocument & {
+      readonly concurrency: null;
+    };
+
+    const {model, diagnostics} = normalize(document, undefined);
+
+    expect(model.concurrency).toBeUndefined();
+    expect(diagnostics).toEqual([]);
+  });
+
   it('warns when the group references a root that can be null for a trigger', () => {
     const {model, diagnostics} = normalize(
       baseDocument({
@@ -126,6 +137,20 @@ describe('normalizeWorkflowConcurrency', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('tracks literal bracket input keys', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {environment: 'production'}},
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+        },
+      }),
+      {group: interpolation('inputs["environment"]')},
+    );
+
+    expect(diagnostics).toEqual([]);
+  });
+
   it('warns when a trigger provides an unrelated input key', () => {
     const {diagnostics} = normalize(
       baseDocument({
@@ -167,7 +192,7 @@ describe('normalizeWorkflowConcurrency', () => {
   it.each([
     ['an unrelated input key', {region: 'us-east-1'}],
     ['an empty input map', {}],
-  ] as const)('warns for computed input access with %s', (_caseDescription, inputs) => {
+  ] as const)('warns for literal bracket input access with %s', (_caseDescription, inputs) => {
     const {diagnostics} = normalize(
       baseDocument({
         triggers: {
@@ -176,6 +201,47 @@ describe('normalizeWorkflowConcurrency', () => {
         },
       }),
       {group: interpolation('inputs["environment"]')},
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['inputs'], triggers: ['manual']},
+      }),
+    ]);
+  });
+
+  it('warns conservatively for dynamic input keys', () => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {field: 'not-the-dynamic-input'}},
+          push: {source: 'github', event: 'push', with: {field: 'not-the-dynamic-input'}},
+        },
+      }),
+      {group: interpolation('inputs[vars.KEY].field')},
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        details: {roots: ['inputs'], triggers: ['manual', 'push']},
+      }),
+    ]);
+  });
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+  ] as const)('warns when a referenced input is explicitly %s', (_caseDescription, value) => {
+    const {diagnostics} = normalize(
+      baseDocument({
+        triggers: {
+          manual: {source: 'manual', with: {environment: value}},
+          push: {source: 'github', event: 'push', with: {environment: 'production'}},
+        },
+      }),
+      {group: interpolation('inputs.environment')},
     );
 
     expect(diagnostics).toEqual([

@@ -265,21 +265,21 @@ const workflowModelSchema = z.custom<WorkflowModel>(
 );
 
 export const workflowModelSnapshotSchema = z.object({
-  // v2 snapshots predate tool steps, and v3 snapshots predate concurrency;
-  // historical versions stay readable while new snapshots use v4.
+  // v2 snapshots predate tool steps, and v3 snapshots predate concurrency.
+  // Historical versions stay readable while snapshots containing concurrency use v4.
   version: z.union([z.literal(4), z.literal(3), z.literal(2)]),
   model: workflowModelSchema,
 });
 export type WorkflowModelSnapshot = z.infer<typeof workflowModelSnapshotSchema>;
 
 export function createWorkflowModelSnapshot(model: WorkflowModel): WorkflowModelSnapshot {
-  return {version: 4, model};
+  return {version: model.concurrency === undefined ? 3 : 4, model};
 }
 
 export function workflowModelFromSnapshot(snapshot: WorkflowModelSnapshot): WorkflowModel {
   switch (snapshot.version) {
     // Historical snapshots carry older model shapes; optional model fields
-    // make them readable as-is and new snapshots re-serialize as v4.
+    // make them readable as-is.
     case 2:
     case 3:
     case 4:

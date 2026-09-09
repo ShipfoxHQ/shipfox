@@ -1,4 +1,4 @@
-import {analyzeContextRootKeyAccess} from '@shipfox/expression';
+import {analyzeContextPathAccess} from '@shipfox/expression';
 import type {
   WorkflowFieldTemplate,
   WorkflowModelConcurrency,
@@ -184,7 +184,11 @@ function rootCanBeNullForTrigger(
   if (inputKeys.hasUnknownAccess) return true;
   if (inputKeys.keys.length === 0) return trigger.with === undefined;
   return inputKeys.keys.some(
-    (key) => trigger.with === undefined || !Object.hasOwn(trigger.with, key),
+    (key) =>
+      trigger.with === undefined ||
+      !Object.hasOwn(trigger.with, key) ||
+      trigger.with[key] === null ||
+      trigger.with[key] === undefined,
   );
 }
 
@@ -199,17 +203,18 @@ function referencedInputKeys(template: WorkflowFieldTemplate): ReferencedInputKe
   for (const segment of template) {
     if (segment.kind !== 'deferred' || !segment.roots.includes('inputs')) continue;
 
-    const access = analyzeContextRootKeyAccess(segment.expression, ['inputs']);
-    keys.push(...access.references.map((reference) => reference.key));
-    const computedInputAccesses = access.violations.filter(
-      (violation) => violation.root === 'inputs',
-    );
-    keys.push(
-      ...computedInputAccesses.flatMap((violation) =>
-        violation.key === undefined ? [] : [violation.key],
-      ),
-    );
-    hasUnknownAccess ||= computedInputAccesses.some((violation) => violation.key === undefined);
+    const access = analyzeContextPathAccess(segment.expression, ['inputs']);
+    for (const reference of access.references) {
+      const key = reference.segments[0];
+      if (typeof key === 'string') {
+        keys.push(key);
+      } else if (typeof key === 'object' && key.kind === 'literal') {
+        keys.push(key.value);
+      } else {
+        hasUnknownAccess = true;
+      }
+    }
+    hasUnknownAccess ||= access.unknown.some((unknown) => unknown.root === 'inputs');
   }
 
   return {keys: unique(keys), hasUnknownAccess};
