@@ -171,6 +171,27 @@ describe('SharedInstallationTokenCache', () => {
     expect(mint).not.toHaveBeenCalled();
   });
 
+  it('rejects a generation-less fixed-key envelope after invalidation', async () => {
+    const store = createStore();
+    store.values.set(
+      `${workspaceId}:${installationId}:${GITHUB_INSTALLATION_TOKEN_ENVELOPE_KEY}`,
+      encodeInstallationTokenEnvelope(token('ghs_before-approval')),
+    );
+    await store.writeGeneration?.(workspaceId, installationId, 'generation-after-approval');
+    const mint = vi.fn(() => Promise.resolve(token('ghs_after-approval')));
+    const shared = cache({store});
+
+    await expect(shared.getOrMint(installationId, mint)).resolves.toEqual(
+      token('ghs_after-approval'),
+    );
+    expect(mint).toHaveBeenCalledOnce();
+    expect(
+      store.values.get(
+        `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
+      ),
+    ).toContain('ghs_after-approval');
+  });
+
   beforeEach(() => {
     errorMonitoring.reportError.mockReset();
   });
@@ -233,10 +254,9 @@ describe('SharedInstallationTokenCache', () => {
     ).toContain('provider-rejected');
   });
 
-  it('does not read or relabel a legacy profile envelope after invalidation', async () => {
+  it('does not read or relabel a legacy profile envelope without an invalidation fence', async () => {
     const store = createStore();
-    setEnvelope(store, {...token('ghs_before-approval'), generation: 'legacy'}, 'broad');
-    await store.writeGeneration?.(workspaceId, installationId, 'generation-after-approval');
+    setEnvelope(store, token('ghs_narrowed'), 'broad');
     const mint = vi.fn(() => Promise.resolve(token('ghs_after-approval')));
     const shared = cache({store});
 
@@ -246,7 +266,7 @@ describe('SharedInstallationTokenCache', () => {
     expect(mint).toHaveBeenCalledOnce();
     expect(
       store.values.get(`${workspaceId}:${installationId}:${githubInstallationTokenKey('broad')}`),
-    ).toContain('ghs_before-approval');
+    ).toContain('ghs_narrowed');
     expect(
       store.values.get(
         `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
@@ -532,6 +552,9 @@ describe('SharedInstallationTokenCache', () => {
         `${workspaceId}:${installationId}:${githubInstallationTokenKey(GITHUB_COMPATIBILITY_PERMISSION_FINGERPRINT)}`,
       ),
     ).not.toContain('backoff');
+    expect(
+      store.values.get(`${workspaceId}:${installationId}:${GITHUB_INSTALLATION_TOKEN_BACKOFF_KEY}`),
+    ).toBe(encodeInstallationTokenEnvelope({}));
   });
 
   it('records transient backoff and short-circuits the next call with the stored reason', async () => {
