@@ -1,0 +1,126 @@
+---
+title: "Add GitHub Check Runs to a Workflow"
+sidebarTitle: "GitHub Check Runs"
+description: "Publish a Bash check as a GitHub check run."
+---
+
+Use this recipe to add a check run to a pull-request workflow.
+
+## Before you begin
+
+You need:
+
+- A project [connected to GitHub](/integrations/github/setup).
+- The slug of its GitHub integration connection. This recipe uses `github_acme` as a placeholder.
+
+## Add the workflow
+
+Create `.shipfox/workflows/github-check-runs.yml`. Replace `github_acme` with
+the slug of your GitHub integration connection. Replace `acme` and `platform`
+with the repository owner and name. This is a complete workflow:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: GitHub check runs
+runner: shipfox
+
+triggers:
+  opened:
+    source: github_acme # Replace with the slug of your GitHub integration connection.
+    event: pull_request.opened
+  ready:
+    source: github_acme
+    event: pull_request.ready_for_review
+  reopened:
+    source: github_acme
+    event: pull_request.reopened
+  updated:
+    source: github_acme
+    event: pull_request.synchronize
+
+jobs:
+  test:
+    steps:
+      - key: start_check
+        tool: check_run_write.create
+        connection: github_acme
+        with:
+          owner: acme # Replace with the repository owner.
+          repo: platform # Replace with the repository name.
+          name: Shipfox repository check
+          head_sha: "${{ event.pull_request.head.sha }}"
+          status: in_progress
+          external_id: "shipfox-${{ run.id }}"
+          output:
+            title: Check in progress
+            summary: Shipfox is checking the repository.
+        outputs:
+          check_run_id: "${{ result.check_run.id }}"
+
+      - key: check
+        run: |
+          if [[ ! -f README.md ]]; then
+            echo "README.md is missing."
+            exit 1
+          fi
+
+      - key: pass_check
+        if: '${{ steps.check.status == "succeeded" }}'
+        tool: check_run_write.update
+        connection: github_acme
+        with:
+          owner: acme
+          repo: platform
+          check_run_id: "${{ steps.start_check.outputs.check_run_id }}"
+          conclusion: success
+          output:
+            title: Check passed
+            summary: The repository contains README.md.
+
+      - key: fail_check
+        if: '${{ steps.start_check.status == "succeeded" && steps.check.status == "failed" }}'
+        tool: check_run_write.update
+        connection: github_acme
+        with:
+          owner: acme
+          repo: platform
+          check_run_id: "${{ steps.start_check.outputs.check_run_id }}"
+          conclusion: failure
+          output:
+            title: Check failed
+            summary: The repository does not contain README.md.
+```
+
+The create step maps `result.check_run.id` to the `check_run_id` output. Both
+update steps use that output to update the same check run.
+
+Replace the Bash condition with the check that your repository needs.
+
+The passing path completes the check with `success`.
+
+Commit and push the workflow file to the project's default branch. Wait for
+**GitHub check runs** to sync before opening a test pull request.
+
+## Verify the check run
+
+Open a same-repository pull request and inspect its Shipfox run.
+
+1. Confirm that GitHub shows **Shipfox repository check** as in progress.
+2. Confirm that the `check` step finds `README.md`.
+3. Confirm that `pass_check` updates the check with a `success` conclusion.
+4. Make the Bash condition check for a missing file in a safe test commit.
+5. Confirm that `fail_check` updates the same check with a `failure` conclusion.
+
+Shipfox does not add a Shipfox run URL to `details_url`. Set `details_url` in
+the check-run input when GitHub should show a custom details link.
+
+Hard cancellation or runner loss can prevent the failure update. The failure
+step is best effort and does not run after every abrupt termination.
+
+If GitHub rejects the request because the installation lacks **Checks: Read
+and write**, approve that permission in the GitHub App installation. Retry the
+run after approval. See [Connect GitHub to a Shipfox
+workspace](/integrations/github/setup#permissions-and-approval) for the
+approval boundary. See [the GitHub agent tools
+reference](/integrations/github/tools) for the complete input and output
+schema.
