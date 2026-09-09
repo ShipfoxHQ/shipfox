@@ -268,7 +268,7 @@ test('enforces selected GitHub authorization for deterministic tools', async ({
         authorization: expect.any(String),
         tokenFormatOverride: 'enabled',
         installationId: fixture.installationId,
-        body: {permissions: {issues: 'read'}},
+        body: {},
       },
       {
         kind: 'read-issue',
@@ -392,7 +392,7 @@ test('allows an all-mode GitHub tool target outside Shipfox projects', async ({
         authorization: expect.any(String),
         tokenFormatOverride: 'enabled',
         installationId: fixture.installationId,
-        body: {permissions: {issues: 'read'}},
+        body: {},
       },
       {
         kind: 'read-issue',
