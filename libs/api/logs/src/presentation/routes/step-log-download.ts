@@ -1,5 +1,4 @@
 import type {Buffer} from 'node:buffer';
-import {once} from 'node:events';
 import {requireAgentLogDownloadContext} from '@shipfox/api-auth-context';
 import {ClientError, defineRoute, type FastifyReply} from '@shipfox/node-fastify';
 import {presignedAgentLogDownloadUrl} from '#api/object-storage.js';
@@ -46,7 +45,29 @@ function writeHotHeaders(reply: FastifyReply): void {
 async function writePage(reply: FastifyReply, data: Buffer): Promise<void> {
   if (data.length === 0) return;
   if (reply.raw.write(data)) return;
-  await once(reply.raw, 'drain');
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      reply.raw.off('drain', onDrain);
+      reply.raw.off('close', onClose);
+      reply.raw.off('error', onError);
+    };
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onDrain = () => settle(resolve);
+    const onClose = () =>
+      settle(() => reject(new Error('Response closed while waiting for log download drain')));
+    const onError = (error: Error) => settle(() => reject(error));
+
+    reply.raw.once('drain', onDrain);
+    reply.raw.once('close', onClose);
+    reply.raw.once('error', onError);
+  });
 }
 
 function destroyResponse(reply: FastifyReply): void {
@@ -120,7 +141,7 @@ export const stepLogDownloadRoute = defineRoute({
       if (stream.objectKey) {
         const {url} = await presignedAgentLogDownloadUrl(stream.objectKey);
         recordDownload('redirected');
-        return reply.code(302).header('location', url).send();
+        return reply.code(302).header('location', url).header('cache-control', 'no-store').send();
       }
 
       const stats = await chunkStats(stream.id);
@@ -133,7 +154,7 @@ export const stepLogDownloadRoute = defineRoute({
         if (refreshed.objectKey) {
           const {url} = await presignedAgentLogDownloadUrl(refreshed.objectKey);
           recordDownload('redirected');
-          return reply.code(302).header('location', url).send();
+          return reply.code(302).header('location', url).header('cache-control', 'no-store').send();
         }
 
         writeHotHeaders(reply);

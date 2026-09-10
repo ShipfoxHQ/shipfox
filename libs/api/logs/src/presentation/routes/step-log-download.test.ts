@@ -9,10 +9,11 @@ import type {AuthMethod, FastifyInstance, FastifyRequest} from '@shipfox/node-fa
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {MockActivityEnvironment} from '@temporalio/testing';
 import {eq} from 'drizzle-orm';
-import {deleteObject, headObject} from '#api/object-storage.js';
+import {compactedTailObjectKey, deleteObject, headObject} from '#api/object-storage.js';
 import {insertChunk} from '#db/chunks.js';
 import {db} from '#db/db.js';
 import {attemptStreams} from '#db/schema/attempt-streams.js';
+import * as streamDb from '#db/streams.js';
 import {getOrCreateAttemptStream} from '#db/streams.js';
 import {
   type CompactStreamResult,
@@ -143,11 +144,44 @@ describe('GET /step-log-downloads/current', () => {
     const response = await download(stream.id, stream.workspaceId);
 
     expect(response.statusCode).toBe(302);
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers.location).toContain('X-Amz-');
     expect(response.headers.location).toContain('X-Amz-Expires=60');
     expect(response.headers.location).not.toContain(stream.id);
     expect(await headObject(objectKey)).not.toBeNull();
     await deleteObject(objectKey);
+    await deleteObject(compactedTailObjectKey(objectKey));
+  });
+
+  it('redirects to a compacted stream published during the empty read', async () => {
+    const {stream, objectKey} = await arrangeCompactedStream(crypto.randomUUID());
+    await db()
+      .update(attemptStreams)
+      .set({objectKey: null})
+      .where(eq(attemptStreams.id, stream.id));
+
+    const realGetAttemptStreamById = streamDb.getAttemptStreamById;
+    const getAttemptStreamByIdSpy = vi
+      .spyOn(streamDb, 'getAttemptStreamById')
+      .mockImplementationOnce((streamId) => realGetAttemptStreamById(streamId))
+      .mockImplementationOnce(async (streamId) => {
+        await db().update(attemptStreams).set({objectKey}).where(eq(attemptStreams.id, streamId));
+        return realGetAttemptStreamById(streamId);
+      });
+
+    try {
+      const response = await download(stream.id, stream.workspaceId);
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(response.headers.location).toContain('X-Amz-');
+      expect(response.headers.location).toContain('X-Amz-Expires=60');
+      expect(response.headers.location).not.toContain(stream.id);
+    } finally {
+      getAttemptStreamByIdSpy.mockRestore();
+      await deleteObject(objectKey);
+      await deleteObject(compactedTailObjectKey(objectKey));
+    }
   });
 
   it('returns an empty hot response for a genuinely empty stream', async () => {
