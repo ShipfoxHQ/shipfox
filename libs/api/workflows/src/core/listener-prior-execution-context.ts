@@ -1,63 +1,133 @@
 import type {WorkflowModel} from '@shipfox/api-definitions-dto';
 import {
-  extractExactContextRoots,
+  analyzeContextPathAccess,
+  type ContextPathAccessAnalysis,
+  type ContextPathReference,
   type ResolvedFieldSegment,
   type WorkflowExpression,
 } from '@shipfox/expression';
 
+export interface ListenerPriorExecutionContextPlan {
+  readonly includePriorExecutionEventMetadata: boolean;
+  readonly referencesHistoricalExecutions: boolean;
+  readonly historicalExecutionPaths: readonly ContextPathReference[];
+  readonly hasDynamicHistoricalExecutionAccess: boolean;
+}
+
 /**
- * Returns whether listener materialization or resolution needs event bodies from
- * prior executions. The default success predicate only reads execution status,
- * so it does not by itself require the event arrays.
+ * Plans listener context reads from persisted expressions. Historical event
+ * bodies are never part of the plan; matching paths only opt into metadata.
  */
+export function planListenerPriorExecutionContext(params: {
+  readonly model: WorkflowModel | null;
+  readonly jobKey: string;
+  readonly success?: string | null | undefined;
+}): ListenerPriorExecutionContextPlan {
+  const job = params.model?.jobs.find((candidate) => candidate.key === params.jobKey);
+  if (job === undefined) {
+    return {
+      includePriorExecutionEventMetadata: true,
+      referencesHistoricalExecutions: true,
+      historicalExecutionPaths: [],
+      hasDynamicHistoricalExecutionAccess: true,
+    };
+  }
+
+  const roots = new Set<string>();
+  const historicalExecutionPaths: ContextPathReference[] = [];
+  let hasDynamicHistoricalExecutionAccess = false;
+  const pathPlan = {
+    add(analysis: ContextPathAccessAnalysis) {
+      historicalExecutionPaths.push(
+        ...analysis.references.filter((reference) => reference.root === 'executions'),
+      );
+      hasDynamicHistoricalExecutionAccess ||= analysis.unknown.some(
+        (access) => access.root === 'executions',
+      );
+    },
+  };
+
+  try {
+    if (params.success !== undefined && params.success !== null) {
+      addExpressionPlan(params.success, roots, pathPlan);
+    }
+    if (job.success !== undefined) addExpressionPlan(job.success, roots, pathPlan);
+    collectExpressionRoots(params.model?.templates?.env, roots, new Set(), pathPlan);
+    collectExpressionRoots(job, roots, new Set(), pathPlan);
+  } catch {
+    return {
+      includePriorExecutionEventMetadata: true,
+      referencesHistoricalExecutions: true,
+      historicalExecutionPaths,
+      hasDynamicHistoricalExecutionAccess: true,
+    };
+  }
+
+  const referencesHistoricalExecutions = roots.has('executions');
+  const includePriorExecutionEventMetadata =
+    hasDynamicHistoricalExecutionAccess ||
+    historicalExecutionPaths.some(historicalExecutionPathNeedsEventMetadata);
+  return {
+    includePriorExecutionEventMetadata,
+    referencesHistoricalExecutions,
+    historicalExecutionPaths,
+    hasDynamicHistoricalExecutionAccess,
+  };
+}
+
 export function listenerPriorExecutionEventsRequired(params: {
   readonly model: WorkflowModel | null;
   readonly jobKey: string;
   readonly success?: string | null | undefined;
 }): boolean {
-  const job = params.model?.jobs.find((candidate) => candidate.key === params.jobKey);
-  if (job === undefined) return true;
-
-  const roots = new Set<string>();
-  try {
-    if (params.success !== undefined && params.success !== null) {
-      addExpressionRoots(params.success, roots);
-    }
-    if (job.success !== undefined) addExpressionRoots(job.success, roots);
-    collectExpressionRoots(params.model?.templates?.env, roots, new Set());
-    collectExpressionRoots(job, roots, new Set());
-  } catch {
-    // A malformed or future model must keep the full context shape rather than
-    // risk evaluating an expression against missing historical data.
-    return true;
-  }
-
-  return roots.has('executions');
+  return planListenerPriorExecutionContext(params).referencesHistoricalExecutions;
 }
 
-function collectExpressionRoots(value: unknown, roots: Set<string>, visited: Set<object>): void {
+function historicalExecutionPathNeedsEventMetadata(reference: ContextPathReference): boolean {
+  const referencesEventCollection =
+    reference.segments[1] === 'events' || reference.segments[1] === 'trigger_events';
+  if (reference.cardinalityOnly === true && !referencesEventCollection) return false;
+  if (reference.wholeElement === true || reference.segments.length <= 1) return true;
+  return referencesEventCollection;
+}
+
+interface ExpressionPathPlan {
+  add(analysis: ContextPathAccessAnalysis): void;
+}
+
+function collectExpressionRoots(
+  value: unknown,
+  roots: Set<string>,
+  visited: Set<object>,
+  pathPlan: ExpressionPathPlan,
+): void {
   if (value === null || typeof value !== 'object') return;
   if (isWorkflowExpression(value)) {
-    addExpressionRoots(value.source, roots);
+    addExpressionPlan(value.source, roots, pathPlan);
     return;
   }
   if (isDeferredSegment(value)) {
     for (const root of value.roots) roots.add(root);
-    addExpressionRoots(value.expression.source, roots);
+    addExpressionPlan(value.expression.source, roots, pathPlan);
     return;
   }
   if (visited.has(value)) return;
   visited.add(value);
 
   if (Array.isArray(value)) {
-    for (const child of value) collectExpressionRoots(child, roots, visited);
+    for (const child of value) collectExpressionRoots(child, roots, visited, pathPlan);
     return;
   }
-  for (const child of Object.values(value)) collectExpressionRoots(child, roots, visited);
+  for (const child of Object.values(value)) {
+    collectExpressionRoots(child, roots, visited, pathPlan);
+  }
 }
 
-function addExpressionRoots(source: string, roots: Set<string>): void {
-  for (const root of extractExactContextRoots(source)) roots.add(root);
+function addExpressionPlan(source: string, roots: Set<string>, pathPlan: ExpressionPathPlan): void {
+  const analysis = analyzeContextPathAccess(source);
+  for (const reference of analysis.references) roots.add(reference.root);
+  for (const access of analysis.unknown) roots.add(access.root);
+  pathPlan.add(analysis);
 }
 
 function isWorkflowExpression(value: object): value is WorkflowExpression {

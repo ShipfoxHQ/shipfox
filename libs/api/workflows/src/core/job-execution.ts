@@ -186,7 +186,9 @@ async function nextStepForJobExecutionInTransaction(
   if (!jobExecution) throw new JobNotFoundError(jobExecutionId);
 
   const attempts = await getStepAttemptsByJobExecutionId(jobExecutionId, tx);
-  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx);
+  const jobs = await getDirectDependencyJobContexts(jobExecution.jobId, tx, {
+    includeTriggerEventPayloads: false,
+  });
   const workflowContext = await getWorkflowContextForJob(jobExecution.jobId, tx);
 
   return resolveNextPendingStep({

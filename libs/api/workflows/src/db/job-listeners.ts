@@ -40,7 +40,7 @@ import {
   type MaterializedListenerExecution,
   materializeListenerExecution,
 } from '#core/listener-execution-materialization.js';
-import {listenerPriorExecutionEventsRequired} from '#core/listener-prior-execution-context.js';
+import {planListenerPriorExecutionContext} from '#core/listener-prior-execution-context.js';
 import {
   applyListenerFilterSnapshots,
   assembleListenerSnapshotContext,
@@ -56,7 +56,10 @@ import {
   recordWorkflowListenerResolved,
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
-import {loadJobExecutionsWithCanonicalTriggerEvents} from './execution-trigger-events.js';
+import {
+  loadJobExecutionsWithCanonicalTriggerEventMetadata,
+  loadJobExecutionsWithCanonicalTriggerEvents,
+} from './execution-trigger-events.js';
 import {
   type FinalizedListenerEventCounts,
   finalizePendingListenerEvents,
@@ -232,7 +235,9 @@ async function writeListenerActivatedEvent(
   const dependencyJobs =
     snapshotPlan.jobKeys.size === 0 && !snapshotPlan.jobsAreBroad
       ? []
-      : await getDirectDependencyJobContexts(jobId, tx);
+      : await getDirectDependencyJobContexts(jobId, tx, {
+          includeTriggerEventPayloads: false,
+        });
   const snapshotContext = assembleListenerSnapshotContext({
     job: toJob(target.job),
     run: toWorkflowRun(target.run),
@@ -363,7 +368,7 @@ interface ListenerEventCandidateRow {
 interface ListenerDrainTransactionParams {
   readonly drain: DrainListenerEventsParams;
   readonly model: WorkflowModel | null;
-  readonly includePriorExecutionTriggerEvents: boolean;
+  readonly includePriorExecutionEventMetadata: boolean;
   readonly vars: Record<string, string> | undefined;
   readonly variableResolutionError: InterpolationUnresolvableError | undefined;
   readonly agentToolContext: AgentToolMaterializationContext | undefined;
@@ -393,7 +398,7 @@ export async function drainListenerEventsIntoExecution(
       ? null
       : readPersistedWorkflowModel(materializationTarget.attempt.model);
   const modelJob = model?.jobs.find((job) => job.key === materializationTarget.job.key);
-  const includePriorExecutionTriggerEvents = listenerPriorExecutionEventsRequired({
+  const listenerContextPlan = planListenerPriorExecutionContext({
     model,
     jobKey: materializationTarget.job.key,
   });
@@ -430,7 +435,7 @@ export async function drainListenerEventsIntoExecution(
       {
         drain: params,
         model,
-        includePriorExecutionTriggerEvents,
+        includePriorExecutionEventMetadata: listenerContextPlan.includePriorExecutionEventMetadata,
         vars,
         variableResolutionError,
         agentToolContext,
@@ -485,7 +490,7 @@ async function drainListenerEventsInTransaction(
     params.drain.jobId,
     target.job.name ?? target.job.key,
     tx,
-    params.includePriorExecutionTriggerEvents,
+    params.includePriorExecutionEventMetadata,
   );
   const materialized = await materializeListenerExecution({
     model: params.model,
@@ -598,7 +603,7 @@ async function deriveJobListenerResolutionDecision(
 
   const model =
     target.attempt.model === null ? null : readPersistedWorkflowModel(target.attempt.model);
-  const includePriorExecutionTriggerEvents = listenerPriorExecutionEventsRequired({
+  const listenerContextPlan = planListenerPriorExecutionContext({
     model,
     jobKey: jobRow.key,
     success: jobRow.success,
@@ -609,9 +614,12 @@ async function deriveJobListenerResolutionDecision(
       jobId,
       jobRow.name ?? jobRow.key,
       db(),
-      includePriorExecutionTriggerEvents,
+      listenerContextPlan.includePriorExecutionEventMetadata,
+      true,
     ),
-    getDirectDependencyJobContexts(jobId),
+    getDirectDependencyJobContexts(jobId, undefined, {
+      includeTriggerEventPayloads: false,
+    }),
   ]);
   return {
     expectedVersion: jobRow.version,
@@ -1126,27 +1134,43 @@ async function loadListenerPriorExecutions(
   jobId: string,
   fallbackName: string,
   source: ReturnType<typeof db> | Tx,
-  includeTriggerEvents: boolean,
+  includeEventMetadata: boolean,
+  includeCurrentExecutionPayload = false,
 ): Promise<JobExecution[]> {
-  if (!includeTriggerEvents) {
-    const priorExecutions = await source
-      .select(jobExecutionWithoutTriggerEventsSelection)
-      .from(jobExecutions)
-      .where(eq(jobExecutions.jobId, jobId))
-      .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-    return priorExecutions.map((execution) => toJobExecution(execution, fallbackName));
-  }
-
   const priorExecutions = await source
-    .select()
+    .select(jobExecutionWithoutTriggerEventsSelection)
     .from(jobExecutions)
     .where(eq(jobExecutions.jobId, jobId))
     .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
-  const hydratedExecutions = await loadJobExecutionsWithCanonicalTriggerEvents(
+  if (!includeEventMetadata) {
+    return priorExecutions.map((execution) => toJobExecution(execution, fallbackName));
+  }
+
+  const eventMetadata = await loadJobExecutionsWithCanonicalTriggerEventMetadata(
     source,
     priorExecutions,
   );
-  return priorExecutions.map((execution) =>
-    toJobExecution(hydratedExecutions.get(execution.id) ?? execution, fallbackName),
-  );
+  const currentExecutionReference = includeCurrentExecutionPayload
+    ? priorExecutions.at(-1)
+    : undefined;
+  const currentExecution = currentExecutionReference
+    ? (
+        await source
+          .select()
+          .from(jobExecutions)
+          .where(eq(jobExecutions.id, currentExecutionReference.id))
+          .limit(1)
+      )[0]
+    : undefined;
+  const currentExecutionEvents = currentExecution
+    ? await loadJobExecutionsWithCanonicalTriggerEvents(source, [currentExecution])
+    : new Map<string, JobExecutionDb>();
+  return priorExecutions.map((execution) => {
+    const hydratedCurrent = currentExecutionEvents.get(execution.id);
+    if (hydratedCurrent !== undefined) return toJobExecution(hydratedCurrent, fallbackName);
+    return {
+      ...toJobExecution(execution, fallbackName),
+      triggerEventMetadata: eventMetadata.get(execution.id) ?? [],
+    };
+  });
 }

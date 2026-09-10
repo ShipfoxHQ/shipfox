@@ -22,9 +22,17 @@ import {MAX_JOB_OUTPUTS_TOTAL_BYTES} from '#core/step-config/job-output-limits.j
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import {recordWorkflowJobStatusChanged} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
-import {loadJobExecutionsWithCanonicalTriggerEvents} from '../execution-trigger-events.js';
+import {
+  loadJobExecutionsWithCanonicalTriggerEventMetadata,
+  loadJobExecutionsWithCanonicalTriggerEvents,
+} from '../execution-trigger-events.js';
 import {writeWorkflowsOutboxEvent} from '../outbox-writes.js';
-import {type JobExecutionDb, jobExecutions, toJobExecution} from '../schema/job-executions.js';
+import {
+  type JobExecutionDb,
+  jobExecutions,
+  jobExecutionWithoutTriggerEventsSelection,
+  toJobExecution,
+} from '../schema/job-executions.js';
 import {type JobDb, jobs, toJob} from '../schema/jobs.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, toWorkflowRunOriginState, workflowRuns} from '../schema/workflow-runs.js';
@@ -42,14 +50,24 @@ function outputTypesByJobKey(
 }
 
 function toDependencyExecution(
-  row: {job: JobDb; execution: JobExecutionDb | null},
+  row: {job: JobDb; execution: JobExecutionDb | Omit<JobExecutionDb, 'triggerEvents'> | null},
   hydratedExecutions: ReadonlyMap<string, JobExecutionDb>,
+  eventMetadata?: ReadonlyMap<string, NonNullable<JobExecution['triggerEventMetadata']>>,
 ): JobExecution | undefined {
   if (!row.execution) return undefined;
-  return toJobExecution(
+  const execution = toJobExecution(
     hydratedExecutions.get(row.execution.id) ?? row.execution,
     row.job.name ?? row.job.key,
   );
+  if (eventMetadata === undefined) return execution;
+  return {
+    ...execution,
+    triggerEventMetadata: eventMetadata.get(execution.id) ?? [],
+  };
+}
+
+export interface GetDirectDependencyJobContextsOptions {
+  readonly includeTriggerEventPayloads?: boolean;
 }
 
 export async function getJobsByWorkflowRunAttemptId(workflowRunAttemptId: string): Promise<Job[]> {
@@ -119,11 +137,72 @@ export async function getJobScope(jobId: string): Promise<JobScope | undefined> 
   };
 }
 
+type DirectDependencyRow = {
+  job: JobDb;
+  execution: JobExecutionDb | Omit<JobExecutionDb, 'triggerEvents'> | null;
+};
+
+interface LoadedDirectDependencyExecutions {
+  rows: readonly DirectDependencyRow[];
+  hydratedExecutions: ReadonlyMap<string, JobExecutionDb>;
+  eventMetadata?: ReadonlyMap<string, NonNullable<JobExecution['triggerEventMetadata']>>;
+}
+
+async function loadDirectDependencyExecutions(params: {
+  tx: ReturnType<typeof db> | Tx;
+  workflowRunAttemptId: string;
+  dependencyKeys: readonly string[];
+  includeTriggerEventPayloads: boolean;
+}): Promise<LoadedDirectDependencyExecutions> {
+  const rows = (await params.tx
+    .select({
+      job: jobs,
+      execution: params.includeTriggerEventPayloads
+        ? jobExecutions
+        : jobExecutionWithoutTriggerEventsSelection,
+    })
+    .from(jobs)
+    .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
+    .where(
+      and(
+        eq(jobs.workflowRunAttemptId, params.workflowRunAttemptId),
+        inArray(jobs.key, params.dependencyKeys),
+      ),
+    )
+    .orderBy(
+      asc(jobs.position),
+      asc(jobs.id),
+      asc(jobExecutions.sequence),
+      asc(jobExecutions.id),
+    )) as DirectDependencyRow[];
+  const executionRows = rows.flatMap((row) => (row.execution === null ? [] : [row.execution]));
+  if (params.includeTriggerEventPayloads) {
+    return {
+      rows,
+      hydratedExecutions: await loadJobExecutionsWithCanonicalTriggerEvents(
+        params.tx,
+        executionRows as JobExecutionDb[],
+      ),
+    };
+  }
+
+  return {
+    rows,
+    hydratedExecutions: new Map(),
+    eventMetadata: await loadJobExecutionsWithCanonicalTriggerEventMetadata(
+      params.tx,
+      executionRows,
+    ),
+  };
+}
+
 export async function getDirectDependencyJobContexts(
   jobId: string,
   tx?: Tx,
+  options: GetDirectDependencyJobContextsOptions = {},
 ): Promise<JobContextInput[]> {
-  const targetRows = await (tx ?? db())
+  const source = tx ?? db();
+  const targetRows = await source
     .select({job: jobs, attempt: workflowRunAttempts})
     .from(jobs)
     .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
@@ -131,28 +210,18 @@ export async function getDirectDependencyJobContexts(
     .limit(1);
   const target = targetRows[0];
   if (!target || target.job.dependencies.length === 0) return [];
+
   const model =
     target.attempt.model === null ? null : readPersistedWorkflowModel(target.attempt.model);
+  const loaded = await loadDirectDependencyExecutions({
+    tx: source,
+    workflowRunAttemptId: target.job.workflowRunAttemptId,
+    dependencyKeys: target.job.dependencies,
+    includeTriggerEventPayloads: options.includeTriggerEventPayloads !== false,
+  });
   const outputTypes = outputTypesByJobKey(model);
-
-  const rows = await (tx ?? db())
-    .select({job: jobs, execution: jobExecutions})
-    .from(jobs)
-    .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
-    .where(
-      and(
-        eq(jobs.workflowRunAttemptId, target.job.workflowRunAttemptId),
-        inArray(jobs.key, target.job.dependencies),
-      ),
-    )
-    .orderBy(asc(jobs.position), asc(jobs.id), asc(jobExecutions.sequence), asc(jobExecutions.id));
-  const hydratedExecutions = await loadJobExecutionsWithCanonicalTriggerEvents(
-    tx ?? db(),
-    rows.flatMap((row) => (row.execution === null ? [] : [row.execution])),
-  );
-
   const contextsByJobId = new Map<string, JobContextInput & {executions: JobExecution[]}>();
-  for (const row of rows) {
+  for (const row of loaded.rows) {
     let context = contextsByJobId.get(row.job.id);
     if (!context) {
       const jobOutputTypes = outputTypes.get(row.job.key);
@@ -163,7 +232,7 @@ export async function getDirectDependencyJobContexts(
       };
       contextsByJobId.set(row.job.id, context);
     }
-    const execution = toDependencyExecution(row, hydratedExecutions);
+    const execution = toDependencyExecution(row, loaded.hydratedExecutions, loaded.eventMetadata);
     if (execution) context.executions.push(execution);
   }
 
@@ -326,15 +395,14 @@ async function directDependencyContextsByJobKey(
   const outputTypes = outputTypesByJobKey(model);
 
   const rows = await tx
-    .select({job: jobs, execution: jobExecutions})
+    .select({job: jobs, execution: jobExecutionWithoutTriggerEventsSelection})
     .from(jobs)
     .leftJoin(jobExecutions, eq(jobExecutions.jobId, jobs.id))
     .where(and(eq(jobs.workflowRunAttemptId, runAttemptId), inArray(jobs.key, [...dependencyKeys])))
     .orderBy(asc(jobs.position), asc(jobs.id), asc(jobExecutions.sequence), asc(jobExecutions.id));
-  const hydratedExecutions = await loadJobExecutionsWithCanonicalTriggerEvents(
-    tx,
-    rows.flatMap((row) => (row.execution === null ? [] : [row.execution])),
-  );
+  const executionRows = rows.flatMap((row) => (row.execution === null ? [] : [row.execution]));
+  const hydratedExecutions = new Map<string, JobExecutionDb>();
+  const eventMetadata = await loadJobExecutionsWithCanonicalTriggerEventMetadata(tx, executionRows);
 
   const contextsByJobKey = new Map<string, JobContextInput & {executions: JobExecution[]}>();
   for (const row of rows) {
@@ -348,7 +416,7 @@ async function directDependencyContextsByJobKey(
       };
       contextsByJobKey.set(row.job.key, context);
     }
-    const execution = toDependencyExecution(row, hydratedExecutions);
+    const execution = toDependencyExecution(row, hydratedExecutions, eventMetadata);
     if (execution) context.executions.push(execution);
   }
 
@@ -518,7 +586,7 @@ export async function resolveJobStatusFromJobExecutions(params: {
     if (!jobRow) throw new JobNotFoundError(params.jobId);
 
     const jobExecutionRows = await tx
-      .select()
+      .select(jobExecutionWithoutTriggerEventsSelection)
       .from(jobExecutions)
       .where(eq(jobExecutions.jobId, params.jobId))
       .orderBy(asc(jobExecutions.sequence), asc(jobExecutions.id));
@@ -527,20 +595,39 @@ export async function resolveJobStatusFromJobExecutions(params: {
     if (jobExecutionRows.length === 0) {
       throw new Error(`Cannot resolve job ${params.jobId}: no job executions found`);
     }
-    const hydratedExecutionRows = await loadJobExecutionsWithCanonicalTriggerEvents(
+    const eventMetadata = await loadJobExecutionsWithCanonicalTriggerEventMetadata(
       tx,
       jobExecutionRows,
     );
+    const currentExecutionReference = jobExecutionRows.at(-1);
+    const currentExecutionRow = currentExecutionReference
+      ? (
+          await tx
+            .select()
+            .from(jobExecutions)
+            .where(eq(jobExecutions.id, currentExecutionReference.id))
+            .limit(1)
+        )[0]
+      : undefined;
+    const currentExecution = currentExecutionRow
+      ? await loadJobExecutionsWithCanonicalTriggerEvents(tx, [currentExecutionRow])
+      : new Map<string, JobExecutionDb>();
 
     const {status, statusReason, trace} = evaluateJobSuccess({
       success: jobRow.success,
-      executions: jobExecutionRows.map((execution) =>
-        toJobExecution(
-          hydratedExecutionRows.get(execution.id) ?? execution,
-          jobRow.name ?? jobRow.key,
-        ),
-      ),
-      jobs: await getDirectDependencyJobContexts(params.jobId, tx),
+      executions: jobExecutionRows.map((execution) => {
+        const hydratedCurrent = currentExecution.get(execution.id);
+        if (hydratedCurrent !== undefined) {
+          return toJobExecution(hydratedCurrent, jobRow.name ?? jobRow.key);
+        }
+        return {
+          ...toJobExecution(execution, jobRow.name ?? jobRow.key),
+          triggerEventMetadata: eventMetadata.get(execution.id) ?? [],
+        };
+      }),
+      jobs: await getDirectDependencyJobContexts(params.jobId, tx, {
+        includeTriggerEventPayloads: false,
+      }),
       vars: workflowContext.vars ?? undefined,
     });
 

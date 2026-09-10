@@ -11,7 +11,11 @@ import {
   type WorkflowPredicateContextRoot,
 } from '@shipfox/expression';
 import type {Job, JobListeningTrigger} from '#core/entities/job.js';
-import type {JobExecution, WorkflowExecutionEvent} from '#core/entities/job-execution.js';
+import type {
+  JobExecution,
+  WorkflowExecutionEvent,
+  WorkflowExecutionEventMetadata,
+} from '#core/entities/job-execution.js';
 import type {Step, StepAttempt, StepStatus} from '#core/entities/step.js';
 import type {
   TriggerPayload,
@@ -29,6 +33,7 @@ export interface JobContextInput {
 export interface AssembleJobsContextOptions {
   readonly skipTypedOutputRehydration?: boolean;
   readonly skipCelNativeRehydration?: boolean;
+  readonly eventProjection?: 'payload' | 'metadata';
 }
 
 export interface AssembleWorkflowRunContextParams {
@@ -129,15 +134,17 @@ export function assembleExecutionCreationContext(
     finishedAt: null,
     timedOutAt: null,
   };
-  const executions = assembleExecutionsContext([...params.priorExecutions, execution]);
-  const executionValues = executions.executions as unknown[];
+  const priorExecutionValues = assembleExecutionsContext(params.priorExecutions, undefined, {
+    eventProjection: 'metadata',
+  }).executions as unknown[];
+  const currentExecutionValue = assembleExecutionContext(execution, params.priorExecutions.length);
   return {
     site: 'execution-creation',
     values: {
       ...assembleWorkflowRunContext(params),
-      ...executions,
+      executions: [...priorExecutionValues, currentExecutionValue],
       job: {key: params.job.key, name: params.job.name ?? params.job.key},
-      execution: executionValues.at(-1),
+      execution: currentExecutionValue,
     },
   };
 }
@@ -158,6 +165,19 @@ export function assembleExecutionsContext(
   };
 }
 
+function assembleExecutionsContextWithCurrentExecution(
+  executions: readonly JobExecution[],
+  currentExecutionId: string | undefined,
+): WorkflowExpressionEvaluationContext {
+  return {
+    executions: executions.map((execution, index) =>
+      assembleExecutionContext(execution, index, undefined, {
+        eventProjection: execution.id === currentExecutionId ? 'payload' : 'metadata',
+      }),
+    ),
+  };
+}
+
 function assembleExecutionContext(
   execution: JobExecution,
   index: number,
@@ -165,15 +185,18 @@ function assembleExecutionContext(
   options: AssembleContextOptions = {},
 ): Record<string, unknown> {
   const skipCelNativeRehydration = options.skipCelNativeRehydration === true;
+  const eventProjection = options.eventProjection ?? 'payload';
+  const events =
+    eventProjection === 'metadata'
+      ? (execution.triggerEventMetadata ?? execution.triggerEvents.map(metadataEvent))
+      : execution.triggerEvents;
   return {
     index: skipCelNativeRehydration ? index : BigInt(index),
     name: execution.name,
     status: execution.status,
     started_at: execution.startedAt,
     finished_at: execution.finishedAt,
-    events: skipCelNativeRehydration
-      ? execution.triggerEvents
-      : execution.triggerEvents.map(assembleExecutionEventContext),
+    events: skipCelNativeRehydration ? events : events.map(assembleExecutionEventContext),
     outputs:
       options.skipTypedOutputRehydration === true
         ? (execution.outputs ?? {})
@@ -181,7 +204,14 @@ function assembleExecutionContext(
   };
 }
 
-function assembleExecutionEventContext(event: WorkflowExecutionEvent): Record<string, unknown> {
+function metadataEvent(event: WorkflowExecutionEvent): WorkflowExecutionEventMetadata {
+  const {data: _data, ...metadata} = event;
+  return metadata;
+}
+
+function assembleExecutionEventContext(
+  event: WorkflowExecutionEvent | WorkflowExecutionEventMetadata,
+): Record<string, unknown> {
   const receivedAt = new Date(event.received_at);
   /**
    * An unparseable stored timestamp would become an `Invalid Date`, which compares
@@ -218,8 +248,8 @@ export function assembleJobActivationContext(
     site: 'job-activation',
     values: {
       ...assembleWorkflowRunContext(params),
-      ...assembleJobsContext(params.jobs),
-      needs: params.jobs.map((input) => assembleJobContext(input, {})),
+      ...assembleJobsContext(params.jobs, {eventProjection: 'metadata'}),
+      needs: params.jobs.map((input) => assembleJobContext(input, {eventProjection: 'metadata'})),
       vars: params.vars ?? {},
     },
   };
@@ -411,6 +441,7 @@ function requestedJobsContext(
   const options: AssembleJobsContextOptions = {
     skipCelNativeRehydration: true,
     skipTypedOutputRehydration: true,
+    eventProjection: 'metadata',
   };
   const selected =
     plan.jobsAreBroad || plan.jobKeys.size === 0
@@ -966,7 +997,7 @@ export function assembleStepDispatchContext(params: {
     site: 'step-dispatch',
     values: {
       vars: params.vars ?? {},
-      ...assembleJobsContext(params.jobs ?? []),
+      ...assembleJobsContext(params.jobs ?? [], {eventProjection: 'metadata'}),
       ...(params.jobExecution === undefined
         ? {}
         : {
@@ -1070,8 +1101,11 @@ export function assembleJobResolutionContext(params: {
   return {
     site: 'job-resolution',
     values: {
-      ...assembleExecutionsContext(params.executions),
-      ...assembleJobsContext(params.jobs),
+      ...assembleExecutionsContextWithCurrentExecution(
+        params.executions,
+        params.executions.at(-1)?.id,
+      ),
+      ...assembleJobsContext(params.jobs, {eventProjection: 'metadata'}),
       vars: params.vars ?? {},
     },
   };
@@ -1089,7 +1123,10 @@ export function assembleExecutionResolutionContext(params: {
   readonly attempts: readonly StepAttempt[];
   readonly jobs?: readonly JobContextInput[];
 }): WorkflowEvaluationContext {
-  const executions = assembleExecutionsContext(params.executions);
+  const executions = assembleExecutionsContextWithCurrentExecution(
+    params.executions,
+    params.jobExecution.id,
+  );
   const executionIndex = params.executions.findIndex(
     (execution) => execution.id === params.jobExecution.id,
   );
@@ -1099,7 +1136,9 @@ export function assembleExecutionResolutionContext(params: {
     values: {
       ...assembleWorkflowRunContext(params),
       ...executions,
-      ...(params.jobs === undefined ? {} : assembleJobsContext(params.jobs)),
+      ...(params.jobs === undefined
+        ? {}
+        : assembleJobsContext(params.jobs, {eventProjection: 'metadata'})),
       execution: assembleExecutionContext(
         params.jobExecution,
         executionIndex < 0 ? params.jobExecution.sequence - 1 : executionIndex,

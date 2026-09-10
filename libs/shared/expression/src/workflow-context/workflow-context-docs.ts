@@ -28,10 +28,17 @@ const executionFields = {
   started_at: 'Time the execution started.',
   finished_at: 'Time the execution finished.',
   events: 'Listener events in the batch that started this execution. Empty for a standard job.',
+  'events[*].event_ref': 'Stable identifier for the listener event.',
   'events[*].source': 'Integration connection slug that delivered the event.',
   'events[*].event': 'Shipfox event name.',
   'events[*].delivery_id': 'Identifier of the provider delivery.',
   'events[*].received_at': 'Time Shipfox received the event.',
+  'events[*].disposition':
+    'Whether the listener event fired an execution or resolved the listener.',
+  'events[*].outcome': 'Processing outcome recorded for the listener event.',
+  'events[*].outcome_reason': 'Reason recorded when the listener event was rejected or abandoned.',
+  'events[*].stored_payload_bytes': 'Bytes stored for the event payload.',
+  'events[*].normalized_event_bytes': 'Bytes in the normalized event sent to execution.',
   'events[*].project':
     'Shipfox project resolved from the event repository. Null when there is none.',
   'events[*].project.id': 'Identifier of the resolved project.',

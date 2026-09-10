@@ -1,5 +1,9 @@
+import * as expression from '@shipfox/expression';
 import {workflowModel} from '#test/index.js';
-import {listenerPriorExecutionEventsRequired} from './listener-prior-execution-context.js';
+import {
+  listenerPriorExecutionEventsRequired,
+  planListenerPriorExecutionContext,
+} from './listener-prior-execution-context.js';
 
 function template(source: string): string {
   return `\${{ ${source} }}`;
@@ -48,6 +52,47 @@ describe('listenerPriorExecutionEventsRequired', () => {
         success: 'executions[0].events[0].data.action == "opened"',
       }),
     ).toBe(true);
+  });
+
+  test('loads metadata for cardinality checks over an execution event collection', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          success: 'size(executions[0].events) > 0',
+          steps: [{run: 'echo review'}],
+        },
+      },
+    });
+
+    const analyzePaths = vi.spyOn(expression, 'analyzeContextPathAccess');
+    const extractRoots = vi.spyOn(expression, 'extractExactContextRoots');
+
+    try {
+      const plan = planListenerPriorExecutionContext({model, jobKey: 'review'});
+
+      expect(plan.includePriorExecutionEventMetadata).toBe(true);
+      expect(analyzePaths).toHaveBeenCalledTimes(1);
+      expect(extractRoots).not.toHaveBeenCalled();
+    } finally {
+      analyzePaths.mockRestore();
+      extractRoots.mockRestore();
+    }
+  });
+
+  test('does not load metadata for cardinality checks over an output named events', () => {
+    const model = workflowModel({
+      jobs: {
+        review: {
+          success: 'executions[0].outputs.events.size() > 0',
+          steps: [{run: 'echo review'}],
+        },
+      },
+    });
+
+    const plan = planListenerPriorExecutionContext({model, jobKey: 'review'});
+
+    expect(plan.referencesHistoricalExecutions).toBe(true);
+    expect(plan.includePriorExecutionEventMetadata).toBe(false);
   });
 
   test('keeps prior event arrays for deferred execution names and runner selectors', () => {
