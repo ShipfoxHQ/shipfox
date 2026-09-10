@@ -176,10 +176,12 @@ export const workflowContextDocs = [
     summary: 'The current step. Its properties depend on the field that reads it.',
     fields: {
       attempt: 'Attempt number of the step, starting at one. Not readable in `gate.success`.',
-      is_retry: 'Whether this is a repeat attempt. Not readable in `gate.success`.',
-      restart: 'Set when a gate restarted this step. Not readable in `gate.success`.',
+      is_retry:
+        'Whether the current step ran before. This does not identify which gate failed. Not readable in `gate.success`.',
+      restart:
+        'Set when a gate failure causes Shipfox to run this step again. It remains set for later steps after the gate passes. A later gate restart replaces it. Not readable in `gate.success`.',
       'restart.from':
-        'The failed gate step that restarted this attempt, with the properties of a `steps` entry and its optional authored `key`. The key names the failing gate, not the restart target. Not readable in `gate.success`.',
+        'The gate step whose failure caused the restart. It includes the properties of a `steps` entry and its optional authored `key`. The key identifies the failed gate, not the restart target. Not readable in `gate.success`.',
       'restart.feedback': 'Feedback the restarting gate produced. Not readable in `gate.success`.',
       exit_code: 'Exit code the step reported. Readable in `gate.success` only.',
       status: 'Status the step reported. Readable in `gate.success` only.',

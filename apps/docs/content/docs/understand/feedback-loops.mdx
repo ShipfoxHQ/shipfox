@@ -73,14 +73,20 @@ job continue.
 The [Gate fields
 reference](/reference/workflow-schema#gate-fields) defines the exact fields.
 
+## Route several loops by their checking step
+
+One job execution can contain several feedback loops. Shipfox records which
+checking step caused a restart. The workflow can identify the relevant loop
+and run its matching recovery step.
+
+[Build a feedback
+loop](/how-to/author-workflows/build-feedback-loop) shows a complete two-loop
+workflow and how to route each failure.
+
 ## Give the next attempt useful feedback
 
 A retry without new evidence can repeat the same mistake. Useful feedback names
 the failed property and points the repeated step to evidence it can inspect.
-
-Static guidance is enough when the step can run the check again and read its
-output. A checking step can also publish a small result for the feedback
-message. Keep large logs in the run instead of copying them into every prompt.
 
 Feedback isn't a new event. It belongs to the restart decision, and only the
 repeated attempt can read it. [Context and
@@ -97,9 +103,6 @@ The loop stops in one of two states:
 
 - The check passes.
 - The attempt limit runs out and the job fails.
-
-Don't weaken the check to make the loop finish. A failure after the limit is
-evidence that the task needs another approach or a person.
 
 [Limits](/reference/limits) lists the exact attempt limits. The [run
 history](/understand/workflows-and-runs) keeps each step attempt and its
@@ -124,5 +127,4 @@ creating a new one on every attempt.
 A loop can repeat a bad side effect as easily as it can improve code. Don't use
 it to retry a deploy or an external write that has no check in front of it.
 
-Use [Build a feedback
-loop](/how-to/author-workflows/build-feedback-loop) for the authoring task.
+Use the linked authoring guide to add this pattern to a workflow.
