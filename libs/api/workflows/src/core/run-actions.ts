@@ -5,7 +5,11 @@ import {
   createRerunWorkflowRun as persistRerunWorkflowRun,
 } from '#db/workflow-runs.js';
 import type {WorkflowRun} from './entities/workflow-run.js';
-import {SourceRunNotFoundError, WorkflowRunNotFoundError} from './errors.js';
+import {
+  SourceRunNotFoundError,
+  WorkflowRunAttemptMismatchError,
+  WorkflowRunNotFoundError,
+} from './errors.js';
 import type {WorkflowAdmissionPolicy} from './workspace-admission.js';
 import {assertWorkspaceAdmitsNewJobs} from './workspace-admission.js';
 
@@ -49,6 +53,9 @@ export async function rerunWorkflowRun(params: RerunWorkflowRunParams): Promise<
   const run = await getWorkflowRunById(params.workflowRunId);
   if (!run || run.workspaceId !== params.workspaceId) {
     throw new SourceRunNotFoundError(params.workflowRunId);
+  }
+  if (params.expectedAttempt !== undefined && run.currentAttempt !== params.expectedAttempt) {
+    throw new WorkflowRunAttemptMismatchError(run.id, run.currentAttempt);
   }
 
   await assertWorkspaceAdmitsNewJobs(params.workspaces, params.workspaceId, {

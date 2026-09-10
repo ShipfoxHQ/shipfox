@@ -2,11 +2,7 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import {workflowRunDtoSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {
-  WorkflowRunAttemptMismatchError,
-  WorkflowRunNotCancellableError,
-  WorkflowRunNotFoundError,
-} from '#core/errors.js';
+import {WorkflowRunNotCancellableError, WorkflowRunNotFoundError} from '#core/errors.js';
 import {cancelWorkflowRun} from '#core/run-actions.js';
 import {toRunDto} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
@@ -30,13 +26,6 @@ export function cancelRunRoute(projects: ProjectsModuleClient) {
       }
       if (error instanceof WorkflowRunNotFoundError) {
         throw new ClientError('Run not found', 'not-found', {status: 404});
-      }
-      if (error instanceof WorkflowRunAttemptMismatchError) {
-        throw new ClientError('Run attempt has changed', 'attempt-mismatch', {
-          status: 409,
-          details: {current_attempt: error.currentAttempt},
-          cause: error,
-        });
       }
       throw error;
     },
