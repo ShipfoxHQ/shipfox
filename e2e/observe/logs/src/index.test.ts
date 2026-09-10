@@ -1,5 +1,5 @@
 import type {LogRecord, ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {PollTimeoutError} from '@shipfox/e2e-core';
+import {config, PollTimeoutError} from '@shipfox/e2e-core';
 import {fetchStepLogs, waitForStepLogsContaining} from './index.js';
 
 const stepId = '11111111-1111-4111-8111-111111111111';
@@ -63,8 +63,8 @@ describe('fetchStepLogs', () => {
     });
 
     expect(urls).toEqual([
-      `http://localhost:16101/steps/${stepId}/attempts/1/logs?cursor=0`,
-      `http://localhost:16101/steps/${stepId}/attempts/1/logs?cursor=7`,
+      `${config.API_URL}/steps/${stepId}/attempts/1/logs?cursor=0`,
+      `${config.API_URL}/steps/${stepId}/attempts/1/logs?cursor=7`,
     ]);
     expect(result.ndjson).toBe(`${line(output('first\n'))}${line(output('second\n', 2))}`);
     expect(result.records).toEqual([output('first\n'), output('second\n', 2)]);
