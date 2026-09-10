@@ -29,12 +29,12 @@ export interface CreateDevRunParams {
   /** Branch or tag name the definition is read from. */
   ref: string;
   /** Commit the ref resolved to when the picker listed the file; a mismatch answers `ref-moved`. */
-  commit: string | undefined;
+  commit?: string | undefined;
   configPath: string;
   /** Trigger key in the resolved workflow file's `triggers` map. */
   triggerKey: string;
   /** Manual triggers only; rejected with `inputs-not-allowed` for cron and integration triggers. */
-  inputs: Record<string, unknown> | undefined;
+  inputs?: Record<string, unknown> | undefined;
   /** Integration triggers only; the journaled event to replay. */
   replayEventId?: string | undefined;
   userId: string;

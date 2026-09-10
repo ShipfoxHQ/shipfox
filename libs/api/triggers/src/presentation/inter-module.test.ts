@@ -52,7 +52,10 @@ function summary(value: TriggerReceivedEvent): TriggerReceivedEventSummary {
 }
 
 function presentation() {
-  return createTriggersInterModulePresentation();
+  return createTriggersInterModulePresentation({
+    definitions: {} as never,
+    workflows: {} as never,
+  });
 }
 
 async function rejection(promise: Promise<unknown> | unknown): Promise<unknown> {
