@@ -4,6 +4,8 @@ import {createContext, useContext, useMemo} from 'react';
 export type UsagePricingReferenceKind = 'run' | 'job-execution' | 'step-attempt';
 
 export interface UsagePricingReference {
+  /** Opaque workspace identity used for authorization and cache fencing. */
+  workspaceId: string;
   kind: UsagePricingReferenceKind;
   id: string;
   model?: string;
@@ -125,7 +127,7 @@ export function useUsagePricing(): ClientUsagePricing | undefined {
 }
 
 export function usagePricingReferenceKey(reference: UsagePricingReference): string {
-  const baseKey = `${reference.kind}:${reference.id}`;
+  const baseKey = `${reference.workspaceId}:${reference.kind}:${reference.id}`;
   if (reference.model === undefined && reference.upstream === undefined) return baseKey;
   return `${baseKey}:${JSON.stringify([reference.model ?? null, reference.upstream ?? null])}`;
 }

@@ -76,24 +76,28 @@ export function StepInferenceTable({
     }
     return grouped;
   }, [rows]);
+  const workspaceId = usage?.jobExecution.workspaceId;
   const pricingInputs = useMemo(
     () =>
-      rows.map((row) => ({
-        reference: {
-          kind: 'step-attempt' as const,
-          id: row.stepAttemptId,
-          model: row.model,
-          upstream: row.upstream,
-        },
-        quantities:
-          quantitiesByStepAttempt.get(row.stepAttemptId) ?? usageQuantitiesFromTotals(row, 0),
-        models: modelsByStepAttempt.get(row.stepAttemptId) ?? [],
-      })),
-    [modelsByStepAttempt, quantitiesByStepAttempt, rows],
+      workspaceId
+        ? rows.map((row) => ({
+            reference: {
+              workspaceId,
+              kind: 'step-attempt' as const,
+              id: row.stepAttemptId,
+              model: row.model,
+              upstream: row.upstream,
+            },
+            quantities:
+              quantitiesByStepAttempt.get(row.stepAttemptId) ?? usageQuantitiesFromTotals(row, 0),
+            models: modelsByStepAttempt.get(row.stepAttemptId) ?? [],
+          }))
+        : [],
+    [modelsByStepAttempt, quantitiesByStepAttempt, rows, workspaceId],
   );
   const costs = useUsageCosts(pricingInputs);
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0 || !workspaceId) return null;
 
   const estimatedCost = [...costs.values()].find((cost) => cost.state === 'estimated');
   const disclosure = usagePricingDisclosure(pricing, estimatedCost);
@@ -129,6 +133,7 @@ export function StepInferenceTable({
           <TableBody>
             {rows.map((row) => {
               const referenceKey = usagePricingReferenceKey({
+                workspaceId,
                 kind: 'step-attempt',
                 id: row.stepAttemptId,
                 model: row.model,

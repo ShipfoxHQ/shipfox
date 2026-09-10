@@ -168,7 +168,7 @@ describe('Usage components', () => {
     await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
     expect(estimate).toHaveBeenCalledWith(
       expect.objectContaining({
-        reference: {kind: 'run', id: RUN_ID},
+        reference: {workspaceId: jobExecution.workspaceId, kind: 'run', id: RUN_ID},
         compute: [
           {
             jobExecutionId: EXECUTION_ID,
@@ -198,7 +198,11 @@ describe('Usage components', () => {
     await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
     expect(estimate).toHaveBeenCalledWith(
       expect.objectContaining({
-        reference: {kind: 'job-execution', id: EXECUTION_ID},
+        reference: {
+          workspaceId: jobExecution.workspaceId,
+          kind: 'job-execution',
+          id: EXECUTION_ID,
+        },
         compute: [
           {
             jobExecutionId: EXECUTION_ID,
@@ -219,7 +223,11 @@ describe('Usage components', () => {
       estimate,
       formatMoney: (amount) => `$${amount}`,
     };
-    const reference = {kind: 'run' as const, id: 'run-1'};
+    const reference = {
+      workspaceId: jobExecution.workspaceId,
+      kind: 'run' as const,
+      id: 'run-1',
+    };
     const inputs: UsageCostRequest[] = [
       {
         reference,
@@ -281,8 +289,8 @@ describe('Usage components', () => {
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
   });
 
-  test('does not treat an empty run as measured zero usage', async () => {
-    const resolveCosts = vi.fn(() => new Map());
+  test('does not treat an empty run as measured zero usage', () => {
+    const resolveCosts = vi.fn((..._args: unknown[]) => new Map());
     const estimate = vi.fn(() => ({amount: 0, state: 'estimated' as const}));
     const usage: RunUsage = {jobExecutions: [], inferenceSegments: []};
     render(
@@ -291,7 +299,7 @@ describe('Usage components', () => {
         <RunUsageBreakdown runId={RUN_ID} usage={usage} />
       </ClientUsagePricingProvider>,
     );
-    await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
+    expect(resolveCosts).not.toHaveBeenCalled();
     expect(estimate).not.toHaveBeenCalled();
     expect(screen.getByText('Duration unavailable')).toBeVisible();
     expect(screen.queryByText('0s')).not.toBeInTheDocument();
@@ -307,7 +315,11 @@ describe('Usage components', () => {
           resolveCosts: () =>
             new Map([
               [
-                `run:${RUN_ID}`,
+                usagePricingReferenceKey({
+                  workspaceId: jobExecution.workspaceId,
+                  kind: 'run',
+                  id: RUN_ID,
+                }),
                 {
                   amount: 1.2,
                   state: 'resolved',
@@ -539,6 +551,7 @@ describe('Usage components', () => {
     expect(estimate).toHaveBeenCalledWith(
       expect.objectContaining({
         reference: {
+          workspaceId: jobExecution.workspaceId,
           kind: 'step-attempt',
           id: STEP_ATTEMPT_ID,
           model: segment.model,
@@ -554,6 +567,7 @@ describe('Usage components', () => {
     expect(estimate).toHaveBeenCalledWith(
       expect.objectContaining({
         reference: {
+          workspaceId: jobExecution.workspaceId,
           kind: 'step-attempt',
           id: STEP_ATTEMPT_ID,
           model: 'gpt-5',
@@ -587,6 +601,67 @@ describe('Usage components', () => {
     rerender(<Usage revision={2} />);
 
     expect(resolveCosts).toHaveBeenCalledTimes(1);
+  });
+
+  test('batches workspace-scoped references into one resolution request', async () => {
+    const resolveCosts = vi.fn(pricing.resolveCosts);
+    const inputs: UsageCostRequest[] = [
+      {
+        reference: {workspaceId: jobExecution.workspaceId, kind: 'run', id: RUN_ID},
+        quantities: usageQuantities(60, 2),
+      },
+      {
+        reference: {
+          workspaceId: jobExecution.workspaceId,
+          kind: 'job-execution',
+          id: EXECUTION_ID,
+        },
+        quantities: usageQuantities(60, 2),
+      },
+    ];
+
+    render(
+      <ClientUsagePricingProvider usagePricing={{...pricing, resolveCosts}}>
+        <UsageCostProbe inputs={inputs} />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
+    expect(resolveCosts).toHaveBeenCalledWith([
+      expect.objectContaining({workspaceId: jobExecution.workspaceId, kind: 'run'}),
+      expect.objectContaining({workspaceId: jobExecution.workspaceId, kind: 'job-execution'}),
+    ]);
+  });
+
+  test('does not reuse a pricing snapshot after switching workspaces', async () => {
+    const resolveCosts = vi.fn((..._args: unknown[]) => new Map());
+    const usagePricing = {...pricing, resolveCosts};
+    const {rerender} = render(
+      <ClientUsagePricingProvider usagePricing={usagePricing}>
+        <JobUsageCells usage={jobUsage} />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <ClientUsagePricingProvider usagePricing={usagePricing}>
+        <JobUsageCells
+          usage={{
+            ...jobUsage,
+            jobExecution: {...jobExecution, workspaceId: 'workspace-b'},
+          }}
+        />
+      </ClientUsagePricingProvider>,
+    );
+
+    await waitFor(() => expect(resolveCosts).toHaveBeenCalledTimes(2));
+    expect(resolveCosts).toHaveBeenNthCalledWith(1, [
+      expect.objectContaining({workspaceId: jobExecution.workspaceId}),
+    ]);
+    expect(resolveCosts).toHaveBeenNthCalledWith(2, [
+      expect.objectContaining({workspaceId: 'workspace-b'}),
+    ]);
   });
 
   test('renders step inference quantities and hides the absent cost column', () => {

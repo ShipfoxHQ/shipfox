@@ -3,7 +3,11 @@
 
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
 import {type StepLogSnapshot, stepLogsQueryKeys} from '@shipfox/client-logs';
-import {type ClientUsagePricing, ClientUsagePricingProvider} from '@shipfox/client-shell/runtime';
+import {
+  type ClientUsagePricing,
+  ClientUsagePricingProvider,
+  usagePricingReferenceKey,
+} from '@shipfox/client-shell/runtime';
 import {
   type JobExecutionUsage,
   type RunUsage,
@@ -83,7 +87,7 @@ const storyUsagePricing: ClientUsagePricing = {
       references
         .filter((reference) => reference.kind !== 'step-attempt')
         .map((reference) => [
-          `${reference.kind}:${reference.id}`,
+          usagePricingReferenceKey(reference),
           {
             amount: reference.kind === 'run' ? 2.84 : 1.96,
             state: 'resolved' as const,

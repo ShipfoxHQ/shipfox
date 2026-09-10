@@ -119,6 +119,12 @@ composition, with no default implementation in the shell.
 
 The interface has three operations:
 
+`resolveCosts` receives `UsagePricingReference` values with the opaque workspace UUID that owns
+each run, job execution, or step attempt. Usage carries this identity from its records so the
+pricing implementation can authorize the lookup against the selected workspace and fence its
+cache by workspace. The implementation must not derive it from a URL slug, router state, or
+mutable global state. Model-scoped step references retain their model and upstream identity.
+
 | Operation | Purpose |
 | --- | --- |
 | `resolveCosts(refs)` | Batched resolved amounts for job executions, step attempts, or runs. |
