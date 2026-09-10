@@ -151,7 +151,7 @@ interface ExpiredJobLeaseRow {
 
 type ProviderRunnerLossObservation = Pick<
   typeof providerRunners.$inferSelect,
-  'provisionerId' | 'providerRunnerId' | 'state' | 'terminationAuthorizedAt'
+  'provisionerId' | 'providerRunnerId' | 'state' | 'terminationAuthorizedAt' | 'terminationReason'
 >;
 
 function providerRunnerKey(provisionerId: string, providerRunnerId: string): string {
@@ -181,6 +181,7 @@ async function classifyExpiredLeaseCausesTx(
       providerRunnerId: providerRunners.providerRunnerId,
       state: providerRunners.state,
       terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+      terminationReason: providerRunners.terminationReason,
     })
     .from(providerRunners)
     .where(
@@ -221,16 +222,20 @@ async function classifyExpiredLeaseCausesTx(
 function runnerLossCauseFor(
   providerRunner: ProviderRunnerLossObservation | undefined,
 ): RunnerJobLossCauseDto {
-  // An authorization observed while this lease still exists is positive evidence that an
-  // internal lifecycle guard failed. Do not reinterpret an absent provider row as this case.
-  if (providerRunner !== undefined && providerRunner.terminationAuthorizedAt !== null) {
-    return 'lifecycle_violation';
-  }
   if (
     providerRunner &&
     terminalStates.includes(providerRunner.state as (typeof terminalStates)[number])
   ) {
     return 'provider_lost';
+  }
+  // An authorization observed while an active lease still exists is positive evidence that an
+  // internal lifecycle guard failed. Terminal-state cleanup authorization is not a violation.
+  if (
+    providerRunner !== undefined &&
+    providerRunner.terminationAuthorizedAt !== null &&
+    providerRunner.terminationReason !== 'terminal-state'
+  ) {
+    return 'lifecycle_violation';
   }
   if (providerRunner) return 'lease_expired';
   return 'runner_lost';

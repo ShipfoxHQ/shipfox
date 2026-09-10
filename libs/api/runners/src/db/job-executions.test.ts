@@ -2010,6 +2010,42 @@ describe('detectAndExpireStuckJobs', () => {
     expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe(expectedCause);
   });
 
+  it('keeps terminal provider loss when cleanup authorization follows terminal state', async () => {
+    const stale = await makeManagedStaleJob(null, {providerRunnerState: 'terminated'});
+    await db()
+      .update(providerRunners)
+      .set({terminationAuthorizedAt: new Date(), terminationReason: 'terminal-state'})
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe('provider_lost');
+  });
+
+  it('falls back to runner loss when the managed provider row is unavailable', async () => {
+    const stale = await makeManagedStaleJob(null, {authorizeTermination: false});
+    await db()
+      .update(providerRunners)
+      .set({providerRunnerId: crypto.randomUUID()})
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe('runner_lost');
+  });
+
   it('persists a capable runner execution fence before provider termination', async () => {
     const stale = await makeManagedStaleJob(['local_execution_fence_v1'], {
       providerRunnerWorkspaceId: null,

@@ -58,6 +58,9 @@ describe('onJobTerminated', () => {
     {statusReason: 'timed_out' as const, terminalCause: 'timed_out'},
     {statusReason: 'run_cancelled' as const, terminalCause: 'run_cancelled'},
     {statusReason: 'user_cancelled' as const, terminalCause: 'run_cancelled'},
+    {statusReason: 'lease_expired' as const, terminalCause: 'runner_lost'},
+    {statusReason: 'provider_lost' as const, terminalCause: 'runner_lost'},
+    {statusReason: 'lifecycle_violation' as const, terminalCause: 'runner_lost'},
     {statusReason: 'runner_lost' as const, terminalCause: 'runner_lost'},
   ])('passes $terminalCause into the grace sweep', async ({statusReason, terminalCause}) => {
     const payload = {...buildPayload(crypto.randomUUID()), statusReason};

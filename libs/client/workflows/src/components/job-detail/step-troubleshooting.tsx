@@ -921,6 +921,9 @@ function failureTitle(reason: string | JobStatusReason): string {
       return 'Gate restart target could not be resolved';
     case 'restart_exhausted':
       return 'Gate attempt limit reached';
+    case 'lease_expired':
+    case 'provider_lost':
+    case 'lifecycle_violation':
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
@@ -1027,6 +1030,9 @@ function failureDescription(
       return 'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.';
     case 'restart_exhausted':
       return restartExhaustionDescription(error, gateMaxAttempts);
+    case 'lease_expired':
+    case 'provider_lost':
+    case 'lifecycle_violation':
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';
     case 'output_too_large':

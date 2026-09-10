@@ -24,6 +24,9 @@ import {recordWorkflowFailureAnnotationFailed} from '#metrics/instance.js';
 
 const JOB_FAILURE_ANNOTATION_REASONS = new Set([
   'timed_out',
+  'lease_expired',
+  'provider_lost',
+  'lifecycle_violation',
   'runner_lost',
   'condition_errored',
   'output_too_large',
@@ -206,6 +209,12 @@ const JOB_FAILURE_COPY: Readonly<Partial<Record<JobStatusReason, FailureCopy>>> 
     description: 'Ensure every declared output resolves to a valid JSON value before trying again.',
   },
 };
+
+const RUNNER_LOSS_COPY_REASONS = new Set<JobStatusReason>([
+  'lease_expired',
+  'provider_lost',
+  'lifecycle_violation',
+]);
 
 const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   gitea: 'Gitea',
@@ -414,8 +423,10 @@ function jobFailureBody(
   const progress = origin.attemptStatus
     ? `The job stopped while processing **${origin.stepName}**.`
     : `The job stopped before **${origin.stepName}** started.`;
+  const copyReason =
+    reason !== null && RUNNER_LOSS_COPY_REASONS.has(reason) ? 'runner_lost' : reason;
   const copy =
-    (reason === null ? undefined : JOB_FAILURE_COPY[reason]) ??
+    (copyReason === null ? undefined : JOB_FAILURE_COPY[copyReason]) ??
     ({
       title: 'Job could not finish',
       description: 'Try the job again. If the problem continues, contact support.',

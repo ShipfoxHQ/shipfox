@@ -263,6 +263,21 @@ const JOB_FAILURE_CASES = [
     description: 'The runner stopped responding before the job finished. Try the job again.',
   },
   {
+    reason: 'lease_expired',
+    title: 'Runner connection lost',
+    description: 'The runner stopped responding before the job finished. Try the job again.',
+  },
+  {
+    reason: 'provider_lost',
+    title: 'Runner connection lost',
+    description: 'The runner stopped responding before the job finished. Try the job again.',
+  },
+  {
+    reason: 'lifecycle_violation',
+    title: 'Runner connection lost',
+    description: 'The runner stopped responding before the job finished. Try the job again.',
+  },
+  {
     reason: 'condition_errored',
     title: 'Job condition could not be evaluated',
     description: 'Review the job condition and the values it references before trying again.',

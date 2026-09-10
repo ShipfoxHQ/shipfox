@@ -414,6 +414,11 @@ describe('workflow run job executions', () => {
         launchKind: 'demand',
       }),
     ]);
+    const [terminatedEvent] = await jobExecutionTerminatedEvents(execution.id);
+    if (!terminatedEvent) throw new Error('Expected a terminated event');
+    expect(workflowsJobExecutionTerminatedSchema.strict().parse(terminatedEvent).statusReason).toBe(
+      expectedStatusReason,
+    );
     expect((await getStepsByJobId(job.id))[0]).toMatchObject({
       status: 'cancelled',
       statusReason: 'runner_lost',
