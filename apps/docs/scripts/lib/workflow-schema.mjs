@@ -281,9 +281,10 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     component: 'GateFailureFields',
     path: 'jobs.<job_id>.steps[*].gate.on_failure',
     example: 'gate-failure.yml',
-    fields: ['restart_from', 'feedback'],
+    fields: ['restart_from', 'feedback', 'max_attempts'],
     select: (schema) => properties(properties(stepProperties(schema).gate).on_failure),
     required: ['restart_from'],
+    defaults: {max_attempts: '5'},
   },
   {
     id: 'step-outputs',
