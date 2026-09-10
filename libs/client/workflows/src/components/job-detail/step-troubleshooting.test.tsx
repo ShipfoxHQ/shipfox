@@ -618,8 +618,9 @@ describe('StepInspectorSheet', () => {
     });
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
+    expect(await screen.findByText('Attempt limit reached')).toBeInTheDocument();
     expect(
-      await screen.findByText(
+      screen.getByText(
         'The step failed after 3 attempts. The restart attempt cap is fixed. Fix the failed result before starting a new run.',
       ),
     ).toBeInTheDocument();

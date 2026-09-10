@@ -919,7 +919,7 @@ function failureTitle(reason: string | JobStatusReason): string {
     case 'restart_unresolved':
       return 'Gate restart target could not be resolved';
     case 'restart_exhausted':
-      return 'Gate attempt limit reached';
+      return 'Attempt limit reached';
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
