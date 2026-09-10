@@ -8,6 +8,12 @@ export const workflowsTestAuthClient: AuthInterModuleClient = {
   async mintJobLeaseToken(claims) {
     return {token: await mintLeaseToken(claims)};
   },
+  mintAgentLogDownloadToken() {
+    return Promise.resolve({token: 'test-download-token', expiresAt: new Date().toISOString()});
+  },
+  checkAgentGrantAuthority() {
+    return Promise.resolve({ok: true as const});
+  },
   getCurrentAdminRole() {
     return Promise.resolve({role: null});
   },

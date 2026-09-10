@@ -94,6 +94,14 @@ const runnerSessionClaimsSchema = runnerSessionTokenClaimsSchema.omit({
   exp: true,
 });
 const jobLeaseClaimsSchema = jobLeaseTokenClaimsSchema.omit({aud: true, iat: true, exp: true});
+const agentLogDownloadTokenIdSchema = z.string().uuid();
+const agentLogDownloadAuthorityReasonSchema = z.enum([
+  'grant-revoked',
+  'user-inactive',
+  'membership-revoked',
+  'workspace-suspended',
+  'workspace-deleted',
+]);
 
 export const authInterModuleContract = defineInterModuleContract({
   module: 'auth',
@@ -105,6 +113,27 @@ export const authInterModuleContract = defineInterModuleContract({
     mintJobLeaseToken: {
       input: jobLeaseClaimsSchema,
       output: z.object({token: z.string().min(1)}),
+    },
+    mintAgentLogDownloadToken: {
+      input: z.object({
+        userId: agentLogDownloadTokenIdSchema,
+        workspaceId: agentLogDownloadTokenIdSchema,
+        grantId: agentLogDownloadTokenIdSchema,
+        clientId: z.string().min(1).max(2048),
+        streamId: agentLogDownloadTokenIdSchema,
+      }),
+      output: z.object({token: z.string().min(1), expiresAt: z.string().datetime()}),
+    },
+    checkAgentGrantAuthority: {
+      input: z.object({
+        grantId: agentLogDownloadTokenIdSchema,
+        userId: agentLogDownloadTokenIdSchema,
+        workspaceId: agentLogDownloadTokenIdSchema,
+      }),
+      output: z.object({ok: z.literal(true)}),
+      errors: {
+        'authority-revoked': z.object({reason: agentLogDownloadAuthorityReasonSchema}),
+      },
     },
     getCurrentAdminRole: {
       input: z.object({userId: z.string().uuid()}),

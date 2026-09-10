@@ -82,6 +82,12 @@ export const runnersTestAuthClient: AuthInterModuleClient = {
   mintJobLeaseToken(claims) {
     return Promise.resolve({token: mintLeaseToken(claims)});
   },
+  mintAgentLogDownloadToken() {
+    return Promise.resolve({token: 'test-download-token', expiresAt: new Date().toISOString()});
+  },
+  checkAgentGrantAuthority() {
+    return Promise.resolve({ok: true as const});
+  },
   getCurrentAdminRole() {
     return Promise.resolve({role: null});
   },

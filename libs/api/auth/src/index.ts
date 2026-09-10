@@ -16,6 +16,7 @@ import {migrationsPath} from '#db/migrations.js';
 import {authOutbox} from '#db/schema/outbox.js';
 import {registerAuthServiceMetrics} from '#metrics/service.js';
 import {createAgentAccessAuthMethod} from '#presentation/auth/agent-access-auth.js';
+import {createAgentLogDownloadAuthMethod} from '#presentation/auth/agent-log-download-auth.js';
 import {createJwtAuthMethod} from '#presentation/auth/jwt-auth.js';
 import {createLeaseTokenAuthMethod} from '#presentation/auth/lease-token-auth.js';
 import {createRunnerSessionAuthMethod} from '#presentation/auth/runner-session-auth.js';
@@ -94,6 +95,19 @@ export {
   issueAgentAccessToken,
   verifyAgentAccessToken,
 } from '#core/agent-access-token.js';
+export type {CheckAgentGrantAuthorityParams} from '#core/agent-grant-authority.js';
+export {checkAgentGrantAuthority} from '#core/agent-grant-authority.js';
+export type {
+  IssueAgentLogDownloadTokenParams,
+  MintedAgentLogDownloadToken,
+} from '#core/agent-log-download-token.js';
+export {
+  AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN,
+  AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS,
+  issueAgentLogDownloadToken,
+  mintAgentLogDownloadToken,
+  verifyAgentLogDownloadToken,
+} from '#core/agent-log-download-token.js';
 export type {
   CreateImpersonatedSessionTokenParams,
   CreateImpersonatedSessionTokenResult,
@@ -128,7 +142,10 @@ export {
   MAX_OPEN_IMPERSONATION_WINDOWS,
 } from '#core/entities/impersonation-window.js';
 export type {User, UserStatus} from '#core/entities/user.js';
-export type {AgentAccessWorkspaceErrorCode} from '#core/errors.js';
+export type {
+  AgentAccessWorkspaceErrorCode,
+  AgentGrantAuthorityRevocationReason,
+} from '#core/errors.js';
 export {
   AdminBootstrapClosedError,
   AdminGrantAlreadyExistsError,
@@ -136,6 +153,7 @@ export {
   AdminIdempotencyKeyReuseError,
   AdminRoleRequiredError,
   AgentAccessWorkspaceError,
+  AgentGrantAuthorityRevokedError,
   AgentGrantNotFoundError,
   AuthDependencyUnavailableError,
   CannotImpersonateAdministratorError,
@@ -233,6 +251,7 @@ export {
 } from '#core/signup-policy.js';
 export type {ImpersonationResult} from '#db/impersonation.js';
 export {createAgentAccessAuthMethod} from '#presentation/auth/agent-access-auth.js';
+export {createAgentLogDownloadAuthMethod} from '#presentation/auth/agent-log-download-auth.js';
 export {
   type AuthenticatedSessionContext,
   createJwtAuthMethod,
@@ -284,6 +303,7 @@ export function createAuthModule({
       createLeaseTokenAuthMethod(),
       createRunnerSessionAuthMethod(),
       createAgentAccessAuthMethod(),
+      createAgentLogDownloadAuthMethod(workspaces),
     ],
     loginMethods: passwordLoginMethods(config.AUTH_PASSWORD_ENABLED),
     routes: [
@@ -317,6 +337,6 @@ export function createAuthModule({
         ],
       },
     ],
-    interModulePresentations: [createAuthInterModulePresentation()],
+    interModulePresentations: [createAuthInterModulePresentation(workspaces)],
   };
 }

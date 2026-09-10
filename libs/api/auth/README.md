@@ -120,8 +120,9 @@ The module issues several bearer token types, all presented as
 OAuth access tokens are **stateless**: each is signed with HMAC-SHA256 and
 verified by checking its signature and expiry alone.
 
-Each signed token class uses a separate key derived from `AUTH_ROOT_KEY` and a
-fixed audience, so one token type cannot be used in place of another.
+All token classes except log-download tokens use a separate key derived from
+`AUTH_ROOT_KEY`. Log-download tokens deliberately reuse the agent-access key;
+their fixed audience and verifier keep them separate from OAuth access tokens.
 
 Changing `AUTH_ROOT_KEY` invalidates every user session token, runner session
 token, job lease token, OAuth access token, email challenge, and rate-limit
@@ -280,13 +281,18 @@ progress and drives that job to completion.
 
 Agent access uses OAuth grants. OAuth access tokens use the `AUTH_AGENT_ACCESS`
 method and resolve to one `AgentAccessContext` with a user, workspace, read
-scopes, grant identity, and client identity.
+scopes, grant identity, and client identity. Stream downloads use the separate
+`AUTH_AGENT_LOG_DOWNLOAD` method and resolve to an `AgentLogDownloadContext`
+with the user, workspace, grant, and stream identity.
 
 - **OAuth access token:** a stateless HMAC token with a distinct audience and a
   15-minute lifetime. Request authentication performs no database read. Grant
   revocation blocks refresh immediately; an issued access token remains valid
   until it expires. This bounded revocation window is accepted to keep MCP
   request authentication stateless.
+- **Log-download token:** lasts five minutes, re-checks grant authority on every
+  request, and returns `auth-dependency-unavailable` (`503`) when Workspaces is
+  unavailable.
 - **Tool-call rate limit:** each API instance applies a process-local fixed
   window of 60 calls per credential per minute. Rejections increment the
   bounded `agent_access_tool_calls` metric with outcome `rate-limited`.
@@ -439,6 +445,7 @@ It also exports lower-level pieces for tests and advanced integration:
 - `createImpersonatedSessionToken({targetUserId, impersonatorId, workspaces})`: mints an access-token-only impersonated session (capped TTL, `impersonatorId` claim, no refresh material). The `impersonateUser` administration command owns the authorization ladder, idempotency, and audit flow.
 - `createOAuthAuthorizationRoutes(options)`: explicitly composes the OAuth authorization, consent, authorization-code, and refresh-token routes for an agent-resource integration.
 - `createAgentAccessAuthMethod()`: authenticates stateless OAuth access tokens into the shared agent-access context.
+- `createAgentLogDownloadAuthMethod(workspaces)`: authenticates stream-bound download tokens and re-checks grant authority through Auth and Workspaces.
 - `createAgentAccessManagementRoutes()` / `createAgentGrantRoutes()`: compose the grant management routes under `/agent-access`.
 - `listAgentGrants({userId})` and `revokeAgentGrant(...)`: implement the caller-scoped management use cases.
 - `getAuthenticatedSessionContext(request)`: reads the user ID and required refresh-session ID from verified access-token claims. It does not check whether the refresh session is still active.
