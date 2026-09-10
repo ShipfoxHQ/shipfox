@@ -131,6 +131,13 @@ function toResolveAgentConfigKnownError(error: unknown): unknown {
 }
 
 function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {
+  if (isRunnerCapabilityRequiredError(error)) {
+    return createInterModuleKnownError(
+      agentInterModuleContract.methods.resolveRuntimeCredentials,
+      'runner-capability-required',
+      {},
+    );
+  }
   if (error instanceof WorkspaceProvidersDisabledError) {
     return createInterModuleKnownError(
       agentInterModuleContract.methods.resolveRuntimeCredentials,
@@ -156,6 +163,13 @@ function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {
     );
   }
   return error;
+}
+
+function isRunnerCapabilityRequiredError(
+  error: unknown,
+): error is Error & {readonly code: 'runner-capability-required'} {
+  // Managed providers are extension points, so identify this contract error by its stable code.
+  return error instanceof Error && 'code' in error && error.code === 'runner-capability-required';
 }
 
 function toClaimSessionKnownError(error: unknown): unknown {

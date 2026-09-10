@@ -54,6 +54,14 @@ describe('agentInterModuleContract', () => {
     expect(parsed).toEqual(input);
   });
 
+  test('declares the runner capability failure for runtime credentials', () => {
+    const error = agentInterModuleContract.methods.resolveRuntimeCredentials.errors[
+      'runner-capability-required'
+    ].parse({});
+
+    expect(error).toEqual({});
+  });
+
   test('rejects an incomplete runtime job identity', () => {
     expect(() =>
       agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({

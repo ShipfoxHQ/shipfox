@@ -37,6 +37,19 @@ export function createAgentRuntimeConfigRoute(params: {
           agentInterModuleContract.methods.resolveRuntimeCredentials,
           error,
         ) &&
+        error.code === 'runner-capability-required'
+      ) {
+        throw new ClientError(
+          'Runner does not support renewable inference credentials',
+          'runner-capability-required',
+          {status: 409, cause: error},
+        );
+      }
+      if (
+        isInterModuleKnownError(
+          agentInterModuleContract.methods.resolveRuntimeCredentials,
+          error,
+        ) &&
         error.code === 'model-provider-credentials-invalid'
       ) {
         captureException(error);

@@ -403,6 +403,27 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     expect(res.json().code).toBe('model-provider-not-configured');
   });
 
+  test('returns 409 when the runner lacks renewable inference capability', async () => {
+    const {job, step} = await createRunningAgentStep();
+    resolveRuntimeCredentials.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        'runner-capability-required',
+        {},
+      ),
+    );
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({code: 'runner-capability-required'});
+  });
+
   test('returns managed provider policy details when workspace providers are disabled', async () => {
     const {job, step} = await createRunningAgentStep();
     resolveRuntimeCredentials.mockRejectedValueOnce(

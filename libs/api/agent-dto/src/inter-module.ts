@@ -96,6 +96,7 @@ export const agentInterModuleContract = defineInterModuleContract({
       errors: {
         'model-provider-not-configured': z.object({}),
         'model-provider-credentials-invalid': z.object({}),
+        'runner-capability-required': z.object({}),
         'workspace-providers-disabled': z.object({
           message: z.string().min(1).optional(),
           managed_provider_id: modelProviderRefSchema,

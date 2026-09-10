@@ -136,4 +136,49 @@ describe('agent inter-module presentation', () => {
       managed_provider_id: 'shipfox',
     });
   });
+
+  test('maps a managed provider capability failure to the runtime contract', async () => {
+    const managedProvider: ManagedModelProvider = {
+      id: 'shipfox',
+      label: 'Shipfox',
+      models: [{id: 'managed-model', label: 'Managed model', api: 'openai-responses'}],
+      defaultModel: 'managed-model',
+      resolveCredentials: vi.fn(() => {
+        throw Object.assign(new Error('runner capability required'), {
+          code: 'runner-capability-required',
+        });
+      }),
+    };
+    const presentation = createAgentInterModulePresentation({
+      secrets: agentTestSecretsClient,
+      managedProvider,
+      workspaceProviders: 'disabled',
+    });
+
+    const result = await Promise.resolve(
+      presentation.handlers.resolveRuntimeCredentials(
+        {
+          workspaceId: crypto.randomUUID(),
+          runId: crypto.randomUUID(),
+          stepAttemptId: crypto.randomUUID(),
+          harness: 'pi',
+          provider: 'shipfox',
+          model: 'managed-model',
+          thinking: 'high',
+        },
+        {signal: new AbortController().signal},
+      ),
+    ).catch((error: unknown) => error);
+
+    expect(
+      isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result),
+    ).toBe(true);
+    if (
+      !isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result)
+    ) {
+      throw new Error('Expected a runner capability known error');
+    }
+    expect(result.code).toBe('runner-capability-required');
+    expect(result.details).toEqual({});
+  });
 });
