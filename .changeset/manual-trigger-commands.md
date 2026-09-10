@@ -3,4 +3,4 @@
 "@shipfox/api-triggers": minor
 ---
 
-Expose manual-fire and dev-run trigger commands through the triggers inter-module API and shared session-route core functions.
+The triggers API exposes `fireManualTrigger` and `createDevRun` through shared HTTP/core paths, and `fireManualSubscription` returns idempotency-key-deduplicated results.
