@@ -3,4 +3,4 @@
 "@shipfox/api-agent-access": minor
 ---
 
-Adds bounded action error details and the authenticated, rate-limited action-tool dispatch path to the agent-access MCP gateway.
+Adds bounded error details and exposes state-changing action tools in tools/list with their destructiveHint, idempotentHint, and openWorldHint annotations.

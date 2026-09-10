@@ -1,4 +1,6 @@
 import {
+  AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
+  AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
   agentAccessEnvelopeJsonSchema,
   agentAccessEnvelopeSchema,
   agentAccessOutputSchema,
@@ -30,10 +32,17 @@ describe('agent access envelope', () => {
         error: {code: 'bad', details: {reason: '🙂'.repeat(300)}},
       }).success,
     ).toBe(false);
+    const detailValue = 'x'.repeat(AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES - 1);
+    const oversizedDetails = Object.fromEntries(
+      Array.from(
+        {length: Math.ceil(AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES / detailValue.length) + 1},
+        (_, index) => [`reason_${index}`, detailValue],
+      ),
+    );
     expect(
       agentAccessEnvelopeSchema.safeParse({
         ok: false,
-        error: {code: 'bad', details: {reason: 'x'.repeat(4096)}},
+        error: {code: 'bad', details: oversizedDetails},
       }).success,
     ).toBe(false);
   });

@@ -46,7 +46,10 @@ function visitDetailStrings(value: unknown, context: z.RefinementCtx): void {
     return;
   }
   if (typeof value === 'object' && value !== null) {
-    for (const item of Object.values(value)) visitDetailStrings(item, context);
+    for (const [key, item] of Object.entries(value)) {
+      visitDetailStrings(key, context);
+      visitDetailStrings(item, context);
+    }
   }
 }
 
