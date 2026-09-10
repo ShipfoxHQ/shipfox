@@ -4,4 +4,6 @@
 "@shipfox/client-workflows": minor
 ---
 
-Shows effective gate limits and chronological attempt numbers in workflow run details.
+Adds an optional `gate_max_attempts` field to the compact step summary, and
+shows effective gate restart limits and chronological gate attempt numbers in
+workflow run details.

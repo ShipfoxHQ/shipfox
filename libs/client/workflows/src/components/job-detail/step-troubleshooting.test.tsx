@@ -648,6 +648,41 @@ describe('StepInspectorSheet', () => {
     ).toBeInTheDocument();
   });
 
+  it('uses the effective gate limit for a legacy exhaustion error', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+    const entry = stepEntry('restart_exhausted', undefined, {
+      message: 'The gate did not pass after 5 attempts.',
+      attempt_count: 5,
+      restart_from: 'producer',
+    });
+    entry.step.gateMaxAttempts = 5;
+
+    await renderPanel({entry});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(
+      await screen.findByText(
+        'The success condition did not pass after 5 attempts and reached the configured limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, update gate.on_failure.max_attempts and start a new run.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps useful fallback copy for an unknown future reason', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({entry: stepEntry('future_failure' as StepErrorReason)});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('Step failed')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Future Failure. Review the details below and re-run after resolving the cause.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('keeps non-tool failure chips keyed to their stable reason', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});

@@ -260,8 +260,12 @@ function toStepForJobDetail(
   const attempts = presentedAttempts ?? step.attempts.items;
   const firstAttempt = attempts[0];
   const updatedAt = firstAttempt?.finishedAt ?? firstAttempt?.startedAt ?? fallbackUpdatedAt;
-  const sourceAttemptTotal = presentedAttemptTotal ?? step.attempts.total;
-  const attemptTotal = typeof sourceAttemptTotal === 'number' ? sourceAttemptTotal : undefined;
+  const embeddedAttemptTotal =
+    typeof step.attempts.total === 'number' ? step.attempts.total : undefined;
+  const attemptTotal =
+    presentedAttemptTotal === undefined
+      ? embeddedAttemptTotal
+      : Math.max(presentedAttemptTotal, embeddedAttemptTotal ?? 0);
   return {
     id: step.id,
     jobExecutionId: step.jobExecutionId,

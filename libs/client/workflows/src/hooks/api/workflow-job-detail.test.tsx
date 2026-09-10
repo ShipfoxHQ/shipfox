@@ -394,6 +394,20 @@ describe('selected-job API hooks', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  test('preserves a newer embedded attempt total when the attempts resource is stale', () => {
+    const response = selectedJobDetailResponseDto();
+    const step = response.selected_execution?.steps.items[0];
+    if (!step) throw new Error('Expected an embedded step');
+    step.attempts.total = 4;
+
+    const job = toJobForJobDetail(toWorkflowJobDetail(response), {
+      attemptTotalsByStepId: new Map([[step.id, 3]]),
+    });
+
+    expect(job.jobExecutions[0]?.steps[0]?.attempts).toHaveLength(1);
+    expect(job.jobExecutions[0]?.steps[0]?.attemptTotal).toBe(4);
+  });
+
   test('prefers refreshed resource summaries over embedded selected-job summaries', () => {
     const detail = toWorkflowJobDetail(selectedJobDetailResponseDto());
     const selectedExecution = detail.selectedExecution;

@@ -147,6 +147,29 @@ describe('selected workflow job routes', () => {
     expect(response.json().selected_execution.steps.items[0].gate_max_attempts).toBe(3);
   });
 
+  test('omits the gate attempt limit for tool steps that cannot restart', async () => {
+    const fixture = await createFixture();
+    await db()
+      .update(steps)
+      .set({
+        type: 'tool',
+        config: {
+          gate: {on_failure: {restart_from: 'implement', max_attempts: 5}},
+        },
+      })
+      .where(eq(steps.id, fixture.stepIds[0] as string));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/jobs/${fixture.jobIds[0]}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().selected_execution.steps.items[0]).not.toHaveProperty(
+      'gate_max_attempts',
+    );
+  });
+
   test('loads diagnostic context only from the selected execution', async () => {
     const fixture = await createFixture({jobs: 2, executionsPerJob: 2, stepsPerExecution: 1});
     const jobId = fixture.jobIds[0] as string;
@@ -416,6 +439,7 @@ describe('selected workflow job routes', () => {
 
     expect(detail.statusCode).toBe(200);
     expect(embeddedAttempts.items).toHaveLength(10);
+    expect(embeddedAttempts.total).toBe(12);
     expect(embeddedAttempts.items.map((item: {attempt: number}) => item.attempt)).toEqual([
       12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
     ]);

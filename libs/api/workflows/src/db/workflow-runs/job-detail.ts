@@ -1219,7 +1219,9 @@ async function loadStepPage(
       statusReason: steps.statusReason,
       sourceLocation: steps.sourceLocation,
       currentAttempt: steps.currentAttempt,
-      config: steps.config,
+      config: sql<Record<string, unknown>>`jsonb_build_object(
+        'gate', ${steps.config} -> 'gate'
+      )`,
       error: steps.error,
     })
     .from(steps)
@@ -1377,7 +1379,7 @@ function toStepSummary(
     sourceLocation: row.sourceLocation,
     currentAttempt: row.currentAttempt,
     gateMaxAttempts:
-      gateOnFailure === undefined
+      row.type === 'tool' || gateOnFailure === undefined
         ? undefined
         : (gateOnFailure.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP),
     error: (row.error as Record<string, unknown> | null) ?? null,
