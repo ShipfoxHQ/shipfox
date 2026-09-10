@@ -933,9 +933,11 @@ function buildStepAttemptContext(params: {
   readonly stepsContext: Record<string, Record<string, unknown>>;
   readonly stepsFailed: boolean;
   readonly orderedAttempts: readonly StepAttempt[];
+  readonly stepsById: ReadonlyMap<string, Step>;
   readonly stepsByKey: ReadonlyMap<string, Step>;
   readonly terminalAttemptsByStepId: ReadonlyMap<string, readonly StepAttempt[]>;
 } {
+  const stepsById = new Map(params.steps.map((step) => [step.id, step] as const));
   const stepsByKey = new Map(
     params.steps.flatMap((step) => (step.key === null ? [] : [[step.key, step] as const])),
   );
@@ -968,6 +970,7 @@ function buildStepAttemptContext(params: {
     stepsContext,
     stepsFailed: params.steps.some((step) => step.status === 'failed'),
     orderedAttempts,
+    stepsById,
     stepsByKey,
     terminalAttemptsByStepId,
   };
@@ -989,6 +992,7 @@ export function assembleStepDispatchContext(params: {
       : restartProvenance({
           targetStep,
           orderedAttempts: stepAttemptContext.orderedAttempts,
+          stepsById: stepAttemptContext.stepsById,
           stepsByKey: stepAttemptContext.stepsByKey,
           terminalAttemptsByStepId: stepAttemptContext.terminalAttemptsByStepId,
         });
@@ -1023,6 +1027,7 @@ export function assembleStepDispatchContext(params: {
 function restartProvenance(params: {
   readonly targetStep: Step;
   readonly orderedAttempts: readonly StepAttempt[];
+  readonly stepsById: ReadonlyMap<string, Step>;
   readonly stepsByKey: ReadonlyMap<string, Step>;
   readonly terminalAttemptsByStepId: ReadonlyMap<string, readonly StepAttempt[]>;
 }): Record<string, unknown> | undefined {
@@ -1036,9 +1041,11 @@ function restartProvenance(params: {
       continue;
     }
 
+    const sourceStepKey = params.stepsById.get(attempt.stepId)?.key;
     const gatingAttempts = params.terminalAttemptsByStepId.get(attempt.stepId) ?? [];
     return {
       from: {
+        ...(sourceStepKey === null || sourceStepKey === undefined ? {} : {key: sourceStepKey}),
         ...attemptFields(attempt),
         attempts: gatingAttempts.map(attemptFields),
       },

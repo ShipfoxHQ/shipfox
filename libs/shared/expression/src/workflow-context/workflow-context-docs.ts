@@ -179,7 +179,7 @@ export const workflowContextDocs = [
       is_retry: 'Whether this is a repeat attempt. Not readable in `gate.success`.',
       restart: 'Set when a gate restarted this step. Not readable in `gate.success`.',
       'restart.from':
-        'The step whose gate restarted this attempt, with the properties of a `steps` entry. Not readable in `gate.success`.',
+        'The failed gate step that restarted this attempt, with the properties of a `steps` entry and its optional authored `key`. The key names the failing gate, not the restart target. Not readable in `gate.success`.',
       'restart.feedback': 'Feedback the restarting gate produced. Not readable in `gate.success`.',
       exit_code: 'Exit code the step reported. Readable in `gate.success` only.',
       status: 'Status the step reported. Readable in `gate.success` only.',

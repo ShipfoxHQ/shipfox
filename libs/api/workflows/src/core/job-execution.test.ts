@@ -2207,6 +2207,7 @@ describe('durable gate restart', () => {
     await db()
       .update(stepsTable)
       .set({
+        key: 'reviewer',
         config: {
           run: 'review',
           ...(params.outputs === undefined ? {} : {outputs: params.outputs}),
@@ -2338,7 +2339,7 @@ describe('durable gate restart', () => {
     });
   });
 
-  test('a retried step materializes restart feedback and source attempt output', async () => {
+  test('a retried step materializes restart feedback, source key, and source attempt output', async () => {
     const {jobId, producer, reviewer} = await arrangeGatedJob({
       source: 'step.exit_code == 0',
       feedback: 'failed',
@@ -2350,7 +2351,7 @@ describe('durable gate restart', () => {
         configPlan: {
           run: plannedField(
             'run',
-            `fix \${{ step.is_retry ? step.restart.feedback : 'fresh' }} from \${{ step.is_retry ? step.restart.from.outputs.summary : 'none' }}`,
+            `fix \${{ step.is_retry ? step.restart.feedback : 'fresh' }} from \${{ step.is_retry ? step.restart.from.outputs.summary : 'none' }} (\${{ has(step.restart) && has(step.restart.from.key) ? step.restart.from.key : 'none' }})`,
           ),
         },
       })
@@ -2373,10 +2374,11 @@ describe('durable gate restart', () => {
       step: expect.objectContaining({
         id: producer,
         config: {
-          run: `fix "\${__sf_2}" from "\${__sf_3}"`,
+          run: `fix "\${__sf_3}" from "\${__sf_4}" ("\${__sf_5}")`,
           env: expect.objectContaining({
-            __sf_2: 'failed: unit failed',
-            __sf_3: 'unit failed',
+            __sf_3: 'failed: unit failed',
+            __sf_4: 'unit failed',
+            __sf_5: 'reviewer',
           }),
         },
       }),
@@ -2385,6 +2387,99 @@ describe('durable gate restart', () => {
     const attempts = await getStepAttempts(jobId);
     const reviewerAttempt = attempts.find((attempt) => attempt.stepId === reviewer);
     expect(reviewerAttempt?.restartFeedback).toBe('failed: unit failed');
+  });
+
+  test('pairs the authored source key with verification and independent push recoveries', async () => {
+    const {jobId, steps} = await arrangeJobWithSteps(3);
+    const producer = steps[0];
+    const verification = steps[1];
+    const push = steps[2];
+    if (producer === undefined || verification === undefined || push === undefined) {
+      throw new Error('Expected three gated steps');
+    }
+
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'producer',
+        configPlan: {
+          run: plannedField(
+            'run',
+            `retry \${{ has(step.restart) && has(step.restart.from.key) ? step.restart.from.key : 'none' }} / \${{ step.is_retry ? step.restart.feedback : 'fresh' }} / \${{ step.is_retry ? step.restart.from.outputs.summary : 'none' }}`,
+          ),
+        },
+      })
+      .where(eq(stepsTable.id, producer.id));
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'verification',
+        config: {
+          run: 'verify',
+          gate: {
+            success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+            on_failure: {restart_from: 'producer', feedback: 'verification feedback'},
+          },
+        },
+      })
+      .where(eq(stepsTable.id, verification.id));
+    await db()
+      .update(stepsTable)
+      .set({
+        key: 'push',
+        config: {
+          run: 'push',
+          gate: {
+            success: {language: 'cel', check: 'syntax', source: 'step.exit_code == 0'},
+            on_failure: {restart_from: 'producer', feedback: 'push feedback'},
+          },
+        },
+      })
+      .where(eq(stepsTable.id, push.id));
+
+    await runStep(jobId, producer.id, 0);
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: verification.id,
+      status: 'failed',
+      output: {summary: 'verification output'},
+      exitCode: 1,
+    });
+    const verificationRetry = await nextStepForJob(jobId);
+    if (verificationRetry.kind !== 'step') throw new Error('Expected verification retry step');
+    expect(verificationRetry.dispatched).toBe(true);
+    expect(verificationRetry.step.id).toBe(producer.id);
+    expect(verificationRetry.step.config.run).toBe(
+      `retry "\${__sf_3}" / "\${__sf_4}" / "\${__sf_5}"`,
+    );
+    expect(verificationRetry.step.config.env).toMatchObject({
+      __sf_3: 'verification',
+      __sf_4: 'verification feedback',
+      __sf_5: 'verification output',
+    });
+
+    await recordStepResult({jobId, stepId: producer.id, status: 'succeeded', exitCode: 0});
+    await nextStepForJob(jobId);
+    await recordStepResult({jobId, stepId: verification.id, status: 'succeeded', exitCode: 0});
+    await nextStepForJob(jobId);
+    await recordStepResult({
+      jobId,
+      stepId: push.id,
+      status: 'failed',
+      output: {summary: 'push output'},
+      exitCode: 1,
+    });
+    const pushRetry = await nextStepForJob(jobId);
+    if (pushRetry.kind !== 'step') throw new Error('Expected push retry step');
+    expect(pushRetry.dispatched).toBe(true);
+    expect(pushRetry.step.id).toBe(producer.id);
+    expect(pushRetry.step.config.run).toBe(`retry "\${__sf_6}" / "\${__sf_7}" / "\${__sf_8}"`);
+    expect(pushRetry.step.config.env).toMatchObject({
+      __sf_6: 'push',
+      __sf_7: 'push feedback',
+      __sf_8: 'push output',
+    });
   });
 
   test('a passing rerun after a restart completes the job', async () => {

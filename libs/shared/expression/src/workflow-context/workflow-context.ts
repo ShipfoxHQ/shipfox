@@ -260,6 +260,14 @@ const stepEntityType = {
   },
 } as const;
 
+const stepRestartFromType = {
+  kind: 'object',
+  fields: {
+    key: 'string',
+    ...stepEntityType.fields,
+  },
+} as const;
+
 const stepDispatchTypeEnvironment = {
   step: {
     kind: 'object',
@@ -269,7 +277,7 @@ const stepDispatchTypeEnvironment = {
       restart: {
         kind: 'object',
         fields: {
-          from: stepEntityType,
+          from: stepRestartFromType,
           feedback: 'string',
         },
       },
