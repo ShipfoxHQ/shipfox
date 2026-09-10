@@ -41,12 +41,17 @@ describe('ClickUp installations', () => {
 
   it('serializes work for the same ClickUp workspace', async () => {
     const events: string[] = [];
+    let resolveFirstLockAcquired: () => void = () => undefined;
+    const firstLockAcquired = new Promise<void>((resolve) => {
+      resolveFirstLockAcquired = resolve;
+    });
     const first = withClickUpInstallationLock('same-team', async () => {
+      resolveFirstLockAcquired();
       events.push('first-start');
       await new Promise((resolve) => setTimeout(resolve, 20));
       events.push('first-end');
     });
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await firstLockAcquired;
     const second = withClickUpInstallationLock('same-team', () => {
       events.push('second-start');
       return Promise.resolve();

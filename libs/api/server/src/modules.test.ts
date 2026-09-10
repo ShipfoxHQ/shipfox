@@ -917,6 +917,7 @@ describe('defaultModules', () => {
         >;
         linear: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         jira: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
+        clickup: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
         slack: Pick<SecretsInterModuleClient, 'deleteSecrets' | 'getSecret' | 'setSecrets'>;
       };
       agentTools: {workflows: unknown};
@@ -966,6 +967,13 @@ describe('defaultModules', () => {
         editedBy: undefined,
       }),
       integrationsOptions.secrets.jira.deleteSecrets({...scope, keys: ['token']}),
+      integrationsOptions.secrets.clickup.getSecret({...scope, key: 'token'}),
+      integrationsOptions.secrets.clickup.setSecrets({
+        ...scope,
+        values: {token: 'secret'},
+        editedBy: undefined,
+      }),
+      integrationsOptions.secrets.clickup.deleteSecrets({...scope, keys: ['token']}),
       integrationsOptions.secrets.slack.getSecret({...scope, key: 'token'}),
       integrationsOptions.secrets.slack.setSecrets({
         ...scope,
@@ -1013,6 +1021,24 @@ describe('defaultModules', () => {
     expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
       keys: ['token'],
       namespace: 'system/integrations/jira/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
+    });
+    expect(mocks.getSecret.mock.calls.map(([params]) => params)).toContainEqual({
+      key: 'token',
+      namespace: 'system/integrations/clickup/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
+    });
+    expect(mocks.setSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      values: {token: 'secret'},
+      namespace: 'system/integrations/clickup/workspace',
+      projectId: null,
+      workspaceId: scope.workspaceId,
+    });
+    expect(mocks.deleteSecrets.mock.calls.map(([params]) => params)).toContainEqual({
+      keys: ['token'],
+      namespace: 'system/integrations/clickup/workspace',
       projectId: null,
       workspaceId: scope.workspaceId,
     });
