@@ -45,6 +45,15 @@ function workspaceClient(params: {
           ),
         );
       }
+      if (params.status === 'deleted') {
+        return Promise.reject(
+          createInterModuleKnownError(
+            workspacesInterModuleContract.methods.requireActiveMembership,
+            'workspace-not-found',
+            {workspaceId: params.workspaceId},
+          ),
+        );
+      }
       if (params.status !== undefined && params.status !== 'active') {
         return Promise.reject(
           createInterModuleKnownError(
