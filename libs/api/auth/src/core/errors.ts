@@ -100,6 +100,23 @@ export class AgentAccessWorkspaceError extends Error {
   }
 }
 
+export type AgentGrantAuthorityRevocationReason =
+  | 'grant-revoked'
+  | 'user-inactive'
+  | 'membership-revoked'
+  | 'workspace-suspended'
+  | 'workspace-deleted';
+
+export class AgentGrantAuthorityRevokedError extends Error {
+  readonly reason: AgentGrantAuthorityRevocationReason;
+
+  constructor(reason: AgentGrantAuthorityRevocationReason) {
+    super(`Agent grant authority revoked: ${reason}`);
+    this.name = 'AgentGrantAuthorityRevokedError';
+    this.reason = reason;
+  }
+}
+
 export class AgentGrantNotFoundError extends Error {
   constructor() {
     super('Agent grant not found');

@@ -21,6 +21,7 @@ export const AUTH_RUNNER_CONTROL_SESSION = 'runner-control-session';
 export const AUTH_LEASED_JOB = 'leased-job';
 export const AUTH_PROVISIONER_TOKEN = 'provisioner-token';
 export const AUTH_AGENT_ACCESS = 'agent-access';
+export const AUTH_AGENT_LOG_DOWNLOAD = 'agent-log-download';
 
 export type WorkspaceStatus = 'active' | 'suspended' | 'deleted';
 
@@ -54,6 +55,13 @@ export interface AgentAccessContext {
   workspaceId: string;
   scopes: ReadonlyArray<AgentAccessScope>;
   credential: AgentAccessCredential;
+}
+
+export interface AgentLogDownloadContext {
+  userId: string;
+  workspaceId: string;
+  grantId: string;
+  streamId: string;
 }
 
 export interface BuildUserContextParams {
@@ -103,6 +111,7 @@ const RUNNER_CONTROL_SESSION_CONTEXT_KEY = Symbol.for(
   '@shipfox/api-auth-context/runner-control-session',
 );
 const AGENT_ACCESS_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/agent-access');
+const AGENT_LOG_DOWNLOAD_CONTEXT_KEY = Symbol.for('@shipfox/api-auth-context/agent-log-download');
 
 export function setUserContext(request: RequestWithContext, context: UserContext): void {
   (request as Record<symbol, unknown>)[USER_CONTEXT_KEY] = context;
@@ -141,6 +150,33 @@ export function requireAgentAccessContext(request: RequestWithContext): AgentAcc
   const context = getAgentAccessContext(request);
   if (!context) {
     throw new Error('Agent access context is not available on this request');
+  }
+  return context;
+}
+
+export function setAgentLogDownloadContext(
+  request: RequestWithContext,
+  context: AgentLogDownloadContext,
+): void {
+  (request as Record<symbol, unknown>)[AGENT_LOG_DOWNLOAD_CONTEXT_KEY] = context;
+}
+
+export function getAgentLogDownloadContext(
+  request: RequestWithContext,
+): AgentLogDownloadContext | null {
+  return (
+    ((request as Record<symbol, unknown>)[AGENT_LOG_DOWNLOAD_CONTEXT_KEY] as
+      | AgentLogDownloadContext
+      | undefined) ?? null
+  );
+}
+
+export function requireAgentLogDownloadContext(
+  request: RequestWithContext,
+): AgentLogDownloadContext {
+  const context = getAgentLogDownloadContext(request);
+  if (!context) {
+    throw new Error('Agent log download context is not available on this request');
   }
   return context;
 }

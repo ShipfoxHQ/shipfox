@@ -158,7 +158,9 @@ describe('authModule', () => {
   });
 
   test('activates the agent access authentication and route surface', () => {
-    expect(authModule.auth?.map(({name}) => name)).toContain('agent-access');
+    expect(authModule.auth?.map(({name}) => name)).toEqual(
+      expect.arrayContaining(['agent-access', 'agent-log-download']),
+    );
     expect(authModule.routes).toEqual(
       expect.arrayContaining([expect.objectContaining({prefix: '/agent-access'})]),
     );

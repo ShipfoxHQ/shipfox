@@ -2,6 +2,7 @@ import {
   authInterModuleContract,
   type ListImpersonationEligibleUserSummariesInput,
 } from '@shipfox/api-auth-dto/inter-module';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
@@ -11,7 +12,13 @@ import type {TimestampIdCursor} from '@shipfox/node-drizzle';
 import {z} from 'zod';
 import {getCurrentAdminRole, requireAdminRole} from '#core/admin-role.js';
 import {listImpersonationEligibleUserSummaries} from '#core/administration.js';
-import {AdminRoleRequiredError, ImpersonationDisabledError} from '#core/errors.js';
+import {checkAgentGrantAuthority} from '#core/agent-grant-authority.js';
+import {mintAgentLogDownloadToken} from '#core/agent-log-download-token.js';
+import {
+  AdminRoleRequiredError,
+  AgentGrantAuthorityRevokedError,
+  ImpersonationDisabledError,
+} from '#core/errors.js';
 import {issueJobLeaseToken} from '#core/job-lease-token.js';
 import {issueRunnerSessionToken} from '#core/runner-session-token.js';
 
@@ -97,12 +104,36 @@ async function listImpersonationEligibleUserSummariesPresentation(
   }
 }
 
-export function createAuthInterModulePresentation(): InterModulePresentation<
-  typeof authInterModuleContract
-> {
+export function createAuthInterModulePresentation(
+  workspaces: WorkspacesInterModuleClient,
+): InterModulePresentation<typeof authInterModuleContract> {
   return defineInterModulePresentation(authInterModuleContract, {
     mintRunnerSessionToken: async (claims) => ({token: await issueRunnerSessionToken(claims)}),
     mintJobLeaseToken: async (claims) => ({token: await issueJobLeaseToken(claims)}),
+    mintAgentLogDownloadToken: async (claims) => {
+      const result = await mintAgentLogDownloadToken({
+        sub: claims.userId,
+        workspaceId: claims.workspaceId,
+        grantId: claims.grantId,
+        clientId: claims.clientId,
+        streamId: claims.streamId,
+      });
+      return {token: result.token, expiresAt: result.expiresAt.toISOString()};
+    },
+    checkAgentGrantAuthority: async (input) => {
+      try {
+        return await checkAgentGrantAuthority({...input, workspaces});
+      } catch (error) {
+        if (error instanceof AgentGrantAuthorityRevokedError) {
+          throw createInterModuleKnownError(
+            authInterModuleContract.methods.checkAgentGrantAuthority,
+            'authority-revoked',
+            {reason: error.reason},
+          );
+        }
+        throw error;
+      }
+    },
     getCurrentAdminRole: async ({userId}) => ({role: await getCurrentAdminRole({userId})}),
     requireAdminRole: async ({userId, minimumRole}) => {
       try {

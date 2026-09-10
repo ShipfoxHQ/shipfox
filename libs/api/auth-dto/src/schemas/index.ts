@@ -72,6 +72,11 @@ export {
   agentAccessTokenClaimsSchema,
 } from './agent-access-token.js';
 export {
+  AGENT_LOG_DOWNLOAD_TOKEN_AUDIENCE,
+  type AgentLogDownloadTokenClaims,
+  agentLogDownloadTokenClaimsSchema,
+} from './agent-log-download-token.js';
+export {
   type ChangePasswordBodyDto,
   changePasswordBodySchema,
   emailSchema,

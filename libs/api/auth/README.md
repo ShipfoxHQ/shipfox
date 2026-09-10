@@ -280,7 +280,9 @@ progress and drives that job to completion.
 
 Agent access uses OAuth grants. OAuth access tokens use the `AUTH_AGENT_ACCESS`
 method and resolve to one `AgentAccessContext` with a user, workspace, read
-scopes, grant identity, and client identity.
+scopes, grant identity, and client identity. Stream downloads use the separate
+`AUTH_AGENT_LOG_DOWNLOAD` method and resolve to an `AgentLogDownloadContext`
+with the user, workspace, grant, and stream identity.
 
 - **OAuth access token:** a stateless HMAC token with a distinct audience and a
   15-minute lifetime. Request authentication performs no database read. Grant
@@ -439,6 +441,7 @@ It also exports lower-level pieces for tests and advanced integration:
 - `createImpersonatedSessionToken({targetUserId, impersonatorId, workspaces})`: mints an access-token-only impersonated session (capped TTL, `impersonatorId` claim, no refresh material). The `impersonateUser` administration command owns the authorization ladder, idempotency, and audit flow.
 - `createOAuthAuthorizationRoutes(options)`: explicitly composes the OAuth authorization, consent, authorization-code, and refresh-token routes for an agent-resource integration.
 - `createAgentAccessAuthMethod()`: authenticates stateless OAuth access tokens into the shared agent-access context.
+- `createAgentLogDownloadAuthMethod(workspaces)`: authenticates stream-bound download tokens and re-checks grant authority through Auth and Workspaces.
 - `createAgentAccessManagementRoutes()` / `createAgentGrantRoutes()`: compose the grant management routes under `/agent-access`.
 - `listAgentGrants({userId})` and `revokeAgentGrant(...)`: implement the caller-scoped management use cases.
 - `getAuthenticatedSessionContext(request)`: reads the user ID and required refresh-session ID from verified access-token claims. It does not check whether the refresh session is still active.

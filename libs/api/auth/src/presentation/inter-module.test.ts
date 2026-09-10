@@ -1,14 +1,24 @@
 import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
+import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {createAdminGrant} from '#db/admin-grants.js';
 import {userFactory} from '#test/index.js';
 import {createAuthInterModulePresentation} from './inter-module.js';
 
+const workspaces = {
+  listMembershipsForTokenClaims: vi.fn(),
+  getWorkspaceCreator: vi.fn(),
+  getWorkspaceOperatingState: vi.fn(),
+  preflightInvitationAcceptance: vi.fn(),
+  acceptInvitation: vi.fn(),
+  requireActiveMembership: vi.fn(),
+} as unknown as WorkspacesInterModuleClient;
+
 function createClient() {
   const transport = createInMemoryInterModuleTransport();
   const client = transport.createClient(authInterModuleContract);
-  transport.register(createAuthInterModulePresentation());
+  transport.register(createAuthInterModulePresentation(workspaces));
   transport.seal();
   return client;
 }

@@ -178,6 +178,8 @@ describe('defaultModules', () => {
           handlers: {
             mintJobLeaseToken: vi.fn(),
             mintRunnerSessionToken: vi.fn(),
+            mintAgentLogDownloadToken: vi.fn(),
+            checkAgentGrantAuthority: vi.fn(),
             getCurrentAdminRole: vi.fn(),
             requireAdminRole: vi.fn(),
             listImpersonationEligibleUserSummaries: vi.fn(),
