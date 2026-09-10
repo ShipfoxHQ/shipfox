@@ -293,6 +293,12 @@ A gate must define `success`, `on_failure`, or both.
 
 <GateFailureFields />
 
+`max_attempts` counts the first execution of the gating step. Omit it to use
+five attempts on a new run. The field has no `unlimited` value. A gate limit
+ending the loop reports `restart_exhausted`; the separate job execution timeout
+reports `timed_out`. See [Limits](/reference/limits) for the timeout and log
+budget bounds.
+
 ## Step outputs
 
 <StepOutputs />
