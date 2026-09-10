@@ -63,8 +63,8 @@ describe('fetchStepLogs', () => {
     });
 
     expect(urls).toEqual([
-      `${config.API_URL}/steps/${stepId}/attempts/1/logs?cursor=0`,
-      `${config.API_URL}/steps/${stepId}/attempts/1/logs?cursor=7`,
+      new URL(`/steps/${stepId}/attempts/1/logs?cursor=0`, config.API_URL).toString(),
+      new URL(`/steps/${stepId}/attempts/1/logs?cursor=7`, config.API_URL).toString(),
     ]);
     expect(result.ndjson).toBe(`${line(output('first\n'))}${line(output('second\n', 2))}`);
     expect(result.records).toEqual([output('first\n'), output('second\n', 2)]);
