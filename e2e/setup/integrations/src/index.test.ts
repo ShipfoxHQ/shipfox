@@ -38,6 +38,35 @@ describe('integrations E2E setup helper', () => {
     });
   });
 
+  it('creates ClickUp connections through the protected setup route', async () => {
+    requestJson.mockResolvedValueOnce({id: 'connection-id'});
+    const {createClickUpConnection} = await import('./index.js');
+
+    await createClickUpConnection({
+      workspaceId: 'workspace-id',
+      teamId: 'clickup-team',
+      teamName: 'Acme',
+      authorizingUserId: 'clickup-user',
+      accessToken: 'clickup-token',
+      webhookId: 'clickup-webhook',
+      webhookSecret: 'clickup-secret',
+      displayName: 'ClickUp Acme',
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/clickup-connections', {
+      json: {
+        workspace_id: 'workspace-id',
+        team_id: 'clickup-team',
+        team_name: 'Acme',
+        authorizing_user_id: 'clickup-user',
+        access_token: 'clickup-token',
+        webhook_id: 'clickup-webhook',
+        webhook_secret: 'clickup-secret',
+        display_name: 'ClickUp Acme',
+      },
+    });
+  });
+
   it('creates GitHub connections through the protected setup route', async () => {
     requestJson.mockResolvedValueOnce({id: 'connection-id'});
     const {createGithubConnection} = await import('./index.js');

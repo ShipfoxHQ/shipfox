@@ -55,6 +55,7 @@ export interface IntegrationProviderModuleLoadOptions {
 export interface IntegrationProviderSecrets {
   github?: IntegrationProviderScopedSecrets | undefined;
   jira?: IntegrationProviderScopedSecrets | undefined;
+  clickup?: IntegrationProviderScopedSecrets | undefined;
   linear?: IntegrationProviderScopedSecrets | undefined;
   slack?: IntegrationProviderScopedSecrets | undefined;
   deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;

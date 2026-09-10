@@ -890,6 +890,11 @@ describe('defaultModules', () => {
           getSecret: expect.any(Function),
           setSecrets: expect.any(Function),
         },
+        clickup: {
+          deleteSecrets: expect.any(Function),
+          getSecret: expect.any(Function),
+          setSecrets: expect.any(Function),
+        },
         slack: {
           deleteSecrets: expect.any(Function),
           getSecret: expect.any(Function),

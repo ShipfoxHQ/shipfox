@@ -72,6 +72,31 @@ describe('loadEnabledProviderModules', () => {
     expect(parts[0]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
   });
 
+  it('does not load ClickUp when the provider is disabled', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+
+    expect(parts.map((part) => part.provider.provider)).not.toContain('clickup');
+  });
+
+  it('loads ClickUp after Jira when the provider is enabled', async () => {
+    vi.stubEnv('INTEGRATIONS_ENABLE_CLICKUP_PROVIDER', 'true');
+    vi.stubEnv('CLICKUP_OAUTH_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('CLICKUP_OAUTH_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('CLICKUP_OAUTH_REDIRECT_URL', 'https://example.test/clickup/callback');
+    vi.stubEnv('CLICKUP_WEBHOOK_BASE_URL', 'https://example.test/webhooks');
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+    const clickup = parts.find((part) => part.provider.provider === 'clickup');
+
+    expect(parts.map((part) => part.provider.provider)).toEqual(['clickup', 'cron', 'webhook']);
+    expect(clickup?.provider).toMatchObject({provider: 'clickup', displayName: 'ClickUp'});
+  });
+
   it('loads the private Test VCS provider and its fixture service only when enabled', async () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER', 'true');
     vi.resetModules();
