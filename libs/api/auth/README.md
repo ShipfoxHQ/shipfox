@@ -120,8 +120,9 @@ The module issues several bearer token types, all presented as
 OAuth access tokens are **stateless**: each is signed with HMAC-SHA256 and
 verified by checking its signature and expiry alone.
 
-Each signed token class uses a separate key derived from `AUTH_ROOT_KEY` and a
-fixed audience, so one token type cannot be used in place of another.
+All token classes except log-download tokens use a separate key derived from
+`AUTH_ROOT_KEY`. Log-download tokens deliberately reuse the agent-access key;
+their fixed audience and verifier keep them separate from OAuth access tokens.
 
 Changing `AUTH_ROOT_KEY` invalidates every user session token, runner session
 token, job lease token, OAuth access token, email challenge, and rate-limit
@@ -290,8 +291,8 @@ with the user, workspace, grant, and stream identity.
   until it expires. This bounded revocation window is accepted to keep MCP
   request authentication stateless.
 - **Log-download token:** lasts five minutes, re-checks grant authority on every
-  request, and returns `auth-dependency-unavailable` (`503`) when Auth or
-  Workspaces is unavailable.
+  request, and returns `auth-dependency-unavailable` (`503`) when Workspaces is
+  unavailable.
 - **Tool-call rate limit:** each API instance applies a process-local fixed
   window of 60 calls per credential per minute. Rejections increment the
   bounded `agent_access_tool_calls` metric with outcome `rate-limited`.

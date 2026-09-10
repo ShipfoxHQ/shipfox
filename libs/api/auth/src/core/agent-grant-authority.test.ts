@@ -50,7 +50,7 @@ function workspaceClient(params: {
         return Promise.reject(
           createInterModuleKnownError(
             workspacesInterModuleContract.methods.requireActiveMembership,
-            'workspace-not-found',
+            'workspace-inactive',
             {workspaceId: params.workspaceId},
           ),
         );

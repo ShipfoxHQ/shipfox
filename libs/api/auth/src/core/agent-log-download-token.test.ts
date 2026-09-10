@@ -2,6 +2,7 @@ import {AGENT_LOG_DOWNLOAD_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import {agentAccessTokenKey} from '@shipfox/node-auth-root-key';
 import {signHs256} from '@shipfox/node-jwt';
 import {
+  AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS,
   mintAgentLogDownloadToken,
   verifyAgentLogDownloadToken,
 } from './agent-log-download-token.js';
@@ -16,13 +17,13 @@ describe('agent-log-download-token', () => {
   };
 
   test('issues and verifies a five-minute stream-bound token', async () => {
-    const before = Date.now();
     const result = await mintAgentLogDownloadToken(claims);
-    const after = Date.now();
+    const verified = await verifyAgentLogDownloadToken(result.token);
 
-    expect(result.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 5 * 60 * 1000);
-    expect(result.expiresAt.getTime()).toBeLessThanOrEqual(after + 5 * 60 * 1000);
-    await expect(verifyAgentLogDownloadToken(result.token)).resolves.toMatchObject(claims);
+    expect(verified).toMatchObject(claims);
+    if (!verified) throw new Error('Expected the minted token to verify');
+    expect(verified.exp - verified.iat).toBe(AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS);
+    expect(result.expiresAt.getTime()).toBe(verified.exp * 1000);
   });
 
   test('rejects the agent-access audience', async () => {

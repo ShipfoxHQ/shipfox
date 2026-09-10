@@ -23,7 +23,7 @@ export interface MintedAgentLogDownloadToken {
 export async function mintAgentLogDownloadToken(
   claims: IssueAgentLogDownloadTokenParams,
 ): Promise<MintedAgentLogDownloadToken> {
-  const issuedAt = Date.now();
+  const secret = agentAccessTokenKey();
   const token = await signHs256({
     payload: {
       workspaceId: claims.workspaceId,
@@ -31,15 +31,21 @@ export async function mintAgentLogDownloadToken(
       clientId: claims.clientId,
       streamId: claims.streamId,
     },
-    secret: agentAccessTokenKey(),
+    secret,
     expiresIn: AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN,
     subject: claims.sub,
+    audience: AGENT_LOG_DOWNLOAD_TOKEN_AUDIENCE,
+  });
+  const signedClaims = await verifyHs256({
+    token,
+    secret,
+    schema: agentLogDownloadTokenClaimsSchema,
     audience: AGENT_LOG_DOWNLOAD_TOKEN_AUDIENCE,
   });
   recordTokenIssued('agent_log_download');
   return {
     token,
-    expiresAt: new Date(issuedAt + AGENT_LOG_DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS * 1000),
+    expiresAt: new Date(signedClaims.exp * 1000),
   };
 }
 

@@ -22,6 +22,12 @@ function revoked(reason: AgentGrantAuthorityRevocationReason): never {
   throw new AgentGrantAuthorityRevokedError(reason);
 }
 
+function workspaceInactiveRevocationReason(
+  status: 'active' | 'suspended' | 'deleted' | undefined,
+): AgentGrantAuthorityRevocationReason {
+  return status === 'deleted' ? 'workspace-deleted' : 'workspace-suspended';
+}
+
 async function assertActiveGrantAndUser(params: CheckAgentGrantAuthorityParams): Promise<void> {
   const grant = await findAgentGrant({id: params.grantId});
   const grantMatchesRequest =
@@ -63,7 +69,9 @@ async function assertActiveWorkspaceMembership(
     if (isInterModuleKnownError(method, error)) {
       if (error.code === 'membership-required') revoked('membership-revoked');
       if (error.code === 'workspace-not-found') revoked('workspace-deleted');
-      if (error.code === 'workspace-inactive') revoked('workspace-suspended');
+      if (error.code === 'workspace-inactive') {
+        revoked(workspaceInactiveRevocationReason(membership?.workspaceStatus));
+      }
     }
     throw new AuthDependencyUnavailableError('workspaces', error);
   }
