@@ -60,10 +60,13 @@ The request sequence is:
 7. Create a workspace webhook with user A's token. Delete its id with user B's
    token. Repeat the delete with user A's token only if the first delete does
    not remove it.
-8. Create a private Space visible to user A but not user B. Register a
-   workspace webhook as user A. Change a task in that Space as user A and
-   record whether the receiver gets a delivery. Repeat with a task that user A
-   cannot see to distinguish task visibility from webhook visibility.
+8. Create a private Space with a control task visible to user A but not user
+   B, and a separate private Space with a hidden task visible to user B but not
+   user A. Register a workspace webhook as user A. Change the control task as
+   user A and record whether the receiver gets a delivery. Keep A's webhook in
+   place, change the hidden task as authorized user B, and record whether the
+   receiver gets a delivery. Keep the request and response for each mutation
+   distinct so the control case remains separate from the hidden-task case.
 
 The API requests used for the live portions are:
 
@@ -281,13 +284,16 @@ user can see or delete the old user's webhook.
 
 #### 6. Do deliveries fire for tasks outside the creator's visibility?
 
-**Answer: the documented behavior is no; the private-Space test is not run.**
+**Answer: not established by published docs; the private-Space test is not run.**
 
-The Webhooks page says that ClickUp checks whether the creating user remains in
-the relevant hierarchy before triggering each webhook. A task in a private
-Space outside that user's visibility is therefore documented as not producing
-a delivery. The test app must still verify this because the v1 events contract
-will state the behavior explicitly.
+The Webhooks page documents that ClickUp checks whether the creating user
+remains in the relevant hierarchy before triggering each webhook. It also
+discusses a disabled creator whose webhook remains but stops triggering. Those
+statements address hierarchy membership and creator status, not whether a
+creator who remains a hierarchy member receives deliveries for tasks outside
+that creator's visibility. The private-Space behavior is therefore an
+inference that requires a live test, not a documented vendor result. The v1
+events contract must remain unsettled until that test is complete.
 
 Published documentation request and response evidence:
 
@@ -301,9 +307,11 @@ Response excerpt:
 > triggering. The system checks if the user is still part of the relevant
 > hierarchy before triggering each webhook.
 
-The required live proof is a receiver trace for a task mutation in a private
-Space that the webhook creator cannot see. No such delivery trace was
-captured. Do not describe this as a completed test-app result.
+The required live proof is a receiver trace for a request that authorized user
+B makes to mutate a task in a private Space that webhook creator A cannot see.
+Capture the mutation request, ClickUp response, and whether the receiver gets a
+delivery. No such delivery trace was captured. Do not describe this as a
+completed test-app result.
 
 ## Connection boundary for id-addressed tools
 
