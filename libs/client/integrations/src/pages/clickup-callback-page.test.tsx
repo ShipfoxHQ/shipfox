@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
-import {screen, waitFor} from '@testing-library/react';
-import {StrictMode} from 'react';
+import {authStateAtom} from '@shipfox/client-auth';
+import {act, screen, waitFor} from '@testing-library/react';
+import {useSetAtom} from 'jotai';
+import {type ReactNode, StrictMode, useEffect} from 'react';
 import {CLICKUP_INSTALL_WORKSPACE_KEY} from '#clickup-callback.js';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
 import {ClickUpCallbackPage} from './clickup-callback-page.js';
@@ -25,6 +27,27 @@ vi.mock('#hooks/api/integrations.js', async (importOriginal) => {
     useCompleteClickUpCallbackMutation: () => ({mutateAsync: completeCallbackMock}),
   };
 });
+
+function AuthCompletionTrigger({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  onReady: (complete: () => void) => void;
+}) {
+  const setAuth = useSetAtom(authStateAtom);
+
+  useEffect(() => {
+    onReady(() =>
+      setAuth({
+        status: 'authenticated',
+        workspaces: [testWorkspace()],
+      }),
+    );
+  }, [onReady, setAuth]);
+
+  return children;
+}
 
 beforeEach(() => {
   window.sessionStorage.clear();
@@ -81,6 +104,52 @@ describe('ClickUpCallbackPage', () => {
     );
     expect(window.sessionStorage.getItem(CLICKUP_INSTALL_WORKSPACE_KEY)).toBeNull();
     expect(screen.getByText('ClickUp installed.')).toBeInTheDocument();
+  });
+
+  it('waits for auth before submitting the original callback query', async () => {
+    let completeAuth!: () => void;
+    const onAuthReady = (complete: () => void) => {
+      completeAuth = complete;
+    };
+    completeCallbackMock.mockResolvedValue({
+      id: 'connection-cold-auth',
+      workspaceId: INTEGRATIONS_TEST_WID,
+      provider: 'clickup',
+      externalAccountId: 'team-cold-auth',
+      slug: 'clickup_cold_auth',
+      displayName: 'ClickUp Cold Auth',
+      lifecycleStatus: 'active',
+      capabilities: ['agent_tools'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    renderIntegrationsPage({
+      path: '/integrations/clickup/callback?code=cold-grant-code&state=cold-signed-state',
+      routePath: '/integrations/clickup/callback',
+      element: (
+        <AuthCompletionTrigger onReady={onAuthReady}>
+          <ClickUpCallbackPage />
+        </AuthCompletionTrigger>
+      ),
+      loadingAuth: true,
+      extraRoutes: ['/w/$workspaceSlug/settings/integrations', '/auth/login'],
+    });
+
+    expect(await screen.findByRole('status', {name: 'Connecting ClickUp'})).toBeInTheDocument();
+    expect(completeCallbackMock).not.toHaveBeenCalled();
+
+    act(() => {
+      completeAuth();
+    });
+
+    await waitFor(() =>
+      expect(completeCallbackMock).toHaveBeenCalledWith({
+        query: {code: 'cold-grant-code', state: 'cold-signed-state'},
+        token: 'test-token',
+      }),
+    );
+    expect(completeCallbackMock).toHaveBeenCalledTimes(1);
   });
 
   it('maps the workspace-count error without retrying the grant code', async () => {
