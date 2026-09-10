@@ -296,14 +296,21 @@ describe('workflow run queries', () => {
         },
       });
 
+      await updateWorkflowRunStatus({workflowRunId: run.id, status: 'failed', expectedVersion: 1});
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: run.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
       await expect(
-        cancelWorkflowRun({workflowRunId: run.id, expectedAttempt: run.currentAttempt + 1}),
+        cancelWorkflowRun({workflowRunId: run.id, expectedAttempt: 1}),
       ).rejects.toMatchObject({
-        currentAttempt: run.currentAttempt,
+        currentAttempt: 2,
       });
       await expect(getWorkflowRunById(run.id)).resolves.toMatchObject({
-        currentAttempt: run.currentAttempt,
-        status: run.status,
+        currentAttempt: rerun.currentAttempt,
+        status: rerun.status,
       });
     });
 
