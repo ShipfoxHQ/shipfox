@@ -3,7 +3,16 @@ import {
   MAX_RECONCILE_OBSERVED_RUNNERS,
   reconcileRunnerInstancesBodySchema,
   reconcileRunnerInstancesResponseSchema,
+  runnerJobStopReasonSchema,
 } from './reconcile-runner-instances.js';
+
+describe('runnerJobStopReasonSchema', () => {
+  it('accepts concurrency supersession as a local stop reason', () => {
+    expect(runnerJobStopReasonSchema.parse('concurrency_superseded')).toBe(
+      'concurrency_superseded',
+    );
+  });
+});
 
 describe('reconcileRunnerInstancesBodySchema', () => {
   it('accepts provider termination candidates as observations, not permissions', () => {

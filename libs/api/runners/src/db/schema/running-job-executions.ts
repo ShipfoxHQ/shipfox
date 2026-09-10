@@ -7,6 +7,7 @@ import {runnerSessions} from './runner-sessions.js';
 export const runnerJobStopReasonEnum = pgEnum('runners_job_stop_reason', [
   'run_cancelled',
   'timed_out',
+  'concurrency_superseded',
 ]);
 
 export const runningJobExecutions = pgTable(

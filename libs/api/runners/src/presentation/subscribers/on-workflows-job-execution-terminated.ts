@@ -16,7 +16,11 @@ export async function onWorkflowsJobExecutionTerminated(
   );
   let cancellationReason = payload.cancellationReason ?? null;
   if (cancellationReason === null) {
-    if (payload.statusReason === 'run_cancelled' || payload.statusReason === 'timed_out') {
+    if (
+      payload.statusReason === 'run_cancelled' ||
+      payload.statusReason === 'timed_out' ||
+      payload.statusReason === 'concurrency_superseded'
+    ) {
       cancellationReason = payload.statusReason;
     } else if (payload.status === 'cancelled' && payload.statusReason === null) {
       cancellationReason = 'run_cancelled';

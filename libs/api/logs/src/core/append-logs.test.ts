@@ -855,11 +855,11 @@ describe('appendLogs', () => {
     });
 
     function ingestedAdd() {
-      return metricsMocks.counters.get('bytesIngestedCount')?.add;
+      return metricsMocks.add('bytesIngestedCount').add;
     }
 
     function storedAdd() {
-      return metricsMocks.counters.get('bytesStoredCount')?.add;
+      return metricsMocks.add('bytesStoredCount').add;
     }
 
     it('counts raw ingested and normalized stored bytes on an in-order append', async () => {

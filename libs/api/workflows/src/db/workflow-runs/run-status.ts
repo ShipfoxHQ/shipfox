@@ -39,15 +39,23 @@ export interface CancelWorkflowRunParams {
   workflowRunId: string;
 }
 
+export interface CancelWorkflowRunAttemptForConcurrencyParams {
+  workflowRunAttemptId: string;
+}
+
 export interface FailWorkflowRunAsTimedOutParams {
   runAttemptId: string;
 }
 
 export interface RunTerminationSpec {
   terminalStatus: Extract<WorkflowRunStatus, 'failed' | 'cancelled'>;
-  statusReason: Extract<JobStatusReason, 'timed_out' | 'run_cancelled'>;
+  statusReason: Extract<JobStatusReason, 'timed_out' | 'run_cancelled' | 'concurrency_superseded'>;
   markExecutionTimedOut: boolean;
   emitCancelledEvent: boolean;
+}
+
+function stepTerminalCauseFor(statusReason: RunTerminationSpec['statusReason']) {
+  return statusReason === 'concurrency_superseded' ? undefined : statusReason;
 }
 
 function finalizeCancelledListenerEvents(
@@ -180,7 +188,7 @@ async function terminateRunAttempt(
         {
           jobExecutionId: jobExecution.id,
           status: spec.terminalStatus,
-          terminalCause: spec.statusReason,
+          terminalCause: stepTerminalCauseFor(spec.statusReason),
         },
         tx,
       );
@@ -327,6 +335,64 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
   });
 
   recordWorkflowRunStatusChanged(result.run.status);
+  for (const job of result.changedJobs) recordWorkflowJobStatusChanged(job.status);
+  if (result.listenerEventOutcomes.abandoned > 0) {
+    recordWorkflowListenerEventOutcome(
+      'abandoned',
+      'cancelled',
+      result.listenerEventOutcomes.abandoned,
+    );
+  }
+
+  return result.run;
+}
+
+export async function cancelWorkflowRunAttemptForConcurrency(
+  params: CancelWorkflowRunAttemptForConcurrencyParams,
+): Promise<WorkflowRun> {
+  const result = await db().transaction(async (tx) => {
+    const [attemptReference] = await tx
+      .select()
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.id, params.workflowRunAttemptId))
+      .limit(1);
+    if (!attemptReference) throw new WorkflowRunNotFoundError(params.workflowRunAttemptId);
+
+    const lockedRun = await lockWorkflowRun(attemptReference.workflowRunId, tx);
+    if (!lockedRun) throw new WorkflowRunNotFoundError(attemptReference.workflowRunId);
+    const [lockedAttempt] = await tx
+      .select()
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.id, params.workflowRunAttemptId))
+      .limit(1)
+      .for('update');
+    if (!lockedAttempt) throw new WorkflowRunNotFoundError(params.workflowRunAttemptId);
+
+    if (isWorkflowRunTerminal(lockedAttempt.status)) {
+      return {
+        run: toWorkflowRun(lockedRun),
+        changedJobs: [],
+        listenerEventOutcomes: {honored: 0, abandoned: 0},
+        changed: false,
+      };
+    }
+
+    return {
+      ...(await terminateRunAttempt(tx, {
+        lockedRun,
+        lockedAttempt,
+        spec: {
+          terminalStatus: 'cancelled',
+          statusReason: 'concurrency_superseded',
+          markExecutionTimedOut: false,
+          emitCancelledEvent: true,
+        },
+      })),
+      changed: true,
+    };
+  });
+
+  if (result.changed) recordWorkflowRunStatusChanged(result.run.status);
   for (const job of result.changedJobs) recordWorkflowJobStatusChanged(job.status);
   if (result.listenerEventOutcomes.abandoned > 0) {
     recordWorkflowListenerEventOutcome(

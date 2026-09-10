@@ -235,6 +235,16 @@ describe('workflowsJobExecutionTerminatedSchema', () => {
     expect(workflowsJobExecutionTerminatedSchema.parse(input)).toEqual(input);
   });
 
+  it('accepts a concurrency supersession reason', () => {
+    const input = {
+      ...validJobExecutionTerminated,
+      statusReason: 'concurrency_superseded',
+      cancellationReason: 'concurrency_superseded',
+    };
+
+    expect(workflowsJobExecutionTerminatedSchema.parse(input)).toEqual(input);
+  });
+
   it('keeps identity, timestamps, and runner identity optional for events written before they existed', () => {
     const result = workflowsJobExecutionTerminatedSchema.parse(validJobExecutionTerminated);
 

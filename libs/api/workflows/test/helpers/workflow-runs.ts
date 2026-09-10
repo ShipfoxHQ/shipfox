@@ -158,6 +158,7 @@ export async function jobExecutionTerminatedEvents(jobExecutionId: string) {
         workflowRunAttemptId: string;
         status: string;
         statusReason: string | null;
+        cancellationReason?: string | null;
         statusReasonMessage?: string | null;
       },
   );

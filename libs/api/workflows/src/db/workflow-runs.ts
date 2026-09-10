@@ -148,6 +148,7 @@ export {
   listWorkflowRuns,
 } from './workflow-runs/queries.js';
 export type {
+  CancelWorkflowRunAttemptForConcurrencyParams,
   CancelWorkflowRunParams,
   CreateRerunWorkflowRunParams,
   CreateWorkflowRunParams,
@@ -156,6 +157,7 @@ export type {
 } from './workflow-runs/runs.js';
 export {
   cancelWorkflowRun,
+  cancelWorkflowRunAttemptForConcurrency,
   createRerunWorkflowRun,
   createWorkflowRun,
   failWorkflowRunAsTimedOut,
