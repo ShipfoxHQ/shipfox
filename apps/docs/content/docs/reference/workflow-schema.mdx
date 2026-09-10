@@ -293,6 +293,22 @@ A gate must define `success`, `on_failure`, or both.
 
 <GateFailureFields />
 
+`max_attempts` is optional. It sets the maximum number of gating-step
+executions, including the first execution. Shipfox accepts integers from 1
+through 1,000. Omitting the field uses five attempts for a new run. A value
+of `1` allows the first execution but no automatic restart.
+
+There is no `unlimited` value. The job `execution_timeout` remains an
+independent wall-clock bound. See [Limits](/reference/limits) for the timeout,
+legacy-data behavior, and retained log budget.
+
+Definition sync rejects invalid values at
+`jobs.<job>.steps.<index>.gate.on_failure.max_attempts` with:
+
+```text
+Expected a positive integer no greater than 1000.
+```
+
 ## Step outputs
 
 <StepOutputs />

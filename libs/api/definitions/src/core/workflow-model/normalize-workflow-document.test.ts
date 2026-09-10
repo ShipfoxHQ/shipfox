@@ -4900,6 +4900,30 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it.each([1, 25, 1_000])('normalizes authored gate max_attempts: %s', (maxAttempts) => {
+    const document: WorkflowDocument = {
+      name: 'retry build',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'install', run: 'npm install'},
+            {
+              key: 'build',
+              run: 'npm run build',
+              gate: {on_failure: {restart_from: 'install', max_attempts: maxAttempts}},
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]?.gate).toEqual({
+      onFailure: {restartFrom: 'install', maxAttempts},
+    });
+  });
+
   it('accepts step outputs in gate success expressions', () => {
     const document: WorkflowDocument = {
       name: 'output gate',

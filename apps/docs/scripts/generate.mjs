@@ -623,6 +623,7 @@ function renderWorkflowSchemaReference(schema, workflowSchemaMarkdown) {
     }),
     workflowComponent(workflowSchemaMarkdown, 'GateFailureFields', object(gateFailure.properties), {
       required: ['restart_from'],
+      defaults: {max_attempts: 5},
     }),
     workflowComponent(workflowSchemaMarkdown, 'StepOutputs', outputFields()),
     workflowComponent(workflowSchemaMarkdown, 'ToolStepOutputs', toolOutputFields()),
@@ -671,7 +672,9 @@ function renderTypeTable(properties, options) {
       `      type: ${row.typeExpression},`,
       `      description: ${descriptionFor(row.description)},`,
       ...(row.required ? ['      required: true,'] : []),
-      ...(row.defaultValue ? [`      default: ${codeType(row.defaultValue)},`] : []),
+      ...(row.defaultValue === undefined
+        ? []
+        : [`      default: ${codeType(String(row.defaultValue))},`]),
       ...(row.nestedHref ? [`      typeDescriptionLink: ${JSON.stringify(row.nestedHref)},`] : []),
       '    },',
     ]),
@@ -690,7 +693,8 @@ function renderTypeTableMarkdown(properties, options) {
       const linkedType = row.nestedHref
         ? `[${inlineCode(row.type)}](${row.nestedHref})`
         : inlineCode(row.type);
-      const defaultText = row.defaultValue ? inlineCode(row.defaultValue) : '-';
+      const defaultText =
+        row.defaultValue === undefined ? '-' : inlineCode(String(row.defaultValue));
       return `| ${inlineCode(row.name)} | ${linkedType} | ${row.required ? 'Required' : 'Optional'} | ${defaultText} | ${tableValue(row.description || '-')} |`;
     }),
   ].join('\n');

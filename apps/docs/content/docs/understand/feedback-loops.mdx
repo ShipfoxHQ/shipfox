@@ -99,14 +99,28 @@ Every attempt costs runner time and, for an agent, model cost. Slow checks
 multiply that cost. A loop therefore needs a clear stopping rule and a limited
 number of attempts.
 
-The loop stops in one of two states:
+`gate.on_failure.max_attempts` counts executions of the gating step. The first
+execution counts as attempt one. Omitting the field gives a new run five
+attempts. The [Limits](/reference/limits) reference lists the accepted range
+and the legacy behavior for missing persisted data.
+
+The attempt limit and the job `execution_timeout` are independent bounds. The
+execution timeout limits one job execution, including gate restarts, and its
+authored maximum is 24 hours. A timeout reports the existing `timed_out` job
+reason. It does not report `restart_exhausted`.
+
+There is no `unlimited` value. Long loops can also outgrow the retained log
+budget. That budget drops later output but does not stop execution, so attempt
+history can remain available while its diagnostic logs are incomplete.
+
+The loop stops in one of three states:
 
 - The check passes.
-- The attempt limit runs out and the job fails.
+- The attempt limit runs out and the job fails with `restart_exhausted`.
+- The execution timeout, cancellation, or another independent guard ends the job.
 
-[Limits](/reference/limits) lists the exact attempt limits. The [run
-history](/understand/workflows-and-runs) keeps each step attempt and its
-feedback.
+The [run history](/understand/workflows-and-runs) keeps each step attempt and
+its feedback.
 
 ## Keep external writes out of the loop
 
@@ -120,8 +134,8 @@ Prefer this order:
 2. Run the check.
 3. Perform the external write only after the gate passes.
 
-When a write must happen inside the repeated range, make it safe to repeat. Use
-a stable identity, and update or read back the existing result instead of
+When a write must happen inside the repeated range, make it idempotent. Use a
+stable identity, and update or read back the existing result instead of
 creating a new one on every attempt.
 
 A loop can repeat a bad side effect as easily as it can improve code. Don't use

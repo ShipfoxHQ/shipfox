@@ -1,6 +1,7 @@
 import {
   WORKFLOW_DOCUMENT_STEP_OUTPUT_KEY_PATTERN,
   WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES,
+  WORKFLOW_GATE_MAX_ATTEMPTS_MAX,
   WORKFLOW_INTERPOLATION_MARKER_PATTERN,
   WORKFLOW_LITERAL_NAME_PATTERN,
   WORKFLOW_SESSION_KEY_MAX_LENGTH,
@@ -146,6 +147,7 @@ describe('buildWorkflowJsonSchema', () => {
     const jobOutputs = jobOutputsSchemaFor(schema);
     const step = stepSchemaFor(schema);
     const gate = object(object(step.properties).gate);
+    const gateFailure = object(object(gate.properties).on_failure);
     const batch = batchSchemaFor(schema);
     const discriminator = objects(step.allOf).find((constraint) => 'oneOf' in constraint);
 
@@ -162,6 +164,18 @@ describe('buildWorkflowJsonSchema', () => {
     });
     expect(requiredAlternatives(gate)).toEqual(['success', 'on_failure']);
     expect(requiredAlternatives(batch)).toEqual(['debounce', 'max_size', 'max_wait']);
+    expect(gateFailure.properties).toEqual(
+      expect.objectContaining({
+        max_attempts: expect.objectContaining({
+          type: 'integer',
+          minimum: 1,
+          maximum: WORKFLOW_GATE_MAX_ATTEMPTS_MAX,
+          description:
+            'Maximum number of gating-step executions, including the first execution. Must be an integer from 1 through 1,000.',
+        }),
+      }),
+    );
+    expect(strings(gateFailure.required)).not.toContain('max_attempts');
   });
 
   it('describes the session field with string and object forms', () => {

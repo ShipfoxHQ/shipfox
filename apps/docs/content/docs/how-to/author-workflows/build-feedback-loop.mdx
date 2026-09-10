@@ -51,6 +51,7 @@ jobs:
           on_failure:
             restart_from: test_failure_handler
             feedback: The tests still fail. Run them again and fix the cause.
+            max_attempts: 8
 
       - key: lint_failure_handler
         if: '${{ has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "lint" }}'
@@ -65,6 +66,7 @@ jobs:
           on_failure:
             restart_from: lint_failure_handler
             feedback: Lint still fails. Run it again and fix the reported issues.
+            max_attempts: 5
 ```
 
 Replace the two check commands with commands that prove the required results.
@@ -115,6 +117,12 @@ has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "ver
 The `verify` key belongs on the failing check. It does not belong on the
 `restart_from` target.
 
-The job timeout is an outer wall-clock bound. The gate also has its own attempt
-limit. See [Limits](/reference/limits). For the evaluation model, see
-[Feedback loops](/understand/feedback-loops).
+Each `max_attempts` value includes the first execution. Omit it to use the
+new-run default, or set it when a loop needs a different bound. The accepted
+range and validation message are in the [workflow schema reference](/reference/workflow-schema#gate-failure-fields).
+
+The job timeout is an independent wall-clock bound. It includes gate restarts
+and can be authored up to 24 hours. A timeout reports `timed_out`, not
+`restart_exhausted`. The retained log budget can drop output without stopping
+the loop, so writes inside the repeated range must be idempotent. See [Limits](/reference/limits).
+For the evaluation model, see [Feedback loops](/understand/feedback-loops).

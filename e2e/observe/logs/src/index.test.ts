@@ -1,5 +1,5 @@
 import type {LogRecord, ReadLogsResponseDto} from '@shipfox/api-logs-dto';
-import {config, PollTimeoutError} from '@shipfox/e2e-core';
+import {PollTimeoutError} from '@shipfox/e2e-core';
 import {fetchStepLogs, waitForStepLogsContaining} from './index.js';
 
 const stepId = '11111111-1111-4111-8111-111111111111';
@@ -45,9 +45,10 @@ function presigned(params: {truncated?: boolean; url?: string} = {}): ReadLogsRe
 
 describe('fetchStepLogs', () => {
   test('drains inline pages and parses records', async () => {
+    const apiUrl = 'http://localhost:16101';
     const urls: string[] = [];
     const result = await fetchStepLogs({
-      apiUrl: 'http://localhost:16101',
+      apiUrl,
       attempt: 1,
       fetch: (url) => {
         urls.push(url.toString());
@@ -64,8 +65,8 @@ describe('fetchStepLogs', () => {
     });
 
     expect(urls).toEqual([
-      new URL(`/steps/${stepId}/attempts/1/logs?cursor=0`, config.API_URL).toString(),
-      new URL(`/steps/${stepId}/attempts/1/logs?cursor=7`, config.API_URL).toString(),
+      new URL(`/steps/${stepId}/attempts/1/logs?cursor=0`, apiUrl).toString(),
+      new URL(`/steps/${stepId}/attempts/1/logs?cursor=7`, apiUrl).toString(),
     ]);
     expect(result.ndjson).toBe(`${line(output('first\n'))}${line(output('second\n', 2))}`);
     expect(result.records).toEqual([output('first\n'), output('second\n', 2)]);

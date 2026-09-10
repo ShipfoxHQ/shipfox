@@ -12,7 +12,7 @@ can change the values marked configurable.
 
 | Limit | Default | Configurable | Details |
 | --- | --- | --- | --- |
-| Gate attempts per gating step | 5 (including the first execution) | No | New runs use five when no authored limit is set. Active and rerun executions with no persisted limit retain the legacy limit of three. When the cap is exhausted and the gate still fails, the step is marked failed and the job stops. See [Feedback loops](/understand/feedback-loops#loop-bounds). |
+| Gate attempts per gating step | 5 (including the first execution) | Per gate, in YAML | Authors can set `gate.on_failure.max_attempts` from 1 through 1,000. The value includes the first execution. New runs use five when the field is omitted. Active and rerun executions with no persisted limit retain the legacy limit of three. There is no `unlimited` value. When the cap is exhausted and the gate still fails, the step is marked failed with `restart_exhausted` and the job stops. See [Feedback loops](/understand/feedback-loops#loop-bounds). |
 | Job `execution_timeout` | 6 hours | Per job, in YAML | Wall-clock bound on one job execution, including gate retries. Authored values range from 1 second through 24 hours. See [Job fields](/reference/workflow-schema#job-fields). |
 | Run timeout | 30 days | No (not authorable) | Outer bound on a whole run, including its listening jobs. A listening job's `timeout` is capped by it. |
 | Manual triggers per workflow | 1 | No | See [Trigger fields](/reference/workflow-schema#trigger-fields). |
@@ -54,7 +54,7 @@ serialized outputs object, including output keys and JSON syntax.
 
 | Limit | Default | Configurable | Details |
 | --- | --- | --- | --- |
-| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | Past the budget, the job is capped and further output is dropped. A `capped` record marks the boundary. See [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs). |
+| Per-job log budget | 32 MiB + 1 MiB per minute | Self-host: `LOG_BUDGET_BASE_BYTES`, `LOG_BUDGET_RATE_BYTES_PER_MINUTE` | The budget limits retained output, not execution. Past the budget, further output is dropped and a `capped` record marks the boundary. Gate retries continue, but later attempts can have incomplete or no logs. See [Inspect logs](/how-to/run-and-troubleshoot/inspect-logs). |
 | Log retention | 90 days | Self-host: `LOG_RETENTION_DAYS` | Persisted logs are deleted from the database and object storage after this window. |
 | Output group nesting | 32 levels | No | Past the cap a group is flattened into plain output. Wrap output in `::group::<name>` / `::endgroup::` marker lines to create collapsible sections. |
 | Output group name | 1 KiB | No | The runner byte-truncates longer marker names before upload. Direct log records over the cap are rejected at the record level. |
