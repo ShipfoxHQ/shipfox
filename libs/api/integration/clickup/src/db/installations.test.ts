@@ -51,7 +51,7 @@ describe('ClickUp installations', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       events.push('first-end');
     });
-    await firstLockAcquired;
+    await Promise.race([firstLockAcquired, first]);
     const second = withClickUpInstallationLock('same-team', () => {
       events.push('second-start');
       return Promise.resolve();
