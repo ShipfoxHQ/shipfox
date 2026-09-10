@@ -209,7 +209,7 @@ describe('GET /admin/workspaces', () => {
     expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenCalledTimes(1);
     expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenCalledWith({
       userIds: expect.arrayContaining([first.userId, second.userId]),
-      limit: 200,
+      limit: 25,
     });
   });
 
@@ -261,7 +261,7 @@ describe('GET /admin/workspaces', () => {
     expect(auth.listImpersonationEligibleUserSummaries).toHaveBeenLastCalledWith({
       search: second.userEmail,
       cursor: 'auth-next-cursor',
-      limit: 200,
+      limit: 25,
     });
   });
 

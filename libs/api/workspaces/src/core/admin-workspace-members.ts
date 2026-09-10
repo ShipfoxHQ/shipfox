@@ -2,7 +2,6 @@ import type {
   AdministratorUserSummaryInterModule,
   AuthInterModuleClient,
 } from '@shipfox/api-auth-dto/inter-module';
-import {WORKSPACE_ADMIN_MEMBERS_SCAN_LIMIT} from '@shipfox/api-workspaces-dto';
 import type {TimestampIdCursor} from '@shipfox/node-drizzle';
 import type {Workspace} from '#core/entities/workspace.js';
 import {WorkspaceNotFoundError} from '#core/errors.js';
@@ -73,7 +72,7 @@ export async function listWorkspaceAdministratorMembers(
     const authCursor = params.cursor?.mode === 'search' ? params.cursor.authCursor : undefined;
     const result = await params.auth.listImpersonationEligibleUserSummaries({
       search: params.search,
-      limit: WORKSPACE_ADMIN_MEMBERS_SCAN_LIMIT,
+      limit: params.limit,
       ...(authCursor === undefined ? {} : {cursor: authCursor}),
     });
     const memberUserIds = new Set(
@@ -94,12 +93,12 @@ export async function listWorkspaceAdministratorMembers(
   const membershipCursor = params.cursor?.mode === 'membership' ? params.cursor.cursor : undefined;
   const membershipPage = await listWorkspaceMembershipsPage({
     workspaceId: params.workspaceId,
-    limit: WORKSPACE_ADMIN_MEMBERS_SCAN_LIMIT,
+    limit: params.limit,
     ...(membershipCursor === undefined ? {} : {cursor: membershipCursor}),
   });
   const result = await params.auth.listImpersonationEligibleUserSummaries({
     userIds: membershipPage.memberships.map(({userId}) => userId),
-    limit: WORKSPACE_ADMIN_MEMBERS_SCAN_LIMIT,
+    limit: params.limit,
   });
 
   return {
