@@ -31,6 +31,9 @@ import {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
   ManualTriggerNotFoundError,
+  TriggerSubscriptionNotFoundError,
+  TriggerSubscriptionNotManualError,
+  TriggerWorkspaceMismatchError,
 } from '#core/errors.js';
 import {fireManualTrigger} from '#core/fire-manual.js';
 import {
@@ -53,7 +56,7 @@ export function createTriggersInterModulePresentation(params: {
       try {
         return await fireManualTrigger({...input, workflows: params.workflows});
       } catch (error) {
-        throw toFireManualTriggerKnownError(error);
+        throw toFireManualTriggerKnownError(error, input.definitionId);
       }
     },
     createDevRun: async (input) => {
@@ -148,11 +151,17 @@ export function createTriggersInterModulePresentation(params: {
   });
 }
 
-function toFireManualTriggerKnownError(error: unknown): unknown {
+function toFireManualTriggerKnownError(error: unknown, definitionId: string): unknown {
   const method = triggersInterModuleContract.methods.fireManualTrigger;
-  if (error instanceof ManualTriggerNotFoundError) {
+  if (
+    error instanceof ManualTriggerNotFoundError ||
+    error instanceof TriggerSubscriptionNotFoundError ||
+    error instanceof TriggerSubscriptionNotManualError ||
+    error instanceof TriggerWorkspaceMismatchError
+  ) {
     return createInterModuleKnownError(method, 'manual-trigger-not-found', {
-      definitionId: error.workflowDefinitionId,
+      definitionId:
+        error instanceof ManualTriggerNotFoundError ? error.workflowDefinitionId : definitionId,
     });
   }
 

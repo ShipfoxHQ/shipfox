@@ -5,7 +5,13 @@ import {
   workflowsInterModuleContract,
 } from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError, isInterModuleKnownError} from '@shipfox/inter-module';
-import {DevRunReplayEventMismatchError, ManualTriggerNotFoundError} from '#core/errors.js';
+import {
+  DevRunReplayEventMismatchError,
+  ManualTriggerNotFoundError,
+  TriggerSubscriptionNotFoundError,
+  TriggerSubscriptionNotManualError,
+  TriggerWorkspaceMismatchError,
+} from '#core/errors.js';
 
 const mocks = vi.hoisted(() => ({
   createDevRun: vi.fn(),
@@ -37,6 +43,8 @@ const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
 const DEFINITION_ID = '00000000-0000-4000-8000-000000000002';
 const PROJECT_ID = '00000000-0000-4000-8000-000000000003';
 const USER_ID = '00000000-0000-4000-8000-000000000004';
+const SUBSCRIPTION_ID = '00000000-0000-4000-8000-000000000005';
+const OTHER_WORKSPACE_ID = '00000000-0000-4000-8000-000000000006';
 const context = {signal: new AbortController().signal};
 
 async function rejection(value: Promise<unknown> | unknown): Promise<unknown> {
@@ -90,6 +98,35 @@ describe('trigger command presentation', () => {
       isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, error),
     ).toBe(true);
     expect(error).toMatchObject({
+      code: 'manual-trigger-not-found',
+      details: {definitionId: DEFINITION_ID},
+    });
+  });
+
+  test.each([
+    ['deleted subscription', new TriggerSubscriptionNotFoundError(SUBSCRIPTION_ID)],
+    [
+      'changed subscription source',
+      new TriggerSubscriptionNotManualError(SUBSCRIPTION_ID, 'github'),
+    ],
+    [
+      'moved subscription workspace',
+      new TriggerWorkspaceMismatchError(SUBSCRIPTION_ID, OTHER_WORKSPACE_ID, WORKSPACE_ID),
+    ],
+  ] as const)('maps a %s race to the manual-trigger-not-found command error', async (_race, error) => {
+    mocks.fireManualTrigger.mockRejectedValue(error);
+
+    const result = await rejection(
+      presentation().handlers.fireManualTrigger(
+        {workspaceId: WORKSPACE_ID, definitionId: DEFINITION_ID, userId: USER_ID},
+        context,
+      ),
+    );
+
+    expect(
+      isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, result),
+    ).toBe(true);
+    expect(result).toMatchObject({
       code: 'manual-trigger-not-found',
       details: {definitionId: DEFINITION_ID},
     });
