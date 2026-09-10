@@ -1,5 +1,5 @@
 ---
-"@shipfox/client-shell": minor
+"@shipfox/client-shell": major
 "@shipfox/client-usage": patch
 "@shipfox/client-workflows": patch
 ---
