@@ -313,8 +313,9 @@ describe('WorkflowJobDetailPage', () => {
     await user.click(await screen.findByRole('button', {name: 'Load older attempts'}));
     await waitFor(() => expect(resourceRequests).toHaveLength(1));
     expect(
-      await screen.findByRole('button', {name: 'tests, Succeeded, attempt 1'}),
+      await screen.findByRole('button', {name: 'tests, Succeeded, attempt 3'}),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'tests, Succeeded, attempt 4'})).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', {name: 'Load older steps'}));
     expect(
@@ -324,6 +325,27 @@ describe('WorkflowJobDetailPage', () => {
       '?limit=25&cursor=attempt-cursor',
       '?limit=100&cursor=step-cursor',
     ]);
+  });
+
+  test('shows the effective gate attempt policy with the first-execution semantics', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn((input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url);
+        if (url.pathname === `/workflows/runs/jobs/${JOB_ID}`) {
+          const response = workflowJobDetailResponseDto({detail: jobDetailDto(), jobId: JOB_ID});
+          const step = response.selected_execution?.steps.items[0];
+          if (step) step.gate_max_attempts = 5;
+          return Promise.resolve(jsonResponse(response));
+        }
+        return jobDetailFetch(input);
+      }),
+    });
+
+    renderJobPath();
+
+    expect(
+      await screen.findByText('Up to 5 attempts, including the first execution.'),
+    ).toBeInTheDocument();
   });
 
   test('shows a retarget notice when polling advances to the next running step', async () => {
@@ -728,13 +750,14 @@ function olderAttemptPageResponseDto() {
       workflowStepAttemptDto({
         id: OLDER_ATTEMPT_ID,
         step_id: STEP_ID,
-        attempt: 1,
+        attempt: 9,
+        execution_order: 1,
         status: 'succeeded',
         gate_result: {kind: 'unknown', data: {}},
       }),
     ],
     next_cursor: null,
-    total: 2,
+    total: 4,
   };
 }
 
@@ -754,7 +777,15 @@ function paginatedSelectedJobDetailFetch(input: RequestInfo | URL, resourceReque
     if (response.selected_execution) {
       response.selected_execution.steps.next_cursor = 'step-cursor';
       const firstStep = response.selected_execution.steps.items[0];
-      if (firstStep) firstStep.attempts.next_cursor = 'attempt-cursor';
+      if (firstStep) {
+        firstStep.gate_max_attempts = 5;
+        firstStep.attempts.next_cursor = 'attempt-cursor';
+        const firstAttempt = firstStep.attempts.items[0];
+        if (firstAttempt) {
+          firstAttempt.attempt = 12;
+          firstAttempt.execution_order = 2;
+        }
+      }
     }
     return Promise.resolve(jsonResponse(response));
   }

@@ -129,6 +129,7 @@ export function toWorkflowJobStepSummary(
       ? {startLine: dto.source_location.start_line, endLine: dto.source_location.end_line}
       : null,
     currentAttempt: dto.current_attempt,
+    ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
     error: toWorkflowJobStepError(dto.error),
     attempts: {
       items: dto.attempts.items.map((attempt) =>
@@ -163,6 +164,7 @@ export function toWorkflowJobStepAttemptSummary(
 export interface WorkflowJobDetailPresentationOptions {
   steps?: readonly WorkflowJobStepSummary[] | undefined;
   attemptsByStepId?: ReadonlyMap<string, readonly WorkflowJobStepAttemptSummary[]> | undefined;
+  attemptTotalsByStepId?: ReadonlyMap<string, number> | undefined;
 }
 
 export function mergeWorkflowJobStepSummaries(
@@ -239,7 +241,12 @@ function toJobExecutionForJobDetail(
     createdAt: detail.updatedAt,
     updatedAt: detail.updatedAt,
     steps: steps.map((step) =>
-      toStepForJobDetail(step, detail.updatedAt, presentation.attemptsByStepId?.get(step.id)),
+      toStepForJobDetail(
+        step,
+        detail.updatedAt,
+        presentation.attemptsByStepId?.get(step.id),
+        presentation.attemptTotalsByStepId?.get(step.id),
+      ),
     ),
   });
 }
@@ -248,10 +255,17 @@ function toStepForJobDetail(
   step: WorkflowJobStepSummary,
   fallbackUpdatedAt: string,
   presentedAttempts: readonly WorkflowJobStepAttemptSummary[] | undefined,
+  presentedAttemptTotal: number | undefined,
 ): Step {
   const attempts = presentedAttempts ?? step.attempts.items;
   const firstAttempt = attempts[0];
   const updatedAt = firstAttempt?.finishedAt ?? firstAttempt?.startedAt ?? fallbackUpdatedAt;
+  const embeddedAttemptTotal =
+    typeof step.attempts.total === 'number' ? step.attempts.total : undefined;
+  const attemptTotal =
+    presentedAttemptTotal === undefined
+      ? embeddedAttemptTotal
+      : Math.max(presentedAttemptTotal, embeddedAttemptTotal ?? 0);
   return {
     id: step.id,
     jobExecutionId: step.jobExecutionId,
@@ -268,6 +282,8 @@ function toStepForJobDetail(
     error: step.error,
     position: step.position,
     currentAttempt: step.currentAttempt,
+    ...(step.gateMaxAttempts === undefined ? {} : {gateMaxAttempts: step.gateMaxAttempts}),
+    ...(attemptTotal === undefined ? {} : {attemptTotal}),
     createdAt: firstAttempt?.startedAt ?? fallbackUpdatedAt,
     updatedAt,
     attempts: attempts.map((attempt) => toStepAttemptForJobDetail(attempt, step.jobExecutionId)),

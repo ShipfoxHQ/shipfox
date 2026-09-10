@@ -1466,6 +1466,7 @@ function storyStepDto(step: Step) {
     error: storyStepErrorDto(step),
     position: step.position,
     current_attempt: step.currentAttempt,
+    ...(step.gateMaxAttempts === undefined ? {} : {gate_max_attempts: step.gateMaxAttempts}),
     exit_code: null,
     outputs: null,
     response: null,

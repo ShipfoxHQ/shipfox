@@ -22,6 +22,7 @@ import {
 } from '#hooks/api/workflow-model-mapper.js';
 
 export type WorkflowStepModelDto = StepDto & {
+  gate_max_attempts?: number;
   exit_code: number | null;
   outputs: Record<string, unknown> | null;
   response: string | null;
@@ -140,6 +141,8 @@ export function toWorkflowStepModel(dto: WorkflowStepModelDto): Step {
     error: toWorkflowJobStepError(dto.error),
     position: dto.position,
     currentAttempt: dto.current_attempt,
+    ...(dto.gate_max_attempts === undefined ? {} : {gateMaxAttempts: dto.gate_max_attempts}),
+    attemptTotal: dto.attempts.length,
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     attempts: dto.attempts.map((attempt) =>

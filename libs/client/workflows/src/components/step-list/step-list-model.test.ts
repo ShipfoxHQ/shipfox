@@ -250,6 +250,63 @@ describe('buildStepListModel', () => {
     });
   });
 
+  test('numbers gate attempts by their displayed position instead of stored attempt', () => {
+    const step = makeStep({
+      gate_max_attempts: 5,
+      attempts: [
+        makeAttempt({attempt: 4, execution_order: 1}),
+        makeAttempt({attempt: 7, execution_order: 2}),
+      ],
+    });
+
+    const result = buildStepListModel({job: makeJob({steps: [step]})});
+
+    expect(result.entries.map((entry) => entry.attempt)).toEqual([4, 7]);
+    expect(result.entries.map((entry) => entry.attemptOrdinal)).toEqual([1, 2]);
+  });
+
+  test('uses the authoritative page total when numbering a partial gate attempt page', () => {
+    const job = makeJob({
+      steps: [
+        makeStep({
+          gate_max_attempts: 5,
+          attempts: [
+            makeAttempt({attempt: 9, execution_order: 3}),
+            makeAttempt({attempt: 12, execution_order: 4}),
+          ],
+        }),
+      ],
+    });
+    const step = job.jobExecutions[0]?.steps[0];
+    if (!step) throw new Error('Expected a step fixture');
+    step.attemptTotal = 4;
+
+    const result = buildStepListModel({job});
+
+    expect(result.entries.map((entry) => entry.attempt)).toEqual([9, 12]);
+    expect(result.entries.map((entry) => entry.attemptOrdinal)).toEqual([3, 4]);
+  });
+
+  test('preserves stored attempt numbers for a non-gate step after rewinds', () => {
+    const job = makeJob({
+      steps: [
+        makeStep({
+          attempts: [
+            makeAttempt({attempt: 4, execution_order: 1}),
+            makeAttempt({attempt: 7, execution_order: 2}),
+          ],
+        }),
+      ],
+    });
+    const step = job.jobExecutions[0]?.steps[0];
+    if (!step) throw new Error('Expected a step fixture');
+    step.attemptTotal = undefined;
+
+    const result = buildStepListModel({job});
+
+    expect(result.entries.map((entry) => entry.attemptOrdinal)).toEqual([4, 7]);
+  });
+
   test('orders flattened attempts by backend execution order', () => {
     const step1 = makeStep({
       name: 'step-1',

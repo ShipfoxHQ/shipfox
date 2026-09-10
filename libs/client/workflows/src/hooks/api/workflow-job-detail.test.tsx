@@ -85,7 +85,9 @@ describe('selected-job API hooks', () => {
       selectedExecution: {
         id: EXECUTION_ID,
         jobId: JOB_ID,
-        steps: {items: [{id: STEP_ID, jobExecutionId: EXECUTION_ID}]},
+        steps: {
+          items: [{id: STEP_ID, jobExecutionId: EXECUTION_ID, gateMaxAttempts: 5}],
+        },
       },
     });
     expect(detail.selectedExecution).not.toHaveProperty('runner');
@@ -93,6 +95,10 @@ describe('selected-job API hooks', () => {
     expect(mappedDetail.selectedExecution?.steps.items[0]?.attempts.items[0]?.gateResult).toEqual({
       kind: 'unknown',
       data: {},
+    });
+    expect(toJobForJobDetail(mappedDetail).jobExecutions[0]?.steps[0]).toMatchObject({
+      gateMaxAttempts: 5,
+      attemptTotal: 1,
     });
   });
 
@@ -362,6 +368,7 @@ describe('selected-job API hooks', () => {
       attemptsByStepId: new Map([
         [firstStep.id, mergeWorkflowJobStepAttempts([[...firstStep.attempts.items, olderAttempt]])],
       ]),
+      attemptTotalsByStepId: new Map([[firstStep.id, 4]]),
     });
 
     expect(presentedJob.jobExecutions[0]?.steps.map((step) => step.id)).toEqual([
@@ -369,6 +376,7 @@ describe('selected-job API hooks', () => {
       SECOND_STEP_ID,
     ]);
     expect(presentedJob.jobExecutions[0]?.steps[0]?.attempts).toHaveLength(2);
+    expect(presentedJob.jobExecutions[0]?.steps[0]?.attemptTotal).toBe(4);
 
     const fetchImpl = vi.fn(() => {
       throw new Error('Embedded step pages should not fetch on mount');
@@ -384,6 +392,20 @@ describe('selected-job API hooks', () => {
 
     await waitFor(() => expect(result.current.data?.pages[0]?.items).toHaveLength(1));
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test('preserves a newer embedded attempt total when the attempts resource is stale', () => {
+    const response = selectedJobDetailResponseDto();
+    const step = response.selected_execution?.steps.items[0];
+    if (!step) throw new Error('Expected an embedded step');
+    step.attempts.total = 4;
+
+    const job = toJobForJobDetail(toWorkflowJobDetail(response), {
+      attemptTotalsByStepId: new Map([[step.id, 3]]),
+    });
+
+    expect(job.jobExecutions[0]?.steps[0]?.attempts).toHaveLength(1);
+    expect(job.jobExecutions[0]?.steps[0]?.attemptTotal).toBe(4);
   });
 
   test('prefers refreshed resource summaries over embedded selected-job summaries', () => {
@@ -427,6 +449,7 @@ function selectedJobDetailResponseDto(): WorkflowJobDetailDto {
     key: 'tests',
     name: 'tests',
     status: 'succeeded',
+    gate_max_attempts: 5,
     attempts: [
       workflowStepAttemptDto({
         id: ATTEMPT_ID,
