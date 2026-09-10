@@ -253,7 +253,11 @@ describe('decideStepTransition', () => {
       result: {
         status: 'failed',
         exitCode: 1,
-        error: {code: 'command_failed', message: 'command failed'},
+        error: {
+          code: 'agent-config-invalid',
+          message: 'Model provider is not configured',
+          agentConfigIssue: 'provider_not_configured',
+        },
       },
       // No gateOutcome (no success) but a restart policy is configured.
       gateOnFailure: {restartFrom: 'producer'},
@@ -265,12 +269,16 @@ describe('decideStepTransition', () => {
         kind: 'restart_exhausted',
         reason: 'restart_exhausted',
         message: 'The step failed after 3 attempts.',
-        code: 'command_failed',
+        code: 'agent-config-invalid',
         attemptCount: 3,
         maxAttempts: 3,
         restartFrom: 'producer',
       },
     });
+    if (decision.kind !== 'fail-job-restart-exhausted') {
+      throw new Error('Expected the restart attempt limit to be exhausted');
+    }
+    expect(decision.failureError).not.toHaveProperty('agentConfigIssue');
   });
 
   test('exhaustion uses singular attempt copy at a one-attempt limit', () => {
@@ -340,6 +348,38 @@ describe('decideStepTransition', () => {
         restartFrom: 'does-not-exist',
       },
     });
+  });
+
+  test('an unresolved restart strips an incompatible agent configuration issue', () => {
+    const target = step({id: 's1', position: 1, status: 'running'});
+
+    const decision = decideStepTransition({
+      steps: [target],
+      target,
+      reportedAttempt: 1,
+      result: {
+        status: 'failed',
+        exitCode: null,
+        error: {
+          reason: 'agent_config_invalid',
+          agentConfigIssue: 'provider_not_configured',
+          message: 'Model provider is not configured',
+        },
+      },
+      gateOnFailure: {restartFrom: 'does-not-exist'},
+    });
+
+    expect(decision).toMatchObject({
+      kind: 'fail-job',
+      failureError: {
+        kind: 'restart_unresolved',
+        reason: 'restart_unresolved',
+        message: 'could not resolve restart_from "does-not-exist"',
+        restartFrom: 'does-not-exist',
+      },
+    });
+    if (decision.kind !== 'fail-job') throw new Error('Expected the step to fail');
+    expect(decision.failureError).not.toHaveProperty('agentConfigIssue');
   });
 
   test('an uncheckable gate (no exit code) is a plain command failure, not a restart', () => {

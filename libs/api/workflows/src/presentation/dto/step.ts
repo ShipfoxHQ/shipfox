@@ -200,6 +200,9 @@ export function toStepGateResultDto(
       passed,
       uncheckable: true,
       reason: truncateStepText(reason, STEP_ERROR_MESSAGE_MAX_LENGTH),
+      ...(typeof source === 'string'
+        ? {source: truncateStepText(source, STEP_ERROR_MESSAGE_MAX_LENGTH)}
+        : {}),
       exit_code: exitCode,
     };
   }

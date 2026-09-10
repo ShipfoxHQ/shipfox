@@ -1,4 +1,4 @@
-import {toWorkflowJobStepError} from './workflow-model-mapper.js';
+import {toWorkflowJobGateResult, toWorkflowJobStepError} from './workflow-model-mapper.js';
 
 describe('toWorkflowJobStepError', () => {
   test('maps gate reason and restart diagnostics to the client model', () => {
@@ -24,6 +24,28 @@ describe('toWorkflowJobStepError', () => {
       attemptCount: 1,
       maxAttempts: 1,
       restartFrom: 'implement',
+    });
+  });
+});
+
+describe('toWorkflowJobGateResult', () => {
+  test('maps an uncheckable gate source to the client model', () => {
+    const result = toWorkflowJobGateResult({
+      kind: 'uncheckable',
+      passed: false,
+      uncheckable: true,
+      reason: 'step produced no exit code',
+      source: 'step.exit_code == 0',
+      exit_code: null,
+    });
+
+    expect(result).toEqual({
+      kind: 'uncheckable',
+      passed: false,
+      uncheckable: true,
+      reason: 'step produced no exit code',
+      source: 'step.exit_code == 0',
+      exitCode: null,
     });
   });
 });

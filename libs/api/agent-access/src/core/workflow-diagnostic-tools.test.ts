@@ -496,7 +496,14 @@ describe('workflow diagnostic agent-access tools', () => {
       {kind: 'not_evaluated'},
       {kind: 'passed', passed: true, source: 'test', exit_code: 0},
       {kind: 'failed', passed: false, source: 'test', exit_code: 1},
-      {kind: 'uncheckable', passed: false, uncheckable: true, reason: 'missing tool', exit_code: 0},
+      {
+        kind: 'uncheckable',
+        passed: false,
+        uncheckable: true,
+        reason: 'missing tool',
+        source: 'step.exit_code == 0',
+        exit_code: 0,
+      },
       {kind: 'evaluation_error', reason: 'invalid expression', exit_code: null},
       {kind: 'unknown', data: {source: 'external'}},
     ] as const;

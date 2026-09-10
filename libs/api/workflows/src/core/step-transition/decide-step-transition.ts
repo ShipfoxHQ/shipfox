@@ -212,6 +212,9 @@ function restartStepTransition(
   hasSuccessGate: boolean,
 ): StepTransitionDecision {
   const {steps, target, reportedAttempt} = input;
+  const terminalFailureFields = {...(failureError ?? {})};
+  delete terminalFailureFields.agentConfigIssue;
+  delete terminalFailureFields.agent_config_issue;
   const restartStep = steps.find(
     (step) =>
       step.type !== 'setup' &&
@@ -220,7 +223,7 @@ function restartStepTransition(
   );
   if (!restartStep) {
     return fail(target, reportedAttempt, {
-      ...(failureError ?? {}),
+      ...terminalFailureFields,
       kind: 'restart_unresolved',
       reason: 'restart_unresolved',
       message: `could not resolve restart_from "${gateOnFailure.restartFrom}"`,
@@ -240,7 +243,7 @@ function restartStepTransition(
       attempt: reportedAttempt,
       maxAttempts,
       failureError: {
-        ...(failureError ?? {}),
+        ...terminalFailureFields,
         kind: 'restart_exhausted',
         reason: 'restart_exhausted',
         message: exhaustionMessage,

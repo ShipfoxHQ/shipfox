@@ -191,6 +191,13 @@ const STEP_FAILURE_CASES = [
     gateResult: {passed: false, source: 'step.exit_code == 0', exit_code: 73},
   },
   {
+    reason: 'restart_exhausted',
+    type: 'run',
+    title: 'Step attempt limit reached',
+    description:
+      'The step reached its attempt limit. Review the failed result before trying again.',
+  },
+  {
     reason: 'tool_error',
     type: 'tool',
     title: 'Tool call failed',

@@ -450,6 +450,35 @@ const baseAttempt: StepAttempt = {
 };
 
 describe('toStepAttemptDetailResponseDto', () => {
+  it('maps an uncheckable gate source through the HTTP DTO', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      gateResult: {
+        passed: false,
+        uncheckable: true,
+        reason: 'step produced no exit code',
+        source: 'step.exit_code == 0',
+        exit_code: null,
+      },
+    };
+
+    const result = toStepAttemptDetailResponseDto(step({type: 'run'}), attempt, {
+      workflowRunId: '33333333-3333-4333-8333-333333333333',
+      workflowRunAttempt: 2,
+      jobId: '44444444-4444-4444-8444-444444444444',
+      jobExecutionId: '55555555-5555-4555-8555-555555555555',
+    });
+
+    expect(result.gate_result).toEqual({
+      kind: 'uncheckable',
+      passed: false,
+      uncheckable: true,
+      reason: 'step produced no exit code',
+      source: 'step.exit_code == 0',
+      exit_code: null,
+    });
+  });
+
   it('keeps authored and resolved config inline through the 256 KiB detail limit', () => {
     const configJsonOverheadBytes = diagnosticValueByteLength({run: ''});
     const config = {

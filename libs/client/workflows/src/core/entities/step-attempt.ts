@@ -6,7 +6,14 @@ export type StepGateResult =
   | {kind: 'not_evaluated'}
   | {kind: 'passed'; passed: true; source: string; exitCode: number | null}
   | {kind: 'failed'; passed: false; source: string; exitCode: number | null}
-  | {kind: 'uncheckable'; passed: false; uncheckable: true; reason: string; exitCode: number | null}
+  | {
+      kind: 'uncheckable';
+      passed: false;
+      uncheckable: true;
+      reason: string;
+      source?: string;
+      exitCode: number | null;
+    }
   | {kind: 'evaluation_error'; reason: string; exitCode: number | null}
   | {kind: 'unknown'; data: Record<string, unknown>}
   | null;

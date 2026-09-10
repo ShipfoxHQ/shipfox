@@ -429,6 +429,14 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
   if (toolFailure !== undefined) return toolFailure;
 
+  if (reason === 'restart_exhausted' && attempt.gateResult === null) {
+    return {
+      title: 'Step attempt limit reached',
+      description:
+        'The step reached its attempt limit. Review the failed result before trying again.',
+    };
+  }
+
   if (reason === 'restart_unresolved' || reason === 'restart_exhausted') {
     return knownStepFailureCopy(reason);
   }

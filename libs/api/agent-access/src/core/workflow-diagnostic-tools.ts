@@ -742,6 +742,7 @@ function projectGateResult(gate: StepGateResultDto): Record<string, unknown> | n
         passed: gate.passed,
         uncheckable: gate.uncheckable,
         reason: cap(gate.reason),
+        ...(gate.source === undefined ? {} : {source: cap(gate.source)}),
         exit_code: gate.exit_code,
       };
     case 'evaluation_error':

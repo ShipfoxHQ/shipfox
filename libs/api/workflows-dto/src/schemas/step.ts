@@ -204,6 +204,7 @@ export const stepGateResultDtoSchema = z
       passed: z.literal(false),
       uncheckable: z.literal(true),
       reason: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
+      source: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH).optional(),
       exit_code: z.number().int().nullable(),
     }),
     z.object({
