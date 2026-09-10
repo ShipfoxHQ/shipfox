@@ -130,7 +130,10 @@ const FULL_CASE_FOLD_OVERRIDES: Readonly<Record<string, string>> = {
   '\u03d6': '\u03c0',
   '\u03f0': '\u03ba',
   '\u03f1': '\u03c1',
+  '\u03f2': '\u03c3',
+  '\u03f4': '\u03b8',
   '\u03f5': '\u03b5',
+  '\u03f9': '\u03c3',
   '\u0587': '\u0565\u0582',
   '\u13a0': '\u13a0',
   '\u13a1': '\u13a1',
@@ -415,7 +418,12 @@ const FULL_CASE_FOLD_OVERRIDES: Readonly<Record<string, string>> = {
 };
 
 function unicodeCaseFold(value: string): string {
-  return [...value]
-    .map((character) => FULL_CASE_FOLD_OVERRIDES[character] ?? character.toLowerCase())
-    .join('');
+  let folded = value;
+  while (true) {
+    const next = [...folded]
+      .map((character) => FULL_CASE_FOLD_OVERRIDES[character] ?? character.toLowerCase())
+      .join('');
+    if (next === folded) return folded;
+    folded = next;
+  }
 }

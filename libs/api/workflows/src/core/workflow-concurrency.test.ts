@@ -32,6 +32,16 @@ describe('workflow concurrency identity', () => {
     expect(canonicalizeWorkflowConcurrencyGroup('\u1f88').canonicalGroupKey).toBe(
       canonicalizeWorkflowConcurrencyGroup('\u1f00\u03b9').canonicalGroupKey,
     );
+    expect(
+      ['\u03f2', '\u03a3', '\u03c2'].map(
+        (group) => canonicalizeWorkflowConcurrencyGroup(group).canonicalGroupKey,
+      ),
+    ).toEqual(['\u03c3', '\u03c3', '\u03c3']);
+    expect(
+      ['\u03f4', '\u03d1', '\u03b8'].map(
+        (group) => canonicalizeWorkflowConcurrencyGroup(group).canonicalGroupKey,
+      ),
+    ).toEqual(['\u03b8', '\u03b8', '\u03b8']);
   });
 
   test('rejects an empty or oversized UTF-8 display group', () => {

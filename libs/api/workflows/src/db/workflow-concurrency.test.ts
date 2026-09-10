@@ -41,6 +41,17 @@ describe('workflow concurrency claims', () => {
 
     expect(outcomeMetric.mock.calls).toEqual([['acquired'], ['waiting'], ['waiting']]);
     expect(supersededMetric).toHaveBeenCalledTimes(1);
+
+    const claims = await db()
+      .select()
+      .from(workflowConcurrencyClaims)
+      .where(eq(workflowConcurrencyClaims.projectId, projectId));
+    expect(claims).toHaveLength(3);
+    expect(claims.some((claim) => claim.workflowRunId === runs[3]?.id)).toBe(false);
+    expect(claims.find((claim) => claim.workflowRunId === runs[2]?.id)).toMatchObject({
+      state: 'waiting',
+      supersededByClaimId: null,
+    });
   });
 
   test('serializes concurrent admissions to one holder and one waiter', async () => {
