@@ -35,6 +35,7 @@ const architecturePackages = {
     definitions: ['libs/api/definitions-dto'],
     integrations: [
       'libs/api/integration/core-dto',
+      'libs/api/integration/clickup-dto',
       'libs/api/integration/gitea-dto',
       'libs/api/integration/github-dto',
       'libs/api/integration/jira-dto',
