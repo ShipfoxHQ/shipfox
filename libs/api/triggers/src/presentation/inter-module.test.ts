@@ -6,9 +6,12 @@ import type {
   TriggerReceivedEvent,
   TriggerReceivedEventSummary,
 } from '#core/entities/received-event.js';
+import {DevRunTriggerFilteredError} from '#core/errors.js';
 import {createTriggersInterModulePresentation} from './inter-module.js';
 
 const mocks = vi.hoisted(() => ({
+  fireManualTrigger: vi.fn(),
+  createDevRun: vi.fn(),
   getTriggerEventById: vi.fn(),
   listDecisionsByReceivedEventId: vi.fn(),
   listDecisionsByReceivedEventIdPage: vi.fn(),
@@ -19,6 +22,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('#db/index.js', () => mocks);
+vi.mock('#core/fire-manual.js', () => ({fireManualTrigger: mocks.fireManualTrigger}));
+vi.mock('#core/create-dev-run.js', () => ({createDevRun: mocks.createDevRun}));
 
 const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
 const EVENT_ID = '00000000-0000-4000-8000-000000000002';
@@ -52,7 +57,10 @@ function summary(value: TriggerReceivedEvent): TriggerReceivedEventSummary {
 }
 
 function presentation() {
-  return createTriggersInterModulePresentation();
+  return createTriggersInterModulePresentation({
+    definitions: {} as never,
+    workflows: {} as never,
+  });
 }
 
 async function rejection(promise: Promise<unknown> | unknown): Promise<unknown> {
@@ -62,6 +70,53 @@ async function rejection(promise: Promise<unknown> | unknown): Promise<unknown> 
 describe('triggers inter-module presentation', () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset();
+  });
+
+  it('exposes manual fires through the shared core function', async () => {
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      definitionId: EVENT_ID,
+      userId: '00000000-0000-4000-8000-000000000004',
+      inputs: {severity: 'high'},
+      idempotencyKey: 'retry-key',
+    };
+    mocks.fireManualTrigger.mockResolvedValue({id: EVENT_ID, name: 'Deploy', deduplicated: true});
+
+    const result = await presentation().handlers.fireManualTrigger(input, {
+      signal: new AbortController().signal,
+    });
+
+    expect(mocks.fireManualTrigger).toHaveBeenCalledWith({
+      workflows: {},
+      ...input,
+    });
+    expect(triggersInterModuleContract.methods.fireManualTrigger.output.parse(result)).toEqual({
+      id: EVENT_ID,
+      name: 'Deploy',
+      deduplicated: true,
+    });
+  });
+
+  it('maps dev-run domain failures to the closed command error union', async () => {
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      projectId: EVENT_ID,
+      ref: 'main',
+      configPath: '.shipfox/workflows/deploy.yml',
+      triggerKey: 'on_push',
+      userId: '00000000-0000-4000-8000-000000000004',
+    };
+    const failure = new DevRunTriggerFilteredError('filter returned false');
+    mocks.createDevRun.mockRejectedValue(failure);
+
+    const result = await rejection(
+      presentation().handlers.createDevRun(input, {signal: new AbortController().signal}),
+    );
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, result)).toBe(
+      true,
+    );
+    expect(result).toMatchObject({code: 'trigger-filtered', details: {reason: failure.reason}});
   });
 
   it('lists events with public filters and preserves the timestamp cursor', async () => {

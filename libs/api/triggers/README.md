@@ -274,15 +274,16 @@ import {triggersModule} from '@shipfox/api-triggers';
 
 It also exports lower-level pieces for tests and advanced wiring:
 
-- `fireManualSubscription()`: core function used by the route. Throws
-  `TriggerSubscriptionNotFoundError`,
-  `TriggerSubscriptionNotManualError`, or
-  `TriggerWorkspaceMismatchError`.
-- `createDevRun()`: core function used by `POST /dev-runs`. Resolves the
-  definition at a git ref, fires a manual or cron trigger without a
-  subscription row, and journals the attempt. Throws
-  `DevRunTriggerNotFoundError`, `DevRunInputsNotAllowedError`, or
-  `DevRunReplayEventRequiredError` for integration triggers.
+- `fireManualTrigger()`: shared core function used by the session route and
+  inter-module command. It passes an optional idempotency key to workflow run
+  creation and returns the deduplication result.
+- `fireManualSubscription()`: lower-level manual-fire function used by the
+  shared core. Throws `TriggerSubscriptionNotFoundError`,
+  `TriggerSubscriptionNotManualError`, or `TriggerWorkspaceMismatchError`.
+- `createDevRun()`: shared core function used by `POST /dev-runs` and the
+  inter-module command. It resolves the definition at a git ref, fires a manual
+  or cron trigger without a subscription row, and journals the attempt. It does
+  not use an idempotency key.
 - `ManualTriggerNotFoundError`: thrown by the route handler when the
   caller's workspace cannot reach the workflow, or the workflow declares
   no manual trigger. Surfaced as `404 manual-trigger-not-found`.

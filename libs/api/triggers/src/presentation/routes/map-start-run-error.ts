@@ -92,6 +92,31 @@ export function mapStartRunError(error: unknown, method: StartRunMethod): Client
         },
         cause: error,
       });
+    case 'diagnostic-too-large':
+      return new ClientError('Workflow diagnostic is too large', 'diagnostic-too-large', {
+        status: 422,
+        details: {
+          field: error.details.field,
+          limit_bytes: error.details.limitBytes,
+          measured_bytes: error.details.measuredBytes,
+        },
+        cause: error,
+      });
+    case 'workflow-execution-payload-too-large':
+      return new ClientError(
+        'Workflow execution payload is too large',
+        'workflow-execution-payload-too-large',
+        {
+          status: 422,
+          details: {
+            field: error.details.field,
+            limit_bytes: error.details.limitBytes,
+            measured_bytes: error.details.measuredBytes,
+            overshoot_bytes: error.details.overshootBytes,
+          },
+          cause: error,
+        },
+      );
     default:
       return undefined;
   }

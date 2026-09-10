@@ -10,7 +10,7 @@ import {
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {ManualTriggerNotFoundError} from '#core/errors.js';
-import {fireManualSubscription} from '#core/fire-manual.js';
+import {fireManualTrigger} from '#core/fire-manual.js';
 import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 import {mapStartRunError} from './map-start-run-error.js';
 
@@ -19,6 +19,17 @@ const startRunErrorDetailsSchema = z.union([
   z.object({field: z.string(), source: z.string(), env_key: z.string().optional()}),
   z.object({labels: z.array(z.string())}),
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
+  z.object({
+    field: z.string(),
+    limit_bytes: z.number().int().positive(),
+    measured_bytes: z.number().int().positive(),
+  }),
+  z.object({
+    field: z.string(),
+    limit_bytes: z.number().int().positive(),
+    measured_bytes: z.number().int().positive(),
+    overshoot_bytes: z.number().int().positive(),
+  }),
 ]);
 
 export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
@@ -73,10 +84,10 @@ export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
         }),
       });
 
-      const run = await fireManualSubscription({
+      const run = await fireManualTrigger({
         workflows,
-        subscriptionId: subscription.id,
-        callerWorkspaceId: subscription.workspaceId,
+        workspaceId: subscription.workspaceId,
+        definitionId,
         userId: userContext.userId,
         inputs: request.body.inputs,
       });

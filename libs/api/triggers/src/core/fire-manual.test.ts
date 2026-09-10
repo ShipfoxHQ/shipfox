@@ -9,7 +9,7 @@ import {TriggerSubscriptionNotManualError} from './errors.js';
 
 const runWorkflow = vi.fn();
 
-const {fireManualSubscription} = await import('./fire-manual.js');
+const {fireManualSubscription, fireManualTrigger} = await import('./fire-manual.js');
 
 const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
 
@@ -30,6 +30,29 @@ function decisionsForEvent(receivedEventId: string) {
 describe('fireManualSubscription (trigger history)', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+  });
+
+  test('passes an idempotency key through and exposes deduplication', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const run = {id: crypto.randomUUID(), name: 'Manual run', deduplicated: true};
+    runWorkflow.mockResolvedValue(run);
+
+    const result = await fireManualTrigger({
+      workflows,
+      workspaceId: subscription.workspaceId,
+      definitionId: subscription.workflowDefinitionId,
+      userId: crypto.randomUUID(),
+      idempotencyKey: 'manual-retry-key',
+    });
+
+    expect(result).toEqual({id: run.id, name: run.name, deduplicated: true});
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({idempotencyKey: 'manual-retry-key'}),
+    );
   });
 
   test('records a routed manual event and a triggered decision on success', async () => {

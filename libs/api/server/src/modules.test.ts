@@ -320,6 +320,8 @@ describe('defaultModules', () => {
       name: 'triggers',
       interModulePresentations: [
         defineInterModulePresentation(triggersInterModuleContract, {
+          fireManualTrigger: vi.fn(),
+          createDevRun: vi.fn(),
           listTriggerEvents: vi.fn(),
           getTriggerEvent: vi.fn(),
           getTriggerEventFacets: vi.fn(),

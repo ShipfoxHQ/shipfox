@@ -10,6 +10,117 @@ import {
 
 const idSchema = z.string().uuid();
 const isoDateTimeSchema = z.string().datetime();
+const interpolationFieldSchema = z.enum([
+  'run',
+  'env',
+  'agent.prompt',
+  'agent.model',
+  'agent.provider',
+  'agent.thinking',
+  'agent.session',
+  'job.runner',
+  'job.outputs',
+  'job.execution_name',
+  'workflow.run_name',
+  'step.name',
+  'step.working_directory',
+  'step.feedback',
+  'tool.with',
+  'tool.outputs',
+  'checkout.project',
+  'checkout.connection',
+  'checkout.repository',
+  'checkout.ref',
+  'checkout.path',
+]);
+const workflowDiagnosticFieldSchema = z.enum([
+  'authored_config',
+  'config',
+  'evaluation_trace',
+  'output',
+  'outputs',
+  'response',
+  'error',
+  'gate_result',
+  'restart_feedback',
+  'job_outputs',
+  'execution_outputs',
+  'job_evaluation_trace',
+  'execution_evaluation_trace',
+  'condition',
+  'trigger_events',
+  'filter_snapshot',
+]);
+const workflowExecutionPayloadFieldSchema = z.enum([
+  'resolved_config',
+  'authored_config',
+  'config_plan',
+  'condition',
+  'listener_batch',
+  'filter_snapshot',
+]);
+const definitionValidationErrorSchema = z.object({
+  message: z.string(),
+  path: z.string().optional(),
+  reason: z.string().optional(),
+});
+const admissionDeniedDetailsSchema = z.object({
+  workspaceId: idSchema,
+  reason: z.string(),
+  requiredAction: z.object({reason: z.string(), message: z.string(), url: z.string()}).optional(),
+});
+const startRunErrors = {
+  'workspace-not-found': z.object({workspaceId: idSchema}),
+  'workspace-suspended': z.object({workspaceId: idSchema}),
+  'workspace-deleted': z.object({workspaceId: idSchema}),
+  'admission-denied': admissionDeniedDetailsSchema,
+  'definition-not-found': z.object({definitionId: idSchema}),
+  'project-mismatch': z.object({}),
+  'agent-config-unresolvable': z.object({definitionId: idSchema}),
+  'agent-integration-materialization-failed': z.object({}),
+  'interpolation-unresolvable': z.object({
+    definitionId: idSchema,
+    field: interpolationFieldSchema,
+    source: z.string(),
+    envKey: z.string().optional(),
+  }),
+  'invalid-job-runner-labels': z.object({labels: z.array(z.string())}),
+  'source-snapshot-too-large': z.object({
+    limitBytes: z.number().int().positive(),
+    measuredBytes: z.number().int().positive(),
+  }),
+  'diagnostic-too-large': z.object({
+    field: workflowDiagnosticFieldSchema,
+    limitBytes: z.number().int().positive(),
+    measuredBytes: z.number().int().positive(),
+  }),
+  'workflow-execution-payload-too-large': z.object({
+    field: workflowExecutionPayloadFieldSchema,
+    limitBytes: z.number().int().positive(),
+    measuredBytes: z.number().int().positive(),
+    overshootBytes: z.number().int().positive(),
+  }),
+};
+const definitionResolutionErrors = {
+  'project-not-found': z.object({projectId: idSchema}),
+  'ref-not-found': z.object({ref: z.string().min(1)}),
+  'ref-invalid': z.object({ref: z.string().min(1)}),
+  'ref-moved': z.object({ref: z.string().min(1), expectedCommit: z.string()}),
+  'file-not-found': z.object({ref: z.string().min(1), configPath: z.string().min(1)}),
+  'content-too-large': z.object({configPath: z.string().min(1)}),
+  'invalid-definition': z.object({errors: z.array(definitionValidationErrorSchema)}),
+  'source-unavailable': z.object({}),
+};
+const devRunDomainErrors = {
+  'trigger-not-found': z.object({triggerKey: z.string()}),
+  'inputs-not-allowed': z.object({}),
+  'replay-event-required': z.object({source: z.string()}),
+  'replay-event-not-allowed': z.object({source: z.string()}),
+  'replay-event-not-found': z.object({replayEventId: idSchema}),
+  'replay-event-mismatch': z.object({replayEventId: idSchema}),
+  'replay-event-unavailable': z.object({replayEventId: idSchema}),
+  'trigger-filtered': z.object({reason: z.string()}),
+};
 const diagnosticVersionSchema = z.literal(1);
 const diagnosticByteCountSchema = z.number().int().nonnegative();
 const diagnosticFieldSchema = z.string().min(1).max(200);
@@ -228,6 +339,42 @@ export type TriggerEventDiagnosticReadLimits = z.infer<
 export const triggersInterModuleContract = defineInterModuleContract({
   module: 'triggers',
   methods: {
+    fireManualTrigger: {
+      input: z.object({
+        workspaceId: idSchema,
+        definitionId: idSchema,
+        userId: idSchema,
+        inputs: z.record(z.string(), z.unknown()).optional(),
+        idempotencyKey: z.string().min(1).optional(),
+      }),
+      output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean()}),
+      errors: {
+        'manual-trigger-not-found': z.object({definitionId: idSchema}),
+        ...startRunErrors,
+      },
+    },
+    createDevRun: {
+      input: z.object({
+        workspaceId: idSchema,
+        projectId: idSchema,
+        ref: z.string().min(1).max(256),
+        configPath: z.string().min(1).max(1024),
+        triggerKey: z.string().min(1),
+        commit: z
+          .string()
+          .regex(/^[0-9a-f]{40}$/)
+          .optional(),
+        inputs: z.record(z.string(), z.unknown()).optional(),
+        replayEventId: idSchema.optional(),
+        userId: idSchema,
+      }),
+      output: z.object({id: idSchema, commit: z.string()}),
+      errors: {
+        ...devRunDomainErrors,
+        ...definitionResolutionErrors,
+        ...startRunErrors,
+      },
+    },
     listTriggerEvents: {
       input: z.object({
         workspaceId: idSchema,

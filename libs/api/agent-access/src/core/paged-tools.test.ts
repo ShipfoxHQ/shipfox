@@ -522,7 +522,11 @@ function clients() {
   const definitionHandlers = {listDefinitionsByProject: vi.fn()};
   const {workflows, handlers: workflowHandlers} = createTestWorkflowsClient();
   const listAnnotationsForRunAttempt = vi.fn();
-  const triggerHandlers = {listTriggerEvents: vi.fn()};
+  const triggerHandlers = {
+    fireManualTrigger: vi.fn(),
+    createDevRun: vi.fn(),
+    listTriggerEvents: vi.fn(),
+  };
   const fakeClients = createFakeInterModuleClients({
     projects: defineInterModulePresentation(projectsInterModuleContract, {
       getProjectById: vi.fn(),
@@ -547,6 +551,8 @@ function clients() {
       listAnnotationsForRunAttempt: (input) => listAnnotationsForRunAttempt(input),
     }),
     triggers: defineInterModulePresentation(triggersInterModuleContract, {
+      fireManualTrigger: (input) => triggerHandlers.fireManualTrigger(input),
+      createDevRun: (input) => triggerHandlers.createDevRun(input),
       listTriggerEvents: (input) => triggerHandlers.listTriggerEvents(input),
       getTriggerEvent: vi.fn(),
       getTriggerEventFacets: vi.fn(),
