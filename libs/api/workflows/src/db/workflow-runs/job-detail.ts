@@ -27,6 +27,8 @@ import {
   type StepType,
   toStepStatusReason,
 } from '#core/entities/step.js';
+import {DEFAULT_RESTART_ATTEMPT_CAP} from '#core/step-transition/decide-step-transition.js';
+import {readStepGate} from '#core/step-transition/evaluate-gate.js';
 import {db, type Tx} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobListenerEvents} from '../schema/job-listener-events.js';
@@ -112,6 +114,7 @@ export interface WorkflowStepSummaryRead {
   statusReason: StepStatusReason | null;
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
+  gateMaxAttempts: number | undefined;
   error: Record<string, unknown> | null;
   attempts: {
     items: WorkflowStepAttemptSummaryRead[];
@@ -1017,6 +1020,7 @@ interface StepRow {
   statusReason: StepStatusReason | null;
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
+  config: Record<string, unknown>;
   error: Record<string, unknown> | null;
 }
 
@@ -1215,6 +1219,7 @@ async function loadStepPage(
       statusReason: steps.statusReason,
       sourceLocation: steps.sourceLocation,
       currentAttempt: steps.currentAttempt,
+      config: steps.config,
       error: steps.error,
     })
     .from(steps)
@@ -1360,6 +1365,7 @@ function toStepSummary(
   row: StepRow,
   attempts: WorkflowStepSummaryRead['attempts'],
 ): WorkflowStepSummaryRead {
+  const gateOnFailure = readStepGate(row.config)?.onFailure;
   return {
     id: row.id,
     key: row.key,
@@ -1370,6 +1376,10 @@ function toStepSummary(
     statusReason: toStepStatusReason(row.statusReason),
     sourceLocation: row.sourceLocation,
     currentAttempt: row.currentAttempt,
+    gateMaxAttempts:
+      gateOnFailure === undefined
+        ? undefined
+        : (gateOnFailure.maxAttempts ?? DEFAULT_RESTART_ATTEMPT_CAP),
     error: (row.error as Record<string, unknown> | null) ?? null,
     attempts,
   };

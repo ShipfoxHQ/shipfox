@@ -126,6 +126,8 @@ export interface Step {
   error: StepError | null;
   position: number;
   currentAttempt: number;
+  gateMaxAttempts?: number | undefined;
+  attemptTotal?: number | undefined;
   createdAt: string;
   updatedAt: string;
   attempts: StepAttempt[];

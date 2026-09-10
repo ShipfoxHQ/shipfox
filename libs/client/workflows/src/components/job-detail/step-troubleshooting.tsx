@@ -83,7 +83,7 @@ export function StepInspectorSheet({
           <SheetTitle>{entry.step.label}</SheetTitle>
           <div className="flex min-w-0 flex-wrap items-center gap-inline">
             <SheetDescription>
-              Attempt #{entry.attempt} · {humanizeStatus(entry.statusVisual.kind)}
+              Attempt #{entry.attemptOrdinal} · {humanizeStatus(entry.statusVisual.kind)}
             </SheetDescription>
             {entry.step.toolConfig?.sensitivity === 'write' ? (
               <Badge variant="warning" size="2xs" radius="rounded">
@@ -135,7 +135,8 @@ function StepFailureCallout({
   const reason = error?.reason ?? step.statusReason ?? 'unknown';
   const toolGuidance = toolFailureGuidance(reason, step, attempt, error);
   const title = toolGuidance?.title ?? failureTitle(reason);
-  const description = toolGuidance?.description ?? failureDescription(reason, step, error);
+  const description =
+    toolGuidance?.description ?? failureDescription(reason, step, error, step.gateMaxAttempts);
   const failureCode = step.type === 'tool' ? (error?.code ?? reason) : reason;
   const sourceLink = sourceLinkForFailure(reason) && step.sourceLocation;
 
@@ -919,7 +920,7 @@ function failureTitle(reason: string | JobStatusReason): string {
     case 'restart_unresolved':
       return 'Gate restart target could not be resolved';
     case 'restart_exhausted':
-      return 'Attempt limit reached';
+      return 'Gate attempt limit reached';
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
@@ -949,24 +950,35 @@ function failureTitle(reason: string | JobStatusReason): string {
   }
 }
 
-function restartExhaustionDescription(error: StepError | null): string {
+function restartExhaustionDescription(
+  error: StepError | null,
+  effectiveMaxAttempts: number | undefined,
+): string {
   const attemptCount = error?.attemptCount;
+  const maxAttempts = error?.maxAttempts ?? effectiveMaxAttempts;
   const hasNoSuccessGateDiagnostic = error?.message.startsWith('The step failed after ') ?? false;
-  if (attemptCount !== undefined) {
-    const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
-    return hasNoSuccessGateDiagnostic
-      ? `The step failed after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result before starting a new run.`
-      : `The success condition did not pass after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.`;
-  }
-  return hasNoSuccessGateDiagnostic
-    ? 'The restart attempt cap is fixed. Fix the failed result before starting a new run.'
-    : 'The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.';
+  const subject = hasNoSuccessGateDiagnostic
+    ? 'The step failed'
+    : 'The success condition did not pass';
+  const countCopy =
+    attemptCount === undefined
+      ? subject
+      : `${subject} after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}`;
+  const limitCopy =
+    maxAttempts === undefined
+      ? 'and reached the gate attempt limit.'
+      : `and reached the configured limit of ${maxAttempts} ${maxAttempts === 1 ? 'attempt' : 'attempts'}, including the first execution.`;
+  const recovery = hasNoSuccessGateDiagnostic
+    ? 'Review the failed result.'
+    : 'Review the failed result and gate.success condition.';
+  return `${countCopy} ${limitCopy} ${recovery} To allow more attempts, update gate.on_failure.max_attempts and start a new run.`;
 }
 
 function failureDescription(
   reason: string | JobStatusReason,
   step: Step,
   error: StepError | null,
+  gateMaxAttempts?: number | undefined,
 ): string {
   switch (reason) {
     case 'checkout_auth_failed':
@@ -1014,7 +1026,7 @@ function failureDescription(
     case 'restart_unresolved':
       return 'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.';
     case 'restart_exhausted':
-      return restartExhaustionDescription(error);
+      return restartExhaustionDescription(error, gateMaxAttempts);
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';
     case 'output_too_large':

@@ -39,9 +39,37 @@ export const FailedStep: Story = {
   render: () => <FailedStepStory />,
 };
 
+export const GateAttemptLimitReached: Story = {
+  render: () => <GateAttemptLimitReachedStory />,
+};
+
 export const ToolStep: Story = {
   render: ({toolOutcome}) => <ToolStepStory outcome={toolOutcome} />,
 };
+
+function GateAttemptLimitReachedStory() {
+  const [queryClient] = useState(
+    () => new QueryClient({defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY}}}),
+  );
+  const entry = gateAttemptLimitEntry();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <main className="min-h-screen bg-background-neutral-base p-16">
+        <StepInspectorSheet
+          entry={entry}
+          open
+          onOpenChange={() => undefined}
+          workspaceSlug="acme"
+          projectSlug="platform"
+          workflowRunId="11111111-1111-4111-8111-111111111111"
+          runAttempt={1}
+          jobId="44444444-4444-4444-8444-000000000003"
+        />
+      </main>
+    </QueryClientProvider>
+  );
+}
 
 function ToolStepStory({outcome}: {outcome: ToolStepOutcome}) {
   const entry = toolStepEntry(outcome);
@@ -166,6 +194,64 @@ function failedStepEntry(): StepListEntryModel {
 
   const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
   if (!entry) throw new Error('Story fixture is missing a step attempt.');
+
+  return entry;
+}
+
+function gateAttemptLimitEntry(): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-000000000003';
+  const executionId = '77777777-7777-4777-8777-000000000003';
+  const stepId = '55555555-5555-4555-8555-000000000003';
+  const attempts = [2, 4, 7, 9, 12].map((attempt, index) =>
+    workflowStepAttemptDto({
+      id: `66666666-6666-4666-8666-${String(index + 3).padStart(12, '0')}`,
+      step_id: stepId,
+      attempt,
+      execution_order: index + 1,
+      status: 'failed',
+      exit_code: 1,
+      gate_result: {kind: 'failed', passed: false, source: 'step.exit_code == 0', exit_code: 1},
+      finished_at: `2026-09-10T09:0${index}:30.000Z`,
+    }),
+  );
+  const error = {
+    message: 'The gate did not pass after 5 attempts.',
+    reason: 'restart_exhausted' as const,
+    attempt_count: 5,
+    max_attempts: 5,
+    restart_from: 'implement',
+  };
+  const job = workflowJob({
+    id: jobId,
+    name: 'implementation',
+    key: 'implementation',
+    status: 'failed',
+    job_executions: [
+      workflowJobExecutionDto({
+        id: executionId,
+        job_id: jobId,
+        status: 'failed',
+        steps: [
+          workflowStepDto({
+            id: stepId,
+            job_execution_id: executionId,
+            name: 'Verify implementation',
+            key: 'verify',
+            status: 'failed',
+            status_reason: 'restart_exhausted',
+            gate_max_attempts: 5,
+            error,
+            attempts,
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Story fixture is missing a job execution.');
+
+  const entry = buildStepListModel({job, jobExecution: execution}).entries.at(-1);
+  if (!entry) throw new Error('Story fixture is missing a gate attempt.');
 
   return entry;
 }

@@ -18,6 +18,7 @@ export interface StepStatusVisual extends Omit<WorkflowStatusVisual, 'kind'> {
 }
 
 export interface StepAttemptModel extends StepAttempt {
+  attemptOrdinal: number;
   displayDuration: StepAttemptDisplayDuration | null;
   statusVisual: StepStatusVisual;
   carriedOver: boolean;
@@ -117,8 +118,15 @@ export function humanizeStatus(status: string): string {
 }
 
 function toStepModel(step: Step, index: number): StepModel {
-  const attempts = [...step.attempts].sort(compareAttempts).map((attempt) => ({
+  const sortedAttempts = [...step.attempts].sort(compareAttempts);
+  const gateAttemptOffset =
+    step.gateMaxAttempts === undefined
+      ? undefined
+      : Math.max(0, (step.attemptTotal ?? sortedAttempts.length) - sortedAttempts.length);
+  const attempts = sortedAttempts.map((attempt, attemptIndex) => ({
     ...attempt,
+    attemptOrdinal:
+      gateAttemptOffset === undefined ? attempt.attempt : gateAttemptOffset + attemptIndex + 1,
     displayDuration: attempt.displayDuration,
     statusVisual: getStepStatusVisual(attempt.status),
     carriedOver: false,
@@ -158,6 +166,7 @@ function toStepEntries(step: StepModel, carriedOverJob: boolean): StepListEntryM
       stepId: step.id,
       jobExecutionId: step.jobExecutionId,
       attempt: step.currentAttempt,
+      attemptOrdinal: step.currentAttempt,
       executionOrder: step.position,
       status: step.status,
       exitCode: null,

@@ -326,6 +326,27 @@ describe('WorkflowJobDetailPage', () => {
     ]);
   });
 
+  test('shows the effective gate attempt policy with the first-execution semantics', async () => {
+    configureApiClient({
+      fetchImpl: vi.fn((input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url);
+        if (url.pathname === `/workflows/runs/jobs/${JOB_ID}`) {
+          const response = workflowJobDetailResponseDto({detail: jobDetailDto(), jobId: JOB_ID});
+          const step = response.selected_execution?.steps.items[0];
+          if (step) step.gate_max_attempts = 5;
+          return Promise.resolve(jsonResponse(response));
+        }
+        return jobDetailFetch(input);
+      }),
+    });
+
+    renderJobPath();
+
+    expect(
+      await screen.findByText('Up to 5 attempts, including the first execution.'),
+    ).toBeInTheDocument();
+  });
+
   test('shows a retarget notice when polling advances to the next running step', async () => {
     const fetchImpl = liveJobDetailFetch({
       jobId: LIVE_JOB_ID,

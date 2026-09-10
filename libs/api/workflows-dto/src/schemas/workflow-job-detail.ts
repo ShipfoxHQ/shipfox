@@ -75,6 +75,7 @@ export const stepSummaryDtoSchema = z.object({
   status_reason: stepStatusReasonSchema.nullable(),
   source_location: stepSourceLocationSchema.nullable(),
   current_attempt: z.number().int().positive(),
+  gate_max_attempts: z.number().int().positive().optional(),
   error: stepErrorDtoSchema,
   attempts: cursorPageSchema(stepAttemptSummaryDtoSchema),
 });

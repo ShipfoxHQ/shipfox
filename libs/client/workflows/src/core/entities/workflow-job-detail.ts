@@ -51,6 +51,7 @@ export interface WorkflowJobStepSummary {
   statusReason: string | null;
   sourceLocation: StepSourceLocation | null;
   currentAttempt: number;
+  gateMaxAttempts?: number | undefined;
   error: StepError | null;
   attempts: WorkflowJobPage<WorkflowJobStepAttemptSummary>;
 }

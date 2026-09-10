@@ -41,6 +41,7 @@ export interface StepExpandedContext {
   stepLabel: string;
   sourceLocation: StepSourceLocation | null;
   attempt: number;
+  attemptOrdinal: number;
   attemptId: string;
   attemptStartedAt: string;
   attemptError: Record<string, unknown> | null;
@@ -297,6 +298,7 @@ function StepListContent({
                             stepLabel: entry.step.label,
                             sourceLocation: entry.step.sourceLocation,
                             attempt: entry.attempt,
+                            attemptOrdinal: entry.attemptOrdinal,
                             attemptId: entry.id,
                             attemptStartedAt: entry.startedAt,
                             attemptError: entry.error,
@@ -460,7 +462,7 @@ function StepRow({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={`Inspect ${entry.step.label}, attempt ${entry.attempt}`}
+                aria-label={`Inspect ${entry.step.label}, attempt ${entry.attemptOrdinal}`}
                 onClick={onInspect}
                 className="flex size-28 shrink-0 items-center justify-center rounded-4 bg-transparent text-foreground-neutral-muted outline-none transition-colors hover:bg-transparent hover:text-foreground-neutral-base active:bg-transparent focus-visible:shadow-button-neutral-focus"
               >
@@ -581,14 +583,14 @@ function StepAttemptChip({attempt}: {attempt: StepAttemptModel}) {
           attemptChipClasses[attempt.statusVisual.badge ?? 'neutral'],
         )}
       >
-        #{attempt.attempt}
+        #{attempt.attemptOrdinal}
       </span>
     </div>
   );
 }
 
 function entryAccessibleLabel(entry: StepListEntryModel): string {
-  const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attempt}`];
+  const parts = [entry.step.label, entry.statusVisual.label, `attempt ${entry.attemptOrdinal}`];
   if (entry.step.toolConfig?.provider) {
     const provider = entry.step.toolConfig.provider;
     parts.push(

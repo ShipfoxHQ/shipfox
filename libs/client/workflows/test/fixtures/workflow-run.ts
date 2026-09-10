@@ -525,6 +525,9 @@ function compactJobExecutionDto(
         status_reason: step.status_reason,
         source_location: step.source_location,
         current_attempt: step.current_attempt,
+        ...(step.gate_max_attempts === undefined
+          ? {}
+          : {gate_max_attempts: step.gate_max_attempts}),
         error: step.error,
         attempts: {
           items: step.attempts.map((attempt) => ({

@@ -109,6 +109,44 @@ describe('selected workflow job routes', () => {
     expect(body.selected_execution.steps.items[0]).not.toHaveProperty('config');
   });
 
+  test('returns the configured gate attempt limit without exposing step config', async () => {
+    const fixture = await createFixture();
+    await db()
+      .update(steps)
+      .set({
+        config: {
+          gate: {on_failure: {restart_from: 'implement', max_attempts: 5}},
+        },
+      })
+      .where(eq(steps.id, fixture.stepIds[0] as string));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/jobs/${fixture.jobIds[0]}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const step = response.json().selected_execution.steps.items[0];
+    expect(step.gate_max_attempts).toBe(5);
+    expect(step).not.toHaveProperty('config');
+  });
+
+  test('returns the legacy gate attempt limit when materialized config omits it', async () => {
+    const fixture = await createFixture();
+    await db()
+      .update(steps)
+      .set({config: {gate: {on_failure: {restart_from: 'implement'}}}})
+      .where(eq(steps.id, fixture.stepIds[0] as string));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/jobs/${fixture.jobIds[0]}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().selected_execution.steps.items[0].gate_max_attempts).toBe(3);
+  });
+
   test('loads diagnostic context only from the selected execution', async () => {
     const fixture = await createFixture({jobs: 2, executionsPerJob: 2, stepsPerExecution: 1});
     const jobId = fixture.jobIds[0] as string;

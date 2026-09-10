@@ -231,14 +231,13 @@ export function JobDetailView({
     logIsFetching,
     showRetargetNotice,
     succeededSummary,
+    stepListModel,
   } = detailState;
   const stepLabels = new Map(
     (selectedJobExecution?.steps ?? []).map((step) => [step.id, step.name] as const),
   );
   const stepAttemptLabels = new Map(
-    (selectedJobExecution?.steps ?? []).flatMap((step) =>
-      step.attempts.map((attempt) => [attempt.id, String(attempt.attempt)] as const),
-    ),
+    stepListModel.entries.map((entry) => [entry.id, String(entry.attemptOrdinal)] as const),
   );
 
   function selectExecution(jobExecutionId: string) {
@@ -345,7 +344,7 @@ export function JobDetailView({
               <Panel data-job-log-panel className="min-w-0">
                 <JobLogPanelHeader
                   stepLabel={expandedLogSelection?.stepLabel}
-                  attempt={selectedLogAttempt?.attempt}
+                  attempt={expandedLogSelection?.attemptOrdinal}
                   status={selectedLogStatus}
                   search={logSearch}
                   onSearchChange={setLogSearch}
@@ -626,6 +625,18 @@ function useSelectedJobDetailPresentation({
       ],
     ]);
   }, [attemptsResourceIsNewer, attemptsStep?.attempts.items, attemptsStepId, loadedAttempts]);
+  const presentedAttemptPageTotal = attemptsQuery.data?.pages.find(
+    (page) => page.total !== undefined,
+  )?.total;
+  const presentedAttemptTotal =
+    typeof presentedAttemptPageTotal === 'number' ? presentedAttemptPageTotal : undefined;
+  const presentedAttemptTotalsByStepId = useMemo(
+    () =>
+      attemptsStepId === undefined || presentedAttemptTotal === undefined
+        ? undefined
+        : new Map([[attemptsStepId, presentedAttemptTotal]]),
+    [attemptsStepId, presentedAttemptTotal],
+  );
 
   useEffect(() => {
     if (
@@ -661,7 +672,11 @@ function useSelectedJobDetailPresentation({
   );
 
   const detailPresentation: WorkflowJobDetailPresentationOptions | undefined = selectedJobDetail
-    ? {steps: presentedSteps, attemptsByStepId: presentedAttemptsByStepId}
+    ? {
+        steps: presentedSteps,
+        attemptsByStepId: presentedAttemptsByStepId,
+        attemptTotalsByStepId: presentedAttemptTotalsByStepId,
+      }
     : undefined;
 
   return {
@@ -688,25 +703,40 @@ function StepAttemptHistoryControl({
   attemptsQuery: ReturnType<typeof useWorkflowStepAttemptsInfiniteQuery>;
   onRequest: (stepId: string) => void;
 }) {
+  const gateMaxAttempts = step.gateMaxAttempts;
   const hasMoreAttempts =
     attemptsStepId === step.id
       ? attemptsQuery.hasNextPage || attemptsQuery.isError
       : Boolean(stepSummary?.attempts.nextCursor);
-  if (!hasMoreAttempts) return null;
+  if (!hasMoreAttempts && gateMaxAttempts === undefined) return null;
 
   const isLoading = attemptsStepId === step.id && attemptsQuery.isFetchingNextPage;
   const hasError = attemptsStepId === step.id && attemptsQuery.isError;
   return (
-    <div className="flex justify-center border-t border-border-neutral-base py-row">
-      <Button
-        type="button"
-        size="sm"
-        variant="secondary"
-        isLoading={isLoading}
-        onClick={() => onRequest(step.id)}
-      >
-        {hasError ? 'Retry loading older attempts' : 'Load older attempts'}
-      </Button>
+    <div
+      className={
+        gateMaxAttempts === undefined
+          ? 'flex justify-center border-t border-border-neutral-base py-row'
+          : 'flex flex-wrap items-center justify-between gap-inline border-t border-border-neutral-base px-row py-row'
+      }
+    >
+      {gateMaxAttempts === undefined ? null : (
+        <Text size="xs" className="text-foreground-neutral-muted">
+          Up to {gateMaxAttempts} {gateMaxAttempts === 1 ? 'attempt' : 'attempts'}, including the
+          first execution.
+        </Text>
+      )}
+      {hasMoreAttempts ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          isLoading={isLoading}
+          onClick={() => onRequest(step.id)}
+        >
+          {hasError ? 'Retry loading older attempts' : 'Load older attempts'}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -769,7 +799,7 @@ function ExpandedStep({
     <section
       role="region"
       tabIndex={0}
-      aria-label={`${context.stepLabel} output, attempt ${context.attempt}`}
+      aria-label={`${context.stepLabel} output, attempt ${context.attemptOrdinal}`}
       className="flex min-w-0 flex-col border-t border-border-neutral-base bg-background-contrast-base outline-none focus-visible:shadow-border-interactive-with-active"
     >
       <StepAttemptLogPanel
@@ -1011,7 +1041,14 @@ function findExpandedLogSelection(
     const match = findAttempt(jobExecution, attemptId);
     const attempt = match?.step.attempts.find((candidate) => candidate.id === attemptId);
     const entry = model.entries.find((candidate) => candidate.id === attemptId);
-    if (match && attempt && entry) return {step: match.step, attempt, stepLabel: entry.step.label};
+    if (match && attempt && entry) {
+      return {
+        step: match.step,
+        attempt,
+        stepLabel: entry.step.label,
+        attemptOrdinal: entry.attemptOrdinal,
+      };
+    }
   }
 
   return undefined;
@@ -1088,6 +1125,7 @@ function resolveJobDetailState({
     logIsFetching,
     showRetargetNotice,
     succeededSummary,
+    stepListModel,
   };
 }
 

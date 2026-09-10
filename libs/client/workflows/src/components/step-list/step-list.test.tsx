@@ -532,6 +532,32 @@ describe('StepList', () => {
     expect(screen.queryByText('Gate failed')).not.toBeInTheDocument();
   });
 
+  test('renders gate attempt ordinals without replacing stored attempt identifiers', () => {
+    render(
+      <StepList
+        job={makeJob({
+          steps: [
+            makeStep({
+              name: 'gate',
+              gate_max_attempts: 5,
+              attempts: [
+                makeAttempt({attempt: 4, execution_order: 1, status: 'failed'}),
+                makeAttempt({attempt: 7, execution_order: 2, status: 'failed'}),
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', {name: 'gate, Failed, attempt 1'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'gate, Failed, attempt 2'})).toBeInTheDocument();
+    expect(screen.getByText('#1')).toBeInTheDocument();
+    expect(screen.getByText('#2')).toBeInTheDocument();
+    expect(screen.queryByText('#4')).not.toBeInTheDocument();
+    expect(screen.queryByText('#7')).not.toBeInTheDocument();
+  });
+
   test('renders a step footer only after the final non-contiguous attempt', () => {
     const buildFirstAttempt = makeAttempt({
       id: 'build-attempt-first',
