@@ -2041,11 +2041,11 @@ describe('detectAndExpireStuckJobs', () => {
     );
   });
 
-  it('keeps terminal provider loss when cleanup authorization follows terminal state', async () => {
+  it('keeps terminal provider loss when job-scoped authorization follows terminal state', async () => {
     const stale = await makeManagedStaleJob(null, {providerRunnerState: 'terminated'});
     await db()
       .update(providerRunners)
-      .set({terminationAuthorizedAt: new Date(), terminationReason: 'terminal-state'})
+      .set({terminationAuthorizedAt: new Date(), terminationReason: 'job-cancelled'})
       .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
 
     await expireStuckJobExecutions({

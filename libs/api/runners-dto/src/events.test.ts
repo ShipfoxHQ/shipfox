@@ -71,6 +71,9 @@ describe('runners events', () => {
     expect(() =>
       runnerJobLeaseExpiredEventSchema.parse({...sharedLeasePayload(), expiredAt: 123}),
     ).toThrow();
+    expect(() =>
+      runnerJobLeaseExpiredEventSchema.strict().parse({...sharedLeasePayload(), cause: 'mystery'}),
+    ).toThrow();
   });
 
   it('keeps enriched claimed fields optional for existing subscribers', () => {
