@@ -121,6 +121,7 @@ export interface WorkspaceAdministratorSummary {
 
 export interface ListWorkspaceAdministratorSummariesParams {
   workspaceId?: string | undefined;
+  workspaceSlug?: string | undefined;
   search?: string | undefined;
   status?: 'active' | 'suspended' | 'deleted' | undefined;
   limit: number;

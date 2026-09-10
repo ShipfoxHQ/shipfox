@@ -13,8 +13,8 @@ import {
   recordWorkspaceRateLimitPruneFailure,
 } from '#metrics/instance.js';
 
-export type WorkspacesRateLimitAction = 'slug-availability';
-export type WorkspacesRateLimitScope = 'ip';
+export type WorkspacesRateLimitAction = 'slug-availability' | 'workspace-admin-members';
+export type WorkspacesRateLimitScope = 'ip' | 'actor';
 export type WorkspacesRateLimitOutcome = RateLimitOutcome;
 export type WorkspacesRateLimitPolicy = RateLimitPolicy;
 
@@ -59,6 +59,11 @@ export class WorkspacesRateLimitUnavailableError extends RateLimitUnavailableErr
 export const WORKSPACE_SLUG_AVAILABILITY_RATE_LIMIT = {
   limit: 60,
   windowSeconds: 5 * 60,
+} as const;
+
+export const WORKSPACE_ADMIN_MEMBERS_RATE_LIMIT = {
+  ip: {limit: 120, windowSeconds: 15 * 60},
+  actor: {limit: 60, windowSeconds: 15 * 60},
 } as const;
 
 const RATE_LIMIT_TIMEOUT_MS = 250;

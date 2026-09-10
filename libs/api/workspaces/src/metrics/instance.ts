@@ -30,7 +30,7 @@ const invitationAcceptedCount = meter.createCounter<{
 });
 
 const workspaceRateLimitCheckCount = meter.createCounter<{
-  action: 'slug-availability';
+  action: 'slug-availability' | 'workspace-admin-members';
   outcome: WorkspacesRateLimitOutcome;
 }>('workspaces_rate_limit_checks', {
   description: 'Workspace rate-limit checks by action and outcome',
@@ -72,7 +72,7 @@ export function recordWorkspaceInvitationAccepted(
 }
 
 export function recordWorkspaceRateLimitCheck(params: {
-  action: 'slug-availability';
+  action: 'slug-availability' | 'workspace-admin-members';
   outcome: WorkspacesRateLimitOutcome;
 }): void {
   recordMetric(() => workspaceRateLimitCheckCount.add(1, params));

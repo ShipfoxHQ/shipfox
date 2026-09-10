@@ -4,12 +4,20 @@ import {workspacesRateLimits} from '#db/schema/rate-limits.js';
 import {
   checkWorkspacesRateLimit,
   hashWorkspacesRateLimitIdentifier,
+  WORKSPACE_ADMIN_MEMBERS_RATE_LIMIT,
   WorkspacesRateLimitUnavailableError,
 } from './rate-limit.js';
 
 const HMAC_HEX_PATTERN = /^[a-f0-9]{64}$/;
 
 describe('checkWorkspacesRateLimit', () => {
+  it('exposes separate IP and actor limits for administrator member discovery', () => {
+    expect(WORKSPACE_ADMIN_MEMBERS_RATE_LIMIT).toEqual({
+      ip: {limit: 120, windowSeconds: 15 * 60},
+      actor: {limit: 60, windowSeconds: 15 * 60},
+    });
+  });
+
   it('hashes identifiers without storing the raw identifier', async () => {
     const identifier = `ip-${crypto.randomUUID()}`;
     const identifierHmac = hashWorkspacesRateLimitIdentifier({

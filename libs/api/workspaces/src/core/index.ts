@@ -1,4 +1,10 @@
 export {
+  type ListWorkspaceAdministratorMembersParams,
+  listWorkspaceAdministratorMembers,
+  type WorkspaceAdministratorMembersCursor,
+  type WorkspaceAdministratorMembersResult,
+} from './admin-workspace-members.js';
+export {
   type ListWorkspaceAdministratorSummariesParams,
   type ListWorkspaceAdministratorSummariesResult,
   listWorkspaceAdministratorSummaries,

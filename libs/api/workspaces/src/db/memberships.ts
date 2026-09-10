@@ -1,4 +1,5 @@
-import {and, eq, sql} from 'drizzle-orm';
+import type {TimestampIdCursor} from '@shipfox/node-drizzle';
+import {and, asc, eq, gt, inArray, or, type SQL, sql} from 'drizzle-orm';
 import type {Membership} from '#core/entities/membership.js';
 import type {Workspace} from '#core/entities/workspace.js';
 import {LastMemberError} from '#core/errors.js';
@@ -103,6 +104,64 @@ export async function listMembershipsByWorkspace(params: {
     .where(eq(memberships.workspaceId, params.workspaceId));
 
   return rows.map(toMembership);
+}
+
+export interface ListWorkspaceMembershipsPageParams {
+  workspaceId: string;
+  limit: number;
+  cursor?: TimestampIdCursor | undefined;
+}
+
+export interface ListWorkspaceMembershipsPageResult {
+  memberships: Membership[];
+  nextCursor: TimestampIdCursor | null;
+}
+
+function workspaceMembershipCursorWhere(cursor: TimestampIdCursor | undefined): SQL | undefined {
+  if (!cursor) return undefined;
+  return or(
+    gt(memberships.createdAt, cursor.createdAt),
+    and(eq(memberships.createdAt, cursor.createdAt), gt(memberships.id, cursor.id)),
+  );
+}
+
+/** Lists one bounded, deterministic membership page for administrator target discovery. */
+export async function listWorkspaceMembershipsPage(
+  params: ListWorkspaceMembershipsPageParams,
+): Promise<ListWorkspaceMembershipsPageResult> {
+  const cursor = workspaceMembershipCursorWhere(params.cursor);
+  const rows = await db()
+    .select()
+    .from(memberships)
+    .where(
+      cursor
+        ? and(eq(memberships.workspaceId, params.workspaceId), cursor)
+        : eq(memberships.workspaceId, params.workspaceId),
+    )
+    .orderBy(asc(memberships.createdAt), asc(memberships.id))
+    .limit(params.limit);
+  const last = rows.at(-1);
+
+  return {
+    memberships: rows.map(toMembership),
+    nextCursor:
+      rows.length === params.limit && last ? {createdAt: last.createdAt, id: last.id} : null,
+  };
+}
+
+/** Returns the user IDs that have memberships in one workspace-owned query. */
+export async function listWorkspaceMembershipUserIds(params: {
+  workspaceId: string;
+  userIds: string[];
+}): Promise<string[]> {
+  const userIdCondition =
+    params.userIds.length === 0 ? sql`false` : inArray(memberships.userId, params.userIds);
+  const rows = await db()
+    .select({userId: memberships.userId})
+    .from(memberships)
+    .where(and(eq(memberships.workspaceId, params.workspaceId), userIdCondition));
+
+  return rows.map(({userId}) => userId);
 }
 
 export async function findMembership(

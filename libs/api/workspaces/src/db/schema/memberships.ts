@@ -14,12 +14,17 @@ export const memberships = pgTable(
     workspaceId: uuid('workspace_id')
       .notNull()
       .references(() => workspaces.id, {onDelete: 'cascade'}),
-    createdAt: timestamp('created_at', {withTimezone: true}).notNull().defaultNow(),
+    createdAt: timestamp('created_at', {withTimezone: true, precision: 3}).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', {withTimezone: true}).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('workspaces_memberships_user_workspace_unique').on(table.userId, table.workspaceId),
     index('workspaces_memberships_workspace_id_idx').on(table.workspaceId),
+    index('workspaces_memberships_workspace_created_id_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id,
+    ),
   ],
 );
 
