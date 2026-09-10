@@ -7,14 +7,19 @@ import {
   agentAccessEnvelopeSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
+import {
+  type AuthInterModuleClient,
+  authInterModuleContract,
+} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {agentAccessSuccess} from '#core/envelope.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
-import {createAgentAccessFixtureTool} from '#core/tools.js';
+import {createAgentAccessFixtureActionTool, createAgentAccessFixtureTool} from '#core/tools.js';
 import {AGENT_ACCESS_PACKAGE_VERSION} from '#version.js';
 import {buildAgentAccessMcpServer} from './mcp-server.js';
 
@@ -253,17 +258,156 @@ describe('buildAgentAccessMcpServer', () => {
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toMatchObject({ok: true});
   });
+
+  test('passes action annotations through and orders validation, action window, authority, and execution', async () => {
+    const events: string[] = [];
+    const fixture = createAgentAccessFixtureActionTool();
+    const actionTool = {
+      ...fixture,
+      validateInput: () => {
+        events.push('validate');
+        return true;
+      },
+      execute: (call: Parameters<typeof fixture.execute>[0]) => {
+        events.push('execute');
+        return fixture.execute(call);
+      },
+    };
+    const auth = {
+      checkAgentGrantAuthority: () => {
+        events.push('authority');
+        return {ok: true as const};
+      },
+    } as unknown as AuthInterModuleClient;
+    const {client, close} = await connectClient(
+      undefined,
+      [actionTool],
+      undefined,
+      auth,
+      createAgentAccessRateLimiter({limit: 10}),
+    );
+
+    const tools = await client.listTools();
+    const result = await client.callTool(
+      {name: actionTool.name, arguments: {message: 'act'}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(tools.tools[0]?.annotations).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    });
+    expect(result.isError).not.toBe(true);
+    expect(events).toEqual(['validate', 'authority', 'execute']);
+  });
+
+  test('bounds actions separately while leaving read tools unaffected', async () => {
+    const action = createAgentAccessFixtureActionTool();
+    const read = createAgentAccessFixtureTool();
+    const auth = {checkAgentGrantAuthority: vi.fn(async () => ({ok: true as const}))};
+    const {client, close} = await connectClient(
+      createAgentAccessRateLimiter(),
+      [read, action],
+      undefined,
+      auth as unknown as AuthInterModuleClient,
+      createAgentAccessRateLimiter({limit: 1, now: () => 1_000}),
+    );
+
+    const firstRead = await client.callTool(
+      {name: read.name, arguments: {message: 'read one'}},
+      CallToolResultSchema,
+    );
+    const secondRead = await client.callTool(
+      {name: read.name, arguments: {message: 'read two'}},
+      CallToolResultSchema,
+    );
+    const firstAction = await client.callTool(
+      {name: action.name, arguments: {message: 'action one'}},
+      CallToolResultSchema,
+    );
+    const secondAction = await client.callTool(
+      {name: action.name, arguments: {message: 'action two'}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(firstRead.isError).not.toBe(true);
+    expect(secondRead.isError).not.toBe(true);
+    expect(firstAction.isError).not.toBe(true);
+    expect(secondAction.structuredContent).toEqual({
+      ok: false,
+      error: {code: 'rate-limited', retry_after_seconds: 60},
+    });
+    expect(auth.checkAgentGrantAuthority).toHaveBeenCalledTimes(1);
+  });
+
+  test('maps authority revocation without calling the producer and preserves dependency failures', async () => {
+    const action = createAgentAccessFixtureActionTool();
+    const execute = vi.fn(action.execute);
+    const revokedAuth = {
+      checkAgentGrantAuthority: vi.fn(() => {
+        throw createInterModuleKnownError(
+          authInterModuleContract.methods.checkAgentGrantAuthority,
+          'authority-revoked',
+          {reason: 'membership-revoked'},
+        );
+      }),
+    };
+    const {client, close} = await connectClient(
+      undefined,
+      [{...action, execute}],
+      undefined,
+      revokedAuth as unknown as AuthInterModuleClient,
+    );
+
+    const revoked = await client.callTool(
+      {name: action.name, arguments: {message: 'blocked'}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(revoked.structuredContent).toEqual({
+      ok: false,
+      error: {code: 'authority-revoked', message: 'Agent authority revoked: membership-revoked'},
+    });
+    expect(execute).not.toHaveBeenCalled();
+
+    const outageAuth = {
+      checkAgentGrantAuthority: vi.fn(() => {
+        throw new Error('workspaces unavailable');
+      }),
+    };
+    const outageConnection = await connectClient(
+      undefined,
+      [{...action, execute: vi.fn(action.execute)}],
+      undefined,
+      outageAuth as unknown as AuthInterModuleClient,
+    );
+    const outage = await outageConnection.client.callTool(
+      {name: action.name, arguments: {message: 'outage'}},
+      CallToolResultSchema,
+    );
+    await outageConnection.close();
+    expect(outage.structuredContent).toEqual({ok: false, error: {code: 'tool-failed'}});
+  });
 });
 
 async function connectClient(
   rateLimiter = createAgentAccessRateLimiter(),
   tools = [createAgentAccessFixtureTool()],
   recordCall?: Parameters<typeof buildAgentAccessMcpServer>[0]['recordCall'],
+  auth?: AuthInterModuleClient,
+  actionRateLimiter?: Parameters<typeof buildAgentAccessMcpServer>[0]['actionRateLimiter'],
 ): Promise<{client: Client; close: () => Promise<void>}> {
   const server = buildAgentAccessMcpServer({
     context,
     tools,
     rateLimiter,
+    actionRateLimiter,
+    auth,
     recordCall,
   });
   const client = new Client({name: 'test-client', version: '0.0.0'});

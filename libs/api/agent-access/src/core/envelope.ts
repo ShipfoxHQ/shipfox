@@ -10,7 +10,11 @@ export function agentAccessSuccess(result: unknown): AgentAccessEnvelopeDto {
 
 export function agentAccessError(
   code: string,
-  options: {message?: string; retryAfterSeconds?: number} = {},
+  options: {
+    message?: string;
+    retryAfterSeconds?: number;
+    details?: Record<string, unknown>;
+  } = {},
 ): AgentAccessEnvelopeDto {
   return {
     ok: false,
@@ -20,6 +24,7 @@ export function agentAccessError(
       ...(options.retryAfterSeconds === undefined
         ? {}
         : {retry_after_seconds: options.retryAfterSeconds}),
+      ...(options.details === undefined ? {} : {details: options.details}),
     },
   };
 }

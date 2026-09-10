@@ -16,6 +16,13 @@ export type AgentAccessAuthFailureReason =
   | 'dependency-unavailable';
 
 export type AgentAccessLogSectionUnavailableReason = 'compacted-log-unavailable';
+export type AgentAccessAuthorityCheckOutcome =
+  | 'ok'
+  | 'grant-revoked'
+  | 'user-inactive'
+  | 'membership-revoked'
+  | 'workspace-suspended'
+  | 'workspace-deleted';
 
 const toolCallCount = meter.createCounter<{
   tool: string;
@@ -28,6 +35,12 @@ const authFailureCount = meter.createCounter<{
   reason: AgentAccessAuthFailureReason;
 }>('agent_access_auth_failures', {
   description: 'agent-access authentication rejections on this instance',
+});
+
+const authorityCheckCount = meter.createCounter<{
+  outcome: AgentAccessAuthorityCheckOutcome;
+}>('agent_access_authority_checks', {
+  description: 'Per-call action authority checks on this instance',
 });
 
 const logSectionUnavailableCount = meter.createCounter<{
@@ -52,6 +65,14 @@ export function recordAgentAccessAuthFailure(reason: AgentAccessAuthFailureReaso
     authFailureCount.add(1, {reason});
   } catch {
     // Metrics must not affect HTTP authentication responses.
+  }
+}
+
+export function recordAgentAccessAuthorityCheck(outcome: AgentAccessAuthorityCheckOutcome): void {
+  try {
+    authorityCheckCount.add(1, {outcome});
+  } catch {
+    // Metrics must not affect MCP responses.
   }
 }
 

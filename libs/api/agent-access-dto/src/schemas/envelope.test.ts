@@ -17,6 +17,27 @@ describe('agent access envelope', () => {
     ).toBe(true);
   });
 
+  test('accepts bounded error details and rejects oversized detail strings or payloads', () => {
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'attempt-mismatch', details: {current_attempt: 2}},
+      }).success,
+    ).toBe(true);
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'bad', details: {reason: '🙂'.repeat(300)}},
+      }).success,
+    ).toBe(false);
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'bad', details: {reason: 'x'.repeat(4096)}},
+      }).success,
+    ).toBe(false);
+  });
+
   test('rejects mixed success and error payloads', () => {
     expect(
       agentAccessEnvelopeSchema.safeParse({ok: true, result: {}, error: {code: 'bad'}}).success,

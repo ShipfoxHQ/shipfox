@@ -2,8 +2,53 @@ import {z} from 'zod';
 
 export const AGENT_ACCESS_ERROR_CODE_MAX_LENGTH = 128;
 export const AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH = 2048;
+export const AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES = 4 * 1024;
+export const AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES = 512;
 
 const agentAccessErrorCodeSchema = z.string().min(1).max(AGENT_ACCESS_ERROR_CODE_MAX_LENGTH);
+const utf8Encoder = new TextEncoder();
+
+const agentAccessErrorDetailsSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((details, context) => {
+    let serialized: string | undefined;
+    try {
+      serialized = JSON.stringify(details);
+    } catch {
+      context.addIssue({code: 'custom', message: 'Details must be JSON serializable'});
+      return;
+    }
+    if (serialized === undefined) {
+      context.addIssue({code: 'custom', message: 'Details must be JSON serializable'});
+      return;
+    }
+    if (utf8Encoder.encode(serialized).byteLength > AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES) {
+      context.addIssue({
+        code: 'custom',
+        message: `Details must contain at most ${AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES} UTF-8 bytes`,
+      });
+    }
+    visitDetailStrings(details, context);
+  });
+
+function visitDetailStrings(value: unknown, context: z.RefinementCtx): void {
+  if (typeof value === 'string') {
+    if (utf8Encoder.encode(value).byteLength > AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES) {
+      context.addIssue({
+        code: 'custom',
+        message: `Detail strings must contain at most ${AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES} UTF-8 bytes`,
+      });
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) visitDetailStrings(item, context);
+    return;
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const item of Object.values(value)) visitDetailStrings(item, context);
+  }
+}
 
 /** A bounded error payload shared by every agent-access tool. */
 export const agentAccessErrorSchema = z
@@ -11,6 +56,7 @@ export const agentAccessErrorSchema = z
     code: agentAccessErrorCodeSchema,
     message: z.string().max(AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH).optional(),
     retry_after_seconds: z.number().int().min(1).optional(),
+    details: agentAccessErrorDetailsSchema.optional(),
   })
   .strict();
 
@@ -81,6 +127,7 @@ const agentAccessEnvelopeProperties = {
       code: {type: 'string', minLength: 1, maxLength: AGENT_ACCESS_ERROR_CODE_MAX_LENGTH},
       message: {type: 'string', maxLength: AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH},
       retry_after_seconds: {type: 'integer', minimum: 1},
+      details: {type: 'object', additionalProperties: true},
     },
     required: ['code'],
     additionalProperties: false,

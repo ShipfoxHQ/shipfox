@@ -27,6 +27,7 @@ describe('agent-access instance metrics', () => {
   beforeEach(() => {
     counterAdd('agent_access_tool_calls').mockReset();
     counterAdd('agent_access_auth_failures').mockReset();
+    counterAdd('agent_access_authority_checks').mockReset();
     counterAdd('agent_access_log_sections_unavailable').mockReset();
   });
 
@@ -37,6 +38,9 @@ describe('agent-access instance metrics', () => {
     expect(metricMocks.createCounter).toHaveBeenCalledWith('agent_access_auth_failures', {
       description: 'agent-access authentication rejections on this instance',
     });
+    expect(metricMocks.createCounter).toHaveBeenCalledWith('agent_access_authority_checks', {
+      description: 'Per-call action authority checks on this instance',
+    });
     expect(metricMocks.createCounter).toHaveBeenCalledWith(
       'agent_access_log_sections_unavailable',
       {description: 'Agent-access log sections unavailable on this instance'},
@@ -46,8 +50,12 @@ describe('agent-access instance metrics', () => {
   test('records tool calls and authentication rejections with bounded labels', () => {
     metrics.recordAgentAccessToolCall({tool: 'agent_access_fixture', outcome: 'rate-limited'});
     metrics.recordAgentAccessAuthFailure('origin-not-allowed');
+    metrics.recordAgentAccessAuthorityCheck('membership-revoked');
     metrics.recordAgentAccessLogSectionUnavailable('compacted-log-unavailable');
 
+    expect(counterAdd('agent_access_authority_checks')).toHaveBeenCalledWith(1, {
+      outcome: 'membership-revoked',
+    });
     expect(counterAdd('agent_access_tool_calls')).toHaveBeenCalledWith(1, {
       tool: 'agent_access_fixture',
       outcome: 'rate-limited',
@@ -67,6 +75,9 @@ describe('agent-access instance metrics', () => {
     counterAdd('agent_access_auth_failures').mockImplementationOnce(() => {
       throw new Error('metrics unavailable');
     });
+    counterAdd('agent_access_authority_checks').mockImplementationOnce(() => {
+      throw new Error('metrics unavailable');
+    });
     counterAdd('agent_access_log_sections_unavailable').mockImplementationOnce(() => {
       throw new Error('metrics unavailable');
     });
@@ -75,6 +86,7 @@ describe('agent-access instance metrics', () => {
       metrics.recordAgentAccessToolCall({tool: 'agent_access_fixture', outcome: 'success'}),
     ).not.toThrow();
     expect(() => metrics.recordAgentAccessAuthFailure('invalid')).not.toThrow();
+    expect(() => metrics.recordAgentAccessAuthorityCheck('ok')).not.toThrow();
     expect(() =>
       metrics.recordAgentAccessLogSectionUnavailable('compacted-log-unavailable'),
     ).not.toThrow();

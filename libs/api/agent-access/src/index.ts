@@ -1,4 +1,6 @@
 export {
+  AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
+  AGENT_ACCESS_FIXTURE_ACTION_TOOL_NAME,
   AGENT_ACCESS_FIXTURE_TOOL_NAME,
   AGENT_ACCESS_MCP_INSTRUCTIONS,
   AGENT_ACCESS_MCP_PATH,
@@ -42,17 +44,22 @@ export {
   type AgentAccessTool,
   type AgentAccessToolCall,
   type AgentAccessToolMap,
+  createAgentAccessFixtureActionTool,
   createAgentAccessFixtureTool,
   createAgentAccessToolMap,
 } from '#core/tools.js';
 export {createAgentAccessWorkflowDiagnosticTools} from '#core/workflow-diagnostic-tools.js';
 export {
   type AgentAccessAuthFailureReason,
+  type AgentAccessAuthorityCheckOutcome,
   type AgentAccessToolCallOutcome,
   recordAgentAccessAuthFailure,
+  recordAgentAccessAuthorityCheck,
   recordAgentAccessToolCall,
 } from '#metrics/index.js';
 export {
+  type AgentAccessActionAudit,
+  type AgentAccessAuthorityOutcome,
   type AgentAccessToolCallAuditRecord,
   type AgentAccessToolCallRecorder,
   type CreateAgentAccessToolCallRecorderOptions,
