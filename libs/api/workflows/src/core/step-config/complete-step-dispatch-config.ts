@@ -155,7 +155,7 @@ function completeToolConfig(params: {
 
 function mergeToolWith(
   base: unknown,
-  plan: NonNullable<NonNullable<Step['configPlan']>['tool']>['with'] | undefined,
+  plan: NonNullable<NonNullable<Step['configPlan']>['tool']>['with'] | null | undefined,
   params: {
     readonly context: WorkflowEvaluationContext;
     readonly definitionId: string;
@@ -163,7 +163,7 @@ function mergeToolWith(
   },
   field: 'tool.with',
 ): unknown {
-  if (plan === undefined) return base;
+  if (isMissingToolWithPlan(plan)) return base;
   if (isFieldTemplate(plan)) {
     const resolved = completeStepFieldWithTypeAndTrace({
       field,
@@ -194,6 +194,10 @@ function mergeToolWith(
     return values;
   }
   throw new ToolConfigInvalidError('Tool input template plan is invalid');
+}
+
+function isMissingToolWithPlan(plan: unknown): plan is null | undefined {
+  return plan === undefined || plan === null;
 }
 
 function isFieldTemplate(value: unknown): value is readonly ResolvedFieldSegment[] {

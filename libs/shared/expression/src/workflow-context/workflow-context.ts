@@ -607,7 +607,6 @@ export const workflowInterpolationFieldPolicies: Readonly<
   'tool.with': {
     acceptedHosts: serverOnlyHosts,
     failurePolicy: 'fail',
-    minimumFillTarget: 'step-dispatch',
   },
   'tool.outputs': {
     acceptedHosts: serverOnlyHosts,

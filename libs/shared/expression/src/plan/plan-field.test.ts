@@ -70,6 +70,33 @@ describe('planInterpolationField', () => {
     });
   });
 
+  it.each([
+    ['event.repository.name', 'event', 'ingest'],
+    ['run.id', 'run', 'run-creation'],
+    ['jobs.build.outputs.sha', 'jobs', 'job-activation'],
+    ['steps.build.outputs.sha', 'steps', 'step-dispatch'],
+  ] as const)('routes tool input %s at its natural availability site', (source, root, fillTarget) => {
+    const segments = parseWorkflowTemplate(templateExpression(source));
+
+    const result = planInterpolationField({field: 'tool.with', segments});
+
+    expect(result).toMatchObject({
+      ok: true,
+      plan: {
+        failurePolicy: 'fail',
+        field: {
+          segments: [
+            {
+              kind: 'deferred',
+              roots: [root],
+              fillTarget,
+            },
+          ],
+        },
+      },
+    });
+  });
+
   it('keeps template segment boundaries while assigning fill targets', () => {
     const segments = parseWorkflowTemplate(
       `${templateExpression(' run.id ')}-${templateExpression(' trigger.event ')}`,

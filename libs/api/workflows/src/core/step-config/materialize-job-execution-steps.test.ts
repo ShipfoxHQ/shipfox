@@ -45,12 +45,14 @@ function condition(source: string) {
   return createWorkflowExpression({source, check: {mode: 'syntax'}});
 }
 
-function jobExecutionContext(): WorkflowEvaluationContext {
+function jobExecutionContext(runNumber = 42n): WorkflowEvaluationContext {
   return {
     site: 'execution-creation',
     values: {
       run: {
         id: 'run-1',
+        number: runNumber,
+        attempt: 1n,
         name: 'Reviews',
         definition_id: 'def-1',
         project_id: 'proj-1',
@@ -192,6 +194,28 @@ function typedToolCatalog(): readonly AgentToolCatalogEntry[] {
         required: ['count', 'enabled', 'options'],
         additionalProperties: false,
       },
+    },
+  ];
+}
+
+function checkRunToolCatalog(): readonly AgentToolCatalogEntry[] {
+  return [
+    {
+      id: 'check_run_write',
+      description: 'Write check runs.',
+      sensitivity: 'write',
+      sensitive: false,
+      requiredScope: [{permission: 'checks', access: 'write'}],
+      inputSchema: {type: 'object'},
+      methods: [
+        {
+          id: 'create',
+          description: 'Create a check run.',
+          sensitivity: 'write',
+          sensitive: false,
+          requiredScope: [{permission: 'checks', access: 'write'}],
+        },
+      ],
     },
   ];
 }
@@ -611,7 +635,7 @@ describe('materializeJobExecutionSteps', () => {
     ]);
   });
 
-  it('preserves exact typed tool input expressions before dispatch', async () => {
+  it('preserves exact typed tool input expressions as JSON-safe values', async () => {
     const model = workflowModel({
       jobs: {
         call: {
@@ -641,18 +665,180 @@ describe('materializeJobExecutionSteps', () => {
         site: 'step-dispatch',
         values: {
           ...baseContext.values,
-          inputs: {count: 3, enabled: true, options: {mode: 'fast'}},
+          inputs: {
+            count: 3,
+            enabled: true,
+            options: {mode: 'fast', counts: [42n, 9007199254740993n]},
+          },
         },
       },
       agentToolContext: githubAgentToolContext(typedToolCatalog()),
     });
 
     expect(steps[1]?.config.tool).toMatchObject({
-      with: {count: 3, enabled: true, options: {mode: 'fast'}},
+      with: {
+        count: 3,
+        enabled: true,
+        options: {mode: 'fast', counts: [42, '9007199254740993']},
+      },
+    });
+    expect(JSON.parse(JSON.stringify(steps[1]?.config))).toEqual(steps[1]?.config);
+  });
+
+  it.each([
+    {kind: 'safe', runNumber: 42n, expected: 42},
+    {kind: 'unsafe', runNumber: 9007199254740993n, expected: '9007199254740993'},
+  ])('normalizes $kind exact CEL integer tool inputs before persistence', async ({
+    runNumber,
+    expected,
+  }) => {
+    const model = workflowModel({
+      jobs: {
+        call: {
+          steps: [
+            {
+              tool: 'typed_tool',
+              connection: 'github-main',
+              with: {
+                count: template('run.number'),
+                enabled: true,
+                options: {mode: 'fast'},
+              },
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: {...jobExecutionContext(runNumber), site: 'run-creation'},
+      agentToolContext: githubAgentToolContext(typedToolCatalog()),
+    });
+
+    expect(steps[1]?.config.tool).toMatchObject({
+      with: {count: expected, enabled: true, options: {mode: 'fast'}},
+    });
+    expect(JSON.parse(JSON.stringify(steps[1]?.config))).toEqual(steps[1]?.config);
+  });
+
+  it('freezes documented event and run tool inputs while retaining late nested input', async () => {
+    const model = workflowModel({
+      jobs: {
+        call: {
+          steps: [
+            {
+              tool: 'check_run_write.create',
+              connection: 'github-main',
+              with: {
+                owner: template('event.repository.owner.login'),
+                repo: template('event.repository.name'),
+                name: 'Shipfox PR review',
+                head_sha: template('event.pull_request.head.sha'),
+                status: 'in_progress',
+                external_id: `shipfox-${template('run.id')}`,
+                output: {
+                  title: 'Review in progress',
+                  summary: `Run ${template('run.number')}: ${template(
+                    'steps.review.outputs.summary',
+                  )}`,
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+    const baseContext = jobExecutionContext();
+
+    const steps = await materializeJobExecutionSteps({
+      model,
+      job,
+      context: {
+        site: 'run-creation',
+        values: {
+          ...baseContext.values,
+          event: {
+            repository: {owner: {login: 'ShipfoxHQ'}, name: 'cloud'},
+            pull_request: {head: {sha: 'e964e53dd9826c418b65033d0c209737cfe9ef98'}},
+          },
+        },
+      },
+      agentToolContext: githubAgentToolContext(checkRunToolCatalog()),
+    });
+
+    expect(steps[1]?.config.tool).toMatchObject({
+      method: 'create',
+      with: {
+        owner: 'ShipfoxHQ',
+        repo: 'cloud',
+        name: 'Shipfox PR review',
+        head_sha: 'e964e53dd9826c418b65033d0c209737cfe9ef98',
+        status: 'in_progress',
+        external_id: 'shipfox-run-1',
+        output: {title: 'Review in progress'},
+      },
+    });
+    expect(steps[1]?.configPlan?.tool?.with).toMatchObject({
+      output: {
+        summary: [
+          {kind: 'literal', value: 'Run '},
+          {kind: 'literal', value: '42'},
+          {kind: 'literal', value: ': '},
+          expect.objectContaining({
+            kind: 'deferred',
+            roots: ['steps'],
+            fillTarget: 'step-dispatch',
+          }),
+        ],
+      },
+    });
+    expect(Object.keys(steps[1]?.configPlan?.tool?.with ?? {})).toEqual(['output']);
+  });
+
+  it('reports a missing required event tool input with its source path', async () => {
+    const model = workflowModel({
+      jobs: {
+        call: {
+          steps: [
+            {
+              tool: 'typed_tool',
+              connection: 'github-main',
+              with: {options: template('event.repository.name')},
+            },
+          ],
+        },
+      },
+    });
+    const job = model.jobs[0];
+    if (!job) throw new Error('Expected workflow job');
+    const baseContext = jobExecutionContext();
+
+    const materialize = () =>
+      materializeJobExecutionSteps({
+        model,
+        job,
+        context: {
+          site: 'run-creation',
+          values: {...baseContext.values, event: {repository: {}}},
+        },
+        definitionId: 'def-1',
+        agentToolContext: githubAgentToolContext(typedToolCatalog()),
+      });
+
+    await expect(materialize()).rejects.toMatchObject({
+      name: 'InterpolationUnresolvableError',
+      field: 'tool.with',
+      source: 'event.repository.name',
     });
   });
 
-  it('keeps static siblings when a nested tool input remains deferred', async () => {
+  it('keeps frozen container siblings when a nested tool input remains deferred', async () => {
     const model = workflowModel({
       jobs: {
         call: {
@@ -665,6 +851,7 @@ describe('materializeJobExecutionSteps', () => {
                   static: 'keep me',
                   dynamic: template('steps.previous.outputs.value'),
                 },
+                items: [template('run.id'), template('steps.previous.outputs.value')],
               },
             },
           ],
@@ -680,12 +867,16 @@ describe('materializeJobExecutionSteps', () => {
       context: jobExecutionContext(),
       agentToolContext: githubAgentToolContext(typedToolCatalog()),
     });
+    const persistedStep = JSON.parse(JSON.stringify(steps[1])) as (typeof steps)[number];
 
-    expect(steps[1]?.config.tool).toMatchObject({with: {payload: {static: 'keep me'}}});
-    expect(steps[1]?.configPlan?.tool?.with).toMatchObject({
+    expect(persistedStep.config.tool).toMatchObject({
+      with: {payload: {static: 'keep me'}, items: ['run-1', null]},
+    });
+    expect(persistedStep.configPlan?.tool?.with).toMatchObject({
       payload: {
         dynamic: [expect.objectContaining({kind: 'deferred', roots: ['steps']})],
       },
+      items: [null, [expect.objectContaining({kind: 'deferred', roots: ['steps']})]],
     });
   });
 
