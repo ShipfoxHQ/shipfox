@@ -52,7 +52,6 @@
     "@shipfox/api-email-challenges",
     "@shipfox/api-integration-core",
     "@shipfox/api-integration-core-dto",
-    "@shipfox/api-integration-clickup-dto",
     "@shipfox/api-integration-gitea",
     "@shipfox/api-integration-gitea-dto",
     "@shipfox/api-integration-github",
