@@ -1,5 +1,11 @@
 # @shipfox/expression
 
+## 2.10.0
+
+### Minor Changes
+
+- ec852c4: Expose the authored restarting gate key on `step.restart.from` for dispatch-time workflow expressions.
+
 ## 2.9.2
 
 ### Patch Changes

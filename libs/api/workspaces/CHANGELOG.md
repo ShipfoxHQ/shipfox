@@ -1,5 +1,16 @@
 # @shipfox/api-workspaces
 
+## 24.2.0
+
+### Minor Changes
+
+- 5480c90: Adds bounded administrator workspace member discovery for impersonation targets.
+
+### Patch Changes
+
+- Updated dependencies [3cc2ffb]
+  - @shipfox/api-runners-dto@24.2.0
+
 ## 24.1.0
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @shipfox/api-workflows
 
+## 24.2.0
+
+### Minor Changes
+
+- ec852c4: Expose the authored restarting gate key on `step.restart.from` for dispatch-time workflow expressions.
+- 011d9ec: Adds workspace-scoped `cancelWorkflowRun` and `rerunWorkflowRun` commands: cancellation returns the run `id`, `currentAttempt`, and `status`, while rerun returns `id`, `attempt`, and `status`; both report attempt mismatches, cancellation rejects terminal runs, and rerun rejects non-terminal runs or failed-mode requests when there are no failed or cancelled jobs. `startRunFromTrigger` optionally reports `deduplicated` for an already-started run and surfaces workspace admission errors.
+- 3cc2ffb: Propagates concurrency supersession through workflow termination events and runner shutdown reconciliation.
+- 6100626: Adds stable gate failure reasons and restart diagnostics across workflow APIs, Agent Access, and the client.
+
+### Patch Changes
+
+- Updated dependencies [ec852c4]
+- Updated dependencies [011d9ec]
+- Updated dependencies [3cc2ffb]
+- Updated dependencies [6100626]
+  - @shipfox/expression@2.10.0
+  - @shipfox/api-workflows-dto@24.2.0
+  - @shipfox/api-runners-dto@24.2.0
+  - @shipfox/api-definitions-dto@24.2.0
+
 ## 24.1.1
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @shipfox/api-agent-access
 
+## 24.2.0
+
+### Minor Changes
+
+- 6100626: Adds stable gate failure reasons and restart diagnostics across workflow APIs, Agent Access, and the client.
+
+### Patch Changes
+
+- Updated dependencies [011d9ec]
+- Updated dependencies [3cc2ffb]
+- Updated dependencies [6100626]
+  - @shipfox/api-workflows-dto@24.2.0
+  - @shipfox/api-agent-access-dto@24.2.0
+  - @shipfox/api-definitions-dto@24.2.0
+
 ## 24.1.1
 
 ### Patch Changes

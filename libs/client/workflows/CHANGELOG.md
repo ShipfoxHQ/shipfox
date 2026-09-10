@@ -1,5 +1,22 @@
 # @shipfox/client-workflows
 
+## 42.0.0
+
+### Minor Changes
+
+- 3cc2ffb: Propagates concurrency supersession through workflow termination events and runner shutdown reconciliation.
+- 6100626: Adds stable gate failure reasons and restart diagnostics across workflow APIs, Agent Access, and the client.
+
+### Patch Changes
+
+- Updated dependencies [011d9ec]
+- Updated dependencies [3cc2ffb]
+- Updated dependencies [6100626]
+  - @shipfox/api-workflows-dto@24.2.0
+  - @shipfox/api-definitions-dto@24.2.0
+  - @shipfox/client-projects@42.0.0
+  - @shipfox/client-triggers@42.0.0
+
 ## 41.0.1
 
 ### Patch Changes
