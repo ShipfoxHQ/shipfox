@@ -1,6 +1,7 @@
 export * from './badge.js';
 export * from './check-circle-solid.js';
 export * from './circle-dotted-line.js';
+export * from './clickup-logo.js';
 export * from './component-fill.js';
 export * from './component-line.js';
 export * from './ellipse-mini-solid.js';

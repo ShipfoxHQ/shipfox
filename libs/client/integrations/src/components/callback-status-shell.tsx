@@ -23,7 +23,8 @@ export function CallbackStatusShell({
   installPath:
     | '/w/$workspaceSlug/integrations/linear'
     | '/w/$workspaceSlug/integrations/slack'
-    | '/w/$workspaceSlug/integrations/jira';
+    | '/w/$workspaceSlug/integrations/jira'
+    | '/w/$workspaceSlug/integrations/clickup';
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);

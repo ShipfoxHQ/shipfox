@@ -1,3 +1,4 @@
+import {clickupWebhookEventNames} from '@shipfox/api-integration-clickup-dto';
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {jiraWebhookEventNames} from '@shipfox/api-integration-jira-dto';
 import {linearWebhookEventNames} from '@shipfox/api-integration-linear-dto';
@@ -55,6 +56,18 @@ describe('usageEventsForConnection', () => {
     const events = usageEventsForConnection(connection);
 
     expect(events).toEqual([{value: 'push', label: 'push'}]);
+  });
+
+  it('uses ClickUp webhook names directly', () => {
+    const connection = {
+      ...baseConnection,
+      provider: 'clickup',
+      capabilities: ['agent_tools'],
+    } satisfies IntegrationConnectionDto;
+
+    const events = usageEventsForConnection(connection);
+
+    expect(events.map((event) => event.value)).toEqual(clickupWebhookEventNames);
   });
 
   it('uses Linear webhook names directly', () => {

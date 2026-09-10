@@ -196,6 +196,20 @@ const jiraUsageEvents = [
   'comment_deleted',
 ] as const;
 
+const clickupUsageEvents = [
+  'taskCreated',
+  'taskUpdated',
+  'taskDeleted',
+  'taskMoved',
+  'taskStatusUpdated',
+  'taskAssigneeUpdated',
+  'taskPriorityUpdated',
+  'taskDueDateUpdated',
+  'taskTagUpdated',
+  'taskCommentPosted',
+  'taskCommentUpdated',
+] as const;
+
 export function usageEventsForConnection(
   connection: Pick<IntegrationConnection, 'provider' | 'capabilities'>,
 ): IntegrationUsageEvent[] {
@@ -209,6 +223,8 @@ export function usageEventsForConnection(
     }));
   if (connection.provider === 'jira')
     return jiraUsageEvents.map((value) => ({value, label: value}));
+  if (connection.provider === 'clickup')
+    return clickupUsageEvents.map((value) => ({value, label: value}));
   if (connection.provider === 'linear')
     return linearUsageEvents.map((value) => ({value, label: value}));
   if (connection.capabilities.includes('source_control')) return [{value: 'push', label: 'push'}];

@@ -9,7 +9,8 @@ export type ProviderSetupPath =
   | '/w/$workspaceSlug/integrations/sentry'
   | '/w/$workspaceSlug/integrations/linear'
   | '/w/$workspaceSlug/integrations/slack'
-  | '/w/$workspaceSlug/integrations/jira';
+  | '/w/$workspaceSlug/integrations/jira'
+  | '/w/$workspaceSlug/integrations/clickup';
 
 interface RouteProviderCatalogEntry {
   kind: 'redirect-install' | 'direct-connect';
@@ -56,6 +57,12 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     displayName: 'Jira',
     iconName: PROVIDER_ICONS.jira,
     setupPath: '/w/$workspaceSlug/integrations/jira',
+  },
+  clickup: {
+    kind: 'redirect-install',
+    displayName: 'ClickUp',
+    iconName: PROVIDER_ICONS.clickup,
+    setupPath: '/w/$workspaceSlug/integrations/clickup',
   },
   gitea: {
     kind: 'direct-connect',

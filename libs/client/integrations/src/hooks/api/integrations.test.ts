@@ -1,10 +1,12 @@
 import type {IntegrationConnectionDto} from '@shipfox/api-integration-core-dto';
 import {configureApiClient} from '@shipfox/client-api';
 import {
+  completeClickUpCallback,
   completeJiraCallback,
   completeJiraSiteSelection,
   completeLinearCallback,
   completeSlackCallback,
+  createClickUpInstall,
   createJiraInstall,
   createLinearInstall,
   createSlackInstall,
@@ -133,6 +135,52 @@ describe('repository access transport', () => {
       'https://api.example.test/integration-connections/11111111-1111-4111-8111-111111111111/repository-access',
     );
     expect(await requests[0]?.json()).toEqual({mode: 'all'});
+  });
+});
+
+describe('ClickUp transport', () => {
+  it('posts the install workspace and forwards both callback query variants', async () => {
+    const requests: Request[] = [];
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn((input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        const url = request.url;
+        return Promise.resolve(
+          jsonResponse(
+            url.endsWith('/install')
+              ? {install_url: 'https://clickup.example.test/install'}
+              : connection({provider: 'clickup', capabilities: ['agent_tools']}),
+          ),
+        );
+      }),
+    });
+
+    const install = await createClickUpInstall({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
+    await completeClickUpCallback({
+      query: {code: 'grant code', state: 'signed state'},
+      token: 'session-token',
+    });
+    await completeClickUpCallback({
+      query: {error: 'access_denied', state: 'signed error state'},
+      token: 'session-token',
+    });
+
+    expect(install).toEqual({installUrl: 'https://clickup.example.test/install'});
+    expect(requests[0]?.url).toBe('https://api.example.test/integrations/clickup/install');
+    expect(await requests[0]?.json()).toEqual({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(requests[1]?.url).toBe(
+      'https://api.example.test/integrations/clickup/callback/api?code=grant+code&state=signed+state',
+    );
+    expect(requests[2]?.url).toBe(
+      'https://api.example.test/integrations/clickup/callback/api?error=access_denied&state=signed+error+state',
+    );
+    expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
   });
 });
 
