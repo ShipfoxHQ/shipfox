@@ -164,6 +164,26 @@ describe('buildWorkflowJsonSchema', () => {
     expect(requiredAlternatives(batch)).toEqual(['debounce', 'max_size', 'max_wait']);
   });
 
+  it('publishes the bounded optional gate max_attempts field', () => {
+    const schema = buildWorkflowJsonSchema();
+    const jobs = object(object(schema.properties).jobs);
+    const job = object(jobs.additionalProperties);
+    const step = object(object(job.properties).steps).items;
+    const stepProperties = object(object(step).properties);
+    const gate = object(stepProperties.gate);
+    const gateFailure = object(object(gate.properties).on_failure);
+    const maxAttempts = object(gateFailure.properties).max_attempts;
+
+    expect(maxAttempts).toMatchObject({
+      type: 'integer',
+      minimum: 1,
+      maximum: 1_000,
+      description:
+        'Maximum number of gating-step executions, from 1 through 1,000, including the first execution. Defaults to five when omitted.',
+    });
+    expect(strings(gateFailure.required)).not.toContain('max_attempts');
+  });
+
   it('describes the session field with string and object forms', () => {
     const schema = buildWorkflowJsonSchema();
     const step = stepSchemaFor(schema);

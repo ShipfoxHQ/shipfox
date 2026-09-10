@@ -58,6 +58,8 @@ const envStringValueSchema = z.string().refine((value) => !value.includes('\u000
 export const WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS = 5;
 /** Maximum total executions supported by a gate retry policy, including the first execution. */
 export const WORKFLOW_GATE_MAX_ATTEMPTS_MAX = 1_000;
+const WORKFLOW_GATE_MAX_ATTEMPTS_ERROR_MESSAGE =
+  'Expected a positive integer no greater than 1000.';
 export const WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES = 128;
 export const WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES = 32 * 1024;
 export const workflowDocumentStepOutputTypes = ['string', 'number', 'boolean', 'json'] as const;
@@ -590,6 +592,18 @@ const workflowDocumentStepGateSchema = z
         feedback: z.string().min(1).optional().meta({
           description: 'Feedback supplied when the gate fails before restarting.',
         }),
+        max_attempts: z
+          .number({error: WORKFLOW_GATE_MAX_ATTEMPTS_ERROR_MESSAGE})
+          .int({error: WORKFLOW_GATE_MAX_ATTEMPTS_ERROR_MESSAGE})
+          .min(1, {error: WORKFLOW_GATE_MAX_ATTEMPTS_ERROR_MESSAGE})
+          .max(WORKFLOW_GATE_MAX_ATTEMPTS_MAX, {
+            error: WORKFLOW_GATE_MAX_ATTEMPTS_ERROR_MESSAGE,
+          })
+          .optional()
+          .meta({
+            description:
+              'Maximum number of gating-step executions, from 1 through 1,000, including the first execution. Defaults to five when omitted.',
+          }),
       })
       .optional()
       .meta({

@@ -623,6 +623,7 @@ function renderWorkflowSchemaReference(schema, workflowSchemaMarkdown) {
     }),
     workflowComponent(workflowSchemaMarkdown, 'GateFailureFields', object(gateFailure.properties), {
       required: ['restart_from'],
+      defaults: {max_attempts: '5'},
     }),
     workflowComponent(workflowSchemaMarkdown, 'StepOutputs', outputFields()),
     workflowComponent(workflowSchemaMarkdown, 'ToolStepOutputs', toolOutputFields()),

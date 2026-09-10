@@ -994,7 +994,7 @@ describe('workflowDocumentSchema', () => {
     expect(envIssue?.message).toBe('"env" is supported only on run steps.');
   });
 
-  it('accepts a step gate with success and on_failure feedback', () => {
+  it('accepts a step gate with success, feedback, and max_attempts', () => {
     const workflowDocument = {
       name: 'review loop',
       jobs: {
@@ -1009,6 +1009,7 @@ describe('workflowDocumentSchema', () => {
                 on_failure: {
                   restart_from: 'producer',
                   feedback: 'Review failed',
+                  max_attempts: 8,
                 },
               },
             },
@@ -1020,6 +1021,44 @@ describe('workflowDocumentSchema', () => {
     const result = workflowDocumentSchema.safeParse(workflowDocument);
 
     expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ['zero gate max_attempts', 0],
+    ['negative gate max_attempts', -1],
+    ['fractional gate max_attempts', 1.5],
+    ['string gate max_attempts', '8'],
+    ['boolean gate max_attempts', true],
+    ['null gate max_attempts', null],
+    ['template gate max_attempts', '$' + '{{ inputs.max_attempts }}'],
+    ['gate max_attempts above the maximum', 1_001],
+  ])('rejects %s with the exact field path and message', (_label, maxAttempts) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'retry build',
+      jobs: {
+        build: {
+          steps: [
+            {key: 'producer', run: 'npm test'},
+            {
+              key: 'review',
+              run: 'npm test',
+              gate: {on_failure: {restart_from: 'producer', max_attempts: maxAttempts}},
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    const issue = result.error.issues.find(
+      (candidate) => candidate.path.join('.') === 'jobs.build.steps.1.gate.on_failure.max_attempts',
+    );
+    expect(issue).toMatchObject({
+      path: ['jobs', 'build', 'steps', 1, 'gate', 'on_failure', 'max_attempts'],
+      message: 'Expected a positive integer no greater than 1000.',
+    });
   });
 
   it.each([
@@ -1079,23 +1118,6 @@ describe('workflowDocumentSchema', () => {
               {
                 run: 'npm test',
                 gate: {on_failure: {restart_from: 'producer', output: 'Review failed'}},
-              },
-            ],
-          },
-        },
-      },
-    ],
-    [
-      'unpublished gate on_failure max_attempts field',
-      {
-        name: 'simple build',
-        jobs: {
-          build: {
-            steps: [
-              {name: 'producer', run: 'npm test'},
-              {
-                run: 'npm test',
-                gate: {on_failure: {restart_from: 'producer', max_attempts: 8}},
               },
             ],
           },

@@ -293,6 +293,21 @@ A gate must define `success`, `on_failure`, or both.
 
 <GateFailureFields />
 
+`max_attempts` counts executions of the gating step, including the first
+execution. Set it to `1` to disable automatic restarts after the first failed
+execution. The accepted range is `1` through `1,000`. There is no `unlimited`
+value.
+
+The attempt limit and `execution_timeout` are independent. A job execution can
+last up to 24 hours, including gate restarts. A timeout reports the existing
+`timed_out` job reason. Reaching `max_attempts` reports `restart_exhausted`.
+See [Limits](/reference/limits) for the defaults and caps.
+
+A restart repeats every step from `restart_from` through the gate. Keep
+external writes after the gate, or make writes idempotent with a stable
+identity. The retained log budget limits output retention, not execution, so a
+long loop can continue with incomplete or missing later logs.
+
 ## Step outputs
 
 <StepOutputs />

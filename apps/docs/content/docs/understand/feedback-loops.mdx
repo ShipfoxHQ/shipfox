@@ -64,6 +64,7 @@ jobs:
           on_failure:
             restart_from: fix
             feedback: The tests still fail. Reproduce the failure and fix its cause.
+            max_attempts: 5
 ```
 
 The first attempt gets initial guidance. A failed test restarts `fix` in the
@@ -99,14 +100,29 @@ Every attempt costs runner time and, for an agent, model cost. Slow checks
 multiply that cost. A loop therefore needs a clear stopping rule and a limited
 number of attempts.
 
+`gate.on_failure.max_attempts` counts the gating step's executions, including
+the first execution. Omit it to use five attempts for a new run. Set it to `1`
+to stop after the initial failure. The maximum is 1,000, and there is no
+`unlimited` value.
+
+The attempt limit and the job `execution_timeout` bound different resources.
+The timeout can be set to at most 24 hours, including gate restarts. A timeout
+uses the existing `timed_out` job reason. Reaching the attempt limit uses
+`restart_exhausted`.
+
+The retained log budget limits stored output, not loop execution. A long loop
+can continue after later output is dropped, so its later logs can be incomplete.
+There is no mid-run spending check. Choose a limit that matches the runner and
+model resources the loop can consume.
+
 The loop stops in one of two states:
 
 - The check passes.
 - The attempt limit runs out and the job fails.
 
-[Limits](/reference/limits) lists the exact attempt limits. The [run
-history](/understand/workflows-and-runs) keeps each step attempt and its
-feedback.
+[Limits](/reference/limits) lists the exact attempt, timeout, and log-budget
+values. The [run history](/understand/workflows-and-runs) keeps each step
+attempt and its feedback.
 
 ## Keep external writes out of the loop
 
@@ -126,5 +142,9 @@ creating a new one on every attempt.
 
 A loop can repeat a bad side effect as easily as it can improve code. Don't use
 it to retry a deploy or an external write that has no check in front of it.
+
+Use an idempotency key or read-before-write behavior when a write must happen
+inside the repeated range. Shipfox does not make external writes safe to repeat
+automatically.
 
 Use the linked authoring guide to add this pattern to a workflow.

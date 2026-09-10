@@ -51,6 +51,7 @@ jobs:
           on_failure:
             restart_from: test_failure_handler
             feedback: The tests still fail. Run them again and fix the cause.
+            max_attempts: 5
 
       - key: lint_failure_handler
         if: '${{ has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "lint" }}'
@@ -86,6 +87,17 @@ for their recovery predicates.
 The test cause stays visible after `test` passes. The lint handler still skips
 because its predicate compares the source key. `step.is_retry` cannot make this
 distinction.
+
+`max_attempts` counts the gating step's executions, including the first one.
+Use `1` to disable automatic restarts after the initial failure. Values from `1`
+through `1,000` are supported. Omit the field to use five attempts on a new run.
+There is no `unlimited` value.
+
+The `execution_timeout` is a separate wall-clock bound. It can be set to at
+most 24 hours, including gate restarts. A timeout reports `timed_out`; reaching
+the attempt limit reports `restart_exhausted`. The retained log budget limits
+stored output, not execution, so long loops can have incomplete later logs.
+Keep external writes after the gate, or make them idempotent with a stable key.
 
 Exact gate fields and validation rules live in [Gate
 fields](/reference/workflow-schema#gate-fields). The [Contexts

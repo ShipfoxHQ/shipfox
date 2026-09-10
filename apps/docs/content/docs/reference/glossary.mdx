@@ -34,6 +34,7 @@ Job status is derived over all executions. See
 
 The pattern a gate enables: an agent acts, a check judges the result, and on
 failure the job restarts from the agent with feedback, within bounded attempts.
+The attempt bound includes the first execution and has no `unlimited` value.
 See [Feedback loops](/understand/feedback-loops).
 
 ## Event filter
@@ -42,7 +43,7 @@ An optional CEL expression on a trigger (or on a listening job's `on`/`until` en
 
 ## Gate
 
-A condition block attached to a step that controls success evaluation and failure recovery. The `success` field accepts a CEL expression over `step.exit_code`, `step.status`, and `step.outputs`. The `on_failure.restart_from` field names an earlier keyed step in the same job to restart from when the gate fails, and `on_failure.feedback` is an optional message the restarted step can read. A gate must contain at least one of `success` or `on_failure`. See [Feedback loops](/understand/feedback-loops) and [Gate fields](/reference/workflow-schema#gate-fields).
+A condition block attached to a step that controls success evaluation and failure recovery. The `success` field accepts a CEL expression over `step.exit_code`, `step.status`, and `step.outputs`. The `on_failure.restart_from` field names an earlier keyed step in the same job to restart from when the gate fails, and `on_failure.feedback` is an optional message the restarted step can read. `on_failure.max_attempts` bounds gating-step executions, including the first execution, from 1 through 1,000. A timeout remains `timed_out`; an exhausted gate is `restart_exhausted`. A gate must contain at least one of `success` or `on_failure`. See [Feedback loops](/understand/feedback-loops) and [Gate fields](/reference/workflow-schema#gate-fields).
 
 ## Agent harness
 
