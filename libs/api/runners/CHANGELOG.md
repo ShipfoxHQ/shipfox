@@ -1,5 +1,19 @@
 # @shipfox/api-runners
 
+## 24.2.0
+
+### Minor Changes
+
+- 3cc2ffb: Propagates concurrency supersession through workflow termination events and runner shutdown reconciliation.
+
+### Patch Changes
+
+- Updated dependencies [011d9ec]
+- Updated dependencies [3cc2ffb]
+- Updated dependencies [6100626]
+  - @shipfox/api-workflows-dto@24.2.0
+  - @shipfox/api-runners-dto@24.2.0
+
 ## 24.1.1
 
 ### Patch Changes

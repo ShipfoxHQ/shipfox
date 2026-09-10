@@ -1,5 +1,12 @@
 # @shipfox/api-agent-access-dto
 
+## 24.2.0
+
+### Minor Changes
+
+- 3cc2ffb: Propagates concurrency supersession through workflow termination events and runner shutdown reconciliation.
+- 6100626: Adds stable gate failure reasons and restart diagnostics across workflow APIs, Agent Access, and the client.
+
 ## 24.1.0
 
 ### Minor Changes

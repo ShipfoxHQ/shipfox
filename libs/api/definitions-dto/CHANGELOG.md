@@ -1,5 +1,12 @@
 # @shipfox/api-definitions-dto
 
+## 24.2.0
+
+### Patch Changes
+
+- Updated dependencies [ec852c4]
+  - @shipfox/expression@2.10.0
+
 ## 24.1.1
 
 ### Patch Changes
