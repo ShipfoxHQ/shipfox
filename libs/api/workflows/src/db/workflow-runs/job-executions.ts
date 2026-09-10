@@ -1,4 +1,5 @@
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
+import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {and, asc, desc, eq, isNull, notInArray, sql} from 'drizzle-orm';
@@ -555,6 +556,7 @@ export async function failJobExecutionAsTimedOut(params: {
 export async function resolveJobExecutionAfterLeaseExpiry(params: {
   jobExecutionId: string;
   expectedVersion: number;
+  runnerLossCause?: RunnerJobLossCauseDto | undefined;
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   const result = await db().transaction(async (tx) => {
@@ -580,7 +582,7 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
         jobExecutionId: params.jobExecutionId,
         status: 'failed',
         expectedVersion: params.expectedVersion,
-        statusReason: 'runner_lost',
+        statusReason: jobStatusReasonForRunnerLoss(params.runnerLossCause),
         secrets: params.secrets,
       });
       if (updated?.changed) {
@@ -621,4 +623,22 @@ export async function resolveJobExecutionAfterLeaseExpiry(params: {
 
 function statusReasonForStepCompletion(status: RuntimeCompletionStatus): JobStatusReason | null {
   return status === 'failed' ? 'step_failed' : null;
+}
+
+function jobStatusReasonForRunnerLoss(
+  cause: RunnerJobLossCauseDto | undefined,
+): Extract<
+  JobStatusReason,
+  'lease_expired' | 'provider_lost' | 'lifecycle_violation' | 'runner_lost'
+> {
+  switch (cause) {
+    case 'lease_expired':
+      return 'lease_expired';
+    case 'provider_lost':
+      return 'provider_lost';
+    case 'lifecycle_violation':
+      return 'lifecycle_violation';
+    default:
+      return 'runner_lost';
+  }
 }

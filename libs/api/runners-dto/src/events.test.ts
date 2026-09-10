@@ -71,6 +71,9 @@ describe('runners events', () => {
     expect(() =>
       runnerJobLeaseExpiredEventSchema.parse({...sharedLeasePayload(), expiredAt: 123}),
     ).toThrow();
+    expect(() =>
+      runnerJobLeaseExpiredEventSchema.strict().parse({...sharedLeasePayload(), cause: 'mystery'}),
+    ).toThrow();
   });
 
   it('keeps enriched claimed fields optional for existing subscribers', () => {
@@ -87,6 +90,25 @@ describe('runners events', () => {
 
   it('validates the lease expiry timestamp', () => {
     const payload = sharedLeasePayload({expiredAt: '2026-09-02T10:01:00.000Z'});
+
+    expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
+  });
+
+  it('accepts every bounded runner-loss cause', () => {
+    for (const cause of [
+      'lease_expired',
+      'provider_lost',
+      'lifecycle_violation',
+      'runner_lost',
+    ] as const) {
+      const payload = sharedLeasePayload({cause});
+
+      expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
+    }
+  });
+
+  it('keeps the runner-loss cause optional for legacy events', () => {
+    const payload = sharedLeasePayload();
 
     expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
   });

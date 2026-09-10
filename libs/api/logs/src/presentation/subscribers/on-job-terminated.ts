@@ -41,6 +41,13 @@ function terminalCauseForJob(
   if (payload.statusReason === 'run_cancelled' || payload.statusReason === 'user_cancelled') {
     return 'run_cancelled';
   }
-  if (payload.statusReason === 'runner_lost') return 'runner_lost';
+  if (
+    payload.statusReason === 'runner_lost' ||
+    payload.statusReason === 'lease_expired' ||
+    payload.statusReason === 'provider_lost' ||
+    payload.statusReason === 'lifecycle_violation'
+  ) {
+    return 'runner_lost';
+  }
   return null;
 }

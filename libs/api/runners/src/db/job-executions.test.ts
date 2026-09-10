@@ -1740,7 +1740,11 @@ describe('detectAndExpireStuckJobs', () => {
 
   async function makeManagedStaleJob(
     lifecycleCapabilities: RunnerLifecycleCapabilitiesDto | null,
-    options: {providerRunnerWorkspaceId?: string | null} = {},
+    options: {
+      providerRunnerWorkspaceId?: string | null;
+      providerRunnerState?: 'running' | 'stopped' | 'failed' | 'terminated';
+      authorizeTermination?: boolean;
+    } = {},
   ): Promise<{
     jobId: string;
     jobExecutionId: string;
@@ -1794,13 +1798,22 @@ describe('detectAndExpireStuckJobs', () => {
       })
       .where(eq(runningJobExecutions.jobExecutionId, claimed.jobExecutionId));
 
-    await db()
-      .update(providerRunners)
-      .set({
-        terminationAuthorizedAt: sql`now()`,
-        terminationReason: 'job-cancelled',
-      })
-      .where(eq(providerRunners.id, providerRunner.id));
+    if (options.providerRunnerState !== undefined || options.authorizeTermination !== false) {
+      await db()
+        .update(providerRunners)
+        .set({
+          ...(options.providerRunnerState === undefined
+            ? {}
+            : {state: options.providerRunnerState}),
+          ...(options.authorizeTermination === false
+            ? {}
+            : {
+                terminationAuthorizedAt: sql`now()`,
+                terminationReason: 'job-cancelled',
+              }),
+        })
+        .where(eq(providerRunners.id, providerRunner.id));
+    }
 
     return {
       jobId: claimed.jobId,
@@ -1961,9 +1974,107 @@ describe('detectAndExpireStuckJobs', () => {
     expect(new Date(payload.expiredAt as string).getTime()).toBeLessThanOrEqual(
       afterExpiry + 1_000,
     );
-    // The lease-expired event carries only the assignment identifiers and expiry timestamp.
+    expect(payload.cause).toBe('runner_lost');
+    // The lease-expired event carries only bounded assignment metadata and expiry information.
     expect(outbox[0]?.payload).not.toHaveProperty('status');
     expect(outbox[0]?.payload).not.toHaveProperty('steps');
+  });
+
+  it.each([
+    {
+      name: 'an active provider runner without termination authorization as lease expiry',
+      options: {authorizeTermination: false as const},
+      expectedCause: 'lease_expired' as const,
+    },
+    {
+      name: 'a terminal provider runner without termination authorization as provider loss',
+      options: {providerRunnerState: 'terminated' as const, authorizeTermination: false as const},
+      expectedCause: 'provider_lost' as const,
+    },
+    {
+      name: 'a termination authorization as a lifecycle violation',
+      options: {authorizeTermination: true as const},
+      expectedCause: 'lifecycle_violation' as const,
+    },
+    {
+      name: 'a provider-scoped lease-expired authorization as lease expiry',
+      options: {providerRunnerWorkspaceId: null},
+      expectedCause: 'lease_expired' as const,
+    },
+  ])('publishes $name', async ({options, expectedCause}) => {
+    const stale = await makeManagedStaleJob(null, options);
+    if (options.providerRunnerWorkspaceId === null) {
+      await db()
+        .update(providerRunners)
+        .set({terminationReason: 'lease-expired'})
+        .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+    }
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe(expectedCause);
+  });
+
+  it('classifies a job-timeout authorization as a lifecycle violation', async () => {
+    const stale = await makeManagedStaleJob(null);
+    await db()
+      .update(providerRunners)
+      .set({terminationReason: 'job-timeout'})
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe(
+      'lifecycle_violation',
+    );
+  });
+
+  it('keeps terminal provider loss when job-scoped authorization follows terminal state', async () => {
+    const stale = await makeManagedStaleJob(null, {providerRunnerState: 'terminated'});
+    await db()
+      .update(providerRunners)
+      .set({terminationAuthorizedAt: new Date(), terminationReason: 'job-cancelled'})
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe('provider_lost');
+  });
+
+  it('falls back to runner loss when the managed provider row is unavailable', async () => {
+    const stale = await makeManagedStaleJob(null, {authorizeTermination: false});
+    await db()
+      .update(providerRunners)
+      .set({providerRunnerId: crypto.randomUUID()})
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe('runner_lost');
   });
 
   it('persists a capable runner execution fence before provider termination', async () => {

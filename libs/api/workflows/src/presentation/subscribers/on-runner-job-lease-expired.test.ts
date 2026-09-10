@@ -38,6 +38,17 @@ describe('onRunnerJobLeaseExpired', () => {
     });
   });
 
+  it('carries a bounded runner-loss cause into the job workflow', async () => {
+    const payload = buildPayload({cause: 'provider_lost'});
+
+    await onRunnerJobLeaseExpired(payload);
+
+    expect(signalMock).toHaveBeenCalledWith('job-lease-expired', {
+      jobExecutionId: payload.jobExecutionId,
+      cause: 'provider_lost',
+    });
+  });
+
   it('routes a stale-attempt event only to the payload job workflow', async () => {
     const previousAttemptJobId = crypto.randomUUID();
     const payload = buildPayload({

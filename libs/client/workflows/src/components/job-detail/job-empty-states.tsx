@@ -212,6 +212,9 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
     case 'run_cancelled':
     case 'concurrency_superseded':
     case 'timed_out':
+    case 'lease_expired':
+    case 'provider_lost':
+    case 'lifecycle_violation':
     case 'runner_lost':
     case 'output_invalid':
     case 'step_failed':
@@ -231,6 +234,9 @@ function preStepFailureDescription(
   const runnerCopy = runner?.length ? ` Required runner labels: ${runner.join(', ')}.` : '';
 
   switch (reason) {
+    case 'lease_expired':
+    case 'provider_lost':
+    case 'lifecycle_violation':
     case 'runner_lost':
       return `The runner stopped responding before work began.${runnerCopy} Check runner availability before re-running the workflow.`;
     case 'timed_out':

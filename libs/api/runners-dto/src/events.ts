@@ -9,6 +9,14 @@ export const RUNNER_JOB_CLAIMED = 'runners.job.claimed' as const;
 const runnerProvisionerScopeSchema = z.enum(['installation', 'workspace']);
 const runnerLaunchKindSchema = z.enum(['demand', 'warm', 'manual']);
 
+export const runnerJobLossCauseSchema = z.enum([
+  'lease_expired',
+  'provider_lost',
+  'lifecycle_violation',
+  'runner_lost',
+]);
+export type RunnerJobLossCauseDto = z.infer<typeof runnerJobLossCauseSchema>;
+
 export const runnerJobLeaseExpiredEventSchema = z.object({
   workflowRunId: nonEmptyStringSchema,
   workflowRunAttemptId: nonEmptyStringSchema,
@@ -19,6 +27,9 @@ export const runnerJobLeaseExpiredEventSchema = z.object({
    * This is not the lease deadline.
    */
   expiredAt: isoDateTimeSchema.optional(),
+  // Optional so consumers can continue to consume events written before bounded
+  // runner-loss causes were published.
+  cause: runnerJobLossCauseSchema.optional(),
 });
 export type RunnerJobLeaseExpiredEvent = z.infer<typeof runnerJobLeaseExpiredEventSchema>;
 

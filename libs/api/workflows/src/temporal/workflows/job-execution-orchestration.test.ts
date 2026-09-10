@@ -294,13 +294,18 @@ describe('jobExecutionOrchestration', () => {
       dag: makeDag([]),
       jobResults: new Map(),
       signalLeaseExpired: true,
+      leaseExpiredCause: 'provider_lost',
       leaseExpiredStatus: 'failed',
     });
 
     const result = await executeJob({...defaultJobInput, jobId: 'job-le'});
 
     expect(result.status).toBe('failed');
-    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toHaveLength(1);
+    expect(callsNamed('resolveLeaseExpiredJobExecutionActivity')).toEqual([
+      expect.objectContaining({
+        params: expect.objectContaining({runnerLossCause: 'provider_lost'}),
+      }),
+    ]);
     expect(callsNamed('failJobExecutionAsTimedOutActivity')).toHaveLength(0);
   });
 

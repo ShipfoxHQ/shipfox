@@ -1,4 +1,5 @@
 import {resolve} from 'node:path';
+import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import {TestWorkflowEnvironment} from '@temporalio/testing';
 import {Worker} from '@temporalio/worker';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
@@ -43,6 +44,8 @@ export interface TestConfig {
   signalBoth?: boolean;
   /** Status resolveLeaseExpiredJobExecutionActivity returns (defaults to 'failed') */
   leaseExpiredStatus?: RuntimeCompletionStatus;
+  /** Cause carried by a runner lease-expired signal. */
+  leaseExpiredCause?: RunnerJobLossCauseDto;
   /** If set, resolveJobStatusFromJobExecutionsActivity throws with this message */
   resolveJobStatusError?: string;
   /** Scripted job activation decisions keyed by job id; defaults to start */
@@ -142,6 +145,13 @@ export function settleListenerCalls() {
     name: string;
     params: {jobExecutionId: string; status: 'failed' | 'cancelled'};
   }>;
+}
+
+function leaseExpiredSignalPayload(jobExecutionId: string) {
+  return {
+    jobExecutionId,
+    ...(cfg.leaseExpiredCause === undefined ? {} : {cause: cfg.leaseExpiredCause}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -325,13 +335,19 @@ function createMockActivities() {
       if (cfg.skipOutcomeSignal) return queued;
 
       if (cfg.signalLeaseExpired) {
-        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: params.jobExecutionId});
+        await handle.signal(
+          JOB_LEASE_EXPIRED_SIGNAL,
+          leaseExpiredSignalPayload(params.jobExecutionId),
+        );
         return queued;
       }
 
       if (cfg.signalBoth) {
         await handle.signal(JOB_FINISHED_SIGNAL, {status, jobExecutionId: params.jobExecutionId});
-        await handle.signal(JOB_LEASE_EXPIRED_SIGNAL, {jobExecutionId: params.jobExecutionId});
+        await handle.signal(
+          JOB_LEASE_EXPIRED_SIGNAL,
+          leaseExpiredSignalPayload(params.jobExecutionId),
+        );
         return queued;
       }
 
@@ -349,6 +365,7 @@ function createMockActivities() {
     resolveLeaseExpiredJobExecutionActivity: (params: {
       jobExecutionId: string;
       expectedVersion: number;
+      runnerLossCause?: RunnerJobLossCauseDto | undefined;
     }) => {
       calls.push({name: 'resolveLeaseExpiredJobExecutionActivity', params});
       return {status: cfg.leaseExpiredStatus ?? 'failed', executionVersion: nextVersion()};

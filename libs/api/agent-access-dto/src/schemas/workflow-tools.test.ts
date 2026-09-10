@@ -15,6 +15,7 @@ import {
   listWorkflowExecutionStepsResultSchema,
   listWorkflowJobExecutionsInputSchema,
   listWorkflowJobExecutionsResultJsonSchema,
+  listWorkflowJobExecutionsResultSchema,
   listWorkflowRunAttemptsInputSchema,
   listWorkflowRunAttemptsResultJsonSchema,
   listWorkflowRunJobsInputSchema,
@@ -87,6 +88,42 @@ describe('workflow agent-access schemas', () => {
     expect(getWorkflowJobResultJsonSchema.properties).toHaveProperty('selected_execution');
     expect(listWorkflowExecutionStepsResultJsonSchema.properties.steps).toBeDefined();
     expect(listWorkflowStepAttemptsResultJsonSchema.properties.attempts).toBeDefined();
+  });
+
+  test.each([
+    'lease_expired',
+    'provider_lost',
+    'lifecycle_violation',
+  ] as const)('accepts bounded runner-loss reason %s in job and execution results', (statusReason) => {
+    const result = jobResult();
+    const withReason = {
+      ...result,
+      job: {
+        ...result.job,
+        status_reason: statusReason,
+        default_execution: result.job.default_execution
+          ? {...result.job.default_execution, status_reason: statusReason}
+          : null,
+      },
+      selected_execution: {...result.selected_execution, status_reason: statusReason},
+    };
+
+    expect(getWorkflowJobResultSchema.safeParse(withReason).success).toBe(true);
+    expect(
+      listWorkflowJobExecutionsResultSchema.safeParse({
+        job_id: jobId,
+        executions: [{...executionResult(), status_reason: statusReason}],
+        next_cursor: null,
+        total: 1,
+      }).success,
+    ).toBe(true);
+    expect(
+      getWorkflowJobResultJsonSchema.properties.job.properties.status_reason.anyOf[0],
+    ).toMatchObject({enum: expect.arrayContaining([statusReason])});
+    expect(
+      listWorkflowJobExecutionsResultJsonSchema.properties.executions.items.properties.status_reason
+        .anyOf[0],
+    ).toMatchObject({enum: expect.arrayContaining([statusReason])});
   });
 
   test('rejects diagnostic and child collection fields from traversal results', () => {
