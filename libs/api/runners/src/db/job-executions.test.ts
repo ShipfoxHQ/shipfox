@@ -2021,6 +2021,26 @@ describe('detectAndExpireStuckJobs', () => {
     expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe(expectedCause);
   });
 
+  it('classifies a job-timeout authorization as a lifecycle violation', async () => {
+    const stale = await makeManagedStaleJob(null);
+    await db()
+      .update(providerRunners)
+      .set({terminationReason: 'job-timeout'})
+      .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+
+    await expireStuckJobExecutions({
+      thresholdSeconds: 1,
+      noFirstHeartbeatGraceSeconds: 1,
+      correlatedStaleOverride: true,
+    });
+
+    const outbox = await outboxForJobs([stale.jobId]);
+    expect(outbox).toHaveLength(1);
+    expect(runnerJobLeaseExpiredEventSchema.parse(outbox[0]?.payload).cause).toBe(
+      'lifecycle_violation',
+    );
+  });
+
   it('keeps terminal provider loss when cleanup authorization follows terminal state', async () => {
     const stale = await makeManagedStaleJob(null, {providerRunnerState: 'terminated'});
     await db()
