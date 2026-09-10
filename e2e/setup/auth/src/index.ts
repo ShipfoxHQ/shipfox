@@ -125,7 +125,6 @@ export async function requestAgentAccessConsent(
       grant_types: ['authorization_code'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
-      scope: 'read',
     },
     failOnStatusCode: false,
   });
@@ -147,7 +146,6 @@ export async function requestAgentAccessConsent(
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
     resource: `${options.publicOrigin}/mcp`,
-    scope: 'read',
     state,
   }).toString();
   const authorization = await options.request.get(authorizationUrl.toString(), {
