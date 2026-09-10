@@ -13,7 +13,6 @@ describe('agent access context', () => {
     const context = {
       userId: crypto.randomUUID(),
       workspaceId: crypto.randomUUID(),
-      scopes: ['read'] as const,
       credential: {
         kind: 'oauth_grant' as const,
         grantId: crypto.randomUUID(),

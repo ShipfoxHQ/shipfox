@@ -60,7 +60,6 @@ test('exposes the composed OAuth and agent-access contract through a real MCP cl
     expect(oauthProtectedResourceMetadataSchema.parse(await protectedResource.json())).toEqual({
       resource: `${publicOrigin}/mcp`,
       authorization_servers: [publicOrigin],
-      scopes_supported: ['read'],
     });
 
     const authorizationServer = await request.get(
@@ -116,7 +115,6 @@ test('exposes the composed OAuth and agent-access contract through a real MCP cl
         expect.objectContaining({
           client_name: 'Agent Access E2E Client',
           workspace_id: workspace.id,
-          scopes: ['read'],
         }),
       ]),
     );

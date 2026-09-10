@@ -5,7 +5,6 @@ import {
   normalizeOAuthPublicOrigin,
 } from '@shipfox/api-auth-context';
 import {
-  OAUTH_READ_SCOPE,
   type OAuthClientMetadataDocumentDto,
   type OAuthDynamicClientRegistrationRequestDto,
   oauthClientMetadataDocumentSchema,
@@ -38,7 +37,6 @@ export interface ValidatedOAuthClientMetadata {
   grantTypes: OAuthGrantType[];
   responseTypes: ['code'];
   tokenEndpointAuthMethod: 'none';
-  scope: typeof OAUTH_READ_SCOPE;
 }
 
 function hasByteLengthAtMost(value: string, maxBytes: number): boolean {
@@ -221,11 +219,6 @@ function validateResponseTypes(value: readonly 'code'[] | undefined): ['code'] {
   return ['code'];
 }
 
-function validateScope(value: string | undefined): typeof OAUTH_READ_SCOPE {
-  if (value !== undefined && value !== OAUTH_READ_SCOPE) rejectInvalidMetadata();
-  return OAUTH_READ_SCOPE;
-}
-
 function validateRedirectUris(redirectUris: readonly string[]): string[] {
   if (
     redirectUris.length === 0 ||
@@ -263,7 +256,6 @@ export function validateOAuthDynamicClientRegistration(
     grantTypes,
     responseTypes: validateResponseTypes(value.response_types),
     tokenEndpointAuthMethod: validateTokenEndpointAuthMethod(value.token_endpoint_auth_method),
-    scope: validateScope(value.scope),
   };
 }
 
@@ -284,7 +276,6 @@ export function validateOAuthClientMetadataDocument(
     grantTypes: validateGrantTypes(value.grant_types),
     responseTypes: validateResponseTypes(value.response_types),
     tokenEndpointAuthMethod: validateTokenEndpointAuthMethod(value.token_endpoint_auth_method),
-    scope: validateScope(value.scope),
   };
 }
 
@@ -299,7 +290,6 @@ export function metadataForAgentClient(client: AgentClient): ValidatedOAuthClien
     grantTypes: ['authorization_code'],
     responseTypes: ['code'],
     tokenEndpointAuthMethod: 'none',
-    scope: OAUTH_READ_SCOPE,
   };
 }
 

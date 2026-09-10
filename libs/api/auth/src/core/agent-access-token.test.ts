@@ -1,4 +1,6 @@
+import {AGENT_ACCESS_TOKEN_AUDIENCE} from '@shipfox/api-auth-dto';
 import {agentAccessTokenKey, userAccessTokenKey} from '@shipfox/node-auth-root-key';
+import {signHs256} from '@shipfox/node-jwt';
 import {issueAgentAccessToken, verifyAgentAccessToken} from './agent-access-token.js';
 import {signUserToken, verifyUserToken} from './jwt.js';
 
@@ -8,7 +10,6 @@ function claims() {
     workspaceId: crypto.randomUUID(),
     grantId: crypto.randomUUID(),
     clientId: 'client_123',
-    scopes: ['read' as const],
   };
 }
 
@@ -20,6 +21,19 @@ describe('agent-access-token', () => {
     const verified = await verifyAgentAccessToken(token);
 
     expect(verified).toMatchObject(input);
+  });
+
+  test('accepts legacy tokens that still carry the removed scopes claim', async () => {
+    const input = claims();
+    const token = await signHs256({
+      payload: {...input, scopes: ['read']},
+      secret: agentAccessTokenKey(),
+      expiresIn: '15m',
+      subject: input.sub,
+      audience: AGENT_ACCESS_TOKEN_AUDIENCE,
+    });
+
+    await expect(verifyAgentAccessToken(token)).resolves.toMatchObject(input);
   });
 
   test('does not cross-verify agent and session tokens', async () => {

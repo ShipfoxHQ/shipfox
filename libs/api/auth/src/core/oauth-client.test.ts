@@ -86,13 +86,11 @@ describe('OAuth client validation', () => {
       client_name: 'Desktop agent',
       redirect_uris: ['https://client.example/callback'],
       token_endpoint_auth_method: 'none',
-      scope: 'read',
     });
     expect(registration).toMatchObject({
       clientName: 'Desktop agent',
       responseTypes: ['code'],
       tokenEndpointAuthMethod: 'none',
-      scope: 'read',
     });
 
     expect(() =>

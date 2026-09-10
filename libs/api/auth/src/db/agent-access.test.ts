@@ -82,7 +82,6 @@ describe('agent-access db', () => {
       clientId: client.id,
       redirectUri: 'https://client.example/callback',
       resource: 'https://api.example/mcp',
-      scopes: ['read'],
       codeChallenge: 'challenge',
       state: null,
       expiresAt: new Date(Date.now() + 60_000),
@@ -116,7 +115,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     };
 
     const duplicateClient = await createAgentClient({
@@ -138,9 +136,9 @@ describe('agent-access db', () => {
       hashedToken: hashOpaqueToken(`refresh-${crypto.randomUUID()}`),
       expiresAt: new Date(Date.now() + 60_000),
     });
-    const second = await createAgentGrant({...params, scopes: ['read', 'write']});
+    const second = await createAgentGrant(params);
 
-    expect(second).toMatchObject({id: first.id, scopes: ['read', 'write']});
+    expect(second).toMatchObject({id: first.id});
     expect(
       await findActiveAgentRefreshTokenByHash({hashedToken: refreshToken.hashedToken}),
     ).toBeUndefined();
@@ -185,7 +183,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const refreshToken = await createAgentRefreshToken({
       grantId: grant.id,
@@ -235,7 +232,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const first = await createAgentRefreshToken({
       grantId: grant.id,
@@ -295,7 +291,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const predecessor = await createAgentRefreshToken({
       grantId: grant.id,
@@ -361,7 +356,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const predecessor = await createAgentRefreshToken({
       grantId: grant.id,
@@ -408,7 +402,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const refreshToken = await createAgentRefreshToken({
       grantId: grant.id,
@@ -454,7 +447,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const predecessor = await createAgentRefreshToken({
       grantId: grant.id,
@@ -502,7 +494,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     expect(await transitionAgentGrantsToTerminal()).toBeGreaterThanOrEqual(1);
     expect(await findAgentGrant({id: emptyGrant.id})).toMatchObject({
@@ -513,7 +504,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const code = await createAgentAuthorizationCode({
       grantId: grant.id,
@@ -558,7 +548,6 @@ describe('agent-access db', () => {
       clientId: client.id,
       redirectUri: 'https://client.example/callback',
       resource: 'https://api.example/mcp',
-      scopes: ['read'],
       codeChallenge: 'challenge',
       state: null,
       expiresAt: oneDayAgo,
@@ -567,7 +556,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const code = await createAgentAuthorizationCode({
       grantId: grant.id,
@@ -642,7 +630,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const refreshToken = await createAgentRefreshToken({
       grantId: grant.id,
@@ -693,7 +680,6 @@ describe('agent-access db', () => {
       clientId: client.id,
       redirectUri: 'https://client.example/callback',
       resource: 'https://api.example/mcp',
-      scopes: ['read'],
       codeChallenge: 'challenge',
       state: null,
       expiresAt: new Date(Date.now() + 60_000),
@@ -724,7 +710,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const refreshToken = await createAgentRefreshToken({
       grantId: grant.id,
@@ -772,13 +757,11 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: blockedClient.id,
-      scopes: ['read'],
     });
     const deletableGrant = await createAgentGrant({
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: deletableClient.id,
-      scopes: ['read'],
     });
     const retainedChild = await createAgentRefreshToken({
       grantId: blockedGrant.id,
@@ -811,7 +794,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const rawCode = `code-${crypto.randomUUID()}`;
     const code = await createAgentAuthorizationCode({
@@ -861,7 +843,6 @@ describe('agent-access db', () => {
         userId: user.id,
         workspaceId: crypto.randomUUID(),
         clientId: client.id,
-        scopes: ['read'],
       });
 
       let releaseHolder!: () => void;
@@ -929,7 +910,6 @@ describe('agent-access db', () => {
         userId: user.id,
         workspaceId: crypto.randomUUID(),
         clientId: client.id,
-        scopes: ['read'],
       });
       await db()
         .update(agentGrants)
@@ -977,7 +957,6 @@ describe('agent-access db', () => {
       clientId: client.id,
       redirectUri: 'https://client.example/callback',
       resource: 'https://api.example/mcp',
-      scopes: ['read'],
       codeChallenge: 'challenge',
       state: 'state',
       expiresAt: new Date(Date.now() - 1_000),
@@ -987,7 +966,6 @@ describe('agent-access db', () => {
       userId: user.id,
       workspaceId: crypto.randomUUID(),
       clientId: client.id,
-      scopes: ['read'],
     });
     const code = await createAgentAuthorizationCode({
       grantId: grant.id,

@@ -39,7 +39,6 @@ function agentAccessFlow(overrides?: {
           grant_types: ['authorization_code'],
           response_types: ['code'],
           token_endpoint_auth_method: 'none',
-          scope: 'read',
         },
       });
     }
@@ -62,7 +61,6 @@ function agentAccessFlow(overrides?: {
         token_type: 'Bearer',
         expires_in: 300,
         refresh_token: 'refresh-token',
-        scope: 'read',
       },
     });
   });
@@ -81,7 +79,6 @@ function agentAccessFlow(overrides?: {
       json: {
         request_id: agentAccessRequestId,
         client_name: overrides?.consentClientName ?? 'Test client',
-        scope: 'read',
         expires_at: '2026-09-05T12:00:00.000Z',
         redirect_uri_hostname: '127.0.0.1',
         client_identity_kind: 'self-registered',
@@ -219,7 +216,6 @@ describe('auth setup helper', () => {
           grant_types: ['authorization_code'],
           response_types: ['code'],
           token_endpoint_auth_method: 'none',
-          scope: 'read',
         },
       }),
     );
@@ -282,7 +278,6 @@ describe('auth setup helper', () => {
       token_type: 'Bearer',
       expires_in: 300,
       refresh_token: 'refresh-token',
-      scope: 'read',
     });
     expect(flow.post).toHaveBeenCalledTimes(3);
     expect(flow.get).toHaveBeenCalledTimes(2);

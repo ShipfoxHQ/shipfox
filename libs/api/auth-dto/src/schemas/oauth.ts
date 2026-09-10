@@ -4,12 +4,10 @@ import {agentAccessNameSchema} from './agent-access.js';
 const oauthUrlSchema = z.string().url().max(2048);
 const oauthClientNameSchema = agentAccessNameSchema;
 const oauthRedirectUriSchema = z.string().min(1).max(2048);
+// OAuth clients may send scope; agent access has no scopes, so it is bounded and ignored.
 const oauthScopeSchema = z.string().min(1).max(256);
 const oauthGrantTypeSchema = z.enum(['authorization_code', 'refresh_token']);
 const oauthResponseTypeSchema = z.literal('code');
-
-/** The only scope exposed by the MCP read-only profile. */
-export const OAUTH_READ_SCOPE = 'read' as const;
 
 /** The canonical resource path exposed by the MCP read-only profile. */
 export const OAUTH_MCP_RESOURCE_PATH = '/mcp' as const;
@@ -19,7 +17,6 @@ export const oauthProtectedResourceMetadataSchema = z
   .object({
     resource: oauthUrlSchema,
     authorization_servers: z.array(oauthUrlSchema).min(1),
-    scopes_supported: z.array(z.literal(OAUTH_READ_SCOPE)).min(1),
   })
   .strict();
 
@@ -38,7 +35,6 @@ export const oauthAuthorizationServerMetadataSchema = z
     grant_types_supported: z.array(oauthGrantTypeSchema).min(1),
     code_challenge_methods_supported: z.array(z.literal('S256')).min(1),
     token_endpoint_auth_methods_supported: z.array(z.literal('none')).min(1),
-    scopes_supported: z.array(z.literal(OAUTH_READ_SCOPE)).min(1),
     client_id_metadata_document_supported: z.literal(true),
   })
   .strict();
@@ -74,7 +70,6 @@ export const oauthDynamicClientRegistrationResponseSchema = z
     grant_types: z.array(oauthGrantTypeSchema).min(1).max(2),
     response_types: z.array(oauthResponseTypeSchema).min(1).max(1),
     token_endpoint_auth_method: z.literal('none'),
-    scope: z.literal(OAUTH_READ_SCOPE),
   })
   .strict();
 
@@ -164,7 +159,6 @@ const oauthConsentWorkspaceSchema = z
 const oauthConsentResponseBaseShape = {
   request_id: z.string().uuid(),
   client_name: oauthClientNameSchema,
-  scope: z.literal(OAUTH_READ_SCOPE),
   expires_at: z.string().datetime(),
   redirect_uri_hostname: z.string().min(1).max(253),
   is_loopback_redirect: z.boolean(),
@@ -226,7 +220,6 @@ export const oauthTokenResponseSchema = z
     token_type: z.literal('Bearer'),
     expires_in: z.number().int().positive(),
     refresh_token: z.string().min(1).optional(),
-    scope: z.literal(OAUTH_READ_SCOPE),
   })
   .strict();
 

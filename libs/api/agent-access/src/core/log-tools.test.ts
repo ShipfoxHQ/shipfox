@@ -28,7 +28,6 @@ const executionId = uuid(6);
 const context: AgentAccessContext = {
   userId: uuid(7),
   workspaceId,
-  scopes: ['read'],
   credential: {kind: 'oauth_grant', grantId: uuid(8), clientId: 'client'},
 };
 

@@ -34,7 +34,6 @@ const isoDate = '2026-08-01T00:00:00.000Z';
 const context: AgentAccessContext = {
   userId: uuid(8),
   workspaceId,
-  scopes: ['read'],
   credential: {kind: 'oauth_grant', grantId: uuid(9), clientId: 'client-1'},
 };
 

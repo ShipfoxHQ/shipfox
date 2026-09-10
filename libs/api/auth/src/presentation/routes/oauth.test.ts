@@ -35,7 +35,6 @@ describe('OAuth route factories', () => {
     expect(resource.json()).toEqual({
       resource: 'https://api.example.test/mcp',
       authorization_servers: ['https://api.example.test'],
-      scopes_supported: ['read'],
     });
 
     const server = await app.inject({
@@ -52,7 +51,6 @@ describe('OAuth route factories', () => {
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
-      scopes_supported: ['read'],
       client_id_metadata_document_supported: true,
     });
   });
@@ -84,7 +82,6 @@ describe('OAuth route factories', () => {
       grant_types: ['authorization_code'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
-      scope: 'read',
     });
   });
 

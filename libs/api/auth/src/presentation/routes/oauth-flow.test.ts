@@ -115,7 +115,6 @@ function authorizationUrl(clientId: string, challenge: string, state = 'client-s
     code_challenge: challenge,
     code_challenge_method: 'S256',
     resource: RESOURCE,
-    scope: 'read',
     state,
   }).toString();
   return url.pathname + url.search;
@@ -213,7 +212,6 @@ describe('dormant OAuth authorization and token routes', () => {
     expect(detail.json()).toMatchObject({
       request_id: requestId,
       client_name: 'Desktop agent',
-      scope: 'read',
       redirect_uri_hostname: 'client.example',
       client_identity_kind: 'self-registered',
       client_identity_origin: null,
@@ -242,7 +240,6 @@ describe('dormant OAuth authorization and token routes', () => {
           redirect_uri: REDIRECT_URI,
           code_verifier: verifier,
           resource: RESOURCE,
-          scope: 'read',
         },
         '198.51.100.240',
       ),
@@ -251,7 +248,6 @@ describe('dormant OAuth authorization and token routes', () => {
     expect(token.json()).toMatchObject({
       token_type: 'Bearer',
       expires_in: 900,
-      scope: 'read',
       access_token: expect.any(String),
       refresh_token: expect.any(String),
     });
@@ -261,7 +257,6 @@ describe('dormant OAuth authorization and token routes', () => {
       sub: account.userId,
       workspaceId,
       clientId: client.clientId,
-      scopes: ['read'],
     });
 
     const replay = await app.inject(
@@ -543,16 +538,6 @@ describe('dormant OAuth authorization and token routes', () => {
     expect(targetCallback.searchParams.get('error')).toBe('invalid_target');
     expect(targetCallback.searchParams.get('state')).toBe('client-state');
 
-    const invalidScope = await app.inject({
-      method: 'GET',
-      url: authorizationUrl(client.clientId, challenge).replace('scope=read', 'scope=write'),
-      headers: {'x-forwarded-for': '198.51.100.248'},
-    });
-    expect(invalidScope.statusCode).toBe(302);
-    const scopeCallback = new URL(invalidScope.headers.location ?? '');
-    expect(scopeCallback.searchParams.get('error')).toBe('invalid_scope');
-    expect(scopeCallback.searchParams.get('state')).toBe('client-state');
-
     const invalidRedirect = await app.inject({
       method: 'GET',
       url: authorizationUrl(client.clientId, challenge).replace(
@@ -571,25 +556,6 @@ describe('dormant OAuth authorization and token routes', () => {
     });
     expect(emptyState.statusCode).toBe(400);
     expect(emptyState.json()).toEqual({error: 'invalid_request'});
-
-    const unsupportedTokenScope = await app.inject(
-      tokenForm(
-        {
-          grant_type: 'authorization_code',
-          client_id: client.clientId,
-          code: 'not-a-real-code',
-          redirect_uri: REDIRECT_URI,
-          code_verifier: 'a'.repeat(43),
-          scope: 'write',
-        },
-        '198.51.100.251',
-      ),
-    );
-    expect(unsupportedTokenScope.statusCode).toBe(400);
-    expect(unsupportedTokenScope.json()).toEqual({
-      error: 'invalid_scope',
-      error_description: 'The requested OAuth scope is not supported',
-    });
   });
 
   it.each([

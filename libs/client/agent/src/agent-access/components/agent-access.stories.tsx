@@ -207,7 +207,6 @@ function consentDto({
   return {
     request_id: REQUEST_ID,
     client_name: 'Claude Desktop',
-    scope: 'read',
     expires_at: '2026-09-02T12:30:00.000Z',
     redirect_uri_hostname: '127.0.0.1',
     client_identity_kind: selfRegistered ? 'self-registered' : 'cimd',
@@ -225,7 +224,6 @@ function grantDto() {
     id: CREDENTIAL_ID,
     client_name: 'Claude Desktop',
     workspace_id: WORKSPACE_ID,
-    scopes: ['read'],
     created_at: '2026-08-20T10:00:00.000Z',
     last_refreshed_at: '2026-09-02T10:00:00.000Z',
   };

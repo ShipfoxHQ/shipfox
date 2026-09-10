@@ -18,7 +18,6 @@ export interface AgentAuthorizationRequest {
   userId: string | null;
   redirectUri: string;
   resource: string;
-  scopes: string[];
   codeChallenge: string;
   state: string | null;
   expiresAt: Date;
@@ -32,7 +31,6 @@ export interface AgentGrant {
   userId: string;
   workspaceId: string;
   clientId: string;
-  scopes: string[];
   lastUsedAt: Date | null;
   revokedAt: Date | null;
   terminalAt: Date | null;

@@ -12,7 +12,6 @@ function consentDetail(clientId: string): OAuthConsentDetail {
       userId: '22222222-2222-4222-8222-222222222222',
       redirectUri: 'https://client.example/callback',
       resource: 'https://api.example.test/mcp',
-      scopes: ['read'],
       codeChallenge: 'challenge',
       state: 'state',
       expiresAt: NOW,

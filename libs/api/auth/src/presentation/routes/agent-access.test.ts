@@ -56,13 +56,11 @@ describe('agent access management routes', () => {
       userId: owner.id,
       workspaceId: ownerWorkspaceId,
       clientId: ownerClient.id,
-      scopes: ['read'],
     });
     const otherGrant = await createAgentGrant({
       userId: other.id,
       workspaceId: otherWorkspaceId,
       clientId: otherClient.id,
-      scopes: ['read'],
     });
     const refreshToken = await createAgentRefreshToken({
       grantId: ownerGrant.id,
@@ -85,7 +83,6 @@ describe('agent access management routes', () => {
             id: ownerGrant.id,
             client_name: 'Owner client',
             workspace_id: ownerWorkspaceId,
-            scopes: ['read'],
             last_refreshed_at: null,
           }),
         ],
@@ -127,7 +124,6 @@ describe('agent access management routes', () => {
         userId: owner.id,
         workspaceId: crypto.randomUUID(),
         clientId: ownerClient.id,
-        scopes: ['read'],
       });
       await db()
         .update(agentGrants)

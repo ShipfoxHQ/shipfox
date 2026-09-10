@@ -21,7 +21,6 @@ export async function issueAgentAccessToken(claims: IssueAgentAccessTokenParams)
       workspaceId: claims.workspaceId,
       grantId: claims.grantId,
       clientId: claims.clientId,
-      scopes: claims.scopes,
     },
     secret: agentAccessTokenKey(),
     expiresIn: AGENT_ACCESS_TOKEN_EXPIRES_IN,
