@@ -42,6 +42,23 @@ describe('agent-log-download-token', () => {
     await expect(verifyAgentLogDownloadToken(token)).resolves.toBeNull();
   });
 
+  test('rejects an expired download token', async () => {
+    const token = await signHs256({
+      payload: {
+        workspaceId: claims.workspaceId,
+        grantId: claims.grantId,
+        clientId: claims.clientId,
+        streamId: claims.streamId,
+      },
+      secret: agentAccessTokenKey(),
+      expiresIn: '-1s',
+      subject: claims.sub,
+      audience: AGENT_LOG_DOWNLOAD_TOKEN_AUDIENCE,
+    });
+
+    await expect(verifyAgentLogDownloadToken(token)).resolves.toBeNull();
+  });
+
   test('rejects a download token as agent access', async () => {
     const token = await signHs256({
       payload: {

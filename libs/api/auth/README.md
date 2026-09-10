@@ -289,6 +289,9 @@ with the user, workspace, grant, and stream identity.
   revocation blocks refresh immediately; an issued access token remains valid
   until it expires. This bounded revocation window is accepted to keep MCP
   request authentication stateless.
+- **Log-download token:** lasts five minutes, re-checks grant authority on every
+  request, and returns `auth-dependency-unavailable` (`503`) when Auth or
+  Workspaces is unavailable.
 - **Tool-call rate limit:** each API instance applies a process-local fixed
   window of 60 calls per credential per minute. Rejections increment the
   bounded `agent_access_tool_calls` metric with outcome `rate-limited`.

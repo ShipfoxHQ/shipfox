@@ -6,9 +6,12 @@ import {
 } from '@shipfox/api-auth-context';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {createApp, defineRoute, type FastifyInstance} from '@shipfox/node-fastify';
+import {eq} from 'drizzle-orm';
 import {issueAgentAccessToken} from '#core/agent-access-token.js';
 import {mintAgentLogDownloadToken} from '#core/agent-log-download-token.js';
 import {createAgentClient, createAgentGrant} from '#db/agent-access.js';
+import {db} from '#db/db.js';
+import {agentGrants} from '#db/schema/agent-access.js';
 import {userFactory} from '#test/index.js';
 import {createAgentAccessAuthMethod} from './agent-access-auth.js';
 import {createAgentLogDownloadAuthMethod} from './agent-log-download-auth.js';
@@ -62,6 +65,7 @@ async function createCredential(outage = false) {
   });
   return {
     token: minted.token,
+    grantId: grant.id,
     workspaces: createWorkspaces({userId: user.id, workspaceId, outage}),
   };
 }
@@ -107,6 +111,28 @@ describe('agent log download auth method', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual(expect.objectContaining({streamId: expect.any(String)}));
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('rejects a credential after its grant is revoked', async () => {
+    const credential = await createCredential();
+    await db()
+      .update(agentGrants)
+      .set({revokedAt: new Date()})
+      .where(eq(agentGrants.id, credential.grantId));
+    const app = await openApp(credential.workspaces);
+
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/step-log-downloads/current',
+        headers: {authorization: `Bearer ${credential.token}`},
+      });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toEqual({code: 'unauthorized'});
     } finally {
       await app.close();
     }

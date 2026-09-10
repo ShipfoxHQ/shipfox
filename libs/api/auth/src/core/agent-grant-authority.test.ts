@@ -17,6 +17,7 @@ function workspaceClient(params: {
   userId: string;
   status?: 'active' | 'suspended' | 'deleted';
   hasMembership?: boolean;
+  resolveWithoutMembership?: boolean;
   outage?: boolean;
 }): WorkspacesInterModuleClient {
   const memberships =
@@ -36,7 +37,7 @@ function workspaceClient(params: {
         : Promise.resolve({memberships}),
     requireActiveMembership: () => {
       if (params.outage) return Promise.reject(new Error('workspaces unavailable'));
-      if (params.hasMembership === false) {
+      if (params.hasMembership === false && !params.resolveWithoutMembership) {
         return Promise.reject(
           createInterModuleKnownError(
             workspacesInterModuleContract.methods.requireActiveMembership,
@@ -135,11 +136,56 @@ describe('agent grant authority', () => {
         userId: user.id,
         status,
         hasMembership: reason !== 'membership-revoked',
+        resolveWithoutMembership: reason === 'membership-revoked',
       }),
     }).catch((error: unknown) => error);
 
     expect(result).toBeInstanceOf(AgentGrantAuthorityRevokedError);
     expect(result).toMatchObject({reason});
+  });
+
+  test('rejects a grant with a mismatched user binding', async () => {
+    const {user, workspaceId, grant} = await activeGrant();
+    const result = await checkAgentGrantAuthority({
+      grantId: grant.id,
+      userId: crypto.randomUUID(),
+      workspaceId,
+      workspaces: workspaceClient({workspaceId, userId: user.id}),
+    }).catch((error: unknown) => error);
+
+    expect(result).toBeInstanceOf(AgentGrantAuthorityRevokedError);
+    expect(result).toMatchObject({reason: 'grant-revoked'});
+  });
+
+  test('rejects a grant with a mismatched workspace binding', async () => {
+    const {user, workspaceId, grant} = await activeGrant();
+    const result = await checkAgentGrantAuthority({
+      grantId: grant.id,
+      userId: user.id,
+      workspaceId: crypto.randomUUID(),
+      workspaces: workspaceClient({workspaceId, userId: user.id}),
+    }).catch((error: unknown) => error);
+
+    expect(result).toBeInstanceOf(AgentGrantAuthorityRevokedError);
+    expect(result).toMatchObject({reason: 'grant-revoked'});
+  });
+
+  test('rejects an active grant with a terminal timestamp', async () => {
+    const {user, workspaceId, grant} = await activeGrant();
+    await db()
+      .update(agentGrants)
+      .set({terminalAt: new Date()})
+      .where(eq(agentGrants.id, grant.id));
+
+    const result = await checkAgentGrantAuthority({
+      grantId: grant.id,
+      userId: user.id,
+      workspaceId,
+      workspaces: workspaceClient({workspaceId, userId: user.id}),
+    }).catch((error: unknown) => error);
+
+    expect(result).toBeInstanceOf(AgentGrantAuthorityRevokedError);
+    expect(result).toMatchObject({reason: 'grant-revoked'});
   });
 
   test('surfaces a workspaces outage as a dependency failure', async () => {
