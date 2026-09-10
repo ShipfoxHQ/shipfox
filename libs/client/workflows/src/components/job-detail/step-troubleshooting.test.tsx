@@ -621,7 +621,7 @@ describe('StepInspectorSheet', () => {
     expect(await screen.findByText('Gate attempt limit reached')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The step failed after 3 attempts and reached the configured limit of 3 attempts, including the first execution. Review the failed result. To allow more attempts, update gate.on_failure.max_attempts and start a new run.',
+        'The step failed after 3 attempts and reached the gate attempt limit of 3 attempts, including the first execution. Review the failed result. To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.',
       ),
     ).toBeInTheDocument();
   });
@@ -643,7 +643,7 @@ describe('StepInspectorSheet', () => {
     expect(await screen.findByText('Gate attempt limit reached')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The success condition did not pass after 5 attempts and reached the configured limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, update gate.on_failure.max_attempts and start a new run.',
+        'The success condition did not pass after 5 attempts and reached the gate attempt limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.',
       ),
     ).toBeInTheDocument();
   });
@@ -663,7 +663,7 @@ describe('StepInspectorSheet', () => {
 
     expect(
       await screen.findByText(
-        'The success condition did not pass after 5 attempts and reached the configured limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, update gate.on_failure.max_attempts and start a new run.',
+        'The success condition did not pass after 5 attempts and reached the gate attempt limit of 5 attempts, including the first execution. Review the failed result and gate.success condition. To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.',
       ),
     ).toBeInTheDocument();
   });

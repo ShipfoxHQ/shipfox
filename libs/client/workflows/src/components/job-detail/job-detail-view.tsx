@@ -625,11 +625,10 @@ function useSelectedJobDetailPresentation({
       ],
     ]);
   }, [attemptsResourceIsNewer, attemptsStep?.attempts.items, attemptsStepId, loadedAttempts]);
-  const presentedAttemptPageTotal = attemptsQuery.data?.pages.find(
-    (page) => page.total !== undefined,
-  )?.total;
-  const presentedAttemptTotal =
-    typeof presentedAttemptPageTotal === 'number' ? presentedAttemptPageTotal : undefined;
+  const presentedAttemptTotal = attemptsQuery.data?.pages.reduce<number | undefined>(
+    (total, page) => (typeof page.total === 'number' ? Math.max(total ?? 0, page.total) : total),
+    undefined,
+  );
   const presentedAttemptTotalsByStepId = useMemo(
     () =>
       attemptsStepId === undefined || presentedAttemptTotal === undefined

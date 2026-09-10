@@ -967,11 +967,11 @@ function restartExhaustionDescription(
   const limitCopy =
     maxAttempts === undefined
       ? 'and reached the gate attempt limit.'
-      : `and reached the configured limit of ${maxAttempts} ${maxAttempts === 1 ? 'attempt' : 'attempts'}, including the first execution.`;
+      : `and reached the gate attempt limit of ${maxAttempts} ${maxAttempts === 1 ? 'attempt' : 'attempts'}, including the first execution.`;
   const recovery = hasNoSuccessGateDiagnostic
     ? 'Review the failed result.'
     : 'Review the failed result and gate.success condition.';
-  return `${countCopy} ${limitCopy} ${recovery} To allow more attempts, update gate.on_failure.max_attempts and start a new run.`;
+  return `${countCopy} ${limitCopy} ${recovery} To allow more attempts, set gate.on_failure.max_attempts to a higher value and start a new run.`;
 }
 
 function failureDescription(

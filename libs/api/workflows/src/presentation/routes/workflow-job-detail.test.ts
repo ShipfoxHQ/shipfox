@@ -107,6 +107,7 @@ describe('selected workflow job routes', () => {
     expect(body.selected_execution.steps.items[0].attempts.total).toBe(2);
     expect(body.selected_execution).not.toHaveProperty('runner');
     expect(body.selected_execution.steps.items[0]).not.toHaveProperty('config');
+    expect(body.selected_execution.steps.items[0]).not.toHaveProperty('gate_max_attempts');
   });
 
   test('returns the configured gate attempt limit without exposing step config', async () => {

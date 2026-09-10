@@ -287,6 +287,26 @@ describe('buildStepListModel', () => {
     expect(result.entries.map((entry) => entry.attemptOrdinal)).toEqual([3, 4]);
   });
 
+  test('preserves stored attempt numbers for a non-gate step after rewinds', () => {
+    const job = makeJob({
+      steps: [
+        makeStep({
+          attempts: [
+            makeAttempt({attempt: 4, execution_order: 1}),
+            makeAttempt({attempt: 7, execution_order: 2}),
+          ],
+        }),
+      ],
+    });
+    const step = job.jobExecutions[0]?.steps[0];
+    if (!step) throw new Error('Expected a step fixture');
+    step.attemptTotal = undefined;
+
+    const result = buildStepListModel({job});
+
+    expect(result.entries.map((entry) => entry.attemptOrdinal)).toEqual([4, 7]);
+  });
+
   test('orders flattened attempts by backend execution order', () => {
     const step1 = makeStep({
       name: 'step-1',
