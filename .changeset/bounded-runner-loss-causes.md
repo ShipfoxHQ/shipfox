@@ -8,4 +8,4 @@
 "@shipfox/api-logs": patch
 ---
 
-Persist and publish bounded runner-loss causes across runner, workflow, agent-access, client, and log APIs, including an additive lease-expiry event cause and a runner_lost fallback when provider state is unavailable.
+Publish lease_expired, provider_lost, and lifecycle_violation as job execution status reasons; add the optional cause field and RunnerJobLossCauseDto/runnerJobLossCauseSchema to the lease-expired event, with runner_lost fallback when provider state is unavailable.
