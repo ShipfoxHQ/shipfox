@@ -11,7 +11,13 @@ import {
 import {renderComposedShell} from '#test/render.js';
 import {defineRoute} from './define-route.js';
 
-const reference: UsagePricingReference = {kind: 'run', id: 'run-1'};
+const WORKSPACE_ID = 'workspace-a';
+const OTHER_WORKSPACE_ID = 'workspace-b';
+const reference: UsagePricingReference = {
+  workspaceId: WORKSPACE_ID,
+  kind: 'run',
+  id: 'run-1',
+};
 
 function PricingProbe() {
   const pricing = useUsagePricing();
@@ -78,50 +84,75 @@ describe('ClientUsagePricing', () => {
 
   test('keeps model and upstream references distinct', () => {
     const first = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model-a',
       upstream: 'upstream-a',
     });
     const second = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model-b',
       upstream: 'upstream-a',
     });
 
-    expect(first).toBe('step-attempt:attempt-1:["model-a","upstream-a"]');
+    expect(first).toBe('workspace-a:step-attempt:attempt-1:["model-a","upstream-a"]');
     expect(second).not.toBe(first);
   });
 
   test('encodes partial and colon-containing model identity without collisions', () => {
-    const aggregate = usagePricingReferenceKey({kind: 'step-attempt', id: 'attempt-1'});
+    const aggregate = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
+      kind: 'step-attempt',
+      id: 'attempt-1',
+    });
     const modelOnly = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model-a',
     });
     const upstreamOnly = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       upstream: 'model-a',
     });
     const firstColonValue = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model:a',
       upstream: 'upstream',
     });
     const secondColonValue = usagePricingReferenceKey({
+      workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model',
       upstream: 'a:upstream',
     });
 
-    expect(aggregate).toBe('step-attempt:attempt-1');
+    expect(aggregate).toBe('workspace-a:step-attempt:attempt-1');
     expect(modelOnly).not.toBe(upstreamOnly);
     expect(firstColonValue).not.toBe(secondColonValue);
+  });
+
+  test('fences every reference kind by workspace identity', () => {
+    const references: UsagePricingReference[] = [
+      {workspaceId: WORKSPACE_ID, kind: 'run', id: 'same-id'},
+      {workspaceId: WORKSPACE_ID, kind: 'job-execution', id: 'same-id'},
+      {workspaceId: WORKSPACE_ID, kind: 'step-attempt', id: 'same-id'},
+    ];
+
+    expect(new Set(references.map(usagePricingReferenceKey)).size).toBe(3);
+    const firstReference = references[0];
+    if (!firstReference) throw new Error('Expected a pricing reference');
+    expect(usagePricingReferenceKey({...firstReference, workspaceId: OTHER_WORKSPACE_ID})).not.toBe(
+      usagePricingReferenceKey(firstReference),
+    );
   });
 
   test('preserves a pricing disclosure through the safe provider', async () => {

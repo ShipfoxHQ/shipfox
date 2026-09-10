@@ -85,25 +85,21 @@ export function usagePricingCostFromResolution(
   reference: UsagePricingReference,
 ): UsagePricingCost | undefined {
   const key = usagePricingReferenceKey(reference);
-  const baseKey = `${reference.kind}:${reference.id}`;
   let candidate: UsagePricingCost | null | undefined;
   if (Array.isArray(resolution)) {
     candidate = resolution.find(
       (item) =>
+        item.workspaceId === reference.workspaceId &&
         item.kind === reference.kind &&
         item.id === reference.id &&
         item.model === reference.model &&
         item.upstream === reference.upstream,
     );
   } else if (isMapLike(resolution)) {
-    candidate = hasModelIdentity(reference)
-      ? resolution.get(key)
-      : (resolution.get(key) ?? resolution.get(baseKey) ?? resolution.get(reference.id));
+    candidate = resolution.get(key);
   } else {
     const record = resolution as Readonly<Record<string, UsagePricingCost | null | undefined>>;
-    candidate = hasModelIdentity(reference)
-      ? record[key]
-      : (record[key] ?? record[baseKey] ?? record[reference.id]);
+    candidate = record[key];
   }
 
   return validUsagePricingCost(candidate) ? candidate : undefined;
@@ -217,6 +213,7 @@ async function estimateUsageCost(
 function usageCostRequestSignature(inputs: readonly UsageCostRequest[]): string {
   return JSON.stringify(
     inputs.map(({reference, quantities, compute, models}) => [
+      reference.workspaceId,
       reference.kind,
       reference.id,
       reference.model ?? null,
@@ -295,10 +292,6 @@ function uniqueReferences(references: readonly UsagePricingReference[]): UsagePr
     seen.add(key);
     return true;
   });
-}
-
-function hasModelIdentity(reference: UsagePricingReference): boolean {
-  return reference.model !== undefined || reference.upstream !== undefined;
 }
 
 function isMapLike(

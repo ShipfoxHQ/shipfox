@@ -1,4 +1,4 @@
-import {useUsagePricing} from '@shipfox/client-shell/runtime';
+import {usagePricingReferenceKey, useUsagePricing} from '@shipfox/client-shell/runtime';
 import {type ReactNode, useMemo} from 'react';
 import {
   groupUsageByModel,
@@ -51,12 +51,14 @@ function useRunCost(runId: string, usage: RunUsage | undefined) {
   const completeDuration =
     Boolean(usage?.jobExecutions.length) &&
     usage?.jobExecutions.every((job) => job.durationSeconds !== null);
+  const workspaceId =
+    usage?.jobExecutions[0]?.workspaceId ?? usage?.inferenceSegments[0]?.workspaceId;
   const pricingInputs = useMemo(
     () =>
-      summary && usage
+      summary && usage && workspaceId
         ? [
             {
-              reference: {kind: 'run' as const, id: runId},
+              reference: {workspaceId, kind: 'run' as const, id: runId},
               ...(completeDuration
                 ? {
                     quantities: usageQuantitiesFromTotals(summary.totals, summary.computeSeconds),
@@ -78,8 +80,10 @@ function useRunCost(runId: string, usage: RunUsage | undefined) {
             },
           ]
         : [],
-    [runId, summary, usage, completeDuration],
+    [runId, summary, usage, completeDuration, workspaceId],
   );
   const costs = useUsageCosts(pricingInputs);
-  return costs.get(`run:${runId}`);
+  return workspaceId
+    ? costs.get(usagePricingReferenceKey({workspaceId, kind: 'run', id: runId}))
+    : undefined;
 }

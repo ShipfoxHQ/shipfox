@@ -7,7 +7,11 @@ import type {
   WorkflowRunOverviewResponseDto,
 } from '@shipfox/api-workflows-dto';
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
-import {type ClientUsagePricing, ClientUsagePricingProvider} from '@shipfox/client-shell/runtime';
+import {
+  type ClientUsagePricing,
+  ClientUsagePricingProvider,
+  usagePricingReferenceKey,
+} from '@shipfox/client-shell/runtime';
 import {
   type RunUsage,
   type UsageInferenceSegment,
@@ -305,7 +309,7 @@ const usagePricing: ClientUsagePricing = {
   resolveCosts: (references) =>
     new Map(
       references.map((reference) => [
-        `${reference.kind}:${reference.id}`,
+        usagePricingReferenceKey(reference),
         {
           amount: usagePricingAmount(reference.kind),
           state: 'resolved' as const,

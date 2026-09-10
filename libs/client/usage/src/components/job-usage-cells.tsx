@@ -1,4 +1,4 @@
-import {useUsagePricing} from '@shipfox/client-shell/runtime';
+import {usagePricingReferenceKey, useUsagePricing} from '@shipfox/client-shell/runtime';
 import {useMemo} from 'react';
 import {
   groupUsageByModel,
@@ -70,7 +70,11 @@ function useJobCost(usage: JobExecutionUsage | undefined) {
     const totals = usageTokenTotalsForSegments(usage.inferenceSegments);
     return [
       {
-        reference: {kind: 'job-execution' as const, id: jobExecution.jobExecutionId},
+        reference: {
+          workspaceId: jobExecution.workspaceId,
+          kind: 'job-execution' as const,
+          id: jobExecution.jobExecutionId,
+        },
         ...(jobExecution.durationSeconds === null
           ? {}
           : {
@@ -97,6 +101,14 @@ function useJobCost(usage: JobExecutionUsage | undefined) {
   const costs = useUsageCosts(pricingInputs);
   return {
     runUsage,
-    cost: usage ? costs.get(`job-execution:${usage.jobExecution.jobExecutionId}`) : undefined,
+    cost: usage
+      ? costs.get(
+          usagePricingReferenceKey({
+            workspaceId: usage.jobExecution.workspaceId,
+            kind: 'job-execution',
+            id: usage.jobExecution.jobExecutionId,
+          }),
+        )
+      : undefined,
   };
 }
