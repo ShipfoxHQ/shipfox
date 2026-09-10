@@ -30,7 +30,7 @@ suspension. Those jobs continue through execution.
 | Scheduled workflow run | Triggers cron worker and `fireCronSubscription` | Workflows | The same `startRunFromTrigger` presentation |
 | Integration webhook to a workflow trigger | The enabled integration provider receives the webhook; Integrations publishes `INTEGRATION_EVENT_RECEIVED`; Triggers runs `dispatchIntegrationEvent` | Workflows | The same `startRunFromTrigger` presentation |
 | Integration webhook to a listening job | Integrations and Triggers route the event through `routeEventToJobListeners`; Workflows buffers and materializes the listener execution in `deliverEventToListener` | Workflows | `createWorkflowsInterModulePresentation.deliverEventToJobListener`, before materialization for `fire` deliveries; `resolve` deliveries intentionally bypass the gate |
-| User-requested rerun | Workflows route `POST /workflows/runs/:id/rerun` calls `createRerunWorkflowRun` | Workflows | `rerunRunRoute`, before `createRerunWorkflowRun` persists the new attempt graph |
+| User-requested rerun | Workflows route `POST /workflows/runs/:id/rerun` or the `rerunWorkflowRun` inter-module command | Workflows | Shared `rerunWorkflowRun` core action in `core/run-actions.ts`, before `createRerunWorkflowRun` persists the new attempt graph |
 
 The webhook intake family currently includes the generic webhook, GitHub,
 Gitea, Linear, Sentry, and Slack provider route groups. They validate and
@@ -49,8 +49,8 @@ queued and running jobs can finish normally.
 
 - `resolve` deliveries are exempt from the gate because they terminate existing
   listener work and do not materialize a new job execution.
-- Reruns are gated in `rerunRunRoute`, immediately before
-  `createRerunWorkflowRun` persists the new attempt graph.
+- Session and inter-module reruns share the `rerunWorkflowRun` core admission
+  gate before `createRerunWorkflowRun` persists the new attempt graph.
 - Already queued or running work is not rechecked after a workspace changes
   status.
 - Admission failures are permanent. Triggers records and skips the event
