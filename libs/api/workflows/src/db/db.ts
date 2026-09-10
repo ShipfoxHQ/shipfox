@@ -8,6 +8,7 @@ import {workflowsOutbox} from './schema/outbox.js';
 import {stepAttempts} from './schema/step-attempts.js';
 import {steps} from './schema/steps.js';
 import {toolInvocations} from './schema/tool-invocations.js';
+import {workflowConcurrencyClaims} from './schema/workflow-concurrency-claims.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {workflowRunCounters} from './schema/workflow-run-counters.js';
 import {workflowRuns} from './schema/workflow-runs.js';
@@ -24,6 +25,7 @@ export const schema = {
   stepAttempts,
   toolInvocations,
   workflowsOutbox,
+  workflowConcurrencyClaims,
 };
 
 let _db: NodePgDatabase<typeof schema> | undefined;
