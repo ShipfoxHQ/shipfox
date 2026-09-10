@@ -416,6 +416,7 @@ describe('defaultModules', () => {
     await defaultModules();
 
     expect(mocks.createAgentAccessModule).toHaveBeenCalledWith({
+      auth: expect.any(Object),
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
       definitions: expect.any(Object),

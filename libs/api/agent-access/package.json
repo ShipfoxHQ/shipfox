@@ -43,6 +43,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/api-agent-access-dto": "workspace:*",
+    "@shipfox/api-auth-dto": "workspace:*",
     "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",

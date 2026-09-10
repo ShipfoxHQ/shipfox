@@ -2,8 +2,31 @@ import {z} from 'zod';
 
 export const AGENT_ACCESS_ERROR_CODE_MAX_LENGTH = 128;
 export const AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH = 2048;
+export const AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES = 4 * 1024;
+export const AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_LENGTH = 1024;
 
 const agentAccessErrorCodeSchema = z.string().min(1).max(AGENT_ACCESS_ERROR_CODE_MAX_LENGTH);
+const agentAccessErrorDetailsSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((details, context) => {
+    const serialized = JSON.stringify(details);
+    if (serialized === undefined) {
+      context.addIssue({code: 'custom', message: 'Details must be JSON serializable'});
+      return;
+    }
+    if (new TextEncoder().encode(serialized).byteLength > AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES) {
+      context.addIssue({code: 'custom', message: 'Details exceed the serialized size limit'});
+    }
+    for (const [path, value] of detailEntries(details)) {
+      if (typeof value === 'string' && value.length > AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_LENGTH) {
+        context.addIssue({
+          code: 'custom',
+          path: [path],
+          message: 'Detail strings exceed the length limit',
+        });
+      }
+    }
+  });
 
 /** A bounded error payload shared by every agent-access tool. */
 export const agentAccessErrorSchema = z
@@ -11,8 +34,25 @@ export const agentAccessErrorSchema = z
     code: agentAccessErrorCodeSchema,
     message: z.string().max(AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH).optional(),
     retry_after_seconds: z.number().int().min(1).optional(),
+    details: agentAccessErrorDetailsSchema.optional(),
   })
   .strict();
+
+function* detailEntries(
+  value: unknown,
+  path = 'details',
+): Generator<[string, unknown], void, undefined> {
+  if (typeof value === 'string') {
+    yield [path, value];
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) yield* detailEntries(item, `${path}.${index}`);
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+  for (const [key, item] of Object.entries(value)) yield* detailEntries(item, `${path}.${key}`);
+}
 
 export type AgentAccessErrorDto = z.infer<typeof agentAccessErrorSchema>;
 
@@ -81,6 +121,11 @@ const agentAccessEnvelopeProperties = {
       code: {type: 'string', minLength: 1, maxLength: AGENT_ACCESS_ERROR_CODE_MAX_LENGTH},
       message: {type: 'string', maxLength: AGENT_ACCESS_ERROR_MESSAGE_MAX_LENGTH},
       retry_after_seconds: {type: 'integer', minimum: 1},
+      details: {
+        type: 'object',
+        additionalProperties: true,
+        description: `Serialized details are limited to ${AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES} bytes; strings are limited to ${AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_LENGTH} characters.`,
+      },
     },
     required: ['code'],
     additionalProperties: false,

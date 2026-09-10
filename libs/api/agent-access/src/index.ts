@@ -39,9 +39,14 @@ export {
   truncateAgentAccessUtf8,
 } from '#core/response.js';
 export {
+  type AgentAccessActionAudit,
+  type AgentAccessActionAuditFactory,
+  type AgentAccessActionAuditParams,
+  type AgentAccessAuthorityOutcome,
   type AgentAccessTool,
   type AgentAccessToolCall,
   type AgentAccessToolMap,
+  createAgentAccessFixtureActionTool,
   createAgentAccessFixtureTool,
   createAgentAccessToolMap,
 } from '#core/tools.js';
@@ -50,6 +55,7 @@ export {
   type AgentAccessAuthFailureReason,
   type AgentAccessToolCallOutcome,
   recordAgentAccessAuthFailure,
+  recordAgentAccessAuthorityCheck,
   recordAgentAccessToolCall,
 } from '#metrics/index.js';
 export {

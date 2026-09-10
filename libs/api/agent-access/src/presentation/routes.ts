@@ -7,6 +7,7 @@ import {
   normalizeOAuthPublicOrigin,
   requireAgentAccessContext,
 } from '@shipfox/api-auth-context';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
@@ -24,7 +25,11 @@ import {
   type RoutePreHandler,
 } from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
-import {AGENT_ACCESS_MCP_PATH, AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH} from '#constants.js';
+import {
+  AGENT_ACCESS_ACTION_CALL_LIMIT,
+  AGENT_ACCESS_MCP_PATH,
+  AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH,
+} from '#constants.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
@@ -40,6 +45,8 @@ export interface CreateAgentAccessRoutesOptions {
   protectedResourceMetadataUrl?: string | undefined;
   tools?: readonly AgentAccessTool[] | undefined;
   rateLimiter?: AgentAccessRateLimiter | undefined;
+  actionRateLimiter?: AgentAccessRateLimiter | undefined;
+  auth?: AuthInterModuleClient | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
   isOriginAllowed?: ((origin: string | undefined) => boolean) | undefined;
   projects?: ProjectsModuleClient | undefined;
@@ -53,6 +60,9 @@ export interface CreateAgentAccessRoutesOptions {
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
   const tools = options.tools ?? toolsFromProducerClients(options);
   const rateLimiter = options.rateLimiter ?? createAgentAccessRateLimiter();
+  const actionRateLimiter =
+    options.actionRateLimiter ??
+    createAgentAccessRateLimiter({limit: AGENT_ACCESS_ACTION_CALL_LIMIT});
   const recordCall = options.recordCall ?? createAgentAccessToolCallRecorder();
   const originMatcher = options.isOriginAllowed ?? createAllowedOriginMatcher();
   const errorHandler = createAgentAccessErrorHandler(resourceMetadataUrl(options));
@@ -83,7 +93,14 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
         errorHandler,
         handler: async (request, reply) => {
           const context = requireAgentAccessContext(request);
-          const server = buildAgentAccessMcpServer({context, tools, rateLimiter, recordCall});
+          const server = buildAgentAccessMcpServer({
+            context,
+            tools,
+            rateLimiter,
+            actionRateLimiter,
+            auth: options.auth,
+            recordCall,
+          });
           // No sessionIdGenerator selects the SDK's stateless transport mode.
           const transport = new StreamableHTTPServerTransport();
           let connected = false;

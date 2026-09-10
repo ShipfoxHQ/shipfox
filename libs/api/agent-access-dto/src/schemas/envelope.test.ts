@@ -17,6 +17,30 @@ describe('agent access envelope', () => {
     ).toBe(true);
   });
 
+  test('accepts bounded structured error details', () => {
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'attempt-mismatch', details: {current_attempt: 3, status: 'running'}},
+      }).success,
+    ).toBe(true);
+  });
+
+  test('bounds serialized details and nested strings', () => {
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'tool-failed', details: {message: 'x'.repeat(1025)}},
+      }).success,
+    ).toBe(false);
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'tool-failed', details: {message: 'x'.repeat(4090)}},
+      }).success,
+    ).toBe(false);
+  });
+
   test('rejects mixed success and error payloads', () => {
     expect(
       agentAccessEnvelopeSchema.safeParse({ok: true, result: {}, error: {code: 'bad'}}).success,

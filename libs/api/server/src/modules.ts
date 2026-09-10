@@ -309,6 +309,7 @@ export async function defaultModules(
           workspaces: workspacesClient,
         }),
     createAgentAccessModule({
+      auth: authClient,
       annotations: annotationsClient,
       apiPublicUrl: authConfig.API_PUBLIC_URL,
       definitions: definitionsClient,

@@ -7,14 +7,19 @@ import {
   agentAccessEnvelopeSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
+import {
+  type AuthInterModuleClient,
+  authInterModuleContract,
+} from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
+import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {agentAccessSuccess} from '#core/envelope.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
-import {createAgentAccessFixtureTool} from '#core/tools.js';
+import {createAgentAccessFixtureActionTool, createAgentAccessFixtureTool} from '#core/tools.js';
 import {AGENT_ACCESS_PACKAGE_VERSION} from '#version.js';
 import {buildAgentAccessMcpServer} from './mcp-server.js';
 
@@ -239,6 +244,162 @@ describe('buildAgentAccessMcpServer', () => {
     expect(agentAccessEnvelopeSchema.safeParse(result.structuredContent).success).toBe(true);
   });
 
+  test('passes action annotations through and keeps the dormant action out of defaults', async () => {
+    const auth = {checkAgentGrantAuthority: vi.fn().mockResolvedValue({ok: true})};
+    const {client, close} = await connectClient(
+      undefined,
+      [createAgentAccessFixtureTool(), createAgentAccessFixtureActionTool()],
+      undefined,
+      auth as unknown as AuthInterModuleClient,
+    );
+
+    const tools = await client.listTools();
+    await close();
+
+    expect(tools.tools.find((tool) => tool.name === 'agent_access_fixture')?.annotations).toEqual({
+      readOnlyHint: true,
+    });
+    expect(
+      tools.tools.find((tool) => tool.name === 'agent_access_action_fixture')?.annotations,
+    ).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    });
+  });
+
+  test('validates, limits, checks authority, then calls an action producer', async () => {
+    const events: string[] = [];
+    const auth = {
+      checkAgentGrantAuthority: vi.fn(() => {
+        events.push('authority');
+        return {ok: true as const};
+      }),
+    };
+    const action = createAgentAccessFixtureActionTool(events);
+    const recordCall = vi.fn();
+    const {client, close} = await connectClient(
+      undefined,
+      [action],
+      recordCall,
+      auth as unknown as AuthInterModuleClient,
+    );
+
+    const result = await client.callTool(
+      {name: 'agent_access_action_fixture', arguments: {value: 'run'}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(result.structuredContent).toEqual({ok: true, result: {value: 'run'}});
+    expect(events).toEqual(['validateInput', 'authority', 'producer']);
+    expect(auth.checkAgentGrantAuthority).toHaveBeenCalledWith({
+      grantId: 'grant-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    });
+    expect(recordCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({
+          kind: 'fixture',
+          authority_outcome: 'ok',
+        }),
+      }),
+    );
+  });
+
+  test('runs the action window after validation and before authority, without affecting reads', async () => {
+    const events: string[] = [];
+    const auth = {checkAgentGrantAuthority: vi.fn().mockResolvedValue({ok: true})};
+    const action = createAgentAccessFixtureActionTool(events);
+    const {client, close} = await connectClient(
+      undefined,
+      [action, createAgentAccessFixtureTool()],
+      undefined,
+      auth as unknown as AuthInterModuleClient,
+      createAgentAccessRateLimiter({limit: 1, now: () => 1_000}),
+    );
+
+    await client.callTool(
+      {name: 'agent_access_action_fixture', arguments: {value: 'first'}},
+      CallToolResultSchema,
+    );
+    const limited = await client.callTool(
+      {name: 'agent_access_action_fixture', arguments: {value: 'second'}},
+      CallToolResultSchema,
+    );
+    const read = await client.callTool(
+      {name: 'agent_access_fixture', arguments: {message: 'read'}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(limited.structuredContent).toEqual({
+      ok: false,
+      error: {code: 'rate-limited', retry_after_seconds: 60},
+    });
+    expect(read.structuredContent).toEqual({ok: true, result: {message: 'read'}});
+    expect(events).toEqual(['validateInput', 'producer', 'validateInput']);
+    expect(auth.checkAgentGrantAuthority).toHaveBeenCalledTimes(1);
+  });
+
+  test('maps authority revocation and keeps dependency failures as tool-failed', async () => {
+    const revokedAuth = {
+      checkAgentGrantAuthority: vi
+        .fn()
+        .mockRejectedValue(
+          createInterModuleKnownError(
+            authInterModuleContract.methods.checkAgentGrantAuthority,
+            'authority-revoked',
+            {reason: 'membership-revoked'},
+          ),
+        ),
+    };
+    const revokedProducer = vi.fn();
+    const revokedTool = {
+      ...createAgentAccessFixtureActionTool(),
+      execute: revokedProducer,
+    };
+    const revokedConnection = await connectClient(
+      undefined,
+      [revokedTool],
+      undefined,
+      revokedAuth as unknown as AuthInterModuleClient,
+    );
+    const revoked = await revokedConnection.client.callTool(
+      {name: 'agent_access_action_fixture', arguments: {value: 'blocked'}},
+      CallToolResultSchema,
+    );
+    await revokedConnection.close();
+
+    expect(revoked.structuredContent).toEqual({
+      ok: false,
+      error: {
+        code: 'authority-revoked',
+        message: 'Agent grant authority was revoked: membership-revoked',
+      },
+    });
+    expect(revokedProducer).not.toHaveBeenCalled();
+
+    const outageAuth = {
+      checkAgentGrantAuthority: vi.fn().mockRejectedValue(new Error('workspaces unavailable')),
+    };
+    const outageConnection = await connectClient(
+      undefined,
+      [createAgentAccessFixtureActionTool()],
+      undefined,
+      outageAuth as unknown as AuthInterModuleClient,
+    );
+    const outage = await outageConnection.client.callTool(
+      {name: 'agent_access_action_fixture', arguments: {value: 'blocked'}},
+      CallToolResultSchema,
+    );
+    await outageConnection.close();
+
+    expect(outage.structuredContent).toEqual({ok: false, error: {code: 'tool-failed'}});
+  });
+
   test('does not count tool discovery against the credential window', async () => {
     const limiter = createAgentAccessRateLimiter({limit: 1, now: () => 1_000});
     const {client, close} = await connectClient(limiter);
@@ -259,11 +420,15 @@ async function connectClient(
   rateLimiter = createAgentAccessRateLimiter(),
   tools = [createAgentAccessFixtureTool()],
   recordCall?: Parameters<typeof buildAgentAccessMcpServer>[0]['recordCall'],
+  auth?: AuthInterModuleClient,
+  actionRateLimiter = createAgentAccessRateLimiter({limit: 10}),
 ): Promise<{client: Client; close: () => Promise<void>}> {
   const server = buildAgentAccessMcpServer({
     context,
     tools,
     rateLimiter,
+    actionRateLimiter,
+    auth,
     recordCall,
   });
   const client = new Client({name: 'test-client', version: '0.0.0'});

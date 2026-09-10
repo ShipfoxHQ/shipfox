@@ -1,4 +1,5 @@
 import {instanceMetrics} from '@shipfox/node-opentelemetry';
+import type {AgentAccessAuthorityOutcome} from '#core/tools.js';
 
 const meter = instanceMetrics.getMeter('agent-access');
 
@@ -30,6 +31,12 @@ const authFailureCount = meter.createCounter<{
   description: 'agent-access authentication rejections on this instance',
 });
 
+const authorityCheckCount = meter.createCounter<{
+  outcome: Exclude<AgentAccessAuthorityOutcome, 'not-checked'>;
+}>('agent_access_authority_checks', {
+  description: 'Agent-access action authority checks by outcome on this instance',
+});
+
 const logSectionUnavailableCount = meter.createCounter<{
   reason: AgentAccessLogSectionUnavailableReason;
 }>('agent_access_log_sections_unavailable', {
@@ -52,6 +59,16 @@ export function recordAgentAccessAuthFailure(reason: AgentAccessAuthFailureReaso
     authFailureCount.add(1, {reason});
   } catch {
     // Metrics must not affect HTTP authentication responses.
+  }
+}
+
+export function recordAgentAccessAuthorityCheck(
+  outcome: Exclude<AgentAccessAuthorityOutcome, 'not-checked'>,
+): void {
+  try {
+    authorityCheckCount.add(1, {outcome});
+  } catch {
+    // Metrics must not affect MCP responses.
   }
 }
 

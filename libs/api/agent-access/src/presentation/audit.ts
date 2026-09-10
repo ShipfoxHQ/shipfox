@@ -1,5 +1,6 @@
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {AgentAccessActionAudit} from '#core/tools.js';
 import {type AgentAccessToolCallOutcome, recordAgentAccessToolCall} from '#metrics/index.js';
 
 export interface AgentAccessToolCallAuditRecord {
@@ -7,6 +8,7 @@ export interface AgentAccessToolCallAuditRecord {
   outcome: AgentAccessToolCallOutcome;
   errorCode: string;
   context: AgentAccessContext;
+  action?: AgentAccessActionAudit | undefined;
 }
 
 export type AgentAccessToolCallRecorder = (record: AgentAccessToolCallAuditRecord) => void;
@@ -41,5 +43,6 @@ function auditLogContext(record: AgentAccessToolCallAuditRecord): Record<string,
     credentialKind: credential.kind,
     credentialId: credential.grantId,
     clientId: credential.clientId,
+    ...(record.action === undefined ? {} : {action: record.action}),
   };
 }

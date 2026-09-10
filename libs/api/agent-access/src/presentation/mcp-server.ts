@@ -6,19 +6,30 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import {agentAccessEnvelopeSchema} from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
+import {
+  type AuthInterModuleClient,
+  authInterModuleContract,
+} from '@shipfox/api-auth-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
-import {AGENT_ACCESS_MCP_INSTRUCTIONS, AGENT_ACCESS_MCP_SERVER_NAME} from '#constants.js';
+import {
+  AGENT_ACCESS_ACTION_CALL_LIMIT,
+  AGENT_ACCESS_MCP_INSTRUCTIONS,
+  AGENT_ACCESS_MCP_SERVER_NAME,
+} from '#constants.js';
 import {agentAccessError, serializeAgentAccessEnvelope} from '#core/envelope.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {fitAgentAccessResponseToCeiling} from '#core/response.js';
 import {
+  type AgentAccessActionAudit,
+  type AgentAccessAuthorityOutcome,
   type AgentAccessTool,
   type AgentAccessToolMap,
   createAgentAccessFixtureTool,
   createAgentAccessToolMap,
 } from '#core/tools.js';
-import type {AgentAccessToolCallOutcome} from '#metrics/index.js';
+import {type AgentAccessToolCallOutcome, recordAgentAccessAuthorityCheck} from '#metrics/index.js';
 import {AGENT_ACCESS_PACKAGE_VERSION} from '#version.js';
 import {type AgentAccessToolCallRecorder, createAgentAccessToolCallRecorder} from './audit.js';
 
@@ -26,6 +37,8 @@ export interface BuildAgentAccessMcpServerParams {
   context: AgentAccessContext;
   tools?: readonly AgentAccessTool[] | undefined;
   rateLimiter?: AgentAccessRateLimiter | undefined;
+  actionRateLimiter?: AgentAccessRateLimiter | undefined;
+  auth?: AuthInterModuleClient | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
 }
 
@@ -34,6 +47,9 @@ const defaultTools = (): readonly AgentAccessTool[] => [createAgentAccessFixture
 export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParams): Server {
   const tools = createAgentAccessToolMap(params.tools ?? defaultTools());
   const rateLimiter = params.rateLimiter ?? createAgentAccessRateLimiter();
+  const actionRateLimiter =
+    params.actionRateLimiter ??
+    createAgentAccessRateLimiter({limit: AGENT_ACCESS_ACTION_CALL_LIMIT});
   const recordCall = params.recordCall ?? createAgentAccessToolCallRecorder();
   const server = new Server(
     {name: AGENT_ACCESS_MCP_SERVER_NAME, version: AGENT_ACCESS_PACKAGE_VERSION},
@@ -57,7 +73,7 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
         properties?: Record<string, object> | undefined;
         required?: string[] | undefined;
       },
-      annotations: {readOnlyHint: true},
+      annotations: tool.annotations,
     })),
   }));
 
@@ -68,6 +84,8 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
       context: params.context,
       tools,
       rateLimiter,
+      actionRateLimiter,
+      auth: params.auth,
       recordCall,
     }),
   );
@@ -81,6 +99,8 @@ interface HandleAgentAccessToolCallParams {
   context: AgentAccessContext;
   tools: AgentAccessToolMap;
   rateLimiter: AgentAccessRateLimiter;
+  actionRateLimiter: AgentAccessRateLimiter;
+  auth: AuthInterModuleClient | undefined;
   recordCall: AgentAccessToolCallRecorder;
 }
 
@@ -114,6 +134,8 @@ async function handleAgentAccessToolCall(
     tool,
     input,
     context: params.context,
+    actionRateLimiter: params.actionRateLimiter,
+    auth: params.auth,
     recordCall: params.recordCall,
   });
 }
@@ -122,62 +144,182 @@ async function executeAgentAccessTool(params: {
   tool: AgentAccessTool;
   input: Record<string, unknown>;
   context: AgentAccessContext;
+  actionRateLimiter: AgentAccessRateLimiter;
+  auth: AuthInterModuleClient | undefined;
   recordCall: AgentAccessToolCallRecorder;
 }): Promise<CallToolResult> {
+  const isAction = params.tool.annotations.readOnlyHint === false;
+  let authorityOutcome: AgentAccessAuthorityOutcome = isAction ? 'not-checked' : 'ok';
+
   try {
     if (params.tool.validateInput?.(params.input) === false) {
-      recordToolCall(params.recordCall, {
-        tool: params.tool.name,
-        outcome: 'invalid-request',
-        errorCode: 'invalid-request',
-        context: params.context,
-      });
-      return toolResult(agentAccessError('invalid-request'), true);
+      return invalidToolInputResult(params, authorityOutcome);
+    }
+
+    if (isAction) {
+      const admission = await admitActionCall(params);
+      if (admission.kind === 'rate-limited') {
+        return actionRateLimitedResult(params, admission.retryAfterSeconds, authorityOutcome);
+      }
+      authorityOutcome = admission.authorityOutcome;
+      if (authorityOutcome !== 'ok') {
+        return recordEnvelopeResult(
+          params,
+          agentAccessError('authority-revoked', {
+            message: `Agent grant authority was revoked: ${authorityOutcome}`,
+          }),
+          authorityOutcome,
+        );
+      }
     }
 
     const response = await params.tool.execute({context: params.context, arguments: params.input});
     const envelope = agentAccessEnvelopeSchema.safeParse(response);
     if (!envelope.success) {
-      recordToolCall(params.recordCall, {
-        tool: params.tool.name,
-        outcome: 'exception',
-        errorCode: 'invalid-tool-response',
-        context: params.context,
-      });
-      return toolResult(agentAccessError('invalid-tool-response'), true);
+      return recordEnvelopeResult(
+        params,
+        agentAccessError('invalid-tool-response'),
+        authorityOutcome,
+        'exception',
+        'invalid-tool-response',
+      );
     }
 
     if (envelope.data.ok && params.tool.validateResult?.(envelope.data.result) === false) {
-      recordToolCall(params.recordCall, {
-        tool: params.tool.name,
-        outcome: 'exception',
-        errorCode: 'invalid-tool-response',
-        context: params.context,
-      });
-      return toolResult(agentAccessError('invalid-tool-response'), true);
+      return recordEnvelopeResult(
+        params,
+        agentAccessError('invalid-tool-response'),
+        authorityOutcome,
+        'exception',
+        'invalid-tool-response',
+      );
     }
 
-    const boundedEnvelope = fitAgentAccessResponseToCeiling(envelope.data);
-    const outcome: AgentAccessToolCallOutcome = boundedEnvelope.ok ? 'success' : 'tool-error';
-    const result = toolResult(boundedEnvelope, !boundedEnvelope.ok);
-    recordToolCall(params.recordCall, {
-      tool: params.tool.name,
-      outcome,
-      errorCode: boundedEnvelope.ok ? 'none' : (boundedEnvelope.error?.code ?? 'unknown'),
-      context: params.context,
-    });
-    return result;
+    return recordEnvelopeResult(
+      params,
+      fitAgentAccessResponseToCeiling(envelope.data),
+      authorityOutcome,
+    );
   } catch (error) {
     recordToolCall(params.recordCall, {
       tool: params.tool.name,
       outcome: 'exception',
       errorCode: 'unknown',
       context: params.context,
+      action: actionAudit(params.tool, params.input, undefined, authorityOutcome),
     });
     logger().error({err: error, tool: params.tool.name}, 'Agent-access tool execution failed');
     reportError(error, {boundary: 'agent-access.mcp', operation: 'tool-call'});
     return toolResult(agentAccessError('tool-failed'), true);
   }
+}
+
+type ActionAdmission =
+  | {kind: 'rate-limited'; retryAfterSeconds: number | undefined}
+  | {kind: 'authority'; authorityOutcome: AgentAccessAuthorityOutcome};
+
+async function admitActionCall(
+  params: Parameters<typeof executeAgentAccessTool>[0],
+): Promise<ActionAdmission> {
+  const rateLimit = params.actionRateLimiter.consume(params.context.credential);
+  if (!rateLimit.allowed) {
+    return {kind: 'rate-limited', retryAfterSeconds: rateLimit.retry_after_seconds};
+  }
+  if (params.auth === undefined) throw new Error('Agent-access auth client is not configured');
+
+  try {
+    await params.auth.checkAgentGrantAuthority({
+      grantId: params.context.credential.grantId,
+      userId: params.context.userId,
+      workspaceId: params.context.workspaceId,
+    });
+    recordAgentAccessAuthorityCheck('ok');
+    return {kind: 'authority', authorityOutcome: 'ok'};
+  } catch (error) {
+    const reason = authorityRevocationReason(error);
+    if (reason === undefined) throw error;
+    recordAgentAccessAuthorityCheck(reason);
+    return {kind: 'authority', authorityOutcome: reason};
+  }
+}
+
+function invalidToolInputResult(
+  params: Parameters<typeof executeAgentAccessTool>[0],
+  authorityOutcome: AgentAccessAuthorityOutcome,
+): CallToolResult {
+  return recordEnvelopeResult(
+    params,
+    agentAccessError('invalid-request'),
+    authorityOutcome,
+    'invalid-request',
+    'invalid-request',
+  );
+}
+
+function actionRateLimitedResult(
+  params: Parameters<typeof executeAgentAccessTool>[0],
+  retryAfterSeconds: number | undefined,
+  authorityOutcome: AgentAccessAuthorityOutcome,
+): CallToolResult {
+  return recordEnvelopeResult(
+    params,
+    agentAccessError('rate-limited', retryAfterSeconds === undefined ? {} : {retryAfterSeconds}),
+    authorityOutcome,
+    'rate-limited',
+    'rate-limited',
+  );
+}
+
+function recordEnvelopeResult(
+  params: Parameters<typeof executeAgentAccessTool>[0],
+  envelope: ReturnType<typeof agentAccessError>,
+  authorityOutcome: AgentAccessAuthorityOutcome,
+  outcome?: AgentAccessToolCallOutcome,
+  errorCode?: string,
+): CallToolResult {
+  const boundedEnvelope = fitAgentAccessResponseToCeiling(envelope);
+  recordToolCall(params.recordCall, {
+    tool: params.tool.name,
+    outcome: outcome ?? (boundedEnvelope.ok ? 'success' : 'tool-error'),
+    errorCode:
+      errorCode ?? (boundedEnvelope.ok ? 'none' : (boundedEnvelope.error?.code ?? 'unknown')),
+    context: params.context,
+    action: actionAudit(params.tool, params.input, boundedEnvelope, authorityOutcome),
+  });
+  return toolResult(boundedEnvelope, !boundedEnvelope.ok);
+}
+
+function actionAudit(
+  tool: AgentAccessTool,
+  input: Record<string, unknown>,
+  result: ReturnType<typeof agentAccessError> | undefined,
+  authorityOutcome: AgentAccessAuthorityOutcome,
+): AgentAccessActionAudit | undefined {
+  if (tool.annotations.readOnlyHint !== false) return undefined;
+  try {
+    return {
+      ...(tool.actionAudit?.({input, result, authorityOutcome}) ?? {
+        kind: tool.name,
+        inputs_supplied: Object.keys(input).length > 0,
+      }),
+      authority_outcome: authorityOutcome,
+    };
+  } catch {
+    return {
+      kind: tool.name,
+      inputs_supplied: Object.keys(input).length > 0,
+      authority_outcome: authorityOutcome,
+    };
+  }
+}
+
+function authorityRevocationReason(
+  error: unknown,
+): Exclude<AgentAccessAuthorityOutcome, 'ok' | 'not-checked'> | undefined {
+  if (!isInterModuleKnownError(authInterModuleContract.methods.checkAgentGrantAuthority, error)) {
+    return undefined;
+  }
+  return error.code === 'authority-revoked' ? error.details.reason : undefined;
 }
 
 function unknownToolResult(params: HandleAgentAccessToolCallParams): CallToolResult {
