@@ -4,4 +4,4 @@
 '@shipfox/api-workflows': patch
 ---
 
-Expose missing renewable inference capability as a bounded runtime credential error.
+Expose missing renewable inference capability as a declared, bounded runtime credential error.

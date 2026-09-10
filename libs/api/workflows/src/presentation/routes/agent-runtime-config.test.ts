@@ -1,3 +1,4 @@
+import {RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} from '@shipfox/api-agent-dto';
 import {
   type AgentInterModuleClient,
   agentInterModuleContract,
@@ -408,7 +409,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     resolveRuntimeCredentials.mockRejectedValueOnce(
       createInterModuleKnownError(
         agentInterModuleContract.methods.resolveRuntimeCredentials,
-        'runner-capability-required',
+        RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
         {},
       ),
     );
@@ -421,7 +422,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual({code: 'runner-capability-required'});
+    expect(res.json()).toEqual({code: RUNNER_CAPABILITY_REQUIRED_ERROR_CODE});
   });
 
   test('returns managed provider policy details when workspace providers are disabled', async () => {

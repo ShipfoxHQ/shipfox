@@ -1,4 +1,7 @@
-import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
+import {
+  type ManagedModelProvider,
+  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+} from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {setDefaultHarness} from '#db/index.js';
@@ -145,7 +148,7 @@ describe('agent inter-module presentation', () => {
       defaultModel: 'managed-model',
       resolveCredentials: vi.fn(() => {
         throw Object.assign(new Error('runner capability required'), {
-          code: 'runner-capability-required',
+          code: RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
         });
       }),
     };
@@ -178,7 +181,7 @@ describe('agent inter-module presentation', () => {
     ) {
       throw new Error('Expected a runner capability known error');
     }
-    expect(result.code).toBe('runner-capability-required');
+    expect(result.code).toBe(RUNNER_CAPABILITY_REQUIRED_ERROR_CODE);
     expect(result.details).toEqual({});
   });
 });

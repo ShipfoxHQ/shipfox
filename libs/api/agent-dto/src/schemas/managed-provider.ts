@@ -30,6 +30,9 @@ export const managedProviderJobIdentitySchema = z.object({
 
 export type ManagedProviderJobIdentity = z.infer<typeof managedProviderJobIdentitySchema>;
 
+/** Stable provider error code for a runner that cannot use renewable inference credentials. */
+export const RUNNER_CAPABILITY_REQUIRED_ERROR_CODE = 'runner-capability-required';
+
 export const managedModelMetadataSchema = customAgentModelSchema
   .omit({
     id: true,
@@ -113,6 +116,12 @@ export interface ManagedModelProvider {
   readonly models: readonly ManagedModelEntry[];
   readonly defaultModel: string;
   readonly defaultThinking?: AgentThinking | undefined;
+  /**
+   * Resolves credentials for one leased step attempt.
+   *
+   * Reject with an `Error` carrying `RUNNER_CAPABILITY_REQUIRED_ERROR_CODE` when renewable
+   * credentials require runner support that the claim-time capability snapshot does not provide.
+   */
   readonly resolveCredentials: (params: {
     workspaceId: string;
     runId: string;

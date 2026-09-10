@@ -1,4 +1,8 @@
-import type {ManagedModelProvider, WorkspaceProvidersPolicy} from '@shipfox/api-agent-dto';
+import {
+  type ManagedModelProvider,
+  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+  type WorkspaceProvidersPolicy,
+} from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {secretsInterModuleContract} from '@shipfox/api-secrets-dto/inter-module';
 import {
@@ -134,7 +138,7 @@ function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {
   if (isRunnerCapabilityRequiredError(error)) {
     return createInterModuleKnownError(
       agentInterModuleContract.methods.resolveRuntimeCredentials,
-      'runner-capability-required',
+      RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
       {},
     );
   }
@@ -167,9 +171,13 @@ function toResolveRuntimeCredentialsKnownError(error: unknown): unknown {
 
 function isRunnerCapabilityRequiredError(
   error: unknown,
-): error is Error & {readonly code: 'runner-capability-required'} {
+): error is Error & {readonly code: typeof RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} {
   // Managed providers are extension points, so identify this contract error by its stable code.
-  return error instanceof Error && 'code' in error && error.code === 'runner-capability-required';
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
+  );
 }
 
 function toClaimSessionKnownError(error: unknown): unknown {
