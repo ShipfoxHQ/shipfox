@@ -1,7 +1,12 @@
 import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
 import {and, asc, eq, inArray, sql} from 'drizzle-orm';
 import {isWorkflowRunTerminal, type WorkflowRun} from '#core/entities/workflow-run.js';
-import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
+import {
+  NoFailedJobsError,
+  RunNotTerminalError,
+  SourceRunNotFoundError,
+  WorkflowRunAttemptMismatchError,
+} from '#core/errors.js';
 import {restoreAgentSessionIntentForRedispatch} from '#core/step-config/agent.js';
 import {deriveJobExecutionRunner} from '#core/workflow-run-creation.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
@@ -18,6 +23,16 @@ export interface CreateRerunWorkflowRunParams {
   workflowRunId: string;
   mode: 'all' | 'failed';
   actorUserId: string;
+  expectedAttempt?: number | undefined;
+}
+
+function assertExpectedAttempt(
+  params: CreateRerunWorkflowRunParams,
+  sourceRow: typeof workflowRuns.$inferSelect,
+): void {
+  if (params.expectedAttempt !== undefined && sourceRow.currentAttempt !== params.expectedAttempt) {
+    throw new WorkflowRunAttemptMismatchError(sourceRow.id, sourceRow.currentAttempt);
+  }
 }
 
 function rerunSessionCarryOver(
@@ -36,6 +51,7 @@ export async function createRerunWorkflowRun(
 
     const sourceRow = await lockWorkflowRun(workflowRunId, tx);
     if (!sourceRow) throw new SourceRunNotFoundError(workflowRunId);
+    assertExpectedAttempt(params, sourceRow);
 
     const [sourceAttemptRow] = await tx
       .select()

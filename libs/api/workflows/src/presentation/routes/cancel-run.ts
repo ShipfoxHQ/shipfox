@@ -3,7 +3,7 @@ import {workflowRunDtoSchema} from '@shipfox/api-workflows-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {WorkflowRunNotCancellableError, WorkflowRunNotFoundError} from '#core/errors.js';
-import {cancelWorkflowRun} from '#db/index.js';
+import {cancelWorkflowRun} from '#core/run-actions.js';
 import {toRunDto} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
@@ -33,7 +33,10 @@ export function cancelRunRoute(projects: ProjectsModuleClient) {
       const {id} = request.params;
       const run = await requireAccessibleRun({request, id, projects});
 
-      const cancelled = await cancelWorkflowRun({workflowRunId: run.id});
+      const cancelled = await cancelWorkflowRun({
+        workspaceId: run.workspaceId,
+        workflowRunId: run.id,
+      });
       return toRunDto(cancelled);
     },
   });

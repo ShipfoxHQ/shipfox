@@ -370,6 +370,18 @@ export class WorkflowRunNotCancellableError extends Error {
   }
 }
 
+export class WorkflowRunAttemptMismatchError extends Error {
+  constructor(
+    readonly workflowRunId: string,
+    readonly currentAttempt: number,
+  ) {
+    super(
+      `Workflow run ${workflowRunId} is on attempt ${currentAttempt}, not the expected attempt`,
+    );
+    this.name = 'WorkflowRunAttemptMismatchError';
+  }
+}
+
 export class SourceRunNotFoundError extends Error {
   constructor(workflowRunId: string) {
     super(`Source workflow run not found: ${workflowRunId}`);

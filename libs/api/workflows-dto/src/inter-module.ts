@@ -213,7 +213,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         inputs: z.record(z.string(), z.unknown()).optional(),
         idempotencyKey: z.string().min(1),
       }),
-      output: z.object({id: idSchema, name: z.string()}),
+      output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean().optional()}),
       errors: {
         'workspace-not-found': z.object({workspaceId: idSchema}),
         'workspace-suspended': z.object({workspaceId: idSchema}),
@@ -245,6 +245,43 @@ export const workflowsInterModuleContract = defineInterModuleContract({
           measuredBytes: z.number().int().positive(),
           overshootBytes: z.number().int().positive(),
         }),
+      },
+    },
+    cancelWorkflowRun: {
+      input: z.object({
+        workspaceId: idSchema,
+        workflowRunId: idSchema,
+        expectedAttempt: attemptSchema,
+      }),
+      output: z.object({
+        id: idSchema,
+        currentAttempt: attemptSchema,
+        status: workflowRunStatusSchema,
+      }),
+      errors: {
+        'run-not-found': z.object({}),
+        'attempt-mismatch': z.object({currentAttempt: attemptSchema}),
+        'run-already-finished': z.object({status: workflowRunStatusSchema}),
+      },
+    },
+    rerunWorkflowRun: {
+      input: z.object({
+        workspaceId: idSchema,
+        workflowRunId: idSchema,
+        expectedAttempt: attemptSchema,
+        mode: z.enum(['all', 'failed']),
+        actorUserId: idSchema,
+      }),
+      output: z.object({id: idSchema, attempt: attemptSchema, status: workflowRunStatusSchema}),
+      errors: {
+        'run-not-found': z.object({}),
+        'attempt-mismatch': z.object({currentAttempt: attemptSchema}),
+        'run-not-terminal': z.object({}),
+        'no-failed-jobs': z.object({}),
+        'workspace-not-found': z.object({workspaceId: idSchema}),
+        'workspace-suspended': z.object({workspaceId: idSchema}),
+        'workspace-deleted': z.object({workspaceId: idSchema}),
+        'admission-denied': admissionDeniedDetailsSchema,
       },
     },
     startDevRun: {

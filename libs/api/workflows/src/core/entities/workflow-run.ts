@@ -126,3 +126,6 @@ export type WorkflowRunListOmittedField = (typeof WORKFLOW_RUN_LIST_OMITTED_FIEL
 
 /** The run fields needed by list responses. */
 export type WorkflowRunList = Omit<WorkflowRun, WorkflowRunListOmittedField>;
+
+/** A workflow run with the optional result marker used by idempotent trigger starts. */
+export type WorkflowRunCreationResult = WorkflowRun & {deduplicated?: true};

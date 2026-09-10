@@ -1991,6 +1991,8 @@ describe('workflow run queries', () => {
         triggerIdempotencyKey: idempotencyKey,
       });
 
+      expect(first.deduplicated).toBeUndefined();
+      expect(second.deduplicated).toBe(true);
       expect(second.id).toBe(first.id);
       expect(second.number).toBe(first.number);
       expect(second.triggerIdempotencyKey).toBe(idempotencyKey);
