@@ -1,5 +1,11 @@
 # @shipfox/provisioner-docker-provider
 
+## 2.0.24
+
+### Patch Changes
+
+- @shipfox/provisioner-core@1.2.17
+
 ## 2.0.23
 
 ### Patch Changes

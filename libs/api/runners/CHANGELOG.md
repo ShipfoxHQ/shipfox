@@ -1,5 +1,11 @@
 # @shipfox/api-runners
 
+## 24.1.1
+
+### Patch Changes
+
+- @shipfox/api-workflows-dto@24.1.1
+
 ## 24.1.0
 
 ### Patch Changes

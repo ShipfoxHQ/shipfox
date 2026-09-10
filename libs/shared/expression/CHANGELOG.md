@@ -1,5 +1,11 @@
 # @shipfox/expression
 
+## 2.9.2
+
+### Patch Changes
+
+- 0c00509: Preserves early workflow context values in staged tool inputs.
+
 ## 2.9.1
 
 ### Patch Changes

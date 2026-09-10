@@ -1,5 +1,14 @@
 # @shipfox/client-features
 
+## 41.0.1
+
+### Patch Changes
+
+- @shipfox/client-projects@41.0.1
+- @shipfox/client-workflows@41.0.1
+- @shipfox/client-onboarding@41.0.1
+- @shipfox/client-triggers@41.0.1
+
 ## 41.0.0
 
 ### Patch Changes

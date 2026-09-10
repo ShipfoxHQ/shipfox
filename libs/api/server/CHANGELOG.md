@@ -1,5 +1,22 @@
 # @shipfox/api-server
 
+## 24.1.1
+
+### Patch Changes
+
+- @shipfox/api-definitions@24.1.1
+- @shipfox/api-definitions-dto@24.1.1
+- @shipfox/api-triggers@24.1.1
+- @shipfox/api-workflows@24.1.1
+- @shipfox/api-agent-access@24.1.1
+- @shipfox/api-dispatcher@24.1.0
+- @shipfox/api-workflows-dto@24.1.1
+- @shipfox/api-agent@24.1.1
+- @shipfox/api-integration-core@24.1.1
+- @shipfox/api-logs@24.1.1
+- @shipfox/api-runners@24.1.1
+- @shipfox/api-usage@24.1.1
+
 ## 24.1.0
 
 ### Patch Changes
