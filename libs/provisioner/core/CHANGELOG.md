@@ -1,5 +1,12 @@
 # @shipfox/provisioner-core
 
+## 1.2.19
+
+### Patch Changes
+
+- Updated dependencies [00e2ce4]
+  - @shipfox/api-runners-dto@25.0.0
+
 ## 1.2.18
 
 ### Patch Changes

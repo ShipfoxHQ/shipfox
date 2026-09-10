@@ -1,5 +1,21 @@
 # @shipfox/api-agent
 
+## 25.0.0
+
+### Major Changes
+
+- 701df29: Expose missing renewable inference capability as a declared, bounded runtime credential error.
+
+### Patch Changes
+
+- Updated dependencies [00e2ce4]
+- Updated dependencies [bba82ae]
+- Updated dependencies [9e8b007]
+- Updated dependencies [701df29]
+  - @shipfox/api-workflows-dto@25.0.0
+  - @shipfox/api-auth-context@25.0.0
+  - @shipfox/api-agent-dto@25.0.0
+
 ## 24.2.0
 
 ### Patch Changes

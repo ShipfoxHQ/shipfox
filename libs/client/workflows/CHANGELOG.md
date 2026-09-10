@@ -1,5 +1,27 @@
 # @shipfox/client-workflows
 
+## 43.0.0
+
+### Minor Changes
+
+- 00e2ce4: Publish lease_expired, provider_lost, and lifecycle_violation as job execution status reasons; add the optional cause field and RunnerJobLossCauseDto/runnerJobLossCauseSchema to the lease-expired event, with runner_lost fallback when provider state is unavailable.
+- 9e8b007: Adds an optional `gate_max_attempts` field to the compact step summary, and
+  shows effective gate restart limits and chronological gate attempt numbers in
+  workflow run details.
+
+### Patch Changes
+
+- 14bc3d6: UsagePricingReference values now require an opaque workspaceId; map/record resolveCosts results must be keyed with usagePricingReferenceKey, and array entries must carry the full matching reference: workspaceId, kind, id, and any model/upstream identity.
+- Updated dependencies [00e2ce4]
+- Updated dependencies [9e8b007]
+- Updated dependencies [14bc3d6]
+  - @shipfox/api-workflows-dto@25.0.0
+  - @shipfox/client-shell@43.0.0
+  - @shipfox/client-usage@43.0.0
+  - @shipfox/client-integrations@43.0.0
+  - @shipfox/client-projects@43.0.0
+  - @shipfox/client-triggers@43.0.0
+
 ## 42.0.0
 
 ### Minor Changes

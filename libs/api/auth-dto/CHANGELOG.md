@@ -1,5 +1,11 @@
 # @shipfox/api-auth-dto
 
+## 25.0.0
+
+### Minor Changes
+
+- bba82ae: Adds stream-bound agent log download tokens, live grant-authority checks, and bearer authentication for downloads.
+
 ## 24.1.0
 
 ### Minor Changes

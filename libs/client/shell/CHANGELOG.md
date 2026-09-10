@@ -1,5 +1,16 @@
 # Changelog
 
+## 43.0.0
+
+### Major Changes
+
+- 14bc3d6: UsagePricingReference values now require an opaque workspaceId; map/record resolveCosts results must be keyed with usagePricingReferenceKey, and array entries must carry the full matching reference: workspaceId, kind, id, and any model/upstream identity.
+
+### Patch Changes
+
+- Updated dependencies [bba82ae]
+  - @shipfox/api-auth-dto@25.0.0
+
 ## 41.0.0
 
 ### Minor Changes

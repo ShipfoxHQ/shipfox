@@ -1,5 +1,16 @@
 # @shipfox/api-usage
 
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [00e2ce4]
+- Updated dependencies [bba82ae]
+- Updated dependencies [9e8b007]
+  - @shipfox/api-runners-dto@25.0.0
+  - @shipfox/api-workflows-dto@25.0.0
+  - @shipfox/api-auth-context@25.0.0
+
 ## 24.2.0
 
 ### Patch Changes
