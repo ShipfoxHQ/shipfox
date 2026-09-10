@@ -2348,6 +2348,14 @@ describe('assembleStepDispatchContext', () => {
     const from = restart.from as Record<string, unknown>;
     expect(from).not.toHaveProperty('key');
     expect(from).toMatchObject({outputs: {summary: 'unkeyed failed'}});
+
+    const expression = createWorkflowExpression({
+      source:
+        'has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "reviewer"',
+      check: {mode: 'syntax'},
+    });
+    expect(evaluateWorkflowExpression(expression, context.values)).toBe(false);
+
     expect(restart.feedback).toBe('unkeyed feedback');
   });
 
