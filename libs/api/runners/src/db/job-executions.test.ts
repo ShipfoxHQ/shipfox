@@ -1996,8 +1996,19 @@ describe('detectAndExpireStuckJobs', () => {
       options: {authorizeTermination: true as const},
       expectedCause: 'lifecycle_violation' as const,
     },
+    {
+      name: 'a provider-scoped lease-expired authorization as lease expiry',
+      options: {providerRunnerWorkspaceId: null},
+      expectedCause: 'lease_expired' as const,
+    },
   ])('publishes $name', async ({options, expectedCause}) => {
     const stale = await makeManagedStaleJob(null, options);
+    if (options.providerRunnerWorkspaceId === null) {
+      await db()
+        .update(providerRunners)
+        .set({terminationReason: 'lease-expired'})
+        .where(eq(providerRunners.providerRunnerId, stale.providerRunnerId));
+    }
 
     await expireStuckJobExecutions({
       thresholdSeconds: 1,

@@ -228,13 +228,14 @@ function runnerLossCauseFor(
   ) {
     return 'provider_lost';
   }
-  // An authorization observed while an active lease still exists is positive evidence that an
-  // internal lifecycle guard failed. Terminal-state cleanup authorization is not a violation.
-  if (
+  // Job-scoped termination should only be authorized after the job lease leaves this table.
+  // Provider-scoped cleanup can legitimately authorize an active runner.
+  const isJobScopedTerminationAuthorization =
     providerRunner !== undefined &&
     providerRunner.terminationAuthorizedAt !== null &&
-    providerRunner.terminationReason !== 'terminal-state'
-  ) {
+    (providerRunner.terminationReason === 'job-cancelled' ||
+      providerRunner.terminationReason === 'job-timeout');
+  if (isJobScopedTerminationAuthorization) {
     return 'lifecycle_violation';
   }
   if (providerRunner) return 'lease_expired';
