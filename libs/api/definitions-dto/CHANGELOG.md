@@ -1,5 +1,12 @@
 # @shipfox/api-definitions-dto
 
+## 24.1.1
+
+### Patch Changes
+
+- Updated dependencies [0c00509]
+  - @shipfox/expression@2.9.2
+
 ## 24.1.0
 
 ### Minor Changes
