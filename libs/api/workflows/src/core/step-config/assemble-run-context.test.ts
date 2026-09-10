@@ -2170,6 +2170,22 @@ describe('assembleStepDispatchContext', () => {
     });
   });
 
+  it('short-circuits a guarded restart source-key predicate on the first dispatch', () => {
+    const targetStep = step({id: 'step-1', key: 'producer'});
+    const context = assembleStepDispatchContext({
+      steps: [targetStep],
+      attempts: [],
+      targetStepId: targetStep.id,
+    });
+    const expression = createWorkflowExpression({
+      source:
+        'has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "reviewer"',
+      check: {mode: 'syntax'},
+    });
+
+    expect(evaluateWorkflowExpression(expression, context.values)).toBe(false);
+  });
+
   it('assembles restart provenance from the latest restart covering the target step', () => {
     const targetStep = step({
       id: 'step-1',
@@ -2218,6 +2234,7 @@ describe('assembleStepDispatchContext', () => {
       is_retry: true,
       restart: {
         from: {
+          key: 'reviewer',
           status: 'failed',
           exit_code: 1n,
           outputs: {summary: 'tests failed'},
@@ -2234,6 +2251,104 @@ describe('assembleStepDispatchContext', () => {
         feedback: 'failed: tests failed',
       },
     });
+  });
+
+  it('keeps the selected failure identity paired across gates sharing a restart target', () => {
+    const targetStep = step({
+      id: 'step-1',
+      key: 'producer',
+      status: 'pending',
+      currentAttempt: 2,
+      position: 1,
+    });
+    const verifyStep = step({id: 'step-2', key: 'verify', position: 2});
+    const pushStep = step({id: 'step-3', key: 'push', position: 3});
+    const context = assembleStepDispatchContext({
+      steps: [targetStep, verifyStep, pushStep],
+      attempts: [
+        attempt({
+          id: 'verify-attempt',
+          stepId: verifyStep.id,
+          executionOrder: 1,
+          status: 'failed',
+          output: {summary: 'verification failed'},
+          exitCode: 1,
+          gateResult: {passed: false, source: 'verify', exit_code: 1},
+          config: {gate: {on_failure: {restart_from: 'producer'}}},
+          restartFeedback: 'verify feedback',
+        }),
+        attempt({
+          id: 'push-attempt',
+          stepId: pushStep.id,
+          executionOrder: 2,
+          status: 'failed',
+          output: {summary: 'push failed'},
+          exitCode: 1,
+          gateResult: {passed: false, source: 'push', exit_code: 1},
+          config: {gate: {on_failure: {restart_from: 'producer'}}},
+          restartFeedback: 'push feedback',
+        }),
+      ],
+      targetStepId: targetStep.id,
+    });
+
+    expect(context.values.step).toMatchObject({
+      restart: {
+        from: {
+          key: 'push',
+          outputs: {summary: 'push failed'},
+          gate: {source: 'push'},
+        },
+        feedback: 'push feedback',
+      },
+    });
+  });
+
+  it('omits the key for an unkeyed newest source without inheriting an older key', () => {
+    const targetStep = step({
+      id: 'step-1',
+      key: 'producer',
+      status: 'pending',
+      currentAttempt: 2,
+      position: 1,
+    });
+    const verifyStep = step({id: 'step-2', key: 'verify', position: 2});
+    const unkeyedStep = step({id: 'step-3', key: null, position: 3});
+    const context = assembleStepDispatchContext({
+      steps: [targetStep, verifyStep, unkeyedStep],
+      attempts: [
+        attempt({
+          id: 'verify-attempt',
+          stepId: verifyStep.id,
+          executionOrder: 1,
+          status: 'failed',
+          output: {summary: 'verification failed'},
+          exitCode: 1,
+          config: {gate: {on_failure: {restart_from: 'producer'}}},
+          restartFeedback: 'verify feedback',
+        }),
+        attempt({
+          id: 'unkeyed-attempt',
+          stepId: unkeyedStep.id,
+          executionOrder: 2,
+          status: 'failed',
+          output: {summary: 'unkeyed failed'},
+          exitCode: 1,
+          config: {gate: {on_failure: {restart_from: 'producer'}}},
+          restartFeedback: 'unkeyed feedback',
+        }),
+      ],
+      targetStepId: targetStep.id,
+    });
+
+    const restart = (context.values.step as Record<string, unknown>).restart as Record<
+      string,
+      unknown
+    >;
+    const from = restart.from as Record<string, unknown>;
+    expect(from).not.toHaveProperty('key');
+    expect(from).toMatchObject({outputs: {summary: 'unkeyed failed'}});
+    expect(restart.feedback).toBe('unkeyed feedback');
   });
 
   it('omits response for run steps so response resolves as a missing path', () => {

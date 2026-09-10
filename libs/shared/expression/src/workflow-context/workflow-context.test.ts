@@ -1002,7 +1002,7 @@ describe('workflow context registry', () => {
   it('type-checks step restart provenance expressions', () => {
     const restartExpression = createWorkflowExpression({
       source:
-        'step.restart.feedback != "" && step.restart.from.outputs.summary != "" && step.restart.from.gate.passed == false',
+        'has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "reviewer" && step.restart.feedback != "" && step.restart.from.outputs.summary != "" && step.restart.from.gate.passed == false',
       check: {
         mode: 'typed',
         typeEnvironment: workflowContextDefinitions.step.typeEnvironment,

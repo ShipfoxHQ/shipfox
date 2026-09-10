@@ -157,6 +157,10 @@ describe('validatePredicateExpression', () => {
     ['listener.on', 'trigger.event == "pull_request"'],
     ['listener.until', 'job.key == "await-review"'],
     ['job.if', 'needs.exists(n, n.status == "succeeded")'],
+    [
+      'step.if',
+      'has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "verify"',
+    ],
     ['step.if', 'execution.status == "running"'],
   ] as const)('accepts the runtime context contract for %s', (field, source) => {
     const result = validate({field, source});
@@ -281,6 +285,7 @@ describe('validatePredicateExpression', () => {
 
   it.each([
     ['step.if', 'step.exit_code == 0'],
+    ['step.success', 'step.restart.from.key == "verify"'],
     ['step.success', 'step.attempt > 1'],
     ['job.success', 'executions.exists(e, e.failed)'],
   ] as const)('rejects %s properties absent from its runtime shape: %s', (field, source) => {
