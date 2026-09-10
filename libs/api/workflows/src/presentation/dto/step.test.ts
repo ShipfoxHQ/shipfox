@@ -1,10 +1,12 @@
 import {
+  stepErrorDtoSchema,
   WORKFLOW_DIAGNOSTIC_ERROR_MAX_BYTES,
   WORKFLOW_DIAGNOSTIC_RESPONSE_MAX_BYTES,
   WORKFLOW_STEP_CONFIG_INLINE_MAX_BYTES,
 } from '@shipfox/api-workflows-dto';
 import {diagnosticValueByteLength} from '#core/diagnostics.js';
 import type {Step, StepAttempt} from '#core/entities/step.js';
+import {decideStepTransition} from '#core/step-transition/decide-step-transition.js';
 import {fromStepErrorDto, toStepAttemptDetailResponseDto, toStepDto} from './step.js';
 
 function step(overrides: Partial<Step> & {type: string}): Step {
@@ -93,6 +95,82 @@ describe('fromStepErrorDto', () => {
       field: 'env.VERSION',
       source: 'steps.build.outputs.version',
     });
+  });
+
+  it('round-trips gate restart diagnostics through the HTTP DTO', () => {
+    const persisted = fromStepErrorDto({
+      message: 'The gate did not pass after 1 attempt.',
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+      retryable: false,
+    });
+
+    expect(persisted).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attemptCount: 1,
+      maxAttempts: 1,
+      restartFrom: 'implement',
+      retryable: false,
+    });
+    expect(toStepDto(step({type: 'run', error: persisted})).error).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+      retryable: false,
+    });
+  });
+
+  it('maps an uncheckable gate over an agent config issue to a valid DTO error', () => {
+    const target = step({type: 'agent', status: 'running'});
+    const decision = decideStepTransition({
+      steps: [target],
+      target,
+      reportedAttempt: 1,
+      result: {
+        status: 'failed',
+        exitCode: null,
+        error: {
+          reason: 'agent_config_invalid',
+          agentConfigIssue: 'provider_not_configured',
+          message: 'Model provider is not configured',
+        },
+      },
+      gateOutcome: {
+        kind: 'uncheckable',
+        reason: 'step produced no exit code',
+        source: 'step.exit_code == 0',
+      },
+    });
+
+    expect(decision.kind).toBe('fail-job');
+    if (decision.kind !== 'fail-job') throw new Error('Expected the step to fail');
+
+    const dto = toStepDto(step({type: 'agent', error: decision.failureError}));
+
+    expect(stepErrorDtoSchema.safeParse(dto.error).success).toBe(true);
+    expect(dto.error).toMatchObject({reason: 'gate_uncheckable'});
+    expect(dto.error).not.toHaveProperty('agent_config_issue');
+  });
+
+  it('derives a gate reason from a legacy internal kind', () => {
+    expect(
+      toStepDto(
+        step({
+          type: 'run',
+          error: {
+            kind: 'gate_failed',
+            message: 'gate condition not met',
+            source: 'step.exit_code == 0',
+          },
+        }),
+      ).error,
+    ).toMatchObject({reason: 'gate_failed', source: 'step.exit_code == 0'});
   });
 
   it('round-trips measured size details for a bounded step result', () => {
@@ -372,6 +450,35 @@ const baseAttempt: StepAttempt = {
 };
 
 describe('toStepAttemptDetailResponseDto', () => {
+  it('maps an uncheckable gate source through the HTTP DTO', () => {
+    const attempt: StepAttempt = {
+      ...baseAttempt,
+      gateResult: {
+        passed: false,
+        uncheckable: true,
+        reason: 'step produced no exit code',
+        source: 'step.exit_code == 0',
+        exit_code: null,
+      },
+    };
+
+    const result = toStepAttemptDetailResponseDto(step({type: 'run'}), attempt, {
+      workflowRunId: '33333333-3333-4333-8333-333333333333',
+      workflowRunAttempt: 2,
+      jobId: '44444444-4444-4444-8444-444444444444',
+      jobExecutionId: '55555555-5555-4555-8555-555555555555',
+    });
+
+    expect(result.gate_result).toEqual({
+      kind: 'uncheckable',
+      passed: false,
+      uncheckable: true,
+      reason: 'step produced no exit code',
+      source: 'step.exit_code == 0',
+      exit_code: null,
+    });
+  });
+
   it('keeps authored and resolved config inline through the 256 KiB detail limit', () => {
     const configJsonOverheadBytes = diagnosticValueByteLength({run: ''});
     const config = {

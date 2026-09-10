@@ -6,6 +6,7 @@ import {
   stepAttemptDtoSchema,
   stepDtoSchema,
   stepErrorDtoSchema,
+  stepGateResultDtoSchema,
   stepStatusReasonSchema,
 } from './step.js';
 
@@ -209,6 +210,66 @@ describe('stepErrorDtoSchema', () => {
     });
 
     expect(result?.reason).toBe(reason);
+  });
+
+  it.each([
+    'gate_failed',
+    'gate_uncheckable',
+    'restart_unresolved',
+    'restart_exhausted',
+  ] as const)('accepts the server gate failure reason %s', (reason) => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'Gate failed.',
+      reason,
+    });
+
+    expect(result?.reason).toBe(reason);
+  });
+
+  it('accepts restart diagnostics in snake case', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'The gate did not pass after 1 attempt.',
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+    });
+
+    expect(result).toMatchObject({
+      reason: 'restart_exhausted',
+      source: 'step.exit_code == 0',
+      attempt_count: 1,
+      max_attempts: 1,
+      restart_from: 'implement',
+    });
+  });
+});
+
+describe('stepGateResultDtoSchema', () => {
+  it('accepts an uncheckable gate source while keeping it optional for legacy rows', () => {
+    const result = stepGateResultDtoSchema.parse({
+      kind: 'uncheckable',
+      passed: false,
+      uncheckable: true,
+      reason: 'step produced no exit code',
+      source: 'step.exit_code == 0',
+      exit_code: null,
+    });
+
+    expect(result).toMatchObject({
+      kind: 'uncheckable',
+      source: 'step.exit_code == 0',
+    });
+    expect(
+      stepGateResultDtoSchema.safeParse({
+        kind: 'uncheckable',
+        passed: false,
+        uncheckable: true,
+        reason: 'step produced no exit code',
+        exit_code: null,
+      }).success,
+    ).toBe(true);
   });
 });
 

@@ -698,6 +698,9 @@ function projectStepError(error: unknown): Record<string, unknown> | null {
   assignKnownValue(projected, 'reason', error.reason, stepErrorReasonSchema);
   assignCappedString(projected, 'field', error.field);
   assignCappedString(projected, 'source', error.source);
+  assignNumber(projected, 'attempt_count', error.attempt_count);
+  assignNumber(projected, 'max_attempts', error.max_attempts);
+  assignCappedString(projected, 'restart_from', error.restart_from);
   assignKnownValue(
     projected,
     'agent_config_issue',
@@ -739,6 +742,7 @@ function projectGateResult(gate: StepGateResultDto): Record<string, unknown> | n
         passed: gate.passed,
         uncheckable: gate.uncheckable,
         reason: cap(gate.reason),
+        ...(gate.source === undefined ? {} : {source: cap(gate.source)}),
         exit_code: gate.exit_code,
       };
     case 'evaluation_error':

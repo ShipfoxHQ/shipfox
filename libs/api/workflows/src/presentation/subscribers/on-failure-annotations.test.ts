@@ -162,6 +162,42 @@ const STEP_FAILURE_CASES = [
     description: 'Start a new session or try again.',
   },
   {
+    reason: 'gate_failed',
+    type: 'run',
+    title: 'Step validation failed',
+    description:
+      "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.",
+  },
+  {
+    reason: 'gate_uncheckable',
+    type: 'run',
+    title: 'Step validation failed',
+    description:
+      "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.",
+  },
+  {
+    reason: 'restart_unresolved',
+    type: 'run',
+    title: 'Gate restart target could not be resolved',
+    description:
+      'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.',
+  },
+  {
+    reason: 'restart_exhausted',
+    type: 'run',
+    title: 'Gate attempt limit reached',
+    description:
+      'The gate reached its configured attempt limit. Review the failed result before trying again.',
+    gateResult: {passed: false, source: 'step.exit_code == 0', exit_code: 73},
+  },
+  {
+    reason: 'restart_exhausted',
+    type: 'run',
+    title: 'Step attempt limit reached',
+    description:
+      'The step reached its attempt limit. Review the failed result before trying again.',
+  },
+  {
     reason: 'tool_error',
     type: 'tool',
     title: 'Tool call failed',
@@ -179,6 +215,7 @@ const STEP_FAILURE_CASES = [
   type: Step['type'];
   title: string;
   description: string;
+  gateResult?: StepAttempt['gateResult'];
 }[];
 
 const AGENT_CONFIG_FAILURE_CASES = [
@@ -335,12 +372,9 @@ describe('failure annotations', () => {
     );
   });
 
-  it.each(STEP_FAILURE_CASES)('uses safe exact copy for $reason', async ({
-    reason,
-    type,
-    title,
-    description,
-  }) => {
+  it.each(STEP_FAILURE_CASES)('uses safe exact copy for $reason', async (failureCase) => {
+    const {reason, type, title, description} = failureCase;
+    const gateResult = 'gateResult' in failureCase ? failureCase.gateResult : null;
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
       id: payload.stepId,
@@ -351,6 +385,7 @@ describe('failure annotations', () => {
       stepId: step.id,
       error: {reason, message: 'internal runtime detail'},
       exitCode: 73,
+      gateResult,
     });
     dbMocks.getStepAttemptDetail.mockResolvedValue({
       workflowRunId: payload.workflowRunId,

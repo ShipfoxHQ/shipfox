@@ -604,6 +604,28 @@ describe('StepInspectorSheet', () => {
     expect(screen.getByRole('link', {name: 'View in source'})).toBeInTheDocument();
   });
 
+  it('uses neutral guidance when restart exhaustion has no success gate', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: stepEntry('restart_exhausted', undefined, {
+        message: 'The step failed after 3 attempts.',
+        attempt_count: 3,
+        max_attempts: 3,
+        restart_from: 'producer',
+      }),
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('Attempt limit reached')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The step failed after 3 attempts. The restart attempt cap is fixed. Fix the failed result before starting a new run.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('keeps non-tool failure chips keyed to their stable reason', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
@@ -685,6 +707,7 @@ function PanelHarness({
 function stepEntry(
   reason: StepErrorReason = 'agent_invocation_failed',
   code?: string,
+  errorOverrides: Partial<NonNullable<WorkflowStepFixtureDto['error']>> = {},
 ): StepListEntryModel {
   const jobId = '44444444-4444-4444-8444-444444444444';
   const job = workflowJob({
@@ -705,7 +728,12 @@ function stepEntry(
             status: 'failed',
             type: 'agent',
             config: {run: 'pnpm test'},
-            error: {message: 'Agent dispatch failed', reason, ...(code ? {code} : {})},
+            error: {
+              message: 'Agent dispatch failed',
+              reason,
+              ...(code ? {code} : {}),
+              ...errorOverrides,
+            },
             evaluation_trace: [
               {
                 expression: 'inputs.message',

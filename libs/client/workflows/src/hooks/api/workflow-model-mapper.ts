@@ -26,6 +26,10 @@ export function toWorkflowJobStepError(dto: StepErrorDto): StepError | null {
     reason: dto.reason,
     agentConfigIssue: dto.agent_config_issue,
     category: dto.category,
+    ...(dto.retryable === undefined ? {} : {retryable: dto.retryable}),
+    ...(dto.attempt_count === undefined ? {} : {attemptCount: dto.attempt_count}),
+    ...(dto.max_attempts === undefined ? {} : {maxAttempts: dto.max_attempts}),
+    ...(dto.restart_from === undefined ? {} : {restartFrom: dto.restart_from}),
   };
 }
 
@@ -45,6 +49,7 @@ export function toWorkflowJobGateResult(dto: StepGateResultSummaryDto): StepGate
       passed: false,
       uncheckable: true,
       reason: dto.reason,
+      ...(dto.source === undefined ? {} : {source: dto.source}),
       exitCode: dto.exit_code,
     };
   }
@@ -83,8 +88,19 @@ export function toWorkflowExecutionEvent(dto: WorkflowExecutionEventDto): Workfl
 export function toStepGateResult(dto: StepGateResultDto): StepGateResult {
   if (dto === null || dto.kind === 'none' || dto.kind === 'not_evaluated') return dto;
   if (dto.kind === 'passed' || dto.kind === 'failed') return {...dto, exitCode: dto.exit_code};
-  if (dto.kind === 'uncheckable' || dto.kind === 'evaluation_error')
-    return {...dto, exitCode: dto.exit_code};
+  if (dto.kind === 'uncheckable') {
+    return {
+      kind: dto.kind,
+      passed: dto.passed,
+      uncheckable: dto.uncheckable,
+      reason: dto.reason,
+      ...(dto.source === undefined ? {} : {source: dto.source}),
+      exitCode: dto.exit_code,
+    };
+  }
+  if (dto.kind === 'evaluation_error') {
+    return {kind: dto.kind, reason: dto.reason, exitCode: dto.exit_code};
+  }
   return dto;
 }
 

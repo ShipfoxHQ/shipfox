@@ -320,8 +320,10 @@ describe('evaluateGate', () => {
 
   test('a missing exit code is uncheckable (never evaluated)', () => {
     const gate = readStepGate(gateConfig('step.exit_code == 0'));
-    expect(evaluateGate(gate, {status: 'failed', exitCode: null})).toMatchObject({
+    expect(evaluateGate(gate, {status: 'failed', exitCode: null})).toEqual({
       kind: 'uncheckable',
+      reason: 'step produced no exit code',
+      source: 'step.exit_code == 0',
     });
   });
 
@@ -401,11 +403,17 @@ describe('gateResultPayload', () => {
     });
   });
 
-  test('uncheckable records the reason and a null exit code', () => {
-    expect(gateResultPayload({kind: 'uncheckable', reason: 'no exit code'}, null)).toEqual({
+  test('uncheckable records the source, reason, and a null exit code', () => {
+    expect(
+      gateResultPayload(
+        {kind: 'uncheckable', reason: 'no exit code', source: 'step.exit_code == 0'},
+        null,
+      ),
+    ).toEqual({
       passed: false,
       uncheckable: true,
       reason: 'no exit code',
+      source: 'step.exit_code == 0',
       exit_code: null,
     });
   });

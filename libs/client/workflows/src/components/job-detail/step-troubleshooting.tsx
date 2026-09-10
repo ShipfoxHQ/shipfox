@@ -913,6 +913,13 @@ function failureTitle(reason: string | JobStatusReason): string {
       return 'Tool configuration is invalid';
     case 'invocation_interrupted':
       return 'Tool invocation was interrupted';
+    case 'gate_failed':
+    case 'gate_uncheckable':
+      return 'Step validation failed';
+    case 'restart_unresolved':
+      return 'Gate restart target could not be resolved';
+    case 'restart_exhausted':
+      return 'Attempt limit reached';
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
@@ -940,6 +947,20 @@ function failureTitle(reason: string | JobStatusReason): string {
     default:
       return 'Step failed';
   }
+}
+
+function restartExhaustionDescription(error: StepError | null): string {
+  const attemptCount = error?.attemptCount;
+  const hasNoSuccessGateDiagnostic = error?.message.startsWith('The step failed after ') ?? false;
+  if (attemptCount !== undefined) {
+    const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
+    return hasNoSuccessGateDiagnostic
+      ? `The step failed after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result before starting a new run.`
+      : `The success condition did not pass after ${attemptCount} ${attemptLabel}. The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.`;
+  }
+  return hasNoSuccessGateDiagnostic
+    ? 'The restart attempt cap is fixed. Fix the failed result before starting a new run.'
+    : 'The restart attempt cap is fixed. Fix the failed result or gate.success condition before starting a new run.';
 }
 
 function failureDescription(
@@ -986,6 +1007,14 @@ function failureDescription(
       return step.toolConfig?.sensitivity === 'write'
         ? 'The provider call was interrupted. Confirm whether the write completed before re-running it.'
         : 'The provider call was interrupted before its outcome could be recorded. Review the invocation log before retrying.';
+    case 'gate_failed':
+      return "The step completed, but its success condition was not met. Review the step's result and success condition before trying again.";
+    case 'gate_uncheckable':
+      return "Shipfox could not evaluate the step's success condition. Review the condition and the values it references before trying again.";
+    case 'restart_unresolved':
+      return 'Shipfox could not resolve the configured restart target. Review gate.on_failure.restart_from before trying again.';
+    case 'restart_exhausted':
+      return restartExhaustionDescription(error);
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';
     case 'output_too_large':
@@ -1061,7 +1090,11 @@ function sourceLinkForFailure(reason: string | JobStatusReason): boolean {
     reason === 'output_invalid' ||
     reason === 'default_gate_rejected' ||
     reason === 'condition_rejected' ||
-    reason === 'condition_errored'
+    reason === 'condition_errored' ||
+    reason === 'gate_failed' ||
+    reason === 'gate_uncheckable' ||
+    reason === 'restart_unresolved' ||
+    reason === 'restart_exhausted'
   );
 }
 

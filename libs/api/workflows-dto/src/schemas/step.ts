@@ -49,6 +49,10 @@ export const stepErrorReasonSchema = z.enum([
   'tool_error',
   'tool_config_invalid',
   'invocation_interrupted',
+  'gate_failed',
+  'gate_uncheckable',
+  'restart_unresolved',
+  'restart_exhausted',
 ]);
 
 export type StepErrorReasonDto = z.infer<typeof stepErrorReasonSchema>;
@@ -119,6 +123,9 @@ export const stepErrorDtoSchema = z
     reason: stepErrorReasonSchema.optional(),
     field: z.string().optional(),
     source: z.string().optional(),
+    attempt_count: z.number().int().positive().optional(),
+    max_attempts: z.number().int().positive().optional(),
+    restart_from: z.string().min(1).optional(),
     agent_config_issue: agentConfigIssueSchema.optional(),
     category: stepErrorCategorySchema.optional(),
     retryable: z.boolean().optional(),
@@ -197,6 +204,7 @@ export const stepGateResultDtoSchema = z
       passed: z.literal(false),
       uncheckable: z.literal(true),
       reason: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH),
+      source: z.string().max(STEP_ERROR_MESSAGE_MAX_LENGTH).optional(),
       exit_code: z.number().int().nullable(),
     }),
     z.object({

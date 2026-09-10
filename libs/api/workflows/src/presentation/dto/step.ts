@@ -46,7 +46,7 @@ export function toStepErrorDto(
   const signal = typeof error.signal === 'string' ? error.signal : undefined;
   const field = typeof error.field === 'string' ? error.field : undefined;
   const source = typeof error.source === 'string' ? error.source : undefined;
-  const reason = stepErrorReasonSchema.safeParse(error.reason);
+  const reason = stepErrorReason(error);
   const agentConfigIssue = agentConfigIssueSchema.safeParse(error.agentConfigIssue);
   const category = deriveStepErrorCategory(stepType, reason.success ? reason.data : undefined);
   return {
@@ -54,6 +54,7 @@ export function toStepErrorDto(
     ...toStepErrorScalarFields({code, managedProviderId, exitCode, signal}),
     ...(reason.success ? {reason: reason.data} : {}),
     ...toStepErrorSourceFields(field, source),
+    ...toStepErrorGateFields(error),
     ...(agentConfigIssue.success ? {agent_config_issue: agentConfigIssue.data} : {}),
     ...(typeof error.retryable === 'boolean' ? {retryable: error.retryable} : {}),
     ...(typeof error.limitBytes === 'number' ? {limit_bytes: error.limitBytes} : {}),
@@ -91,6 +92,32 @@ function toStepErrorSourceFields(
   };
 }
 
+function stepErrorReason(error: Record<string, unknown>) {
+  const reason = stepErrorReasonSchema.safeParse(error.reason);
+  return reason.success ? reason : stepErrorReasonSchema.safeParse(error.kind);
+}
+
+function toStepErrorGateFields(error: Record<string, unknown>): Partial<StepErrorDto> {
+  const attemptCount = positiveInteger(error.attemptCount ?? error.attempt_count);
+  const maxAttempts = positiveInteger(error.maxAttempts ?? error.max_attempts);
+  const restartFrom = readRestartFrom(error);
+  return {
+    ...(attemptCount === undefined ? {} : {attempt_count: attemptCount}),
+    ...(maxAttempts === undefined ? {} : {max_attempts: maxAttempts}),
+    ...(restartFrom === undefined ? {} : {restart_from: restartFrom}),
+  };
+}
+
+function readRestartFrom(error: Record<string, unknown>): string | undefined {
+  if (typeof error.restartFrom === 'string') return error.restartFrom;
+  if (typeof error.restart_from === 'string') return error.restart_from;
+  return undefined;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 // Inverse of toStepErrorDto: reported wire errors land on the domain row in
 // camelCase so the read path renders them back without a special case. `category`
 // is intentionally NOT persisted: the server derives it from the step type and
@@ -110,11 +137,22 @@ export function fromStepErrorDto(error: StepErrorDto | undefined): Record<string
     ...(error.reason === undefined ? {} : {reason: error.reason}),
     ...(error.field === undefined ? {} : {field: error.field}),
     ...(error.source === undefined ? {} : {source: error.source}),
+    ...fromStepErrorGateFields(error),
     ...(error.agent_config_issue === undefined ? {} : {agentConfigIssue: error.agent_config_issue}),
     ...(error.retryable === undefined ? {} : {retryable: error.retryable}),
     ...(error.limit_bytes === undefined ? {} : {limitBytes: error.limit_bytes}),
     ...(error.measured_bytes === undefined ? {} : {measuredBytes: error.measured_bytes}),
     ...(error.overshoot_bytes === undefined ? {} : {overshootBytes: error.overshoot_bytes}),
+  };
+}
+
+function fromStepErrorGateFields(
+  error: NonNullable<StepErrorDto>,
+): Partial<Record<'attemptCount' | 'maxAttempts' | 'restartFrom', unknown>> {
+  return {
+    ...(error.attempt_count === undefined ? {} : {attemptCount: error.attempt_count}),
+    ...(error.max_attempts === undefined ? {} : {maxAttempts: error.max_attempts}),
+    ...(error.restart_from === undefined ? {} : {restartFrom: error.restart_from}),
   };
 }
 
@@ -162,6 +200,9 @@ export function toStepGateResultDto(
       passed,
       uncheckable: true,
       reason: truncateStepText(reason, STEP_ERROR_MESSAGE_MAX_LENGTH),
+      ...(typeof source === 'string'
+        ? {source: truncateStepText(source, STEP_ERROR_MESSAGE_MAX_LENGTH)}
+        : {}),
       exit_code: exitCode,
     };
   }

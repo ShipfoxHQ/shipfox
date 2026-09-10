@@ -111,7 +111,7 @@ export function evaluateGate(
   const source = gate.success.source;
 
   if (options?.stepType !== 'tool' && (result.exitCode === null || result.exitCode === undefined)) {
-    return {kind: 'uncheckable', reason: 'step produced no exit code'};
+    return {kind: 'uncheckable', reason: 'step produced no exit code', source};
   }
 
   const context = assembleGateContext({
@@ -200,8 +200,8 @@ export function gateResultPayload(
         passed: false,
         uncheckable: true,
         reason: outcome.reason,
+        source: outcome.source,
         exit_code,
-        ...(outcome.source === undefined ? {} : {source: outcome.source}),
         ...(outcome.trace === undefined ? {} : {trace: outcome.trace}),
       };
   }
