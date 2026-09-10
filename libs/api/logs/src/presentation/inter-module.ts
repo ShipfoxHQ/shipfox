@@ -5,6 +5,7 @@ import {
   type InterModulePresentation,
 } from '@shipfox/inter-module';
 import {appendServerRecords} from '#core/append-server-records.js';
+import {describeStepLogStream} from '#core/describe-step-log-stream.js';
 import {
   CompactedLogUnavailableError,
   LeaseStreamMismatchError,
@@ -24,6 +25,7 @@ export function createLogsInterModulePresentation(): InterModulePresentation<
   typeof logsInterModuleContract
 > {
   return defineInterModulePresentation(logsInterModuleContract, {
+    describeStepLogStream: async (input) => describeStepLogStream(input),
     readStepLogTail: async (input) => {
       try {
         return await readStepLogTail(input);

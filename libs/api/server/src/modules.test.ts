@@ -158,6 +158,7 @@ describe('defaultModules', () => {
       sourceControl: {provider: 'source-control'},
     });
     const logsInterModuleHandlers = {
+      describeStepLogStream: vi.fn(),
       readStepLogTail: vi.fn(),
       appendServerRecords: vi.fn(),
     };

@@ -129,6 +129,15 @@ export interface ChunkPage {
   hasMore: boolean;
 }
 
+export interface SnapshotChunkPage extends ChunkPage {
+  /** Number of rows selected by the metadata query before the data query ran. */
+  selectedRowCount: number;
+  /** Number of rows returned by the data query. */
+  deliveredRowCount: number;
+  /** Number of bytes returned by the data query. */
+  deliveredBytes: number;
+}
+
 // Caps the per-read metadata scan so a stream with pathologically many tiny chunks
 // can't make one read walk the whole stream; the client re-polls (hasMore) past it.
 const CHUNK_PAGE_SCAN_CAP = 4096;
@@ -186,6 +195,79 @@ export async function readChunkPageBySeq(params: {
     .orderBy(asc(logChunks.seq));
 
   return {data: Buffer.concat(rows.map((row) => row.data)), nextSeq, hasMore};
+}
+
+/**
+ * Reads one page bounded by the fetch-time snapshot. Both queries carry the upper sequence
+ * bound. The returned cursor and `hasMore` use the rows fetched with the data query, while the
+ * selected row count lets the caller distinguish compaction between the two queries from an
+ * ordinary page boundary.
+ */
+export async function readChunkPageBySeqSnapshot(params: {
+  streamId: string;
+  afterSeq: number;
+  maxSeq: number;
+  maxBytes: number;
+}): Promise<SnapshotChunkPage> {
+  const metadata = await db()
+    .select({seq: logChunks.seq, byteLen: logChunks.byteLen})
+    .from(logChunks)
+    .where(
+      and(
+        eq(logChunks.streamId, params.streamId),
+        gt(logChunks.seq, params.afterSeq),
+        lte(logChunks.seq, params.maxSeq),
+      ),
+    )
+    .orderBy(asc(logChunks.seq))
+    .limit(CHUNK_PAGE_SCAN_CAP + 1);
+
+  if (metadata.length === 0) {
+    return {
+      data: Buffer.alloc(0),
+      nextSeq: params.afterSeq,
+      hasMore: false,
+      selectedRowCount: 0,
+      deliveredRowCount: 0,
+      deliveredBytes: 0,
+    };
+  }
+
+  let selectedBytes = 0;
+  let selectedRowCount = 0;
+  let selectedThroughSeq = params.afterSeq;
+  for (const row of metadata) {
+    if (selectedRowCount > 0 && selectedBytes + row.byteLen > params.maxBytes) break;
+    selectedBytes += row.byteLen;
+    selectedThroughSeq = row.seq;
+    selectedRowCount += 1;
+    if (selectedRowCount >= CHUNK_PAGE_SCAN_CAP) break;
+  }
+
+  const rows = await db()
+    .select({seq: logChunks.seq, data: logChunks.data})
+    .from(logChunks)
+    .where(
+      and(
+        eq(logChunks.streamId, params.streamId),
+        gt(logChunks.seq, params.afterSeq),
+        lte(logChunks.seq, selectedThroughSeq),
+        lte(logChunks.seq, params.maxSeq),
+      ),
+    )
+    .orderBy(asc(logChunks.seq));
+
+  const nextSeq = rows.at(-1)?.seq ?? params.afterSeq;
+  const deliveredBytes = rows.reduce((total, row) => total + row.data.byteLength, 0);
+  return {
+    data: Buffer.concat(rows.map((row) => row.data)),
+    nextSeq,
+    hasMore:
+      rows.length > 0 && rows.length === selectedRowCount && selectedRowCount < metadata.length,
+    selectedRowCount,
+    deliveredRowCount: rows.length,
+    deliveredBytes,
+  };
 }
 
 /**

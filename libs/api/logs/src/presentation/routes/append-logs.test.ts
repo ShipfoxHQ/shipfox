@@ -1,5 +1,5 @@
 import {Buffer} from 'node:buffer';
-import {AUTH_USER} from '@shipfox/api-auth-context';
+import {AUTH_AGENT_LOG_DOWNLOAD, AUTH_USER} from '@shipfox/api-auth-context';
 import {type AuthMethod, closeApp, createApp, type FastifyInstance} from '@shipfox/node-fastify';
 import {appendServerRecords} from '#core/append-server-records.js';
 import {fakeLeaseTokenAuthMethod, mintLeaseToken} from '#test/fixtures/lease-token.js';
@@ -13,6 +13,10 @@ const JOB_EXECUTION_ID = '00000000-0000-4000-8000-0000000000ee';
 // logsRoutes also carries the session-authed read group; register a no-op AUTH_USER method
 // so auth-reference validation passes (these tests only exercise the lease append route).
 const stubUserAuth: AuthMethod = {name: AUTH_USER, authenticate: () => Promise.resolve()};
+const stubDownloadAuth: AuthMethod = {
+  name: AUTH_AGENT_LOG_DOWNLOAD,
+  authenticate: () => Promise.resolve(),
+};
 
 function logsUrl(stepId: string, attempt: number, offset: number): string {
   return `/runs/jobs/current/steps/${stepId}/logs?attempt=${attempt}&offset=${offset}`;
@@ -42,7 +46,7 @@ describe('POST /runs/jobs/current/steps/:stepId/logs', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [fakeLeaseTokenAuthMethod, stubUserAuth],
+      auth: [fakeLeaseTokenAuthMethod, stubUserAuth, stubDownloadAuth],
       routes: createLogsRoutes(createTestWorkflowsClient()),
       swagger: false,
     });

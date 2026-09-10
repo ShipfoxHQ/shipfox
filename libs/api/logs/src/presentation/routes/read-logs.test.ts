@@ -1,6 +1,7 @@
 import {Buffer} from 'node:buffer';
 import {gunzipSync} from 'node:zlib';
 import {
+  AUTH_AGENT_LOG_DOWNLOAD,
   AUTH_LEASED_JOB,
   AUTH_USER,
   buildUserContext,
@@ -64,6 +65,10 @@ const fakeUserAuth: AuthMethod = {
   },
 };
 const stubLeaseAuth: AuthMethod = {name: AUTH_LEASED_JOB, authenticate: () => Promise.resolve()};
+const stubDownloadAuth: AuthMethod = {
+  name: AUTH_AGENT_LOG_DOWNLOAD,
+  authenticate: () => Promise.resolve(),
+};
 
 interface ChunkSpec {
   data: Buffer;
@@ -158,7 +163,7 @@ describe('GET /steps/:stepId/attempts/:attempt/logs', () => {
 
   beforeAll(async () => {
     app = await createApp({
-      auth: [fakeUserAuth, stubLeaseAuth],
+      auth: [fakeUserAuth, stubLeaseAuth, stubDownloadAuth],
       routes: createLogsRoutes(createTestWorkflowsClient()),
       swagger: false,
     });

@@ -41,6 +41,23 @@ export const logsInterModuleContract = defineInterModuleContract({
         'compacted-log-unavailable': z.object({}),
       },
     },
+    describeStepLogStream: {
+      input: z.object({
+        stepId: idSchema,
+        attempt: z.number().int().min(1).max(2_147_483_647),
+      }),
+      output: z
+        .object({
+          streamId: idSchema,
+          state: z.enum(['open', 'closed']),
+          compacted: z.boolean(),
+          committedLength: z.number().int().nonnegative(),
+          totalBytes: z.number().int().nonnegative(),
+          totalLines: z.number().int().nonnegative().optional(),
+          truncated: z.boolean(),
+        })
+        .nullable(),
+    },
     appendServerRecords: {
       input: z.object({
         jobId: idSchema,
