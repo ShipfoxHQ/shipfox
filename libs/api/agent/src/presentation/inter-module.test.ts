@@ -1,4 +1,7 @@
-import type {ManagedModelProvider} from '@shipfox/api-agent-dto';
+import {
+  type ManagedModelProvider,
+  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+} from '@shipfox/api-agent-dto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {setDefaultHarness} from '#db/index.js';
@@ -135,5 +138,50 @@ describe('agent inter-module presentation', () => {
       message: 'This instance only supports provider `shipfox`.',
       managed_provider_id: 'shipfox',
     });
+  });
+
+  test('maps a managed provider capability failure to the runtime contract', async () => {
+    const managedProvider: ManagedModelProvider = {
+      id: 'shipfox',
+      label: 'Shipfox',
+      models: [{id: 'managed-model', label: 'Managed model', api: 'openai-responses'}],
+      defaultModel: 'managed-model',
+      resolveCredentials: vi.fn(() => {
+        throw Object.assign(new Error('runner capability required'), {
+          code: RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+        });
+      }),
+    };
+    const presentation = createAgentInterModulePresentation({
+      secrets: agentTestSecretsClient,
+      managedProvider,
+      workspaceProviders: 'disabled',
+    });
+
+    const result = await Promise.resolve(
+      presentation.handlers.resolveRuntimeCredentials(
+        {
+          workspaceId: crypto.randomUUID(),
+          runId: crypto.randomUUID(),
+          stepAttemptId: crypto.randomUUID(),
+          harness: 'pi',
+          provider: 'shipfox',
+          model: 'managed-model',
+          thinking: 'high',
+        },
+        {signal: new AbortController().signal},
+      ),
+    ).catch((error: unknown) => error);
+
+    expect(
+      isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result),
+    ).toBe(true);
+    if (
+      !isInterModuleKnownError(agentInterModuleContract.methods.resolveRuntimeCredentials, result)
+    ) {
+      throw new Error('Expected a runner capability known error');
+    }
+    expect(result.code).toBe(RUNNER_CAPABILITY_REQUIRED_ERROR_CODE);
+    expect(result.details).toEqual({});
   });
 });

@@ -1,3 +1,4 @@
+import {RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} from './index.js';
 import {agentInterModuleContract, agentSessionDescriptorSchema} from './inter-module.js';
 
 const UUID = '00000000-0000-4000-8000-000000000001';
@@ -52,6 +53,14 @@ describe('agentInterModuleContract', () => {
     const parsed = agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse(input);
 
     expect(parsed).toEqual(input);
+  });
+
+  test('declares the runner capability failure for runtime credentials', () => {
+    const error = agentInterModuleContract.methods.resolveRuntimeCredentials.errors[
+      RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
+    ].parse({});
+
+    expect(error).toEqual({});
   });
 
   test('rejects an incomplete runtime job identity', () => {

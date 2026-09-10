@@ -1,3 +1,4 @@
+import {RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} from '@shipfox/api-agent-dto';
 import {
   type AgentInterModuleClient,
   agentInterModuleContract,
@@ -401,6 +402,27 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('model-provider-not-configured');
+  });
+
+  test('returns 409 when the runner lacks renewable inference capability', async () => {
+    const {job, step} = await createRunningAgentStep();
+    resolveRuntimeCredentials.mockRejectedValueOnce(
+      createInterModuleKnownError(
+        agentInterModuleContract.methods.resolveRuntimeCredentials,
+        RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+        {},
+      ),
+    );
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: runtimeConfigUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({code: RUNNER_CAPABILITY_REQUIRED_ERROR_CODE});
   });
 
   test('returns managed provider policy details when workspace providers are disabled', async () => {

@@ -2,6 +2,7 @@ import {
   agentRuntimeCredentialsResponseSchema,
   type MaterializedAgentStepConfigDto,
   materializedAgentStepConfigSchema,
+  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '@shipfox/api-agent-dto';
 import {
   type AgentInterModuleClient,
@@ -32,6 +33,19 @@ export function createAgentRuntimeConfigRoute(params: {
       },
     },
     errorHandler: (error) => {
+      if (
+        isInterModuleKnownError(
+          agentInterModuleContract.methods.resolveRuntimeCredentials,
+          error,
+        ) &&
+        error.code === RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
+      ) {
+        throw new ClientError(
+          'Runner does not support renewable inference credentials',
+          RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+          {status: 409, cause: error},
+        );
+      }
       if (
         isInterModuleKnownError(
           agentInterModuleContract.methods.resolveRuntimeCredentials,

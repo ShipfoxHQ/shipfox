@@ -7,6 +7,7 @@ import {
   harnessSchema,
   managedProviderJobIdentitySchema,
   modelProviderRefSchema,
+  RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '#schemas/index.js';
 
 const agentValidationCatalogFieldsSchema = z.object({
@@ -96,6 +97,7 @@ export const agentInterModuleContract = defineInterModuleContract({
       errors: {
         'model-provider-not-configured': z.object({}),
         'model-provider-credentials-invalid': z.object({}),
+        [RUNNER_CAPABILITY_REQUIRED_ERROR_CODE]: z.object({}),
         'workspace-providers-disabled': z.object({
           message: z.string().min(1).optional(),
           managed_provider_id: modelProviderRefSchema,
