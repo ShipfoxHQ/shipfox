@@ -8,7 +8,6 @@ export type {
 } from './entities/job-listener-event.js';
 export type {Step, StepStatus} from './entities/step.js';
 export {
-  isLiveWorkflowConcurrencyClaim,
   transitionWorkflowConcurrencyClaim,
   type WorkflowConcurrencyClaim,
   type WorkflowConcurrencyClaimState,

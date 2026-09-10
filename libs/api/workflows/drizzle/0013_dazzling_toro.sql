@@ -28,6 +28,16 @@ CREATE TABLE "workflows_workflow_concurrency_claims" (
         ("workflows_workflow_concurrency_claims"."scope" = 'workflow' and "workflows_workflow_concurrency_claims"."definition_id" is not null)
         or ("workflows_workflow_concurrency_claims"."scope" = 'project' and "workflows_workflow_concurrency_claims"."definition_id" is null)
       )),
+	CONSTRAINT "workflows_wcc_state_timestamps_ck" CHECK ((
+        ("workflows_workflow_concurrency_claims"."state" = 'acquired' and "workflows_workflow_concurrency_claims"."acquired_at" is not null)
+        or ("workflows_workflow_concurrency_claims"."state" = 'waiting' and "workflows_workflow_concurrency_claims"."waiting_at" is not null)
+        or (
+          "workflows_workflow_concurrency_claims"."state" = 'superseded'
+          and "workflows_workflow_concurrency_claims"."superseded_at" is not null
+          and "workflows_workflow_concurrency_claims"."superseded_by_claim_id" is not null
+        )
+        or ("workflows_workflow_concurrency_claims"."state" = 'released' and "workflows_workflow_concurrency_claims"."released_at" is not null)
+      )),
 	CONSTRAINT "workflows_wcc_origin_scope_nonempty_ck" CHECK (length("workflows_workflow_concurrency_claims"."origin_scope") > 0)
 );
 --> statement-breakpoint

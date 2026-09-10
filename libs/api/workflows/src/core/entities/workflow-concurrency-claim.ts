@@ -37,9 +37,3 @@ export function transitionWorkflowConcurrencyClaim(
   if (transition === 'promote' && state === 'waiting') return 'acquired';
   throw new Error(`Cannot ${transition} a ${state} concurrency claim.`);
 }
-
-export function isLiveWorkflowConcurrencyClaim(
-  state: WorkflowConcurrencyClaimState,
-): state is Extract<WorkflowConcurrencyClaimState, 'acquired' | 'waiting'> {
-  return state === 'acquired' || state === 'waiting';
-}

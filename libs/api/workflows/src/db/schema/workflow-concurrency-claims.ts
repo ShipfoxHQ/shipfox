@@ -97,6 +97,19 @@ export const workflowConcurrencyClaims = pgTable(
         or (${table.scope} = 'project' and ${table.definitionId} is null)
       )`,
     ),
+    check(
+      'workflows_wcc_state_timestamps_ck',
+      sql`(
+        (${table.state} = 'acquired' and ${table.acquiredAt} is not null)
+        or (${table.state} = 'waiting' and ${table.waitingAt} is not null)
+        or (
+          ${table.state} = 'superseded'
+          and ${table.supersededAt} is not null
+          and ${table.supersededByClaimId} is not null
+        )
+        or (${table.state} = 'released' and ${table.releasedAt} is not null)
+      )`,
+    ),
     check('workflows_wcc_origin_scope_nonempty_ck', sql`length(${table.originScope}) > 0`),
   ],
 );
