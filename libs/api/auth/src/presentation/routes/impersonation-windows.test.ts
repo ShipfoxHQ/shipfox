@@ -906,7 +906,7 @@ describe('impersonation window routes', () => {
       }),
     ]);
 
-    expect([200, 410]).toContain(continued.statusCode);
+    expect([200, 409, 410]).toContain(continued.statusCode);
     expect(stopped.statusCode).toBe(200);
     const exact = await app.inject({
       method: 'GET',

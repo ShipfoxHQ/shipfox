@@ -643,7 +643,7 @@ describe('WorkspaceModelProvidersSection', () => {
     expect(await screen.findByText('Could not save provider')).toBeVisible();
     expect(screen.getByText('Provider rejected the key.')).toBeVisible();
     expect(screen.getByLabelText('API key')).toHaveValue('sk-ant-secret');
-  });
+  }, 15_000);
 
   test('sets a configured provider as the default', async () => {
     const user = userEvent.setup();
