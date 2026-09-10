@@ -635,7 +635,7 @@ describe('materializeJobExecutionSteps', () => {
     ]);
   });
 
-  it('preserves exact typed tool input expressions before dispatch', async () => {
+  it('preserves exact typed tool input expressions as JSON-safe values', async () => {
     const model = workflowModel({
       jobs: {
         call: {
@@ -665,15 +665,24 @@ describe('materializeJobExecutionSteps', () => {
         site: 'step-dispatch',
         values: {
           ...baseContext.values,
-          inputs: {count: 3, enabled: true, options: {mode: 'fast'}},
+          inputs: {
+            count: 3,
+            enabled: true,
+            options: {mode: 'fast', counts: [42n, 9007199254740993n]},
+          },
         },
       },
       agentToolContext: githubAgentToolContext(typedToolCatalog()),
     });
 
     expect(steps[1]?.config.tool).toMatchObject({
-      with: {count: 3, enabled: true, options: {mode: 'fast'}},
+      with: {
+        count: 3,
+        enabled: true,
+        options: {mode: 'fast', counts: [42, '9007199254740993']},
+      },
     });
+    expect(JSON.parse(JSON.stringify(steps[1]?.config))).toEqual(steps[1]?.config);
   });
 
   it.each([

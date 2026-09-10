@@ -756,7 +756,6 @@ describe('completeStepDispatchConfig', () => {
       definitionId: 'def-1',
     });
 
-    expect(configPlan?.tool?.with).toMatchObject({items: [null, expect.any(Array)]});
     expect(result.config.tool).toMatchObject({with: {items: ['run-1', 'late']}});
   });
 
