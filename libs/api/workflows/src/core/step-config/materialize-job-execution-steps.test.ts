@@ -838,7 +838,7 @@ describe('materializeJobExecutionSteps', () => {
     });
   });
 
-  it('keeps static siblings when a nested tool input remains deferred', async () => {
+  it('keeps frozen container siblings when a nested tool input remains deferred', async () => {
     const model = workflowModel({
       jobs: {
         call: {
@@ -851,6 +851,7 @@ describe('materializeJobExecutionSteps', () => {
                   static: 'keep me',
                   dynamic: template('steps.previous.outputs.value'),
                 },
+                items: [template('run.id'), template('steps.previous.outputs.value')],
               },
             },
           ],
@@ -866,12 +867,16 @@ describe('materializeJobExecutionSteps', () => {
       context: jobExecutionContext(),
       agentToolContext: githubAgentToolContext(typedToolCatalog()),
     });
+    const persistedStep = JSON.parse(JSON.stringify(steps[1])) as (typeof steps)[number];
 
-    expect(steps[1]?.config.tool).toMatchObject({with: {payload: {static: 'keep me'}}});
-    expect(steps[1]?.configPlan?.tool?.with).toMatchObject({
+    expect(persistedStep.config.tool).toMatchObject({
+      with: {payload: {static: 'keep me'}, items: ['run-1', null]},
+    });
+    expect(persistedStep.configPlan?.tool?.with).toMatchObject({
       payload: {
         dynamic: [expect.objectContaining({kind: 'deferred', roots: ['steps']})],
       },
+      items: [null, [expect.objectContaining({kind: 'deferred', roots: ['steps']})]],
     });
   });
 
