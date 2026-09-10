@@ -1,16 +1,20 @@
 ---
 title: "Build an Agent Feedback Loop in Shipfox"
 sidebarTitle: "Build a Feedback Loop"
-description: "Pair an agent with an objective check and restart it with useful feedback until the check passes or the attempt bound is reached."
+description: "Route two objective checks to independent recovery steps until both checks pass or an attempt bound is reached."
 ---
 
-This guide builds a workflow where an agent fixes failing tests and `npm test`
-decides whether another attempt is needed.
+This guide builds one job with test and lint feedback loops. Each failed check
+routes to its own recovery step by the checking step's key.
 
 ## Before you begin
 
-The repository needs a safe failure in its `npm test` command that the agent can
-repair.
+You need:
+
+- A repository with `npm test` and `npm run lint` commands.
+- Configured agent defaults for the project.
+- A safe branch where an agent can edit test and lint failures.
+- A Shipfox validator and runtime that support `step.restart.from.key`.
 
 ## Add the workflow
 
@@ -26,42 +30,90 @@ triggers:
     source: manual
 
 jobs:
-  fix:
+  improve:
     execution_timeout: "30m"
     steps:
-      - key: fix
+      - key: implement
         prompt: >
-          Fix the failing tests in this repository.
-          Previous check: ${{ step.is_retry
-            ? step.restart.feedback
-            : "No previous check. Run the tests and inspect the failures." }}
+          Fix the failing tests and lint errors in this repository.
+          Run both checks before finishing.
+
+      - key: test_failure_handler
+        if: '${{ has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "test" }}'
+        prompt: >
+          Fix the test failure. Reproduce it and correct its cause.
+          Check feedback: ${{ step.restart.feedback }}
 
       - key: test
         run: npm test
         gate:
           success: step.exit_code == 0
           on_failure:
-            restart_from: fix
+            restart_from: test_failure_handler
             feedback: The tests still fail. Run them again and fix the cause.
+
+      - key: lint_failure_handler
+        if: '${{ has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "lint" }}'
+        prompt: >
+          Fix the lint failure without weakening the rules.
+          Check feedback: ${{ step.restart.feedback }}
+
+      - key: lint
+        run: npm run lint
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: lint_failure_handler
+            feedback: Lint still fails. Run it again and fix the reported issues.
 ```
 
-Replace `npm test` with the command that proves the work is correct in your
-repository.
+Replace the two check commands with commands that prove the required results.
+Keep an authored key on each checking step. The keys provide source identity
+for their recovery predicates.
 
 ## Run and inspect it
 
 1. Commit and push the workflow to the project's default branch.
 2. Wait for its definition to sync.
 3. Open the workflow and select **Run**.
-4. Open the `fix` job in the run detail.
-5. If the check fails, confirm that a new `fix` step attempt receives the gate
-   feedback.
-6. Confirm that the job finishes when the check passes or the restart bound is
-   exhausted.
+4. Open the `improve` job in the run detail.
+5. Confirm both recovery steps skip before their matching check fails.
+6. If `test` fails, confirm only `test_failure_handler` runs.
+7. After `test` passes, confirm `lint_failure_handler` stays skipped.
+8. If `lint` fails, confirm only `lint_failure_handler` runs.
+9. Confirm the job finishes after both checks pass.
 
-The `key` on `fix` is required because `restart_from` targets step keys. The
-target must appear before the gated step in the same job. Exact gate fields and
-validation rules live in [Gate fields](/reference/workflow-schema#gate-fields).
+The test cause stays visible after `test` passes. The lint handler still skips
+because its predicate compares the source key. `step.is_retry` cannot make this
+distinction.
+
+Exact gate fields and validation rules live in [Gate
+fields](/reference/workflow-schema#gate-fields). The [Contexts
+reference](/reference/contexts#context-properties) owns the exact restart field
+shape and availability.
+
+## Migrate from feedback-prefix routing
+
+Confirm the deployed validator and runtime support `step.restart.from.key`
+before adopting the new predicates. A merged change or green CI is not runtime
+deployment evidence.
+
+For each existing route:
+
+1. Add an authored `key` to the checking step that owns the gate.
+2. Replace the handler's feedback-prefix test with the guarded source-key test.
+3. Keep useful diagnostic text in `gate.on_failure.feedback`.
+4. Remove the machine-readable prefix after no consumer parses it.
+
+For example, replace a `verification_retry:` prefix check with this predicate
+on the existing verification recovery step:
+
+```text
+has(step.restart) && has(step.restart.from.key) && step.restart.from.key == "verify"
+```
+
+The `verify` key belongs on the failing check. It does not belong on the
+`restart_from` target.
 
 The job timeout is an outer wall-clock bound. The gate also has its own attempt
 limit. See [Limits](/reference/limits). For the evaluation model, see

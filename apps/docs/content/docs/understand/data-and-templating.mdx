@@ -7,49 +7,33 @@ description: "Understand when run data becomes available, how outputs move it be
 **Context** is the data a workflow can read while it runs. It starts with the
 event or the manual inputs. It grows as jobs and steps produce results.
 
-Timing matters. A workflow can't read a result before the work that creates it
-has finished. Shipfox resolves each value once enough context exists. A value
-that depends on later work waits for that work to finish.
+## How interpolation works
 
-## When each kind of data becomes available
+Interpolation reads a value from context and inserts it into a workflow field.
+Wrap the expression in `${{ }}`. For example, `Hello ${{ inputs.name }}` adds
+the `name` input after `Hello`.
 
-Context is a flow, not one global object. Data joins it at five points:
+Use interpolation to add data to text or settings. It does not decide whether
+work runs.
 
-1. **Run creation** adds the run identity, the trigger, the event, and the
-   inputs.
-2. **Job readiness** adds the outputs of upstream jobs that have finished.
-3. **Listening execution** adds the event batch that started that execution.
-4. **Step dispatch** adds earlier step outputs and retry context.
-5. **Runner execution** resolves secret bindings for the command that needs
-   them. The secret value never enters the run plan.
+A predicate is a yes-or-no check. For example, `step.exit_code == 0` passes a
+gate when the command succeeds. Filters, conditions, gates, and job success
+rules use predicates.
 
-A tool step adds one short-lived value. Its provider response is readable as
-`result` only while that step maps its outputs, right after the call returns.
-Later steps read the stored value as `steps.<key>.outputs.result`.
+The [Expressions reference](/reference/expressions) defines the exact syntax
+and available fields.
 
-Workspace variables and project settings hold long-lived configuration. Events
-and outputs describe this run. Secrets grant access and follow a stricter path.
+## When data becomes available
 
-The [Contexts reference](/reference/contexts#context-availability) is the
-canonical table of which contexts each field can read.
+A workflow gains data as the run progresses:
 
-## Two kinds of expression: templates and predicates
+- Run details, trigger data, inputs, and variables are available from the start.
+- Step outputs become available after the step finishes.
+- Job outputs become available after an upstream job finishes.
+- Restart feedback becomes available when a gate repeats steps.
 
-A `${{ }}` template puts a value into text or into a setting. It can put an
-issue title in a prompt. It can also bind a job output to an environment
-variable.
-
-A predicate returns true or false. Filters, conditions, gates, and job success
-rules use predicates. They decide whether work starts, continues, or passes.
-
-The two roles stay separate, which makes policy easier to inspect. A template
-never decides control flow. A predicate can't run a command or change outside
-state. The same saved context therefore always produces the same decision.
-
-Use a template to move a known value. Use a predicate when the workflow needs a
-yes-or-no rule. The [Expressions
-reference](/reference/expressions) defines the exact syntax and the available
-fields.
+The [Contexts reference](/reference/contexts#context-availability) lists the
+exact availability of these values, tool results, listening events, and secrets.
 
 ## How outputs move results between jobs
 
