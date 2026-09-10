@@ -28,7 +28,7 @@ const agentAccessErrorDetailsSchema = z
         message: `Details must contain at most ${AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES} UTF-8 bytes`,
       });
     }
-    visitDetailStrings(details, context);
+    visitDetailStrings(JSON.parse(serialized), context);
   });
 
 function visitDetailStrings(value: unknown, context: z.RefinementCtx): void {

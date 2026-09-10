@@ -47,6 +47,23 @@ describe('agent access envelope', () => {
     ).toBe(false);
   });
 
+  test('rejects detail strings emitted by toJSON', () => {
+    const serializedDetail = 'x'.repeat(AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES + 1);
+    const details = {
+      reason: {
+        toJSON: () => serializedDetail,
+      },
+    };
+
+    expect(JSON.stringify(details).length).toBeLessThan(AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES);
+    expect(
+      agentAccessEnvelopeSchema.safeParse({
+        ok: false,
+        error: {code: 'bad', details},
+      }).success,
+    ).toBe(false);
+  });
+
   test('rejects mixed success and error payloads', () => {
     expect(
       agentAccessEnvelopeSchema.safeParse({ok: true, result: {}, error: {code: 'bad'}}).success,
