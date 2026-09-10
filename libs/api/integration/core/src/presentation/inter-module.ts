@@ -81,6 +81,15 @@ type CheckoutSpecDto = {
   gitAuthor?: {name: string; email: string};
 };
 
+function isValidExternalUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function toCheckoutCredentialsDto(
   credentials: NonNullable<CheckoutSpec['credentials']>,
 ): CheckoutCredentialsDto {
@@ -148,7 +157,10 @@ export function createIntegrationsInterModulePresentation(params: {
           if (!provider) return undefined;
           let externalUrl: string | undefined;
           try {
-            externalUrl = await provider.connectionExternalUrl?.(connection);
+            const resolvedExternalUrl = await provider.connectionExternalUrl?.(connection);
+            if (resolvedExternalUrl !== undefined && isValidExternalUrl(resolvedExternalUrl)) {
+              externalUrl = resolvedExternalUrl;
+            }
           } catch (error) {
             logger().warn(
               {connectionId: connection.id, provider: connection.provider, err: error},

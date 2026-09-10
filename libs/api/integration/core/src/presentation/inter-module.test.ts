@@ -614,6 +614,64 @@ describe('integrations inter-module presentation', () => {
       client.getConnectionToolCatalog({workspaceId: otherWorkspaceId, connectionId: first.id}),
     ).resolves.toBeNull();
   });
+
+  it('omits malformed external URLs while preserving the connection page cursor', async () => {
+    const testWorkspaceId = crypto.randomUUID();
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        connectionExternalUrl: async () => 'not-a-url',
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+    transport.seal();
+
+    const first = await integrationConnectionFactory.create({
+      workspaceId: testWorkspaceId,
+      provider: 'github',
+      slug: 'github_invalid',
+      externalAccountId: 'invalid',
+    });
+    const second = await integrationConnectionFactory.create({
+      workspaceId: testWorkspaceId,
+      provider: 'github',
+      slug: 'github_next',
+      externalAccountId: 'next',
+    });
+
+    const firstPage = await client.listConnectionsByWorkspace({
+      workspaceId: testWorkspaceId,
+      limit: 1,
+    });
+    const secondPage = await client.listConnectionsByWorkspace({
+      workspaceId: testWorkspaceId,
+      limit: 1,
+      cursor: firstPage.nextCursor ?? undefined,
+    });
+
+    expect(firstPage.connections).toEqual([
+      {
+        id: first.id,
+        slug: 'github_invalid',
+        provider: 'github',
+        displayName: first.displayName,
+        lifecycleStatus: 'active',
+        capabilities: [],
+        createdAt: first.createdAt.toISOString(),
+        updatedAt: first.updatedAt.toISOString(),
+      },
+    ]);
+    expect(firstPage.nextCursor).toEqual({slug: first.slug, id: first.id});
+    expect(secondPage.connections.map(({id}) => id)).toEqual([second.id]);
+    expect(secondPage.nextCursor).toBeNull();
+  });
 });
 
 describe('integrations inter-module callTool', () => {
