@@ -1,3 +1,4 @@
+import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import {ApplicationFailure} from '@temporalio/common';
 import {condition, defineSignal, log, proxyActivities, setHandler} from '@temporalio/workflow';
 import {
@@ -53,8 +54,12 @@ export const jobFinishedSignal =
   defineSignal<[{status: RuntimeCompletionStatus; jobExecutionId?: string | undefined}]>(
     JOB_FINISHED_SIGNAL,
   );
+export interface JobLeaseExpiredSignalPayload {
+  jobExecutionId?: string | undefined;
+  cause?: RunnerJobLossCauseDto | undefined;
+}
 export const jobLeaseExpiredSignal =
-  defineSignal<[{jobExecutionId?: string | undefined}]>(JOB_LEASE_EXPIRED_SIGNAL);
+  defineSignal<[JobLeaseExpiredSignalPayload]>(JOB_LEASE_EXPIRED_SIGNAL);
 export interface JobClaimedSignalPayload {
   jobExecutionId: string;
   claimedAt: string;
@@ -146,6 +151,7 @@ function registerJobExecutionSignalHandlers(
   setHandler(jobLeaseExpiredSignal, (payload = {}) => {
     if (payload.jobExecutionId !== undefined && payload.jobExecutionId !== jobExecutionId) return;
     signals.leaseExpired = true;
+    signals.leaseExpiredCause ??= payload.cause;
   });
   setHandler(jobClaimedSignal, (payload) => {
     if (payload.jobExecutionId !== jobExecutionId) return;
@@ -217,11 +223,16 @@ function jobExecutionStatusForRuntimeStatus(
 async function resolveLeaseExpiredJobExecution({
   input,
   runningVersion,
-}: JobExecutionResolution): Promise<JobExecutionOrchestrationResult> {
-  const leaseExpired = await resolveLeaseExpiredJobExecutionActivity({
+  cause,
+}: JobExecutionResolution & {
+  cause: RunnerJobLossCauseDto | undefined;
+}): Promise<JobExecutionOrchestrationResult> {
+  const activityParams = {
     jobExecutionId: input.jobExecutionId,
     expectedVersion: runningVersion,
-  });
+    ...(cause === undefined ? {} : {runnerLossCause: cause}),
+  };
+  const leaseExpired = await resolveLeaseExpiredJobExecutionActivity(activityParams);
   if (input.resolveJobStatus === false) {
     log.info('job execution terminated', {
       jobId: input.jobId,
@@ -278,6 +289,7 @@ export async function jobExecutionOrchestration(
   const signals: JobExecutionSignals = {
     finished: undefined,
     leaseExpired: false,
+    leaseExpiredCause: undefined,
     claimed: undefined,
   };
   // Register every signal before enqueue can block or publish a claim/outcome event. The
@@ -306,7 +318,11 @@ export async function jobExecutionOrchestration(
     });
   }
   if (resolution === 'lease-expired') {
-    return resolveLeaseExpiredJobExecution({input, runningVersion: input.executionVersion});
+    return resolveLeaseExpiredJobExecution({
+      input,
+      runningVersion: input.executionVersion,
+      cause: signals.leaseExpiredCause,
+    });
   }
   if (!signals.claimed) {
     return resolveTimedOutJobExecution({input, runningVersion: input.executionVersion});
@@ -329,7 +345,11 @@ export async function jobExecutionOrchestration(
     return resolveFinishedJobExecution({input, runningVersion, status: finished.status});
   }
   if (resolution === 'lease-expired') {
-    return resolveLeaseExpiredJobExecution({input, runningVersion});
+    return resolveLeaseExpiredJobExecution({
+      input,
+      runningVersion,
+      cause: signals.leaseExpiredCause,
+    });
   }
   return resolveTimedOutJobExecution({input, runningVersion});
 }

@@ -160,8 +160,10 @@ export {
   RUNNER_JOB_LEASE_EXPIRED,
   type RunnerJobClaimedEvent,
   type RunnerJobLeaseExpiredEvent,
+  type RunnerJobLossCauseDto,
   type RunnersEventMap,
   runnerJobClaimedEventSchema,
   runnerJobLeaseExpiredEventSchema,
+  runnerJobLossCauseSchema,
   runnersEventSchemas,
 } from './events.js';

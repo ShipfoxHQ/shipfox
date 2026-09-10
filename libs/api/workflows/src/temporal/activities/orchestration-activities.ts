@@ -1,6 +1,7 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {ApplicationFailure} from '@temporalio/common';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
@@ -194,7 +195,11 @@ export async function bulkSetStepStatuses(params: {
 }
 
 export async function resolveLeaseExpiredJobExecutionActivity(
-  params: {jobExecutionId: string; expectedVersion: number},
+  params: {
+    jobExecutionId: string;
+    expectedVersion: number;
+    runnerLossCause?: RunnerJobLossCauseDto | undefined;
+  },
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>,
 ): Promise<{status: RuntimeCompletionStatus; executionVersion: number}> {
   try {

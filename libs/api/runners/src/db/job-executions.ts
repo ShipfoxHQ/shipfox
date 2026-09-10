@@ -1,6 +1,7 @@
 import {
   RUNNER_JOB_CLAIMED,
   RUNNER_JOB_LEASE_EXPIRED,
+  type RunnerJobLossCauseDto,
   type RunnerJobStopReasonDto,
   type RunnerLifecycleCapabilitiesDto,
   type RunnersEventMap,
@@ -52,6 +53,7 @@ import {
   releaseReservationUnits,
   releaseTerminalRunnerInstanceReservationsByIds,
 } from './reservations.js';
+import {terminalStates} from './runner-states.js';
 import {runnersOutbox} from './schema/outbox.js';
 import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
@@ -145,6 +147,93 @@ interface ExpiredJobLeaseRow {
   startedAt: Date | string;
   lastHeartbeatAt: Date | string;
   expiredAt: Date | string;
+}
+
+type ProviderRunnerLossObservation = Pick<
+  typeof providerRunners.$inferSelect,
+  'provisionerId' | 'providerRunnerId' | 'state' | 'terminationAuthorizedAt'
+>;
+
+function providerRunnerKey(provisionerId: string, providerRunnerId: string): string {
+  return `${provisionerId}:${providerRunnerId}`;
+}
+
+async function classifyExpiredLeaseCausesTx(
+  tx: Tx,
+  rows: ReadonlyArray<ExpiredJobLeaseRow & {jobExecutionId: string}>,
+): Promise<Map<string, RunnerJobLossCauseDto>> {
+  const managedRows = rows.filter(
+    (
+      row,
+    ): row is ExpiredJobLeaseRow & {
+      jobExecutionId: string;
+      provisionerId: string;
+      providerRunnerId: string;
+    } => row.provisionerId !== null && row.providerRunnerId !== null,
+  );
+  if (managedRows.length === 0) {
+    return new Map(rows.map((row) => [row.jobExecutionId, 'runner_lost' as const]));
+  }
+
+  const providerRunnerRows = await tx
+    .select({
+      provisionerId: providerRunners.provisionerId,
+      providerRunnerId: providerRunners.providerRunnerId,
+      state: providerRunners.state,
+      terminationAuthorizedAt: providerRunners.terminationAuthorizedAt,
+    })
+    .from(providerRunners)
+    .where(
+      or(
+        ...managedRows.map((row) =>
+          and(
+            eq(providerRunners.provisionerId, row.provisionerId),
+            eq(providerRunners.providerRunnerId, row.providerRunnerId),
+          ),
+        ),
+      ),
+    );
+  const observations = new Map(
+    providerRunnerRows
+      .filter(
+        (
+          row,
+        ): row is ProviderRunnerLossObservation & {
+          providerRunnerId: string;
+        } => row.providerRunnerId !== null,
+      )
+      .map((row) => [providerRunnerKey(row.provisionerId, row.providerRunnerId), row]),
+  );
+
+  return new Map(
+    rows.map((row) => {
+      if (row.provisionerId === null || row.providerRunnerId === null) {
+        return [row.jobExecutionId, 'runner_lost' as const];
+      }
+      const providerRunner = observations.get(
+        providerRunnerKey(row.provisionerId, row.providerRunnerId),
+      );
+      return [row.jobExecutionId, runnerLossCauseFor(providerRunner)] as const;
+    }),
+  );
+}
+
+function runnerLossCauseFor(
+  providerRunner: ProviderRunnerLossObservation | undefined,
+): RunnerJobLossCauseDto {
+  // An authorization observed while this lease still exists is positive evidence that an
+  // internal lifecycle guard failed. Do not reinterpret an absent provider row as this case.
+  if (providerRunner !== undefined && providerRunner.terminationAuthorizedAt !== null) {
+    return 'lifecycle_violation';
+  }
+  if (
+    providerRunner &&
+    terminalStates.includes(providerRunner.state as (typeof terminalStates)[number])
+  ) {
+    return 'provider_lost';
+  }
+  if (providerRunner) return 'lease_expired';
+  return 'runner_lost';
 }
 
 async function lockStaleRunnerSessionsTx(
@@ -1239,6 +1328,7 @@ export async function expireStuckJobExecutions(params: {
 
     if (deleted.length === 0) return [];
 
+    const lossCausesByJobExecutionId = await classifyExpiredLeaseCausesTx(tx, deleted);
     await persistExpiredLeaseStateTx(tx, deleted, sessionCapabilitiesById);
 
     await releaseReservationsForTerminalRunningRows(tx, deleted);
@@ -1254,6 +1344,7 @@ export async function expireStuckJobExecutions(params: {
           jobId: row.jobId,
           jobExecutionId: row.jobExecutionId,
           expiredAt: new Date(row.expiredAt).toISOString(),
+          cause: lossCausesByJobExecutionId.get(row.jobExecutionId) ?? 'runner_lost',
         },
       })),
     );

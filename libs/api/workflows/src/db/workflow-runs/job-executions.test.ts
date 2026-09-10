@@ -348,7 +348,15 @@ describe('workflow run job executions', () => {
     expect(() => workflowsJobExecutionTerminatedSchema.strict().parse(event.payload)).not.toThrow();
   });
 
-  test('carries queued, started, and runner identity in the terminated event after a lease expires', async () => {
+  test.each([
+    {cause: undefined, expectedStatusReason: 'runner_lost'},
+    {cause: 'lease_expired', expectedStatusReason: 'lease_expired'},
+    {cause: 'provider_lost', expectedStatusReason: 'provider_lost'},
+    {cause: 'lifecycle_violation', expectedStatusReason: 'lifecycle_violation'},
+  ] as const)('publishes $expectedStatusReason after a lease expires', async ({
+    cause,
+    expectedStatusReason,
+  }) => {
     const run = await createWorkflowRun({
       workspaceId,
       projectId,
@@ -389,13 +397,14 @@ describe('workflow run job executions', () => {
     await resolveJobExecutionAfterLeaseExpiry({
       jobExecutionId: execution.id,
       expectedVersion: execution.version,
+      runnerLossCause: cause,
     });
 
     expect(await jobExecutionTerminatedEvents(execution.id)).toEqual([
       expect.objectContaining({
         jobExecutionId: execution.id,
         status: 'failed',
-        statusReason: 'runner_lost',
+        statusReason: expectedStatusReason,
         queuedAt: queued.queuedAt?.toISOString(),
         startedAt: startedAt.toISOString(),
         runnerLabels: ['ubuntu-latest'],

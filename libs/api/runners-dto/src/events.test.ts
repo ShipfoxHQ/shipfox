@@ -91,6 +91,25 @@ describe('runners events', () => {
     expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
   });
 
+  it('accepts every bounded runner-loss cause', () => {
+    for (const cause of [
+      'lease_expired',
+      'provider_lost',
+      'lifecycle_violation',
+      'runner_lost',
+    ] as const) {
+      const payload = sharedLeasePayload({cause});
+
+      expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
+    }
+  });
+
+  it('keeps the runner-loss cause optional for legacy events', () => {
+    const payload = sharedLeasePayload();
+
+    expect(runnerJobLeaseExpiredEventSchema.strict().parse(payload)).toEqual(payload);
+  });
+
   it('covers every event map key with a schema', () => {
     expect(Object.keys(runnersEventSchemas)).toEqual([
       RUNNER_JOB_LEASE_EXPIRED,

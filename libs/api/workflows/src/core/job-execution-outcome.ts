@@ -1,3 +1,4 @@
+import type {RunnerJobLossCauseDto} from '@shipfox/api-runners-dto';
 import type {RuntimeCompletionStatus} from './workflow-scheduling/runtime-dag.js';
 
 export interface JobExecutionOrchestrationResult {
@@ -17,6 +18,7 @@ export interface JobExecutionStatusWriteResult {
 export interface JobExecutionOutcomeSignals {
   finished: {status: RuntimeCompletionStatus; jobExecutionId?: string | undefined} | undefined;
   leaseExpired: boolean;
+  leaseExpiredCause: RunnerJobLossCauseDto | undefined;
 }
 
 export type JobExecutionOutcomeResolution = 'finished' | 'lease-expired' | 'timed-out';
