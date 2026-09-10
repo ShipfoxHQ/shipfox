@@ -4,4 +4,4 @@
 "@shipfox/client-workflows": patch
 ---
 
-Carry opaque workspace identity through Usage pricing references and cache keys so resolved costs stay authorized and workspace-isolated.
+UsagePricingReference values now require an opaque workspaceId, and map/record resolveCosts results must be re-keyed with usagePricingReferenceKey or return entries carrying a matching workspaceId/reference.
