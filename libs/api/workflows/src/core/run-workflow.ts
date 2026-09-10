@@ -9,6 +9,7 @@ import {createAgentDefaultsResolver} from './agent-defaults.js';
 import type {
   TriggerPayload,
   WorkflowRun,
+  WorkflowRunCreationResult,
   WorkflowRunDevSource,
   WorkflowSourceSnapshot,
 } from './entities/workflow-run.js';
@@ -31,7 +32,7 @@ export async function runWorkflow(
   definitions: DefinitionsInterModuleClient,
   params: RunWorkflowParams & {agent: AgentInterModuleClient},
   options: {secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>} = {},
-): Promise<WorkflowRun> {
+): Promise<WorkflowRunCreationResult> {
   const {definition} = await definitions.getDefinitionForWorkflowRun({
     definitionId: params.definitionId,
   });

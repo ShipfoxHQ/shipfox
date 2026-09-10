@@ -11,6 +11,43 @@ import {
 import {workflowsInterModuleContract} from './inter-module.js';
 
 describe('workflowsInterModuleContract', () => {
+  test('defines workspace-scoped cancel and rerun command contracts', () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000001';
+    const workflowRunId = '00000000-0000-4000-8000-000000000002';
+    const actorUserId = '00000000-0000-4000-8000-000000000003';
+
+    expect(
+      workflowsInterModuleContract.methods.cancelWorkflowRun.input.parse({
+        workspaceId,
+        workflowRunId,
+        expectedAttempt: 1,
+      }),
+    ).toEqual({workspaceId, workflowRunId, expectedAttempt: 1});
+    expect(
+      workflowsInterModuleContract.methods.rerunWorkflowRun.output.parse({
+        id: workflowRunId,
+        attempt: 2,
+        status: 'pending',
+      }),
+    ).toEqual({id: workflowRunId, attempt: 2, status: 'pending'});
+    expect(
+      workflowsInterModuleContract.methods.startRunFromTrigger.output.parse({
+        id: workflowRunId,
+        name: 'Build',
+        deduplicated: true,
+      }).deduplicated,
+    ).toBe(true);
+    expect(
+      workflowsInterModuleContract.methods.rerunWorkflowRun.input.safeParse({
+        workspaceId,
+        workflowRunId,
+        expectedAttempt: 1,
+        mode: 'all',
+        actorUserId,
+      }).success,
+    ).toBe(true);
+  });
+
   test('accepts workspace-scoped execution reads with decoded cursors and filters', () => {
     const stepId = '00000000-0000-4000-8000-000000000002';
     const workspaceId = '00000000-0000-4000-8000-000000000003';

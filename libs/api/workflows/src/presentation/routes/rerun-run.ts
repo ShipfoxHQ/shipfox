@@ -13,11 +13,8 @@ import {
   WorkspaceNotFoundError,
   WorkspaceSuspendedError,
 } from '#core/errors.js';
-import {
-  assertWorkspaceAdmitsNewJobs,
-  type WorkflowAdmissionPolicy,
-} from '#core/workspace-admission.js';
-import {createRerunWorkflowRun} from '#db/index.js';
+import {rerunWorkflowRun} from '#core/run-actions.js';
+import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
 import {toRunDto} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
@@ -87,17 +84,14 @@ export function rerunRunRoute(
       const {id} = request.params;
       const sourceRun = await requireAccessibleRun({request, id, projects});
 
-      await assertWorkspaceAdmitsNewJobs(workspaces, sourceRun.workspaceId, {
-        policy: admission?.policy,
-        source: sourceRun.triggerSource,
-        definitionId: sourceRun.definitionId,
-      });
-
       const actor = requireUserContext(request);
-      const run = await createRerunWorkflowRun({
+      const run = await rerunWorkflowRun({
+        workspaceId: sourceRun.workspaceId,
         workflowRunId: sourceRun.id,
         mode: request.body.mode,
         actorUserId: actor.userId,
+        workspaces,
+        admission,
       });
 
       return toRunDto(run, run.currentAttempt);

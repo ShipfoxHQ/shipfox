@@ -746,6 +746,34 @@ describe('workflow run queries', () => {
       expect(secondContext.run).toMatchObject({id: source.id, attempt: 2n});
     });
 
+    test('rejects a retry with the original expected attempt after a rerun', async () => {
+      const source = await createTerminalSourceRun();
+
+      const second = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        expectedAttempt: 1,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      await expect(
+        createRerunWorkflowRun({
+          workflowRunId: source.id,
+          expectedAttempt: 1,
+          mode: 'all',
+          actorUserId: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({
+        currentAttempt: 2,
+      });
+
+      await expect(getWorkflowRunById(source.id)).resolves.toMatchObject({
+        currentAttempt: second.currentAttempt,
+      });
+      const attempts = await listTestRunAttempts({workflowRunId: source.id, projectId});
+      expect(attempts).toHaveLength(2);
+    });
+
     test('pins the current attempt as the source across consecutive failed reruns', async () => {
       const source = await createTerminalSourceRun();
       const second = await createRerunWorkflowRun({

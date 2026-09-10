@@ -282,6 +282,31 @@ describe('workflow run queries', () => {
   });
 
   describe('cancelWorkflowRun', () => {
+    test('rejects a stale expected attempt without changing the run', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({jobs: {build: {steps: [{run: 'build'}]}}}),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      await expect(
+        cancelWorkflowRun({workflowRunId: run.id, expectedAttempt: run.currentAttempt + 1}),
+      ).rejects.toMatchObject({
+        currentAttempt: run.currentAttempt,
+      });
+      await expect(getWorkflowRunById(run.id)).resolves.toMatchObject({
+        currentAttempt: run.currentAttempt,
+        status: run.status,
+      });
+    });
+
     test('cancels the run, non-terminal jobs, and only their non-terminal steps', async () => {
       const run = await createWorkflowRun({
         workspaceId,

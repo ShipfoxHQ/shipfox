@@ -10,6 +10,7 @@ export type {Step, StepStatus} from './entities/step.js';
 export type {
   TriggerPayload,
   WorkflowRun,
+  WorkflowRunCreationResult,
   WorkflowRunStatus,
   WorkflowSourceSnapshot,
 } from './entities/workflow-run.js';
@@ -29,6 +30,7 @@ export {
   WorkflowAdmissionDeniedError,
   WorkflowDiagnosticTooLargeError,
   WorkflowExecutionPayloadTooLargeError,
+  WorkflowRunAttemptMismatchError,
   WorkflowRunNotCancellableError,
   WorkflowSourceSnapshotTooLargeError,
   WorkflowStepAttemptInvocationLimitError,

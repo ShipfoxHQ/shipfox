@@ -55,6 +55,7 @@ export type {
   Step,
   TriggerPayload,
   WorkflowRun,
+  WorkflowRunCreationResult,
   WorkflowSourceSnapshot,
 } from '#core/index.js';
 export {
@@ -66,6 +67,7 @@ export {
   WorkflowAdmissionDeniedError,
   WorkflowDiagnosticTooLargeError,
   WorkflowExecutionPayloadTooLargeError,
+  WorkflowRunAttemptMismatchError,
   WorkflowRunNotCancellableError,
   WorkflowSourceSnapshotTooLargeError,
   WorkflowStepAttemptInvocationLimitError,

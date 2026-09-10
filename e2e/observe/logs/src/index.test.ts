@@ -47,6 +47,7 @@ describe('fetchStepLogs', () => {
   test('drains inline pages and parses records', async () => {
     const urls: string[] = [];
     const result = await fetchStepLogs({
+      apiUrl: 'http://localhost:16101',
       attempt: 1,
       fetch: (url) => {
         urls.push(url.toString());

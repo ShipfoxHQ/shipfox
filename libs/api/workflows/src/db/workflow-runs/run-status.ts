@@ -9,7 +9,11 @@ import {
   type WorkflowRun,
   type WorkflowRunStatus,
 } from '#core/entities/workflow-run.js';
-import {WorkflowRunNotCancellableError, WorkflowRunNotFoundError} from '#core/errors.js';
+import {
+  WorkflowRunAttemptMismatchError,
+  WorkflowRunNotCancellableError,
+  WorkflowRunNotFoundError,
+} from '#core/errors.js';
 import {
   recordWorkflowJobStatusChanged,
   recordWorkflowListenerEventOutcome,
@@ -37,6 +41,7 @@ import {bulkUpdateStepStatuses} from './steps.js';
 
 export interface CancelWorkflowRunParams {
   workflowRunId: string;
+  expectedAttempt?: number | undefined;
 }
 
 export interface FailWorkflowRunAsTimedOutParams {
@@ -292,6 +297,12 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
 
     if (!lockedRun) {
       throw new WorkflowRunNotFoundError(params.workflowRunId);
+    }
+    if (
+      params.expectedAttempt !== undefined &&
+      lockedRun.currentAttempt !== params.expectedAttempt
+    ) {
+      throw new WorkflowRunAttemptMismatchError(lockedRun.id, lockedRun.currentAttempt);
     }
     if (isWorkflowRunTerminal(lockedRun.status)) {
       throw new WorkflowRunNotCancellableError(lockedRun.id, lockedRun.status);

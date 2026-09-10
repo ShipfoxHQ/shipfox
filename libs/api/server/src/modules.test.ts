@@ -308,6 +308,8 @@ describe('defaultModules', () => {
             listJobStepAttempts: vi.fn(),
             resolveWorkflowRunTriggerReference: vi.fn(),
             startDevRun: vi.fn(),
+            cancelWorkflowRun: vi.fn(),
+            rerunWorkflowRun: vi.fn(),
             startRunFromTrigger: vi.fn(),
           },
         },

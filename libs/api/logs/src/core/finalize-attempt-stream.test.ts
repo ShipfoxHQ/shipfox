@@ -127,6 +127,8 @@ describe('finalizeAttemptLogStream', () => {
       workflows: defineInterModulePresentation(workflowsInterModuleContract, {
         startRunFromTrigger: vi.fn(),
         startDevRun: vi.fn(),
+        cancelWorkflowRun: vi.fn(),
+        rerunWorkflowRun: vi.fn(),
         resolveWorkflowRunTriggerReference: vi.fn(),
         deliverEventToJobListener: vi.fn(),
         getStepLogContext: () => ({harness: 'claude' as const}),

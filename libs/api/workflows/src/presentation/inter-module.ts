@@ -39,8 +39,14 @@ import type {Step} from '#core/entities/step.js';
 import type {WorkflowRunTriggerReference} from '#core/entities/workflow-run.js';
 import {
   InvalidJobRunnerLabelsError,
+  NoFailedJobsError,
+  RunNotTerminalError,
+  SourceRunNotFoundError,
   WorkflowAdmissionDeniedError,
   WorkflowExecutionPayloadTooLargeError,
+  WorkflowRunAttemptMismatchError,
+  WorkflowRunNotCancellableError,
+  WorkflowRunNotFoundError,
   WorkflowSourceSnapshotTooLargeError,
   WorkspaceDeletedError,
   WorkspaceNotFoundError,
@@ -56,6 +62,7 @@ import {
   runWorkflow,
 } from '#core/index.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
+import {cancelWorkflowRun, rerunWorkflowRun} from '#core/run-actions.js';
 import {
   assertWorkspaceAdmitsNewJobs,
   type WorkflowAdmissionPolicy,
@@ -109,9 +116,12 @@ import {
   toWorkflowStepAttemptSummariesResponseDto,
 } from '#presentation/dto/index.js';
 
-type WorkspaceAdmissionKnownError = InterModuleKnownErrorFor<
-  typeof workflowsInterModuleContract.methods.deliverEventToJobListener
->;
+type WorkspaceAdmissionMethod =
+  | typeof workflowsInterModuleContract.methods.startRunFromTrigger
+  | typeof workflowsInterModuleContract.methods.startDevRun
+  | typeof workflowsInterModuleContract.methods.deliverEventToJobListener
+  | typeof workflowsInterModuleContract.methods.rerunWorkflowRun;
+type WorkspaceAdmissionKnownError = InterModuleKnownErrorFor<WorkspaceAdmissionMethod>;
 
 const DECIMAL_CURSOR_VALUE = /^\d+$/;
 
@@ -209,9 +219,33 @@ export function createWorkflowsInterModulePresentation(params: {
           },
           {secrets: params.secrets},
         );
-        return {id: run.id, name: run.name};
+        return {
+          id: run.id,
+          name: run.name,
+          ...(run.deduplicated === true ? {deduplicated: true} : {}),
+        };
       } catch (error) {
         throw toStartRunKnownError(error, input.definitionId);
+      }
+    },
+    cancelWorkflowRun: async (input) => {
+      try {
+        const run = await cancelWorkflowRun(input);
+        return {id: run.id, currentAttempt: run.currentAttempt, status: run.status};
+      } catch (error) {
+        throw toCancelWorkflowRunKnownError(error);
+      }
+    },
+    rerunWorkflowRun: async (input) => {
+      try {
+        const run = await rerunWorkflowRun({
+          ...input,
+          workspaces: params.workspaces,
+          admission: params.admission,
+        });
+        return {id: run.id, attempt: run.currentAttempt, status: run.status};
+      } catch (error) {
+        throw toRerunWorkflowRunKnownError(error);
       }
     },
     startDevRun: async (input) => {
@@ -868,6 +902,43 @@ function toFailedStepAttemptCoordinate(coordinate: {
   };
 }
 
+function toCancelWorkflowRunKnownError(error: unknown): unknown {
+  const method = workflowsInterModuleContract.methods.cancelWorkflowRun;
+  if (error instanceof WorkflowRunNotFoundError) {
+    return createInterModuleKnownError(method, 'run-not-found', {});
+  }
+  if (error instanceof WorkflowRunAttemptMismatchError) {
+    return createInterModuleKnownError(method, 'attempt-mismatch', {
+      currentAttempt: error.currentAttempt,
+    });
+  }
+  if (error instanceof WorkflowRunNotCancellableError) {
+    return createInterModuleKnownError(method, 'run-already-finished', {
+      status: error.status,
+    });
+  }
+  return error;
+}
+
+function toRerunWorkflowRunKnownError(error: unknown): unknown {
+  const method = workflowsInterModuleContract.methods.rerunWorkflowRun;
+  if (error instanceof SourceRunNotFoundError) {
+    return createInterModuleKnownError(method, 'run-not-found', {});
+  }
+  if (error instanceof WorkflowRunAttemptMismatchError) {
+    return createInterModuleKnownError(method, 'attempt-mismatch', {
+      currentAttempt: error.currentAttempt,
+    });
+  }
+  if (error instanceof RunNotTerminalError) {
+    return createInterModuleKnownError(method, 'run-not-terminal', {});
+  }
+  if (error instanceof NoFailedJobsError) {
+    return createInterModuleKnownError(method, 'no-failed-jobs', {});
+  }
+  return toWorkspaceAdmissionKnownError(method, error) ?? error;
+}
+
 export function toStartRunKnownError(error: unknown, definitionId: string): unknown {
   const method = workflowsInterModuleContract.methods.startRunFromTrigger;
   const mapped = toRunCreationKnownError(method, error);
@@ -946,7 +1017,8 @@ function toWorkspaceAdmissionKnownError(
   method:
     | typeof workflowsInterModuleContract.methods.startRunFromTrigger
     | typeof workflowsInterModuleContract.methods.startDevRun
-    | typeof workflowsInterModuleContract.methods.deliverEventToJobListener,
+    | typeof workflowsInterModuleContract.methods.deliverEventToJobListener
+    | typeof workflowsInterModuleContract.methods.rerunWorkflowRun,
   error: unknown,
 ): WorkspaceAdmissionKnownError | undefined {
   if (error instanceof WorkspaceSuspendedError) {

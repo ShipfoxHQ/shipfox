@@ -84,6 +84,8 @@ function localWorkflowsClient(): WorkflowsModuleClient {
         );
       },
       startDevRun: ({workflowId}) => ({id: workflowId, name: 'Build'}),
+      cancelWorkflowRun: vi.fn(),
+      rerunWorkflowRun: vi.fn(),
       resolveWorkflowRunTriggerReference: () => null,
       deliverEventToJobListener: ({jobId}) => {
         if (jobId === listenerErrorInput.jobId) {

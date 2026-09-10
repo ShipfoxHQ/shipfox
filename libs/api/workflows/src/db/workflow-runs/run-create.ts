@@ -23,6 +23,7 @@ import {
 import type {
   TriggerPayload,
   WorkflowRun,
+  WorkflowRunCreationResult,
   WorkflowRunDevSource,
   WorkflowRunOrigin,
   WorkflowSourceSnapshot,
@@ -76,7 +77,9 @@ export interface CreateWorkflowRunParams {
   projects?: ProjectsModuleClient | undefined;
 }
 
-export async function createWorkflowRun(params: CreateWorkflowRunParams): Promise<WorkflowRun> {
+export async function createWorkflowRun(
+  params: CreateWorkflowRunParams,
+): Promise<WorkflowRunCreationResult> {
   const triggerReference = await resolveWorkflowRunTriggerReference({
     workspaceId: params.workspaceId,
     triggerConnectionId: params.triggerConnectionId,
@@ -126,7 +129,7 @@ export async function createWorkflowRun(params: CreateWorkflowRunParams): Promis
     recordWorkflowRunCreated(result.run.triggerPayload.provider ?? result.run.triggerSource);
   }
 
-  return result.run;
+  return result.created ? result.run : {...result.run, deduplicated: true};
 }
 
 interface CreateWorkflowRunTransactionContext {
