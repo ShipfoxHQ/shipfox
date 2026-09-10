@@ -22,12 +22,33 @@ describe('workflow concurrency identity', () => {
     });
   });
 
+  test('covers omitted lowercase and uppercase full-fold mappings', () => {
+    expect(canonicalizeWorkflowConcurrencyGroup('\u1e96').canonicalGroupKey).toBe(
+      canonicalizeWorkflowConcurrencyGroup('h\u0331').canonicalGroupKey,
+    );
+    expect(canonicalizeWorkflowConcurrencyGroup('\u1e9e').canonicalGroupKey).toBe(
+      canonicalizeWorkflowConcurrencyGroup('ss').canonicalGroupKey,
+    );
+    expect(canonicalizeWorkflowConcurrencyGroup('\u1f88').canonicalGroupKey).toBe(
+      canonicalizeWorkflowConcurrencyGroup('\u1f00\u03b9').canonicalGroupKey,
+    );
+  });
+
   test('rejects an empty or oversized UTF-8 display group', () => {
     expect(() => canonicalizeWorkflowConcurrencyGroup('   ')).toThrow(
       InvalidWorkflowConcurrencyGroupError,
     );
     expect(() => canonicalizeWorkflowConcurrencyGroup('🙂'.repeat(65))).toThrow(
       InvalidWorkflowConcurrencyGroupError,
+    );
+  });
+
+  test('rejects a NUL-containing display group', () => {
+    expect(() => canonicalizeWorkflowConcurrencyGroup('deploy\u0000')).toThrow(
+      InvalidWorkflowConcurrencyGroupError,
+    );
+    expect(() => canonicalizeWorkflowConcurrencyGroup('deploy\u0000')).toThrow(
+      'Concurrency group cannot contain a NUL character.',
     );
   });
 
@@ -59,6 +80,9 @@ describe('workflow concurrency admission state machine', () => {
     expect(
       nextWorkflowConcurrencyAdmission({hasAcquiredClaim: false, hasWaitingClaim: false}),
     ).toEqual({state: 'acquired', supersedesWaiter: false});
+    expect(
+      nextWorkflowConcurrencyAdmission({hasAcquiredClaim: false, hasWaitingClaim: true}),
+    ).toEqual({state: 'acquired', supersedesWaiter: true});
     expect(
       nextWorkflowConcurrencyAdmission({hasAcquiredClaim: true, hasWaitingClaim: false}),
     ).toEqual({state: 'waiting', supersedesWaiter: false});
