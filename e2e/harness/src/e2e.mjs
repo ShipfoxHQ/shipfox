@@ -10,6 +10,7 @@ const defaultE2eAdminApiKey = 'e2e-admin-api-key';
 const defaultApiUrl = 'http://localhost:16101';
 const defaultClientUrl = 'http://localhost:5173';
 const defaultAuthSignupGateEnabled = 'true';
+const defaultAuthJwtExpiresIn = '2h';
 const defaultAuthSignupAllowedEmailDomains = 'allowed.example.test';
 const defaultAuthSignupNotAllowedMessage = 'This E2E deployment does not accept new accounts.';
 const defaultReadinessTimeoutMs = 60_000;
@@ -227,6 +228,10 @@ export function e2eEnv(sourceEnv) {
       `${apiUrl}/__e2e-managed-inference`,
     ),
     AUTH_ROOT_KEY: valueOr(sourceEnv.AUTH_ROOT_KEY, 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY='),
+    // The full flow suite can run longer than the product's 15-minute default access-token lifetime.
+    // Keep the test deployment's user session usable for the duration of the suite; deployments keep
+    // the shorter production default unless they explicitly override this setting.
+    AUTH_JWT_EXPIRES_IN: valueOr(sourceEnv.AUTH_JWT_EXPIRES_IN, defaultAuthJwtExpiresIn),
     // Impersonation ships disabled by default; the E2E deployment opts in so
     // the mint route is live for the suite that exercises it. The admin
     // bootstrap token is generated per run and never defaults to a well-known
