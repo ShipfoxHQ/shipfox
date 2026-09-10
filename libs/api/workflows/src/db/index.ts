@@ -39,6 +39,7 @@ export {workflowRunCounters} from './schema/workflow-run-counters.js';
 export type {
   BoundedExecutionCount,
   BulkUpdateStepStatusesParams,
+  CancelWorkflowRunAttemptForConcurrencyParams,
   CancelWorkflowRunParams,
   ClaimToolInvocationsParams,
   ClaimToolInvocationsResult,
@@ -118,6 +119,7 @@ export type {
 export {
   bulkUpdateStepStatuses,
   cancelWorkflowRun,
+  cancelWorkflowRunAttemptForConcurrency,
   claimToolInvocations,
   createRerunWorkflowRun,
   createWorkflowRun,

@@ -485,7 +485,11 @@ function terminationReasonForJobStop(
 ): Extract<RunnerTerminationReason, 'job-cancelled' | 'job-timeout'> | null {
   if (!jobExecution?.cancellationRequestedAt) return null;
   if (jobExecution.cancellationReason === 'timed_out') return 'job-timeout';
-  if (jobExecution.cancellationReason === 'run_cancelled') return 'job-cancelled';
+  if (
+    jobExecution.cancellationReason === 'run_cancelled' ||
+    jobExecution.cancellationReason === 'concurrency_superseded'
+  )
+    return 'job-cancelled';
   return null;
 }
 

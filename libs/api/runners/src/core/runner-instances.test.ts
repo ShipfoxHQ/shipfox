@@ -58,6 +58,30 @@ describe('reconcileRunnerInstancesFromDbResult', () => {
     expect(result[0]?.desiredIntent).toBe('keep');
   });
 
+  it('requests local shutdown for a concurrency-superseded job', () => {
+    const result = reconcileRunnerInstancesFromDbResult({
+      observedRunnerInstanceIds: ['provisioned-runner-1'],
+      observedRows: [providerRunner({providerRunnerId: 'provisioned-runner-1'})],
+      boundJobExecutionsByRunnerInstanceId: new Map([
+        [
+          'provisioned-runner-1',
+          boundJobExecution({
+            providerRunnerId: 'provisioned-runner-1',
+            cancellationRequestedAt: new Date('2025-01-01T00:01:00.000Z'),
+            cancellationReason: 'concurrency_superseded',
+          }),
+        ],
+      ]),
+      now: new Date('2025-01-01T00:03:01.000Z'),
+      cleanupGraceSeconds: 120,
+    });
+
+    expect(result[0]).toMatchObject({
+      desiredIntent: 'terminate',
+      desiredIntentReason: 'job-cancelled',
+    });
+  });
+
   it('does not renew cleanup grace after a post-cancellation heartbeat', () => {
     const result = reconcileRunnerInstancesFromDbResult({
       observedRunnerInstanceIds: ['provisioned-runner-1'],
@@ -382,7 +406,7 @@ function boundJobExecution(params: {
   providerRunnerId: string;
   lastHeartbeatAt?: Date;
   cancellationRequestedAt?: Date | null;
-  cancellationReason?: 'run_cancelled' | 'timed_out' | null;
+  cancellationReason?: 'run_cancelled' | 'timed_out' | 'concurrency_superseded' | null;
 }) {
   return {
     workflowRunId: crypto.randomUUID(),

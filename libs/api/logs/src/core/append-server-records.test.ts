@@ -427,11 +427,11 @@ describe('appendServerRecords', () => {
     });
 
     function ingestedAdd() {
-      return metricsMocks.counters.get('bytesIngestedCount')?.add;
+      return metricsMocks.add('bytesIngestedCount').add;
     }
 
     function storedAdd() {
-      return metricsMocks.counters.get('bytesStoredCount')?.add;
+      return metricsMocks.add('bytesStoredCount').add;
     }
 
     it('counts the serialized server body once on an in-order append', async () => {
@@ -456,13 +456,13 @@ describe('appendServerRecords', () => {
         records: [outputRecord('a\n'), endRecord(4)],
       });
 
-      const recordAppended = metricsMocks.counters.get('recordAppendedCount')?.add;
+      const recordAppended = metricsMocks.add('recordAppendedCount').add;
       expect(recordAppended).toHaveBeenCalledWith(1, {kind: 'output'});
       expect(recordAppended).toHaveBeenCalledWith(1, {kind: 'end'});
-      expect(metricsMocks.counters.get('streamClosedCount')?.add).toHaveBeenCalledWith(1, {
+      expect(metricsMocks.add('streamClosedCount').add).toHaveBeenCalledWith(1, {
         reason: 'declared',
       });
-      expect(metricsMocks.counters.get('streamOpenedCount')?.add).toHaveBeenCalledWith(1);
+      expect(metricsMocks.add('streamOpenedCount').add).toHaveBeenCalledWith(1);
     });
 
     it('does not count bytes for a cap-dropped straggler as stored', async () => {
@@ -480,7 +480,7 @@ describe('appendServerRecords', () => {
       expect(storedAdd()).toHaveBeenCalledTimes(1);
       expect(storedAdd()).toHaveBeenCalledWith(crossing.length);
 
-      const recordAppended = metricsMocks.counters.get('recordAppendedCount')?.add;
+      const recordAppended = metricsMocks.add('recordAppendedCount').add;
       expect(recordAppended).toHaveBeenCalledWith(1, {kind: 'output'});
       expect(recordAppended).toHaveBeenCalledWith(1, {kind: 'capped'});
       expect(recordAppended).toHaveBeenCalledTimes(2);

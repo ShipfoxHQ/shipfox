@@ -881,7 +881,7 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
     providerRunnerId: string;
     lastHeartbeatAt: Date;
     cancellationRequestedAt?: Date | null;
-    cancellationReason?: 'run_cancelled' | 'timed_out' | null;
+    cancellationReason?: 'run_cancelled' | 'timed_out' | 'concurrency_superseded' | null;
   }): Promise<{jobExecutionId: string; runnerSessionId: string}> {
     const runnerSession = await runnerSessionFactory.create({workspaceId});
     const jobExecutionId = crypto.randomUUID();

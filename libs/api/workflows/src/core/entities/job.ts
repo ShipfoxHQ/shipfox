@@ -23,6 +23,7 @@ export const JOB_STATUS_REASONS = [
   'condition_errored',
   'user_cancelled',
   'run_cancelled',
+  'concurrency_superseded',
   'timed_out',
   'runner_lost',
   'output_too_large',

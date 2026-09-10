@@ -94,7 +94,9 @@ export async function writeJobExecutionTerminatedOutbox(
       startedAt: params.startedAt ? params.startedAt.toISOString() : null,
       statusReason: params.statusReason,
       cancellationReason:
-        params.statusReason === 'run_cancelled' || params.statusReason === 'timed_out'
+        params.statusReason === 'run_cancelled' ||
+        params.statusReason === 'timed_out' ||
+        params.statusReason === 'concurrency_superseded'
           ? params.statusReason
           : null,
       statusReasonMessage: params.statusReasonMessage ?? null,

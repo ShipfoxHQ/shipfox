@@ -92,7 +92,11 @@ export const workflowsJobExecutionQueuedSchema = z.object({
 });
 export type WorkflowsJobExecutionQueuedEventDto = z.infer<typeof workflowsJobExecutionQueuedSchema>;
 
-export const workflowStopReasonSchema = z.enum(['run_cancelled', 'timed_out']);
+export const workflowStopReasonSchema = z.enum([
+  'run_cancelled',
+  'timed_out',
+  'concurrency_superseded',
+]);
 export type WorkflowStopReasonDto = z.infer<typeof workflowStopReasonSchema>;
 
 export const workflowsJobExecutionTerminatedSchema = z.object({

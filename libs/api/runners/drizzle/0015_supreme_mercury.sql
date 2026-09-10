@@ -1,0 +1,1 @@
+ALTER TYPE "public"."runners_job_stop_reason" ADD VALUE 'concurrency_superseded';

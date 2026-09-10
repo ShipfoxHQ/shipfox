@@ -210,6 +210,7 @@ export function skippedJobDescription(reason: Job['statusReason']): string {
       return 'The job condition could not be evaluated, so this job was skipped.';
     case 'user_cancelled':
     case 'run_cancelled':
+    case 'concurrency_superseded':
     case 'timed_out':
     case 'runner_lost':
     case 'output_invalid':

@@ -185,6 +185,46 @@ describe('onWorkflowsJobExecutionTerminated', () => {
     expect(lease?.cancellationReason).toBe('run_cancelled');
   });
 
+  it('preserves a concurrency supersession as a local stop handoff', async () => {
+    const workspaceId = crypto.randomUUID();
+    const runnerSession = await runnerSessionFactory.create({workspaceId});
+    const jobExecutionId = crypto.randomUUID();
+    await db()
+      .insert(runningJobExecutions)
+      .values({
+        workspaceId,
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+        jobId: crypto.randomUUID(),
+        jobExecutionId,
+        projectId: crypto.randomUUID(),
+        runnerSessionId: runnerSession.id,
+        provisionerId: crypto.randomUUID(),
+        providerRunnerId: crypto.randomUUID(),
+        requiredLabels: ['linux'],
+        runnerLabels: ['linux'],
+      });
+
+    await onWorkflowsJobExecutionTerminated({
+      jobId: crypto.randomUUID(),
+      jobExecutionId,
+      workflowRunId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
+      status: 'cancelled',
+      statusReason: 'concurrency_superseded',
+      statusReasonMessage: null,
+    });
+
+    const [lease] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+    expect(lease).toMatchObject({
+      cancellationReason: 'concurrency_superseded',
+    });
+    expect(lease?.cancellationRequestedAt).toBeInstanceOf(Date);
+  });
+
   it('does not turn a non-stop cancellation status reason into a stop handoff', async () => {
     const workspaceId = crypto.randomUUID();
     const runnerSession = await runnerSessionFactory.create({workspaceId});

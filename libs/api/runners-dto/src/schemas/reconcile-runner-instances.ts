@@ -59,7 +59,11 @@ export const reconcileRunnerInstancesBodySchema = z
     },
   );
 
-export const runnerJobStopReasonSchema = z.enum(['run_cancelled', 'timed_out']);
+export const runnerJobStopReasonSchema = z.enum([
+  'run_cancelled',
+  'timed_out',
+  'concurrency_superseded',
+]);
 export type RunnerJobStopReasonDto = z.infer<typeof runnerJobStopReasonSchema>;
 
 export const reconcileDesiredIntentSchema = z.enum(['keep', 'terminate']);
