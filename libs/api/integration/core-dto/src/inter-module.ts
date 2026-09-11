@@ -7,6 +7,32 @@ const provider = z.string().min(1);
 const capability = z.enum(['source_control', 'agent_tools']);
 const safeRef = z.string().refine(isSafeRefInput, 'Ref contains a control character');
 const connection = z.object({id, provider, slug: z.string().min(1)});
+const workspaceConnectionCursor = z.object({slug: z.string().min(1), id});
+const workspaceConnection = z.object({
+  id,
+  slug: z.string().min(1),
+  provider,
+  displayName: z.string(),
+  lifecycleStatus: z.enum(['active', 'disabled', 'error']),
+  capabilities: z.array(capability),
+  externalUrl: z.string().url().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+const connectionToolMethod = z.object({
+  id: z.string().min(1),
+  description: z.string(),
+  sensitivity: z.enum(['read', 'write']),
+  sensitive: z.boolean(),
+});
+const connectionTool = connectionToolMethod.extend({
+  methods: z.array(connectionToolMethod).optional(),
+});
+const connectionToolCatalogConnection = workspaceConnection.omit({
+  externalUrl: true,
+  createdAt: true,
+  updatedAt: true,
+});
 const connectionById = z.object({
   id,
   workspaceId: id,
@@ -247,6 +273,28 @@ export const integrationsInterModuleContract = defineInterModuleContract({
         .superRefine(requireCheckoutTarget),
       output: checkoutCredentials,
       errors: checkoutErrors,
+    },
+    listConnectionsByWorkspace: {
+      input: z.object({
+        workspaceId: id,
+        capability: capability.optional(),
+        limit: z.number().int().min(1).max(100),
+        cursor: workspaceConnectionCursor.optional(),
+      }),
+      output: z.object({
+        connections: z.array(workspaceConnection),
+        nextCursor: workspaceConnectionCursor.nullable(),
+      }),
+    },
+    getConnectionToolCatalog: {
+      input: z.object({workspaceId: id, connectionId: id}),
+      output: z
+        .object({
+          connection: connectionToolCatalogConnection,
+          tools: z.array(connectionTool),
+          events: z.array(z.string()),
+        })
+        .nullable(),
     },
     getAgentToolsContext: {
       input: z.object({workspaceId: id, defaultConnectionId: id}),

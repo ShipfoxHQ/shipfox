@@ -6,7 +6,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import {ConnectionSlugConflictError} from '@shipfox/api-integration-spi';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, eq} from 'drizzle-orm';
+import {and, asc, eq, gt, inArray, or} from 'drizzle-orm';
 import type {
   IntegrationConnection,
   IntegrationConnectionLifecycleStatus,
@@ -254,6 +254,27 @@ export async function getIntegrationConnectionById(
 
 export type GetIntegrationConnectionByIdFn = typeof getIntegrationConnectionById;
 
+export async function getIntegrationConnectionByWorkspaceId(params: {
+  workspaceId: string;
+  connectionId: string;
+}): Promise<IntegrationConnection | undefined> {
+  const rows = await db()
+    .select()
+    .from(integrationConnections)
+    .where(
+      and(
+        eq(integrationConnections.workspaceId, params.workspaceId),
+        eq(integrationConnections.id, params.connectionId),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return toIntegrationConnection(row);
+}
+
+export type GetIntegrationConnectionByWorkspaceIdFn = typeof getIntegrationConnectionByWorkspaceId;
+
 export interface GetIntegrationConnectionBySlugParams {
   workspaceId: string;
   slug: string;
@@ -387,6 +408,56 @@ export type DeleteIntegrationConnectionFn = typeof deleteIntegrationConnection;
 
 export interface ListIntegrationConnectionsParams {
   workspaceId: string;
+}
+
+export interface ListIntegrationConnectionsByWorkspaceParams {
+  workspaceId: string;
+  limit: number;
+  provider?: readonly string[] | undefined;
+  cursor?: {slug: string; id: string} | undefined;
+}
+
+export interface ListIntegrationConnectionsByWorkspaceResult {
+  connections: IntegrationConnection[];
+  nextCursor: {slug: string; id: string} | null;
+}
+
+export async function listIntegrationConnectionsByWorkspace(
+  params: ListIntegrationConnectionsByWorkspaceParams,
+): Promise<ListIntegrationConnectionsByWorkspaceResult> {
+  if (params.provider !== undefined && params.provider.length === 0) {
+    return {connections: [], nextCursor: null};
+  }
+
+  const conditions = [eq(integrationConnections.workspaceId, params.workspaceId)];
+  if (params.provider !== undefined) {
+    conditions.push(inArray(integrationConnections.provider, [...params.provider]));
+  }
+  if (params.cursor !== undefined) {
+    const cursorCondition = or(
+      gt(integrationConnections.slug, params.cursor.slug),
+      and(
+        eq(integrationConnections.slug, params.cursor.slug),
+        gt(integrationConnections.id, params.cursor.id),
+      ),
+    );
+    if (cursorCondition) conditions.push(cursorCondition);
+  }
+
+  const rows = await db()
+    .select()
+    .from(integrationConnections)
+    .where(and(...conditions))
+    .orderBy(asc(integrationConnections.slug), asc(integrationConnections.id))
+    .limit(params.limit + 1);
+  const hasMore = rows.length > params.limit;
+  const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
+  const last = pageRows.at(-1);
+
+  return {
+    connections: pageRows.map(toIntegrationConnection),
+    nextCursor: hasMore && last ? {slug: last.slug, id: last.id} : null,
+  };
 }
 
 export async function listIntegrationConnections(

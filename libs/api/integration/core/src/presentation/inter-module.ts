@@ -61,6 +61,8 @@ import {
   type GetIntegrationConnectionByIdFn,
   getIntegrationConnectionById,
   getIntegrationConnectionBySlug,
+  getIntegrationConnectionByWorkspaceId,
+  listIntegrationConnectionsByWorkspace,
 } from '#db/connections.js';
 
 type CheckoutCredentialsDto = {
@@ -78,6 +80,15 @@ type CheckoutSpecDto = {
   credentials?: CheckoutCredentialsDto;
   gitAuthor?: {name: string; email: string};
 };
+
+function isValidExternalUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 function toCheckoutCredentialsDto(
   credentials: NonNullable<CheckoutSpec['credentials']>,
@@ -131,6 +142,79 @@ export function createIntegrationsInterModulePresentation(params: {
   const createRecorder =
     params.createIntegrationToolCallRecorder ?? createIntegrationToolCallRecorder;
   return defineInterModulePresentation(contract, {
+    listConnectionsByWorkspace: async (input) => {
+      const providers = params.registry.list(input.capability);
+      const providerByName = new Map(providers.map((provider) => [provider.provider, provider]));
+      const page = await listIntegrationConnectionsByWorkspace({
+        workspaceId: input.workspaceId,
+        limit: input.limit,
+        provider: providers.map((provider) => provider.provider),
+        ...(input.cursor === undefined ? {} : {cursor: input.cursor}),
+      });
+      const connections = await Promise.all(
+        page.connections.map(async (connection) => {
+          const provider = providerByName.get(connection.provider);
+          if (!provider) return undefined;
+          let externalUrl: string | undefined;
+          try {
+            const resolvedExternalUrl = await provider.connectionExternalUrl?.(connection);
+            if (resolvedExternalUrl !== undefined && isValidExternalUrl(resolvedExternalUrl)) {
+              externalUrl = resolvedExternalUrl;
+            }
+          } catch (error) {
+            logger().warn(
+              {connectionId: connection.id, provider: connection.provider, err: error},
+              'Could not resolve integration connection external URL',
+            );
+          }
+          return {
+            id: connection.id,
+            slug: connection.slug,
+            provider: connection.provider,
+            displayName: connection.displayName,
+            lifecycleStatus: connection.lifecycleStatus,
+            capabilities: [...provider.capabilities],
+            ...(externalUrl ? {externalUrl} : {}),
+            createdAt: connection.createdAt.toISOString(),
+            updatedAt: connection.updatedAt.toISOString(),
+          };
+        }),
+      );
+
+      return {
+        connections: connections.filter((connection) => connection !== undefined),
+        nextCursor: page.nextCursor,
+      };
+    },
+    getConnectionToolCatalog: async ({workspaceId, connectionId}) => {
+      const connection = await getIntegrationConnectionByWorkspaceId({workspaceId, connectionId});
+      if (!connection) return null;
+
+      const provider = params.registry
+        .list()
+        .find(({provider}) => provider === connection.provider);
+      if (!provider) return null;
+
+      const [catalogs, eventCatalogs] = await Promise.all([
+        buildAgentToolCatalogs(params.registry),
+        buildProviderEventCatalogs(params.registry),
+      ]);
+      const catalog = catalogs.get(connection.provider) ?? [];
+      const events = eventCatalogs.find(({provider}) => provider === connection.provider);
+
+      return {
+        connection: {
+          id: connection.id,
+          slug: connection.slug,
+          provider: connection.provider,
+          displayName: connection.displayName,
+          lifecycleStatus: connection.lifecycleStatus,
+          capabilities: [...provider.capabilities],
+        },
+        tools: catalog.map(toConnectionToolCatalog),
+        events: events?.events ?? [],
+      };
+    },
     resolveSourceRepository: async (input) =>
       await known(contract.methods.resolveSourceRepository, input, async () => {
         const resolved = await params.sourceControl.resolveRepository(input);
@@ -368,6 +452,25 @@ async function resolveToolCatalogEntry(
 ): Promise<AgentToolCatalogEntry | undefined> {
   const catalog = await registry.getAdapter(provider, 'agent_tools').catalog();
   return catalog.find((entry) => entry.id === toolId);
+}
+
+function toConnectionToolCatalog(entry: AgentToolCatalogEntry) {
+  return {
+    id: entry.id,
+    description: entry.description,
+    sensitivity: entry.sensitivity,
+    sensitive: entry.sensitive,
+    ...(entry.methods === undefined
+      ? {}
+      : {
+          methods: entry.methods.map((method) => ({
+            id: method.id,
+            description: method.description,
+            sensitivity: method.sensitivity,
+            sensitive: method.sensitive,
+          })),
+        }),
+  };
 }
 
 function toolFromCatalogEntry(

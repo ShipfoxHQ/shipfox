@@ -17,11 +17,13 @@ import type {
 } from '#core/tool-call-audit.js';
 import {
   type AgentToolsProviderOptions,
+  agentToolsProvider,
   catalogTool,
   catalogWithRepositoryScope,
   connection,
   registryWithAgentTools,
 } from '#test/agent-tools-gateway-helpers.js';
+import {integrationConnectionFactory} from '#test/factories/connection.js';
 import {createIntegrationsInterModulePresentation} from './inter-module.js';
 
 const workspaceId = crypto.randomUUID();
@@ -484,6 +486,194 @@ describe('integrations inter-module presentation', () => {
       {provider: 'webhook', events: ['received']},
     ]);
     expect(context.fixedEventProviders).toEqual(['webhook']);
+  });
+  it('lists workspace connections and returns a workspace-scoped provider catalog', async () => {
+    const otherWorkspaceId = crypto.randomUUID();
+    const catalog = [
+      catalogTool({
+        id: 'issue_read',
+        description: 'Read issues from GitHub.',
+        methods: [
+          {
+            id: 'get',
+            description: 'Get one issue.',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: [],
+          },
+        ],
+      }),
+    ];
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        eventCatalog: {
+          provider: 'github',
+          events: [
+            {
+              name: 'issues',
+              summary: 'An issue changed.',
+              emittedWhen: 'GitHub sends an issue event.',
+              payloadKind: 'raw-provider',
+            },
+          ],
+        },
+        connectionExternalUrl: async (connection) =>
+          `https://github.com/${connection.externalAccountId}`,
+        adapters: {agent_tools: agentToolsProvider(catalog)},
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+    transport.seal();
+
+    const first = await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'github',
+      slug: 'github_alpha',
+      externalAccountId: 'alpha',
+    });
+    const second = await integrationConnectionFactory.create({
+      workspaceId,
+      provider: 'github',
+      slug: 'github_beta',
+      externalAccountId: 'beta',
+    });
+    await integrationConnectionFactory.create({
+      workspaceId: otherWorkspaceId,
+      provider: 'github',
+      slug: 'github_other',
+      externalAccountId: 'other',
+    });
+
+    const firstPage = await client.listConnectionsByWorkspace({
+      workspaceId,
+      capability: 'agent_tools',
+      limit: 1,
+    });
+    const secondPage = await client.listConnectionsByWorkspace({
+      workspaceId,
+      capability: 'agent_tools',
+      limit: 1,
+      cursor: firstPage.nextCursor ?? undefined,
+    });
+
+    expect(firstPage.connections).toEqual([
+      {
+        id: first.id,
+        slug: 'github_alpha',
+        provider: 'github',
+        displayName: first.displayName,
+        lifecycleStatus: 'active',
+        capabilities: ['agent_tools'],
+        externalUrl: 'https://github.com/alpha',
+        createdAt: first.createdAt.toISOString(),
+        updatedAt: first.updatedAt.toISOString(),
+      },
+    ]);
+    expect(firstPage.nextCursor).toEqual({slug: 'github_alpha', id: first.id});
+    expect(secondPage.connections.map(({id}) => id)).toEqual([second.id]);
+    expect(secondPage.nextCursor).toBeNull();
+
+    await expect(
+      client.getConnectionToolCatalog({workspaceId, connectionId: first.id}),
+    ).resolves.toEqual({
+      connection: {
+        id: first.id,
+        slug: 'github_alpha',
+        provider: 'github',
+        displayName: first.displayName,
+        lifecycleStatus: 'active',
+        capabilities: ['agent_tools'],
+      },
+      tools: [
+        {
+          id: 'issue_read',
+          description: 'Read issues from GitHub.',
+          sensitivity: 'read',
+          sensitive: false,
+          methods: [
+            {
+              id: 'get',
+              description: 'Get one issue.',
+              sensitivity: 'read',
+              sensitive: false,
+            },
+          ],
+        },
+      ],
+      events: ['issues'],
+    });
+    await expect(
+      client.getConnectionToolCatalog({workspaceId: otherWorkspaceId, connectionId: first.id}),
+    ).resolves.toBeNull();
+  });
+
+  it.each([
+    'not-a-url',
+    'javascript:alert(1)',
+  ])('omits invalid external URL %s while preserving the connection page cursor', async (invalidExternalUrl) => {
+    const testWorkspaceId = crypto.randomUUID();
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        connectionExternalUrl: async () => invalidExternalUrl,
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(createIntegrationsInterModulePresentation({registry, sourceControl}));
+    transport.seal();
+
+    const first = await integrationConnectionFactory.create({
+      workspaceId: testWorkspaceId,
+      provider: 'github',
+      slug: 'github_invalid',
+      externalAccountId: 'invalid',
+    });
+    const second = await integrationConnectionFactory.create({
+      workspaceId: testWorkspaceId,
+      provider: 'github',
+      slug: 'github_next',
+      externalAccountId: 'next',
+    });
+
+    const firstPage = await client.listConnectionsByWorkspace({
+      workspaceId: testWorkspaceId,
+      limit: 1,
+    });
+    const secondPage = await client.listConnectionsByWorkspace({
+      workspaceId: testWorkspaceId,
+      limit: 1,
+      cursor: firstPage.nextCursor ?? undefined,
+    });
+
+    expect(firstPage.connections).toEqual([
+      {
+        id: first.id,
+        slug: 'github_invalid',
+        provider: 'github',
+        displayName: first.displayName,
+        lifecycleStatus: 'active',
+        capabilities: [],
+        createdAt: first.createdAt.toISOString(),
+        updatedAt: first.updatedAt.toISOString(),
+      },
+    ]);
+    expect(firstPage.nextCursor).toEqual({slug: first.slug, id: first.id});
+    expect(secondPage.connections.map(({id}) => id)).toEqual([second.id]);
+    expect(secondPage.nextCursor).toBeNull();
   });
 });
 

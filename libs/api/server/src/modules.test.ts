@@ -145,6 +145,8 @@ describe('defaultModules', () => {
             createCheckoutSpec: vi.fn(),
             fetchSourceFile: vi.fn(),
             getAgentToolsContext: vi.fn(),
+            getConnectionToolCatalog: vi.fn(),
+            listConnectionsByWorkspace: vi.fn(),
             listSourceFiles: vi.fn(),
             resolveConnection: vi.fn(),
             resolveConnectionById: vi.fn(),
