@@ -160,7 +160,9 @@ function createGetStepLogDownloadTool({
         state: stream.state,
         compacted: stream.compacted,
         total_bytes: stream.totalBytes,
-        ...(stream.totalLines === undefined ? {} : {total_lines: stream.totalLines}),
+        ...(stream.compacted && stream.totalLines !== undefined
+          ? {total_lines: stream.totalLines}
+          : {}),
         truncated: stream.truncated,
       };
       return fitAgentAccessResponseToCeiling(agentAccessSuccess(result));

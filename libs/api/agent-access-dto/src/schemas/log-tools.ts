@@ -136,6 +136,13 @@ export const getStepLogDownloadResultSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.compacted && value.state !== 'closed') {
+      context.addIssue({
+        code: 'custom',
+        path: ['state'],
+        message: 'Compacted streams must be closed',
+      });
+    }
     if (value.compacted && value.total_lines === undefined) {
       context.addIssue({
         code: 'custom',
@@ -304,6 +311,7 @@ export const getStepLogDownloadResultJsonSchema = {
       properties: {
         ...stepLogDownloadResultBaseJsonSchema.properties,
         compacted: {const: true},
+        state: {const: 'closed'},
         total_lines: {type: 'integer', minimum: 0},
       },
       required: [
