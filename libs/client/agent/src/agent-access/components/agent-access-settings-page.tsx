@@ -29,6 +29,7 @@ import {
   useAgentGrantsQuery,
   useRevokeAgentGrantMutation,
 } from '#hooks/api/agent-access/credentials.js';
+import {AgentAccessCapabilities} from './agent-access-capabilities.js';
 import {agentAccessErrorMessage} from './errors.js';
 import {formatAgentAccessDate, formatAgentAccessTimestamp} from './format.js';
 import {McpSetup} from './mcp-setup.js';
@@ -87,7 +88,16 @@ export function AgentGrantList({grants}: {grants: AgentGrant[]}) {
           <TableBody>
             {grants.map((grant) => (
               <TableRow key={grant.id}>
-                <TableCell className="truncate font-medium">{grant.clientName}</TableCell>
+                <TableCell>
+                  <div className="min-w-0">
+                    <Text bold className="truncate">
+                      {grant.clientName}
+                    </Text>
+                    <div className="mt-tight text-foreground-neutral-muted">
+                      <AgentAccessCapabilities />
+                    </div>
+                  </div>
+                </TableCell>
                 <TableCell>
                   <CredentialDate value={grant.createdAt} />
                 </TableCell>
@@ -112,6 +122,9 @@ export function AgentGrantList({grants}: {grants: AgentGrant[]}) {
               <Text bold className="truncate">
                 {grant.clientName}
               </Text>
+              <div className="mt-tight text-foreground-neutral-muted">
+                <AgentAccessCapabilities />
+              </div>
               <Text size="sm" className="mt-tight text-foreground-neutral-muted">
                 Connected <CredentialDate value={grant.createdAt} /> · Access refreshed{' '}
                 <CredentialDate value={grant.lastRefreshedAt} />
