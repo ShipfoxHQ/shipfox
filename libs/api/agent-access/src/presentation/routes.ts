@@ -173,7 +173,21 @@ function toolsFromProducerClients(
     ...createAgentAccessDiagnosticTools({triggers}),
     ...createAgentAccessWorkflowDiagnosticTools(workflows),
   ];
-  return logs === undefined ? tools : [...tools, ...createAgentAccessLogTools({logs, workflows})];
+  if (logs === undefined) return tools;
+  if (options.auth === undefined || options.apiPublicUrl === undefined) {
+    throw new Error(
+      'Agent-access log tools require auth and apiPublicUrl producer clients to be configured',
+    );
+  }
+  return [
+    ...tools,
+    ...createAgentAccessLogTools({
+      auth: options.auth,
+      apiPublicUrl: validateAgentAccessApiPublicOrigin(options.apiPublicUrl),
+      logs,
+      workflows,
+    }),
+  ];
 }
 
 function methodNotAllowed(_request: FastifyRequest, reply: FastifyReply) {

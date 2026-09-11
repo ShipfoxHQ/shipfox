@@ -112,6 +112,55 @@ export const getStepLogsResultSchema = z
 
 export type GetStepLogsResultDto = z.output<typeof getStepLogsResultSchema>;
 
+export const getStepLogDownloadInputSchema = z
+  .object({
+    step_id: idSchema,
+    attempt: attemptSchema.optional(),
+  })
+  .strict();
+
+export type GetStepLogDownloadInputDto = z.output<typeof getStepLogDownloadInputSchema>;
+
+export const getStepLogDownloadResultSchema = z
+  .object({
+    step_id: idSchema,
+    attempt: attemptSchema,
+    url: z.string().url(),
+    token: z.string().min(1),
+    expires_at: z.string().datetime(),
+    state: z.enum(['open', 'closed']),
+    compacted: z.boolean(),
+    total_bytes: z.number().int().nonnegative(),
+    total_lines: z.number().int().nonnegative().optional(),
+    truncated: z.boolean(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.compacted && value.state !== 'closed') {
+      context.addIssue({
+        code: 'custom',
+        path: ['state'],
+        message: 'Compacted streams must be closed',
+      });
+    }
+    if (value.compacted && value.total_lines === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['total_lines'],
+        message: 'Compacted streams must include total_lines',
+      });
+    }
+    if (!value.compacted && value.total_lines !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['total_lines'],
+        message: 'Open streams must not include total_lines',
+      });
+    }
+  });
+
+export type GetStepLogDownloadResultDto = z.output<typeof getStepLogDownloadResultSchema>;
+
 const uuid = {type: 'string', format: 'uuid'} as const;
 const attempt = {
   type: 'integer',
@@ -208,4 +257,75 @@ const aggregateResultJsonSchema = {
 export const getStepLogsResultJsonSchema = {
   type: 'object',
   oneOf: [directResultJsonSchema, aggregateResultJsonSchema],
+} as const satisfies AgentAccessObjectSchema;
+
+export const getStepLogDownloadInputJsonSchema = {
+  type: 'object',
+  properties: {
+    step_id: uuid,
+    attempt,
+  },
+  required: ['step_id'],
+  additionalProperties: false,
+} as const satisfies AgentAccessObjectSchema;
+
+const stepLogDownloadResultBaseJsonSchema = {
+  type: 'object',
+  properties: {
+    step_id: uuid,
+    attempt,
+    url: {type: 'string', format: 'uri'},
+    token: {type: 'string', minLength: 1},
+    expires_at: {type: 'string', format: 'date-time'},
+    state: {type: 'string', enum: ['open', 'closed']},
+    compacted: {type: 'boolean'},
+    total_bytes: {type: 'integer', minimum: 0},
+    truncated: {type: 'boolean'},
+  },
+  additionalProperties: false,
+} as const;
+
+export const getStepLogDownloadResultJsonSchema = {
+  type: 'object',
+  oneOf: [
+    {
+      ...stepLogDownloadResultBaseJsonSchema,
+      properties: {
+        ...stepLogDownloadResultBaseJsonSchema.properties,
+        compacted: {const: false},
+      },
+      required: [
+        'step_id',
+        'attempt',
+        'url',
+        'token',
+        'expires_at',
+        'state',
+        'compacted',
+        'total_bytes',
+        'truncated',
+      ],
+    },
+    {
+      ...stepLogDownloadResultBaseJsonSchema,
+      properties: {
+        ...stepLogDownloadResultBaseJsonSchema.properties,
+        compacted: {const: true},
+        state: {const: 'closed'},
+        total_lines: {type: 'integer', minimum: 0},
+      },
+      required: [
+        'step_id',
+        'attempt',
+        'url',
+        'token',
+        'expires_at',
+        'state',
+        'compacted',
+        'total_bytes',
+        'total_lines',
+        'truncated',
+      ],
+    },
+  ],
 } as const satisfies AgentAccessObjectSchema;

@@ -39,6 +39,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_workflow_run_job_explanations',
   'get_run_annotations',
   'get_step_logs',
+  'get_step_log_download',
   'get_trigger_event',
   'get_trigger_event_facets',
   'list_trigger_events',
@@ -231,6 +232,7 @@ test('exposes the composed OAuth and agent-access contract through a real MCP cl
           arguments: {run_id: randomUUID(), attempt: 1},
         },
         {name: 'get_step_logs', arguments: {step_id: randomUUID()}},
+        {name: 'get_step_log_download', arguments: {step_id: randomUUID()}},
       ];
       for (const missingCall of missingCalls) {
         const result = await client.callTool(missingCall, CallToolResultSchema);
