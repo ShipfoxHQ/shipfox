@@ -332,7 +332,7 @@ function materializedRerunStep(params: {
 
   return {
     key: params.step.key,
-    name: params.step.name,
+    name: params.rematerialized?.name ?? params.step.name,
     sourceLocation: params.step.sourceLocation,
     status: params.carriedOver ? params.step.status : ('pending' as const),
     statusReason: params.carriedOver ? params.step.statusReason : null,

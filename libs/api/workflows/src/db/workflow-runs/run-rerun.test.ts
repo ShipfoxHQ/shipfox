@@ -183,7 +183,7 @@ describe('workflow run queries', () => {
       await expect(getStepsByJobId(rerunJob.id)).resolves.toEqual([]);
     });
 
-    test('re-materializes run-creation step config for the new attempt', async () => {
+    test('re-materializes run-creation step fields for the new attempt', async () => {
       const source = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -194,6 +194,7 @@ describe('workflow run queries', () => {
               steps: [
                 {
                   key: 'publish',
+                  name: `Publish attempt ${template('run.attempt')}`,
                   run: 'echo publish',
                   env: {BRANCH: `publish-${template('run.id')}-${template('run.attempt')}`},
                 },
@@ -215,6 +216,7 @@ describe('workflow run queries', () => {
         (step) => step.key === 'publish',
       );
       if (!sourceStep) throw new Error('Missing source publish step');
+      expect(sourceStep.name).toBe('Publish attempt 1');
       await updateWorkflowRunStatus({
         workflowRunId: source.id,
         status: 'failed',
@@ -230,6 +232,7 @@ describe('workflow run queries', () => {
       const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
       if (!rerunJob) throw new Error('Missing rerun publish job');
       const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.key === 'publish');
+      expect(rerunStep?.name).toBe('Publish attempt 2');
       expect(rerunStep?.config).toMatchObject({
         env: {BRANCH: `publish-${source.id}-2`},
       });
