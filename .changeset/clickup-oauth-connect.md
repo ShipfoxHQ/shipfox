@@ -3,4 +3,4 @@
 "@shipfox/api-integration-core": patch
 ---
 
-Add the ClickUp OAuth connection flow with signed state, one-workspace installation identity, authorized-user persistence, and scoped token storage.
+Connects exactly one ClickUp workspace to a Shipfox workspace through OAuth. The returned workspace becomes the configured workspace, while responses with zero or multiple workspaces are rejected.
