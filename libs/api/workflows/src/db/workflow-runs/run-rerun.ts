@@ -1,5 +1,7 @@
-import {readPersistedWorkflowModel} from '@shipfox/api-definitions-dto';
+import {materializedAgentStepConfigSchema} from '@shipfox/api-agent-dto';
+import {readPersistedWorkflowModel, type WorkflowModel} from '@shipfox/api-definitions-dto';
 import {and, asc, eq, inArray, sql} from 'drizzle-orm';
+import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {isWorkflowRunTerminal, type WorkflowRun} from '#core/entities/workflow-run.js';
 import {
   NoFailedJobsError,
@@ -8,6 +10,11 @@ import {
   WorkflowRunAttemptMismatchError,
 } from '#core/errors.js';
 import {restoreAgentSessionIntentForRedispatch} from '#core/step-config/agent.js';
+import {assembleCreationContext} from '#core/step-config/assemble-run-context.js';
+import {
+  type MaterializedWorkflowStep,
+  materializeJobExecutionSteps,
+} from '#core/step-config/materialize-job-execution-steps.js';
 import {deriveJobExecutionRunner} from '#core/workflow-run-creation.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
@@ -110,7 +117,7 @@ export async function createRerunWorkflowRun(
     const sourceGraph = await loadRerunSourceGraph(tx, sourceJobs);
 
     const runForAttempt = {...toWorkflowRun(sourceRow), currentAttempt: attempt};
-    const graphJobs = materializeRerunGraphJobs({
+    const graphJobs = await materializeRerunGraphJobs({
       mode: params.mode,
       sourceRun: runForAttempt,
       sourceAttempt: sourceAttemptRow,
@@ -213,7 +220,7 @@ interface MaterializeRerunGraphParams {
 
 function materializeRerunGraphJobs(
   params: MaterializeRerunGraphParams,
-): readonly MaterializedRunGraphJob[] {
+): Promise<readonly MaterializedRunGraphJob[]> {
   const sourceModel =
     params.sourceAttempt.model === null
       ? null
@@ -228,25 +235,44 @@ function materializeRerunGraphJobs(
     sourceStepsByJobId.set(sourceJob.id, sourceJobSteps);
   }
 
-  return params.sourceJobs.map((sourceJob) =>
-    materializeRerunGraphJob(
-      params,
-      sourceJob,
-      sourceModelJobByKey.get(sourceJob.key),
-      sourceStepsByJobId.get(sourceJob.id) ?? [],
+  return Promise.all(
+    params.sourceJobs.map((sourceJob) =>
+      materializeRerunGraphJob(
+        params,
+        sourceModel,
+        sourceJob,
+        sourceModelJobByKey.get(sourceJob.key),
+        sourceStepsByJobId.get(sourceJob.id) ?? [],
+      ),
     ),
   );
 }
 
-function materializeRerunGraphJob(
+async function materializeRerunGraphJob(
   params: MaterializeRerunGraphParams,
+  sourceModel: WorkflowModel | null,
   sourceJob: JobDb,
   modelJob: ReturnType<typeof readPersistedWorkflowModel>['jobs'][number] | undefined,
   sourceJobSteps: readonly StepDb[],
-): MaterializedRunGraphJob {
+): Promise<MaterializedRunGraphJob> {
   const carriedOver = params.mode === 'failed' && sourceJob.status === 'succeeded';
   const modelCheckout = modelJob?.checkout;
   const resolvedModelCheckout = modelCheckout === false ? undefined : modelCheckout;
+  const rematerializedSteps = await rematerializeRerunSteps({
+    params,
+    sourceModel,
+    modelJob,
+    sourceJobSteps,
+    carriedOver,
+  });
+  const sourceIncludesSetupStep = sourceJobSteps.some((step) => step.type === 'setup');
+  const rematerializedStepByPosition = new Map(
+    rematerializedSteps.flatMap((step) => {
+      if (step.type === 'setup' && !sourceIncludesSetupStep) return [];
+      const sourcePosition = sourceIncludesSetupStep ? step.position : step.position - 1;
+      return [[sourcePosition, step] as const];
+    }),
+  );
 
   return {
     job: {
@@ -280,21 +306,93 @@ function materializeRerunGraphJob(
     createExecution: (job) =>
       createRerunJobExecution({params, sourceJob, modelJob, carriedOver, job}),
     createSteps: () =>
-      sourceJobSteps.map((step) => ({
-        key: step.key,
-        name: step.name,
-        sourceLocation: step.sourceLocation,
-        status: carriedOver ? step.status : 'pending',
-        statusReason: carriedOver ? step.statusReason : null,
-        type: step.type,
-        config: carriedOver ? {...step.config} : rerunStepConfig(step),
-        condition: step.condition ?? null,
-        configPlan: step.configPlan,
-        authoredConfig: step.authoredConfig,
-        error: null,
-        position: step.position,
-        currentAttempt: 1,
-      })),
+      sourceJobSteps.map((step) =>
+        materializedRerunStep({
+          step,
+          carriedOver,
+          rematerialized: rematerializedStepByPosition.get(step.position),
+        }),
+      ),
+  };
+}
+
+function materializedRerunStep(params: {
+  readonly step: StepDb;
+  readonly carriedOver: boolean;
+  readonly rematerialized: MaterializedWorkflowStep | undefined;
+}) {
+  let config = rerunStepConfig(params.step);
+  if (params.carriedOver) config = {...params.step.config};
+  else if (params.rematerialized !== undefined) config = {...params.rematerialized.config};
+
+  return {
+    key: params.step.key,
+    name: params.step.name,
+    sourceLocation: params.step.sourceLocation,
+    status: params.carriedOver ? params.step.status : ('pending' as const),
+    statusReason: params.carriedOver ? params.step.statusReason : null,
+    type: params.step.type,
+    config,
+    condition: params.step.condition ?? null,
+    configPlan:
+      params.rematerialized === undefined
+        ? params.step.configPlan
+        : (params.rematerialized.configPlan ?? null),
+    authoredConfig: params.step.authoredConfig,
+    error: null,
+    position: params.step.position,
+    currentAttempt: 1,
+  };
+}
+
+async function rematerializeRerunSteps(params: {
+  readonly params: MaterializeRerunGraphParams;
+  readonly sourceModel: WorkflowModel | null;
+  readonly modelJob: WorkflowModel['jobs'][number] | undefined;
+  readonly sourceJobSteps: readonly StepDb[];
+  readonly carriedOver: boolean;
+}): Promise<readonly MaterializedWorkflowStep[]> {
+  if (params.carriedOver || params.sourceModel === null || params.modelJob === undefined) return [];
+
+  const sourceIncludesSetupStep = params.sourceJobSteps.some((step) => step.type === 'setup');
+  const sourceStepByPosition = new Map(params.sourceJobSteps.map((step) => [step.position, step]));
+  return await materializeJobExecutionSteps({
+    model: params.sourceModel,
+    job: params.modelJob,
+    context: assembleCreationContext({
+      run: params.params.sourceRun,
+      triggerPayload: params.params.sourceRun.triggerPayload,
+      inputs: params.params.sourceRun.inputs,
+      vars: params.params.sourceAttempt.vars ?? undefined,
+    }),
+    definitionId: params.params.sourceRun.definitionId,
+    agentToolSnapshot: params.params.sourceAttempt.agentToolMaterialization,
+    resolveAgentDefaultsForStep: (stepPosition) =>
+      resolvedAgentDefaultsFromSource(
+        sourceStepByPosition.get(sourceIncludesSetupStep ? stepPosition + 1 : stepPosition),
+      ),
+  });
+}
+
+function resolvedAgentDefaultsFromSource(
+  step: StepDb | undefined,
+): AgentDefaultsResolver | undefined {
+  if (step?.type !== 'agent') return undefined;
+
+  return (input) => {
+    const resolved = materializedAgentStepConfigSchema.parse({
+      harness: input.harness ?? step.config.harness,
+      provider: input.provider ?? step.config.provider,
+      model: input.model ?? step.config.model,
+      thinking: input.thinking ?? step.config.thinking,
+      prompt: '',
+    });
+    return {
+      harness: resolved.harness,
+      provider: resolved.provider,
+      model: resolved.model,
+      thinking: resolved.thinking,
+    };
   };
 }
 
