@@ -1,5 +1,30 @@
 # @shipfox/client-integrations
 
+## 44.0.0
+
+### Minor Changes
+
+- 4d3b34b: Adds ClickUp installation, callback, catalog, icon, and usage-event support to the client integrations surface.
+
+### Patch Changes
+
+- Updated dependencies [4d3b34b]
+- Updated dependencies [6eaacf0]
+  - @shipfox/react-ui@2.4.0
+  - @shipfox/integration-icons@0.4.0
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/client-auth@44.0.0
+  - @shipfox/client-shell@44.0.0
+  - @shipfox/client-ui@44.0.0
+  - @shipfox/api-integration-clickup-dto@26.0.0
+  - @shipfox/api-integration-gitea-dto@26.0.0
+  - @shipfox/api-integration-github-dto@26.0.0
+  - @shipfox/api-integration-jira-dto@26.0.0
+  - @shipfox/api-integration-linear-dto@26.0.0
+  - @shipfox/api-integration-sentry-dto@26.0.0
+  - @shipfox/api-integration-slack-dto@26.0.0
+  - @shipfox/api-integration-webhook-dto@26.0.0
+
 ## 43.0.0
 
 ### Patch Changes

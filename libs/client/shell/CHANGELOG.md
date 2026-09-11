@@ -1,5 +1,16 @@
 # Changelog
 
+## 44.0.0
+
+### Patch Changes
+
+- Updated dependencies [4d3b34b]
+- Updated dependencies [fb73bca]
+  - @shipfox/react-ui@2.4.0
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/client-config@44.0.0
+  - @shipfox/client-ui@44.0.0
+
 ## 43.0.0
 
 ### Major Changes

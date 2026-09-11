@@ -1,5 +1,23 @@
 # @shipfox/api-workflows
 
+## 26.0.0
+
+### Minor Changes
+
+- d7cb4a7: Adds durable workflow concurrency claims with latest-wins admission and supersession of an earlier waiter.
+
+### Patch Changes
+
+- 575cbc1: Add the flag-gated ClickUp integration provider scaffold, installation persistence, token storage, cleanup hooks, and E2E connection seed route.
+- 2ebf33d: Refreshes run-creation step expressions for each workflow rerun.
+- Updated dependencies [6eaacf0]
+- Updated dependencies [795eee2]
+- Updated dependencies [fb73bca]
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-logs-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-auth-dto@26.0.0
+
 ## 25.0.0
 
 ### Minor Changes

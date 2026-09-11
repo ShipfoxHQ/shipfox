@@ -1,5 +1,16 @@
 # @shipfox/api-agent-access-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- a8ff016: Adds bounded error details, exposes state-changing action tools in tools/list with their destructiveHint, idempotentHint, and openWorldHint annotations, and limits action calls to 10 per credential per minute on top of the existing shared window.
+
+### Patch Changes
+
+- Updated dependencies [795eee2]
+  - @shipfox/api-logs-dto@26.0.0
+
 ## 25.0.0
 
 ### Minor Changes

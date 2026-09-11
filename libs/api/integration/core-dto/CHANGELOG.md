@@ -1,5 +1,11 @@
 # @shipfox/api-integration-core-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- 6eaacf0: Adds workspace-scoped integration connection and provider tool-catalog reads.
+
 ## 22.0.0
 
 ### Minor Changes
