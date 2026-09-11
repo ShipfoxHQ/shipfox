@@ -1,5 +1,12 @@
 # @shipfox/api-integration-jira
 
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [bba82ae]
+  - @shipfox/api-auth-context@25.0.0
+
 ## 24.1.0
 
 ### Patch Changes

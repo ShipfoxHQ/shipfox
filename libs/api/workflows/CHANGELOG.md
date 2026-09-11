@@ -1,5 +1,27 @@
 # @shipfox/api-workflows
 
+## 25.0.0
+
+### Minor Changes
+
+- 00e2ce4: Publish lease_expired, provider_lost, and lifecycle_violation as job execution status reasons; add the optional cause field and RunnerJobLossCauseDto/runnerJobLossCauseSchema to the lease-expired event, with runner_lost fallback when provider state is unavailable.
+- 9e8b007: Adds an optional `gate_max_attempts` field to the compact step summary, and
+  shows effective gate restart limits and chronological gate attempt numbers in
+  workflow run details.
+
+### Patch Changes
+
+- 701df29: Expose missing renewable inference capability as a declared, bounded runtime credential error.
+- Updated dependencies [00e2ce4]
+- Updated dependencies [bba82ae]
+- Updated dependencies [9e8b007]
+- Updated dependencies [701df29]
+  - @shipfox/api-runners-dto@25.0.0
+  - @shipfox/api-workflows-dto@25.0.0
+  - @shipfox/api-auth-dto@25.0.0
+  - @shipfox/api-auth-context@25.0.0
+  - @shipfox/api-agent-dto@25.0.0
+
 ## 24.2.0
 
 ### Minor Changes

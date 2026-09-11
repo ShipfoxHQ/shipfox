@@ -1,5 +1,14 @@
 # @shipfox/client-runners
 
+## 43.0.0
+
+### Patch Changes
+
+- Updated dependencies [00e2ce4]
+- Updated dependencies [14bc3d6]
+  - @shipfox/api-runners-dto@25.0.0
+  - @shipfox/client-shell@43.0.0
+
 ## 42.0.0
 
 ### Patch Changes

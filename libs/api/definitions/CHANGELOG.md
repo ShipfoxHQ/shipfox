@@ -1,5 +1,14 @@
 # @shipfox/api-definitions
 
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [bba82ae]
+- Updated dependencies [701df29]
+  - @shipfox/api-auth-context@25.0.0
+  - @shipfox/api-agent-dto@25.0.0
+
 ## 24.2.0
 
 ### Patch Changes

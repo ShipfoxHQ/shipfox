@@ -1,5 +1,19 @@
 # @shipfox/api-logs
 
+## 25.0.0
+
+### Minor Changes
+
+- 00e2ce4: Publish lease_expired, provider_lost, and lifecycle_violation as job execution status reasons; add the optional cause field and RunnerJobLossCauseDto/runnerJobLossCauseSchema to the lease-expired event, with runner_lost fallback when provider state is unavailable.
+
+### Patch Changes
+
+- Updated dependencies [00e2ce4]
+- Updated dependencies [bba82ae]
+- Updated dependencies [9e8b007]
+  - @shipfox/api-workflows-dto@25.0.0
+  - @shipfox/api-auth-context@25.0.0
+
 ## 24.2.0
 
 ### Patch Changes
