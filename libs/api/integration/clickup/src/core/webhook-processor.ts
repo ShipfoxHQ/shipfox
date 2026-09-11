@@ -70,12 +70,6 @@ async function processClickUpWebhookRequest(
 
   const parsedJson = parseClickUpJson(rawBody);
   if (!parsedJson.success) {
-    if (context.connection.lifecycleStatus !== 'active') {
-      const deliveryId = fallbackDeliveryId(connectionId, rawBody);
-      await recordSignedDeliveryOnly(options, deliveryId);
-      recordClickUpWebhookDelivery('discarded');
-      return {outcome: 'discarded', reason: 'connection_unavailable', deliveryId};
-    }
     recordClickUpWebhookDelivery('malformed_payload');
     return {outcome: 'discarded', reason: 'malformed_payload'};
   }

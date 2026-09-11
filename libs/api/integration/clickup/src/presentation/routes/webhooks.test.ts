@@ -90,7 +90,7 @@ describe('ClickUp webhook route', () => {
     expect(invalid.json()).toEqual({error: 'invalid signature'});
   });
 
-  it('returns 400 for malformed JSON and 413 for oversized input', async () => {
+  it('maps malformed_payload to 400 and an oversized body to 413', async () => {
     const malformedProcess = vi.fn().mockResolvedValue({
       outcome: 'discarded',
       reason: 'malformed_payload',
