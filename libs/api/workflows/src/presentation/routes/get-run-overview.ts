@@ -118,9 +118,11 @@ async function readRunOverview({
     throw new ClientError('Run attempt not found', 'not-found', {status: 404});
   }
 
+  const concurrencyStartedAt = performance.now();
   const concurrencyByAttemptId = await listWorkflowRunConcurrencyByAttemptIds([
     overview.attempt.id,
   ]);
+  databaseDurationMilliseconds += performance.now() - concurrencyStartedAt;
   const overviewWithConcurrency = {
     ...overview,
     attempt: {

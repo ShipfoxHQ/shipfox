@@ -58,6 +58,8 @@ const mocks = vi.hoisted(() => ({
   getWorkflowRunAttemptIdForScope: vi.fn(),
   getWorkflowRunOverview: vi.fn(),
   getWorkflowRunSource: vi.fn(),
+  listWorkflowRunConcurrencyByAttemptIds: vi.fn(),
+  listWorkflowRunConcurrencyForRuns: vi.fn(),
   getWorkflowStepReadScope: vi.fn(),
   listFailedStepAttempts: vi.fn(),
   listExecutionTriggerEvents: vi.fn(),
@@ -150,6 +152,10 @@ describe('Workflows inter-module presentation', () => {
     mocks.getWorkflowRunAttemptIdForScope.mockReset();
     mocks.getWorkflowRunOverview.mockReset();
     mocks.getWorkflowRunSource.mockReset();
+    mocks.listWorkflowRunConcurrencyByAttemptIds.mockReset();
+    mocks.listWorkflowRunConcurrencyByAttemptIds.mockResolvedValue(new Map());
+    mocks.listWorkflowRunConcurrencyForRuns.mockReset();
+    mocks.listWorkflowRunConcurrencyForRuns.mockResolvedValue(new Map());
     mocks.getWorkflowStepReadScope.mockReset();
     mocks.listFailedStepAttempts.mockReset();
     mocks.listExecutionTriggerEvents.mockReset();

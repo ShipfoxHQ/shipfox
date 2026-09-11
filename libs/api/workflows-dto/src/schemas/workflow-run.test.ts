@@ -109,8 +109,28 @@ describe('workflow source snapshot schemas', () => {
       next_cursor: null,
     });
 
+    const listItem = workflowRunListItemSchema.parse({
+      ...baseRun,
+      source_snapshot: null,
+      concurrency,
+      jobs: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          key: 'deploy',
+          name: null,
+          status: 'succeeded',
+          mode: 'one_shot',
+          listener_status: 'inactive',
+          execution_status: null,
+          position: 0,
+        },
+      ],
+      job_status_counts: [{status: 'succeeded', count: 1}],
+    });
+
     expect(run.concurrency).toEqual(concurrency);
     expect(attempt.items[0]?.concurrency).toEqual(concurrency);
+    expect(listItem.concurrency).toEqual(concurrency);
   });
 
   test('accepts waiting for runs and attempts', () => {

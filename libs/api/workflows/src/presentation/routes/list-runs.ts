@@ -66,8 +66,10 @@ export function listRunsRoute(projects: ProjectsModuleClient) {
         id: run.id,
         currentAttempt: run.currentAttempt,
       }));
-      const jobsByRun = await listWorkflowRunJobSummaries(runTargets);
-      const concurrencyByRun = await listWorkflowRunConcurrencyForRuns(result.runs);
+      const [jobsByRun, concurrencyByRun] = await Promise.all([
+        listWorkflowRunJobSummaries(runTargets),
+        listWorkflowRunConcurrencyForRuns(result.runs),
+      ]);
 
       logger().info(
         {

@@ -90,6 +90,8 @@ import {
   listStepAttemptIdsByJobId,
   listWorkflowExecutionSteps,
   listWorkflowJobExecutionSummaries,
+  listWorkflowRunConcurrencyByAttemptIds,
+  listWorkflowRunConcurrencyForRuns,
   listWorkflowRunJobExplanationsPage,
   listWorkflowRunJobSummaries,
   listWorkflowRunJobsPage,
@@ -362,9 +364,12 @@ export function createWorkflowsInterModulePresentation(params: {
       const jobsByRun = await listWorkflowRunJobSummaries(
         result.runs.map((run) => ({id: run.id, currentAttempt: run.currentAttempt})),
       );
+      const concurrencyByRun = await listWorkflowRunConcurrencyForRuns(result.runs);
 
       return {
-        runs: result.runs.map((run) => toRunListItemDto(run, jobsByRun.get(run.id))),
+        runs: result.runs.map((run) =>
+          toRunListItemDto(run, jobsByRun.get(run.id), concurrencyByRun.get(run.id) ?? null),
+        ),
         nextCursor: result.nextCursor
           ? {createdAt: result.nextCursor.createdAt.toISOString(), id: result.nextCursor.id}
           : null,
@@ -383,7 +388,19 @@ export function createWorkflowsInterModulePresentation(params: {
         projectId: scope.projectId,
         attempt,
       });
-      return overview ? toBoundedRunOverview(overview) : null;
+      if (!overview) return null;
+
+      const concurrencyByAttemptId = await listWorkflowRunConcurrencyByAttemptIds([
+        overview.attempt.id,
+      ]);
+      const overviewWithConcurrency = {
+        ...overview,
+        attempt: {
+          ...overview.attempt,
+          concurrency: concurrencyByAttemptId.get(overview.attempt.id) ?? null,
+        },
+      };
+      return toBoundedRunOverview(overviewWithConcurrency);
     },
     listWorkflowRunAttempts: async (input) => {
       const scope = await getAccessibleRunScope(input.workspaceId, input.workflowRunId);
