@@ -50,6 +50,7 @@ describe('ClickUp token store', () => {
       editedBy: undefined,
     });
     await expect(store.getAccessToken({connectionId})).resolves.toBe('access-token');
+    await expect(store.getWebhookSecret({connectionId})).resolves.toBe('webhook-secret');
   });
 
   it('rejects missing connections and access tokens', async () => {

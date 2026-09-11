@@ -33,9 +33,14 @@ export interface GetClickUpAccessTokenParams {
   connectionId: string;
 }
 
+export interface GetClickUpWebhookSecretParams {
+  connectionId: string;
+}
+
 export interface ClickUpTokenStore {
   storeTokens(params: StoreClickUpTokensParams): Promise<void>;
   getAccessToken(params: GetClickUpAccessTokenParams): Promise<string>;
+  getWebhookSecret(params: GetClickUpWebhookSecretParams): Promise<string | null>;
 }
 
 export function clickupSecretsNamespace(connectionId: string): string {
@@ -79,6 +84,10 @@ export function createClickUpTokenStore(params: CreateClickUpTokenStoreParams): 
       const token = await getSecret(input.connectionId, ACCESS_TOKEN_KEY);
       if (!token) throw new ClickUpAccessTokenMissingError(input.connectionId);
       return token;
+    },
+
+    async getWebhookSecret(input) {
+      return await getSecret(input.connectionId, WEBHOOK_SECRET_KEY);
     },
   };
 }
