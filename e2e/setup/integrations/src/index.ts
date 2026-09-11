@@ -1,4 +1,8 @@
 import type {
+  CreateE2eClickUpConnectionBodyDto,
+  CreateE2eClickUpConnectionResponseDto,
+} from '@shipfox/api-integration-clickup-dto';
+import type {
   CreateE2eTestVcsConnectionBodyDto,
   IntegrationConnectionDto,
   RepositoryDto,
@@ -19,6 +23,10 @@ import type {
 } from '@shipfox/api-integration-slack-dto';
 import {request, requestJson} from '@shipfox/e2e-core';
 
+export type {
+  CreateE2eClickUpConnectionBodyDto,
+  CreateE2eClickUpConnectionResponseDto,
+} from '@shipfox/api-integration-clickup-dto';
 export type {
   CreateE2eTestVcsConnectionBodyDto,
   IntegrationConnectionDto,
@@ -126,6 +134,42 @@ export async function createLinearConnection(
     'post',
     '/__e2e/integrations/linear-connections',
     {json: linearConnectionBody(params)},
+  );
+}
+
+export interface CreateClickUpConnectionParams {
+  workspaceId: string;
+  teamId: string;
+  teamName: string;
+  authorizingUserId: string;
+  accessToken: string;
+  webhookId: string;
+  webhookSecret: string;
+  displayName: string;
+}
+
+function clickupConnectionBody(
+  params: CreateClickUpConnectionParams,
+): CreateE2eClickUpConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    team_id: params.teamId,
+    team_name: params.teamName,
+    authorizing_user_id: params.authorizingUserId,
+    access_token: params.accessToken,
+    webhook_id: params.webhookId,
+    webhook_secret: params.webhookSecret,
+    display_name: params.displayName,
+  };
+}
+
+export async function createClickUpConnection(
+  params: CreateClickUpConnectionParams,
+): Promise<CreateE2eClickUpConnectionResponseDto> {
+  return await requestJson<CreateE2eClickUpConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/clickup-connections',
+    {json: clickupConnectionBody(params)},
   );
 }
 

@@ -220,6 +220,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   gitea: 'Gitea',
   github: 'GitHub',
   jira: 'Jira',
+  clickup: 'ClickUp',
   linear: 'Linear',
   sentry: 'Sentry',
   slack: 'Slack',

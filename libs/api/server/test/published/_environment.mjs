@@ -10,6 +10,10 @@ export function publishedTestEnvironment() {
   return {
     API_URL: 'https://api.example.test',
     AUTH_ROOT_KEY: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=',
+    CLICKUP_OAUTH_CLIENT_ID: 'external-consumer-client-id',
+    CLICKUP_OAUTH_CLIENT_SECRET: 'external-consumer-client-secret',
+    CLICKUP_OAUTH_REDIRECT_URL: 'https://shipfox.example.com/integrations/clickup/callback',
+    CLICKUP_WEBHOOK_BASE_URL: 'https://shipfox.example.com',
     DATABASE_URL: `postgres://${postgresUsername}:${postgresPassword}@${postgresHost}:${postgresPort}/${postgresDatabase}`,
     GITEA_BASE_URL: 'https://gitea.example.com',
     GITEA_SERVICE_TOKEN: 'external-consumer-token',

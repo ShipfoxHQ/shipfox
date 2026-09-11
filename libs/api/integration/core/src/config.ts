@@ -17,6 +17,10 @@ export const config = createConfig({
     desc: 'Enables the Jira integration provider so users can connect Jira sites.',
     default: false,
   }),
+  INTEGRATIONS_ENABLE_CLICKUP_PROVIDER: bool({
+    desc: 'Enables the ClickUp integration provider so users can connect ClickUp workspaces.',
+    default: false,
+  }),
   INTEGRATIONS_ENABLE_LINEAR_PROVIDER: bool({
     desc: 'Enables the Linear integration provider so users can connect Linear workspaces.',
     default: false,

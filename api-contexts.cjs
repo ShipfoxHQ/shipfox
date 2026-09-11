@@ -9,6 +9,7 @@ const architecturePackages = {
     definitions: ['libs/api/definitions'],
     integrations: [
       'libs/api/integration/core',
+      'libs/api/integration/clickup',
       'libs/api/integration/gitea',
       'libs/api/integration/github',
       'libs/api/integration/jira',

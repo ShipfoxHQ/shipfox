@@ -93,6 +93,14 @@ const databaseMigrationUnits = freezeEntries([
     migrationsPath: 'libs/api/integration/jira/drizzle',
   },
   {
+    id: 'integrations-clickup',
+    ownerId: 'integrations',
+    namespace: 'integrations_clickup',
+    packagePath: 'libs/api/integration/clickup',
+    drizzleConfigPath: 'libs/api/integration/clickup/drizzle.config.ts',
+    migrationsPath: 'libs/api/integration/clickup/drizzle',
+  },
+  {
     id: 'integrations-linear',
     ownerId: 'integrations',
     namespace: 'integrations_linear',
