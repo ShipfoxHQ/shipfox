@@ -1,6 +1,8 @@
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {eq, inArray} from 'drizzle-orm';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
-import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
 import {NoFailedJobsError, RunNotTerminalError, SourceRunNotFoundError} from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {assembleWorkflowRunContext} from '#core/step-config/assemble-run-context.js';
@@ -9,6 +11,7 @@ import {stripSetupStep} from '#test/fixtures/strip-setup-step.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
   buildModel,
+  expression,
   runAttemptCreatedEvents,
   stepOutputField,
   template,
@@ -17,7 +20,6 @@ import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
 import {steps as stepsTable} from '../schema/steps.js';
-import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {
   createRerunWorkflowRun,
   createWorkflowRun,
@@ -139,6 +141,550 @@ describe('workflow run queries', () => {
       }
     });
 
+    test('reruns listening agent jobs without materializing execution steps', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            review: {
+              listening: {
+                on: [{source: 'github', event: 'pull_request_review'}],
+                onResolve: 'cancel',
+              },
+              steps: [{prompt: 'Review the pull request.'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun listener job');
+      expect(rerunJob).toMatchObject({key: 'review', mode: 'listening', status: 'pending'});
+      await expect(getJobExecutionsByJobId(rerunJob.id)).resolves.toEqual([]);
+      await expect(getStepsByJobId(rerunJob.id)).resolves.toEqual([]);
+    });
+
+    test('re-materializes run-creation step fields for the new attempt', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            publish: {
+              steps: [
+                {
+                  key: 'publish',
+                  name: `Publish attempt ${template('run.attempt')}`,
+                  run: 'echo publish',
+                  env: {BRANCH: `publish-${template('run.id')}-${template('run.attempt')}`},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source publish job');
+      await markJob([sourceJob], 'publish', 'failed');
+      const sourceStep = (await getStepsByJobId(sourceJob.id)).find(
+        (step) => step.key === 'publish',
+      );
+      if (!sourceStep) throw new Error('Missing source publish step');
+      expect(sourceStep.name).toBe('Publish attempt 1');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun publish job');
+      const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.key === 'publish');
+      expect(rerunStep?.name).toBe('Publish attempt 2');
+      expect(rerunStep?.config).toMatchObject({
+        env: {BRANCH: `publish-${source.id}-2`},
+      });
+      expect(rerunStep?.configPlan?.trace).toContainEqual(
+        expect.objectContaining({
+          expression: 'run.attempt',
+          fillTarget: 'run-creation',
+          evaluatedAt: 'run-creation',
+          field: 'env',
+          envKey: 'BRANCH',
+          value: '2',
+        }),
+      );
+      expect(
+        (await getStepsByJobId(sourceJob.id)).find((step) => step.id === sourceStep.id),
+      ).toEqual(sourceStep);
+    });
+
+    test('reuses persisted variables when re-materializing rerun steps', async () => {
+      const getVariablesByNamespace = vi.fn().mockResolvedValue({values: {BRANCH: 'stable'}});
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            publish: {
+              steps: [
+                {
+                  key: 'publish',
+                  run: 'echo publish',
+                  env: {BRANCH: template('vars.BRANCH')},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        secrets: {getVariablesByNamespace},
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source publish job');
+      await markJob([sourceJob], 'publish', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun publish job');
+      const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.key === 'publish');
+      expect(rerunStep?.config).toMatchObject({env: {BRANCH: 'stable'}});
+    });
+
+    test('re-materializes agent prompts while preserving resolved defaults and session intent', async () => {
+      const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {
+              steps: [
+                {
+                  prompt: `Fix workflow attempt ${template('run.attempt')}.`,
+                  session: {key: 'implementation', mode: 'resume'},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        resolveAgentDefaults,
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source fix job');
+      await markJob([sourceJob], 'fix', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun fix job');
+      const agentStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.type === 'agent');
+      expect(resolveAgentDefaults).toHaveBeenCalledTimes(1);
+      expect(agentStep?.config).toMatchObject({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+        prompt: 'Fix workflow attempt 2.',
+        session: {key: 'implementation', mode: 'resume'},
+      });
+    });
+
+    test('preserves resolved agent defaults when a rerun field remains deferred', async () => {
+      const sourceResolveAgentConfig = vi.fn().mockResolvedValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'source-model',
+        thinking: 'medium',
+      });
+      const sourceAgent = {
+        resolveAgentConfig: sourceResolveAgentConfig,
+      } as unknown as AgentInterModuleClient;
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {
+              steps: [
+                {key: 'select_model', run: 'echo model'},
+                {
+                  key: 'fix',
+                  model: template('steps.select_model.outputs.model'),
+                  prompt: 'Fix the workflow.',
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source fix job');
+      await stripSetupStep(sourceJob.id);
+      const sourceProducer = await nextStepForJob(sourceJob.id);
+      if (sourceProducer.kind !== 'step') throw new Error('Missing source producer step');
+      await recordStepResult({
+        jobExecutionId: sourceProducer.step.jobExecutionId,
+        stepId: sourceProducer.step.id,
+        status: 'succeeded',
+        output: {model: 'source-model'},
+      });
+      const sourceAgentStep = await nextStepForJob(sourceJob.id, sourceAgent);
+      if (sourceAgentStep.kind !== 'step') throw new Error('Missing source agent step');
+      expect(sourceResolveAgentConfig).toHaveBeenCalledWith({
+        workspaceId: null,
+        config: {model: 'source-model'},
+      });
+      await markJob([sourceJob], 'fix', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun fix job');
+      await stripSetupStep(rerunJob.id);
+      const rerunProducer = await nextStepForJob(rerunJob.id);
+      if (rerunProducer.kind !== 'step') throw new Error('Missing rerun producer step');
+      await recordStepResult({
+        jobExecutionId: rerunProducer.step.jobExecutionId,
+        stepId: rerunProducer.step.id,
+        status: 'succeeded',
+        output: {model: 'rerun-model'},
+      });
+      const currentResolveAgentConfig = vi.fn().mockResolvedValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'rerun-model',
+        thinking: 'medium',
+      });
+      const currentAgent = {
+        resolveAgentConfig: currentResolveAgentConfig,
+      } as unknown as AgentInterModuleClient;
+
+      const rerunAgentStep = await nextStepForJob(rerunJob.id, currentAgent);
+
+      expect(currentResolveAgentConfig).toHaveBeenCalledWith({
+        workspaceId: null,
+        config: {
+          harness: 'pi',
+          provider: 'openai',
+          model: 'rerun-model',
+          thinking: 'medium',
+        },
+      });
+      expect(rerunAgentStep).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({
+          key: 'fix',
+          config: expect.objectContaining({
+            harness: 'pi',
+            provider: 'openai',
+            model: 'rerun-model',
+            thinking: 'medium',
+          }),
+        }),
+        dispatched: true,
+      });
+    });
+
+    test('re-materializes attempt-scoped config across consecutive reruns', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            publish: {
+              steps: [
+                {
+                  key: 'publish',
+                  run: 'echo publish',
+                  env: {IDENTIFIER: `${template('run.id')}-${template('run.attempt')}`},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source publish job');
+      await markJob([sourceJob], 'publish', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const second = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const [secondJob] = await getJobsByWorkflowRunId(second.id);
+      if (!secondJob) throw new Error('Missing second-attempt publish job');
+      await markJob([secondJob], 'publish', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: second.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const third = await createRerunWorkflowRun({
+        workflowRunId: second.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const secondStep = (await getStepsByJobId(secondJob.id)).find(
+        (step) => step.key === 'publish',
+      );
+      const [thirdJob] = await getJobsByWorkflowRunId(third.id);
+      if (!thirdJob) throw new Error('Missing third-attempt publish job');
+      const thirdStep = (await getStepsByJobId(thirdJob.id)).find((step) => step.key === 'publish');
+      expect(second).toMatchObject({id: source.id, currentAttempt: 2});
+      expect(third).toMatchObject({id: source.id, currentAttempt: 3});
+      expect(secondStep?.config).toMatchObject({env: {IDENTIFIER: `${source.id}-2`}});
+      expect(thirdStep?.config).toMatchObject({env: {IDENTIFIER: `${source.id}-3`}});
+    });
+
+    test('keeps the workflow attempt stable across a step restart', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            publish: {
+              steps: [
+                {
+                  key: 'producer',
+                  run: 'echo publish',
+                  env: {ATTEMPT: template('run.attempt')},
+                },
+                {
+                  key: 'review',
+                  run: 'exit 1',
+                  gate: {
+                    success: expression('step.exit_code == 0'),
+                    onFailure: {restartFrom: 'producer'},
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source publish job');
+      await stripSetupStep(sourceJob.id);
+      await markJob([sourceJob], 'publish', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun publish job');
+      const producer = await nextStepForJob(rerunJob.id);
+      if (producer.kind !== 'step') throw new Error('Expected producer step');
+      await recordStepResult({
+        jobExecutionId: producer.step.jobExecutionId,
+        stepId: producer.step.id,
+        status: 'succeeded',
+        exitCode: 0,
+      });
+      const review = await nextStepForJob(rerunJob.id);
+      if (review.kind !== 'step') throw new Error('Expected review step');
+      const restart = await recordStepResult({
+        jobExecutionId: review.step.jobExecutionId,
+        stepId: review.step.id,
+        status: 'failed',
+        error: {message: 'review failed'},
+        exitCode: 1,
+      });
+
+      const retriedProducer = await nextStepForJob(rerunJob.id);
+      expect(rerun.currentAttempt).toBe(2);
+      expect(restart).toEqual({jobFinished: false});
+      expect(retriedProducer).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({
+          id: producer.step.id,
+          currentAttempt: 2,
+          config: {run: 'echo publish', env: {ATTEMPT: '2'}},
+        }),
+        dispatched: true,
+      });
+      const attempts = await getStepAttempts(rerunJob.id);
+      expect(
+        attempts.find((attempt) => attempt.stepId === producer.step.id && attempt.attempt === 2),
+      ).toMatchObject({
+        config: {run: 'echo publish', env: {ATTEMPT: '2'}},
+        evaluationTrace: expect.arrayContaining([
+          expect.objectContaining({
+            expression: 'run.attempt',
+            evaluatedAt: 'run-creation',
+            value: '2',
+          }),
+        ]),
+      });
+    });
+
+    test('failed mode leaves carried step config on its source attempt', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [{key: 'build', run: 'echo build', env: {ATTEMPT: template('run.attempt')}}],
+            },
+            publish: {
+              steps: [
+                {key: 'publish', run: 'echo publish', env: {ATTEMPT: template('run.attempt')}},
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const sourceJobs = await getJobsByWorkflowRunId(source.id);
+      await markJob(sourceJobs, 'build', 'succeeded');
+      await markJob(sourceJobs, 'publish', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const rerunJobs = await getJobsByWorkflowRunId(rerun.id);
+      const build = rerunJobs.find((job) => job.key === 'build');
+      const publish = rerunJobs.find((job) => job.key === 'publish');
+      const buildStep = (await getStepsByJobId(build?.id as string)).find(
+        (step) => step.key === 'build',
+      );
+      const publishStep = (await getStepsByJobId(publish?.id as string)).find(
+        (step) => step.key === 'publish',
+      );
+      expect(build).toMatchObject({status: 'succeeded', carriedOver: true});
+      expect(buildStep?.config).toMatchObject({env: {ATTEMPT: '1'}});
+      expect(publish).toMatchObject({status: 'pending', carriedOver: false});
+      expect(publishStep?.config).toMatchObject({env: {ATTEMPT: '2'}});
+    });
+
     test('reruns clone the parsed model onto the new attempt', async () => {
       const source = await createTerminalSourceRun();
 
@@ -213,47 +759,108 @@ describe('workflow run queries', () => {
       }
     });
 
-    test('reruns clone the frozen agent tool materialization snapshot', async () => {
-      const source = await createTerminalSourceRun();
-      const [sourceAttempt] = await listTestRunAttempts({workflowRunId: source.id, projectId});
-      const snapshot: AgentToolMaterializationSnapshot = {
-        steps: [
+    test('reruns consume the frozen agent tool materialization snapshot', async () => {
+      const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'gpt-5.5-pro',
+        thinking: 'medium',
+      });
+      const getAgentToolsContext = vi.fn().mockResolvedValue({
+        catalogs: [
           {
-            jobKey: 'test',
-            stepId: 'test-step-1',
-            integrations: [
+            provider: 'github',
+            tools: [
               {
-                connectionId: crypto.randomUUID(),
-                connectionSlug: 'github',
-                provider: 'github',
+                id: 'issue_read',
+                description: 'Read issues.',
+                sensitivity: 'read',
+                sensitive: false,
                 requiredScope: [{permission: 'issues', access: 'read'}],
-                tools: [
+                inputSchema: {type: 'object'},
+                methods: [
                   {
-                    id: 'issue_read',
+                    id: 'get',
+                    description: 'Get an issue.',
                     sensitivity: 'read',
                     sensitive: false,
                     requiredScope: [{permission: 'issues', access: 'read'}],
-                    inputSchema: {type: 'object'},
-                    methods: [
-                      {
-                        id: 'get',
-                        token: 'issue_read.get',
-                        sensitivity: 'read',
-                        sensitive: false,
-                        requiredScope: [{permission: 'issues', access: 'read'}],
-                      },
-                    ],
                   },
                 ],
               },
             ],
           },
         ],
-      };
-      await db()
-        .update(workflowRunAttempts)
-        .set({agentToolMaterialization: snapshot})
-        .where(eq(workflowRunAttempts.id, sourceAttempt?.id as string));
+        workspaceConnections: [
+          {
+            id: 'connection-1',
+            slug: 'github-main',
+            provider: 'github',
+            capabilities: ['agent_tools'],
+          },
+        ],
+        defaultConnection: {
+          id: 'connection-1',
+          slug: 'github-main',
+          provider: 'github',
+        },
+      });
+      const integrations = {getAgentToolsContext} as unknown as IntegrationsModuleClient;
+      const projects = {
+        getProjectById: vi.fn().mockResolvedValue({
+          project: {sourceConnectionId: 'connection-1'},
+        }),
+      } as unknown as ProjectsModuleClient;
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {
+              steps: [
+                {
+                  key: 'fix',
+                  harness: 'pi',
+                  provider: 'openai',
+                  model: 'gpt-5.5-pro',
+                  thinking: 'medium',
+                  prompt: `Fix attempt ${template('run.attempt')}.`,
+                  integrations: [
+                    {
+                      connection: 'github-main',
+                      include: ['issue_read.get'],
+                      allowWrite: false,
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        integrations,
+        projects,
+        resolveAgentDefaults,
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source fix job');
+      await markJob([sourceJob], 'fix', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+      const [sourceAttempt] = await listTestRunAttempts({workflowRunId: source.id, projectId});
+      const snapshot = sourceAttempt?.agentToolMaterialization;
+      const snapshotIntegrations = snapshot?.steps[0]?.integrations;
+      if (snapshotIntegrations === undefined)
+        throw new Error('Missing source integration snapshot');
 
       await createRerunWorkflowRun({
         workflowRunId: source.id,
@@ -264,6 +871,17 @@ describe('workflow run queries', () => {
       const attempts = await listTestRunAttempts({workflowRunId: source.id, projectId});
       const rerunAttempt = attempts.find((attempt) => attempt.attempt === 2);
       expect(rerunAttempt?.agentToolMaterialization).toEqual(snapshot);
+      expect(getAgentToolsContext).toHaveBeenCalledTimes(1);
+      expect(resolveAgentDefaults).toHaveBeenCalledTimes(1);
+      const [rerunJob] = await getJobsByWorkflowRunId(source.id);
+      if (!rerunJob) throw new Error('Missing rerun fix job');
+      const rerunAgentStep = (await getStepsByJobId(rerunJob.id)).find(
+        (step) => step.type === 'agent',
+      );
+      expect(rerunAgentStep?.config).toMatchObject({
+        prompt: 'Fix attempt 2.',
+        integrations: snapshotIntegrations,
+      });
     });
 
     test('reruns re-materialize each job checkout policy from the model', async () => {
@@ -411,7 +1029,23 @@ describe('workflow run queries', () => {
         workspaceId,
         projectId,
         definitionId,
-        model: buildModel({jobs: {build: {steps: [{run: 'build'}, {run: 'deploy'}]}}}),
+        model: buildModel({
+          jobs: {
+            build: {
+              steps: [
+                {key: 'build', run: 'build'},
+                {
+                  key: 'deploy',
+                  run: 'deploy',
+                  env: {
+                    ATTEMPT: template('run.attempt'),
+                    SHA: template('steps.build.outputs.sha'),
+                  },
+                },
+              ],
+            },
+          },
+        }),
         triggerPayload: {
           source: 'manual',
           event: 'fire',
@@ -428,15 +1062,6 @@ describe('workflow run queries', () => {
       const sourceConsumer = sourceSteps[1];
       if (!sourceProducer || !sourceConsumer) throw new Error('Expected source steps');
       const shaPlan = stepOutputField('build', 'sha');
-      await db().update(stepsTable).set({key: 'build'}).where(eq(stepsTable.id, sourceProducer.id));
-      await db()
-        .update(stepsTable)
-        .set({
-          key: 'deploy',
-          config: {run: 'deploy', env: {SHA: 'old-snapshot'}},
-          configPlan: {env: {SHA: shaPlan}},
-        })
-        .where(eq(stepsTable.id, sourceConsumer.id));
       await updateWorkflowRunStatus({
         workflowRunId: source.id,
         status: 'failed',
@@ -465,16 +1090,31 @@ describe('workflow run queries', () => {
         kind: 'step',
         step: expect.objectContaining({
           key: 'deploy',
-          config: {run: 'deploy', env: {SHA: 'new-snapshot'}},
-          configPlan: {env: {SHA: shaPlan}},
+          config: {run: 'deploy', env: {ATTEMPT: '2', SHA: 'new-snapshot'}},
+          configPlan: expect.objectContaining({env: {SHA: shaPlan}}),
         }),
         dispatched: true,
       });
       const attempts = await getStepAttempts(rerunJob.id);
       expect(attempts.find((attempt) => attempt.stepId === sourceConsumer.id)).toBeUndefined();
-      expect(attempts.find((attempt) => attempt.stepId !== producer.step.id)).toMatchObject({
-        config: {run: 'deploy', env: {SHA: 'new-snapshot'}},
+      const consumerAttempt = attempts.find((attempt) => attempt.stepId !== producer.step.id);
+      expect(consumerAttempt).toMatchObject({
+        config: {run: 'deploy', env: {ATTEMPT: '2', SHA: 'new-snapshot'}},
       });
+      expect(consumerAttempt?.evaluationTrace).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            expression: 'run.attempt',
+            evaluatedAt: 'run-creation',
+            value: '2',
+          }),
+          expect.objectContaining({
+            expression: 'steps.build.outputs.sha',
+            evaluatedAt: 'step-dispatch',
+            value: 'new-snapshot',
+          }),
+        ]),
+      );
     });
 
     test('reruns copy the source job execution name', async () => {

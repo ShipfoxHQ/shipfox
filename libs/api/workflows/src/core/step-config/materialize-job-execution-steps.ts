@@ -34,6 +34,9 @@ export interface MaterializeJobExecutionStepsParams {
   readonly job: WorkflowModelJob;
   readonly context: WorkflowEvaluationContext;
   readonly resolveAgentDefaults?: AgentDefaultsResolver | undefined;
+  readonly resolveAgentDefaultsForStep?:
+    | ((stepPosition: number) => AgentDefaultsResolver | undefined)
+    | undefined;
   readonly definitionId?: string | undefined;
   readonly agentToolContext?: AgentToolMaterializationContext | undefined;
   readonly agentToolSnapshot?: AgentToolMaterializationSnapshot | null | undefined;
@@ -61,6 +64,7 @@ export async function materializeJobExecutionSteps(
     job,
     context,
     resolveAgentDefaults,
+    resolveAgentDefaultsForStep,
     definitionId = model.name,
     agentToolContext,
     agentToolSnapshot,
@@ -83,7 +87,7 @@ export async function materializeJobExecutionSteps(
           jobEnvTemplates: job.templates?.env,
           context: stepContext,
           site: context.site,
-          resolveAgentDefaults,
+          resolveAgentDefaults: resolveAgentDefaultsForStep?.(stepPosition) ?? resolveAgentDefaults,
           definitionId,
           agentToolContext,
           agentToolSnapshot,
