@@ -13,6 +13,7 @@ import {
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
+import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
@@ -126,6 +127,14 @@ async function loadClickUpModuleParts(
   });
 
   const integrationProvider = createClickUpIntegrationProvider({
+    routes: {
+      coreDb: db,
+      publishIntegrationEventReceived,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
+      getClickUpInstallationByConnectionId,
+      getWebhookSecret: (connectionId) => tokenStore.getWebhookSecret({connectionId}),
+    },
     cleanup: {
       withConnectionDeletionLock: async (connection, fn) => {
         const installation = await getClickUpInstallationByConnectionId(connection.id);
@@ -159,6 +168,7 @@ async function loadClickUpModuleParts(
         connectionCapabilities: providerCapabilities,
       }),
     ],
+    webhookProcessors: integrationProvider.webhookProcessors,
     database: {
       db: clickupDb,
       migrationsPath: clickupMigrationsPath,

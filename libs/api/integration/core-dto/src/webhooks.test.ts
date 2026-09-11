@@ -108,6 +108,22 @@ describe('storedWebhookRequestSchema', () => {
     );
   });
 
+  it('requires and round-trips a connection identifier for ClickUp requests', () => {
+    const request = createStoredWebhookRequest({
+      requestId,
+      routeId: 'clickup',
+      receivedAt,
+      rawQueryString: '',
+      headers: {'content-type': 'application/json', 'x-signature': 'a'.repeat(64)},
+      body: new Uint8Array([1, 2, 3]),
+      connectionId: 'c0a8012e-0b6d-4d8f-8d5c-6d74102602b0',
+    });
+
+    expect(request.route_id).toBe('clickup');
+    expect(request.path_parameters.connection_id).toBe('c0a8012e-0b6d-4d8f-8d5c-6d74102602b0');
+    expect(storedWebhookRequestSchema.parse(JSON.parse(JSON.stringify(request)))).toEqual(request);
+  });
+
   it('keeps the maximum-size fixture below the SQS message limit', () => {
     const fixture = createMaximumSizeStoredWebhookRequestFixture();
     const serializedSize = new TextEncoder().encode(JSON.stringify(fixture)).byteLength;
