@@ -1,4 +1,9 @@
-import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
+import {
+  AUTH_USER,
+  rejectImpersonatedSession,
+  requireUserContext,
+  requireWorkspaceAccess,
+} from '@shipfox/api-auth-context';
 import {
   type ClickUpCallbackQueryDto,
   clickupCallbackQuerySchema,
@@ -20,6 +25,8 @@ import type {ClickUpTokenStore} from '#core/tokens.js';
 import type {ClickUpInstallationLock} from '#db/installations.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {clickUpRouteErrorHandler} from './errors.js';
+
+const TRAILING_SLASHES_RE = /\/+$/;
 
 export interface CreateClickUpIntegrationRoutesOptions {
   clickup: ClickUpApiClient;
@@ -58,7 +65,8 @@ export function createClickUpIntegrationRoutes(
       const {workspace_id: workspaceId} = request.body;
       const actor = requireUserContext(request);
       requireWorkspaceAccess({request, workspaceId});
-      const installUrl = new URL(`${config.CLICKUP_AUTH_BASE_URL}/api`);
+      const authBaseUrl = config.CLICKUP_AUTH_BASE_URL.replace(TRAILING_SLASHES_RE, '');
+      const installUrl = new URL(`${authBaseUrl}/api`);
       installUrl.searchParams.set('client_id', config.CLICKUP_OAUTH_CLIENT_ID);
       installUrl.searchParams.set('redirect_uri', config.CLICKUP_OAUTH_REDIRECT_URL);
       installUrl.searchParams.set(
@@ -91,6 +99,7 @@ export function createClickUpIntegrationRoutes(
           requireWorkspaceMembership: requireMembership,
         });
       }
+      rejectImpersonatedSession(request);
       const connection = await handleClickUpCallback({
         ...options,
         code: query.code,
