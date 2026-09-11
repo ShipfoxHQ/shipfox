@@ -122,6 +122,15 @@ const integrationValidationContext = {
         ],
       },
     ],
+    [
+      'clickup',
+      {
+        selectors: [
+          {token: 'get_task', kind: 'standalone', sensitivity: 'read', sensitive: false},
+          {token: 'add_comment', kind: 'standalone', sensitivity: 'write', sensitive: false},
+        ],
+      },
+    ],
   ]),
   agentToolCatalogs: new Map([
     [
@@ -317,13 +326,40 @@ const integrationValidationContext = {
         ],
       },
     ],
+    [
+      'clickup',
+      {
+        tools: [
+          {
+            id: 'get_task',
+            description: 'Get a task',
+            sensitivity: 'read',
+            sensitive: false,
+            requiredScope: 'read',
+            inputSchema: {type: 'object', properties: {task_id: {type: 'string'}}},
+          },
+          {
+            id: 'add_comment',
+            description: 'Add a comment',
+            sensitivity: 'write',
+            sensitive: false,
+            requiredScope: 'write',
+            inputSchema: {
+              type: 'object',
+              properties: {task_id: {type: 'string'}, body: {type: 'string'}},
+            },
+          },
+        ],
+      },
+    ],
   ]),
   workspaceConnectionSnapshot: new Map([
     ['github-main', {id: 'conn_1', provider: 'github', capabilities: ['agent_tools']}],
     ['sentry-main', {id: 'conn_2', provider: 'sentry', capabilities: []}],
     ['linear-main', {id: 'conn_3', provider: 'linear', capabilities: ['agent_tools']}],
     ['jira-main', {id: 'conn_4', provider: 'jira', capabilities: ['agent_tools']}],
-    ['deploy-hook', {id: 'conn_5', provider: 'webhook', capabilities: []}],
+    ['clickup-main', {id: 'conn_5', provider: 'clickup', capabilities: ['agent_tools']}],
+    ['deploy-hook', {id: 'conn_6', provider: 'webhook', capabilities: []}],
   ]),
   eventCatalogs: new Map([
     ['github', new Set(['push', 'pull_request.opened'])],
@@ -1940,6 +1976,56 @@ describe('normalizeWorkflowDocument', () => {
     expect(model.jobs[0]?.steps[0]).toMatchObject({
       kind: 'agent',
       integrations: [{connection: 'jira-main', include: ['add_comment'], allowWrite: true}],
+    });
+  });
+
+  it('requires allow_write for ClickUp write tools', () => {
+    const document: WorkflowDocument = {
+      name: 'clickup write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Comment on the task.',
+              integrations: [{connection: 'clickup-main', include: ['add_comment']}],
+            },
+          ],
+        },
+      },
+    };
+
+    const error = expectInvalid(document, {integrationValidationContext});
+
+    expect(error.issues).toMatchObject([
+      {
+        code: 'integration-write-not-allowed',
+        details: {tokens: ['add_comment']},
+      },
+    ]);
+  });
+
+  it('accepts ClickUp write tools when allow_write is true', () => {
+    const document: WorkflowDocument = {
+      name: 'clickup write integrations',
+      jobs: {
+        fix: {
+          steps: [
+            {
+              prompt: 'Comment on the task.',
+              integrations: [
+                {connection: 'clickup-main', include: ['add_comment'], allow_write: true},
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document, {integrationValidationContext});
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      integrations: [{connection: 'clickup-main', include: ['add_comment'], allowWrite: true}],
     });
   });
 

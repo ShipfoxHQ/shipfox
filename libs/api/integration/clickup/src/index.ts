@@ -1,14 +1,42 @@
 import {CLICKUP_PROVIDER, clickupEventCatalog} from '@shipfox/api-integration-clickup-dto';
+import {type ClickUpAgentToolsClient, createClickUpAgentToolsClient} from '#api/client.js';
 import {config} from '#config.js';
+import {ClickUpAgentToolsProvider} from '#core/agent-tools-provider.js';
+import type {ClickUpTokenStore} from '#core/tokens.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 
 export type {ClickUpProvider} from '@shipfox/api-integration-clickup-dto';
+export type {
+  ClickUpAgentToolHttpMethod,
+  ClickUpAgentToolQueryValue,
+  ClickUpAgentToolRequest,
+  ClickUpAgentToolResponse,
+  ClickUpAgentToolsClient,
+} from '#api/client.js';
+export {createClickUpAgentToolsClient, mapClickUpError} from '#api/client.js';
+export type {
+  ClickUpAgentToolCatalogEntry,
+  ClickUpAgentToolId,
+  ClickUpAgentToolRequiredScope,
+} from '#core/agent-tools.js';
+export {
+  CLICKUP_TOOL_OPERATIONS,
+  clickupAgentToolCatalog,
+  clickupAgentToolSelectionCatalog,
+  customTaskIdQuery,
+} from '#core/agent-tools.js';
+export type {
+  ClickUpAgentToolsProviderOptions,
+  ClickUpToolCallResult,
+} from '#core/agent-tools-provider.js';
+export {ClickUpAgentToolsProvider} from '#core/agent-tools-provider.js';
 export {
   ClickUpAccessTokenMissingError,
   ClickUpConnectionAlreadyLinkedError,
   ClickUpConnectionNotFoundError,
   ClickUpInstallationAlreadyLinkedError,
+  ClickUpIntegrationProviderError,
 } from '#core/errors.js';
 export type {
   ClickUpConnectionResolverResult,
@@ -46,6 +74,12 @@ export {
 export {closeDb, config, db, migrationsPath};
 
 export interface CreateClickUpIntegrationProviderOptions {
+  agentTools?:
+    | {
+        tokenStore: Pick<ClickUpTokenStore, 'getAccessToken'>;
+        clickup?: ClickUpAgentToolsClient | undefined;
+      }
+    | undefined;
   cleanup?:
     | {
         withConnectionDeletionLock?: (
@@ -64,11 +98,19 @@ export interface CreateClickUpIntegrationProviderOptions {
 export function createClickUpIntegrationProvider(
   options: CreateClickUpIntegrationProviderOptions = {},
 ) {
+  const adapters = options.agentTools
+    ? {
+        agent_tools: new ClickUpAgentToolsProvider({
+          clickup: options.agentTools.clickup ?? createClickUpAgentToolsClient(),
+          tokenStore: options.agentTools.tokenStore,
+        }),
+      }
+    : {};
   return {
     provider: CLICKUP_PROVIDER,
     displayName: 'ClickUp',
     eventCatalog: clickupEventCatalog,
-    adapters: {},
+    adapters,
     ...options.cleanup,
     routes: [],
   };
