@@ -131,17 +131,23 @@ describe('impersonation window DTOs', () => {
     expect(
       impersonationWindowExactResponseSchema.parse({
         ...windowSummary,
+        actor_role_at_start: 'admin-operator',
         state: 'open',
         ended_at: null,
         ended_reason: null,
       }),
-    ).toMatchObject({window_id: windowId, state: 'open'});
+    ).toMatchObject({
+      window_id: windowId,
+      actor_role_at_start: 'admin-operator',
+      state: 'open',
+    });
   });
 
   it('keeps terminal state and reason pairs aligned', () => {
     expect(
       impersonationWindowExactResponseSchema.parse({
         ...windowSummary,
+        actor_role_at_start: 'admin-operator',
         state: 'stopped',
         ended_at: deadlineAt,
         ended_reason: 'stopped',
@@ -157,6 +163,7 @@ describe('impersonation window DTOs', () => {
     expect(
       impersonationWindowExactResponseSchema.safeParse({
         ...windowSummary,
+        actor_role_at_start: 'admin-operator',
         state: 'expired',
         ended_at: deadlineAt,
         ended_reason: 'stopped',
