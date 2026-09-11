@@ -42,9 +42,21 @@ function writeHotHeaders(reply: FastifyReply): void {
   });
 }
 
-async function writePage(reply: FastifyReply, data: Buffer): Promise<void> {
+function responseClosedError(): Error {
+  return new Error('Response closed while writing log download');
+}
+
+function responseIsClosed(reply: FastifyReply): boolean {
+  return reply.raw.destroyed || reply.raw.writableEnded;
+}
+
+export async function writePage(reply: FastifyReply, data: Buffer): Promise<void> {
   if (data.length === 0) return;
-  if (reply.raw.write(data)) return;
+  if (responseIsClosed(reply)) throw responseClosedError();
+
+  const accepted = reply.raw.write(data);
+  if (responseIsClosed(reply)) throw responseClosedError();
+  if (accepted) return;
 
   await new Promise<void>((resolve, reject) => {
     let settled = false;
@@ -60,13 +72,13 @@ async function writePage(reply: FastifyReply, data: Buffer): Promise<void> {
       callback();
     };
     const onDrain = () => settle(resolve);
-    const onClose = () =>
-      settle(() => reject(new Error('Response closed while waiting for log download drain')));
+    const onClose = () => settle(() => reject(responseClosedError()));
     const onError = (error: Error) => settle(() => reject(error));
 
     reply.raw.once('drain', onDrain);
     reply.raw.once('close', onClose);
     reply.raw.once('error', onError);
+    if (responseIsClosed(reply)) onClose();
   });
 }
 

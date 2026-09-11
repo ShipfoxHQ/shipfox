@@ -1,11 +1,17 @@
 import {Buffer} from 'node:buffer';
+import {EventEmitter} from 'node:events';
 import {
   AUTH_AGENT_LOG_DOWNLOAD,
   AUTH_LEASED_JOB,
   AUTH_USER,
   setAgentLogDownloadContext,
 } from '@shipfox/api-auth-context';
-import type {AuthMethod, FastifyInstance, FastifyRequest} from '@shipfox/node-fastify';
+import type {
+  AuthMethod,
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+} from '@shipfox/node-fastify';
 import {closeApp, createApp} from '@shipfox/node-fastify';
 import {MockActivityEnvironment} from '@temporalio/testing';
 import {eq} from 'drizzle-orm';
@@ -23,6 +29,7 @@ import {ndjsonBody, outputLine, recordLine} from '#test/fixtures/ndjson.js';
 import {createTestWorkflowsClient} from '#test/fixtures/workflows-client.js';
 import {findStream} from '#test/queries.js';
 import {createLogsRoutes} from './index.js';
+import {writePage} from './step-log-download.js';
 
 const fakeDownloadAuth: AuthMethod = {
   name: AUTH_AGENT_LOG_DOWNLOAD,
@@ -94,6 +101,40 @@ async function arrangeCompactedStream(workspaceId: string) {
   if (result.outcome !== 'compacted') throw new Error('expected compaction');
   return {stream, objectKey: result.objectKey};
 }
+
+describe('writePage', () => {
+  function backpressuredReply() {
+    const raw = Object.assign(new EventEmitter(), {
+      destroyed: false,
+      writableEnded: false,
+      write: vi.fn(() => false),
+    });
+    return {raw, reply: {raw} as unknown as FastifyReply};
+  }
+
+  it('rejects when the response closed before the next page write', async () => {
+    const {raw, reply} = backpressuredReply();
+    raw.destroyed = true;
+
+    const result = writePage(reply, Buffer.from('page'));
+
+    await expect(result).rejects.toThrow('Response closed while writing log download');
+    expect(raw.write).not.toHaveBeenCalled();
+  });
+
+  it('rejects and removes listeners when the response closes during backpressure', async () => {
+    const {raw, reply} = backpressuredReply();
+    const result = writePage(reply, Buffer.from('page'));
+
+    raw.destroyed = true;
+    raw.emit('close');
+
+    await expect(result).rejects.toThrow('Response closed while writing log download');
+    expect(raw.listenerCount('drain')).toBe(0);
+    expect(raw.listenerCount('close')).toBe(0);
+    expect(raw.listenerCount('error')).toBe(0);
+  });
+});
 
 describe('GET /step-log-downloads/current', () => {
   let app: FastifyInstance;
