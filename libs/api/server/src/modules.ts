@@ -317,6 +317,7 @@ export async function defaultModules(
       projects: projectsClient,
       triggers: triggersClient,
       workflows: workflowsClient,
+      integrations: integrationsClient,
     }),
     createWorkspacesModule({auth: authClient, projects: projectsClient, runners: runnersClient}),
     createSecretsModule(projectsClient),

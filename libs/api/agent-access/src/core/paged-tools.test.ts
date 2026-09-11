@@ -3,6 +3,7 @@ import type {AgentAccessEnvelopeDto} from '@shipfox/api-agent-access-dto';
 import {agentAccessEnvelopeSchema} from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {createInterModuleKnownError, defineInterModulePresentation} from '@shipfox/inter-module';
@@ -56,6 +57,7 @@ describe('paged agent-access tools', () => {
             id: projectId,
             name: 'Project',
             slug: 'project',
+            source_connection: null,
             created_at: isoDate,
             updated_at: isoDate,
           },
@@ -64,6 +66,44 @@ describe('paged agent-access tools', () => {
       },
     });
     expect(JSON.stringify(response)).not.toContain('sourceConnectionId');
+  });
+
+  test('joins the project source connection from one workspace connection page', async () => {
+    const mocks = clients();
+    mocks.projectHandlers.listProjectCatalogByWorkspace.mockResolvedValue({
+      projects: [project()],
+      nextCursor: null,
+    });
+    mocks.integrationHandlers.listConnectionsByWorkspace.mockResolvedValue({
+      connections: [
+        {
+          id: uuid(20),
+          slug: 'github-main',
+          provider: 'github',
+          displayName: 'GitHub',
+          lifecycleStatus: 'active',
+          capabilities: ['source_control'],
+          createdAt: isoDate,
+          updatedAt: isoDate,
+        },
+      ],
+      nextCursor: null,
+    });
+
+    const response = await tool(mocks, 'list_projects').execute({
+      context,
+      arguments: {},
+    });
+
+    expect(
+      expectSuccess<{projects: Array<Record<string, unknown>>}>(response).projects[0],
+    ).toMatchObject({
+      source_connection: {id: uuid(20), slug: 'github-main', provider: 'github'},
+    });
+    expect(mocks.integrationHandlers.listConnectionsByWorkspace).toHaveBeenCalledWith({
+      workspaceId,
+      limit: 100,
+    });
   });
 
   test('caps definition diagnostics while retaining counts and excludes workflow content', async () => {
@@ -522,6 +562,9 @@ function clients() {
   const {workflows, handlers: workflowHandlers} = createTestWorkflowsClient();
   const listAnnotationsForRunAttempt = vi.fn();
   const triggerHandlers = {listTriggerEvents: vi.fn()};
+  const integrationHandlers = {
+    listConnectionsByWorkspace: vi.fn().mockResolvedValue({connections: [], nextCursor: null}),
+  };
   const fakeClients = createFakeInterModuleClients({
     projects: defineInterModulePresentation(projectsInterModuleContract, {
       getProjectById: vi.fn(),
@@ -556,12 +599,14 @@ function clients() {
 
   return {
     ...fakeClients,
+    integrations: integrationHandlers as unknown as IntegrationsModuleClient,
     workflows,
     projectHandlers,
     definitionHandlers,
     workflowHandlers,
     annotationHandlers: {listAnnotationsForRunAttempt},
     triggerHandlers,
+    integrationHandlers,
   };
 }
 
