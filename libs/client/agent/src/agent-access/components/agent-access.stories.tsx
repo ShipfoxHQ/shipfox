@@ -106,7 +106,12 @@ export const Consent: Story = {
     await canvas.findByRole('heading', {name: 'Allow Claude Desktop to access Shipfox?'});
     await canvas.findByText('Acme');
     await canvas.findByText('Claude Desktop on this device');
-    await canvas.findByText('Read workspace data');
+    const capabilities = await canvas.findByRole('list', {name: 'Connected app capabilities'});
+    await within(capabilities).findByText('Read workspace data (runs, logs, events)');
+    await within(capabilities).findByText('Download step logs');
+    await within(capabilities).findByText(
+      'Run actions (cancel and rerun runs, fire manual triggers, start dev runs)',
+    );
     await canvas.findByRole('button', {name: 'Allow access'});
   },
 };
@@ -134,6 +139,7 @@ export const Settings: Story = {
     const canvas = within(canvasElement);
     await canvas.findAllByText('Claude Desktop');
     await canvas.findByRole('heading', {name: 'Connected apps'});
+    await canvas.findAllByRole('list', {name: 'Connected app capabilities'});
   },
 };
 

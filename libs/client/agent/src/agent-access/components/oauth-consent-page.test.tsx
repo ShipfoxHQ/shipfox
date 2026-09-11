@@ -1,6 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {act, render, screen, waitFor} from '@testing-library/react';
+import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {OAuthConsentPage, OAuthConsentRoutePage} from './oauth-consent-page.js';
 
@@ -152,7 +152,16 @@ describe('OAuthConsentPage', () => {
     const clientIdentityOrigin = screen.getByText('https://claude.ai');
     expect(clientIdentityOrigin).toBeVisible();
     expect(clientIdentityOrigin).toHaveClass('font-code');
-    expect(screen.getByText('Read workspace data')).toBeVisible();
+    const capabilities = screen.getByRole('list', {name: 'Connected app capabilities'});
+    expect(
+      within(capabilities).getByText('Read workspace data (runs, logs, events)'),
+    ).toBeVisible();
+    expect(within(capabilities).getByText('Download step logs')).toBeVisible();
+    expect(
+      within(capabilities).getByText(
+        'Run actions (cancel and rerun runs, fire manual triggers, start dev runs)',
+      ),
+    ).toBeVisible();
     expect(screen.getByText('Claude Desktop on this device')).toBeVisible();
     expect(screen.queryByText(WORKSPACE_ID)).not.toBeInTheDocument();
     expect(screen.queryByText('owner')).not.toBeInTheDocument();
