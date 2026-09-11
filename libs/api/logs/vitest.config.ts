@@ -5,7 +5,7 @@ export default defineConfig(
     test: {
       fileParallelism: false,
       globalSetup: ['test/globalSetup.ts'],
-      isolate: false,
+      isolate: true,
       setupFiles: ['test/setup.ts'],
     },
   },

@@ -72,6 +72,64 @@ describe('logs inter-module presentation', () => {
     expect(chunks[0]?.origin).toBe('server');
   });
 
+  it('describes hot and compacted streams through the sealed transport', async () => {
+    const hotIdentity = {...newCtx(), attempt: 1};
+    const coldIdentity = {...newCtx(), attempt: 1};
+    const control = ndjsonBody(recordLine({type: 'capped'}));
+    const output = ndjsonBody(outputLine('hello\n'));
+    const logs = buildSealedLogsClient();
+
+    await db().transaction(async (tx) => {
+      const stream = await getOrCreateAttemptStream(tx, hotIdentity);
+      await insertChunk(tx, {
+        streamId: stream.id,
+        streamOffset: 0,
+        byteLen: output.length,
+        data: output,
+        origin: 'runner',
+      });
+      await insertChunk(tx, {
+        streamId: stream.id,
+        streamOffset: output.length,
+        byteLen: control.length,
+        data: control,
+        origin: 'control',
+      });
+      await tx
+        .update(attemptStreams)
+        .set({committedLength: output.length})
+        .where(eq(attemptStreams.id, stream.id));
+    });
+    const coldStream = await arrangeClosedStream(coldIdentity, {chunks: [output]});
+    await db()
+      .update(attemptStreams)
+      .set({committedLength: output.length})
+      .where(eq(attemptStreams.id, coldStream.id));
+    const compacted = await runCompaction(coldStream.id);
+    if (compacted.outcome !== 'compacted') throw new Error('expected compacted stream');
+
+    await expect(logs.describeStepLogStream(hotIdentity)).resolves.toMatchObject({
+      streamId: expect.any(String),
+      state: 'open',
+      compacted: false,
+      committedLength: output.length,
+      totalBytes: output.length + control.length,
+      truncated: false,
+    });
+    await expect(logs.describeStepLogStream(coldIdentity)).resolves.toMatchObject({
+      streamId: coldStream.id,
+      state: 'closed',
+      compacted: true,
+      committedLength: output.length,
+      totalBytes: output.length,
+      totalLines: 1,
+      truncated: false,
+    });
+
+    await deleteObject(compacted.objectKey);
+    await deleteObject(compactedTailObjectKey(compacted.objectKey));
+  });
+
   it('reads a bounded exact-attempt hot tail through the sealed transport', async () => {
     const ctx = {...newCtx(), attempt: 1};
     const logs = buildSealedLogsClient();

@@ -90,8 +90,16 @@ export async function deleteObject(key: string): Promise<void> {
   await objectStore().deleteObject(key);
 }
 
+export const AGENT_LOG_DOWNLOAD_URL_TTL_SECONDS = 60;
+
 export function presignedGetUrl(objectKey: string): Promise<{url: string; expiresAt: Date}> {
   return objectStore().presignGet(objectKey, config.LOG_READ_URL_TTL_SECONDS);
+}
+
+export function presignedAgentLogDownloadUrl(
+  objectKey: string,
+): Promise<{url: string; expiresAt: Date}> {
+  return objectStore().presignGet(objectKey, AGENT_LOG_DOWNLOAD_URL_TTL_SECONDS);
 }
 
 export async function deleteObjectsByPrefix(prefix: string): Promise<void> {

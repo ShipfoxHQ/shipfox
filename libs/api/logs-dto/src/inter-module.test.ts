@@ -1,6 +1,25 @@
 import {logsInterModuleContract} from './inter-module.js';
 
 describe('logsInterModuleContract', () => {
+  test('accepts stream descriptions for hot and compacted logs', () => {
+    const schema = logsInterModuleContract.methods.describeStepLogStream;
+    const stepId = '00000000-0000-4000-8000-000000000005';
+
+    expect(schema.input.parse({stepId, attempt: 1})).toEqual({stepId, attempt: 1});
+    expect(
+      schema.output.parse({
+        streamId: '00000000-0000-4000-8000-000000000006',
+        state: 'closed',
+        compacted: true,
+        committedLength: 10,
+        totalBytes: 10,
+        totalLines: 2,
+        truncated: false,
+      }),
+    ).toMatchObject({compacted: true, totalLines: 2});
+    expect(schema.output.parse(null)).toBeNull();
+  });
+
   test('accepts exact-attempt tail reads and defaults the line window', () => {
     const input = logsInterModuleContract.methods.readStepLogTail.input.parse({
       stepId: '00000000-0000-4000-8000-000000000005',
