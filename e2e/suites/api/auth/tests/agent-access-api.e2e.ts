@@ -42,6 +42,8 @@ const EXPECTED_TOOL_NAMES = [
   'get_trigger_event',
   'get_trigger_event_facets',
   'list_trigger_events',
+  'list_integration_connections',
+  'get_integration_connection_tools',
 ] as const;
 
 test('exposes the composed OAuth and agent-access contract through a real MCP client', async ({

@@ -216,6 +216,14 @@ const projectResultItemSchema = z
     id: idSchema,
     name: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
     slug: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
+    source_connection: z
+      .object({
+        id: idSchema,
+        slug: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
+        provider: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
+      })
+      .strict()
+      .nullable(),
     created_at: dateTimeSchema,
     updated_at: dateTimeSchema,
   })
@@ -429,6 +437,12 @@ const projectResultJsonSchema = {
     id: uuid,
     name: cappedText,
     slug: cappedText,
+    source_connection: nullable({
+      type: 'object',
+      properties: {id: uuid, slug: cappedText, provider: cappedText},
+      required: ['id', 'slug', 'provider'],
+      additionalProperties: false,
+    }),
     created_at: dateTime,
     updated_at: dateTime,
   },

@@ -36,6 +36,7 @@ import {
   type DefinitionsInterModuleClient,
   definitionsInterModuleContract,
 } from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
   type ProjectsModuleClient,
   projectsInterModuleContract,
@@ -68,13 +69,14 @@ export interface AgentAccessPagedToolsOptions {
   workflows: WorkflowsModuleClient;
   annotations: AnnotationsInterModuleClient;
   triggers: TriggersInterModuleClient;
+  integrations?: IntegrationsModuleClient | undefined;
 }
 
 export function createAgentAccessTools(
   options: AgentAccessPagedToolsOptions,
 ): readonly AgentAccessTool[] {
   return [
-    createListProjectsTool(options.projects),
+    createListProjectsTool(options.projects, options.integrations),
     createListWorkflowDefinitionsTool(options.definitions),
     createListWorkflowRunsTool(options.projects, options.workflows),
     ...createAgentAccessWorkflowTools(options.workflows),
@@ -83,7 +85,10 @@ export function createAgentAccessTools(
   ];
 }
 
-function createListProjectsTool(projects: ProjectsModuleClient): AgentAccessTool {
+function createListProjectsTool(
+  projects: ProjectsModuleClient,
+  integrations: IntegrationsModuleClient | undefined,
+): AgentAccessTool {
   return {
     name: 'list_projects',
     description:
@@ -104,8 +109,22 @@ function createListProjectsTool(projects: ProjectsModuleClient): AgentAccessTool
         limit: input.limit,
         ...optionalField('cursor', cursor),
       });
+      const sourceConnections =
+        integrations === undefined
+          ? []
+          : (
+              await integrations.listConnectionsByWorkspace({
+                workspaceId: context.workspaceId,
+                limit: 100,
+              })
+            ).connections;
+      const sourceConnectionById = new Map(
+        sourceConnections.map((connection) => [connection.id, connection]),
+      );
       const result = {
-        projects: page.projects.map(toProjectResult),
+        projects: page.projects.map((project) =>
+          toProjectResult(project, sourceConnectionById.get(project.sourceConnectionId)),
+        ),
         next_cursor: page.nextCursor
           ? encodeTimestampCursor(page.nextCursor.createdAt, page.nextCursor.id)
           : null,
@@ -330,17 +349,29 @@ async function resolveRunAttempt(
   return overview === null ? null : input.attempt;
 }
 
-function toProjectResult(project: {
-  id: string;
-  name: string;
-  slug: string;
-  createdAt: string;
-  updatedAt: string;
-}) {
+function toProjectResult(
+  project: {
+    id: string;
+    name: string;
+    slug: string;
+    sourceConnectionId: string;
+    createdAt: string;
+    updatedAt: string;
+  },
+  sourceConnection: {id: string; slug: string; provider: string} | undefined,
+) {
   return {
     id: project.id,
     name: cap(project.name),
     slug: cap(project.slug),
+    source_connection:
+      sourceConnection === undefined
+        ? null
+        : {
+            id: sourceConnection.id,
+            slug: cap(sourceConnection.slug),
+            provider: cap(sourceConnection.provider),
+          },
     created_at: project.createdAt,
     updated_at: project.updatedAt,
   };
