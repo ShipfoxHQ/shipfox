@@ -19,6 +19,8 @@ import {buildModel, expression, shellRef, template} from '#test/helpers/workflow
 import {workflowModel} from '#test/index.js';
 import {db} from '../db.js';
 import {workflowsOutbox} from '../schema/outbox.js';
+import {workflowConcurrencyClaims} from '../schema/workflow-concurrency-claims.js';
+import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {workflowRunCounters} from '../schema/workflow-run-counters.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
 import {
@@ -352,6 +354,214 @@ describe('workflow run queries', () => {
           .where(eq(workflowRuns.id, run.id)),
       ).resolves.toEqual([{name: null, workflowName: 'Deploy application'}]);
       await expect(getJobsByWorkflowRunId(run.id)).resolves.toHaveLength(1);
+    });
+
+    test('admits the initial run after materializing the run graph', async () => {
+      const model = workflowModel({concurrency: {group: 'deploy'}});
+      const holder = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const waiter = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+
+      expect(holder.status).toBe('pending');
+      expect(waiter.status).toBe('waiting');
+      await expect(
+        db()
+          .select({status: workflowRunAttempts.status})
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.workflowRunId, waiter.id)),
+      ).resolves.toEqual([{status: 'waiting'}]);
+      await expect(
+        db()
+          .select({state: workflowConcurrencyClaims.state})
+          .from(workflowConcurrencyClaims)
+          .where(eq(workflowConcurrencyClaims.projectId, projectId))
+          .orderBy(workflowConcurrencyClaims.generation),
+      ).resolves.toEqual([{state: 'acquired'}, {state: 'waiting'}]);
+    });
+
+    test('returns an idempotent trigger without changing its claim', async () => {
+      const triggerIdempotencyKey = crypto.randomUUID();
+      const first = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: workflowModel({concurrency: {group: 'deploy'}}),
+        triggerIdempotencyKey,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const before = await db().select().from(workflowConcurrencyClaims);
+      const duplicate = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: workflowModel({concurrency: {group: 'different-group'}}),
+        triggerIdempotencyKey,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const after = await db().select().from(workflowConcurrencyClaims);
+
+      expect(duplicate).toMatchObject({id: first.id, deduplicated: true});
+      expect(after).toEqual(before);
+    });
+
+    test('rolls back the run graph and claim when concurrency resolution fails', async () => {
+      const beforeOutbox = await db().select().from(workflowsOutbox);
+
+      await expect(
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: workflowModel({
+            concurrency: {group: `${String.fromCharCode(36)}{{ event.pull_request.number }}`},
+          }),
+          triggerPayload: {
+            source: 'github',
+            event: 'pull_request',
+            deliveryId: crypto.randomUUID(),
+            data: {},
+          },
+        }),
+      ).rejects.toThrow(InterpolationUnresolvableError);
+
+      await expect(
+        db().select().from(workflowRuns).where(eq(workflowRuns.definitionId, definitionId)),
+      ).resolves.toEqual([]);
+      await expect(
+        db()
+          .select()
+          .from(workflowConcurrencyClaims)
+          .where(eq(workflowConcurrencyClaims.projectId, projectId)),
+      ).resolves.toEqual([]);
+      await expect(db().select().from(workflowsOutbox)).resolves.toEqual(beforeOutbox);
+    });
+
+    test('rejects an empty resolved concurrency group as an interpolation error', async () => {
+      await expect(
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: workflowModel({concurrency: {group: template('event.group')}}),
+          triggerPayload: {
+            source: 'github',
+            event: 'pull_request',
+            deliveryId: crypto.randomUUID(),
+            data: {group: ''},
+          },
+        }),
+      ).rejects.toMatchObject({
+        name: 'InterpolationUnresolvableError',
+        field: 'workflow.run_name',
+        source: 'event.group',
+      });
+
+      await expect(
+        db().select().from(workflowRuns).where(eq(workflowRuns.definitionId, definitionId)),
+      ).resolves.toEqual([]);
+    });
+
+    test('serializes concurrent run creation into one holder and one waiter', async () => {
+      const model = workflowModel({concurrency: {group: 'deploy'}});
+      const [first, second] = await Promise.all([
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model,
+          triggerPayload: {
+            source: 'manual',
+            event: 'fire',
+            subscriptionId: crypto.randomUUID(),
+            userId: crypto.randomUUID(),
+          },
+        }),
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model,
+          triggerPayload: {
+            source: 'manual',
+            event: 'fire',
+            subscriptionId: crypto.randomUUID(),
+            userId: crypto.randomUUID(),
+          },
+        }),
+      ]);
+
+      expect([first.status, second.status].sort()).toEqual(['pending', 'waiting']);
+      await expect(
+        db()
+          .select()
+          .from(workflowConcurrencyClaims)
+          .where(eq(workflowConcurrencyClaims.projectId, projectId)),
+      ).resolves.toHaveLength(2);
+    });
+
+    test('loads variables referenced by the concurrency group before resolving it', async () => {
+      const secrets = createTestSecretsClient();
+      await secrets.setSecrets({
+        workspaceId,
+        projectId,
+        namespace: '',
+        values: {DEPLOY_GROUP: 'production'},
+      });
+
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: workflowModel({
+          concurrency: {group: `deploy-${String.fromCharCode(36)}{{ vars.DEPLOY_GROUP }}`},
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        secrets,
+      });
+
+      await expect(
+        db()
+          .select({displayGroup: workflowConcurrencyClaims.displayGroup})
+          .from(workflowConcurrencyClaims)
+          .where(eq(workflowConcurrencyClaims.projectId, projectId)),
+      ).resolves.toEqual([{displayGroup: 'deploy-production'}]);
+      expect(run.status).toBe('pending');
     });
 
     test('inserts run, jobs, and steps atomically', async () => {

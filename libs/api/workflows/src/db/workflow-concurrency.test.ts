@@ -138,6 +138,10 @@ describe('workflow concurrency claims', () => {
       .select()
       .from(workflowConcurrencyClaims)
       .where(eq(workflowConcurrencyClaims.id, holder.claim.id));
+    expect(replacement.holderClaim).toMatchObject({
+      cancellationRequestedAt: storedHolder?.cancellationRequestedAt,
+      updatedAt: storedHolder?.updatedAt,
+    });
     expect(storedHolder?.cancellationRequestedAt).not.toBeNull();
     expect(storedHolder?.cancellationRequestedAt).toEqual(storedHolder?.updatedAt);
     expect(storedHolder?.cancelInProgress).toBe(false);
