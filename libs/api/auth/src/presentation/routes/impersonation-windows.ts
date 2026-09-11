@@ -89,6 +89,7 @@ function toWindowSummaryResponse(view: Awaited<ReturnType<typeof getImpersonatio
 function toWindowExactResponse(view: Awaited<ReturnType<typeof getImpersonationWindow>>) {
   return {
     ...toWindowSummaryResponse(view),
+    actor_role_at_start: view.actorRoleAtStart,
     state: view.state,
     ended_at: view.endedAt?.toISOString() ?? null,
     ended_reason: view.endedReason,

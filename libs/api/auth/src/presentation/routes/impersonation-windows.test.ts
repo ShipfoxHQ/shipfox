@@ -272,6 +272,51 @@ describe('impersonation window routes', () => {
     });
   });
 
+  test('keeps historical and current actor roles distinct on exact reads', async () => {
+    const owner = await bootstrapOwner('window-historical-role');
+    const actor = await createVerifiedSession('window-historical-role-actor');
+    const target = await createVerifiedSession('window-historical-role-target');
+    const grant = await app.inject({
+      method: 'POST',
+      url: '/admin/auth/admin-grants',
+      headers: authHeaders(owner.token, 'window-historical-role-grant'),
+      payload: {user_id: actor.userId, role: 'admin-operator', reason: 'Window actor'},
+    });
+    expect(grant.statusCode).toBe(201);
+
+    const started = await startWindow({
+      token: actor.token,
+      targetUserId: target.userId,
+      key: 'window-historical-role-start',
+    });
+    expect(started.statusCode).toBe(200);
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+
+    const revoked = await app.inject({
+      method: 'DELETE',
+      url: `/admin/auth/admin-grants/${grant.json().id}`,
+      headers: authHeaders(owner.token, 'window-historical-role-revoke'),
+      payload: {reason: 'Window actor no longer needs administration access'},
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    const exact = await app.inject({
+      method: 'GET',
+      url: `/admin/auth/impersonation/windows/${windowId}`,
+      headers: {authorization: `Bearer ${actor.token}`},
+    });
+    expect(exact.statusCode).toBe(200);
+    const exactBody = impersonationWindowExactResponseSchema.parse(exact.json());
+    expect(exactBody).toMatchObject({
+      window_id: windowId,
+      actor: expect.objectContaining({id: actor.userId, admin_role: null}),
+      actor_role_at_start: 'admin-operator',
+      state: 'open',
+    });
+    expect(exactBody).not.toHaveProperty('token');
+    expect(JSON.stringify(exactBody)).not.toContain('window-historical-role-start');
+  });
+
   test('keeps reads and owned Stop available when minting is disabled', async () => {
     const owner = await bootstrapOwner('window-disabled');
     const target = await createVerifiedSession('window-disabled-target');
