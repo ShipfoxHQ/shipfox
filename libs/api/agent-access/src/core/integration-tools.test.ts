@@ -1,10 +1,11 @@
 import {
   agentAccessEnvelopeSchema,
+  getIntegrationConnectionToolsInputJsonSchema,
   getIntegrationConnectionToolsResultSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
-import {decodeStringIdCursor} from '@shipfox/node-drizzle';
+import {decodeStringIdCursor, encodeStringIdCursor} from '@shipfox/node-drizzle';
 import {createAgentAccessIntegrationTools} from './integration-tools.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
@@ -64,6 +65,18 @@ describe('agent-access integration tools', () => {
     });
   });
 
+  test('rejects an empty slug at the tool boundary', async () => {
+    const client = integrationClient();
+    const detail = getTool(client, 'get_integration_connection_tools');
+
+    expect(detail.validateInput?.({slug: ''})).toBe(false);
+    expect(getIntegrationConnectionToolsInputJsonSchema.oneOf[1].properties.slug.minLength).toBe(1);
+
+    const response = await detail.execute({context, arguments: {slug: ''}});
+    expect(response).toEqual({ok: false, error: {code: 'invalid-request'}});
+    expect(client.resolveConnection).not.toHaveBeenCalled();
+  });
+
   test('flags catalog caps and never exposes provider schemas', async () => {
     const client = integrationClient();
     client.getConnectionToolCatalog.mockResolvedValue({
@@ -119,12 +132,38 @@ describe('agent-access integration tools', () => {
     expect(JSON.stringify(response)).not.toContain('outputSchema');
   });
 
+  test('reports event-name truncation separately from event-array truncation', async () => {
+    const client = integrationClient();
+    client.getConnectionToolCatalog.mockResolvedValue({
+      connection: {
+        id: connectionId,
+        slug: 'github-main',
+        provider: 'github',
+        displayName: 'GitHub',
+        lifecycleStatus: 'active',
+        capabilities: ['source_control'],
+      },
+      tools: [],
+      events: ['E'.repeat(600)],
+    });
+    const detail = getTool(client, 'get_integration_connection_tools');
+
+    const response = await detail.execute({context, arguments: {connection_id: connectionId}});
+    expect(response.ok).toBe(true);
+    if (!response.ok) throw new Error('Expected a successful detail response');
+    const result = response.result as {
+      events_truncated?: true;
+      event_names_truncated?: true;
+    };
+    expect(result).toMatchObject({event_names_truncated: true});
+    expect(result).not.toHaveProperty('events_truncated');
+  });
+
   test('resolves a slug in the credential workspace and returns not-found for unknown values', async () => {
     const client = integrationClient();
-    client.listConnectionsByWorkspace.mockResolvedValue({
-      connections: [connection('github-main', 'GitHub')],
-      nextCursor: null,
-    });
+    client.resolveConnection
+      .mockResolvedValueOnce({id: connectionId, provider: 'github', slug: 'github-main'})
+      .mockResolvedValueOnce(null);
     client.getConnectionToolCatalog.mockResolvedValue({
       connection: {
         id: connectionId,
@@ -141,6 +180,10 @@ describe('agent-access integration tools', () => {
 
     const bySlug = await detail.execute({context, arguments: {slug: 'github-main'}});
     expect(bySlug.ok).toBe(true);
+    expect(client.resolveConnection).toHaveBeenNthCalledWith(1, {
+      workspaceId,
+      slug: 'github-main',
+    });
     expect(client.getConnectionToolCatalog).toHaveBeenCalledWith({
       workspaceId,
       connectionId,
@@ -153,17 +196,39 @@ describe('agent-access integration tools', () => {
       arguments: {slug: 'one', connection_id: connectionId},
     });
     expect(invalid).toEqual({ok: false, error: {code: 'invalid-request'}});
+    expect(client.resolveConnection).toHaveBeenNthCalledWith(2, {
+      workspaceId,
+      slug: 'missing',
+    });
+  });
+
+  test.each([
+    {value: '', id: connectionId},
+    {value: 'github-main', id: 'not-a-uuid'},
+  ])('rejects malformed list cursor %#', async (cursor) => {
+    const client = integrationClient();
+    const list = getTool(client, 'list_integration_connections');
+
+    const response = await list.execute({
+      context,
+      arguments: {cursor: encodeStringIdCursor(cursor)},
+    });
+
+    expect(response).toEqual({ok: false, error: {code: 'invalid-request'}});
+    expect(client.listConnectionsByWorkspace).not.toHaveBeenCalled();
   });
 });
 
 function integrationClient() {
   return {
     listConnectionsByWorkspace: vi.fn<IntegrationsModuleClient['listConnectionsByWorkspace']>(),
+    resolveConnection: vi.fn<IntegrationsModuleClient['resolveConnection']>(),
     getConnectionToolCatalog: vi.fn<IntegrationsModuleClient['getConnectionToolCatalog']>(),
   } as unknown as IntegrationsModuleClient & {
     listConnectionsByWorkspace: ReturnType<
       typeof vi.fn<IntegrationsModuleClient['listConnectionsByWorkspace']>
     >;
+    resolveConnection: ReturnType<typeof vi.fn<IntegrationsModuleClient['resolveConnection']>>;
     getConnectionToolCatalog: ReturnType<
       typeof vi.fn<IntegrationsModuleClient['getConnectionToolCatalog']>
     >;

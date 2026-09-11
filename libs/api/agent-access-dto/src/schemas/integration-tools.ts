@@ -95,7 +95,7 @@ const toolSchema = toolMethodSchema
 export const getIntegrationConnectionToolsInputSchema = z
   .object({
     connection_id: idSchema.optional(),
-    slug: cappedTextSchema.optional(),
+    slug: cappedTextSchema.min(1).optional(),
   })
   .superRefine((value, context) => {
     if ((value.connection_id === undefined) === (value.slug === undefined)) {
@@ -228,7 +228,7 @@ export const getIntegrationConnectionToolsInputJsonSchema = {
     },
     {
       type: 'object',
-      properties: {slug: cappedText},
+      properties: {slug: {...cappedText, minLength: 1}},
       required: ['slug'],
       additionalProperties: false,
     },

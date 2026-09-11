@@ -19,17 +19,15 @@ import {encodeStringIdCursor} from '@shipfox/node-drizzle';
 import {agentAccessSuccess} from './envelope.js';
 import {
   cap,
-  decodeStringCursor,
   invalidRequest,
   notFound,
   optionalField,
   parseInput,
   reducePage,
   truncateAgentAccessUtf8,
+  validateStringCursor,
 } from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
-
-const MAX_CONNECTION_LOOKUP = 100;
 
 type TruncatedText = {
   value: string;
@@ -61,7 +59,7 @@ function createListIntegrationConnectionsTool(
     execute: async ({context, arguments: rawInput}) => {
       const input = parseInput(listIntegrationConnectionsInputSchema, rawInput);
       if (!input) return invalidRequest();
-      const cursor = decodeStringCursor(input.cursor);
+      const cursor = validateStringCursor(input.cursor);
       if (input.cursor !== undefined && cursor === undefined) return invalidRequest();
 
       const page = await integrations.listConnectionsByWorkspace({
@@ -127,19 +125,10 @@ async function resolveConnectionId(
   input: GetIntegrationConnectionToolsInputDto,
 ): Promise<string | null> {
   if (input.connection_id !== undefined) return input.connection_id;
+  if (input.slug === undefined) return null;
 
-  let cursor: {slug: string; id: string} | undefined;
-  do {
-    const page = await integrations.listConnectionsByWorkspace({
-      workspaceId,
-      limit: MAX_CONNECTION_LOOKUP,
-      ...optionalField('cursor', cursor),
-    });
-    const match = page.connections.find(({slug}) => slug === input.slug);
-    if (match !== undefined) return match.id;
-    cursor = page.nextCursor ?? undefined;
-  } while (cursor !== undefined);
-  return null;
+  const connection = await integrations.resolveConnection({workspaceId, slug: input.slug});
+  return connection?.id ?? null;
 }
 
 function toListConnectionResult(
@@ -220,7 +209,7 @@ function toConnectionToolsResult(
     tools,
     ...(toolsWereTruncated ? {tools_truncated: true as const} : {}),
     events,
-    ...(eventsWereTruncated || eventNamesWereTruncated ? {events_truncated: true as const} : {}),
+    ...(eventsWereTruncated ? {events_truncated: true as const} : {}),
     ...(eventNamesWereTruncated ? {event_names_truncated: true as const} : {}),
   };
 }

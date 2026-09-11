@@ -446,7 +446,7 @@ const projectResultJsonSchema = {
     created_at: dateTime,
     updated_at: dateTime,
   },
-  required: ['id', 'name', 'slug', 'created_at', 'updated_at'],
+  required: ['id', 'name', 'slug', 'source_connection', 'created_at', 'updated_at'],
   additionalProperties: false,
 } as const;
 
