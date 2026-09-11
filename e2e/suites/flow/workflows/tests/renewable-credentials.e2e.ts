@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
+import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import {createApiClient, config as e2eConfig} from '@shipfox/e2e-core';
 import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
-import {waitForDefinition} from '@shipfox/e2e-observe-definitions';
 import type {WorkflowRunObservation} from '@shipfox/e2e-observe-workflows';
 import {
   createTestVcsRepository,
@@ -20,7 +20,7 @@ import {
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
-import {seedAndWaitForDefinition} from '#workflow-project.js';
+import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const RUNNER_TERMINAL_TIMEOUT_MS = 180_000;
@@ -143,7 +143,7 @@ test('renews managed inference credentials for both harnesses', async ({suite}, 
     'get',
     '/__e2e/managed-inference/stats',
   );
-  const project = await seedAndWaitForDefinition({
+  const project = await seedProjectWithApiDefinition({
     suite,
     token: suite.sessionToken,
     name: 'renewable-inference',
@@ -496,15 +496,12 @@ async function seedTestVcsWorkflow(params: {
   configPath: string;
   workflowYaml: string;
   secondaryRepositoryName?: string | undefined;
-}): Promise<{definition: Awaited<ReturnType<typeof waitForDefinition>>}> {
+}): Promise<{definition: DefinitionResponseDto}> {
   const renderedWorkflowYaml = renderTestVcsWorkflow(params);
   const repository = await createTestVcsRepository({
     connectionId: params.connectionId,
     name: params.repositoryName,
-    files: [
-      {path: params.configPath, content: renderedWorkflowYaml},
-      {path: 'README.md', content: '# Renewable credentials test VCS repository\n'},
-    ],
+    files: [{path: 'README.md', content: '# Renewable credentials test VCS repository\n'}],
   });
   const project = await createProject({
     workspaceId: params.suite.workspaceId,
@@ -527,10 +524,15 @@ async function seedTestVcsWorkflow(params: {
       sourceDefaultBranch: 'main',
     });
   }
-  const definition = await waitForDefinition({
-    projectId: project.id,
-    configPath: params.configPath,
+  const definition = await createApiClient({
     token: params.token,
+  }).requestJson<DefinitionResponseDto>('post', '/definitions', {
+    json: {
+      project_id: project.id,
+      config_path: params.configPath,
+      source: 'manual',
+      yaml: renderedWorkflowYaml,
+    },
   });
   return {definition};
 }
