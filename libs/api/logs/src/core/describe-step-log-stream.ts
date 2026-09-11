@@ -53,7 +53,8 @@ export async function describeStepLogStream(
   const stats = await dependencies.chunkStats(stream.id);
   if (stats.count === 0) {
     const refreshed = await dependencies.getAttemptStreamById(stream.id);
-    if (refreshed?.objectKey) return describeCompactedStream(refreshed);
+    if (!refreshed) return null;
+    if (refreshed.objectKey) return describeCompactedStream(refreshed);
   }
 
   return {

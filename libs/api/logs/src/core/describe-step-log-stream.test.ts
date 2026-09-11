@@ -71,4 +71,16 @@ describe('describeStepLogStream', () => {
     });
     expect(mocks.getAttemptStreamById).toHaveBeenCalledWith(hot.id);
   });
+
+  it('returns null when the stream is deleted during empty stats refresh', async () => {
+    const hot = stream();
+    mocks.getStreamByStepAttempt.mockResolvedValue(hot);
+    mocks.chunkStats.mockResolvedValue({count: 0, maxSeq: 0, uncompressedBytes: 0});
+    mocks.getAttemptStreamById.mockResolvedValue(null);
+
+    const result = await describeStepLogStream({stepId: hot.stepId, attempt: 1}, dependencies);
+
+    expect(result).toBeNull();
+    expect(mocks.getAttemptStreamById).toHaveBeenCalledWith(hot.id);
+  });
 });
