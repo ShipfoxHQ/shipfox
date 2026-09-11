@@ -1,3 +1,5 @@
+import {IntegrationProviderError} from '@shipfox/api-integration-spi';
+
 export class ClickUpConnectionNotFoundError extends Error {
   constructor(connectionId: string) {
     super(`ClickUp connection not found: ${connectionId}`);
@@ -25,3 +27,5 @@ export class ClickUpInstallationAlreadyLinkedError extends Error {
     this.name = 'ClickUpInstallationAlreadyLinkedError';
   }
 }
+
+export class ClickUpIntegrationProviderError extends IntegrationProviderError {}
