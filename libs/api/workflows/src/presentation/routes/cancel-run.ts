@@ -1,6 +1,8 @@
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {workflowRunDtoSchema} from '@shipfox/api-workflows-dto';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {WorkflowRunNotCancellableError, WorkflowRunNotFoundError} from '#core/errors.js';
 import {cancelWorkflowRun} from '#core/run-actions.js';
@@ -38,8 +40,17 @@ export function cancelRunRoute(projects: ProjectsModuleClient) {
         workspaceId: run.workspaceId,
         workflowRunId: run.id,
       });
-      const concurrency = await listWorkflowRunConcurrencyForRuns([cancelled]);
-      return toRunDto(cancelled, cancelled.currentAttempt, concurrency.get(cancelled.id) ?? null);
+      let concurrency: Awaited<ReturnType<typeof listWorkflowRunConcurrencyForRuns>> | undefined;
+      try {
+        concurrency = await listWorkflowRunConcurrencyForRuns([cancelled]);
+      } catch (error) {
+        logger().error({err: error}, 'Failed to read workflow run concurrency after cancellation');
+        reportError(error, {
+          boundary: 'workflows.route',
+          operation: 'cancel-run-concurrency',
+        });
+      }
+      return toRunDto(cancelled, cancelled.currentAttempt, concurrency?.get(cancelled.id) ?? null);
     },
   });
 }
