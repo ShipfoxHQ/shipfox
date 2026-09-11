@@ -7,6 +7,11 @@ export type {
   JobListenerEventOutcomeReason,
 } from './entities/job-listener-event.js';
 export type {Step, StepStatus} from './entities/step.js';
+export {
+  transitionWorkflowConcurrencyClaim,
+  type WorkflowConcurrencyClaim,
+  type WorkflowConcurrencyClaimState,
+} from './entities/workflow-concurrency-claim.js';
 export type {
   TriggerPayload,
   WorkflowRun,
@@ -54,6 +59,18 @@ export {
   materializeWorkflowModel,
   modelHasAgentStep,
 } from './step-config/index.js';
+export {
+  type CanonicalWorkflowConcurrencyGroup,
+  canonicalizeWorkflowConcurrencyGroup,
+  InvalidWorkflowConcurrencyGroupError,
+  nextWorkflowConcurrencyAdmission,
+  type ResolvedWorkflowConcurrency,
+  type WorkflowConcurrencyIdentity,
+  type WorkflowConcurrencyScope,
+  workflowConcurrencyIdentity,
+  workflowConcurrencyIdentityKey,
+  workflowConcurrencyOriginScope,
+} from './workflow-concurrency.js';
 export {
   deriveInitialJobExecutionPlan,
   deriveJobExecutionRunner,

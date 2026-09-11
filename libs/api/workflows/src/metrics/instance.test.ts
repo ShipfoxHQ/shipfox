@@ -64,6 +64,22 @@ function histogramRecord(name: string): ReturnType<typeof vi.fn> {
   return histogram.record;
 }
 
+describe('workflow concurrency metrics', () => {
+  test('records bounded claim outcomes and waiter supersessions', () => {
+    metrics.recordWorkflowConcurrencyClaimOutcome('acquired');
+    metrics.recordWorkflowConcurrencyClaimOutcome('waiting');
+    metrics.recordWorkflowConcurrencyWaiterSuperseded();
+
+    expect(counterAdd('workflows_concurrency_claim_outcomes')).toHaveBeenNthCalledWith(1, 1, {
+      outcome: 'acquired',
+    });
+    expect(counterAdd('workflows_concurrency_claim_outcomes')).toHaveBeenNthCalledWith(2, 1, {
+      outcome: 'waiting',
+    });
+    expect(counterAdd('workflows_concurrency_waiter_supersessions')).toHaveBeenCalledWith(1);
+  });
+});
+
 describe('workflow run status metrics', () => {
   test('records waiting status transitions', () => {
     metrics.recordWorkflowRunStatusChanged('waiting');

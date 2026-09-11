@@ -15,6 +15,17 @@ const runCreatedCount = meter.createCounter<{provider: string}>('workflows_run_c
   description: 'Workflow runs created by bounded trigger provider',
 });
 
+const concurrencyClaimOutcomeCount = meter.createCounter<{
+  outcome: 'acquired' | 'waiting';
+}>('workflows_concurrency_claim_outcomes', {
+  description: 'Workflow concurrency claim admissions by bounded outcome',
+});
+
+const concurrencyWaiterSupersededCount = meter.createCounter<Record<string, never>>(
+  'workflows_concurrency_waiter_supersessions',
+  {description: 'Workflow concurrency waiters replaced by a newer claim'},
+);
+
 const displayNameResolutionDegradedCount = meter.createCounter<{
   field: 'workflow.run_name' | 'job.execution_name';
   cause: 'missing_value' | 'evaluation_error' | 'empty_value' | 'sanitization';
@@ -222,6 +233,14 @@ const toolInvocationLogAppendFailuresCount = meter.createCounter<{
 
 export function recordWorkflowRunCreated(provider: string): void {
   runCreatedCount.add(1, {provider});
+}
+
+export function recordWorkflowConcurrencyClaimOutcome(outcome: 'acquired' | 'waiting'): void {
+  concurrencyClaimOutcomeCount.add(1, {outcome});
+}
+
+export function recordWorkflowConcurrencyWaiterSuperseded(): void {
+  concurrencyWaiterSupersededCount.add(1);
 }
 
 export function recordWorkflowDisplayNameResolutionDegraded(

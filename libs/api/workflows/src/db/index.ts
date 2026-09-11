@@ -35,7 +35,13 @@ export {
   type ListenerEventStorageStats,
 } from './listener-storage.js';
 export {workflowsOutbox} from './schema/outbox.js';
+export {workflowConcurrencyClaims} from './schema/workflow-concurrency-claims.js';
 export {workflowRunCounters} from './schema/workflow-run-counters.js';
+export {
+  type AdmitWorkflowConcurrencyClaimParams,
+  type AdmitWorkflowConcurrencyClaimResult,
+  admitWorkflowConcurrencyClaim,
+} from './workflow-concurrency.js';
 export type {
   BoundedExecutionCount,
   BulkUpdateStepStatusesParams,

@@ -45,6 +45,7 @@ import {
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
 
+export type {WorkflowConcurrencyClaim} from '#core/entities/workflow-concurrency-claim.js';
 export type {
   Job,
   JobListenerEvent,
@@ -73,6 +74,17 @@ export {
   WorkflowStepAttemptInvocationLimitError,
   WorkflowStepResultTooLargeError,
 } from '#core/index.js';
+export {
+  type CanonicalWorkflowConcurrencyGroup,
+  canonicalizeWorkflowConcurrencyGroup,
+  InvalidWorkflowConcurrencyGroupError,
+  type ResolvedWorkflowConcurrency,
+  type WorkflowConcurrencyIdentity,
+  type WorkflowConcurrencyScope,
+  workflowConcurrencyIdentity,
+  workflowConcurrencyIdentityKey,
+  workflowConcurrencyOriginScope,
+} from '#core/workflow-concurrency.js';
 export type {
   RequiredAction,
   WorkflowAdmissionDecision,
@@ -80,6 +92,9 @@ export type {
   WorkflowAdmissionPolicy,
 } from '#core/workspace-admission.js';
 export {
+  type AdmitWorkflowConcurrencyClaimParams,
+  type AdmitWorkflowConcurrencyClaimResult,
+  admitWorkflowConcurrencyClaim,
   closeDb,
   type DeliverEventToListenerParams,
   type DeliverEventToListenerResult,
