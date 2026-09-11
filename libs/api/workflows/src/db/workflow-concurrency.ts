@@ -172,7 +172,7 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     const [updatedHolder] = await tx
       .update(workflowConcurrencyClaims)
       .set({
-        cancellationRequestedAt: sql`coalesce(${workflowConcurrencyClaims.cancellationRequestedAt}, now())`,
+        cancellationRequestedAt: now,
         updatedAt: now,
       })
       .where(

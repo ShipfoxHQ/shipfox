@@ -139,6 +139,7 @@ describe('workflow concurrency claims', () => {
       .from(workflowConcurrencyClaims)
       .where(eq(workflowConcurrencyClaims.id, holder.claim.id));
     expect(storedHolder?.cancellationRequestedAt).not.toBeNull();
+    expect(storedHolder?.cancellationRequestedAt).toEqual(storedHolder?.updatedAt);
     expect(storedHolder?.cancelInProgress).toBe(false);
 
     const storedWaiters = await db()
