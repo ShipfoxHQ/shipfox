@@ -615,13 +615,16 @@ describe('integrations inter-module presentation', () => {
     ).resolves.toBeNull();
   });
 
-  it('omits malformed external URLs while preserving the connection page cursor', async () => {
+  it.each([
+    'not-a-url',
+    'javascript:alert(1)',
+  ])('omits invalid external URL %s while preserving the connection page cursor', async (invalidExternalUrl) => {
     const testWorkspaceId = crypto.randomUUID();
     const registry = createIntegrationProviderRegistry([
       {
         provider: 'github',
         displayName: 'GitHub',
-        connectionExternalUrl: async () => 'not-a-url',
+        connectionExternalUrl: async () => invalidExternalUrl,
       },
     ]);
     const sourceControl = createSourceControlIntegrationService({
