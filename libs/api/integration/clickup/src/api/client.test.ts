@@ -88,6 +88,16 @@ describe('ClickUp API client', () => {
     );
   });
 
+  it('maps a null token response to a malformed-provider-response error', async () => {
+    mocks.post.mockReturnValue(resolves(null));
+
+    await expect(
+      createClickUpApiClient().exchangeAuthorizationCode({code: 'grant-code'}),
+    ).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+    } satisfies Partial<ClickUpIntegrationProviderError>);
+  });
+
   it.each([
     [401, 'access-denied'],
     [403, 'access-denied'],

@@ -55,7 +55,7 @@ export function createClickUpApiClient(): ClickUpApiClient {
           })
           .json<ClickUpTokenResponse>(),
       );
-      if (typeof body.access_token !== 'string' || body.access_token.length === 0) {
+      if (!body || typeof body.access_token !== 'string' || body.access_token.length === 0) {
         throw malformed('ClickUp authorization response did not include an access token');
       }
       return {accessToken: body.access_token};
