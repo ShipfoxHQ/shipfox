@@ -15,6 +15,7 @@ import {
 } from '#core/errors.js';
 import {rerunWorkflowRun} from '#core/run-actions.js';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
+import {listWorkflowRunConcurrencyForRuns} from '#db/index.js';
 import {toRunDto} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
@@ -94,7 +95,8 @@ export function rerunRunRoute(
         admission,
       });
 
-      return toRunDto(run, run.currentAttempt);
+      const concurrency = await listWorkflowRunConcurrencyForRuns([run]);
+      return toRunDto(run, run.currentAttempt, concurrency.get(run.id) ?? null);
     },
   });
 }

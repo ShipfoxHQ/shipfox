@@ -19,7 +19,6 @@ import type {
   WorkflowRunOrigin,
   WorkflowRunStatus,
 } from '#core/entities/workflow-run.js';
-import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
@@ -27,6 +26,10 @@ import {stepAttempts} from '../schema/step-attempts.js';
 import {steps} from '../schema/steps.js';
 import {toWorkflowRunAttempt, workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, toWorkflowRunList, workflowRuns} from '../schema/workflow-runs.js';
+import {
+  listWorkflowRunConcurrencyByAttemptIds,
+  type WorkflowRunAttemptRead,
+} from './concurrency.js';
 
 export type WorkflowRunCursor = TimestampIdCursor;
 
@@ -57,7 +60,7 @@ export interface ListWorkflowRunsResult {
 export type WorkflowRunAttemptCursor = NumberIdCursor;
 
 export interface ListRunAttemptsPageResult {
-  attempts: WorkflowRunAttempt[];
+  attempts: WorkflowRunAttemptRead[];
   nextCursor: WorkflowRunAttemptCursor | null;
 }
 
@@ -201,8 +204,16 @@ export async function listRunAttemptsPage(
     const pageRows = hasMore ? rows.slice(0, params.limit) : rows;
     const last = pageRows.at(-1)?.attempt;
 
+    const attempts = pageRows.map((row) => toWorkflowRunAttempt(row.attempt));
+    const concurrencyByAttemptId = await listWorkflowRunConcurrencyByAttemptIds(
+      attempts.map((attempt) => attempt.id),
+    );
+
     return {
-      attempts: pageRows.map((row) => toWorkflowRunAttempt(row.attempt)),
+      attempts: attempts.map((attempt) => ({
+        ...attempt,
+        concurrency: concurrencyByAttemptId.get(attempt.id) ?? null,
+      })),
       nextCursor: hasMore && last ? {value: last.attempt, id: last.id} : null,
     };
   } finally {

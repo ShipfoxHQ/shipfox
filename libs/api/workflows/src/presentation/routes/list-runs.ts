@@ -6,7 +6,11 @@ import {
 import {decodeTimestampIdCursor, encodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
-import {listWorkflowRunJobSummaries, listWorkflowRuns} from '#db/index.js';
+import {
+  listWorkflowRunConcurrencyForRuns,
+  listWorkflowRunJobSummaries,
+  listWorkflowRuns,
+} from '#db/index.js';
 import {toRunListItemDto} from '#presentation/dto/index.js';
 import {requireProjectAccess} from './project-access.js';
 
@@ -58,9 +62,12 @@ export function listRunsRoute(projects: ProjectsModuleClient) {
       });
       // Paired with the attempt this read returned, so a re-run landing mid-request cannot
       // pair one attempt's metadata with another's jobs.
-      const jobsByRun = await listWorkflowRunJobSummaries(
-        result.runs.map((run) => ({id: run.id, currentAttempt: run.currentAttempt})),
-      );
+      const runTargets = result.runs.map((run) => ({
+        id: run.id,
+        currentAttempt: run.currentAttempt,
+      }));
+      const jobsByRun = await listWorkflowRunJobSummaries(runTargets);
+      const concurrencyByRun = await listWorkflowRunConcurrencyForRuns(result.runs);
 
       logger().info(
         {
@@ -78,7 +85,9 @@ export function listRunsRoute(projects: ProjectsModuleClient) {
       );
 
       return {
-        runs: result.runs.map((run) => toRunListItemDto(run, jobsByRun.get(run.id))),
+        runs: result.runs.map((run) =>
+          toRunListItemDto(run, jobsByRun.get(run.id), concurrencyByRun.get(run.id) ?? null),
+        ),
         next_cursor: result.nextCursor ? encodeTimestampIdCursor(result.nextCursor) : null,
         filtered_total_count: result.filteredTotalCount,
       };

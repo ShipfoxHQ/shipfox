@@ -77,6 +77,42 @@ describe('workflow source snapshot schemas', () => {
     expect(result.source_snapshot).toEqual({content: 'name: Build\njobs: {}\n', format: 'yaml'});
   });
 
+  test('exposes concurrency state, policy, and UUID attempt relationships', () => {
+    const concurrency = {
+      display_group: 'deploy',
+      scope: 'project',
+      state: 'superseded',
+      generation: 4,
+      policy: {cancel_in_progress: true},
+      affected_attempts: [
+        {
+          workflow_run_id: '55555555-5555-4555-8555-555555555555',
+          workflow_run_attempt_id: '66666666-6666-4666-8666-666666666666',
+        },
+      ],
+    };
+    const run = workflowRunDtoSchema.parse({...baseRun, concurrency});
+    const attempt = workflowRunAttemptsPageSchema.parse({
+      items: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          workflow_run_id: baseRun.id,
+          attempt: 1,
+          status: 'cancelled',
+          created_at: '2026-06-16T00:00:00.000Z',
+          started_at: null,
+          finished_at: null,
+          rerun_mode: null,
+          concurrency,
+        },
+      ],
+      next_cursor: null,
+    });
+
+    expect(run.concurrency).toEqual(concurrency);
+    expect(attempt.items[0]?.concurrency).toEqual(concurrency);
+  });
+
   test('accepts waiting for runs and attempts', () => {
     const run = workflowRunDtoSchema.parse({...baseRun, status: 'waiting'});
     const attempt = workflowRunAttemptsPageSchema.parse({

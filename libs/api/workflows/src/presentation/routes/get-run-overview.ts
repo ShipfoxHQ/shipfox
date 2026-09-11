@@ -10,7 +10,7 @@ import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {FastifyRequest} from 'fastify';
 import {z} from 'zod';
-import {getWorkflowRunOverview} from '#db/index.js';
+import {getWorkflowRunOverview, listWorkflowRunConcurrencyByAttemptIds} from '#db/index.js';
 import {toRunOverviewDto} from '#presentation/dto/index.js';
 import {requireAccessibleRunScope} from './require-accessible-run.js';
 import {serializedResponseByteLength} from './serialized-response-byte-length.js';
@@ -118,14 +118,24 @@ async function readRunOverview({
     throw new ClientError('Run attempt not found', 'not-found', {status: 404});
   }
 
-  const response = toRunOverviewDto(overview);
+  const concurrencyByAttemptId = await listWorkflowRunConcurrencyByAttemptIds([
+    overview.attempt.id,
+  ]);
+  const overviewWithConcurrency = {
+    ...overview,
+    attempt: {
+      ...overview.attempt,
+      concurrency: concurrencyByAttemptId.get(overview.attempt.id) ?? null,
+    },
+  };
+  const response = toRunOverviewDto(overviewWithConcurrency);
   const serializedResponse = serialize(response);
   if (
     overview.jobs.kind === 'complete' &&
     serializedResponseByteLength(serializedResponse) > WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT
   ) {
     return {
-      ...toBoundedLargeOverviewResponse(overview, serialize),
+      ...toBoundedLargeOverviewResponse(overviewWithConcurrency, serialize),
       databaseDurationMilliseconds,
     };
   }

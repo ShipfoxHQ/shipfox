@@ -25,6 +25,7 @@ import {jobs} from '../schema/jobs.js';
 import {steps} from '../schema/steps.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRunOriginState, workflowRuns} from '../schema/workflow-runs.js';
+import type {WorkflowRunConcurrencyRead} from './concurrency.js';
 
 export type BoundedExecutionCount = number | '100+';
 
@@ -51,6 +52,7 @@ export interface WorkflowRunOverviewAttempt {
   startedAt: Date | null;
   finishedAt: Date | null;
   rerunMode: 'all' | 'failed' | null;
+  concurrency?: WorkflowRunConcurrencyRead | null;
 }
 
 export interface WorkflowRunJobExecutionSummary {
