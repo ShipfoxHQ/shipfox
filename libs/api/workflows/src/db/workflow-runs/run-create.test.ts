@@ -467,6 +467,31 @@ describe('workflow run queries', () => {
       await expect(db().select().from(workflowsOutbox)).resolves.toEqual(beforeOutbox);
     });
 
+    test('rejects an empty resolved concurrency group as an interpolation error', async () => {
+      await expect(
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: workflowModel({concurrency: {group: template('event.group')}}),
+          triggerPayload: {
+            source: 'github',
+            event: 'pull_request',
+            deliveryId: crypto.randomUUID(),
+            data: {group: ''},
+          },
+        }),
+      ).rejects.toMatchObject({
+        name: 'InterpolationUnresolvableError',
+        field: 'workflow.run_name',
+        source: 'event.group',
+      });
+
+      await expect(
+        db().select().from(workflowRuns).where(eq(workflowRuns.definitionId, definitionId)),
+      ).resolves.toEqual([]);
+    });
+
     test('serializes concurrent run creation into one holder and one waiter', async () => {
       const model = workflowModel({concurrency: {group: 'deploy'}});
       const [first, second] = await Promise.all([

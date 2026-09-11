@@ -41,7 +41,11 @@ import {assembleCreationContext} from '#core/step-config/assemble-run-context.js
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
 import {resolveWorkflowRunName} from '#core/step-config/resolve-workflow-run-name.js';
-import type {ResolvedWorkflowConcurrency} from '#core/workflow-concurrency.js';
+import {
+  canonicalizeWorkflowConcurrencyGroup,
+  InvalidWorkflowConcurrencyGroupError,
+  type ResolvedWorkflowConcurrency,
+} from '#core/workflow-concurrency.js';
 import {
   deriveInitialJobExecutionPlan,
   materializeWorkflowRunJobs,
@@ -264,6 +268,7 @@ function resolveWorkflowConcurrency(params: {
           'workflow.concurrency.group',
       });
     }
+    canonicalizeWorkflowConcurrencyGroup(resolved.value);
     return {
       group: resolved.value,
       scope: params.concurrency.scope,
@@ -271,6 +276,15 @@ function resolveWorkflowConcurrency(params: {
     };
   } catch (error) {
     if (error instanceof InterpolationUnresolvableError) throw error;
+    if (error instanceof InvalidWorkflowConcurrencyGroupError) {
+      throw new InterpolationUnresolvableError(params.definitionId, {
+        field: 'workflow.run_name',
+        source:
+          params.concurrency.group.find((segment) => segment.kind === 'deferred')?.expression
+            .source ?? 'workflow.concurrency.group',
+        cause: error,
+      });
+    }
     if (error instanceof WorkflowTemplateResolutionError) {
       throw new InterpolationUnresolvableError(params.definitionId, {
         field: 'workflow.run_name',
