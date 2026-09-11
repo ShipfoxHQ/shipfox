@@ -54,6 +54,7 @@ function summary(value: TriggerReceivedEvent): TriggerReceivedEventSummary {
 function presentation() {
   return createTriggersInterModulePresentation({
     definitions: {} as never,
+    projects: {} as never,
     workflows: {} as never,
   });
 }

@@ -1,4 +1,10 @@
+import {definitionValidationErrorSchema} from '@shipfox/api-definitions-dto';
+import {
+  workflowDiagnosticFieldSchema,
+  workflowExecutionPayloadFieldSchema,
+} from '@shipfox/api-workflows-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
+import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
 import {
   listenerMatcherKindSchema,
@@ -10,8 +16,16 @@ import {
 
 const idSchema = z.string().uuid();
 const isoDateTimeSchema = z.string().datetime();
-const refSchema = z.string().min(1).max(256);
-const configPathSchema = z.string().min(1).max(1024);
+const refSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine(isSafeRefInput, 'Ref contains a control character');
+const configPathSchema = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine(isSafeRefInput, 'Config path contains a control character');
 const diagnosticVersionSchema = z.literal(1);
 const diagnosticByteCountSchema = z.number().int().nonnegative();
 const diagnosticFieldSchema = z.string().min(1).max(200);
@@ -250,16 +264,13 @@ const interpolationFieldSchema = z.enum([
   'checkout.ref',
   'checkout.path',
 ]);
-const definitionValidationErrorSchema = z.object({
-  message: z.string(),
-  path: z.string().optional(),
-  reason: z.string().max(2000).optional(),
-});
 const startRunErrors = {
   'workspace-not-found': z.object({workspaceId: idSchema}),
   'workspace-suspended': z.object({workspaceId: idSchema}),
   'workspace-deleted': z.object({workspaceId: idSchema}),
   'admission-denied': admissionDeniedDetailsSchema,
+  'definition-not-found': z.object({definitionId: idSchema}),
+  'project-mismatch': z.object({}),
   'agent-config-unresolvable': z.object({definitionId: idSchema}),
   'agent-integration-materialization-failed': z.object({}),
   'interpolation-unresolvable': z.object({
@@ -273,6 +284,17 @@ const startRunErrors = {
     limitBytes: z.number().int().positive(),
     measuredBytes: z.number().int().positive(),
   }),
+  'diagnostic-too-large': z.object({
+    field: workflowDiagnosticFieldSchema,
+    limitBytes: z.number().int().positive(),
+    measuredBytes: z.number().int().positive(),
+  }),
+  'workflow-execution-payload-too-large': z.object({
+    field: workflowExecutionPayloadFieldSchema,
+    limitBytes: z.number().int().positive(),
+    measuredBytes: z.number().int().positive(),
+    overshootBytes: z.number().int().positive(),
+  }),
 };
 const startDevRunErrors = {
   'workspace-not-found': startRunErrors['workspace-not-found'],
@@ -285,6 +307,8 @@ const startDevRunErrors = {
   'interpolation-unresolvable': startRunErrors['interpolation-unresolvable'],
   'invalid-job-runner-labels': startRunErrors['invalid-job-runner-labels'],
   'source-snapshot-too-large': startRunErrors['source-snapshot-too-large'],
+  'diagnostic-too-large': startRunErrors['diagnostic-too-large'],
+  'workflow-execution-payload-too-large': startRunErrors['workflow-execution-payload-too-large'],
 };
 const definitionResolutionErrors = {
   'project-not-found': z.object({projectId: idSchema}),

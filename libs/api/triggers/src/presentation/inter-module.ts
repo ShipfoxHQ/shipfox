@@ -2,6 +2,10 @@ import {
   type DefinitionsInterModuleClient,
   definitionsInterModuleContract,
 } from '@shipfox/api-definitions-dto/inter-module';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {
   type WorkflowsModuleClient,
@@ -49,6 +53,7 @@ import {toPublicTriggerDecisionReason} from './dto/trigger-events.js';
 
 export function createTriggersInterModulePresentation(params: {
   definitions: DefinitionsInterModuleClient;
+  projects: ProjectsModuleClient;
   workflows: WorkflowsModuleClient;
 }): InterModulePresentation<typeof triggersInterModuleContract> {
   return defineInterModulePresentation(triggersInterModuleContract, {
@@ -61,13 +66,17 @@ export function createTriggersInterModulePresentation(params: {
     },
     createDevRun: async (input) => {
       try {
+        await params.projects.requireProjectForWorkspace({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+        });
         return await createDevRun({
           ...input,
           definitions: params.definitions,
           workflows: params.workflows,
         });
       } catch (error) {
-        throw toCreateDevRunKnownError(error);
+        throw toCreateDevRunKnownError(error, input.projectId);
       }
     },
     listTriggerEvents: async ({workspaceId, limit, cursor, filters}) => {
@@ -171,8 +180,13 @@ function toFireManualTriggerKnownError(error: unknown, definitionId: string): un
   );
 }
 
-function toCreateDevRunKnownError(error: unknown): unknown {
+function toCreateDevRunKnownError(error: unknown, projectId: string): unknown {
   const method = triggersInterModuleContract.methods.createDevRun;
+  if (
+    isInterModuleKnownError(projectsInterModuleContract.methods.requireProjectForWorkspace, error)
+  ) {
+    return createInterModuleKnownError(method, 'project-not-found', {projectId});
+  }
   if (error instanceof DevRunTriggerNotFoundError) {
     return createInterModuleKnownError(method, 'trigger-not-found', {
       triggerKey: error.triggerKey,

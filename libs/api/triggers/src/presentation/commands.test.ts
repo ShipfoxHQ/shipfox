@@ -1,4 +1,8 @@
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {
   type WorkflowsModuleClient,
@@ -23,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   listReplaysOfTriggerEventPage: vi.fn(),
   listTriggerEventFacets: vi.fn(),
   listTriggerEvents: vi.fn(),
+  requireProjectForWorkspace: vi.fn(),
 }));
 
 vi.mock('#core/create-dev-run.js', () => ({createDevRun: mocks.createDevRun}));
@@ -54,6 +59,9 @@ async function rejection(value: Promise<unknown> | unknown): Promise<unknown> {
 function presentation() {
   return createTriggersInterModulePresentation({
     definitions: {} as never,
+    projects: {
+      requireProjectForWorkspace: mocks.requireProjectForWorkspace,
+    } as unknown as ProjectsModuleClient,
     workflows: {} as WorkflowsModuleClient,
   });
 }
@@ -62,6 +70,8 @@ describe('trigger command presentation', () => {
   beforeEach(() => {
     mocks.createDevRun.mockReset();
     mocks.fireManualTrigger.mockReset();
+    mocks.requireProjectForWorkspace.mockReset();
+    mocks.requireProjectForWorkspace.mockResolvedValue(undefined);
   });
 
   test('delegates manual fires and preserves deduplication', async () => {
@@ -146,11 +156,45 @@ describe('trigger command presentation', () => {
     const result = await presentation().handlers.createDevRun(input, context);
 
     expect(result).toEqual({id: PROJECT_ID, commit: 'a'.repeat(40)});
+    expect(mocks.requireProjectForWorkspace).toHaveBeenCalledWith({
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+    });
     expect(mocks.createDevRun).toHaveBeenCalledWith({
       ...input,
       definitions: {},
       workflows: {},
     });
+  });
+
+  test('maps a project workspace mismatch to project-not-found', async () => {
+    mocks.requireProjectForWorkspace.mockRejectedValue(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-workspace-mismatch',
+        {projectId: PROJECT_ID, workspaceId: WORKSPACE_ID},
+      ),
+    );
+
+    const error = await rejection(
+      presentation().handlers.createDevRun(
+        {
+          workspaceId: WORKSPACE_ID,
+          projectId: PROJECT_ID,
+          ref: 'main',
+          configPath: '.shipfox/workflows/main.yml',
+          triggerKey: 'on_demand',
+          userId: USER_ID,
+        },
+        context,
+      ),
+    );
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject({code: 'project-not-found', details: {projectId: PROJECT_ID}});
+    expect(mocks.createDevRun).not.toHaveBeenCalled();
   });
 
   test('maps the closed dev-run domain union', async () => {
@@ -236,5 +280,77 @@ describe('trigger command presentation', () => {
       code: 'workspace-suspended',
       details: {workspaceId: WORKSPACE_ID},
     });
+  });
+
+  test('forwards producer-valid definition error details without narrowing them', async () => {
+    const reason = 'x'.repeat(2048);
+    mocks.createDevRun.mockRejectedValue(
+      createInterModuleKnownError(
+        definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+        'invalid-definition',
+        {errors: [{message: 'Invalid definition', reason}]},
+      ),
+    );
+
+    const error = await rejection(
+      presentation().handlers.createDevRun(
+        {
+          workspaceId: WORKSPACE_ID,
+          projectId: PROJECT_ID,
+          ref: 'main',
+          configPath: '.shipfox/workflows/main.yml',
+          triggerKey: 'on_demand',
+          userId: USER_ID,
+        },
+        context,
+      ),
+    );
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject({code: 'invalid-definition', details: {errors: [{reason}]}});
+  });
+
+  test('keeps producer error unions in the command contracts', () => {
+    expect(
+      Object.keys(triggersInterModuleContract.methods.fireManualTrigger.errors).sort(),
+    ).toEqual(
+      [
+        'manual-trigger-not-found',
+        ...Object.keys(workflowsInterModuleContract.methods.startRunFromTrigger.errors),
+      ].sort(),
+    );
+    expect(Object.keys(triggersInterModuleContract.methods.createDevRun.errors).sort()).toEqual(
+      [
+        'trigger-not-found',
+        'inputs-not-allowed',
+        'replay-event-required',
+        'replay-event-not-allowed',
+        'replay-event-not-found',
+        'replay-event-mismatch',
+        'replay-event-unavailable',
+        'trigger-filtered',
+        ...Object.keys(definitionsInterModuleContract.methods.resolveDefinitionAtRef.errors),
+        ...Object.keys(workflowsInterModuleContract.methods.startDevRun.errors),
+      ].sort(),
+    );
+  });
+
+  test.each([
+    ['ref', {ref: 'main\n'}],
+    ['configPath', {configPath: '.shipfox/workflows/main.yml\u2028'}],
+  ])('rejects control characters in %s', (_field, override) => {
+    const result = triggersInterModuleContract.methods.createDevRun.input.safeParse({
+      workspaceId: WORKSPACE_ID,
+      projectId: PROJECT_ID,
+      ref: 'main',
+      configPath: '.shipfox/workflows/main.yml',
+      triggerKey: 'on_demand',
+      userId: USER_ID,
+      ...override,
+    });
+
+    expect(result.success).toBe(false);
   });
 });

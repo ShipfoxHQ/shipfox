@@ -65,7 +65,9 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     ...(params.commit === undefined ? {} : {expectedCommit: params.commit}),
   });
 
-  const trigger = resolved.triggers[params.triggerKey];
+  const trigger = Object.hasOwn(resolved.triggers, params.triggerKey)
+    ? resolved.triggers[params.triggerKey]
+    : undefined;
   if (!trigger) {
     throw new DevRunTriggerNotFoundError(params.triggerKey);
   }
