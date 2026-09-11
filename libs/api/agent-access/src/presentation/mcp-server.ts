@@ -115,11 +115,16 @@ async function handleAgentAccessToolCall(
   const tool = params.tools.get(params.name);
   const rateLimit = params.rateLimiter.consume(params.context.credential);
   if (!rateLimit.allowed) {
+    const action =
+      tool !== undefined && isActionTool(tool)
+        ? createActionAudit(tool, isRecord(params.arguments) ? params.arguments : {})
+        : undefined;
     recordToolCall(params.recordCall, {
       tool: tool?.name ?? 'unknown',
       outcome: 'rate-limited',
       errorCode: 'rate-limited',
       context: params.context,
+      ...(action === undefined ? {} : {action}),
     });
     return toolResult(
       agentAccessError(

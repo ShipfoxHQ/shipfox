@@ -85,6 +85,42 @@ describe('buildAgentAccessMcpServer', () => {
     ]);
   });
 
+  test('audits a shared-window action rejection before checking authority', async () => {
+    const limiter = createAgentAccessRateLimiter({limit: 1, now: () => 1_000});
+    const recordCall = vi.fn();
+    const read = createAgentAccessFixtureTool();
+    const action = createAgentAccessFixtureActionTool();
+    const {client, close} = await connectClient(limiter, [read, action], recordCall);
+
+    await client.callTool(
+      {name: read.name, arguments: {message: 'consume the shared window'}},
+      CallToolResultSchema,
+    );
+    const result = await client.callTool(
+      {name: action.name, arguments: {message: 'blocked action'}},
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(result.structuredContent).toEqual({
+      ok: false,
+      error: {code: 'rate-limited', retry_after_seconds: 60},
+    });
+    expect(recordCall).toHaveBeenLastCalledWith({
+      tool: action.name,
+      outcome: 'rate-limited',
+      errorCode: 'rate-limited',
+      context,
+      action: {
+        kind: action.name,
+        target: {},
+        inputs_supplied: false,
+        idempotency_key: false,
+        authority_outcome: 'not-checked',
+      },
+    });
+  });
+
   test('rejects multibyte input at the MCP boundary before calling a producer', async () => {
     const listWorkflowRuns = vi.fn();
     const tool = createAgentAccessTools({
