@@ -623,6 +623,7 @@ function renderWorkflowSchemaReference(schema, workflowSchemaMarkdown) {
     }),
     workflowComponent(workflowSchemaMarkdown, 'GateFailureFields', object(gateFailure.properties), {
       required: ['restart_from'],
+      defaults: {max_attempts: 5},
     }),
     workflowComponent(workflowSchemaMarkdown, 'StepOutputs', outputFields()),
     workflowComponent(workflowSchemaMarkdown, 'ToolStepOutputs', toolOutputFields()),
@@ -690,7 +691,7 @@ function renderTypeTableMarkdown(properties, options) {
       const linkedType = row.nestedHref
         ? `[${inlineCode(row.type)}](${row.nestedHref})`
         : inlineCode(row.type);
-      const defaultText = row.defaultValue ? inlineCode(row.defaultValue) : '-';
+      const defaultText = row.defaultValue ? inlineCode(String(row.defaultValue)) : '-';
       return `| ${inlineCode(row.name)} | ${linkedType} | ${row.required ? 'Required' : 'Optional'} | ${defaultText} | ${tableValue(row.description || '-')} |`;
     }),
   ].join('\n');

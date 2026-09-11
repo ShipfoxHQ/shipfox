@@ -3590,6 +3590,34 @@ describe('normalizeWorkflowDocument', () => {
     });
   });
 
+  it('normalizes an authored gate max_attempts value', () => {
+    const document: WorkflowDocument = {
+      name: 'review loop',
+      jobs: {
+        review: {
+          steps: [
+            {key: 'producer', run: 'npm run build'},
+            {
+              key: 'reviewer',
+              run: 'npm run review',
+              gate: {
+                success: 'step.exit_code == 0',
+                on_failure: {restart_from: 'producer', max_attempts: 25},
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[1]?.gate?.onFailure).toMatchObject({
+      restartFrom: 'producer',
+      maxAttempts: 25,
+    });
+  });
+
   it('normalizes run step exit-code gates', () => {
     const document: WorkflowDocument = {
       name: 'simple build',

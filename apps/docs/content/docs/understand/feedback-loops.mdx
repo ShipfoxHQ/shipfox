@@ -102,11 +102,24 @@ number of attempts.
 The loop stops in one of two states:
 
 - The check passes.
-- The attempt limit runs out and the job fails.
+- The attempt limit runs out and the job fails with `restart_exhausted`.
 
-[Limits](/reference/limits) lists the exact attempt limits. The [run
-history](/understand/workflows-and-runs) keeps each step attempt and its
-feedback.
+Set `gate.on_failure.max_attempts` to an integer from 1 through 1,000. The
+number includes the first execution. Omit the field to use five attempts on a
+new run. There is no `unlimited` value.
+
+The gate limit and the job execution timeout are separate bounds. The timeout
+can be authored up to 24 hours and includes all gate restarts. A timeout ends
+the job with `timed_out`, not `restart_exhausted`. The timeout applies before a
+large attempt limit can be reached.
+
+The per-job log budget limits retained output, not execution. A long loop can
+continue after the budget is reached, but later attempts can have incomplete or
+missing logs. Use the attempt history and durable outputs when logs are capped.
+
+[Limits](/reference/limits) lists the exact attempt, timeout, and log-budget
+values. The [run history](/understand/workflows-and-runs) keeps each step
+attempt and its feedback.
 
 ## Keep external writes out of the loop
 
@@ -120,8 +133,8 @@ Prefer this order:
 2. Run the check.
 3. Perform the external write only after the gate passes.
 
-When a write must happen inside the repeated range, make it safe to repeat. Use
-a stable identity, and update or read back the existing result instead of
+When a write must happen inside the repeated range, make it idempotent. Use a
+stable identity, and update or read back the existing result instead of
 creating a new one on every attempt.
 
 A loop can repeat a bad side effect as easily as it can improve code. Don't use

@@ -575,6 +575,18 @@ const workflowDocumentListeningSchema = z
     }
   });
 
+const workflowGateMaxAttemptsError = 'Expected a positive integer no greater than 1000.';
+const workflowGateMaxAttemptsSchema = z
+  .number({error: workflowGateMaxAttemptsError})
+  .int({message: workflowGateMaxAttemptsError})
+  .min(1, {message: workflowGateMaxAttemptsError})
+  .max(WORKFLOW_GATE_MAX_ATTEMPTS_MAX, {message: workflowGateMaxAttemptsError})
+  .optional()
+  .meta({
+    description:
+      'Maximum number of executions of the gating step, including the first execution. Accepts integers from 1 through 1,000. Omit to use five attempts. There is no `unlimited` value.',
+  });
+
 const workflowDocumentStepGateSchema = z
   .strictObject({
     success: z.string().min(1).optional().meta({
@@ -590,6 +602,7 @@ const workflowDocumentStepGateSchema = z
         feedback: z.string().min(1).optional().meta({
           description: 'Feedback supplied when the gate fails before restarting.',
         }),
+        max_attempts: workflowGateMaxAttemptsSchema,
       })
       .optional()
       .meta({
