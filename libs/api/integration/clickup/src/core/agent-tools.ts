@@ -110,7 +110,11 @@ export const clickupAgentToolCatalog = [
         due_date: dateSchema,
         parent: stringSchema('Parent task ID'),
         custom_fields: customFieldsSchema,
-        notify_all: booleanSchema('Notify assignees and watchers; defaults to false'),
+        notify_all: {
+          type: 'boolean',
+          const: false,
+          description: 'Notifications are disabled',
+        },
       },
       ['list_id', 'name'],
     ),

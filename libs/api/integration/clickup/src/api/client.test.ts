@@ -115,13 +115,20 @@ describe('ClickUp agent-tools REST client', () => {
   });
 
   it('maps rate limits from the provider reset timestamp', async () => {
-    const reset = Math.floor(Date.now() / 1000) + 19;
-    const result = mapClickUpError(
-      'test',
-      rejectedRequest(429, {'x-ratelimit-reset': String(reset)}),
-    );
+    const now = 1_700_000_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
 
-    await expect(result).rejects.toMatchObject({reason: 'rate-limited', retryAfterSeconds: 19});
+    try {
+      const reset = Math.floor(now / 1000) + 19;
+      const result = mapClickUpError(
+        'test',
+        rejectedRequest(429, {'x-ratelimit-reset': String(reset)}),
+      );
+
+      await expect(result).rejects.toMatchObject({reason: 'rate-limited', retryAfterSeconds: 19});
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('maps client timeouts to timeout errors', async () => {

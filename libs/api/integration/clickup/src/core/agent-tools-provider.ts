@@ -89,6 +89,7 @@ async function executeClickUpToolCall(params: {
     return clickupToolError(response.message, {
       code: response.reason,
       retryAfterSeconds: response.retryAfterSeconds,
+      status: response.status,
     });
   }
   return mapClickUpToolResponse(response);
@@ -159,13 +160,18 @@ function clickupToolResult(body: unknown, status: number): ClickUpToolCallResult
 
 function clickupToolError(
   message: string,
-  options: {code?: string | undefined; retryAfterSeconds?: number | undefined} = {},
+  options: {
+    code?: string | undefined;
+    retryAfterSeconds?: number | undefined;
+    status?: number | undefined;
+  } = {},
 ): ClickUpToolCallResult {
   const structuredContent = {
     ...(options.code === undefined ? {} : {code: options.code}),
     ...(options.retryAfterSeconds === undefined
       ? {}
       : {retryAfterSeconds: options.retryAfterSeconds}),
+    ...(options.status === undefined ? {} : {status: options.status}),
   };
   return {
     isError: true,
