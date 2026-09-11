@@ -40,8 +40,9 @@ export function createE2eClickUpConnectionRoute(options: CreateE2eClickUpConnect
     },
     handler: async (request, reply) => {
       const body = request.body;
+      const workspaceId = body.workspace_id.toLowerCase();
       const existing = await options.getExistingClickUpConnection({teamId: body.team_id});
-      if (existing && existing.workspaceId !== body.workspace_id) {
+      if (existing && existing.workspaceId !== workspaceId) {
         throw new ClientError(
           'ClickUp workspace is already connected to another workspace',
           'clickup-connection-workspace-mismatch',
@@ -58,7 +59,7 @@ export function createE2eClickUpConnectionRoute(options: CreateE2eClickUpConnect
       }
 
       const connection = await options.connectClickUpInstallation({
-        workspaceId: body.workspace_id,
+        workspaceId,
         teamId: body.team_id,
         teamName: body.team_name,
         authorizingUserId: body.authorizing_user_id,

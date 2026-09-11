@@ -167,4 +167,41 @@ describe('ClickUp E2E routes', () => {
     expect(connectClickUpInstallation).not.toHaveBeenCalled();
     expect(disconnectClickUpInstallation).not.toHaveBeenCalled();
   });
+
+  it('reseeds an existing workspace when the request UUID uses uppercase characters', async () => {
+    const existing = connection({workspaceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'});
+    const connectClickUpInstallation = vi.fn(() => Promise.resolve(existing));
+    const app = await createApp({
+      routes: [
+        createClickUpE2eRoutes({
+          tokenStore: {storeTokens: vi.fn(() => Promise.resolve())},
+          getExistingClickUpConnection: vi.fn(() => Promise.resolve(existing)),
+          connectClickUpInstallation,
+          disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
+          connectionCapabilities: [],
+        }),
+      ],
+      swagger: false,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/integrations/clickup-connections',
+      payload: {
+        workspace_id: existing.workspaceId.toUpperCase(),
+        team_id: 'clickup-team',
+        team_name: 'Acme',
+        authorizing_user_id: 'clickup-user',
+        access_token: 'access-token',
+        webhook_id: 'webhook-id',
+        webhook_secret: 'webhook-secret',
+        display_name: 'ClickUp Acme',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(connectClickUpInstallation).toHaveBeenCalledWith(
+      expect.objectContaining({workspaceId: existing.workspaceId}),
+    );
+  });
 });
