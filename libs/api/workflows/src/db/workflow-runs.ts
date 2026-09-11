@@ -6,6 +6,15 @@ export {
   getWorkflowRunAnnotationOrigins,
   workflowRunAnnotationOriginKey,
 } from './workflow-runs/annotation-reads.js';
+export type {
+  WorkflowRunAttemptRead,
+  WorkflowRunConcurrencyAffectedAttempt,
+  WorkflowRunConcurrencyRead,
+} from './workflow-runs/concurrency.js';
+export {
+  listWorkflowRunConcurrencyByAttemptIds,
+  listWorkflowRunConcurrencyForRuns,
+} from './workflow-runs/concurrency.js';
 export type {WorkflowFailedStepAttemptRead} from './workflow-runs/failed-step-attempts.js';
 export {listFailedStepAttempts} from './workflow-runs/failed-step-attempts.js';
 export type {

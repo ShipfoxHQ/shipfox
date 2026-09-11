@@ -18,6 +18,7 @@ export {
 export {
   toJobOverviewDto,
   toRunAttemptDto,
+  toRunConcurrencyDto,
   toRunDto,
   toRunLineageHeadDto,
   toRunListItemDto,
