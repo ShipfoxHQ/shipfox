@@ -10,7 +10,7 @@ import {
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {ManualTriggerNotFoundError} from '#core/errors.js';
-import {fireManualSubscription} from '#core/fire-manual.js';
+import {fireManualTrigger} from '#core/fire-manual.js';
 import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 import {mapStartRunError} from './map-start-run-error.js';
 
@@ -73,10 +73,10 @@ export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
         }),
       });
 
-      const run = await fireManualSubscription({
+      const run = await fireManualTrigger({
         workflows,
-        subscriptionId: subscription.id,
-        callerWorkspaceId: subscription.workspaceId,
+        workspaceId: subscription.workspaceId,
+        definitionId,
         userId: userContext.userId,
         inputs: request.body.inputs,
       });

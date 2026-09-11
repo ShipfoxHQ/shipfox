@@ -1,16 +1,5 @@
+import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
-
-// Mirror the integrations inter-module ref predicate: control characters must
-// be rejected at the HTTP boundary so they cannot surface as an inter-module
-// input validation failure. The branch/tag grammar (no raw SHAs, no
-// `refs/pull/`) is enforced by the ref resolution pipeline, which answers
-// `ref-invalid`.
-function isSafeRefInput(value: string): boolean {
-  return [...value].every((character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return !(code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029);
-  });
-}
 
 export const createDevRunBodySchema = z
   .object({

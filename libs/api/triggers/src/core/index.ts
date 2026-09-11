@@ -39,7 +39,12 @@ export {
   type FireCronSubscriptionResult,
   fireCronSubscription,
 } from './fire-cron.js';
-export {type FireManualSubscriptionParams, fireManualSubscription} from './fire-manual.js';
+export {
+  type FireManualSubscriptionParams,
+  type FireManualTriggerParams,
+  fireManualSubscription,
+  fireManualTrigger,
+} from './fire-manual.js';
 export {
   type RouteEventToJobListenersParams,
   type RouteEventToJobListenersResult,

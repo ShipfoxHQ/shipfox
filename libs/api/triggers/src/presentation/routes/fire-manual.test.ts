@@ -9,10 +9,10 @@ import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {triggerSubscriptionFactory} from '#test/index.js';
 
-const fireManualSubscriptionMock = vi.hoisted(() => vi.fn());
+const fireManualTriggerMock = vi.hoisted(() => vi.fn());
 
 vi.mock('#core/fire-manual.js', () => ({
-  fireManualSubscription: fireManualSubscriptionMock,
+  fireManualTrigger: fireManualTriggerMock,
 }));
 
 const {createFireManualTriggerRoute} = await import('./fire-manual.js');
@@ -46,14 +46,18 @@ describe('POST /:definitionId/fire-manual', () => {
   beforeEach(() => {
     workspaceId = crypto.randomUUID();
     memberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
-    fireManualSubscriptionMock.mockReset();
+    fireManualTriggerMock.mockReset();
   });
 
   test('returns 201 with the created run id', async () => {
     const definitionId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockResolvedValue({id: runId, name: 'Manual run'});
+    fireManualTriggerMock.mockResolvedValue({
+      id: runId,
+      name: 'Manual run',
+      deduplicated: false,
+    });
 
     const res = await app.inject({
       method: 'POST',
@@ -68,7 +72,7 @@ describe('POST /:definitionId/fire-manual', () => {
   test('maps unresolvable workflow interpolation to 422', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(
+    fireManualTriggerMock.mockRejectedValue(
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         'interpolation-unresolvable',
@@ -96,7 +100,7 @@ describe('POST /:definitionId/fire-manual', () => {
   test('maps an oversized workflow source snapshot to 422 with byte details', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(
+    fireManualTriggerMock.mockRejectedValue(
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         'source-snapshot-too-large',
@@ -130,13 +134,13 @@ describe('POST /:definitionId/fire-manual', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('workspace-suspended');
-    expect(fireManualSubscriptionMock).not.toHaveBeenCalled();
+    expect(fireManualTriggerMock).not.toHaveBeenCalled();
   });
 
   test('maps suspended workspace to 409', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(
+    fireManualTriggerMock.mockRejectedValue(
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         'workspace-suspended',
@@ -166,7 +170,7 @@ describe('POST /:definitionId/fire-manual', () => {
       url: '/settings/billing',
     };
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(
+    fireManualTriggerMock.mockRejectedValue(
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         'admission-denied',
@@ -190,7 +194,7 @@ describe('POST /:definitionId/fire-manual', () => {
   test('maps missing workspace to 404', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(
+    fireManualTriggerMock.mockRejectedValue(
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         'workspace-not-found',
@@ -211,7 +215,7 @@ describe('POST /:definitionId/fire-manual', () => {
   test('maps deleted workspace to 404', async () => {
     const definitionId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
-    fireManualSubscriptionMock.mockRejectedValue(
+    fireManualTriggerMock.mockRejectedValue(
       createInterModuleKnownError(
         workflowsInterModuleContract.methods.startRunFromTrigger,
         'workspace-deleted',

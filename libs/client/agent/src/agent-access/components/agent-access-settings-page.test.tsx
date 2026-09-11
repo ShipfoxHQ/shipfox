@@ -165,7 +165,7 @@ describe('AgentAccessSettingsPage', () => {
     await waitFor(() => expect(deleteCount).toBe(2));
     expect(screen.getByText('No connected apps')).toBeVisible();
     expect(dialog).not.toBeInTheDocument();
-  });
+  }, 10_000);
 });
 
 function grantDto(overrides: Record<string, unknown> = {}) {

@@ -291,6 +291,19 @@ describe('createDevRun', () => {
     expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
   });
 
+  test.each([
+    '__proto__',
+    'constructor',
+    'toString',
+  ])('refuses inherited trigger key %s', async (triggerKey) => {
+    const params = buildParams({triggerKey});
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
+
+    await expect(createDevRun(params)).rejects.toThrow(DevRunTriggerNotFoundError);
+    expect(startDevRun).not.toHaveBeenCalled();
+    expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
+  });
+
   test('refuses integration triggers without a replay event id', async () => {
     const params = buildParams({
       triggerKey: 'on_issue',

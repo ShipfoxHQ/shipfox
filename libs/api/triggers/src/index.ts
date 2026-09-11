@@ -54,6 +54,7 @@ export {
   DevRunTriggerNotFoundError,
   fireCronSubscription,
   fireManualSubscription,
+  fireManualTrigger,
   ManualTriggerNotFoundError,
   TriggerSubscriptionNotCronError,
   TriggerSubscriptionNotFoundError,
@@ -101,7 +102,9 @@ export function createTriggersModule({
     routes: createTriggerRoutes(workflows, definitions, projects),
     e2eRoutes: [createTriggersE2eRoutes({workflows, integrations})],
     metrics: registerTriggersServiceMetrics,
-    interModulePresentations: [createTriggersInterModulePresentation()],
+    interModulePresentations: [
+      createTriggersInterModulePresentation({definitions, projects, workflows}),
+    ],
     publishers: [{name: 'triggers', table: triggersOutbox, db}],
     subscribers: [
       subscriber(DEFINITION_RESOLVED, onDefinitionResolved),

@@ -1,15 +1,45 @@
+import {
+  type DefinitionsInterModuleClient,
+  definitionsInterModuleContract,
+} from '@shipfox/api-definitions-dto/inter-module';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
+import {
+  type WorkflowsModuleClient,
+  workflowsInterModuleContract,
+} from '@shipfox/api-workflows-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
+  type InterModuleMethodContract,
   type InterModulePresentation,
+  isInterModuleKnownError,
 } from '@shipfox/inter-module';
+import {createDevRun} from '#core/create-dev-run.js';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
   TriggerEventReplay,
   TriggerReceivedEvent,
   TriggerReceivedEventSummary,
 } from '#core/entities/received-event.js';
+import {
+  DevRunInputsNotAllowedError,
+  DevRunReplayEventMismatchError,
+  DevRunReplayEventNotAllowedError,
+  DevRunReplayEventNotFoundError,
+  DevRunReplayEventRequiredError,
+  DevRunReplayEventUnavailableError,
+  DevRunTriggerFilteredError,
+  DevRunTriggerNotFoundError,
+  ManualTriggerNotFoundError,
+  TriggerSubscriptionNotFoundError,
+  TriggerSubscriptionNotManualError,
+  TriggerWorkspaceMismatchError,
+} from '#core/errors.js';
+import {fireManualTrigger} from '#core/fire-manual.js';
 import {
   getTriggerEventById,
   listDecisionsByReceivedEventId,
@@ -21,10 +51,34 @@ import {
 } from '#db/index.js';
 import {toPublicTriggerDecisionReason} from './dto/trigger-events.js';
 
-export function createTriggersInterModulePresentation(): InterModulePresentation<
-  typeof triggersInterModuleContract
-> {
+export function createTriggersInterModulePresentation(params: {
+  definitions: DefinitionsInterModuleClient;
+  projects: ProjectsModuleClient;
+  workflows: WorkflowsModuleClient;
+}): InterModulePresentation<typeof triggersInterModuleContract> {
   return defineInterModulePresentation(triggersInterModuleContract, {
+    fireManualTrigger: async (input) => {
+      try {
+        return await fireManualTrigger({...input, workflows: params.workflows});
+      } catch (error) {
+        throw toFireManualTriggerKnownError(error, input.definitionId);
+      }
+    },
+    createDevRun: async (input) => {
+      try {
+        await params.projects.requireProjectForWorkspace({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+        });
+        return await createDevRun({
+          ...input,
+          definitions: params.definitions,
+          workflows: params.workflows,
+        });
+      } catch (error) {
+        throw toCreateDevRunKnownError(error, input.projectId);
+      }
+    },
     listTriggerEvents: async ({workspaceId, limit, cursor, filters}) => {
       const result = await listTriggerEvents({
         workspaceId,
@@ -104,6 +158,87 @@ export function createTriggersInterModulePresentation(): InterModulePresentation
     },
     getTriggerEventFacets: async ({workspaceId}) => await listTriggerEventFacets({workspaceId}),
   });
+}
+
+function toFireManualTriggerKnownError(error: unknown, definitionId: string): unknown {
+  const method = triggersInterModuleContract.methods.fireManualTrigger;
+  if (
+    error instanceof ManualTriggerNotFoundError ||
+    error instanceof TriggerSubscriptionNotFoundError ||
+    error instanceof TriggerSubscriptionNotManualError ||
+    error instanceof TriggerWorkspaceMismatchError
+  ) {
+    return createInterModuleKnownError(method, 'manual-trigger-not-found', {
+      definitionId:
+        error instanceof ManualTriggerNotFoundError ? error.workflowDefinitionId : definitionId,
+    });
+  }
+
+  return (
+    forwardKnownError(workflowsInterModuleContract.methods.startRunFromTrigger, method, error) ??
+    error
+  );
+}
+
+function toCreateDevRunKnownError(error: unknown, projectId: string): unknown {
+  const method = triggersInterModuleContract.methods.createDevRun;
+  if (
+    isInterModuleKnownError(projectsInterModuleContract.methods.requireProjectForWorkspace, error)
+  ) {
+    return createInterModuleKnownError(method, 'project-not-found', {projectId});
+  }
+  if (error instanceof DevRunTriggerNotFoundError) {
+    return createInterModuleKnownError(method, 'trigger-not-found', {
+      triggerKey: error.triggerKey,
+    });
+  }
+  if (error instanceof DevRunInputsNotAllowedError) {
+    return createInterModuleKnownError(method, 'inputs-not-allowed', {});
+  }
+  if (error instanceof DevRunReplayEventRequiredError) {
+    return createInterModuleKnownError(method, 'replay-event-required', {source: error.source});
+  }
+  if (error instanceof DevRunReplayEventNotAllowedError) {
+    return createInterModuleKnownError(method, 'replay-event-not-allowed', {source: error.source});
+  }
+  if (error instanceof DevRunReplayEventNotFoundError) {
+    return createInterModuleKnownError(method, 'replay-event-not-found', {
+      replayEventId: error.replayEventId,
+    });
+  }
+  if (error instanceof DevRunReplayEventMismatchError) {
+    return createInterModuleKnownError(method, 'replay-event-mismatch', {
+      replayEventId: error.replayEventId,
+    });
+  }
+  if (error instanceof DevRunReplayEventUnavailableError) {
+    return createInterModuleKnownError(method, 'replay-event-unavailable', {
+      replayEventId: error.replayEventId,
+    });
+  }
+  if (error instanceof DevRunTriggerFilteredError) {
+    return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.reason});
+  }
+
+  return (
+    forwardKnownError(
+      definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+      method,
+      error,
+    ) ??
+    forwardKnownError(workflowsInterModuleContract.methods.startDevRun, method, error) ??
+    error
+  );
+}
+
+function forwardKnownError(
+  source: InterModuleMethodContract,
+  target: InterModuleMethodContract,
+  error: unknown,
+): unknown {
+  if (!isInterModuleKnownError(source, error)) return undefined;
+  if (!(error.code in target.errors)) return undefined;
+  return createInterModuleKnownError(target, error.code as never, error.details as never);
 }
 
 function toTriggerEventListItem(event: TriggerReceivedEventSummary) {

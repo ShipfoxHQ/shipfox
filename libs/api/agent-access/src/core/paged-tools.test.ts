@@ -546,6 +546,8 @@ function clients() {
       listAnnotationsForRunAttempt: (input) => listAnnotationsForRunAttempt(input),
     }),
     triggers: defineInterModulePresentation(triggersInterModuleContract, {
+      fireManualTrigger: vi.fn(),
+      createDevRun: vi.fn(),
       listTriggerEvents: (input) => triggerHandlers.listTriggerEvents(input),
       getTriggerEvent: vi.fn(),
       getTriggerEventFacets: vi.fn(),

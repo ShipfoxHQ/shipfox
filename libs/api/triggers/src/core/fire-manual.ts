@@ -1,5 +1,8 @@
 import {randomUUID} from 'node:crypto';
-import {getTriggerSubscriptionById} from '#db/subscriptions.js';
+import {
+  getManualSubscriptionByDefinitionId,
+  getTriggerSubscriptionById,
+} from '#db/subscriptions.js';
 import {
   eventOutcomeCount,
   eventReceivedCount,
@@ -7,6 +10,7 @@ import {
 } from '#metrics/instance.js';
 import {readConfigInputs} from './config.js';
 import {
+  ManualTriggerNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -18,17 +22,46 @@ import {
   type WorkflowsModuleClient,
 } from './workflows-client.js';
 
+export interface FireManualTriggerParams {
+  workflows: WorkflowsModuleClient;
+  workspaceId: string;
+  definitionId: string;
+  userId: string;
+  inputs?: Record<string, unknown> | undefined;
+  idempotencyKey?: string | undefined;
+}
+
 export interface FireManualSubscriptionParams {
   workflows: WorkflowsModuleClient;
   subscriptionId: string;
   callerWorkspaceId: string;
   userId: string;
   inputs?: Record<string, unknown> | undefined;
+  idempotencyKey?: string | undefined;
+}
+
+export async function fireManualTrigger(
+  params: FireManualTriggerParams,
+): Promise<{id: string; name: string; deduplicated: boolean}> {
+  const subscription = await getManualSubscriptionByDefinitionId(params.definitionId);
+  if (!subscription || subscription.workspaceId !== params.workspaceId) {
+    throw new ManualTriggerNotFoundError(params.definitionId);
+  }
+
+  const run = await fireManualSubscription({
+    workflows: params.workflows,
+    subscriptionId: subscription.id,
+    callerWorkspaceId: params.workspaceId,
+    userId: params.userId,
+    inputs: params.inputs,
+    idempotencyKey: params.idempotencyKey,
+  });
+  return {...run, deduplicated: run.deduplicated === true};
 }
 
 export async function fireManualSubscription(
   params: FireManualSubscriptionParams,
-): Promise<{id: string; name: string}> {
+): Promise<{id: string; name: string; deduplicated?: boolean}> {
   const subscription = await getTriggerSubscriptionById(params.subscriptionId);
   if (!subscription) throw new TriggerSubscriptionNotFoundError(params.subscriptionId);
   if (subscription.source !== 'manual') {
@@ -78,7 +111,7 @@ export async function fireManualSubscription(
         userId: params.userId,
       },
       ...(inputs === undefined ? {} : {inputs}),
-      idempotencyKey: randomUUID(),
+      idempotencyKey: params.idempotencyKey ?? randomUUID(),
     });
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});

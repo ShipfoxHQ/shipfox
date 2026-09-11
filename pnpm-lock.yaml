@@ -4611,9 +4611,18 @@ importers:
 
   libs/api/triggers-dto:
     dependencies:
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../definitions-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../workflows-dto
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module
+      '@shipfox/regex':
+        specifier: workspace:*
+        version: link:../../shared/common/regex
       zod:
         specifier: 'catalog:'
         version: 4.4.3
