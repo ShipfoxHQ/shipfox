@@ -1,5 +1,7 @@
 export * from '@shipfox/integration-icons';
 export * from '#core/models.js';
+export * from './clickup-callback.js';
+export * from './clickup-form-errors.js';
 export * from './components/connection-picker.js';
 export * from './components/integration-gallery.js';
 export * from './components/redirect-install-page.js';
@@ -8,6 +10,8 @@ export * from './connection-status-badge.js';
 export * from './hooks/api/integrations.js';
 export * from './jira-callback.js';
 export * from './jira-form-errors.js';
+export * from './pages/clickup-callback-page.js';
+export * from './pages/clickup-install-page.js';
 export * from './pages/gitea-install-page.js';
 export * from './pages/github-install-page.js';
 export * from './pages/jira-callback-page.js';

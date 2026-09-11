@@ -27,6 +27,7 @@ const SETUP_PATHS = [
   '/w/$workspaceSlug/integrations/sentry',
   '/w/$workspaceSlug/integrations/linear',
   '/w/$workspaceSlug/integrations/slack',
+  '/w/$workspaceSlug/integrations/clickup',
   '/w/$workspaceSlug/integrations/gitea',
   '/w/$workspaceSlug/settings/events',
 ] as const;
@@ -49,6 +50,7 @@ const PROVIDERS: IntegrationProviderDto[] = [
   {provider: 'sentry', display_name: 'Sentry', capabilities: []},
   {provider: 'linear', display_name: 'Linear', capabilities: ['agent_tools']},
   {provider: 'slack', display_name: 'Slack', capabilities: ['agent_tools']},
+  {provider: 'clickup', display_name: 'ClickUp', capabilities: ['agent_tools']},
   {provider: 'gitea', display_name: 'Gitea', capabilities: ['source_control']},
   {provider: 'webhook', display_name: 'Webhook', capabilities: []},
 ];

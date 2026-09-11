@@ -1,4 +1,12 @@
 import type {
+  ClickUpCallbackQueryDto,
+  CreateClickUpInstallBodyDto,
+} from '@shipfox/api-integration-clickup-dto';
+import {
+  clickupCallbackResponseSchema,
+  createClickUpInstallResponseSchema,
+} from '@shipfox/api-integration-clickup-dto';
+import type {
   IntegrationCapabilityDto,
   IntegrationConnectionRepositoryAccessModeDto,
   UpdateIntegrationConnectionBodyDto,
@@ -63,6 +71,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import {serializeClickUpCallbackQuery} from '#clickup-callback.js';
 import {
   type InstallRedirect,
   type IntegrationConnection,
@@ -237,6 +246,17 @@ export async function createGiteaConnection(
   return toIntegrationConnection(response);
 }
 
+export async function createClickUpInstall(
+  body: CreateClickUpInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createClickUpInstallResponseSchema, '/integrations/clickup/install', {
+      method: 'POST',
+      body,
+    }),
+  );
+}
+
 export async function createGithubInstall(
   body: CreateGithubInstallBodyDto,
 ): Promise<InstallRedirect> {
@@ -311,6 +331,21 @@ export async function createSlackInstall(
       body,
     }),
   );
+}
+
+export async function completeClickUpCallback({
+  query,
+  token,
+}: {
+  query: ClickUpCallbackQueryDto;
+  token: string;
+}): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(
+    clickupCallbackResponseSchema,
+    `/integrations/clickup/callback/api?${serializeClickUpCallbackQuery(query)}`,
+    {headers: {authorization: `Bearer ${token}`}},
+  );
+  return toIntegrationConnection(response);
 }
 
 export async function completeLinearCallback({
@@ -586,6 +621,10 @@ export function useCreateGiteaConnectionMutation() {
   });
 }
 
+export function useCreateClickUpInstallMutation() {
+  return useMutation({mutationFn: createClickUpInstall});
+}
+
 export function useCreateLinearInstallMutation() {
   return useMutation({mutationFn: createLinearInstall});
 }
@@ -596,6 +635,10 @@ export function useCreateSlackInstallMutation() {
 
 export function useCreateJiraInstallMutation() {
   return useMutation({mutationFn: createJiraInstall});
+}
+
+export function useCompleteClickUpCallbackMutation() {
+  return useMutation({mutationFn: completeClickUpCallback});
 }
 
 export function useCompleteLinearCallbackMutation() {

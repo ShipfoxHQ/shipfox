@@ -29,6 +29,11 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/jira-callback',
     },
     {
+      path: '/integrations/clickup/callback',
+      parent: 'root',
+      impl: '@shipfox/client-integrations/routes/clickup-callback',
+    },
+    {
       path: '/integrations/sentry/callback',
       parent: 'root',
       impl: '@shipfox/client-integrations/routes/sentry-callback',
@@ -62,6 +67,11 @@ export const integrationsFeature = defineClientFeature({
       path: '/w/$workspaceSlug/integrations/jira',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/jira',
+    },
+    {
+      path: '/w/$workspaceSlug/integrations/clickup',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-integrations/routes/clickup',
     },
     {
       path: '/w/$workspaceSlug/integrations/sentry',

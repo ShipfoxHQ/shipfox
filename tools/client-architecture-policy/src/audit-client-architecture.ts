@@ -85,6 +85,13 @@ export const clientArchitectureExceptions = {
       test: 'libs/client/integrations/src/pages/linear-callback-page.test.tsx',
     },
     {
+      file: 'libs/client/integrations/src/pages/clickup-callback-page.tsx',
+      owner: 'ClickUp callback coordinator',
+      reason:
+        'The OAuth callback passes the auth cache to the workspace navigation coordinator after completion.',
+      test: 'libs/client/integrations/src/pages/clickup-callback-page.test.tsx',
+    },
+    {
       file: 'libs/client/integrations/src/pages/jira-callback-page.tsx',
       owner: 'Jira callback coordinator',
       reason:
