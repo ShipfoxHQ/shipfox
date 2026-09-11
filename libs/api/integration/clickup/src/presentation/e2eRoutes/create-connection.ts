@@ -48,6 +48,15 @@ export function createE2eClickUpConnectionRoute(options: CreateE2eClickUpConnect
           {status: 409},
         );
       }
+
+      if (existing) {
+        await options.tokenStore.storeTokens({
+          connectionId: existing.id,
+          accessToken: body.access_token,
+          webhookSecret: body.webhook_secret,
+        });
+      }
+
       const connection = await options.connectClickUpInstallation({
         workspaceId: body.workspace_id,
         teamId: body.team_id,
@@ -57,15 +66,17 @@ export function createE2eClickUpConnectionRoute(options: CreateE2eClickUpConnect
         displayName: body.display_name,
       });
 
-      try {
-        await options.tokenStore.storeTokens({
-          connectionId: connection.id,
-          accessToken: body.access_token,
-          webhookSecret: body.webhook_secret,
-        });
-      } catch (error) {
-        if (!existing) await bestEffortDisconnectClickUpInstallation(options, connection.id);
-        throw error;
+      if (!existing) {
+        try {
+          await options.tokenStore.storeTokens({
+            connectionId: connection.id,
+            accessToken: body.access_token,
+            webhookSecret: body.webhook_secret,
+          });
+        } catch (error) {
+          await bestEffortDisconnectClickUpInstallation(options, connection.id);
+          throw error;
+        }
       }
 
       reply.code(201);

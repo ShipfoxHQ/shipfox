@@ -66,11 +66,20 @@ describe('ClickUp E2E routes', () => {
     });
   });
 
-  it('refreshes and reactivates an existing connection before storing replacement secrets', async () => {
+  it('stores replacement secrets before refreshing and reactivating an existing connection', async () => {
     const existing = connection({lifecycleStatus: 'disabled'});
     const refreshed = connection({displayName: 'ClickUp Updated', lifecycleStatus: 'active'});
-    const tokenStore = {storeTokens: vi.fn(() => Promise.resolve())};
-    const connectClickUpInstallation = vi.fn(() => Promise.resolve(refreshed));
+    const calls: string[] = [];
+    const tokenStore = {
+      storeTokens: vi.fn(() => {
+        calls.push('store tokens');
+        return Promise.resolve();
+      }),
+    };
+    const connectClickUpInstallation = vi.fn(() => {
+      calls.push('connect installation');
+      return Promise.resolve(refreshed);
+    });
     const app = await createApp({
       routes: [
         createClickUpE2eRoutes({
@@ -118,5 +127,44 @@ describe('ClickUp E2E routes', () => {
       accessToken: 'updated-access-token',
       webhookSecret: 'updated-webhook-secret',
     });
+    expect(calls).toEqual(['store tokens', 'connect installation']);
+  });
+
+  it('keeps an existing connection unchanged when replacement secret storage fails', async () => {
+    const existing = connection({lifecycleStatus: 'disabled'});
+    const tokenStore = {storeTokens: vi.fn(() => Promise.reject(new Error('storage failed')))};
+    const connectClickUpInstallation = vi.fn(() => Promise.resolve(connection()));
+    const disconnectClickUpInstallation = vi.fn(() => Promise.resolve());
+    const app = await createApp({
+      routes: [
+        createClickUpE2eRoutes({
+          tokenStore,
+          getExistingClickUpConnection: vi.fn(() => Promise.resolve(existing)),
+          connectClickUpInstallation,
+          disconnectClickUpInstallation,
+          connectionCapabilities: [],
+        }),
+      ],
+      swagger: false,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/integrations/clickup-connections',
+      payload: {
+        workspace_id: existing.workspaceId,
+        team_id: 'clickup-team',
+        team_name: 'Updated',
+        authorizing_user_id: 'updated-clickup-user',
+        access_token: 'updated-access-token',
+        webhook_id: 'updated-webhook-id',
+        webhook_secret: 'updated-webhook-secret',
+        display_name: 'ClickUp Updated',
+      },
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(connectClickUpInstallation).not.toHaveBeenCalled();
+    expect(disconnectClickUpInstallation).not.toHaveBeenCalled();
   });
 });
