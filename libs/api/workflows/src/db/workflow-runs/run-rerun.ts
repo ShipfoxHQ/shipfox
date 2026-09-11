@@ -323,7 +323,12 @@ function materializedRerunStep(params: {
 }) {
   let config = rerunStepConfig(params.step);
   if (params.carriedOver) config = {...params.step.config};
-  else if (params.rematerialized !== undefined) config = {...params.rematerialized.config};
+  else if (params.rematerialized !== undefined) {
+    config = {
+      ...(resolvedAgentDefaultsFromSourceStep(params.step) ?? {}),
+      ...params.rematerialized.config,
+    };
+  }
 
   return {
     key: params.step.key,
@@ -352,7 +357,14 @@ async function rematerializeRerunSteps(params: {
   readonly sourceJobSteps: readonly StepDb[];
   readonly carriedOver: boolean;
 }): Promise<readonly MaterializedWorkflowStep[]> {
-  if (params.carriedOver || params.sourceModel === null || params.modelJob === undefined) return [];
+  if (
+    params.carriedOver ||
+    params.sourceModel === null ||
+    params.modelJob === undefined ||
+    params.modelJob.mode === 'listening'
+  ) {
+    return [];
+  }
 
   const sourceIncludesSetupStep = params.sourceJobSteps.some((step) => step.type === 'setup');
   const sourceStepByPosition = new Map(params.sourceJobSteps.map((step) => [step.position, step]));
@@ -377,14 +389,15 @@ async function rematerializeRerunSteps(params: {
 function resolvedAgentDefaultsFromSource(
   step: StepDb | undefined,
 ): AgentDefaultsResolver | undefined {
-  if (step?.type !== 'agent') return undefined;
+  const sourceDefaults = resolvedAgentDefaultsFromSourceStep(step);
+  if (sourceDefaults === undefined) return undefined;
 
   return (input) => {
     const resolved = materializedAgentStepConfigSchema.parse({
-      harness: input.harness ?? step.config.harness,
-      provider: input.provider ?? step.config.provider,
-      model: input.model ?? step.config.model,
-      thinking: input.thinking ?? step.config.thinking,
+      harness: input.harness ?? sourceDefaults.harness,
+      provider: input.provider ?? sourceDefaults.provider,
+      model: input.model ?? sourceDefaults.model,
+      thinking: input.thinking ?? sourceDefaults.thinking,
       prompt: '',
     });
     return {
@@ -393,6 +406,26 @@ function resolvedAgentDefaultsFromSource(
       model: resolved.model,
       thinking: resolved.thinking,
     };
+  };
+}
+
+function resolvedAgentDefaultsFromSourceStep(step: StepDb | undefined) {
+  if (step?.type !== 'agent') return undefined;
+
+  const parsed = materializedAgentStepConfigSchema.safeParse({
+    harness: step.config.harness,
+    provider: step.config.provider,
+    model: step.config.model,
+    thinking: step.config.thinking,
+    prompt: '',
+  });
+  if (!parsed.success) return undefined;
+
+  return {
+    harness: parsed.data.harness,
+    provider: parsed.data.provider,
+    model: parsed.data.model,
+    thinking: parsed.data.thinking,
   };
 }
 

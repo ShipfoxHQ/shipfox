@@ -1,3 +1,4 @@
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {eq, inArray} from 'drizzle-orm';
@@ -140,6 +141,48 @@ describe('workflow run queries', () => {
       }
     });
 
+    test('reruns listening agent jobs without materializing execution steps', async () => {
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            review: {
+              listening: {
+                on: [{source: 'github', event: 'pull_request_review'}],
+                onResolve: 'cancel',
+              },
+              steps: [{prompt: 'Review the pull request.'}],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun listener job');
+      expect(rerunJob).toMatchObject({key: 'review', mode: 'listening', status: 'pending'});
+      await expect(getJobExecutionsByJobId(rerunJob.id)).resolves.toEqual([]);
+      await expect(getStepsByJobId(rerunJob.id)).resolves.toEqual([]);
+    });
+
     test('re-materializes run-creation step config for the new attempt', async () => {
       const source = await createWorkflowRun({
         workspaceId,
@@ -205,6 +248,54 @@ describe('workflow run queries', () => {
       ).toEqual(sourceStep);
     });
 
+    test('reuses persisted variables when re-materializing rerun steps', async () => {
+      const getVariablesByNamespace = vi.fn().mockResolvedValue({values: {BRANCH: 'stable'}});
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            publish: {
+              steps: [
+                {
+                  key: 'publish',
+                  run: 'echo publish',
+                  env: {BRANCH: template('vars.BRANCH')},
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+        secrets: {getVariablesByNamespace},
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source publish job');
+      await markJob([sourceJob], 'publish', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun publish job');
+      const rerunStep = (await getStepsByJobId(rerunJob.id)).find((step) => step.key === 'publish');
+      expect(rerunStep?.config).toMatchObject({env: {BRANCH: 'stable'}});
+    });
+
     test('re-materializes agent prompts while preserving resolved defaults and session intent', async () => {
       const resolveAgentDefaults = vi.fn<AgentDefaultsResolver>().mockReturnValue({
         harness: 'pi',
@@ -262,6 +353,117 @@ describe('workflow run queries', () => {
         thinking: 'medium',
         prompt: 'Fix workflow attempt 2.',
         session: {key: 'implementation', mode: 'resume'},
+      });
+    });
+
+    test('preserves resolved agent defaults when a rerun field remains deferred', async () => {
+      const sourceResolveAgentConfig = vi.fn().mockResolvedValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'source-model',
+        thinking: 'medium',
+      });
+      const sourceAgent = {
+        resolveAgentConfig: sourceResolveAgentConfig,
+      } as unknown as AgentInterModuleClient;
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          jobs: {
+            fix: {
+              steps: [
+                {key: 'select_model', run: 'echo model'},
+                {
+                  key: 'fix',
+                  model: template('steps.select_model.outputs.model'),
+                  prompt: 'Fix the workflow.',
+                },
+              ],
+            },
+          },
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const [sourceJob] = await getJobsByWorkflowRunId(source.id);
+      if (!sourceJob) throw new Error('Missing source fix job');
+      await stripSetupStep(sourceJob.id);
+      const sourceProducer = await nextStepForJob(sourceJob.id);
+      if (sourceProducer.kind !== 'step') throw new Error('Missing source producer step');
+      await recordStepResult({
+        jobExecutionId: sourceProducer.step.jobExecutionId,
+        stepId: sourceProducer.step.id,
+        status: 'succeeded',
+        output: {model: 'source-model'},
+      });
+      const sourceAgentStep = await nextStepForJob(sourceJob.id, sourceAgent);
+      if (sourceAgentStep.kind !== 'step') throw new Error('Missing source agent step');
+      expect(sourceResolveAgentConfig).toHaveBeenCalledWith({
+        workspaceId: null,
+        config: {model: 'source-model'},
+      });
+      await markJob([sourceJob], 'fix', 'failed');
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: 1,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'failed',
+        actorUserId: crypto.randomUUID(),
+      });
+      const [rerunJob] = await getJobsByWorkflowRunId(rerun.id);
+      if (!rerunJob) throw new Error('Missing rerun fix job');
+      await stripSetupStep(rerunJob.id);
+      const rerunProducer = await nextStepForJob(rerunJob.id);
+      if (rerunProducer.kind !== 'step') throw new Error('Missing rerun producer step');
+      await recordStepResult({
+        jobExecutionId: rerunProducer.step.jobExecutionId,
+        stepId: rerunProducer.step.id,
+        status: 'succeeded',
+        output: {model: 'rerun-model'},
+      });
+      const currentResolveAgentConfig = vi.fn().mockResolvedValue({
+        harness: 'pi',
+        provider: 'openai',
+        model: 'rerun-model',
+        thinking: 'medium',
+      });
+      const currentAgent = {
+        resolveAgentConfig: currentResolveAgentConfig,
+      } as unknown as AgentInterModuleClient;
+
+      const rerunAgentStep = await nextStepForJob(rerunJob.id, currentAgent);
+
+      expect(currentResolveAgentConfig).toHaveBeenCalledWith({
+        workspaceId: null,
+        config: {
+          harness: 'pi',
+          provider: 'openai',
+          model: 'rerun-model',
+          thinking: 'medium',
+        },
+      });
+      expect(rerunAgentStep).toEqual({
+        kind: 'step',
+        step: expect.objectContaining({
+          key: 'fix',
+          config: expect.objectContaining({
+            harness: 'pi',
+            provider: 'openai',
+            model: 'rerun-model',
+            thinking: 'medium',
+          }),
+        }),
+        dispatched: true,
       });
     });
 
