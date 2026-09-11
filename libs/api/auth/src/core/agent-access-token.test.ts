@@ -23,6 +23,17 @@ describe('agent-access-token', () => {
     expect(verified).toMatchObject(input);
   });
 
+  test('keeps the legacy scopes claim while old verifiers may still serve', async () => {
+    const token = await issueAgentAccessToken(claims());
+    const [, encodedPayload] = token.split('.');
+
+    if (encodedPayload === undefined) throw new Error('Token payload is missing');
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as {
+      scopes?: unknown;
+    };
+    expect(payload.scopes).toEqual(['read']);
+  });
+
   test('accepts legacy tokens that still carry the removed scopes claim', async () => {
     const input = claims();
     const token = await signHs256({

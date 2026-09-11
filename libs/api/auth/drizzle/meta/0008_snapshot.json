@@ -381,7 +381,8 @@
           "name": "scopes",
           "type": "text[]",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "'{\"read\"}'"
         },
         "code_challenge": {
           "name": "code_challenge",
@@ -645,7 +646,8 @@
           "name": "scopes",
           "type": "text[]",
           "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "'{\"read\"}'"
         },
         "last_used_at": {
           "name": "last_used_at",

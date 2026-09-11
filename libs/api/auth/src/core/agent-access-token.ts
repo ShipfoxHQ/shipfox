@@ -21,6 +21,8 @@ export async function issueAgentAccessToken(claims: IssueAgentAccessTokenParams)
       workspaceId: claims.workspaceId,
       grantId: claims.grantId,
       clientId: claims.clientId,
+      // Legacy verifiers still require this claim while old and new instances overlap.
+      scopes: ['read'],
     },
     secret: agentAccessTokenKey(),
     expiresIn: AGENT_ACCESS_TOKEN_EXPIRES_IN,
