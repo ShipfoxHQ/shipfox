@@ -77,12 +77,21 @@ async function executeClickUpToolCall(params: {
   clickup: Pick<ClickUpAgentToolsClient, 'request'>;
 }): Promise<ClickUpToolCallResult> {
   const tool = params.tools.find((candidate) => candidate.id === params.call.toolId);
-  if (!tool) return clickupToolError(`Unknown ClickUp tool: ${params.call.toolId}`);
+  if (!tool)
+    return clickupToolError(`Unknown ClickUp tool: ${params.call.toolId}`, {
+      code: 'invalid-request',
+    });
   const operation =
     CLICKUP_TOOL_OPERATIONS[params.call.toolId as keyof typeof CLICKUP_TOOL_OPERATIONS];
-  if (!operation) return clickupToolError(`Unknown ClickUp tool: ${params.call.toolId}`);
+  if (!operation)
+    return clickupToolError(`Unknown ClickUp tool: ${params.call.toolId}`, {
+      code: 'invalid-request',
+    });
   const missingParameter = missingRequiredParameter(tool, params.call.arguments);
-  if (missingParameter) return clickupToolError(`Missing required parameter: ${missingParameter}`);
+  if (missingParameter)
+    return clickupToolError(`Missing required parameter: ${missingParameter}`, {
+      code: 'invalid-request',
+    });
 
   const response = await requestClickUpTool({...params, operation});
   if (response instanceof ClickUpIntegrationProviderError) {
@@ -129,6 +138,7 @@ function mapClickUpToolResponse(response: ClickUpAgentToolResponse): ClickUpTool
         response.body,
         response.status === 404 ? 'ClickUp resource was not found' : 'ClickUp request was rejected',
       ),
+      {code: 'provider-rejected'},
     );
   }
   if (response.status < 200 || response.status >= 300) {

@@ -312,6 +312,17 @@ describe('ClickUpAgentToolsProvider', () => {
     ).resolves.toMatchObject({
       isError: true,
       content: [{type: 'text', text: 'Invalid task (TASK_001)'}],
+      structuredContent: {code: 'provider-rejected'},
+    });
+
+    const notFoundOptions = providerOptions(async () => ({status: 404, body: undefined}));
+    const notFoundSession = await openSession(notFoundOptions, ['get_task']);
+    await expect(
+      notFoundSession.call({toolId: 'get_task', arguments: {task_id: 'missing'}}),
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{type: 'text', text: 'ClickUp resource was not found'}],
+      structuredContent: {code: 'provider-rejected'},
     });
   });
 
@@ -324,10 +335,12 @@ describe('ClickUpAgentToolsProvider', () => {
     ).resolves.toEqual({
       isError: true,
       content: [{type: 'text', text: 'Unknown ClickUp tool: add_comment'}],
+      structuredContent: {code: 'invalid-request'},
     });
     await expect(session.call({toolId: 'get_task', arguments: {}})).resolves.toEqual({
       isError: true,
       content: [{type: 'text', text: 'Missing required parameter: task_id'}],
+      structuredContent: {code: 'invalid-request'},
     });
     expect(options.clickup.request).not.toHaveBeenCalled();
   });
