@@ -45,8 +45,8 @@ function presigned(params: {truncated?: boolean; url?: string} = {}): ReadLogsRe
 
 describe('fetchStepLogs', () => {
   test('drains inline pages and parses records', async () => {
-    const urls: string[] = [];
     const apiUrl = 'http://localhost:16101';
+    const urls: string[] = [];
     const result = await fetchStepLogs({
       apiUrl,
       attempt: 1,
