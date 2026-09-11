@@ -22,6 +22,7 @@ async function loadClickUpModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    createClickUpApiClient,
     createClickUpE2eRoutes,
     createClickUpIntegrationProvider,
     createClickUpTokenStore,
@@ -34,6 +35,7 @@ async function loadClickUpModuleParts(
     upsertClickUpInstallation,
     withClickUpInstallationLock,
   } = await import('@shipfox/api-integration-clickup');
+  const clickup = createClickUpApiClient();
   let providerCapabilities: IntegrationCapability[] = [];
 
   async function getExistingClickUpConnection(input: {
@@ -126,6 +128,17 @@ async function loadClickUpModuleParts(
   });
 
   const integrationProvider = createClickUpIntegrationProvider({
+    clickup,
+    routes: {
+      tokenStore,
+      getExistingClickUpConnection,
+      connectClickUpInstallation,
+      disconnectClickUpInstallation,
+      withClickUpInstallationLock,
+      ...(options.requireActiveWorkspaceMembership
+        ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+        : {}),
+    },
     cleanup: {
       withConnectionDeletionLock: async (connection, fn) => {
         const installation = await getClickUpInstallationByConnectionId(connection.id);

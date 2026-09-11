@@ -41,6 +41,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-clickup-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/config": "workspace:*",
@@ -49,6 +50,7 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "drizzle-orm": "catalog:",
+    "ky": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
