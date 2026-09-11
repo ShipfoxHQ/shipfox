@@ -184,8 +184,23 @@ function toolsFromProducerClients(
     ...createAgentAccessDiagnosticTools({triggers}),
     ...createAgentAccessWorkflowDiagnosticTools(workflows),
   ];
-  const withLogs =
-    logs === undefined ? tools : [...tools, ...createAgentAccessLogTools({logs, workflows})];
+  let withLogs = tools;
+  if (logs !== undefined) {
+    if (options.auth === undefined || options.apiPublicUrl === undefined) {
+      throw new Error(
+        'Agent-access log tools require auth and apiPublicUrl producer clients to be configured',
+      );
+    }
+    withLogs = [
+      ...tools,
+      ...createAgentAccessLogTools({
+        auth: options.auth,
+        apiPublicUrl: validateAgentAccessApiPublicOrigin(options.apiPublicUrl),
+        logs,
+        workflows,
+      }),
+    ];
+  }
   return integrations === undefined
     ? withLogs
     : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
