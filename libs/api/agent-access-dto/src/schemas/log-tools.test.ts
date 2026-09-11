@@ -18,7 +18,7 @@ describe('log Agent Access schemas', () => {
       url: 'https://api.example.test/step-log-downloads/current',
       token: 'token',
       expires_at: '2026-09-11T10:05:00.000Z',
-      state: 'open',
+      state: 'closed',
       total_bytes: 12,
       truncated: false,
     };
