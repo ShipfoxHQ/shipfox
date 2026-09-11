@@ -1,5 +1,24 @@
 # @shipfox/api-agent-access
 
+## 26.0.0
+
+### Minor Changes
+
+- a8ff016: Adds bounded error details, exposes state-changing action tools in tools/list with their destructiveHint, idempotentHint, and openWorldHint annotations, and limits action calls to 10 per credential per minute on top of the existing shared window.
+
+### Patch Changes
+
+- fb73bca: Removes unused OAuth scope fields and carries agent access through workspace membership authority.
+- Updated dependencies [a8ff016]
+- Updated dependencies [795eee2]
+- Updated dependencies [e157b10]
+- Updated dependencies [fb73bca]
+  - @shipfox/api-agent-access-dto@26.0.0
+  - @shipfox/api-logs-dto@26.0.0
+  - @shipfox/api-triggers-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-auth-dto@26.0.0
+
 ## 25.0.0
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @shipfox/api-integration-github-dto
 
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [6eaacf0]
+  - @shipfox/api-integration-core-dto@26.0.0
+
 ## 22.0.0
 
 ### Patch Changes

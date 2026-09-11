@@ -1,5 +1,28 @@
 # @shipfox/api-integration-core
 
+## 26.0.0
+
+### Minor Changes
+
+- 6eaacf0: Adds workspace-scoped integration connection and provider tool-catalog reads.
+- 575cbc1: Add the flag-gated ClickUp integration provider scaffold, installation persistence, token storage, cleanup hooks, and E2E connection seed route.
+
+### Patch Changes
+
+- Updated dependencies [6eaacf0]
+- Updated dependencies [fb73bca]
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-integration-spi@4.1.2
+  - @shipfox/api-integration-gitea@26.0.0
+  - @shipfox/api-integration-github@26.0.0
+  - @shipfox/api-integration-jira@26.0.0
+  - @shipfox/api-integration-linear@26.0.0
+  - @shipfox/api-integration-sentry@26.0.0
+  - @shipfox/api-integration-slack@26.0.0
+  - @shipfox/api-integration-webhook@26.0.0
+  - @shipfox/api-integration-clickup@26.0.0
+
 ## 25.0.0
 
 ### Patch Changes
