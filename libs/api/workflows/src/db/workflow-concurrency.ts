@@ -216,8 +216,11 @@ async function requestHolderCancellation(params: {
     )
     .returning({cancellationRequestedAt: workflowConcurrencyClaims.cancellationRequestedAt});
   const justRequested = updatedHolder !== undefined;
+  const holderClaim = justRequested
+    ? {...holder, cancellationRequestedAt: params.now, updatedAt: params.now}
+    : holder;
   return {
-    claim: holder,
+    claim: holderClaim,
     requested: justRequested || holder.cancellationRequestedAt !== null,
     justRequested,
   };

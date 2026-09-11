@@ -395,6 +395,7 @@ describe('workflow run queries', () => {
         db()
           .select({state: workflowConcurrencyClaims.state})
           .from(workflowConcurrencyClaims)
+          .where(eq(workflowConcurrencyClaims.projectId, projectId))
           .orderBy(workflowConcurrencyClaims.generation),
       ).resolves.toEqual([{state: 'acquired'}, {state: 'waiting'}]);
     });
