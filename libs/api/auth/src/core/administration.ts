@@ -317,6 +317,7 @@ export interface ImpersonationWindowView {
   actor: AdministratorUserSummary;
   target: AdministratorUserSummary;
   reason: string;
+  actorRoleAtStart: ImpersonationWindow['actorRoleAtStart'];
   startedAt: Date;
   deadlineAt: Date;
   state: EffectiveImpersonationWindow['state'];
@@ -338,6 +339,7 @@ async function toImpersonationWindowView(
     actor,
     target,
     reason: window.reason,
+    actorRoleAtStart: window.actorRoleAtStart,
     startedAt: window.startedAt,
     deadlineAt: window.deadlineAt,
     state,

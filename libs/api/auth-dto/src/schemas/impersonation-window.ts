@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {administratorUserSummarySchema} from './admin.js';
+import {administratorUserSummarySchema, adminRoleSchema} from './admin.js';
 import {impersonateResponseSchema} from './auth.js';
 
 export const IMPERSONATION_WINDOW_PAGE_LIMIT = 50;
@@ -133,18 +133,22 @@ export const impersonationWindowEndedReasonSchema = z.enum(['stopped', 'expired'
 
 export type ImpersonationWindowEndedReason = z.infer<typeof impersonationWindowEndedReasonSchema>;
 
+const impersonationWindowExactMetadataSchema = impersonationWindowMetadataSchema.extend({
+  actor_role_at_start: adminRoleSchema,
+});
+
 export const impersonationWindowExactResponseSchema = z.discriminatedUnion('state', [
-  impersonationWindowMetadataSchema.extend({
+  impersonationWindowExactMetadataSchema.extend({
     state: z.literal('open'),
     ended_at: z.null(),
     ended_reason: z.null(),
   }),
-  impersonationWindowMetadataSchema.extend({
+  impersonationWindowExactMetadataSchema.extend({
     state: z.literal('stopped'),
     ended_at: timestampSchema,
     ended_reason: z.literal('stopped'),
   }),
-  impersonationWindowMetadataSchema.extend({
+  impersonationWindowExactMetadataSchema.extend({
     state: z.literal('expired'),
     ended_at: timestampSchema,
     ended_reason: z.literal('expired'),
