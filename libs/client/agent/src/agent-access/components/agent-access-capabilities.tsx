@@ -6,7 +6,7 @@ const AGENT_ACCESS_CAPABILITIES = [
 
 export function AgentAccessCapabilities() {
   return (
-    <ul aria-label="Connected app capabilities" className="flex list-disc flex-col gap-tight">
+    <ul aria-label="Connected app capabilities" className="list-disc px-row">
       {AGENT_ACCESS_CAPABILITIES.map((capability) => (
         <li key={capability}>{capability}</li>
       ))}
