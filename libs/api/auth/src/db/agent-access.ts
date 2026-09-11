@@ -361,7 +361,6 @@ export interface CreateAgentAuthorizationRequestParams {
   clientId: string;
   redirectUri: string;
   resource: string;
-  scopes: string[];
   codeChallenge: string;
   state: string | null;
   expiresAt: Date;
@@ -415,7 +414,6 @@ export async function approveAgentAuthorizationRequest(params: {
       userId: params.userId,
       workspaceId: params.workspaceId,
       clientId: decision.request.clientId,
-      scopes: decision.request.scopes,
     });
     await createAgentAuthorizationCodeTx(tx, {
       grantId: grant.id,
@@ -543,7 +541,6 @@ export interface CreateAgentGrantParams {
   workspaceId: string;
   /** Internal `auth_agent_clients.id`, not the public OAuth `client_id`. */
   clientId: string;
-  scopes: string[];
 }
 
 export async function createAgentGrant(params: CreateAgentGrantParams): Promise<AgentGrant> {
@@ -570,7 +567,6 @@ export async function createAgentGrantTx(
       target: [agentGrants.userId, agentGrants.workspaceId, agentGrants.clientId],
       targetWhere: sql`${agentGrants.revokedAt} IS NULL AND ${agentGrants.terminalAt} IS NULL`,
       set: {
-        scopes: params.scopes,
         updatedAt: sql`now()`,
       },
     })
@@ -578,8 +574,7 @@ export async function createAgentGrantTx(
   const row = rows[0];
   if (!row) throw new Error('Upsert returned no rows');
 
-  // Refresh tokens derive their scopes from the grant. Reauthorization must
-  // invalidate existing tokens before the grant's scopes can be widened.
+  // Reauthorization invalidates existing refresh tokens before the grant is reused.
   await tx
     .update(agentRefreshTokens)
     .set({revokedAt: sql`now()`, updatedAt: sql`now()`})
@@ -613,7 +608,6 @@ export interface AgentGrantSummaryRecord {
   id: string;
   clientName: string;
   workspaceId: string;
-  scopes: string[];
   createdAt: Date;
   lastRefreshedAt: Date | null;
 }
@@ -627,7 +621,6 @@ export async function listAgentGrantSummaries(params: {
       id: agentGrants.id,
       clientName: agentClients.name,
       workspaceId: agentGrants.workspaceId,
-      scopes: agentGrants.scopes,
       createdAt: agentGrants.createdAt,
       lastRefreshedAt: agentGrants.lastUsedAt,
     })

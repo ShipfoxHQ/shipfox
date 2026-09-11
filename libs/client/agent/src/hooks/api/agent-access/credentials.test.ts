@@ -21,7 +21,6 @@ describe('agent grant adapter', () => {
             id: GRANT_ID,
             client_name: 'Claude Desktop',
             workspace_id: WORKSPACE_ID,
-            scopes: ['read'],
             created_at: '2026-09-01T10:00:00.000Z',
             last_refreshed_at: null,
           },

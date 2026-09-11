@@ -25,7 +25,6 @@ import {type CreateAgentAccessRoutesOptions, createAgentAccessRoutes} from './ro
 const context: AgentAccessContext = {
   userId: 'user-1',
   workspaceId: 'workspace-1',
-  scopes: ['read'],
   credential: {kind: 'oauth_grant', grantId: 'grant-1', clientId: 'client-1'},
 };
 
@@ -163,7 +162,7 @@ describe('agent-access MCP routes', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.headers['www-authenticate']).toBe(
-      'Bearer scope="read", resource_metadata="https://api.example.test/.well-known/oauth-protected-resource"',
+      'Bearer resource_metadata="https://api.example.test/.well-known/oauth-protected-resource"',
     );
     expect(response.json()).toEqual({code: 'unauthorized'});
     expect(authCalls).toBe(1);

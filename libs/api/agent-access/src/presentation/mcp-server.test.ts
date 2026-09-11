@@ -26,7 +26,6 @@ import {buildAgentAccessMcpServer} from './mcp-server.js';
 const context: AgentAccessContext = {
   userId: 'user-1',
   workspaceId: 'workspace-1',
-  scopes: ['read'],
   credential: {kind: 'oauth_grant', grantId: 'grant-1', clientId: 'client-1'},
 };
 

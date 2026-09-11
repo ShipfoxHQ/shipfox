@@ -1,7 +1,6 @@
 import {z} from 'zod';
 
 const timestampSchema = z.string().datetime();
-const scopeSchema = z.literal('read');
 const textEncoder = new TextEncoder();
 const CONTROL_OR_FORMAT_CHARACTER_RE = /[\p{Cc}\p{Cf}]/u;
 
@@ -23,7 +22,6 @@ export const agentGrantSummarySchema = z
     id: z.string().uuid(),
     client_name: agentAccessNameSchema,
     workspace_id: z.string().uuid(),
-    scopes: z.array(scopeSchema).min(1),
     created_at: timestampSchema,
     last_refreshed_at: timestampSchema.nullable(),
   })

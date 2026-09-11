@@ -54,7 +54,6 @@ async function createCredential(outage = false) {
     userId: user.id,
     workspaceId,
     clientId: client.id,
-    scopes: ['read'],
   });
   const minted = await mintAgentLogDownloadToken({
     sub: user.id,
@@ -155,7 +154,6 @@ describe('agent log download auth method', () => {
         workspaceId: crypto.randomUUID(),
         grantId: crypto.randomUUID(),
         clientId: 'client-id',
-        scopes: ['read'],
       });
       const agentAsDownload = await app.inject({
         method: 'GET',

@@ -28,7 +28,6 @@ describe('OAuth metadata schemas', () => {
       oauthProtectedResourceMetadataSchema.safeParse({
         resource: 'https://api.example.test/mcp',
         authorization_servers: ['https://api.example.test'],
-        scopes_supported: ['read'],
       }).success,
     ).toBe(true);
 
@@ -42,7 +41,6 @@ describe('OAuth metadata schemas', () => {
         grant_types_supported: ['authorization_code', 'refresh_token'],
         code_challenge_methods_supported: ['S256'],
         token_endpoint_auth_methods_supported: ['none'],
-        scopes_supported: ['read'],
         client_id_metadata_document_supported: true,
       }).success,
     ).toBe(true);
@@ -52,7 +50,6 @@ describe('OAuth metadata schemas', () => {
     const detail = {
       request_id: '11111111-1111-4111-8111-111111111111',
       client_name: 'Desktop agent',
-      scope: 'read',
       expires_at: '2026-09-05T12:00:00.000Z',
       redirect_uri_hostname: 'client.example',
       is_loopback_redirect: false,

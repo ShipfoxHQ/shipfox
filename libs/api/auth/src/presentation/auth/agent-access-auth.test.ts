@@ -26,7 +26,6 @@ describe('agent access auth method', () => {
       workspaceId: crypto.randomUUID(),
       grantId: crypto.randomUUID(),
       clientId: 'client-id',
-      scopes: ['read'] as Array<'read'>,
     };
     const token = await issueAgentAccessToken(claims);
     const app = await openApp();
@@ -42,7 +41,6 @@ describe('agent access auth method', () => {
       expect(response.json()).toEqual({
         userId: claims.sub,
         workspaceId: claims.workspaceId,
-        scopes: ['read'],
         credential: {kind: 'oauth_grant', grantId: claims.grantId, clientId: claims.clientId},
       });
     } finally {
@@ -58,7 +56,6 @@ describe('agent access auth method', () => {
       workspaceId: crypto.randomUUID(),
       grantId: crypto.randomUUID(),
       clientId,
-      scopes: ['read'],
     });
     expect(Buffer.byteLength(token, 'utf8')).toBeGreaterThan(1024);
     const app = await openApp();

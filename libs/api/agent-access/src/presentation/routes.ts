@@ -191,7 +191,7 @@ function createOriginGuard(
 }
 
 function createAgentAccessErrorHandler(resourceMetadataUrl: string) {
-  const challenge = `Bearer scope="read", resource_metadata="${escapeHeaderValue(resourceMetadataUrl)}"`;
+  const challenge = `Bearer resource_metadata="${escapeHeaderValue(resourceMetadataUrl)}"`;
 
   return (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
     const status = errorStatus(error);

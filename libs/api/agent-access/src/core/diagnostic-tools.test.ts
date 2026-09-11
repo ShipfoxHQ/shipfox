@@ -27,7 +27,6 @@ const eventId = uuid(2);
 const context: AgentAccessContext = {
   userId: uuid(3),
   workspaceId,
-  scopes: ['read'],
   credential: {kind: 'oauth_grant', grantId: uuid(4), clientId: 'client'},
 };
 const receivedAt = '2026-08-01T00:00:00.000Z';

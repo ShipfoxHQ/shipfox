@@ -36,7 +36,6 @@ function fetched(): ResolvedOAuthClient['metadata'] {
     grantTypes: ['authorization_code'],
     responseTypes: ['code'],
     tokenEndpointAuthMethod: 'none',
-    scope: 'read',
   };
 }
 

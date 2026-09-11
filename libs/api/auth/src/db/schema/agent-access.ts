@@ -44,7 +44,8 @@ export const agentAuthorizationRequests = pgTable(
     userId: uuid('user_id').references(() => users.id, {onDelete: 'cascade'}),
     redirectUri: text('redirect_uri').notNull(),
     resource: text('resource').notNull(),
-    scopes: text('scopes').array().notNull(),
+    // Legacy scope storage remains nullable while old and new application versions overlap.
+    scopes: text('scopes').array().default(['read']),
     codeChallenge: text('code_challenge').notNull(),
     state: text('state'),
     expiresAt: timestamp('expires_at', {withTimezone: true}).notNull(),
@@ -70,7 +71,8 @@ export const agentGrants = pgTable(
     clientId: uuid('client_id')
       .notNull()
       .references(() => agentClients.id, {onDelete: 'cascade'}),
-    scopes: text('scopes').array().notNull(),
+    // Legacy scope storage remains nullable while old and new application versions overlap.
+    scopes: text('scopes').array().default(['read']),
     lastUsedAt: timestamp('last_used_at', {withTimezone: true}),
     revokedAt: timestamp('revoked_at', {withTimezone: true}),
     terminalAt: timestamp('terminal_at', {withTimezone: true}),
@@ -172,7 +174,6 @@ export function toAgentAuthorizationRequest(
     userId: row.userId,
     redirectUri: row.redirectUri,
     resource: row.resource,
-    scopes: row.scopes,
     codeChallenge: row.codeChallenge,
     state: row.state,
     expiresAt: row.expiresAt,
@@ -188,7 +189,6 @@ export function toAgentGrant(row: AgentGrantDb): AgentGrant {
     userId: row.userId,
     workspaceId: row.workspaceId,
     clientId: row.clientId,
-    scopes: row.scopes,
     lastUsedAt: row.lastUsedAt,
     revokedAt: row.revokedAt,
     terminalAt: row.terminalAt,

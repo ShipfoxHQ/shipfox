@@ -1,7 +1,6 @@
 import {createHash, randomBytes, timingSafeEqual} from 'node:crypto';
 import {
   OAUTH_MCP_RESOURCE_PATH,
-  OAUTH_READ_SCOPE,
   type OAuthAuthorizeQueryDto,
   type OAuthTokenRequestDto,
 } from '@shipfox/api-auth-dto';
@@ -74,7 +73,6 @@ export interface OAuthConsentDetail {
 export interface OAuthTokenExchangeResult {
   accessToken: string;
   refreshToken?: string;
-  scope: 'read';
 }
 
 function nowFor(options: OAuthFlowOptions): Date {
@@ -106,7 +104,7 @@ function assertConsentRequestId(requestId: string): void {
 }
 
 function redirectableError(
-  code: 'invalid_request' | 'invalid_scope' | 'invalid_target' | 'access_denied',
+  code: 'invalid_request' | 'invalid_target' | 'access_denied',
   message: string,
   request: Pick<OAuthAuthorizeQueryDto, 'redirect_uri' | 'state'>,
 ): OAuthProtocolError {
@@ -229,20 +227,11 @@ export async function beginOAuthAuthorization(params: {
       params.request,
     );
   }
-  if (params.request.scope !== undefined && params.request.scope !== 'read') {
-    throw redirectableError(
-      'invalid_scope',
-      'The requested OAuth scope is not supported',
-      params.request,
-    );
-  }
-
   const now = nowFor(params.options);
   const request = await createAgentAuthorizationRequest({
     clientId: resolved.client.id,
     redirectUri: params.request.redirect_uri,
     resource: params.request.resource,
-    scopes: ['read'],
     codeChallenge: params.request.code_challenge,
     state: params.request.state ?? null,
     expiresAt: new Date(now.getTime() + OAUTH_AUTHORIZATION_REQUEST_TTL_SECONDS * 1000),
@@ -363,7 +352,6 @@ function accessTokenFor(grant: AgentGrant, client: AgentClient): Promise<string>
     workspaceId: grant.workspaceId,
     grantId: grant.id,
     clientId: client.clientId,
-    scopes: ['read'],
   });
 }
 
@@ -405,7 +393,6 @@ export async function exchangeOAuthAuthorizationCode(params: {
   return {
     accessToken: await accessTokenFor(binding.grant, binding.client),
     refreshToken: rawRefreshToken,
-    scope: 'read',
   };
 }
 
@@ -470,7 +457,6 @@ export async function exchangeOAuthRefreshToken(params: {
   return {
     accessToken: await accessTokenFor(outcome.grant, binding.client),
     ...(outcome.kind === 'rotated' ? {refreshToken: rawReplacement} : {}),
-    scope: 'read',
   };
 }
 
@@ -478,9 +464,6 @@ export async function exchangeOAuthToken(params: {
   request: OAuthTokenRequestDto;
   options: OAuthFlowOptions;
 }): Promise<OAuthTokenExchangeResult> {
-  if (params.request.scope !== undefined && params.request.scope !== OAUTH_READ_SCOPE) {
-    throw new OAuthProtocolError('invalid_scope', 'The requested OAuth scope is not supported');
-  }
   if (params.request.grant_type === 'authorization_code') {
     return await exchangeOAuthAuthorizationCode(params);
   }

@@ -22,7 +22,6 @@ describe('agent access name schemas', () => {
         id: crypto.randomUUID(),
         client_name: value,
         workspace_id: crypto.randomUUID(),
-        scopes: ['read'],
         created_at: new Date().toISOString(),
         last_refreshed_at: null,
       }).success,

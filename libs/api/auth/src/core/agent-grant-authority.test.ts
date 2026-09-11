@@ -88,7 +88,6 @@ async function activeGrant() {
     userId: user.id,
     workspaceId,
     clientId: client.id,
-    scopes: ['read'],
   });
   return {user, workspaceId, grant};
 }

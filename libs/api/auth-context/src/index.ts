@@ -41,8 +41,6 @@ export interface UserContext {
   hasRole(workspaceId: string, role: WorkspaceRole): boolean;
 }
 
-export type AgentAccessScope = 'read';
-
 export interface AgentAccessCredential {
   kind: 'oauth_grant';
   grantId: string;
@@ -53,7 +51,6 @@ export interface AgentAccessCredential {
 export interface AgentAccessContext {
   userId: string;
   workspaceId: string;
-  scopes: ReadonlyArray<AgentAccessScope>;
   credential: AgentAccessCredential;
 }
 

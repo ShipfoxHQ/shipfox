@@ -57,6 +57,13 @@
       "when": 1788788683272,
       "tag": "0007_next_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789055805843,
+      "tag": "0008_relax_agent_scope_columns",
+      "breakpoints": true
     }
   ]
 }

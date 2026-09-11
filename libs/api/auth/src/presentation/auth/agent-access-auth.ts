@@ -37,7 +37,6 @@ export function createAgentAccessAuthMethod(): AuthMethod {
       setAgentAccessContext(request, {
         userId: claims.sub,
         workspaceId: claims.workspaceId,
-        scopes: claims.scopes,
         credential: {
           kind: 'oauth_grant',
           grantId: claims.grantId,

@@ -170,7 +170,6 @@ export {
   ImpersonationWindowStoppedError,
   InvalidAdminBootstrapTokenError,
   InvalidAdministratorUserDirectoryFilterError,
-  InvalidAgentAccessScopeError,
   InvalidCredentialsError,
   InvalidOAuthClientMetadataError,
   InvalidOAuthConfigurationError,

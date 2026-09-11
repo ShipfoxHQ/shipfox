@@ -18,7 +18,6 @@ describe('OAuth consent adapter', () => {
       jsonResponse({
         request_id: REQUEST_ID,
         client_name: 'Claude Desktop',
-        scope: 'read',
         expires_at: '2026-09-02T12:30:00.000Z',
         redirect_uri_hostname: '127.0.0.1',
         client_identity_kind: 'cimd',

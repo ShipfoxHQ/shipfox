@@ -11,7 +11,7 @@ import {
 } from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {listAgentGrants, revokeAgentGrant} from '#core/agent-access.js';
-import {AgentGrantNotFoundError, InvalidAgentAccessScopeError} from '#core/errors.js';
+import {AgentGrantNotFoundError} from '#core/errors.js';
 
 function requireActorId(request: FastifyRequest): string {
   const context = getUserContext(request);
@@ -21,18 +21,10 @@ function requireActorId(request: FastifyRequest): string {
   return context.userId;
 }
 
-function toReadScopes(scopes: string[]): 'read'[] {
-  if (scopes.length === 0 || scopes.some((scope) => scope !== 'read')) {
-    throw new InvalidAgentAccessScopeError();
-  }
-  return scopes as 'read'[];
-}
-
 function toAgentGrantSummaryDto(grant: {
   id: string;
   clientName: string;
   workspaceId: string;
-  scopes: string[];
   createdAt: Date;
   lastRefreshedAt: Date | null;
 }) {
@@ -40,7 +32,6 @@ function toAgentGrantSummaryDto(grant: {
     id: grant.id,
     client_name: grant.clientName,
     workspace_id: grant.workspaceId,
-    scopes: toReadScopes(grant.scopes),
     created_at: grant.createdAt.toISOString(),
     last_refreshed_at: grant.lastRefreshedAt?.toISOString() ?? null,
   };
@@ -49,12 +40,6 @@ function toAgentGrantSummaryDto(grant: {
 function translateAgentAccessError(error: unknown): never {
   if (error instanceof AgentGrantNotFoundError) {
     throw new ClientError('Agent grant not found', 'not-found', {status: 404});
-  }
-  if (error instanceof InvalidAgentAccessScopeError) {
-    throw new ClientError('Agent access data is invalid', 'server-error', {
-      status: 500,
-      cause: error,
-    });
   }
   throw error;
 }

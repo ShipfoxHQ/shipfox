@@ -220,7 +220,6 @@ function registrationResponse(
     grant_types: result.metadata.grantTypes,
     response_types: result.metadata.responseTypes,
     token_endpoint_auth_method: result.metadata.tokenEndpointAuthMethod,
-    scope: result.metadata.scope,
   };
 }
 
@@ -233,7 +232,6 @@ function createProtectedResourceMetadataRoute(origin: string) {
     handler: () => ({
       resource: `${origin}${OAUTH_MCP_RESOURCE_PATH}`,
       authorization_servers: [origin],
-      scopes_supported: ['read'],
     }),
   });
 }
@@ -253,7 +251,6 @@ function createAuthorizationServerMetadataRoute(origin: string) {
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
-      scopes_supported: ['read'],
       client_id_metadata_document_supported: true,
     }),
   });

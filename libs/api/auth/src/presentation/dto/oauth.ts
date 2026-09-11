@@ -1,5 +1,4 @@
 import type {OAuthConsentResponseDto} from '@shipfox/api-auth-dto';
-import {OAUTH_READ_SCOPE} from '@shipfox/api-auth-dto';
 import {AGENT_ACCESS_TOKEN_EXPIRES_IN_SECONDS} from '#core/agent-access-token.js';
 import type {AgentClient} from '#core/entities/agent-access.js';
 import {isOAuthLoopbackRedirectUri} from '#core/oauth-client.js';
@@ -27,7 +26,6 @@ export function toOAuthConsentResponse(detail: OAuthConsentDetail): OAuthConsent
   return {
     request_id: detail.request.id,
     client_name: detail.client.name,
-    scope: OAUTH_READ_SCOPE,
     expires_at: detail.request.expiresAt.toISOString(),
     redirect_uri_hostname: redirectUrl.hostname,
     ...consentIdentity(detail.client),
@@ -45,6 +43,5 @@ export function oauthTokenResponse(result: OAuthTokenExchangeResult) {
     token_type: 'Bearer' as const,
     expires_in: AGENT_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
     ...(result.refreshToken ? {refresh_token: result.refreshToken} : {}),
-    scope: result.scope,
   };
 }

@@ -6,7 +6,6 @@ export interface ConsentWorkspace {
 export interface OAuthConsent {
   requestId: string;
   clientName: string;
-  scope: 'read';
   expiresAt: string;
   redirectHostname: string;
   clientIdentity: {kind: 'cimd'; origin: string} | {kind: 'self-registered'};
@@ -18,7 +17,6 @@ export interface AgentGrant {
   id: string;
   clientName: string;
   workspaceId: string;
-  scopes: 'read'[];
   createdAt: string;
   lastRefreshedAt: string | null;
 }

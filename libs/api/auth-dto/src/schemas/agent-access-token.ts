@@ -8,7 +8,6 @@ export const agentAccessTokenClaimsSchema = z.object({
   workspaceId: z.string().uuid(),
   grantId: z.string().uuid(),
   clientId: z.string().min(1).max(2048),
-  scopes: z.array(z.literal('read')).min(1),
   aud: z.literal(AGENT_ACCESS_TOKEN_AUDIENCE),
   iat: z.number().int(),
   exp: z.number().int(),
