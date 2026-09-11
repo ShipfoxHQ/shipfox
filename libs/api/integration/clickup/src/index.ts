@@ -1,10 +1,19 @@
 import {CLICKUP_PROVIDER, clickupEventCatalog} from '@shipfox/api-integration-clickup-dto';
-import {type ClickUpAgentToolsClient, createClickUpAgentToolsClient} from '#api/client.js';
+import {
+  type ClickUpAgentToolsClient,
+  type ClickUpApiClient,
+  createClickUpAgentToolsClient,
+  createClickUpApiClient,
+} from '#api/client.js';
 import {config} from '#config.js';
 import {ClickUpAgentToolsProvider} from '#core/agent-tools-provider.js';
 import type {ClickUpTokenStore} from '#core/tokens.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
+import {
+  type CreateClickUpIntegrationRoutesOptions,
+  createClickUpIntegrationRoutes,
+} from '#presentation/routes/install.js';
 
 export type {ClickUpProvider} from '@shipfox/api-integration-clickup-dto';
 export type {
@@ -13,8 +22,16 @@ export type {
   ClickUpAgentToolRequest,
   ClickUpAgentToolResponse,
   ClickUpAgentToolsClient,
+  ClickUpApiClient,
+  ClickUpAuthorization,
+  ClickUpAuthorizedUser,
+  ClickUpAuthorizedWorkspace,
 } from '#api/client.js';
-export {createClickUpAgentToolsClient, mapClickUpError} from '#api/client.js';
+export {
+  createClickUpAgentToolsClient,
+  createClickUpApiClient,
+  mapClickUpError,
+} from '#api/client.js';
 export type {
   ClickUpAgentToolCatalogEntry,
   ClickUpAgentToolId,
@@ -36,8 +53,19 @@ export {
   ClickUpConnectionAlreadyLinkedError,
   ClickUpConnectionNotFoundError,
   ClickUpInstallationAlreadyLinkedError,
+  ClickUpInstallStateActorMismatchError,
+  ClickUpInstallStateError,
   ClickUpIntegrationProviderError,
+  ClickUpOAuthCallbackError,
+  ClickUpWorkspaceCountError,
 } from '#core/errors.js';
+export type {ConnectClickUpInstallationInput, HandleClickUpCallbackParams} from '#core/install.js';
+export {
+  handleClickUpCallback,
+  handleClickUpOAuthCallbackError,
+} from '#core/install.js';
+export type {ClickUpInstallStateClaims} from '#core/state.js';
+export {signClickUpInstallState, verifyClickUpInstallState} from '#core/state.js';
 export type {
   ClickUpConnectionResolverResult,
   ClickUpSecretsStore,
@@ -63,7 +91,6 @@ export {
   withClickUpWorkspaceLock,
 } from '#db/installations.js';
 export {
-  type ConnectClickUpInstallationInput,
   type CreateE2eClickUpConnectionRouteOptions,
   createE2eClickUpConnectionRoute,
 } from '#presentation/e2eRoutes/create-connection.js';
@@ -71,9 +98,15 @@ export {
   type CreateClickUpE2eRoutesOptions,
   createClickUpE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
+export type {CreateClickUpIntegrationRoutesOptions} from '#presentation/routes/install.js';
+export {createClickUpIntegrationRoutes} from '#presentation/routes/install.js';
 export {closeDb, config, db, migrationsPath};
 
 export interface CreateClickUpIntegrationProviderOptions {
+  clickup?: ClickUpApiClient | undefined;
+  routes?:
+    | Omit<CreateClickUpIntegrationRoutesOptions, 'clickup' | 'connectionCapabilities'>
+    | undefined;
   agentTools?:
     | {
         tokenStore: Pick<ClickUpTokenStore, 'getAccessToken'>;
@@ -98,6 +131,16 @@ export interface CreateClickUpIntegrationProviderOptions {
 export function createClickUpIntegrationProvider(
   options: CreateClickUpIntegrationProviderOptions = {},
 ) {
+  const clickup = options.clickup ?? createClickUpApiClient();
+  const routes = options.routes
+    ? [
+        createClickUpIntegrationRoutes({
+          clickup,
+          ...options.routes,
+          connectionCapabilities: [],
+        }),
+      ]
+    : [];
   const adapters = options.agentTools
     ? {
         agent_tools: new ClickUpAgentToolsProvider({
@@ -112,6 +155,6 @@ export function createClickUpIntegrationProvider(
     eventCatalog: clickupEventCatalog,
     adapters,
     ...options.cleanup,
-    routes: [],
+    routes,
   };
 }

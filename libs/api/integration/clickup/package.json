@@ -51,6 +51,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-clickup-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/config": "workspace:*",
