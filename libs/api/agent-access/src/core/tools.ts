@@ -4,7 +4,7 @@ import {
   agentAccessOutputSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
-import {AGENT_ACCESS_FIXTURE_TOOL_NAME} from '#constants.js';
+import {AGENT_ACCESS_FIXTURE_ACTION_TOOL_NAME, AGENT_ACCESS_FIXTURE_TOOL_NAME} from '#constants.js';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
 
 export interface AgentAccessToolCall {
@@ -18,7 +18,12 @@ export interface AgentAccessTool {
   inputSchema: AgentAccessObjectSchema;
   outputSchema: AgentAccessObjectSchema;
   validateInput?: ((input: unknown) => boolean) | undefined;
-  annotations: {readonly readOnlyHint: true};
+  annotations: {
+    readonly readOnlyHint: boolean;
+    readonly destructiveHint?: boolean | undefined;
+    readonly idempotentHint?: boolean | undefined;
+    readonly openWorldHint?: boolean | undefined;
+  };
   execute: (call: AgentAccessToolCall) => Promise<AgentAccessEnvelopeDto> | AgentAccessEnvelopeDto;
   validateResult?: ((result: unknown) => boolean) | undefined;
 }
@@ -35,6 +40,51 @@ export function createAgentAccessToolMap(tools: readonly AgentAccessTool[]): Age
 }
 
 /** A deterministic tool used by gateway contract tests; no production tool is registered here. */
+export function createAgentAccessFixtureActionTool(): AgentAccessTool {
+  const isValidInput = (input: unknown): boolean => {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) return false;
+    const record = input as Record<string, unknown>;
+    return (
+      Object.keys(record).every((key) => key === 'message') &&
+      typeof record.message === 'string' &&
+      [...record.message].length <= 256
+    );
+  };
+
+  return {
+    name: AGENT_ACCESS_FIXTURE_ACTION_TOOL_NAME,
+    description: 'Return a deterministic response from the dormant agent-access action fixture.',
+    inputSchema: {
+      type: 'object',
+      properties: {message: {type: 'string', maxLength: 256}},
+      required: ['message'],
+      additionalProperties: false,
+    },
+    outputSchema: agentAccessOutputSchema({
+      type: 'object',
+      properties: {message: {type: 'string'}},
+      required: ['message'],
+      additionalProperties: false,
+    }),
+    validateInput: isValidInput,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    execute: ({arguments: input}) => {
+      const message = input.message;
+      if (!isValidInput(input)) {
+        return agentAccessError('invalid-request', {
+          message: 'message must be a string of at most 256 characters with no extra properties',
+        });
+      }
+      return agentAccessSuccess({message});
+    },
+  };
+}
+
 export function createAgentAccessFixtureTool(): AgentAccessTool {
   return {
     name: AGENT_ACCESS_FIXTURE_TOOL_NAME,

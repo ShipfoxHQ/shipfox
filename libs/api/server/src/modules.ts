@@ -311,6 +311,7 @@ export async function defaultModules(
     createAgentAccessModule({
       annotations: annotationsClient,
       apiPublicUrl: authConfig.API_PUBLIC_URL,
+      auth: authClient,
       definitions: definitionsClient,
       logs: logsClient,
       projects: projectsClient,
