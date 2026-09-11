@@ -1,6 +1,6 @@
 # ClickUp integration provider
 
-ClickUp integration persistence, scoped token storage, provider wiring, and E2E connection setup.
+ClickUp OAuth connection flow, persistence, scoped token storage, provider wiring, and E2E connection setup.
 
 ## What it does
 
@@ -9,7 +9,7 @@ ClickUp integration persistence, scoped token storage, provider wiring, and E2E 
 - **Installation persistence** stores one configured ClickUp workspace for each Shipfox connection.
 - **`createClickUpE2eRoutes`** exposes the protected synthetic connection route used by E2E suites.
 
-The provider does not expose user-facing routes yet. OAuth, webhook delivery, and agent tools build on this scaffold.
+The provider exposes the authenticated OAuth install and callback routes. Webhook delivery and agent tools build on this connection flow.
 
 ## Installation and setup
 
