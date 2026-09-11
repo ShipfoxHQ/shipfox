@@ -48,16 +48,14 @@ export function createE2eClickUpConnectionRoute(options: CreateE2eClickUpConnect
           {status: 409},
         );
       }
-      const connection =
-        existing ??
-        (await options.connectClickUpInstallation({
-          workspaceId: body.workspace_id,
-          teamId: body.team_id,
-          teamName: body.team_name,
-          authorizingUserId: body.authorizing_user_id,
-          webhookId: body.webhook_id,
-          displayName: body.display_name,
-        }));
+      const connection = await options.connectClickUpInstallation({
+        workspaceId: body.workspace_id,
+        teamId: body.team_id,
+        teamName: body.team_name,
+        authorizingUserId: body.authorizing_user_id,
+        webhookId: body.webhook_id,
+        displayName: body.display_name,
+      });
 
       try {
         await options.tokenStore.storeTokens({

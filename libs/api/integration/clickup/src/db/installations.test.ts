@@ -30,6 +30,27 @@ describe('ClickUp installations', () => {
     );
   });
 
+  it('refreshes installation metadata for the same connection and team', async () => {
+    const initial = input();
+    await upsertClickUpInstallation(initial);
+
+    const refreshed = await upsertClickUpInstallation({
+      ...initial,
+      teamName: 'Updated Acme',
+      authorizingUserId: 'updated-user',
+      webhookId: 'updated-webhook-id',
+    });
+
+    expect(refreshed).toMatchObject({
+      connectionId: initial.connectionId,
+      teamId: initial.teamId,
+      teamName: 'Updated Acme',
+      authorizingUserId: 'updated-user',
+      webhookId: 'updated-webhook-id',
+      status: 'installed',
+    });
+  });
+
   it('deletes an installation by connection', async () => {
     const installation = await upsertClickUpInstallation(input());
 

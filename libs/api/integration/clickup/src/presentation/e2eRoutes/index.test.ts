@@ -65,4 +65,58 @@ describe('ClickUp E2E routes', () => {
       webhookSecret: 'webhook-secret',
     });
   });
+
+  it('refreshes and reactivates an existing connection before storing replacement secrets', async () => {
+    const existing = connection({lifecycleStatus: 'disabled'});
+    const refreshed = connection({displayName: 'ClickUp Updated', lifecycleStatus: 'active'});
+    const tokenStore = {storeTokens: vi.fn(() => Promise.resolve())};
+    const connectClickUpInstallation = vi.fn(() => Promise.resolve(refreshed));
+    const app = await createApp({
+      routes: [
+        createClickUpE2eRoutes({
+          tokenStore,
+          getExistingClickUpConnection: vi.fn(() => Promise.resolve(existing)),
+          connectClickUpInstallation,
+          disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
+          connectionCapabilities: [],
+        }),
+      ],
+      swagger: false,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/integrations/clickup-connections',
+      payload: {
+        workspace_id: existing.workspaceId,
+        team_id: 'clickup-team',
+        team_name: 'Updated',
+        authorizing_user_id: 'updated-clickup-user',
+        access_token: 'updated-access-token',
+        webhook_id: 'updated-webhook-id',
+        webhook_secret: 'updated-webhook-secret',
+        display_name: 'ClickUp Updated',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      id: refreshed.id,
+      display_name: 'ClickUp Updated',
+      lifecycle_status: 'active',
+    });
+    expect(connectClickUpInstallation).toHaveBeenCalledWith({
+      workspaceId: existing.workspaceId,
+      teamId: 'clickup-team',
+      teamName: 'Updated',
+      authorizingUserId: 'updated-clickup-user',
+      webhookId: 'updated-webhook-id',
+      displayName: 'ClickUp Updated',
+    });
+    expect(tokenStore.storeTokens).toHaveBeenCalledWith({
+      connectionId: refreshed.id,
+      accessToken: 'updated-access-token',
+      webhookSecret: 'updated-webhook-secret',
+    });
+  });
 });
