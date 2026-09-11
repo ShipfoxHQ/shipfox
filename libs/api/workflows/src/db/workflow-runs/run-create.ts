@@ -7,11 +7,18 @@ import {
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
-import {WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES,
+  WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
+  WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
+} from '@shipfox/api-workflows-dto';
 import {
   analyzeContextKeyAccess,
   type ResolvedFieldSegment,
+  resolveFieldAtSite,
   type WorkflowExpression,
+  type WorkflowExpressionEvaluationContext,
+  WorkflowTemplateResolutionError,
 } from '@shipfox/expression';
 import {logger} from '@shipfox/node-opentelemetry';
 import {eq, sql} from 'drizzle-orm';
@@ -34,6 +41,7 @@ import {assembleCreationContext} from '#core/step-config/assemble-run-context.js
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
 import type {WorkflowStepTemplateDiagnostic} from '#core/step-config/resolve-step-config.js';
 import {resolveWorkflowRunName} from '#core/step-config/resolve-workflow-run-name.js';
+import type {ResolvedWorkflowConcurrency} from '#core/workflow-concurrency.js';
 import {
   deriveInitialJobExecutionPlan,
   materializeWorkflowRunJobs,
@@ -43,9 +51,14 @@ import {
   recordWorkflowRunCreated,
 } from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
+import {type WorkflowsOutboxEvent, writeWorkflowsOutboxEvents} from '../outbox-writes.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {workflowRunCounters} from '../schema/workflow-run-counters.js';
 import {toWorkflowRun, type WorkflowRunDevSourceDb, workflowRuns} from '../schema/workflow-runs.js';
+import {
+  admitWorkflowConcurrencyClaim,
+  recordWorkflowConcurrencyAdmissionMetrics,
+} from '../workflow-concurrency.js';
 import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
 
 export type WorkflowModelJob = WorkflowModel['jobs'][number];
@@ -108,6 +121,10 @@ export async function createWorkflowRun(
       tx,
     ),
   );
+
+  if (result.created && result.concurrencyAdmission !== undefined) {
+    recordWorkflowConcurrencyAdmissionMetrics(result.concurrencyAdmission);
+  }
 
   if (result.created && result.nameDegradation !== undefined) {
     recordWorkflowDisplayNameResolutionDegraded('workflow.run_name', result.nameDegradation.cause);
@@ -221,6 +238,50 @@ function assertWorkflowSourceSnapshotSize(
   throw new WorkflowSourceSnapshotTooLargeError(WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES, measuredBytes);
 }
 
+function resolveWorkflowConcurrency(params: {
+  readonly concurrency: WorkflowModel['concurrency'];
+  readonly context: WorkflowExpressionEvaluationContext;
+  readonly definitionId: string;
+}): ResolvedWorkflowConcurrency | undefined {
+  if (params.concurrency === undefined) return undefined;
+
+  try {
+    const resolved = resolveFieldAtSite({
+      field: {segments: params.concurrency.group},
+      context: params.context,
+      site: 'run-creation',
+      // A group is part of admission identity. Unlike a display name, an unresolved
+      // group cannot be degraded without admitting a run outside its intended group.
+      failurePolicy: 'fail',
+    });
+    if (resolved.kind !== 'frozen' || resolved.diagnostics.length > 0) {
+      throw new InterpolationUnresolvableError(params.definitionId, {
+        field: 'workflow.run_name',
+        source:
+          resolved.diagnostics[0]?.expression ??
+          params.concurrency.group.find((segment) => segment.kind === 'deferred')?.expression
+            .source ??
+          'workflow.concurrency.group',
+      });
+    }
+    return {
+      group: resolved.value,
+      scope: params.concurrency.scope,
+      cancelInProgress: params.concurrency.cancelInProgress,
+    };
+  } catch (error) {
+    if (error instanceof InterpolationUnresolvableError) throw error;
+    if (error instanceof WorkflowTemplateResolutionError) {
+      throw new InterpolationUnresolvableError(params.definitionId, {
+        field: 'workflow.run_name',
+        source: error.source,
+        cause: error,
+      });
+    }
+    throw error;
+  }
+}
+
 async function loadConflictingWorkflowRun(
   idempotencyKey: string | undefined,
   tx: Tx,
@@ -258,14 +319,20 @@ async function materializeCreatedWorkflowRun(
     definitionId: params.definitionId,
     secrets: params.secrets,
   });
+  const creationContext = assembleCreationContext({
+    run: provisionalRun,
+    triggerPayload: params.triggerPayload,
+    inputs: params.inputs ?? null,
+    vars,
+  });
+  const resolvedConcurrency = resolveWorkflowConcurrency({
+    concurrency: params.model.concurrency,
+    context: creationContext.values,
+    definitionId: params.definitionId,
+  });
   const runNameResolution = resolveWorkflowRunName({
     runName: params.model.runName,
-    context: assembleCreationContext({
-      run: provisionalRun,
-      triggerPayload: params.triggerPayload,
-      inputs: params.inputs ?? null,
-      vars,
-    }).values,
+    context: creationContext.values,
   });
   const [resolvedRunRow] = await tx
     .update(workflowRuns)
@@ -305,7 +372,97 @@ async function materializeCreatedWorkflowRun(
   });
   logMaterializedJobDiagnostics(runRow.id, materializedJobs);
 
-  return {run, created: true as const, nameDegradation: runNameResolution.degradation};
+  const admissionResult =
+    resolvedConcurrency === undefined
+      ? {run, admission: undefined}
+      : await applyInitialConcurrencyAdmission({
+          tx,
+          run,
+          attemptId: attemptRow.id,
+          concurrency: resolvedConcurrency,
+        });
+
+  return {
+    run: admissionResult.run,
+    created: true as const,
+    nameDegradation: runNameResolution.degradation,
+    concurrencyAdmission: admissionResult.admission,
+  };
+}
+
+async function applyInitialConcurrencyAdmission(params: {
+  readonly tx: Tx;
+  readonly run: WorkflowRun;
+  readonly attemptId: string;
+  readonly concurrency: ResolvedWorkflowConcurrency;
+}): Promise<{
+  readonly run: WorkflowRun;
+  readonly admission: Awaited<ReturnType<typeof admitWorkflowConcurrencyClaim>>;
+}> {
+  const admission = await admitWorkflowConcurrencyClaim({
+    workflowRunId: params.run.id,
+    workflowRunAttemptId: params.attemptId,
+    concurrency: params.concurrency,
+    tx: params.tx,
+  });
+  const claimEvents = workflowConcurrencyClaimEvents(admission);
+  if (claimEvents.length > 0) await writeWorkflowsOutboxEvents(params.tx, claimEvents);
+
+  if (admission.claim.state !== 'waiting') return {run: params.run, admission};
+
+  const waitingAt = new Date();
+  const [waitingRunRow] = await params.tx
+    .update(workflowRuns)
+    .set({status: 'waiting', updatedAt: waitingAt})
+    .where(eq(workflowRuns.id, params.run.id))
+    .returning();
+  if (!waitingRunRow) {
+    throw new Error(`Workflow run missing while entering waiting: ${params.run.id}`);
+  }
+  const [waitingAttemptRow] = await params.tx
+    .update(workflowRunAttempts)
+    .set({status: 'waiting', updatedAt: waitingAt})
+    .where(eq(workflowRunAttempts.id, params.attemptId))
+    .returning();
+  if (!waitingAttemptRow) {
+    throw new Error(`Workflow run attempt missing while entering waiting: ${params.attemptId}`);
+  }
+  return {run: toWorkflowRun(waitingRunRow), admission};
+}
+
+function workflowConcurrencyClaimEvents(
+  admission: Awaited<ReturnType<typeof admitWorkflowConcurrencyClaim>>,
+): WorkflowsOutboxEvent[] {
+  const events: WorkflowsOutboxEvent[] = [];
+  if (admission.supersededClaim !== null) {
+    events.push({
+      type: WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
+      payload: {
+        projectId: admission.claim.projectId,
+        claimId: admission.supersededClaim.id,
+        workflowRunId: admission.supersededClaim.workflowRunId,
+        workflowRunAttemptId: admission.supersededClaim.workflowRunAttemptId,
+        supersededByClaimId: admission.claim.id,
+        supersededByWorkflowRunId: admission.claim.workflowRunId,
+        supersededByWorkflowRunAttemptId: admission.claim.workflowRunAttemptId,
+      },
+    });
+  }
+  if (admission.holderClaim !== null && admission.holderCancellationJustRequested) {
+    events.push({
+      type: WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
+      payload: {
+        projectId: admission.claim.projectId,
+        claimId: admission.holderClaim.id,
+        workflowRunId: admission.holderClaim.workflowRunId,
+        workflowRunAttemptId: admission.holderClaim.workflowRunAttemptId,
+        requestingClaimId: admission.claim.id,
+        requestingWorkflowRunId: admission.claim.workflowRunId,
+        requestingWorkflowRunAttemptId: admission.claim.workflowRunAttemptId,
+      },
+    });
+  }
+  return events;
 }
 
 function logMaterializedJobDiagnostics(
@@ -474,6 +631,7 @@ function referencedVariables(
   const references: ReferencedVariable[] = [];
   collectWorkflowPredicateVariableReferences(model, references);
   collectFieldVariableReferences(model.runName, references, {field: 'workflow.run_name'});
+  collectFieldVariableReferences(model.concurrency?.group, references, {field: 'env'});
   if (jobs.length > 0) collectTemplateVariableReferences(model.templates?.env, references);
   for (const job of jobs) collectJobVariableReferences(job, references);
   return references;
