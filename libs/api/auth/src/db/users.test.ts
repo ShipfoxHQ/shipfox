@@ -62,12 +62,28 @@ describe('users db', () => {
   test('rolls back a provisioned user when its signup event cannot be written', async () => {
     const email = emailFor('provision-event-failure');
     const failure = new Error('outbox unavailable');
-    vi.spyOn(outbox, 'writeOutboxEvent').mockRejectedValueOnce(failure);
+    const actualWriteOutboxEvent = outbox.writeOutboxEvent;
+    vi.spyOn(outbox, 'writeOutboxEvent').mockImplementationOnce(async (...args) => {
+      await actualWriteOutboxEvent(...args);
+      throw failure;
+    });
 
     const failedProvision = provisionUser({email, viaInvitation: false});
 
     await expect(failedProvision).rejects.toBe(failure);
-    expect(await findUserByEmail({email})).toBeUndefined();
+    const rolledBackUser = await findUserByEmail({email});
+    const rolledBackEvents = await db()
+      .select()
+      .from(authOutbox)
+      .where(
+        and(
+          eq(authOutbox.eventType, AUTH_USER_SIGNED_UP),
+          sql`${authOutbox.payload}->>'email' = ${email}`,
+        ),
+      );
+
+    expect(rolledBackUser).toBeUndefined();
+    expect(rolledBackEvents).toHaveLength(0);
 
     const user = await provisionUser({email, viaInvitation: false});
     const events = await db()
