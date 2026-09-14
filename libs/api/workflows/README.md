@@ -115,7 +115,7 @@ remain in logs and traces.
 | --- | --- | --- | --- |
 | `workflows_concurrency_claim_outcomes` | Instance | `outcome` | Workflow concurrency admissions by `acquired` or `waiting` outcome. |
 | `workflows_concurrency_waiter_supersessions` | Instance | none | Waiting claims replaced by a newer claim. |
-| `workflows_concurrency_cancellation_outcomes` | Instance | `outcome` | Durable concurrency cancellations by lifecycle stage. `requested` counts committed waiter-superseded and holder-cancellation-requested events. `completed` counts attempts newly moved to `cancelled`; `no_op` counts events for attempts that were already terminal. |
+| `workflows_concurrency_cancellation_outcomes` | Instance | `outcome` | Cancellation event deliveries by lifecycle stage. `requested` counts events committed by run creation. `completed` counts a delivery that newly moves an attempt to `cancelled`. `no_op` counts a delivery that finds the attempt terminal. A retry can record `completed` and later `no_op` for the same event. |
 | `workflows_tool_invocation_duration_ms` | Instance | `provider`, `outcome` | Elapsed time for a claimed tool invocation through its durable result. The histogram uses millisecond units and explicit buckets through 120 seconds. |
 | `workflows_tool_invocation_reclaims` | Instance | `action` | Expired or non-retryable claims handled by the executor. `requeued` means the call advances for another read attempt. `failed` means the invocation is settled as interrupted. |
 | `workflows_next_step_response_size` | Instance | `kind` | Serialized `/steps/next` response size in bytes (`unit: By`) by `step`, `wait`, or `done`; explicit buckets are 1,024, 10,240, 100,000, 256,000, 500,000, 868,928, and 1,000,000 bytes. |

@@ -19,7 +19,6 @@ import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {workflowRuns} from '../schema/workflow-runs.js';
 import {
   cancelWorkflowRun,
-  cancelWorkflowRunAttemptForConcurrency,
   createRerunWorkflowRun,
   createWorkflowRun,
   getFirstJobExecutionByJobId,
@@ -29,6 +28,7 @@ import {
   updateJobStatus,
   updateWorkflowRunStatus,
 } from '../workflow-runs.js';
+import {cancelWorkflowRunAttemptForConcurrencyWithOutcome} from './run-status.js';
 
 describe('workflow run queries', () => {
   let workspaceId: string;
@@ -513,7 +513,7 @@ describe('workflow run queries', () => {
     });
   });
 
-  describe('cancelWorkflowRunAttemptForConcurrency', () => {
+  describe('cancelWorkflowRunAttemptForConcurrencyWithOutcome', () => {
     test('cancels active executions with the supersession reason and is idempotent', async () => {
       const run = await createWorkflowRun({
         workspaceId,
@@ -536,15 +536,21 @@ describe('workflow run queries', () => {
       const [attempt] = await listTestRunAttempts({workflowRunId: run.id, projectId});
       if (!attempt) throw new Error('Expected run attempt');
 
-      const cancelled = await cancelWorkflowRunAttemptForConcurrency({
+      const cancelled = await cancelWorkflowRunAttemptForConcurrencyWithOutcome({
         workflowRunAttemptId: attempt.id,
       });
-      const retry = await cancelWorkflowRunAttemptForConcurrency({
+      const retry = await cancelWorkflowRunAttemptForConcurrencyWithOutcome({
         workflowRunAttemptId: attempt.id,
       });
 
-      expect(cancelled.status).toBe('cancelled');
-      expect(retry).toMatchObject({id: run.id, status: 'cancelled'});
+      expect(cancelled).toMatchObject({
+        changed: true,
+        run: {id: run.id, status: 'cancelled'},
+      });
+      expect(retry).toMatchObject({
+        changed: false,
+        run: {id: run.id, status: 'cancelled'},
+      });
       expect(await getJobsByWorkflowRunId(run.id)).toEqual([
         expect.objectContaining({status: 'cancelled', statusReason: 'concurrency_superseded'}),
       ]);
@@ -574,11 +580,14 @@ describe('workflow run queries', () => {
         expectedVersion: 1,
       });
 
-      const retried = await cancelWorkflowRunAttemptForConcurrency({
+      const retried = await cancelWorkflowRunAttemptForConcurrencyWithOutcome({
         workflowRunAttemptId: attempt.id,
       });
 
-      expect(retried).toMatchObject({id: run.id, status: 'succeeded'});
+      expect(retried).toMatchObject({
+        changed: false,
+        run: {id: run.id, status: 'succeeded'},
+      });
       expect(await runTerminatedEvents(run.id)).toHaveLength(1);
       expect(await runCancelledEvents(run.id)).toHaveLength(0);
     });
