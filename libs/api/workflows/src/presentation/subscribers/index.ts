@@ -7,6 +7,10 @@ export {onJobStepsSettled} from './on-job-steps-settled.js';
 export {onRunnerJobClaimed} from './on-runner-job-claimed.js';
 export {onRunnerJobLeaseExpired} from './on-runner-job-lease-expired.js';
 export {
+  onWorkflowRunConcurrencyHolderCancellationRequested,
+  onWorkflowRunConcurrencyWaiterSuperseded,
+} from './on-workflow-concurrency-cancellation.js';
+export {
   createOnWorkflowRunAttemptCreated,
   onWorkflowRunAttemptCreated,
 } from './on-workflow-run-attempt-created.js';

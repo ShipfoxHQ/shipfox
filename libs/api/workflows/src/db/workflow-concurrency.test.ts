@@ -99,11 +99,9 @@ describe('workflow concurrency claims', () => {
   test('supersedes the current waiter and preserves the holder policy', async () => {
     const projectId = crypto.randomUUID();
     const definitionId = crypto.randomUUID();
-    const runs = await Promise.all([
-      workflowRunFactory.create({projectId, definitionId}),
-      workflowRunFactory.create({projectId, definitionId}),
-      workflowRunFactory.create({projectId, definitionId}),
-    ]);
+    const runs = await Promise.all(
+      Array.from({length: 4}, () => workflowRunFactory.create({projectId, definitionId})),
+    );
     const attempts = await db()
       .select({workflowRunId: workflowRunAttempts.workflowRunId, id: workflowRunAttempts.id})
       .from(workflowRunAttempts)
@@ -128,12 +126,15 @@ describe('workflow concurrency claims', () => {
     const holder = await admitWorkflowConcurrencyClaim(params(0, false));
     const waiter = await admitWorkflowConcurrencyClaim(params(1, false));
     const replacement = await admitWorkflowConcurrencyClaim(params(2, true));
+    const laterFalseReplacement = await admitWorkflowConcurrencyClaim(params(3, false));
 
     expect(holder.claim.state).toBe('acquired');
     expect(waiter.claim.state).toBe('waiting');
     expect(replacement.claim.state).toBe('waiting');
     expect(replacement.supersededClaim?.id).toBe(waiter.claim.id);
     expect(replacement.holderCancellationRequested).toBe(true);
+    expect(laterFalseReplacement.holderCancellationRequested).toBe(true);
+    expect(laterFalseReplacement.holderCancellationJustRequested).toBe(false);
 
     const [storedHolder] = await db()
       .select()

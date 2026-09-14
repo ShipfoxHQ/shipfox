@@ -19,6 +19,8 @@ import {
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+  WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
+  WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
   type WorkflowsEventMapDto,
@@ -41,6 +43,8 @@ import {
   onRunnerJobLeaseExpired,
   onStepAttemptTerminatedFailureAnnotation,
   onWorkflowRunCancelled,
+  onWorkflowRunConcurrencyHolderCancellationRequested,
+  onWorkflowRunConcurrencyWaiterSuperseded,
 } from '#presentation/index.js';
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
@@ -166,6 +170,14 @@ export function createWorkflowsModule({
     subscribers: [
       subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, createOnWorkflowRunAttemptCreated(agent)),
       subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
+      subscriber(
+        WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
+        onWorkflowRunConcurrencyWaiterSuperseded,
+      ),
+      subscriber(
+        WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
+        onWorkflowRunConcurrencyHolderCancellationRequested,
+      ),
       subscriber(WORKFLOWS_JOB_EVENT_DELIVERED, onJobEventDelivered),
       subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
       subscriber(

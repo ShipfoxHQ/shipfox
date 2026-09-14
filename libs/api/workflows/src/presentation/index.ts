@@ -9,4 +9,6 @@ export {
   onStepAttemptTerminatedFailureAnnotation,
   onWorkflowRunAttemptCreated,
   onWorkflowRunCancelled,
+  onWorkflowRunConcurrencyHolderCancellationRequested,
+  onWorkflowRunConcurrencyWaiterSuperseded,
 } from './subscribers/index.js';
