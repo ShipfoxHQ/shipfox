@@ -72,13 +72,12 @@ export type {
   StoreClickUpTokensParams,
 } from '#core/tokens.js';
 export {clickupSecretsNamespace, createClickUpTokenStore} from '#core/tokens.js';
-export {handleClickUpWebhook} from '#core/webhook.js';
 export type {
   ClickUpWebhookProcessor,
   CreateClickUpWebhookProcessorOptions,
 } from '#core/webhook-processor.js';
 export {createClickUpWebhookProcessor} from '#core/webhook-processor.js';
-export {CLICKUP_WEBHOOK_ROUTE_PREFIX, clickupWebhookUrl} from '#core/webhook-url.js';
+export {CLICKUP_WEBHOOK_ROUTE_PREFIX} from '#core/webhook-url.js';
 export type {
   ClickUpInstallation,
   ClickUpInstallationLock,
