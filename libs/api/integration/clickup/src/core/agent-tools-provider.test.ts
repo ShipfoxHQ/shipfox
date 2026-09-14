@@ -124,7 +124,7 @@ describe('ClickUpAgentToolsProvider', () => {
     });
   });
 
-  it('builds the filtered team task request without accepting a caller team id', async () => {
+  it('builds the filtered team task request with the configured team id', async () => {
     const options = providerOptions();
     const session = await openSession(
       options,
@@ -137,7 +137,7 @@ describe('ClickUpAgentToolsProvider', () => {
       arguments: {
         list_ids: ['list-1'],
         statuses: ['open'],
-        assignees: ['user-1'],
+        assignees: [101],
         tags: ['shipfox'],
         include_closed: false,
         subtasks: true,
@@ -145,7 +145,6 @@ describe('ClickUpAgentToolsProvider', () => {
         due_date_lt: 1800000000000,
         order_by: 'updated',
         page: 2,
-        team_id: 'caller-team',
       },
     });
 
@@ -157,7 +156,7 @@ describe('ClickUpAgentToolsProvider', () => {
       query: {
         'list_ids[]': ['list-1'],
         'statuses[]': ['open'],
-        'assignees[]': ['user-1'],
+        'assignees[]': [101],
         'tags[]': ['shipfox'],
         include_closed: false,
         subtasks: true,
@@ -192,7 +191,7 @@ describe('ClickUpAgentToolsProvider', () => {
         list_id: 'list-1',
         name: 'New task',
         markdown_content: '**Details**',
-        assignees: ['user-1'],
+        assignees: [101],
         tags: ['agent'],
         status: 'open',
         priority: 2,
@@ -211,7 +210,7 @@ describe('ClickUpAgentToolsProvider', () => {
         status: 'closed',
         priority: 4,
         due_date: 1800000000000,
-        assignees: {add: ['user-2'], rem: ['user-1']},
+        assignees: {add: [102], rem: [101]},
       },
     });
     await addCommentSession.call({
@@ -239,7 +238,7 @@ describe('ClickUpAgentToolsProvider', () => {
         body: {
           name: 'New task',
           markdown_content: '**Details**',
-          assignees: ['user-1'],
+          assignees: [101],
           tags: ['agent'],
           status: 'open',
           priority: 2,
@@ -262,7 +261,7 @@ describe('ClickUpAgentToolsProvider', () => {
           status: 'closed',
           priority: 4,
           due_date: 1800000000000,
-          assignees: {add: ['user-2'], rem: ['user-1']},
+          assignees: {add: [102], rem: [101]},
         },
       }),
     );
@@ -312,7 +311,7 @@ describe('ClickUpAgentToolsProvider', () => {
     ).resolves.toMatchObject({
       isError: true,
       content: [{type: 'text', text: 'Invalid task (TASK_001)'}],
-      structuredContent: {code: 'provider-rejected'},
+      structuredContent: {code: 'provider-rejected', status: 400},
     });
 
     const notFoundOptions = providerOptions(async () => ({status: 404, body: undefined}));
@@ -322,7 +321,7 @@ describe('ClickUpAgentToolsProvider', () => {
     ).resolves.toMatchObject({
       isError: true,
       content: [{type: 'text', text: 'ClickUp resource was not found'}],
-      structuredContent: {code: 'provider-rejected'},
+      structuredContent: {code: 'provider-rejected', status: 404},
     });
   });
 
@@ -342,6 +341,38 @@ describe('ClickUpAgentToolsProvider', () => {
       content: [{type: 'text', text: 'Missing required parameter: task_id'}],
       structuredContent: {code: 'invalid-request'},
     });
+    expect(options.clickup.request).not.toHaveBeenCalled();
+  });
+
+  it('rejects schema-invalid arguments before sending a request', async () => {
+    const options = providerOptions();
+    const cases = [
+      ['get_task', {task_id: null}, 'Parameter task_id must be a string'],
+      [
+        'get_task',
+        {task_id: 'DEV-123', custom_task_id: 'true'},
+        'Parameter custom_task_id must be a boolean',
+      ],
+      ['search_tasks', {page: 'first'}, 'Parameter page must be an integer'],
+      ['search_tasks', {list_ids: 'list-1'}, 'Parameter list_ids must be an array'],
+      ['search_tasks', {list_ids: [1]}, 'Parameter list_ids[0] must be a string'],
+      ['search_tasks', {team_id: 'caller-team'}, 'Unknown parameter: team_id'],
+      [
+        'create_task',
+        {list_id: 'list-1', name: 'Task', notify_all: true},
+        'Parameter notify_all must be false',
+      ],
+    ] as const;
+
+    for (const [toolId, arguments_, message] of cases) {
+      const session = await openSession(options, [toolId]);
+
+      await expect(session.call({toolId, arguments: arguments_})).resolves.toEqual({
+        isError: true,
+        content: [{type: 'text', text: message}],
+        structuredContent: {code: 'invalid-request'},
+      });
+    }
     expect(options.clickup.request).not.toHaveBeenCalled();
   });
 });

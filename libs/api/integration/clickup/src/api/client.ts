@@ -47,6 +47,7 @@ async function requestClickUpRest(
         headers: {authorization: `Bearer ${input.accessToken}`},
         ...(input.query === undefined ? {} : {searchParams: clickUpQueryParams(input.query)}),
         ...(input.body === undefined ? {} : {json: input.body}),
+        retry: 0,
         timeout: CLICKUP_API_TIMEOUT_MS,
       });
       return {status: response.status, body: await readClickUpResponseBody(response)};

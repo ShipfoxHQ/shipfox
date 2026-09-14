@@ -87,9 +87,9 @@ async function executeClickUpToolCall(params: {
     return clickupToolError(`Unknown ClickUp tool: ${params.call.toolId}`, {
       code: 'invalid-request',
     });
-  const missingParameter = missingRequiredParameter(tool, params.call.arguments);
-  if (missingParameter)
-    return clickupToolError(`Missing required parameter: ${missingParameter}`, {
+  const validationError = validateClickUpToolArguments(tool, params.call.arguments);
+  if (validationError)
+    return clickupToolError(validationError, {
       code: 'invalid-request',
     });
 
@@ -138,7 +138,7 @@ function mapClickUpToolResponse(response: ClickUpAgentToolResponse): ClickUpTool
         response.body,
         response.status === 404 ? 'ClickUp resource was not found' : 'ClickUp request was rejected',
       ),
-      {code: 'provider-rejected'},
+      {code: 'provider-rejected', status: response.status},
     );
   }
   if (response.status < 200 || response.status >= 300) {
@@ -147,15 +147,81 @@ function mapClickUpToolResponse(response: ClickUpAgentToolResponse): ClickUpTool
   return clickupToolResult(response.body, response.status);
 }
 
-function missingRequiredParameter(
+function validateClickUpToolArguments(
   tool: AgentToolCatalogEntry<'read' | 'write'>,
   args: Record<string, unknown>,
 ): string | undefined {
   const required = tool.inputSchema.required;
-  if (!Array.isArray(required)) return undefined;
-  return required.find(
-    (parameter) => typeof parameter === 'string' && args[parameter] === undefined,
-  );
+  if (Array.isArray(required)) {
+    const missingParameter = required.find(
+      (parameter) => typeof parameter === 'string' && args[parameter] === undefined,
+    );
+    if (typeof missingParameter === 'string') {
+      return `Missing required parameter: ${missingParameter}`;
+    }
+  }
+
+  const properties = tool.inputSchema.properties;
+  if (!isRecord(properties)) return undefined;
+  for (const [name, value] of Object.entries(args)) {
+    const schema = properties[name];
+    if (!isRecord(schema)) {
+      if (tool.inputSchema.additionalProperties === false) return `Unknown parameter: ${name}`;
+      continue;
+    }
+    const validationError = validateClickUpArgument(name, value, schema);
+    if (validationError !== undefined) return validationError;
+  }
+  return undefined;
+}
+
+function validateClickUpArgument(
+  name: string,
+  value: unknown,
+  schema: Record<string, unknown>,
+): string | undefined {
+  const typeError = clickUpArgumentTypeError(name, value, schema);
+  if (typeError !== undefined) return typeError;
+  if ('const' in schema && value !== schema.const) {
+    return `Parameter ${name} must be ${JSON.stringify(schema.const)}`;
+  }
+  return undefined;
+}
+
+function clickUpArgumentTypeError(
+  name: string,
+  value: unknown,
+  schema: Record<string, unknown>,
+): string | undefined {
+  if (schema.type === 'string') {
+    return typeof value === 'string' ? undefined : `Parameter ${name} must be a string`;
+  }
+  if (schema.type === 'boolean') {
+    return typeof value === 'boolean' ? undefined : `Parameter ${name} must be a boolean`;
+  }
+  if (schema.type === 'integer') {
+    return typeof value === 'number' && Number.isSafeInteger(value)
+      ? undefined
+      : `Parameter ${name} must be an integer`;
+  }
+  if (schema.type === 'object') {
+    return isRecord(value) ? undefined : `Parameter ${name} must be an object`;
+  }
+  return schema.type === 'array' ? clickUpArrayArgumentError(name, value, schema.items) : undefined;
+}
+
+function clickUpArrayArgumentError(
+  name: string,
+  value: unknown,
+  items: unknown,
+): string | undefined {
+  if (!Array.isArray(value)) return `Parameter ${name} must be an array`;
+  if (!isRecord(items)) return undefined;
+  for (const [index, item] of value.entries()) {
+    const validationError = validateClickUpArgument(`${name}[${index}]`, item, items);
+    if (validationError !== undefined) return validationError;
+  }
+  return undefined;
 }
 
 function clickupToolResult(body: unknown, status: number): ClickUpToolCallResult {

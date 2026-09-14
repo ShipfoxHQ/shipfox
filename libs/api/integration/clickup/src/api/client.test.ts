@@ -67,10 +67,11 @@ describe('ClickUp agent-tools REST client', () => {
     expect(result).toEqual({status: 200, body: {id: 'task-1', name: 'Task'}});
     const [url, options] = mocks.request.mock.calls[0] as [
       string,
-      {headers: Record<string, string>; searchParams: URLSearchParams},
+      {headers: Record<string, string>; retry: number; searchParams: URLSearchParams},
     ];
     expect(url).toBe(`${config.CLICKUP_API_BASE_URL}/api/v2/team/team-1/task`);
     expect(options.headers).toEqual({authorization: 'Bearer access-token'});
+    expect(options.retry).toBe(0);
     expect([...options.searchParams.entries()]).toEqual([
       ['list_ids[]', 'list-1'],
       ['list_ids[]', 'list-2'],
@@ -112,6 +113,28 @@ describe('ClickUp agent-tools REST client', () => {
     await expect(result).rejects.toMatchObject({
       reason,
     } satisfies Partial<ClickUpIntegrationProviderError>);
+  });
+
+  it('leaves provider retry policy to the tool executor', async () => {
+    mocks.request.mockRejectedValue(
+      new HTTPError(
+        new Response(null, {status: 500}),
+        new Request('https://clickup.example.test'),
+        {} as never,
+      ),
+    );
+
+    const result = createClickUpAgentToolsClient().request({
+      accessToken: 'access-token',
+      teamId: 'team-1',
+      method: 'PUT',
+      path: '/task/task-1',
+      operation: 'update_task',
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    expect(mocks.request.mock.calls[0]?.[1]).toMatchObject({retry: 0});
   });
 
   it('maps rate limits from the provider reset timestamp', async () => {
