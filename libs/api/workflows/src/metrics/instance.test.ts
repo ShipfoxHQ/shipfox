@@ -78,6 +78,28 @@ describe('workflow concurrency metrics', () => {
     });
     expect(counterAdd('workflows_concurrency_waiter_supersessions')).toHaveBeenCalledWith(1);
   });
+
+  test('records cancellation outcomes without entity labels', () => {
+    metrics.recordWorkflowConcurrencyCancellationOutcome('requested', 2);
+    metrics.recordWorkflowConcurrencyCancellationOutcome('completed');
+    metrics.recordWorkflowConcurrencyCancellationOutcome('no_op');
+
+    expect(counterAdd('workflows_concurrency_cancellation_outcomes')).toHaveBeenNthCalledWith(
+      1,
+      2,
+      {outcome: 'requested'},
+    );
+    expect(counterAdd('workflows_concurrency_cancellation_outcomes')).toHaveBeenNthCalledWith(
+      2,
+      1,
+      {outcome: 'completed'},
+    );
+    expect(counterAdd('workflows_concurrency_cancellation_outcomes')).toHaveBeenNthCalledWith(
+      3,
+      1,
+      {outcome: 'no_op'},
+    );
+  });
 });
 
 describe('workflow run status metrics', () => {

@@ -26,6 +26,12 @@ const concurrencyWaiterSupersededCount = meter.createCounter<Record<string, neve
   {description: 'Workflow concurrency waiters replaced by a newer claim'},
 );
 
+const concurrencyCancellationOutcomeCount = meter.createCounter<{
+  outcome: 'requested' | 'completed' | 'no_op';
+}>('workflows_concurrency_cancellation_outcomes', {
+  description: 'Workflow concurrency cancellation requests by bounded outcome',
+});
+
 const displayNameResolutionDegradedCount = meter.createCounter<{
   field: 'workflow.run_name' | 'job.execution_name';
   cause: 'missing_value' | 'evaluation_error' | 'empty_value' | 'sanitization';
@@ -241,6 +247,13 @@ export function recordWorkflowConcurrencyClaimOutcome(outcome: 'acquired' | 'wai
 
 export function recordWorkflowConcurrencyWaiterSuperseded(): void {
   concurrencyWaiterSupersededCount.add(1);
+}
+
+export function recordWorkflowConcurrencyCancellationOutcome(
+  outcome: 'requested' | 'completed' | 'no_op',
+  count = 1,
+): void {
+  if (count > 0) concurrencyCancellationOutcomeCount.add(count, {outcome});
 }
 
 export function recordWorkflowDisplayNameResolutionDegraded(

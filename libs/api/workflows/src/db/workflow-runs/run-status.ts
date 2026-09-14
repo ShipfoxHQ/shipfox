@@ -48,6 +48,11 @@ export interface CancelWorkflowRunAttemptForConcurrencyParams {
   workflowRunAttemptId: string;
 }
 
+export interface CancelWorkflowRunAttemptForConcurrencyResult {
+  run: WorkflowRun;
+  changed: boolean;
+}
+
 export interface FailWorkflowRunAsTimedOutParams {
   runAttemptId: string;
 }
@@ -361,6 +366,12 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
 export async function cancelWorkflowRunAttemptForConcurrency(
   params: CancelWorkflowRunAttemptForConcurrencyParams,
 ): Promise<WorkflowRun> {
+  return (await cancelWorkflowRunAttemptForConcurrencyWithOutcome(params)).run;
+}
+
+export async function cancelWorkflowRunAttemptForConcurrencyWithOutcome(
+  params: CancelWorkflowRunAttemptForConcurrencyParams,
+): Promise<CancelWorkflowRunAttemptForConcurrencyResult> {
   const result = await db().transaction(async (tx) => {
     const [attemptReference] = await tx
       .select()
@@ -413,7 +424,7 @@ export async function cancelWorkflowRunAttemptForConcurrency(
     );
   }
 
-  return result.run;
+  return result;
 }
 
 export interface UpdateWorkflowRunStatusParams {

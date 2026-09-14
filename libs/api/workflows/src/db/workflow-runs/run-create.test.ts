@@ -12,6 +12,7 @@ import {
   type WorkflowSourceSnapshotTooLargeError,
 } from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
+import * as workflowMetrics from '#metrics/instance.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
@@ -404,6 +405,33 @@ describe('workflow run queries', () => {
           .where(eq(workflowConcurrencyClaims.projectId, projectId))
           .orderBy(workflowConcurrencyClaims.generation),
       ).resolves.toEqual([{state: 'acquired'}, {state: 'waiting'}]);
+    });
+
+    test('records committed concurrency cancellation requests by event count', async () => {
+      const cancellationMetric = vi.spyOn(
+        workflowMetrics,
+        'recordWorkflowConcurrencyCancellationOutcome',
+      );
+      const createRun = (cancelInProgress: boolean) =>
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: workflowModel({concurrency: {group: 'deploy', cancelInProgress}}),
+          triggerPayload: {
+            source: 'manual',
+            event: 'fire',
+            subscriptionId: crypto.randomUUID(),
+            userId: crypto.randomUUID(),
+          },
+        });
+
+      await createRun(false);
+      await createRun(false);
+      await createRun(true);
+
+      expect(cancellationMetric).toHaveBeenCalledOnce();
+      expect(cancellationMetric).toHaveBeenCalledWith('requested', 2);
     });
 
     test('returns an idempotent trigger without changing its claim', async () => {
