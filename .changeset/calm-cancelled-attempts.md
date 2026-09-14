@@ -2,4 +2,4 @@
 "@shipfox/api-workflows": patch
 ---
 
-Cancels workflow run attempts that have been superseded by a newer run.
+Cancels superseded workflow run attempts and active concurrency holders requested by newer cancel-in-progress runs.

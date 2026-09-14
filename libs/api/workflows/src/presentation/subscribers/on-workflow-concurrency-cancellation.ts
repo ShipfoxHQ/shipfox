@@ -25,7 +25,6 @@ export async function onWorkflowRunConcurrencyHolderCancellationRequested(
 async function cancelSupersededAttempt(
   payload: WorkflowConcurrencyCancellationEvent,
 ): Promise<void> {
-  recordWorkflowConcurrencyCancellationOutcome('requested');
   const result = await cancelWorkflowRunAttemptForConcurrencyWithOutcome({
     workflowRunAttemptId: payload.workflowRunAttemptId,
   });

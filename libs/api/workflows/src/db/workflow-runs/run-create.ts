@@ -51,6 +51,7 @@ import {
   materializeWorkflowRunJobs,
 } from '#core/workflow-run-creation.js';
 import {
+  recordWorkflowConcurrencyCancellationOutcome,
   recordWorkflowDisplayNameResolutionDegraded,
   recordWorkflowRunCreated,
 } from '#metrics/instance.js';
@@ -128,6 +129,12 @@ export async function createWorkflowRun(
 
   if (result.created && result.concurrencyAdmission !== undefined) {
     recordWorkflowConcurrencyAdmissionMetrics(result.concurrencyAdmission);
+    const cancellationRequestCount =
+      Number(result.concurrencyAdmission.supersededClaim !== null) +
+      Number(result.concurrencyAdmission.holderCancellationJustRequested);
+    if (cancellationRequestCount > 0) {
+      recordWorkflowConcurrencyCancellationOutcome('requested', cancellationRequestCount);
+    }
   }
 
   if (result.created && result.nameDegradation !== undefined) {

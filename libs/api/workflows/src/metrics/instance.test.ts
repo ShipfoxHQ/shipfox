@@ -80,13 +80,13 @@ describe('workflow concurrency metrics', () => {
   });
 
   test('records cancellation outcomes without entity labels', () => {
-    metrics.recordWorkflowConcurrencyCancellationOutcome('requested');
+    metrics.recordWorkflowConcurrencyCancellationOutcome('requested', 2);
     metrics.recordWorkflowConcurrencyCancellationOutcome('completed');
     metrics.recordWorkflowConcurrencyCancellationOutcome('no_op');
 
     expect(counterAdd('workflows_concurrency_cancellation_outcomes')).toHaveBeenNthCalledWith(
       1,
-      1,
+      2,
       {outcome: 'requested'},
     );
     expect(counterAdd('workflows_concurrency_cancellation_outcomes')).toHaveBeenNthCalledWith(

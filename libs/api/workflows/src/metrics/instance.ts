@@ -251,8 +251,9 @@ export function recordWorkflowConcurrencyWaiterSuperseded(): void {
 
 export function recordWorkflowConcurrencyCancellationOutcome(
   outcome: 'requested' | 'completed' | 'no_op',
+  count = 1,
 ): void {
-  concurrencyCancellationOutcomeCount.add(1, {outcome});
+  if (count > 0) concurrencyCancellationOutcomeCount.add(count, {outcome});
 }
 
 export function recordWorkflowDisplayNameResolutionDegraded(

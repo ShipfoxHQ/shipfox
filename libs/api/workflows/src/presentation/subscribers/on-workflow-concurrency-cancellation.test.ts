@@ -70,8 +70,7 @@ async function assertCancellation<T extends CancellationPayload>(
     workflowRunAttemptId: payload.workflowRunAttemptId,
     projectId: payload.projectId,
   });
-  expect(recordCancellationOutcomeMock).toHaveBeenNthCalledWith(1, 'requested');
-  expect(recordCancellationOutcomeMock).toHaveBeenNthCalledWith(2, 'completed');
+  expect(recordCancellationOutcomeMock).toHaveBeenCalledWith('completed');
   expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(
     signalCancellationMock.mock.invocationCallOrder[0] as number,
   );
@@ -98,8 +97,7 @@ describe('onWorkflowRunConcurrencyWaiterSuperseded', () => {
     await onWorkflowRunConcurrencyWaiterSuperseded(buildPayload());
 
     expect(signalCancellationMock).not.toHaveBeenCalled();
-    expect(recordCancellationOutcomeMock).toHaveBeenNthCalledWith(1, 'requested');
-    expect(recordCancellationOutcomeMock).toHaveBeenNthCalledWith(2, 'no_op');
+    expect(recordCancellationOutcomeMock).toHaveBeenCalledWith('no_op');
   });
 });
 
@@ -119,7 +117,6 @@ describe('onWorkflowRunConcurrencyHolderCancellationRequested', () => {
     await onWorkflowRunConcurrencyHolderCancellationRequested(buildHolderCancellationPayload());
 
     expect(signalCancellationMock).not.toHaveBeenCalled();
-    expect(recordCancellationOutcomeMock).toHaveBeenNthCalledWith(1, 'requested');
-    expect(recordCancellationOutcomeMock).toHaveBeenNthCalledWith(2, 'no_op');
+    expect(recordCancellationOutcomeMock).toHaveBeenCalledWith('no_op');
   });
 });
