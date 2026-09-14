@@ -10,6 +10,7 @@
 - **Amended by:** [ADR 0013: Workspace setup composition seams](0013-workspace-setup-composition-seams.md)
 - **Amended by:** [ADR 0014: Admin user impersonation](0014-admin-user-impersonation.md)
 - **Amended by:** [ADR 0015: Usage context and application seams](0015-usage-context-and-application-seams.md)
+- **Amended by:** [ADR 0018: Client analytics subject context](0018-client-analytics-subject-context.md)
 
 ## Context
 

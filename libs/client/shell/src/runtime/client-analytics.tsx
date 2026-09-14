@@ -25,10 +25,11 @@ export interface ClientAnalyticsContext {
 }
 
 /**
- * Application-provided UI analytics. Call `capture` from an effect or event
- * handler, not during render. The provider isolates synchronous and
- * asynchronous implementation failures. The optional context argument is
- * additive so existing adapters that accept two arguments remain compatible.
+ * Application-provided UI analytics. Call `capture` from an event handler or
+ * `useEffect`, not during render or `useLayoutEffect`. The provider isolates
+ * synchronous and asynchronous implementation failures. The optional context
+ * argument is additive so existing adapters that accept two arguments remain
+ * compatible.
  */
 export interface ClientAnalytics {
   capture(
