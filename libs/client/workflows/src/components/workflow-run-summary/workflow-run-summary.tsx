@@ -140,7 +140,12 @@ export function WorkflowRunSummary({
               rerunPending={rerunPending}
               onRerun={onRerun}
             />
-            <RunContextPanel run={run} usage={usage} />
+            <RunContextPanel
+              run={run}
+              usage={usage}
+              workspaceSlug={workspaceSlug}
+              projectSlug={projectSlug}
+            />
           </div>
 
           <div className="col-span-2 row-start-2 flex min-w-0 flex-nowrap items-center gap-cluster overflow-hidden text-foreground-neutral-subtle max-[480px]:col-span-1 max-[480px]:row-start-auto max-[480px]:flex-wrap max-[480px]:overflow-visible">

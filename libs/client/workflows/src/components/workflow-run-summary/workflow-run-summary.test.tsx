@@ -66,6 +66,15 @@ describe('WorkflowRunSummary', () => {
     ).not.toBeInTheDocument();
   });
 
+  test('presents a waiting attempt as Waiting rather than Running', async () => {
+    renderSummary({status: 'waiting'});
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getAllByText('Waiting')).not.toHaveLength(0);
+    expect(within(summary).queryByText('Running')).not.toBeInTheDocument();
+  });
+
   test('omits the run number before the server assigns one', async () => {
     const run = {...workflowRunOverview({workflow_name: 'CI'}), number: null};
     render(<WorkflowRunSummary run={run} />);

@@ -144,6 +144,44 @@ describe('workflow run API hooks', () => {
     expect(cached?.pages[0]).toHaveProperty('nextCursor', 'cursor-2');
   });
 
+  test('maps concurrency details and related attempt identities onto the selected attempt', () => {
+    const relatedRunId = '77777777-7777-4777-8777-777777777777';
+    const relatedAttemptId = '88888888-8888-4888-8888-888888888888';
+
+    const page = toWorkflowRunListPage(
+      workflowRunListResponseDto({
+        runs: [
+          workflowRunDto({
+            id: RUN_ID,
+            status: 'waiting',
+            concurrency: {
+              display_group: 'deploy-production',
+              scope: 'project',
+              state: 'waiting',
+              generation: 4,
+              policy: {cancel_in_progress: false},
+              affected_attempts: [
+                {
+                  workflow_run_id: relatedRunId,
+                  workflow_run_attempt_id: relatedAttemptId,
+                },
+              ],
+            },
+          }),
+        ],
+      }),
+    );
+
+    expect(page.runs[0]?.runAttempt.concurrency).toEqual({
+      displayGroup: 'deploy-production',
+      scope: 'project',
+      state: 'waiting',
+      generation: 4,
+      cancelInProgress: false,
+      affectedAttempts: [{workflowRunId: relatedRunId, workflowRunAttemptId: relatedAttemptId}],
+    });
+  });
+
   test('maps lazy step attempt details to authored and resolved troubleshooting data', () => {
     const dto: StepAttemptDetailResponseDto = {
       workflow_run_id: RUN_ID,

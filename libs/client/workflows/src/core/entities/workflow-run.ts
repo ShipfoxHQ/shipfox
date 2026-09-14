@@ -18,6 +18,27 @@ export type WorkflowRunStatus =
 export type WorkflowRunRerunMode = 'all' | 'failed';
 export type WorkflowStatus = WorkflowRunStatus | (typeof WORKFLOW_JOB_STATUSES)[number];
 
+export interface WorkflowRunAttemptIdentity {
+  workflowRunId: string;
+  workflowRunAttemptId: string;
+}
+
+export interface WorkflowRunConcurrency {
+  displayGroup: string;
+  scope: 'workflow' | 'project';
+  state: 'acquired' | 'waiting' | 'superseded' | 'released';
+  generation: number;
+  cancelInProgress: boolean;
+  affectedAttempts: WorkflowRunAttemptIdentity[];
+}
+
+export interface WorkflowRunAttemptReference extends WorkflowRunAttemptIdentity {
+  attempt: number;
+  number: number | null;
+  name: string;
+  workflowName: string;
+}
+
 /** Where a run's definition came from: the synced default branch, or a dev run from a ref. */
 export const WORKFLOW_RUN_ORIGINS = ['synced', 'dev'] as const;
 
