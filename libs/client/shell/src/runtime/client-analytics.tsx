@@ -1,5 +1,5 @@
 import type {PropsWithChildren} from 'react';
-import {createContext, useContext, useMemo, useRef} from 'react';
+import {createContext, useContext, useLayoutEffect, useMemo, useRef} from 'react';
 import type {UserIdentity} from '#core/session.js';
 import {useMaybeActiveWorkspace} from './active-workspace.js';
 import {useAuthState} from './auth.js';
@@ -85,7 +85,9 @@ export function ClientAnalyticsBoundary({children}: PropsWithChildren) {
     };
   }, [auth.isAuthenticated, auth.user, workspace]);
   const latestContext = useRef<ClientAnalyticsContext>(context);
-  latestContext.current = context;
+  useLayoutEffect(() => {
+    latestContext.current = context;
+  }, [context]);
   const contextualAnalytics = useMemo(
     () => createContextualClientAnalytics(analytics, latestContext),
     [analytics],
