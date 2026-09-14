@@ -10,6 +10,7 @@ import {
 } from '@shipfox/api-auth-context';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -106,6 +107,33 @@ describe('agent-access MCP routes', () => {
         ]),
       );
       expect(toolNames).not.toContain('get_step_logs');
+    } finally {
+      await client.close();
+    }
+  });
+
+  test('keeps bounded log reads when download dependencies are not configured', async () => {
+    const app = await createTestApp(createAgentAccessRateLimiter(), {
+      projects: {} as unknown as ProjectsModuleClient,
+      definitions: {} as unknown as DefinitionsInterModuleClient,
+      workflows: {} as unknown as WorkflowsModuleClient,
+      annotations: {} as unknown as AnnotationsInterModuleClient,
+      triggers: {} as unknown as TriggersInterModuleClient,
+      logs: {} as unknown as LogsModuleClient,
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(new URL('/mcp', address), {
+      requestInit: {headers: {authorization: 'Bearer valid-token'}},
+    });
+
+    try {
+      await client.connect(transport as unknown as Transport);
+      const tools = await client.listTools();
+      const toolNames = tools.tools.map((tool) => tool.name);
+
+      expect(toolNames).toContain('get_step_logs');
+      expect(toolNames).not.toContain('get_step_log_download');
     } finally {
       await client.close();
     }

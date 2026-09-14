@@ -11,7 +11,7 @@ const runId = '00000000-0000-4000-8000-000000000001';
 const stepId = '00000000-0000-4000-8000-000000000002';
 
 describe('log Agent Access schemas', () => {
-  test('requires total_lines only for compacted downloads', () => {
+  test('allows total_lines only for compacted downloads when known', () => {
     const base = {
       step_id: stepId,
       attempt: 1,
@@ -28,13 +28,14 @@ describe('log Agent Access schemas', () => {
     expect(getStepLogDownloadResultSchema.safeParse({...base, compacted: false}).success).toBe(
       true,
     );
-    expect(getStepLogDownloadResultSchema.safeParse({...base, compacted: true}).success).toBe(
-      false,
-    );
+    expect(getStepLogDownloadResultSchema.safeParse({...base, compacted: true}).success).toBe(true);
     expect(
       getStepLogDownloadResultSchema.safeParse({...base, compacted: true, total_lines: 2}).success,
     ).toBe(true);
-    expect(getStepLogDownloadResultJsonSchema.oneOf[1].required).toContain('total_lines');
+    expect(getStepLogDownloadResultJsonSchema.oneOf[1].required).not.toContain('total_lines');
+    expect(
+      getStepLogDownloadResultSchema.safeParse({...base, compacted: false, total_lines: 2}).success,
+    ).toBe(false);
   });
 
   test('accepts unavailable aggregate sections in runtime and JSON schemas', () => {

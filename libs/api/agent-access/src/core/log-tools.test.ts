@@ -22,8 +22,13 @@ import {createTestWorkflowsClient} from '#test/fixtures/workflows-client.js';
 import {createAgentAccessLogTools} from './log-tools.js';
 
 const recordAgentAccessLogSectionUnavailable = vi.hoisted(() => vi.fn());
+const auditLog = vi.hoisted(() => ({debug: vi.fn(), info: vi.fn()}));
 
 vi.mock('#metrics/index.js', () => ({recordAgentAccessLogSectionUnavailable}));
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => auditLog,
+}));
 
 const workspaceId = uuid(1);
 const runId = uuid(2);
@@ -40,6 +45,8 @@ const context: AgentAccessContext = {
 describe('bounded step-log agent-access tool', () => {
   beforeEach(() => {
     recordAgentAccessLogSectionUnavailable.mockReset();
+    auditLog.debug.mockReset();
+    auditLog.info.mockReset();
   });
 
   test('validates the mutually exclusive direct and failed-only input modes', () => {
@@ -141,6 +148,18 @@ describe('bounded step-log agent-access tool', () => {
       clientId: context.credential.clientId,
       streamId: uuid(50),
     });
+    expect(auditLog.info).toHaveBeenCalledWith(
+      {
+        tool: 'get_step_log_download',
+        userId: context.userId,
+        workspaceId,
+        credentialKind: context.credential.kind,
+        credentialId: context.credential.grantId,
+        clientId: context.credential.clientId,
+        streamId: uuid(50),
+      },
+      'Agent-access log download token minted',
+    );
     expect(result).toEqual({
       step_id: stepId,
       attempt: 3,
@@ -193,6 +212,33 @@ describe('bounded step-log agent-access tool', () => {
     expect(mocks.auth.mintAgentLogDownloadToken).toHaveBeenCalledWith(
       expect.objectContaining({streamId: uuid(51)}),
     );
+    expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  test('supports legacy compacted downloads without a line count', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(2));
+    mocks.logs.describeStepLogStream.mockResolvedValue({
+      streamId: uuid(52),
+      state: 'closed',
+      compacted: true,
+      committedLength: 240,
+      totalBytes: 250,
+      truncated: true,
+    });
+    mocks.auth.mintAgentLogDownloadToken.mockResolvedValue({
+      token: 'legacy-cold-download-token',
+      expiresAt: '2026-09-11T10:05:00.000Z',
+    });
+
+    const response = await downloadTool(mocks).execute({
+      context,
+      arguments: {step_id: stepId, attempt: 2},
+    });
+    const result = downloadSuccess(response);
+
+    expect(result).toMatchObject({state: 'closed', compacted: true, truncated: true});
+    expect(result).not.toHaveProperty('total_lines');
     expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
   });
 

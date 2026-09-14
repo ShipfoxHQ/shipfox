@@ -151,6 +151,18 @@ function createGetStepLogDownloadTool({
         clientId: context.credential.clientId,
         streamId: stream.streamId,
       });
+      logger().info(
+        {
+          tool: 'get_step_log_download',
+          userId: context.userId,
+          workspaceId: context.workspaceId,
+          credentialKind: context.credential.kind,
+          credentialId: context.credential.grantId,
+          clientId: context.credential.clientId,
+          streamId: stream.streamId,
+        },
+        'Agent-access log download token minted',
+      );
       const result = {
         step_id: detail.step_id,
         attempt: detail.attempt,

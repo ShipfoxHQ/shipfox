@@ -143,13 +143,6 @@ export const getStepLogDownloadResultSchema = z
         message: 'Compacted streams must be closed',
       });
     }
-    if (value.compacted && value.total_lines === undefined) {
-      context.addIssue({
-        code: 'custom',
-        path: ['total_lines'],
-        message: 'Compacted streams must include total_lines',
-      });
-    }
     if (!value.compacted && value.total_lines !== undefined) {
       context.addIssue({
         code: 'custom',
@@ -323,7 +316,6 @@ export const getStepLogDownloadResultJsonSchema = {
         'state',
         'compacted',
         'total_bytes',
-        'total_lines',
         'truncated',
       ],
     },
