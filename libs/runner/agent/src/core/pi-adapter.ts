@@ -480,6 +480,11 @@ function observeProviderRetryEvent(
     event.type === 'auto_retry_start' &&
     event.errorMessage === PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE
   ) {
+    if (!tracker.active) {
+      tracker.retries = 0;
+      tracker.maxRetries = 3;
+      tracker.outcomeRecorded = false;
+    }
     tracker.active = true;
     tracker.retries = Math.min(3, Math.max(tracker.retries, event.attempt));
     tracker.maxRetries = Math.min(3, Math.max(0, event.maxAttempts));
@@ -556,8 +561,9 @@ function providerStreamFailureDetails(tracker: ProviderRetryTracker): {
   if (!tracker.outcomeRecorded) {
     recordProviderRetryOutcome(tracker, 'exhausted');
   }
+  const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
   return {
-    message: `The model response stream was interrupted after ${attemptCount} attempts.`,
+    message: `The model response stream was interrupted after ${attemptCount} ${attemptLabel}.`,
     code: PROVIDER_STREAM_INTERRUPTED_CODE,
     retryable: true,
     attemptCount,

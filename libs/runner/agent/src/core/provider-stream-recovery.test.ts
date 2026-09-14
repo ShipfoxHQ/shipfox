@@ -1,5 +1,6 @@
 import {
   type AssistantMessage,
+  type AssistantMessageEventStream,
   type Context,
   createAssistantMessageEventStream,
   type Model,
@@ -34,7 +35,7 @@ function assistantMessage(errorMessage: string): AssistantMessage {
     },
     stopReason: 'error',
     errorMessage,
-    timestamp: Date.now(),
+    timestamp: 0,
   };
 }
 
@@ -86,6 +87,30 @@ describe('managed provider stream recovery', () => {
         type: 'error',
         reason: 'error',
         error: assistantMessage(PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE),
+      },
+    ]);
+  });
+
+  it('normalizes an exact interruption thrown by the source stream', async () => {
+    const source = {
+      [Symbol.asyncIterator]: () => ({
+        next: () => Promise.reject(new Error('  Stream error occurred  ')),
+      }),
+    };
+    const stream = wrapManagedProviderStream(
+      () => source as unknown as AssistantMessageEventStream,
+    )(model, context);
+    const events: unknown[] = [];
+    for await (const event of stream) events.push(event);
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        reason: 'error',
+        error: {
+          ...assistantMessage(PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE),
+          timestamp: expect.any(Number),
+        },
       },
     ]);
   });

@@ -73,11 +73,12 @@ async function forwardManagedProviderStream(
       target.push(normalizeManagedProviderEvent(event, model));
     }
   } catch (error) {
-    target.push({
+    const event: AssistantMessageEvent = {
       type: 'error',
       reason: 'error',
       error: failedAssistantMessage(model, error instanceof Error ? error.message : String(error)),
-    });
+    };
+    target.push(normalizeManagedProviderEvent(event, model));
   }
 }
 
