@@ -4,6 +4,7 @@ import {
   executeChild,
   log,
   ParentClosePolicy,
+  patched,
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
@@ -64,11 +65,13 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     acquisitionSignalCount += 1;
   });
 
+  const concurrencyGateEnabled = patched('workflow-run-concurrency-gate');
   const dag = await loadRunAttemptDag(input.runAttemptId);
-  const runStart = await startRunAttempt({
+  const runStart = await startRunAttemptForWorkflow({
     runAttemptId: input.runAttemptId,
     runTimeoutMs: dag.runTimeoutMs,
-    admission: await loadRunAttemptConcurrencyActivity(input.runAttemptId),
+    runVersion: dag.runVersion,
+    concurrencyGateEnabled,
     isCancelRequested: () => cancelRequested,
     isAcquisitionSignaled: () => acquisitionSignalCount > 0,
     consumeAcquisitionSignal: () => {
@@ -123,6 +126,49 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     inFlight.delete(settled.job.key);
     recordRuntimeJobResult(settled.job, progress, settled.result);
   }
+}
+
+async function startRunAttemptForWorkflow(params: {
+  runAttemptId: string;
+  runTimeoutMs: number;
+  runVersion: number;
+  concurrencyGateEnabled: boolean;
+  isCancelRequested: () => boolean;
+  isAcquisitionSignaled: () => boolean;
+  consumeAcquisitionSignal: () => void;
+}): Promise<{runVersion: number; runDeadline: number} | null> {
+  if (!params.concurrencyGateEnabled) {
+    return startLegacyRunAttempt({
+      runAttemptId: params.runAttemptId,
+      runTimeoutMs: params.runTimeoutMs,
+      runVersion: params.runVersion,
+    });
+  }
+
+  return startRunAttempt({
+    runAttemptId: params.runAttemptId,
+    runTimeoutMs: params.runTimeoutMs,
+    admission: await loadRunAttemptConcurrencyActivity(params.runAttemptId),
+    isCancelRequested: params.isCancelRequested,
+    isAcquisitionSignaled: params.isAcquisitionSignaled,
+    consumeAcquisitionSignal: params.consumeAcquisitionSignal,
+  });
+}
+
+async function startLegacyRunAttempt(params: {
+  runAttemptId: string;
+  runTimeoutMs: number;
+  runVersion: number;
+}): Promise<{runVersion: number; runDeadline: number} | null> {
+  const runDeadline = Date.now() + params.runTimeoutMs;
+  const {newVersion, status} = await setRunAttemptStatus({
+    runAttemptId: params.runAttemptId,
+    status: 'running',
+    version: params.runVersion,
+  });
+  if (!shouldContinueStartedRun(status)) return null;
+
+  return {runVersion: newVersion, runDeadline};
 }
 
 async function startRunAttempt(params: {

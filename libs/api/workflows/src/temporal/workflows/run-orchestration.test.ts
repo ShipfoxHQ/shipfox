@@ -1,4 +1,7 @@
 import {randomUUID} from 'node:crypto';
+import {resolve} from 'node:path';
+import type {History} from '@temporalio/common/lib/proto-utils.js';
+import {Worker} from '@temporalio/worker';
 import {RUN_CONCURRENCY_ACQUIRED_SIGNAL} from '../constants.js';
 import {
   callsNamed,
@@ -47,7 +50,88 @@ async function waitForActivity(name: string): Promise<void> {
   throw new Error(`Timed out waiting for ${name}`);
 }
 
+const WORKFLOWS_PATH = resolve(import.meta.dirname, '../../../dist/temporal/workflows/index.js');
+
+function legacyRunHistory(history: History): History {
+  const removedEventIds = new Set<number>();
+  for (const event of history.events ?? []) {
+    const activityName = event.activityTaskScheduledEventAttributes?.activityType?.name;
+    if (
+      activityName === 'loadRunAttemptConcurrencyActivity' ||
+      event.markerRecordedEventAttributes != null ||
+      event.upsertWorkflowSearchAttributesEventAttributes != null
+    ) {
+      removedEventIds.add(Number(event.eventId));
+    }
+
+    const scheduledEventId =
+      event.activityTaskStartedEventAttributes?.scheduledEventId ??
+      event.activityTaskCompletedEventAttributes?.scheduledEventId;
+    if (scheduledEventId !== undefined && removedEventIds.has(Number(scheduledEventId))) {
+      removedEventIds.add(Number(event.eventId));
+    }
+  }
+
+  const keptEvents = (history.events ?? []).filter(
+    (event) => !removedEventIds.has(Number(event.eventId)),
+  );
+  const eventIdMap = new Map(keptEvents.map((event, index) => [Number(event.eventId), index + 1]));
+  let activityId = 0;
+  const events = keptEvents.map((source, index) => {
+    const event = {...source, eventId: index + 1};
+    rewriteHistoryEventIds(event, eventIdMap);
+    if (event.activityTaskScheduledEventAttributes !== undefined) {
+      event.activityTaskScheduledEventAttributes = {
+        ...event.activityTaskScheduledEventAttributes,
+        activityId: String(++activityId),
+      };
+    }
+    return event;
+  });
+
+  return {...history, events} as unknown as History;
+}
+
+function rewriteHistoryEventIds(value: unknown, eventIdMap: ReadonlyMap<number, number>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) rewriteHistoryEventIds(item, eventIdMap);
+    return;
+  }
+  if (typeof value !== 'object' || value === null) return;
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'eventId') continue;
+    if (key.endsWith('EventId')) {
+      const remapped = eventIdMap.get(Number(child));
+      if (remapped !== undefined) (value as Record<string, unknown>)[key] = remapped;
+      continue;
+    }
+    rewriteHistoryEventIds(child, eventIdMap);
+  }
+}
+
 describe('runOrchestration', () => {
+  test('replays current and pre-concurrency histories', async () => {
+    setCfg({dag: makeDag([], workflowRunId), jobResults: new Map()});
+
+    await executeRun();
+
+    const workflowId = `workflow-run-attempt:${workflowRunId}-attempt-1`;
+    const history = await testEnv.client.workflow.getHandle(workflowId).fetchHistory();
+    expect(callsNamed('loadRunAttemptConcurrencyActivity')).toHaveLength(1);
+
+    await expect(
+      Worker.runReplayHistory({workflowsPath: WORKFLOWS_PATH}, history, workflowId),
+    ).resolves.toBeUndefined();
+    await expect(
+      Worker.runReplayHistory(
+        {workflowsPath: WORKFLOWS_PATH},
+        legacyRunHistory(history),
+        workflowId,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   test('all-pending linear DAG enqueues every job and succeeds', async () => {
     const jobs = [
       dagJob('j1', 'build'),
