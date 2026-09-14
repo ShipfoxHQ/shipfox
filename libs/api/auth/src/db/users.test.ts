@@ -1,10 +1,16 @@
+import {AUTH_USER_SIGNED_UP} from '@shipfox/api-auth-dto';
+import * as outbox from '@shipfox/node-outbox';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
+import {and, eq, sql} from 'drizzle-orm';
 import {EmailTakenError} from '#core/errors.js';
+import {db} from './db.js';
+import {authOutbox} from './schema/outbox.js';
 import {
   createUser,
   findUserByEmail,
   findUserById,
   markEmailVerified,
+  provisionUser,
   updateUserPassword,
 } from './users.js';
 
@@ -51,6 +57,31 @@ describe('users db', () => {
     await createUser({email, hashedPassword: 'h'});
 
     await expect(createUser({email, hashedPassword: 'h2'})).rejects.toBeInstanceOf(EmailTakenError);
+  });
+
+  test('rolls back a provisioned user when its signup event cannot be written', async () => {
+    const email = emailFor('provision-event-failure');
+    const failure = new Error('outbox unavailable');
+    vi.spyOn(outbox, 'writeOutboxEvent').mockRejectedValueOnce(failure);
+
+    const failedProvision = provisionUser({email, viaInvitation: false});
+
+    await expect(failedProvision).rejects.toBe(failure);
+    expect(await findUserByEmail({email})).toBeUndefined();
+
+    const user = await provisionUser({email, viaInvitation: false});
+    const events = await db()
+      .select()
+      .from(authOutbox)
+      .where(
+        and(
+          eq(authOutbox.eventType, AUTH_USER_SIGNED_UP),
+          sql`${authOutbox.payload}->>'email' = ${email}`,
+        ),
+      );
+
+    expect(user.email).toBe(email);
+    expect(events).toHaveLength(1);
   });
 
   test('updateUserPassword updates the hashed password', async () => {
