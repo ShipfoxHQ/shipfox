@@ -12,6 +12,11 @@ process.env.GITHUB_APP_CLIENT_SECRET = 'test-client-secret';
 process.env.GITHUB_APP_WEBHOOK_SECRET = 'test-webhook-secret';
 process.env.GITHUB_APP_SLUG = 'shipfox-test';
 process.env.GITHUB_INSTALL_STATE_SECRET = 'test-install-state-secret';
+process.env.CLICKUP_OAUTH_CLIENT_ID = 'test-client-id';
+process.env.CLICKUP_OAUTH_CLIENT_SECRET = 'test-client-secret';
+process.env.CLICKUP_OAUTH_REDIRECT_URL =
+  'https://shipfox.example.com/integrations/clickup/callback';
+process.env.CLICKUP_WEBHOOK_BASE_URL = 'https://shipfox.example.com';
 process.env.JIRA_OAUTH_CLIENT_ID = 'test-client-id';
 process.env.JIRA_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.JIRA_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/jira/callback';

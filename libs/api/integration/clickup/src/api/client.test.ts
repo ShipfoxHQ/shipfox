@@ -154,7 +154,10 @@ describe('ClickUp API client', () => {
     );
     expect(mocks.delete).toHaveBeenCalledWith(
       'https://api.clickup.com/api/v2/webhook/webhook-1',
-      expect.objectContaining({headers: {authorization: 'Bearer access-token'}}),
+      expect.objectContaining({
+        headers: {authorization: 'Bearer access-token'},
+        retry: 0,
+      }),
     );
   });
 
@@ -167,6 +170,7 @@ describe('ClickUp API client', () => {
       new Request('https://clickup.example.test'),
       {} as never,
     );
+    providerError.data = {err: 'Webhook limit reached', ECODE: 'WEBHOOK_001'};
     mocks.post.mockReturnValue({json: () => Promise.reject(providerError)});
 
     await expect(

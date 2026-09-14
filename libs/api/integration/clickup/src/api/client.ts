@@ -189,6 +189,7 @@ export function createClickUpApiClient(): ClickUpApiClient {
       await mapClickUpError('delete-webhook', () =>
         ky.delete(clickUpApiUrl(`/api/v2/webhook/${encodeURIComponent(input.webhookId)}`), {
           headers: {authorization: `Bearer ${input.accessToken}`},
+          retry: 0,
           timeout: CLICKUP_API_TIMEOUT_MS,
         }),
       );
@@ -237,15 +238,15 @@ export async function mapClickUpError<T>(operation: string, request: () => Promi
     return await request();
   } catch (error) {
     if (error instanceof ClickUpIntegrationProviderError) throw error;
-    throw await mapUnknownClickUpError(operation, error);
+    throw mapUnknownClickUpError(operation, error);
   }
 }
 
-async function mapUnknownClickUpError(
+function mapUnknownClickUpError(
   operation: string,
   error: unknown,
-): Promise<ClickUpIntegrationProviderError> {
-  if (error instanceof HTTPError) return await mapClickUpHttpError(operation, error);
+): ClickUpIntegrationProviderError {
+  if (error instanceof HTTPError) return mapClickUpHttpError(operation, error);
   if (error instanceof TimeoutError) {
     logger().warn({operation}, 'ClickUp API request timed out');
     return new ClickUpIntegrationProviderError('timeout', 'ClickUp request timed out');
@@ -257,17 +258,9 @@ async function mapUnknownClickUpError(
   return new ClickUpIntegrationProviderError('provider-unavailable', 'ClickUp request failed');
 }
 
-async function mapClickUpHttpError(
-  operation: string,
-  error: HTTPError,
-): Promise<ClickUpIntegrationProviderError> {
+function mapClickUpHttpError(operation: string, error: HTTPError): ClickUpIntegrationProviderError {
   const {status, statusText, headers} = error.response;
-  let details: Awaited<ReturnType<typeof clickUpErrorDetails>> = {};
-  try {
-    details = await clickUpErrorDetails(error.response);
-  } catch {
-    details = {};
-  }
+  const details = clickUpErrorDetails(error.data);
   logger().warn(
     {
       operation,
@@ -355,11 +348,7 @@ function parseWebhookRegistration(body: ClickUpWebhookResponse): ClickUpWebhookR
   return {id: webhookId, secret};
 }
 
-async function clickUpErrorDetails(response: Response): Promise<{
-  err?: string;
-  ECODE?: string;
-}> {
-  const body = await readClickUpResponseBody(response);
+function clickUpErrorDetails(body: unknown): {err?: string; ECODE?: string} {
   if (!body || typeof body !== 'object') return {};
   const {err, ECODE} = body as {err?: unknown; ECODE?: unknown};
   return {
