@@ -227,6 +227,10 @@ export function e2eEnv(sourceEnv) {
       `${apiUrl}/__e2e-managed-inference`,
     ),
     AUTH_ROOT_KEY: valueOr(sourceEnv.AUTH_ROOT_KEY, 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY='),
+    // The flow suite shares one access token across its long-running scenarios.
+    // Keep the test deployment alive longer than the CI job while preserving
+    // explicit caller overrides.
+    AUTH_JWT_EXPIRES_IN: valueOr(sourceEnv.AUTH_JWT_EXPIRES_IN, '1h'),
     // Impersonation ships disabled by default; the E2E deployment opts in so
     // the mint route is live for the suite that exercises it. The admin
     // bootstrap token is generated per run and never defaults to a well-known

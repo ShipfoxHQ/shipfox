@@ -92,6 +92,7 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '55365');
     assert.equal(env.AUTH_ROOT_KEY, 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=');
+    assert.equal(env.AUTH_JWT_EXPIRES_IN, '1h');
     assert.equal(env.AUTH_SIGNUP_GATE_ENABLED, 'true');
     assert.equal(env.AUTH_SIGNUP_ALLOWED_EMAIL_DOMAINS, 'allowed.example.test');
     assert.equal(
@@ -124,6 +125,7 @@ describe('e2eEnv', () => {
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
       AUTH_SIGNUP_GATE_ENABLED: 'false',
+      AUTH_JWT_EXPIRES_IN: '2h',
       AUTH_SIGNUP_ALLOWED_EMAIL_DOMAINS: 'override.example.test',
       AUTH_SIGNUP_NOT_ALLOWED_MESSAGE: 'Signups are temporarily closed.',
     });
@@ -141,6 +143,7 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
     assert.equal(env.AUTH_SIGNUP_GATE_ENABLED, 'false');
+    assert.equal(env.AUTH_JWT_EXPIRES_IN, '2h');
     assert.equal(env.AUTH_SIGNUP_ALLOWED_EMAIL_DOMAINS, 'override.example.test');
     assert.equal(env.AUTH_SIGNUP_NOT_ALLOWED_MESSAGE, 'Signups are temporarily closed.');
   });
