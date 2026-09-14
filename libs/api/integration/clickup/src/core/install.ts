@@ -26,6 +26,7 @@ export interface HandleClickUpCallbackParams {
   tokenStore: Pick<ClickUpTokenStore, 'storeTokens'>;
   code: string;
   state: string;
+  stateNonce: string | undefined;
   sessionUserId: string;
   sessionMemberships: ReadonlyArray<UserContextMembership>;
   requireWorkspaceMembership(input: {
@@ -88,6 +89,7 @@ export async function handleClickUpCallback(
 
 export async function handleClickUpOAuthCallbackError(params: {
   state: string;
+  stateNonce: string | undefined;
   error: string;
   errorDescription?: string | undefined;
   sessionUserId: string;
@@ -105,11 +107,11 @@ export async function handleClickUpOAuthCallbackError(params: {
 async function verifyClaims(
   params: Pick<
     HandleClickUpCallbackParams,
-    'sessionUserId' | 'sessionMemberships' | 'requireWorkspaceMembership'
+    'stateNonce' | 'sessionUserId' | 'sessionMemberships' | 'requireWorkspaceMembership'
   >,
   state: string,
 ) {
-  const claims = verifyClickUpInstallState(state);
+  const claims = verifyClickUpInstallState(state, {nonce: params.stateNonce});
   if (claims.userId !== params.sessionUserId) throw new ClickUpInstallStateActorMismatchError();
   await params.requireWorkspaceMembership({
     workspaceId: claims.workspaceId,

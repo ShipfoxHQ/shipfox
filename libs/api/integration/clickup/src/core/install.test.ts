@@ -2,6 +2,7 @@ import type {ClickUpInstallationLock} from '#db/installations.js';
 import {
   ClickUpInstallationAlreadyLinkedError,
   ClickUpInstallStateActorMismatchError,
+  ClickUpInstallStateError,
   ClickUpOAuthCallbackError,
   ClickUpWorkspaceCountError,
 } from './errors.js';
@@ -10,7 +11,8 @@ import {signClickUpInstallState} from './state.js';
 
 function createParams() {
   const workspaceId = crypto.randomUUID();
-  const state = signClickUpInstallState({workspaceId, userId: 'user-1'});
+  const stateNonce = crypto.randomUUID();
+  const state = signClickUpInstallState({workspaceId, userId: 'user-1', nonce: stateNonce});
   const clickup = {
     exchangeAuthorizationCode: vi.fn().mockResolvedValue({accessToken: 'access-token'}),
     getAuthorizedWorkspaces: vi.fn(),
@@ -27,6 +29,7 @@ function createParams() {
   return {
     workspaceId,
     state,
+    stateNonce,
     clickup,
     tokenStore,
     connectClickUpInstallation,
@@ -100,11 +103,23 @@ describe('ClickUp OAuth installation', () => {
 
   it('rejects a callback state created by another user before exchanging the code', async () => {
     const params = createParams();
-    params.state = signClickUpInstallState({workspaceId: params.workspaceId, userId: 'other-user'});
+    params.state = signClickUpInstallState({
+      workspaceId: params.workspaceId,
+      userId: 'other-user',
+      nonce: params.stateNonce,
+    });
 
     await expect(handleClickUpCallback(params)).rejects.toBeInstanceOf(
       ClickUpInstallStateActorMismatchError,
     );
+    expect(params.clickup.exchangeAuthorizationCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects a callback state from another browser session before exchanging the code', async () => {
+    const params = createParams();
+    params.stateNonce = crypto.randomUUID();
+
+    await expect(handleClickUpCallback(params)).rejects.toBeInstanceOf(ClickUpInstallStateError);
     expect(params.clickup.exchangeAuthorizationCode).not.toHaveBeenCalled();
   });
 
@@ -116,6 +131,7 @@ describe('ClickUp OAuth installation', () => {
     await expect(
       handleClickUpOAuthCallbackError({
         state: params.state,
+        stateNonce: params.stateNonce,
         error: 'access_denied',
         errorDescription: 'The user declined access',
         sessionUserId: params.sessionUserId,
@@ -128,6 +144,7 @@ describe('ClickUp OAuth installation', () => {
     await expect(
       handleClickUpOAuthCallbackError({
         state: params.state,
+        stateNonce: params.stateNonce,
         error: 'access_denied',
         errorDescription: 'The user declined access',
         sessionUserId: params.sessionUserId,

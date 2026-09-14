@@ -2,7 +2,7 @@ import {createHmac, randomUUID, timingSafeEqual} from 'node:crypto';
 import {config} from '#config.js';
 import {ClickUpInstallStateError} from './errors.js';
 
-const STATE_TTL_SECONDS = 30 * 60;
+export const CLICKUP_INSTALL_STATE_TTL_SECONDS = 30 * 60;
 
 interface ClickUpInstallStatePayload {
   workspaceId: string;
@@ -27,7 +27,7 @@ export function signClickUpInstallState(params: {
     workspaceId: params.workspaceId,
     userId: params.userId,
     nonce: params.nonce ?? randomUUID(),
-    expiresAt: Math.floor(now.getTime() / 1000) + STATE_TTL_SECONDS,
+    expiresAt: Math.floor(now.getTime() / 1000) + CLICKUP_INSTALL_STATE_TTL_SECONDS,
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${encodedPayload}.${sign(encodedPayload)}`;
@@ -35,14 +35,20 @@ export function signClickUpInstallState(params: {
 
 export function verifyClickUpInstallState(
   state: string,
-  now: Date = new Date(),
+  options: {nonce: string | undefined; now?: Date | undefined},
 ): ClickUpInstallStateClaims {
+  const now = options.now ?? new Date();
   const [encodedPayload, signature, extra] = state.split('.');
   if (!encodedPayload || !signature || extra !== undefined) throw new ClickUpInstallStateError();
   if (!constantTimeEqual(signature, sign(encodedPayload))) {
     throw new ClickUpInstallStateError('Invalid ClickUp install state signature');
   }
   const payload = parsePayload(encodedPayload);
+  if (!options.nonce || !constantTimeEqual(payload.nonce, options.nonce)) {
+    throw new ClickUpInstallStateError(
+      'ClickUp install state is not bound to this browser session',
+    );
+  }
   if (payload.expiresAt < Math.floor(now.getTime() / 1000)) {
     throw new ClickUpInstallStateError('Expired ClickUp install state');
   }

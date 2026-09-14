@@ -9,6 +9,7 @@ import {type AuthMethod, ClientError, closeApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {ClickUpApiClient} from '#api/client.js';
 import type {ConnectClickUpInstallationInput} from '#core/install.js';
+import {verifyClickUpInstallState} from '#core/state.js';
 import type {ClickUpTokenStore} from '#core/tokens.js';
 
 let authenticatedMemberships: UserContextMembership[] = [];
@@ -46,7 +47,7 @@ function clickupClient(overrides: Partial<ClickUpApiClient> = {}): ClickUpApiCli
 
 function connection(input: Partial<IntegrationConnection<'clickup'>> = {}) {
   return {
-    id: 'connection-1',
+    id: crypto.randomUUID(),
     workspaceId: 'workspace-1',
     provider: 'clickup',
     externalAccountId: 'team-1',
@@ -81,6 +82,7 @@ async function createTestApp(authBaseUrl = 'https://app.clickup.com'): Promise<T
       Promise.resolve(connection({workspaceId: input.workspaceId})),
     ),
     disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
+    withClickUpInstallationLock: async (_teamId, fn) => await fn(),
     connectionCapabilities: [],
     requireActiveWorkspaceMembership: vi.fn(() => Promise.resolve()),
   });
@@ -125,7 +127,51 @@ describe('ClickUp integration routes', () => {
     expect(installUrl.searchParams.get('redirect_uri')).toBe(
       'https://shipfox.example.com/integrations/clickup/callback',
     );
-    expect(installUrl.searchParams.get('state')).toBeTruthy();
+    const state = installUrl.searchParams.get('state');
+    const setCookie = String(res.headers['set-cookie']);
+    const nonce = setCookie.split(';')[0]?.split('=')[1];
+    expect(state).toBeTruthy();
+    expect(setCookie).toContain('shipfox_clickup_install_state=');
+    expect(setCookie).toContain('Max-Age=1800');
+    expect(setCookie).toContain('Path=/integrations/clickup');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('Secure');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(() => verifyClickUpInstallState(state ?? '', {nonce})).not.toThrow();
+  });
+
+  it('requires and consumes the browser-bound state cookie', async () => {
+    const {app, clickup} = await createTestApp();
+    const workspaceId = crypto.randomUUID();
+    authenticatedMemberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
+    const install = await app.inject({
+      method: 'POST',
+      url: '/integrations/clickup/install',
+      headers: {authorization: 'Bearer user'},
+      payload: {workspace_id: workspaceId},
+    });
+    const state = new URL(install.json().install_url).searchParams.get('state');
+    const cookieHeader = String(install.headers['set-cookie']).split(';')[0];
+    if (!state || !cookieHeader) throw new Error('Install response did not include state binding');
+
+    const missingCookie = await app.inject({
+      method: 'GET',
+      url: `/integrations/clickup/callback/api?code=code&state=${encodeURIComponent(state)}`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const callback = await app.inject({
+      method: 'GET',
+      url: `/integrations/clickup/callback/api?code=code&state=${encodeURIComponent(state)}`,
+      headers: {authorization: 'Bearer user', cookie: cookieHeader},
+    });
+
+    expect(missingCookie.statusCode).toBe(400);
+    expect(missingCookie.json().code).toBe('invalid-clickup-install-state');
+    expect(clickup.exchangeAuthorizationCode).toHaveBeenCalledTimes(1);
+    expect(callback.statusCode, callback.body).toBe(200);
+    expect(String(callback.headers['set-cookie'])).toContain(
+      'shipfox_clickup_install_state=; Max-Age=0',
+    );
   });
 
   it('rejects impersonated successful callbacks before exchanging the code', async () => {

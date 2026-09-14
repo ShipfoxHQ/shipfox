@@ -10,7 +10,10 @@ describe('ClickUp install state', () => {
       now: new Date('2026-07-07T12:00:00.000Z'),
     });
 
-    const result = verifyClickUpInstallState(state, new Date('2026-07-07T12:05:00.000Z'));
+    const result = verifyClickUpInstallState(state, {
+      nonce: 'nonce-1',
+      now: new Date('2026-07-07T12:05:00.000Z'),
+    });
 
     expect(result).toEqual({workspaceId: 'workspace-1', userId: 'user-1'});
   });
@@ -31,10 +34,27 @@ describe('ClickUp install state', () => {
     const tampered = () =>
       verifyClickUpInstallState(
         `${Buffer.from(JSON.stringify(decoded)).toString('base64url')}.${signature}`,
+        {nonce: 'nonce-1'},
       );
-    const expired = () => verifyClickUpInstallState(state, new Date('2026-07-07T12:31:00.000Z'));
+    const expired = () =>
+      verifyClickUpInstallState(state, {
+        nonce: 'nonce-1',
+        now: new Date('2026-07-07T12:31:00.000Z'),
+      });
 
     expect(tampered).toThrow(ClickUpInstallStateError);
     expect(expired).toThrow(ClickUpInstallStateError);
+  });
+
+  it('rejects state from another browser session', () => {
+    const state = signClickUpInstallState({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      nonce: 'nonce-1',
+    });
+
+    const result = () => verifyClickUpInstallState(state, {nonce: 'nonce-2'});
+
+    expect(result).toThrow(ClickUpInstallStateError);
   });
 });
