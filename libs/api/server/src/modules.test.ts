@@ -11,7 +11,10 @@ import {
   secretsInterModuleContract,
 } from '@shipfox/api-secrets-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
-import {usageInterModuleContract} from '@shipfox/api-usage-dto/inter-module';
+import {
+  type UsageModuleClient,
+  usageInterModuleContract,
+} from '@shipfox/api-usage-dto/inter-module';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {
   type WorkspacesInterModuleClient,
@@ -50,6 +53,7 @@ const mocks = vi.hoisted(() => ({
   getWorkspaceCreator: vi.fn(),
   getWorkspaceOperatingState: vi.fn(),
   listMembershipsForTokenClaims: vi.fn(),
+  recordInferenceSegments: vi.fn(),
   setSecrets: vi.fn(),
 }));
 
@@ -133,6 +137,7 @@ describe('defaultModules', () => {
     mocks.getSecretsByNamespace.mockReset();
     mocks.getWorkspaceCreator.mockReset();
     mocks.listMembershipsForTokenClaims.mockReset();
+    mocks.recordInferenceSegments.mockReset();
     mocks.setSecrets.mockReset();
 
     mocks.createIntegrationsContext.mockResolvedValue({
@@ -194,6 +199,7 @@ describe('defaultModules', () => {
     mocks.getSecret.mockResolvedValue({value: 'secret'});
     mocks.getSecretsByNamespace.mockResolvedValue({values: {}});
     mocks.listMembershipsForTokenClaims.mockResolvedValue({memberships: []});
+    mocks.recordInferenceSegments.mockResolvedValue({recorded: 0, duplicates: 0});
     mocks.getWorkspaceCreator.mockResolvedValue({creatorUserId: null});
     mocks.setSecrets.mockResolvedValue({});
     mocks.createProjectsModule.mockReturnValue({
@@ -339,7 +345,7 @@ describe('defaultModules', () => {
         {
           contract: usageInterModuleContract,
           handlers: {
-            recordInferenceSegments: vi.fn(),
+            recordInferenceSegments: mocks.recordInferenceSegments,
             listJobExecutionUsage: vi.fn(),
             listInferenceSegments: vi.fn(),
           },
@@ -762,7 +768,10 @@ describe('defaultModules', () => {
       workspaces: authWorkspaces,
       signupPolicy,
     });
-    expect(extension).toHaveBeenCalledWith({workspaces: authWorkspaces});
+    expect(extension).toHaveBeenCalledWith({
+      usage: expect.any(Object),
+      workspaces: authWorkspaces,
+    });
     expect(extensionWorkspaces).toBe(authWorkspaces);
     expect(modules).toContain(customAuthModule);
     expect(
@@ -857,7 +866,10 @@ describe('defaultModules', () => {
     const workspaceId = crypto.randomUUID();
     const creator = await workspaces?.getWorkspaceCreator({workspaceId});
 
-    expect(extension).toHaveBeenCalledWith({workspaces: expect.any(Object)});
+    expect(extension).toHaveBeenCalledWith({
+      usage: expect.any(Object),
+      workspaces: expect.any(Object),
+    });
     expect(memberships).toEqual({memberships: []});
     expect(creator).toEqual({creatorUserId: null});
     expect(mocks.listMembershipsForTokenClaims).toHaveBeenCalledWith(
@@ -869,6 +881,42 @@ describe('defaultModules', () => {
       expect.objectContaining({signal: expect.any(AbortSignal)}),
     );
     expect(modules.at(-1)).toBe(extensionModule);
+  });
+
+  it('passes the shared Usage client to extensions and keeps one Usage module', async () => {
+    let usage: UsageModuleClient | undefined;
+    const extensionModule = {name: 'cloud'};
+    const extension = vi.fn(
+      ({
+        usage: injectedUsage,
+      }: {
+        workspaces: WorkspacesInterModuleClient;
+        usage: UsageModuleClient;
+      }) => {
+        usage = injectedUsage;
+        return [extensionModule];
+      },
+    );
+
+    const modules = await defaultModules({extension});
+
+    expect(extension).toHaveBeenCalledWith({
+      usage: expect.any(Object),
+      workspaces: expect.any(Object),
+    });
+    expect(modules.filter((module) => module.name === 'usage')).toHaveLength(1);
+    expect(mocks.createUsageModule).toHaveBeenCalledTimes(1);
+    expect(modules.at(-1)).toBe(extensionModule);
+
+    if (!usage) throw new Error('The extension did not receive the Usage client.');
+    await expect(usage.recordInferenceSegments({segments: []})).resolves.toEqual({
+      recorded: 0,
+      duplicates: 0,
+    });
+    expect(mocks.recordInferenceSegments).toHaveBeenCalledWith(
+      {segments: []},
+      {signal: expect.any(AbortSignal)},
+    );
   });
 
   it('injects Workflows into integrations and logs and namespaces provider secrets', async () => {
