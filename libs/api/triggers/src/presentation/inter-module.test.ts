@@ -68,6 +68,20 @@ describe('triggers inter-module presentation', () => {
     for (const mock of Object.values(mocks)) mock.mockReset();
   });
 
+  it('accepts concurrency-group interpolation failures from Workflows', () => {
+    const details = {
+      definitionId: '00000000-0000-4000-8000-000000000003',
+      field: 'workflow.concurrency.group',
+      source: 'event.pull_request.number',
+    };
+
+    expect(
+      triggersInterModuleContract.methods.fireManualTrigger.errors[
+        'interpolation-unresolvable'
+      ].parse(details),
+    ).toEqual(details);
+  });
+
   it('lists events with public filters and preserves the timestamp cursor', async () => {
     const nextCursor = {
       receivedAt: new Date('2026-08-05T11:00:00.000Z'),

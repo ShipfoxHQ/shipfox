@@ -260,7 +260,7 @@ function resolveWorkflowConcurrency(params: {
     });
     if (resolved.kind !== 'frozen' || resolved.diagnostics.length > 0) {
       throw new InterpolationUnresolvableError(params.definitionId, {
-        field: 'workflow.run_name',
+        field: 'workflow.concurrency.group',
         source:
           resolved.diagnostics[0]?.expression ??
           params.concurrency.group.find((segment) => segment.kind === 'deferred')?.expression
@@ -278,7 +278,7 @@ function resolveWorkflowConcurrency(params: {
     if (error instanceof InterpolationUnresolvableError) throw error;
     if (error instanceof InvalidWorkflowConcurrencyGroupError) {
       throw new InterpolationUnresolvableError(params.definitionId, {
-        field: 'workflow.run_name',
+        field: 'workflow.concurrency.group',
         source:
           params.concurrency.group.find((segment) => segment.kind === 'deferred')?.expression
             .source ?? 'workflow.concurrency.group',
@@ -287,7 +287,7 @@ function resolveWorkflowConcurrency(params: {
     }
     if (error instanceof WorkflowTemplateResolutionError) {
       throw new InterpolationUnresolvableError(params.definitionId, {
-        field: 'workflow.run_name',
+        field: 'workflow.concurrency.group',
         source: error.source,
         cause: error,
       });
@@ -645,7 +645,9 @@ function referencedVariables(
   const references: ReferencedVariable[] = [];
   collectWorkflowPredicateVariableReferences(model, references);
   collectFieldVariableReferences(model.runName, references, {field: 'workflow.run_name'});
-  collectFieldVariableReferences(model.concurrency?.group, references, {field: 'env'});
+  collectFieldVariableReferences(model.concurrency?.group, references, {
+    field: 'workflow.concurrency.group',
+  });
   if (jobs.length > 0) collectTemplateVariableReferences(model.templates?.env, references);
   for (const job of jobs) collectJobVariableReferences(job, references);
   return references;

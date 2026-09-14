@@ -453,7 +453,11 @@ describe('workflow run queries', () => {
             data: {},
           },
         }),
-      ).rejects.toThrow(InterpolationUnresolvableError);
+      ).rejects.toMatchObject({
+        name: 'InterpolationUnresolvableError',
+        field: 'workflow.concurrency.group',
+        source: 'event.pull_request.number',
+      });
 
       await expect(
         db().select().from(workflowRuns).where(eq(workflowRuns.definitionId, definitionId)),
@@ -483,7 +487,7 @@ describe('workflow run queries', () => {
         }),
       ).rejects.toMatchObject({
         name: 'InterpolationUnresolvableError',
-        field: 'workflow.run_name',
+        field: 'workflow.concurrency.group',
         source: 'event.group',
       });
 
@@ -1307,6 +1311,17 @@ describe('workflow run queries', () => {
             },
           }),
         expected: {field: 'env', envKey: 'REGION', source: 'vars.REQUIRED'},
+      },
+      {
+        field: 'workflow.concurrency.group',
+        model: () =>
+          workflowModel({
+            name: 'Missing concurrency group var',
+            runner: 'ubuntu-latest',
+            concurrency: {group: template('vars.REQUIRED')},
+            jobs: {build: {steps: [{run: 'echo ok'}]}},
+          }),
+        expected: {field: 'workflow.concurrency.group', source: 'vars.REQUIRED'},
       },
       {
         field: 'agent.prompt',

@@ -423,9 +423,8 @@ describe('workflowsInterModuleContract', () => {
       'interpolation-unresolvable',
       {
         definitionId: '00000000-0000-4000-8000-000000000001',
-        field: 'env',
-        source: 'event.ref',
-        envKey: 'REF',
+        field: 'workflow.concurrency.group',
+        source: 'event.pull_request.number',
       },
     ],
     ['invalid-job-runner-labels', {labels: ['linux', 'gpu']}],
