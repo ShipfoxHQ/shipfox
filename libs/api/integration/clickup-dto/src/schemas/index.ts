@@ -100,7 +100,7 @@ export const clickupTaskWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
     event: z.enum(clickupTaskWebhookEventNames),
-    history_items: z.array(clickupWebhookHistoryItemSchema),
+    history_items: z.array(clickupWebhookHistoryItemSchema).min(1),
   })
   .passthrough();
 export type ClickUpTaskWebhookEnvelopeDto = z.infer<typeof clickupTaskWebhookEnvelopeSchema>;
@@ -109,7 +109,7 @@ export const clickupCommentWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
     event: z.enum(clickupCommentWebhookEventNames),
-    history_items: z.array(clickupWebhookCommentHistoryItemSchema),
+    history_items: z.array(clickupWebhookCommentHistoryItemSchema).min(1),
   })
   .passthrough();
 export type ClickUpCommentWebhookEnvelopeDto = z.infer<typeof clickupCommentWebhookEnvelopeSchema>;

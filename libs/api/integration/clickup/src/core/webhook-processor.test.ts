@@ -263,6 +263,18 @@ describe('ClickUp webhook processor', () => {
     expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
+  it('records and drops an actor-bearing event without history items', async () => {
+    const harness = createHarness();
+
+    const result = await harness.processor.process(
+      createRequest({...createPayload(), history_items: []}),
+    );
+
+    expect(result).toMatchObject({outcome: 'discarded', reason: 'unsupported_event'});
+    expect(harness.recordDeliveryOnly).toHaveBeenCalledOnce();
+    expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
+  });
+
   it.each(actorBearingEvents)('drops self-authored %s events', async (event) => {
     const harness = createHarness();
 

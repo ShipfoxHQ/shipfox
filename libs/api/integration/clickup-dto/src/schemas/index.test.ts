@@ -134,6 +134,20 @@ describe('ClickUp webhook envelopes', () => {
     expect('history_items' in result).toBe(false);
   });
 
+  it('rejects actor-bearing events without history items', () => {
+    const taskResult = clickupTaskWebhookEnvelopeSchema.safeParse({
+      ...taskStatusUpdatedSample,
+      history_items: [],
+    });
+    const commentResult = clickupCommentWebhookEnvelopeSchema.safeParse({
+      ...taskCommentPostedSample,
+      history_items: [],
+    });
+
+    expect(taskResult.success).toBe(false);
+    expect(commentResult.success).toBe(false);
+  });
+
   it('adds the Shipfox team id to the published payload type', () => {
     const result = clickupEventPayloadSchema.parse({...taskStatusUpdatedSample, team_id: 'team-1'});
 
