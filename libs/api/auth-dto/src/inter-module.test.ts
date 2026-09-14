@@ -20,6 +20,22 @@ const summary = {
 
 const parseInput = (input: unknown) => method.input.safeParse(input);
 
+describe('Auth inter-module subject summary contract', () => {
+  it('accepts a minimal user summary and a missing result', () => {
+    const summaryMethod = authInterModuleContract.methods.getUserSummary;
+
+    expect(
+      summaryMethod.output.parse({
+        id: userId,
+        email: 'alex@example.com',
+        name: 'Alex Shipfox',
+        hashedPassword: 'must-not-cross-the-boundary',
+      }),
+    ).toEqual({id: userId, email: 'alex@example.com', name: 'Alex Shipfox'});
+    expect(summaryMethod.output.parse(undefined)).toBeUndefined();
+  });
+});
+
 describe('Auth impersonation eligibility inter-module contract', () => {
   it('accepts bounded ID and search modes', () => {
     expect(

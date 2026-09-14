@@ -34,6 +34,7 @@ function createWorkspaces(params: {
       params.outage ? Promise.reject(new Error('workspaces unavailable')) : Promise.resolve({}),
     getWorkspaceCreator: async () => ({creatorUserId: null}),
     getWorkspaceOperatingState: async () => ({status: 'active'}),
+    getWorkspaceSummary: async () => undefined,
     preflightInvitationAcceptance: async () => ({}),
     acceptInvitation: async () => ({
       membership: {id: crypto.randomUUID(), userId: params.userId, workspaceId: params.workspaceId},

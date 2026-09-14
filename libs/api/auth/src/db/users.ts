@@ -124,6 +124,17 @@ export async function findUserById(params: {id: string}): Promise<User | undefin
   return toUser(row);
 }
 
+export type UserSummary = Pick<User, 'id' | 'email' | 'name'>;
+
+export async function findUserSummaryById(params: {id: string}): Promise<UserSummary | undefined> {
+  const rows = await db()
+    .select({id: users.id, email: users.email, name: users.name})
+    .from(users)
+    .where(eq(users.id, params.id))
+    .limit(1);
+  return rows[0];
+}
+
 export interface UpdateUserPasswordParams {
   userId: string;
   hashedPassword: string;

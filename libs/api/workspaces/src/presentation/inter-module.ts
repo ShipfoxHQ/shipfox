@@ -17,6 +17,7 @@ import {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitat
 import {
   getWorkspaceCreator,
   getWorkspaceOperatingState,
+  getWorkspaceSummary,
   requireWorkspaceMembership,
 } from '#core/workspaces.js';
 import {listMembershipsByUser} from '#db/memberships.js';
@@ -34,6 +35,7 @@ export function createWorkspacesInterModulePresentation(): InterModulePresentati
         }),
       ),
     }),
+    getWorkspaceSummary: async ({workspaceId}) => await getWorkspaceSummary({workspaceId}),
     getWorkspaceCreator: async (input) => {
       try {
         return {creatorUserId: await getWorkspaceCreator(input)};

@@ -90,6 +90,7 @@ const workspaces = {
   acceptInvitation: vi.fn(),
   requireActiveMembership: vi.fn(),
   getWorkspaceOperatingState: vi.fn(),
+  getWorkspaceSummary: vi.fn(),
 };
 
 const login = (params: {email: string; password: string}) => coreLogin({...params, workspaces});

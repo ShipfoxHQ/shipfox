@@ -4,6 +4,10 @@ import {workspaceRoleSchema} from '#schemas/membership.js';
 import {workspaceStatusSchema} from '#schemas/workspace.js';
 
 const idSchema = z.string().uuid();
+const workspaceSummaryInterModuleSchema = z.object({
+  id: idSchema,
+  name: z.string(),
+});
 
 export const workspacesInterModuleContract = defineInterModuleContract({
   module: 'workspaces',
@@ -21,6 +25,10 @@ export const workspacesInterModuleContract = defineInterModuleContract({
       }),
     },
     /** Resolves the user id that created the workspace, or null when no creator was recorded. */
+    getWorkspaceSummary: {
+      input: z.object({workspaceId: idSchema}),
+      output: workspaceSummaryInterModuleSchema.optional(),
+    },
     getWorkspaceCreator: {
       input: z.object({workspaceId: idSchema}),
       output: z.object({creatorUserId: idSchema.nullable()}),
@@ -84,5 +92,7 @@ export const workspacesInterModuleContract = defineInterModuleContract({
     },
   },
 });
+
+export type WorkspaceSummaryInterModule = z.infer<typeof workspaceSummaryInterModuleSchema>;
 
 export type WorkspacesInterModuleClient = InterModuleClient<typeof workspacesInterModuleContract>;

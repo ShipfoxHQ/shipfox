@@ -329,6 +329,11 @@ function classifyHandlerSuccess(
     };
   }
 
+  // Optional output contracts use undefined as their explicit missing-record
+  // result. It has no JSON representation, so preserve it at this top-level
+  // boundary instead of attempting the ordinary JSON copy.
+  if (outputParse.data === undefined) return {outcome: 'success', value: undefined};
+
   if (!isJsonSafeValue(outputParse.data)) {
     return {
       outcome: 'opaque',

@@ -19,7 +19,12 @@ import {
 import {memberships} from '#db/schema/memberships.js';
 import {workspacesOutbox} from '#db/schema/outbox.js';
 import {toWorkspace, workspaces} from '#db/schema/workspaces.js';
-import {getWorkspaceById, isWorkspaceSlugAvailable, updateWorkspace} from '#db/workspaces.js';
+import {
+  getWorkspaceById,
+  getWorkspaceSummaryById,
+  isWorkspaceSlugAvailable,
+  updateWorkspace,
+} from '#db/workspaces.js';
 import type {Workspace} from './entities/workspace.js';
 import {
   MembershipNotFoundError,
@@ -156,6 +161,12 @@ export async function getWorkspaceOperatingState(params: {
 }): Promise<Workspace['status']> {
   const workspace = await getWorkspace(params);
   return workspace.status;
+}
+
+export async function getWorkspaceSummary(params: {
+  workspaceId: string;
+}): Promise<{id: string; name: string} | undefined> {
+  return await getWorkspaceSummaryById(params.workspaceId);
 }
 
 export async function listUserWorkspaceMemberships(params: {
