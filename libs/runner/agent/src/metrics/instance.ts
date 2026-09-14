@@ -76,5 +76,8 @@ export function recordPiSvgRasterizationDuration(
 }
 
 function boundedMetricLabel(value: string): string {
-  return value.length <= 64 ? value : value.slice(0, 64);
+  if (value.length <= 64) return value;
+  const bounded = value.slice(0, 64);
+  const lastCodeUnit = bounded.charCodeAt(bounded.length - 1);
+  return lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff ? bounded.slice(0, -1) : bounded;
 }

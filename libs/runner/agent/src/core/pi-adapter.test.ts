@@ -2,6 +2,14 @@ const piExtensionTestState = vi.hoisted(() => ({
   resolver: undefined as ((specifier: string) => string) | undefined,
 }));
 
+const {recordPiProviderRetryOutcomeMock} = vi.hoisted(() => ({
+  recordPiProviderRetryOutcomeMock: vi.fn(),
+}));
+
+vi.mock('#metrics/instance.js', () => ({
+  recordPiProviderRetryOutcome: recordPiProviderRetryOutcomeMock,
+}));
+
 const {
   createAgentSessionMock,
   createAgentSessionServicesMock,
@@ -16,6 +24,7 @@ const {
   defineToolMock,
   promptMock,
   abortMock,
+  subscribeMock,
   bindExtensionsMock,
   getLastAssistantTextMock,
   getActiveToolNamesMock,
@@ -38,6 +47,7 @@ const {
   defineToolMock: vi.fn((tool) => tool),
   promptMock: vi.fn(),
   abortMock: vi.fn(),
+  subscribeMock: vi.fn(),
   bindExtensionsMock: vi.fn(),
   getLastAssistantTextMock: vi.fn(),
   getActiveToolNamesMock: vi.fn(),
@@ -113,7 +123,7 @@ import {
 } from 'node:fs';
 import {tmpdir} from 'node:os';
 import {basename, isAbsolute, join} from 'node:path';
-import type {ToolDefinition} from '@earendil-works/pi-coding-agent';
+import type {AgentSessionEvent, ToolDefinition} from '@earendil-works/pi-coding-agent';
 import {
   type CustomModelProviderRuntimeConfigDto,
   DEFAULT_CUSTOM_MODEL_CONTEXT_WINDOW,
@@ -134,6 +144,10 @@ import {piHarnessAdapter} from '#core/pi-adapter.js';
 import {piExtensionDirectories} from '#core/pi-extensions.js';
 import {PI_TOOL_ERROR_NORMALIZER_EXTENSION_NAME} from '#core/pi-tool-error-normalizer.js';
 import {PI_TOOL_SVG_NORMALIZER_EXTENSION_NAME} from '#core/pi-tool-svg-normalizer.js';
+import {
+  PROVIDER_STREAM_INTERRUPTED_CODE,
+  PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+} from '#core/provider-stream-recovery.js';
 
 function extensionDirectory(packageName: string): string {
   const [directory] = piExtensionDirectories({packageNames: [packageName]});
@@ -227,6 +241,8 @@ describe('piHarnessAdapter', () => {
   // Tracked so the temp dir is removed in afterEach even if an assertion throws first.
   let sessionDir: string | undefined;
   let priorGitConfigGlobal: string | undefined;
+  let sessionMessages: unknown[];
+  let retryEventListener: ((event: AgentSessionEvent) => void) | undefined;
 
   beforeEach(() => {
     priorGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
@@ -249,12 +265,14 @@ describe('piHarnessAdapter', () => {
     defineToolMock.mockClear();
     promptMock.mockReset();
     abortMock.mockReset();
+    subscribeMock.mockReset();
     bindExtensionsMock.mockReset();
     getLastAssistantTextMock.mockReset();
     getActiveToolNamesMock.mockReset();
     setActiveToolsByNameMock.mockReset();
     disposeMock.mockReset();
     extensionShutdownMock.mockReset();
+    recordPiProviderRetryOutcomeMock.mockReset();
     modelRuntimeCreateMock.mockReset();
     piExtensionTestState.resolver = undefined;
     assertEgressAllowedMock.mockReset();
@@ -272,6 +290,8 @@ describe('piHarnessAdapter', () => {
     promptMock.mockResolvedValue(undefined);
     getLastAssistantTextMock.mockReturnValue(undefined);
     getActiveToolNamesMock.mockReturnValue(['read', 'bash', 'edit', 'write']);
+    sessionMessages = [];
+    retryEventListener = undefined;
     createAgentSessionServicesMock.mockResolvedValue(piServices());
     createAgentSessionMock.mockResolvedValue({
       session: {
@@ -284,7 +304,8 @@ describe('piHarnessAdapter', () => {
         getLastAssistantText: getLastAssistantTextMock,
         getActiveToolNames: getActiveToolNamesMock,
         setActiveToolsByName: setActiveToolsByNameMock,
-        messages: [],
+        messages: sessionMessages,
+        subscribe: subscribeMock,
       },
     });
   });
@@ -321,6 +342,82 @@ describe('piHarnessAdapter', () => {
     );
     expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
     expect(result).toEqual({response: ''});
+  });
+
+  it('reports one attempt when no managed retry event is observed', async () => {
+    promptMock.mockImplementation(() => {
+      sessionMessages.push({
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+      });
+      getLastAssistantTextMock.mockReturnValue('');
+    });
+
+    await expect(piHarnessAdapter.run(invocation({provider: 'shipfox'}))).rejects.toMatchObject({
+      message: 'The model response stream was interrupted after 1 attempt.',
+      code: PROVIDER_STREAM_INTERRUPTED_CODE,
+      retryable: true,
+      attemptCount: 1,
+      maxAttempts: 1,
+    });
+    expect(recordPiProviderRetryOutcomeMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps a later provider failure out of managed retry classification', async () => {
+    const entries: string[] = [];
+    const terminalError = 'Provider rate limit exceeded';
+    subscribeMock.mockImplementation((listener: (event: AgentSessionEvent) => void) => {
+      retryEventListener = listener;
+      return () => undefined;
+    });
+    promptMock.mockImplementation(() => {
+      retryEventListener?.({
+        type: 'auto_retry_start',
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 10,
+        errorMessage: PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+      });
+      retryEventListener?.({
+        type: 'auto_retry_end',
+        success: false,
+        attempt: 1,
+        finalError: terminalError,
+      });
+      sessionMessages.push({role: 'assistant', stopReason: 'error', errorMessage: terminalError});
+      getLastAssistantTextMock.mockReturnValue('');
+    });
+
+    const error = await piHarnessAdapter
+      .run(
+        invocation({
+          provider: 'shipfox',
+          onSessionEntry: (line) => entries.push(line),
+        }),
+      )
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(AgentInvocationError);
+    expect(error).toMatchObject({
+      message: terminalError,
+      response: '',
+      code: undefined,
+      retryable: undefined,
+      attemptCount: undefined,
+      maxAttempts: undefined,
+    });
+    expect(recordPiProviderRetryOutcomeMock).not.toHaveBeenCalled();
+    expect(entries).toEqual([
+      JSON.stringify({
+        type: 'auto_retry_start',
+        code: PROVIDER_STREAM_INTERRUPTED_CODE,
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 10,
+        errorMessage: PROVIDER_STREAM_INTERRUPTED_CODE,
+      }),
+    ]);
   });
 
   it('loads pi-web-access through the Pi resource loader without output tools by default', async () => {

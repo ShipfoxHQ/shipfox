@@ -114,6 +114,7 @@ type ProviderRetryTracker = {
   retries: number;
   maxRetries: number;
   active: boolean;
+  observedRetry: boolean;
   outcomeRecorded: boolean;
 };
 
@@ -465,6 +466,7 @@ function createProviderRetryTracker(
     retries: 0,
     maxRetries: 3,
     active: false,
+    observedRetry: false,
     outcomeRecorded: false,
   };
 }
@@ -486,6 +488,7 @@ function observeProviderRetryEvent(
       tracker.outcomeRecorded = false;
     }
     tracker.active = true;
+    tracker.observedRetry = true;
     tracker.retries = Math.min(3, Math.max(tracker.retries, event.attempt));
     tracker.maxRetries = Math.min(3, Math.max(0, event.maxAttempts));
     forwardBoundedProviderRetryEntry(params.onSessionEntry, {
@@ -502,6 +505,11 @@ function observeProviderRetryEvent(
   if (event.type !== 'auto_retry_end' || !tracker.active) return;
 
   tracker.active = false;
+  const isUnclassifiedRetryFailure =
+    !event.success &&
+    !params.signal.aborted &&
+    event.finalError !== PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE;
+  if (isUnclassifiedRetryFailure) return;
   let outcome: 'recovered' | 'exhausted' | 'aborted';
   if (event.success) outcome = 'recovered';
   else if (params.signal.aborted) outcome = 'aborted';
@@ -556,9 +564,11 @@ function providerStreamFailureDetails(tracker: ProviderRetryTracker): {
   attemptCount: number;
   maxAttempts: number;
 } {
-  const maxAttempts = tracker.maxRetries + 1;
-  const attemptCount = Math.min(maxAttempts, Math.max(1, tracker.retries + 1));
-  if (!tracker.outcomeRecorded) {
+  const maxAttempts = tracker.observedRetry ? tracker.maxRetries + 1 : 1;
+  const attemptCount = tracker.observedRetry
+    ? Math.min(maxAttempts, Math.max(1, tracker.retries + 1))
+    : 1;
+  if (tracker.observedRetry && !tracker.outcomeRecorded) {
     recordProviderRetryOutcome(tracker, 'exhausted');
   }
   const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';

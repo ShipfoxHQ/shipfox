@@ -85,6 +85,17 @@ describe('Pi SVG normalization metrics', () => {
     });
   });
 
+  it('does not split a surrogate pair at the metric label boundary', () => {
+    metrics.recordPiProviderRetryOutcome('shipfox', `${'m'.repeat(63)}😀`, 'exhausted');
+
+    expect(counterAdd('runner_agent_provider_retries')).toHaveBeenCalledWith(1, {
+      provider: 'shipfox',
+      model: 'm'.repeat(63),
+      code: 'provider_stream_interrupted',
+      outcome: 'exhausted',
+    });
+  });
+
   it('records bounded rasterization duration labels', () => {
     metrics.recordPiSvgRasterizationDuration('omitted', 5_000);
 
