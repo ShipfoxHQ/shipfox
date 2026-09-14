@@ -8,7 +8,9 @@ import type {
   ImageContent,
   TextContent,
 } from '@earendil-works/pi-ai';
+import {getApiProvider} from '@earendil-works/pi-ai/compat';
 import {
+  type AgentSessionEvent,
   type AgentToolResult,
   type CreateAgentSessionOptions,
   createAgentSessionFromServices,
@@ -63,8 +65,14 @@ import {createPiSessionDiagnosticsExtension} from '#core/pi-session-diagnostics.
 import {createPiToolErrorNormalizerExtension} from '#core/pi-tool-error-normalizer.js';
 import {createPiToolSvgNormalizerExtension} from '#core/pi-tool-svg-normalizer.js';
 import {PrerequisiteLedger} from '#core/prerequisite-ledger.js';
+import {
+  PROVIDER_STREAM_INTERRUPTED_CODE,
+  PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+  wrapManagedProviderStream,
+} from '#core/provider-stream-recovery.js';
 import {type SessionForwarder, startSessionForwarder} from '#core/session-forwarder.js';
 import {toolSelectionOption} from '#core/tool-selection.js';
+import {recordPiProviderRetryOutcome} from '#metrics/instance.js';
 
 const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
 const SECRET_HEADER_CREDENTIAL_PREFIX = 'header:';
@@ -99,6 +107,15 @@ type PiSessionManagerSetup = {
 };
 type CustomProviderConfig = Parameters<ModelRuntimeInstance['registerProvider']>[1];
 type CustomProviderModel = NonNullable<CustomProviderConfig['models']>[number];
+type ProviderRetryTracker = {
+  readonly enabled: boolean;
+  readonly provider: string;
+  readonly model: string;
+  retries: number;
+  maxRetries: number;
+  active: boolean;
+  outcomeRecorded: boolean;
+};
 
 /** The gateway-owned body for a managed inference authentication rejection. */
 export interface ManagedInferenceAuthenticationErrorV1 {
@@ -210,6 +227,7 @@ async function runPiAgent(invocation: HarnessInvocation): Promise<HarnessResult>
     session = created.session;
     forkedFromExistingSession = created.forkedFromExistingSession;
     return await runPiSession({
+      invocation,
       session,
       signal,
       mcpConfig,
@@ -281,6 +299,7 @@ async function createPiSession(params: {
 }
 
 async function runPiSession(params: {
+  invocation: HarnessInvocation;
   session: PiSession;
   signal: AbortSignal;
   mcpConfig: PiMcpConfig | undefined;
@@ -329,6 +348,14 @@ async function runActivePiSession(
   );
   if (params.signal.aborted) throw new Error('Agent step aborted during pi session creation');
 
+  const retryTracker = createProviderRetryTracker(
+    params.invocation.provider === 'shipfox',
+    params.invocation.provider,
+    params.invocation.model,
+  );
+  const unsubscribeRetryEvents = params.session.subscribe?.((event) =>
+    observeProviderRetryEvent(event, retryTracker, params),
+  );
   const forwarder = startForwarding(
     params.session.sessionFile,
     params.onSessionEntry,
@@ -342,8 +369,9 @@ async function runActivePiSession(
     params.signal.addEventListener('abort', restoreGitConfigGlobal, {once: true});
   }
   try {
-    return await runPiOutputTurns(params);
+    return await runPiOutputTurns({...params, retryTracker});
   } finally {
+    unsubscribeRetryEvents?.();
     forwarder?.stop();
     restoreGitConfigGlobal();
     params.signal.removeEventListener('abort', stopForwarder);
@@ -352,7 +380,7 @@ async function runActivePiSession(
 }
 
 async function runPiOutputTurns(
-  params: Parameters<typeof runPiSession>[0],
+  params: Parameters<typeof runPiSession>[0] & {retryTracker: ProviderRetryTracker},
 ): Promise<HarnessResult> {
   let response = '';
   let managedInferenceRetryUsed = false;
@@ -383,7 +411,22 @@ async function runPiOutputTurns(
         }
         const assistantError = turn.assistantError;
         if (assistantError !== undefined) {
-          throw new AgentInvocationError(assistantError, turn.response);
+          const providerStreamFailure =
+            params.invocation.provider === 'shipfox' &&
+            assistantError === PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE
+              ? providerStreamFailureDetails(params.retryTracker)
+              : undefined;
+          throw new AgentInvocationError(
+            providerStreamFailure?.message ?? assistantError,
+            turn.response,
+            undefined,
+            undefined,
+            undefined,
+            providerStreamFailure?.code,
+            providerStreamFailure?.retryable,
+            providerStreamFailure?.attemptCount,
+            providerStreamFailure?.maxAttempts,
+          );
         }
         response = turn.response;
       },
@@ -399,6 +442,7 @@ async function runPiOutputTurns(
       sessionArtifact,
       diagnostics: params.diagnostics,
       aborted: params.signal.aborted,
+      retryTracker: params.retryTracker,
     });
   }
   const outputs = params.collector.snapshot();
@@ -406,6 +450,118 @@ async function runPiOutputTurns(
     response,
     ...(Object.keys(outputs).length === 0 ? {} : {outputs}),
     ...sessionArtifact,
+  };
+}
+
+function createProviderRetryTracker(
+  enabled: boolean,
+  provider: string,
+  model: string,
+): ProviderRetryTracker {
+  return {
+    enabled,
+    provider,
+    model,
+    retries: 0,
+    maxRetries: 3,
+    active: false,
+    outcomeRecorded: false,
+  };
+}
+
+function observeProviderRetryEvent(
+  event: AgentSessionEvent,
+  tracker: ProviderRetryTracker,
+  params: Pick<Parameters<typeof runPiSession>[0], 'onSessionEntry' | 'signal'>,
+): void {
+  if (!tracker.enabled) return;
+
+  if (
+    event.type === 'auto_retry_start' &&
+    event.errorMessage === PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE
+  ) {
+    tracker.active = true;
+    tracker.retries = Math.min(3, Math.max(tracker.retries, event.attempt));
+    tracker.maxRetries = Math.min(3, Math.max(0, event.maxAttempts));
+    forwardBoundedProviderRetryEntry(params.onSessionEntry, {
+      type: 'auto_retry_start',
+      code: PROVIDER_STREAM_INTERRUPTED_CODE,
+      attempt: boundedRetryNumber(event.attempt),
+      maxAttempts: boundedRetryNumber(event.maxAttempts),
+      delayMs: boundedRetryDelay(event.delayMs),
+      errorMessage: PROVIDER_STREAM_INTERRUPTED_CODE,
+    });
+    return;
+  }
+
+  if (event.type !== 'auto_retry_end' || !tracker.active) return;
+
+  tracker.active = false;
+  let outcome: 'recovered' | 'exhausted' | 'aborted';
+  if (event.success) outcome = 'recovered';
+  else if (params.signal.aborted) outcome = 'aborted';
+  else outcome = 'exhausted';
+  recordProviderRetryOutcome(tracker, outcome);
+  forwardBoundedProviderRetryEntry(params.onSessionEntry, {
+    type: 'auto_retry_end',
+    code: PROVIDER_STREAM_INTERRUPTED_CODE,
+    success: event.success,
+    attempt: boundedRetryNumber(event.attempt),
+    ...(event.success
+      ? {}
+      : {
+          finalError: outcome === 'aborted' ? 'retry_aborted' : PROVIDER_STREAM_INTERRUPTED_CODE,
+        }),
+  });
+}
+
+function forwardBoundedProviderRetryEntry(
+  onSessionEntry: HarnessInvocation['onSessionEntry'],
+  entry: Record<string, boolean | number | string>,
+): void {
+  if (onSessionEntry === undefined) return;
+  try {
+    onSessionEntry(JSON.stringify(entry));
+  } catch {
+    // Session forwarding is best-effort and must not affect the agent turn.
+  }
+}
+
+function boundedRetryNumber(value: number): number {
+  return Number.isInteger(value) ? Math.min(3, Math.max(0, value)) : 0;
+}
+
+function boundedRetryDelay(value: number): number {
+  return Number.isFinite(value) ? Math.min(60_000, Math.max(0, Math.round(value))) : 0;
+}
+
+function recordProviderRetryOutcome(
+  tracker: ProviderRetryTracker,
+  outcome: 'recovered' | 'exhausted' | 'aborted',
+): void {
+  if (tracker.outcomeRecorded) return;
+  tracker.outcomeRecorded = true;
+  recordPiProviderRetryOutcome(tracker.provider, tracker.model, outcome);
+}
+
+function providerStreamFailureDetails(tracker: ProviderRetryTracker): {
+  message: string;
+  code: typeof PROVIDER_STREAM_INTERRUPTED_CODE;
+  retryable: true;
+  attemptCount: number;
+  maxAttempts: number;
+} {
+  const maxAttempts = tracker.maxRetries + 1;
+  const attemptCount = Math.min(maxAttempts, Math.max(1, tracker.retries + 1));
+  if (!tracker.outcomeRecorded) {
+    recordProviderRetryOutcome(tracker, 'exhausted');
+  }
+  return {
+    message: `The model response stream was interrupted after ${attemptCount} attempts.`,
+    code: PROVIDER_STREAM_INTERRUPTED_CODE,
+    retryable: true,
+    attemptCount,
+    maxAttempts,
   };
 }
 
@@ -426,6 +582,7 @@ function wrapPiOutputError(params: {
   sessionArtifact: {sessionFile?: string; sessionId?: string};
   diagnostics: AgentSessionDiagnostics;
   aborted: boolean;
+  retryTracker: ProviderRetryTracker;
 }): AgentInvocationError {
   if (params.error instanceof RequiredOutputsMissingError) {
     params.diagnostics.finish('required_output_missing', 'required_output_missing');
@@ -436,6 +593,10 @@ function wrapPiOutputError(params: {
       params.sessionArtifact.sessionId,
       'output_gate_failed',
     );
+  }
+  if (params.aborted && params.retryTracker.active) {
+    params.retryTracker.active = false;
+    recordProviderRetryOutcome(params.retryTracker, 'aborted');
   }
   if (params.error instanceof AgentInvocationError) {
     params.diagnostics.finish(
@@ -448,6 +609,10 @@ function wrapPiOutputError(params: {
       params.sessionArtifact.sessionFile,
       params.sessionArtifact.sessionId,
       params.error.failurePhase,
+      params.error.code,
+      params.error.retryable,
+      params.error.attemptCount,
+      params.error.maxAttempts,
     );
   }
   params.diagnostics.finish(params.aborted ? 'aborted' : 'error');
@@ -1384,6 +1549,8 @@ async function registerCustomProvider(
   await assertRunnerEgressAllowed(customProvider.base_url, 'Custom model provider endpoint');
 
   const apiKey = customProviderApiKey(provider, customProvider, credentials);
+  const baseStreamSimple =
+    provider === 'shipfox' ? getApiProvider(customProvider.api)?.streamSimple : undefined;
 
   try {
     modelRuntime.registerProvider(provider, {
@@ -1393,6 +1560,9 @@ async function registerCustomProvider(
       apiKey,
       headers: customProviderHeaders(customProvider, credentials),
       models: customProvider.models.map((model) => toPiCustomProviderModel(customProvider, model)),
+      ...(baseStreamSimple === undefined
+        ? {}
+        : {streamSimple: wrapManagedProviderStream(baseStreamSimple)}),
     });
   } catch (error) {
     throw new AgentConfigError(

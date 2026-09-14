@@ -277,12 +277,16 @@ function harnessFailureResult(
   if (error instanceof AgentHarnessUnavailableError) reason = 'agent_harness_unavailable';
   else if (error instanceof AgentSessionUnavailableError) reason = 'agent_session_unavailable';
   else if (error instanceof AgentConfigError) reason = 'agent_config_invalid';
+  const invocationError = error instanceof AgentInvocationError ? error : undefined;
   const failure = agentFailure(
     error instanceof Error ? error.message : String(error),
     reason,
     error instanceof AgentConfigError ? error.agentConfigIssue : undefined,
-    error instanceof AgentInvocationError ? error.response : undefined,
-    error instanceof AgentInvocationError ? error.failurePhase : undefined,
+    invocationError?.response,
+    invocationError?.code ?? invocationError?.failurePhase,
+    invocationError?.retryable,
+    invocationError?.attemptCount,
+    invocationError?.maxAttempts,
   );
   if (
     error instanceof AgentInvocationError &&
@@ -412,13 +416,19 @@ function agentFailure(
   reason: StepErrorReasonDto = 'agent_invocation_failed',
   agentConfigIssue?: AgentConfigIssueDto,
   response?: string,
-  failurePhase?: AgentInvocationError['failurePhase'],
+  code?: string,
+  retryable?: boolean,
+  attemptCount?: number,
+  maxAttempts?: number,
 ): StepResult {
   const error: StepErrorDto = {
     message,
     reason,
     ...(agentConfigIssue === undefined ? {} : {agent_config_issue: agentConfigIssue}),
-    ...(failurePhase === undefined ? {} : {code: failurePhase}),
+    ...(code === undefined ? {} : {code}),
+    ...(retryable === undefined ? {} : {retryable}),
+    ...(attemptCount === undefined ? {} : {attempt_count: attemptCount}),
+    ...(maxAttempts === undefined ? {} : {max_attempts: maxAttempts}),
   };
   return {
     success: false,

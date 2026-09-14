@@ -64,6 +64,8 @@ export type AgentInvocationFailurePhase =
   | 'integration_tool_invocation_failed'
   | 'output_gate_failed';
 
+export type AgentInvocationErrorCode = 'provider_stream_interrupted';
+
 export class AgentInvocationError extends Error {
   constructor(
     message: string,
@@ -71,6 +73,10 @@ export class AgentInvocationError extends Error {
     public readonly sessionFile?: string | undefined,
     public readonly sessionId?: string | undefined,
     public readonly failurePhase?: AgentInvocationFailurePhase | undefined,
+    public readonly code?: AgentInvocationErrorCode | undefined,
+    public readonly retryable?: boolean | undefined,
+    public readonly attemptCount?: number | undefined,
+    public readonly maxAttempts?: number | undefined,
   ) {
     super(message);
     this.name = 'AgentInvocationError';

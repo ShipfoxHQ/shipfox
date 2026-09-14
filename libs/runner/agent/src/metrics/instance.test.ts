@@ -74,6 +74,17 @@ describe('Pi SVG normalization metrics', () => {
     });
   });
 
+  it('records bounded provider retry outcomes without raw error data', () => {
+    metrics.recordPiProviderRetryOutcome('shipfox', 'model-'.padEnd(80, 'x'), 'exhausted');
+
+    expect(counterAdd('runner_agent_provider_retries')).toHaveBeenCalledWith(1, {
+      provider: 'shipfox',
+      model: 'model-'.padEnd(64, 'x'),
+      code: 'provider_stream_interrupted',
+      outcome: 'exhausted',
+    });
+  });
+
   it('records bounded rasterization duration labels', () => {
     metrics.recordPiSvgRasterizationDuration('omitted', 5_000);
 
