@@ -4,6 +4,7 @@ import {waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 
 const MAX_TRIGGER_ATTEMPTS = 8;
 const RUN_LOOKUP_TIMEOUT_MS = 5_000;
+const NEGATIVE_RUN_LOOKUP_SLICE_TIMEOUT_MS = 500;
 
 export function signClickUpHeaders(rawBody: string, webhookSecret: string): Record<string, string> {
   return {
@@ -132,18 +133,39 @@ export async function expectNoClickUpRun(params: {
   workspaceId: string;
   token: string;
   deliveryId: string;
+  expectedClickUpCallCount: number;
+  getClickUpCallCount: () => number;
 }): Promise<void> {
-  try {
-    await waitForRunByDeliveryId({
-      projectId: params.projectId,
-      deliveryId: params.deliveryId,
-      token: params.token,
-      timeoutMs: 2_000,
-      workspaceId: params.workspaceId,
-    });
-  } catch (error) {
-    if (error instanceof PollTimeoutError) return;
-    throw error;
+  const assertExpectedClickUpCallCount = () => {
+    const actualCallCount = params.getClickUpCallCount();
+    if (actualCallCount !== params.expectedClickUpCallCount) {
+      throw new Error(
+        `Expected ClickUp mock to remain at ${params.expectedClickUpCallCount} calls, observed ${actualCallCount}.`,
+      );
+    }
+  };
+  const deadline = Date.now() + RUN_LOOKUP_TIMEOUT_MS;
+
+  while (true) {
+    assertExpectedClickUpCallCount();
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+
+    try {
+      await waitForRunByDeliveryId({
+        projectId: params.projectId,
+        deliveryId: params.deliveryId,
+        token: params.token,
+        timeoutMs: Math.min(NEGATIVE_RUN_LOOKUP_SLICE_TIMEOUT_MS, remainingMs),
+        workspaceId: params.workspaceId,
+      });
+      throw new Error(`Expected ClickUp delivery ${params.deliveryId} not to start a run.`);
+    } catch (error) {
+      assertExpectedClickUpCallCount();
+      if (error instanceof PollTimeoutError) continue;
+      throw error;
+    }
   }
-  throw new Error(`Expected ClickUp delivery ${params.deliveryId} not to start a run.`);
+
+  assertExpectedClickUpCallCount();
 }

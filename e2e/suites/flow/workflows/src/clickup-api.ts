@@ -38,7 +38,9 @@ export async function startClickUpApiMock(
   const calls: ClickUpApiMockCall[] = [];
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
-    void handleClickUpRequest({calls, endpoint: boundEndpoint, request, response});
+    void handleClickUpRequest({calls, endpoint: boundEndpoint, request, response}).catch(() => {
+      sendJson(response, 400, {err: 'Invalid ClickUp request', ECODE: 'E2E_BAD_REQUEST'});
+    });
   });
 
   try {

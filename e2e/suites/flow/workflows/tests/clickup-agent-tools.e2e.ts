@@ -174,13 +174,16 @@ test('starts a run from a signed ClickUp comment and calls ClickUp agent tools',
       actorId: authorizingUserId,
       commentText: 'This delivery must be ignored by loop safety.',
     });
+    const expectedClickUpCallCount = 2;
     await expectNoClickUpRun({
       projectId: project.id,
       workspaceId: suite.workspaceId,
       token: suite.sessionToken,
       deliveryId: selfAuthoredDeliveryId,
+      expectedClickUpCallCount,
+      getClickUpCallCount: () => clickupApi.calls.length,
     });
-    expect(clickupApi.calls).toHaveLength(2);
+    expect(clickupApi.calls).toHaveLength(expectedClickUpCallCount);
   } finally {
     if (localRunner !== undefined) {
       await attachLocalRunnerLog(
