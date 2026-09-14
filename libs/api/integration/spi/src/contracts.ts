@@ -394,6 +394,7 @@ export type IntegrationProviderErrorReason =
   | 'access-denied'
   | 'rate-limited'
   | 'timeout'
+  | 'credentials-unavailable'
   | 'provider-unavailable'
   | 'provider-rejected'
   | 'malformed-provider-response'

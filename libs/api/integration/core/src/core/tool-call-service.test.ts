@@ -764,6 +764,29 @@ describe('callIntegrationTool', () => {
         message: 'Integration provider credentials are unavailable',
       },
     ],
+    [
+      'typed credential failures preserve safe status metadata',
+      new IntegrationProviderError(
+        'credentials-unavailable',
+        'Reconnect the integration',
+        undefined,
+        401,
+      ),
+      {
+        code: 'credentials-unavailable',
+        message: 'Reconnect the integration',
+        status: 401,
+      },
+    ],
+    [
+      'terminal provider rejections preserve safe status metadata',
+      new IntegrationProviderError('provider-rejected', 'Refresh the resource', undefined, 422),
+      {
+        code: 'provider-rejected',
+        message: 'Refresh the resource',
+        status: 422,
+      },
+    ],
   ])('%s', async (_caseName, callError, expectedError) => {
     const result = await callIntegrationTool(createInput({callError}));
 
@@ -785,9 +808,30 @@ describe('callIntegrationTool', () => {
       expect.objectContaining({err: timeoutError, errorCode: 'provider-timeout'}),
       'Integration agent tool provider timed out',
     );
-    expect(serviceMocks.reportError).toHaveBeenCalledWith(timeoutError, {
-      boundary: 'integration.agent-tool',
-    });
+    expect(serviceMocks.reportError).toHaveBeenCalledWith(
+      timeoutError,
+      expect.objectContaining({
+        boundary: 'integration.agent-tool',
+        tags: {
+          provider: 'github',
+          toolId: 'issue_read',
+          caller: 'agent',
+          errorCode: 'provider-timeout',
+          providerStatusClass: 'none',
+        },
+        extra: expect.objectContaining({
+          connectionId: 'connection-1',
+          jobId: 'job-1',
+          jobExecutionId: 'execution-1',
+          workflowRunId: 'run-1',
+          workflowRunAttemptId: 'attempt-1',
+          workspaceId: 'workspace-1',
+          currentStepId: 'step-1',
+          currentStepAttempt: 2,
+        }),
+        fingerprint: ['integration.agent-tool', 'github', 'provider-timeout', 'none'],
+      }),
+    );
   });
 
   it('reports provider outages and unknown failures with bounded log context', async () => {
@@ -815,9 +859,19 @@ describe('callIntegrationTool', () => {
       }),
       'Integration agent tool provider was unavailable',
     );
-    expect(serviceMocks.reportError).toHaveBeenCalledWith(providerError, {
-      boundary: 'integration.agent-tool',
-    });
+    expect(serviceMocks.reportError).toHaveBeenCalledWith(
+      providerError,
+      expect.objectContaining({
+        tags: expect.objectContaining({
+          provider: 'github',
+          toolId: 'issue_read',
+          caller: 'agent',
+          errorCode: 'provider-unavailable',
+          providerStatusClass: '5xx',
+        }),
+        fingerprint: ['integration.agent-tool', 'github', 'provider-unavailable', '5xx'],
+      }),
+    );
 
     serviceMocks.loggerError.mockReset();
     serviceMocks.reportError.mockReset();
@@ -832,8 +886,45 @@ describe('callIntegrationTool', () => {
       expect.objectContaining({err: unknownError, errorCode: 'unknown'}),
       'Integration agent tool call failed',
     );
-    expect(serviceMocks.reportError).toHaveBeenCalledWith(unknownError, {
-      boundary: 'integration.agent-tool',
+    expect(serviceMocks.reportError).toHaveBeenCalledWith(
+      unknownError,
+      expect.objectContaining({
+        tags: expect.objectContaining({
+          errorCode: 'unknown',
+          providerStatusClass: 'none',
+        }),
+        fingerprint: ['integration.agent-tool', 'github', 'unknown', 'none'],
+      }),
+    );
+  });
+
+  it('keeps equivalent failures grouped without fragmenting by tool id', async () => {
+    const firstError = new IntegrationProviderError(
+      'provider-unavailable',
+      'Provider unavailable',
+      undefined,
+      500,
+    );
+    const secondError = new IntegrationProviderError(
+      'provider-unavailable',
+      'Provider unavailable again',
+      undefined,
+      503,
+    );
+
+    await callIntegrationTool(createInput({callError: firstError}));
+    await callIntegrationTool(
+      createInput({callError: secondError}, {tool: materializedTool({id: 'list_comments'})}),
+    );
+
+    expect(serviceMocks.reportError).toHaveBeenCalledTimes(2);
+    expect(serviceMocks.reportError.mock.calls[0]?.[1]).toMatchObject({
+      tags: {toolId: 'issue_read'},
+      fingerprint: ['integration.agent-tool', 'github', 'provider-unavailable', '5xx'],
+    });
+    expect(serviceMocks.reportError.mock.calls[1]?.[1]).toMatchObject({
+      tags: {toolId: 'list_comments'},
+      fingerprint: ['integration.agent-tool', 'github', 'provider-unavailable', '5xx'],
     });
   });
 
