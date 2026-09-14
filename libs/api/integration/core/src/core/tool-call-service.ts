@@ -143,7 +143,40 @@ function logIntegrationToolError(
     },
     message,
   );
-  report(error, {boundary: 'integration.agent-tool'});
+  report(error, integrationToolErrorReportContext(input, errorRecord));
+}
+
+function integrationToolErrorReportContext(
+  input: IntegrationToolCallInput,
+  errorRecord: IntegrationToolCallError,
+): Parameters<typeof reportError>[1] {
+  const correlation = {...callerLogContext(input.caller)};
+  delete correlation.caller;
+  const providerStatusClass = statusClass(errorRecord.status);
+  return {
+    boundary: 'integration.agent-tool',
+    tags: {
+      provider: input.integration.provider,
+      toolId: input.tool.id,
+      caller: input.caller.caller,
+      errorCode: errorRecord.code,
+      providerStatusClass,
+    },
+    extra: {
+      connectionId: input.connection.id,
+      ...correlation,
+    },
+    fingerprint: [
+      'integration.agent-tool',
+      input.integration.provider,
+      errorRecord.code,
+      providerStatusClass,
+    ],
+  };
+}
+
+function statusClass(status: number | undefined): string {
+  return status === undefined ? 'none' : `${Math.floor(status / 100)}xx`;
 }
 
 function handleIntegrationToolError(
@@ -643,7 +676,7 @@ function errorResult(error: unknown): IntegrationToolCallError {
     const retryAfterSeconds = retryAfterSecondsValue(error.retryAfterSeconds);
     const status = statusCode(error.status);
     return {
-      code: error.reason,
+      code: error.reason === 'timeout' ? 'provider-timeout' : error.reason,
       message: error.message,
       ...(retryAfterSeconds === undefined ? {} : {retryAfterSeconds}),
       ...(status === undefined ? {} : {status}),

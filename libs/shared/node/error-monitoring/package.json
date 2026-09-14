@@ -50,7 +50,9 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@opentelemetry/api": "catalog:",
     "@sentry/node": "catalog:",
+    "@sentry/opentelemetry": "catalog:",
     "@shipfox/config": "workspace:*"
   },
   "devDependencies": {

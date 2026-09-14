@@ -71,6 +71,7 @@ catalog:
   "@remixicon/react": "^4.6.0"
   '@resvg/resvg-wasm': ^2.6.2
   "@sentry/node": "^10.44.0"
+  '@sentry/opentelemetry': ^10.58.0
   '@storybook/addon-docs': ^10.4.6
   "@storybook/addon-vitest": "^10.3.6"
   "@storybook/react": "^10.0.0"

@@ -8,6 +8,7 @@ export interface ErrorReportContext {
   operation?: string;
   tags?: Record<string, string | number | boolean>;
   extra?: Record<string, string | number | boolean | null | undefined>;
+  fingerprint?: readonly string[];
 }
 
 type MarkableError = Error & {[errorReportedMarker]?: true};
@@ -48,13 +49,17 @@ export function reportError(error: unknown, context: ErrorReportContext): string
 
   const reportableError = toReportableError(error);
   try {
-    const eventId = Sentry.withScope((scope) => {
-      scope.setTag('boundary', context.boundary);
-      if (context.operation) scope.setTag('operation', context.operation);
-      if (context.tags) scope.setTags(context.tags);
-      if (context.extra) scope.setExtras(context.extra);
-      return Sentry.captureException(reportableError);
-    });
+    const reportScope = Sentry.getCurrentScope().clone().clear();
+    const eventId = Sentry.withIsolationScope(new Sentry.Scope(), () =>
+      Sentry.withScope(reportScope, (scope) => {
+        scope.setTag('boundary', context.boundary);
+        if (context.operation) scope.setTag('operation', context.operation);
+        if (context.tags) scope.setTags(context.tags);
+        if (context.extra) scope.setExtras(context.extra);
+        if (context.fingerprint) scope.setFingerprint([...context.fingerprint]);
+        return Sentry.captureException(reportableError);
+      }),
+    );
     if (eventId) {
       markErrorReported(error);
       markErrorReported(reportableError);

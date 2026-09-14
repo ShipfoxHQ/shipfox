@@ -1,9 +1,10 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http';
-import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
+import {StreamableHTTPError} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {type CallToolResult, ErrorCode, McpError} from '@modelcontextprotocol/sdk/types.js';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {linearAgentToolCatalog, linearAgentToolSelectionCatalog} from '#core/agent-tools.js';
 import {LinearAgentToolsProvider} from '#core/agent-tools-provider.js';
-import {LinearAccessTokenMissingError} from '#core/errors.js';
+import {LinearAccessTokenMissingError, LinearIntegrationProviderError} from '#core/errors.js';
 
 function linearConnection(
   overrides: Partial<IntegrationConnection<'linear'>> = {},
@@ -160,8 +161,81 @@ describe('LinearAgentToolsProvider', () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it('propagates remote provider errors and still exposes close for cleanup', async () => {
-    const remoteError = new Error('remote MCP rejected the request');
+  it.each([
+    [
+      'HTTP 500 outages',
+      new StreamableHTTPError(500, 'Worker threw exception: secret response body'),
+      {
+        reason: 'provider-unavailable',
+        message: 'Linear is temporarily unavailable. Please try again.',
+        status: 500,
+      },
+    ],
+    [
+      'request timeouts',
+      new McpError(ErrorCode.RequestTimeout, 'Request timed out', {timeout: 30_000}),
+      {reason: 'timeout', message: 'Linear timed out. Please try again.'},
+    ],
+    [
+      'HTTP request timeouts',
+      new StreamableHTTPError(408, 'raw timeout response'),
+      {reason: 'timeout', message: 'Linear timed out. Please try again.', status: 408},
+    ],
+    [
+      'rate limits',
+      new StreamableHTTPError(429, 'slow down'),
+      {
+        reason: 'rate-limited',
+        message: 'Linear rate limited the request. Please try again later.',
+        status: 429,
+      },
+    ],
+    [
+      'invalid credentials',
+      new StreamableHTTPError(401, 'invalid_token: secret-token'),
+      {
+        reason: 'credentials-unavailable',
+        message: 'Linear credentials are unavailable. Reconnect Linear and try again.',
+        status: 401,
+      },
+    ],
+    [
+      'terminal provider rejections',
+      new StreamableHTTPError(422, 'raw provider rejection'),
+      {reason: 'provider-rejected', message: 'Linear rejected the request.', status: 422},
+    ],
+    [
+      'network failures',
+      new TypeError('fetch failed'),
+      {
+        reason: 'provider-unavailable',
+        message: 'Linear is temporarily unavailable. Please try again.',
+      },
+    ],
+    [
+      'mid-response socket resets',
+      new TypeError('terminated', {
+        cause: Object.assign(new Error('other side closed'), {code: 'ECONNRESET'}),
+      }),
+      {
+        reason: 'provider-unavailable',
+        message: 'Linear is temporarily unavailable. Please try again.',
+      },
+    ],
+    [
+      'closed connections',
+      new McpError(ErrorCode.ConnectionClosed, 'connection closed'),
+      {
+        reason: 'provider-unavailable',
+        message: 'Linear is temporarily unavailable. Please try again.',
+      },
+    ],
+    [
+      'invalid MCP requests',
+      new McpError(ErrorCode.InvalidRequest, 'invalid request'),
+      {reason: 'provider-rejected', message: 'Linear rejected the request.'},
+    ],
+  ])('maps call-time %s and still exposes close for cleanup', async (_name, remoteError, expected) => {
     const close = vi.fn().mockResolvedValue(undefined);
     const provider = new LinearAgentToolsProvider({
       tokenStore: {getAccessToken: async () => 'linear-token'},
@@ -179,8 +253,62 @@ describe('LinearAgentToolsProvider', () => {
     const result = session.call({toolId: 'get_issue', arguments: {id: 'ENG-875'}});
     await session.close?.();
 
-    await expect(result).rejects.toBe(remoteError);
+    await expect(result).rejects.toMatchObject(expected);
+    await expect(result).rejects.toBeInstanceOf(LinearIntegrationProviderError);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [
+      'HTTP 500 outages',
+      new StreamableHTTPError(500, 'Worker threw exception: secret response body'),
+      {reason: 'provider-unavailable', status: 500},
+    ],
+    [
+      'request timeouts',
+      new McpError(ErrorCode.RequestTimeout, 'Request timed out'),
+      {reason: 'timeout'},
+    ],
+    [
+      'cause-coded network timeouts',
+      new Error('connect failed', {cause: {code: 'UND_ERR_CONNECT_TIMEOUT'}}),
+      {reason: 'timeout'},
+    ],
+    [
+      'invalid credentials',
+      new StreamableHTTPError(401, 'invalid_token: secret-token'),
+      {reason: 'credentials-unavailable', status: 401},
+    ],
+  ])('maps connect-time %s', async (_name, remoteError, expected) => {
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      createClient: () => Promise.reject(remoteError),
+    });
+
+    const result = provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    await expect(result).rejects.toMatchObject(expected);
+    await expect(result).rejects.toBeInstanceOf(LinearIntegrationProviderError);
+  });
+
+  it('does not hide unknown SDK failures', async () => {
+    const sdkError = new Error('unexpected SDK invariant');
+    const provider = new LinearAgentToolsProvider({
+      tokenStore: {getAccessToken: async () => 'linear-token'},
+      createClient: () => Promise.reject(sdkError),
+    });
+
+    const result = provider.openSession({
+      connection: linearConnection(),
+      tools: [],
+      scope: {provider: 'linear'},
+    });
+
+    await expect(result).rejects.toBe(sdkError);
   });
 });
 

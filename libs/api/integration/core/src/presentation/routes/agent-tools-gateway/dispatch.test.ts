@@ -94,9 +94,30 @@ describe('createIntegrationToolDispatcher', () => {
       currentStepAttempt: 2,
       connectionId: 'connection-1',
     });
-    expect(dispatchMocks.reportError).toHaveBeenCalledWith(providerError, {
-      boundary: 'integration.agent-tool',
-    });
+    expect(dispatchMocks.reportError).toHaveBeenCalledWith(
+      providerError,
+      expect.objectContaining({
+        boundary: 'integration.agent-tool',
+        tags: {
+          provider: 'github',
+          toolId: 'issue_read',
+          caller: 'agent',
+          errorCode: 'provider-unavailable',
+          providerStatusClass: '5xx',
+        },
+        extra: expect.objectContaining({
+          connectionId: 'connection-1',
+          jobId: 'job-1',
+          jobExecutionId: 'execution-1',
+          workflowRunId: 'run-1',
+          workflowRunAttemptId: 'attempt-1',
+          workspaceId: 'workspace-1',
+          currentStepId: 'step-1',
+          currentStepAttempt: 2,
+        }),
+        fingerprint: ['integration.agent-tool', 'github', 'provider-unavailable', '5xx'],
+      }),
+    );
   });
 
   it('classifies unrecognized failures as unknown instead of provider outages', async () => {
@@ -125,9 +146,20 @@ describe('createIntegrationToolDispatcher', () => {
       'Integration agent tool call failed',
     );
     expect(dispatchMocks.loggerError.mock.calls[0]?.[0]).not.toHaveProperty('providerStatus');
-    expect(dispatchMocks.reportError).toHaveBeenCalledWith(internalError, {
-      boundary: 'integration.agent-tool',
-    });
+    expect(dispatchMocks.reportError).toHaveBeenCalledWith(
+      internalError,
+      expect.objectContaining({
+        boundary: 'integration.agent-tool',
+        tags: expect.objectContaining({
+          provider: 'github',
+          toolId: 'issue_read',
+          caller: 'agent',
+          errorCode: 'unknown',
+          providerStatusClass: 'none',
+        }),
+        fingerprint: ['integration.agent-tool', 'github', 'unknown', 'none'],
+      }),
+    );
   });
 
   it('returns a repository denial without opening the provider session', async () => {

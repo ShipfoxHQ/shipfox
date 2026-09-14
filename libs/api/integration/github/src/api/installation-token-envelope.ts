@@ -40,13 +40,14 @@ const terminalMintErrorReasons = new Set<IntegrationProviderErrorReason>([
   'malformed-provider-response',
 ]);
 
-// Ref reasons describe ref-resolution failures, which a token mint never
+// These reasons describe boundaries a GitHub installation-token mint never
 // observes; keep them out of the envelope schema and acknowledge them here.
 type MissingProviderErrorReason = Exclude<
   IntegrationProviderErrorReason,
   | (typeof providerErrorReasons)[number]
   | 'ref-not-found'
   | 'ref-invalid'
+  | 'credentials-unavailable'
   | 'search-qualifier-conflict'
 >;
 const providerErrorReasonSchemaCoversUnion: Record<MissingProviderErrorReason, never> = {};
