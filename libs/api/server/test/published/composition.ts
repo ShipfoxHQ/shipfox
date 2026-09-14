@@ -1,4 +1,9 @@
-import {createServer, type DefaultAgentModuleOptions, defaultModules} from '@shipfox/api-server';
+import {
+  createServer,
+  type DefaultAgentModuleOptions,
+  type DefaultModulesExtension,
+  defaultModules,
+} from '@shipfox/api-server';
 
 const managedProvider: NonNullable<DefaultAgentModuleOptions['managedProvider']> = {
   id: 'managed',
@@ -12,18 +17,24 @@ const managedProvider: NonNullable<DefaultAgentModuleOptions['managedProvider']>
   }),
 };
 
-void createServer({
-  modules: [
-    ...(await defaultModules({
-      agentModuleOptions: {managedProvider},
-      runnersModuleOptions: {
-        installationProvisioning: {
-          policy: {
-            filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
-          },
-        },
+const extension: DefaultModulesExtension = ({workspaces, usage}) => {
+  void workspaces;
+  void usage.recordInferenceSegments;
+  return [{name: 'external-dummy'}];
+};
+
+const modules = await defaultModules({
+  agentModuleOptions: {managedProvider},
+  runnersModuleOptions: {
+    installationProvisioning: {
+      policy: {
+        filterEligibleWorkspaceIds: async (workspaceIds) => new Set(workspaceIds),
       },
-    })),
-    {name: 'external-dummy'},
-  ],
+    },
+  },
+  extension,
+});
+
+void createServer({
+  modules,
 });

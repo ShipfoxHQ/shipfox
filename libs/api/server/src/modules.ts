@@ -29,6 +29,10 @@ import {
 import {createTriggersModule} from '@shipfox/api-triggers';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {createUsageModule} from '@shipfox/api-usage';
+import {
+  type UsageModuleClient,
+  usageInterModuleContract,
+} from '@shipfox/api-usage-dto/inter-module';
 import {type CreateWorkflowsModuleOptions, createWorkflowsModule} from '@shipfox/api-workflows';
 import {
   type WorkflowsModuleClient,
@@ -108,6 +112,7 @@ export type DefaultWorkflowsModuleOptions = Pick<CreateWorkflowsModuleOptions, '
 export type DefaultRunnersModuleFactory = (options: {auth: AuthInterModuleClient}) => ShipfoxModule;
 export type DefaultModulesExtension = (options: {
   workspaces: WorkspacesInterModuleClient;
+  usage: UsageModuleClient;
 }) => ShipfoxModule[];
 
 export async function defaultModules(
@@ -135,6 +140,7 @@ export async function defaultModules(
   const annotationsClient = interModuleTransport.createClient(annotationsInterModuleContract);
   const secretsClient = interModuleTransport.createClient(secretsInterModuleContract);
   const workspacesClient = interModuleTransport.createClient(workspacesInterModuleContract);
+  const usageClient = interModuleTransport.createClient(usageInterModuleContract);
   const integrationsClient = interModuleTransport.createClient(integrationsInterModuleContract);
   const logsClient = interModuleTransport.createClient(logsInterModuleContract);
   const triggersClient = interModuleTransport.createClient(triggersInterModuleContract);
@@ -280,7 +286,8 @@ export async function defaultModules(
     agent: agentClient,
     integrations: integrationsClient,
   });
-  const extensionModules = options.extension?.({workspaces: workspacesClient}) ?? [];
+  const extensionModules =
+    options.extension?.({workspaces: workspacesClient, usage: usageClient}) ?? [];
   const agentModuleFactory = resolveModuleReplacementFactory(
     options.agentModuleFactory,
     options.agentModule,

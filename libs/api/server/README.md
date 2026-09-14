@@ -5,6 +5,7 @@ Runs a Shipfox API server.
 ## What it does
 
 - **`defaultModules()`**: Returns the standard module list.
+- **`DefaultModulesExtension`**: Receives the composed Workspaces and Usage clients for extension modules.
 - **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets and Workflows clients.
 - **`DefaultAuthModuleOptions`**: Configures the standard Auth module while `defaultModules()` supplies its Workspaces client.
 - **`DefaultRunnersModuleOptions`**: Configures the standard Runners module while `defaultModules()` supplies its Auth client.
@@ -30,12 +31,12 @@ import {defaultModules, runServer} from '@shipfox/api-server';
 await runServer({modules: await defaultModules()});
 ```
 
-To add a module that creates sessions, use the composed Workspaces client rather
-than creating another inter-module transport:
+To add an extension module, use the composed Workspaces and Usage clients rather
+than creating another inter-module transport or Usage module:
 
 ```ts
 const modules = await defaultModules({
-  extension: ({workspaces}) => [createCloudModule({workspaces})],
+  extension: ({workspaces, usage}) => [createCloudModule({workspaces, usage})],
 });
 ```
 
