@@ -70,6 +70,7 @@ describe('workflow run bounded overview API hooks', () => {
   afterEach(() => {
     cleanup();
     configureApiClient({baseUrl: '', fetchImpl: undefined});
+    vi.unstubAllGlobals();
   });
 
   test('fetches the lineage head and complete overview as separate bounded reads', async () => {
@@ -178,6 +179,49 @@ describe('workflow run bounded overview API hooks', () => {
       `https://api.example.test/workflows/runs/${RELATED_RUN_ID}/attempts?limit=25`,
       `https://api.example.test/workflows/runs/${RELATED_RUN_ID}/overview?attempt=3`,
     ]);
+  });
+
+  test('reports an unexpected related-attempt resolution failure', async () => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse({code: 'server_error'}, {status: 500})),
+    });
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.isError).toBe(true));
+    expect(reportError).toHaveBeenCalledOnce();
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: `Failed to resolve workflow run attempt ${RELATED_ATTEMPT_ID} for workflow run ${RELATED_RUN_ID}.`,
+      }),
+    );
+  });
+
+  test.each([
+    403, 404,
+  ])('does not report an expected related-attempt %s response', async (status) => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse({code: 'not_found'}, {status})),
+    });
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.isError).toBe(true));
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   test('does not show an execution count for an idle listening job', () => {

@@ -7,7 +7,7 @@ import {
   workflowRunOverviewResponseSchema,
   workflowRunSourceResponseSchema,
 } from '@shipfox/api-workflows-dto';
-import {checkedApiRequest} from '@shipfox/client-api';
+import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -204,11 +204,32 @@ export function workflowRunAttemptReferenceQueryOptions({
   return queryOptions({
     queryKey: workflowRunOverviewQueryKeys.concurrencyReference(identity),
     enabled,
-    queryFn: ({signal}) => getWorkflowRunAttemptReference(identity, signal),
+    queryFn: async ({signal}) => {
+      try {
+        return await getWorkflowRunAttemptReference(identity, signal);
+      } catch (error) {
+        if (!signal.aborted) reportWorkflowRunAttemptReferenceFailure(error, identity);
+        throw error;
+      }
+    },
     retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
+}
+
+function reportWorkflowRunAttemptReferenceFailure(
+  error: unknown,
+  identity: WorkflowRunAttemptIdentity,
+): void {
+  if (error instanceof ApiError && error.status < 500) return;
+
+  globalThis.reportError?.(
+    new Error(
+      `Failed to resolve workflow run attempt ${identity.workflowRunAttemptId} for workflow run ${identity.workflowRunId}.`,
+      {cause: error},
+    ),
+  );
 }
 
 async function getWorkflowRunAttemptReference(
