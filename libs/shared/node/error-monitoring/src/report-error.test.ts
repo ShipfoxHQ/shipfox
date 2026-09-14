@@ -1,28 +1,22 @@
 import {context} from '@opentelemetry/api';
 import * as sentry from '@sentry/node';
-import {
-  SentryAsyncLocalStorageContextManager,
-  setOpenTelemetryContextAsyncContextStrategy,
-} from '@sentry/opentelemetry';
 
 vi.mock('@sentry/node', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sentry/node')>()),
   captureException: vi.fn(),
+  init: vi.fn(),
+  setTag: vi.fn(),
 }));
 
 import {isErrorReported, markErrorReported, reportError} from './report-error.js';
 
-const contextManager = new SentryAsyncLocalStorageContextManager();
-
-beforeAll(() => {
+beforeAll(async () => {
   context.disable();
-  context.setGlobalContextManager(contextManager.enable());
-  setOpenTelemetryContextAsyncContextStrategy();
+  await import('./init.js');
 });
 
 afterAll(() => {
   context.disable();
-  contextManager.disable();
 });
 
 function resetSentry(): void {

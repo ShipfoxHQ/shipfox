@@ -1,5 +1,9 @@
+import {context} from '@opentelemetry/api';
 import * as Sentry from '@sentry/node';
-import {setOpenTelemetryContextAsyncContextStrategy} from '@sentry/opentelemetry';
+import {
+  SentryAsyncLocalStorageContextManager,
+  setOpenTelemetryContextAsyncContextStrategy,
+} from '@sentry/opentelemetry';
 import {config} from './config.js';
 
 const image = config.SENTRY_IMAGE;
@@ -14,7 +18,10 @@ Sentry.init({
   skipOpenTelemetrySetup: true,
 });
 
-// Shipfox owns the OpenTelemetry SDK, so only bind Sentry scopes to its async context.
+// The OpenTelemetry preload runs first. Replace its default manager before the app graph loads
+// so OpenTelemetry spans and Sentry scopes share one async context.
+context.disable();
+context.setGlobalContextManager(new SentryAsyncLocalStorageContextManager().enable());
 setOpenTelemetryContextAsyncContextStrategy();
 
 Sentry.setTag('image', image);

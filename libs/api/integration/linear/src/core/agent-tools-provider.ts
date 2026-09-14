@@ -29,6 +29,7 @@ const LINEAR_MCP_ENDPOINT = 'https://mcp.linear.app/mcp';
 const LINEAR_MCP_CALL_TIMEOUT_MS = 30_000;
 const timeoutNamePattern = /timed?\s*out|timeout/i;
 const networkFailureMessagePattern = /^(fetch failed|failed to fetch|network error)$/i;
+const networkFailureCodes = new Set(['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'UND_ERR_SOCKET']);
 
 type LinearIntegrationConnection = IntegrationConnection<'linear'>;
 
@@ -217,8 +218,12 @@ function isNetworkTimeout(error: unknown): boolean {
 }
 
 function isNetworkFailure(error: unknown): boolean {
-  if (!(error instanceof TypeError)) return false;
-  return networkFailureMessagePattern.test(error.message);
+  if (!(error instanceof Error)) return false;
+  const code = networkErrorCode(error);
+  return (
+    (error instanceof TypeError && networkFailureMessagePattern.test(error.message)) ||
+    (code !== undefined && networkFailureCodes.has(code))
+  );
 }
 
 function networkErrorCode(error: Error): string | undefined {

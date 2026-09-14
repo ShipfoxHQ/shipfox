@@ -203,6 +203,16 @@ describe('LinearAgentToolsProvider', () => {
         message: 'Linear is temporarily unavailable. Please try again.',
       },
     ],
+    [
+      'mid-response socket resets',
+      new TypeError('terminated', {
+        cause: Object.assign(new Error('other side closed'), {code: 'ECONNRESET'}),
+      }),
+      {
+        reason: 'provider-unavailable',
+        message: 'Linear is temporarily unavailable. Please try again.',
+      },
+    ],
   ])('maps call-time %s and still exposes close for cleanup', async (_name, remoteError, expected) => {
     const close = vi.fn().mockResolvedValue(undefined);
     const provider = new LinearAgentToolsProvider({

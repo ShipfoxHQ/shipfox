@@ -1302,6 +1302,12 @@ describe('tool step executor', () => {
     expect(
       toolRetryDelayMs({code: 'provider-timeout', sensitivity: 'read', callIndex: 2}),
     ).toBeUndefined();
+    expect(
+      toolRetryDelayMs({code: 'provider-unavailable', sensitivity: 'write', callIndex: 0}),
+    ).toBeUndefined();
+    expect(
+      toolRetryDelayMs({code: 'provider-unavailable', sensitivity: 'read', callIndex: 0}),
+    ).toBe(1_000);
   });
 });
 
