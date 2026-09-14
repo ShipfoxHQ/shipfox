@@ -41,6 +41,7 @@ export async function persistMaterializedRunGraph(
     readonly run: Pick<WorkflowRun, 'id' | 'workspaceId' | 'projectId' | 'definitionId'>;
     readonly workflowRunAttempt: {readonly id: string; readonly attempt: number};
     readonly materializedJobs: readonly MaterializedRunGraphJob[];
+    readonly actorUserId?: string | undefined;
     readonly carryOverFromWorkflowRunAttemptId?: string | undefined;
   },
 ): Promise<void> {
@@ -142,6 +143,7 @@ export async function persistMaterializedRunGraph(
       workspaceId: params.run.workspaceId,
       projectId: params.run.projectId,
       definitionId: params.run.definitionId,
+      ...(params.actorUserId === undefined ? {} : {actorUserId: params.actorUserId}),
       ...(params.carryOverFromWorkflowRunAttemptId === undefined
         ? {}
         : {carryOverFromWorkflowRunAttemptId: params.carryOverFromWorkflowRunAttemptId}),

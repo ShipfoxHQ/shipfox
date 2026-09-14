@@ -15,7 +15,13 @@ import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
 import {resolveTestAgentDefaults} from '#test/fixtures/agent-inter-module.js';
 import {createTestSecretsClient} from '#test/fixtures/secrets-inter-module.js';
 import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
-import {buildModel, expression, shellRef, template} from '#test/helpers/workflow-runs.js';
+import {
+  buildModel,
+  expression,
+  runAttemptCreatedEvents,
+  shellRef,
+  template,
+} from '#test/helpers/workflow-runs.js';
 import {workflowModel} from '#test/index.js';
 import {db} from '../db.js';
 import {workflowsOutbox} from '../schema/outbox.js';
@@ -1305,7 +1311,8 @@ describe('workflow run queries', () => {
       expect(step?.config).toMatchObject({run: 'echo ok', working_directory: 'packages/api'});
     });
 
-    test('writes workflows.workflow_run_attempt.created outbox event in same transaction', async () => {
+    test('writes an attributed attempt-created event for a manual run in the same transaction', async () => {
+      const actorUserId = crypto.randomUUID();
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -1315,7 +1322,7 @@ describe('workflow run queries', () => {
           source: 'manual',
           event: 'fire',
           subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
+          userId: actorUserId,
         },
       });
 
@@ -1335,9 +1342,60 @@ describe('workflow run queries', () => {
         workspaceId: run.workspaceId,
         projectId: run.projectId,
         definitionId: run.definitionId,
+        actorUserId,
       });
       expect(matchingRow?.orderingKey).toBe(run.id);
       expect(matchingRow?.dispatchedAt).toBeNull();
+    });
+
+    test('uses developer provenance and omits actors for cron and integration runs', async () => {
+      const developerUserId = crypto.randomUUID();
+      const devRun = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        origin: 'dev',
+        devSource: {
+          ref: 'feature/workflow',
+          commit: 'a'.repeat(40),
+          configPath: '.shipfox/workflows.yml',
+          initiatedByUserId: developerUserId,
+          replayOfEventId: null,
+        },
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          userId: crypto.randomUUID(),
+        },
+      });
+      const cronRun = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+      });
+      const integrationRun = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {
+          source: 'github',
+          event: 'push',
+          deliveryId: crypto.randomUUID(),
+          data: {},
+        },
+      });
+
+      expect((await runAttemptCreatedEvents(devRun.id))[0]).toMatchObject({
+        actorUserId: developerUserId,
+      });
+      expect((await runAttemptCreatedEvents(cronRun.id))[0]).not.toHaveProperty('actorUserId');
+      expect((await runAttemptCreatedEvents(integrationRun.id))[0]).not.toHaveProperty(
+        'actorUserId',
+      );
     });
 
     test('persists resolved step config and authored step config separately', async () => {

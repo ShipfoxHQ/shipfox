@@ -128,6 +128,7 @@ export async function createRerunWorkflowRun(
       run: runForAttempt,
       workflowRunAttempt: newAttemptRow,
       materializedJobs: graphJobs,
+      actorUserId: newAttemptRow.rerunByUserId ?? undefined,
       ...rerunSessionCarryOver(sourceAttemptRow.id, params.mode),
     });
 

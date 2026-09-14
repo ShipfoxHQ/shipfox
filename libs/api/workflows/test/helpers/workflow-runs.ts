@@ -220,6 +220,7 @@ export async function runAttemptCreatedEvents(workflowRunId: string) {
         workspaceId: string;
         projectId: string;
         definitionId: string;
+        actorUserId?: string;
         carryOverFromWorkflowRunAttemptId?: string;
       },
   );

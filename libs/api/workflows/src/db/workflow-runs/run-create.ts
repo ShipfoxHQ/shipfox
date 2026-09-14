@@ -237,6 +237,14 @@ async function loadConflictingWorkflowRun(
   return {kind: 'existing', run: toWorkflowRun(existing)};
 }
 
+function workflowRunActorUserId(
+  params: Pick<CreateWorkflowRunParams, 'triggerPayload' | 'devSource'>,
+): string | undefined {
+  if (params.devSource?.initiatedByUserId !== undefined) return params.devSource.initiatedByUserId;
+  if (params.triggerPayload.source !== 'manual') return undefined;
+  return 'userId' in params.triggerPayload ? params.triggerPayload.userId : undefined;
+}
+
 async function materializeCreatedWorkflowRun(
   context: CreateWorkflowRunTransactionContext,
   runRow: typeof workflowRuns.$inferSelect,
@@ -302,6 +310,7 @@ async function materializeCreatedWorkflowRun(
     run,
     workflowRunAttempt: attemptRow,
     materializedJobs: materializeRunGraphJobs({params, run, vars, materializedJobs}),
+    actorUserId: workflowRunActorUserId(params),
   });
   logMaterializedJobDiagnostics(runRow.id, materializedJobs);
 
