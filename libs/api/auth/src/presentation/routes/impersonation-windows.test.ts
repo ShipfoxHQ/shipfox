@@ -241,6 +241,7 @@ describe('impersonation window routes', () => {
     expect(exact.statusCode).toBe(200);
     expect(impersonationWindowExactResponseSchema.parse(exact.json())).toMatchObject({
       window_id: startBody.window_id,
+      actor_role_at_start: 'admin-owner',
       state: 'stopped',
       ended_reason: 'stopped',
     });
@@ -269,6 +270,46 @@ describe('impersonation window routes', () => {
       actorRoleAtStart: 'admin-owner',
       targetType: 'impersonation-window',
       targetId: startBody.window_id,
+    });
+  });
+
+  test('returns the Window Start role separately from the actor current role', async () => {
+    const owner = await bootstrapOwner('window-historical-role');
+    const actor = await createVerifiedSession('window-historical-role-actor');
+    const target = await createVerifiedSession('window-historical-role-target');
+
+    const operatorGrant = await app.inject({
+      method: 'POST',
+      url: '/admin/auth/admin-grants',
+      headers: authHeaders(owner.token, 'window-historical-role-operator-grant'),
+      payload: {user_id: actor.userId, role: 'admin-operator', reason: 'Window actor'},
+    });
+    expect(operatorGrant.statusCode).toBe(201);
+
+    const started = await startWindow({
+      token: actor.token,
+      targetUserId: target.userId,
+      key: 'window-historical-role-start',
+    });
+    const windowId = impersonationWindowStartResponseSchema.parse(started.json()).window_id;
+
+    const ownerGrant = await app.inject({
+      method: 'POST',
+      url: '/admin/auth/admin-grants',
+      headers: authHeaders(owner.token, 'window-historical-role-owner-grant'),
+      payload: {user_id: actor.userId, role: 'admin-owner', reason: 'Promote window actor'},
+    });
+    expect(ownerGrant.statusCode).toBe(201);
+
+    const exact = await app.inject({
+      method: 'GET',
+      url: `/admin/auth/impersonation/windows/${windowId}`,
+      headers: {authorization: `Bearer ${owner.token}`},
+    });
+    expect(exact.statusCode).toBe(200);
+    expect(impersonationWindowExactResponseSchema.parse(exact.json())).toMatchObject({
+      actor: expect.objectContaining({admin_role: 'admin-owner'}),
+      actor_role_at_start: 'admin-operator',
     });
   });
 
