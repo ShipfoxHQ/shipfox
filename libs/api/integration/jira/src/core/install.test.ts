@@ -76,7 +76,7 @@ describe('Jira OAuth installation', () => {
 
     expect(result).toMatchObject({id: 'connection-1'});
     expect(params.connectJiraInstallation).toHaveBeenCalledWith(
-      expect.objectContaining({cloudId: 'cloud-1'}),
+      expect.objectContaining({cloudId: 'cloud-1', actorUserId: 'user-1'}),
     );
     expect(params.tokenStore.storeTokens).toHaveBeenCalledWith(
       expect.objectContaining({connectionId: 'connection-1', refreshToken: 'refresh'}),

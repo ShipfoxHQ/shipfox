@@ -207,6 +207,7 @@ describe('Linear integration routes', () => {
       scopes: ['read', 'write', 'app:assignable', 'app:mentionable'],
       tokenExpiresAt: new Date('2026-07-07T13:00:00.000Z'),
       displayName: 'Linear Acme',
+      actorUserId: 'user-1',
     });
     expect(tokenStore.storeTokens).toHaveBeenCalledWith({
       connectionId: '00000000-0000-4000-8000-000000000001',

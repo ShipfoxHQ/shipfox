@@ -145,6 +145,7 @@ describe('handleSentryConnect: browser-first (no row)', () => {
         orgSlug: 'acme',
         codeHash: CODE_HASH,
         installerUserId: 'user-1',
+        actorUserId: 'user-1',
       }),
     );
     expect(connected.provider).toBe('sentry');

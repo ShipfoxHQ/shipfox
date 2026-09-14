@@ -19,6 +19,7 @@ export interface ConnectLinearInstallationInput {
   scopes: string[];
   tokenExpiresAt: Date | null;
   displayName: string;
+  actorUserId?: string | undefined;
 }
 
 export interface HandleLinearCallbackParams {
@@ -81,6 +82,7 @@ export async function handleLinearCallback(
       scopes: authorization.scopes,
       tokenExpiresAt: authorization.expiresAt ?? null,
       displayName: `Linear ${identity.organizationName}`,
+      actorUserId: claims.userId,
     });
     connectedConnectionId = connection.id;
     shouldDisconnectConnection = !existing;

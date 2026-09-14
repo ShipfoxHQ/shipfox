@@ -97,6 +97,7 @@ describe('handleSlackCallback', () => {
       scopes: authorization().scopes,
       tokenExpiresAt: null,
       displayName: 'Slack Acme',
+      actorUserId: 'user-1',
     } satisfies ConnectSlackInstallationInput);
     expect(params.tokenStore.storeTokens).toHaveBeenCalledWith({
       connectionId: '00000000-0000-4000-8000-000000000001',

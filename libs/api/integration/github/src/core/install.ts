@@ -16,6 +16,7 @@ export interface ConnectGithubInstallationInput {
   installationId: string;
   displayName: string;
   installerUserId: string;
+  actorUserId?: string | undefined;
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   installation: {
     installationId: string;
@@ -85,6 +86,7 @@ export async function handleGithubCallback(
     installationId: installationIdStr,
     displayName: `GitHub ${installation.account.login}`,
     installerUserId: claims.userId,
+    actorUserId: claims.userId,
     installation: toConnectionInstallationInput(installation, claims.userId),
   });
 }

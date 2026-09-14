@@ -104,6 +104,7 @@ describe('handleGithubCallback', () => {
         installationId: '123',
         displayName: 'GitHub shipfox',
         installerUserId: userId,
+        actorUserId: userId,
         installation: expect.objectContaining({installerUserId: userId}),
       }),
     );

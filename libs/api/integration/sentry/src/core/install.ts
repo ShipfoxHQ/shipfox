@@ -20,6 +20,7 @@ export interface ConnectSentryInstallationInput {
   orgSlug: string;
   displayName: string;
   installerUserId: string;
+  actorUserId?: string | undefined;
   codeHash: string;
 }
 
@@ -283,6 +284,7 @@ function bindClaim(
     orgSlug: binding.orgSlug,
     displayName: `Sentry ${binding.orgSlug}`,
     installerUserId: params.installerUserId,
+    actorUserId: params.installerUserId,
     codeHash: binding.codeHash,
   });
 }

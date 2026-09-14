@@ -543,6 +543,43 @@ describe('integration connection queries', () => {
     expect(events).toHaveLength(0);
   });
 
+  it('publishes actor provenance for a user-initiated connection', async () => {
+    const actorUserId = crypto.randomUUID();
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'gh-user-initiated',
+      slug: 'github_user_initiated',
+      displayName: 'GitHub',
+      capabilities: ['source_control'],
+      actorUserId,
+    });
+
+    const [event] = await connectionEvents(connection.id);
+    expect(event?.payload).toEqual({
+      provider: 'github',
+      workspaceId,
+      connectionId: connection.id,
+      slug: 'github_user_initiated',
+      actorUserId,
+      capabilities: ['source_control'],
+    });
+  });
+
+  it('omits actor provenance for background availability', async () => {
+    const connection = await upsertIntegrationConnection({
+      workspaceId,
+      provider: 'github',
+      externalAccountId: 'gh-background',
+      slug: 'github_background',
+      displayName: 'GitHub',
+      capabilities: ['source_control'],
+    });
+
+    const [event] = await connectionEvents(connection.id);
+    expect(event?.payload).not.toHaveProperty('actorUserId');
+  });
+
   it('publishes source-control and tool capabilities for a GitHub connection', async () => {
     const connection = await upsertIntegrationConnection({
       workspaceId,
