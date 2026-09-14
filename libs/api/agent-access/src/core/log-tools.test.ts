@@ -1,14 +1,20 @@
-import type {AgentAccessEnvelopeDto, GetStepLogsResultDto} from '@shipfox/api-agent-access-dto';
+import type {
+  AgentAccessEnvelopeDto,
+  GetStepLogDownloadResultDto,
+  GetStepLogsResultDto,
+} from '@shipfox/api-agent-access-dto';
 import {
   AGENT_ACCESS_LOG_CONTENT_MAX_BYTES,
   AGENT_ACCESS_LOG_SECTION_MAX_ITEMS,
   agentAccessEnvelopeSchema,
+  getStepLogDownloadResultSchema,
   getStepLogsInputJsonSchema,
   getStepLogsInputSchema,
   getStepLogsResultJsonSchema,
   getStepLogsResultSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
+import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
 import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
@@ -16,8 +22,13 @@ import {createTestWorkflowsClient} from '#test/fixtures/workflows-client.js';
 import {createAgentAccessLogTools} from './log-tools.js';
 
 const recordAgentAccessLogSectionUnavailable = vi.hoisted(() => vi.fn());
+const auditLog = vi.hoisted(() => ({debug: vi.fn(), info: vi.fn()}));
 
 vi.mock('#metrics/index.js', () => ({recordAgentAccessLogSectionUnavailable}));
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => auditLog,
+}));
 
 const workspaceId = uuid(1);
 const runId = uuid(2);
@@ -34,6 +45,8 @@ const context: AgentAccessContext = {
 describe('bounded step-log agent-access tool', () => {
   beforeEach(() => {
     recordAgentAccessLogSectionUnavailable.mockReset();
+    auditLog.debug.mockReset();
+    auditLog.info.mockReset();
   });
 
   test('validates the mutually exclusive direct and failed-only input modes', () => {
@@ -99,6 +112,151 @@ describe('bounded step-log agent-access tool', () => {
       properties: {sections: {maxItems: 10}},
     });
     expect(tool(mocks).outputSchema).not.toHaveProperty('oneOf');
+  });
+
+  test('mints a stream-bound download token and returns a claims-derived URL', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(3));
+    mocks.logs.describeStepLogStream.mockResolvedValue({
+      streamId: uuid(50),
+      state: 'open',
+      compacted: false,
+      committedLength: 120,
+      totalBytes: 140,
+      truncated: false,
+    });
+    mocks.auth.mintAgentLogDownloadToken.mockResolvedValue({
+      token: 'download-token',
+      expiresAt: '2026-09-11T10:05:00.000Z',
+    });
+
+    const response = await downloadTool(mocks).execute({context, arguments: {step_id: stepId}});
+    const result = downloadSuccess(response);
+
+    expect(mocks.workflowHandlers.getWorkflowStepAttemptDetail).toHaveBeenCalledWith({
+      workspaceId,
+      stepId,
+    });
+    expect(mocks.logs.describeStepLogStream).toHaveBeenCalledWith({
+      stepId,
+      attempt: 3,
+    });
+    expect(mocks.auth.mintAgentLogDownloadToken).toHaveBeenCalledWith({
+      userId: context.userId,
+      workspaceId,
+      grantId: context.credential.grantId,
+      clientId: context.credential.clientId,
+      streamId: uuid(50),
+    });
+    expect(auditLog.info).toHaveBeenCalledWith(
+      {
+        tool: 'get_step_log_download',
+        userId: context.userId,
+        workspaceId,
+        credentialKind: context.credential.kind,
+        credentialId: context.credential.grantId,
+        clientId: context.credential.clientId,
+        streamId: uuid(50),
+      },
+      'Agent-access log download token minted',
+    );
+    expect(result).toEqual({
+      step_id: stepId,
+      attempt: 3,
+      url: 'https://api.example.test/step-log-downloads/current',
+      token: 'download-token',
+      expires_at: '2026-09-11T10:05:00.000Z',
+      state: 'open',
+      compacted: false,
+      total_bytes: 140,
+      truncated: false,
+    });
+    expect(result.url).not.toContain(result.token);
+    expect(downloadTool(mocks).description).toContain(
+      'curl -fsSL --compressed -H "Authorization: Bearer $TOKEN" -o step-log.ndjson "$URL"',
+    );
+    expect(downloadTool(mocks).description).toContain('Exit 18');
+    expect(downloadTool(mocks).description).toContain('API 401');
+    expect(downloadTool(mocks).description).toContain(
+      'For a store 403, rerun the same command at most three times; then stop and report.',
+    );
+    expect(downloadTool(mocks).description).toContain(
+      'For 503, wait the `Retry-After` value (usually 5 seconds) and rerun at most three times; then stop and report.',
+    );
+    expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  test('includes line count for compacted downloads', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(2));
+    mocks.logs.describeStepLogStream.mockResolvedValue({
+      streamId: uuid(51),
+      state: 'closed',
+      compacted: true,
+      committedLength: 240,
+      totalBytes: 250,
+      totalLines: 12,
+      truncated: true,
+    });
+    mocks.auth.mintAgentLogDownloadToken.mockResolvedValue({
+      token: 'cold-download-token',
+      expiresAt: '2026-09-11T10:05:00.000Z',
+    });
+
+    const response = await downloadTool(mocks).execute({
+      context,
+      arguments: {step_id: stepId, attempt: 2},
+    });
+    const result = downloadSuccess(response);
+
+    expect(result).toMatchObject({
+      state: 'closed',
+      compacted: true,
+      total_lines: 12,
+      truncated: true,
+    });
+    expect(mocks.auth.mintAgentLogDownloadToken).toHaveBeenCalledWith(
+      expect.objectContaining({streamId: uuid(51)}),
+    );
+    expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  test('supports legacy compacted downloads without a line count', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(2));
+    mocks.logs.describeStepLogStream.mockResolvedValue({
+      streamId: uuid(52),
+      state: 'closed',
+      compacted: true,
+      committedLength: 240,
+      totalBytes: 250,
+      truncated: true,
+    });
+    mocks.auth.mintAgentLogDownloadToken.mockResolvedValue({
+      token: 'legacy-cold-download-token',
+      expiresAt: '2026-09-11T10:05:00.000Z',
+    });
+
+    const response = await downloadTool(mocks).execute({
+      context,
+      arguments: {step_id: stepId, attempt: 2},
+    });
+    const result = downloadSuccess(response);
+
+    expect(result).toMatchObject({state: 'closed', compacted: true, truncated: true});
+    expect(result).not.toHaveProperty('total_lines');
+    expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  test('returns not-found without describing or minting when the stream is missing', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowStepAttemptDetail.mockResolvedValue(stepDetail(1));
+    mocks.logs.describeStepLogStream.mockResolvedValue(null);
+
+    const response = await downloadTool(mocks).execute({context, arguments: {step_id: stepId}});
+
+    expect(response).toEqual({ok: false, error: {code: 'not-found'}});
+    expect(mocks.auth.mintAgentLogDownloadToken).not.toHaveBeenCalled();
   });
 
   test('returns not-found without reading Logs when Workflows denies a step', async () => {
@@ -412,6 +570,14 @@ function tool(mocks: ReturnType<typeof clients>) {
   return candidate;
 }
 
+function downloadTool(mocks: ReturnType<typeof clients>) {
+  const candidate = createAgentAccessLogTools(mocks).find(
+    (entry) => entry.name === 'get_step_log_download',
+  );
+  if (!candidate) throw new Error('Missing get_step_log_download tool');
+  return candidate;
+}
+
 function success(response: AgentAccessEnvelopeDto): GetStepLogsResultDto {
   expect(response.ok).toBe(true);
   expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
@@ -419,15 +585,30 @@ function success(response: AgentAccessEnvelopeDto): GetStepLogsResultDto {
   return response.result as GetStepLogsResultDto;
 }
 
+function downloadSuccess(response: AgentAccessEnvelopeDto): GetStepLogDownloadResultDto {
+  expect(response.ok).toBe(true);
+  expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  if (!response.ok) throw new Error('Expected a successful response');
+  return response.result as GetStepLogDownloadResultDto;
+}
+
 function clients() {
   const {workflows, handlers: workflowHandlers} = createTestWorkflowsClient();
   return {
     workflows,
     workflowHandlers,
+    apiPublicUrl: 'https://api.example.test',
+    auth: {
+      mintAgentLogDownloadToken: vi.fn(),
+    } as unknown as AuthInterModuleClient & {
+      mintAgentLogDownloadToken: ReturnType<typeof vi.fn>;
+    },
     logs: {
       readStepLogTail: vi.fn(),
+      describeStepLogStream: vi.fn(),
     } as unknown as LogsModuleClient & {
       readStepLogTail: ReturnType<typeof vi.fn>;
+      describeStepLogStream: ReturnType<typeof vi.fn>;
     },
   };
 }

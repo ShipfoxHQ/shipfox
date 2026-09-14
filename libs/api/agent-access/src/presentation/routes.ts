@@ -185,7 +185,20 @@ function toolsFromProducerClients(
     ...createAgentAccessWorkflowDiagnosticTools(workflows),
   ];
   const withLogs =
-    logs === undefined ? tools : [...tools, ...createAgentAccessLogTools({logs, workflows})];
+    logs === undefined
+      ? tools
+      : [
+          ...tools,
+          ...createAgentAccessLogTools({
+            auth: options.auth,
+            apiPublicUrl:
+              options.apiPublicUrl === undefined
+                ? undefined
+                : validateAgentAccessApiPublicOrigin(options.apiPublicUrl),
+            logs,
+            workflows,
+          }),
+        ];
   return integrations === undefined
     ? withLogs
     : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
