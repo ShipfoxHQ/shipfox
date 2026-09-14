@@ -35,7 +35,7 @@ describe('low-level account creation defaults', () => {
   test('provisionUser uses the environment policy when no policy is supplied', async () => {
     const email = `provision-default-${crypto.randomUUID()}@allowed.example`;
 
-    const user = await provisionUser({email});
+    const user = await provisionUser({email, viaInvitation: false});
 
     expect(user.email).toBe(email);
   });
@@ -43,7 +43,7 @@ describe('low-level account creation defaults', () => {
   test('provisionUser rejects an unlisted email when no policy is supplied', async () => {
     const email = `provision-default-${crypto.randomUUID()}@blocked.example`;
 
-    await expect(provisionUser({email})).rejects.toMatchObject({
+    await expect(provisionUser({email, viaInvitation: false})).rejects.toMatchObject({
       name: 'SignupNotAllowedError',
       format: 'markdown',
     });
@@ -60,7 +60,7 @@ describe('low-level account creation defaults', () => {
       password: 'correct horse battery staple',
       signupPolicy,
     });
-    await provisionUser({email: provisionEmail, signupPolicy});
+    await provisionUser({email: provisionEmail, viaInvitation: false, signupPolicy});
 
     expect(isSignupAllowed).toHaveBeenCalledTimes(2);
   });

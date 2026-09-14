@@ -18,6 +18,7 @@ export interface CreateUserParams {
 export interface ProvisionUserParams {
   email: string;
   name?: string | null;
+  viaInvitation: boolean;
 }
 
 // Drizzle wraps the underlying Postgres error; walk `.cause` to reach it.
@@ -71,23 +72,42 @@ export async function createUser(params: CreateUserParams): Promise<User> {
 }
 
 export async function provisionUser(params: ProvisionUserParams): Promise<User> {
-  const rows = await db()
-    .insert(users)
-    .values({
-      email: params.email,
-      hashedPassword: null,
-      name: params.name ?? null,
-      emailVerifiedAt: new Date(),
-    })
-    .onConflictDoNothing({target: users.email})
-    .returning();
+  return await db().transaction(async (tx) => {
+    const rows = await tx
+      .insert(users)
+      .values({
+        email: params.email,
+        hashedPassword: null,
+        name: params.name ?? null,
+        emailVerifiedAt: new Date(),
+      })
+      .onConflictDoNothing({target: users.email})
+      .returning();
 
-  const row = rows[0];
-  if (row) return toUser(row);
+    const row = rows[0];
+    if (row) {
+      const user = toUser(row);
+      await writeOutboxEvent<AuthEventMap>(tx, authOutbox, {
+        type: AUTH_USER_SIGNED_UP,
+        payload: {
+          userId: user.id,
+          email: user.email,
+          ...(user.name ? {name: user.name} : {}),
+          viaInvitation: params.viaInvitation,
+        },
+      });
+      return user;
+    }
 
-  const existing = await findUserByEmail({email: params.email});
-  if (existing) return existing;
-  throw new Error('Provisioning user conflict returned no user');
+    const existingRows = await tx
+      .select()
+      .from(users)
+      .where(eq(users.email, params.email))
+      .limit(1);
+    const existingRow = existingRows[0];
+    if (existingRow) return toUser(existingRow);
+    throw new Error('Provisioning user conflict returned no user');
+  });
 }
 
 export async function findUserByEmail(params: {email: string}): Promise<User | undefined> {

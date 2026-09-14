@@ -471,7 +471,7 @@ export const callbackRoutePlugins = [authCookiePlugin];
 
 export async function completeProviderCallback(
   reply: FastifyReply,
-  profile: {email: string; name?: string},
+  profile: {email: string; name?: string; viaInvitation: boolean},
 ): Promise<string> {
   const user = await provisionUser(profile);
   const session = await createSessionForUser({userId: user.id});
@@ -499,11 +499,13 @@ Add `authCookiePlugin` to the callback route group before calling a cookie
 helper. `getRefreshTokenCookie`, `setRefreshTokenCookie`, and
 `clearRefreshTokenCookie` use the configured cookie name and the `/auth` path.
 
-`provisionUser({email, name?})` uses the same email schema as the auth routes.
-It makes an active, verified user with no password hash. If the email already
-exists, it returns that user unchanged. It does not change the name, email,
-status, verification state, or password. Repeated and concurrent callbacks are
-safe.
+`provisionUser({email, name?, viaInvitation})` uses the same email schema as the
+auth routes. It makes an active, verified user with no password hash. It also
+writes one `auth.user.signed_up` event with the user in the same transaction.
+Set `viaInvitation` when the external signup completes through an invitation.
+If the email already exists, the function returns that user unchanged and
+writes no signup event. It does not change the name, email, status, verification
+state, or password. Repeated and concurrent callbacks are safe.
 
 This pre-verified user state lets an external login method create a session when password login and email-verification routes are disabled.
 
