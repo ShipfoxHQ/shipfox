@@ -4,6 +4,7 @@
   "globalPassThroughEnv": [
     "GITHUB_*",
     "LINEAR_*",
+    "CLICKUP_*",
     "ACTIONS_*",
     "AGENT_SESSION_*",
     "LOG_*",
@@ -36,6 +37,13 @@
         "DEFINITION_*",
         "GITEA_BASE_URL",
         "HOST",
+        "CLICKUP_API_BASE_URL",
+        "CLICKUP_AUTH_BASE_URL",
+        "CLICKUP_OAUTH_CLIENT_ID",
+        "CLICKUP_OAUTH_CLIENT_SECRET",
+        "CLICKUP_OAUTH_REDIRECT_URL",
+        "CLICKUP_WEBHOOK_BASE_URL",
+        "INTEGRATIONS_ENABLE_CLICKUP_PROVIDER",
         "INTEGRATIONS_ENABLE_SLACK_PROVIDER",
         "OBJECT_STORAGE_S3_ENDPOINT",
         "OTEL_*",
@@ -114,6 +122,7 @@
       "passThroughEnv": [
         "ADMIN_BOOTSTRAP_TOKEN",
         "CLIENT_BASE_URL",
+        "CLICKUP_API_BASE_URL",
         "SLACK_API_BASE_URL",
         "SLACK_SIGNING_SECRET"
       ]
