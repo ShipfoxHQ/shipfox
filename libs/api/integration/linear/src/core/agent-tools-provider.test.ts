@@ -177,6 +177,11 @@ describe('LinearAgentToolsProvider', () => {
       {reason: 'timeout', message: 'Linear timed out. Please try again.'},
     ],
     [
+      'HTTP request timeouts',
+      new StreamableHTTPError(408, 'raw timeout response'),
+      {reason: 'timeout', message: 'Linear timed out. Please try again.', status: 408},
+    ],
+    [
       'invalid credentials',
       new StreamableHTTPError(401, 'invalid_token: secret-token'),
       {
@@ -230,6 +235,11 @@ describe('LinearAgentToolsProvider', () => {
     [
       'request timeouts',
       new McpError(ErrorCode.RequestTimeout, 'Request timed out'),
+      {reason: 'timeout'},
+    ],
+    [
+      'cause-coded network timeouts',
+      new Error('connect failed', {cause: {code: 'UND_ERR_CONNECT_TIMEOUT'}}),
       {reason: 'timeout'},
     ],
     [

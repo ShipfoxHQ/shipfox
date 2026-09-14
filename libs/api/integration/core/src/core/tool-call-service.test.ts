@@ -795,14 +795,30 @@ describe('callIntegrationTool', () => {
     expect(serviceMocks.reportError).not.toHaveBeenCalled();
   });
 
-  it('reports provider timeouts at error level with bounded log context', async () => {
-    const timeoutError = Object.assign(new Error('request timed out'), {name: 'TimeoutError'});
-
+  it.each([
+    [
+      'raw timeouts',
+      Object.assign(new Error('request timed out'), {name: 'TimeoutError'}),
+      {code: 'provider-timeout', message: 'Integration provider timed out'},
+      'none',
+    ],
+    [
+      'typed provider timeouts',
+      new IntegrationProviderError(
+        'timeout',
+        'Linear timed out. Please try again.',
+        undefined,
+        408,
+      ),
+      {code: 'provider-timeout', message: 'Linear timed out. Please try again.', status: 408},
+      '4xx',
+    ],
+  ])('reports %s at error level with bounded context', async (_name, timeoutError, expected, statusClass) => {
     const result = await callIntegrationTool(createInput({callError: timeoutError}));
 
     expect(result).toEqual({
       outcome: 'error',
-      error: {code: 'provider-timeout', message: 'Integration provider timed out'},
+      error: expected,
     });
     expect(serviceMocks.loggerError).toHaveBeenCalledWith(
       expect.objectContaining({err: timeoutError, errorCode: 'provider-timeout'}),
@@ -817,19 +833,20 @@ describe('callIntegrationTool', () => {
           toolId: 'issue_read',
           caller: 'agent',
           errorCode: 'provider-timeout',
-          providerStatusClass: 'none',
+          providerStatusClass: statusClass,
         },
-        extra: expect.objectContaining({
+        extra: {
           connectionId: 'connection-1',
           jobId: 'job-1',
           jobExecutionId: 'execution-1',
+          projectId: 'project-1',
           workflowRunId: 'run-1',
           workflowRunAttemptId: 'attempt-1',
           workspaceId: 'workspace-1',
           currentStepId: 'step-1',
           currentStepAttempt: 2,
-        }),
-        fingerprint: ['integration.agent-tool', 'github', 'provider-timeout', 'none'],
+        },
+        fingerprint: ['integration.agent-tool', 'github', 'provider-timeout', statusClass],
       }),
     );
   });
@@ -1337,6 +1354,7 @@ function createInput(
       lease: leaseContext({
         jobId: 'job-1',
         jobExecutionId: 'execution-1',
+        projectId: 'project-1',
         workflowRunId: 'run-1',
         workflowRunAttemptId: 'attempt-1',
         workspaceId: 'workspace-1',

@@ -676,7 +676,7 @@ function errorResult(error: unknown): IntegrationToolCallError {
     const retryAfterSeconds = retryAfterSecondsValue(error.retryAfterSeconds);
     const status = statusCode(error.status);
     return {
-      code: error.reason,
+      code: error.reason === 'timeout' ? 'provider-timeout' : error.reason,
       message: error.message,
       ...(retryAfterSeconds === undefined ? {} : {retryAfterSeconds}),
       ...(status === undefined ? {} : {status}),

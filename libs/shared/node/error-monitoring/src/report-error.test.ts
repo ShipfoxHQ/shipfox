@@ -1,4 +1,9 @@
+import {context} from '@opentelemetry/api';
 import * as sentry from '@sentry/node';
+import {
+  SentryAsyncLocalStorageContextManager,
+  setOpenTelemetryContextAsyncContextStrategy,
+} from '@sentry/opentelemetry';
 
 vi.mock('@sentry/node', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sentry/node')>()),
@@ -6,6 +11,19 @@ vi.mock('@sentry/node', async (importOriginal) => ({
 }));
 
 import {isErrorReported, markErrorReported, reportError} from './report-error.js';
+
+const contextManager = new SentryAsyncLocalStorageContextManager();
+
+beforeAll(() => {
+  context.disable();
+  context.setGlobalContextManager(contextManager.enable());
+  setOpenTelemetryContextAsyncContextStrategy();
+});
+
+afterAll(() => {
+  context.disable();
+  contextManager.disable();
+});
 
 function resetSentry(): void {
   vi.mocked(sentry.captureException).mockReset();
@@ -53,6 +71,7 @@ describe('reportError', () => {
     );
 
     expect(eventId).toBe('event-id');
+    expect(ambientIsolationScope.getScopeData().tags).toEqual({operation: 'dropPartition'});
     expect(capturedCurrentScope?.tags).toEqual({boundary: 'api.runtime', worker: 'outbox'});
     expect(capturedCurrentScope?.extra).toEqual({attempt: 2});
     expect(capturedCurrentScope?.fingerprint).toEqual(['api.runtime', 'outbox']);

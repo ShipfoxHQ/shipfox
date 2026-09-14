@@ -213,6 +213,9 @@ catalogs:
     '@sentry/node':
       specifier: ^10.44.0
       version: 10.58.0
+    '@sentry/opentelemetry':
+      specifier: ^10.58.0
+      version: 10.58.0
     '@storybook/addon-docs':
       specifier: ^10.4.6
       version: 10.4.6
@@ -7768,9 +7771,15 @@ importers:
 
   libs/shared/node/error-monitoring:
     dependencies:
+      '@opentelemetry/api':
+        specifier: 'catalog:'
+        version: 1.9.1
       '@sentry/node':
         specifier: 'catalog:'
         version: 10.58.0(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))
+      '@sentry/opentelemetry':
+        specifier: 'catalog:'
+        version: 10.58.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.8.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.41.1)
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../common/config

@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import {setOpenTelemetryContextAsyncContextStrategy} from '@sentry/opentelemetry';
 import {config} from './config.js';
 
 const image = config.SENTRY_IMAGE;
@@ -12,6 +13,9 @@ Sentry.init({
   sendDefaultPii: false,
   skipOpenTelemetrySetup: true,
 });
+
+// Shipfox owns the OpenTelemetry SDK, so only bind Sentry scopes to its async context.
+setOpenTelemetryContextAsyncContextStrategy();
 
 Sentry.setTag('image', image);
 Sentry.setTag('image-name', imageName);

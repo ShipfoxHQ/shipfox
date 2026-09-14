@@ -174,6 +174,14 @@ function mapLinearMcpHttpError(error: StreamableHTTPError): LinearIntegrationPro
       status,
     );
   }
+  if (status === 408) {
+    return new LinearIntegrationProviderError(
+      'timeout',
+      'Linear timed out. Please try again.',
+      undefined,
+      status,
+    );
+  }
   if (status !== undefined && status >= 400 && status < 500) {
     return new LinearIntegrationProviderError(
       'provider-rejected',
