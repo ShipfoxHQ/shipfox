@@ -41,6 +41,8 @@ function clickupClient(overrides: Partial<ClickUpApiClient> = {}): ClickUpApiCli
     exchangeAuthorizationCode: vi.fn(() => Promise.resolve({accessToken: 'access-token'})),
     getAuthorizedWorkspaces: vi.fn(() => Promise.resolve([{id: 'team-1', name: 'Acme'}])),
     getAuthorizedUser: vi.fn(() => Promise.resolve({id: 'clickup-user-1'})),
+    createWebhook: vi.fn(() => Promise.resolve({id: 'webhook-1', secret: 'webhook-secret'})),
+    deleteWebhook: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
 }
@@ -85,6 +87,17 @@ async function createTestApp(authBaseUrl = 'https://app.clickup.com'): Promise<T
         Promise.resolve(connection({workspaceId: input.workspaceId})),
       ),
       disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
+      updateClickUpInstallationWebhook: vi.fn(() => Promise.resolve({id: 'installation-1'})),
+      markConnectionActive: vi.fn(() =>
+        Promise.resolve(
+          connection({
+            workspaceId: authenticatedMemberships[0]?.workspaceId ?? crypto.randomUUID(),
+          }),
+        ),
+      ),
+      markConnectionError: vi.fn(() => Promise.resolve()),
+      webhookUrlForConnection: (connectionId) =>
+        `https://shipfox.example.test/webhooks/${connectionId}`,
       withClickUpInstallationLock: async (_teamId, fn) => await fn(),
       requireActiveWorkspaceMembership: vi.fn(() => Promise.resolve()),
     },

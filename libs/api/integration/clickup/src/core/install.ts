@@ -1,4 +1,5 @@
 import type {UserContextMembership} from '@shipfox/api-auth-context';
+import {clickupWebhookEventNames} from '@shipfox/api-integration-clickup-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {ClickUpApiClient} from '#api/client.js';
@@ -18,6 +19,7 @@ export interface ConnectClickUpInstallationInput {
   teamName: string;
   authorizingUserId: string;
   webhookId?: string | null | undefined;
+  lifecycleStatus?: 'active' | 'error' | undefined;
   displayName: string;
 }
 
@@ -40,7 +42,17 @@ export interface HandleClickUpCallbackParams {
   connectClickUpInstallation(
     input: ConnectClickUpInstallationInput,
   ): Promise<IntegrationConnection<'clickup'>>;
-  disconnectClickUpInstallation(input: {connectionId: string}): Promise<void>;
+  disconnectClickUpInstallation(input: {
+    connectionId: string;
+    lockAlreadyHeld?: boolean | undefined;
+  }): Promise<void>;
+  updateClickUpInstallationWebhook(input: {
+    connectionId: string;
+    webhookId: string | null;
+  }): Promise<unknown>;
+  markConnectionActive(input: {connectionId: string}): Promise<IntegrationConnection<'clickup'>>;
+  markConnectionError(input: {connectionId: string}): Promise<void>;
+  webhookUrlForConnection(connectionId: string): string;
   withClickUpInstallationLock?: ClickUpInstallationLock;
 }
 
@@ -65,25 +77,32 @@ export async function handleClickUpCallback(
     const existing = await params.getExistingClickUpConnection({teamId: workspace.id});
     if (existing) throw new ClickUpInstallationAlreadyLinkedError(workspace.id);
 
-    let connection: IntegrationConnection<'clickup'> | undefined;
+    const connection = await params.connectClickUpInstallation({
+      workspaceId: claims.workspaceId,
+      teamId: workspace.id,
+      teamName: workspace.name,
+      authorizingUserId: identity.id,
+      displayName: `ClickUp ${workspace.name}`,
+    });
     try {
-      connection = await params.connectClickUpInstallation({
-        workspaceId: claims.workspaceId,
-        teamId: workspace.id,
-        teamName: workspace.name,
-        authorizingUserId: identity.id,
-        displayName: `ClickUp ${workspace.name}`,
-      });
       await params.tokenStore.storeTokens({
         connectionId: connection.id,
         accessToken: authorization.accessToken,
         editedBy: claims.userId,
       });
-      return connection;
     } catch (error) {
-      if (connection) await bestEffortDisconnect(params, connection.id);
+      await bestEffortDisconnect(params, connection.id);
       throw error;
     }
+
+    return await registerClickUpWebhook({
+      ...params,
+      connectionId: connection.id,
+      teamId: workspace.id,
+      accessToken: authorization.accessToken,
+      editedBy: claims.userId,
+      endpoint: params.webhookUrlForConnection(connection.id),
+    });
   });
 }
 
@@ -121,12 +140,88 @@ async function verifyClaims(
   return claims;
 }
 
+export async function registerClickUpWebhook(
+  params: Pick<
+    HandleClickUpCallbackParams,
+    | 'clickup'
+    | 'tokenStore'
+    | 'updateClickUpInstallationWebhook'
+    | 'markConnectionActive'
+    | 'markConnectionError'
+  > & {
+    connectionId: string;
+    teamId: string;
+    accessToken: string;
+    endpoint: string;
+    editedBy: string;
+  },
+): Promise<IntegrationConnection<'clickup'>> {
+  let registeredWebhookId: string | undefined;
+  try {
+    const registration = await params.clickup.createWebhook({
+      accessToken: params.accessToken,
+      teamId: params.teamId,
+      endpoint: params.endpoint,
+      events: clickupWebhookEventNames,
+    });
+    registeredWebhookId = registration.id;
+    await params.tokenStore.storeTokens({
+      connectionId: params.connectionId,
+      accessToken: params.accessToken,
+      webhookSecret: registration.secret,
+      editedBy: params.editedBy,
+    });
+    const installation = await params.updateClickUpInstallationWebhook({
+      connectionId: params.connectionId,
+      webhookId: registration.id,
+    });
+    if (!installation) throw new Error('ClickUp webhook registration lost its installation record');
+    return await params.markConnectionActive({connectionId: params.connectionId});
+  } catch (error) {
+    let remoteCleanupFailed = false;
+    if (registeredWebhookId !== undefined) {
+      try {
+        await params.clickup.deleteWebhook({
+          accessToken: params.accessToken,
+          webhookId: registeredWebhookId,
+        });
+      } catch (cleanupError) {
+        remoteCleanupFailed = true;
+        logger().warn(
+          {err: cleanupError, connectionId: params.connectionId, webhookId: registeredWebhookId},
+          'ClickUp webhook cleanup failed after registration rejection',
+        );
+      }
+    }
+    try {
+      await params.updateClickUpInstallationWebhook({
+        connectionId: params.connectionId,
+        webhookId: remoteCleanupFailed ? (registeredWebhookId ?? null) : null,
+      });
+    } catch (cleanupError) {
+      logger().warn(
+        {err: cleanupError, connectionId: params.connectionId},
+        'ClickUp webhook metadata cleanup failed after registration rejection',
+      );
+    }
+    try {
+      await params.markConnectionError({connectionId: params.connectionId});
+    } catch (stateError) {
+      logger().warn(
+        {err: stateError, connectionId: params.connectionId},
+        'ClickUp connection error-state update failed after webhook registration rejection',
+      );
+    }
+    throw error;
+  }
+}
+
 async function bestEffortDisconnect(
   params: Pick<HandleClickUpCallbackParams, 'disconnectClickUpInstallation'>,
   connectionId: string,
 ): Promise<void> {
   try {
-    await params.disconnectClickUpInstallation({connectionId});
+    await params.disconnectClickUpInstallation({connectionId, lockAlreadyHeld: true});
   } catch (error) {
     logger().warn(
       {err: error, connectionId},

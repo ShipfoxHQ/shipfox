@@ -1,3 +1,4 @@
+import {clickupWebhookEventNames} from '@shipfox/api-integration-clickup-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
@@ -5,6 +6,8 @@ import {ClickUpIntegrationProviderError} from '#core/errors.js';
 
 const CLICKUP_API_TIMEOUT_MS = 10_000;
 const TRAILING_SLASHES_RE = /\/+$/;
+
+export const CLICKUP_WEBHOOK_EVENTS = clickupWebhookEventNames;
 
 export type ClickUpAgentToolHttpMethod = 'GET' | 'POST' | 'PUT';
 export type ClickUpAgentToolQueryValue =
@@ -48,10 +51,22 @@ export interface ClickUpAuthorizedUser {
   email?: string | undefined;
 }
 
+export interface ClickUpWebhookRegistration {
+  id: string;
+  secret: string;
+}
+
 export interface ClickUpApiClient {
   exchangeAuthorizationCode(input: {code: string}): Promise<ClickUpAuthorization>;
   getAuthorizedWorkspaces(input: {accessToken: string}): Promise<ClickUpAuthorizedWorkspace[]>;
   getAuthorizedUser(input: {accessToken: string}): Promise<ClickUpAuthorizedUser>;
+  createWebhook(input: {
+    accessToken: string;
+    teamId: string;
+    endpoint: string;
+    events?: readonly string[] | undefined;
+  }): Promise<ClickUpWebhookRegistration>;
+  deleteWebhook(input: {accessToken: string; webhookId: string}): Promise<void>;
 }
 
 interface ClickUpTokenResponse {
@@ -64,6 +79,10 @@ interface ClickUpTeamsResponse {
 
 interface ClickUpUserResponse {
   user?: unknown;
+}
+
+interface ClickUpWebhookResponse {
+  webhook?: unknown;
 }
 
 export function createClickUpAgentToolsClient(): ClickUpAgentToolsClient {
@@ -149,6 +168,32 @@ export function createClickUpApiClient(): ClickUpApiClient {
       }
       return parseUser(body.user);
     },
+
+    async createWebhook(input) {
+      const body = await mapClickUpError('create-webhook', () =>
+        ky
+          .post(clickUpApiUrl(`/api/v2/team/${encodeURIComponent(input.teamId)}/webhook`), {
+            headers: {authorization: `Bearer ${input.accessToken}`},
+            json: {
+              endpoint: input.endpoint,
+              events: input.events ?? CLICKUP_WEBHOOK_EVENTS,
+            },
+            timeout: CLICKUP_API_TIMEOUT_MS,
+          })
+          .json<ClickUpWebhookResponse>(),
+      );
+      return parseWebhookRegistration(body);
+    },
+
+    async deleteWebhook(input) {
+      await mapClickUpError('delete-webhook', () =>
+        ky.delete(clickUpApiUrl(`/api/v2/webhook/${encodeURIComponent(input.webhookId)}`), {
+          headers: {authorization: `Bearer ${input.accessToken}`},
+          retry: 0,
+          timeout: CLICKUP_API_TIMEOUT_MS,
+        }),
+      );
+    },
   };
 }
 
@@ -215,7 +260,17 @@ function mapUnknownClickUpError(
 
 function mapClickUpHttpError(operation: string, error: HTTPError): ClickUpIntegrationProviderError {
   const {status, statusText, headers} = error.response;
-  logger().warn({operation, status, statusText}, 'ClickUp API request rejected');
+  const details = clickUpErrorDetails(error.data);
+  logger().warn(
+    {
+      operation,
+      status,
+      statusText,
+      err: details.err,
+      ECODE: details.ECODE,
+    },
+    'ClickUp API request rejected',
+  );
   if (status === 429) {
     return new ClickUpIntegrationProviderError(
       'rate-limited',
@@ -278,6 +333,28 @@ function stringId(value: unknown): string | undefined {
   if (typeof value === 'string' && value.length > 0) return value;
   if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
   return undefined;
+}
+
+function parseWebhookRegistration(body: ClickUpWebhookResponse): ClickUpWebhookRegistration {
+  const value = body?.webhook ?? body;
+  if (!value || typeof value !== 'object') {
+    throw malformed('ClickUp webhook response did not contain a webhook');
+  }
+  const {id, secret} = value as {id?: unknown; secret?: unknown};
+  const webhookId = stringId(id);
+  if (!webhookId || typeof secret !== 'string' || secret.length === 0) {
+    throw malformed('ClickUp webhook response did not include a valid id and secret');
+  }
+  return {id: webhookId, secret};
+}
+
+function clickUpErrorDetails(body: unknown): {err?: string; ECODE?: string} {
+  if (!body || typeof body !== 'object') return {};
+  const {err, ECODE} = body as {err?: unknown; ECODE?: unknown};
+  return {
+    ...(typeof err === 'string' ? {err} : {}),
+    ...(typeof ECODE === 'string' ? {ECODE} : {}),
+  };
 }
 
 function malformed(message: string): ClickUpIntegrationProviderError {

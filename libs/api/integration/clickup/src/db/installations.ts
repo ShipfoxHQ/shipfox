@@ -108,6 +108,19 @@ export async function getClickUpInstallationByTeamId(
   return rows[0] ? toClickUpInstallation(rows[0]) : undefined;
 }
 
+export async function updateClickUpInstallationWebhook(
+  params: {connectionId: string; webhookId: string | null},
+  options: {tx?: unknown} = {},
+): Promise<ClickUpInstallation | undefined> {
+  const executor = (options.tx ?? db()) as ClickUpDb | ClickUpTx;
+  const [row] = await executor
+    .update(clickupInstallations)
+    .set({webhookId: params.webhookId, updatedAt: new Date()})
+    .where(eq(clickupInstallations.connectionId, params.connectionId))
+    .returning();
+  return row ? toClickUpInstallation(row) : undefined;
+}
+
 export async function markClickUpInstallationRevoked(
   connectionId: string,
   options: {tx?: unknown} = {},

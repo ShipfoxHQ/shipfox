@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
+  delete: vi.fn(),
   warn: vi.fn(),
 }));
 
@@ -28,7 +29,11 @@ vi.mock('ky', () => {
     }
   }
   return {
-    default: Object.assign(mocks.request, {get: mocks.get, post: mocks.post}),
+    default: Object.assign(mocks.request, {
+      get: mocks.get,
+      post: mocks.post,
+      delete: mocks.delete,
+    }),
     HTTPError: MockHTTPError,
     TimeoutError: MockTimeoutError,
   };
@@ -63,6 +68,7 @@ beforeEach(() => {
   mocks.request.mockReset();
   mocks.get.mockReset();
   mocks.post.mockReset();
+  mocks.delete.mockReset();
   mocks.warn.mockReset();
 });
 
@@ -103,6 +109,80 @@ describe('ClickUp API client', () => {
       1,
       'https://api.clickup.com/api/v2/team',
       expect.objectContaining({headers: {authorization: 'Bearer access-token'}}),
+    );
+  });
+
+  it('creates and deletes a workspace-wide webhook with the curated event list', async () => {
+    mocks.post.mockReturnValue(
+      resolvesJson({webhook: {id: 'webhook-1', secret: 'webhook-secret'}}),
+    );
+    mocks.delete.mockResolvedValue(new Response(null, {status: 200}));
+
+    const client = createClickUpApiClient();
+    await expect(
+      client.createWebhook({
+        accessToken: 'access-token',
+        teamId: 'team-1',
+        endpoint: 'https://shipfox.example.test/webhooks/connection-1',
+      }),
+    ).resolves.toEqual({id: 'webhook-1', secret: 'webhook-secret'});
+    await expect(
+      client.deleteWebhook({accessToken: 'access-token', webhookId: 'webhook-1'}),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      'https://api.clickup.com/api/v2/team/team-1/webhook',
+      expect.objectContaining({
+        headers: {authorization: 'Bearer access-token'},
+        json: {
+          endpoint: 'https://shipfox.example.test/webhooks/connection-1',
+          events: [
+            'taskCreated',
+            'taskUpdated',
+            'taskDeleted',
+            'taskMoved',
+            'taskStatusUpdated',
+            'taskAssigneeUpdated',
+            'taskPriorityUpdated',
+            'taskDueDateUpdated',
+            'taskTagUpdated',
+            'taskCommentPosted',
+            'taskCommentUpdated',
+          ],
+        },
+      }),
+    );
+    expect(mocks.delete).toHaveBeenCalledWith(
+      'https://api.clickup.com/api/v2/webhook/webhook-1',
+      expect.objectContaining({
+        headers: {authorization: 'Bearer access-token'},
+        retry: 0,
+      }),
+    );
+  });
+
+  it('logs ClickUp error details for webhook failures', async () => {
+    const providerError = new HTTPError(
+      new Response(JSON.stringify({err: 'Webhook limit reached', ECODE: 'WEBHOOK_001'}), {
+        status: 400,
+        headers: {'content-type': 'application/json'},
+      }),
+      new Request('https://clickup.example.test'),
+      {} as never,
+    );
+    providerError.data = {err: 'Webhook limit reached', ECODE: 'WEBHOOK_001'};
+    mocks.post.mockReturnValue({json: () => Promise.reject(providerError)});
+
+    await expect(
+      createClickUpApiClient().createWebhook({
+        accessToken: 'access-token',
+        teamId: 'team-1',
+        endpoint: 'https://shipfox.example.test/webhooks/connection-1',
+      }),
+    ).rejects.toMatchObject({reason: 'provider-rejected'});
+    expect(mocks.warn).toHaveBeenCalledWith(
+      expect.objectContaining({err: 'Webhook limit reached', ECODE: 'WEBHOOK_001'}),
+      'ClickUp API request rejected',
     );
   });
 
