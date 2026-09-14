@@ -2293,6 +2293,40 @@ describe('github agent tool catalog', () => {
     });
   });
 
+  it('maps a missing review-thread GraphQL node to a bounded provider rejection', async () => {
+    const request = vi.fn();
+    const graphql = vi.fn().mockRejectedValue(
+      graphqlError([
+        {
+          type: 'NOT_FOUND',
+          message: "Could not resolve to a node with global id 'PRRT_kwDOExample'",
+        },
+      ]),
+    );
+    const provider = createAgentToolsProvider({request, graphql});
+    const session = await provider.openSession({
+      connection: connection(),
+      tools: [pullRequestReviewThreadWriteTool()],
+      scope: undefined,
+    });
+
+    await expect(
+      session.call({
+        toolId: 'pull_request_review_thread_write',
+        arguments: {
+          method: 'resolve',
+          owner: 'shipfox',
+          repo: 'platform',
+          thread_id: 'PRRT_kwDOExample',
+        },
+      }),
+    ).rejects.toMatchObject({
+      reason: 'provider-rejected',
+      message:
+        'GitHub review thread was not found. Refresh the current review threads before retrying.',
+    });
+  });
+
   it('creates a commit through GraphQL with utf8 contents transcoded to base64', async () => {
     const request = vi.fn();
     const data = {

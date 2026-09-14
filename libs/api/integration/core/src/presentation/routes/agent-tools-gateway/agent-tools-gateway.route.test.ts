@@ -287,6 +287,43 @@ describe('agent tools gateway route', () => {
     });
   });
 
+  it('returns the bounded missing review-thread rejection through MCP', async () => {
+    const lease = leaseContext({workspaceId: 'workspace-1'});
+    const integration = materializedIntegration({connectionId: 'connection-1'});
+    leases.set('missing-review-thread-lease', lease);
+    const app = await createGatewayApp({
+      registry: registryWithAgentTools([catalogTool()], {
+        callError: new IntegrationProviderError(
+          'provider-rejected',
+          'GitHub review thread was not found. Refresh the current review threads before retrying.',
+        ),
+      }),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: integration.connectionId,
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+    });
+
+    const result = await callIssueReadTool(app, 'missing-review-thread-lease');
+
+    expect(result).toEqual({
+      isError: true,
+      content: [
+        {
+          type: 'text',
+          text: 'GitHub review thread was not found. Refresh the current review threads before retrying.',
+        },
+      ],
+      structuredContent: {code: 'provider-rejected'},
+    });
+  });
+
   it('omits invalid provider retry hints before MCP validation', async () => {
     const lease = leaseContext({workspaceId: 'workspace-1'});
     const integration = materializedIntegration({connectionId: 'connection-1'});

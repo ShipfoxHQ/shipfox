@@ -15,6 +15,9 @@ const NEXT_PAGE_RE = /[?&]page=(\d+)/;
 const TRAILING_SLASHES_RE = /\/+$/;
 const MAX_TREE_WALK_DEPTH = 10;
 const GITHUB_API_TIMEOUT_MS = 10_000;
+const GITHUB_REVIEW_THREAD_NOT_FOUND_MESSAGE =
+  'GitHub review thread was not found. Refresh the current review threads before retrying.';
+const GITHUB_GRAPHQL_NODE_NOT_FOUND_PATTERN = /Could not resolve to a node with global id\b/iu;
 
 export interface GithubAccount {
   login: string;
@@ -632,6 +635,10 @@ async function mapGithubOAuthError<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+interface GithubErrorMappingOptions {
+  graphqlNotFound?: 'review-thread' | undefined;
+}
+
 export async function mapGithubError<T>(
   operation: () => Promise<T>,
   notFoundReason:
@@ -640,6 +647,7 @@ export async function mapGithubError<T>(
     | 'file-not-found'
     | 'ref-not-found'
     | 'provider-rejected' = 'provider-rejected',
+  options: GithubErrorMappingOptions = {},
 ): Promise<T> {
   try {
     return await operation();
@@ -649,8 +657,27 @@ export async function mapGithubError<T>(
       throw new GithubIntegrationProviderError('timeout', 'GitHub request timed out');
     }
     if (error instanceof RequestError) throw mapGithubRequestError(error, notFoundReason);
+    if (options.graphqlNotFound === 'review-thread' && isGithubGraphqlNodeNotFoundError(error)) {
+      throw new GithubIntegrationProviderError(
+        'provider-rejected',
+        GITHUB_REVIEW_THREAD_NOT_FOUND_MESSAGE,
+      );
+    }
     throw error;
   }
+}
+
+function isGithubGraphqlNodeNotFoundError(error: unknown): boolean {
+  if (!isRecord(error) || error.name !== 'GraphqlResponseError' || !Array.isArray(error.errors)) {
+    return false;
+  }
+  return error.errors.some(
+    (entry) =>
+      isRecord(entry) &&
+      (entry.type === 'NOT_FOUND' ||
+        (typeof entry.message === 'string' &&
+          GITHUB_GRAPHQL_NODE_NOT_FOUND_PATTERN.test(entry.message))),
+  );
 }
 
 function mapGithubRequestError(
