@@ -496,6 +496,21 @@ describe('workflowsJobExecutionQueuedSchema', () => {
 });
 
 describe('workflowsWorkflowRunAttemptCreatedSchema', () => {
+  it('accepts an actor user id for attributed attempts', () => {
+    const input = {
+      ...validRunCreated,
+      actorUserId: '00000000-0000-4000-8000-000000000001',
+    };
+
+    expect(workflowsWorkflowRunAttemptCreatedSchema.parse(input)).toEqual(input);
+  });
+
+  it('keeps the actor user id optional for unattributed attempts and older events', () => {
+    const result = workflowsWorkflowRunAttemptCreatedSchema.parse(validRunCreated);
+
+    expect(result.actorUserId).toBeUndefined();
+  });
+
   it('accepts the source attempt used for failed-rerun session carry-over', () => {
     const input = {
       ...validRunCreated,

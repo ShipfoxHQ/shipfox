@@ -1216,10 +1216,11 @@ describe('workflow run queries', () => {
     test('writes one run-attempt-created outbox event for the rerun', async () => {
       const source = await createTerminalSourceRun();
 
+      const actorUserId = crypto.randomUUID();
       const rerun = await createRerunWorkflowRun({
         workflowRunId: source.id,
         mode: 'all',
-        actorUserId: crypto.randomUUID(),
+        actorUserId,
       });
 
       const events = await runAttemptCreatedEvents(rerun.id);
@@ -1230,6 +1231,7 @@ describe('workflow run queries', () => {
           workspaceId: rerun.workspaceId,
           projectId: rerun.projectId,
           definitionId: rerun.definitionId,
+          actorUserId,
         }),
       );
       expect(events.find((event) => event.attempt === 2)).not.toHaveProperty(
