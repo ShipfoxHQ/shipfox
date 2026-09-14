@@ -762,13 +762,13 @@ describe('defaultModules', () => {
     const signupPolicy = {isSignupAllowed: vi.fn().mockResolvedValue({allowed: true})};
     const customAuthModule = mocks.createAuthModule();
     mocks.createAuthModule.mockClear();
-    let extensionWorkspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceSummary'> | undefined;
+    let extensionWorkspaces: WorkspacesInterModuleClient | undefined;
     const extension = vi.fn(
       ({
         workspaces,
       }: {
         auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
-        workspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceSummary'>;
+        workspaces: WorkspacesInterModuleClient;
         usage: UsageModuleClient;
       }) => {
         extensionWorkspaces = workspaces;
@@ -790,9 +790,9 @@ describe('defaultModules', () => {
     expect(extension).toHaveBeenCalledWith({
       auth: expect.any(Object),
       usage: expect.any(Object),
-      workspaces: expect.any(Object),
+      workspaces: authWorkspaces,
     });
-    expect(extensionWorkspaces).not.toBe(authWorkspaces);
+    expect(extensionWorkspaces).toBe(authWorkspaces);
     expect(modules).toContain(customAuthModule);
     expect(
       modules.flatMap((module) =>
@@ -874,12 +874,12 @@ describe('defaultModules', () => {
 
   it('extends the default module list with the composed subject clients', async () => {
     let auth: Pick<AuthInterModuleClient, 'getUserSummary'> | undefined;
-    let workspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceSummary'> | undefined;
+    let workspaces: WorkspacesInterModuleClient | undefined;
     const extensionModule = {name: 'cloud'};
     const extension = vi.fn(
       (options: {
         auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
-        workspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceSummary'>;
+        workspaces: WorkspacesInterModuleClient;
         usage: UsageModuleClient;
       }) => {
         auth = options.auth;
@@ -896,6 +896,7 @@ describe('defaultModules', () => {
     const modules = await defaultModules({extension});
     const userId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
+    const memberships = await workspaces?.listMembershipsForTokenClaims({userId});
     const workspaceSummary = await workspaces?.getWorkspaceSummary({workspaceId});
     const summary = await auth?.getUserSummary({userId});
 
@@ -904,8 +905,9 @@ describe('defaultModules', () => {
       usage: expect.any(Object),
       workspaces: expect.any(Object),
     });
+    expect(memberships).toEqual({memberships: []});
     expect(workspaceSummary).toBeUndefined();
-    expect(workspaces).not.toHaveProperty('listMembershipsForTokenClaims');
+    expect(workspaces).toHaveProperty('listMembershipsForTokenClaims');
     expect(auth).not.toHaveProperty('mintRunnerSessionToken');
     expect(summary).toEqual({
       id: expect.any(String),
@@ -913,6 +915,10 @@ describe('defaultModules', () => {
       name: 'Extension User',
     });
 
+    expect(mocks.listMembershipsForTokenClaims).toHaveBeenCalledWith(
+      {userId},
+      expect.objectContaining({signal: expect.any(AbortSignal)}),
+    );
     expect(mocks.getWorkspaceSummary).toHaveBeenCalledWith(
       {workspaceId},
       expect.objectContaining({signal: expect.any(AbortSignal)}),
@@ -942,6 +948,7 @@ describe('defaultModules', () => {
     const modules = await defaultModules({extension});
 
     expect(extension).toHaveBeenCalledWith({
+      auth: expect.any(Object),
       usage: expect.any(Object),
       workspaces: expect.any(Object),
     });

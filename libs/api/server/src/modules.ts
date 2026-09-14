@@ -112,7 +112,7 @@ export type DefaultWorkflowsModuleOptions = Pick<CreateWorkflowsModuleOptions, '
 export type DefaultRunnersModuleFactory = (options: {auth: AuthInterModuleClient}) => ShipfoxModule;
 export type DefaultModulesExtension = (options: {
   auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
-  workspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceSummary'>;
+  workspaces: WorkspacesInterModuleClient;
   usage: UsageModuleClient;
 }) => ShipfoxModule[];
 
@@ -290,7 +290,7 @@ export async function defaultModules(
   const extensionModules =
     options.extension?.({
       auth: {getUserSummary: authClient.getUserSummary},
-      workspaces: {getWorkspaceSummary: workspacesClient.getWorkspaceSummary},
+      workspaces: workspacesClient,
       usage: usageClient,
     }) ?? [];
   const agentModuleFactory = resolveModuleReplacementFactory(
