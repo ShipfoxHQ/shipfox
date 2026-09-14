@@ -323,6 +323,16 @@ describe('ClickUpAgentToolsProvider', () => {
       content: [{type: 'text', text: 'ClickUp resource was not found'}],
       structuredContent: {code: 'provider-rejected', status: 404},
     });
+
+    const unavailableOptions = providerOptions(async () => ({status: 500, body: undefined}));
+    const unavailableSession = await openSession(unavailableOptions, ['get_task']);
+    await expect(
+      unavailableSession.call({toolId: 'get_task', arguments: {task_id: 'task-1'}}),
+    ).resolves.toMatchObject({
+      isError: true,
+      content: [{type: 'text', text: 'ClickUp request returned HTTP 500'}],
+      structuredContent: {code: 'provider-unavailable', status: 500},
+    });
   });
 
   it('rejects unselected tools and missing required arguments', async () => {
@@ -357,6 +367,11 @@ describe('ClickUpAgentToolsProvider', () => {
       ['search_tasks', {list_ids: 'list-1'}, 'Parameter list_ids must be an array'],
       ['search_tasks', {list_ids: [1]}, 'Parameter list_ids[0] must be a string'],
       ['search_tasks', {team_id: 'caller-team'}, 'Unknown parameter: team_id'],
+      [
+        'get_task',
+        {task_id: 'task-1', ['__proto__']: 'unexpected'},
+        'Unknown parameter: __proto__',
+      ],
       [
         'create_task',
         {list_id: 'list-1', name: 'Task', notify_all: true},

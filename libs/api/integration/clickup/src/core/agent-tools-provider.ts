@@ -142,7 +142,10 @@ function mapClickUpToolResponse(response: ClickUpAgentToolResponse): ClickUpTool
     );
   }
   if (response.status < 200 || response.status >= 300) {
-    return clickupToolError(`ClickUp request returned HTTP ${response.status}`);
+    return clickupToolError(`ClickUp request returned HTTP ${response.status}`, {
+      code: 'provider-unavailable',
+      status: response.status,
+    });
   }
   return clickupToolResult(response.body, response.status);
 }
@@ -164,7 +167,7 @@ function validateClickUpToolArguments(
   const properties = tool.inputSchema.properties;
   if (!isRecord(properties)) return undefined;
   for (const [name, value] of Object.entries(args)) {
-    const schema = properties[name];
+    const schema = Object.hasOwn(properties, name) ? properties[name] : undefined;
     if (!isRecord(schema)) {
       if (tool.inputSchema.additionalProperties === false) return `Unknown parameter: ${name}`;
       continue;
