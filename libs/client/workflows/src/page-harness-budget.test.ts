@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 // Keeps page-harness imports intentional because each one mounts router, query,
 // and API-client providers around the test.
 const PAGE_HARNESS_ALLOWLIST = [
+  'src/components/workflow-run-summary/run-context-panel.test.tsx',
   'src/components/workflow-run-summary/workflow-run-attempt-switcher.test.tsx',
   'src/components/workflow-run-view/workflow-run-view.test.tsx',
   'src/hooks/api/workflow-job-detail.test.tsx',

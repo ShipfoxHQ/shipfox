@@ -204,6 +204,29 @@ describe('workflow run bounded overview API hooks', () => {
     );
   });
 
+  test('reports a related-attempt network failure', async () => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+    });
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.isError).toBe(true));
+    expect(reportError).toHaveBeenCalledOnce();
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: `Failed to resolve workflow run attempt ${RELATED_ATTEMPT_ID} for workflow run ${RELATED_RUN_ID}.`,
+      }),
+    );
+  });
+
   test.each([
     403, 404,
   ])('does not report an expected related-attempt %s response', async (status) => {

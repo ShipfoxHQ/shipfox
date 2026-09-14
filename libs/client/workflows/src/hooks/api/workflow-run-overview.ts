@@ -222,7 +222,7 @@ function reportWorkflowRunAttemptReferenceFailure(
   error: unknown,
   identity: WorkflowRunAttemptIdentity,
 ): void {
-  if (error instanceof ApiError && error.status < 500) return;
+  if (error instanceof ApiError && error.code !== 'network-error' && error.status < 500) return;
 
   globalThis.reportError?.(
     new Error(

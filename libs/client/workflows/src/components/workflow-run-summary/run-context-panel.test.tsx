@@ -1,14 +1,5 @@
 import {configureApiClient, resetApiClient} from '@shipfox/client-api';
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  Outlet,
-  RouterProvider,
-} from '@tanstack/react-router';
-import {act, cleanup, render, screen, waitFor, within} from '@testing-library/react';
+import {cleanup, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {WorkflowRunConcurrency, WorkflowRunStatus} from '#core/workflow-run.js';
 import {
@@ -18,6 +9,7 @@ import {
   workflowRunOverview,
   workflowRunOverviewResponseDto,
 } from '#test/fixtures/workflow-run.js';
+import {jsonResponse, PROJECT_TEST_WSLUG, renderProjectPage} from '#test/pages.js';
 import {RunContextPanel} from './run-context-panel.js';
 
 const CURRENT_RUN_ID = '66666666-6666-4666-8666-666666666666';
@@ -39,7 +31,7 @@ describe('RunContextPanel concurrency details', () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect run details'}));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Status').parentElement).toHaveTextContent('Waiting');
@@ -65,7 +57,7 @@ describe('RunContextPanel concurrency details', () => {
     await renderPanel(workflowConcurrency({state: 'acquired'}), 'running');
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect run details'}));
 
     await screen.findByRole('dialog');
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -76,7 +68,7 @@ describe('RunContextPanel concurrency details', () => {
     await renderPanel(workflowConcurrency({state: 'superseded'}), 'cancelled');
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect run details'}));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Superseded by')).toBeInTheDocument();
@@ -91,7 +83,7 @@ describe('RunContextPanel concurrency details', () => {
     await renderPanel(workflowConcurrency({state: 'waiting', affectedAttempts: []}), 'waiting');
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect run details'}));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Held by')).toBeInTheDocument();
@@ -107,7 +99,7 @@ describe('RunContextPanel concurrency details', () => {
     await renderPanel(workflowConcurrency({state: 'superseded'}), 'cancelled');
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect run details'}));
 
     const dialog = await screen.findByRole('dialog');
     await waitFor(() =>
@@ -117,7 +109,7 @@ describe('RunContextPanel concurrency details', () => {
   });
 });
 
-async function renderPanel(concurrency: WorkflowRunConcurrency, status: WorkflowRunStatus) {
+function renderPanel(concurrency: WorkflowRunConcurrency, status: WorkflowRunStatus) {
   const run = workflowRunOverview({
     id: CURRENT_RUN_ID,
     status,
@@ -137,30 +129,14 @@ async function renderPanel(concurrency: WorkflowRunConcurrency, status: Workflow
       },
     }),
   });
-  const rootRoute = createRootRoute({component: Outlet});
-  const runRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
-    component: () => (
-      <RunContextPanel run={run} usage={undefined} workspaceSlug="acme" projectSlug="platform" />
-    ),
-  });
-  const router = createRouter({
-    history: createMemoryHistory({
-      initialEntries: [`/w/acme/p/platform/runs/${CURRENT_RUN_ID}`],
-    }),
-    routeTree: rootRoute.addChildren([runRoute]),
-  });
-  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-
-  await router.load();
-  await act(() => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    );
-  });
+  return renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/platform/runs/${CURRENT_RUN_ID}`, () => (
+    <RunContextPanel
+      run={run}
+      usage={undefined}
+      workspaceSlug={PROJECT_TEST_WSLUG}
+      projectSlug="platform"
+    />
+  ));
 }
 
 function workflowConcurrency(
@@ -210,14 +186,6 @@ function relatedRunFetch() {
     if (path.endsWith('/attempts')) return Promise.resolve(jsonResponse(attempts));
     if (path.endsWith('/overview')) return Promise.resolve(jsonResponse(overview));
     return Promise.reject(new Error(`Unexpected request: ${path}`));
-  });
-}
-
-function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(body), {
-    headers: {'content-type': 'application/json'},
-    status: 200,
-    ...init,
   });
 }
 
