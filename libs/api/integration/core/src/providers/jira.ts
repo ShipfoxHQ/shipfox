@@ -84,6 +84,7 @@ async function loadJiraModuleParts(
             displayName: input.displayName,
             lifecycleStatus: 'active',
             capabilities: providerCapabilities,
+            actorUserId: input.actorUserId,
           },
           {tx},
         );

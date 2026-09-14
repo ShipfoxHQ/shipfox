@@ -34,6 +34,7 @@ export const integrationConnectionAvailableSchema = z.object({
   workspaceId: nonEmptyStringSchema,
   connectionId: nonEmptyStringSchema,
   slug: nonEmptyStringSchema,
+  actorUserId: nonEmptyStringSchema.optional(),
   // Provider registry capabilities, so subscribers can tell a tool connection
   // from a source-control connection without their own provider table.
   // Defaulting keeps availability events written before this field existed

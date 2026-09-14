@@ -26,6 +26,7 @@ export interface ConnectJiraInstallationInput {
   scopes: string[];
   tokenExpiresAt: Date | null;
   displayName: string;
+  actorUserId?: string | undefined;
 }
 
 export interface HandleJiraCallbackParams {
@@ -182,6 +183,7 @@ async function resolveJiraSiteWithLock(
     scopes: params.site.scopes,
     tokenExpiresAt: params.authorization.expiresAt ?? null,
     displayName: `Jira ${params.site.name}`,
+    actorUserId: params.claims.userId,
   };
   const connection = await connectAndStoreJiraTokens(params, installationInput, existing);
   await registerJiraConnectionWebhook(params, connection);

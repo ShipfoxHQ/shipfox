@@ -29,6 +29,7 @@ export interface UpsertIntegrationConnectionParams {
   displayName: string;
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   capabilities?: IntegrationCapability[] | undefined;
+  actorUserId?: string | undefined;
 }
 
 export async function upsertIntegrationConnection(
@@ -95,7 +96,12 @@ export async function upsertIntegrationConnection(
   if (!row) throw new Error('Integration connection upsert returned no rows');
   const connection = toIntegrationConnection(row);
   if (becameAvailable) {
-    await writeConnectionAvailableEvent(executor, connection, params.capabilities);
+    await writeConnectionAvailableEvent(
+      executor,
+      connection,
+      params.capabilities,
+      params.actorUserId,
+    );
   }
   return connection;
 }
@@ -108,6 +114,7 @@ export interface CreateIntegrationConnectionParams {
   displayName: string;
   lifecycleStatus?: IntegrationConnectionLifecycleStatus | undefined;
   capabilities?: IntegrationCapability[] | undefined;
+  actorUserId?: string | undefined;
 }
 
 const INTEGRATION_CONNECTION_EXTERNAL_UNIQUE_CONSTRAINT =
@@ -182,7 +189,12 @@ export async function createIntegrationConnection(
   if (!row) throw new Error('Integration connection insert returned no rows');
   const connection = toIntegrationConnection(row);
   if (connection.lifecycleStatus === 'active') {
-    await writeConnectionAvailableEvent(executor, connection, params.capabilities);
+    await writeConnectionAvailableEvent(
+      executor,
+      connection,
+      params.capabilities,
+      params.actorUserId,
+    );
   }
   return connection;
 }
@@ -331,7 +343,7 @@ export async function updateIntegrationConnectionLifecycleStatus(
   if (!row) return undefined;
   const connection = toIntegrationConnection(row);
   if (existing.lifecycleStatus !== 'active' && connection.lifecycleStatus === 'active') {
-    await writeConnectionAvailableEvent(executor, connection, params.capabilities);
+    await writeConnectionAvailableEvent(executor, connection, params.capabilities, undefined);
   }
   return connection;
 }
@@ -380,6 +392,7 @@ async function writeConnectionAvailableEvent(
   executor: IntegrationDb | IntegrationTx,
   connection: IntegrationConnection,
   capabilities: IntegrationCapability[] | undefined,
+  actorUserId: string | undefined,
 ): Promise<void> {
   await writeOutboxEvent<IntegrationsEventMap>(executor, integrationsOutbox, {
     type: INTEGRATION_CONNECTION_AVAILABLE,
@@ -388,6 +401,7 @@ async function writeConnectionAvailableEvent(
       workspaceId: connection.workspaceId,
       connectionId: connection.id,
       slug: connection.slug,
+      ...(actorUserId === undefined ? {} : {actorUserId}),
       capabilities: capabilities ?? [],
     },
   });

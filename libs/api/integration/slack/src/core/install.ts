@@ -20,6 +20,7 @@ export interface ConnectSlackInstallationInput {
   scopes: string[];
   tokenExpiresAt: Date | null;
   displayName: string;
+  actorUserId?: string | undefined;
 }
 
 export interface HandleSlackCallbackParams {
@@ -74,6 +75,7 @@ export async function handleSlackCallback(
       scopes: authorization.scopes,
       tokenExpiresAt: null,
       displayName: `Slack ${authorization.teamName}`,
+      actorUserId: claims.userId,
     });
     connectedConnectionId = connection.id;
     shouldDisconnectConnection = !existing;

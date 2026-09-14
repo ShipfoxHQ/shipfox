@@ -78,6 +78,12 @@ describe('integrationConnectionAvailableSchema', () => {
     );
   });
 
+  it('carries an initiating actor when the availability was user initiated', () => {
+    const input = {...validConnectionAvailable, actorUserId: 'user-1'};
+
+    expect(integrationConnectionAvailableSchema.parse(input)).toEqual(input);
+  });
+
   it('carries both capabilities for a source-control and tool provider', () => {
     const input = {...validConnectionAvailable, capabilities: ['source_control', 'agent_tools']};
 

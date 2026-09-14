@@ -148,6 +148,7 @@ async function loadGithubModuleParts(
             displayName: input.displayName,
             lifecycleStatus: input.lifecycleStatus ?? 'active',
             capabilities: providerCapabilities,
+            actorUserId: input.actorUserId,
           },
           {tx},
         );
