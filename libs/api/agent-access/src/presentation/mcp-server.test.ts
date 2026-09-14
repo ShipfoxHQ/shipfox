@@ -17,6 +17,7 @@ import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-mo
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {agentAccessSuccess} from '#core/envelope.js';
+import {AGENT_ACCESS_INTEGRATION_TOOL_NAMES} from '#core/integration-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {createAgentAccessFixtureActionTool, createAgentAccessFixtureTool} from '#core/tools.js';
@@ -44,6 +45,7 @@ describe('buildAgentAccessMcpServer', () => {
       name: 'shipfox',
       version: AGENT_ACCESS_PACKAGE_VERSION,
     });
+    expect(client.getInstructions()).not.toContain('list_integration_connections');
     expect(tools.tools).toHaveLength(1);
     expect(tools.tools[0]).toMatchObject({
       name: 'agent_access_fixture',
@@ -56,6 +58,20 @@ describe('buildAgentAccessMcpServer', () => {
     expect(result.content).toEqual([
       {type: 'text', text: JSON.stringify(result.structuredContent)},
     ]);
+  });
+
+  test('advertises integration discovery only when both integration tools are registered', async () => {
+    const fixture = createAgentAccessFixtureTool();
+    const integrationTools = AGENT_ACCESS_INTEGRATION_TOOL_NAMES.map((name) => ({
+      ...fixture,
+      name,
+    }));
+    const {client, close} = await connectClient(undefined, integrationTools);
+
+    expect(client.getInstructions()).toContain(
+      'Call list_integration_connections before writing a trigger source',
+    );
+    await close();
   });
 
   test('returns a tool error with retry metadata without raising a JSON-RPC error', async () => {

@@ -18,10 +18,11 @@ import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
-  AGENT_ACCESS_MCP_INSTRUCTIONS,
   AGENT_ACCESS_MCP_SERVER_NAME,
+  createAgentAccessMcpInstructions,
 } from '#constants.js';
 import {agentAccessError, serializeAgentAccessEnvelope} from '#core/envelope.js';
+import {AGENT_ACCESS_INTEGRATION_TOOL_NAMES} from '#core/integration-tools.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {fitAgentAccessResponseToCeiling} from '#core/response.js';
 import {
@@ -60,7 +61,9 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
     {name: AGENT_ACCESS_MCP_SERVER_NAME, version: AGENT_ACCESS_PACKAGE_VERSION},
     {
       capabilities: {tools: {}},
-      instructions: AGENT_ACCESS_MCP_INSTRUCTIONS,
+      instructions: createAgentAccessMcpInstructions(
+        AGENT_ACCESS_INTEGRATION_TOOL_NAMES.every((name) => tools.has(name)),
+      ),
     },
   );
 

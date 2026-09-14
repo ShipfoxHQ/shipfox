@@ -70,6 +70,8 @@ describe('paged agent-access tools', () => {
 
   test('joins the project source connection from one workspace connection page', async () => {
     const mocks = clients();
+    const sourceConnectionSlug = `github-${'s'.repeat(600)}`;
+    const sourceConnectionProvider = `provider-${'p'.repeat(600)}`;
     mocks.projectHandlers.listProjectCatalogByWorkspace.mockResolvedValue({
       projects: [project()],
       nextCursor: null,
@@ -78,8 +80,8 @@ describe('paged agent-access tools', () => {
       connections: [
         {
           id: uuid(20),
-          slug: 'github-main',
-          provider: 'github',
+          slug: sourceConnectionSlug,
+          provider: sourceConnectionProvider,
           displayName: 'GitHub',
           lifecycleStatus: 'active',
           capabilities: ['source_control'],
@@ -98,7 +100,11 @@ describe('paged agent-access tools', () => {
     expect(
       expectSuccess<{projects: Array<Record<string, unknown>>}>(response).projects[0],
     ).toMatchObject({
-      source_connection: {id: uuid(20), slug: 'github-main', provider: 'github'},
+      source_connection: {
+        id: uuid(20),
+        slug: sourceConnectionSlug,
+        provider: sourceConnectionProvider,
+      },
     });
     expect(mocks.integrationHandlers.listConnectionsByWorkspace).toHaveBeenCalledWith({
       workspaceId,

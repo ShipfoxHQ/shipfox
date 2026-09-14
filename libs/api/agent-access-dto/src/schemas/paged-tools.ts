@@ -219,8 +219,8 @@ const projectResultItemSchema = z
     source_connection: z
       .object({
         id: idSchema,
-        slug: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
-        provider: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
+        slug: z.string().min(1),
+        provider: z.string().min(1),
       })
       .strict()
       .nullable(),
@@ -416,6 +416,7 @@ export type GetRunAnnotationsResultDto = z.infer<typeof getRunAnnotationsResultS
 export type ListTriggerEventsResultDto = z.infer<typeof listTriggerEventsResultSchema>;
 
 const uuid = {type: 'string', format: 'uuid'} as const;
+const identifier = {type: 'string', minLength: 1} as const;
 const cappedText = {type: 'string', maxLength: AGENT_ACCESS_TEXT_MAX_BYTES} as const;
 const diagnostic = {
   type: 'object',
@@ -439,7 +440,7 @@ const projectResultJsonSchema = {
     slug: cappedText,
     source_connection: nullable({
       type: 'object',
-      properties: {id: uuid, slug: cappedText, provider: cappedText},
+      properties: {id: uuid, slug: identifier, provider: identifier},
       required: ['id', 'slug', 'provider'],
       additionalProperties: false,
     }),

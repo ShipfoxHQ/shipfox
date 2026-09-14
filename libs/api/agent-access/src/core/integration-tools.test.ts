@@ -77,6 +77,57 @@ describe('agent-access integration tools', () => {
     expect(client.resolveConnection).not.toHaveBeenCalled();
   });
 
+  test('preserves identifier values beyond the descriptive text cap', async () => {
+    const client = integrationClient();
+    const slug = `connection-${'s'.repeat(600)}`;
+    const provider = `provider-${'p'.repeat(600)}`;
+    const toolId = `tool-${'t'.repeat(600)}`;
+    const methodId = `method-${'m'.repeat(600)}`;
+    client.resolveConnection.mockResolvedValue({id: connectionId, provider, slug});
+    client.getConnectionToolCatalog.mockResolvedValue({
+      connection: {
+        id: connectionId,
+        slug,
+        provider,
+        displayName: 'GitHub',
+        lifecycleStatus: 'active',
+        capabilities: ['agent_tools'],
+      },
+      tools: [
+        {
+          id: toolId,
+          description: 'Description',
+          sensitivity: 'read',
+          sensitive: false,
+          methods: [
+            {
+              id: methodId,
+              description: 'Method description',
+              sensitivity: 'write',
+              sensitive: true,
+            },
+          ],
+        },
+      ],
+      events: [],
+    });
+    const detail = getTool(client, 'get_integration_connection_tools');
+
+    expect(detail.validateInput?.({slug})).toBe(true);
+    const response = await detail.execute({context, arguments: {slug}});
+
+    expect(response).toMatchObject({
+      ok: true,
+      result: {
+        connection: {slug, provider},
+        tools: [{id: toolId, methods: [{id: methodId}]}],
+      },
+    });
+    expect(client.resolveConnection).toHaveBeenCalledWith({workspaceId, slug});
+    if (!response.ok) throw new Error('Expected a successful detail response');
+    expect(getIntegrationConnectionToolsResultSchema.safeParse(response.result).success).toBe(true);
+  });
+
   test('flags catalog caps and never exposes provider schemas', async () => {
     const client = integrationClient();
     client.getConnectionToolCatalog.mockResolvedValue({

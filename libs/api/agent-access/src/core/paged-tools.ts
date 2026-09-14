@@ -369,8 +369,8 @@ function toProjectResult(
         ? null
         : {
             id: sourceConnection.id,
-            slug: cap(sourceConnection.slug),
-            provider: cap(sourceConnection.provider),
+            slug: sourceConnection.slug,
+            provider: sourceConnection.provider,
           },
     created_at: project.createdAt,
     updated_at: project.updatedAt,

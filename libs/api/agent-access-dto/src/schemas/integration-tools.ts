@@ -13,6 +13,7 @@ export const AGENT_ACCESS_INTEGRATION_MAX_EVENTS = 100;
 
 const capabilitySchema = z.enum(['source_control', 'agent_tools']);
 const lifecycleStatusSchema = z.enum(['active', 'disabled', 'error']);
+const identifierSchema = z.string().min(1);
 const cappedTextSchema = utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES);
 const truncationFields = {
   truncated: z.literal(true).optional(),
@@ -28,8 +29,8 @@ const truncatedDisplayNameSchema = z.object({
 const connectionSummarySchema = z
   .object({
     id: idSchema,
-    slug: cappedTextSchema,
-    provider: cappedTextSchema,
+    slug: identifierSchema,
+    provider: identifierSchema,
     ...truncatedDisplayNameSchema.shape,
     lifecycle_status: lifecycleStatusSchema,
     capabilities: z.array(capabilitySchema),
@@ -76,7 +77,7 @@ export type ListIntegrationConnectionsResultDto = z.infer<
 
 const toolMethodSchema = z
   .object({
-    id: cappedTextSchema,
+    id: identifierSchema,
     description: cappedTextSchema,
     description_truncated: truncationFields.truncated,
     description_total_bytes: truncationFields.total_bytes,
@@ -95,7 +96,7 @@ const toolSchema = toolMethodSchema
 export const getIntegrationConnectionToolsInputSchema = z
   .object({
     connection_id: idSchema.optional(),
-    slug: cappedTextSchema.min(1).optional(),
+    slug: identifierSchema.optional(),
   })
   .superRefine((value, context) => {
     if ((value.connection_id === undefined) === (value.slug === undefined)) {
@@ -128,6 +129,7 @@ export type GetIntegrationConnectionToolsResultDto = z.infer<
 >;
 
 const uuid = {type: 'string', format: 'uuid'} as const;
+const identifier = {type: 'string', minLength: 1} as const;
 const cappedText = {type: 'string', maxLength: AGENT_ACCESS_TEXT_MAX_BYTES} as const;
 const truncationJsonFields = {
   truncated: {const: true},
@@ -140,8 +142,8 @@ const connectionSummaryJsonSchema = {
   type: 'object',
   properties: {
     id: uuid,
-    slug: cappedText,
-    provider: cappedText,
+    slug: identifier,
+    provider: identifier,
     display_name: cappedText,
     display_name_truncated: truncationJsonFields.truncated,
     display_name_total_bytes: truncationJsonFields.total_bytes,
@@ -193,7 +195,7 @@ export const listIntegrationConnectionsResultJsonSchema = {
 const toolMethodJsonSchema = {
   type: 'object',
   properties: {
-    id: cappedText,
+    id: identifier,
     description: cappedText,
     description_truncated: truncationJsonFields.truncated,
     description_total_bytes: truncationJsonFields.total_bytes,
@@ -228,7 +230,7 @@ export const getIntegrationConnectionToolsInputJsonSchema = {
     },
     {
       type: 'object',
-      properties: {slug: {...cappedText, minLength: 1}},
+      properties: {slug: identifier},
       required: ['slug'],
       additionalProperties: false,
     },
