@@ -33,6 +33,39 @@ export interface ClickUpAgentToolsClient {
   request(input: ClickUpAgentToolRequest): Promise<ClickUpAgentToolResponse>;
 }
 
+export interface ClickUpAuthorization {
+  accessToken: string;
+}
+
+export interface ClickUpAuthorizedWorkspace {
+  id: string;
+  name: string;
+}
+
+export interface ClickUpAuthorizedUser {
+  id: string;
+  username?: string | undefined;
+  email?: string | undefined;
+}
+
+export interface ClickUpApiClient {
+  exchangeAuthorizationCode(input: {code: string}): Promise<ClickUpAuthorization>;
+  getAuthorizedWorkspaces(input: {accessToken: string}): Promise<ClickUpAuthorizedWorkspace[]>;
+  getAuthorizedUser(input: {accessToken: string}): Promise<ClickUpAuthorizedUser>;
+}
+
+interface ClickUpTokenResponse {
+  access_token?: unknown;
+}
+
+interface ClickUpTeamsResponse {
+  teams?: unknown;
+}
+
+interface ClickUpUserResponse {
+  user?: unknown;
+}
+
 export function createClickUpAgentToolsClient(): ClickUpAgentToolsClient {
   return {request: requestClickUpRest};
 }
@@ -66,10 +99,68 @@ async function requestClickUpRest(
   });
 }
 
+export function createClickUpApiClient(): ClickUpApiClient {
+  return {
+    async exchangeAuthorizationCode(input) {
+      const body = await mapClickUpError('exchange-authorization-code', () =>
+        ky
+          .post(clickUpApiUrl('/api/v2/oauth/token'), {
+            json: {
+              client_id: config.CLICKUP_OAUTH_CLIENT_ID,
+              client_secret: config.CLICKUP_OAUTH_CLIENT_SECRET,
+              code: input.code,
+            },
+            timeout: CLICKUP_API_TIMEOUT_MS,
+          })
+          .json<ClickUpTokenResponse>(),
+      );
+      if (!body || typeof body.access_token !== 'string' || body.access_token.length === 0) {
+        throw malformed('ClickUp authorization response did not include an access token');
+      }
+      return {accessToken: body.access_token};
+    },
+
+    async getAuthorizedWorkspaces(input) {
+      const body = await mapClickUpError('get-authorized-workspaces', () =>
+        ky
+          .get(clickUpApiUrl('/api/v2/team'), {
+            headers: {authorization: `Bearer ${input.accessToken}`},
+            timeout: CLICKUP_API_TIMEOUT_MS,
+          })
+          .json<ClickUpTeamsResponse>(),
+      );
+      if (!body || !Array.isArray(body.teams)) {
+        throw malformed('ClickUp authorized-workspaces response did not contain teams');
+      }
+      return body.teams.map(parseWorkspace);
+    },
+
+    async getAuthorizedUser(input) {
+      const body = await mapClickUpError('get-authorized-user', () =>
+        ky
+          .get(clickUpApiUrl('/api/v2/user'), {
+            headers: {authorization: `Bearer ${input.accessToken}`},
+            timeout: CLICKUP_API_TIMEOUT_MS,
+          })
+          .json<ClickUpUserResponse>(),
+      );
+      if (!body?.user || typeof body.user !== 'object') {
+        throw malformed('ClickUp authorized-user response did not contain a user');
+      }
+      return parseUser(body.user);
+    },
+  };
+}
+
 function clickUpRestUrl(path: string): string {
   const baseUrl = config.CLICKUP_API_BASE_URL.replace(TRAILING_SLASHES_RE, '');
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${baseUrl}/api/v2${normalizedPath}`;
+}
+
+function clickUpApiUrl(path: string): string {
+  const base = config.CLICKUP_API_BASE_URL.replace(TRAILING_SLASHES_RE, '');
+  return `${base}${path}`;
 }
 
 function clickUpQueryParams(
@@ -155,6 +246,42 @@ function mapClickUpHttpError(operation: string, error: HTTPError): ClickUpIntegr
     undefined,
     status,
   );
+}
+
+function parseWorkspace(value: unknown): ClickUpAuthorizedWorkspace {
+  if (!value || typeof value !== 'object')
+    throw malformed('ClickUp workspace response was malformed');
+  const {id, name} = value as {id?: unknown; name?: unknown};
+  const workspaceId = stringId(id);
+  if (!workspaceId || typeof name !== 'string' || name.length === 0) {
+    throw malformed('ClickUp workspace response did not include a valid id and name');
+  }
+  return {id: workspaceId, name};
+}
+
+function parseUser(value: object): ClickUpAuthorizedUser {
+  const {id, username, email} = value as {
+    id?: unknown;
+    username?: unknown;
+    email?: unknown;
+  };
+  const userId = stringId(id);
+  if (!userId) throw malformed('ClickUp authorized-user response did not include a valid id');
+  return {
+    id: userId,
+    ...(typeof username === 'string' && username.length > 0 ? {username} : {}),
+    ...(typeof email === 'string' && email.length > 0 ? {email} : {}),
+  };
+}
+
+function stringId(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
+  return undefined;
+}
+
+function malformed(message: string): ClickUpIntegrationProviderError {
+  return new ClickUpIntegrationProviderError('malformed-provider-response', message);
 }
 
 function retryAfterSeconds(headers: Headers): number | undefined {

@@ -25,7 +25,7 @@ export interface CreateClickUpTokenStoreParams {
 export interface StoreClickUpTokensParams {
   connectionId: string;
   accessToken: string;
-  webhookSecret: string;
+  webhookSecret?: string | undefined;
   editedBy?: string | null | undefined;
 }
 
@@ -69,7 +69,7 @@ export function createClickUpTokenStore(params: CreateClickUpTokenStoreParams): 
         namespace: clickupSecretsNamespace(input.connectionId),
         values: {
           [ACCESS_TOKEN_KEY]: input.accessToken,
-          [WEBHOOK_SECRET_KEY]: input.webhookSecret,
+          ...(input.webhookSecret === undefined ? {} : {[WEBHOOK_SECRET_KEY]: input.webhookSecret}),
         },
         editedBy: input.editedBy,
       });

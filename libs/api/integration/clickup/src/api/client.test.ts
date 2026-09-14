@@ -1,9 +1,14 @@
 import {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
 import type {ClickUpIntegrationProviderError} from '#core/errors.js';
-import {createClickUpAgentToolsClient, mapClickUpError} from './client.js';
+import {createClickUpAgentToolsClient, createClickUpApiClient, mapClickUpError} from './client.js';
 
-const mocks = vi.hoisted(() => ({request: vi.fn(), warn: vi.fn()}));
+const mocks = vi.hoisted(() => ({
+  request: vi.fn(),
+  get: vi.fn(),
+  post: vi.fn(),
+  warn: vi.fn(),
+}));
 
 vi.mock('@shipfox/node-opentelemetry', () => ({
   logger: () => ({warn: mocks.warn}),
@@ -22,7 +27,11 @@ vi.mock('ky', () => {
       this.name = 'TimeoutError';
     }
   }
-  return {default: mocks.request, HTTPError: MockHTTPError, TimeoutError: MockTimeoutError};
+  return {
+    default: Object.assign(mocks.request, {get: mocks.get, post: mocks.post}),
+    HTTPError: MockHTTPError,
+    TimeoutError: MockTimeoutError,
+  };
 });
 
 function rejectedRequest(
@@ -39,21 +48,78 @@ function rejectedRequest(
     );
 }
 
-function resolves(body: unknown, status = 200) {
+function resolvesResponse(body: unknown, status = 200) {
   return new Response(body === undefined ? null : JSON.stringify(body), {
     status,
     headers: {'content-type': 'application/json'},
   });
 }
 
-describe('ClickUp agent-tools REST client', () => {
-  beforeEach(() => {
-    mocks.request.mockReset();
-    mocks.warn.mockReset();
+function resolvesJson(data: unknown) {
+  return {json: () => Promise.resolve(data)};
+}
+
+beforeEach(() => {
+  mocks.request.mockReset();
+  mocks.get.mockReset();
+  mocks.post.mockReset();
+  mocks.warn.mockReset();
+});
+
+describe('ClickUp API client', () => {
+  it('exchanges a code and reads authorized workspaces and user', async () => {
+    mocks.post.mockReturnValue(resolvesJson({access_token: 'access-token'}));
+    mocks.get
+      .mockReturnValueOnce(resolvesJson({teams: [{id: 123, name: 'Acme'}]}))
+      .mockReturnValueOnce(
+        resolvesJson({user: {id: 456, username: 'ada', email: 'ada@example.test'}}),
+      );
+
+    const client = createClickUpApiClient();
+
+    await expect(client.exchangeAuthorizationCode({code: 'grant-code'})).resolves.toEqual({
+      accessToken: 'access-token',
+    });
+    await expect(client.getAuthorizedWorkspaces({accessToken: 'access-token'})).resolves.toEqual([
+      {id: '123', name: 'Acme'},
+    ]);
+    await expect(client.getAuthorizedUser({accessToken: 'access-token'})).resolves.toEqual({
+      id: '456',
+      username: 'ada',
+      email: 'ada@example.test',
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      'https://api.clickup.com/api/v2/oauth/token',
+      expect.objectContaining({
+        json: {
+          client_id: 'test-client-id',
+          client_secret: 'test-client-secret',
+          code: 'grant-code',
+        },
+      }),
+    );
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      1,
+      'https://api.clickup.com/api/v2/team',
+      expect.objectContaining({headers: {authorization: 'Bearer access-token'}}),
+    );
   });
 
+  it('maps a null token response to a malformed-provider-response error', async () => {
+    mocks.post.mockReturnValue(resolvesJson(null));
+
+    await expect(
+      createClickUpApiClient().exchangeAuthorizationCode({code: 'grant-code'}),
+    ).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+    } satisfies Partial<ClickUpIntegrationProviderError>);
+  });
+});
+
+describe('ClickUp agent-tools REST client', () => {
   it('sends a REST v2 request with the configured bearer token and array filters', async () => {
-    mocks.request.mockResolvedValue(resolves({id: 'task-1', name: 'Task'}));
+    mocks.request.mockResolvedValue(resolvesResponse({id: 'task-1', name: 'Task'}));
 
     const result = await createClickUpAgentToolsClient().request({
       accessToken: 'access-token',
@@ -99,22 +165,6 @@ describe('ClickUp agent-tools REST client', () => {
     ).resolves.toEqual({status: 400, body: {err: 'Invalid task', ECODE: 'TASK_001'}});
   });
 
-  it.each([
-    [401, 'access-denied'],
-    [403, 'access-denied'],
-    [429, 'rate-limited'],
-    [500, 'provider-unavailable'],
-  ] as const)('maps HTTP %i to %s', async (status, reason) => {
-    const result = mapClickUpError(
-      'test',
-      rejectedRequest(status, {'x-ratelimit-reset': '9999999999'}),
-    );
-
-    await expect(result).rejects.toMatchObject({
-      reason,
-    } satisfies Partial<ClickUpIntegrationProviderError>);
-  });
-
   it('leaves provider retry policy to the tool executor', async () => {
     mocks.request.mockRejectedValue(
       new HTTPError(
@@ -135,6 +185,25 @@ describe('ClickUp agent-tools REST client', () => {
     await expect(result).rejects.toMatchObject({reason: 'provider-unavailable'});
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(mocks.request.mock.calls[0]?.[1]).toMatchObject({retry: 0});
+  });
+});
+
+describe('ClickUp provider error mapping', () => {
+  it.each([
+    [400, 'provider-rejected'],
+    [401, 'access-denied'],
+    [403, 'access-denied'],
+    [429, 'rate-limited'],
+    [500, 'provider-unavailable'],
+  ] as const)('maps HTTP %i to %s', async (status, reason) => {
+    const result = mapClickUpError(
+      'test',
+      rejectedRequest(status, {'x-ratelimit-reset': '9999999999'}),
+    );
+
+    await expect(result).rejects.toMatchObject({
+      reason,
+    } satisfies Partial<ClickUpIntegrationProviderError>);
   });
 
   it('maps rate limits from the provider reset timestamp', async () => {

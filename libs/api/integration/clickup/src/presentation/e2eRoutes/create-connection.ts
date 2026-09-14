@@ -5,17 +5,9 @@ import {
 import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {ConnectClickUpInstallationInput} from '#core/install.js';
 import type {ClickUpTokenStore} from '#core/tokens.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
-
-export interface ConnectClickUpInstallationInput {
-  workspaceId: string;
-  teamId: string;
-  teamName: string;
-  authorizingUserId: string;
-  webhookId: string;
-  displayName: string;
-}
 
 export interface CreateE2eClickUpConnectionRouteOptions {
   tokenStore: Pick<ClickUpTokenStore, 'storeTokens'>;
