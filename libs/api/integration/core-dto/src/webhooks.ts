@@ -15,7 +15,12 @@ const standardWebhookRouteIds = [
   'slack.command',
 ] as const;
 
-export const webhookRouteIds = [...standardWebhookRouteIds, 'webhook.connection', 'jira'] as const;
+export const webhookRouteIds = [
+  ...standardWebhookRouteIds,
+  'webhook.connection',
+  'jira',
+  'clickup',
+] as const;
 
 export const webhookRouteIdSchema = z.enum(webhookRouteIds);
 export type WebhookRouteId = z.infer<typeof webhookRouteIdSchema>;
@@ -96,10 +101,18 @@ const jiraWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
   })
   .strict();
 
+const clickupWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
+  .extend({
+    route_id: z.literal('clickup'),
+    path_parameters: connectionPathParametersSchema,
+  })
+  .strict();
+
 export const storedWebhookRequestSchema = z.discriminatedUnion('route_id', [
   standardWebhookRouteRequestSchema,
   genericWebhookRouteRequestSchema,
   jiraWebhookRouteRequestSchema,
+  clickupWebhookRouteRequestSchema,
 ]);
 export type StoredWebhookRequest = z.infer<typeof storedWebhookRequestSchema>;
 
@@ -138,7 +151,7 @@ interface CreateStoredWebhookRequestInputBase {
   body: Uint8Array;
 }
 
-type ConnectionScopedWebhookRouteId = 'webhook.connection' | 'jira';
+type ConnectionScopedWebhookRouteId = 'webhook.connection' | 'jira' | 'clickup';
 
 export type CreateStoredWebhookRequestInput =
   | (CreateStoredWebhookRequestInputBase & {
@@ -209,7 +222,9 @@ export function createStoredWebhookRequest(
   input: CreateStoredWebhookRequestInput,
 ): StoredWebhookRequest {
   const pathParameters =
-    input.routeId === 'webhook.connection' || input.routeId === 'jira'
+    input.routeId === 'webhook.connection' ||
+    input.routeId === 'jira' ||
+    input.routeId === 'clickup'
       ? {connection_id: input.connectionId}
       : {};
 

@@ -8,12 +8,15 @@ import {
 import {config} from '#config.js';
 import {ClickUpAgentToolsProvider} from '#core/agent-tools-provider.js';
 import type {ClickUpTokenStore} from '#core/tokens.js';
+import {createClickUpWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
 import {
   type CreateClickUpIntegrationRoutesOptions,
   createClickUpIntegrationRoutes,
 } from '#presentation/routes/install.js';
+import type {CreateClickUpWebhookRoutesOptions} from '#presentation/routes/webhooks.js';
+import {createClickUpWebhookRoutes} from '#presentation/routes/webhooks.js';
 
 export type {ClickUpProvider} from '@shipfox/api-integration-clickup-dto';
 export type {
@@ -65,9 +68,16 @@ export type {
   ClickUpTokenStore,
   CreateClickUpTokenStoreParams,
   GetClickUpAccessTokenParams,
+  GetClickUpWebhookSecretParams,
   StoreClickUpTokensParams,
 } from '#core/tokens.js';
 export {clickupSecretsNamespace, createClickUpTokenStore} from '#core/tokens.js';
+export type {
+  ClickUpWebhookProcessor,
+  CreateClickUpWebhookProcessorOptions,
+} from '#core/webhook-processor.js';
+export {createClickUpWebhookProcessor} from '#core/webhook-processor.js';
+export {CLICKUP_WEBHOOK_ROUTE_PREFIX} from '#core/webhook-url.js';
 export type {
   ClickUpInstallation,
   ClickUpInstallationLock,
@@ -91,12 +101,15 @@ export {
   type CreateClickUpE2eRoutesOptions,
   createClickUpE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
+export type {CreateClickUpWebhookRoutesOptions} from '#presentation/routes/webhooks.js';
+export {createClickUpWebhookRoutes} from '#presentation/routes/webhooks.js';
 export {closeDb, config, db, migrationsPath};
 
 export interface CreateClickUpIntegrationProviderOptions {
   clickup?: ClickUpApiClient | undefined;
   routes?:
-    | Omit<CreateClickUpIntegrationRoutesOptions, 'clickup' | 'connectionCapabilities'>
+    | (Omit<CreateClickUpIntegrationRoutesOptions, 'clickup' | 'connectionCapabilities'> &
+        Partial<Omit<CreateClickUpWebhookRoutesOptions, 'processor'>>)
     | undefined;
   agentTools?:
     | {
@@ -131,6 +144,10 @@ export function createClickUpIntegrationProvider(
         }),
       }
     : {};
+  const webhookProcessor =
+    options.routes && hasClickUpWebhookRoutesOptions(options.routes)
+      ? createClickUpWebhookProcessor(options.routes)
+      : undefined;
   const routes = options.routes
     ? [
         createClickUpIntegrationRoutes({
@@ -140,6 +157,9 @@ export function createClickUpIntegrationProvider(
         }),
       ]
     : [];
+  if (options.routes && hasClickUpWebhookRoutesOptions(options.routes) && webhookProcessor) {
+    routes.push(createClickUpWebhookRoutes({...options.routes, processor: webhookProcessor}));
+  }
   return {
     provider: CLICKUP_PROVIDER,
     displayName: 'ClickUp',
@@ -147,5 +167,20 @@ export function createClickUpIntegrationProvider(
     adapters,
     ...options.cleanup,
     routes,
+    webhookProcessors: webhookProcessor
+      ? [{routeIds: ['clickup'] as const, processor: webhookProcessor}]
+      : undefined,
   };
+}
+
+function hasClickUpWebhookRoutesOptions(
+  routes: Partial<CreateClickUpWebhookRoutesOptions>,
+): routes is CreateClickUpWebhookRoutesOptions {
+  return (
+    routes.coreDb !== undefined &&
+    routes.publishIntegrationEventReceived !== undefined &&
+    routes.recordDeliveryOnly !== undefined &&
+    routes.getIntegrationConnectionById !== undefined &&
+    routes.getWebhookSecret !== undefined
+  );
 }
