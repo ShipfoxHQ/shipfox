@@ -11,6 +11,12 @@ import {workflowModel} from '#test/index.js';
 import {cancelRunRoute} from './cancel-run.js';
 
 const projectAccessState = vi.hoisted(() => ({workspaceId: ''}));
+const listWorkflowRunConcurrencyForRuns = vi.hoisted(() => vi.fn());
+
+vi.mock('#db/index.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#db/index.js')>()),
+  listWorkflowRunConcurrencyForRuns,
+}));
 
 const getProjectById = vi.fn();
 const projects = {
@@ -44,6 +50,8 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
   });
 
   beforeEach(() => {
+    listWorkflowRunConcurrencyForRuns.mockReset();
+    listWorkflowRunConcurrencyForRuns.mockResolvedValue(new Map());
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     definitionId = crypto.randomUUID();
@@ -75,6 +83,21 @@ describe('POST /api/workflows/runs/:id/cancel', () => {
     expect(await getWorkflowRunById(run.id)).toMatchObject({status: 'cancelled'});
     const [job] = await getJobsByWorkflowRunId(run.id);
     expect(job).toMatchObject({status: 'cancelled', statusReason: 'run_cancelled'});
+  });
+
+  test('returns 200 after cancellation when concurrency enrichment fails', async () => {
+    const run = await createRun();
+    await updateWorkflowRunStatus({workflowRunId: run.id, status: 'running', expectedVersion: 1});
+    listWorkflowRunConcurrencyForRuns.mockRejectedValueOnce(new Error('database unavailable'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/workflows/runs/${run.id}/cancel`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({id: run.id, status: 'cancelled', concurrency: null});
+    expect(await getWorkflowRunById(run.id)).toMatchObject({status: 'cancelled'});
   });
 
   test('returns 404 for an unknown run', async () => {

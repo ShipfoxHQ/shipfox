@@ -58,6 +58,8 @@ const mocks = vi.hoisted(() => ({
   getWorkflowRunAttemptIdForScope: vi.fn(),
   getWorkflowRunOverview: vi.fn(),
   getWorkflowRunSource: vi.fn(),
+  listWorkflowRunConcurrencyByAttemptIds: vi.fn(),
+  listWorkflowRunConcurrencyForRuns: vi.fn(),
   getWorkflowStepReadScope: vi.fn(),
   listFailedStepAttempts: vi.fn(),
   listExecutionTriggerEvents: vi.fn(),
@@ -132,6 +134,22 @@ function readTestRun(overrides: Partial<SyncedWorkflowRun> = {}): SyncedWorkflow
   };
 }
 
+function readTestConcurrency() {
+  return {
+    displayGroup: 'deploy',
+    scope: 'workflow' as const,
+    state: 'waiting' as const,
+    generation: 2,
+    cancelInProgress: true,
+    affectedAttempts: [
+      {
+        workflowRunId: crypto.randomUUID(),
+        workflowRunAttemptId: crypto.randomUUID(),
+      },
+    ],
+  };
+}
+
 describe('Workflows inter-module presentation', () => {
   beforeEach(() => {
     mocks.getJobScope.mockReset();
@@ -150,6 +168,10 @@ describe('Workflows inter-module presentation', () => {
     mocks.getWorkflowRunAttemptIdForScope.mockReset();
     mocks.getWorkflowRunOverview.mockReset();
     mocks.getWorkflowRunSource.mockReset();
+    mocks.listWorkflowRunConcurrencyByAttemptIds.mockReset();
+    mocks.listWorkflowRunConcurrencyByAttemptIds.mockResolvedValue(new Map());
+    mocks.listWorkflowRunConcurrencyForRuns.mockReset();
+    mocks.listWorkflowRunConcurrencyForRuns.mockResolvedValue(new Map());
     mocks.getWorkflowStepReadScope.mockReset();
     mocks.listFailedStepAttempts.mockReset();
     mocks.listExecutionTriggerEvents.mockReset();
@@ -198,6 +220,77 @@ describe('Workflows inter-module presentation', () => {
       projectId,
       limit: 1,
       cursor: undefined,
+    });
+  });
+
+  it('maps concurrency through the bounded run overview', async () => {
+    const run = readTestRun({status: 'waiting', startedAt: null});
+    const attemptId = crypto.randomUUID();
+    const concurrency = readTestConcurrency();
+    mocks.getWorkflowRunAccessScopeById.mockResolvedValue({
+      id: run.id,
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+    });
+    mocks.getWorkflowRunOverview.mockResolvedValue({
+      run: {
+        id: run.id,
+        projectId: run.projectId,
+        definitionId: run.definitionId,
+        number: run.number,
+        name: run.name,
+        workflowName: run.workflowName,
+        origin: run.origin,
+        devSource: run.devSource,
+        triggerProvider: run.triggerProvider,
+        triggerSource: run.triggerSource,
+        triggerEvent: run.triggerEvent,
+        triggerReference: run.triggerReference,
+        createdAt: run.createdAt,
+      },
+      attempt: {
+        id: attemptId,
+        workflowRunId: run.id,
+        attempt: 1,
+        status: 'waiting',
+        createdAt: run.createdAt,
+        startedAt: null,
+        finishedAt: null,
+        rerunMode: null,
+      },
+      hasStartedJobExecution: false,
+      jobs: {kind: 'complete', total: 0, statusCounts: [], items: []},
+    });
+    mocks.listWorkflowRunConcurrencyByAttemptIds.mockResolvedValue(
+      new Map([[attemptId, concurrency]]),
+    );
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: {} as never,
+      integrations: {} as never,
+      projects: {} as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    const result = await presentation.handlers.getWorkflowRunOverview(
+      {workspaceId: run.workspaceId, workflowRunId: run.id, attempt: 1},
+      {signal: new AbortController().signal},
+    );
+
+    expect(result?.attempt.concurrency).toEqual({
+      display_group: concurrency.displayGroup,
+      scope: concurrency.scope,
+      state: concurrency.state,
+      generation: concurrency.generation,
+      policy: {cancel_in_progress: concurrency.cancelInProgress},
+      affected_attempts: [
+        {
+          workflow_run_id: concurrency.affectedAttempts[0]?.workflowRunId,
+          workflow_run_attempt_id: concurrency.affectedAttempts[0]?.workflowRunAttemptId,
+        },
+      ],
     });
   });
 
@@ -729,6 +822,7 @@ describe('Workflows inter-module presentation', () => {
         },
       ],
     ]);
+    const concurrency = readTestConcurrency();
     mocks.listWorkflowRuns
       .mockResolvedValueOnce({
         runs: [firstRun, secondRun],
@@ -737,6 +831,9 @@ describe('Workflows inter-module presentation', () => {
       })
       .mockResolvedValueOnce({runs: [], nextCursor: null, filteredTotalCount: null});
     mocks.listWorkflowRunJobSummaries.mockResolvedValue(jobsByRun);
+    mocks.listWorkflowRunConcurrencyForRuns
+      .mockResolvedValueOnce(new Map([[firstRun.id, concurrency]]))
+      .mockResolvedValueOnce(new Map());
     const presentation = createWorkflowsInterModulePresentation({
       agent: {} as never,
       definitions: {} as never,
@@ -805,6 +902,19 @@ describe('Workflows inter-module presentation', () => {
       runs: [
         expect.objectContaining({
           id: firstRun.id,
+          concurrency: {
+            display_group: concurrency.displayGroup,
+            scope: concurrency.scope,
+            state: concurrency.state,
+            generation: concurrency.generation,
+            policy: {cancel_in_progress: concurrency.cancelInProgress},
+            affected_attempts: [
+              {
+                workflow_run_id: concurrency.affectedAttempts[0]?.workflowRunId,
+                workflow_run_attempt_id: concurrency.affectedAttempts[0]?.workflowRunAttemptId,
+              },
+            ],
+          },
           jobs: [expect.objectContaining({id: firstJob.id, key: 'build'})],
           job_status_counts: [{status: 'running', count: 1}],
           job_display_status_counts: [{status: 'running', count: 1}],

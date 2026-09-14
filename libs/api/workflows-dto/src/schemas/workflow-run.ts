@@ -35,6 +35,39 @@ export const workflowRunOriginSchema = z.enum(['synced', 'dev']);
 
 export type WorkflowRunOriginDto = z.infer<typeof workflowRunOriginSchema>;
 
+export const workflowRunConcurrencyScopeSchema = z.enum(['workflow', 'project']);
+
+export type WorkflowRunConcurrencyScopeDto = z.infer<typeof workflowRunConcurrencyScopeSchema>;
+
+export const workflowRunConcurrencyStateSchema = z.enum([
+  'acquired',
+  'waiting',
+  'superseded',
+  'released',
+]);
+
+export type WorkflowRunConcurrencyStateDto = z.infer<typeof workflowRunConcurrencyStateSchema>;
+
+export const workflowRunAttemptIdentitySchema = z.object({
+  workflow_run_id: z.string().uuid(),
+  workflow_run_attempt_id: z.string().uuid(),
+});
+
+export type WorkflowRunAttemptIdentityDto = z.infer<typeof workflowRunAttemptIdentitySchema>;
+
+export const workflowRunConcurrencySchema = z.object({
+  display_group: z.string(),
+  scope: workflowRunConcurrencyScopeSchema,
+  state: workflowRunConcurrencyStateSchema,
+  generation: z.number().int().positive(),
+  policy: z.object({
+    cancel_in_progress: z.boolean(),
+  }),
+  affected_attempts: z.array(workflowRunAttemptIdentitySchema),
+});
+
+export type WorkflowRunConcurrencyDto = z.infer<typeof workflowRunConcurrencySchema>;
+
 // Dev-run provenance: the ref and pinned commit the definition came from, the file that
 // ran, the user who started the run, and the journaled event it replays when any.
 export const workflowRunDevSourceSchema = z.object({
@@ -157,6 +190,7 @@ export const workflowRunDtoFields = {
   updated_at: z.string(),
   started_at: z.string().nullable(),
   finished_at: z.string().nullable(),
+  concurrency: workflowRunConcurrencySchema.nullable().optional(),
 };
 
 export function validateWorkflowRunOrigin(
@@ -194,6 +228,7 @@ export const workflowRunAttemptDtoSchema = z.object({
   started_at: z.string().nullable(),
   finished_at: z.string().nullable(),
   rerun_mode: workflowRunRerunModeSchema.nullable(),
+  concurrency: workflowRunConcurrencySchema.nullable().optional(),
 });
 
 export type WorkflowRunAttemptDto = z.infer<typeof workflowRunAttemptDtoSchema>;

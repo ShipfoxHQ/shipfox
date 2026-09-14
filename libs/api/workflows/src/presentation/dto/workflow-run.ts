@@ -1,6 +1,8 @@
 import type {
   JobExecutionSummaryDto,
   WorkflowRunAttemptDto,
+  WorkflowRunAttemptIdentityDto,
+  WorkflowRunConcurrencyDto,
   WorkflowRunDevSourceDto,
   WorkflowRunDto,
   WorkflowRunLineageHeadDto,
@@ -19,6 +21,7 @@ import type {
 } from '#core/entities/workflow-run.js';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 import type {
+  WorkflowRunConcurrencyRead,
   WorkflowRunJobExecutionSummary,
   WorkflowRunJobOverview,
   WorkflowRunJobsSummary,
@@ -28,7 +31,11 @@ import type {
   WorkflowRunSelection,
 } from '#db/index.js';
 
-export function toRunDto(run: WorkflowRun, latestAttempt = run.currentAttempt): WorkflowRunDto {
+export function toRunDto(
+  run: WorkflowRun,
+  latestAttempt = run.currentAttempt,
+  concurrency: WorkflowRunConcurrencyRead | null = null,
+): WorkflowRunDto {
   return {
     id: run.id,
     project_id: run.projectId,
@@ -52,6 +59,7 @@ export function toRunDto(run: WorkflowRun, latestAttempt = run.currentAttempt): 
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
     finished_at: run.finishedAt?.toISOString() ?? null,
+    concurrency: toRunConcurrencyDto(concurrency),
   };
 }
 
@@ -65,9 +73,10 @@ const EMPTY_JOBS: WorkflowRunJobsSummary = {
 export function toRunListItemDto(
   run: WorkflowRunList,
   jobs: WorkflowRunJobsSummary = EMPTY_JOBS,
+  concurrency: WorkflowRunConcurrencyRead | null = null,
 ): WorkflowRunListItemDto {
   return {
-    ...toRunListDto(run),
+    ...toRunListDto(run, concurrency),
     jobs: jobs.preview.map((job) => ({
       id: job.id,
       key: job.key,
@@ -84,7 +93,7 @@ export function toRunListItemDto(
   };
 }
 
-function toRunListDto(run: WorkflowRunList) {
+function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyRead | null) {
   return {
     id: run.id,
     project_id: run.projectId,
@@ -105,6 +114,7 @@ function toRunListDto(run: WorkflowRunList) {
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
     finished_at: run.finishedAt?.toISOString() ?? null,
+    concurrency: toRunConcurrencyDto(concurrency),
   };
 }
 
@@ -137,7 +147,9 @@ function toDevSourceDto(
   };
 }
 
-export function toRunAttemptDto(attempt: WorkflowRunAttempt): WorkflowRunAttemptDto {
+export function toRunAttemptDto(
+  attempt: WorkflowRunAttempt & {concurrency?: WorkflowRunConcurrencyRead | null},
+): WorkflowRunAttemptDto {
   return {
     id: attempt.id,
     workflow_run_id: attempt.workflowRunId,
@@ -147,6 +159,26 @@ export function toRunAttemptDto(attempt: WorkflowRunAttempt): WorkflowRunAttempt
     started_at: attempt.startedAt?.toISOString() ?? null,
     finished_at: attempt.finishedAt?.toISOString() ?? null,
     rerun_mode: attempt.rerunMode,
+    concurrency: toRunConcurrencyDto(attempt.concurrency ?? null),
+  };
+}
+
+export function toRunConcurrencyDto(
+  concurrency: WorkflowRunConcurrencyRead | null,
+): WorkflowRunConcurrencyDto | null {
+  if (!concurrency) return null;
+  return {
+    display_group: concurrency.displayGroup,
+    scope: concurrency.scope,
+    state: concurrency.state,
+    generation: concurrency.generation,
+    policy: {cancel_in_progress: concurrency.cancelInProgress},
+    affected_attempts: concurrency.affectedAttempts.map(
+      (attempt): WorkflowRunAttemptIdentityDto => ({
+        workflow_run_id: attempt.workflowRunId,
+        workflow_run_attempt_id: attempt.workflowRunAttemptId,
+      }),
+    ),
   };
 }
 
@@ -298,6 +330,7 @@ function toRunOverviewAttemptDto(
     started_at: attempt.startedAt?.toISOString() ?? null,
     finished_at: attempt.finishedAt?.toISOString() ?? null,
     rerun_mode: attempt.rerunMode,
+    concurrency: toRunConcurrencyDto(attempt.concurrency ?? null),
   };
 }
 

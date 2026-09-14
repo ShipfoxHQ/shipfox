@@ -2,7 +2,9 @@ import {requireUserContext} from '@shipfox/api-auth-context';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {rerunWorkflowRunBodySchema, workflowRunResponseSchema} from '@shipfox/api-workflows-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
+import {reportError} from '@shipfox/node-error-monitoring';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {
   NoFailedJobsError,
@@ -15,6 +17,7 @@ import {
 } from '#core/errors.js';
 import {rerunWorkflowRun} from '#core/run-actions.js';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
+import {listWorkflowRunConcurrencyForRuns} from '#db/index.js';
 import {toRunDto} from '#presentation/dto/index.js';
 import {requireAccessibleRun} from './require-accessible-run.js';
 
@@ -94,7 +97,17 @@ export function rerunRunRoute(
         admission,
       });
 
-      return toRunDto(run, run.currentAttempt);
+      let concurrency: Awaited<ReturnType<typeof listWorkflowRunConcurrencyForRuns>> | undefined;
+      try {
+        concurrency = await listWorkflowRunConcurrencyForRuns([run]);
+      } catch (error) {
+        logger().error({err: error}, 'Failed to read workflow run concurrency after rerun');
+        reportError(error, {
+          boundary: 'workflows.route',
+          operation: 'rerun-run-concurrency',
+        });
+      }
+      return toRunDto(run, run.currentAttempt, concurrency?.get(run.id) ?? null);
     },
   });
 }

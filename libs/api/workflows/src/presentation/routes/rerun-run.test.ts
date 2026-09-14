@@ -45,10 +45,15 @@ const workspaces = {getWorkspaceOperatingState} as unknown as WorkspacesInterMod
 const admit = vi.fn<WorkflowAdmissionPolicy['admit']>();
 const admission = {policy: {admit}};
 const startMock = vi.hoisted(() => vi.fn());
+const listWorkflowRunConcurrencyForRuns = vi.hoisted(() => vi.fn());
 
 vi.mock('@shipfox/node-temporal', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shipfox/node-temporal')>()),
   temporalClient: () => ({workflow: {start: startMock}}),
+}));
+vi.mock('#db/index.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#db/index.js')>()),
+  listWorkflowRunConcurrencyForRuns,
 }));
 
 function registeredAttemptCreatedSubscriber(
@@ -101,6 +106,8 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
   beforeEach(() => {
     startMock.mockReset();
     startMock.mockResolvedValue({});
+    listWorkflowRunConcurrencyForRuns.mockReset();
+    listWorkflowRunConcurrencyForRuns.mockResolvedValue(new Map());
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     projectAccessState.workspaceId = workspaceId;
@@ -157,6 +164,29 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
       id: source.id,
       current_attempt: 2,
       latest_attempt: 2,
+      status: 'pending',
+    });
+  });
+
+  test('returns 200 after rerun when concurrency enrichment fails', async () => {
+    const source = await createTerminalRun('failed');
+    listWorkflowRunConcurrencyForRuns.mockRejectedValueOnce(new Error('database unavailable'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/workflows/runs/${source.id}/rerun`,
+      payload: {mode: 'all'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      id: source.id,
+      current_attempt: 2,
+      status: 'pending',
+      concurrency: null,
+    });
+    expect(await getWorkflowRunById(source.id)).toMatchObject({
+      currentAttempt: 2,
       status: 'pending',
     });
   });

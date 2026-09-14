@@ -5,6 +5,7 @@ import * as workflowMetrics from '#metrics/instance.js';
 import {workflowRunFactory} from '#test/factories/workflow-run.js';
 import {workflowConcurrencyClaims} from './schema/workflow-concurrency-claims.js';
 import {admitWorkflowConcurrencyClaim} from './workflow-concurrency.js';
+import {listWorkflowRunConcurrencyByAttemptIds} from './workflow-runs/concurrency.js';
 
 describe('workflow concurrency claims', () => {
   test('records committed admission metrics and ignores a caller-owned rollback', async () => {
@@ -153,6 +154,53 @@ describe('workflow concurrency claims', () => {
       );
     expect(storedWaiters.filter((claim) => claim.state === 'waiting')).toHaveLength(1);
     expect(storedWaiters.find((claim) => claim.id === waiter.claim.id)?.state).toBe('superseded');
+  });
+
+  test('reads current, waiting, and retained superseded claim relationships', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const runs = await Promise.all(
+      Array.from({length: 3}, () => workflowRunFactory.create({projectId, definitionId})),
+    );
+    const attemptIds = await Promise.all(
+      runs.map(async (run) => {
+        const [attempt] = await db()
+          .select({id: workflowRunAttempts.id})
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.workflowRunId, run.id));
+        return attempt?.id ?? '';
+      }),
+    );
+
+    const params = (index: number, cancelInProgress: boolean) => ({
+      workflowRunId: runs[index]?.id ?? '',
+      workflowRunAttemptId: attemptIds[index] ?? '',
+      concurrency: {group: 'deploy', scope: 'workflow' as const, cancelInProgress},
+    });
+    await admitWorkflowConcurrencyClaim(params(0, false));
+    await admitWorkflowConcurrencyClaim(params(1, false));
+    await admitWorkflowConcurrencyClaim(params(2, true));
+
+    const reads = await listWorkflowRunConcurrencyByAttemptIds(attemptIds);
+    expect(reads.get(attemptIds[0] ?? '')).toMatchObject({
+      displayGroup: 'deploy',
+      scope: 'workflow',
+      state: 'acquired',
+      generation: 1,
+      cancelInProgress: false,
+      affectedAttempts: [{workflowRunId: runs[2]?.id, workflowRunAttemptId: attemptIds[2]}],
+    });
+    expect(reads.get(attemptIds[1] ?? '')).toMatchObject({
+      state: 'superseded',
+      generation: 2,
+      affectedAttempts: [{workflowRunId: runs[2]?.id, workflowRunAttemptId: attemptIds[2]}],
+    });
+    expect(reads.get(attemptIds[2] ?? '')).toMatchObject({
+      state: 'waiting',
+      generation: 3,
+      cancelInProgress: true,
+      affectedAttempts: [{workflowRunId: runs[0]?.id, workflowRunAttemptId: attemptIds[0]}],
+    });
   });
 
   test('rejects an attempt from another run', async () => {
