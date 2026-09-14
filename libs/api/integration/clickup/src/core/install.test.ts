@@ -234,6 +234,7 @@ describe('ClickUp OAuth installation', () => {
     await expect(handleClickUpCallback(params)).rejects.toBe(storageError);
     expect(params.disconnectClickUpInstallation).toHaveBeenCalledWith({
       connectionId: 'connection-1',
+      lockAlreadyHeld: true,
     });
   });
 });

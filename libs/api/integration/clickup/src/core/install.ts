@@ -42,7 +42,10 @@ export interface HandleClickUpCallbackParams {
   connectClickUpInstallation(
     input: ConnectClickUpInstallationInput,
   ): Promise<IntegrationConnection<'clickup'>>;
-  disconnectClickUpInstallation(input: {connectionId: string}): Promise<void>;
+  disconnectClickUpInstallation(input: {
+    connectionId: string;
+    lockAlreadyHeld?: boolean | undefined;
+  }): Promise<void>;
   updateClickUpInstallationWebhook(input: {
     connectionId: string;
     webhookId: string | null;
@@ -221,7 +224,7 @@ async function bestEffortDisconnect(
   connectionId: string,
 ): Promise<void> {
   try {
-    await params.disconnectClickUpInstallation({connectionId});
+    await params.disconnectClickUpInstallation({connectionId, lockAlreadyHeld: true});
   } catch (error) {
     logger().warn(
       {err: error, connectionId},
