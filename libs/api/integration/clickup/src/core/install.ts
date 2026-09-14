@@ -50,9 +50,7 @@ export interface HandleClickUpCallbackParams {
     connectionId: string;
     webhookId: string | null;
   }): Promise<unknown>;
-  markConnectionActive(input: {
-    connectionId: string;
-  }): Promise<IntegrationConnection<'clickup'> | undefined>;
+  markConnectionActive(input: {connectionId: string}): Promise<IntegrationConnection<'clickup'>>;
   markConnectionError(input: {connectionId: string}): Promise<void>;
   webhookUrlForConnection(connectionId: string): string;
   withClickUpInstallationLock?: ClickUpInstallationLock;
@@ -97,7 +95,7 @@ export async function handleClickUpCallback(
       throw error;
     }
 
-    const activeConnection = await registerClickUpWebhook({
+    return await registerClickUpWebhook({
       ...params,
       connectionId: connection.id,
       teamId: workspace.id,
@@ -105,7 +103,6 @@ export async function handleClickUpCallback(
       editedBy: claims.userId,
       endpoint: params.webhookUrlForConnection(connection.id),
     });
-    return activeConnection ?? connection;
   });
 }
 
@@ -158,7 +155,7 @@ export async function registerClickUpWebhook(
     endpoint: string;
     editedBy: string;
   },
-): Promise<IntegrationConnection<'clickup'> | undefined> {
+): Promise<IntegrationConnection<'clickup'>> {
   let registeredWebhookId: string | undefined;
   try {
     const registration = await params.clickup.createWebhook({
@@ -179,7 +176,7 @@ export async function registerClickUpWebhook(
       webhookId: registration.id,
     });
     if (!installation) throw new Error('ClickUp webhook registration lost its installation record');
-    return (await params.markConnectionActive({connectionId: params.connectionId})) ?? undefined;
+    return await params.markConnectionActive({connectionId: params.connectionId});
   } catch (error) {
     let remoteCleanupFailed = false;
     if (registeredWebhookId !== undefined) {

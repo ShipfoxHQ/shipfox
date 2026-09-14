@@ -50,9 +50,7 @@ export interface CreateClickUpIntegrationRoutesOptions {
     connectionId: string;
     webhookId: string | null;
   }): Promise<unknown>;
-  markConnectionActive(input: {
-    connectionId: string;
-  }): Promise<IntegrationConnection<'clickup'> | undefined>;
+  markConnectionActive(input: {connectionId: string}): Promise<IntegrationConnection<'clickup'>>;
   markConnectionError(input: {connectionId: string}): Promise<void>;
   webhookUrlForConnection(connectionId: string): string;
   withClickUpInstallationLock?: ClickUpInstallationLock;

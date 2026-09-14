@@ -88,7 +88,13 @@ async function createTestApp(authBaseUrl = 'https://app.clickup.com'): Promise<T
       ),
       disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
       updateClickUpInstallationWebhook: vi.fn(() => Promise.resolve({id: 'installation-1'})),
-      markConnectionActive: vi.fn(() => Promise.resolve(undefined)),
+      markConnectionActive: vi.fn(() =>
+        Promise.resolve(
+          connection({
+            workspaceId: authenticatedMemberships[0]?.workspaceId ?? crypto.randomUUID(),
+          }),
+        ),
+      ),
       markConnectionError: vi.fn(() => Promise.resolve()),
       webhookUrlForConnection: (connectionId) =>
         `https://shipfox.example.test/webhooks/${connectionId}`,

@@ -1,3 +1,4 @@
+import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {ClickUpInstallationLock} from '#db/installations.js';
 import {
   ClickUpInstallationAlreadyLinkedError,
@@ -22,13 +23,25 @@ function createParams() {
   };
   const tokenStore = {storeTokens: vi.fn().mockResolvedValue(undefined)};
   const updateClickUpInstallationWebhook = vi.fn().mockResolvedValue({id: 'installation-1'});
-  const markConnectionActive = vi.fn().mockResolvedValue(undefined);
-  const markConnectionError = vi.fn().mockResolvedValue(undefined);
-  const connectClickUpInstallation = vi.fn().mockResolvedValue({
+  const connection = {
     id: 'connection-1',
     workspaceId,
     provider: 'clickup',
-  });
+    externalAccountId: 'team-1',
+    slug: 'clickup_acme',
+    displayName: 'ClickUp Acme',
+    lifecycleStatus: 'error',
+    repositoryAccessMode: 'selected',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } satisfies IntegrationConnection<'clickup'>;
+  const activeConnection = {
+    ...connection,
+    lifecycleStatus: 'active',
+  } satisfies IntegrationConnection<'clickup'>;
+  const markConnectionActive = vi.fn().mockResolvedValue(activeConnection);
+  const markConnectionError = vi.fn().mockResolvedValue(undefined);
+  const connectClickUpInstallation = vi.fn().mockResolvedValue(connection);
   const disconnectClickUpInstallation = vi.fn().mockResolvedValue(undefined);
   const withClickUpInstallationLock: ClickUpInstallationLock = async (_teamId, fn) => fn();
   return {
@@ -42,6 +55,7 @@ function createParams() {
     updateClickUpInstallationWebhook,
     markConnectionActive,
     markConnectionError,
+    activeConnection,
     webhookUrlForConnection: (connectionId: string) =>
       `https://shipfox.example.test/webhooks/${connectionId}`,
     withClickUpInstallationLock,
@@ -60,7 +74,7 @@ describe('ClickUp OAuth installation', () => {
 
     const result = await handleClickUpCallback(params);
 
-    expect(result).toMatchObject({id: 'connection-1'});
+    expect(result).toBe(params.activeConnection);
     expect(params.clickup.getAuthorizedUser).toHaveBeenCalledWith({accessToken: 'access-token'});
     expect(params.connectClickUpInstallation).toHaveBeenCalledWith({
       workspaceId: params.workspaceId,
