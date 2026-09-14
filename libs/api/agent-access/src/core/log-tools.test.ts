@@ -177,6 +177,12 @@ describe('bounded step-log agent-access tool', () => {
     );
     expect(downloadTool(mocks).description).toContain('Exit 18');
     expect(downloadTool(mocks).description).toContain('API 401');
+    expect(downloadTool(mocks).description).toContain(
+      'For a store 403, rerun the same command at most three times; then stop and report.',
+    );
+    expect(downloadTool(mocks).description).toContain(
+      'For 503, wait the `Retry-After` value (usually 5 seconds) and rerun at most three times; then stop and report.',
+    );
     expect(getStepLogDownloadResultSchema.safeParse(result).success).toBe(true);
   });
 
