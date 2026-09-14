@@ -1,5 +1,23 @@
 # @shipfox/client-agent
 
+## 44.0.0
+
+### Major Changes
+
+- fb73bca: Removes unused OAuth scope fields and carries agent access through workspace membership authority.
+
+### Patch Changes
+
+- Updated dependencies [4d3b34b]
+- Updated dependencies [7acec37]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [b9d7c01]
+  - @shipfox/react-ui@2.4.0
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/client-shell@44.0.0
+  - @shipfox/client-ui@44.0.0
+
 ## 43.0.0
 
 ### Patch Changes

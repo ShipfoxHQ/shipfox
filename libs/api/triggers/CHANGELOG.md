@@ -1,5 +1,28 @@
 # @shipfox/api-triggers
 
+## 26.0.0
+
+### Minor Changes
+
+- e157b10: Expose `fireManualTrigger` and `createDevRun` as inter-module trigger commands. `fireManualTrigger` accepts an optional idempotency key and reports deduplicated runs.
+
+### Patch Changes
+
+- Updated dependencies [6eaacf0]
+- Updated dependencies [da717b1]
+- Updated dependencies [db054aa]
+- Updated dependencies [e157b10]
+- Updated dependencies [4a75c26]
+- Updated dependencies [5cb4279]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [aafce80]
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-workflows-dto@26.0.0
+  - @shipfox/api-triggers-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Patch Changes

@@ -1,5 +1,36 @@
 # @shipfox/api-workflows
 
+## 26.0.0
+
+### Minor Changes
+
+- d7cb4a7: Adds durable workflow concurrency claims with latest-wins admission and supersession of an earlier waiter.
+- da717b1: Exposes workflow concurrency state and affected run attempts through workflow run APIs.
+- 5cb4279: Joins initial workflow runs to resolved concurrency groups with transactional claim admission, claim outbox events, and accurate concurrency-group interpolation errors.
+- aafce80: The workflow run-attempt-created event now optionally carries `actorUserId`.
+
+### Patch Changes
+
+- 575cbc1: Add the flag-gated ClickUp integration provider scaffold, installation persistence, token storage, cleanup hooks, and E2E connection seed route.
+- 2ebf33d: Refreshes run-creation step expressions for each workflow rerun.
+- Updated dependencies [6eaacf0]
+- Updated dependencies [795eee2]
+- Updated dependencies [da717b1]
+- Updated dependencies [db054aa]
+- Updated dependencies [4a75c26]
+- Updated dependencies [7acec37]
+- Updated dependencies [5cb4279]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [aafce80]
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-logs-dto@26.0.0
+  - @shipfox/api-workflows-dto@26.0.0
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-workspaces-dto@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Minor Changes

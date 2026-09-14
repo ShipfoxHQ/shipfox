@@ -1,5 +1,11 @@
 # @shipfox/node-module
 
+## 1.1.0
+
+### Minor Changes
+
+- 8229356: Expose minimal user and workspace summaries to host extensions through the public inter-module contracts.
+
 ## 1.0.11
 
 ### Patch Changes

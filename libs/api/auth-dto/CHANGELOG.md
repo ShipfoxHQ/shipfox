@@ -1,5 +1,16 @@
 # @shipfox/api-auth-dto
 
+## 26.0.0
+
+### Major Changes
+
+- fb73bca: Removes unused OAuth scope fields and carries agent access through workspace membership authority.
+
+### Minor Changes
+
+- 7acec37: Expose `actor_role_at_start` on exact impersonation-window reads as the historical role recorded at Window Start.
+- 8229356: Expose minimal user and workspace summaries to host extensions through the public inter-module contracts.
+
 ## 25.0.0
 
 ### Minor Changes

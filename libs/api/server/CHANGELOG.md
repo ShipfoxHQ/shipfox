@@ -1,5 +1,61 @@
 # @shipfox/api-server
 
+## 26.0.0
+
+### Minor Changes
+
+- 756d8ab: Exposes the composed Usage client to `defaultModules()` extension callbacks.
+- 8229356: Expose minimal user and workspace summaries to host extensions through the public inter-module contracts.
+
+### Patch Changes
+
+- Updated dependencies [a8ff016]
+- Updated dependencies [d7cb4a7]
+- Updated dependencies [6eaacf0]
+- Updated dependencies [795eee2]
+- Updated dependencies [3fcbb7e]
+- Updated dependencies [da717b1]
+- Updated dependencies [9e9a4a4]
+- Updated dependencies [575cbc1]
+- Updated dependencies [9c3f38d]
+- Updated dependencies [db054aa]
+- Updated dependencies [13332e1]
+- Updated dependencies [2ebf33d]
+- Updated dependencies [86ba951]
+- Updated dependencies [e157b10]
+- Updated dependencies [4a75c26]
+- Updated dependencies [b22c120]
+- Updated dependencies [7acec37]
+- Updated dependencies [5cb4279]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [ff3e2a1]
+- Updated dependencies [e78d21a]
+- Updated dependencies [aafce80]
+  - @shipfox/api-agent-access@26.0.0
+  - @shipfox/api-workflows@26.0.0
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-integration-core@26.0.0
+  - @shipfox/api-logs-dto@26.0.0
+  - @shipfox/api-logs@26.0.0
+  - @shipfox/api-workflows-dto@26.0.0
+  - @shipfox/api-auth@26.0.0
+  - @shipfox/api-triggers-dto@26.0.0
+  - @shipfox/api-triggers@26.0.0
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/api-workspaces-dto@26.0.0
+  - @shipfox/api-workspaces@26.0.0
+  - @shipfox/node-module@1.1.0
+  - @shipfox/api-definitions@26.0.0
+  - @shipfox/api-projects@26.0.0
+  - @shipfox/api-agent@26.0.0
+  - @shipfox/api-runners@26.0.0
+  - @shipfox/api-usage@26.0.0
+  - @shipfox/annotations@26.0.0
+  - @shipfox/api-secrets@26.0.0
+  - @shipfox/api-dispatcher@26.0.0
+  - @shipfox/api-email-challenges@1.1.18
+
 ## 25.0.0
 
 ### Patch Changes

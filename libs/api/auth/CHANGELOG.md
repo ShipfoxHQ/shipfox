@@ -1,5 +1,29 @@
 # @shipfox/api-auth
 
+## 26.0.0
+
+### Major Changes
+
+- fb73bca: Removes unused OAuth scope fields and carries agent access through workspace membership authority.
+- ff3e2a1: Emits `auth.user.signed_up` for new external users and requires callers to provide invitation context.
+
+### Minor Changes
+
+- 7acec37: Expose `actor_role_at_start` on exact impersonation-window reads as the historical role recorded at Window Start.
+- 8229356: Expose minimal user and workspace summaries to host extensions through the public inter-module contracts.
+
+### Patch Changes
+
+- 13332e1: Drops the unused agent access scope columns from the auth database.
+- Updated dependencies [7acec37]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-workspaces-dto@26.0.0
+  - @shipfox/node-module@1.1.0
+  - @shipfox/api-email-challenges@1.1.18
+
 ## 25.0.0
 
 ### Minor Changes

@@ -1,5 +1,18 @@
 # @shipfox/api-definitions
 
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [6eaacf0]
+- Updated dependencies [db054aa]
+- Updated dependencies [4a75c26]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Patch Changes

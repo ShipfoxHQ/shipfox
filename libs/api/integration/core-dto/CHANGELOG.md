@@ -1,5 +1,13 @@
 # @shipfox/api-integration-core-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- 6eaacf0: Adds workspace-scoped integration connection and provider tool-catalog reads.
+- db054aa: Records the authenticated initiator on availability events from OAuth or installation flows for GitHub, Jira, Linear, Sentry, and Slack. Direct-connect and manual webhook paths are not included. Background and lifecycle reactivation events remain unattributed.
+- 4a75c26: Add the signed, connection-scoped ClickUp webhook receiver and event ingestion with delivery deduplication and loop safety.
+
 ## 22.0.0
 
 ### Minor Changes
