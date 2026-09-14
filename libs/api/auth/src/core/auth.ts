@@ -204,6 +204,7 @@ export interface SignupParams {
 export interface ProvisionUserParams {
   email: string;
   name?: string | null | undefined;
+  viaInvitation: boolean;
   signupPolicy?: SignupPolicy | undefined;
 }
 
@@ -226,6 +227,7 @@ export async function provisionUser(params: ProvisionUserParams): Promise<User> 
   return await provisionDbUser({
     email,
     name: params.name ?? null,
+    viaInvitation: params.viaInvitation,
   });
 }
 

@@ -274,16 +274,42 @@ describe('auth core', () => {
     });
   });
 
-  test('provisionUser creates a verified, password-less user with a normalized email', async () => {
+  test('provisionUser creates a verified user and writes a non-invitation signup event', async () => {
     const email = `Provision-${crypto.randomUUID()}@EXAMPLE.COM`;
 
-    const user = await provisionUser({email, name: 'Provisioned User'});
+    const user = await provisionUser({
+      email,
+      name: 'Provisioned User',
+      viaInvitation: false,
+    });
 
     expect(user.email).toBe(email.toLowerCase());
     expect(user.name).toBe('Provisioned User');
     expect(user.hashedPassword).toBeNull();
     expect(user.emailVerifiedAt).toBeInstanceOf(Date);
     expect(user.status).toBe('active');
+    const events = await outboxEventsTo(user.email, AUTH_USER_SIGNED_UP);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      userId: user.id,
+      email: user.email,
+      name: 'Provisioned User',
+      viaInvitation: false,
+    });
+  });
+
+  test('provisionUser writes an invitation signup event', async () => {
+    const email = `invited-provision-${crypto.randomUUID()}@example.com`;
+
+    const user = await provisionUser({email, viaInvitation: true});
+
+    const events = await outboxEventsTo(email, AUTH_USER_SIGNED_UP);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      userId: user.id,
+      email,
+      viaInvitation: true,
+    });
   });
 
   test('provisionUser normalizes the email before checking the policy', async () => {
@@ -292,6 +318,7 @@ describe('auth core', () => {
 
     await provisionUser({
       email: `  ${email.toUpperCase()}  `,
+      viaInvitation: false,
       signupPolicy: {isSignupAllowed},
     });
 
@@ -306,7 +333,9 @@ describe('auth core', () => {
     const email = `provision-policy-denied-${crypto.randomUUID()}@example.com`;
     const isSignupAllowed = vi.fn().mockResolvedValue({allowed: false, message: 'Closed beta'});
 
-    await expect(provisionUser({email, signupPolicy: {isSignupAllowed}})).rejects.toEqual(
+    await expect(
+      provisionUser({email, viaInvitation: false, signupPolicy: {isSignupAllowed}}),
+    ).rejects.toEqual(
       expect.objectContaining({
         name: 'SignupNotAllowedError',
         message: 'Closed beta',
@@ -315,12 +344,39 @@ describe('auth core', () => {
     expect(await findUserByEmail({email})).toBeUndefined();
   });
 
+  test('provisionUser applies the signup policy to invitation-attributed users', async () => {
+    const email = `provision-invitation-policy-denied-${crypto.randomUUID()}@example.com`;
+    const isSignupAllowed = vi.fn().mockResolvedValue({allowed: false, message: 'Closed beta'});
+
+    const provisioning = provisionUser({
+      email,
+      viaInvitation: true,
+      signupPolicy: {isSignupAllowed},
+    });
+
+    await expect(provisioning).rejects.toEqual(
+      expect.objectContaining({
+        name: 'SignupNotAllowedError',
+        message: 'Closed beta',
+      }),
+    );
+    expect(isSignupAllowed).toHaveBeenCalledWith({
+      email,
+      emailVerified: true,
+      source: 'external-identity',
+    });
+    expect(await findUserByEmail({email})).toBeUndefined();
+    expect(await outboxEventsTo(email, AUTH_USER_SIGNED_UP)).toHaveLength(0);
+  });
+
   test('provisionUser fails closed when the policy throws', async () => {
     const email = `provision-policy-error-${crypto.randomUUID()}@example.com`;
     const policyError = new Error('policy unavailable');
     const isSignupAllowed = vi.fn().mockRejectedValue(policyError);
 
-    await expect(provisionUser({email, signupPolicy: {isSignupAllowed}})).rejects.toBe(policyError);
+    await expect(
+      provisionUser({email, viaInvitation: false, signupPolicy: {isSignupAllowed}}),
+    ).rejects.toBe(policyError);
     expect(await findUserByEmail({email})).toBeUndefined();
   });
 
@@ -335,30 +391,44 @@ describe('auth core', () => {
     const existingUnverified = await provisionUser({
       email: `  ${unverified.email.toUpperCase()}  `,
       name: 'Replacement Name',
+      viaInvitation: false,
       signupPolicy: {isSignupAllowed},
     });
     const existingSuspended = await provisionUser({
       email: `  ${suspended.email.toUpperCase()}  `,
       name: 'Replacement Name',
+      viaInvitation: true,
       signupPolicy: {isSignupAllowed},
     });
 
     expect(existingUnverified).toEqual(storedUnverified);
     expect(existingSuspended).toEqual(storedSuspended);
     expect(isSignupAllowed).not.toHaveBeenCalled();
+    expect(await outboxEventsTo(unverified.email, AUTH_USER_SIGNED_UP)).toHaveLength(0);
+    expect(await outboxEventsTo(suspended.email, AUTH_USER_SIGNED_UP)).toHaveLength(0);
   });
 
   test('provisionUser returns one unchanged user for concurrent callbacks', async () => {
     const email = `concurrent-provision-${crypto.randomUUID()}@example.com`;
 
     const results = await Promise.all(
-      Array.from({length: 8}, (_, index) => provisionUser({email, name: `Provider ${index}`})),
+      Array.from({length: 8}, (_, index) =>
+        provisionUser({email, name: `Provider ${index}`, viaInvitation: false}),
+      ),
     );
     const stored = await findUserByEmail({email});
+    const events = await outboxEventsTo(email, AUTH_USER_SIGNED_UP);
 
     expect(new Set(results.map((user) => user.id)).size).toBe(1);
     expect(stored?.id).toBe(results[0]?.id);
     expect(stored?.hashedPassword).toBeNull();
+    expect(events).toHaveLength(1);
+    expect(events[0]?.payload).toEqual({
+      userId: stored?.id,
+      email,
+      name: stored?.name,
+      viaInvitation: false,
+    });
   });
 
   test('login returns a token for verified users and rejects invalid credentials', async () => {
@@ -391,6 +461,7 @@ describe('auth core', () => {
   test('password login and reset flows refuse password-less users', async () => {
     const user = await provisionUser({
       email: `password-less-${crypto.randomUUID()}@example.com`,
+      viaInvitation: false,
     });
     const resetToken = `password-less-reset-${crypto.randomUUID()}`;
     await db()
