@@ -361,10 +361,14 @@ export function createWorkflowsInterModulePresentation(params: {
           : undefined,
         includeTotal: input.cursor === undefined,
       });
-      const jobsByRun = await listWorkflowRunJobSummaries(
-        result.runs.map((run) => ({id: run.id, currentAttempt: run.currentAttempt})),
-      );
-      const concurrencyByRun = await listWorkflowRunConcurrencyForRuns(result.runs);
+      const runTargets = result.runs.map((run) => ({
+        id: run.id,
+        currentAttempt: run.currentAttempt,
+      }));
+      const [jobsByRun, concurrencyByRun] = await Promise.all([
+        listWorkflowRunJobSummaries(runTargets),
+        listWorkflowRunConcurrencyForRuns(result.runs),
+      ]);
 
       return {
         runs: result.runs.map((run) =>
