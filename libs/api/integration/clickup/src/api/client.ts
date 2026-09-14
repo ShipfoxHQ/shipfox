@@ -262,7 +262,12 @@ async function mapClickUpHttpError(
   error: HTTPError,
 ): Promise<ClickUpIntegrationProviderError> {
   const {status, statusText, headers} = error.response;
-  const details = await clickUpErrorDetails(error.response);
+  let details: Awaited<ReturnType<typeof clickUpErrorDetails>> = {};
+  try {
+    details = await clickUpErrorDetails(error.response);
+  } catch {
+    details = {};
+  }
   logger().warn(
     {
       operation,
