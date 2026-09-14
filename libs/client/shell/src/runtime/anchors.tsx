@@ -15,6 +15,7 @@ import type {NavTabEntry, SettingsSectionEntry} from '#contract.js';
 import {useMaybeActiveWorkspace} from './active-workspace.js';
 import {anchorPaths} from './anchor-paths.js';
 import {useChrome} from './chrome-context.js';
+import {ClientAnalyticsBoundary} from './client-analytics.js';
 import {rememberLastWorkspaceId} from './last-workspace.js';
 import {toSameOriginRelativeHref} from './relative-href.js';
 import {parseWorkspaceParams, parseWorkspaceProjectParams, useRouteParams} from './route-inputs.js';
@@ -68,7 +69,11 @@ export function buildAnchorSkeleton({
   settingsSections: readonly SettingsSectionEntry[];
 }) {
   const rootRoute = createRootRouteWithContext<RouterContext>()({
-    component: Outlet,
+    component: () => (
+      <ClientAnalyticsBoundary>
+        <Outlet />
+      </ClientAnalyticsBoundary>
+    ),
     notFoundComponent: NotFoundPage,
   });
   const workspaceLayout = createRoute({

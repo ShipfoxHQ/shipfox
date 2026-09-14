@@ -5,6 +5,7 @@
 - **Decision owners:** Client composition maintainers and client architecture.
 - **Linear issue:** [ENG-1648](https://linear.app/shipfox/issue/ENG-1648).
 - **Amends:** [ADR 0001: Public client composition contract](0001-client-composition-contract.md).
+- **Amended by:** [ADR 0018: Client analytics subject context](0018-client-analytics-subject-context.md).
 
 ## Context
 
