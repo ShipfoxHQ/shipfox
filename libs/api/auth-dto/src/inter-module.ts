@@ -48,6 +48,11 @@ const searchSchema = z
     }
   })
   .optional();
+const userSummaryInterModuleSchema = z.object({
+  id: idSchema,
+  email: z.string().email(),
+  name: z.string().optional(),
+});
 const administratorUserSummaryInterModuleSchema = z.object({
   id: idSchema,
   email: z.string().email(),
@@ -135,6 +140,10 @@ export const authInterModuleContract = defineInterModuleContract({
         'authority-revoked': z.object({reason: agentLogDownloadAuthorityReasonSchema}),
       },
     },
+    getUserSummary: {
+      input: z.object({userId: idSchema}),
+      output: userSummaryInterModuleSchema.optional(),
+    },
     getCurrentAdminRole: {
       input: z.object({userId: z.string().uuid()}),
       output: z.object({role: adminRoleSchema.nullable()}),
@@ -172,6 +181,7 @@ export const authInterModuleContract = defineInterModuleContract({
   },
 });
 
+export type UserSummaryInterModule = z.infer<typeof userSummaryInterModuleSchema>;
 export type AdministratorUserSummaryInterModule = z.infer<
   typeof administratorUserSummaryInterModuleSchema
 >;

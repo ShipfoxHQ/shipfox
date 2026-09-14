@@ -68,6 +68,17 @@ export async function getWorkspaceById(id: string): Promise<Workspace | undefine
   return toWorkspace(row);
 }
 
+export type WorkspaceSummary = Pick<Workspace, 'id' | 'name'>;
+
+export async function getWorkspaceSummaryById(id: string): Promise<WorkspaceSummary | undefined> {
+  const rows = await db()
+    .select({id: workspaces.id, name: workspaces.name})
+    .from(workspaces)
+    .where(eq(workspaces.id, id))
+    .limit(1);
+  return rows[0];
+}
+
 export async function isWorkspaceSlugAvailable(slug: string): Promise<boolean> {
   const rows = await db()
     .select({id: workspaces.id})

@@ -1,6 +1,21 @@
 import {workspacesInterModuleContract} from './inter-module.js';
 
 describe('workspacesInterModuleContract', () => {
+  test('accepts a minimal workspace summary and a missing result', () => {
+    const method = workspacesInterModuleContract.methods.getWorkspaceSummary;
+    const workspaceId = '00000000-0000-4000-8000-000000000001';
+
+    expect(
+      method.output.parse({
+        id: workspaceId,
+        name: 'Workspace',
+        slug: 'workspace',
+        status: 'active',
+      }),
+    ).toEqual({id: workspaceId, name: 'Workspace'});
+    expect(method.output.parse(undefined)).toBeUndefined();
+  });
+
   test('accepts workspace creator attribution with missing creator data', () => {
     const result = workspacesInterModuleContract.methods.getWorkspaceCreator.output.parse({
       creatorUserId: null,

@@ -1,6 +1,9 @@
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
-import {authInterModuleContract} from '@shipfox/api-auth-dto/inter-module';
+import {
+  type AuthInterModuleClient,
+  authInterModuleContract,
+} from '@shipfox/api-auth-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
@@ -49,9 +52,11 @@ const mocks = vi.hoisted(() => ({
   deleteSecrets: vi.fn(),
   getIntegrationConnectionById: vi.fn(),
   getSecret: vi.fn(),
+  getUserSummary: vi.fn(),
   getSecretsByNamespace: vi.fn(),
   getWorkspaceCreator: vi.fn(),
   getWorkspaceOperatingState: vi.fn(),
+  getWorkspaceSummary: vi.fn(),
   listMembershipsForTokenClaims: vi.fn(),
   recordInferenceSegments: vi.fn(),
   setSecrets: vi.fn(),
@@ -134,8 +139,10 @@ describe('defaultModules', () => {
     mocks.deleteSecrets.mockReset();
     mocks.getIntegrationConnectionById.mockReset();
     mocks.getSecret.mockReset();
+    mocks.getUserSummary.mockReset();
     mocks.getSecretsByNamespace.mockReset();
     mocks.getWorkspaceCreator.mockReset();
+    mocks.getWorkspaceSummary.mockReset();
     mocks.listMembershipsForTokenClaims.mockReset();
     mocks.recordInferenceSegments.mockReset();
     mocks.setSecrets.mockReset();
@@ -189,6 +196,7 @@ describe('defaultModules', () => {
             mintAgentLogDownloadToken: vi.fn(),
             checkAgentGrantAuthority: vi.fn(),
             getCurrentAdminRole: vi.fn(),
+            getUserSummary: mocks.getUserSummary,
             requireAdminRole: vi.fn(),
             listImpersonationEligibleUserSummaries: vi.fn(),
           },
@@ -201,6 +209,8 @@ describe('defaultModules', () => {
     mocks.listMembershipsForTokenClaims.mockResolvedValue({memberships: []});
     mocks.recordInferenceSegments.mockResolvedValue({recorded: 0, duplicates: 0});
     mocks.getWorkspaceCreator.mockResolvedValue({creatorUserId: null});
+    mocks.getWorkspaceSummary.mockResolvedValue(undefined);
+    mocks.getUserSummary.mockResolvedValue(undefined);
     mocks.setSecrets.mockResolvedValue({});
     mocks.createProjectsModule.mockReturnValue({
       name: 'projects',
@@ -361,6 +371,7 @@ describe('defaultModules', () => {
             listMembershipsForTokenClaims: mocks.listMembershipsForTokenClaims,
             getWorkspaceCreator: mocks.getWorkspaceCreator,
             getWorkspaceOperatingState: mocks.getWorkspaceOperatingState,
+            getWorkspaceSummary: mocks.getWorkspaceSummary,
             preflightInvitationAcceptance: vi.fn(),
             acceptInvitation: vi.fn(),
             requireActiveMembership: vi.fn(),
@@ -752,10 +763,18 @@ describe('defaultModules', () => {
     const customAuthModule = mocks.createAuthModule();
     mocks.createAuthModule.mockClear();
     let extensionWorkspaces: WorkspacesInterModuleClient | undefined;
-    const extension = vi.fn(({workspaces}: {workspaces: WorkspacesInterModuleClient}) => {
-      extensionWorkspaces = workspaces;
-      return [];
-    });
+    const extension = vi.fn(
+      ({
+        workspaces,
+      }: {
+        auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
+        workspaces: WorkspacesInterModuleClient;
+        usage: UsageModuleClient;
+      }) => {
+        extensionWorkspaces = workspaces;
+        return [];
+      },
+    );
     const authModule = vi.fn(({workspaces}: {workspaces: WorkspacesInterModuleClient}) =>
       mocks.createAuthModule({workspaces, signupPolicy}),
     );
@@ -769,6 +788,7 @@ describe('defaultModules', () => {
       signupPolicy,
     });
     expect(extension).toHaveBeenCalledWith({
+      auth: expect.any(Object),
       usage: expect.any(Object),
       workspaces: authWorkspaces,
     });
@@ -852,32 +872,59 @@ describe('defaultModules', () => {
     );
   });
 
-  it('extends the default module list with the composed Workspaces client', async () => {
+  it('extends the default module list with the composed subject clients', async () => {
+    let auth: Pick<AuthInterModuleClient, 'getUserSummary'> | undefined;
     let workspaces: WorkspacesInterModuleClient | undefined;
     const extensionModule = {name: 'cloud'};
-    const extension = vi.fn((options: {workspaces: WorkspacesInterModuleClient}) => {
-      workspaces = options.workspaces;
-      return [extensionModule];
-    });
+    const extension = vi.fn(
+      (options: {
+        auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
+        workspaces: WorkspacesInterModuleClient;
+        usage: UsageModuleClient;
+      }) => {
+        auth = options.auth;
+        workspaces = options.workspaces;
+        return [extensionModule];
+      },
+    );
 
+    mocks.getUserSummary.mockResolvedValue({
+      id: crypto.randomUUID(),
+      email: 'extension@example.com',
+      name: 'Extension User',
+    });
     const modules = await defaultModules({extension});
     const userId = crypto.randomUUID();
-    const memberships = await workspaces?.listMembershipsForTokenClaims({userId});
     const workspaceId = crypto.randomUUID();
-    const creator = await workspaces?.getWorkspaceCreator({workspaceId});
+    const memberships = await workspaces?.listMembershipsForTokenClaims({userId});
+    const workspaceSummary = await workspaces?.getWorkspaceSummary({workspaceId});
+    const summary = await auth?.getUserSummary({userId});
 
     expect(extension).toHaveBeenCalledWith({
+      auth: expect.any(Object),
       usage: expect.any(Object),
       workspaces: expect.any(Object),
     });
     expect(memberships).toEqual({memberships: []});
-    expect(creator).toEqual({creatorUserId: null});
+    expect(workspaceSummary).toBeUndefined();
+    expect(workspaces).toHaveProperty('listMembershipsForTokenClaims');
+    expect(auth).not.toHaveProperty('mintRunnerSessionToken');
+    expect(summary).toEqual({
+      id: expect.any(String),
+      email: 'extension@example.com',
+      name: 'Extension User',
+    });
+
     expect(mocks.listMembershipsForTokenClaims).toHaveBeenCalledWith(
       {userId},
       expect.objectContaining({signal: expect.any(AbortSignal)}),
     );
-    expect(mocks.getWorkspaceCreator).toHaveBeenCalledWith(
+    expect(mocks.getWorkspaceSummary).toHaveBeenCalledWith(
       {workspaceId},
+      expect.objectContaining({signal: expect.any(AbortSignal)}),
+    );
+    expect(mocks.getUserSummary).toHaveBeenCalledWith(
+      {userId},
       expect.objectContaining({signal: expect.any(AbortSignal)}),
     );
     expect(modules.at(-1)).toBe(extensionModule);
@@ -901,6 +948,7 @@ describe('defaultModules', () => {
     const modules = await defaultModules({extension});
 
     expect(extension).toHaveBeenCalledWith({
+      auth: expect.any(Object),
       usage: expect.any(Object),
       workspaces: expect.any(Object),
     });

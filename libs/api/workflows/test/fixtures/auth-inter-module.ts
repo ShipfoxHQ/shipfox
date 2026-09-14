@@ -17,6 +17,9 @@ export const workflowsTestAuthClient: AuthInterModuleClient = {
   getCurrentAdminRole() {
     return Promise.resolve({role: null});
   },
+  getUserSummary() {
+    return Promise.resolve(undefined);
+  },
   requireAdminRole() {
     return Promise.reject(
       new Error('Administrator role checks are not configured in workflow tests'),

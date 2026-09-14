@@ -21,6 +21,7 @@ import {
 } from '#core/errors.js';
 import {issueJobLeaseToken} from '#core/job-lease-token.js';
 import {issueRunnerSessionToken} from '#core/runner-session-token.js';
+import {getUserSummary} from '#core/user-summary.js';
 
 const impersonationEligibilityCursorSchema = z.object({
   mode: z.literal('search'),
@@ -133,6 +134,15 @@ export function createAuthInterModulePresentation(
         }
         throw error;
       }
+    },
+    getUserSummary: async ({userId}) => {
+      const user = await getUserSummary({userId});
+      if (!user) return undefined;
+      return {
+        id: user.id,
+        email: user.email,
+        ...(user.name === null ? {} : {name: user.name}),
+      };
     },
     getCurrentAdminRole: async ({userId}) => ({role: await getCurrentAdminRole({userId})}),
     requireAdminRole: async ({userId, minimumRole}) => {

@@ -9,6 +9,7 @@ const workspaces = {
   acceptInvitation: vi.fn(),
   requireActiveMembership: vi.fn(),
   getWorkspaceOperatingState: vi.fn(),
+  getWorkspaceSummary: vi.fn(),
 };
 
 const disabledPasswordPaths = [

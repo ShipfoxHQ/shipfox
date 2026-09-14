@@ -5,7 +5,7 @@ Runs a Shipfox API server.
 ## What it does
 
 - **`defaultModules()`**: Returns the standard module list.
-- **`DefaultModulesExtension`**: Receives the composed Workspaces and Usage clients for extension modules.
+- **`DefaultModulesExtension`**: Receives the composed Auth, Workspaces, and Usage clients for extension modules.
 - **`DefaultAgentModuleOptions`**: Configures the standard Agent module while `defaultModules()` supplies its Secrets and Workflows clients.
 - **`DefaultAuthModuleOptions`**: Configures the standard Auth module while `defaultModules()` supplies its Workspaces client.
 - **`DefaultRunnersModuleOptions`**: Configures the standard Runners module while `defaultModules()` supplies its Auth client.
@@ -17,7 +17,7 @@ Runs a Shipfox API server.
 - **`createLoginMethodsRoute()`**: Builds the public login-method catalog route. `createServer` mounts it automatically.
 - **Instrumentation preload**: Starts metrics and optional logs early. Load it before feature modules.
 
-## Installation
+## Installation and setup
 
 ```sh
 pnpm add @shipfox/api-server
@@ -31,14 +31,17 @@ import {defaultModules, runServer} from '@shipfox/api-server';
 await runServer({modules: await defaultModules()});
 ```
 
-To add an extension module, use the composed Workspaces and Usage clients rather
+To add a host module, use the composed Auth, Workspaces, and Usage clients rather
 than creating another inter-module transport or Usage module:
 
 ```ts
 const modules = await defaultModules({
-  extension: ({workspaces, usage}) => [createCloudModule({workspaces, usage})],
+  extension: ({auth, workspaces, usage}) => [createCloudModule({auth, workspaces, usage})],
 });
 ```
+
+The clients expose only producer-owned public contracts. Subject lookups return
+minimal summaries or `undefined` when the record does not exist.
 
 To configure the standard Auth module with an application-specific signup
 policy, use `authModuleOptions`. The composition root keeps ownership of the

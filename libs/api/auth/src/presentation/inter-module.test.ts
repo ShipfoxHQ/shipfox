@@ -24,6 +24,23 @@ function createClient() {
 }
 
 describe('Auth inter-module administration role presentation', () => {
+  test('returns a minimal user summary from Auth storage', async () => {
+    const client = createClient();
+    const user = await userFactory.create({name: 'Summary User'});
+
+    await expect(client.getUserSummary({userId: user.id})).resolves.toEqual({
+      id: user.id,
+      email: user.email,
+      name: 'Summary User',
+    });
+  });
+
+  test('returns undefined for a missing user summary', async () => {
+    const client = createClient();
+
+    await expect(client.getUserSummary({userId: crypto.randomUUID()})).resolves.toBeUndefined();
+  });
+
   test('returns the current role from Auth storage', async () => {
     const client = createClient();
     const user = await userFactory.create({emailVerifiedAt: new Date()});

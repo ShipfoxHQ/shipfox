@@ -111,6 +111,7 @@ export type DefaultWorkflowsModuleOptions = Pick<CreateWorkflowsModuleOptions, '
 /** Full replacement escape hatch for the standard Runners module. */
 export type DefaultRunnersModuleFactory = (options: {auth: AuthInterModuleClient}) => ShipfoxModule;
 export type DefaultModulesExtension = (options: {
+  auth: Pick<AuthInterModuleClient, 'getUserSummary'>;
   workspaces: WorkspacesInterModuleClient;
   usage: UsageModuleClient;
 }) => ShipfoxModule[];
@@ -287,7 +288,11 @@ export async function defaultModules(
     integrations: integrationsClient,
   });
   const extensionModules =
-    options.extension?.({workspaces: workspacesClient, usage: usageClient}) ?? [];
+    options.extension?.({
+      auth: {getUserSummary: authClient.getUserSummary},
+      workspaces: workspacesClient,
+      usage: usageClient,
+    }) ?? [];
   const agentModuleFactory = resolveModuleReplacementFactory(
     options.agentModuleFactory,
     options.agentModule,

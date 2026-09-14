@@ -16,6 +16,24 @@ function createClient() {
 }
 
 describe('Workspaces inter-module presentation', () => {
+  test('returns a minimal workspace summary through the transport', async () => {
+    const client = createClient();
+    const workspace = await createWorkspace({name: 'Summary Workspace'});
+
+    await expect(client.getWorkspaceSummary({workspaceId: workspace.id})).resolves.toEqual({
+      id: workspace.id,
+      name: 'Summary Workspace',
+    });
+  });
+
+  test('returns undefined for a missing workspace summary', async () => {
+    const client = createClient();
+
+    await expect(
+      client.getWorkspaceSummary({workspaceId: crypto.randomUUID()}),
+    ).resolves.toBeUndefined();
+  });
+
   test('resolves the workspace creator through the transport', async () => {
     const client = createClient();
     const creatorUserId = crypto.randomUUID();
