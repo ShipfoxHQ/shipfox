@@ -353,6 +353,22 @@ describe('checkoutRepository failure classification', () => {
     });
   });
 
+  it('does not classify port-qualified GitHub repository-not-found responses as auth failures', async () => {
+    queueFetchFailure('remote: Repository not found.');
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        repositoryUrl: 'https://github.com:8443/acme/repo.git',
+        auth: {...AUTH, host: 'github.com:8443'},
+      }),
+    ).rejects.toMatchObject({
+      kind: 'failed',
+      phase: 'fetch',
+      repositoryVisibilityFailure: false,
+    });
+  });
+
   it('keeps a checkout-phase repository-not-found response generic with GitHub auth', async () => {
     queueGitResults([
       {kind: 'success'},

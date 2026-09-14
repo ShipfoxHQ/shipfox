@@ -599,7 +599,8 @@ function isGitHubRepositoryVisibilityFailure(params: {
   if (!GITHUB_REPOSITORY_NOT_FOUND.test(params.stderr)) return false;
 
   try {
-    return new URL(normalizeRepositoryUrl(params.repositoryUrl)).hostname === 'github.com';
+    const url = new URL(normalizeRepositoryUrl(params.repositoryUrl));
+    return url.hostname === 'github.com' && url.port === '';
   } catch {
     return false;
   }
