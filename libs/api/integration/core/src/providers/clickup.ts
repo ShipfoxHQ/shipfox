@@ -22,6 +22,7 @@ async function loadClickUpModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    createClickUpAgentToolsClient,
     createClickUpE2eRoutes,
     createClickUpIntegrationProvider,
     createClickUpTokenStore,
@@ -126,6 +127,10 @@ async function loadClickUpModuleParts(
   });
 
   const integrationProvider = createClickUpIntegrationProvider({
+    agentTools: {
+      clickup: createClickUpAgentToolsClient(),
+      tokenStore,
+    },
     cleanup: {
       withConnectionDeletionLock: async (connection, fn) => {
         const installation = await getClickUpInstallationByConnectionId(connection.id);
