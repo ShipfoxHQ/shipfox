@@ -346,7 +346,26 @@ describe('checkoutRepository failure classification', () => {
         repositoryUrl: 'https://gitlab.example/acme/repo.git',
         auth: AUTH,
       }),
-    ).rejects.toMatchObject({kind: 'failed', phase: 'fetch'});
+    ).rejects.toMatchObject({
+      kind: 'failed',
+      phase: 'fetch',
+      repositoryVisibilityFailure: false,
+    });
+  });
+
+  it('keeps a checkout-phase repository-not-found response generic with GitHub auth', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+    ]);
+
+    await expect(checkoutRepository({...BASE, auth: AUTH})).rejects.toMatchObject({
+      kind: 'failed',
+      phase: 'checkout',
+      repositoryVisibilityFailure: false,
+    });
   });
 
   it('classifies an unreachable provider as unavailable', async () => {
