@@ -8,4 +8,4 @@
 "@shipfox/api-integration-slack": minor
 ---
 
-Records the authenticated initiator on user-created integration availability events while leaving background and lifecycle reactivation events unattributed.
+Records the authenticated initiator on availability events from OAuth or installation flows for GitHub, Jira, Linear, Sentry, and Slack. Direct-connect and manual webhook paths are not included. Background and lifecycle reactivation events remain unattributed.
