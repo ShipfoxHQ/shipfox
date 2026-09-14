@@ -4,7 +4,7 @@ Sentry integration for Shipfox Node services. It reads Sentry settings from envi
 
 ## What it does
 
-- **`import '@shipfox/node-error-monitoring/init'`** starts Sentry from environment config.
+- **`import '@shipfox/node-error-monitoring/init'`** starts Sentry and installs its OpenTelemetry async context manager.
 - **`reportError(error, context)`** reports an unexpected failure through fresh current and isolation scopes bound to Shipfox's OpenTelemetry async context. It does not write a log entry itself.
 - **`markErrorReported(error)`** and **`isErrorReported(error)`** prevent duplicate reports when a failure crosses boundaries.
 - **`captureException(error)`** remains available for backward compatibility.
@@ -29,6 +29,9 @@ npm install @shipfox/node-error-monitoring
 ```
 
 ## Usage
+
+The OpenTelemetry preload runs first. Load this init module next, before the
+application module graph.
 
 ```ts
 import "@shipfox/node-error-monitoring/init";

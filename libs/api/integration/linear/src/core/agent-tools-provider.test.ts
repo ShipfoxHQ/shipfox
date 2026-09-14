@@ -182,6 +182,15 @@ describe('LinearAgentToolsProvider', () => {
       {reason: 'timeout', message: 'Linear timed out. Please try again.', status: 408},
     ],
     [
+      'rate limits',
+      new StreamableHTTPError(429, 'slow down'),
+      {
+        reason: 'rate-limited',
+        message: 'Linear rate limited the request. Please try again later.',
+        status: 429,
+      },
+    ],
+    [
       'invalid credentials',
       new StreamableHTTPError(401, 'invalid_token: secret-token'),
       {
@@ -212,6 +221,19 @@ describe('LinearAgentToolsProvider', () => {
         reason: 'provider-unavailable',
         message: 'Linear is temporarily unavailable. Please try again.',
       },
+    ],
+    [
+      'closed connections',
+      new McpError(ErrorCode.ConnectionClosed, 'connection closed'),
+      {
+        reason: 'provider-unavailable',
+        message: 'Linear is temporarily unavailable. Please try again.',
+      },
+    ],
+    [
+      'invalid MCP requests',
+      new McpError(ErrorCode.InvalidRequest, 'invalid request'),
+      {reason: 'provider-rejected', message: 'Linear rejected the request.'},
     ],
   ])('maps call-time %s and still exposes close for cleanup', async (_name, remoteError, expected) => {
     const close = vi.fn().mockResolvedValue(undefined);
