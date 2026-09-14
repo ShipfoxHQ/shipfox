@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {RUN_CONCURRENCY_ACQUIRED_SIGNAL} from '../constants.js';
 import {
   callsNamed,
   dagJob,
@@ -304,6 +305,94 @@ describe('runOrchestration', () => {
     // The final attempt status update should use the version returned by the first update.
     const finalRunAttemptStatus = setRunAttemptStatusCalls().at(-1);
     expect(finalRunAttemptStatus?.params.version).toBeGreaterThan(0);
+  });
+
+  test('waits for durable acquisition and uses the fresh attempt version', async () => {
+    const runTimeoutMs = 200;
+    setCfg({
+      dag: {...makeDag([dagJob('waiter-job', 'build')], workflowRunId), runTimeoutMs},
+      concurrencyClaimState: 'waiting',
+      concurrencyAdmissionReads: [
+        {claimState: 'waiting', attemptVersion: 1},
+        {claimState: 'waiting', attemptVersion: 7},
+        {claimState: 'acquired', attemptVersion: 8},
+      ],
+      jobResults: new Map(),
+    });
+
+    const handle = await testEnv.client.workflow.start('runOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: `workflow-run-attempt:${workflowRunId}-attempt-1`,
+      args: [{workflowRunId, runAttemptId: `${workflowRunId}-attempt-1`, workspaceId}],
+    });
+    await waitForActivity('loadRunAttemptConcurrencyActivity');
+    expect(callsNamed('queueJobExecutionActivity')).toHaveLength(0);
+
+    await handle.signal(RUN_CONCURRENCY_ACQUIRED_SIGNAL);
+    await handle.signal(RUN_CONCURRENCY_ACQUIRED_SIGNAL);
+    await handle.result();
+
+    expect(setRunAttemptStatusCalls()[0]?.params).toMatchObject({
+      status: 'running',
+      version: 8,
+    });
+    expect(callsNamed('queueJobExecutionActivity')).toHaveLength(1);
+  });
+
+  test('does not start when an acquisition signal observes a superseded claim', async () => {
+    setCfg({
+      dag: {...makeDag([dagJob('superseded-job', 'build')], workflowRunId)},
+      concurrencyClaimState: 'waiting',
+      concurrencyAdmissionReads: [
+        {claimState: 'waiting', attemptVersion: 1},
+        {claimState: 'superseded', attemptVersion: 2},
+      ],
+      jobResults: new Map(),
+    });
+
+    const handle = await testEnv.client.workflow.start('runOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: `workflow-run-attempt:${workflowRunId}-attempt-1`,
+      args: [{workflowRunId, runAttemptId: `${workflowRunId}-attempt-1`, workspaceId}],
+    });
+    await waitForActivity('loadRunAttemptConcurrencyActivity');
+
+    await handle.signal(RUN_CONCURRENCY_ACQUIRED_SIGNAL);
+    await handle.result();
+
+    expect(setRunAttemptStatusCalls()).toHaveLength(0);
+    expect(callsNamed('queueJobExecutionActivity')).toHaveLength(0);
+  });
+
+  test('does not spend the run timeout while waiting for acquisition', async () => {
+    const runTimeoutMs = 100;
+    setCfg({
+      dag: {...makeDag([dagJob('delayed-job', 'build')], workflowRunId), runTimeoutMs},
+      concurrencyClaimState: 'waiting',
+      concurrencyAdmissionReads: [
+        {claimState: 'waiting', attemptVersion: 1},
+        {claimState: 'acquired', attemptVersion: 2},
+      ],
+      jobResults: new Map(),
+      skipSignal: true,
+    });
+
+    const handle = await testEnv.client.workflow.start('runOrchestration', {
+      taskQueue: TASK_QUEUE,
+      workflowId: `workflow-run-attempt:${workflowRunId}-attempt-1`,
+      args: [{workflowRunId, runAttemptId: `${workflowRunId}-attempt-1`, workspaceId}],
+    });
+    await waitForActivity('loadRunAttemptConcurrencyActivity');
+    await testEnv.sleep(150);
+
+    expect(callsNamed('failRunAsTimedOutActivity')).toHaveLength(0);
+    await handle.signal(RUN_CONCURRENCY_ACQUIRED_SIGNAL);
+    await waitForActivity('setRunAttemptStatus');
+
+    expect(setRunAttemptStatusCalls().map((call) => call.params.status)).toEqual(['running']);
+    expect(callsNamed('failRunAsTimedOutActivity')).toHaveLength(0);
+    await handle.signal('run-cancel');
+    await handle.result();
   });
 
   test('promoted waiter receives a full timeout after the holder exceeds half its budget', async () => {

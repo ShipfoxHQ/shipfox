@@ -1,5 +1,6 @@
 export const WORKFLOWS_TASK_QUEUE = 'workflows-orchestrator';
 export const RUN_CANCEL_SIGNAL = 'run-cancel';
+export const RUN_CONCURRENCY_ACQUIRED_SIGNAL = 'run-concurrency-acquired';
 export const JOB_FINISHED_SIGNAL = 'job-finished';
 export const JOB_LEASE_EXPIRED_SIGNAL = 'job-lease-expired';
 export const JOB_CLAIMED_SIGNAL = 'job-claimed';

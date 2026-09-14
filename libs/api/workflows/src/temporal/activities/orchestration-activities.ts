@@ -7,6 +7,7 @@ import {ApplicationFailure} from '@temporalio/common';
 import {defaultJobConditionTrace} from '#core/condition-trace.js';
 import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
 import type {PersistedEvaluationTraceEntry, StepStatus} from '#core/entities/step.js';
+import type {WorkflowConcurrencyClaimState} from '#core/entities/workflow-concurrency-claim.js';
 import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import {JobNotFoundError, WorkflowExecutionPayloadTooLargeError} from '#core/errors.js';
 import type {
@@ -24,6 +25,7 @@ import {
   getJobExecutionsByWorkflowRunAttemptId,
   getJobsByWorkflowRunAttemptId,
   getWorkflowRunAttemptById,
+  getWorkflowRunAttemptConcurrencyAdmission,
   getWorkflowRunByAttemptId,
   type JobActivationDecision,
   peekListenerBuffer,
@@ -125,6 +127,15 @@ export async function evaluateJobActivationsActivity(
   params: EvaluateJobActivationsParams,
 ): Promise<JobActivationDecision[]> {
   return await evaluateJobActivations(params);
+}
+
+export async function loadRunAttemptConcurrencyActivity(runAttemptId: string): Promise<{
+  attemptVersion: number;
+  claimState: WorkflowConcurrencyClaimState | null;
+}> {
+  const admission = await getWorkflowRunAttemptConcurrencyAdmission(runAttemptId);
+  if (!admission) throw new Error(`Run attempt not found: ${runAttemptId}`);
+  return admission;
 }
 
 export async function setRunAttemptStatus(params: {

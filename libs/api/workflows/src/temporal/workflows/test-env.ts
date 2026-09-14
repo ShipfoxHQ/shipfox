@@ -52,6 +52,13 @@ export interface TestConfig {
   activationDecisions?: Map<string, JobActivationDecision>;
   /** If set, failJobExecutionAsTimedOutActivity throws (for timeout error-path testing) */
   failJobExecutionAsTimedOutError?: string;
+  /** Durable concurrency state included in the loaded DAG. */
+  concurrencyClaimState?: 'acquired' | 'waiting' | 'superseded' | 'released' | null;
+  /** Fresh admission reads returned after concurrency signals. */
+  concurrencyAdmissionReads?: Array<{
+    attemptVersion: number;
+    claimState: 'acquired' | 'waiting' | 'superseded' | 'released' | null;
+  }>;
   /** Effective status returned by the initial running setRunAttemptStatus call */
   initialRunStatus?: string;
   /** Effective status returned by a running setJobStatus call */
@@ -240,6 +247,16 @@ function createMockActivities() {
     loadRunAttemptDag: (runAttemptId: string): RunDag => {
       calls.push({name: 'loadRunAttemptDag', params: runAttemptId});
       return cfg.dag;
+    },
+
+    loadRunAttemptConcurrencyActivity: (runAttemptId: string) => {
+      calls.push({name: 'loadRunAttemptConcurrencyActivity', params: runAttemptId});
+      return (
+        cfg.concurrencyAdmissionReads?.shift() ?? {
+          attemptVersion: cfg.dag.runVersion,
+          claimState: cfg.concurrencyClaimState ?? null,
+        }
+      );
     },
 
     setRunAttemptStatus: (params: {runAttemptId: string; status: string; version: number}) => {

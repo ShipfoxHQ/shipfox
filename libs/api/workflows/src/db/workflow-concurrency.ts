@@ -3,6 +3,7 @@ import {and, eq, isNull, sql} from 'drizzle-orm';
 import {
   transitionWorkflowConcurrencyClaim,
   type WorkflowConcurrencyClaim,
+  type WorkflowConcurrencyClaimState,
 } from '#core/entities/workflow-concurrency-claim.js';
 import {
   canonicalizeWorkflowConcurrencyGroup,
@@ -24,6 +25,30 @@ import {
 } from './schema/workflow-concurrency-claims.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
 import {toWorkflowRunOriginState, workflowRuns} from './schema/workflow-runs.js';
+
+export interface WorkflowRunAttemptConcurrencyAdmission {
+  readonly attemptVersion: number;
+  readonly claimState: WorkflowConcurrencyClaimState | null;
+}
+
+export async function getWorkflowRunAttemptConcurrencyAdmission(
+  workflowRunAttemptId: string,
+): Promise<WorkflowRunAttemptConcurrencyAdmission | null> {
+  const [row] = await db()
+    .select({
+      attemptVersion: workflowRunAttempts.version,
+      claimState: workflowConcurrencyClaims.state,
+    })
+    .from(workflowRunAttempts)
+    .leftJoin(
+      workflowConcurrencyClaims,
+      eq(workflowConcurrencyClaims.workflowRunAttemptId, workflowRunAttempts.id),
+    )
+    .where(eq(workflowRunAttempts.id, workflowRunAttemptId))
+    .limit(1);
+  if (!row) return null;
+  return row;
+}
 
 export interface AdmitWorkflowConcurrencyClaimParams {
   readonly workflowRunId: string;

@@ -21,15 +21,20 @@ import {scheduleRuntimeDag} from '#core/workflow-scheduling/schedule-runtime-dag
 
 import type {createOrchestrationActivities} from '../activities/index.js';
 import type {DagJob, RunDag} from '../activities/orchestration-activities.js';
-import {RUN_CANCEL_SIGNAL} from '../constants.js';
+import {RUN_CANCEL_SIGNAL, RUN_CONCURRENCY_ACQUIRED_SIGNAL} from '../constants.js';
 import {deadlineReached, remainingMs} from './deadline.js';
 import {jobExecutionOrchestration} from './job-execution-orchestration.js';
 import {jobListenerOrchestration} from './job-listener-orchestration.js';
 
-const {loadRunAttemptDag, evaluateJobActivationsActivity, setRunAttemptStatus, setJobStatus} =
-  proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
-    startToCloseTimeout: '30s',
-  });
+const {
+  loadRunAttemptConcurrencyActivity,
+  loadRunAttemptDag,
+  evaluateJobActivationsActivity,
+  setRunAttemptStatus,
+  setJobStatus,
+} = proxyActivities<ReturnType<typeof createOrchestrationActivities>>({
+  startToCloseTimeout: '30s',
+});
 
 const {failRunAsTimedOutActivity} = proxyActivities<
   ReturnType<typeof createOrchestrationActivities>
@@ -39,6 +44,9 @@ const {failRunAsTimedOutActivity} = proxyActivities<
 });
 
 export const runCancelSignal = defineSignal<[]>(RUN_CANCEL_SIGNAL);
+export const runConcurrencyAcquiredSignal = defineSignal<[]>(RUN_CONCURRENCY_ACQUIRED_SIGNAL);
+
+type RunAttemptAdmission = Awaited<ReturnType<typeof loadRunAttemptConcurrencyActivity>>;
 
 export interface RunOrchestrationInput {
   workflowRunId: string;
@@ -48,22 +56,29 @@ export interface RunOrchestrationInput {
 
 export async function runOrchestration(input: RunOrchestrationInput): Promise<void> {
   let cancelRequested = false;
+  let acquisitionSignalCount = 0;
   setHandler(runCancelSignal, () => {
     cancelRequested = true;
   });
+  setHandler(runConcurrencyAcquiredSignal, () => {
+    acquisitionSignalCount += 1;
+  });
 
   const dag = await loadRunAttemptDag(input.runAttemptId);
-  const runDeadline = Date.now() + dag.runTimeoutMs;
-
-  let runVersion = dag.runVersion;
-  const {newVersion, status} = await setRunAttemptStatus({
+  const runStart = await startRunAttempt({
     runAttemptId: input.runAttemptId,
-    status: 'running',
-    version: runVersion,
+    runTimeoutMs: dag.runTimeoutMs,
+    admission: await loadRunAttemptConcurrencyActivity(input.runAttemptId),
+    isCancelRequested: () => cancelRequested,
+    isAcquisitionSignaled: () => acquisitionSignalCount > 0,
+    consumeAcquisitionSignal: () => {
+      acquisitionSignalCount -= 1;
+    },
   });
-  runVersion = newVersion;
-  if (!shouldContinueStartedRun(status)) return;
+  if (!runStart) return;
 
+  const runVersion = runStart.runVersion;
+  const runDeadline = runStart.runDeadline;
   const progress = createRuntimeRunProgress(dag.jobs);
   const inFlight = new Map<string, Promise<{job: DagJob; result: LaunchResult}>>();
 
@@ -107,6 +122,54 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     }
     inFlight.delete(settled.job.key);
     recordRuntimeJobResult(settled.job, progress, settled.result);
+  }
+}
+
+async function startRunAttempt(params: {
+  runAttemptId: string;
+  runTimeoutMs: number;
+  admission: RunAttemptAdmission;
+  isCancelRequested: () => boolean;
+  isAcquisitionSignaled: () => boolean;
+  consumeAcquisitionSignal: () => void;
+}): Promise<{runVersion: number; runDeadline: number} | null> {
+  let {admission} = params;
+  if (admission.claimState === 'waiting') {
+    const acquired = await waitForConcurrencyAcquisition(
+      params.runAttemptId,
+      params.isCancelRequested,
+      params.isAcquisitionSignaled,
+      params.consumeAcquisitionSignal,
+    );
+    if (!acquired) return null;
+    admission = acquired;
+  }
+  if (admission.claimState === 'superseded' || admission.claimState === 'released') return null;
+
+  const {newVersion, status} = await setRunAttemptStatus({
+    runAttemptId: params.runAttemptId,
+    status: 'running',
+    version: admission.attemptVersion,
+  });
+  if (!shouldContinueStartedRun(status)) return null;
+
+  return {runVersion: newVersion, runDeadline: Date.now() + params.runTimeoutMs};
+}
+
+async function waitForConcurrencyAcquisition(
+  runAttemptId: string,
+  isCancelRequested: () => boolean,
+  isAcquisitionSignaled: () => boolean,
+  clearAcquisitionSignal: () => void,
+): Promise<RunAttemptAdmission | null> {
+  while (true) {
+    await condition(() => isCancelRequested() || isAcquisitionSignaled());
+    if (isCancelRequested()) return null;
+
+    clearAcquisitionSignal();
+    const admission = await loadRunAttemptConcurrencyActivity(runAttemptId);
+    if (admission.claimState === 'acquired') return admission;
+    if (admission.claimState !== 'waiting') return null;
   }
 }
 

@@ -41,6 +41,8 @@ export {
   type AdmitWorkflowConcurrencyClaimParams,
   type AdmitWorkflowConcurrencyClaimResult,
   admitWorkflowConcurrencyClaim,
+  getWorkflowRunAttemptConcurrencyAdmission,
+  type WorkflowRunAttemptConcurrencyAdmission,
 } from './workflow-concurrency.js';
 export type {
   BoundedExecutionCount,
