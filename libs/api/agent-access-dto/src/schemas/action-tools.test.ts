@@ -44,6 +44,26 @@ describe('agent-access action tool schemas', () => {
     ).toBe(true);
   });
 
+  test('accepts only plain JSON objects for inputs', () => {
+    const nullPrototypeInputs = Object.create(null) as Record<string, unknown>;
+    nullPrototypeInputs.payload = 'value';
+
+    const acceptedInputs = [{payload: 'value'}, nullPrototypeInputs];
+    const rejectedInputs = [new Date(), new Map(), new Set()];
+
+    for (const inputs of acceptedInputs) {
+      expect(fireManualTriggerInputSchema.safeParse({definition_id: uuid, inputs}).success).toBe(
+        true,
+      );
+    }
+
+    for (const inputs of rejectedInputs) {
+      expect(fireManualTriggerInputSchema.safeParse({definition_id: uuid, inputs}).success).toBe(
+        false,
+      );
+    }
+  });
+
   test('requires config_path for development runs', () => {
     const input = {
       project_id: uuid,
