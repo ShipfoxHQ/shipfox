@@ -6,9 +6,12 @@ import {
 } from '@shipfox/api-definitions-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {db} from '#db/db.js';
+import {definitionsOutbox} from '#db/schema/outbox.js';
 import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {buildCreateDefinitionRoute} from './create-definition.js';
 
@@ -21,6 +24,7 @@ describe('POST /api/definitions', () => {
   let workspaceId: string;
   let projectId: string;
   let sourceConnectionId: string;
+  let authenticatedUserId: string;
 
   const createApp = async (integrations?: IntegrationsModuleClient) => {
     const testApp = Fastify();
@@ -30,7 +34,7 @@ describe('POST /api/definitions', () => {
       setUserContext(
         request,
         buildUserContext({
-          userId: crypto.randomUUID(),
+          userId: authenticatedUserId,
           email: 'user@example.com',
           memberships: [{workspaceId, role: 'admin', workspaceStatus: 'active'}],
         }),
@@ -57,6 +61,7 @@ describe('POST /api/definitions', () => {
     workspaceId = crypto.randomUUID();
     projectId = crypto.randomUUID();
     sourceConnectionId = crypto.randomUUID();
+    authenticatedUserId = crypto.randomUUID();
     getProjectById.mockClear();
     getProjectById.mockResolvedValue({
       project: {id: projectId, workspaceId, sourceConnectionId},
@@ -92,6 +97,46 @@ jobs:
     expect(body.ref).toBeNull();
     expect(body.fetched_at).toBeDefined();
     expect(agent.getValidationCatalogV2).toHaveBeenLastCalledWith({workspaceId});
+  });
+
+  test('records the authenticated user on a manual resolution event', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/definitions',
+      payload: {project_id: projectId, config_path: 'manual.yml', yaml: validYaml},
+    });
+
+    expect(res.statusCode).toBe(200);
+    const outboxRows = await db()
+      .select()
+      .from(definitionsOutbox)
+      .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+
+    expect(outboxRows).toHaveLength(1);
+    expect(outboxRows[0]?.payload).toMatchObject({actorUserId: authenticatedUserId});
+  });
+
+  test('omits the actor on a VCS resolution event', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/definitions',
+      payload: {
+        project_id: projectId,
+        config_path: 'vcs.yml',
+        source: 'vcs',
+        ref: 'main',
+        yaml: validYaml,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const outboxRows = await db()
+      .select()
+      .from(definitionsOutbox)
+      .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
+
+    expect(outboxRows).toHaveLength(1);
+    expect(outboxRows[0]?.payload).not.toHaveProperty('actorUserId');
   });
 
   test('rejects a YAML body that exceeds the UTF-8 byte limit', async () => {

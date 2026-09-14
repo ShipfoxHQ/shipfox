@@ -1,4 +1,5 @@
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import {requireUserContext} from '@shipfox/api-auth-context';
 import {
   createDefinitionBodySchema,
   DEFINITION_SYNC_LAST_ERROR_MESSAGE_MAX_LENGTH,
@@ -78,6 +79,7 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
       const definition = await upsertDefinition({
         projectId,
         workspaceId: project.workspaceId,
+        actorUserId: source === 'vcs' ? undefined : requireUserContext(request).userId,
         configPath: config_path,
         source,
         name: parsed.document.name,
