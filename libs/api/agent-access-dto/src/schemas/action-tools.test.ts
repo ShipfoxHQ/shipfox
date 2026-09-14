@@ -1,7 +1,9 @@
 import {
   AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES,
   cancelWorkflowRunInputSchema,
+  createDevRunInputJsonSchema,
   createDevRunInputSchema,
+  fireManualTriggerInputJsonSchema,
   fireManualTriggerInputSchema,
   rerunWorkflowRunInputSchema,
 } from './action-tools.js';
@@ -52,5 +54,36 @@ describe('agent-access action tool schemas', () => {
     expect(
       createDevRunInputSchema.safeParse({...input, config_path: '.shipfox/workflow.yml'}).success,
     ).toBe(true);
+  });
+
+  test('keeps development-run descriptors aligned with safe runtime strings', () => {
+    const refPattern = new RegExp(createDevRunInputJsonSchema.properties.ref.pattern, 'u');
+    const configPathPattern = new RegExp(
+      createDevRunInputJsonSchema.properties.config_path.pattern,
+      'u',
+    );
+    const values = ['main', 'main\n', 'main\u007f', 'main\u0085', 'main\u2028', 'main\u2029'];
+
+    for (const value of values) {
+      const parsed = createDevRunInputSchema.safeParse({
+        project_id: uuid,
+        ref: value,
+        config_path: value,
+        trigger: 'manual',
+      });
+      expect(refPattern.test(value)).toBe(parsed.success);
+      expect(configPathPattern.test(value)).toBe(parsed.success);
+    }
+  });
+
+  test('rejects a top-level __proto__ input key before it can be discarded', () => {
+    const inputs = JSON.parse('{"__proto__":{"changed":true}}') as Record<string, unknown>;
+
+    expect(fireManualTriggerInputSchema.safeParse({definition_id: uuid, inputs}).success).toBe(
+      false,
+    );
+    expect(fireManualTriggerInputJsonSchema.properties.inputs.propertyNames).toEqual({
+      not: {const: '__proto__'},
+    });
   });
 });

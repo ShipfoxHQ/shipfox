@@ -4,6 +4,7 @@ export const AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES = 16 * 1024;
 export const AGENT_ACCESS_IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 const utf8Encoder = new TextEncoder();
+const safeRefInputPattern = '^[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$';
 const workflowRunAttemptSchema = z.number().int().min(1).max(2_147_483_647);
 const workflowRunStatusSchema = z.enum([
   'waiting',
@@ -14,25 +15,36 @@ const workflowRunStatusSchema = z.enum([
   'cancelled',
 ]);
 const uuidSchema = z.string().uuid();
-const inputsSchema = z.record(z.string(), z.unknown()).superRefine((inputs, context) => {
-  let serialized: string | undefined;
-  try {
-    serialized = JSON.stringify(inputs);
-  } catch {
-    context.addIssue({code: 'custom', message: 'Inputs must be JSON serializable'});
-    return;
-  }
-  if (serialized === undefined) {
-    context.addIssue({code: 'custom', message: 'Inputs must be JSON serializable'});
-    return;
-  }
-  if (utf8Encoder.encode(serialized).byteLength > AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES) {
-    context.addIssue({
-      code: 'custom',
-      message: `Inputs must contain at most ${AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES} UTF-8 bytes when serialized`,
-    });
-  }
-});
+const inputsSchema = z
+  .custom<Record<string, unknown>>(isRecord, 'Inputs must be a JSON object')
+  .superRefine((inputs, context) => {
+    if (Object.hasOwn(inputs, '__proto__')) {
+      context.addIssue({code: 'custom', message: 'Inputs must not contain a __proto__ property'});
+      return;
+    }
+
+    let serialized: string | undefined;
+    try {
+      serialized = JSON.stringify(inputs);
+    } catch {
+      context.addIssue({code: 'custom', message: 'Inputs must be JSON serializable'});
+      return;
+    }
+    if (serialized === undefined) {
+      context.addIssue({code: 'custom', message: 'Inputs must be JSON serializable'});
+      return;
+    }
+    if (utf8Encoder.encode(serialized).byteLength > AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES) {
+      context.addIssue({
+        code: 'custom',
+        message: `Inputs must contain at most ${AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES} UTF-8 bytes when serialized`,
+      });
+    }
+  });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 const safeRefSchema = z
   .string()
@@ -146,6 +158,7 @@ const statusJsonSchema = {
 const inputsJsonSchema = {
   type: 'object',
   additionalProperties: true,
+  propertyNames: {not: {const: '__proto__'}},
   description: `JSON object serialized to at most ${AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES} UTF-8 bytes.`,
 } as const;
 
@@ -219,8 +232,13 @@ export const createDevRunInputJsonSchema = {
   type: 'object',
   properties: {
     project_id: uuidJsonSchema,
-    ref: {type: 'string', minLength: 1, maxLength: 256},
-    config_path: {type: 'string', minLength: 1, maxLength: 1024},
+    ref: {type: 'string', minLength: 1, maxLength: 256, pattern: safeRefInputPattern},
+    config_path: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 1024,
+      pattern: safeRefInputPattern,
+    },
     trigger: {type: 'string', minLength: 1},
     commit: {type: 'string', pattern: '^[0-9a-f]{40}$'},
     inputs: inputsJsonSchema,

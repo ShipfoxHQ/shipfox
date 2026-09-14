@@ -1,4 +1,7 @@
-import {agentAccessEnvelopeSchema} from '@shipfox/api-agent-access-dto';
+import {
+  AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
+  agentAccessEnvelopeSchema,
+} from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
@@ -134,6 +137,52 @@ describe('agent-access action tools', () => {
     expect(keys[2]).not.toBe(keys[0]);
   });
 
+  test('fingerprints nested __proto__ input keys and rejects them at the top level', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockResolvedValue({
+      id: runId,
+      name: 'Build',
+      deduplicated: false,
+    });
+    const manual = tool(tools, 'fire_manual_trigger');
+    const nestedPrototypeInput = JSON.parse('{"nested":{"__proto__":{"changed":true}}}') as Record<
+      string,
+      unknown
+    >;
+
+    await manual.execute({
+      context,
+      arguments: {
+        definition_id: definitionId,
+        inputs: {nested: {}},
+        idempotency_key: 'retry-key',
+      },
+    });
+    await manual.execute({
+      context,
+      arguments: {
+        definition_id: definitionId,
+        inputs: nestedPrototypeInput,
+        idempotency_key: 'retry-key',
+      },
+    });
+    const rejected = await manual.execute({
+      context,
+      arguments: {
+        definition_id: definitionId,
+        inputs: JSON.parse('{"__proto__":{"changed":true}}'),
+        idempotency_key: 'retry-key',
+      },
+    });
+
+    const keys = vi
+      .mocked(triggers.fireManualTrigger)
+      .mock.calls.map(([input]) => input.idempotencyKey);
+    expect(keys[1]).not.toBe(keys[0]);
+    expect(rejected).toEqual({ok: false, error: {code: 'invalid-request'}});
+    expect(triggers.fireManualTrigger).toHaveBeenCalledTimes(2);
+  });
+
   test('rejects oversized inputs before calling a producer', async () => {
     const {triggers, tools} = clients();
     const response = await tool(tools, 'fire_manual_trigger').execute({
@@ -190,6 +239,7 @@ describe('agent-access action tools', () => {
       error: {
         code: 'admission-denied',
         details: {
+          reason: 'suspended',
           required_action: {
             reason: 'billing',
             message: 'Update billing',
@@ -197,6 +247,61 @@ describe('agent-access action tools', () => {
           },
         },
       },
+    });
+  });
+
+  test('bounds admission details and preserves the reason without a required action', async () => {
+    const {workflows, tools} = clients();
+    const oversized = 'x'.repeat(AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES + 1);
+    vi.mocked(workflows.rerunWorkflowRun)
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          workflowsInterModuleContract.methods.rerunWorkflowRun,
+          'admission-denied',
+          {
+            workspaceId,
+            reason: oversized,
+            requiredAction: {reason: oversized, message: oversized, url: oversized},
+          },
+        ),
+      )
+      .mockRejectedValueOnce(
+        createInterModuleKnownError(
+          workflowsInterModuleContract.methods.rerunWorkflowRun,
+          'admission-denied',
+          {workspaceId, reason: 'capacity'},
+        ),
+      );
+    const rerun = tool(tools, 'rerun_workflow_run');
+
+    const bounded = await rerun.execute({
+      context,
+      arguments: {run_id: runId, expected_attempt: 1, mode: 'failed'},
+    });
+    const withoutAction = await rerun.execute({
+      context,
+      arguments: {run_id: runId, expected_attempt: 1, mode: 'failed'},
+    });
+
+    const expectedBounded = 'x'.repeat(AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES);
+    expect(bounded).toEqual({
+      ok: false,
+      error: {
+        code: 'admission-denied',
+        details: {
+          reason: expectedBounded,
+          required_action: {
+            reason: expectedBounded,
+            message: expectedBounded,
+            url: expectedBounded,
+          },
+        },
+      },
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(bounded).success).toBe(true);
+    expect(withoutAction).toEqual({
+      ok: false,
+      error: {code: 'admission-denied', details: {reason: 'capacity'}},
     });
   });
 });

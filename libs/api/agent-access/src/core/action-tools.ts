@@ -1,5 +1,6 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {
+  AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
   agentAccessOutputSchema,
   cancelWorkflowRunInputJsonSchema,
   cancelWorkflowRunInputSchema,
@@ -24,6 +25,7 @@ import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-modul
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
+import {truncateAgentAccessUtf8} from './response.js';
 import {invalidRequest, optionalField, parseInput} from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
 
@@ -237,7 +239,7 @@ function canonicalizeJson(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalizeJson);
   if (typeof value !== 'object' || value === null) return value;
 
-  const sorted: Record<string, unknown> = {};
+  const sorted = Object.create(null) as Record<string, unknown>;
   for (const key of Object.keys(value).sort()) {
     sorted[key] = canonicalizeJson((value as Record<string, unknown>)[key]);
   }
@@ -248,14 +250,12 @@ function mapProducerError(
   code: string,
   details: Record<string, unknown>,
 ): ReturnType<typeof agentAccessError> {
-  if (code === 'admission-denied' && isRecord(details.requiredAction)) {
+  if (code === 'admission-denied' && typeof details.reason === 'string') {
+    const requiredAction = mapRequiredAction(details.requiredAction);
     return agentAccessError(code, {
       details: {
-        required_action: {
-          reason: details.requiredAction.reason,
-          message: details.requiredAction.message,
-          url: details.requiredAction.url,
-        },
+        reason: boundErrorDetail(details.reason),
+        ...(requiredAction === undefined ? {} : {required_action: requiredAction}),
       },
     });
   }
@@ -266,6 +266,26 @@ function mapProducerError(
     return agentAccessError(code, {details: {status: details.status}});
   }
   return agentAccessError(code);
+}
+
+function mapRequiredAction(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    typeof value.reason !== 'string' ||
+    typeof value.message !== 'string' ||
+    typeof value.url !== 'string'
+  ) {
+    return undefined;
+  }
+  return {
+    reason: boundErrorDetail(value.reason),
+    message: boundErrorDetail(value.message),
+    url: boundErrorDetail(value.url),
+  };
+}
+
+function boundErrorDetail(value: string): string {
+  return truncateAgentAccessUtf8(value, AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES).value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
