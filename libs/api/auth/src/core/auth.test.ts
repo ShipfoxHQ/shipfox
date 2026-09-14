@@ -344,6 +344,31 @@ describe('auth core', () => {
     expect(await findUserByEmail({email})).toBeUndefined();
   });
 
+  test('provisionUser applies the signup policy to invitation-attributed users', async () => {
+    const email = `provision-invitation-policy-denied-${crypto.randomUUID()}@example.com`;
+    const isSignupAllowed = vi.fn().mockResolvedValue({allowed: false, message: 'Closed beta'});
+
+    const provisioning = provisionUser({
+      email,
+      viaInvitation: true,
+      signupPolicy: {isSignupAllowed},
+    });
+
+    await expect(provisioning).rejects.toEqual(
+      expect.objectContaining({
+        name: 'SignupNotAllowedError',
+        message: 'Closed beta',
+      }),
+    );
+    expect(isSignupAllowed).toHaveBeenCalledWith({
+      email,
+      emailVerified: true,
+      source: 'external-identity',
+    });
+    expect(await findUserByEmail({email})).toBeUndefined();
+    expect(await outboxEventsTo(email, AUTH_USER_SIGNED_UP)).toHaveLength(0);
+  });
+
   test('provisionUser fails closed when the policy throws', async () => {
     const email = `provision-policy-error-${crypto.randomUUID()}@example.com`;
     const policyError = new Error('policy unavailable');
