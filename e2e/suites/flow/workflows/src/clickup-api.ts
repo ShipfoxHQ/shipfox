@@ -35,6 +35,7 @@ export interface ClickUpApiMock {
 export async function startClickUpApiMock(
   endpoint = new URL(requiredClickUpApiBaseUrl()),
 ): Promise<ClickUpApiMock> {
+  validateEndpoint(endpoint);
   const calls: ClickUpApiMockCall[] = [];
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
@@ -116,6 +117,14 @@ function requiredClickUpApiBaseUrl(): string {
   if (!endpoint)
     throw new Error('CLICKUP_API_BASE_URL must be configured for the ClickUp API mock.');
   return endpoint;
+}
+
+function validateEndpoint(endpoint: URL): void {
+  if (endpoint.port === '') {
+    throw new Error(
+      `CLICKUP_API_BASE_URL must include an explicit port for the ClickUp API mock (received ${endpoint}). Use :0 for an ephemeral test endpoint.`,
+    );
+  }
 }
 
 async function listen(server: HttpServer, endpoint: URL): Promise<URL> {
