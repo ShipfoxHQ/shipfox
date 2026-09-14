@@ -35,7 +35,9 @@ export interface AdmitWorkflowConcurrencyClaimParams {
 export interface AdmitWorkflowConcurrencyClaimResult {
   readonly claim: WorkflowConcurrencyClaim;
   readonly supersededClaim: WorkflowConcurrencyClaim | null;
+  readonly holderClaim: WorkflowConcurrencyClaim | null;
   readonly holderCancellationRequested: boolean;
+  readonly holderCancellationJustRequested: boolean;
 }
 
 /**
@@ -166,33 +168,65 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     .returning();
   if (!claimRow) throw new Error('Concurrency claim insert returned no rows');
 
-  let holderCancellationRequested =
-    acquiredClaim !== undefined && acquiredClaim.cancellationRequestedAt !== null;
-  if (acquiredClaim && params.concurrency.cancelInProgress) {
-    const [updatedHolder] = await tx
-      .update(workflowConcurrencyClaims)
-      .set({
-        cancellationRequestedAt: now,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(workflowConcurrencyClaims.id, acquiredClaim.id),
-          isNull(workflowConcurrencyClaims.cancellationRequestedAt),
-        ),
-      )
-      .returning({cancellationRequestedAt: workflowConcurrencyClaims.cancellationRequestedAt});
-    holderCancellationRequested = updatedHolder !== undefined || holderCancellationRequested;
-  }
+  const holderCancellation = await requestHolderCancellation({
+    tx,
+    holder: acquiredClaim,
+    requested: params.concurrency.cancelInProgress,
+    now,
+  });
 
   return {
     claim: toWorkflowConcurrencyClaim(claimRow),
     supersededClaim,
-    holderCancellationRequested,
+    holderClaim: holderCancellation.claim,
+    holderCancellationRequested: holderCancellation.requested,
+    holderCancellationJustRequested: holderCancellation.justRequested,
   };
 }
 
-function recordWorkflowConcurrencyAdmissionMetrics(
+async function requestHolderCancellation(params: {
+  readonly tx: Tx;
+  readonly holder: typeof workflowConcurrencyClaims.$inferSelect | undefined;
+  readonly requested: boolean;
+  readonly now: Date;
+}): Promise<{
+  readonly claim: WorkflowConcurrencyClaim | null;
+  readonly requested: boolean;
+  readonly justRequested: boolean;
+}> {
+  if (!params.holder) return {claim: null, requested: false, justRequested: false};
+
+  const holder = toWorkflowConcurrencyClaim(params.holder);
+  if (!params.requested) {
+    return {
+      claim: holder.cancellationRequestedAt === null ? null : holder,
+      requested: holder.cancellationRequestedAt !== null,
+      justRequested: false,
+    };
+  }
+
+  const [updatedHolder] = await params.tx
+    .update(workflowConcurrencyClaims)
+    .set({cancellationRequestedAt: params.now, updatedAt: params.now})
+    .where(
+      and(
+        eq(workflowConcurrencyClaims.id, params.holder.id),
+        isNull(workflowConcurrencyClaims.cancellationRequestedAt),
+      ),
+    )
+    .returning({cancellationRequestedAt: workflowConcurrencyClaims.cancellationRequestedAt});
+  const justRequested = updatedHolder !== undefined;
+  const holderClaim = justRequested
+    ? {...holder, cancellationRequestedAt: params.now, updatedAt: params.now}
+    : holder;
+  return {
+    claim: holderClaim,
+    requested: justRequested || holder.cancellationRequestedAt !== null,
+    justRequested,
+  };
+}
+
+export function recordWorkflowConcurrencyAdmissionMetrics(
   result: AdmitWorkflowConcurrencyClaimResult,
 ): void {
   if (result.claim.state === 'acquired' || result.claim.state === 'waiting') {

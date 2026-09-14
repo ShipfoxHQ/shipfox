@@ -79,6 +79,13 @@ interface TestWorkflowJob {
 interface TestWorkflowModelInput {
   readonly name?: string | undefined;
   readonly runName?: string | undefined;
+  readonly concurrency?:
+    | {
+        readonly group: string;
+        readonly scope?: 'workflow' | 'project' | undefined;
+        readonly cancelInProgress?: boolean | undefined;
+      }
+    | undefined;
   readonly runner?: string | readonly string[] | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
   readonly jobs?: Readonly<Record<string, TestWorkflowJob>> | undefined;
@@ -101,6 +108,17 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
           runName: fieldTemplate('workflow.run_name', input.runName) ?? [
             {kind: 'literal' as const, value: input.runName},
           ],
+        }),
+    ...(input.concurrency === undefined
+      ? {}
+      : {
+          concurrency: {
+            group: fieldTemplate('workflow.run_name', input.concurrency.group) ?? [
+              {kind: 'literal' as const, value: input.concurrency.group},
+            ],
+            scope: input.concurrency.scope ?? 'workflow',
+            cancelInProgress: input.concurrency.cancelInProgress ?? false,
+          },
         }),
     ...optionalScopedEnv(input.env),
     triggers: [],

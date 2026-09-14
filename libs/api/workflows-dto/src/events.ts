@@ -7,6 +7,10 @@ const nonEmptyStringSchema = z.string().nonempty();
 
 export const WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED =
   'workflows.workflow_run_attempt.created' as const;
+export const WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED =
+  'workflows.workflow_concurrency.waiter_superseded' as const;
+export const WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED =
+  'workflows.workflow_concurrency.holder_cancellation_requested' as const;
 // Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
 // Intent fact for cooperative run cancellation. Consumers use this to stop orchestration.
@@ -45,6 +49,33 @@ export const workflowsWorkflowRunAttemptCreatedSchema = z.object({
 });
 export type WorkflowsWorkflowRunAttemptCreatedEventDto = z.infer<
   typeof workflowsWorkflowRunAttemptCreatedSchema
+>;
+
+const workflowConcurrencyClaimEventBaseSchema = z.object({
+  projectId: nonEmptyStringSchema,
+  claimId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
+});
+
+export const workflowsWorkflowConcurrencyWaiterSupersededSchema =
+  workflowConcurrencyClaimEventBaseSchema.extend({
+    supersededByClaimId: nonEmptyStringSchema,
+    supersededByWorkflowRunId: nonEmptyStringSchema,
+    supersededByWorkflowRunAttemptId: nonEmptyStringSchema,
+  });
+export type WorkflowsWorkflowConcurrencyWaiterSupersededEventDto = z.infer<
+  typeof workflowsWorkflowConcurrencyWaiterSupersededSchema
+>;
+
+export const workflowsWorkflowConcurrencyHolderCancellationRequestedSchema =
+  workflowConcurrencyClaimEventBaseSchema.extend({
+    requestingClaimId: nonEmptyStringSchema,
+    requestingWorkflowRunId: nonEmptyStringSchema,
+    requestingWorkflowRunAttemptId: nonEmptyStringSchema,
+  });
+export type WorkflowsWorkflowConcurrencyHolderCancellationRequestedEventDto = z.infer<
+  typeof workflowsWorkflowConcurrencyHolderCancellationRequestedSchema
 >;
 
 // Keep outbox terminal statuses narrower than the public status schemas, which
@@ -270,6 +301,8 @@ export type WorkflowsStepAttemptTerminatedEventDto = z.infer<
 
 export interface WorkflowsEventMapDto {
   [WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED]: WorkflowsWorkflowRunAttemptCreatedEventDto;
+  [WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED]: WorkflowsWorkflowConcurrencyWaiterSupersededEventDto;
+  [WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED]: WorkflowsWorkflowConcurrencyHolderCancellationRequestedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEventDto;
   [WORKFLOWS_JOB_EXECUTION_QUEUED]: WorkflowsJobExecutionQueuedEventDto;
@@ -284,6 +317,10 @@ export interface WorkflowsEventMapDto {
 
 export const workflowsEventSchemas = {
   [WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED]: workflowsWorkflowRunAttemptCreatedSchema,
+  [WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED]:
+    workflowsWorkflowConcurrencyWaiterSupersededSchema,
+  [WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED]:
+    workflowsWorkflowConcurrencyHolderCancellationRequestedSchema,
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
   [WORKFLOWS_JOB_EXECUTION_QUEUED]: workflowsJobExecutionQueuedSchema,

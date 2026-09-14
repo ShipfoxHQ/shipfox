@@ -121,6 +121,7 @@ export type InterpolationUnresolvableField =
   | 'job.runner'
   | 'job.outputs'
   | 'job.execution_name'
+  | 'workflow.concurrency.group'
   | 'workflow.run_name'
   | 'step.name'
   | 'step.working_directory'

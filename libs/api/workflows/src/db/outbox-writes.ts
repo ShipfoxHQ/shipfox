@@ -3,7 +3,7 @@ import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
 import type {Tx} from './db.js';
 import {workflowsOutbox} from './schema/outbox.js';
 
-type WorkflowsOutboxEvent = {
+export type WorkflowsOutboxEvent = {
   [K in keyof WorkflowsEventMapDto & string]: {
     type: K;
     payload: WorkflowsEventMapDto[K];
