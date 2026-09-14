@@ -3,4 +3,4 @@
 "@shipfox/api-auth": minor
 ---
 
-Expose the role recorded at Window Start on exact impersonation-window reads as historical context.
+Expose `actor_role_at_start` on exact impersonation-window reads as the historical role recorded at Window Start.
