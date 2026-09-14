@@ -71,6 +71,7 @@ async function assertCancellation<T extends CancellationPayload>(
     projectId: payload.projectId,
   });
   expect(recordCancellationOutcomeMock).toHaveBeenCalledWith('completed');
+  expect(recordCancellationOutcomeMock).toHaveBeenCalledTimes(1);
   expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(
     signalCancellationMock.mock.invocationCallOrder[0] as number,
   );
