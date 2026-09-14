@@ -9,6 +9,7 @@ import {
   setAgentAccessContext,
 } from '@shipfox/api-auth-context';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -59,6 +60,16 @@ describe('agent-access MCP routes', () => {
       createAgentAccessRoutes({
         projects: {} as unknown as ProjectsModuleClient,
         definitions: {} as unknown as DefinitionsInterModuleClient,
+      }),
+    ).toThrow(
+      'Agent-access core producer clients must be configured together: projects, definitions, workflows, annotations, and triggers',
+    );
+  });
+
+  test('rejects an integrations-only composition at startup', () => {
+    expect(() =>
+      createAgentAccessRoutes({
+        integrations: {} as unknown as IntegrationsModuleClient,
       }),
     ).toThrow(
       'Agent-access core producer clients must be configured together: projects, definitions, workflows, annotations, and triggers',

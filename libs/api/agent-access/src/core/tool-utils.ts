@@ -62,6 +62,15 @@ export function decodeStringCursor(
   return value === undefined ? undefined : decodeStringIdCursor(value);
 }
 
+export function validateStringCursor(
+  value: string | undefined,
+): {value: string; id: string} | undefined {
+  const cursor = decodeStringCursor(value);
+  return cursor !== undefined && cursor.value.length > 0 && UUID_RE.test(cursor.id)
+    ? cursor
+    : undefined;
+}
+
 export function decodeNumberCursor(
   value: string | undefined,
 ): {value: number; id: string} | undefined {

@@ -216,6 +216,14 @@ const projectResultItemSchema = z
     id: idSchema,
     name: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
     slug: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
+    source_connection: z
+      .object({
+        id: idSchema,
+        slug: z.string().min(1),
+        provider: z.string().min(1),
+      })
+      .strict()
+      .nullable(),
     created_at: dateTimeSchema,
     updated_at: dateTimeSchema,
   })
@@ -408,6 +416,7 @@ export type GetRunAnnotationsResultDto = z.infer<typeof getRunAnnotationsResultS
 export type ListTriggerEventsResultDto = z.infer<typeof listTriggerEventsResultSchema>;
 
 const uuid = {type: 'string', format: 'uuid'} as const;
+const identifier = {type: 'string', minLength: 1} as const;
 const cappedText = {type: 'string', maxLength: AGENT_ACCESS_TEXT_MAX_BYTES} as const;
 const diagnostic = {
   type: 'object',
@@ -429,10 +438,16 @@ const projectResultJsonSchema = {
     id: uuid,
     name: cappedText,
     slug: cappedText,
+    source_connection: nullable({
+      type: 'object',
+      properties: {id: uuid, slug: identifier, provider: identifier},
+      required: ['id', 'slug', 'provider'],
+      additionalProperties: false,
+    }),
     created_at: dateTime,
     updated_at: dateTime,
   },
-  required: ['id', 'name', 'slug', 'created_at', 'updated_at'],
+  required: ['id', 'name', 'slug', 'source_connection', 'created_at', 'updated_at'],
   additionalProperties: false,
 } as const;
 

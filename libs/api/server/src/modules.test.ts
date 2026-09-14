@@ -425,6 +425,7 @@ describe('defaultModules', () => {
       apiPublicUrl: 'https://api.example.test',
       auth: expect.any(Object),
       definitions: expect.any(Object),
+      integrations: expect.any(Object),
       logs: expect.any(Object),
       projects: expect.any(Object),
       triggers: expect.any(Object),

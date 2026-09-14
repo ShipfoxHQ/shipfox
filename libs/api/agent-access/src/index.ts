@@ -19,6 +19,7 @@ export {
   parseAgentAccessEnvelope,
   serializeAgentAccessEnvelope,
 } from '#core/envelope.js';
+export {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 export {
   type AgentAccessLogToolsOptions,
   createAgentAccessLogTools,

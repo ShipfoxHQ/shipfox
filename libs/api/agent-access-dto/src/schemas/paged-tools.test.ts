@@ -88,6 +88,26 @@ describe('paged agent-access schemas', () => {
     ).toBe(false);
   });
 
+  test('requires source connection on project items in runtime and JSON contracts', () => {
+    const projectWithoutSourceConnection = {
+      id: projectId,
+      name: 'Project',
+      slug: 'project',
+      created_at: '2026-08-01T00:00:00.000Z',
+      updated_at: '2026-08-01T00:00:00.000Z',
+    };
+
+    expect(
+      listProjectsResultSchema.safeParse({
+        projects: [projectWithoutSourceConnection],
+        next_cursor: null,
+      }).success,
+    ).toBe(false);
+    expect(listProjectsResultJsonSchema.properties.projects.items.required).toContain(
+      'source_connection',
+    );
+  });
+
   test('requires annotation body truncation metadata to remain a boolean marker and byte count', () => {
     const valid = {
       id: projectId,

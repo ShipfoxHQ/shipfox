@@ -32,6 +32,23 @@ export {
   agentAccessOutputSchema,
 } from './schemas/envelope.js';
 export {
+  AGENT_ACCESS_INTEGRATION_MAX_EVENTS,
+  AGENT_ACCESS_INTEGRATION_MAX_METHODS,
+  AGENT_ACCESS_INTEGRATION_MAX_TOOLS,
+  type GetIntegrationConnectionToolsInputDto,
+  type GetIntegrationConnectionToolsResultDto,
+  getIntegrationConnectionToolsInputJsonSchema,
+  getIntegrationConnectionToolsInputSchema,
+  getIntegrationConnectionToolsResultJsonSchema,
+  getIntegrationConnectionToolsResultSchema,
+  type ListIntegrationConnectionsInputDto,
+  type ListIntegrationConnectionsResultDto,
+  listIntegrationConnectionsInputJsonSchema,
+  listIntegrationConnectionsInputSchema,
+  listIntegrationConnectionsResultJsonSchema,
+  listIntegrationConnectionsResultSchema,
+} from './schemas/integration-tools.js';
+export {
   AGENT_ACCESS_LOG_ATTEMPT_MAX,
   AGENT_ACCESS_LOG_CONTENT_MAX_BYTES,
   AGENT_ACCESS_LOG_SECTION_MAX_ITEMS,
