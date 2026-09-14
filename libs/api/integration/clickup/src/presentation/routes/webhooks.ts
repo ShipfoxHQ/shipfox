@@ -3,10 +3,9 @@ import type {StoredWebhookRequest, WebhookProcessingResult} from '@shipfox/api-i
 import {createStoredWebhookRequest, WEBHOOK_MAX_RAW_BODY_BYTES} from '@shipfox/api-integration-spi';
 import {
   ClientError,
+  createRawBodyPlugin,
   defineRoute,
   type RouteGroup,
-  rawBodyPlugin,
-  WEBHOOK_BODY_LIMIT,
 } from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {
@@ -17,6 +16,10 @@ import {
 import {CLICKUP_WEBHOOK_ROUTE_PREFIX} from '#core/webhook-url.js';
 
 const clickupWebhookParamsSchema = z.object({connectionId: z.string().uuid()});
+const clickupRawBodyPlugin = createRawBodyPlugin({
+  contentType: 'application/json',
+  bodyLimit: WEBHOOK_MAX_RAW_BODY_BYTES,
+});
 
 export {CLICKUP_WEBHOOK_ROUTE_PREFIX};
 
@@ -31,7 +34,7 @@ export function createClickUpWebhookRoutes(options: CreateClickUpWebhookRoutesOp
     path: '/:connectionId',
     auth: [],
     description: 'ClickUp webhook receiver.',
-    options: {bodyLimit: WEBHOOK_BODY_LIMIT},
+    options: {bodyLimit: WEBHOOK_MAX_RAW_BODY_BYTES},
     schema: {params: clickupWebhookParamsSchema},
     handler: async (request, reply) => {
       const body = request.body;
@@ -43,7 +46,7 @@ export function createClickUpWebhookRoutes(options: CreateClickUpWebhookRoutesOp
           body,
           connectionId: request.params.connectionId,
           headers: request.headers,
-          rawQueryString: request.raw.url?.split('?')[1] ?? '',
+          rawQueryString: clickupRawQueryString(request),
         }),
       );
       return sendClickUpWebhookResponse(reply, result);
@@ -53,9 +56,15 @@ export function createClickUpWebhookRoutes(options: CreateClickUpWebhookRoutesOp
   return {
     prefix: CLICKUP_WEBHOOK_ROUTE_PREFIX,
     auth: [],
-    plugins: [rawBodyPlugin],
+    plugins: [clickupRawBodyPlugin],
     routes: [route],
   };
+}
+
+function clickupRawQueryString(request: {raw: {url?: string | undefined}}): string {
+  const url = request.raw.url;
+  const querySeparatorIndex = url?.indexOf('?') ?? -1;
+  return querySeparatorIndex === -1 || url === undefined ? '' : url.slice(querySeparatorIndex + 1);
 }
 
 function createClickUpStoredWebhookRequest(input: {

@@ -55,6 +55,23 @@ describe('ClickUp webhook route', () => {
     );
   });
 
+  it('preserves the complete raw query string after the first question mark', async () => {
+    const process = vi.fn().mockResolvedValue({outcome: 'processed', deliveryId: 'delivery-1'});
+    const app = await createTestApp({process: process as ClickUpWebhookProcessor['process']});
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhooks/integrations/clickup/c0a8012e-0b6d-4d8f-8d5c-6d74102602b0?cursor=first?second',
+      headers: {'content-type': 'application/json', 'x-signature': 'a'.repeat(64)},
+      payload: '{}',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(process).toHaveBeenCalledWith(
+      expect.objectContaining({raw_query_string: 'cursor=first?second'}),
+    );
+  });
+
   it('returns 410 for an unavailable connection without a delivery id', async () => {
     const process = vi.fn().mockResolvedValue({
       outcome: 'discarded',
@@ -90,7 +107,7 @@ describe('ClickUp webhook route', () => {
     expect(invalid.json()).toEqual({error: 'invalid signature'});
   });
 
-  it('maps malformed_payload to 400 and an oversized body to 413', async () => {
+  it('maps malformed_payload to 400 and rejects an oversized body at the parser boundary', async () => {
     const malformedProcess = vi.fn().mockResolvedValue({
       outcome: 'discarded',
       reason: 'malformed_payload',
@@ -119,6 +136,7 @@ describe('ClickUp webhook route', () => {
     });
 
     expect(oversized.statusCode).toBe(413);
+    expect(oversized.json()).toEqual({code: 'body-too-large'});
     expect(oversizedProcess).not.toHaveBeenCalled();
   });
 });
