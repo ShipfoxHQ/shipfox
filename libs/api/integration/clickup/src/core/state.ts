@@ -1,4 +1,4 @@
-import {createHmac, randomUUID, timingSafeEqual} from 'node:crypto';
+import {createHmac, timingSafeEqual} from 'node:crypto';
 import {config} from '#config.js';
 import {ClickUpInstallStateError} from './errors.js';
 
@@ -19,14 +19,14 @@ export interface ClickUpInstallStateClaims {
 export function signClickUpInstallState(params: {
   workspaceId: string;
   userId: string;
-  nonce?: string | undefined;
+  nonce: string;
   now?: Date | undefined;
 }): string {
   const now = params.now ?? new Date();
   const payload: ClickUpInstallStatePayload = {
     workspaceId: params.workspaceId,
     userId: params.userId,
-    nonce: params.nonce ?? randomUUID(),
+    nonce: params.nonce,
     expiresAt: Math.floor(now.getTime() / 1000) + CLICKUP_INSTALL_STATE_TTL_SECONDS,
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');

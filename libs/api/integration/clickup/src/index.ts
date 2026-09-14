@@ -30,7 +30,6 @@ export type {
 export {
   createClickUpAgentToolsClient,
   createClickUpApiClient,
-  mapClickUpError,
 } from '#api/client.js';
 export type {
   ClickUpAgentToolCatalogEntry,
@@ -59,13 +58,7 @@ export {
   ClickUpOAuthCallbackError,
   ClickUpWorkspaceCountError,
 } from '#core/errors.js';
-export type {ConnectClickUpInstallationInput, HandleClickUpCallbackParams} from '#core/install.js';
-export {
-  handleClickUpCallback,
-  handleClickUpOAuthCallbackError,
-} from '#core/install.js';
-export type {ClickUpInstallStateClaims} from '#core/state.js';
-export {signClickUpInstallState, verifyClickUpInstallState} from '#core/state.js';
+export type {ConnectClickUpInstallationInput} from '#core/install.js';
 export type {
   ClickUpConnectionResolverResult,
   ClickUpSecretsStore,
@@ -98,8 +91,6 @@ export {
   type CreateClickUpE2eRoutesOptions,
   createClickUpE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
-export type {CreateClickUpIntegrationRoutesOptions} from '#presentation/routes/install.js';
-export {createClickUpIntegrationRoutes} from '#presentation/routes/install.js';
 export {closeDb, config, db, migrationsPath};
 
 export interface CreateClickUpIntegrationProviderOptions {
