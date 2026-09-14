@@ -123,15 +123,6 @@ export function createClickUpIntegrationProvider(
   options: CreateClickUpIntegrationProviderOptions = {},
 ) {
   const clickup = options.clickup ?? createClickUpApiClient();
-  const routes = options.routes
-    ? [
-        createClickUpIntegrationRoutes({
-          clickup,
-          ...options.routes,
-          connectionCapabilities: [],
-        }),
-      ]
-    : [];
   const adapters = options.agentTools
     ? {
         agent_tools: new ClickUpAgentToolsProvider({
@@ -140,6 +131,15 @@ export function createClickUpIntegrationProvider(
         }),
       }
     : {};
+  const routes = options.routes
+    ? [
+        createClickUpIntegrationRoutes({
+          clickup,
+          ...options.routes,
+          connectionCapabilities: adapters.agent_tools ? ['agent_tools'] : [],
+        }),
+      ]
+    : [];
   return {
     provider: CLICKUP_PROVIDER,
     displayName: 'ClickUp',

@@ -69,25 +69,28 @@ interface TestApp {
 async function createTestApp(authBaseUrl = 'https://app.clickup.com'): Promise<TestApp> {
   vi.stubEnv('CLICKUP_AUTH_BASE_URL', authBaseUrl);
   vi.resetModules();
-  const {createClickUpIntegrationRoutes} = await import('./install.js');
+  const {createClickUpIntegrationProvider} = await import('#index.js');
   const clickup = clickupClient();
-  const tokenStore: Pick<ClickUpTokenStore, 'storeTokens'> = {
+  const tokenStore: Pick<ClickUpTokenStore, 'getAccessToken' | 'storeTokens'> = {
+    getAccessToken: vi.fn(() => Promise.resolve('access-token')),
     storeTokens: vi.fn(() => Promise.resolve()),
   };
-  const routes = createClickUpIntegrationRoutes({
+  const provider = createClickUpIntegrationProvider({
     clickup,
-    tokenStore,
-    getExistingClickUpConnection: vi.fn(() => Promise.resolve(undefined)),
-    connectClickUpInstallation: vi.fn((input: ConnectClickUpInstallationInput) =>
-      Promise.resolve(connection({workspaceId: input.workspaceId})),
-    ),
-    disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
-    withClickUpInstallationLock: async (_teamId, fn) => await fn(),
-    connectionCapabilities: [],
-    requireActiveWorkspaceMembership: vi.fn(() => Promise.resolve()),
+    agentTools: {tokenStore},
+    routes: {
+      tokenStore,
+      getExistingClickUpConnection: vi.fn(() => Promise.resolve(undefined)),
+      connectClickUpInstallation: vi.fn((input: ConnectClickUpInstallationInput) =>
+        Promise.resolve(connection({workspaceId: input.workspaceId})),
+      ),
+      disconnectClickUpInstallation: vi.fn(() => Promise.resolve()),
+      withClickUpInstallationLock: async (_teamId, fn) => await fn(),
+      requireActiveWorkspaceMembership: vi.fn(() => Promise.resolve()),
+    },
   });
   const {createApp} = await import('@shipfox/node-fastify');
-  const app = await createApp({auth: [fakeUserAuth], routes: [routes], swagger: false});
+  const app = await createApp({auth: [fakeUserAuth], routes: provider.routes, swagger: false});
   await app.ready();
   activeApp = app;
   return {app, clickup};
@@ -169,6 +172,7 @@ describe('ClickUp integration routes', () => {
     expect(missingCookie.json().code).toBe('invalid-clickup-install-state');
     expect(clickup.exchangeAuthorizationCode).toHaveBeenCalledTimes(1);
     expect(callback.statusCode, callback.body).toBe(200);
+    expect(callback.json().capabilities).toEqual(['agent_tools']);
     expect(String(callback.headers['set-cookie'])).toContain(
       'shipfox_clickup_install_state=; Max-Age=0',
     );
