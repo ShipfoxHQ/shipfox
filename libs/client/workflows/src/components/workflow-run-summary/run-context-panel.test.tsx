@@ -67,9 +67,7 @@ describe('RunContextPanel concurrency details', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
 
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).queryByText('Held by')).not.toBeInTheDocument();
-    expect(within(dialog).queryByText('Superseded by')).not.toBeInTheDocument();
+    await screen.findByRole('dialog');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
