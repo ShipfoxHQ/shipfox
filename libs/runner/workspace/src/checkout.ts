@@ -47,15 +47,20 @@ export type CheckoutFailureKind = 'auth' | 'unavailable' | 'failed' | 'aborted';
 
 export class CheckoutError extends Error {
   public readonly phase: CheckoutPhase | undefined;
+  public readonly repositoryVisibilityFailure: boolean;
 
   constructor(
     public readonly kind: CheckoutFailureKind,
     message: string,
-    options?: ErrorOptions & {phase?: CheckoutPhase | undefined},
+    options?: ErrorOptions & {
+      phase?: CheckoutPhase | undefined;
+      repositoryVisibilityFailure?: boolean | undefined;
+    },
   ) {
     super(message, options);
     this.name = 'CheckoutError';
     this.phase = options?.phase;
+    this.repositoryVisibilityFailure = options?.repositoryVisibilityFailure ?? false;
   }
 }
 
@@ -95,6 +100,7 @@ export function redactSecrets(text: string, secrets: string[]): string {
 // could match, since a rejected credential is the more actionable cause.
 const AUTH_FAILURE =
   /authentication failed|could not read username|invalid username or password|terminal prompts disabled|403 forbidden|the requested url returned error: 40[13]|permission denied \(publickey\)|access denied/i;
+const GITHUB_REPOSITORY_NOT_FOUND = /\brepository not found\b/i;
 const PROVIDER_UNAVAILABLE =
   /could not resolve host|could not connect|connection timed out|failed to connect|temporary failure in name resolution|the requested url returned error: (?:429|5\d\d)/i;
 
@@ -206,7 +212,7 @@ export async function checkoutRepository(params: {
     });
     return stdout.trim();
   } catch (error) {
-    throw classifyCheckoutError(error, auth);
+    throw classifyCheckoutError(error, auth, repositoryUrl);
   }
 }
 
@@ -548,6 +554,7 @@ function secretsOf(auth: CheckoutTokenAuthDto | undefined): string[] {
 function classifyCheckoutError(
   error: unknown,
   auth: CheckoutTokenAuthDto | undefined,
+  repositoryUrl: string,
 ): CheckoutError {
   if (isAbortError(error)) {
     return new CheckoutError('aborted', 'Checkout aborted', {cause: error, phase: phaseOf(error)});
@@ -561,12 +568,41 @@ function classifyCheckoutError(
   const cause = redactedCause(error, secrets);
 
   const phase = phaseOf(error);
+  const repositoryVisibilityFailure = isGitHubRepositoryVisibilityFailure({
+    auth,
+    phase,
+    repositoryUrl,
+    stderr,
+  });
 
+  if (repositoryVisibilityFailure) {
+    return new CheckoutError('auth', message, {
+      cause,
+      phase,
+      repositoryVisibilityFailure: true,
+    });
+  }
   if (AUTH_FAILURE.test(stderr)) return new CheckoutError('auth', message, {cause, phase});
   if (PROVIDER_UNAVAILABLE.test(stderr)) {
     return new CheckoutError('unavailable', message, {cause, phase});
   }
   return new CheckoutError('failed', message, {cause, phase});
+}
+
+function isGitHubRepositoryVisibilityFailure(params: {
+  auth: CheckoutTokenAuthDto | undefined;
+  phase: CheckoutPhase | undefined;
+  repositoryUrl: string;
+  stderr: string;
+}): boolean {
+  if (params.phase !== 'fetch' || params.auth === undefined) return false;
+  if (!GITHUB_REPOSITORY_NOT_FOUND.test(params.stderr)) return false;
+
+  try {
+    return new URL(normalizeRepositoryUrl(params.repositoryUrl)).hostname === 'github.com';
+  } catch {
+    return false;
+  }
 }
 
 function runGitCommand(params: {

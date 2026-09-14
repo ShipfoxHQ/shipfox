@@ -74,6 +74,14 @@ function queueFetchFailure(stderr: string) {
 }
 
 const BASE = {repositoryUrl: 'https://github.com/acme/repo.git', ref: 'main', cwd: '/work/job-1'};
+const AUTH = {
+  kind: 'bearer' as const,
+  token: 'tok-123',
+  expires_at: '2026-01-01T00:00:00Z',
+  carry: 'header' as const,
+  host: 'github.com',
+  persist: true,
+};
 const GITHUB_INSTALLATION_TOKEN_PATTERN = /^ghs_[A-Za-z0-9._-]{36,}$/u;
 const GITHUB_STATEFUL_INSTALLATION_TOKEN = `ghs_${'d'.repeat(36)}`;
 const GITHUB_STATELESS_INSTALLATION_TOKEN =
@@ -291,6 +299,54 @@ describe('checkoutRepository failure classification', () => {
       kind: 'auth',
       phase: 'fetch',
     });
+  });
+
+  it('classifies an authenticated GitHub repository-not-found response as an auth failure', async () => {
+    queueFetchFailure('remote: Repository not found.\nfatal: sending tok-123 to remote');
+
+    const error = await checkoutRepository({...BASE, auth: AUTH}).catch((value: unknown) => value);
+
+    expect(error).toMatchObject({
+      kind: 'auth',
+      phase: 'fetch',
+      repositoryVisibilityFailure: true,
+    });
+    expect((error as Error).message).toContain('Repository not found');
+    expect((error as Error).message).not.toContain('tok-123');
+  });
+
+  it('keeps an unauthenticated GitHub repository-not-found response as a generic failure', async () => {
+    queueFetchFailure('remote: Repository not found.');
+
+    await expect(checkoutRepository(BASE)).rejects.toMatchObject({
+      kind: 'failed',
+      phase: 'fetch',
+      repositoryVisibilityFailure: false,
+    });
+  });
+
+  it('keeps a missing remote ref as a generic failure with GitHub auth', async () => {
+    queueFetchFailure("fatal: couldn't find remote ref missing-ref");
+
+    await expect(
+      checkoutRepository({...BASE, ref: 'missing-ref', auth: AUTH}),
+    ).rejects.toMatchObject({
+      kind: 'failed',
+      phase: 'fetch',
+      repositoryVisibilityFailure: false,
+    });
+  });
+
+  it('does not classify repository-not-found responses from non-GitHub hosts as auth failures', async () => {
+    queueFetchFailure('remote: Repository not found.');
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        repositoryUrl: 'https://gitlab.example/acme/repo.git',
+        auth: AUTH,
+      }),
+    ).rejects.toMatchObject({kind: 'failed', phase: 'fetch'});
   });
 
   it('classifies an unreachable provider as unavailable', async () => {
