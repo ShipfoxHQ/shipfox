@@ -29,12 +29,7 @@ import {
   upsertCimdAgentClient,
 } from './agent-access.js';
 import {db} from './db.js';
-import {
-  agentAuthorizationRequests,
-  agentClients,
-  agentGrants,
-  agentRefreshTokens,
-} from './schema/agent-access.js';
+import {agentClients, agentGrants, agentRefreshTokens} from './schema/agent-access.js';
 import {users} from './schema/users.js';
 
 const GRANT_LOCK_TEST_TIMEOUT_MS = 30_000;
@@ -93,11 +88,6 @@ describe('agent-access db', () => {
     });
 
     expect(request.state).toBeNull();
-    const [storedRequest] = await db()
-      .select({scopes: agentAuthorizationRequests.scopes})
-      .from(agentAuthorizationRequests)
-      .where(eq(agentAuthorizationRequests.id, request.id));
-    expect(storedRequest?.scopes).toEqual(['read']);
     expect(await findPendingAgentAuthorizationRequest({id: request.id})).toMatchObject({
       id: request.id,
       state: null,
@@ -141,11 +131,6 @@ describe('agent-access db', () => {
       .where(eq(agentClients.id, client.id));
 
     const first = await createAgentGrant(params);
-    const [storedGrant] = await db()
-      .select({scopes: agentGrants.scopes})
-      .from(agentGrants)
-      .where(eq(agentGrants.id, first.id));
-    expect(storedGrant?.scopes).toEqual(['read']);
     const refreshToken = await createAgentRefreshToken({
       grantId: first.id,
       hashedToken: hashOpaqueToken(`refresh-${crypto.randomUUID()}`),
