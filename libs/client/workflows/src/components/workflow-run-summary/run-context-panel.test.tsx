@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-router';
 import {act, cleanup, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type {WorkflowRunConcurrency} from '#core/workflow-run.js';
+import type {WorkflowRunConcurrency, WorkflowRunStatus} from '#core/workflow-run.js';
 import {
   runAttemptsResponseDto,
   workflowRunAttemptDto,
@@ -42,6 +42,8 @@ describe('RunContextPanel concurrency details', () => {
     await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
 
     const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Status').parentElement).toHaveTextContent('Waiting');
+    expect(within(dialog).getByRole('heading', {name: 'Concurrency'})).toBeVisible();
     expect(within(dialog).getByText('deploy-production')).toBeInTheDocument();
     expect(within(dialog).getByText('Project · shared across workflows')).toBeInTheDocument();
     expect(within(dialog).getByText('Keep the running holder')).toBeInTheDocument();
@@ -53,7 +55,22 @@ describe('RunContextPanel concurrency details', () => {
       'href',
       `/w/acme/p/platform/runs/${RELATED_RUN_ID}?runAttempt=3`,
     );
+    expect(holder.closest('[aria-live="polite"]')).not.toBeNull();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  test('does not resolve related attempts when the concurrency state has no relation row', async () => {
+    const fetchImpl = vi.fn();
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    await renderPanel(workflowConcurrency({state: 'acquired'}), 'running');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', {name: 'Inspect run details'}));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByText('Held by')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Superseded by')).not.toBeInTheDocument();
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   test('names the replacement for a superseded attempt', async () => {
@@ -102,7 +119,7 @@ describe('RunContextPanel concurrency details', () => {
   });
 });
 
-async function renderPanel(concurrency: WorkflowRunConcurrency, status: 'waiting' | 'cancelled') {
+async function renderPanel(concurrency: WorkflowRunConcurrency, status: WorkflowRunStatus) {
   const run = workflowRunOverview({
     id: CURRENT_RUN_ID,
     status,

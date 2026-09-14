@@ -60,34 +60,38 @@ export function RunContextPanel({
         </SheetHeader>
         <DetailsTabs cost={usage ? <RunUsageBreakdown runId={run.id} usage={usage} /> : undefined}>
           <SheetBody>
-            <dl className="w-full text-xs text-foreground-neutral-subtle">
-              <div className="flex justify-between gap-inline py-row">
-                <dt>Status</dt>
-                <dd>{getWorkflowStatusVisual(run.runAttempt.status).label}</dd>
-              </div>
-              <div className="flex justify-between gap-inline py-row">
-                <dt>Trigger</dt>
-                <dd className="min-w-0 break-words text-right">{run.triggerDisplayLabel || '—'}</dd>
-              </div>
-              {run.runAttempt.displayDuration ? (
+            <div className="w-full text-xs text-foreground-neutral-subtle">
+              <dl>
                 <div className="flex justify-between gap-inline py-row">
-                  <dt>Duration</dt>
-                  <dd>
-                    <WorkflowRunDurationLabel
-                      duration={run.runAttempt.displayDuration}
-                      hasStarted={hasStarted}
-                    />
+                  <dt>Status</dt>
+                  <dd>{getWorkflowStatusVisual(run.runAttempt.status).label}</dd>
+                </div>
+                <div className="flex justify-between gap-inline py-row">
+                  <dt>Trigger</dt>
+                  <dd className="min-w-0 break-words text-right">
+                    {run.triggerDisplayLabel || '—'}
                   </dd>
                 </div>
-              ) : null}
+                {run.runAttempt.displayDuration ? (
+                  <div className="flex justify-between gap-inline py-row">
+                    <dt>Duration</dt>
+                    <dd>
+                      <WorkflowRunDurationLabel
+                        duration={run.runAttempt.displayDuration}
+                        hasStarted={hasStarted}
+                      />
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
               {open && run.runAttempt.concurrency ? (
-                <WorkflowRunConcurrencyRows
+                <WorkflowRunConcurrencyDetails
                   concurrency={run.runAttempt.concurrency}
                   workspaceSlug={workspaceSlug}
                   projectSlug={projectSlug}
                 />
               ) : null}
-            </dl>
+            </div>
           </SheetBody>
         </DetailsTabs>
       </SheetContent>
@@ -95,7 +99,7 @@ export function RunContextPanel({
   );
 }
 
-function WorkflowRunConcurrencyRows({
+function WorkflowRunConcurrencyDetails({
   concurrency,
   workspaceSlug,
   projectSlug,
@@ -104,40 +108,41 @@ function WorkflowRunConcurrencyRows({
   workspaceSlug?: string | undefined;
   projectSlug?: string | undefined;
 }) {
-  const relatedQueries = useWorkflowRunAttemptReferenceQueries(concurrency.affectedAttempts);
   const relation = concurrencyRelation(concurrency);
+  const relatedQueries = useWorkflowRunAttemptReferenceQueries(
+    concurrency.affectedAttempts,
+    relation !== null,
+  );
 
   return (
-    <>
-      <div className="border-t border-border-neutral-base pt-row">
-        <dt>
-          <Text as="span" size="xs" bold className="text-foreground-neutral-base">
-            Concurrency
-          </Text>
-        </dt>
-      </div>
-      <RunDetailRow label="Group">
-        <Code as="span" variant="label" className="max-w-[360px] break-words text-right">
-          {concurrency.displayGroup}
-        </Code>
-      </RunDetailRow>
-      <RunDetailRow label="Scope">
-        {concurrency.scope === 'project' ? 'Project · shared across workflows' : 'Workflow'}
-      </RunDetailRow>
-      <RunDetailRow label="State">{concurrencyStateLabel(concurrency.state)}</RunDetailRow>
-      <RunDetailRow label="Policy">
-        {concurrency.cancelInProgress ? 'Cancel the running holder' : 'Keep the running holder'}
-      </RunDetailRow>
-      {relation ? (
-        <RunDetailRow label={relation}>
-          <WorkflowRunReferences
-            queries={relatedQueries}
-            workspaceSlug={workspaceSlug}
-            projectSlug={projectSlug}
-          />
+    <section className="border-t border-border-neutral-base pt-row">
+      <Text as="h3" size="xs" bold className="text-foreground-neutral-base">
+        Concurrency
+      </Text>
+      <dl>
+        <RunDetailRow label="Group">
+          <Code as="span" variant="label" className="max-w-[360px] break-words text-right">
+            {concurrency.displayGroup}
+          </Code>
         </RunDetailRow>
-      ) : null}
-    </>
+        <RunDetailRow label="Scope">
+          {concurrency.scope === 'project' ? 'Project · shared across workflows' : 'Workflow'}
+        </RunDetailRow>
+        <RunDetailRow label="State">{concurrencyStateLabel(concurrency.state)}</RunDetailRow>
+        <RunDetailRow label="Policy">
+          {concurrency.cancelInProgress ? 'Cancel the running holder' : 'Keep the running holder'}
+        </RunDetailRow>
+        {relation ? (
+          <RunDetailRow label={relation}>
+            <WorkflowRunReferences
+              queries={relatedQueries}
+              workspaceSlug={workspaceSlug}
+              projectSlug={projectSlug}
+            />
+          </RunDetailRow>
+        ) : null}
+      </dl>
+    </section>
   );
 }
 
@@ -162,7 +167,7 @@ function WorkflowRunReferences({
   if (queries.length === 0) return 'Related run unavailable';
 
   return (
-    <span className="flex min-w-0 flex-col items-end gap-tight">
+    <span aria-live="polite" className="flex min-w-0 flex-col items-end gap-tight">
       {queries.map((query, index) => {
         const key = query.data?.workflowRunAttemptId ?? `related-${index}`;
         if (query.isPending) {
