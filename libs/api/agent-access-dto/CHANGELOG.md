@@ -1,5 +1,19 @@
 # @shipfox/api-agent-access-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- a8ff016: Adds bounded error details, exposes state-changing action tools in tools/list with their destructiveHint, idempotentHint, and openWorldHint annotations, and limits action calls to 10 per credential per minute on top of the existing shared window.
+- 86ba951: Adds MCP tools for discovering integration connections and their bounded tool and event catalogs, and exposes each project's resolved source connection in list_projects results.
+- b22c120: Adds the `get_step_log_download` MCP tool for stream-bound step-log downloads.
+- e78d21a: Adds dormant agent-access action tools with bounded inputs, retry identities, and stable producer error mappings.
+
+### Patch Changes
+
+- Updated dependencies [795eee2]
+  - @shipfox/api-logs-dto@26.0.0
+
 ## 25.0.0
 
 ### Minor Changes

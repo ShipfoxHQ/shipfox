@@ -1,5 +1,16 @@
 # @shipfox/integration-icons
 
+## 0.4.0
+
+### Minor Changes
+
+- 4d3b34b: Adds ClickUp installation, callback, catalog, icon, and usage-event support to the client integrations surface.
+
+### Patch Changes
+
+- Updated dependencies [4d3b34b]
+  - @shipfox/react-ui@2.4.0
+
 ## 0.3.13
 
 ### Patch Changes

@@ -1,5 +1,45 @@
 # @shipfox/api-integration-core
 
+## 26.0.0
+
+### Minor Changes
+
+- 6eaacf0: Adds workspace-scoped integration connection and provider tool-catalog reads.
+- 575cbc1: Add the flag-gated ClickUp integration provider scaffold, installation persistence, token storage, cleanup hooks, and E2E connection seed route.
+- db054aa: Records the authenticated initiator on availability events from OAuth or installation flows for GitHub, Jira, Linear, Sentry, and Slack. Direct-connect and manual webhook paths are not included. Background and lifecycle reactivation events remain unattributed.
+
+### Patch Changes
+
+- 3fcbb7e: Adds six ClickUp task and comment tools through the agent-tools gateway.
+- 9e9a4a4: Connects exactly one ClickUp workspace to a Shipfox workspace through OAuth. The returned workspace becomes the configured workspace, while responses with zero or multiple workspaces are rejected.
+- 9c3f38d: Registers one workspace-wide ClickUp webhook per connection and removes it during connection cleanup.
+- 4a75c26: Add the signed, connection-scoped ClickUp webhook receiver and event ingestion with delivery deduplication and loop safety.
+- Updated dependencies [6eaacf0]
+- Updated dependencies [3fcbb7e]
+- Updated dependencies [da717b1]
+- Updated dependencies [9e9a4a4]
+- Updated dependencies [9c3f38d]
+- Updated dependencies [db054aa]
+- Updated dependencies [4a75c26]
+- Updated dependencies [5cb4279]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [aafce80]
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-integration-clickup@26.0.0
+  - @shipfox/api-workflows-dto@26.0.0
+  - @shipfox/api-integration-github@26.0.0
+  - @shipfox/api-integration-jira@26.0.0
+  - @shipfox/api-integration-linear@26.0.0
+  - @shipfox/api-integration-sentry@26.0.0
+  - @shipfox/api-integration-slack@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-workspaces-dto@26.0.0
+  - @shipfox/node-module@1.1.0
+  - @shipfox/api-integration-spi@4.1.2
+  - @shipfox/api-integration-gitea@26.0.0
+  - @shipfox/api-integration-webhook@26.0.0
+
 ## 25.0.0
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @shipfox/api-dispatcher
 
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [8229356]
+  - @shipfox/node-module@1.1.0
+
 ## 24.1.0
 
 ### Patch Changes

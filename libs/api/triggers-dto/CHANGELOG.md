@@ -1,5 +1,19 @@
 # @shipfox/api-triggers-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- e157b10: Expose `fireManualTrigger` and `createDevRun` as inter-module trigger commands. `fireManualTrigger` accepts an optional idempotency key and reports deduplicated runs.
+- 5cb4279: Joins initial workflow runs to resolved concurrency groups with transactional claim admission, claim outbox events, and accurate concurrency-group interpolation errors.
+
+### Patch Changes
+
+- Updated dependencies [da717b1]
+- Updated dependencies [5cb4279]
+- Updated dependencies [aafce80]
+  - @shipfox/api-workflows-dto@26.0.0
+
 ## 22.0.0
 
 ### Minor Changes

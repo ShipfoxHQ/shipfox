@@ -1,5 +1,19 @@
 # @shipfox/api-auth-context
 
+## 26.0.0
+
+### Major Changes
+
+- fb73bca: Removes unused OAuth scope fields and carries agent access through workspace membership authority.
+
+### Patch Changes
+
+- Updated dependencies [7acec37]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/api-workspaces-dto@26.0.0
+
 ## 25.0.0
 
 ### Minor Changes

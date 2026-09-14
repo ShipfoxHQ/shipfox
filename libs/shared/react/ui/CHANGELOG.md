@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 2.4.0
+
+### Minor Changes
+
+- 4d3b34b: Adds ClickUp installation, callback, catalog, icon, and usage-event support to the client integrations surface.
+
 ## 2.3.5
 
 ### Patch Changes

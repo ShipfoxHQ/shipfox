@@ -1,5 +1,20 @@
 # @shipfox/api-integration-jira
 
+## 26.0.0
+
+### Minor Changes
+
+- db054aa: Records the authenticated initiator on availability events from OAuth or installation flows for GitHub, Jira, Linear, Sentry, and Slack. Direct-connect and manual webhook paths are not included. Background and lifecycle reactivation events remain unattributed.
+
+### Patch Changes
+
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/node-module@1.1.0
+  - @shipfox/api-integration-jira-dto@26.0.0
+  - @shipfox/api-integration-spi@4.1.2
+
 ## 25.0.0
 
 ### Patch Changes

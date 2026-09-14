@@ -1,5 +1,24 @@
 # @shipfox/api-logs
 
+## 26.0.0
+
+### Minor Changes
+
+- 795eee2: Adds token-authenticated step log downloads with snapshot-bounded hot streaming and compacted-log redirects.
+
+### Patch Changes
+
+- Updated dependencies [795eee2]
+- Updated dependencies [da717b1]
+- Updated dependencies [5cb4279]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [aafce80]
+  - @shipfox/api-logs-dto@26.0.0
+  - @shipfox/api-workflows-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Minor Changes

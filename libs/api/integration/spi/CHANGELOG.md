@@ -1,5 +1,14 @@
 # @shipfox/api-integration-spi
 
+## 4.1.2
+
+### Patch Changes
+
+- Updated dependencies [6eaacf0]
+- Updated dependencies [db054aa]
+- Updated dependencies [4a75c26]
+  - @shipfox/api-integration-core-dto@26.0.0
+
 ## 4.1.1
 
 ### Patch Changes

@@ -1,5 +1,41 @@
 # @shipfox/api-agent-access
 
+## 26.0.0
+
+### Minor Changes
+
+- a8ff016: Adds bounded error details, exposes state-changing action tools in tools/list with their destructiveHint, idempotentHint, and openWorldHint annotations, and limits action calls to 10 per credential per minute on top of the existing shared window.
+- 86ba951: Adds MCP tools for discovering integration connections and their bounded tool and event catalogs, and exposes each project's resolved source connection in list_projects results.
+- b22c120: Adds the `get_step_log_download` MCP tool for stream-bound step-log downloads.
+- e78d21a: Adds dormant agent-access action tools with bounded inputs, retry identities, and stable producer error mappings.
+
+### Patch Changes
+
+- fb73bca: Removes unused OAuth scope fields and carries agent access through workspace membership authority.
+- Updated dependencies [a8ff016]
+- Updated dependencies [6eaacf0]
+- Updated dependencies [795eee2]
+- Updated dependencies [da717b1]
+- Updated dependencies [db054aa]
+- Updated dependencies [86ba951]
+- Updated dependencies [e157b10]
+- Updated dependencies [4a75c26]
+- Updated dependencies [b22c120]
+- Updated dependencies [7acec37]
+- Updated dependencies [5cb4279]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+- Updated dependencies [e78d21a]
+- Updated dependencies [aafce80]
+  - @shipfox/api-agent-access-dto@26.0.0
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/api-logs-dto@26.0.0
+  - @shipfox/api-workflows-dto@26.0.0
+  - @shipfox/api-triggers-dto@26.0.0
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Patch Changes

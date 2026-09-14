@@ -1,5 +1,13 @@
 # @shipfox/api-workflows-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- da717b1: Exposes workflow concurrency state and affected run attempts through workflow run APIs.
+- 5cb4279: Joins initial workflow runs to resolved concurrency groups with transactional claim admission, claim outbox events, and accurate concurrency-group interpolation errors.
+- aafce80: The workflow run-attempt-created event now optionally carries `actorUserId`.
+
 ## 25.0.0
 
 ### Minor Changes

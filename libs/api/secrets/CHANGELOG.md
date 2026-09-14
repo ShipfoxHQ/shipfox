@@ -1,5 +1,14 @@
 # @shipfox/api-secrets
 
+## 26.0.0
+
+### Patch Changes
+
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Patch Changes

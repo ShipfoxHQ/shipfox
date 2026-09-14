@@ -1,5 +1,21 @@
 # @shipfox/api-workspaces
 
+## 26.0.0
+
+### Minor Changes
+
+- 8229356: Expose minimal user and workspace summaries to host extensions through the public inter-module contracts.
+
+### Patch Changes
+
+- Updated dependencies [7acec37]
+- Updated dependencies [fb73bca]
+- Updated dependencies [8229356]
+  - @shipfox/api-auth-dto@26.0.0
+  - @shipfox/api-auth-context@26.0.0
+  - @shipfox/api-workspaces-dto@26.0.0
+  - @shipfox/node-module@1.1.0
+
 ## 25.0.0
 
 ### Patch Changes

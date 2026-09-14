@@ -1,5 +1,11 @@
 # @shipfox/api-workspaces-dto
 
+## 26.0.0
+
+### Minor Changes
+
+- 8229356: Expose minimal user and workspace summaries to host extensions through the public inter-module contracts.
+
 ## 23.2.0
 
 ### Patch Changes

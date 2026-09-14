@@ -1,5 +1,23 @@
 # @shipfox/client-projects
 
+## 44.0.0
+
+### Patch Changes
+
+- Updated dependencies [4d3b34b]
+- Updated dependencies [6eaacf0]
+- Updated dependencies [db054aa]
+- Updated dependencies [4a75c26]
+- Updated dependencies [fb73bca]
+- Updated dependencies [b9d7c01]
+  - @shipfox/client-integrations@44.0.0
+  - @shipfox/react-ui@2.4.0
+  - @shipfox/api-integration-core-dto@26.0.0
+  - @shipfox/client-agent@44.0.0
+  - @shipfox/client-shell@44.0.0
+  - @shipfox/client-auth@44.0.0
+  - @shipfox/client-ui@44.0.0
+
 ## 43.0.0
 
 ### Patch Changes
