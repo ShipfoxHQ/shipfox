@@ -29,6 +29,7 @@ export type {
   ClickUpAuthorization,
   ClickUpAuthorizedUser,
   ClickUpAuthorizedWorkspace,
+  ClickUpWebhookRegistration,
 } from '#api/client.js';
 export {
   createClickUpAgentToolsClient,
@@ -77,7 +78,7 @@ export type {
   CreateClickUpWebhookProcessorOptions,
 } from '#core/webhook-processor.js';
 export {createClickUpWebhookProcessor} from '#core/webhook-processor.js';
-export {CLICKUP_WEBHOOK_ROUTE_PREFIX} from '#core/webhook-url.js';
+export {CLICKUP_WEBHOOK_ROUTE_PREFIX, clickupWebhookUrl} from '#core/webhook-url.js';
 export type {
   ClickUpInstallation,
   ClickUpInstallationLock,
@@ -89,6 +90,7 @@ export {
   getClickUpInstallationByConnectionId,
   getClickUpInstallationByTeamId,
   markClickUpInstallationRevoked,
+  updateClickUpInstallationWebhook,
   upsertClickUpInstallation,
   withClickUpInstallationLock,
   withClickUpWorkspaceLock,
@@ -119,6 +121,10 @@ export interface CreateClickUpIntegrationProviderOptions {
     | undefined;
   cleanup?:
     | {
+        deleteConnectionRemoteResources?: (connection: {
+          id: string;
+          workspaceId: string;
+        }) => Promise<(() => Promise<void>) | undefined>;
         withConnectionDeletionLock?: (
           connection: {id: string},
           fn: () => Promise<void>,

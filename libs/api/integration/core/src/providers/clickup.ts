@@ -1,8 +1,10 @@
 import type {
+  ClickUpInstallation,
   ClickUpSecretsStore,
   ConnectClickUpInstallationInput,
 } from '@shipfox/api-integration-clickup';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
+import {logger} from '@shipfox/node-opentelemetry';
 import {config} from '#config.js';
 import type {IntegrationCapability} from '#core/entities/provider.js';
 import {getIntegrationProviderCapabilities} from '#core/providers/registry.js';
@@ -10,6 +12,7 @@ import {
   deleteIntegrationConnection,
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
@@ -31,9 +34,11 @@ async function loadClickUpModuleParts(
     deleteClickUpInstallationByConnectionId,
     getClickUpInstallationByConnectionId,
     getClickUpInstallationByTeamId,
+    clickupWebhookUrl,
     db: clickupDb,
     clickupSecretsNamespace,
     migrationsPath: clickupMigrationsPath,
+    updateClickUpInstallationWebhook,
     upsertClickUpInstallation,
     withClickUpInstallationLock,
   } = await import('@shipfox/api-integration-clickup');
@@ -72,7 +77,7 @@ async function loadClickUpModuleParts(
             externalAccountId: input.teamId,
             slug,
             displayName: input.displayName,
-            lifecycleStatus: 'active',
+            lifecycleStatus: input.lifecycleStatus ?? 'error',
             capabilities: providerCapabilities,
           },
           {tx},
@@ -93,17 +98,52 @@ async function loadClickUpModuleParts(
     );
   }
 
-  async function disconnectClickUpInstallation(input: {connectionId: string}): Promise<void> {
+  async function disconnectClickUpInstallation(input: {
+    connectionId: string;
+    lockAlreadyHeld?: boolean | undefined;
+  }): Promise<void> {
+    const disconnect = async (): Promise<void> => {
+      const connection = await getIntegrationConnectionById(input.connectionId);
+      if (!connection) return;
+      let installation: ClickUpInstallation | undefined;
+      try {
+        installation = await getClickUpInstallationByConnectionId(input.connectionId);
+      } catch (error) {
+        logger().warn(
+          {err: error, connectionId: input.connectionId},
+          'ClickUp webhook metadata lookup failed during disconnect',
+        );
+      }
+      if (installation?.webhookId) {
+        try {
+          const accessToken = await tokenStore.getAccessToken({connectionId: input.connectionId});
+          await clickup.deleteWebhook({
+            accessToken,
+            webhookId: installation.webhookId,
+          });
+        } catch (error) {
+          logger().warn(
+            {err: error, connectionId: input.connectionId, webhookId: installation.webhookId},
+            'ClickUp webhook deletion failed during disconnect',
+          );
+        }
+      }
+      await db().transaction(async (tx) => {
+        await deleteClickUpInstallationByConnectionId(input.connectionId, {tx});
+        await deleteIntegrationConnection({id: input.connectionId}, {tx});
+      });
+      await (options.secrets?.clickup?.deleteSecrets({
+        workspaceId: connection.workspaceId,
+        namespace: clickupNamespaceSuffix(clickupSecretsNamespace(input.connectionId)),
+      }) ?? Promise.resolve(0));
+    };
+    if (input.lockAlreadyHeld) {
+      await disconnect();
+      return;
+    }
     const connection = await getIntegrationConnectionById(input.connectionId);
     if (!connection) return;
-    await db().transaction(async (tx) => {
-      await deleteClickUpInstallationByConnectionId(input.connectionId, {tx});
-      await deleteIntegrationConnection({id: input.connectionId}, {tx});
-    });
-    await (options.secrets?.clickup?.deleteSecrets({
-      workspaceId: connection.workspaceId,
-      namespace: clickupNamespaceSuffix(clickupSecretsNamespace(input.connectionId)),
-    }) ?? Promise.resolve(0));
+    await withClickUpInstallationLock(connection.externalAccountId, disconnect);
   }
 
   const fallbackSecrets: ClickUpSecretsStore = {
@@ -140,6 +180,23 @@ async function loadClickUpModuleParts(
       getExistingClickUpConnection,
       connectClickUpInstallation,
       disconnectClickUpInstallation,
+      updateClickUpInstallationWebhook,
+      markConnectionActive: async ({connectionId}) => {
+        const updated = await updateIntegrationConnectionLifecycleStatus({
+          id: connectionId,
+          lifecycleStatus: 'active',
+          capabilities: providerCapabilities,
+        });
+        if (!updated) throw new Error('ClickUp connection disappeared during activation');
+        return updated as CoreIntegrationConnection<'clickup'>;
+      },
+      markConnectionError: async ({connectionId}) => {
+        await updateIntegrationConnectionLifecycleStatus({
+          id: connectionId,
+          lifecycleStatus: 'error',
+        });
+      },
+      webhookUrlForConnection: clickupWebhookUrl,
       withClickUpInstallationLock,
       ...(options.requireActiveWorkspaceMembership
         ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
@@ -152,6 +209,31 @@ async function loadClickUpModuleParts(
       getWebhookSecret: (connectionId) => tokenStore.getWebhookSecret({connectionId}),
     },
     cleanup: {
+      deleteConnectionRemoteResources: async (connection) => {
+        const installation = await getClickUpInstallationByConnectionId(connection.id);
+        const webhookId = installation?.webhookId;
+        if (!webhookId) return undefined;
+        let accessToken: string;
+        try {
+          accessToken = await tokenStore.getAccessToken({connectionId: connection.id});
+        } catch (error) {
+          logger().warn(
+            {err: error, connectionId: connection.id, webhookId},
+            'ClickUp webhook deletion could not read the access token',
+          );
+          return undefined;
+        }
+        return async (): Promise<void> => {
+          try {
+            await clickup.deleteWebhook({accessToken, webhookId});
+          } catch (error) {
+            logger().warn(
+              {err: error, connectionId: connection.id, webhookId},
+              'ClickUp webhook deletion failed during connection deletion',
+            );
+          }
+        };
+      },
       withConnectionDeletionLock: async (connection, fn) => {
         const installation = await getClickUpInstallationByConnectionId(connection.id);
         if (!installation) {

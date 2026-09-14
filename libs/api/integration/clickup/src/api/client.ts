@@ -1,3 +1,4 @@
+import {clickupWebhookEventNames} from '@shipfox/api-integration-clickup-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
@@ -5,6 +6,8 @@ import {ClickUpIntegrationProviderError} from '#core/errors.js';
 
 const CLICKUP_API_TIMEOUT_MS = 10_000;
 const TRAILING_SLASHES_RE = /\/+$/;
+
+export const CLICKUP_WEBHOOK_EVENTS = clickupWebhookEventNames;
 
 export type ClickUpAgentToolHttpMethod = 'GET' | 'POST' | 'PUT';
 export type ClickUpAgentToolQueryValue =
@@ -48,10 +51,22 @@ export interface ClickUpAuthorizedUser {
   email?: string | undefined;
 }
 
+export interface ClickUpWebhookRegistration {
+  id: string;
+  secret: string;
+}
+
 export interface ClickUpApiClient {
   exchangeAuthorizationCode(input: {code: string}): Promise<ClickUpAuthorization>;
   getAuthorizedWorkspaces(input: {accessToken: string}): Promise<ClickUpAuthorizedWorkspace[]>;
   getAuthorizedUser(input: {accessToken: string}): Promise<ClickUpAuthorizedUser>;
+  createWebhook(input: {
+    accessToken: string;
+    teamId: string;
+    endpoint: string;
+    events?: readonly string[] | undefined;
+  }): Promise<ClickUpWebhookRegistration>;
+  deleteWebhook(input: {accessToken: string; webhookId: string}): Promise<void>;
 }
 
 interface ClickUpTokenResponse {
@@ -64,6 +79,10 @@ interface ClickUpTeamsResponse {
 
 interface ClickUpUserResponse {
   user?: unknown;
+}
+
+interface ClickUpWebhookResponse {
+  webhook?: unknown;
 }
 
 export function createClickUpAgentToolsClient(): ClickUpAgentToolsClient {
@@ -149,6 +168,31 @@ export function createClickUpApiClient(): ClickUpApiClient {
       }
       return parseUser(body.user);
     },
+
+    async createWebhook(input) {
+      const body = await mapClickUpError('create-webhook', () =>
+        ky
+          .post(clickUpApiUrl(`/api/v2/team/${encodeURIComponent(input.teamId)}/webhook`), {
+            headers: {authorization: `Bearer ${input.accessToken}`},
+            json: {
+              endpoint: input.endpoint,
+              events: input.events ?? CLICKUP_WEBHOOK_EVENTS,
+            },
+            timeout: CLICKUP_API_TIMEOUT_MS,
+          })
+          .json<ClickUpWebhookResponse>(),
+      );
+      return parseWebhookRegistration(body);
+    },
+
+    async deleteWebhook(input) {
+      await mapClickUpError('delete-webhook', () =>
+        ky.delete(clickUpApiUrl(`/api/v2/webhook/${encodeURIComponent(input.webhookId)}`), {
+          headers: {authorization: `Bearer ${input.accessToken}`},
+          timeout: CLICKUP_API_TIMEOUT_MS,
+        }),
+      );
+    },
   };
 }
 
@@ -193,15 +237,15 @@ export async function mapClickUpError<T>(operation: string, request: () => Promi
     return await request();
   } catch (error) {
     if (error instanceof ClickUpIntegrationProviderError) throw error;
-    throw mapUnknownClickUpError(operation, error);
+    throw await mapUnknownClickUpError(operation, error);
   }
 }
 
-function mapUnknownClickUpError(
+async function mapUnknownClickUpError(
   operation: string,
   error: unknown,
-): ClickUpIntegrationProviderError {
-  if (error instanceof HTTPError) return mapClickUpHttpError(operation, error);
+): Promise<ClickUpIntegrationProviderError> {
+  if (error instanceof HTTPError) return await mapClickUpHttpError(operation, error);
   if (error instanceof TimeoutError) {
     logger().warn({operation}, 'ClickUp API request timed out');
     return new ClickUpIntegrationProviderError('timeout', 'ClickUp request timed out');
@@ -213,9 +257,22 @@ function mapUnknownClickUpError(
   return new ClickUpIntegrationProviderError('provider-unavailable', 'ClickUp request failed');
 }
 
-function mapClickUpHttpError(operation: string, error: HTTPError): ClickUpIntegrationProviderError {
+async function mapClickUpHttpError(
+  operation: string,
+  error: HTTPError,
+): Promise<ClickUpIntegrationProviderError> {
   const {status, statusText, headers} = error.response;
-  logger().warn({operation, status, statusText}, 'ClickUp API request rejected');
+  const details = await clickUpErrorDetails(error.response);
+  logger().warn(
+    {
+      operation,
+      status,
+      statusText,
+      err: details.err,
+      ECODE: details.ECODE,
+    },
+    'ClickUp API request rejected',
+  );
   if (status === 429) {
     return new ClickUpIntegrationProviderError(
       'rate-limited',
@@ -278,6 +335,32 @@ function stringId(value: unknown): string | undefined {
   if (typeof value === 'string' && value.length > 0) return value;
   if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
   return undefined;
+}
+
+function parseWebhookRegistration(body: ClickUpWebhookResponse): ClickUpWebhookRegistration {
+  const value = body?.webhook ?? body;
+  if (!value || typeof value !== 'object') {
+    throw malformed('ClickUp webhook response did not contain a webhook');
+  }
+  const {id, secret} = value as {id?: unknown; secret?: unknown};
+  const webhookId = stringId(id);
+  if (!webhookId || typeof secret !== 'string' || secret.length === 0) {
+    throw malformed('ClickUp webhook response did not include a valid id and secret');
+  }
+  return {id: webhookId, secret};
+}
+
+async function clickUpErrorDetails(response: Response): Promise<{
+  err?: string;
+  ECODE?: string;
+}> {
+  const body = await readClickUpResponseBody(response);
+  if (!body || typeof body !== 'object') return {};
+  const {err, ECODE} = body as {err?: unknown; ECODE?: unknown};
+  return {
+    ...(typeof err === 'string' ? {err} : {}),
+    ...(typeof ECODE === 'string' ? {ECODE} : {}),
+  };
 }
 
 function malformed(message: string): ClickUpIntegrationProviderError {

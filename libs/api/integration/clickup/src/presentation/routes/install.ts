@@ -46,6 +46,15 @@ export interface CreateClickUpIntegrationRoutesOptions {
     input: ConnectClickUpInstallationInput,
   ): Promise<IntegrationConnection<'clickup'>>;
   disconnectClickUpInstallation(input: {connectionId: string}): Promise<void>;
+  updateClickUpInstallationWebhook(input: {
+    connectionId: string;
+    webhookId: string | null;
+  }): Promise<unknown>;
+  markConnectionActive(input: {
+    connectionId: string;
+  }): Promise<IntegrationConnection<'clickup'> | undefined>;
+  markConnectionError(input: {connectionId: string}): Promise<void>;
+  webhookUrlForConnection(connectionId: string): string;
   withClickUpInstallationLock?: ClickUpInstallationLock;
   connectionCapabilities: IntegrationCapability[];
   requireActiveWorkspaceMembership?: (input: {

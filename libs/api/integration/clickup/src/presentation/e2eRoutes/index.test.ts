@@ -120,6 +120,7 @@ describe('ClickUp E2E routes', () => {
       teamName: 'Updated',
       authorizingUserId: 'updated-clickup-user',
       webhookId: 'updated-webhook-id',
+      lifecycleStatus: 'active',
       displayName: 'ClickUp Updated',
     });
     expect(tokenStore.storeTokens).toHaveBeenCalledWith({

@@ -56,6 +56,7 @@ export function createE2eClickUpConnectionRoute(options: CreateE2eClickUpConnect
         teamName: body.team_name,
         authorizingUserId: body.authorizing_user_id,
         webhookId: body.webhook_id,
+        lifecycleStatus: 'active',
         displayName: body.display_name,
       });
 
