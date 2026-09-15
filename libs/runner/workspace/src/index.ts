@@ -6,6 +6,8 @@ export {
   type CheckoutFailureKind,
   type CheckoutOutputSink,
   type CheckoutPhase,
+  type CheckoutRetryDelay,
+  type CheckoutRetryEvent,
   checkoutRepository,
   type GitCredentialHelperConfig,
   GitUnavailableError,
