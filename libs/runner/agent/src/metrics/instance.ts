@@ -4,6 +4,7 @@ import type {ImageOmissionReason} from '#core/pi-tool-svg-normalizer.js';
 export type PiSvgNormalizationOutcome = 'converted' | 'omitted';
 export type PiSvgNormalizationSource = 'tool_result' | 'legacy_context';
 export type PiSvgNormalizationReason = 'none' | ImageOmissionReason;
+export type PiProviderRetryOutcome = 'recovered' | 'exhausted' | 'aborted';
 
 const meter = instanceMetrics.getMeter('runner-agent');
 
@@ -25,6 +26,14 @@ const piSvgRasterizationDuration = meter.createHistogram<{
   },
 });
 
+const piProviderRetryOutcomeCount = meter.createCounter<{
+  provider: string;
+  code: 'provider_stream_interrupted';
+  outcome: PiProviderRetryOutcome;
+}>('runner_agent_provider_retries', {
+  description: 'Managed provider retry outcomes by bounded provider, code, and outcome',
+});
+
 export function recordPiSvgNormalization(
   outcome: PiSvgNormalizationOutcome,
   reason: PiSvgNormalizationReason,
@@ -37,6 +46,21 @@ export function recordPiSvgNormalization(
   }
 }
 
+export function recordPiProviderRetryOutcome(
+  provider: string,
+  outcome: PiProviderRetryOutcome,
+): void {
+  try {
+    piProviderRetryOutcomeCount.add(1, {
+      provider: boundedMetricLabel(provider),
+      code: 'provider_stream_interrupted',
+      outcome,
+    });
+  } catch {
+    // Metrics must not affect Pi agent execution.
+  }
+}
+
 export function recordPiSvgRasterizationDuration(
   outcome: PiSvgNormalizationOutcome,
   durationMs: number,
@@ -46,4 +70,11 @@ export function recordPiSvgRasterizationDuration(
   } catch {
     // Metrics must not affect Pi tool results.
   }
+}
+
+function boundedMetricLabel(value: string): string {
+  if (value.length <= 64) return value;
+  const bounded = value.slice(0, 64);
+  const lastCodeUnit = bounded.charCodeAt(bounded.length - 1);
+  return lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff ? bounded.slice(0, -1) : bounded;
 }

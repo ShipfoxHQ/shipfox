@@ -634,6 +634,33 @@ describe('executeAgentStep', () => {
     });
   });
 
+  it('maps exhausted managed stream failures to stable machine fields', async () => {
+    runAgentMock.mockRejectedValue(
+      new AgentInvocationError(
+        'The model response stream was interrupted after 4 attempts.',
+        '',
+        undefined,
+        undefined,
+        undefined,
+        'provider_stream_interrupted',
+        true,
+        4,
+        4,
+      ),
+    );
+
+    const result = await executeAgentStep(buildAgentStep(), {runtime: RUNTIME});
+
+    expect(result.error).toEqual({
+      message: 'The model response stream was interrupted after 4 attempts.',
+      reason: 'agent_invocation_failed',
+      code: 'provider_stream_interrupted',
+      retryable: true,
+      attempt_count: 4,
+      max_attempts: 4,
+    });
+  });
+
   it('preserves session metadata on invocation failures', async () => {
     runAgentMock.mockRejectedValue(
       new AgentInvocationError(
