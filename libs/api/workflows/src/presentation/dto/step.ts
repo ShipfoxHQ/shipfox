@@ -48,7 +48,11 @@ export function toStepErrorDto(
   const source = typeof error.source === 'string' ? error.source : undefined;
   const reason = stepErrorReason(error);
   const agentConfigIssue = agentConfigIssueSchema.safeParse(error.agentConfigIssue);
-  const category = deriveStepErrorCategory(stepType, reason.success ? reason.data : undefined);
+  const category = deriveStepErrorCategory(
+    stepType,
+    reason.success ? reason.data : undefined,
+    code,
+  );
   return {
     message,
     ...toStepErrorScalarFields({code, managedProviderId, exitCode, signal}),

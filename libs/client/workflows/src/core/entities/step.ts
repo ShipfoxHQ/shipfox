@@ -35,7 +35,7 @@ export type AgentConfigIssue =
   | 'provider_unsupported'
   | 'model_unavailable'
   | 'credentials_invalid';
-export type StepErrorCategory = 'setup' | 'user';
+export type StepErrorCategory = 'setup' | 'provider' | 'user';
 export const STEP_ERROR_REASONS = new Set<StepErrorReason>([
   'checkout_failed',
   'checkout_auth_failed',

@@ -1,6 +1,27 @@
 import {toWorkflowJobGateResult, toWorkflowJobStepError} from './workflow-model-mapper.js';
 
 describe('toWorkflowJobStepError', () => {
+  test('maps provider interruption diagnostics to the client model', () => {
+    const error = toWorkflowJobStepError({
+      message: 'The model response stream was interrupted after 4 attempts.',
+      code: 'provider_stream_interrupted',
+      reason: 'agent_invocation_failed',
+      category: 'provider',
+      retryable: true,
+      attempt_count: 4,
+      max_attempts: 4,
+    });
+
+    expect(error).toMatchObject({
+      code: 'provider_stream_interrupted',
+      reason: 'agent_invocation_failed',
+      category: 'provider',
+      retryable: true,
+      attemptCount: 4,
+      maxAttempts: 4,
+    });
+  });
+
   test('maps gate reason and restart diagnostics to the client model', () => {
     const error = toWorkflowJobStepError({
       message: 'The gate did not pass after 1 attempt.',

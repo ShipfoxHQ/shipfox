@@ -43,9 +43,49 @@ export const GateAttemptLimitReached: Story = {
   render: () => <GateAttemptLimitReachedStory />,
 };
 
+export const ProviderInterrupted: Story = {
+  render: () => <ProviderInterruptedStory />,
+};
+
 export const ToolStep: Story = {
   render: ({toolOutcome}) => <ToolStepStory outcome={toolOutcome} />,
 };
+
+function ProviderInterruptedStory() {
+  const [queryClient] = useState(
+    () => new QueryClient({defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY}}}),
+  );
+  const entry = failedStepEntry();
+  const error = {
+    ...entry.step.error,
+    message: 'Stream error occurred',
+    code: 'provider_stream_interrupted',
+    category: 'provider' as const,
+    managedProviderId: 'shipfox',
+    retryable: true,
+    attemptCount: 4,
+    maxAttempts: 4,
+  };
+  entry.step.error = error;
+  entry.error = error;
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <main className="min-h-screen bg-background-neutral-base p-16">
+        <StepInspectorSheet
+          entry={entry}
+          open
+          onOpenChange={() => undefined}
+          workspaceSlug="acme"
+          projectSlug="platform"
+          workflowRunId="11111111-1111-4111-8111-111111111111"
+          runAttempt={1}
+          jobId="44444444-4444-4444-8444-000000000001"
+        />
+      </main>
+    </QueryClientProvider>
+  );
+}
 
 function GateAttemptLimitReachedStory() {
   const [queryClient] = useState(

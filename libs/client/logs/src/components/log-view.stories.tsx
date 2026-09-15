@@ -193,6 +193,57 @@ const unifiedAgentRecords: LogRecord[] = [
   {v: 1, ts: at(5), type: 'end', totalBytes: 4096},
 ];
 
+const providerRecoveryRecords: LogRecord[] = [
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Model response interrupted',
+      detail: 'Retrying in 4 seconds (2 of 3)',
+      meta: [
+        {label: 'provider', value: 'Shipfox'},
+        {label: 'model', value: 'GLM 5.3 Flash'},
+        {label: 'error code', value: 'provider_stream_interrupted'},
+      ],
+      tone: 'warning',
+      terminalFailure: false,
+    },
+    0,
+  ),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Model response recovered',
+      detail: 'Continued after 2 retries',
+      meta: [
+        {label: 'provider', value: 'Shipfox'},
+        {label: 'model', value: 'GLM 5.3 Flash'},
+        {label: 'error code', value: 'provider_stream_interrupted'},
+      ],
+      tone: 'success',
+      terminalFailure: false,
+    },
+    5,
+  ),
+  session(
+    {
+      kind: 'lifecycle',
+      timestamp: 0,
+      label: 'Model response interrupted',
+      detail: 'Failed after 4 attempts',
+      meta: [
+        {label: 'provider', value: 'Shipfox'},
+        {label: 'model', value: 'GLM 5.3 Flash'},
+        {label: 'error code', value: 'provider_stream_interrupted'},
+      ],
+      tone: 'error',
+      terminalFailure: true,
+    },
+    10,
+  ),
+];
+
 const awaitingAgentRecords: LogRecord[] = [
   session(
     {
@@ -528,6 +579,15 @@ export const UnifiedAgentSession: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={unifiedAgentRecords} />
+    </div>
+  ),
+};
+
+export const ProviderRecoveryStates: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={providerRecoveryRecords} />
     </div>
   ),
 };

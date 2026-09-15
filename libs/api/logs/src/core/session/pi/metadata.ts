@@ -91,6 +91,45 @@ export function labelMeta(entry: SessionEntry): readonly SessionViewRowMeta[] {
   return [targetId == null ? null : metaItem('target', targetId, false)].filter(isMeta);
 }
 
+const PROVIDER_STREAM_INTERRUPTED_CODE = 'provider_stream_interrupted';
+
+export function isProviderRetryEntry(entry: SessionEntry): boolean {
+  return (
+    (entry.type === 'auto_retry_start' || entry.type === 'auto_retry_end') &&
+    stringField(entry, 'code') === PROVIDER_STREAM_INTERRUPTED_CODE
+  );
+}
+
+export function providerRetryStartDetail(entry: SessionEntry): string {
+  const delayMs = numberField(entry, 'delayMs') ?? 0;
+  const delaySeconds = Math.max(0, Math.round(delayMs / 1000));
+  const delayLabel = `${delaySeconds} second${delaySeconds === 1 ? '' : 's'}`;
+  const attempt = numberField(entry, 'attempt') ?? 0;
+  const maxAttempts = numberField(entry, 'maxAttempts') ?? 0;
+  return `Retrying in ${delayLabel} (${attempt} of ${maxAttempts})`;
+}
+
+export function providerRetryEndDetail(entry: SessionEntry): string {
+  const attempt = numberField(entry, 'attempt') ?? 0;
+  if (booleanField(entry, 'success')) {
+    return `Continued after ${attempt} retr${attempt === 1 ? 'y' : 'ies'}`;
+  }
+  if (stringField(entry, 'finalError') !== PROVIDER_STREAM_INTERRUPTED_CODE) {
+    const attemptCount = attempt + 1;
+    return `Stopped after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}`;
+  }
+  return `Failed after ${attempt + 1} attempts`;
+}
+
+export function providerRetryMeta(entry: SessionEntry): readonly SessionViewRowMeta[] {
+  return [
+    metaItem('provider', stringField(entry, 'provider')),
+    metaItem('model', stringField(entry, 'model') ?? stringField(entry, 'modelId')),
+    metaItem('error code', stringField(entry, 'code')),
+    metaItem('request', stringField(entry, 'request_id') ?? stringField(entry, 'requestId'), false),
+  ].filter(isMeta);
+}
+
 export function assistantMeta(message: AgentMessage): readonly SessionViewRowMeta[] {
   return [
     providerModelMeta(message),

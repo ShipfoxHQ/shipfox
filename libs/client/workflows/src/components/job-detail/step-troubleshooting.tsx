@@ -22,7 +22,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {cn, formatDuration} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
-import type {ReactNode} from 'react';
+import {Fragment, type ReactNode} from 'react';
 import type {
   EvaluationTraceEntry,
   JobStatusReason,
@@ -134,10 +134,10 @@ function StepFailureCallout({
 }) {
   const reason = error?.reason ?? step.statusReason ?? 'unknown';
   const toolGuidance = toolFailureGuidance(reason, step, attempt, error);
-  const title = toolGuidance?.title ?? failureTitle(reason);
+  const title = toolGuidance?.title ?? failureTitle(reason, error);
   const description =
     toolGuidance?.description ?? failureDescription(reason, step, error, step.gateMaxAttempts);
-  const failureCode = step.type === 'tool' ? (error?.code ?? reason) : reason;
+  const failureCode = failureCodeForStep(step, error, reason);
   const sourceLink = sourceLinkForFailure(reason) && step.sourceLocation;
 
   if (step.type === 'agent' && reason === 'agent_config_invalid') {
@@ -163,13 +163,12 @@ function StepFailureCallout({
           <div className="flex min-w-0 flex-wrap items-center gap-x-inline gap-y-tight">
             <div className="flex min-w-0 flex-col gap-tight">
               <span>{description}</span>
-              {error?.message ? (
-                <span className="text-foreground-neutral-muted">{error.message}</span>
-              ) : null}
+              <FailureMessage error={error} />
             </div>
             <Code as="span" variant="label" className="text-tag-error-text">
               {failureCode}
             </Code>
+            <ProviderStreamDetails step={step} error={error} />
             {sourceLink ? (
               <Link
                 to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
@@ -870,7 +869,68 @@ function selectedStepError(
   return toSelectedAttemptError(step, attemptError) ?? step.error;
 }
 
-function failureTitle(reason: string | JobStatusReason): string {
+function isProviderStreamFailure(error: StepError | null): boolean {
+  return error?.code === 'provider_stream_interrupted';
+}
+
+function failureCodeForStep(step: Step, error: StepError | null, reason: string): string {
+  if (isProviderStreamFailure(error)) return error?.category ?? 'provider';
+  if (step.type === 'tool') return error?.code ?? reason;
+  return reason;
+}
+
+function FailureMessage({error}: {error: StepError | null}): ReactNode {
+  if (isProviderStreamFailure(error) || !error?.message) return null;
+  return <span className="text-foreground-neutral-muted">{error.message}</span>;
+}
+
+function ProviderStreamDetails({step, error}: {step: Step; error: StepError | null}): ReactNode {
+  if (!isProviderStreamFailure(error) || !error) return null;
+
+  const provider = providerDisplayName(step, error);
+  const model = displayModel(step.agentConfig?.model);
+  const attempts =
+    error.attemptCount !== undefined && error.maxAttempts !== undefined
+      ? `${error.attemptCount} of ${error.maxAttempts}`
+      : undefined;
+  const details = [
+    ['Provider', provider],
+    ['Model', model],
+    ['Attempts', attempts],
+    ['Error code', error.code],
+  ].filter((detail): detail is [string, string] => detail[1] !== undefined);
+
+  return (
+    <dl className="grid min-w-0 basis-full grid-cols-[max-content_minmax(0,1fr)] gap-x-group gap-y-tight text-xs">
+      {details.map(([label, value]) => (
+        <Fragment key={label}>
+          <dt className="text-foreground-neutral-muted">{label}</dt>
+          <dd className="min-w-0 break-all font-code text-foreground-neutral-base">{value}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
+function displayProvider(provider: string | null | undefined): string | undefined {
+  if (!provider) return undefined;
+  return {shipfox: 'Shipfox'}[provider] ?? provider;
+}
+
+function providerDisplayName(step: Step, error: StepError): string {
+  return (
+    displayProvider(error.managedProviderId ?? step.agentConfig?.provider ?? 'shipfox') ?? 'Shipfox'
+  );
+}
+
+function displayModel(model: string | null | undefined): string | undefined {
+  if (!model) return undefined;
+  return {'glm-5.3-flash': 'GLM 5.3 Flash'}[model] ?? model;
+}
+
+function failureTitle(reason: string | JobStatusReason, error: StepError | null): string {
+  if (isProviderStreamFailure(error)) return 'Model response interrupted';
+
   switch (reason) {
     case 'checkout_failed':
       return 'Checkout failed';
@@ -983,6 +1043,13 @@ function failureDescription(
   error: StepError | null,
   gateMaxAttempts?: number | undefined,
 ): string {
+  if (isProviderStreamFailure(error) && error) {
+    const attemptCount = error.attemptCount ?? 1;
+    const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
+    const provider = providerDisplayName(step, error);
+    return `${provider} lost the model response stream after ${attemptCount} ${attemptLabel}. No workflow configuration error was detected. Rerun the failed jobs.`;
+  }
+
   switch (reason) {
     case 'checkout_auth_failed':
       return 'Checkout credentials were rejected. Verify repository access before re-running.';

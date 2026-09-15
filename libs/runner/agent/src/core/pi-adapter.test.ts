@@ -412,6 +412,8 @@ describe('piHarnessAdapter', () => {
       JSON.stringify({
         type: 'auto_retry_start',
         code: PROVIDER_STREAM_INTERRUPTED_CODE,
+        provider: 'shipfox',
+        model: 'claude-opus-4-8',
         attempt: 1,
         maxAttempts: 3,
         delayMs: 10,
@@ -420,6 +422,8 @@ describe('piHarnessAdapter', () => {
       JSON.stringify({
         type: 'auto_retry_end',
         code: PROVIDER_STREAM_INTERRUPTED_CODE,
+        provider: 'shipfox',
+        model: 'claude-opus-4-8',
         success: false,
         attempt: 1,
         finalError: 'provider_retry_failed',
@@ -479,6 +483,8 @@ describe('piHarnessAdapter', () => {
       JSON.stringify({
         type: 'auto_retry_end',
         code: PROVIDER_STREAM_INTERRUPTED_CODE,
+        provider: 'shipfox',
+        model: 'claude-opus-4-8',
         success: false,
         attempt: 3,
         finalError: PROVIDER_STREAM_INTERRUPTED_CODE,

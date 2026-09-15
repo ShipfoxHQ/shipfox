@@ -58,6 +58,25 @@ describe('stepErrorDtoSchema', () => {
     });
   });
 
+  it('accepts the provider category for an exhausted stream interruption', () => {
+    const result = stepErrorDtoSchema.parse({
+      message: 'The model response stream was interrupted after 4 attempts.',
+      code: 'provider_stream_interrupted',
+      reason: 'agent_invocation_failed',
+      category: 'provider',
+      retryable: true,
+      attempt_count: 4,
+      max_attempts: 4,
+    });
+
+    expect(result).toMatchObject({
+      code: 'provider_stream_interrupted',
+      category: 'provider',
+      attempt_count: 4,
+      max_attempts: 4,
+    });
+  });
+
   it('accepts a stable runtime error code and managed provider identity', () => {
     const result = stepErrorDtoSchema.parse({
       message: 'Agent runtime config request failed with status 422: workspace-providers-disabled.',
