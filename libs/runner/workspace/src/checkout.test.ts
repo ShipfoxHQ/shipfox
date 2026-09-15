@@ -103,6 +103,7 @@ describe('checkoutRepository argv', () => {
     const commit = await checkoutRepository(BASE);
 
     expect(commit).toBe('abc123');
+    expect(recordCheckoutFetchAttemptMock).toHaveBeenCalledWith('initial', 'success', 'none');
     expect(spawnMock.mock.calls.map((call) => call[1])).toEqual([
       ['init'],
       ['remote', 'add', 'origin', 'https://github.com/acme/repo.git'],
@@ -440,6 +441,10 @@ describe('checkoutRepository failure classification', () => {
 
     expect(retryDelay).toHaveBeenCalledWith(500, undefined);
     expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'recovered']);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'success', 'none'],
+    ]);
     expect(spawnMock.mock.calls.map((call) => call[1][0])).toEqual([
       'init',
       'remote',
@@ -468,6 +473,10 @@ describe('checkoutRepository failure classification', () => {
     expect(spawnMock).toHaveBeenCalledTimes(4);
     expect(retryDelay).toHaveBeenCalledOnce();
     expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'exhausted']);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+    ]);
   });
 
   it('does not mark a cancelled second fetch as exhausted', async () => {
@@ -490,6 +499,10 @@ describe('checkoutRepository failure classification', () => {
     expect(spawnMock).toHaveBeenCalledTimes(4);
     expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying']);
     expect(onRetry).not.toHaveBeenCalledWith('exhausted');
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'aborted'],
+    ]);
   });
 
   it('does not fetch again when cancellation happens during the retry delay', async () => {

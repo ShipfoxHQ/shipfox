@@ -380,7 +380,7 @@ function checkoutFailureResult(params: {
 
 function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): string {
   const subject = scope === 'setup' ? 'Setup' : 'Checkout step';
-  if (error instanceof CheckoutError && error.retryExhausted && error.repositoryVisibilityFailure) {
+  if (error instanceof CheckoutError && error.retryExhausted && error.kind === 'auth') {
     return `${subject} failed because GitHub still did not expose this repository after retrying.`;
   }
   if (error instanceof CheckoutError && error.repositoryVisibilityFailure) {
@@ -418,7 +418,7 @@ function checkoutFailureHelp(
 function writeCheckoutRetryLog(log: CheckoutLogSink | undefined, event: CheckoutRetryEvent): void {
   if (event === 'retrying') {
     log?.writeOutputLine(
-      'GitHub rejected the checkout credential. Shipfox will retry once.',
+      'GitHub did not expose this repository to the checkout credential. Shipfox will retry once.',
       'stderr',
     );
   } else if (event === 'recovered') {

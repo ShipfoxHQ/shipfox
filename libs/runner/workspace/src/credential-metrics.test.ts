@@ -47,4 +47,14 @@ describe('checkout fetch metrics', () => {
       reason: 'none',
     });
   });
+
+  it('records bounded exhausted retry dimensions', () => {
+    metrics.recordCheckoutFetchAttempt('retry', 'failure', 'auth');
+
+    expect(checkoutFetchAttemptAdd()).toHaveBeenCalledWith(1, {
+      attempt: 'retry',
+      outcome: 'failure',
+      reason: 'auth',
+    });
+  });
 });

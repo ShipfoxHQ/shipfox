@@ -127,7 +127,7 @@ describe('executeCheckoutStep', () => {
     });
   }
 
-  it('logs neutral retry and recovery messages for a GitHub authorization failure', async () => {
+  it('logs retry and recovery messages from the workspace checkout', async () => {
     checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
       params.onRetry?.('retrying');
       params.onRetry?.('recovered');
@@ -139,7 +139,7 @@ describe('executeCheckoutStep', () => {
 
     expect(result.result.success).toBe(true);
     expect(log.writeOutputLine).toHaveBeenCalledWith(
-      'GitHub rejected the checkout credential. Shipfox will retry once.',
+      'GitHub did not expose this repository to the checkout credential. Shipfox will retry once.',
       'stderr',
     );
     expect(log.writeOutputLine).toHaveBeenCalledWith(
@@ -176,45 +176,6 @@ describe('executeCheckoutStep', () => {
     );
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Next step: Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.',
-      'stderr',
-    );
-  });
-
-  it('keeps generic GitHub authorization failures out of visibility diagnostics', async () => {
-    checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
-      params.onRetry?.('retrying');
-      params.onRetry?.('exhausted');
-      throw new CheckoutError('auth', 'The requested URL returned error: 403', {
-        phase: 'fetch',
-        retryExhausted: true,
-      });
-    });
-    const log = fakeLog();
-
-    const result = await run({}, new Map(), log);
-
-    expect(result.result).toEqual({
-      success: false,
-      error: {
-        message: 'The requested URL returned error: 403',
-        reason: 'checkout_auth_failed',
-      },
-      exit_code: null,
-    });
-    expect(log.writeOutputLine).toHaveBeenCalledWith(
-      'GitHub rejected the checkout credential. Shipfox will retry once.',
-      'stderr',
-    );
-    expect(log.writeOutputLine).toHaveBeenCalledWith(
-      'Checkout retry exhausted after the second fetch failed.',
-      'stderr',
-    );
-    expect(log.writeOutputLine).toHaveBeenCalledWith(
-      'Checkout step failed while fetching the requested ref. Details: The requested URL returned error: 403',
-      'stderr',
-    );
-    expect(log.writeOutputLine).not.toHaveBeenCalledWith(
-      'Checkout step failed because GitHub still did not expose this repository after retrying. Details: The requested URL returned error: 403',
       'stderr',
     );
   });
