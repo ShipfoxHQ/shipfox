@@ -4,7 +4,6 @@ import {waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 
 const MAX_TRIGGER_ATTEMPTS = 8;
 const RUN_LOOKUP_TIMEOUT_MS = 15_000;
-const EARLIER_RUN_LOOKUP_TIMEOUT_MS = 1_000;
 const NEGATIVE_RUN_LOOKUP_SLICE_TIMEOUT_MS = 500;
 
 export function signClickUpHeaders(rawBody: string, webhookSecret: string): Record<string, string> {
@@ -124,7 +123,7 @@ async function assertNoEarlierClickUpRuns(params: {
         projectId: params.projectId,
         deliveryId,
         token: params.token,
-        timeoutMs: EARLIER_RUN_LOOKUP_TIMEOUT_MS,
+        timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
         workspaceId: params.workspaceId,
       });
       throw new Error(
