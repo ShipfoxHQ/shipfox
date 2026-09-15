@@ -269,12 +269,15 @@ function userToolResult(id: string, isError = false) {
 
 let testCwd = '';
 let previousAnthropicApiKey: string | undefined;
+let previousAnthropicAuthToken: string | undefined;
 
 describe('claudeHarnessAdapter', () => {
   beforeEach(() => {
     testCwd = mkdtempSync(join(tmpdir(), 'shipfox-claude-adapter-'));
     previousAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    previousAnthropicAuthToken = process.env.ANTHROPIC_AUTH_TOKEN;
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
     queryMock.mockReset();
     toolMock.mockClear();
     createSdkMcpServerMock.mockClear();
@@ -288,6 +291,8 @@ describe('claudeHarnessAdapter', () => {
   afterEach(() => {
     if (previousAnthropicApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = previousAnthropicApiKey;
+    if (previousAnthropicAuthToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN;
+    else process.env.ANTHROPIC_AUTH_TOKEN = previousAnthropicAuthToken;
     rmSync(testCwd, {recursive: true, force: true});
   });
 
@@ -411,8 +416,7 @@ describe('claudeHarnessAdapter', () => {
       options: expect.objectContaining({
         model: 'smollm2:135m-instruct-q2_K',
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: '',
-          ANTHROPIC_AUTH_TOKEN: 'ollama',
+          ANTHROPIC_API_KEY: 'ollama',
           ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
           ANTHROPIC_MODEL: 'smollm2:135m-instruct-q2_K',
           ANTHROPIC_SMALL_FAST_MODEL: 'smollm2:135m-instruct-q2_K',
@@ -433,7 +437,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'workspace-token'},
         claude: {
           base_url: 'https://gateway.example.test/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -447,8 +450,7 @@ describe('claudeHarnessAdapter', () => {
       options: expect.objectContaining({
         model: 'claude-opus-4-8',
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: '',
-          ANTHROPIC_AUTH_TOKEN: 'managed-token',
+          ANTHROPIC_API_KEY: 'workspace-token',
           ANTHROPIC_BASE_URL: 'https://gateway.example.test/v1',
         }),
       }),
@@ -476,7 +478,6 @@ describe('claudeHarnessAdapter', () => {
           credentials: {api_key: 'managed-token'},
           claude: {
             base_url: 'https://inference.shipfox.dev/v1',
-            auth_token: 'managed-token',
           },
           credentialSource,
         }),
@@ -513,7 +514,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -528,8 +528,7 @@ describe('claudeHarnessAdapter', () => {
       options: expect.objectContaining({
         model: 'claude-opus-4-8',
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: '',
-          ANTHROPIC_AUTH_TOKEN: 'managed-token',
+          ANTHROPIC_API_KEY: 'managed-token',
           ANTHROPIC_BASE_URL: 'https://inference.shipfox.dev/v1',
         }),
       }),
@@ -554,7 +553,7 @@ describe('claudeHarnessAdapter', () => {
       invocation({
         provider: 'shipfox',
         credentials: {api_key: 'managed-token'},
-        claude: {base_url: '', auth_token: ''},
+        claude: {base_url: ''},
       }),
     );
 
@@ -578,7 +577,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -610,7 +608,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -734,10 +731,9 @@ describe('claudeHarnessAdapter', () => {
 
     const result = claudeHarnessAdapter.run(
       invocation({
-        credentials: {},
+        credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://gateway.example.test/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -753,6 +749,7 @@ describe('claudeHarnessAdapter', () => {
 
   it('passes Claude options, thinking effort, and child-process environment to query', async () => {
     process.env.ANTHROPIC_API_KEY = 'sk-parent';
+    process.env.ANTHROPIC_AUTH_TOKEN = 'parent-auth-token';
     queryMock.mockReturnValue(makeQuery([successMessage]));
 
     await claudeHarnessAdapter.run(
@@ -787,6 +784,7 @@ describe('claudeHarnessAdapter', () => {
     });
     const env = lastQueryOptions().env;
     expect(env.CLAUDE_CONFIG_DIR).toMatch(`${testCwd}/runner-agent/claude-config-`);
+    expect(env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN');
     expect(lastQueryOptions()).not.toHaveProperty('tools');
     expect(lastQueryOptions().mcpServers).toBeUndefined();
   });
@@ -825,7 +823,6 @@ describe('claudeHarnessAdapter', () => {
         model: 'catalog.model-id',
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -978,7 +975,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );

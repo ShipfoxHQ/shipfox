@@ -93,7 +93,12 @@ needs it while the job attempt remains active.
 Only a verified managed image may advertise this capability. Before using the
 image, deploy an API release that accepts `renewable_inference` in runner
 capability reports on every API instance. Older or unverified runners keep the
-flag disabled and use static credentials until they are replaced.
+flag disabled.
+
+For the Claude runtime contract cleanup, upgrade runners using the pre-cleanup
+schema before deploying an API release that omits `claude.auth_token`. This
+cleanup has no static-credential fallback. If a pre-cleanup runner must be
+restored, restore or roll back the API release before restoring the runner.
 
 ## Agent steps
 

@@ -2519,7 +2519,7 @@ describe('runJobSteps', () => {
       model: 'claude-opus-4-8',
       thinking: 'high',
       credentials: {api_key: 'managed-token'},
-      claude: {base_url: 'https://gateway.example.test/v1', auth_token: 'managed-token'},
+      claude: {base_url: 'https://gateway.example.test/v1'},
     });
     requestSessionTranscriptMock.mockResolvedValueOnce({blob: null, segment: 2});
     executeAgentStepMock.mockResolvedValueOnce({
@@ -2927,7 +2927,6 @@ describe('runJobSteps', () => {
     const agent = buildAgentStep();
     const claude = {
       base_url: 'https://gateway.example.test/v1',
-      auth_token: 'managed-token',
     };
     requestAgentRuntimeConfigMock.mockResolvedValueOnce({
       harness: 'claude',

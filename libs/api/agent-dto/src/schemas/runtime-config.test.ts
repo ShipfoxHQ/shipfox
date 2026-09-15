@@ -62,13 +62,11 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
       credentials: {api_key: 'managed-token'},
       claude: {
         base_url: 'https://gateway.example.test',
-        auth_token: 'managed-token',
       },
     });
 
     expect(parsed.claude).toEqual({
       base_url: 'https://gateway.example.test',
-      auth_token: 'managed-token',
     });
   });
 
@@ -84,7 +82,6 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
       renewal: {mode: 'refresh-at', refresh_at: '2026-06-10T11:55:00.000Z'},
       claude: {
         base_url: 'https://gateway.example.test',
-        auth_token: 'managed-token',
       },
     });
 
@@ -116,7 +113,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
     expect(agentRuntimeCredentialsResponseSchema.safeParse(withoutRenewal).success).toBe(false);
   });
 
-  it('requires an API key and matching Claude token for renewable credentials', () => {
+  it('requires an API key for renewable credentials', () => {
     const input = {
       harness: 'claude' as const,
       provider_id: 'shipfox',
@@ -128,7 +125,6 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
       renewal: {mode: 'on-rejection' as const},
       claude: {
         base_url: 'https://gateway.example.test',
-        auth_token: 'managed-token',
       },
     };
 
@@ -136,12 +132,6 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
       agentRuntimeCredentialsResponseSchema.safeParse({
         ...input,
         credentials: {authorization: 'managed-token'},
-      }).success,
-    ).toBe(false);
-    expect(
-      agentRuntimeCredentialsResponseSchema.safeParse({
-        ...input,
-        claude: {...input.claude, auth_token: 'different-token'},
       }).success,
     ).toBe(false);
   });
@@ -180,7 +170,6 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
         credentials: {api_key: 'secret'},
         claude: {
           base_url: 'https://gateway.example.test',
-          auth_token: 'managed-token',
         },
       });
 

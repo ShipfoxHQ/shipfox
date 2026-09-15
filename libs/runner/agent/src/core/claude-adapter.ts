@@ -56,7 +56,7 @@ import {
 import {toolSelectionOption} from '#core/tool-selection.js';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
-const OLLAMA_ANTHROPIC_AUTH_TOKEN = 'ollama';
+const OLLAMA_ANTHROPIC_API_KEY = 'ollama';
 const REQUESTED_PERMISSION_MODE = 'bypassPermissions';
 const OUTPUT_MCP_SERVER_NAME = 'shipfox_outputs';
 const MAX_REPOSITORY_INSTRUCTIONS_BYTES = 64 * 1024;
@@ -285,12 +285,11 @@ interface ClaudeAnthropicOverride {
   readonly baseUrl: string;
   readonly model: string | undefined;
   readonly smallFastModel: string | undefined;
-  readonly authToken: string;
+  readonly apiKey: string | undefined;
 }
 
 interface ClaudeAuth {
   readonly apiKey: string;
-  readonly authToken: string | undefined;
 }
 
 async function runClaudeAgent(invocation: HarnessInvocation): Promise<HarnessResult> {
@@ -1509,12 +1508,11 @@ function claudeEnvironment(
   credentialBroker: ClaudeCredentialBroker | undefined,
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {...process.env};
+  delete environment.ANTHROPIC_AUTH_TOKEN;
   if (credentialBroker === undefined) {
     environment.ANTHROPIC_API_KEY = auth.apiKey;
-    if (auth.authToken !== undefined) environment.ANTHROPIC_AUTH_TOKEN = auth.authToken;
   } else {
     delete environment.ANTHROPIC_API_KEY;
-    delete environment.ANTHROPIC_AUTH_TOKEN;
     Object.assign(environment, claudeCredentialHelperEnvironment(credentialBroker), {
       CLAUDE_CODE_API_KEY_HELPER_TTL_MS: String(CLAUDE_CREDENTIAL_HELPER_TTL_MS),
       ANTHROPIC_SMALL_FAST_MODEL: effectiveModel,
@@ -1549,7 +1547,7 @@ function claudeAnthropicOverride(
       baseUrl: runtimeConfig.base_url,
       model: undefined,
       smallFastModel: undefined,
-      authToken: runtimeConfig.auth_token,
+      apiKey: undefined,
     };
   }
 
@@ -1559,7 +1557,7 @@ function claudeAnthropicOverride(
     baseUrl: config.AGENT_CLAUDE_ANTHROPIC_BASE_URL,
     model: config.AGENT_CLAUDE_ANTHROPIC_MODEL,
     smallFastModel: config.AGENT_CLAUDE_ANTHROPIC_SMALL_FAST_MODEL,
-    authToken: OLLAMA_ANTHROPIC_AUTH_TOKEN,
+    apiKey: OLLAMA_ANTHROPIC_API_KEY,
   };
 }
 
@@ -1567,11 +1565,7 @@ function claudeAuth(
   credentials: Record<string, string>,
   override: ClaudeAnthropicOverride | undefined,
 ): ClaudeAuth {
-  if (override !== undefined) {
-    return {apiKey: '', authToken: override.authToken};
-  }
-
-  const apiKey = credentials.api_key;
+  const apiKey = override?.apiKey ?? credentials.api_key;
   if (apiKey === undefined || apiKey === '') {
     throw new AgentConfigError(
       'No credentials configured for provider "anthropic". ' +
@@ -1580,7 +1574,7 @@ function claudeAuth(
     );
   }
 
-  return {apiKey, authToken: undefined};
+  return {apiKey};
 }
 
 function claudeResult(message: SDKResultMessage): HarnessResult {

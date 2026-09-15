@@ -391,7 +391,6 @@ describe('executeAgentStep', () => {
     runClaudeMock.mockResolvedValue({});
     const claude = {
       base_url: 'https://gateway.example.test/v1',
-      auth_token: 'managed-token',
     };
 
     await executeAgentStep(buildAgentStep({config: {prompt: 'p'}}), {

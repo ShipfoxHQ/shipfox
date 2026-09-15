@@ -288,13 +288,11 @@ function appendManagedProviderResponse(
     };
     return;
   }
-  const authToken = managed.runtimeConfig.credentials.api_key;
-  if (authToken === undefined) {
+  if (managed.runtimeConfig.credentials.api_key === undefined) {
     throw new ModelProviderConfigNotFoundError(params.workspaceId, params.provider);
   }
   response.claude = {
     base_url: managedProviderAdapterBaseUrl(clientApi, managed.runtimeConfig.baseUrl),
-    auth_token: authToken,
   };
 }
 
