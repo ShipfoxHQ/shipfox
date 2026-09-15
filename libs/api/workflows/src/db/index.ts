@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 export {
   discardPendingCheckoutRenewalSubject,
   loadCheckoutRenewalSubject,
+  loadPendingCheckoutRenewalSubject,
   promoteCheckoutRenewalSubject,
   type SavePendingCheckoutRenewalSubjectParams,
   savePendingCheckoutRenewalSubject,

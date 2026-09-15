@@ -7,7 +7,10 @@ import type {
   WorkflowRunOriginState,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
-import {loadCheckoutRenewalSubject} from '#db/checkout-renewal-subjects.js';
+import {
+  loadCheckoutRenewalSubject,
+  loadPendingCheckoutRenewalSubject,
+} from '#db/checkout-renewal-subjects.js';
 import {getJobScope, getStepByIdForJobExecution} from '#db/index.js';
 
 export interface LoadedRunningLeasedStep {
@@ -18,7 +21,7 @@ export interface LoadedRunningLeasedStep {
   triggerReference: WorkflowRunTriggerReference | null;
   /** The run's origin state, forwarded for checkout fallbacks. */
   run: WorkflowRunOriginState;
-  /** The server-frozen subject for a successful persisted checkout renewal. */
+  /** The server-frozen subject for an initial replacement or persisted checkout renewal. */
   checkoutRenewalSubject?: CheckoutRenewalSubject;
   /** The capability snapshot captured when the runner claimed this execution. */
   renewableInference?: boolean;
@@ -39,12 +42,28 @@ export async function assertLeasedJobActive(
   return leaseState;
 }
 
+function assertCurrentLeasedStep(params: {
+  leasedJob: LeasedJobContext;
+  stepId: string;
+  attempt: number;
+}): void {
+  if (
+    (params.leasedJob.currentStepId !== undefined &&
+      params.leasedJob.currentStepId !== params.stepId) ||
+    (params.leasedJob.currentStepAttempt !== undefined &&
+      params.leasedJob.currentStepAttempt !== params.attempt)
+  ) {
+    throw new ClientError('Step is not the current leased step', 'step-not-current', {status: 409});
+  }
+}
+
 export async function loadRunningLeasedStep(params: {
   runners: RunnersInterModuleClient;
   request: object;
   stepId: string;
   attempt: number;
   allowSuccessfulPersistedCheckout?: boolean;
+  allowInitialCheckoutCredentialReplacement?: boolean;
 }): Promise<LoadedRunningLeasedStep> {
   const leasedJob = requireLeasedJobContext(params.request);
 
@@ -53,6 +72,12 @@ export async function loadRunningLeasedStep(params: {
     leaseState.renewableInference === undefined
       ? {}
       : {renewableInference: leaseState.renewableInference};
+
+  assertCurrentLeasedStep({
+    leasedJob,
+    stepId: params.stepId,
+    attempt: params.attempt,
+  });
 
   const step = await getStepByIdForJobExecution({
     stepId: params.stepId,
@@ -92,6 +117,15 @@ export async function loadRunningLeasedStep(params: {
     throw new ClientError('Step is not running', 'step-not-running', {status: 409});
   }
 
+  const checkoutRenewalSubject = params.allowInitialCheckoutCredentialReplacement
+    ? await loadPendingCheckoutRenewalSubject({
+        stepId: step.id,
+        attempt: params.attempt,
+        jobExecutionId: leasedJob.jobExecutionId,
+        workflowRunAttemptId: leasedJob.workflowRunAttemptId,
+      })
+    : null;
+
   return {
     leasedJob,
     step,
@@ -99,6 +133,7 @@ export async function loadRunningLeasedStep(params: {
     projectId: scope.projectId,
     triggerReference: scope.triggerReference,
     run: scope.run,
+    ...(checkoutRenewalSubject === null ? {} : {checkoutRenewalSubject}),
     ...renewableInference,
   };
 }
