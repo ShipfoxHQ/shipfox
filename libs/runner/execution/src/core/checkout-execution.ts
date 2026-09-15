@@ -130,24 +130,7 @@ export async function checkoutRepositoryAt(params: {
       value: checkoutPhaseValue({checkout, destination, commit, ambientGitConfig}),
     };
   } catch (error) {
-    const reason =
-      error instanceof CheckoutError ? CHECKOUT_KIND_REASON[error.kind] : 'checkout_failed';
-    if (error instanceof CheckoutError && error.phase) {
-      writeFailure(
-        log,
-        `${scope === 'setup' ? 'Setup' : 'Checkout step'} failed while ${checkoutPhaseAction(error.phase)}.`,
-        checkoutFailureHelp(reason),
-        error,
-      );
-    } else {
-      writeFailure(
-        log,
-        `${scope === 'setup' ? 'Setup' : 'Checkout step'} failed while checking out the repository.`,
-        checkoutFailureHelp(reason),
-        error,
-      );
-    }
-    return {ok: false, result: fail(error, reason)};
+    return checkoutFailureResult({error, log, scope});
   }
 }
 
@@ -369,7 +352,44 @@ function checkoutTokenFailureHelp(reason: StepErrorReasonDto): string {
   return 'Check the repository connection and job permissions in Shipfox, then retry the job.';
 }
 
-function checkoutFailureHelp(reason: StepErrorReasonDto): string {
+function checkoutFailureResult(params: {
+  error: unknown;
+  log: CheckoutLogSink | undefined;
+  scope: CheckoutFailureScope;
+}): {ok: false; result: StepResult} {
+  const reason =
+    params.error instanceof CheckoutError
+      ? CHECKOUT_KIND_REASON[params.error.kind]
+      : 'checkout_failed';
+  const repositoryVisibilityFailure =
+    params.error instanceof CheckoutError && params.error.repositoryVisibilityFailure;
+  writeFailure(
+    params.log,
+    checkoutFailureSummary(params.scope, params.error),
+    checkoutFailureHelp(reason, repositoryVisibilityFailure),
+    params.error,
+  );
+  return {ok: false, result: fail(params.error, reason)};
+}
+
+function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): string {
+  const subject = scope === 'setup' ? 'Setup' : 'Checkout step';
+  if (error instanceof CheckoutError && error.repositoryVisibilityFailure) {
+    return `${subject} failed because GitHub did not expose this repository to the checkout credential.`;
+  }
+  if (error instanceof CheckoutError && error.phase) {
+    return `${subject} failed while ${checkoutPhaseAction(error.phase)}.`;
+  }
+  return `${subject} failed while checking out the repository.`;
+}
+
+function checkoutFailureHelp(
+  reason: StepErrorReasonDto,
+  repositoryVisibilityFailure = false,
+): string {
+  if (repositoryVisibilityFailure) {
+    return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
+  }
   if (reason === 'checkout_auth_failed') {
     return 'Check the repository connection in Shipfox and confirm it has permission to read this repository.';
   }

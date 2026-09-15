@@ -718,6 +718,30 @@ describe('executeSetupStep', () => {
     expectSetupFailureWarning(warn, 'checkout_failed');
   });
 
+  it('explains GitHub repository visibility failures and preserves auth mapping', async () => {
+    const log = fakeLog();
+    const warn = spySetupWarnings();
+    checkoutRepositoryMock.mockRejectedValue(
+      new CheckoutError('auth', 'remote: Repository not found.', {
+        phase: 'fetch',
+        repositoryVisibilityFailure: true,
+      }),
+    );
+
+    const result = await run(log);
+
+    expect(result.result.error?.reason).toBe('checkout_auth_failed');
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Setup failed because GitHub did not expose this repository to the checkout credential. Details: remote: Repository not found.',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.',
+      'stderr',
+    );
+    expectSetupFailureWarning(warn, 'checkout_auth_failed');
+  });
+
   it('maps an unexpected checkout error to checkout_failed', async () => {
     const warn = spySetupWarnings();
     checkoutRepositoryMock.mockRejectedValue(new Error('weird'));
