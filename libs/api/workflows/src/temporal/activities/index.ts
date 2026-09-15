@@ -9,6 +9,7 @@ import {
   evaluateJobActivationsActivity,
   failJobExecutionAsTimedOutActivity,
   failRunAsTimedOutActivity,
+  loadRunAttemptConcurrencyActivity,
   loadRunAttemptDag,
   peekListenerBufferActivity,
   queueJobExecutionActivity,
@@ -29,6 +30,7 @@ export function createOrchestrationActivities(params: {
   secrets: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'>;
 }) {
   return {
+    loadRunAttemptConcurrencyActivity,
     loadRunAttemptDag,
     setRunAttemptStatus,
     setJobStatus,
