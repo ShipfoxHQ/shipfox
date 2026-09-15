@@ -90,9 +90,8 @@ export interface GithubCheckoutTokenSecretStore {
 }
 
 /**
- * Exact-scope cache for credential-only checkout delivery. Checkout specs need
- * the repository metadata returned by the mint and therefore intentionally
- * bypass this credentials-only interface.
+ * Exact-scope cache for checkout credential delivery. Initial checkout specs
+ * resolve canonical repository metadata before using this credential-only result.
  */
 export interface GithubCheckoutTokenCachePort {
   getOrMint(
