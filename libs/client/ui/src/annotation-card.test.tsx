@@ -66,6 +66,17 @@ describe('AnnotationCard', () => {
     expect(container.querySelector('script')).toBeNull();
   });
 
+  test('renders system-generated bodies as plain text', () => {
+    const {container} = renderAnnotationCard({
+      style: 'warning',
+      body: '[Release](https://example.com)',
+      bodyFormat: 'plain-text',
+    });
+
+    expect(screen.getByText('[Release](https://example.com)')).toBeVisible();
+    expect(container.querySelector('a')).toBeNull();
+  });
+
   test('sets dir auto on rendered Markdown', () => {
     const {container} = renderAnnotationCard({style: 'info', body: 'שלום'});
 

@@ -145,6 +145,7 @@ function WorkflowRunSupersededAnnotationContent({
                       ? `Cancelled because ${workflowRunReferenceLabel(reference)} took priority.`
                       : 'Cancelled because a newer workflow run took priority.'
                   }
+                  bodyFormat="plain-text"
                   action={
                     reference && workspaceSlug && projectSlug ? (
                       <Button asChild size="xs" variant="transparent">
