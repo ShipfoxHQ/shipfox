@@ -35,6 +35,7 @@ const TASK_NINE_PATTERN = /Task nine/;
 const SHOW_MORE_PATTERN = /Show \d+ more/;
 const WAITING_EXPLANATION_PATTERN = /This workflow is waiting for/;
 const VIEW_NEWER_RUN_PATTERN = /View newer run/;
+const TOOK_PRIORITY_PATTERN = /took priority/;
 
 describe('WorkflowRunView', () => {
   beforeEach(() => {
@@ -173,6 +174,20 @@ describe('WorkflowRunView', () => {
       ),
     );
     expect(screen.queryByRole('link', {name: VIEW_NEWER_RUN_PATTERN})).not.toBeInTheDocument();
+  });
+
+  test('does not present an acquired concurrency claim as waiting or superseded', async () => {
+    const fetchImpl = configureConcurrencyRunFetch('acquired');
+
+    renderView();
+
+    await screen.findByRole('region', {name: 'Workflow jobs'});
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(WAITING_EXPLANATION_PATTERN)).not.toBeInTheDocument();
+    expect(screen.queryByText(TOOK_PRIORITY_PATTERN)).not.toBeInTheDocument();
+    expect(requestUrls(fetchImpl).map(({pathname}) => pathname)).not.toContain(
+      `/workflows/runs/${RELATED_RUN_ID}/attempts`,
+    );
   });
 
   test.each([
@@ -564,7 +579,7 @@ function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) 
 }
 
 function configureConcurrencyRunFetch(
-  state: 'waiting' | 'superseded',
+  state: 'waiting' | 'superseded' | 'acquired',
   {
     hasReference = true,
     relatedRunStatus = 200,
@@ -578,7 +593,7 @@ function configureConcurrencyRunFetch(
   return configureRunFetch(
     [],
     {
-      status: state === 'waiting' ? 'waiting' : 'cancelled',
+      status: concurrencyStatus(state),
       jobs: [],
       run_attempt: concurrencyAttempt(state, hasReference),
     },
@@ -676,10 +691,10 @@ function relatedRunResourceResponse(path: string, workflowName: string) {
   return undefined;
 }
 
-function concurrencyAttempt(state: 'waiting' | 'superseded', hasReference = true) {
+function concurrencyAttempt(state: 'waiting' | 'superseded' | 'acquired', hasReference = true) {
   return workflowRunAttemptDto({
     workflow_run_id: RUN_ID,
-    status: state === 'waiting' ? 'waiting' : 'cancelled',
+    status: concurrencyStatus(state),
     concurrency: {
       display_group: 'production-deploy',
       scope: 'project',
@@ -696,6 +711,12 @@ function concurrencyAttempt(state: 'waiting' | 'superseded', hasReference = true
         : [],
     },
   });
+}
+
+function concurrencyStatus(state: 'waiting' | 'superseded' | 'acquired') {
+  if (state === 'waiting') return 'waiting' as const;
+  if (state === 'superseded') return 'cancelled' as const;
+  return 'running' as const;
 }
 
 function relatedRunAttemptsResponse() {
