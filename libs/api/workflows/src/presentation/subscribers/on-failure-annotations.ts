@@ -565,10 +565,13 @@ function interruptedToolFailureCopy(step: StepAttemptDetailStep): FailureCopy {
 function providerStreamFailureCopy(error: Record<string, unknown> | null): FailureCopy | undefined {
   if (errorString(error, 'code') !== 'provider_stream_interrupted') return undefined;
 
-  const attemptCount = positiveErrorInteger(error, 'attemptCount') ?? 1;
+  const attemptCount = positiveErrorInteger(error, 'attemptCount');
   return {
     title: 'Model response interrupted',
-    description: `The model response stream was interrupted after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}. Rerun the failed jobs.`,
+    description:
+      attemptCount === undefined
+        ? 'The model response stream was interrupted. Rerun the failed jobs.'
+        : `The model response stream was interrupted after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}. Rerun the failed jobs.`,
   };
 }
 
