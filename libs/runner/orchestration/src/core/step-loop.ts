@@ -1030,10 +1030,7 @@ async function executeAgentStepBranch(params: {
       preparedWorkspace: false,
     };
   }
-  const runtimeSecretValues = [
-    ...Object.values(runtimeConfig.credentials),
-    ...(runtimeConfig.claude !== undefined ? [runtimeConfig.claude.auth_token] : []),
-  ];
+  const runtimeSecretValues = Object.values(runtimeConfig.credentials);
   let inferenceCredentialSource: ReturnType<typeof createInferenceCredentialSource>;
   try {
     inferenceCredentialSource = createStepInferenceCredentialSource(input, runtimeConfigResponse);

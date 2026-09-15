@@ -10,7 +10,6 @@ const credentialValueSchema = z.string().min(1);
 
 export const claudeRuntimeConfigSchema = z.object({
   base_url: z.string().url().max(2048),
-  auth_token: credentialValueSchema,
 });
 
 export type ClaudeRuntimeConfigDto = z.infer<typeof claudeRuntimeConfigSchema>;
@@ -55,17 +54,6 @@ export const agentRuntimeCredentialsResponseSchema = z
           code: 'custom',
           path: ['credentials', 'api_key'],
           message: 'Renewable credentials must include credentials.api_key.',
-        });
-      }
-
-      if (
-        response.claude !== undefined &&
-        response.claude.auth_token !== response.credentials.api_key
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['claude', 'auth_token'],
-          message: 'claude.auth_token must match credentials.api_key.',
         });
       }
     }

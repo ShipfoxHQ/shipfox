@@ -463,9 +463,6 @@ export class RenewableInferenceCredentialSource implements InferenceCredentialSo
     if (token === undefined || token.length === 0) {
       throw new InferenceCredentialProtocolError('Renewable inference credentials lack api_key');
     }
-    if (config.claude !== undefined && config.claude.auth_token !== token) {
-      throw new InferenceCredentialProtocolError('Renewable inference credential aliases differ');
-    }
     const generation = config.generation;
     if (generation === undefined || generation.length === 0 || !hasRenewableMetadata(config)) {
       throw new InferenceCredentialProtocolError(
@@ -630,12 +627,7 @@ function sameRuntimeIdentity(left: RuntimeIdentity, right: RuntimeIdentity): boo
 }
 
 function runtimeSecrets(config: RuntimeConfig): string[] {
-  return [
-    ...new Set([
-      ...Object.values(config.credentials),
-      ...(config.claude === undefined ? [] : [config.claude.auth_token]),
-    ]),
-  ];
+  return [...new Set(Object.values(config.credentials))];
 }
 
 function flattenGenerationSecrets(generations: readonly GenerationSecrets[]): string[] {

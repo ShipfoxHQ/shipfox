@@ -411,8 +411,7 @@ describe('claudeHarnessAdapter', () => {
       options: expect.objectContaining({
         model: 'smollm2:135m-instruct-q2_K',
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: '',
-          ANTHROPIC_AUTH_TOKEN: 'ollama',
+          ANTHROPIC_API_KEY: 'ollama',
           ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
           ANTHROPIC_MODEL: 'smollm2:135m-instruct-q2_K',
           ANTHROPIC_SMALL_FAST_MODEL: 'smollm2:135m-instruct-q2_K',
@@ -433,7 +432,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'workspace-token'},
         claude: {
           base_url: 'https://gateway.example.test/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -447,8 +445,7 @@ describe('claudeHarnessAdapter', () => {
       options: expect.objectContaining({
         model: 'claude-opus-4-8',
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: '',
-          ANTHROPIC_AUTH_TOKEN: 'managed-token',
+          ANTHROPIC_API_KEY: 'workspace-token',
           ANTHROPIC_BASE_URL: 'https://gateway.example.test/v1',
         }),
       }),
@@ -476,7 +473,6 @@ describe('claudeHarnessAdapter', () => {
           credentials: {api_key: 'managed-token'},
           claude: {
             base_url: 'https://inference.shipfox.dev/v1',
-            auth_token: 'managed-token',
           },
           credentialSource,
         }),
@@ -513,7 +509,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -528,8 +523,7 @@ describe('claudeHarnessAdapter', () => {
       options: expect.objectContaining({
         model: 'claude-opus-4-8',
         env: expect.objectContaining({
-          ANTHROPIC_API_KEY: '',
-          ANTHROPIC_AUTH_TOKEN: 'managed-token',
+          ANTHROPIC_API_KEY: 'managed-token',
           ANTHROPIC_BASE_URL: 'https://inference.shipfox.dev/v1',
         }),
       }),
@@ -554,7 +548,7 @@ describe('claudeHarnessAdapter', () => {
       invocation({
         provider: 'shipfox',
         credentials: {api_key: 'managed-token'},
-        claude: {base_url: '', auth_token: ''},
+        claude: {base_url: ''},
       }),
     );
 
@@ -578,7 +572,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -610,7 +603,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -734,10 +726,9 @@ describe('claudeHarnessAdapter', () => {
 
     const result = claudeHarnessAdapter.run(
       invocation({
-        credentials: {},
+        credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://gateway.example.test/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -825,7 +816,6 @@ describe('claudeHarnessAdapter', () => {
         model: 'catalog.model-id',
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );
@@ -978,7 +968,6 @@ describe('claudeHarnessAdapter', () => {
         credentials: {api_key: 'managed-token'},
         claude: {
           base_url: 'https://inference.shipfox.dev/v1',
-          auth_token: 'managed-token',
         },
       }),
     );

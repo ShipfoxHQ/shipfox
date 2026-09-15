@@ -279,7 +279,6 @@ describe('resolveRuntimeCredentials', () => {
       credentials: {api_key: 'managed-token'},
       claude: {
         base_url: 'https://gateway.example.test/inference',
-        auth_token: 'managed-token',
       },
     });
   });
