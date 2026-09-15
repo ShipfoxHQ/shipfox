@@ -286,6 +286,41 @@ describe('mapGithubError', () => {
     });
   });
 
+  it('maps a missing review-thread GraphQL node to a bounded provider rejection', async () => {
+    const error = Object.assign(new Error('GraphQL request failed'), {
+      name: 'GraphqlResponseError',
+      errors: [
+        {
+          type: 'NOT_FOUND',
+          message: "Could not resolve to a node with global id 'PRRT_kwDOExample'",
+        },
+      ],
+    });
+
+    const result = mapGithubError(() => Promise.reject(error), 'provider-rejected', {
+      graphqlNotFound: 'review-thread',
+    });
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'provider-rejected',
+      message:
+        'GitHub review thread was not found. Refresh the current review threads before retrying.',
+    });
+  });
+
+  it('rethrows an unknown GraphQL response error', async () => {
+    const error = Object.assign(new Error('GitHub GraphQL failed'), {
+      name: 'GraphqlResponseError',
+      errors: [{type: 'FORBIDDEN', message: 'The operation is not permitted'}],
+    });
+
+    const result = mapGithubError(() => Promise.reject(error), 'provider-rejected', {
+      graphqlNotFound: 'review-thread',
+    });
+
+    await expect(result).rejects.toBe(error);
+  });
+
   it('maps a request timeout cause to timeout', async () => {
     const timeout = new Error('The operation was aborted due to timeout');
     timeout.name = 'TimeoutError';

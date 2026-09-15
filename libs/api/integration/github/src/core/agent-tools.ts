@@ -251,6 +251,9 @@ async function executeGithubToolOperation(
     const data = await mapGithubError(
       () => executeGithubGraphqlOperation(client, toolId, method, operation.parameters),
       'provider-rejected',
+      toolId === 'pull_request_review_thread_write' && method === 'resolve'
+        ? {graphqlNotFound: 'review-thread'}
+        : {},
     );
     return toolId === 'add_comment_to_pending_review'
       ? pendingReviewCommentResult(data)
