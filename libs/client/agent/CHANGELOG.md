@@ -1,5 +1,12 @@
 # @shipfox/client-agent
 
+## 45.0.1
+
+### Patch Changes
+
+- Updated dependencies [45c9598]
+  - @shipfox/api-agent-dto@27.0.0
+
 ## 45.0.0
 
 ### Patch Changes

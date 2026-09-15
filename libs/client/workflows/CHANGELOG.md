@@ -1,5 +1,14 @@
 # @shipfox/client-workflows
 
+## 45.0.1
+
+### Patch Changes
+
+- @shipfox/api-workflows-dto@27.0.0
+- @shipfox/api-triggers-dto@27.0.0
+- @shipfox/client-projects@45.0.1
+- @shipfox/client-triggers@45.0.1
+
 ## 45.0.0
 
 ### Minor Changes
