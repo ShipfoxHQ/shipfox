@@ -364,7 +364,7 @@ describe('piHarnessAdapter', () => {
     expect(recordPiProviderRetryOutcomeMock).not.toHaveBeenCalled();
   });
 
-  it('keeps a later provider failure out of managed retry classification', async () => {
+  it('closes an interrupted retry sequence without classifying a later provider failure', async () => {
     const entries: string[] = [];
     const terminalError = 'Provider rate limit exceeded';
     subscribeMock.mockImplementation((listener: (event: AgentSessionEvent) => void) => {
@@ -416,6 +416,72 @@ describe('piHarnessAdapter', () => {
         maxAttempts: 3,
         delayMs: 10,
         errorMessage: PROVIDER_STREAM_INTERRUPTED_CODE,
+      }),
+      JSON.stringify({
+        type: 'auto_retry_end',
+        code: PROVIDER_STREAM_INTERRUPTED_CODE,
+        success: false,
+        attempt: 1,
+        finalError: 'provider_retry_failed',
+      }),
+    ]);
+  });
+
+  it('counts an interrupted terminal attempt across a mixed provider retry sequence', async () => {
+    const entries: string[] = [];
+    subscribeMock.mockImplementation((listener: (event: AgentSessionEvent) => void) => {
+      retryEventListener = listener;
+      return () => undefined;
+    });
+    promptMock.mockImplementation(() => {
+      for (const attempt of [1, 2, 3]) {
+        retryEventListener?.({
+          type: 'auto_retry_start',
+          attempt,
+          maxAttempts: 3,
+          delayMs: attempt * 10,
+          errorMessage: 'Provider rate limit exceeded',
+        });
+      }
+      retryEventListener?.({
+        type: 'auto_retry_end',
+        success: false,
+        attempt: 3,
+        finalError: PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+      });
+      sessionMessages.push({
+        role: 'assistant',
+        stopReason: 'error',
+        errorMessage: PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE,
+      });
+      getLastAssistantTextMock.mockReturnValue('');
+    });
+
+    const error = await piHarnessAdapter
+      .run(
+        invocation({
+          provider: 'shipfox',
+          onSessionEntry: (line) => entries.push(line),
+        }),
+      )
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(AgentInvocationError);
+    expect(error).toMatchObject({
+      message: 'The model response stream was interrupted after 4 attempts.',
+      code: PROVIDER_STREAM_INTERRUPTED_CODE,
+      retryable: true,
+      attemptCount: 4,
+      maxAttempts: 4,
+    });
+    expect(recordPiProviderRetryOutcomeMock).toHaveBeenCalledWith('shipfox', 'exhausted');
+    expect(entries).toEqual([
+      JSON.stringify({
+        type: 'auto_retry_end',
+        code: PROVIDER_STREAM_INTERRUPTED_CODE,
+        success: false,
+        attempt: 3,
+        finalError: PROVIDER_STREAM_INTERRUPTED_CODE,
       }),
     ]);
   });

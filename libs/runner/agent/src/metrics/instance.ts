@@ -28,11 +28,10 @@ const piSvgRasterizationDuration = meter.createHistogram<{
 
 const piProviderRetryOutcomeCount = meter.createCounter<{
   provider: string;
-  model: string;
   code: 'provider_stream_interrupted';
   outcome: PiProviderRetryOutcome;
 }>('runner_agent_provider_retries', {
-  description: 'Managed provider retry outcomes by bounded provider, model, code, and outcome',
+  description: 'Managed provider retry outcomes by bounded provider, code, and outcome',
 });
 
 export function recordPiSvgNormalization(
@@ -49,13 +48,11 @@ export function recordPiSvgNormalization(
 
 export function recordPiProviderRetryOutcome(
   provider: string,
-  model: string,
   outcome: PiProviderRetryOutcome,
 ): void {
   try {
     piProviderRetryOutcomeCount.add(1, {
       provider: boundedMetricLabel(provider),
-      model: boundedMetricLabel(model),
       code: 'provider_stream_interrupted',
       outcome,
     });

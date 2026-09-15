@@ -93,6 +93,7 @@ const PI_MCP_CONFIG_ARG_WAIT_TIMEOUT_MS = 30_000;
 const PI_MCP_METADATA_TIMEOUT_MESSAGE = 'Pi integration tool catalog lookup timed out.';
 const CATALOG_TIMEOUT_PATTERN = /timed out|timeout/i;
 const MAX_DIAGNOSTIC_STRING_LENGTH = 256;
+const UNCLASSIFIED_PROVIDER_RETRY_ERROR = 'provider_retry_failed';
 const MANAGED_INFERENCE_HTTP_STATUS_PATTERN =
   /(?:^|[\s(:])(?:status(?:\s+code)?\s*)?(401|403)(?!\d)/iu;
 
@@ -110,11 +111,11 @@ type CustomProviderModel = NonNullable<CustomProviderConfig['models']>[number];
 type ProviderRetryTracker = {
   readonly enabled: boolean;
   readonly provider: string;
-  readonly model: string;
   retries: number;
   maxRetries: number;
   active: boolean;
   observedRetry: boolean;
+  interruptionObserved: boolean;
   outcomeRecorded: boolean;
 };
 
@@ -352,7 +353,6 @@ async function runActivePiSession(
   const retryTracker = createProviderRetryTracker(
     params.invocation.provider === 'shipfox',
     params.invocation.provider,
-    params.invocation.model,
   );
   const unsubscribeRetryEvents = params.session.subscribe?.((event) =>
     observeProviderRetryEvent(event, retryTracker, params),
@@ -454,19 +454,15 @@ async function runPiOutputTurns(
   };
 }
 
-function createProviderRetryTracker(
-  enabled: boolean,
-  provider: string,
-  model: string,
-): ProviderRetryTracker {
+function createProviderRetryTracker(enabled: boolean, provider: string): ProviderRetryTracker {
   return {
     enabled,
     provider,
-    model,
     retries: 0,
     maxRetries: 3,
     active: false,
     observedRetry: false,
+    interruptionObserved: false,
     outcomeRecorded: false,
   };
 }
@@ -477,55 +473,93 @@ function observeProviderRetryEvent(
   params: Pick<Parameters<typeof runPiSession>[0], 'onSessionEntry' | 'signal'>,
 ): void {
   if (!tracker.enabled) return;
+  if (event.type === 'auto_retry_start') {
+    observeProviderRetryStart(event, tracker, params.onSessionEntry);
+    return;
+  }
+  if (event.type === 'auto_retry_end') {
+    observeProviderRetryEnd(event, tracker, params);
+  }
+}
 
-  if (
-    event.type === 'auto_retry_start' &&
-    event.errorMessage === PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE
-  ) {
-    if (!tracker.active) {
-      tracker.retries = 0;
-      tracker.maxRetries = 3;
-      tracker.outcomeRecorded = false;
-    }
-    tracker.active = true;
-    tracker.observedRetry = true;
-    tracker.retries = Math.min(3, Math.max(tracker.retries, event.attempt));
-    tracker.maxRetries = Math.min(3, Math.max(0, event.maxAttempts));
-    forwardBoundedProviderRetryEntry(params.onSessionEntry, {
-      type: 'auto_retry_start',
-      code: PROVIDER_STREAM_INTERRUPTED_CODE,
-      attempt: boundedRetryNumber(event.attempt),
-      maxAttempts: boundedRetryNumber(event.maxAttempts),
-      delayMs: boundedRetryDelay(event.delayMs),
-      errorMessage: PROVIDER_STREAM_INTERRUPTED_CODE,
-    });
+function observeProviderRetryStart(
+  event: Extract<AgentSessionEvent, {type: 'auto_retry_start'}>,
+  tracker: ProviderRetryTracker,
+  onSessionEntry: HarnessInvocation['onSessionEntry'],
+): void {
+  if (!tracker.active) resetProviderRetrySequence(tracker);
+  tracker.active = true;
+  tracker.observedRetry = true;
+  tracker.retries = Math.min(3, Math.max(tracker.retries, event.attempt));
+  tracker.maxRetries = Math.min(3, Math.max(0, event.maxAttempts));
+  if (event.errorMessage !== PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE) return;
+
+  tracker.interruptionObserved = true;
+  forwardBoundedProviderRetryEntry(onSessionEntry, {
+    type: 'auto_retry_start',
+    code: PROVIDER_STREAM_INTERRUPTED_CODE,
+    attempt: boundedRetryNumber(event.attempt),
+    maxAttempts: boundedRetryNumber(event.maxAttempts),
+    delayMs: boundedRetryDelay(event.delayMs),
+    errorMessage: PROVIDER_STREAM_INTERRUPTED_CODE,
+  });
+}
+
+function observeProviderRetryEnd(
+  event: Extract<AgentSessionEvent, {type: 'auto_retry_end'}>,
+  tracker: ProviderRetryTracker,
+  params: Pick<Parameters<typeof runPiSession>[0], 'onSessionEntry' | 'signal'>,
+): void {
+  if (!tracker.active) return;
+
+  tracker.active = false;
+  const terminalInterruption =
+    !event.success &&
+    !params.signal.aborted &&
+    event.finalError === PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE;
+  if (!tracker.interruptionObserved && !terminalInterruption) {
+    resetProviderRetrySequence(tracker);
     return;
   }
 
-  if (event.type !== 'auto_retry_end' || !tracker.active) return;
-
-  tracker.active = false;
-  const isUnclassifiedRetryFailure =
-    !event.success &&
-    !params.signal.aborted &&
-    event.finalError !== PROVIDER_STREAM_INTERRUPTED_RETRY_MESSAGE;
-  if (isUnclassifiedRetryFailure) return;
-  let outcome: 'recovered' | 'exhausted' | 'aborted';
-  if (event.success) outcome = 'recovered';
-  else if (params.signal.aborted) outcome = 'aborted';
-  else outcome = 'exhausted';
-  recordProviderRetryOutcome(tracker, outcome);
+  const outcome = providerRetryOutcome(event.success, params.signal.aborted, terminalInterruption);
+  if (outcome !== undefined) recordProviderRetryOutcome(tracker, outcome);
   forwardBoundedProviderRetryEntry(params.onSessionEntry, {
     type: 'auto_retry_end',
     code: PROVIDER_STREAM_INTERRUPTED_CODE,
     success: event.success,
     attempt: boundedRetryNumber(event.attempt),
-    ...(event.success
-      ? {}
-      : {
-          finalError: outcome === 'aborted' ? 'retry_aborted' : PROVIDER_STREAM_INTERRUPTED_CODE,
-        }),
+    ...(event.success ? {} : {finalError: providerRetryFinalError(outcome)}),
   });
+
+  if (!terminalInterruption) resetProviderRetrySequence(tracker);
+}
+
+function providerRetryOutcome(
+  success: boolean,
+  aborted: boolean,
+  terminalInterruption: boolean,
+): 'recovered' | 'exhausted' | 'aborted' | undefined {
+  if (success) return 'recovered';
+  if (aborted) return 'aborted';
+  return terminalInterruption ? 'exhausted' : undefined;
+}
+
+function providerRetryFinalError(
+  outcome: 'recovered' | 'exhausted' | 'aborted' | undefined,
+): string {
+  if (outcome === 'aborted') return 'retry_aborted';
+  if (outcome === 'exhausted') return PROVIDER_STREAM_INTERRUPTED_CODE;
+  return UNCLASSIFIED_PROVIDER_RETRY_ERROR;
+}
+
+function resetProviderRetrySequence(tracker: ProviderRetryTracker): void {
+  tracker.retries = 0;
+  tracker.maxRetries = 3;
+  tracker.active = false;
+  tracker.observedRetry = false;
+  tracker.interruptionObserved = false;
+  tracker.outcomeRecorded = false;
 }
 
 function forwardBoundedProviderRetryEntry(
@@ -554,7 +588,7 @@ function recordProviderRetryOutcome(
 ): void {
   if (tracker.outcomeRecorded) return;
   tracker.outcomeRecorded = true;
-  recordPiProviderRetryOutcome(tracker.provider, tracker.model, outcome);
+  recordPiProviderRetryOutcome(tracker.provider, outcome);
 }
 
 function providerStreamFailureDetails(tracker: ProviderRetryTracker): {
@@ -610,8 +644,7 @@ function wrapPiOutputError(params: {
       'output_gate_failed',
     );
   }
-  if (params.aborted && params.retryTracker.active) {
-    params.retryTracker.active = false;
+  if (params.aborted && params.retryTracker.active && params.retryTracker.interruptionObserved) {
     recordProviderRetryOutcome(params.retryTracker, 'aborted');
   }
   if (params.error instanceof AgentInvocationError) {
