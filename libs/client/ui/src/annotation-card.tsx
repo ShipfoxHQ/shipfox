@@ -103,6 +103,8 @@ const BODY_CLAMP_FADE =
 type AnnotationCardProps = {
   style: AnnotationStyleDto;
   body: string;
+  /** Whether the body is authored Markdown or system-generated plain text. */
+  bodyFormat?: 'markdown' | 'plain-text' | undefined;
   /** The row's heading, which is the job the annotation came from. */
   title?: string | undefined;
   /** Heading element for the title. Callers own the document outline. */
@@ -128,6 +130,7 @@ type AnnotationCardProps = {
 function AnnotationCard({
   style,
   body,
+  bodyFormat = 'markdown',
   title,
   titleAs: TitleTag = 'h3',
   provenance,
@@ -212,6 +215,7 @@ function AnnotationCard({
           disclosable={disclosable}
           maxBodyHeight={maxBodyHeight}
           rendered={rendered}
+          bodyFormat={bodyFormat}
           expanded={expanded}
           setExpanded={setExpanded}
         />
@@ -254,6 +258,7 @@ function AnnotationBody(props: {
   disclosable: boolean;
   maxBodyHeight: number;
   rendered: string;
+  bodyFormat: NonNullable<AnnotationCardProps['bodyFormat']>;
   expanded: boolean;
   setExpanded: Dispatch<SetStateAction<boolean>>;
 }) {
@@ -273,9 +278,18 @@ function AnnotationBody(props: {
         }
       >
         <div ref={props.contentRef}>
-          <Markdown className={cn(BODY_MEASURE, '[&>*:last-child]:mb-0')}>
-            {props.rendered}
-          </Markdown>
+          {props.bodyFormat === 'plain-text' ? (
+            <p
+              className="max-w-[75ch] whitespace-pre-wrap text-sm leading-20 text-foreground-neutral-base [overflow-wrap:anywhere]"
+              dir="auto"
+            >
+              {props.rendered}
+            </p>
+          ) : (
+            <Markdown className={cn(BODY_MEASURE, '[&>*:last-child]:mb-0')}>
+              {props.rendered}
+            </Markdown>
+          )}
         </div>
       </div>
       {props.disclosable ? (

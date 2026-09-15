@@ -1,11 +1,13 @@
 import {
+  WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT,
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
+  workflowRunAttemptsResponseSchema,
   workflowRunLineageHeadResponseSchema,
   workflowRunOverviewJobsResponseSchema,
   workflowRunOverviewResponseSchema,
   workflowRunSourceResponseSchema,
 } from '@shipfox/api-workflows-dto';
-import {checkedApiRequest} from '@shipfox/client-api';
+import {ApiError, checkedApiRequest} from '@shipfox/client-api';
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -13,10 +15,13 @@ import {
   type UseInfiniteQueryOptions,
   type UseQueryOptions,
   useInfiniteQuery,
+  useQueries,
   useQuery,
 } from '@tanstack/react-query';
 import {
   isWorkflowRunTerminal,
+  type WorkflowRunAttemptIdentity,
+  type WorkflowRunAttemptReference,
   type WorkflowRunLineageHead,
   type WorkflowRunOverview,
   type WorkflowRunOverviewJobPage,
@@ -39,6 +44,13 @@ export const workflowRunOverviewQueryKeys = {
   overview: workflowRunsQueryKeys.overview,
   jobs: workflowRunsQueryKeys.overviewJobs,
   source: workflowRunsQueryKeys.source,
+  concurrencyReference: (identity: WorkflowRunAttemptIdentity) =>
+    [
+      ...workflowRunsQueryKeys.all,
+      'concurrency-reference',
+      identity.workflowRunId,
+      identity.workflowRunAttemptId,
+    ] as const,
 };
 
 type WorkflowRunLineageHeadQueryKey =
@@ -77,6 +89,12 @@ type WorkflowRunSourceQueryOptions = UseQueryOptions<
   Error,
   WorkflowRunSource,
   WorkflowRunSourceQueryKey
+>;
+type WorkflowRunAttemptReferenceQueryOptions = UseQueryOptions<
+  WorkflowRunAttemptReference | null,
+  Error,
+  WorkflowRunAttemptReference | null,
+  ReturnType<typeof workflowRunOverviewQueryKeys.concurrencyReference>
 >;
 
 export interface WorkflowRunLineageHeadQueryInput {
@@ -163,6 +181,88 @@ export function workflowRunOverviewQueryOptions({
 
 export function useWorkflowRunOverviewQuery(input: WorkflowRunOverviewQueryInput) {
   return useQuery(workflowRunOverviewQueryOptions(input));
+}
+
+export function useWorkflowRunAttemptReferenceQueries(
+  identities: readonly WorkflowRunAttemptIdentity[],
+  enabled = true,
+) {
+  return useQueries({
+    queries: identities.map((identity) =>
+      workflowRunAttemptReferenceQueryOptions({identity, enabled}),
+    ),
+  });
+}
+
+export function workflowRunAttemptReferenceQueryOptions({
+  identity,
+  enabled = true,
+}: {
+  identity: WorkflowRunAttemptIdentity;
+  enabled?: boolean | undefined;
+}): WorkflowRunAttemptReferenceQueryOptions {
+  return queryOptions({
+    queryKey: workflowRunOverviewQueryKeys.concurrencyReference(identity),
+    enabled,
+    queryFn: async ({signal}) => {
+      try {
+        return await getWorkflowRunAttemptReference(identity, signal);
+      } catch (error) {
+        if (!signal.aborted) reportWorkflowRunAttemptReferenceFailure(error, identity);
+        throw error;
+      }
+    },
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+}
+
+function reportWorkflowRunAttemptReferenceFailure(
+  error: unknown,
+  identity: WorkflowRunAttemptIdentity,
+): void {
+  if (error instanceof ApiError && error.code !== 'network-error' && error.status < 500) return;
+
+  globalThis.reportError?.(
+    new Error(
+      `Failed to resolve workflow run attempt ${identity.workflowRunAttemptId} for workflow run ${identity.workflowRunId}.`,
+      {cause: error},
+    ),
+  );
+}
+
+async function getWorkflowRunAttemptReference(
+  identity: WorkflowRunAttemptIdentity,
+  signal?: AbortSignal,
+): Promise<WorkflowRunAttemptReference | null> {
+  let cursor: string | null = null;
+  const seenCursors = new Set<string>();
+
+  while (true) {
+    const params = new URLSearchParams({limit: String(WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT)});
+    if (cursor) params.set('cursor', cursor);
+    const page = await checkedApiRequest(
+      workflowRunAttemptsResponseSchema,
+      `/workflows/runs/${identity.workflowRunId}/attempts?${params.toString()}`,
+      {signal},
+    );
+    const attempt = page.items.find((candidate) => candidate.id === identity.workflowRunAttemptId);
+    if (attempt) {
+      const run = await getWorkflowRunOverview(identity.workflowRunId, attempt.attempt, signal);
+      return {
+        ...identity,
+        attempt: attempt.attempt,
+        number: run.number,
+        name: run.name,
+        workflowName: run.workflowName,
+      };
+    }
+
+    cursor = page.next_cursor;
+    if (!cursor || seenCursors.has(cursor)) return null;
+    seenCursors.add(cursor);
+  }
 }
 
 async function getWorkflowRunOverview(

@@ -70,6 +70,10 @@ import {
 import {presentRunJobExplanation} from '../workflow-run-tabs/run-job-explanation.js';
 import {WorkflowSourceContent} from '../workflow-source-panel/index.js';
 import {RunWorkspaceNav} from './run-workspace-nav.js';
+import {
+  WorkflowRunSupersededAnnotation,
+  WorkflowRunWaitingNotice,
+} from './workflow-run-concurrency-presentation.js';
 import {WorkflowRunLargeJobs} from './workflow-run-large-jobs.js';
 import {
   WorkflowRunContentSkeleton,
@@ -810,6 +814,13 @@ function RunViewLayout({
       ) : (
         <WorkflowRunSkeleton />
       )}
+      {shellRun ? (
+        <WorkflowRunWaitingNotice
+          run={shellRun}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+        />
+      ) : null}
       {!activeJobId && newerAttempt && workspaceSlug && projectSlug && shellRun ? (
         <WorkflowRunNewerAttemptBanner
           workspaceSlug={workspaceSlug}
@@ -1096,6 +1107,11 @@ function RunSectionContent({
               </PanelBody>
             </Panel>
           )}
+          <WorkflowRunSupersededAnnotation
+            run={run}
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+          />
         </div>
       </section>
     );

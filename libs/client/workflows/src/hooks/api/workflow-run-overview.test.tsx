@@ -9,8 +9,15 @@ import {configureApiClient} from '@shipfox/client-api';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
+import {
+  workflowRunOverviewResponseDto as fixtureWorkflowRunOverviewResponseDto,
+  runAttemptsResponseDto,
+  workflowRunAttemptDto,
+  workflowRunFixtureDto,
+} from '#test/fixtures/workflow-run.js';
 import {toWorkflowRunOverview} from './workflow-run-mapper.js';
 import {
+  useWorkflowRunAttemptReferenceQueries,
   useWorkflowRunLineageHeadQuery,
   useWorkflowRunOverviewJobsInfiniteQuery,
   useWorkflowRunOverviewQuery,
@@ -35,6 +42,8 @@ const SECOND_JOB_ID = '77777777-7777-4777-8777-777777777777';
 const EXECUTION_ID = '88888888-8888-4888-8888-888888888888';
 const STEP_ID = '99999999-9999-4999-8999-999999999999';
 const STEP_ATTEMPT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const RELATED_RUN_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const RELATED_ATTEMPT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 const CREATED_AT = '2026-06-21T12:00:00.000Z';
 const UPDATED_AT = '2026-06-21T12:01:00.000Z';
@@ -61,6 +70,7 @@ describe('workflow run bounded overview API hooks', () => {
   afterEach(() => {
     cleanup();
     configureApiClient({baseUrl: '', fetchImpl: undefined});
+    vi.unstubAllGlobals();
   });
 
   test('fetches the lineage head and complete overview as separate bounded reads', async () => {
@@ -113,6 +123,128 @@ describe('workflow run bounded overview API hooks', () => {
       defaultExecution: {id: EXECUTION_ID, displayStatus: 'running'},
     });
     expect(job?.displayDuration).toEqual({state: 'live', fromIso: STARTED_AT, kind: 'run'});
+  });
+
+  test('resolves a related attempt UUID to its run label and navigable attempt number', async () => {
+    const attempts = runAttemptsResponseDto({
+      items: [
+        workflowRunAttemptDto({
+          id: RELATED_ATTEMPT_ID,
+          workflow_run_id: RELATED_RUN_ID,
+          attempt: 3,
+          status: 'running',
+        }),
+      ],
+    });
+    const overview = fixtureWorkflowRunOverviewResponseDto(
+      workflowRunFixtureDto({
+        id: RELATED_RUN_ID,
+        number: 42,
+        name: 'release-production',
+        workflow_name: 'Release',
+        current_attempt: 3,
+        latest_attempt: 3,
+        run_attempt: workflowRunAttemptDto({
+          id: RELATED_ATTEMPT_ID,
+          workflow_run_id: RELATED_RUN_ID,
+          attempt: 3,
+          status: 'running',
+        }),
+      }),
+    );
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = new URL(requestInputUrl(input));
+      if (url.pathname.endsWith('/attempts')) return Promise.resolve(jsonResponse(attempts));
+      if (url.pathname.endsWith('/overview')) return Promise.resolve(jsonResponse(overview));
+      return Promise.reject(new Error(`Unexpected request: ${url.pathname}`));
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.data?.attempt).toBe(3));
+    expect(result.current[0]?.data).toEqual({
+      workflowRunId: RELATED_RUN_ID,
+      workflowRunAttemptId: RELATED_ATTEMPT_ID,
+      attempt: 3,
+      number: 42,
+      name: 'release-production',
+      workflowName: 'Release',
+    });
+    expect(requestUrls(fetchImpl)).toEqual([
+      `https://api.example.test/workflows/runs/${RELATED_RUN_ID}/attempts?limit=25`,
+      `https://api.example.test/workflows/runs/${RELATED_RUN_ID}/overview?attempt=3`,
+    ]);
+  });
+
+  test('reports an unexpected related-attempt resolution failure', async () => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse({code: 'server_error'}, {status: 500})),
+    });
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.isError).toBe(true));
+    expect(reportError).toHaveBeenCalledOnce();
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: `Failed to resolve workflow run attempt ${RELATED_ATTEMPT_ID} for workflow run ${RELATED_RUN_ID}.`,
+      }),
+    );
+  });
+
+  test('reports a related-attempt network failure', async () => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+    });
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.isError).toBe(true));
+    expect(reportError).toHaveBeenCalledOnce();
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: `Failed to resolve workflow run attempt ${RELATED_ATTEMPT_ID} for workflow run ${RELATED_RUN_ID}.`,
+      }),
+    );
+  });
+
+  test.each([
+    403, 404,
+  ])('does not report an expected related-attempt %s response', async (status) => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse({code: 'not_found'}, {status})),
+    });
+
+    const {result} = renderWithQueryClient(() =>
+      useWorkflowRunAttemptReferenceQueries([
+        {workflowRunId: RELATED_RUN_ID, workflowRunAttemptId: RELATED_ATTEMPT_ID},
+      ]),
+    );
+
+    await waitFor(() => expect(result.current[0]?.isError).toBe(true));
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   test('does not show an execution count for an idle listening job', () => {

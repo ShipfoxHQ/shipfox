@@ -1,5 +1,5 @@
 import {type Duration, intervalToDuration} from 'date-fns';
-import type {WorkflowRunStatus} from './workflow-run.js';
+import type {WorkflowRunConcurrency, WorkflowRunStatus} from './workflow-run.js';
 
 export type WorkflowRunAttemptDisplayDuration =
   | {state: 'fixed'; elapsed: Duration}
@@ -12,6 +12,7 @@ interface WorkflowRunAttemptSummaryFields {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  concurrency?: WorkflowRunConcurrency | null;
 }
 
 interface WorkflowRunAttemptFields extends WorkflowRunAttemptSummaryFields {
@@ -26,9 +27,11 @@ export class WorkflowRunAttemptSummary {
   createdAt!: string;
   startedAt!: string | null;
   finishedAt!: string | null;
+  concurrency!: WorkflowRunConcurrency | null;
 
   constructor(fields: WorkflowRunAttemptSummaryFields) {
     Object.assign(this, fields);
+    this.concurrency = fields.concurrency ?? null;
   }
 
   get displayDuration(): WorkflowRunAttemptDisplayDuration | null {

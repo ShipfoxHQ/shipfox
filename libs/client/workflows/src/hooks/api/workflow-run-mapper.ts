@@ -17,6 +17,7 @@ import {
   type WorkflowRun,
   WorkflowRunAttempt,
   WorkflowRunAttemptSummary,
+  type WorkflowRunConcurrency,
   type WorkflowRunDevSource,
   type WorkflowRunLineageHead,
   type WorkflowRunListItem,
@@ -119,6 +120,7 @@ export function toWorkflowRunAttempt(dto: WorkflowRunAttemptDto): WorkflowRunAtt
     startedAt: dto.started_at ?? null,
     finishedAt: dto.finished_at ?? null,
     rerunMode: dto.rerun_mode,
+    concurrency: toWorkflowRunConcurrency(dto.concurrency),
   });
 }
 
@@ -310,7 +312,25 @@ export function toWorkflowRunRecord(
       createdAt: dto.created_at,
       startedAt: dto.started_at ?? null,
       finishedAt: dto.finished_at ?? null,
+      concurrency: toWorkflowRunConcurrency(dto.concurrency),
     }),
+  };
+}
+
+function toWorkflowRunConcurrency(
+  concurrency: WorkflowRunResponseDto['concurrency'],
+): WorkflowRunConcurrency | null {
+  if (!concurrency) return null;
+  return {
+    displayGroup: concurrency.display_group,
+    scope: concurrency.scope,
+    state: concurrency.state,
+    generation: concurrency.generation,
+    cancelInProgress: concurrency.policy.cancel_in_progress,
+    affectedAttempts: concurrency.affected_attempts.map((attempt) => ({
+      workflowRunId: attempt.workflow_run_id,
+      workflowRunAttemptId: attempt.workflow_run_attempt_id,
+    })),
   };
 }
 

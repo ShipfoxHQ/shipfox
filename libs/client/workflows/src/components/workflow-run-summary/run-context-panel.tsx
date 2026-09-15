@@ -12,6 +12,7 @@ import {
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {DetailsTabs} from '../details-tabs.js';
 import {WorkflowRunDurationLabel} from '../workflow-run-duration-label.js';
+import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 import type {WorkflowRunSummaryRun} from './workflow-run-summary.js';
 
 export function RunContextPanel({
@@ -48,27 +49,31 @@ export function RunContextPanel({
         </SheetHeader>
         <DetailsTabs cost={usage ? <RunUsageBreakdown runId={run.id} usage={usage} /> : undefined}>
           <SheetBody>
-            <dl className="w-full text-xs text-foreground-neutral-subtle">
-              <div className="flex justify-between gap-inline py-row">
-                <dt>Status</dt>
-                <dd>{run.runAttempt.status}</dd>
-              </div>
-              <div className="flex justify-between gap-inline py-row">
-                <dt>Trigger</dt>
-                <dd className="min-w-0 break-words text-right">{run.triggerDisplayLabel || '—'}</dd>
-              </div>
-              {run.runAttempt.displayDuration ? (
+            <div className="w-full text-xs text-foreground-neutral-subtle">
+              <dl>
                 <div className="flex justify-between gap-inline py-row">
-                  <dt>Duration</dt>
-                  <dd>
-                    <WorkflowRunDurationLabel
-                      duration={run.runAttempt.displayDuration}
-                      hasStarted={hasStarted}
-                    />
+                  <dt>Status</dt>
+                  <dd>{getWorkflowStatusVisual(run.runAttempt.status).label}</dd>
+                </div>
+                <div className="flex justify-between gap-inline py-row">
+                  <dt>Trigger</dt>
+                  <dd className="min-w-0 break-words text-right">
+                    {run.triggerDisplayLabel || '—'}
                   </dd>
                 </div>
-              ) : null}
-            </dl>
+                {run.runAttempt.displayDuration ? (
+                  <div className="flex justify-between gap-inline py-row">
+                    <dt>Duration</dt>
+                    <dd>
+                      <WorkflowRunDurationLabel
+                        duration={run.runAttempt.displayDuration}
+                        hasStarted={hasStarted}
+                      />
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
           </SheetBody>
         </DetailsTabs>
       </SheetContent>

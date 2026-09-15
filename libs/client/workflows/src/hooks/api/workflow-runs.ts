@@ -448,6 +448,7 @@ function buildTempRun({
       createdAt,
       startedAt: null,
       finishedAt: null,
+      concurrency: null,
     }),
   };
 }
