@@ -982,6 +982,51 @@ describe('definition queries', () => {
       expect(outboxRows[0]?.dispatchedAt).toBeNull();
     });
 
+    test('writes the authenticated actor to a manual resolved outbox event', async () => {
+      const actorUserId = crypto.randomUUID();
+      const definition = await upsertDefinition({
+        projectId,
+        workspaceId,
+        actorUserId,
+        configPath: '.shipfox/workflows/manual.yml',
+        name: 'Manual',
+        ...definitionFields('Manual'),
+      });
+
+      const outboxRows = await listOutboxRowsForProject(projectId);
+
+      expect(outboxRows).toHaveLength(1);
+      expect(outboxRows[0]?.payload).toEqual({
+        definitionId: definition.id,
+        projectId: definition.projectId,
+        workspaceId,
+        actorUserId,
+        configPath: definition.configPath,
+        triggers: {},
+      });
+    });
+
+    test('omits the actor from an automated VCS resolved outbox event', async () => {
+      await applyVcsDefinitionsBatch({
+        projectId,
+        workspaceId,
+        ref: 'main',
+        upserts: [
+          {
+            configPath: '.shipfox/workflows/vcs.yml',
+            name: 'VCS',
+            ...definitionFields('VCS'),
+            contentHash: 'vcs-content-hash',
+          },
+        ],
+      });
+
+      const outboxRows = await listOutboxRowsForProject(projectId);
+
+      expect(outboxRows).toHaveLength(1);
+      expect(outboxRows[0]?.payload).not.toHaveProperty('actorUserId');
+    });
+
     test('writes normalized trigger config to the resolved outbox event', async () => {
       const fields = definitionFieldsForDocument({
         name: 'Nightly',

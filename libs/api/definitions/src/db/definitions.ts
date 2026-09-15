@@ -43,6 +43,7 @@ export interface UpsertDefinitionParams {
   workspaceId: string;
   configPath?: string | null | undefined;
   source?: 'manual' | 'vcs' | undefined;
+  actorUserId?: string | undefined;
   name: string;
   document: WorkflowDocument;
   model: WorkflowModel;
@@ -306,6 +307,7 @@ export async function upsertDefinition(
         definitionId: row.id,
         projectId: row.projectId,
         workspaceId: params.workspaceId,
+        ...(params.actorUserId === undefined ? {} : {actorUserId: params.actorUserId}),
         configPath: row.configPath,
         triggers: definitionTriggersFor(row.definition.model),
       },

@@ -11,6 +11,7 @@ export const definitionResolvedEventSchema = z.object({
   definitionId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
   workspaceId: nonEmptyStringSchema,
+  actorUserId: nonEmptyStringSchema.optional(),
   configPath: z.string().nullable(),
   triggers: z.record(z.string(), triggerDtoSchema),
 });
