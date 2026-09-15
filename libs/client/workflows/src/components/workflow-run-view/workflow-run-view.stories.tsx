@@ -22,13 +22,15 @@ import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {type ReactNode, useEffect, useState} from 'react';
 import {expect, userEvent, waitFor, within} from 'storybook/test';
-import {runAttemptsResponseDto} from '#test/fixtures/workflow-run.js';
+import {runAttemptsResponseDto, workflowRunAttemptDto} from '#test/fixtures/workflow-run.js';
 import {WorkflowRunView} from './workflow-run-view.js';
 
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const WORKSPACE_ID = '88888888-8888-4888-8888-888888888888';
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const RUN_ATTEMPT_ID = '22222222-2222-4222-8222-222222222222';
+const RELATED_RUN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const RELATED_ATTEMPT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const RUN_STARTED_AT = '2026-06-26T11:57:00.000Z';
 const RUN_FINISHED_AT = '2026-06-26T11:59:00.000Z';
 const BUILD_JOB_ID = '44444444-4444-4444-8444-00000000000b';
@@ -40,12 +42,15 @@ const DEPLOY_EXECUTION_ID = '77777777-7777-4777-8777-00000000000c';
 const DEPLOY_STEP_ID = '55555555-5555-4555-8555-00000000000c';
 const DEPLOY_ATTEMPT_ID = '66666666-6666-4666-8666-00000000000c';
 const NOTIFY_JOB_ID = '44444444-4444-4444-8444-00000000000d';
+type ConcurrencyStoryState = 'none' | 'waiting' | 'superseded';
+const WAITING_EXPLANATION_PATTERN = /This workflow is waiting for/;
 
 function responseForPath(
   path: string,
   annotations: readonly AnnotationDto[],
   explanations: readonly WorkflowRunJobExplanationDto[],
   workflowSize: 'complete' | 'large',
+  concurrencyState: ConcurrencyStoryState,
 ) {
   if (path === `/workflows/runs/${RUN_ID}/annotations`) {
     return {body: {items: annotations.map(annotationItemDto), next_cursor: null}, status: 200};
@@ -70,11 +75,12 @@ function responseForPath(
     return {body: RUN_ATTEMPTS_RESPONSE, status: 200};
   }
   if (path === `/workflows/runs/${RUN_ID}/head`) {
+    const overview = overviewResponseForConcurrencyState(concurrencyState);
     return {
       body: {
         current_attempt: 1,
         latest_attempt: 1,
-        current_status: 'succeeded',
+        current_status: overview.attempt.status,
         updated_at: RUN_FINISHED_AT,
       },
       status: 200,
@@ -93,9 +99,18 @@ function responseForPath(
   }
   if (path === `/workflows/runs/${RUN_ID}/overview`) {
     return {
-      body: workflowSize === 'large' ? RUN_LARGE_OVERVIEW_RESPONSE : RUN_OVERVIEW_RESPONSE,
+      body:
+        concurrencyState === 'none' && workflowSize === 'large'
+          ? RUN_LARGE_OVERVIEW_RESPONSE
+          : overviewResponseForConcurrencyState(concurrencyState),
       status: 200,
     };
+  }
+  if (path === `/workflows/runs/${RELATED_RUN_ID}/attempts`) {
+    return {body: RELATED_RUN_ATTEMPTS_RESPONSE, status: 200};
+  }
+  if (path === `/workflows/runs/${RELATED_RUN_ID}/overview`) {
+    return {body: RELATED_RUN_OVERVIEW_RESPONSE, status: 200};
   }
   if (path === `/workflows/runs/${RUN_ID}/jobs`) {
     return {body: RUN_LARGE_JOBS_RESPONSE, status: 200};
@@ -104,6 +119,16 @@ function responseForPath(
 }
 
 const RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({items: []});
+const RELATED_RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({
+  items: [
+    workflowRunAttemptDto({
+      id: RELATED_ATTEMPT_ID,
+      workflow_run_id: RELATED_RUN_ID,
+      attempt: 3,
+      status: 'running',
+    }),
+  ],
+});
 const BUILD_OVERVIEW_JOB = overviewJobDto({
   id: BUILD_JOB_ID,
   key: 'build',
@@ -198,6 +223,67 @@ const RUN_LARGE_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
     },
   },
 };
+const RELATED_RUN_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
+  ...RUN_OVERVIEW_RESPONSE,
+  run: {
+    ...RUN_OVERVIEW_RESPONSE.run,
+    id: RELATED_RUN_ID,
+    number: 42,
+    name: 'release-production',
+    workflow_name: 'Release',
+  },
+  attempt: {
+    ...RUN_OVERVIEW_RESPONSE.attempt,
+    id: RELATED_ATTEMPT_ID,
+    workflow_run_id: RELATED_RUN_ID,
+    attempt: 3,
+    status: 'running',
+  },
+};
+
+function overviewResponseForConcurrencyState(
+  state: ConcurrencyStoryState,
+): WorkflowRunOverviewResponseDto {
+  if (state === 'none') return RUN_OVERVIEW_RESPONSE;
+
+  const status = state === 'waiting' ? 'waiting' : 'cancelled';
+  return {
+    ...RUN_OVERVIEW_RESPONSE,
+    attempt: {
+      ...RUN_OVERVIEW_RESPONSE.attempt,
+      status,
+      started_at: null,
+      finished_at: state === 'superseded' ? RUN_FINISHED_AT : null,
+      concurrency: {
+        display_group: 'production-deploy',
+        scope: 'project',
+        state,
+        generation: 8,
+        policy: {cancel_in_progress: false},
+        affected_attempts: [
+          {
+            workflow_run_id: RELATED_RUN_ID,
+            workflow_run_attempt_id: RELATED_ATTEMPT_ID,
+          },
+        ],
+      },
+    },
+    has_started_job_execution: false,
+    jobs: {
+      kind: 'complete',
+      total: RUN_OVERVIEW_RESPONSE.jobs.kind === 'complete' ? RUN_OVERVIEW_RESPONSE.jobs.total : 0,
+      items:
+        RUN_OVERVIEW_RESPONSE.jobs.kind === 'complete'
+          ? RUN_OVERVIEW_RESPONSE.jobs.items.map((job) => ({
+              ...job,
+              status: state === 'waiting' ? 'pending' : 'cancelled',
+              status_reason: state === 'superseded' ? 'concurrency_superseded' : null,
+              default_execution: null,
+            }))
+          : [],
+    },
+  };
+}
 const RUN_LARGE_JOBS_RESPONSE = {
   items: [BUILD_JOB_SUMMARY, DEPLOY_JOB_SUMMARY, NOTIFY_JOB_SUMMARY],
   next_cursor: null,
@@ -496,6 +582,9 @@ const withRunApi: Decorator = (Story, context) => (
     }
     workflowSize={context.parameters.workflowSize === 'large' ? 'large' : 'complete'}
     includeUsage={context.parameters.includeUsage === true}
+    concurrencyState={
+      (context.parameters.concurrencyState as ConcurrencyStoryState | undefined) ?? 'none'
+    }
   >
     <Story />
   </RunWorkspaceStoryProviders>
@@ -538,6 +627,30 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const WideViewport: Story = {};
+
+export const WaitingForConcurrency: Story = {
+  parameters: {concurrencyState: 'waiting'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText(WAITING_EXPLANATION_PATTERN)).toBeVisible();
+    await expect(
+      await canvas.findByRole('link', {name: 'Release run #42, attempt 3'}),
+    ).toBeVisible();
+  },
+};
+
+export const SupersededByConcurrency: Story = {
+  parameters: {concurrencyState: 'superseded'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText('Cancelled because a newer workflow run took priority.'),
+    ).toBeVisible();
+    await expect(
+      await canvas.findByRole('link', {name: 'View newer run: Release run #42, attempt 3'}),
+    ).toBeVisible();
+  },
+};
 
 /**
  * The annotations section in the page frame it actually ships in.
@@ -612,12 +725,14 @@ function RunWorkspaceStoryProviders({
   explanations,
   workflowSize,
   includeUsage,
+  concurrencyState,
   children,
 }: {
   annotations: AnnotationDto[];
   explanations: WorkflowRunJobExplanationDto[];
   workflowSize: 'complete' | 'large';
   includeUsage: boolean;
+  concurrencyState: ConcurrencyStoryState;
   children: ReactNode;
 }) {
   const [queryClient] = useState(
@@ -634,7 +749,13 @@ function RunWorkspaceStoryProviders({
         else if (input instanceof URL) url = input.href;
         else url = String(input);
         const path = new URL(url, 'https://api.example.test').pathname;
-        const response = responseForPath(path, annotations, explanations, workflowSize);
+        const response = responseForPath(
+          path,
+          annotations,
+          explanations,
+          workflowSize,
+          concurrencyState,
+        );
         return new Response(JSON.stringify(response.body), {
           status: response.status,
           headers: {'content-type': 'application/json'},
@@ -649,7 +770,7 @@ function RunWorkspaceStoryProviders({
     return () => {
       resetApiClient();
     };
-  }, [annotations, explanations, includeUsage, queryClient, workflowSize]);
+  }, [annotations, concurrencyState, explanations, includeUsage, queryClient, workflowSize]);
 
   if (!configured) return null;
 

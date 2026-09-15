@@ -2,4 +2,4 @@
 "@shipfox/client-workflows": minor
 ---
 
-Shows workflow concurrency groups, project scope, and related holder or superseding runs in run details.
+Explains waiting workflow runs at the top of the run and queue-priority cancellations as annotations.

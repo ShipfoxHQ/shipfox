@@ -19,17 +19,13 @@ import {
   runAttemptsResponseDto,
   workflowJobDto,
   workflowRunAttemptDto,
-  workflowRunFixtureDto,
   workflowRunOverview,
-  workflowRunOverviewResponseDto,
 } from '#test/fixtures/workflow-run.js';
 import {WorkflowRunSummary} from './workflow-run-summary.js';
 
 const ROOT_RUN_ID = '11111111-1111-4111-8111-111111111111';
 const CURRENT_RUN_ID = '22222222-2222-4222-8222-222222222222';
 const NEXT_RUN_ID = '33333333-3333-4333-8333-333333333333';
-const RELATED_RUN_ID = '44444444-4444-4444-8444-444444444444';
-const RELATED_ATTEMPT_ID = '55555555-5555-4555-8555-555555555555';
 const SWITCH_ATTEMPT_PATTERN = /Switch attempt/;
 const ATTEMPT_3_PATTERN = /Attempt 3/;
 const STORYBOOK_NOW = '2026-06-26T12:00:00.000Z';
@@ -115,81 +111,6 @@ function AttemptApiProvider({children}: {children: ReactNode}) {
     return () => {
       resetApiClient();
     };
-  }, []);
-
-  if (!configured) return null;
-  return children;
-}
-
-const withConcurrencyApi: Decorator = (Story) => {
-  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-  const rootRoute = createRootRoute({component: Outlet});
-  const runRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
-    component: () => <Story />,
-  });
-  const router = createRouter({
-    history: createMemoryHistory({
-      initialEntries: [`/w/acme/p/project/runs/${CURRENT_RUN_ID}`],
-    }),
-    routeTree: rootRoute.addChildren([runRoute]),
-  });
-
-  return (
-    <ConcurrencyApiProvider>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </ConcurrencyApiProvider>
-  );
-};
-
-function ConcurrencyApiProvider({children}: {children: ReactNode}) {
-  const [configured, setConfigured] = useState(false);
-
-  useEffect(() => {
-    const attempts = runAttemptsResponseDto({
-      items: [
-        workflowRunAttemptDto({
-          id: RELATED_ATTEMPT_ID,
-          workflow_run_id: RELATED_RUN_ID,
-          attempt: 3,
-          status: 'running',
-        }),
-      ],
-    });
-    const overview = workflowRunOverviewResponseDto(
-      workflowRunFixtureDto({
-        id: RELATED_RUN_ID,
-        number: 42,
-        name: 'release-production',
-        workflow_name: 'Release',
-        current_attempt: 3,
-        latest_attempt: 3,
-        run_attempt: workflowRunAttemptDto({
-          id: RELATED_ATTEMPT_ID,
-          workflow_run_id: RELATED_RUN_ID,
-          attempt: 3,
-          status: 'running',
-        }),
-      }),
-    );
-    configureApiClient({
-      baseUrl: 'https://api.example.test',
-      fetchImpl: (input) => {
-        const url = new URL(input instanceof Request ? input.url : String(input));
-        const body = url.pathname.endsWith('/attempts') ? attempts : overview;
-        return Promise.resolve(
-          new Response(JSON.stringify(body), {
-            headers: {'content-type': 'application/json'},
-          }),
-        );
-      },
-    });
-    setConfigured(true);
-
-    return () => resetApiClient();
   }, []);
 
   if (!configured) return null;
@@ -337,42 +258,6 @@ export const Statuses: Story = {
       await expect(buttonBounds.height).toBe(24);
       await expect(buttonBounds.top).toBe(headingBounds?.top);
     }
-  },
-};
-
-export const ConcurrencyDetailsOpen: Story = {
-  decorators: [withConcurrencyApi],
-  args: {
-    workspaceSlug: 'acme',
-    projectSlug: 'project',
-    run: workflowRunOverview({
-      id: CURRENT_RUN_ID,
-      status: 'waiting',
-      name: 'deploy-web',
-      run_attempt: workflowRunAttemptDto({
-        workflow_run_id: CURRENT_RUN_ID,
-        status: 'waiting',
-        concurrency: {
-          display_group: 'production-deploy',
-          scope: 'project',
-          state: 'waiting',
-          generation: 8,
-          policy: {cancel_in_progress: false},
-          affected_attempts: [
-            {
-              workflow_run_id: RELATED_RUN_ID,
-              workflow_run_attempt_id: RELATED_ATTEMPT_ID,
-            },
-          ],
-        },
-      }),
-    }),
-  },
-  play: async (ctx) => {
-    const body = within(ctx.canvasElement.ownerDocument.body);
-    await userEvent.click(await body.findByRole('button', {name: 'Inspect run details'}));
-    await body.findByRole('link', {name: 'Release run #42, attempt 3'});
-    await argosScreenshot(ctx, 'Workflow Run Concurrency Details Open');
   },
 };
 

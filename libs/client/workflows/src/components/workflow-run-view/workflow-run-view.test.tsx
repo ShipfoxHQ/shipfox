@@ -7,8 +7,10 @@ import {configureApiClient} from '@shipfox/client-api';
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
+  runAttemptsResponseDto,
   workflowJobDto,
   workflowJobExecutionDto,
+  workflowRunAttemptDto,
   workflowRunFixtureDto,
   workflowRunOverviewResponseDto,
   workflowStepAttemptDto,
@@ -18,6 +20,8 @@ import {jsonResponse, PROJECT_TEST_WSLUG, renderProjectPage} from '#test/pages.j
 import {WorkflowRunView} from './workflow-run-view.js';
 
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
+const RELATED_RUN_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const RELATED_ATTEMPT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const BUILD_JOB_ID = '77777777-7777-4777-8777-777777777777';
 const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888888';
@@ -29,6 +33,7 @@ const ANNOTATION_ID_ONE = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001';
 const ANNOTATION_ID_TWO = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
 const TASK_NINE_PATTERN = /Task nine/;
 const SHOW_MORE_PATTERN = /Show \d+ more/;
+const WAITING_EXPLANATION_PATTERN = /This workflow is waiting for/;
 
 describe('WorkflowRunView', () => {
   beforeEach(() => {
@@ -77,6 +82,51 @@ describe('WorkflowRunView', () => {
       'bg-background-neutral-base',
     );
     expect(screen.queryByRole('tab', {name: 'Jobs'})).not.toBeInTheDocument();
+  });
+
+  test('explains a waiting run at workflow level and links to the holder', async () => {
+    const fetchImpl = configureRunFetch([], {
+      status: 'waiting',
+      jobs: [],
+      run_attempt: concurrencyAttempt('waiting'),
+    });
+
+    renderView();
+
+    expect(await screen.findByText(WAITING_EXPLANATION_PATTERN)).toBeVisible();
+    await waitFor(() =>
+      expect(requestUrls(fetchImpl).map(({pathname}) => pathname)).toEqual(
+        expect.arrayContaining([
+          `/workflows/runs/${RELATED_RUN_ID}/attempts`,
+          `/workflows/runs/${RELATED_RUN_ID}/overview`,
+        ]),
+      ),
+    );
+    expect(await screen.findByRole('link', {name: 'Release run #42, attempt 3'})).toHaveAttribute(
+      'href',
+      expect.stringContaining(`/runs/${RELATED_RUN_ID}`),
+    );
+
+    await userEvent.click(screen.getByRole('button', {name: 'Inspect run details'}));
+    expect(screen.queryByText('Concurrency')).not.toBeInTheDocument();
+  });
+
+  test('presents a queue-priority cancellation as an annotation below the graph', async () => {
+    configureRunFetch([], {
+      status: 'cancelled',
+      jobs: [],
+      run_attempt: concurrencyAttempt('superseded'),
+    });
+
+    renderView();
+
+    expect(
+      await screen.findByText('Cancelled because a newer workflow run took priority.'),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole('link', {name: 'View newer run: Release run #42, attempt 3'}),
+    ).toHaveAttribute('href', expect.stringContaining(`/runs/${RELATED_RUN_ID}`));
+    expect(screen.queryByText(WAITING_EXPLANATION_PATTERN)).not.toBeInTheDocument();
   });
 
   test.each([
@@ -486,6 +536,8 @@ function configureRunFetch(
     const url = new URL(requestUrl(input), 'https://api.example.test');
     const path = url.pathname;
     const detail = workflowRunViewDetailDto(runOverrides);
+    const relatedRunResponse = relatedRunResourceResponse(path);
+    if (relatedRunResponse) return Promise.resolve(jsonResponse(relatedRunResponse));
     if (path === `/workflows/runs/${RUN_ID}/annotations`) {
       return Promise.resolve(
         jsonResponse({
@@ -503,31 +555,98 @@ function configureRunFetch(
     if (path === '/annotations/summary') {
       return Promise.resolve(jsonResponse(annotationSummaryDto(annotations)));
     }
-    if (path === `/workflows/runs/${RUN_ID}/source`) {
-      return Promise.resolve(
-        jsonResponse(
-          sourceSnapshot
-            ? {
-                kind: 'available',
-                workflow_run_id: RUN_ID,
-                workflow_run_attempt: detail.run_attempt.attempt,
-                source_snapshot: sourceSnapshot,
-              }
-            : {
-                kind: 'unavailable',
-                workflow_run_id: RUN_ID,
-                workflow_run_attempt: detail.run_attempt.attempt,
-                reason: detail.origin === 'dev' ? 'temporary_run' : 'pre_snapshot_run',
-              },
-        ),
-      );
-    }
+    const sourceResponse = workflowRunSourceResponse(path, detail, sourceSnapshot);
+    if (sourceResponse) return Promise.resolve(jsonResponse(sourceResponse));
     return Promise.resolve(jsonResponse(runResourceResponse(path, detail)));
   });
   configureApiClient({
     fetchImpl,
   });
   return fetchImpl;
+}
+
+function workflowRunSourceResponse(
+  path: string,
+  detail: ReturnType<typeof workflowRunFixtureDto>,
+  sourceSnapshot: {format: 'yaml'; content: string} | undefined,
+) {
+  if (path !== `/workflows/runs/${RUN_ID}/source`) return undefined;
+  if (sourceSnapshot) {
+    return {
+      kind: 'available' as const,
+      workflow_run_id: RUN_ID,
+      workflow_run_attempt: detail.run_attempt.attempt,
+      source_snapshot: sourceSnapshot,
+    };
+  }
+  return {
+    kind: 'unavailable' as const,
+    workflow_run_id: RUN_ID,
+    workflow_run_attempt: detail.run_attempt.attempt,
+    reason: detail.origin === 'dev' ? ('temporary_run' as const) : ('pre_snapshot_run' as const),
+  };
+}
+
+function relatedRunResourceResponse(path: string) {
+  if (path === `/workflows/runs/${RELATED_RUN_ID}/attempts`) {
+    return relatedRunAttemptsResponse();
+  }
+  if (path === `/workflows/runs/${RELATED_RUN_ID}/overview`) {
+    return relatedRunOverviewResponse();
+  }
+  return undefined;
+}
+
+function concurrencyAttempt(state: 'waiting' | 'superseded') {
+  return workflowRunAttemptDto({
+    workflow_run_id: RUN_ID,
+    status: state === 'waiting' ? 'waiting' : 'cancelled',
+    concurrency: {
+      display_group: 'production-deploy',
+      scope: 'project',
+      state,
+      generation: 8,
+      policy: {cancel_in_progress: false},
+      affected_attempts: [
+        {
+          workflow_run_id: RELATED_RUN_ID,
+          workflow_run_attempt_id: RELATED_ATTEMPT_ID,
+        },
+      ],
+    },
+  });
+}
+
+function relatedRunAttemptsResponse() {
+  return runAttemptsResponseDto({
+    items: [
+      workflowRunAttemptDto({
+        id: RELATED_ATTEMPT_ID,
+        workflow_run_id: RELATED_RUN_ID,
+        attempt: 3,
+        status: 'running',
+      }),
+    ],
+  });
+}
+
+function relatedRunOverviewResponse() {
+  return workflowRunOverviewResponseDto(
+    workflowRunFixtureDto({
+      id: RELATED_RUN_ID,
+      number: 42,
+      name: 'release-production',
+      workflow_name: 'Release',
+      current_attempt: 3,
+      latest_attempt: 3,
+      run_attempt: workflowRunAttemptDto({
+        id: RELATED_ATTEMPT_ID,
+        workflow_run_id: RELATED_RUN_ID,
+        attempt: 3,
+        status: 'running',
+      }),
+    }),
+  );
 }
 
 function jobExplanationsPage(
