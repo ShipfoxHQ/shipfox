@@ -269,12 +269,15 @@ function userToolResult(id: string, isError = false) {
 
 let testCwd = '';
 let previousAnthropicApiKey: string | undefined;
+let previousAnthropicAuthToken: string | undefined;
 
 describe('claudeHarnessAdapter', () => {
   beforeEach(() => {
     testCwd = mkdtempSync(join(tmpdir(), 'shipfox-claude-adapter-'));
     previousAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
+    previousAnthropicAuthToken = process.env.ANTHROPIC_AUTH_TOKEN;
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
     queryMock.mockReset();
     toolMock.mockClear();
     createSdkMcpServerMock.mockClear();
@@ -288,6 +291,8 @@ describe('claudeHarnessAdapter', () => {
   afterEach(() => {
     if (previousAnthropicApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = previousAnthropicApiKey;
+    if (previousAnthropicAuthToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN;
+    else process.env.ANTHROPIC_AUTH_TOKEN = previousAnthropicAuthToken;
     rmSync(testCwd, {recursive: true, force: true});
   });
 
@@ -744,6 +749,7 @@ describe('claudeHarnessAdapter', () => {
 
   it('passes Claude options, thinking effort, and child-process environment to query', async () => {
     process.env.ANTHROPIC_API_KEY = 'sk-parent';
+    process.env.ANTHROPIC_AUTH_TOKEN = 'parent-auth-token';
     queryMock.mockReturnValue(makeQuery([successMessage]));
 
     await claudeHarnessAdapter.run(
@@ -778,6 +784,7 @@ describe('claudeHarnessAdapter', () => {
     });
     const env = lastQueryOptions().env;
     expect(env.CLAUDE_CONFIG_DIR).toMatch(`${testCwd}/runner-agent/claude-config-`);
+    expect(env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN');
     expect(lastQueryOptions()).not.toHaveProperty('tools');
     expect(lastQueryOptions().mcpServers).toBeUndefined();
   });

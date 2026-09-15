@@ -113,7 +113,7 @@ describe('agentRuntimeCredentialsResponseSchema', () => {
     expect(agentRuntimeCredentialsResponseSchema.safeParse(withoutRenewal).success).toBe(false);
   });
 
-  it('requires an API key and matching Claude token for renewable credentials', () => {
+  it('requires an API key for renewable credentials', () => {
     const input = {
       harness: 'claude' as const,
       provider_id: 'shipfox',
