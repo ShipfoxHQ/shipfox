@@ -291,6 +291,68 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutCredentials).not.toHaveBeenCalled();
   });
 
+  test('replaces an initial credential from the matching pending subject', async () => {
+    const {project, job, step} = await createRunningCheckoutStep();
+    getProjectById.mockResolvedValue({project});
+    resolveCheckoutTarget.mockResolvedValue({
+      projectId: project.id,
+      connectionId: project.sourceConnectionId,
+      target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+    });
+    createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
+    const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const initial = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+    expect(initial.statusCode).toBe(200);
+
+    createCheckoutCredentials.mockResolvedValue({
+      username: 'x-access-token',
+      token: 'ghs-replacement-token',
+      expiresAt: '2099-06-10T12:00:00.000Z',
+      generation: 'generation-2',
+      renewal: {mode: 'on-rejection'},
+    });
+    const replacement = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(replacement.statusCode).toBe(200);
+    expect(replacement.json()).toEqual({
+      repository_url: 'https://github.com/acme/repo',
+      ref: 'HEAD',
+      fetch_depth: 1,
+      auth: {
+        kind: 'basic',
+        username: 'x-access-token',
+        token: 'ghs-replacement-token',
+        expires_at: '2099-06-10T12:00:00.000Z',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+        generation: 'generation-2',
+        renewal: {mode: 'on-rejection'},
+      },
+    });
+    expect(createCheckoutSpec).toHaveBeenCalledTimes(1);
+    expect(createCheckoutCredentials).toHaveBeenCalledWith({
+      workspaceId: project.workspaceId,
+      connectionId: project.sourceConnectionId,
+      externalRepositoryId: project.sourceExternalRepositoryId,
+      permissions: {contents: 'read'},
+      rejectedGeneration: 'generation-1',
+    });
+  });
+
   test('does not mint credentials when the lease expires before issuance', async () => {
     const {project, job, step} = await createRunningCheckoutStep();
     getProjectById.mockResolvedValue({project});

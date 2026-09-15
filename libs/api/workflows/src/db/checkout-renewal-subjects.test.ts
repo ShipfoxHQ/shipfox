@@ -3,6 +3,7 @@ import {normalizeRepositoryUrl} from '#core/entities/checkout-renewal-subject.js
 import {CheckoutRepositoryUrlInvalidError} from '#core/errors.js';
 import {
   loadCheckoutRenewalSubject,
+  loadPendingCheckoutRenewalSubject,
   promoteCheckoutRenewalSubject,
   savePendingCheckoutRenewalSubject,
 } from '#db/checkout-renewal-subjects.js';
@@ -12,6 +13,7 @@ import {jobExecutions} from '#db/schema/job-executions.js';
 import {jobs} from '#db/schema/jobs.js';
 import {stepAttempts} from '#db/schema/step-attempts.js';
 import {steps} from '#db/schema/steps.js';
+import {workflowRuns} from '#db/schema/workflow-runs.js';
 import {
   bulkUpdateStepStatuses,
   finishStepAttempt,
@@ -126,6 +128,90 @@ describe('checkout renewal subjects', () => {
     expect(() => normalizeRepositoryUrl('not-a-repository-url')).toThrow(
       CheckoutRepositoryUrlInvalidError,
     );
+  });
+
+  test('loads a pending subject only for the current running lease scope', async () => {
+    const fixture = await checkoutFixture();
+    const pending = subject(fixture);
+    expect(await savePendingCheckoutRenewalSubject(pending)).toBe(true);
+
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt,
+        jobExecutionId: fixture.execution.id,
+        workflowRunAttemptId: fixture.job.workflowRunAttemptId,
+      }),
+    ).resolves.toEqual({
+      repositoryUrl: pending.repositoryUrl,
+      connectionId: pending.connectionId,
+      externalRepositoryId: pending.externalRepositoryId,
+      permissions: pending.permissions,
+      stepId: fixture.step.id,
+      attempt: fixture.step.currentAttempt,
+    });
+
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt,
+        jobExecutionId: crypto.randomUUID(),
+        workflowRunAttemptId: fixture.job.workflowRunAttemptId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt,
+        jobExecutionId: fixture.execution.id,
+        workflowRunAttemptId: crypto.randomUUID(),
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt + 1,
+        jobExecutionId: fixture.execution.id,
+        workflowRunAttemptId: fixture.job.workflowRunAttemptId,
+      }),
+    ).resolves.toBeNull();
+
+    await db().update(steps).set({status: 'succeeded'}).where(eq(steps.id, fixture.step.id));
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt,
+        jobExecutionId: fixture.execution.id,
+        workflowRunAttemptId: fixture.job.workflowRunAttemptId,
+      }),
+    ).resolves.toBeNull();
+
+    await db().update(steps).set({status: 'running'}).where(eq(steps.id, fixture.step.id));
+    await db()
+      .update(workflowRuns)
+      .set({currentAttempt: 2})
+      .where(eq(workflowRuns.id, fixture.run.id));
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt,
+        jobExecutionId: fixture.execution.id,
+        workflowRunAttemptId: fixture.job.workflowRunAttemptId,
+      }),
+    ).resolves.toBeNull();
+
+    await db()
+      .update(checkoutRenewalSubjects)
+      .set({status: 'promoted', promotedAt: new Date()})
+      .where(eq(checkoutRenewalSubjects.stepId, fixture.step.id));
+    await expect(
+      loadPendingCheckoutRenewalSubject({
+        stepId: fixture.step.id,
+        attempt: fixture.step.currentAttempt,
+        jobExecutionId: fixture.execution.id,
+        workflowRunAttemptId: fixture.job.workflowRunAttemptId,
+      }),
+    ).resolves.toBeNull();
   });
 
   test('promotes one frozen subject after the matching attempt succeeds', async () => {
