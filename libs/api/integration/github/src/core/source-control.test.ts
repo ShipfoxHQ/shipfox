@@ -553,7 +553,18 @@ describe('GithubSourceControlProvider', () => {
 
   it('creates a name-target checkout spec from canonical metadata before minting', async () => {
     await createInstallation();
+    let resolveMetadata!: (value: {
+      repositories: GithubRepository[];
+      nextCursor: string | null;
+    }) => void;
+    const metadata = new Promise<{
+      repositories: GithubRepository[];
+      nextCursor: string | null;
+    }>((resolve) => {
+      resolveMetadata = resolve;
+    });
     const github = githubClient({
+      listInstallationRepositories: vi.fn(() => metadata),
       createInstallationAccessToken: vi.fn(() =>
         Promise.resolve({
           token: 'ghs_name_target_token',
@@ -574,11 +585,17 @@ describe('GithubSourceControlProvider', () => {
     });
     const provider = new GithubSourceControlProvider(github);
 
-    const result = await provider.createCheckoutSpec({
+    const resultPromise = provider.createCheckoutSpec({
       connection: connection(),
       target: {kind: 'name', owner: 'shipfox', name: 'platform'},
       permissions: {contents: 'read'},
     });
+
+    await vi.waitFor(() => expect(github.listInstallationRepositories).toHaveBeenCalledOnce());
+    expect(github.createInstallationAccessToken).not.toHaveBeenCalled();
+
+    resolveMetadata({repositories: [CHECKOUT_REPOSITORY], nextCursor: null});
+    const result = await resultPromise;
 
     expect(result.repositoryUrl).toBe('https://github.com/shipfox/platform.git');
     expect(result.ref).toBe('main');
@@ -592,6 +609,53 @@ describe('GithubSourceControlProvider', () => {
       installationId,
       limit: 100,
       cursor: undefined,
+    });
+  });
+
+  it('resolves a name target after the first five metadata pages', async () => {
+    await createInstallation();
+    const pages: Array<{
+      repositories: GithubRepository[];
+      nextCursor: string | null;
+    }> = Array.from({length: 5}, (_, index) => ({
+      repositories: [
+        {
+          ...CHECKOUT_REPOSITORY,
+          id: 100 + index,
+          name: `other-${index}`,
+          fullName: `shipfox/other-${index}`,
+        },
+      ],
+      nextCursor: `page-${index + 2}`,
+    }));
+    pages.push({repositories: [CHECKOUT_REPOSITORY], nextCursor: null});
+    const listInstallationRepositories = vi.fn(({cursor}: {cursor?: string | undefined}) => {
+      const pageIndex =
+        cursor === undefined ? 0 : Number.parseInt(cursor.replace('page-', ''), 10) - 1;
+      return Promise.resolve(pages[pageIndex] ?? {repositories: [], nextCursor: null});
+    });
+    const github = githubClient({listInstallationRepositories});
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.createCheckoutSpec({
+      connection: connection(),
+      target: {kind: 'name', owner: 'SHIPFOX', name: 'PLATFORM'},
+    });
+
+    expect(result.repositoryUrl).toBe(CHECKOUT_REPOSITORY.cloneUrl);
+    expect(github.listInstallationRepositories).toHaveBeenCalledTimes(6);
+    expect(listInstallationRepositories.mock.calls.map(([request]) => request?.cursor)).toEqual([
+      undefined,
+      'page-2',
+      'page-3',
+      'page-4',
+      'page-5',
+      'page-6',
+    ]);
+    expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
+      installationId,
+      repositoryId: 42,
+      permissions: {contents: 'read'},
     });
   });
 

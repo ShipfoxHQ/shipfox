@@ -364,7 +364,7 @@ export class GithubSourceControlProvider
     }
 
     let cursor: string | undefined;
-    for (let page = 0; page < SEARCH_MAX_PAGES_PER_REQUEST; page += 1) {
+    while (true) {
       const repositories = await this.github.listInstallationRepositories({
         installationId,
         limit: SEARCH_PAGE_SIZE,
