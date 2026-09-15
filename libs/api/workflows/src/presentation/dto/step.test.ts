@@ -81,6 +81,37 @@ describe('fromStepErrorDto', () => {
     });
   });
 
+  it('derives the provider category from the explicit interruption code', () => {
+    const persisted = fromStepErrorDto({
+      message: 'The model response stream was interrupted after 4 attempts.',
+      code: 'provider_stream_interrupted',
+      reason: 'agent_invocation_failed',
+      retryable: true,
+      attempt_count: 4,
+      max_attempts: 4,
+    });
+
+    expect(toStepDto(step({type: 'agent', error: persisted})).error).toEqual({
+      message: 'The model response stream was interrupted after 4 attempts.',
+      code: 'provider_stream_interrupted',
+      reason: 'agent_invocation_failed',
+      retryable: true,
+      attempt_count: 4,
+      max_attempts: 4,
+      category: 'provider',
+    });
+  });
+
+  it('does not derive the provider category from an unrelated code', () => {
+    const persisted = fromStepErrorDto({
+      message: 'Provider rate limit exceeded',
+      code: 'provider_rate_limited',
+      reason: 'agent_invocation_failed',
+    });
+
+    expect(toStepDto(step({type: 'agent', error: persisted})).error?.category).toBe('user');
+  });
+
   it('persists config error field and source diagnostics', () => {
     const persisted = fromStepErrorDto({
       message: 'Could not resolve env.VERSION',

@@ -37,7 +37,7 @@ export type SessionViewRow =
       label: string;
       detail: string | null;
       meta: readonly SessionViewRowMeta[];
-      tone: 'default' | 'warning' | 'error';
+      tone: 'default' | 'warning' | 'success' | 'error';
       terminalFailure: boolean;
     }
   | {kind: 'raw'; timestamp: number; label: string; raw: string};

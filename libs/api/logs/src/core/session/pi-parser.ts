@@ -1,5 +1,5 @@
 import type {SessionViewRow} from '@shipfox/api-logs-dto';
-import {parseSessionEntry, sessionMessageEntrySchema} from './entry-schema.js';
+import {parseSessionEntry, type SessionEntry, sessionMessageEntrySchema} from './entry-schema.js';
 import {toJson} from './object.js';
 import {expandMessageEntry} from './pi/message-rows.js';
 import {
@@ -11,15 +11,54 @@ import {
   customEntryMeta,
   customEntryText,
   entryDetail,
+  isProviderRetryEntry,
   labelDetail,
   labelMeta,
   modelChangeDetail,
+  providerRetryEndDetail,
+  providerRetryMeta,
+  providerRetryStartDetail,
   sessionDetail,
 } from './pi/metadata.js';
 import {lifecycleRow, messageRow, rawRecordRow} from './rows.js';
 import type {AgentSessionRecord} from './session-record.js';
 
 export type {AgentSessionRecord} from './session-record.js';
+
+function providerRetryStartRows(
+  record: AgentSessionRecord,
+  entry: SessionEntry,
+): readonly SessionViewRow[] {
+  if (!isProviderRetryEntry(entry)) return [rawRecordRow(record, 'Unsupported retry entry')];
+  return [
+    lifecycleRow(
+      record.ts,
+      'Model response interrupted',
+      providerRetryStartDetail(entry),
+      'warning',
+      false,
+      providerRetryMeta(entry),
+    ),
+  ];
+}
+
+function providerRetryEndRows(
+  record: AgentSessionRecord,
+  entry: SessionEntry,
+): readonly SessionViewRow[] {
+  if (!isProviderRetryEntry(entry)) return [rawRecordRow(record, 'Unsupported retry entry')];
+  const recovered = entry.success === true;
+  return [
+    lifecycleRow(
+      record.ts,
+      recovered ? 'Model response recovered' : 'Model response interrupted',
+      providerRetryEndDetail(entry),
+      recovered ? 'success' : 'error',
+      !recovered,
+      providerRetryMeta(entry),
+    ),
+  ];
+}
 
 export function parsePiSessionRecord(record: AgentSessionRecord): readonly SessionViewRow[] {
   const parsed = parseSessionEntry(record.data);
@@ -97,6 +136,10 @@ export function parsePiSessionRecord(record: AgentSessionRecord): readonly Sessi
           customEntryMeta(entry),
         ),
       ];
+    case 'auto_retry_start':
+      return providerRetryStartRows(record, entry);
+    case 'auto_retry_end':
+      return providerRetryEndRows(record, entry);
     case 'label':
       return [
         lifecycleRow(record.ts, 'Label', labelDetail(entry), 'default', false, labelMeta(entry)),

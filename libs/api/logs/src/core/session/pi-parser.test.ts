@@ -425,6 +425,91 @@ describe('parsePiSessionRecord', () => {
     ]);
   });
 
+  test('maps a scheduled provider retry to a warning lifecycle row', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'auto_retry_start',
+        code: 'provider_stream_interrupted',
+        attempt: 2,
+        maxAttempts: 3,
+        delayMs: 4000,
+        provider: 'shipfox',
+        model: 'glm-5.3-flash',
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Model response interrupted',
+        detail: 'Retrying in 4 seconds (2 of 3)',
+        meta: [
+          meta('provider', 'shipfox'),
+          meta('model', 'glm-5.3-flash'),
+          meta('error code', 'provider_stream_interrupted'),
+        ],
+        tone: 'warning',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('maps a recovered provider retry to one success lifecycle row', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'auto_retry_end',
+        code: 'provider_stream_interrupted',
+        attempt: 2,
+        success: true,
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Model response recovered',
+        detail: 'Continued after 2 retries',
+        meta: [meta('error code', 'provider_stream_interrupted')],
+        tone: 'success',
+        terminalFailure: false,
+      },
+    ]);
+  });
+
+  test('maps an exhausted provider retry to an error lifecycle row', () => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'auto_retry_end',
+        code: 'provider_stream_interrupted',
+        attempt: 3,
+        success: false,
+        finalError: 'provider_stream_interrupted',
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Model response interrupted',
+        detail: 'Failed after 4 attempts',
+        meta: [meta('error code', 'provider_stream_interrupted')],
+        tone: 'error',
+        terminalFailure: true,
+      },
+    ]);
+  });
+
+  test('does not classify an unrelated retry entry as a provider lifecycle row', () => {
+    const rows = parsePiSessionRecord(
+      record({type: 'auto_retry_start', code: 'provider_rate_limited'}),
+    );
+
+    expect(rows[0]).toMatchObject({kind: 'raw', label: 'Unsupported retry entry'});
+  });
+
   test('renders a session_info entry as a lifecycle row', () => {
     const rows = parsePiSessionRecord(record({type: 'session_info', message: 'resumed'}));
 

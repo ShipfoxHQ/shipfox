@@ -683,6 +683,35 @@ describe('StepInspectorSheet', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows provider recovery exhaustion without the raw provider message', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: stepEntry('agent_invocation_failed', 'provider_stream_interrupted', {
+        message: 'Stream error occurred',
+        category: 'provider',
+        managed_provider_id: 'shipfox',
+        retryable: true,
+        attempt_count: 4,
+        max_attempts: 4,
+      }),
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('Model response interrupted')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Shipfox lost the model response stream after 4 attempts. No workflow configuration error was detected. Rerun the failed jobs.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('provider')).toBeInTheDocument();
+    expect(screen.getByText('Shipfox')).toBeInTheDocument();
+    expect(screen.getByText('4 of 4')).toBeInTheDocument();
+    expect(screen.getByText('provider_stream_interrupted')).toBeInTheDocument();
+    expect(screen.queryByText('Stream error occurred')).toBeNull();
+  });
+
   it('keeps non-tool failure chips keyed to their stable reason', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});

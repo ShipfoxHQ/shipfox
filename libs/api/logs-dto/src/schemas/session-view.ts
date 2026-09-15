@@ -54,7 +54,7 @@ export const sessionViewLifecycleRowSchema = z.object({
   label: z.string().min(1),
   detail: z.string().nullable(),
   meta: z.array(sessionViewRowMetaSchema).readonly(),
-  tone: z.enum(['default', 'warning', 'error']),
+  tone: z.enum(['default', 'warning', 'success', 'error']),
   terminalFailure: z.boolean(),
 });
 

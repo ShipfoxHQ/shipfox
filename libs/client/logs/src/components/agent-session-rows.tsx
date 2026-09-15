@@ -281,7 +281,16 @@ function SessionLifecycleRow({
     >
       <LogContent className="text-foreground-contrast-secondary">
         <span className="inline-flex w-full items-center gap-inline">
-          <Icon name="informationLine" className="size-14 flex-none" aria-hidden="true" />
+          <Icon
+            name={lifecycleIcon(row.tone)}
+            className={cn(
+              'size-14 flex-none',
+              row.tone === 'success' && 'text-tag-success-icon',
+              row.tone === 'warning' && 'text-tag-warning-icon',
+              row.tone === 'error' && 'text-tag-error-icon',
+            )}
+            aria-hidden="true"
+          />
           <span className="min-w-0">
             <span className="font-medium">{row.label}</span>
             {row.detail != null ? (
@@ -300,6 +309,13 @@ function SessionLifecycleRow({
       </LogContent>
     </LogRow>
   );
+}
+
+function lifecycleIcon(tone: Extract<SessionViewRow, {kind: 'lifecycle'}>['tone']): IconName {
+  if (tone === 'success') return 'checkCircleLine';
+  if (tone === 'warning') return 'errorWarningLine';
+  if (tone === 'error') return 'closeCircleLine';
+  return 'informationLine';
 }
 
 function SessionRawRow({

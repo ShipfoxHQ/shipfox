@@ -437,6 +437,9 @@ function jobFailureBody(
 
 function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): FailureCopy {
   const error = attempt.error ?? step.error;
+  const providerFailure = providerStreamFailureCopy(error);
+  if (providerFailure !== undefined) return providerFailure;
+
   const reason = errorReason(error);
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
   if (toolFailure !== undefined) return toolFailure;
@@ -557,6 +560,28 @@ function interruptedToolFailureCopy(step: StepAttemptDetailStep): FailureCopy {
         title: 'Tool call was interrupted',
         description: 'Shipfox could not confirm the result. Try again.',
       };
+}
+
+function providerStreamFailureCopy(error: Record<string, unknown> | null): FailureCopy | undefined {
+  if (errorString(error, 'code') !== 'provider_stream_interrupted') return undefined;
+
+  const attemptCount = positiveErrorInteger(error, 'attemptCount') ?? 1;
+  return {
+    title: 'Model response interrupted',
+    description: `The model response stream was interrupted after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}. Rerun the failed jobs.`,
+  };
+}
+
+function positiveErrorInteger(
+  error: Record<string, unknown> | null,
+  key: string,
+): number | undefined {
+  const value = error?.[key] ?? error?.[snakeCase(key)];
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+function snakeCase(value: string): string {
+  return value.replace(/[A-Z]/gu, (letter) => `_${letter.toLowerCase()}`);
 }
 
 function knownStepFailureCopy(reason: string | undefined): FailureCopy {

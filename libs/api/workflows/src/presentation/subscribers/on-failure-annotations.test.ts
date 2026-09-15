@@ -343,6 +343,54 @@ describe('failure annotations', () => {
     );
   });
 
+  it('uses provider exhaustion copy without exposing the raw provider phrase', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {
+        reason: 'agent_invocation_failed',
+        code: 'provider_stream_interrupted',
+        message: 'Stream error occurred',
+        attemptCount: 4,
+        maxAttempts: 4,
+      },
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: {
+          op: 'replace',
+          style: 'error',
+          body: expect.stringContaining(
+            'The model response stream was interrupted after 4 attempts. Rerun the failed jobs.',
+          ),
+        },
+      }),
+    );
+    expect(replaceOrRemoveAnnotation).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: expect.objectContaining({
+          body: expect.stringContaining('Stream error occurred'),
+        }),
+      }),
+    );
+  });
+
   it('includes bounded size details in a size-failure annotation', async () => {
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({
