@@ -1,5 +1,17 @@
 # @shipfox/api-integration-github
 
+## 26.1.0
+
+### Patch Changes
+
+- c2c97ac: Classifies hosted Linear MCP failures and reports integration incidents with isolated metadata and stable grouping.
+- e8f5761: Returns a clear error for missing GitHub review threads, prompting agents to refresh the current review threads before retrying.
+- Updated dependencies [c2c97ac]
+  - @shipfox/api-integration-spi@4.2.0
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/node-fastify@0.4.6
+  - @shipfox/api-auth-context@26.1.0
+
 ## 26.0.0
 
 ### Minor Changes

@@ -1,5 +1,29 @@
 # @shipfox/api-integration-core
 
+## 26.1.0
+
+### Patch Changes
+
+- c2c97ac: Classifies hosted Linear MCP failures and reports integration incidents with isolated metadata and stable grouping.
+- Updated dependencies [cb99d51]
+- Updated dependencies [c2c97ac]
+- Updated dependencies [e8f5761]
+  - @shipfox/api-workflows-dto@26.1.0
+  - @shipfox/api-integration-github@26.1.0
+  - @shipfox/api-integration-linear@26.1.0
+  - @shipfox/api-integration-spi@4.2.0
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/api-integration-clickup@26.1.0
+  - @shipfox/api-integration-gitea@26.1.0
+  - @shipfox/api-integration-jira@26.1.0
+  - @shipfox/api-integration-sentry@26.1.0
+  - @shipfox/api-integration-slack@26.1.0
+  - @shipfox/api-integration-webhook@26.1.0
+  - @shipfox/node-fastify@0.4.6
+  - @shipfox/node-module@1.1.1
+  - @shipfox/node-temporal@0.5.2
+  - @shipfox/api-auth-context@26.1.0
+
 ## 26.0.0
 
 ### Minor Changes

@@ -1,5 +1,38 @@
 # @shipfox/api-server
 
+## 26.1.0
+
+### Patch Changes
+
+- Updated dependencies [bbf540e]
+- Updated dependencies [db12613]
+- Updated dependencies [bf6a5c5]
+- Updated dependencies [cb99d51]
+- Updated dependencies [c2c97ac]
+  - @shipfox/api-workflows@26.1.0
+  - @shipfox/api-definitions@26.1.0
+  - @shipfox/api-definitions-dto@26.1.0
+  - @shipfox/api-workflows-dto@26.1.0
+  - @shipfox/api-logs-dto@26.1.0
+  - @shipfox/api-logs@26.1.0
+  - @shipfox/api-integration-core@26.1.0
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/api-agent-access@26.1.0
+  - @shipfox/api-dispatcher@26.1.0
+  - @shipfox/api-triggers@26.1.0
+  - @shipfox/api-triggers-dto@26.1.0
+  - @shipfox/api-agent@26.1.0
+  - @shipfox/api-runners@26.1.0
+  - @shipfox/api-usage@26.1.0
+  - @shipfox/node-fastify@0.4.6
+  - @shipfox/node-module@1.1.1
+  - @shipfox/annotations@26.1.0
+  - @shipfox/api-auth@26.1.0
+  - @shipfox/api-projects@26.1.0
+  - @shipfox/api-secrets@26.1.0
+  - @shipfox/api-workspaces@26.1.0
+  - @shipfox/api-email-challenges@1.1.19
+
 ## 26.0.0
 
 ### Minor Changes

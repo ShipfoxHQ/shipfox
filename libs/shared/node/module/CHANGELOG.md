@@ -1,5 +1,14 @@
 # @shipfox/node-module
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [c2c97ac]
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/node-fastify@0.4.6
+  - @shipfox/node-temporal@0.5.2
+
 ## 1.1.0
 
 ### Minor Changes

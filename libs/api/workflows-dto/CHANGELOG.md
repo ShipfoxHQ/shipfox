@@ -1,5 +1,16 @@
 # @shipfox/api-workflows-dto
 
+## 26.1.0
+
+### Minor Changes
+
+- cb99d51: Exposes model stream recovery rows and provider-category failures across workflow, log, Agent Access, and client contracts.
+
+### Patch Changes
+
+- Updated dependencies [db12613]
+  - @shipfox/api-definitions-dto@26.1.0
+
 ## 26.0.0
 
 ### Minor Changes

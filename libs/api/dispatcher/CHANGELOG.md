@@ -1,5 +1,14 @@
 # @shipfox/api-dispatcher
 
+## 26.1.0
+
+### Patch Changes
+
+- Updated dependencies [c2c97ac]
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/node-module@1.1.1
+  - @shipfox/node-temporal@0.5.2
+
 ## 26.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/api-email-challenges
 
+## 1.1.19
+
+### Patch Changes
+
+- @shipfox/node-module@1.1.1
+
 ## 1.1.18
 
 ### Patch Changes

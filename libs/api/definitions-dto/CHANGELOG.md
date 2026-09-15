@@ -1,5 +1,11 @@
 # @shipfox/api-definitions-dto
 
+## 26.1.0
+
+### Minor Changes
+
+- db12613: Adds authenticated actor provenance to definition resolution events while keeping automated VCS resolution actorless.
+
 ## 24.2.0
 
 ### Patch Changes
