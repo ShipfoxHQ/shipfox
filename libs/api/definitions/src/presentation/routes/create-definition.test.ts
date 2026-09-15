@@ -116,7 +116,7 @@ jobs:
     expect(outboxRows[0]?.payload).toMatchObject({actorUserId: authenticatedUserId});
   });
 
-  test('omits the actor on a VCS resolution event', async () => {
+  test('records the authenticated user on a VCS-sourced resolution event', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/definitions',
@@ -136,7 +136,7 @@ jobs:
       .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
 
     expect(outboxRows).toHaveLength(1);
-    expect(outboxRows[0]?.payload).not.toHaveProperty('actorUserId');
+    expect(outboxRows[0]?.payload).toMatchObject({actorUserId: authenticatedUserId});
   });
 
   test('rejects a YAML body that exceeds the UTF-8 byte limit', async () => {

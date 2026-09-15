@@ -1006,28 +1006,25 @@ describe('definition queries', () => {
       });
     });
 
-    test('omits the actor from a VCS resolved outbox event', async () => {
-      const definition = await upsertDefinition({
+    test('omits the actor from an automated VCS resolved outbox event', async () => {
+      await applyVcsDefinitionsBatch({
         projectId,
         workspaceId,
-        actorUserId: crypto.randomUUID(),
-        configPath: '.shipfox/workflows/vcs.yml',
-        source: 'vcs',
         ref: 'main',
-        name: 'VCS',
-        ...definitionFields('VCS'),
+        upserts: [
+          {
+            configPath: '.shipfox/workflows/vcs.yml',
+            name: 'VCS',
+            ...definitionFields('VCS'),
+            contentHash: 'vcs-content-hash',
+          },
+        ],
       });
 
       const outboxRows = await listOutboxRowsForProject(projectId);
 
       expect(outboxRows).toHaveLength(1);
-      expect(outboxRows[0]?.payload).toEqual({
-        definitionId: definition.id,
-        projectId: definition.projectId,
-        workspaceId,
-        configPath: definition.configPath,
-        triggers: {},
-      });
+      expect(outboxRows[0]?.payload).not.toHaveProperty('actorUserId');
     });
 
     test('writes normalized trigger config to the resolved outbox event', async () => {

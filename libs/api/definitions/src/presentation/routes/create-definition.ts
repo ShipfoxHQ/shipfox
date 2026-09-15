@@ -79,7 +79,7 @@ export function buildCreateDefinitionRoute(options: CreateDefinitionRouteOptions
       const definition = await upsertDefinition({
         projectId,
         workspaceId: project.workspaceId,
-        actorUserId: source === 'vcs' ? undefined : requireUserContext(request).userId,
+        actorUserId: requireUserContext(request).userId,
         configPath: config_path,
         source,
         name: parsed.document.name,

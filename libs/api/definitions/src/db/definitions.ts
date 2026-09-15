@@ -307,9 +307,7 @@ export async function upsertDefinition(
         definitionId: row.id,
         projectId: row.projectId,
         workspaceId: params.workspaceId,
-        ...((params.source ?? 'manual') === 'manual' && params.actorUserId !== undefined
-          ? {actorUserId: params.actorUserId}
-          : {}),
+        ...(params.actorUserId === undefined ? {} : {actorUserId: params.actorUserId}),
         configPath: row.configPath,
         triggers: definitionTriggersFor(row.definition.model),
       },
