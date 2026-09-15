@@ -6,10 +6,15 @@ import {join} from 'node:path';
 
 const execFileMock = vi.fn();
 const spawnMock = vi.fn();
+const recordCheckoutFetchAttemptMock = vi.fn();
 
 vi.mock('node:child_process', () => ({
   execFile: (...args: unknown[]) => execFileMock(...args),
   spawn: (...args: unknown[]) => spawnMock(...args),
+}));
+
+vi.mock('#credential-metrics.js', () => ({
+  recordCheckoutFetchAttempt: (...args: unknown[]) => recordCheckoutFetchAttemptMock(...args),
 }));
 
 const {
@@ -98,6 +103,7 @@ describe('checkoutRepository argv', () => {
     const commit = await checkoutRepository(BASE);
 
     expect(commit).toBe('abc123');
+    expect(recordCheckoutFetchAttemptMock).toHaveBeenCalledWith('initial', 'success', 'none');
     expect(spawnMock.mock.calls.map((call) => call[1])).toEqual([
       ['init'],
       ['remote', 'add', 'origin', 'https://github.com/acme/repo.git'],
@@ -301,15 +307,24 @@ describe('checkoutRepository failure classification', () => {
     });
   });
 
-  it('classifies an authenticated GitHub repository-not-found response as an auth failure', async () => {
-    queueFetchFailure('remote: Repository not found.\nfatal: sending tok-123 to remote');
+  it('classifies an authenticated GitHub repository-not-found response as an auth failure after retry exhaustion', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.\nfatal: sending tok-123 to remote'},
+      {kind: 'failure', stderr: 'remote: Repository not found.\nfatal: sending tok-123 to remote'},
+    ]);
 
-    const error = await checkoutRepository({...BASE, auth: AUTH}).catch((value: unknown) => value);
+    const retryDelay = vi.fn(async () => undefined);
+    const error = await checkoutRepository({...BASE, auth: AUTH, retryDelay}).catch(
+      (value: unknown) => value,
+    );
 
     expect(error).toMatchObject({
       kind: 'auth',
       phase: 'fetch',
       repositoryVisibilityFailure: true,
+      retryExhausted: true,
     });
     expect((error as Error).message).toContain('Repository not found');
     expect((error as Error).message).not.toContain('tok-123');
@@ -325,16 +340,19 @@ describe('checkoutRepository failure classification', () => {
     });
   });
 
-  it('keeps a missing remote ref as a generic failure with GitHub auth', async () => {
+  it('keeps a missing remote ref as a generic failure with GitHub auth without retrying', async () => {
     queueFetchFailure("fatal: couldn't find remote ref missing-ref");
+    const retryDelay = vi.fn(async () => undefined);
 
     await expect(
-      checkoutRepository({...BASE, ref: 'missing-ref', auth: AUTH}),
+      checkoutRepository({...BASE, ref: 'missing-ref', auth: AUTH, retryDelay}),
     ).rejects.toMatchObject({
       kind: 'failed',
       phase: 'fetch',
       repositoryVisibilityFailure: false,
     });
+    expect(spawnMock).toHaveBeenCalledTimes(3);
+    expect(retryDelay).not.toHaveBeenCalled();
   });
 
   it('does not classify repository-not-found responses from non-GitHub hosts as auth failures', async () => {
@@ -384,18 +402,128 @@ describe('checkoutRepository failure classification', () => {
     });
   });
 
-  it('classifies an unreachable provider as unavailable', async () => {
+  it('classifies an unreachable provider as unavailable without retrying', async () => {
     queueFetchFailure('fatal: unable to access: Could not resolve host: github.com');
+    const retryDelay = vi.fn(async () => undefined);
 
-    await expect(checkoutRepository(BASE)).rejects.toMatchObject({kind: 'unavailable'});
+    await expect(checkoutRepository({...BASE, auth: AUTH, retryDelay})).rejects.toMatchObject({
+      kind: 'unavailable',
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(3);
+    expect(retryDelay).not.toHaveBeenCalled();
   });
 
-  it('classifies a git-side 403 as an auth failure', async () => {
-    queueFetchFailure(
-      "fatal: unable to access 'https://github.com/acme/repo.git/': The requested URL returned error: 403",
-    );
+  it('retries an authenticated GitHub 403 once', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {
+        kind: 'failure',
+        stderr:
+          "fatal: unable to access 'https://github.com/acme/repo.git/': The requested URL returned error: 403",
+      },
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'success', stdout: 'abc123\n'},
+    ]);
+    const retryDelay = vi.fn(async () => undefined);
+    const onRetry = vi.fn();
 
-    await expect(checkoutRepository(BASE)).rejects.toMatchObject({kind: 'auth'});
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH,
+        retryDelay,
+        retryJitter: () => 0,
+        onRetry,
+      }),
+    ).resolves.toBe('abc123');
+
+    expect(retryDelay).toHaveBeenCalledWith(500, undefined);
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'recovered']);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'success', 'none'],
+    ]);
+    expect(spawnMock.mock.calls.map((call) => call[1][0])).toEqual([
+      'init',
+      'remote',
+      'fetch',
+      'fetch',
+      'checkout',
+      'rev-parse',
+    ]);
+    expect(spawnMock.mock.calls[2]?.[2]).toEqual(spawnMock.mock.calls[3]?.[2]);
+  });
+
+  it('returns auth failure after exactly two authenticated GitHub denials', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+    ]);
+    const retryDelay = vi.fn(async () => undefined);
+    const onRetry = vi.fn();
+
+    await expect(
+      checkoutRepository({...BASE, auth: AUTH, retryDelay, onRetry}),
+    ).rejects.toMatchObject({kind: 'auth', retryExhausted: true});
+
+    expect(spawnMock).toHaveBeenCalledTimes(4);
+    expect(retryDelay).toHaveBeenCalledOnce();
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'exhausted']);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+    ]);
+  });
+
+  it('does not mark a cancelled second fetch as exhausted', async () => {
+    const abortError = Object.assign(new Error('The operation was aborted'), {
+      name: 'AbortError',
+    });
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'error', error: abortError},
+    ]);
+    const retryDelay = vi.fn(async () => undefined);
+    const onRetry = vi.fn();
+
+    await expect(
+      checkoutRepository({...BASE, auth: AUTH, retryDelay, onRetry}),
+    ).rejects.toMatchObject({kind: 'aborted', retryExhausted: false});
+
+    expect(spawnMock).toHaveBeenCalledTimes(4);
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying']);
+    expect(onRetry).not.toHaveBeenCalledWith('exhausted');
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'aborted'],
+    ]);
+  });
+
+  it('does not fetch again when cancellation happens during the retry delay', async () => {
+    queueFetchFailure('remote: Repository not found.');
+    const controller = new AbortController();
+    const retryDelay = vi.fn(async (_delay: number, signal?: AbortSignal) => {
+      controller.abort();
+      await Promise.resolve();
+      expect(signal?.aborted).toBe(true);
+    });
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH,
+        signal: controller.signal,
+        retryDelay,
+      }),
+    ).rejects.toMatchObject({kind: 'aborted'});
+
+    expect(spawnMock).toHaveBeenCalledTimes(3);
   });
 
   it('classifies a git-side 5xx as unavailable', async () => {

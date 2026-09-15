@@ -8,6 +8,7 @@ import {
   type CheckoutFailureKind,
   type CheckoutOutputSink,
   type CheckoutPhase,
+  type CheckoutRetryEvent,
   checkoutRepository,
   type GitCredentialHelperConfig,
   type PersistedCheckoutCredential,
@@ -114,6 +115,7 @@ export async function checkoutRepositoryAt(params: {
       onSecrets: (secrets) => log?.addSecrets(secrets),
       onCommandStart: (metadata) => writeCheckoutCommand(log, metadata),
       onOutput: checkoutOutput(log),
+      onRetry: (event) => writeCheckoutRetryLog(log, event),
     });
     log?.writeGroup({name: 'Checkout complete', lines: [`Checked out commit: ${commit}`]});
     const ambientGitConfig = await persistAmbientGitCredential({
@@ -366,7 +368,11 @@ function checkoutFailureResult(params: {
   writeFailure(
     params.log,
     checkoutFailureSummary(params.scope, params.error),
-    checkoutFailureHelp(reason, repositoryVisibilityFailure),
+    checkoutFailureHelp(
+      reason,
+      repositoryVisibilityFailure,
+      params.error instanceof CheckoutError && params.error.retryExhausted,
+    ),
     params.error,
   );
   return {ok: false, result: fail(params.error, reason)};
@@ -374,6 +380,9 @@ function checkoutFailureResult(params: {
 
 function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): string {
   const subject = scope === 'setup' ? 'Setup' : 'Checkout step';
+  if (error instanceof CheckoutError && error.retryExhausted && error.kind === 'auth') {
+    return `${subject} failed because GitHub still did not expose this repository after retrying.`;
+  }
   if (error instanceof CheckoutError && error.repositoryVisibilityFailure) {
     return `${subject} failed because GitHub did not expose this repository to the checkout credential.`;
   }
@@ -386,7 +395,11 @@ function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): st
 function checkoutFailureHelp(
   reason: StepErrorReasonDto,
   repositoryVisibilityFailure = false,
+  retryExhausted = false,
 ): string {
+  if (retryExhausted && reason === 'checkout_auth_failed') {
+    return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
+  }
   if (repositoryVisibilityFailure) {
     return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
   }
@@ -400,6 +413,22 @@ function checkoutFailureHelp(
     return 'The job was cancelled or timed out before checkout completed.';
   }
   return 'Check that the repository URL and requested ref are valid. The git output above may include provider details.';
+}
+
+function writeCheckoutRetryLog(log: CheckoutLogSink | undefined, event: CheckoutRetryEvent): void {
+  if (event === 'retrying') {
+    log?.writeOutputLine(
+      'GitHub did not expose this repository to the checkout credential. Shipfox will retry once.',
+      'stderr',
+    );
+  } else if (event === 'recovered') {
+    log?.writeOutputLine(
+      'Checkout recovered after a transient GitHub authorization failure.',
+      'stderr',
+    );
+  } else if (event === 'exhausted') {
+    log?.writeOutputLine('Checkout retry exhausted after the second fetch failed.', 'stderr');
+  }
 }
 
 function writeFailure(

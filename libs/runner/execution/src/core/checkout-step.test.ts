@@ -2,6 +2,7 @@ import {mkdir, mkdtemp, readFile, realpath, rm, writeFile} from 'node:fs/promise
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
+import {CheckoutError} from '@shipfox/runner-workspace';
 
 vi.hoisted(() => {
   process.env.SHIPFOX_API_URL = 'https://api.test';
@@ -125,6 +126,59 @@ describe('executeCheckoutStep', () => {
       ...(options.credentialHelper ? {credentialHelper: options.credentialHelper} : {}),
     });
   }
+
+  it('logs retry and recovery messages from the workspace checkout', async () => {
+    checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
+      params.onRetry?.('retrying');
+      params.onRetry?.('recovered');
+      return 'abc123';
+    });
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.success).toBe(true);
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'GitHub did not expose this repository to the checkout credential. Shipfox will retry once.',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout recovered after a transient GitHub authorization failure.',
+      'stderr',
+    );
+  });
+
+  it('reports an exhausted GitHub authorization retry with retry guidance', async () => {
+    checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
+      params.onRetry?.('exhausted');
+      throw new CheckoutError('auth', 'Repository not found.', {
+        phase: 'fetch',
+        repositoryVisibilityFailure: true,
+        retryExhausted: true,
+      });
+    });
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result).toEqual({
+      success: false,
+      error: {message: 'Repository not found.', reason: 'checkout_auth_failed'},
+      exit_code: null,
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout retry exhausted after the second fetch failed.',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed because GitHub still did not expose this repository after retrying. Details: Repository not found.',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.',
+      'stderr',
+    );
+  });
 
   it('propagates an explicit step id and attempt into a helper registration', async () => {
     const step = checkoutStep();

@@ -6,6 +6,7 @@ import {dirname, join, resolve} from 'node:path';
 import {promisify} from 'node:util';
 import type {CheckoutTokenAuthDto} from '@shipfox/api-workflows-dto';
 import {normalizeRepositoryUrl} from '#credential-broker.js';
+import {recordCheckoutFetchAttempt} from '#credential-metrics.js';
 import {assertCredentialSocketCapability} from '#credential-socket.js';
 import {assertCredentialSocketTimeout} from '#credential-socket-transport.js';
 
@@ -16,6 +17,8 @@ const GIT_USER_SECTION_HEADER = '[user]';
 const GIT_VERSION_RE = /^git version (\d+)\.(\d+)\.(\d+)/;
 const CONFIG_LINE_BREAK_RE = /[\r\n]/;
 const MIN_GIT_VERSION = {major: 2, minor: 31, patch: 0};
+const CHECKOUT_RETRY_MIN_DELAY_MS = 500;
+const CHECKOUT_RETRY_MAX_DELAY_MS = 1_000;
 const GIT_CONFIG_INDEXED_ENV_RE = /^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+)$/;
 const ambientGitConfigLocks = new Map<string, Promise<void>>();
 const GIT_USER_SECTION_RE = /^\[user\]\s*(?:[;#].*)?$/i;
@@ -36,6 +39,8 @@ export class GitUnavailableError extends Error {
 }
 
 export type CheckoutOutputSink = (chunk: Buffer, source: 'stdout' | 'stderr') => void;
+export type CheckoutRetryEvent = 'retrying' | 'recovered' | 'exhausted';
+export type CheckoutRetryDelay = (delayMs: number, signal?: AbortSignal) => Promise<void>;
 
 export type CheckoutPhase = 'init' | 'remote' | 'fetch' | 'checkout' | 'resolve';
 
@@ -48,6 +53,7 @@ export type CheckoutFailureKind = 'auth' | 'unavailable' | 'failed' | 'aborted';
 export class CheckoutError extends Error {
   public readonly phase: CheckoutPhase | undefined;
   public readonly repositoryVisibilityFailure: boolean;
+  public readonly retryExhausted: boolean;
 
   constructor(
     public readonly kind: CheckoutFailureKind,
@@ -55,12 +61,14 @@ export class CheckoutError extends Error {
     options?: ErrorOptions & {
       phase?: CheckoutPhase | undefined;
       repositoryVisibilityFailure?: boolean | undefined;
+      retryExhausted?: boolean | undefined;
     },
   ) {
     super(message, options);
     this.name = 'CheckoutError';
     this.phase = options?.phase;
     this.repositoryVisibilityFailure = options?.repositoryVisibilityFailure ?? false;
+    this.retryExhausted = options?.retryExhausted ?? false;
   }
 }
 
@@ -124,6 +132,9 @@ export async function checkoutRepository(params: {
   onOutput?: CheckoutOutputSink | undefined;
   onCommandStart?: ((metadata: CheckoutCommandStartMetadata) => void) | undefined;
   onSecrets?: ((secrets: string[]) => void) | undefined;
+  onRetry?: ((event: CheckoutRetryEvent) => void) | undefined;
+  retryDelay?: CheckoutRetryDelay | undefined;
+  retryJitter?: (() => number) | undefined;
 }): Promise<string> {
   const {
     repositoryUrl,
@@ -135,6 +146,9 @@ export async function checkoutRepository(params: {
     onCommandStart,
     onOutput,
     onSecrets,
+    onRetry,
+    retryDelay = waitForRetry,
+    retryJitter = Math.random,
   } = params;
 
   if (!Number.isInteger(fetchDepth) || fetchDepth < 0) {
@@ -142,6 +156,8 @@ export async function checkoutRepository(params: {
   }
   const secrets = secretsOf(auth);
   onSecrets?.(secrets);
+
+  let retryExhausted = false;
 
   try {
     await runGitCommand({
@@ -172,8 +188,8 @@ export async function checkoutRepository(params: {
       'origin',
       ref,
     ];
-    await runGitCommand({
-      phase: 'fetch',
+    const fetchConfig = {
+      phase: 'fetch' as const,
       args: fetchArgs,
       displayArgs: fetchArgs,
       cwd,
@@ -191,7 +207,34 @@ export async function checkoutRepository(params: {
             },
           }
         : {}),
-    });
+    };
+
+    try {
+      await runGitCommand(fetchConfig);
+      recordCheckoutFetchAttempt('initial', 'success', 'none');
+    } catch (error) {
+      const classified = classifyCheckoutError(error, auth, repositoryUrl);
+      recordCheckoutFetchAttempt('initial', 'failure', classified.kind);
+      if (!isRetryableFetchFailure(classified, auth, repositoryUrl)) throw error;
+
+      onRetry?.('retrying');
+      await retryDelay(retryDelayMilliseconds(retryJitter), signal);
+      throwIfAborted(signal);
+
+      try {
+        await runGitCommand(fetchConfig);
+        recordCheckoutFetchAttempt('retry', 'success', 'none');
+        onRetry?.('recovered');
+      } catch (retryError) {
+        const retryClassified = classifyCheckoutError(retryError, auth, repositoryUrl);
+        recordCheckoutFetchAttempt('retry', 'failure', retryClassified.kind);
+        if (retryClassified.kind !== 'aborted') {
+          retryExhausted = true;
+          onRetry?.('exhausted');
+        }
+        throw retryError;
+      }
+    }
     await runGitCommand({
       phase: 'checkout',
       args: ['checkout', '--progress', '--force', 'FETCH_HEAD'],
@@ -212,7 +255,7 @@ export async function checkoutRepository(params: {
     });
     return stdout.trim();
   } catch (error) {
-    throw classifyCheckoutError(error, auth, repositoryUrl);
+    throw classifyCheckoutError(error, auth, repositoryUrl, retryExhausted);
   }
 }
 
@@ -555,9 +598,14 @@ function classifyCheckoutError(
   error: unknown,
   auth: CheckoutTokenAuthDto | undefined,
   repositoryUrl: string,
+  retryExhausted = false,
 ): CheckoutError {
   if (isAbortError(error)) {
-    return new CheckoutError('aborted', 'Checkout aborted', {cause: error, phase: phaseOf(error)});
+    return new CheckoutError('aborted', 'Checkout aborted', {
+      cause: error,
+      phase: phaseOf(error),
+      retryExhausted,
+    });
   }
 
   const secrets = secretsOf(auth);
@@ -580,13 +628,70 @@ function classifyCheckoutError(
       cause,
       phase,
       repositoryVisibilityFailure: true,
+      retryExhausted,
     });
   }
-  if (AUTH_FAILURE.test(stderr)) return new CheckoutError('auth', message, {cause, phase});
-  if (PROVIDER_UNAVAILABLE.test(stderr)) {
-    return new CheckoutError('unavailable', message, {cause, phase});
+  if (AUTH_FAILURE.test(stderr)) {
+    return new CheckoutError('auth', message, {cause, phase, retryExhausted});
   }
-  return new CheckoutError('failed', message, {cause, phase});
+  if (PROVIDER_UNAVAILABLE.test(stderr)) {
+    return new CheckoutError('unavailable', message, {cause, phase, retryExhausted});
+  }
+  return new CheckoutError('failed', message, {cause, phase, retryExhausted});
+}
+
+function isRetryableFetchFailure(
+  error: CheckoutError,
+  auth: CheckoutTokenAuthDto | undefined,
+  repositoryUrl: string,
+): boolean {
+  if (error.kind !== 'auth' || error.phase !== 'fetch' || auth === undefined) return false;
+
+  try {
+    const url = new URL(normalizeRepositoryUrl(repositoryUrl));
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.hostname === 'github.com' &&
+      url.port === ''
+    );
+  } catch {
+    return false;
+  }
+}
+
+function retryDelayMilliseconds(jitter: () => number): number {
+  const normalized = Math.min(1, Math.max(0, jitter()));
+  return Math.min(
+    CHECKOUT_RETRY_MAX_DELAY_MS,
+    CHECKOUT_RETRY_MIN_DELAY_MS +
+      Math.floor(normalized * (CHECKOUT_RETRY_MAX_DELAY_MS - CHECKOUT_RETRY_MIN_DELAY_MS + 1)),
+  );
+}
+
+function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  return new Promise((resolvePromise, reject) => {
+    let timer: NodeJS.Timeout | undefined;
+    const onAbort = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      reject(abortError());
+    };
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolvePromise();
+    }, delayMs);
+    signal?.addEventListener('abort', onAbort, {once: true});
+  });
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortError();
+}
+
+function abortError(): Error {
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  return error;
 }
 
 function isGitHubRepositoryVisibilityFailure(params: {
