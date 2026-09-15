@@ -1022,6 +1022,71 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it.each([1, 11, 1_000])('accepts gate max_attempts: %s', (maxAttempts) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'review loop',
+      jobs: {
+        review: {
+          steps: [
+            {name: 'producer', run: 'npm run build'},
+            {
+              name: 'reviewer',
+              run: 'npm run review',
+              gate: {
+                success: 'step.exit_code == 0',
+                on_failure: {restart_from: 'producer', max_attempts: maxAttempts},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    0,
+    -1,
+    1.5,
+    1_001,
+    '8',
+    true,
+    null,
+    interpolation('vars.max_attempts'),
+  ])('rejects invalid gate max_attempts: %s at the authored field path', (maxAttempts) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'review loop',
+      jobs: {
+        review: {
+          steps: [
+            {name: 'producer', run: 'npm run build'},
+            {
+              name: 'reviewer',
+              run: 'npm run review',
+              gate: {
+                success: 'step.exit_code == 0',
+                on_failure: {restart_from: 'producer', max_attempts: maxAttempts},
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    const issue = result.error.issues.find(
+      (candidate) =>
+        candidate.path.join('.') === 'jobs.review.steps.1.gate.on_failure.max_attempts',
+    );
+    expect(issue).toMatchObject({
+      path: ['jobs', 'review', 'steps', 1, 'gate', 'on_failure', 'max_attempts'],
+      message: 'Expected a positive integer no greater than 1000.',
+    });
+  });
+
   it.each([
     ['missing required top-level fields', {}],
     ['empty jobs map', {name: 'simple build', jobs: {}}],
@@ -1079,23 +1144,6 @@ describe('workflowDocumentSchema', () => {
               {
                 run: 'npm test',
                 gate: {on_failure: {restart_from: 'producer', output: 'Review failed'}},
-              },
-            ],
-          },
-        },
-      },
-    ],
-    [
-      'unpublished gate on_failure max_attempts field',
-      {
-        name: 'simple build',
-        jobs: {
-          build: {
-            steps: [
-              {name: 'producer', run: 'npm test'},
-              {
-                run: 'npm test',
-                gate: {on_failure: {restart_from: 'producer', max_attempts: 8}},
               },
             ],
           },
