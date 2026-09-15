@@ -422,6 +422,10 @@ function paginatedCommitFetch(
 }
 
 describe('waitForRunByCommit', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test('polls until a run with the matching head commit appears', async () => {
     let calls = 0;
     const result = await waitForRunByCommit({
@@ -671,6 +675,8 @@ describe('waitForRunByCommit', () => {
   });
 
   test('times out with a bounded run list summary', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
     const result = waitForRunByCommit({
       fetch: () =>
         response(
@@ -693,8 +699,13 @@ describe('waitForRunByCommit', () => {
       timeoutMs: 1,
       token: 'user-token',
     });
-    await expect(result).rejects.toThrow(RUN_BY_COMMIT_TIMEOUT_RE);
-    await expect(result).rejects.toThrow(RUN_BY_COMMIT_OBSERVED_RE);
+
+    const assertions = Promise.all([
+      expect(result).rejects.toThrow(RUN_BY_COMMIT_TIMEOUT_RE),
+      expect(result).rejects.toThrow(RUN_BY_COMMIT_OBSERVED_RE),
+    ]);
+    await vi.advanceTimersByTimeAsync(1);
+    await assertions;
   });
 
   test('passes abort signals through polling', async () => {
@@ -714,6 +725,10 @@ describe('waitForRunByCommit', () => {
 });
 
 describe('waitForRunByDeliveryId', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test('polls until the matching trigger event resolves to a run', async () => {
     let calls = 0;
     const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -819,6 +834,8 @@ describe('waitForRunByDeliveryId', () => {
   });
 
   test('times out with a bounded trigger event summary', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
     const result = waitForRunByDeliveryId({
       fetch: () =>
         response({
@@ -837,8 +854,13 @@ describe('waitForRunByDeliveryId', () => {
       timeoutMs: 1,
       token: 'user-token',
     });
-    await expect(result).rejects.toThrow(RUN_BY_DELIVERY_TIMEOUT_RE);
-    await expect(result).rejects.toThrow(RUN_BY_DELIVERY_OBSERVED_RE);
+
+    const assertions = Promise.all([
+      expect(result).rejects.toThrow(RUN_BY_DELIVERY_TIMEOUT_RE),
+      expect(result).rejects.toThrow(RUN_BY_DELIVERY_OBSERVED_RE),
+    ]);
+    await vi.advanceTimersByTimeAsync(1);
+    await assertions;
   });
 });
 
