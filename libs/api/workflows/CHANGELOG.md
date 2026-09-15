@@ -1,5 +1,27 @@
 # @shipfox/api-workflows
 
+## 26.1.0
+
+### Minor Changes
+
+- cb99d51: Exposes model stream recovery rows and provider-category failures across workflow, log, Agent Access, and client contracts.
+
+### Patch Changes
+
+- bbf540e: Cancels superseded workflow run attempts and active concurrency holders requested by newer cancel-in-progress runs.
+- bf6a5c5: Workflow runs now wait for a concurrency slot before starting; their run timeout begins only after they acquire the slot.
+- Updated dependencies [db12613]
+- Updated dependencies [cb99d51]
+- Updated dependencies [c2c97ac]
+  - @shipfox/api-definitions-dto@26.1.0
+  - @shipfox/api-workflows-dto@26.1.0
+  - @shipfox/api-logs-dto@26.1.0
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/node-fastify@0.4.6
+  - @shipfox/node-module@1.1.1
+  - @shipfox/node-temporal@0.5.2
+  - @shipfox/api-auth-context@26.1.0
+
 ## 26.0.0
 
 ### Minor Changes

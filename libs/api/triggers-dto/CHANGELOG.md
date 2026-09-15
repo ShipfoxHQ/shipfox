@@ -1,5 +1,14 @@
 # @shipfox/api-triggers-dto
 
+## 26.1.0
+
+### Patch Changes
+
+- Updated dependencies [db12613]
+- Updated dependencies [cb99d51]
+  - @shipfox/api-definitions-dto@26.1.0
+  - @shipfox/api-workflows-dto@26.1.0
+
 ## 26.0.0
 
 ### Minor Changes

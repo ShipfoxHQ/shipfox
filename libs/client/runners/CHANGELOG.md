@@ -1,5 +1,13 @@
 # @shipfox/client-runners
 
+## 45.0.0
+
+### Patch Changes
+
+- Updated dependencies [90ff0e9]
+  - @shipfox/client-ui@45.0.0
+  - @shipfox/client-shell@45.0.0
+
 ## 44.0.0
 
 ### Patch Changes

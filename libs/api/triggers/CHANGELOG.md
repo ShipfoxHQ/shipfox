@@ -1,5 +1,21 @@
 # @shipfox/api-triggers
 
+## 26.1.0
+
+### Patch Changes
+
+- Updated dependencies [db12613]
+- Updated dependencies [cb99d51]
+- Updated dependencies [c2c97ac]
+  - @shipfox/api-definitions-dto@26.1.0
+  - @shipfox/api-workflows-dto@26.1.0
+  - @shipfox/node-error-monitoring@0.4.0
+  - @shipfox/api-triggers-dto@26.1.0
+  - @shipfox/node-fastify@0.4.6
+  - @shipfox/node-module@1.1.1
+  - @shipfox/node-temporal@0.5.2
+  - @shipfox/api-auth-context@26.1.0
+
 ## 26.0.0
 
 ### Minor Changes

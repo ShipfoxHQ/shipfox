@@ -1,5 +1,11 @@
 # @shipfox/client-ui
 
+## 45.0.0
+
+### Minor Changes
+
+- 90ff0e9: Explains waiting workflow runs at the top of the run and queue-priority cancellations as annotations. Adds a plain-text annotation body mode for system-generated copy.
+
 ## 44.0.0
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @shipfox/client-projects
 
+## 45.0.0
+
+### Patch Changes
+
+- Updated dependencies [90ff0e9]
+- Updated dependencies [db12613]
+  - @shipfox/client-ui@45.0.0
+  - @shipfox/api-definitions-dto@26.1.0
+  - @shipfox/client-agent@45.0.0
+  - @shipfox/client-auth@45.0.0
+  - @shipfox/client-integrations@45.0.0
+  - @shipfox/client-shell@45.0.0
+
 ## 44.0.0
 
 ### Patch Changes

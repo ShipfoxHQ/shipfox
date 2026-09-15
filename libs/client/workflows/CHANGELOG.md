@@ -1,5 +1,28 @@
 # @shipfox/client-workflows
 
+## 45.0.0
+
+### Minor Changes
+
+- 90ff0e9: Explains waiting workflow runs at the top of the run and queue-priority cancellations as annotations. Adds a plain-text annotation body mode for system-generated copy.
+- cb99d51: Exposes model stream recovery rows and provider-category failures across workflow, log, Agent Access, and client contracts.
+
+### Patch Changes
+
+- Updated dependencies [90ff0e9]
+- Updated dependencies [db12613]
+- Updated dependencies [cb99d51]
+  - @shipfox/client-ui@45.0.0
+  - @shipfox/api-definitions-dto@26.1.0
+  - @shipfox/api-workflows-dto@26.1.0
+  - @shipfox/client-logs@45.0.0
+  - @shipfox/client-integrations@45.0.0
+  - @shipfox/client-projects@45.0.0
+  - @shipfox/client-shell@45.0.0
+  - @shipfox/client-triggers@45.0.0
+  - @shipfox/api-triggers-dto@26.1.0
+  - @shipfox/client-usage@45.0.0
+
 ## 44.0.0
 
 ### Patch Changes

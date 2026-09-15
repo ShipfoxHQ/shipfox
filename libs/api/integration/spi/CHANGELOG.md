@@ -1,5 +1,11 @@
 # @shipfox/api-integration-spi
 
+## 4.2.0
+
+### Minor Changes
+
+- c2c97ac: Classifies hosted Linear MCP failures and reports integration incidents with isolated metadata and stable grouping.
+
 ## 4.1.2
 
 ### Patch Changes

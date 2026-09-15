@@ -1,5 +1,11 @@
 # @shipfox/client-usage
 
+## 45.0.0
+
+### Patch Changes
+
+- @shipfox/client-shell@45.0.0
+
 ## 44.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/node-error-monitoring
 
+## 0.4.0
+
+### Minor Changes
+
+- c2c97ac: Classifies hosted Linear MCP failures and reports integration incidents with isolated metadata and stable grouping.
+
 ## 0.3.1
 
 ### Patch Changes
