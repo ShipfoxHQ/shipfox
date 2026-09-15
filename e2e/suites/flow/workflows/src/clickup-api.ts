@@ -10,6 +10,7 @@ export const CLICKUP_TASK_RESULT_MARKER = 'clickup-task-result-marker';
 export const CLICKUP_COMMENT_RESULT_MARKER = 'clickup-comment-result-marker';
 
 const CLICKUP_TASK_PATH_RE = /^\/api\/v2\/task\/([^/]+)(?:\/comment)?$/;
+const MAX_ERROR_MESSAGE_LENGTH = 1_000;
 
 export type ClickUpApiMockCall =
   | {
@@ -39,9 +40,18 @@ export async function startClickUpApiMock(
   const calls: ClickUpApiMockCall[] = [];
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
-    void handleClickUpRequest({calls, endpoint: boundEndpoint, request, response}).catch(() => {
-      sendJson(response, 400, {err: 'Invalid ClickUp request', ECODE: 'E2E_BAD_REQUEST'});
-    });
+    void handleClickUpRequest({calls, endpoint: boundEndpoint, request, response}).catch(
+      (error) => {
+        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+        process.stderr.write(
+          `ClickUp API mock request failed: ${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}\n`,
+        );
+        if (response.destroyed || response.writableEnded) return;
+        if (!response.headersSent)
+          sendJson(response, 400, {err: 'Invalid ClickUp request', ECODE: 'E2E_BAD_REQUEST'});
+        else response.end();
+      },
+    );
   });
 
   try {
@@ -123,6 +133,11 @@ function validateEndpoint(endpoint: URL): void {
   if (endpoint.port === '') {
     throw new Error(
       `CLICKUP_API_BASE_URL must include an explicit port for the ClickUp API mock (received ${endpoint}). Use :0 for an ephemeral test endpoint.`,
+    );
+  }
+  if (endpoint.pathname !== '/') {
+    throw new Error(
+      `CLICKUP_API_BASE_URL must not include a path for the ClickUp API mock (received ${endpoint}).`,
     );
   }
 }

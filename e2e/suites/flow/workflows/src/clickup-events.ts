@@ -3,7 +3,8 @@ import {config, PollTimeoutError} from '@shipfox/e2e-core';
 import {waitForRunByDeliveryId} from '@shipfox/e2e-observe-workflows';
 
 const MAX_TRIGGER_ATTEMPTS = 8;
-const RUN_LOOKUP_TIMEOUT_MS = 5_000;
+const RUN_LOOKUP_TIMEOUT_MS = 15_000;
+const EARLIER_RUN_LOOKUP_TIMEOUT_MS = 1_000;
 const NEGATIVE_RUN_LOOKUP_SLICE_TIMEOUT_MS = 500;
 
 export function signClickUpHeaders(rawBody: string, webhookSecret: string): Record<string, string> {
@@ -68,6 +69,7 @@ export async function triggerClickUpCommentAndAwaitRun(params: {
   actorId: string;
   commentText: string;
 }): Promise<{runId: string; deliveryId: string}> {
+  const deliveryIds: string[] = [];
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_TRIGGER_ATTEMPTS; attempt += 1) {
     const historyItemId = `history-${crypto.randomUUID().replaceAll('-', '')}`;
@@ -80,24 +82,59 @@ export async function triggerClickUpCommentAndAwaitRun(params: {
       actorId: params.actorId,
       commentText: params.commentText,
     });
+    deliveryIds.push(deliveryId);
 
+    let run: Awaited<ReturnType<typeof waitForRunByDeliveryId>>;
     try {
-      const run = await waitForRunByDeliveryId({
+      run = await waitForRunByDeliveryId({
         projectId: params.projectId,
         deliveryId,
         token: params.token,
         timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
         workspaceId: params.workspaceId,
       });
-      return {runId: run.id, deliveryId};
     } catch (error) {
       lastError = error;
+      continue;
     }
+
+    await assertNoEarlierClickUpRuns({
+      projectId: params.projectId,
+      workspaceId: params.workspaceId,
+      token: params.token,
+      deliveryIds: deliveryIds.slice(0, -1),
+    });
+    return {runId: run.id, deliveryId};
   }
 
   throw lastError instanceof Error
     ? lastError
     : new Error(`No run appeared after ${MAX_TRIGGER_ATTEMPTS} signed ClickUp deliveries.`);
+}
+
+async function assertNoEarlierClickUpRuns(params: {
+  projectId: string;
+  workspaceId: string;
+  token: string;
+  deliveryIds: string[];
+}): Promise<void> {
+  for (const deliveryId of params.deliveryIds) {
+    try {
+      const run = await waitForRunByDeliveryId({
+        projectId: params.projectId,
+        deliveryId,
+        token: params.token,
+        timeoutMs: EARLIER_RUN_LOOKUP_TIMEOUT_MS,
+        workspaceId: params.workspaceId,
+      });
+      throw new Error(
+        `ClickUp delivery ${deliveryId} also started workflow run ${run.id}; expected one run for the logical trigger.`,
+      );
+    } catch (error) {
+      if (error instanceof PollTimeoutError) continue;
+      throw error;
+    }
+  }
 }
 
 export async function postClickUpCommentDelivery(params: {
