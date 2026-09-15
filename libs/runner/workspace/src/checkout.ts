@@ -228,8 +228,10 @@ export async function checkoutRepository(params: {
       } catch (retryError) {
         const retryClassified = classifyCheckoutError(retryError, auth, repositoryUrl);
         recordCheckoutFetchAttempt('retry', 'failure', retryClassified.kind);
-        retryExhausted = true;
-        onRetry?.('exhausted');
+        if (retryClassified.kind !== 'aborted') {
+          retryExhausted = true;
+          onRetry?.('exhausted');
+        }
         throw retryError;
       }
     }

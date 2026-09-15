@@ -470,6 +470,28 @@ describe('checkoutRepository failure classification', () => {
     expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'exhausted']);
   });
 
+  it('does not mark a cancelled second fetch as exhausted', async () => {
+    const abortError = Object.assign(new Error('The operation was aborted'), {
+      name: 'AbortError',
+    });
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'error', error: abortError},
+    ]);
+    const retryDelay = vi.fn(async () => undefined);
+    const onRetry = vi.fn();
+
+    await expect(
+      checkoutRepository({...BASE, auth: AUTH, retryDelay, onRetry}),
+    ).rejects.toMatchObject({kind: 'aborted', retryExhausted: false});
+
+    expect(spawnMock).toHaveBeenCalledTimes(4);
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying']);
+    expect(onRetry).not.toHaveBeenCalledWith('exhausted');
+  });
+
   it('does not fetch again when cancellation happens during the retry delay', async () => {
     queueFetchFailure('remote: Repository not found.');
     const controller = new AbortController();
