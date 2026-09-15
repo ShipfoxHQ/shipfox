@@ -887,9 +887,7 @@ function FailureMessage({error}: {error: StepError | null}): ReactNode {
 function ProviderStreamDetails({step, error}: {step: Step; error: StepError | null}): ReactNode {
   if (!isProviderStreamFailure(error) || !error) return null;
 
-  const provider = displayProvider(
-    error.managedProviderId ?? step.agentConfig?.provider ?? 'shipfox',
-  );
+  const provider = providerDisplayName(step, error);
   const model = displayModel(step.agentConfig?.model);
   const attempts =
     error.attemptCount !== undefined && error.maxAttempts !== undefined
@@ -917,6 +915,12 @@ function ProviderStreamDetails({step, error}: {step: Step; error: StepError | nu
 function displayProvider(provider: string | null | undefined): string | undefined {
   if (!provider) return undefined;
   return {shipfox: 'Shipfox'}[provider] ?? provider;
+}
+
+function providerDisplayName(step: Step, error: StepError): string {
+  return (
+    displayProvider(error.managedProviderId ?? step.agentConfig?.provider ?? 'shipfox') ?? 'Shipfox'
+  );
 }
 
 function displayModel(model: string | null | undefined): string | undefined {
@@ -1042,9 +1046,7 @@ function failureDescription(
   if (isProviderStreamFailure(error) && error) {
     const attemptCount = error.attemptCount ?? 1;
     const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
-    const provider =
-      displayProvider(error.managedProviderId ?? step.agentConfig?.provider) ??
-      'The model provider';
+    const provider = providerDisplayName(step, error);
     return `${provider} lost the model response stream after ${attemptCount} ${attemptLabel}. No workflow configuration error was detected. Rerun the failed jobs.`;
   }
 

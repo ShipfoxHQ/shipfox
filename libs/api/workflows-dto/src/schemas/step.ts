@@ -68,7 +68,7 @@ const SETUP_ERROR_REASONS = new Set<StepErrorReasonDto>([
   'setup_aborted',
 ]);
 
-export const PROVIDER_STEP_ERROR_CODES = ['provider_stream_interrupted'] as const;
+const PROVIDER_STEP_ERROR_CODES = ['provider_stream_interrupted'] as const;
 
 const PROVIDER_STEP_ERROR_CODE_SET = new Set<string>(PROVIDER_STEP_ERROR_CODES);
 

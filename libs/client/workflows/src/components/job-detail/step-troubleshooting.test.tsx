@@ -712,6 +712,29 @@ describe('StepInspectorSheet', () => {
     expect(screen.queryByText('Stream error occurred')).toBeNull();
   });
 
+  it('uses the Shipfox fallback consistently when provider metadata is absent', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: stepEntry('agent_invocation_failed', 'provider_stream_interrupted', {
+        message: 'Stream error occurred',
+        category: 'provider',
+        retryable: true,
+        attempt_count: 4,
+        max_attempts: 4,
+      }),
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(
+      await screen.findByText(
+        'Shipfox lost the model response stream after 4 attempts. No workflow configuration error was detected. Rerun the failed jobs.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Shipfox')).toBeInTheDocument();
+  });
+
   it('keeps non-tool failure chips keyed to their stable reason', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});

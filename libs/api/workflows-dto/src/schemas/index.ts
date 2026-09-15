@@ -67,7 +67,6 @@ export {
   agentStepSessionDescriptorSchema,
   agentStepSessionIntentSchema,
   deriveStepErrorCategory,
-  PROVIDER_STEP_ERROR_CODES,
   STEP_ERROR_MESSAGE_MAX_LENGTH,
   STEP_STATUS_REASONS,
   type StepAttemptDetailDto,

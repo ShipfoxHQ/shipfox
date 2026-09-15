@@ -49,16 +49,21 @@ function providerRetryEndRows(
   if (!isProviderRetryEntry(entry)) return [rawRecordRow(record, 'Unsupported retry entry')];
   const recovered = entry.success === true;
   const exhausted = entry.success === false && entry.finalError === 'provider_stream_interrupted';
+  const stopped = entry.success === false && !exhausted;
+  let label = 'Model response interrupted';
   let tone: Extract<SessionViewRow, {kind: 'lifecycle'}>['tone'] = 'warning';
   if (recovered) {
+    label = 'Model response recovered';
     tone = 'success';
+  } else if (stopped) {
+    label = 'Model response retry stopped';
   } else if (exhausted) {
     tone = 'error';
   }
   return [
     lifecycleRow(
       record.ts,
-      recovered ? 'Model response recovered' : 'Model response interrupted',
+      label,
       providerRetryEndDetail(entry),
       tone,
       exhausted,

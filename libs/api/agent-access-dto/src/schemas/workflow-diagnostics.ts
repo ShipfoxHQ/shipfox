@@ -94,7 +94,7 @@ const agentConfigIssues = [
   'credentials_invalid',
 ] as const;
 
-const errorCategories = ['setup', 'user'] as const;
+const errorCategories = ['setup', 'provider', 'user'] as const;
 const gateKinds = [
   'none',
   'not_evaluated',

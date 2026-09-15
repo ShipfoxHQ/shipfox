@@ -460,6 +460,8 @@ describe('parsePiSessionRecord', () => {
       record({
         type: 'auto_retry_end',
         code: 'provider_stream_interrupted',
+        provider: 'shipfox',
+        model: 'glm-5.3-flash',
         attempt: 2,
         success: true,
       }),
@@ -471,7 +473,11 @@ describe('parsePiSessionRecord', () => {
         timestamp: 1,
         label: 'Model response recovered',
         detail: 'Continued after 2 retries',
-        meta: [meta('error code', 'provider_stream_interrupted')],
+        meta: [
+          meta('provider', 'shipfox'),
+          meta('model', 'glm-5.3-flash'),
+          meta('error code', 'provider_stream_interrupted'),
+        ],
         tone: 'success',
         terminalFailure: false,
       },
@@ -483,6 +489,8 @@ describe('parsePiSessionRecord', () => {
       record({
         type: 'auto_retry_end',
         code: 'provider_stream_interrupted',
+        provider: 'shipfox',
+        model: 'glm-5.3-flash',
         attempt: 3,
         success: false,
         finalError: 'provider_stream_interrupted',
@@ -495,9 +503,46 @@ describe('parsePiSessionRecord', () => {
         timestamp: 1,
         label: 'Model response interrupted',
         detail: 'Failed after 4 attempts',
-        meta: [meta('error code', 'provider_stream_interrupted')],
+        meta: [
+          meta('provider', 'shipfox'),
+          meta('model', 'glm-5.3-flash'),
+          meta('error code', 'provider_stream_interrupted'),
+        ],
         tone: 'error',
         terminalFailure: true,
+      },
+    ]);
+  });
+
+  test.each([
+    'retry_aborted',
+    'provider_retry_failed',
+  ])('maps %s to a stopped warning lifecycle row', (finalError) => {
+    const rows = parsePiSessionRecord(
+      record({
+        type: 'auto_retry_end',
+        code: 'provider_stream_interrupted',
+        provider: 'shipfox',
+        model: 'glm-5.3-flash',
+        attempt: 1,
+        success: false,
+        finalError,
+      }),
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'lifecycle',
+        timestamp: 1,
+        label: 'Model response retry stopped',
+        detail: 'Stopped after 2 attempts',
+        meta: [
+          meta('provider', 'shipfox'),
+          meta('model', 'glm-5.3-flash'),
+          meta('error code', 'provider_stream_interrupted'),
+        ],
+        tone: 'warning',
+        terminalFailure: false,
       },
     ]);
   });

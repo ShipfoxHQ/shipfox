@@ -40,6 +40,21 @@ describe('workflow diagnostic Agent Access schemas', () => {
     );
   });
 
+  test('accepts provider step errors', () => {
+    const result = stepResult();
+
+    expect(
+      getStepAttemptResultSchema.safeParse({
+        ...result,
+        error: {
+          ...result.error,
+          code: 'provider_stream_interrupted',
+          category: 'provider',
+        },
+      }).success,
+    ).toBe(true);
+  });
+
   test('accepts filter snapshot oversized-field diagnostics', () => {
     expect(
       getWorkflowExecutionContextResultSchema.safeParse({
@@ -146,7 +161,7 @@ describe('workflow diagnostic Agent Access schemas', () => {
             'credentials_invalid',
           ],
         },
-        category: {enum: ['setup', 'user']},
+        category: {enum: ['setup', 'provider', 'user']},
       },
     });
     expect(getStepAttemptResultJsonSchema.properties.gate_result.anyOf[0]).toMatchObject({

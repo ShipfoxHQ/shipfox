@@ -489,6 +489,35 @@ describe('workflow diagnostic agent-access tools', () => {
     expect(getStepAttemptResultSchema.safeParse(result).success).toBe(true);
   });
 
+  test('projects provider error categories through the Agent Access contract', async () => {
+    const mocks = clients();
+    mocks.getWorkflowStepAttemptDetail.mockResolvedValue(
+      stepAttemptDetail({
+        error: {
+          message: 'The model response stream was interrupted after 4 attempts.',
+          reason: 'agent_invocation_failed',
+          code: 'provider_stream_interrupted',
+          category: 'provider',
+          retryable: true,
+          attempt_count: 4,
+          max_attempts: 4,
+        },
+      }),
+    );
+
+    const response = await tool(mocks, 'get_step_attempt').execute({
+      context,
+      arguments: {step_id: stepId, attempt: 1},
+    });
+    const result = success<GetStepAttemptResultDto>(response);
+
+    expect(result.error).toMatchObject({
+      code: 'provider_stream_interrupted',
+      category: 'provider',
+    });
+    expect(getStepAttemptResultSchema.safeParse(result).success).toBe(true);
+  });
+
   test('projects every current producer gate branch', async () => {
     const gateResults = [
       {kind: 'none'},

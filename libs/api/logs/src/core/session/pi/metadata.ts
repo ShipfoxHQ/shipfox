@@ -114,6 +114,10 @@ export function providerRetryEndDetail(entry: SessionEntry): string {
   if (booleanField(entry, 'success')) {
     return `Continued after ${attempt} retr${attempt === 1 ? 'y' : 'ies'}`;
   }
+  if (stringField(entry, 'finalError') !== PROVIDER_STREAM_INTERRUPTED_CODE) {
+    const attemptCount = attempt + 1;
+    return `Stopped after ${attemptCount} ${attemptCount === 1 ? 'attempt' : 'attempts'}`;
+  }
   return `Failed after ${attempt + 1} attempts`;
 }
 

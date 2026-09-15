@@ -110,6 +110,7 @@ type CustomProviderConfig = Parameters<ModelRuntimeInstance['registerProvider']>
 type CustomProviderModel = NonNullable<CustomProviderConfig['models']>[number];
 type ProviderRetryTracker = {
   readonly enabled: boolean;
+  readonly model: string;
   readonly provider: string;
   retries: number;
   maxRetries: number;
@@ -353,6 +354,7 @@ async function runActivePiSession(
   const retryTracker = createProviderRetryTracker(
     params.invocation.provider === 'shipfox',
     params.invocation.provider,
+    params.invocation.model,
   );
   const unsubscribeRetryEvents = params.session.subscribe?.((event) =>
     observeProviderRetryEvent(event, retryTracker, params),
@@ -454,9 +456,14 @@ async function runPiOutputTurns(
   };
 }
 
-function createProviderRetryTracker(enabled: boolean, provider: string): ProviderRetryTracker {
+function createProviderRetryTracker(
+  enabled: boolean,
+  provider: string,
+  model: string,
+): ProviderRetryTracker {
   return {
     enabled,
+    model,
     provider,
     retries: 0,
     maxRetries: 3,
@@ -498,6 +505,8 @@ function observeProviderRetryStart(
   forwardBoundedProviderRetryEntry(onSessionEntry, {
     type: 'auto_retry_start',
     code: PROVIDER_STREAM_INTERRUPTED_CODE,
+    provider: tracker.provider,
+    model: tracker.model,
     attempt: boundedRetryNumber(event.attempt),
     maxAttempts: boundedRetryNumber(event.maxAttempts),
     delayMs: boundedRetryDelay(event.delayMs),
@@ -527,6 +536,8 @@ function observeProviderRetryEnd(
   forwardBoundedProviderRetryEntry(params.onSessionEntry, {
     type: 'auto_retry_end',
     code: PROVIDER_STREAM_INTERRUPTED_CODE,
+    provider: tracker.provider,
+    model: tracker.model,
     success: event.success,
     attempt: boundedRetryNumber(event.attempt),
     ...(event.success ? {} : {finalError: providerRetryFinalError(outcome)}),
