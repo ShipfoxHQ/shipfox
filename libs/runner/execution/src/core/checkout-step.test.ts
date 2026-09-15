@@ -149,13 +149,14 @@ describe('executeCheckoutStep', () => {
   });
 
   it('reports an exhausted GitHub authorization retry with retry guidance', async () => {
-    checkoutRepositoryMock.mockRejectedValue(
-      new CheckoutError('auth', 'Repository not found.', {
+    checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
+      params.onRetry?.('exhausted');
+      throw new CheckoutError('auth', 'Repository not found.', {
         phase: 'fetch',
         repositoryVisibilityFailure: true,
         retryExhausted: true,
-      }),
-    );
+      });
+    });
     const log = fakeLog();
 
     const result = await run({}, new Map(), log);
@@ -165,6 +166,10 @@ describe('executeCheckoutStep', () => {
       error: {message: 'Repository not found.', reason: 'checkout_auth_failed'},
       exit_code: null,
     });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout retry exhausted after the second fetch failed.',
+      'stderr',
+    );
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Checkout step failed because GitHub still did not expose this repository after retrying. Details: Repository not found.',
       'stderr',

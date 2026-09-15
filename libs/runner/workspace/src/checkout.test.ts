@@ -314,7 +314,10 @@ describe('checkoutRepository failure classification', () => {
       {kind: 'failure', stderr: 'remote: Repository not found.\nfatal: sending tok-123 to remote'},
     ]);
 
-    const error = await checkoutRepository({...BASE, auth: AUTH}).catch((value: unknown) => value);
+    const retryDelay = vi.fn(async () => undefined);
+    const error = await checkoutRepository({...BASE, auth: AUTH, retryDelay}).catch(
+      (value: unknown) => value,
+    );
 
     expect(error).toMatchObject({
       kind: 'auth',

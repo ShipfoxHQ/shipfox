@@ -426,6 +426,8 @@ function writeCheckoutRetryLog(log: CheckoutLogSink | undefined, event: Checkout
       'Checkout recovered after a transient GitHub authorization failure.',
       'stderr',
     );
+  } else if (event === 'exhausted') {
+    log?.writeOutputLine('Checkout retry exhausted after the second fetch failed.', 'stderr');
   }
 }
 
