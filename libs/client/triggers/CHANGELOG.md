@@ -1,5 +1,12 @@
 # @shipfox/client-triggers
 
+## 45.0.1
+
+### Patch Changes
+
+- @shipfox/api-triggers-dto@27.0.0
+- @shipfox/client-projects@45.0.1
+
 ## 45.0.0
 
 ### Patch Changes

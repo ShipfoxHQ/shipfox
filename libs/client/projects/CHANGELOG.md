@@ -1,5 +1,11 @@
 # @shipfox/client-projects
 
+## 45.0.1
+
+### Patch Changes
+
+- @shipfox/client-agent@45.0.1
+
 ## 45.0.0
 
 ### Patch Changes
