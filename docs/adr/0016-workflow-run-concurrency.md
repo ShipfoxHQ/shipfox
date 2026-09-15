@@ -230,6 +230,13 @@ the affected attempt identities and planned effects. The UI explains the impact 
 after confirmation. The server checks this inside arbitration so a stale client read cannot bypass
 the confirmation.
 
+### Deployment compatibility
+
+Run orchestration uses the Temporal patch marker `workflow-run-concurrency-gate` to preserve replay
+for histories created before this gate. Workers that produce this marker cannot safely roll back to
+code that omits it while those histories remain active. If such a rollback occurs, roll forward to
+the patched workers. Keep the marker until a Temporal `deprecatePatch` cycle is complete.
+
 ### Durable arbitration
 
 Workflows owns a durable concurrency claim for each participating run attempt. A claim stores the
