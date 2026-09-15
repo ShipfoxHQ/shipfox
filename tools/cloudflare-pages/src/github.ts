@@ -22,6 +22,8 @@ type GitHubVerification = {
   apps: Array<{appId: string; ok: boolean}>;
 };
 
+const unexpectedEndOfJsonPattern = /unexpected end of JSON input/i;
+
 class GitHubDeploymentStatusError extends Error {
   deployment: GitHubDeploymentRecord;
 
@@ -70,6 +72,108 @@ function parseJsonOutput(output: string, command: string): JsonObject {
     throw new Error(
       `${command} did not return JSON: ${error instanceof Error ? error.message : error}`,
     );
+  }
+}
+
+function parseJsonArrayOutput(output: string, command: string): unknown[] {
+  try {
+    const value: unknown = JSON.parse(output);
+    if (!Array.isArray(value)) throw new Error('response was not a JSON array');
+    return value;
+  } catch (error) {
+    throw new Error(
+      `${command} did not return JSON: ${error instanceof Error ? error.message : error}`,
+    );
+  }
+}
+
+function isAmbiguousGitHubCreateError(error: unknown): boolean {
+  return error instanceof Error && unexpectedEndOfJsonPattern.test(error.message);
+}
+
+async function findGitHubDeployment({
+  repository,
+  ref,
+  environment,
+  description,
+  command = 'gh',
+  cwd,
+  runner = runCommand,
+  timeoutMs = 60_000,
+}: RunnerOptions & {
+  repository: string;
+  ref: string;
+  environment: string;
+  description: string;
+}): Promise<string | undefined> {
+  const query = new URLSearchParams({
+    sha: ref,
+    environment,
+    per_page: '100',
+  });
+  const result = await runner(
+    command,
+    ['api', `repos/${repository}/deployments?${query.toString()}`],
+    {cwd, stream: false, timeoutMs},
+  );
+  const deployments = parseJsonArrayOutput(result.output, 'GitHub deployments');
+  const matchingDeployments = deployments.filter((deployment): deployment is JsonObject => {
+    if (typeof deployment !== 'object' || deployment === null || Array.isArray(deployment)) {
+      return false;
+    }
+    const record = deployment as JsonObject;
+    const id = record.id;
+    const refMatches = record.ref === ref || record.sha === ref;
+    return (
+      (typeof id === 'string' || typeof id === 'number') &&
+      refMatches &&
+      record.environment === environment &&
+      record.description === description
+    );
+  });
+  matchingDeployments.sort((left, right) => {
+    const leftTime = typeof left.created_at === 'string' ? Date.parse(left.created_at) : 0;
+    const rightTime = typeof right.created_at === 'string' ? Date.parse(right.created_at) : 0;
+    return rightTime - leftTime;
+  });
+  const deployment = matchingDeployments[0];
+  if (deployment === undefined) return undefined;
+  return String(deployment.id);
+}
+
+async function recoverAmbiguousGitHubDeployment({
+  error,
+  repository,
+  ref,
+  environment,
+  description,
+  command,
+  cwd,
+  runner,
+  timeoutMs,
+}: RunnerOptions & {
+  error: unknown;
+  repository: string;
+  ref: string;
+  environment: string;
+  description: string;
+}): Promise<string | undefined> {
+  if (!isAmbiguousGitHubCreateError(error)) return undefined;
+  try {
+    // GitHub can create the deployment and then return an empty error response.
+    // Look up the exact request before retrying so an ambiguous POST is not duplicated.
+    return await findGitHubDeployment({
+      repository,
+      ref,
+      environment,
+      description,
+      command,
+      cwd,
+      runner,
+      timeoutMs,
+    });
+  } catch {
+    return undefined;
   }
 }
 
@@ -177,29 +281,48 @@ export async function createGitHubDeployment({
   const resolvedEnvironment = required(environment, 'environment');
   const resolvedUrl = required(url, 'url');
 
-  const deployment = await callGitHubApi({
-    repository: resolvedRepository,
-    path: 'deployments',
+  const resolvedDescription = description ?? `Cloudflare Pages deployment for ${resolvedRef}`;
+  const deploymentPayload = {
+    ref: resolvedRef,
+    task: 'deploy',
+    auto_merge: false,
+    required_contexts: [],
+    environment: resolvedEnvironment,
+    description: resolvedDescription,
+    transient_environment: transientEnvironment,
+    production_environment: productionEnvironment,
     payload: {
-      ref: resolvedRef,
-      task: 'deploy',
-      auto_merge: false,
-      required_contexts: [],
-      environment: resolvedEnvironment,
-      description: description ?? `Cloudflare Pages deployment for ${resolvedRef}`,
-      transient_environment: transientEnvironment,
-      production_environment: productionEnvironment,
-      payload: {
-        repository: resolvedRepository,
-        commitSha: resolvedRef,
-        pullRequest,
-      },
+      repository: resolvedRepository,
+      commitSha: resolvedRef,
+      pullRequest,
     },
-    command,
-    cwd,
-    runner,
-    timeoutMs,
-  });
+  };
+  let deployment: JsonObject;
+  try {
+    deployment = await callGitHubApi({
+      repository: resolvedRepository,
+      path: 'deployments',
+      payload: deploymentPayload,
+      command,
+      cwd,
+      runner,
+      timeoutMs,
+    });
+  } catch (error) {
+    const recoveredDeploymentId = await recoverAmbiguousGitHubDeployment({
+      error,
+      repository: resolvedRepository,
+      ref: resolvedRef,
+      environment: resolvedEnvironment,
+      description: resolvedDescription,
+      command,
+      cwd,
+      runner,
+      timeoutMs,
+    });
+    if (recoveredDeploymentId === undefined) throw error;
+    deployment = {id: recoveredDeploymentId};
+  }
   if (deployment.id === undefined || deployment.id === null) {
     throw new Error('GitHub deployment response did not contain an id');
   }

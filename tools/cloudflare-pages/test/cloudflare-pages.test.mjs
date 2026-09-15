@@ -945,6 +945,54 @@ test('creates and finalizes GitHub deployments through the API adapter', async (
   assert.equal(requests[2].payload.state, 'success');
 });
 
+test('recovers a GitHub deployment when its create response is ambiguous', async () => {
+  const requests = [];
+  const result = await createGitHubDeployments({
+    deployments: [{appId: 'storybook', ok: true, url: 'https://storybook.pages.dev'}],
+    repository: 'ShipfoxHQ/example',
+    ref: 'abc123',
+    pullRequest: '42',
+    runner: (_command, args, options) => {
+      requests.push({args, input: options.input});
+      if (args[1] === '--method' && args[3] === 'repos/ShipfoxHQ/example/deployments') {
+        throw new Error('gh exited with code 1: unexpected end of JSON input');
+      }
+      if (args[1]?.startsWith('repos/ShipfoxHQ/example/deployments?')) {
+        return {
+          output: JSON.stringify([
+            {
+              id: 456,
+              ref: 'abc123',
+              sha: 'abc123',
+              environment: 'Preview: storybook: PR 42',
+              description: 'Preview deployment for storybook at abc123',
+              created_at: '2026-07-26T10:00:00Z',
+            },
+          ]),
+        };
+      }
+      return {output: '{}'};
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.apps, [
+    {
+      appId: 'storybook',
+      id: '456',
+      url: 'https://storybook.pages.dev',
+      environment: 'Preview: storybook: PR 42',
+      repository: 'ShipfoxHQ/example',
+    },
+  ]);
+  assert.equal(requests.length, 3);
+  assert.equal(
+    requests[1].args[1],
+    'repos/ShipfoxHQ/example/deployments?sha=abc123&environment=Preview%3A+storybook%3A+PR+42&per_page=100',
+  );
+  assert.equal(JSON.parse(requests[2].input).state, 'in_progress');
+});
+
 test('names app GitHub deployments with a readable preview label', async () => {
   const requests = [];
   const runner = (_command, args, options) => {
