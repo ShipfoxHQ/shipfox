@@ -310,7 +310,7 @@ export function toSelectedAttemptError(
     ...(typeof error.retryable === 'boolean' ? {retryable: error.retryable} : {}),
     reason: resolvedReason,
     agentConfigIssue,
-    category: deriveStepErrorCategory(step.type, resolvedReason),
+    category: deriveStepErrorCategory(step.type, resolvedReason, stringFields.code),
   };
 }
 

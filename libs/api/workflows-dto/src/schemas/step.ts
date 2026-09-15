@@ -112,8 +112,8 @@ export const agentConfigIssueSchema = z.enum([
 
 export type AgentConfigIssueDto = z.infer<typeof agentConfigIssueSchema>;
 
-// Whether a failure is infrastructure (`setup`) or user-code (`user`). Server-derived
-// from the step's type and reason on the read path; the runner never sends it.
+// Whether a failure is infrastructure (`setup`), provider (`provider`), or user-code (`user`).
+// Server-derived from the step's type and reason on the read path; the runner never sends it.
 export const stepErrorCategorySchema = z.enum(['setup', 'provider', 'user']);
 
 export type StepErrorCategoryDto = z.infer<typeof stepErrorCategorySchema>;

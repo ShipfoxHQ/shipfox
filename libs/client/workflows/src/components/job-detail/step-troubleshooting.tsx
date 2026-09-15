@@ -1042,7 +1042,10 @@ function failureDescription(
   if (isProviderStreamFailure(error) && error) {
     const attemptCount = error.attemptCount ?? 1;
     const attemptLabel = attemptCount === 1 ? 'attempt' : 'attempts';
-    return `Shipfox lost the model response stream after ${attemptCount} ${attemptLabel}. No workflow configuration error was detected. Rerun the failed jobs.`;
+    const provider =
+      displayProvider(error.managedProviderId ?? step.agentConfig?.provider) ??
+      'The model provider';
+    return `${provider} lost the model response stream after ${attemptCount} ${attemptLabel}. No workflow configuration error was detected. Rerun the failed jobs.`;
   }
 
   switch (reason) {

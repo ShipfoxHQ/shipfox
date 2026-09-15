@@ -7,4 +7,4 @@
 "@shipfox/client-workflows": patch
 ---
 
-Reports managed model stream retries and exhausted provider failures as workflow states.
+Exposes managed model stream retries and recovery as lifecycle rows, and exhausted provider failures as provider-category workflow states in the API and client UI.

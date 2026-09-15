@@ -216,7 +216,11 @@ const providerRecoveryRecords: LogRecord[] = [
       timestamp: 0,
       label: 'Model response recovered',
       detail: 'Continued after 2 retries',
-      meta: [{label: 'error code', value: 'provider_stream_interrupted'}],
+      meta: [
+        {label: 'provider', value: 'Shipfox'},
+        {label: 'model', value: 'GLM 5.3 Flash'},
+        {label: 'error code', value: 'provider_stream_interrupted'},
+      ],
       tone: 'success',
       terminalFailure: false,
     },
