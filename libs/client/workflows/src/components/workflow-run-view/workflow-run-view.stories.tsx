@@ -644,7 +644,7 @@ export const SupersededByConcurrency: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByText('Cancelled because a newer workflow run took priority.'),
+      await canvas.findByText('Cancelled because Release run #42, attempt 3 took priority.'),
     ).toBeVisible();
     await expect(
       await canvas.findByRole('link', {name: 'View newer run: Release run #42, attempt 3'}),

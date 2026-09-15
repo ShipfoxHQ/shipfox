@@ -60,7 +60,7 @@ function WorkflowRunWaitingNoticeContent({
 
   return (
     <div className="px-row pb-row">
-      <Callout type="warning">
+      <Callout role="status" aria-live="polite" type="warning">
         <CalloutContent>
           <Text size="sm">
             This workflow is waiting for{' '}
@@ -130,7 +130,7 @@ function WorkflowRunSupersededAnnotationContent({
               asChild
               className="items-start justify-start hover:bg-background-neutral-base"
             >
-              <li>
+              <li aria-live="polite" aria-atomic="true">
                 <AnnotationCard
                   style="warning"
                   title={runName}
@@ -140,7 +140,11 @@ function WorkflowRunSupersededAnnotationContent({
                       Cancelled
                     </Text>
                   }
-                  body="Cancelled because a newer workflow run took priority."
+                  body={
+                    reference
+                      ? `Cancelled because ${workflowRunReferenceLabel(reference)} took priority.`
+                      : 'Cancelled because a newer workflow run took priority.'
+                  }
                   action={
                     reference && workspaceSlug && projectSlug ? (
                       <Button asChild size="xs" variant="transparent">
@@ -185,9 +189,7 @@ function WorkflowRunReferenceLink({
   label?: string | undefined;
   children?: ReactNode | undefined;
 }) {
-  const referenceLabel = `${reference.workflowName} run${
-    reference.number === null ? '' : ` #${reference.number}`
-  }, attempt ${reference.attempt}`;
+  const referenceLabel = workflowRunReferenceLabel(reference);
   const content = label ?? referenceLabel;
   if (!workspaceSlug || !projectSlug) return content;
 
@@ -208,6 +210,12 @@ function WorkflowRunReferenceLink({
       {children}
     </Link>
   );
+}
+
+function workflowRunReferenceLabel(reference: WorkflowRunAttemptReference): string {
+  return `${reference.workflowName} run${
+    reference.number === null ? '' : ` #${reference.number}`
+  }, attempt ${reference.attempt}`;
 }
 
 function visibleConcurrency(

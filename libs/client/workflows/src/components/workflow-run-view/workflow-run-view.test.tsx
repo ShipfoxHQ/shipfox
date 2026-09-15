@@ -34,6 +34,7 @@ const ANNOTATION_ID_TWO = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000002';
 const TASK_NINE_PATTERN = /Task nine/;
 const SHOW_MORE_PATTERN = /Show \d+ more/;
 const WAITING_EXPLANATION_PATTERN = /This workflow is waiting for/;
+const VIEW_NEWER_RUN_PATTERN = /View newer run/;
 
 describe('WorkflowRunView', () => {
   beforeEach(() => {
@@ -85,15 +86,12 @@ describe('WorkflowRunView', () => {
   });
 
   test('explains a waiting run at workflow level and links to the holder', async () => {
-    const fetchImpl = configureRunFetch([], {
-      status: 'waiting',
-      jobs: [],
-      run_attempt: concurrencyAttempt('waiting'),
-    });
+    const fetchImpl = configureConcurrencyRunFetch('waiting');
 
     renderView();
 
-    expect(await screen.findByText(WAITING_EXPLANATION_PATTERN)).toBeVisible();
+    const waitingNotice = await screen.findByRole('status');
+    expect(within(waitingNotice).getByText(WAITING_EXPLANATION_PATTERN)).toBeVisible();
     await waitFor(() =>
       expect(requestUrls(fetchImpl).map(({pathname}) => pathname)).toEqual(
         expect.arrayContaining([
@@ -102,31 +100,60 @@ describe('WorkflowRunView', () => {
         ]),
       ),
     );
-    expect(await screen.findByRole('link', {name: 'Release run #42, attempt 3'})).toHaveAttribute(
-      'href',
-      expect.stringContaining(`/runs/${RELATED_RUN_ID}`),
-    );
+    expect(
+      await within(waitingNotice).findByRole('link', {name: 'Release run #42, attempt 3'}),
+    ).toHaveAttribute('href', expect.stringContaining(`/runs/${RELATED_RUN_ID}`));
 
     await userEvent.click(screen.getByRole('button', {name: 'Inspect run details'}));
-    expect(screen.queryByText('Concurrency')).not.toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Waiting')).toBeVisible();
+    expect(within(dialog).queryByText('waiting')).not.toBeInTheDocument();
   });
 
   test('presents a queue-priority cancellation as an annotation below the graph', async () => {
-    configureRunFetch([], {
-      status: 'cancelled',
-      jobs: [],
-      run_attempt: concurrencyAttempt('superseded'),
-    });
+    configureConcurrencyRunFetch('superseded');
+
+    renderView();
+
+    const explanation = await screen.findByText(
+      'Cancelled because Release run #42, attempt 3 took priority.',
+    );
+    expect(explanation).toBeVisible();
+    expect(explanation.closest('li')).toHaveAttribute('aria-live', 'polite');
+    expect(
+      await screen.findByRole('link', {name: 'View newer run: Release run #42, attempt 3'}),
+    ).toHaveAttribute('href', expect.stringContaining(`/runs/${RELATED_RUN_ID}`));
+    expect(screen.queryByText(WAITING_EXPLANATION_PATTERN)).not.toBeInTheDocument();
+  });
+
+  test('degrades safely when a waiting run has no holder identity', async () => {
+    configureConcurrencyRunFetch('waiting', {hasReference: false});
+
+    renderView();
+
+    const waitingNotice = await screen.findByRole('status');
+    expect(
+      within(waitingNotice).getByText(
+        'This workflow is waiting for another workflow run to complete before running.',
+      ),
+    ).toBeVisible();
+    expect(within(waitingNotice).queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  test('degrades safely when a superseding run is inaccessible', async () => {
+    const fetchImpl = configureConcurrencyRunFetch('superseded', {relatedRunStatus: 403});
 
     renderView();
 
     expect(
       await screen.findByText('Cancelled because a newer workflow run took priority.'),
     ).toBeVisible();
-    expect(
-      await screen.findByRole('link', {name: 'View newer run: Release run #42, attempt 3'}),
-    ).toHaveAttribute('href', expect.stringContaining(`/runs/${RELATED_RUN_ID}`));
-    expect(screen.queryByText(WAITING_EXPLANATION_PATTERN)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(requestUrls(fetchImpl).map(({pathname}) => pathname)).toContain(
+        `/workflows/runs/${RELATED_RUN_ID}/attempts`,
+      ),
+    );
+    expect(screen.queryByRole('link', {name: VIEW_NEWER_RUN_PATTERN})).not.toBeInTheDocument();
   });
 
   test.each([
@@ -517,6 +544,28 @@ function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) 
   ));
 }
 
+function configureConcurrencyRunFetch(
+  state: 'waiting' | 'superseded',
+  {
+    hasReference = true,
+    relatedRunStatus = 200,
+  }: {hasReference?: boolean; relatedRunStatus?: number} = {},
+) {
+  return configureRunFetch(
+    [],
+    {
+      status: state === 'waiting' ? 'waiting' : 'cancelled',
+      jobs: [],
+      run_attempt: concurrencyAttempt(state, hasReference),
+    },
+    {},
+    [],
+    undefined,
+    undefined,
+    relatedRunStatus,
+  );
+}
+
 /** The API client hands `fetchImpl` a `Request`, whose URL only `.url` exposes. */
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input;
@@ -531,11 +580,15 @@ function configureRunFetch(
   explanations: WorkflowRunJobExplanationDto[] = [],
   nextExplanationPage?: {cursor: string; items: WorkflowRunJobExplanationDto[]} | undefined,
   sourceSnapshot?: {format: 'yaml'; content: string} | undefined,
+  relatedRunStatus = 200,
 ) {
   const fetchImpl = vi.fn((input: RequestInfo | URL) => {
     const url = new URL(requestUrl(input), 'https://api.example.test');
     const path = url.pathname;
     const detail = workflowRunViewDetailDto(runOverrides);
+    if (path.startsWith(`/workflows/runs/${RELATED_RUN_ID}/`) && relatedRunStatus !== 200) {
+      return Promise.resolve(jsonResponse({code: 'not-found'}, {status: relatedRunStatus}));
+    }
     const relatedRunResponse = relatedRunResourceResponse(path);
     if (relatedRunResponse) return Promise.resolve(jsonResponse(relatedRunResponse));
     if (path === `/workflows/runs/${RUN_ID}/annotations`) {
@@ -597,7 +650,7 @@ function relatedRunResourceResponse(path: string) {
   return undefined;
 }
 
-function concurrencyAttempt(state: 'waiting' | 'superseded') {
+function concurrencyAttempt(state: 'waiting' | 'superseded', hasReference = true) {
   return workflowRunAttemptDto({
     workflow_run_id: RUN_ID,
     status: state === 'waiting' ? 'waiting' : 'cancelled',
@@ -607,12 +660,14 @@ function concurrencyAttempt(state: 'waiting' | 'superseded') {
       state,
       generation: 8,
       policy: {cancel_in_progress: false},
-      affected_attempts: [
-        {
-          workflow_run_id: RELATED_RUN_ID,
-          workflow_run_attempt_id: RELATED_ATTEMPT_ID,
-        },
-      ],
+      affected_attempts: hasReference
+        ? [
+            {
+              workflow_run_id: RELATED_RUN_ID,
+              workflow_run_attempt_id: RELATED_ATTEMPT_ID,
+            },
+          ]
+        : [],
     },
   });
 }
