@@ -1,4 +1,4 @@
-import {createConfig, host, str} from '@shipfox/config';
+import {createConfig, host, str, url} from '@shipfox/config';
 
 export type DocsConfig = {
   VERCEL_ENV: 'development' | 'preview' | 'production' | undefined;
@@ -7,6 +7,7 @@ export type DocsConfig = {
   NEXT_PUBLIC_VERCEL_URL: string | undefined;
   NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL: string | undefined;
   NEXT_PUBLIC_BASE_PATH: string;
+  API_PUBLIC_URL: string;
 };
 
 export function loadConfig(update?: Partial<NodeJS.ProcessEnv>): DocsConfig {
@@ -37,6 +38,10 @@ export function loadConfig(update?: Partial<NodeJS.ProcessEnv>): DocsConfig {
       NEXT_PUBLIC_BASE_PATH: str({
         default: '',
         desc: 'Path prefix applied to externally generated docs URLs, such as /docs in production.',
+      }),
+      API_PUBLIC_URL: url({
+        default: 'https://api.shipfox.io',
+        desc: 'Public Shipfox API base URL used to load the product catalog. Set this to the staging API URL when previewing a staging catalog.',
       }),
     },
     update,
