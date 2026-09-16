@@ -105,13 +105,13 @@ function ModelRow({model}: {model: CatalogModel}) {
             <div className="flex items-baseline justify-between gap-inline">
               <dt className="text-fd-muted-foreground">Context</dt>
               <dd className="whitespace-nowrap font-mono text-fd-foreground">
-                {model.capabilities.context_window_tokens.toLocaleString('en-US')}
+                {model.capabilities.context_window_tokens.toLocaleString('en-US')} tokens
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-inline">
               <dt className="text-fd-muted-foreground">Max output</dt>
               <dd className="whitespace-nowrap font-mono text-fd-foreground">
-                {model.capabilities.max_output_tokens.toLocaleString('en-US')}
+                {model.capabilities.max_output_tokens.toLocaleString('en-US')} tokens
               </dd>
             </div>
           </dl>
