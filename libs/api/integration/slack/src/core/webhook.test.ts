@@ -263,7 +263,7 @@ describe('Slack webhook handlers', () => {
       'a nested edited bot message',
       {event: {type: 'message', subtype: 'message_changed', message: {bot_id: 'B1'}}},
     ],
-  ])('records and drops %s', async (_description, override) => {
+  ])('publishes %s', async (_description, override) => {
     const deps = handlers();
     await seedInstallation(deps.connection);
 
@@ -274,9 +274,9 @@ describe('Slack webhook handlers', () => {
       ...deps,
     });
 
-    expect(result.outcome).toBe('self-message');
-    expect(deps.publishIntegrationEventReceived).not.toHaveBeenCalled();
-    expect(deps.recordDeliveryOnly).toHaveBeenCalledTimes(1);
+    expect(result.outcome).toBe('published');
+    expect(deps.publishIntegrationEventReceived).toHaveBeenCalledOnce();
+    expect(deps.recordDeliveryOnly).not.toHaveBeenCalled();
   });
 
   it('records an unknown team without resolving a connection', async () => {

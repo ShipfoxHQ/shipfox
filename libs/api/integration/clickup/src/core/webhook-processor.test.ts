@@ -11,19 +11,6 @@ const webhookSecret = 'webhook-secret';
 const authorizingUserId = 'authorizing-user';
 const receivedAt = '2026-07-20T10:30:00.123Z';
 
-const actorBearingEvents: ClickUpWebhookEventName[] = [
-  'taskCreated',
-  'taskUpdated',
-  'taskMoved',
-  'taskStatusUpdated',
-  'taskAssigneeUpdated',
-  'taskPriorityUpdated',
-  'taskDueDateUpdated',
-  'taskTagUpdated',
-  'taskCommentPosted',
-  'taskCommentUpdated',
-];
-
 function createConnection(
   overrides: Partial<IntegrationConnection<'clickup'>> = {},
 ): IntegrationConnection<'clickup'> {
@@ -275,16 +262,16 @@ describe('ClickUp webhook processor', () => {
     expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
-  it.each(actorBearingEvents)('drops self-authored %s events', async (event) => {
+  it('publishes an event authored by the authorizing user', async () => {
     const harness = createHarness();
 
     const result = await harness.processor.process(
-      createRequest(createPayload(event, authorizingUserId)),
+      createRequest(createPayload('taskCommentPosted', authorizingUserId)),
     );
 
-    expect(result).toMatchObject({outcome: 'discarded', reason: 'unsupported_event'});
-    expect(harness.recordDeliveryOnly).toHaveBeenCalledOnce();
-    expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(result).toMatchObject({outcome: 'processed'});
+    expect(harness.recordDeliveryOnly).not.toHaveBeenCalled();
+    expect(harness.publishIntegrationEventReceived).toHaveBeenCalledOnce();
   });
 
   it('passes taskDeleted through with a connection-scoped body hash delivery id', async () => {

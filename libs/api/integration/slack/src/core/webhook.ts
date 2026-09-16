@@ -19,11 +19,7 @@ import type {
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
-import {
-  getSlackInstallationByTeamId,
-  markSlackInstallationRevoked,
-  type SlackInstallation,
-} from '#db/installations.js';
+import {getSlackInstallationByTeamId, markSlackInstallationRevoked} from '#db/installations.js';
 
 const slackSelfAuthoredEventSchema = z
   .object({
@@ -70,7 +66,7 @@ export interface HandleSlackCommandParams extends SlackWebhookParams {
 }
 
 type SlackConnectionResolution =
-  | {kind: 'ok'; connection: IntegrationConnection; installation: SlackInstallation}
+  | {kind: 'ok'; connection: IntegrationConnection}
   | {
       kind: 'drop';
       outcome: SlackConnectionDropOutcome;
@@ -97,11 +93,6 @@ export async function handleSlackEvent(
     teamId: params.envelope.team_id,
   });
   if (resolution.kind === 'drop') return resolution;
-
-  if (isSelfAuthoredSlackEvent(params.envelope.event, resolution.installation.botUserId)) {
-    await recordSlackDeliveryOnly(params);
-    return {outcome: 'self-message'};
-  }
 
   const supported = slackEventEnvelopeSchema.safeParse(params.envelope);
   if (!supported.success) {
@@ -346,7 +337,7 @@ async function resolveSlackConnection(
     return {kind: 'drop', outcome: 'inactive-connection'};
   }
 
-  return {kind: 'ok', connection, installation};
+  return {kind: 'ok', connection};
 }
 
 async function recordSlackDeliveryOnly(
