@@ -271,7 +271,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(annotationWrites).not.toHaveBeenCalled();
   });
 
-  test('rejects a renewal generation while the checkout step is still running', async () => {
+  test('rejects a renewal generation from an unscoped lease', async () => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({jobId: job.id});
 
@@ -287,6 +287,29 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('step-not-current');
+    expect(createCheckoutSpec).not.toHaveBeenCalled();
+    expect(createCheckoutCredentials).not.toHaveBeenCalled();
+  });
+
+  test('rejects a renewal generation without a pending checkout subject', async () => {
+    const {job, step} = await createRunningCheckoutStep();
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('checkout-renewal-unavailable');
     expect(createCheckoutSpec).not.toHaveBeenCalled();
     expect(createCheckoutCredentials).not.toHaveBeenCalled();
   });
