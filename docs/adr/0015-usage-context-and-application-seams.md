@@ -132,8 +132,8 @@ stays inside metering and pricing implementations.
 | `estimate(input)` | An estimate for in-flight or unresolved work from the application's current rates. |
 | `formatMoney(amount)` | Locale and currency formatting owned by the implementation. |
 
-**Usage components render quantities only when the seam is absent.** A cost column, total, or
-chip appears only when the seam returns a value for that entity. Available costs render
+**Usage components render costs when available and quantities otherwise.** A cost column, total,
+or chip appears only when the seam returns a value for that entity. Available costs render
 consistently regardless of their source. The `resolved` and `estimated` states remain available
 to the implementation so it can replace provisional amounts when final amounts arrive. Absent
 means no pricing is composed. Components in `@shipfox/client-usage` never import an application

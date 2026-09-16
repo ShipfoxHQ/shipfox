@@ -1,5 +1,6 @@
 ---
+'@shipfox/client-shell': major
 '@shipfox/client-usage': patch
 ---
 
-Render fallback and resolved usage costs consistently without exposing pricing resolution details.
+Remove the pricing disclosure option. Render estimated and resolved usage costs as plain amounts without estimate prefixes, disclosure notices, or hover details.

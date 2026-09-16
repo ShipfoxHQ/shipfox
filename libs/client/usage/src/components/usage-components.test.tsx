@@ -140,16 +140,16 @@ describe('Usage components', () => {
       );
     }
     const {rerender} = render(<Usage details={false} />);
-    await screen.findByText('Est. $0.90');
+    await screen.findByText('$0.90');
 
     rerender(<Usage details />);
-    await waitFor(() => expect(screen.getAllByText('Est. $0.90')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText('$0.90')).toHaveLength(2));
     expect(resolveCosts).toHaveBeenCalledTimes(1);
     expect(estimate).toHaveBeenCalledTimes(1);
 
     rerender(<Usage details={false} mounted={false} />);
     rerender(<Usage details />);
-    await waitFor(() => expect(screen.getAllByText('Est. $0.90')).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText('$0.90')).toHaveLength(2));
     expect(resolveCosts).toHaveBeenCalledTimes(2);
     expect(estimate).toHaveBeenCalledTimes(2);
   });
@@ -431,20 +431,17 @@ describe('Usage components', () => {
   test('renders fallback prices without exposing pricing implementation details', async () => {
     const disclosure = 'Estimated from list prices. Nothing is billed.';
     const estimate = vi.fn(() => ({amount: 0.9, state: 'estimated' as const}));
-    const {container} = render(
+    render(
       <ClientUsagePricingProvider
-        usagePricing={{...pricing, resolveCosts: () => new Map(), estimate, disclosure}}
+        usagePricing={{...pricing, resolveCosts: () => new Map(), estimate}}
       >
         <RunUsageSummary runId={RUN_ID} usage={runUsage} />
         <JobUsageCells usage={jobUsage} />
       </ClientUsagePricingProvider>,
     );
 
-    await waitFor(() =>
-      expect(container.querySelectorAll('[data-usage-cost-state="estimated"]')).toHaveLength(2),
-    );
+    await waitFor(() => expect(screen.getAllByText('$0.90')).toHaveLength(2));
     expect(screen.queryByText(disclosure)).not.toBeInTheDocument();
-    expect(container).not.toHaveTextContent('Est.');
   });
 
   test('renders an estimated job cost while preserving job quantities', async () => {
@@ -460,7 +457,7 @@ describe('Usage components', () => {
 
     expect(screen.queryByText('1.8K tokens')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('$0.90')).toBeVisible());
-    expect(screen.getByText('Est. $0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
+    expect(screen.getByText('$0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
   });
 
   test('does not estimate a running job with an unknown duration', async () => {
