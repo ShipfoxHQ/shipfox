@@ -23,8 +23,12 @@ export async function getLLMText(page: InferPageType<typeof source>) {
   const integrationCatalog = processed.includes('IntegrationCatalog')
     ? (await import('@/lib/integration-catalog-source')).getIntegrationCatalog()
     : undefined;
+  const modelCatalog = processed.includes('ModelCatalog')
+    ? await (await import('@/lib/model-catalog')).getModelCatalog()
+    : undefined;
   const body = serializeMachineReadableMarkdown(processed, {
     integrationCatalog,
+    modelCatalog,
     pageUrl: page.url,
     requiredFacts: requiredFactsForPage(page.url),
     sourcePath: page.path,
@@ -68,6 +72,9 @@ function requiredFactsForPage(pageUrl: string): string[] {
   }
   if (path === '/reference/model-providers') {
     return ['## Supported providers', '| Provider | `provider` ID |'];
+  }
+  if (path === '/reference/cloud-models') {
+    return ['## Available models', '| Model | `model` ID |', '| Capabilities |'];
   }
   if (path === '/integrations') return ['## Integration catalog', '### GitHub'];
   if (INTEGRATION_EVENTS_PAGE_PATTERN.test(path)) {
