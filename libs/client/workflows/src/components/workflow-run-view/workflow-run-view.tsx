@@ -1084,7 +1084,7 @@ function RunSectionContent({
         aria-label="All jobs summary"
         className="min-h-0 flex-1 overflow-auto pb-panel pt-panel-compact"
       >
-        <div className="flex w-full flex-col gap-group">
+        <div className="flex min-h-full w-full flex-col gap-group">
           <Text as="h2" className="sr-only">
             All jobs summary
           </Text>
@@ -1096,13 +1096,13 @@ function RunSectionContent({
               projectSlug={projectSlug}
             />
           ) : (
-            <Panel className="min-h-160">
-              <PanelBody className="min-h-160 bg-background-components-base p-0">
+            <Panel className="min-h-160 flex-1">
+              <PanelBody className="min-h-160 flex-1 bg-background-components-base p-0">
                 <JobGraph
                   run={run}
                   selectedJobId={selectedJobId}
                   onSelectedJobChange={onSelectGraphJob}
-                  className="min-h-160 overflow-hidden"
+                  className="h-full min-h-160 overflow-hidden"
                 />
               </PanelBody>
             </Panel>
