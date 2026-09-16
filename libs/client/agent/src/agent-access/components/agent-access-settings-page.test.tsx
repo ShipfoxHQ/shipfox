@@ -67,20 +67,12 @@ describe('AgentAccessSettingsPage', () => {
     expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', {name: 'Connected apps'})).toBeVisible();
 
-    const capabilityLists = await screen.findAllByRole('list', {
-      name: 'Connected app capabilities',
-    });
-    expect(capabilityLists).toHaveLength(2);
-    for (const capabilities of capabilityLists) {
-      expect(
-        within(capabilities).getByText('Read workspace data (runs, logs, events)'),
-      ).toBeVisible();
-      expect(within(capabilities).getByText('Download step logs')).toBeVisible();
-      expect(
-        within(capabilities).getByText(
-          'Run actions (cancel and rerun runs, fire manual triggers, start dev runs)',
-        ),
-      ).toBeVisible();
+    const accessDescriptions = await screen.findAllByText(
+      'Read workspace data and start or manage workflow runs.',
+    );
+    expect(accessDescriptions).toHaveLength(2);
+    for (const description of accessDescriptions) {
+      expect(description).toBeVisible();
     }
   });
 
