@@ -224,7 +224,7 @@ async function waitForJobSucceeded(params: {
     runId: params.runId,
     timeoutMs: params.timeoutMs,
     description: `job ${params.jobKey} to succeed`,
-    selection: {jobs: [{jobKey: params.jobKey, includeDefaultExecution: true}]},
+    selection: {jobs: [{jobKey: params.jobKey}]},
     matches: (observation) => {
       const job = observation.jobs.find((candidate) => candidate.key === params.jobKey);
       const executionStatus = job?.default_execution?.status ?? 'missing';
