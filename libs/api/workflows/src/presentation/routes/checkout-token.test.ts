@@ -291,6 +291,36 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(createCheckoutCredentials).not.toHaveBeenCalled();
   });
 
+  test.each([
+    'step ID',
+    'step attempt',
+  ] as const)('rejects a renewal generation from a lease with a mismatched %s', async (mismatch) => {
+    const {job, step} = await createRunningCheckoutStep();
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {
+        currentStepId: mismatch === 'step ID' ? crypto.randomUUID() : step.id,
+        currentStepAttempt:
+          mismatch === 'step attempt' ? step.currentAttempt + 1 : step.currentAttempt,
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-not-current');
+    expect(createCheckoutSpec).not.toHaveBeenCalled();
+    expect(createCheckoutCredentials).not.toHaveBeenCalled();
+  });
+
   test('rejects a renewal generation without a pending checkout subject', async () => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({

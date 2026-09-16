@@ -2,4 +2,4 @@
 "@shipfox/api-workflows": patch
 ---
 
-Allow a leased initial checkout to replace a rejected credential generation from its server-owned pending subject.
+Allows an initial checkout to replace a rejected credential generation with a fresh exact-scope credential for the lease token's current step.
