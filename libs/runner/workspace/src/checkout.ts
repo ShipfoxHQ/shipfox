@@ -727,11 +727,13 @@ async function runFreshCredentialRetry(
     recordCheckoutRecovery('fresh-token-recovered');
     params.onRetry?.('fresh-recovered');
   } catch (error) {
-    const classified = classifyCheckoutError(error, replacement, params.repositoryUrl, true);
+    const classified = classifyCheckoutError(error, replacement, params.repositoryUrl);
     recordCheckoutFetchAttempt('fresh', 'failure', classified.kind);
+    if (classified.kind === 'aborted') throw classified;
+
     recordCheckoutRecovery('exhausted');
     params.onRetry?.('fresh-exhausted');
-    throw classified;
+    throw classifyCheckoutError(error, replacement, params.repositoryUrl, true);
   }
 }
 

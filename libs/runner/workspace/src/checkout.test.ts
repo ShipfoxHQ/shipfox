@@ -717,6 +717,41 @@ describe('checkoutRepository failure classification', () => {
     ]);
   });
 
+  it('does not mark a cancelled fresh fetch as exhausted', async () => {
+    const abortError = Object.assign(new Error('The operation was aborted'), {
+      name: 'AbortError',
+    });
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'error', error: abortError},
+    ]);
+    const onFreshCredential = vi.fn().mockResolvedValue(FRESH_AUTH);
+    const onRetry = vi.fn();
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        onRetry,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({kind: 'aborted', retryExhausted: false});
+
+    expect(spawnMock).toHaveBeenCalledTimes(5);
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'fresh-retrying']);
+    expect(onRetry).not.toHaveBeenCalledWith('fresh-exhausted');
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+      ['fresh', 'failure', 'aborted'],
+    ]);
+    expect(recordCheckoutRecoveryMock).not.toHaveBeenCalledWith('exhausted');
+  });
+
   it('does not fetch again when cancellation happens during the retry delay', async () => {
     queueFetchFailure('remote: Repository not found.');
     const controller = new AbortController();
