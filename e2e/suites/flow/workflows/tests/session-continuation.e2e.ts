@@ -228,6 +228,11 @@ async function waitForJobSucceeded(params: {
     matches: (observation) => {
       const job = observation.jobs.find((candidate) => candidate.key === params.jobKey);
       const executionStatus = job?.default_execution?.status ?? 'missing';
+      if (job?.status === 'failed' || job?.status === 'cancelled' || job?.status === 'skipped') {
+        throw new Error(
+          `Job ${params.jobKey} reached terminal status ${job.status} before succeeding: runStatus=${observation.status}, executionStatus=${executionStatus}, statusReason=${job.status_reason ?? 'none'}`,
+        );
+      }
       return {
         matched: job?.status === 'succeeded',
         diagnostic: `job ${params.jobKey} status=${job?.status ?? 'missing'}, executionStatus=${executionStatus}`,
