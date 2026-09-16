@@ -7,6 +7,7 @@ import {
 } from './src/lib/integration-catalog';
 import {stringifyMachineReadableComponent} from './src/lib/machine-readable';
 import {remarkGeneratedComponents} from './src/lib/remark-generated-components';
+import {remarkRunnerCatalog} from './src/lib/remark-runner-catalog';
 
 export type {z} from 'zod';
 
@@ -45,6 +46,6 @@ export const docs = defineDocs({
 export default defineConfig({
   mdxOptions: {
     remarkImageOptions: {useImport: false},
-    remarkPlugins: [remarkGeneratedComponents],
+    remarkPlugins: [remarkGeneratedComponents, remarkRunnerCatalog],
   },
 });
