@@ -36,7 +36,7 @@ export interface StepInferenceTableProps {
   className?: string | undefined;
 }
 
-/** Inference quantities grouped by step attempt, model, and upstream provider. */
+/** Inference quantities grouped by step attempt and model. */
 export function StepInferenceTable({
   usage,
   stepLabels,
@@ -69,7 +69,6 @@ export function StepInferenceTable({
       const models = grouped.get(row.stepAttemptId) ?? [];
       models.push({
         model: row.model,
-        upstream: row.upstream,
         quantities: usageQuantitiesFromTotals(row, 0),
       });
       grouped.set(row.stepAttemptId, models);
@@ -86,7 +85,6 @@ export function StepInferenceTable({
               kind: 'step-attempt' as const,
               id: row.stepAttemptId,
               model: row.model,
-              upstream: row.upstream,
             },
             quantities:
               quantitiesByStepAttempt.get(row.stepAttemptId) ?? usageQuantitiesFromTotals(row, 0),
@@ -108,7 +106,7 @@ export function StepInferenceTable({
         <div className="min-w-0">
           <PanelTitle>Inference usage</PanelTitle>
           <Text as="p" size="xs" className="mt-tight text-foreground-neutral-muted">
-            Token classes and web searches recorded by step attempt, model, and provider.
+            Token classes and web searches recorded by step attempt and model.
           </Text>
         </div>
       </PanelHeader>
@@ -117,7 +115,6 @@ export function StepInferenceTable({
           <TableHeader>
             <TableRow>
               <TableHead>Step attempt</TableHead>
-              <TableHead>Provider</TableHead>
               <TableHead>Model</TableHead>
               <TableHead className="text-right">Requests</TableHead>
               <TableHead className="text-right">Input</TableHead>
@@ -137,12 +134,11 @@ export function StepInferenceTable({
                 kind: 'step-attempt',
                 id: row.stepAttemptId,
                 model: row.model,
-                upstream: row.upstream,
               });
               const cost = costs.get(referenceKey);
               const tokenDetailsTitle = usageTokenBreakdownTitle(row);
               return (
-                <TableRow key={JSON.stringify([row.stepAttemptId, row.upstream, row.model])}>
+                <TableRow key={JSON.stringify([row.stepAttemptId, row.model])}>
                   <TableCell>
                     <Text as="span" size="xs" className="block truncate">
                       {stepLabels?.get(row.stepId) ?? shortIdentifier(row.stepId)}
@@ -151,11 +147,6 @@ export function StepInferenceTable({
                       attempt{' '}
                       {stepAttemptLabels?.get(row.stepAttemptId) ??
                         shortIdentifier(row.stepAttemptId)}
-                    </Code>
-                  </TableCell>
-                  <TableCell>
-                    <Code as="span" variant="label">
-                      {row.upstream}
                     </Code>
                   </TableCell>
                   <TableCell>

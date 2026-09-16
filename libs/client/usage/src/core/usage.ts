@@ -69,7 +69,6 @@ export interface UsageInferenceSegment {
   jobExecutionId: string;
   stepId: string;
   stepAttemptId: string;
-  upstream: string;
   model: string;
   dialect: UsageInferenceDialect;
   windowStart: string;
@@ -117,7 +116,6 @@ export interface StepInferenceUsage extends UsageTokenTotals {
   jobExecutionId: string;
   stepId: string;
   stepAttemptId: string;
-  upstream: string;
   model: string;
 }
 
@@ -184,7 +182,7 @@ export function groupInferenceSegmentsByStepAttempt(
 ): StepInferenceUsage[] {
   const grouped = new Map<string, StepInferenceUsage>();
   for (const segment of segments) {
-    const key = JSON.stringify([segment.stepAttemptId, segment.upstream, segment.model]);
+    const key = JSON.stringify([segment.stepAttemptId, segment.model]);
     const current = grouped.get(key);
     if (current) {
       addUsageTokenTotalsInPlace(current, segment);
@@ -194,7 +192,6 @@ export function groupInferenceSegmentsByStepAttempt(
       jobExecutionId: segment.jobExecutionId,
       stepId: segment.stepId,
       stepAttemptId: segment.stepAttemptId,
-      upstream: segment.upstream,
       model: segment.model,
       ...addUsageTokenTotals(emptyUsageTokenTotals(), segment),
     });
@@ -204,19 +201,16 @@ export function groupInferenceSegmentsByStepAttempt(
     (left, right) =>
       left.stepId.localeCompare(right.stepId) ||
       left.stepAttemptId.localeCompare(right.stepAttemptId) ||
-      left.upstream.localeCompare(right.upstream) ||
       left.model.localeCompare(right.model),
   );
 }
 
 export function groupUsageByModel(segments: readonly UsageInferenceSegment[]) {
-  const grouped = new Map<string, {model: string; upstream: string; totals: UsageTokenTotals}>();
+  const grouped = new Map<string, {model: string; totals: UsageTokenTotals}>();
   for (const segment of segments) {
-    const key = JSON.stringify([segment.upstream, segment.model]);
-    const current = grouped.get(key);
-    grouped.set(key, {
+    const current = grouped.get(segment.model);
+    grouped.set(segment.model, {
       model: segment.model,
-      upstream: segment.upstream,
       totals: addUsageTokenTotals(current?.totals ?? emptyUsageTokenTotals(), segment),
     });
   }

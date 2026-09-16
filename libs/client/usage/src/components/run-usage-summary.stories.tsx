@@ -59,7 +59,6 @@ const usage: RunUsage = {
       jobExecutionId: '33333333-3333-4333-8333-333333333333',
       stepId: '99999999-9999-4999-8999-999999999999',
       stepAttemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      upstream: 'anthropic',
       model: 'claude-sonnet-4',
       dialect: 'anthropic-messages',
       windowStart: '2026-06-26T11:59:20.000Z',
@@ -129,7 +128,6 @@ const detailedCost: UsagePricingCost = {
     models: [
       {
         model: 'claude-sonnet-4',
-        upstream: 'anthropic',
         cost: {amount: 0.3, state: 'resolved'},
         skus: [
           {

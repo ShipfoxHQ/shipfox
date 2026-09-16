@@ -66,7 +66,6 @@ const segment: UsageInferenceSegment = {
   jobExecutionId: EXECUTION_ID,
   stepId: STEP_ID,
   stepAttemptId: STEP_ATTEMPT_ID,
-  upstream: 'anthropic',
   model: 'claude-sonnet-4',
   dialect: 'anthropic-messages',
   windowStart: '2026-06-26T11:59:20.000Z',
@@ -180,7 +179,6 @@ describe('Usage components', () => {
         models: [
           expect.objectContaining({
             model: segment.model,
-            upstream: segment.upstream,
             quantities: expect.objectContaining({requestCount: 2}),
           }),
         ],
@@ -211,7 +209,6 @@ describe('Usage components', () => {
             seconds: 60,
           },
         ],
-        models: [expect.objectContaining({model: segment.model, upstream: segment.upstream})],
       }),
     );
   });
@@ -329,7 +326,6 @@ describe('Usage components', () => {
                     models: [
                       {
                         model: segment.model,
-                        upstream: segment.upstream,
                         cost: {amount: 1, state: 'resolved'},
                         skus: [
                           {
@@ -362,6 +358,7 @@ describe('Usage components', () => {
 
     expect(within(dialog).getByText('Output tokens')).toBeVisible();
     expect(within(dialog).getByText('500 tokens · $2.00 / 1K tokens')).toBeVisible();
+    expect(within(dialog).queryByText('Steps and attempts')).not.toBeInTheDocument();
     expect(estimate).not.toHaveBeenCalled();
   });
 
@@ -502,24 +499,21 @@ describe('Usage components', () => {
         reference,
         models,
       }: {
-        reference: {model?: string; upstream?: string};
+        reference: {model?: string};
         models?: readonly {
           model: string;
-          upstream: string;
           quantities: {requestCount: number};
         }[];
       }) => ({
         amount:
-          (models ?? []).find(
-            (model) => model.model === reference.model && model.upstream === reference.upstream,
-          )?.quantities.requestCount ?? 0,
+          (models ?? []).find((model) => model.model === reference.model)?.quantities
+            .requestCount ?? 0,
         state: 'estimated' as const,
       }),
     );
     const secondSegment: UsageInferenceSegment = {
       ...segment,
       id: '77777777-7777-4777-8777-777777777777',
-      upstream: 'openai',
       model: 'gpt-5',
       dialect: 'openai-responses',
       requestCount: 3,
@@ -555,12 +549,11 @@ describe('Usage components', () => {
           kind: 'step-attempt',
           id: STEP_ATTEMPT_ID,
           model: segment.model,
-          upstream: segment.upstream,
         },
         quantities: expect.objectContaining({requestCount: 5}),
         models: expect.arrayContaining([
-          expect.objectContaining({model: segment.model, upstream: segment.upstream}),
-          expect.objectContaining({model: 'gpt-5', upstream: 'openai'}),
+          expect.objectContaining({model: segment.model}),
+          expect.objectContaining({model: 'gpt-5'}),
         ]),
       }),
     );
@@ -571,7 +564,6 @@ describe('Usage components', () => {
           kind: 'step-attempt',
           id: STEP_ATTEMPT_ID,
           model: 'gpt-5',
-          upstream: 'openai',
         },
         quantities: expect.objectContaining({requestCount: 5}),
       }),
@@ -676,6 +668,7 @@ describe('Usage components', () => {
     expect(screen.getByText('Generate release notes')).toBeVisible();
     expect(screen.getByRole('table', {name: 'Inference usage'})).toHaveAttribute('tabindex', '0');
     expect(screen.getByText('claude-sonnet-4')).toBeVisible();
+    expect(screen.queryByRole('columnheader', {name: 'Provider'})).not.toBeInTheDocument();
     expect(screen.getByText('1.8K')).toBeVisible();
     expect(screen.queryByRole('columnheader', {name: 'Cost'})).not.toBeInTheDocument();
   });

@@ -52,7 +52,6 @@ const usage: JobExecutionUsage = {
       jobExecutionId: '33333333-3333-4333-8333-333333333333',
       stepId: STEP_ID,
       stepAttemptId: STEP_ATTEMPT_ID,
-      upstream: 'anthropic',
       model: 'claude-sonnet-4',
       dialect: 'anthropic-messages',
       windowStart: '2026-06-26T11:59:20.000Z',

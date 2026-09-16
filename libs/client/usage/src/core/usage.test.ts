@@ -8,14 +8,11 @@ import {
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 
-test('keeps the same model on different providers separate when grouping costs', () => {
-  const result = groupUsageByModel([segment(), segment(), segment({upstream: 'another-provider'})]);
+test('groups usage by public model identity', () => {
+  const result = groupUsageByModel([segment(), segment(), segment()]);
 
-  expect(result).toHaveLength(2);
-  expect(result.find((model) => model.upstream === 'anthropic')?.totals.requestCount).toBe(2);
-  expect(result.find((model) => model.upstream === 'another-provider')?.totals.requestCount).toBe(
-    1,
-  );
+  expect(result).toHaveLength(1);
+  expect(result[0]?.totals.requestCount).toBe(3);
 });
 
 function segment(overrides: Partial<UsageInferenceSegment> = {}): UsageInferenceSegment {
@@ -31,7 +28,6 @@ function segment(overrides: Partial<UsageInferenceSegment> = {}): UsageInference
     jobExecutionId: '33333333-3333-4333-8333-333333333333',
     stepId: '99999999-9999-4999-8999-999999999999',
     stepAttemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    upstream: 'anthropic',
     model: 'claude-sonnet-4',
     dialect: 'anthropic-messages',
     windowStart: '2026-06-26T11:59:20.000Z',
@@ -133,7 +129,7 @@ describe('Usage aggregation', () => {
     ]);
   });
 
-  test('groups adjacent segments by step attempt, upstream, and model', () => {
+  test('groups adjacent segments by step attempt and model', () => {
     const rows = groupInferenceSegmentsByStepAttempt([
       segment(),
       segment({
@@ -170,16 +166,13 @@ describe('Usage aggregation', () => {
     });
   });
 
-  test('keeps provider and model values containing separators distinct', () => {
+  test('keeps model values containing separators distinct', () => {
     const rows = groupInferenceSegmentsByStepAttempt([
-      segment({upstream: 'provider:one', model: 'model'}),
-      segment({upstream: 'provider', model: 'one:model'}),
+      segment({model: 'model:one'}),
+      segment({model: 'one:model'}),
     ]);
 
-    expect(rows.map(({upstream, model}) => [upstream, model])).toEqual([
-      ['provider', 'one:model'],
-      ['provider:one', 'model'],
-    ]);
+    expect(rows.map(({model}) => model)).toEqual(['model:one', 'one:model']);
   });
 
   test('aggregates OpenAI counts from the shared token classes', () => {

@@ -92,8 +92,7 @@ export function usagePricingCostFromResolution(
         item.workspaceId === reference.workspaceId &&
         item.kind === reference.kind &&
         item.id === reference.id &&
-        item.model === reference.model &&
-        item.upstream === reference.upstream,
+        item.model === reference.model,
     );
   } else if (isMapLike(resolution)) {
     candidate = resolution.get(key);
@@ -217,7 +216,6 @@ function usageCostRequestSignature(inputs: readonly UsageCostRequest[]): string 
       reference.kind,
       reference.id,
       reference.model ?? null,
-      reference.upstream ?? null,
       quantities?.computeSeconds ?? null,
       quantities?.requestCount ?? null,
       quantities?.inputTokens ?? null,
@@ -269,10 +267,9 @@ function mergeModelInputs(
   if (left === undefined && right === undefined) return undefined;
   const byModel = new Map<string, UsagePricingEstimateModel>();
   for (const input of [...(left ?? []), ...(right ?? [])]) {
-    const key = JSON.stringify([input.model, input.upstream]);
-    const current = byModel.get(key);
+    const current = byModel.get(input.model);
     byModel.set(
-      key,
+      input.model,
       current
         ? {
             ...input,

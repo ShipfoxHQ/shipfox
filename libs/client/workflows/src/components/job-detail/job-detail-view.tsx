@@ -231,15 +231,7 @@ export function JobDetailView({
     logIsFetching,
     showRetargetNotice,
     succeededSummary,
-    stepListModel,
   } = detailState;
-  const stepLabels = new Map(
-    (selectedJobExecution?.steps ?? []).map((step) => [step.id, step.name] as const),
-  );
-  const stepAttemptLabels = new Map(
-    stepListModel.entries.map((entry) => [entry.id, String(entry.attemptOrdinal)] as const),
-  );
-
   function selectExecution(jobExecutionId: string) {
     onSelectionChange({
       ...search,
@@ -322,18 +314,10 @@ export function JobDetailView({
                 executionCountVisible={detailData.executionCountVisible}
                 executionDisplayStatus={detailData.executionDisplayStatus}
                 usage={usageQuery.data}
-                stepLabels={stepLabels}
-                stepAttemptLabels={stepAttemptLabels}
                 jobContext={
                   selectedJobExecution ? (
                     <JobContextPanel
-                      cost={
-                        <JobUsageBreakdown
-                          usage={usageQuery.data}
-                          stepLabels={stepLabels}
-                          stepAttemptLabels={stepAttemptLabels}
-                        />
-                      }
+                      cost={<JobUsageBreakdown usage={usageQuery.data} />}
                       job={job}
                       execution={selectedJobExecution}
                       selectedExecution={selectedJobResources.selectedDetailExecution}

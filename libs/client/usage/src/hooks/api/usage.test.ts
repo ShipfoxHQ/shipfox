@@ -68,7 +68,6 @@ function segmentResponse() {
     job_execution_id: EXECUTION_ID,
     step_id: '99999999-9999-4999-8999-999999999999',
     step_attempt_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    upstream: 'anthropic',
     model: 'claude-sonnet-4',
     dialect: 'anthropic-messages',
     window_start: '2026-06-26T11:59:20.000Z',

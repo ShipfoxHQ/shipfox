@@ -60,7 +60,6 @@ export function toUsageInferenceSegment(dto: InferenceSegmentUsageHttpDto): Usag
     jobExecutionId: dto.job_execution_id,
     stepId: dto.step_id,
     stepAttemptId: dto.step_attempt_id,
-    upstream: dto.upstream,
     model: dto.model,
     dialect: dto.dialect,
     windowStart: dto.window_start,
