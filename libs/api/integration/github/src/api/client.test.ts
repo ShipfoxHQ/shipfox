@@ -228,6 +228,44 @@ describe('OctokitGithubApiClient.getBotUser', () => {
   });
 });
 
+describe('OctokitGithubApiClient.getRepository', () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    requestMock.mockReset();
+  });
+
+  it('resolves canonical repository metadata by owner and name', async () => {
+    authMock.mockResolvedValue({token: GITHUB_STATEFUL_INSTALLATION_TOKEN});
+    requestMock.mockResolvedValue({
+      data: {
+        id: 42,
+        owner: {login: 'shipfox'},
+        name: 'platform',
+        full_name: 'shipfox/platform',
+        default_branch: 'main',
+        private: true,
+        visibility: 'private',
+        clone_url: 'https://github.com/shipfox/platform.git',
+        html_url: 'https://github.com/shipfox/platform',
+      },
+    });
+    const client = createGithubApiClient();
+
+    const result = await client.getRepository({
+      installationId: 1,
+      owner: 'Shipfox',
+      name: 'Platform',
+    });
+
+    expect(result).toMatchObject({id: 42, ownerLogin: 'shipfox', name: 'platform'});
+    expect(requestMock).toHaveBeenCalledWith('GET /repos/{owner}/{repo}', {
+      owner: 'Shipfox',
+      repo: 'Platform',
+      request: {signal: expect.any(AbortSignal)},
+    });
+  });
+});
+
 describe('mapGithubError', () => {
   it.each([400, 404, 409, 422])('maps HTTP %i to a terminal provider rejection', async (status) => {
     const error = new RequestErrorMock(`GitHub rejected request with HTTP ${status}`, status);

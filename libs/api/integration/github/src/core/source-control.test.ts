@@ -1,5 +1,8 @@
 import type {GithubApiClient, GithubRepository} from '#api/client.js';
-import type {GithubCheckoutTokenCachePort} from '#api/github-checkout-token-cache.js';
+import {
+  GithubCheckoutTokenCache,
+  type GithubCheckoutTokenCachePort,
+} from '#api/github-checkout-token-cache.js';
 import {githubInstallationFactory} from '#test/index.js';
 import {GithubIntegrationProviderError} from './errors.js';
 import {GithubSourceControlProvider} from './source-control.js';
@@ -491,7 +494,10 @@ describe('GithubSourceControlProvider', () => {
       permissions: {contents: 'write'},
     });
     expect(github.createInstallationAccessToken).toHaveBeenCalledTimes(1);
-    expect(github.getRepository).not.toHaveBeenCalled();
+    expect(github.getRepository).toHaveBeenCalledWith({
+      installationId,
+      repositoryId: 42,
+    });
     expect(github.listInstallationRepositories).not.toHaveBeenCalled();
     expect(github.getBotUser).toHaveBeenCalledWith({
       username: 'shipfox-test[bot]',
@@ -499,9 +505,60 @@ describe('GithubSourceControlProvider', () => {
     });
   });
 
-  it('creates a name-target checkout spec from the mint response without metadata lookups', async () => {
+  it('coalesces fifteen concurrent initial checkout specs into one provider mint', async () => {
     await createInstallation();
+    const connectionValue = connection();
+    let resolveMint!: (value: {
+      token: string;
+      expiresAt: Date;
+      repositories: GithubRepository[];
+    }) => void;
+    const mint = new Promise<{token: string; expiresAt: Date; repositories: GithubRepository[]}>(
+      (resolve) => {
+        resolveMint = resolve;
+      },
+    );
     const github = githubClient({
+      createInstallationAccessToken: vi.fn(() => mint),
+    });
+    const checkoutTokenCache = new GithubCheckoutTokenCache({
+      withLock: async (_digest, fn) => ({acquired: true, value: await fn()}),
+      now: () => new Date('2026-06-10T11:00:00.000Z'),
+      sleep: () => Promise.resolve(),
+    });
+    const provider = new GithubSourceControlProvider(github, undefined, checkoutTokenCache);
+
+    const specs = Array.from({length: 15}, () =>
+      provider.createCheckoutSpec({
+        connection: connectionValue,
+        externalRepositoryId: 'github:42',
+        permissions: {contents: 'read'},
+      }),
+    );
+    await vi.waitFor(() => expect(github.createInstallationAccessToken).toHaveBeenCalledOnce());
+
+    resolveMint({
+      token: 'ghs_coalesced_token',
+      expiresAt: new Date('2026-06-10T12:00:00.000Z'),
+      repositories: [CHECKOUT_REPOSITORY],
+    });
+    const results = await Promise.all(specs);
+
+    expect(github.createInstallationAccessToken).toHaveBeenCalledOnce();
+    expect(results).toHaveLength(15);
+    expect(results.every((result) => result.credentials?.token === 'ghs_coalesced_token')).toBe(
+      true,
+    );
+  });
+
+  it('creates a name-target checkout spec from canonical metadata before minting', async () => {
+    await createInstallation();
+    let resolveMetadata!: (value: GithubRepository) => void;
+    const metadata = new Promise<GithubRepository>((resolve) => {
+      resolveMetadata = resolve;
+    });
+    const github = githubClient({
+      getRepository: vi.fn(() => metadata),
       createInstallationAccessToken: vi.fn(() =>
         Promise.resolve({
           token: 'ghs_name_target_token',
@@ -522,20 +579,30 @@ describe('GithubSourceControlProvider', () => {
     });
     const provider = new GithubSourceControlProvider(github);
 
-    const result = await provider.createCheckoutSpec({
+    const resultPromise = provider.createCheckoutSpec({
       connection: connection(),
-      target: {kind: 'name', owner: 'shipfox', name: 'platform'},
+      target: {kind: 'name', owner: 'SHIPFOX', name: 'PLATFORM'},
       permissions: {contents: 'read'},
     });
 
-    expect(result.repositoryUrl).toBe('https://github.com/ShipFox/Platform.git');
-    expect(result.ref).toBe('trunk');
+    await vi.waitFor(() => expect(github.getRepository).toHaveBeenCalledOnce());
+    expect(github.createInstallationAccessToken).not.toHaveBeenCalled();
+
+    resolveMetadata(CHECKOUT_REPOSITORY);
+    const result = await resultPromise;
+
+    expect(result.repositoryUrl).toBe('https://github.com/shipfox/platform.git');
+    expect(result.ref).toBe('main');
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
       installationId,
-      repositoryName: 'platform',
+      repositoryId: 42,
       permissions: {contents: 'read'},
     });
-    expect(github.getRepository).not.toHaveBeenCalled();
+    expect(github.getRepository).toHaveBeenCalledWith({
+      installationId,
+      owner: 'SHIPFOX',
+      name: 'PLATFORM',
+    });
     expect(github.listInstallationRepositories).not.toHaveBeenCalled();
   });
 
@@ -561,14 +628,14 @@ describe('GithubSourceControlProvider', () => {
     expect(github.listInstallationRepositories).not.toHaveBeenCalled();
   });
 
-  it('rejects a name target when the mint response has the same name under another owner', async () => {
+  it('rejects a checkout token for another repository after canonical name resolution', async () => {
     await createInstallation();
     const github = githubClient({
       createInstallationAccessToken: vi.fn(() =>
         Promise.resolve({
           token: 'ghs_mismatched_owner_token',
           expiresAt: new Date('2026-06-10T12:00:00.000Z'),
-          repositories: [{...CHECKOUT_REPOSITORY, ownerLogin: 'another-owner'}],
+          repositories: [{...CHECKOUT_REPOSITORY, id: 84}],
         }),
       ),
     });

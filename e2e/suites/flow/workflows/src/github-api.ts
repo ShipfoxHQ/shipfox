@@ -20,6 +20,7 @@ export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
 const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
+const REPOSITORY_BY_NAME_PATH = /^\/repos\/([^/]+)\/([^/]+)$/u;
 const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
 const CHECK_RUN_CREATE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/check-runs$/u;
@@ -39,6 +40,12 @@ export type GithubApiMockCall =
       kind: 'resolve-repository';
       authorization: string | undefined;
       repositoryId: number;
+    }
+  | {
+      kind: 'resolve-repository';
+      authorization: string | undefined;
+      owner: string;
+      repo: string;
     }
   | {
       kind: 'search-issues';
@@ -197,6 +204,11 @@ async function handleGithubRequest(params: {
     handleRepositoryRequest(context, repositoryMatch);
     return;
   }
+  const repositoryByNameMatch = requestUrl.pathname.match(REPOSITORY_BY_NAME_PATH);
+  if (requestMatches(params.request, 'GET', repositoryByNameMatch)) {
+    handleRepositoryByNameRequest(context, repositoryByNameMatch);
+    return;
+  }
   const issueMatch = requestUrl.pathname.match(ISSUE_PATH);
   if (requestMatches(params.request, 'GET', issueMatch)) {
     handleIssueRequest(context, issueMatch);
@@ -276,6 +288,24 @@ function handleRepositoryRequest(params: GithubRequestContext, match: RegExpMatc
     });
   }
   sendJson(params.response, 200, repositoryPayload(repositoryId, params.endpoint));
+}
+
+function handleRepositoryByNameRequest(
+  params: GithubRequestContext,
+  match: RegExpMatchArray,
+): void {
+  const owner = decodeURIComponent(match[1] ?? '');
+  const name = decodeURIComponent(match[2] ?? '');
+  const repositoryId = owner === 'shipfox' && name === 'e2e' ? 42 : 43;
+  if (isCurrentInstallationAuthorization(params)) {
+    params.calls.push({
+      kind: 'resolve-repository',
+      authorization: params.authorization,
+      owner,
+      repo: name,
+    });
+  }
+  sendJson(params.response, 200, repositoryPayload(repositoryId, params.endpoint, owner, name));
 }
 
 function handleIssueRequest(params: GithubRequestContext, match: RegExpMatchArray): void {

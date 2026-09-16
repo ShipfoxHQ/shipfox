@@ -260,14 +260,19 @@ export class GithubSourceControlProvider
   ): Promise<CheckoutSpec> {
     const installationId = await this.installationId(input.connection.id);
     const target = normalizeCheckoutTarget(input);
-    // Specs need canonical repository metadata from the mint response. The
-    // exact-scope cache returns credentials only, so credential-only requests
-    // are the cache-backed path.
+    const repository = await this.resolveCheckoutRepository(installationId, target);
+    const canonicalTarget: CheckoutTarget = {
+      kind: 'external-id',
+      externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, String(repository.id)),
+    };
     const permissions = input.permissions ?? {contents: 'read'};
-    const minted = await this.mintCheckoutToken({installationId, target, permissions});
-    const repository = checkoutRepositoryFromMint(target, minted);
+    const credentials = await this.createCheckoutCredentialsForTarget({
+      connection: input.connection,
+      installationId,
+      target: canonicalTarget,
+      permissions,
+    });
     const ref = input.ref?.trim() || repository.defaultBranch;
-    const credentials = checkoutCredentialsFromMint(minted);
     const botLogin = this.appBotLogin();
     const gitAuthor =
       botLogin && input.permissions?.contents === 'write'
@@ -277,10 +282,7 @@ export class GithubSourceControlProvider
     return {
       repositoryUrl: repository.cloneUrl,
       ref,
-      target: {
-        kind: 'external-id',
-        externalRepositoryId: buildProviderRepositoryId(GITHUB_PROVIDER, String(repository.id)),
-      },
+      target: canonicalTarget,
       credentials,
       ...(gitAuthor ? {gitAuthor} : {}),
     };
@@ -291,32 +293,49 @@ export class GithubSourceControlProvider
   ): Promise<CheckoutCredentials> {
     const installationId = await this.installationId(input.connection.id);
     const target = normalizeCheckoutTarget(input);
+    return await this.createCheckoutCredentialsForTarget({
+      connection: input.connection,
+      installationId,
+      target,
+      permissions: input.permissions,
+      rejectedGeneration: input.rejectedGeneration,
+    });
+  }
+
+  private async createCheckoutCredentialsForTarget(params: {
+    connection: GithubIntegrationConnection;
+    installationId: number;
+    target: CheckoutTarget;
+    permissions: {contents: 'read' | 'write'};
+    rejectedGeneration?: string | undefined;
+  }): Promise<CheckoutCredentials> {
     const mint = () =>
       this.mintCheckoutToken({
-        installationId,
-        target,
-        permissions: input.permissions,
+        installationId: params.installationId,
+        target: params.target,
+        permissions: params.permissions,
       });
     const cached =
-      target.kind === 'external-id' && this.checkoutTokenCache
+      params.target.kind === 'external-id' && this.checkoutTokenCache
         ? await this.checkoutTokenCache.getOrMint(
             {
-              workspaceId: input.connection.workspaceId,
+              workspaceId: params.connection.workspaceId,
               providerInstance: githubProviderInstanceFingerprint(
                 normalizedGithubApiBaseUrl(),
                 config.GITHUB_APP_ID,
               ),
-              installationId,
-              repositoryId: parseGithubRepositoryLocator(target.externalRepositoryId).repositoryId,
-              permissions: {...input.permissions},
+              installationId: params.installationId,
+              repositoryId: parseGithubRepositoryLocator(params.target.externalRepositoryId)
+                .repositoryId,
+              permissions: {...params.permissions},
             },
             mint,
-            input.rejectedGeneration,
+            params.rejectedGeneration,
           )
         : await mint().then((minted) => ({
             token: minted.token,
             expiresAt: minted.expiresAt,
-            generation: newGeneration(input.rejectedGeneration),
+            generation: newGeneration(params.rejectedGeneration),
             stale: false,
           }));
     const renewal = cached.stale
@@ -333,6 +352,21 @@ export class GithubSourceControlProvider
       generation: cached.generation,
       renewal,
     };
+  }
+
+  private async resolveCheckoutRepository(
+    installationId: number,
+    target: CheckoutTarget,
+  ): Promise<GithubRepository> {
+    if (target.kind === 'external-id') {
+      const {repositoryId} = parseGithubRepositoryLocator(target.externalRepositoryId);
+      return await this.github.getRepository({installationId, repositoryId});
+    }
+    return await this.github.getRepository({
+      installationId,
+      owner: target.owner,
+      name: target.name,
+    });
   }
 
   private async mintCheckoutToken(params: {
@@ -395,22 +429,6 @@ function normalizeCheckoutTarget(input: {
     'repository-not-found',
     'Checkout input must include exactly one target or external repository id',
   );
-}
-
-function checkoutCredentialsFromMint(
-  minted: GithubInstallationAccessToken,
-): NonNullable<CheckoutSpec['credentials']> {
-  const generation = newGeneration(undefined);
-  return {
-    username: 'x-access-token',
-    token: minted.token,
-    expiresAt: minted.expiresAt,
-    generation,
-    renewal: {
-      mode: 'refresh-at',
-      refreshAt: new Date(minted.expiresAt.getTime() - GITHUB_CHECKOUT_TOKEN_REFRESH_MARGIN_MS),
-    },
-  };
 }
 
 function checkoutRepositoryFromMint(

@@ -36,6 +36,7 @@ const FAILURE_LOG_SETTLE_TIMEOUT_MS = 10_000;
 const TERMINAL_TIMEOUT_MS = 60_000;
 const GITHUB_REPOSITORY_ID = 42;
 const GITHUB_REPOSITORY_EXTERNAL_ID = `github:${GITHUB_REPOSITORY_ID}`;
+const GITHUB_OUTSIDE_REPOSITORY_ID = 43;
 const GITHUB_OUTSIDE_REPOSITORY_NAME = 'shipfox/outside';
 const BEARER_AUTHORIZATION = /^bearer /iu;
 const REPOSITORY_NOT_AUTHORIZED_MESSAGE =
@@ -778,7 +779,7 @@ test('mints a GitHub checkout token for an all-mode repository name', async ({su
         tokenFormatOverride: 'enabled',
         installationId: fixture.installationId,
         body: {
-          repositories: ['outside'],
+          repository_ids: [GITHUB_OUTSIDE_REPOSITORY_ID],
           permissions: {contents: 'read'},
         },
       },

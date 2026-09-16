@@ -301,6 +301,9 @@ describe('GitHub API mock', () => {
       const repository = await fetch(new URL('/repositories/42', mock.endpoint), {
         headers: {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`},
       });
+      const repositoryByName = await fetch(new URL('/repos/shipfox/outside', mock.endpoint), {
+        headers: {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`},
+      });
       const search = await fetch(
         new URL('/search/issues?q=is%3Aopen%20repo%3Ashipfox%2Fe2e', mock.endpoint),
         {headers: {authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`}},
@@ -319,12 +322,17 @@ describe('GitHub API mock', () => {
 
       expect(mint.status).toBe(201);
       expect(repository.status).toBe(200);
+      expect(repositoryByName.status).toBe(200);
       expect(search.status).toBe(200);
       expect(graphql.status).toBe(200);
       await expect(mint.json()).resolves.toMatchObject({
         repositories: [{id: 42, full_name: 'shipfox/e2e'}],
       });
       await expect(repository.json()).resolves.toMatchObject({id: 42, full_name: 'shipfox/e2e'});
+      await expect(repositoryByName.json()).resolves.toMatchObject({
+        id: 43,
+        full_name: 'shipfox/outside',
+      });
       await expect(search.json()).resolves.toMatchObject({
         items: [{marker: GITHUB_SEARCH_RESULT_MARKER}],
       });
@@ -347,6 +355,12 @@ describe('GitHub API mock', () => {
           kind: 'resolve-repository',
           authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`,
           repositoryId: 42,
+        },
+        {
+          kind: 'resolve-repository',
+          authorization: `bearer ${GITHUB_STATELESS_INSTALLATION_TOKEN}`,
+          owner: 'shipfox',
+          repo: 'outside',
         },
         {
           kind: 'search-issues',
