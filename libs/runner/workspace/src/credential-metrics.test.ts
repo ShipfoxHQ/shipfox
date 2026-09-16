@@ -57,4 +57,17 @@ describe('checkout fetch metrics', () => {
       reason: 'auth',
     });
   });
+
+  it.each([
+    'same-token-recovered',
+    'fresh-token-recovered',
+    'exhausted',
+  ] as const)('records bounded %s recovery dimensions', (outcome) => {
+    const counter = metricMocks.counters.get('runner_checkout_recoveries');
+    if (!counter) throw new Error('Missing checkout recovery counter');
+
+    metrics.recordCheckoutRecovery(outcome);
+
+    expect(counter.add).toHaveBeenCalledWith(1, {outcome});
+  });
 });

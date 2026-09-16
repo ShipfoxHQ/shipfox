@@ -127,6 +127,73 @@ describe('executeCheckoutStep', () => {
     });
   }
 
+  it('requests one fresh credential without replacing server-owned checkout fields', async () => {
+    requestCheckoutTokenMock
+      .mockResolvedValueOnce(
+        checkoutResponse('initial-repository', 'initial-ref', {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'initial-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-one',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        }),
+      )
+      .mockResolvedValueOnce({
+        repository_url: 'https://github.com/acme/replacement-repository.git',
+        ref: 'replacement-ref',
+        fetch_depth: 99,
+        auth: {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'replacement-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-two',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        },
+      });
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log, {attempt: 4});
+
+    expect(result.result).toMatchObject({
+      success: true,
+      checkout: {
+        repository: 'https://github.com/acme/initial-repository.git',
+        ref: 'initial-ref',
+      },
+    });
+    expect(requestCheckoutTokenMock).toHaveBeenNthCalledWith(
+      2,
+      leaseClient,
+      expect.objectContaining({
+        stepId: expect.any(String),
+        attempt: 4,
+        rejectedGeneration: 'generation-one',
+        retry: 0,
+      }),
+    );
+    expect(log.addSecrets).toHaveBeenCalledWith(['replacement-token', expect.any(String)]);
+    expect(writeAmbientGitCredentialMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryUrl: 'https://github.com/acme/initial-repository.git',
+        auth: expect.objectContaining({token: 'replacement-token'}),
+      }),
+    );
+  });
+
   it('logs retry and recovery messages from the workspace checkout', async () => {
     checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
       params.onRetry?.('retrying');

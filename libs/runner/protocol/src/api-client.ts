@@ -437,8 +437,8 @@ function stripStepErrorClassification(
 }
 
 // Exchanges the job lease for short-lived checkout credentials for one frozen checkout step.
-// Retries ride the leaseClient policy (which honors Retry-After); each retry re-mints a fresh
-// short-lived credential.
+// Requests normally ride the leaseClient policy (which honors Retry-After); callers that must
+// bound the exchange to one request can disable transport retries explicitly.
 export async function requestCheckoutToken(
   leaseClient: KyInstance,
   params: {
@@ -446,6 +446,7 @@ export async function requestCheckoutToken(
     attempt: number;
     signal?: AbortSignal;
     rejectedGeneration?: string | undefined;
+    retry?: number;
   },
 ): Promise<CheckoutTokenResponseDto> {
   const body =
@@ -458,6 +459,7 @@ export async function requestCheckoutToken(
       searchParams: {attempt: params.attempt},
       ...(body === undefined ? {} : {json: body}),
       ...(params.signal ? {signal: params.signal} : {}),
+      ...(params.retry === undefined ? {} : {retry: params.retry}),
     },
   );
   return checkoutTokenResponseSchema.parse(await response.json());
