@@ -1,5 +1,4 @@
 import {z} from 'zod';
-import {config} from '@/config';
 
 const MILLION_TOKENS = 'million_tokens';
 const THOUSAND_REQUESTS = 'thousand_requests';
@@ -121,11 +120,6 @@ export function createModelCatalogClient(options: {
     },
   };
 }
-
-export const modelCatalogClient = createModelCatalogClient({
-  apiUrl: config.SHIPFOX_CATALOG_API_URL,
-});
-export const getModelCatalog = () => modelCatalogClient.getModelCatalog();
 
 export function formatMicrodollars(priceMicrodollars: number): string {
   const amount = BigInt(priceMicrodollars);

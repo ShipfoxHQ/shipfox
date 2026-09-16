@@ -24,7 +24,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
     ? (await import('@/lib/integration-catalog-source')).getIntegrationCatalog()
     : undefined;
   const modelCatalog = processed.includes('ModelCatalog')
-    ? await (await import('@/lib/model-catalog')).getModelCatalog()
+    ? await (await import('@/lib/model-catalog-source')).getModelCatalog()
     : undefined;
   const body = serializeMachineReadableMarkdown(processed, {
     integrationCatalog,

@@ -13,7 +13,7 @@ import {DocsVideo} from '@/app/components/docs-video';
 import {IntegrationCatalog as IntegrationCatalogClient} from '@/app/components/integration-catalog';
 import {ModelCatalogTable} from '@/app/components/model-catalog';
 import {getIntegrationCatalog} from '@/lib/integration-catalog-source';
-import {getModelCatalog} from '@/lib/model-catalog';
+import {getModelCatalog} from '@/lib/model-catalog-source';
 
 // The MDX seam: Fumadocs UI primitives plus the door to embedding
 // @shipfox/react-ui components in docs pages.
