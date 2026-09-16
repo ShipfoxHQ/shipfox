@@ -19,6 +19,7 @@ export const GITHUB_SEARCH_RESULT_MARKER = 'github-search-result-marker';
 export const GITHUB_GRAPHQL_RESULT_MARKER = 'github-graphql-result-marker';
 
 const INSTALLATION_TOKEN_PATH = /^\/app\/installations\/(\d+)\/access_tokens$/u;
+const INSTALLATION_REPOSITORIES_PATH = /^\/installation\/repositories$/u;
 const REPOSITORY_PATH = /^\/repositories\/(\d+)$/u;
 const ISSUE_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/u;
 const ISSUES_PATH = /^\/repos\/([^/]+)\/([^/]+)\/issues$/u;
@@ -192,6 +193,11 @@ async function handleGithubRequest(params: {
     await handleMintRequest(context, mintMatch);
     return;
   }
+  const installationRepositoriesMatch = requestUrl.pathname.match(INSTALLATION_REPOSITORIES_PATH);
+  if (requestMatches(params.request, 'GET', installationRepositoriesMatch)) {
+    handleInstallationRepositoriesRequest(context);
+    return;
+  }
   const repositoryMatch = requestUrl.pathname.match(REPOSITORY_PATH);
   if (requestMatches(params.request, 'GET', repositoryMatch)) {
     handleRepositoryRequest(context, repositoryMatch);
@@ -276,6 +282,13 @@ function handleRepositoryRequest(params: GithubRequestContext, match: RegExpMatc
     });
   }
   sendJson(params.response, 200, repositoryPayload(repositoryId, params.endpoint));
+}
+
+function handleInstallationRepositoriesRequest(params: GithubRequestContext): void {
+  sendJson(params.response, 200, {
+    total_count: 2,
+    repositories: [repositoryPayload(42, params.endpoint), repositoryPayload(43, params.endpoint)],
+  });
 }
 
 function handleIssueRequest(params: GithubRequestContext, match: RegExpMatchArray): void {

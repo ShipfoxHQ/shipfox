@@ -363,6 +363,7 @@ export class GithubSourceControlProvider
       return await this.github.getRepository({installationId, repositoryId});
     }
 
+    const visitedCursors = new Set<string>();
     let cursor: string | undefined;
     while (true) {
       const repositories = await this.github.listInstallationRepositories({
@@ -376,8 +377,16 @@ export class GithubSourceControlProvider
           candidate.name.toLowerCase() === target.name.toLowerCase(),
       );
       if (repository) return repository;
-      cursor = repositories.nextCursor ?? undefined;
-      if (!cursor) break;
+      const nextCursor = repositories.nextCursor ?? undefined;
+      if (!nextCursor) break;
+      if (visitedCursors.has(nextCursor)) {
+        throw new GithubIntegrationProviderError(
+          'malformed-provider-response',
+          'GitHub repository pagination cursor did not advance',
+        );
+      }
+      visitedCursors.add(nextCursor);
+      cursor = nextCursor;
     }
 
     throw new GithubIntegrationProviderError(

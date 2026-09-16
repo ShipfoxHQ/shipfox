@@ -659,6 +659,25 @@ describe('GithubSourceControlProvider', () => {
     });
   });
 
+  it('rejects a repeated repository pagination cursor before minting', async () => {
+    await createInstallation();
+    const github = githubClient({
+      listInstallationRepositories: vi.fn(({cursor}: {cursor?: string | undefined}) =>
+        Promise.resolve({repositories: [], nextCursor: cursor ?? 'page-2'}),
+      ),
+    });
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = provider.createCheckoutSpec({
+      connection: connection(),
+      target: {kind: 'name', owner: 'shipfox', name: 'platform'},
+    });
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
+    expect(github.listInstallationRepositories).toHaveBeenCalledTimes(2);
+    expect(github.createInstallationAccessToken).not.toHaveBeenCalled();
+  });
+
   it('uses a name target for credential-only delivery without metadata lookups', async () => {
     await createInstallation();
     const github = githubClient();

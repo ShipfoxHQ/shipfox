@@ -2,4 +2,4 @@
 "@shipfox/api-integration-github": patch
 ---
 
-Coalesces initial GitHub checkout credential mints through the exact-scope cache after canonical repository resolution.
+Concurrent initial GitHub checkouts for the same repository, installation, and permissions now share one provider token mint.

@@ -119,7 +119,7 @@ export interface CreateGithubIntegrationProviderOptions
     | ((params: {workspaceId: string; namespace: string}) => Promise<number>)
     | undefined;
   agentTools?: {tokenProvider: GithubInstallationTokenProvider} | undefined;
-  /** Optional exact-scope cache for credential-only checkout delivery. */
+  /** Optional exact-scope cache for checkout credential delivery. */
   checkoutTokenCache?: GithubCheckoutTokenCachePort | undefined;
 }
 
