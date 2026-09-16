@@ -32,7 +32,7 @@ export function JobGraphView({
   }
 
   return (
-    <section aria-label="Workflow jobs" className={cn('min-h-0', className)}>
+    <section aria-label="Workflow jobs" className={cn('h-full min-h-0', className)}>
       <JobGraphContent
         model={model}
         trigger={trigger}

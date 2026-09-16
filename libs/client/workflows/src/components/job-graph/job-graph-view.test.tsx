@@ -12,7 +12,10 @@ describe('JobGraph', () => {
   test('renders a graph region and trigger', () => {
     render(<JobGraph run={makeRun({jobs: [makeJob({name: 'build'})]})} />);
 
-    expect(screen.getByRole('region', {name: 'Workflow jobs'})).toBeInTheDocument();
+    const graph = screen.getByRole('region', {name: 'Workflow jobs'});
+    expect(graph).toBeInTheDocument();
+    expect(graph).toHaveClass('h-full');
+    expect(graph.firstElementChild).toHaveClass('h-full', 'overflow-auto');
     expect(screen.getByRole('button', {name: 'fire'})).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'build, Pending'})).toBeInTheDocument();
   });

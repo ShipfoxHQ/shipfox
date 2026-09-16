@@ -78,7 +78,7 @@ export function JobGraphContent({
 
   return (
     <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
-      <div className="min-h-0 overflow-auto bg-transparent">
+      <div className="h-full min-h-0 overflow-auto bg-transparent">
         <div className="relative" style={{width: contentWidth, minHeight: contentHeight}}>
           <GraphEdges model={model} hoveredJobId={hoveredJobId} />
           <div
