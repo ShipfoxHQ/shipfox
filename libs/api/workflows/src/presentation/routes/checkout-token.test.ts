@@ -286,7 +286,7 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('checkout-renewal-unavailable');
+    expect(res.json().code).toBe('step-not-current');
     expect(createCheckoutSpec).not.toHaveBeenCalled();
     expect(createCheckoutCredentials).not.toHaveBeenCalled();
   });
@@ -300,7 +300,10 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
       target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
     });
     createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
-    const token = await mintActiveLeaseToken({jobId: job.id});
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
+    });
 
     const initial = await app.inject({
       method: 'POST',
@@ -1178,7 +1181,10 @@ async function createPromotedCheckout(app: FastifyInstance) {
     target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
   });
   createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
-  const token = await mintActiveLeaseToken({jobId: job.id});
+  const token = await mintActiveLeaseToken({
+    jobId: job.id,
+    token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
+  });
 
   const initial = await app.inject({
     method: 'POST',

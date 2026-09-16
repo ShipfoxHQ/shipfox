@@ -48,10 +48,8 @@ function assertCurrentLeasedStep(params: {
   attempt: number;
 }): void {
   if (
-    (params.leasedJob.currentStepId !== undefined &&
-      params.leasedJob.currentStepId !== params.stepId) ||
-    (params.leasedJob.currentStepAttempt !== undefined &&
-      params.leasedJob.currentStepAttempt !== params.attempt)
+    params.leasedJob.currentStepId !== params.stepId ||
+    params.leasedJob.currentStepAttempt !== params.attempt
   ) {
     throw new ClientError('Step is not the current leased step', 'step-not-current', {status: 409});
   }
@@ -72,12 +70,6 @@ export async function loadRunningLeasedStep(params: {
     leaseState.renewableInference === undefined
       ? {}
       : {renewableInference: leaseState.renewableInference};
-
-  assertCurrentLeasedStep({
-    leasedJob,
-    stepId: params.stepId,
-    attempt: params.attempt,
-  });
 
   const step = await getStepByIdForJobExecution({
     stepId: params.stepId,
@@ -115,6 +107,14 @@ export async function loadRunningLeasedStep(params: {
       }
     }
     throw new ClientError('Step is not running', 'step-not-running', {status: 409});
+  }
+
+  if (params.allowInitialCheckoutCredentialReplacement === true) {
+    assertCurrentLeasedStep({
+      leasedJob,
+      stepId: params.stepId,
+      attempt: params.attempt,
+    });
   }
 
   const checkoutRenewalSubject = params.allowInitialCheckoutCredentialReplacement
