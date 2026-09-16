@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {inlineCode, tableValue} from './markdown';
 
 const MILLION_TOKENS = 'million_tokens';
 const THOUSAND_REQUESTS = 'thousand_requests';
@@ -53,7 +54,12 @@ export const modelCatalogSchema = z
         markup_basis_points: z.literal(500),
       })
       .strict(),
-    models: z.array(modelSchema).min(1),
+    models: z
+      .array(modelSchema)
+      .min(1)
+      .refine((models) => new Set(models.map((model) => model.id)).size === models.length, {
+        message: 'Model IDs must be unique.',
+      }),
   })
   .strict();
 
@@ -149,7 +155,7 @@ export function serializeModelCatalog(catalog: ModelCatalog): string {
   const rows = catalog.models.map((model) => {
     const prices = model.pricing;
     return [
-      `| ${escapeTableValue(model.label)} | \`${escapeTableValue(model.id)}\` | ${escapeTableValue(formatModelCapabilities(model.capabilities))} | ${formatModelPrice(prices.input)} | ${formatModelPrice(prices.cached_input)} | ${formatModelPrice(prices.cache_write)} | ${formatModelPrice(prices.output)} | ${formatModelPrice(prices.web_search)} |`,
+      `| ${tableValue(model.label)} | ${inlineCode(model.id)} | ${tableValue(formatModelCapabilities(model.capabilities))} | ${formatModelPrice(prices.input)} | ${formatModelPrice(prices.cached_input)} | ${formatModelPrice(prices.cache_write)} | ${formatModelPrice(prices.output)} | ${formatModelPrice(prices.web_search)} |`,
     ].join('\n');
   });
 
@@ -160,8 +166,4 @@ export function serializeModelCatalog(catalog: ModelCatalog): string {
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
     ...rows,
   ].join('\n');
-}
-
-function escapeTableValue(value: string): string {
-  return value.replaceAll('|', '\\|').replaceAll('\n', ' ');
 }

@@ -1,3 +1,6 @@
+// biome-ignore-all lint/a11y/noRedundantRoles: the model catalog region keeps an explicit role for the public accessibility contract.
+// biome-ignore-all lint/a11y/noNoninteractiveTabindex: the model catalog region is intentionally keyboard focusable.
+
 import type {CatalogModel, ModelCatalog} from '@/lib/model-catalog';
 import {formatModelCapabilities, formatModelPrice} from '@/lib/model-catalog';
 
@@ -11,7 +14,12 @@ const PRICE_COLUMNS = [
 
 export function ModelCatalogTable({catalog}: {catalog: ModelCatalog}) {
   return (
-    <div className="not-prose my-region overflow-x-auto">
+    <section
+      aria-label="Model catalog"
+      className="not-prose my-region overflow-x-auto"
+      role="region"
+      tabIndex={0}
+    >
       <table>
         <caption className="sr-only">Available Shipfox Cloud agent models and prices</caption>
         <thead>
@@ -32,7 +40,7 @@ export function ModelCatalogTable({catalog}: {catalog: ModelCatalog}) {
           ))}
         </tbody>
       </table>
-    </div>
+    </section>
   );
 }
 

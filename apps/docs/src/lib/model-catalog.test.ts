@@ -73,6 +73,19 @@ test('validates the public model catalog allowlist and pricing dimensions', () =
     ],
   };
   assert.equal(modelCatalogSchema.safeParse(wrongUnitResponse).success, false);
+
+  const duplicateIdResponse = {
+    ...catalog,
+    models: [
+      catalog.models[0],
+      {
+        ...catalog.models[0],
+        label: 'GPT 5.6 Luna duplicate',
+        sku: 'inference.gpt-5.6-luna-duplicate',
+      },
+    ],
+  };
+  assert.equal(modelCatalogSchema.safeParse(duplicateIdResponse).success, false);
 });
 
 test('renders the same catalog values in HTML and machine-readable Markdown', () => {
@@ -90,6 +103,32 @@ test('renders the same catalog values in HTML and machine-readable Markdown', ()
   assert.ok(markdown.includes('| GPT 5.6 Luna | `gpt-5.6-luna` |'));
   assert.ok(markdown.includes('$14.70'));
   assert.equal(serializedComponent, markdown);
+});
+
+test('serializes model IDs and table values containing backticks and pipes safely', () => {
+  const specialCharacterCatalog = {
+    ...catalog,
+    models: [{...catalog.models[0], id: 'gpt|5.6`luna', label: 'GPT | 5.6'}],
+  };
+  const markdown = serializeModelCatalog(specialCharacterCatalog);
+
+  assert.ok(markdown.includes('| GPT \\| 5.6 | ``gpt\\|5.6`luna`` |'));
+});
+
+test('serializes a cloud models page with one Available models heading', () => {
+  const page = [
+    'Shipfox managed inference prices include a 5% service markup over the reference gateway rate.',
+    '',
+    '\0{"name":"ModelCatalog","children":"","attributes":{}}\0',
+  ].join('\n');
+  const serializedPage = serializeMachineReadableMarkdown(page, {
+    modelCatalog: catalog,
+    pageUrl: '/reference/cloud-models',
+    requiredFacts: ['## Available models'],
+  });
+  const headings = serializedPage.match(/^## Available models$/gmu) ?? [];
+
+  assert.equal(headings.length, 1);
 });
 
 test('retains the last successful catalog during revalidation failures', async () => {
