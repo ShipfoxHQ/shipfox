@@ -247,6 +247,67 @@ describe('executeCheckoutStep', () => {
     );
   });
 
+  it('uses non-visibility guidance for a fresh credential provider failure', async () => {
+    checkoutRepositoryMock.mockRejectedValue(
+      new CheckoutError('auth', 'Shipfox rejected the fresh checkout credential request', {
+        phase: 'fetch',
+        retryExhausted: true,
+      }),
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Shipfox rejected the fresh checkout credential request',
+      reason: 'checkout_auth_failed',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed while fetching the requested ref. Details: Shipfox rejected the fresh checkout credential request',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Check the repository connection in Shipfox and confirm it has permission to read this repository.',
+      'stderr',
+    );
+  });
+
+  it('maps a fresh checkout-token timeout to setup_aborted', async () => {
+    requestCheckoutTokenMock.mockResolvedValueOnce(
+      checkoutResponse('initial-repository', 'initial-ref', {
+        kind: 'bearer',
+        token: 'initial-token',
+        expires_at: '2030-01-01T00:00:00.000Z',
+        generation: 'generation-one',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+      }),
+    );
+    const timeoutError = Object.assign(new Error('The operation timed out'), {
+      name: 'TimeoutError',
+    });
+    requestCheckoutTokenMock.mockRejectedValueOnce(timeoutError);
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Fresh checkout credential request was aborted',
+      reason: 'setup_aborted',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed while fetching the requested ref. Details: Fresh checkout credential request was aborted',
+      'stderr',
+    );
+  });
+
   it('propagates an explicit step id and attempt into a helper registration', async () => {
     const step = checkoutStep();
     const helper = {

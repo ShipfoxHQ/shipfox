@@ -177,8 +177,12 @@ async function requestFreshCheckoutCredential(params: {
     if (response.auth) params.log?.addSecrets(ambientGitCredentialSecrets(response.auth));
     return response.auth;
   } catch (error) {
-    if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
-      throw error;
+    if (error instanceof Error && error.name === 'AbortError') throw error;
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new CheckoutError('aborted', freshCredentialFailureMessage('aborted'), {
+        cause: error,
+        phase: 'fetch',
+      });
     }
     const kind = classifyCheckoutTokenFailure(error);
     throw new CheckoutError(kind, freshCredentialFailureMessage(kind), {
@@ -433,11 +437,7 @@ function checkoutFailureResult(params: {
   writeFailure(
     params.log,
     checkoutFailureSummary(params.scope, params.error),
-    checkoutFailureHelp(
-      reason,
-      repositoryVisibilityFailure,
-      params.error instanceof CheckoutError && params.error.retryExhausted,
-    ),
+    checkoutFailureHelp(reason, repositoryVisibilityFailure),
     params.error,
   );
   return {ok: false, result: fail(params.error, reason)};
@@ -445,7 +445,12 @@ function checkoutFailureResult(params: {
 
 function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): string {
   const subject = scope === 'setup' ? 'Setup' : 'Checkout step';
-  if (error instanceof CheckoutError && error.retryExhausted && error.kind === 'auth') {
+  if (
+    error instanceof CheckoutError &&
+    error.retryExhausted &&
+    error.kind === 'auth' &&
+    error.repositoryVisibilityFailure
+  ) {
     return `${subject} failed because GitHub still did not expose this repository after retrying.`;
   }
   if (error instanceof CheckoutError && error.repositoryVisibilityFailure) {
@@ -460,11 +465,7 @@ function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): st
 function checkoutFailureHelp(
   reason: StepErrorReasonDto,
   repositoryVisibilityFailure = false,
-  retryExhausted = false,
 ): string {
-  if (retryExhausted && reason === 'checkout_auth_failed') {
-    return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
-  }
   if (repositoryVisibilityFailure) {
     return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
   }

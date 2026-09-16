@@ -711,9 +711,13 @@ async function runFreshCredentialRetry(
     }
     params.onSecrets?.(secretsOf(replacement));
   } catch (error) {
+    if (params.signal?.aborted) throw abortError();
+    if (isAbortError(error)) throw error;
+    if (error instanceof CheckoutError && error.kind === 'aborted') throw error;
+
     recordCheckoutRecovery('exhausted');
     params.onRetry?.('fresh-exhausted');
-    if (error instanceof CheckoutError || isAbortError(error)) throw error;
+    if (error instanceof CheckoutError) throw error;
     throw classifyCheckoutError(error, params.auth, params.repositoryUrl, true);
   }
 
@@ -921,7 +925,7 @@ function redactedCause(error: unknown, secrets: string[]): Error {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
 function stderrOf(error: unknown): string {
