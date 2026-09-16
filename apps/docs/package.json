@@ -21,7 +21,7 @@
     "test:production-routes": "pnpm test:dependencies && pnpm generate && pnpm test:production-routes:generated",
     "test:production-routes:generated": "node scripts/check-production-routes.mjs",
     "test:unit": "tsx --conditions=workspace-source --test",
-    "postinstall": "fumadocs-mdx"
+    "postinstall": "NODE_OPTIONS=--conditions=workspace-source fumadocs-mdx"
   },
   "dependencies": {
     "@shipfox/config": "workspace:*",
