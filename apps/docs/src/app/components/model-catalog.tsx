@@ -13,7 +13,7 @@ const TOKEN_PRICE_COLUMNS = [
 
 export function ModelCatalogTable({catalog}: {catalog: ModelCatalog}) {
   return (
-    <div className="not-prose my-region relative left-1/2 w-[min(1100px,calc(100vw-var(--fd-sidebar-width,0px)-var(--fd-toc-width,0px)-48px))] -translate-x-1/2">
+    <div className="not-prose my-region relative left-1/2 w-[min(1100px,calc(100vw-var(--fd-sidebar-width,0px)-var(--fd-toc-width,0px)-48px))] max-w-[calc(var(--fd-layout-width,97rem)-var(--fd-sidebar-width,0px)-var(--fd-toc-width,0px)-48px)] -translate-x-1/2">
       <section
         aria-label="Model catalog"
         className="overflow-x-auto rounded-lg border border-fd-border bg-fd-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-ring"
