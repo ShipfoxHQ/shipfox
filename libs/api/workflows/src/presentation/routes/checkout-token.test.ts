@@ -271,9 +271,62 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(annotationWrites).not.toHaveBeenCalled();
   });
 
-  test('rejects a renewal generation while the checkout step is still running', async () => {
+  test('rejects a renewal generation from an unscoped lease', async () => {
     const {job, step} = await createRunningCheckoutStep();
     const token = await mintActiveLeaseToken({jobId: job.id});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-not-current');
+    expect(createCheckoutSpec).not.toHaveBeenCalled();
+    expect(createCheckoutCredentials).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    'step ID',
+    'step attempt',
+  ] as const)('rejects a renewal generation from a lease with a mismatched %s', async (mismatch) => {
+    const {job, step} = await createRunningCheckoutStep();
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {
+        currentStepId: mismatch === 'step ID' ? crypto.randomUUID() : step.id,
+        currentStepAttempt:
+          mismatch === 'step attempt' ? step.currentAttempt + 1 : step.currentAttempt,
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('step-not-current');
+    expect(createCheckoutSpec).not.toHaveBeenCalled();
+    expect(createCheckoutCredentials).not.toHaveBeenCalled();
+  });
+
+  test('rejects a renewal generation without a pending checkout subject', async () => {
+    const {job, step} = await createRunningCheckoutStep();
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
+    });
 
     const res = await app.inject({
       method: 'POST',
@@ -289,6 +342,71 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     expect(res.json().code).toBe('checkout-renewal-unavailable');
     expect(createCheckoutSpec).not.toHaveBeenCalled();
     expect(createCheckoutCredentials).not.toHaveBeenCalled();
+  });
+
+  test('replaces an initial credential from the matching pending subject', async () => {
+    const {project, job, step} = await createRunningCheckoutStep();
+    getProjectById.mockResolvedValue({project});
+    resolveCheckoutTarget.mockResolvedValue({
+      projectId: project.id,
+      connectionId: project.sourceConnectionId,
+      target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
+    });
+    createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
+    const token = await mintActiveLeaseToken({
+      jobId: job.id,
+      token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
+    });
+
+    const initial = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+    expect(initial.statusCode).toBe(200);
+
+    createCheckoutCredentials.mockResolvedValue({
+      username: 'x-access-token',
+      token: 'ghs-replacement-token',
+      expiresAt: '2099-06-10T12:00:00.000Z',
+      generation: 'generation-2',
+      renewal: {mode: 'on-rejection'},
+    });
+    const replacement = await app.inject({
+      method: 'POST',
+      url: checkoutUrl(step.id, step.currentAttempt),
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      payload: {rejected_generation: 'generation-1'},
+    });
+
+    expect(replacement.statusCode).toBe(200);
+    expect(replacement.json()).toEqual({
+      repository_url: 'https://github.com/acme/repo',
+      ref: 'HEAD',
+      fetch_depth: 1,
+      auth: {
+        kind: 'basic',
+        username: 'x-access-token',
+        token: 'ghs-replacement-token',
+        expires_at: '2099-06-10T12:00:00.000Z',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+        generation: 'generation-2',
+        renewal: {mode: 'on-rejection'},
+      },
+    });
+    expect(createCheckoutSpec).toHaveBeenCalledTimes(1);
+    expect(createCheckoutCredentials).toHaveBeenCalledWith({
+      workspaceId: project.workspaceId,
+      connectionId: project.sourceConnectionId,
+      externalRepositoryId: project.sourceExternalRepositoryId,
+      permissions: {contents: 'read'},
+      rejectedGeneration: 'generation-1',
+    });
   });
 
   test('does not mint credentials when the lease expires before issuance', async () => {
@@ -1116,7 +1234,10 @@ async function createPromotedCheckout(app: FastifyInstance) {
     target: {kind: 'external-id', externalRepositoryId: project.sourceExternalRepositoryId},
   });
   createCheckoutSpec.mockResolvedValue(githubSpec('ghs-initial-token'));
-  const token = await mintActiveLeaseToken({jobId: job.id});
+  const token = await mintActiveLeaseToken({
+    jobId: job.id,
+    token: {currentStepId: step.id, currentStepAttempt: step.currentAttempt},
+  });
 
   const initial = await app.inject({
     method: 'POST',

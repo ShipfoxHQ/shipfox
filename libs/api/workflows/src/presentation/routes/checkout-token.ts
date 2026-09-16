@@ -21,6 +21,7 @@ import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {createStepCheckoutSpec, renewStepCheckoutCredentials} from '#core/checkout.js';
 import {warnRenewableGitCapabilityMismatchOnDispatch} from '#core/checkout-capability-warning.js';
 import type {CheckoutRenewalSubject} from '#core/entities/checkout-renewal-subject.js';
+import type {StepStatus} from '#core/entities/step.js';
 import {
   CheckoutConfigInvalidError,
   CheckoutIntentUnresolvedError,
@@ -55,7 +56,7 @@ export function createCheckoutTokenRoute(clients: {
     errorHandler: handleCheckoutTokenError,
     handler: async (request, reply) => {
       const hasRejectedGeneration = request.body?.rejected_generation !== undefined;
-      let mode: 'initial' | 'renewal' = 'initial';
+      let mode: 'initial' | 'initial-replacement' | 'renewal' = 'initial';
       try {
         const {stepId} = request.params;
         const {attempt} = request.query;
@@ -65,9 +66,14 @@ export function createCheckoutTokenRoute(clients: {
           stepId,
           attempt,
           allowSuccessfulPersistedCheckout: true,
+          allowInitialCheckoutCredentialReplacement: hasRejectedGeneration,
         });
 
-        mode = loaded.checkoutRenewalSubject === undefined ? 'initial' : 'renewal';
+        mode = checkoutTokenRequestMode({
+          hasRejectedGeneration,
+          stepStatus: loaded.step.status,
+          hasRenewalSubject: loaded.checkoutRenewalSubject !== undefined,
+        });
 
         if (loaded.step.type !== 'setup' && loaded.step.type !== 'checkout') {
           throw new ClientError('Step is not a checkout step', 'step-not-checkout', {status: 409});
@@ -195,6 +201,17 @@ async function persistCheckoutRenewalSubject(params: {
     captureException(error);
     return false;
   }
+}
+
+function checkoutTokenRequestMode(params: {
+  hasRejectedGeneration: boolean;
+  stepStatus: StepStatus;
+  hasRenewalSubject: boolean;
+}): 'initial' | 'initial-replacement' | 'renewal' {
+  if (params.hasRejectedGeneration && params.stepStatus === 'running') {
+    return 'initial-replacement';
+  }
+  return params.hasRenewalSubject ? 'renewal' : 'initial';
 }
 
 function handleCheckoutTokenError(error: unknown): never {

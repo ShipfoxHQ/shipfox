@@ -17,6 +17,83 @@ export interface SavePendingCheckoutRenewalSubjectParams extends CheckoutRenewal
 }
 
 /**
+ * Loads a pending subject only while the exact leased step attempt is still running.
+ * The lease identity is part of the query so a subject from another execution or run
+ * attempt cannot authorize a credential replacement.
+ */
+export async function loadPendingCheckoutRenewalSubject(params: {
+  stepId: string;
+  attempt: number;
+  jobExecutionId: string;
+  workflowRunAttemptId: string;
+}): Promise<CheckoutRenewalSubject | null> {
+  const [row] = await db()
+    .select({
+      subject: checkoutRenewalSubjects,
+      stepStatus: steps.status,
+      stepCurrentAttempt: steps.currentAttempt,
+      stepJobExecutionId: steps.jobExecutionId,
+      jobWorkflowRunAttemptId: jobs.workflowRunAttemptId,
+      config: steps.config,
+    })
+    .from(checkoutRenewalSubjects)
+    .innerJoin(steps, eq(steps.id, checkoutRenewalSubjects.stepId))
+    .innerJoin(jobExecutions, eq(jobExecutions.id, steps.jobExecutionId))
+    .innerJoin(jobs, eq(jobs.id, jobExecutions.jobId))
+    .innerJoin(
+      workflowRunAttempts,
+      and(
+        eq(workflowRunAttempts.id, jobs.workflowRunAttemptId),
+        eq(workflowRunAttempts.id, checkoutRenewalSubjects.workflowRunAttemptId),
+      ),
+    )
+    .innerJoin(
+      workflowRuns,
+      and(
+        eq(workflowRuns.id, workflowRunAttempts.workflowRunId),
+        eq(workflowRuns.currentAttempt, workflowRunAttempts.attempt),
+      ),
+    )
+    .where(
+      and(
+        eq(checkoutRenewalSubjects.stepId, params.stepId),
+        eq(checkoutRenewalSubjects.attempt, params.attempt),
+        eq(checkoutRenewalSubjects.status, 'pending'),
+        eq(steps.jobExecutionId, params.jobExecutionId),
+        eq(steps.currentAttempt, params.attempt),
+        eq(steps.status, 'running'),
+        eq(jobs.workflowRunAttemptId, params.workflowRunAttemptId),
+      ),
+    )
+    .limit(1);
+
+  const policy = row === undefined ? null : getCheckoutPolicy(row.config);
+  if (
+    row === undefined ||
+    row.stepStatus !== 'running' ||
+    row.stepCurrentAttempt !== params.attempt ||
+    row.stepJobExecutionId !== params.jobExecutionId ||
+    row.jobWorkflowRunAttemptId !== params.workflowRunAttemptId ||
+    policy?.persistCredentials !== true ||
+    policy?.permissionsContents !== row.subject.permissionsContents ||
+    row.subject.repositoryUrl !== normalizeRepositoryUrlSafely(row.subject.repositoryUrl) ||
+    row.subject.repositoryUrl.length === 0 ||
+    row.subject.externalRepositoryId.trim().length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    repositoryUrl: row.subject.repositoryUrl,
+    connectionId: row.subject.connectionId,
+    externalRepositoryId: row.subject.externalRepositoryId,
+    permissions: {contents: row.subject.permissionsContents},
+    stepId: row.subject.stepId,
+    attempt: row.subject.attempt,
+  };
+}
+
+/**
  * Stores the first non-secret subject issued for the current running step attempt.
  * A repeated initial-token request cannot replace the frozen subject.
  */

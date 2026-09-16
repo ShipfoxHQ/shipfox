@@ -13,6 +13,8 @@ export interface MintActiveLeaseTokenParams {
     workflowRunAttemptId?: string;
     projectId?: string;
     workspaceId?: string;
+    currentStepId?: string;
+    currentStepAttempt?: number;
   };
   renewableInference?: boolean | undefined;
 }
@@ -41,6 +43,8 @@ export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): 
     projectId: params.token?.projectId ?? run.projectId,
     workspaceId: params.token?.workspaceId ?? run.workspaceId,
     runnerSessionId,
+    currentStepId: params.token?.currentStepId,
+    currentStepAttempt: params.token?.currentStepAttempt,
   });
 }
 

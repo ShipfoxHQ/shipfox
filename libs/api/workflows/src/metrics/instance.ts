@@ -75,7 +75,7 @@ const jobExecutionStepsSettledCount = meter.createCounter<{
 });
 
 const checkoutTokenRequestsCount = meter.createCounter<{
-  mode: 'initial' | 'renewal';
+  mode: 'initial' | 'initial-replacement' | 'renewal';
   outcome: 'success' | 'failure';
 }>('workflows_checkout_token_requests', {
   description: 'Checkout credential requests by delivery mode and outcome',
@@ -290,7 +290,7 @@ export function recordWorkflowJobExecutionStepsSettled(
 }
 
 export function recordWorkflowCheckoutTokenRequest(
-  mode: 'initial' | 'renewal',
+  mode: 'initial' | 'initial-replacement' | 'renewal',
   outcome: 'success' | 'failure',
 ): void {
   checkoutTokenRequestsCount.add(1, {mode, outcome});
