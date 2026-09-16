@@ -11,7 +11,9 @@ import {DocsCard} from '@/app/components/docs-card';
 import {DocsImage} from '@/app/components/docs-image';
 import {DocsVideo} from '@/app/components/docs-video';
 import {IntegrationCatalog as IntegrationCatalogClient} from '@/app/components/integration-catalog';
+import {ModelCatalogTable} from '@/app/components/model-catalog';
 import {getIntegrationCatalog} from '@/lib/integration-catalog-source';
+import {getModelCatalog} from '@/lib/model-catalog-source';
 
 // The MDX seam: Fumadocs UI primitives plus the door to embedding
 // @shipfox/react-ui components in docs pages.
@@ -23,6 +25,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     DocsImage,
     DocsVideo,
     IntegrationCatalog,
+    ModelCatalog,
     Callout,
     Steps,
     Step,
@@ -43,4 +46,8 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
 
 function IntegrationCatalog() {
   return <IntegrationCatalogClient providers={getIntegrationCatalog()} />;
+}
+
+async function ModelCatalog() {
+  return <ModelCatalogTable catalog={await getModelCatalog()} />;
 }

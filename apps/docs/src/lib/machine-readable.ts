@@ -6,6 +6,7 @@ import {
   catalogCategoryLabels,
 } from './integration-catalog';
 import {inlineCode, tableValue} from './markdown';
+import {type ModelCatalog, serializeModelCatalog} from './model-catalog';
 
 const INTERNAL_DOC_HOSTS = new Set([
   'localhost',
@@ -41,6 +42,7 @@ interface FenceMarker {
 
 export interface MachineReadableMarkdownOptions {
   integrationCatalog?: readonly CatalogProvider[];
+  modelCatalog?: ModelCatalog;
   pageUrl?: string;
   requiredFacts?: readonly string[];
   sourcePath?: string;
@@ -115,7 +117,7 @@ export function serializeMachineReadableMarkdown(
   markdown: string,
   options: MachineReadableMarkdownOptions = {},
 ): string {
-  let serialized = replacePlaceholders(markdown, options.integrationCatalog);
+  let serialized = replacePlaceholders(markdown, options);
   serialized = replaceUnusableImages(serialized);
   serialized = rewriteMachineReadableLinks(serialized, options.pageUrl);
   assertMachineReadableMarkdown(serialized, options);
@@ -208,6 +210,8 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
   if (!isMdxElement(node)) return undefined;
 
   switch (node.name) {
+    case 'ModelCatalog':
+      return `\0${JSON.stringify({name: 'ModelCatalog', children: '', attributes: {}})}\0`;
     case 'Callout':
       return blockquote(
         childrenMarkdown(node, state, info),
@@ -247,7 +251,10 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
   }
 };
 
-function replacePlaceholders(markdown: string, providers?: readonly CatalogProvider[]): string {
+function replacePlaceholders(
+  markdown: string,
+  options: Pick<MachineReadableMarkdownOptions, 'integrationCatalog' | 'modelCatalog'>,
+): string {
   return markdown.replace(/\0([\s\S]*?)\0/g, (_match, value: string) => {
     let placeholder: unknown;
     try {
@@ -261,10 +268,17 @@ function replacePlaceholders(markdown: string, providers?: readonly CatalogProvi
     }
 
     if (placeholder.name === 'IntegrationCatalog') {
-      if (!providers) {
+      if (!options.integrationCatalog) {
         throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
       }
-      return serializeIntegrationCatalog(providers);
+      return serializeIntegrationCatalog(options.integrationCatalog);
+    }
+
+    if (placeholder.name === 'ModelCatalog') {
+      if (!options.modelCatalog) {
+        throw new Error('Model catalog data is unavailable for machine-readable Markdown.');
+      }
+      return serializeModelCatalog(options.modelCatalog);
     }
 
     throw new Error(
