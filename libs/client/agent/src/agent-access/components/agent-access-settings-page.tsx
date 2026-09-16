@@ -88,7 +88,7 @@ export function AgentGrantList({grants}: {grants: AgentGrant[]}) {
           <TableBody>
             {grants.map((grant) => (
               <TableRow key={grant.id}>
-                <TableCell>
+                <TableCell className="whitespace-normal">
                   <div className="min-w-0">
                     <Text bold className="truncate">
                       {grant.clientName}
