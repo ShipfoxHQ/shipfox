@@ -99,7 +99,8 @@ test('renders the same catalog values in HTML and machine-readable Markdown', ()
   assert.ok(html.includes('GPT 5.6 Luna'));
   assert.ok(html.includes('gpt-5.6-luna'));
   assert.ok(html.includes('$0.21'));
-  assert.ok(html.includes('Context: 1,050,000 tokens'));
+  assert.ok(html.includes('Token pricing'));
+  assert.ok(html.includes('1,050,000'));
   assert.ok(markdown.includes('| GPT 5.6 Luna | `gpt-5.6-luna` |'));
   assert.ok(markdown.includes('$14.70'));
   assert.equal(serializedComponent, markdown);
