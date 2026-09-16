@@ -98,6 +98,10 @@ describe('agent-access MCP routes', () => {
 
       expect(toolNames).toEqual(
         expect.arrayContaining([
+          'cancel_workflow_run',
+          'rerun_workflow_run',
+          'fire_manual_trigger',
+          'create_dev_run',
           'get_trigger_event',
           'get_trigger_event_facets',
           'get_workflow_run_source',
