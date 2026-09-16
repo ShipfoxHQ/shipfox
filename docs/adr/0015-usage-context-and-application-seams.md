@@ -216,6 +216,10 @@ existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` s
 
 ### Amendments
 
+**2026-09-16: usage pricing stops exposing estimate presentation details.** Usage components
+render estimated and resolved costs as plain amounts. The coordinated client release removes the
+`ClientUsagePricing.disclosure` option and estimate prefix.
+
 **2026-09-16: model provider identity becomes internal.** Public Usage responses and the
 `usagePricing` seam identify model-scoped costs by model only. Reference keys change from
 `[model, upstream]` to `[model]`. Composing applications update their resolved-cost keys in the
