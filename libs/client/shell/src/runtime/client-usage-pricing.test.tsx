@@ -73,7 +73,6 @@ describe('ClientUsagePricing', () => {
       resolveCosts,
       estimate,
       formatMoney,
-      disclosure: 'Estimated from list prices. Nothing is billed.',
     });
 
     expect(await screen.findByRole('heading', {name: 'Pricing configured'})).toBeVisible();
@@ -143,26 +142,6 @@ describe('ClientUsagePricing', () => {
     expect(usagePricingReferenceKey({...firstReference, workspaceId: OTHER_WORKSPACE_ID})).not.toBe(
       usagePricingReferenceKey(firstReference),
     );
-  });
-
-  test('preserves a pricing disclosure through the safe provider', async () => {
-    function DisclosureProbe() {
-      return <p>{useUsagePricing()?.disclosure}</p>;
-    }
-
-    await renderComposedShell({
-      features: [pricingFeature()],
-      initialPath: '/w/workspace/pricing',
-      resolveImpl: () => defineRoute({staticData: {frame: 'content'}, component: DisclosureProbe}),
-      usagePricing: {
-        resolveCosts: () => new Map(),
-        estimate: () => null,
-        formatMoney: () => '$0.00',
-        disclosure: 'Estimated from list prices. Nothing is billed.',
-      },
-    });
-
-    expect(await screen.findByText('Estimated from list prices. Nothing is billed.')).toBeVisible();
   });
 
   test('contains synchronous implementation failures', async () => {

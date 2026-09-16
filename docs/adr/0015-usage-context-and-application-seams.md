@@ -132,12 +132,12 @@ stays inside metering and pricing implementations.
 | `estimate(input)` | An estimate for in-flight or unresolved work from the application's current rates. |
 | `formatMoney(amount)` | Locale and currency formatting owned by the implementation. |
 
-**Usage components render quantities only when the seam is absent.** A cost column, total, or
-chip appears only when the seam returns a value for that entity. Each cost shows one of three
-states. `resolved` means the implementation holds a final amount. `estimated` covers work in
-flight or work without a final amount. Absent means no pricing is composed. Components in
-`@shipfox/client-usage` never import an application package and never compute an amount from a
-hard-coded price.
+**Usage components render costs when available and quantities otherwise.** A cost column, total,
+or chip appears only when the seam returns a value for that entity. Available costs render
+consistently regardless of their source. The `resolved` and `estimated` states remain available
+to the implementation so it can replace provisional amounts when final amounts arrive. Absent
+means no pricing is composed. Components in `@shipfox/client-usage` never import an application
+package and never compute an amount from a hard-coded price.
 
 **A failing implementation degrades to the absent state.** A thrown error or rejected promise
 from the implementation cannot break a run or job page. The shell isolates the failure the way
@@ -215,6 +215,10 @@ and a second copy of the rule would drift. A composing application informs users
 existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` slots.
 
 ### Amendments
+
+**2026-09-16: usage pricing stops exposing estimate presentation details.** Usage components
+render estimated and resolved costs as plain amounts. The coordinated client release removes the
+`ClientUsagePricing.disclosure` option and estimate prefix.
 
 **2026-09-16: model provider identity becomes internal.** Public Usage responses and the
 `usagePricing` seam identify model-scoped costs by model only. Reference keys change from

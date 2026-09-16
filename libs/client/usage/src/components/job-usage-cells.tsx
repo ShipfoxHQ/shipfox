@@ -1,4 +1,4 @@
-import {usagePricingReferenceKey, useUsagePricing} from '@shipfox/client-shell/runtime';
+import {usagePricingReferenceKey} from '@shipfox/client-shell/runtime';
 import {useMemo} from 'react';
 import {
   groupUsageByModel,
@@ -6,7 +6,7 @@ import {
   usageQuantitiesFromTotals,
   usageTokenTotalsForSegments,
 } from '#core/usage.js';
-import {usagePricingDisclosure, useUsageCosts} from './usage-cost.js';
+import {useUsageCosts} from './usage-cost.js';
 import {UsageCostText} from './usage-cost-text.js';
 import {UsageBreakdown} from './usage-details.js';
 
@@ -16,21 +16,11 @@ export interface JobUsageCellsProps {
 }
 
 export function JobUsageCells({usage, className}: JobUsageCellsProps) {
-  const pricing = useUsagePricing();
   const {cost} = useJobCost(usage);
-  const disclosure = usagePricingDisclosure(pricing, cost);
   if (!usage || !cost) return null;
   return (
     <span data-usage-job-cells className={`inline-flex items-center ${className ?? ''}`}>
       <UsageCostText cost={cost} />
-      {disclosure ? (
-        <span
-          data-usage-pricing-disclosure
-          className="ml-tight text-xs text-foreground-neutral-subtle"
-        >
-          {disclosure}
-        </span>
-      ) : null}
     </span>
   );
 }

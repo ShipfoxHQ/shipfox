@@ -1,4 +1,4 @@
-import {usagePricingReferenceKey, useUsagePricing} from '@shipfox/client-shell/runtime';
+import {usagePricingReferenceKey} from '@shipfox/client-shell/runtime';
 import {type ReactNode, useMemo} from 'react';
 import {
   groupUsageByModel,
@@ -6,7 +6,7 @@ import {
   summarizeRunUsage,
   usageQuantitiesFromTotals,
 } from '#core/usage.js';
-import {usagePricingDisclosure, useUsageCosts} from './usage-cost.js';
+import {useUsageCosts} from './usage-cost.js';
 import {UsageCostText} from './usage-cost-text.js';
 import {UsageBreakdown} from './usage-details.js';
 
@@ -18,9 +18,7 @@ export interface RunUsageSummaryProps {
 }
 
 export function RunUsageSummary({runId, usage, className, prefix}: RunUsageSummaryProps) {
-  const pricing = useUsagePricing();
   const cost = useRunCost(runId, usage);
-  const disclosure = usagePricingDisclosure(pricing, cost);
   if (!usage || !cost) return null;
   return (
     <>
@@ -28,14 +26,6 @@ export function RunUsageSummary({runId, usage, className, prefix}: RunUsageSumma
       <span data-usage-run-summary className={`inline-flex items-center ${className ?? ''}`}>
         <UsageCostText cost={cost} />
       </span>
-      {disclosure ? (
-        <span
-          data-usage-pricing-disclosure
-          className="ml-tight text-xs text-foreground-neutral-subtle"
-        >
-          {disclosure}
-        </span>
-      ) : null}
     </>
   );
 }

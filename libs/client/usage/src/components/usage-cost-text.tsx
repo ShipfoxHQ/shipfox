@@ -12,7 +12,6 @@ export function UsageCostText({cost}: {cost: UsagePricingCost | undefined}) {
       className="text-current whitespace-nowrap"
       data-usage-cost-state={cost?.state}
     >
-      {cost?.state === 'estimated' ? 'Est. ' : ''}
       {formatted}
     </Code>
   );

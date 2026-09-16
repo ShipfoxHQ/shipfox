@@ -168,7 +168,7 @@ function CostValue({cost}: {cost: UsagePricingCost | undefined}) {
   const formatted = formatUsageCost(pricing, cost);
   return (
     <span className="shrink-0 text-xs tabular-nums text-foreground-neutral-subtle">
-      {formatted ? `${cost?.state === 'estimated' ? 'Est. ' : ''}${formatted}` : 'Unavailable'}
+      {formatted ?? 'Unavailable'}
     </span>
   );
 }

@@ -87,8 +87,6 @@ export type UsagePricingResolution =
  * the shell provider so an unavailable billing service cannot interrupt the client.
  */
 export interface ClientUsagePricing {
-  /** Disclosure text shown for estimated costs, such as a list-price notice. */
-  disclosure?: string;
   resolveCosts(
     refs: readonly UsagePricingReference[],
   ): UsagePricingResolution | PromiseLike<UsagePricingResolution>;
@@ -131,7 +129,6 @@ export function usagePricingReferenceKey(reference: UsagePricingReference): stri
 
 function createSafeClientUsagePricing(pricing: ClientUsagePricing): ClientUsagePricing {
   return {
-    ...(pricing.disclosure !== undefined ? {disclosure: pricing.disclosure} : {}),
     resolveCosts(refs) {
       try {
         return Promise.resolve(pricing.resolveCosts(refs))
