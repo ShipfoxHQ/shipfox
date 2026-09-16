@@ -7,6 +7,7 @@ import {
   copyPlaywrightTestResults,
   copySharedOllamaLog,
   defaultLogDir,
+  e2eClickUpApiBaseUrl,
   e2eTestVcsPort,
   e2eEnv,
   parseArgs,
@@ -88,6 +89,7 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_ENABLE_LINEAR_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '55365');
@@ -102,6 +104,7 @@ describe('e2eEnv', () => {
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:55361/');
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'enabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55362/');
+    assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:55364/');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
@@ -121,6 +124,7 @@ describe('e2eEnv', () => {
       GITHUB_API_BASE_URL: 'http://127.0.0.1:16121',
       GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE: 'disabled',
       SLACK_API_BASE_URL: 'http://127.0.0.1:16122',
+      CLICKUP_API_BASE_URL: 'http://127.0.0.1:16123',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -139,6 +143,7 @@ describe('e2eEnv', () => {
     assert.equal(env.GITHUB_API_BASE_URL, 'http://127.0.0.1:16121');
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'disabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
+    assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -174,6 +179,13 @@ describe('e2eEnv', () => {
     assert.throws(
       () => e2eEnv({API_URL: 'http://localhost:65525'}),
       /Cannot derive a Slack API port/u,
+    );
+  });
+
+  test('rejects an API port that cannot reserve the ClickUp API offset', () => {
+    assert.throws(
+      () => e2eEnv({API_URL: 'http://localhost:65523'}),
+      /Cannot derive a ClickUp API port/u,
     );
   });
 

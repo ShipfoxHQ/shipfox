@@ -11,6 +11,8 @@
   "imports": {
     "#test/*": "./tests/*",
     "#attachments.js": "./src/attachments.ts",
+    "#clickup-api.js": "./src/clickup-api.ts",
+    "#clickup-events.js": "./src/clickup-events.ts",
     "#create-project.js": "./src/create-project.ts",
     "#expect.js": "./src/expect.ts",
     "#github-api.js": "./src/github-api.ts",

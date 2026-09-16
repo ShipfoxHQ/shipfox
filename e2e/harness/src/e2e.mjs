@@ -213,6 +213,7 @@ export function e2eEnv(sourceEnv) {
     e2eGithubApiBaseUrl(apiUrl),
   );
   const slackApiBaseUrl = valueOr(sourceEnv.SLACK_API_BASE_URL, () => e2eSlackApiBaseUrl(apiUrl));
+  const clickupApiBaseUrl = valueOr(sourceEnv.CLICKUP_API_BASE_URL, () => e2eClickUpApiBaseUrl(apiUrl));
   const testVcsPort = valueOr(sourceEnv.INTEGRATIONS_TEST_VCS_PORT, () => e2eTestVcsPort(apiUrl));
   return {
     ...sourceEnv,
@@ -276,6 +277,18 @@ export function e2eEnv(sourceEnv) {
       sourceEnv.GITHUB_INSTALL_STATE_SECRET,
       'e2e-github-install-state-secret',
     ),
+    CLICKUP_API_BASE_URL: clickupApiBaseUrl,
+    CLICKUP_AUTH_BASE_URL: valueOr(sourceEnv.CLICKUP_AUTH_BASE_URL, 'https://app.clickup.com'),
+    CLICKUP_OAUTH_CLIENT_ID: valueOr(sourceEnv.CLICKUP_OAUTH_CLIENT_ID, 'e2e-clickup-client-id'),
+    CLICKUP_OAUTH_CLIENT_SECRET: valueOr(
+      sourceEnv.CLICKUP_OAUTH_CLIENT_SECRET,
+      'e2e-clickup-client-secret',
+    ),
+    CLICKUP_OAUTH_REDIRECT_URL: valueOr(
+      sourceEnv.CLICKUP_OAUTH_REDIRECT_URL,
+      `${clientUrl}/integrations/clickup/callback`,
+    ),
+    CLICKUP_WEBHOOK_BASE_URL: valueOr(sourceEnv.CLICKUP_WEBHOOK_BASE_URL, apiUrl),
     INTEGRATIONS_ENABLE_GITHUB_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_GITHUB_PROVIDER,
       'true',
@@ -286,6 +299,10 @@ export function e2eEnv(sourceEnv) {
     ),
     INTEGRATIONS_ENABLE_SLACK_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_SLACK_PROVIDER,
+      'true',
+    ),
+    INTEGRATIONS_ENABLE_CLICKUP_PROVIDER: valueOr(
+      sourceEnv.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER,
       'true',
     ),
     INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER: valueOr(
@@ -337,6 +354,21 @@ export function e2eGithubApiBaseUrl(apiUrl) {
   }
   endpoint.hostname = '127.0.0.1';
   endpoint.port = String(githubApiPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+export function e2eClickUpApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const clickupApiPort = apiPort + 13;
+  if (clickupApiPort > 65_535) {
+    throw new Error(`Cannot derive a ClickUp API port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(clickupApiPort);
   endpoint.pathname = '/';
   endpoint.search = '';
   endpoint.hash = '';
