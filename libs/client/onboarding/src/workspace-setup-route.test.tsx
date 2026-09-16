@@ -219,6 +219,7 @@ function renderSetupRoute(
     guardedRoute('/w/$workspaceSlug/projects/new', 'Create project'),
     guardedRoute('/w/$workspaceSlug/settings/agents', 'Settings agents'),
     guardedRoute('/w/$workspaceSlug/settings/integrations', 'Settings integrations'),
+    guardedRoute('/w/$workspaceSlug/settings/members', 'Members settings'),
   ]);
   const router = createRouter({
     defaultPendingMs: 0,
@@ -315,6 +316,19 @@ describe('workspace setup route hook', () => {
     expect(calledUrls(fetchImpl).some((url) => url.includes('/projects?'))).toBe(false);
   });
 
+  test.each([
+    'suspended',
+    'deleted',
+  ] as const)('keeps member settings unavailable for a %s workspace', async (workspaceStatus) => {
+    const fetchImpl = setupFetch({workspaceStatus, projectsPending: true});
+
+    renderSetupRoute(`/w/${WORKSPACE_SLUG}/settings/members`, fetchImpl);
+
+    expect(await screen.findByText('Workspace unavailable')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+    expect(calledUrls(fetchImpl).some((url) => url.includes('/projects?'))).toBe(false);
+  });
+
   test('allows normal workspace content and skips source connections when a project exists', async () => {
     const fetchImpl = setupFetch({projects: [projectStub()]});
 
@@ -367,6 +381,38 @@ describe('workspace setup route hook', () => {
     renderSetupRoute(`/w/${WORKSPACE_SLUG}/settings/integrations`, setupFetch({connections: []}));
 
     expect(await screen.findByText('Settings integrations')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test.each([
+    ['source-control', `/w/${WORKSPACE_SLUG}/integrations`, 'VCS onboarding', {connections: []}],
+    [
+      'model-provider',
+      `/w/${WORKSPACE_SLUG}/model-provider`,
+      'Model provider onboarding',
+      {connections: [sourceConnection()], providerConfigs: [], defaultProviderId: null},
+    ],
+    [
+      'project-creation',
+      `/w/${WORKSPACE_SLUG}/projects/new`,
+      'Create project',
+      {connections: [sourceConnection()]},
+    ],
+  ] as Array<
+    [string, string, string, SetupFetchOptions]
+  >)('keeps member settings available throughout %s onboarding', async (_stage, path, label, options) => {
+    const {router} = renderSetupRoute(path, setupFetch(options));
+
+    expect(await screen.findByText(label)).toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate({
+        to: '/w/$workspaceSlug/settings/members',
+        params: {workspaceSlug: WORKSPACE_SLUG},
+      });
+    });
+
+    expect(await screen.findByText('Members settings')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
