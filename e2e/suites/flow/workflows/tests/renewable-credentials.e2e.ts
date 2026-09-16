@@ -498,6 +498,8 @@ async function seedTestVcsWorkflow(params: {
   secondaryRepositoryName?: string | undefined;
 }): Promise<{definition: DefinitionResponseDto}> {
   const renderedWorkflowYaml = renderTestVcsWorkflow(params);
+  // API delivery deliberately leaves the workflow file out of VCS. Syncing the same
+  // path would create a second definition with the same triggers and duplicate runs.
   const repository = await createTestVcsRepository({
     connectionId: params.connectionId,
     name: params.repositoryName,
