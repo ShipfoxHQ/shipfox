@@ -117,14 +117,6 @@ export function formatUsageCost(
   }
 }
 
-export function usagePricingDisclosure(
-  pricing: ClientUsagePricing | undefined,
-  cost: UsagePricingCost | undefined,
-): string | undefined {
-  if (cost?.state !== 'estimated') return undefined;
-  return pricing?.disclosure || undefined;
-}
-
 async function loadUsageCosts({
   pricing,
   requests,

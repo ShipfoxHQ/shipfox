@@ -428,10 +428,10 @@ describe('Usage components', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  test('renders an estimate disclosure once on each usage surface', async () => {
+  test('renders fallback prices without exposing pricing implementation details', async () => {
     const disclosure = 'Estimated from list prices. Nothing is billed.';
     const estimate = vi.fn(() => ({amount: 0.9, state: 'estimated' as const}));
-    render(
+    const {container} = render(
       <ClientUsagePricingProvider
         usagePricing={{...pricing, resolveCosts: () => new Map(), estimate, disclosure}}
       >
@@ -440,7 +440,11 @@ describe('Usage components', () => {
       </ClientUsagePricingProvider>,
     );
 
-    await waitFor(() => expect(screen.getAllByText(disclosure)).toHaveLength(2));
+    await waitFor(() =>
+      expect(container.querySelectorAll('[data-usage-cost-state="estimated"]')).toHaveLength(2),
+    );
+    expect(screen.queryByText(disclosure)).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent('Est.');
   });
 
   test('renders an estimated job cost while preserving job quantities', async () => {
@@ -455,7 +459,7 @@ describe('Usage components', () => {
     );
 
     expect(screen.queryByText('1.8K tokens')).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Est. $0.90')).toBeVisible());
+    await waitFor(() => expect(screen.getByText('$0.90')).toBeVisible());
     expect(screen.getByText('Est. $0.90')).toHaveAttribute('data-usage-cost-state', 'estimated');
   });
 
@@ -493,7 +497,7 @@ describe('Usage components', () => {
     );
 
     expect(screen.queryByText('1.8K tokens')).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Est. $0.90')).toBeVisible());
+    await waitFor(() => expect(screen.getByText('$0.90')).toBeVisible());
   });
 
   test('does not reload pricing when equivalent request inputs are recreated', async () => {

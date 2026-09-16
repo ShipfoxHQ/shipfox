@@ -133,11 +133,11 @@ stays inside metering and pricing implementations.
 | `formatMoney(amount)` | Locale and currency formatting owned by the implementation. |
 
 **Usage components render quantities only when the seam is absent.** A cost column, total, or
-chip appears only when the seam returns a value for that entity. Each cost shows one of three
-states. `resolved` means the implementation holds a final amount. `estimated` covers work in
-flight or work without a final amount. Absent means no pricing is composed. Components in
-`@shipfox/client-usage` never import an application package and never compute an amount from a
-hard-coded price.
+chip appears only when the seam returns a value for that entity. Available costs render
+consistently regardless of their source. The `resolved` and `estimated` states remain available
+to the implementation so it can replace provisional amounts when final amounts arrive. Absent
+means no pricing is composed. Components in `@shipfox/client-usage` never import an application
+package and never compute an amount from a hard-coded price.
 
 **A failing implementation degrades to the absent state.** A thrown error or rejected promise
 from the implementation cannot break a run or job page. The shell isolates the failure the way
