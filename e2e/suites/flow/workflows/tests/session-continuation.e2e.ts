@@ -20,6 +20,7 @@ import {
   setupListenerCase,
   stopRunner,
 } from '#listener-jobs.js';
+import {waitForRunObservationMatching} from '#polling.js';
 import {waitForRunTerminalOrFailedRunner} from '#runner.js';
 import {expect, test} from './fixtures.js';
 
@@ -100,6 +101,18 @@ test('resumes one Pi session across jobs and listening event batches', async ({
     });
     runId = await fireManualRun(testCase);
 
+    await waitForJobSucceeded({
+      token: testCase.token,
+      runId,
+      jobKey: 'plan',
+      timeoutMs: SESSION_FLOW_OBSERVATION_TIMEOUT_MS,
+    });
+    await waitForJobSucceeded({
+      token: testCase.token,
+      runId,
+      jobKey: 'implement',
+      timeoutMs: SESSION_FLOW_OBSERVATION_TIMEOUT_MS,
+    });
     await waitForListenerStatus({
       token: testCase.token,
       runId,
@@ -199,6 +212,34 @@ test('resumes one Pi session across jobs and listening event batches', async ({
     });
   }
 });
+
+async function waitForJobSucceeded(params: {
+  token: string;
+  runId: string;
+  jobKey: string;
+  timeoutMs: number;
+}): Promise<void> {
+  await waitForRunObservationMatching({
+    token: params.token,
+    runId: params.runId,
+    timeoutMs: params.timeoutMs,
+    description: `job ${params.jobKey} to succeed`,
+    selection: {jobs: [{jobKey: params.jobKey}]},
+    matches: (observation) => {
+      const job = observation.jobs.find((candidate) => candidate.key === params.jobKey);
+      const executionStatus = job?.default_execution?.status ?? 'missing';
+      if (job?.status === 'failed' || job?.status === 'cancelled' || job?.status === 'skipped') {
+        throw new Error(
+          `Job ${params.jobKey} reached terminal status ${job.status} before succeeding: runStatus=${observation.status}, executionStatus=${executionStatus}, statusReason=${job.status_reason ?? 'none'}`,
+        );
+      }
+      return {
+        matched: job?.status === 'succeeded',
+        diagnostic: `job ${params.jobKey} status=${job?.status ?? 'missing'}, executionStatus=${executionStatus}`,
+      };
+    },
+  });
+}
 
 function assertSessionRun(params: {
   firstBatch: Awaited<ReturnType<typeof sendBatchAndAwaitMaterialization>>;
