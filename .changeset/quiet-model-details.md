@@ -6,4 +6,4 @@
 "@shipfox/client-workflows": patch
 ---
 
-Removes the `upstream` provider field from user-facing usage contracts and hides per-step attempt breakdowns.
+Removes the `upstream` provider field and per-step attempt breakdowns from public usage surfaces. Model-scoped pricing reference keys now encode `[model]` instead of `[model, upstream]`.

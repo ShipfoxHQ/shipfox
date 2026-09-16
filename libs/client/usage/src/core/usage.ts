@@ -112,13 +112,6 @@ export interface UsageRunSummary {
   byModel: UsageModelTotals[];
 }
 
-export interface StepInferenceUsage extends UsageTokenTotals {
-  jobExecutionId: string;
-  stepId: string;
-  stepAttemptId: string;
-  model: string;
-}
-
 export function emptyUsageTokenTotals(): UsageTokenTotals {
   return {
     requestCount: 0,
@@ -177,34 +170,6 @@ export function summarizeRunUsage(usage: RunUsage): UsageRunSummary {
   };
 }
 
-export function groupInferenceSegmentsByStepAttempt(
-  segments: readonly UsageInferenceSegment[],
-): StepInferenceUsage[] {
-  const grouped = new Map<string, StepInferenceUsage>();
-  for (const segment of segments) {
-    const key = JSON.stringify([segment.stepAttemptId, segment.model]);
-    const current = grouped.get(key);
-    if (current) {
-      addUsageTokenTotalsInPlace(current, segment);
-      continue;
-    }
-    grouped.set(key, {
-      jobExecutionId: segment.jobExecutionId,
-      stepId: segment.stepId,
-      stepAttemptId: segment.stepAttemptId,
-      model: segment.model,
-      ...addUsageTokenTotals(emptyUsageTokenTotals(), segment),
-    });
-  }
-
-  return [...grouped.values()].sort(
-    (left, right) =>
-      left.stepId.localeCompare(right.stepId) ||
-      left.stepAttemptId.localeCompare(right.stepAttemptId) ||
-      left.model.localeCompare(right.model),
-  );
-}
-
 export function groupUsageByModel(segments: readonly UsageInferenceSegment[]) {
   const grouped = new Map<string, {model: string; totals: UsageTokenTotals}>();
   for (const segment of segments) {
@@ -249,34 +214,6 @@ function addUsageTokenTotals(
     reportedTokenCounts: addReportedTokenTotals(totals.reportedTokenCounts, segment),
   };
   return {...next, cacheHitRate: aggregateCacheHitRate(next)};
-}
-
-function addUsageTokenTotalsInPlace(
-  totals: UsageTokenTotals,
-  segment: Pick<
-    UsageInferenceSegment,
-    | 'dialect'
-    | 'requestCount'
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'cacheCreationTokens'
-    | 'cacheReadTokens'
-    | 'reasoningTokens'
-    | 'webSearchRequests'
-    | 'tokenClasses'
-  >,
-): void {
-  const {tokenClasses} = segment;
-  totals.requestCount += segment.requestCount;
-  totals.inputTokens += tokenClasses.inputTokens;
-  totals.cachedInputTokens += tokenClasses.cachedInputTokens;
-  totals.cacheWriteTokens += tokenClasses.cacheWriteTokens;
-  totals.outputTokens += tokenClasses.outputTokens;
-  totals.totalTokens += tokenClasses.totalTokens;
-  totals.reasoningTokens += segment.reasoningTokens;
-  totals.webSearchRequests += segment.webSearchRequests;
-  totals.reportedTokenCounts = addReportedTokenTotals(totals.reportedTokenCounts, segment);
-  totals.cacheHitRate = aggregateCacheHitRate(totals);
 }
 
 function addReportedTokenTotals(
