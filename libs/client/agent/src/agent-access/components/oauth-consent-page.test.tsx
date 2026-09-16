@@ -152,7 +152,9 @@ describe('OAuthConsentPage', () => {
     const clientIdentityOrigin = screen.getByText('https://claude.ai');
     expect(clientIdentityOrigin).toBeVisible();
     expect(clientIdentityOrigin).toHaveClass('font-code');
-    expect(screen.getByText('Read workspace data')).toBeVisible();
+    expect(
+      screen.getByText('Read workspace data and start or manage workflow runs.'),
+    ).toBeVisible();
     expect(screen.getByText('Claude Desktop on this device')).toBeVisible();
     expect(screen.queryByText(WORKSPACE_ID)).not.toBeInTheDocument();
     expect(screen.queryByText('owner')).not.toBeInTheDocument();

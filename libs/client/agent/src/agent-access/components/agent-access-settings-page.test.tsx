@@ -66,6 +66,14 @@ describe('AgentAccessSettingsPage', () => {
     expect((await screen.findAllByText('Claude Desktop')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', {name: 'Connected apps'})).toBeVisible();
+
+    const accessDescriptions = await screen.findAllByText(
+      'Read workspace data and start or manage workflow runs.',
+    );
+    expect(accessDescriptions).toHaveLength(2);
+    for (const description of accessDescriptions) {
+      expect(description).toBeVisible();
+    }
   });
 
   test('confirms OAuth revocation with its actual propagation window', async () => {
