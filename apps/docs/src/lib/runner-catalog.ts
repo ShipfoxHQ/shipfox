@@ -74,21 +74,23 @@ export function formatMicrodollars(value: number): string {
 }
 
 export function formatRunnerPrice(runner: Runner): string {
-  return `${formatMicrodollars(runner.pricing.price_microdollars)} / ${runner.pricing.unit}`;
+  return `${formatMicrodollars(runner.pricing.price_microdollars)}/${runner.pricing.unit}`;
 }
 
 export function renderRunnerCatalogMarkdown(catalog: RunnerCatalog): string {
   const rows = catalog.runners.map((runner) => {
     const aliases =
-      runner.aliases.length > 0 ? runner.aliases.map((alias) => `\`${alias}\``).join(', ') : 'None';
+      runner.aliases.length > 0
+        ? `<br />${runner.aliases.length === 1 ? 'Alias' : 'Aliases'}: ${runner.aliases.map((alias) => `\`${alias}\``).join(', ')}`
+        : '';
     return [
-      `| \`${runner.id}\` | ${aliases} | ${runner.cpu} vCPU | ${runner.memory_gib} GiB | ${runner.workspace_disk_gib} GiB | ${runner.system_disk_gib} GiB | ${runner.operating_system} | ${runner.architecture} | ${formatRunnerPrice(runner)} |`,
+      `| \`${runner.id}\`${aliases} | ${runner.cpu} vCPU · ${runner.memory_gib} GiB | ${runner.workspace_disk_gib} GiB | ${formatRunnerPrice(runner)} |`,
     ].join('');
   });
 
   return [
-    '| Runner ID | Aliases | CPU | Memory | Workspace disk | System disk | Operating system | Architecture | Price |',
-    '| --- | --- | ---: | ---: | ---: | ---: | --- | --- | ---: |',
+    '| Runner | Compute | Workspace disk | Price |',
+    '| --- | ---: | ---: | ---: |',
     ...rows,
   ].join('\n');
 }

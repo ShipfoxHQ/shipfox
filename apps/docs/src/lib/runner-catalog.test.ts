@@ -9,9 +9,6 @@ import {
   runnerCatalogClient,
 } from './runner-catalog';
 
-const CANONICAL_RUNNER_PATTERN = /`shipfox-2cpu`/;
-const ALIAS_PATTERN = /`shipfox`/;
-const RUNNER_NAME_PATTERN = /shipfox/g;
 const CATALOG_LOAD_ERROR_PATTERN = /public runner catalog could not be loaded/;
 
 const catalog = {
@@ -49,10 +46,14 @@ function response(body: unknown, status = 200): Response {
 test('groups aliases under one canonical runner row', () => {
   const markdown = renderRunnerCatalogMarkdown(parseRunnerCatalog(catalog));
 
-  assert.equal(markdown.split('\n').length, 3);
-  assert.match(markdown, CANONICAL_RUNNER_PATTERN);
-  assert.match(markdown, ALIAS_PATTERN);
-  assert.equal(markdown.match(RUNNER_NAME_PATTERN)?.length, 2);
+  assert.equal(
+    markdown,
+    [
+      '| Runner | Compute | Workspace disk | Price |',
+      '| --- | ---: | ---: | ---: |',
+      '| `shipfox-2cpu`<br />Alias: `shipfox` | 2 vCPU · 8 GiB | 50 GiB | $0.006/minute |',
+    ].join('\n'),
+  );
 });
 
 test('formats integer microdollar values without losing precision', () => {

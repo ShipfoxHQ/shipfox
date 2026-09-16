@@ -1,24 +1,12 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the catalog region is intentionally keyboard focusable for horizontal scrolling.
-import {getRunnerCatalog, renderRunnerCatalogMarkdown} from '@/lib/runner-catalog';
-
-const ALIGNMENT_CLASS_BY_HEADER: Record<string, string> = {
-  CPU: 'text-right',
-  Memory: 'text-right',
-  'Workspace disk': 'text-right',
-  'System disk': 'text-right',
-  Price: 'text-right',
-};
+import {
+  formatRunnerPrice,
+  getRunnerCatalog,
+  renderRunnerCatalogMarkdown,
+} from '@/lib/runner-catalog';
 
 export async function RunnerCatalog() {
   const catalog = await getRunnerCatalog();
-  const markdown = renderRunnerCatalogMarkdown(catalog);
-  const lines = markdown.split('\n');
-  const header = lines[0] ?? '';
-  const rows = lines.slice(2);
-  const headers = header
-    .slice(1, -1)
-    .split('|')
-    .map((value) => value.trim());
 
   return (
     <section
@@ -26,43 +14,52 @@ export async function RunnerCatalog() {
       tabIndex={0}
       className="overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-fd-ring"
     >
-      <table>
+      <table className="w-full">
+        <caption className="sr-only">Available Shipfox-hosted runners</caption>
         <thead>
           <tr>
-            {headers.map((value) => (
-              <th key={value} className={ALIGNMENT_CLASS_BY_HEADER[value]}>
-                {value}
-              </th>
-            ))}
+            <th scope="col">Runner</th>
+            <th className="text-right" scope="col">
+              Compute
+            </th>
+            <th className="text-right" scope="col">
+              Workspace disk
+            </th>
+            <th className="text-right" scope="col">
+              Price
+            </th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const values = row
-              .slice(1, -1)
-              .split('|')
-              .map((value) => value.trim());
-            return (
-              <tr key={values[0]}>
-                {values.map((value, index) => (
-                  <td
-                    key={`${values[0]}-${index}`}
-                    className={ALIGNMENT_CLASS_BY_HEADER[headers[index] ?? '']}
-                  >
-                    {value
-                      .split(/(`[^`]+`)/g)
-                      .map((part, partIndex) =>
-                        part.startsWith('`') && part.endsWith('`') ? (
-                          <code key={partIndex}>{part.slice(1, -1)}</code>
-                        ) : (
-                          part
-                        ),
-                      )}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
+          {catalog.runners.map((runner) => (
+            <tr key={runner.id}>
+              <th className="whitespace-nowrap align-top" scope="row">
+                <span className="flex flex-col items-start gap-tight">
+                  <code>{runner.id}</code>
+                  {runner.aliases.length > 0 ? (
+                    <span className="text-xs font-normal text-fd-muted-foreground">
+                      {runner.aliases.length === 1 ? 'Alias: ' : 'Aliases: '}
+                      {runner.aliases.map((alias, index) => (
+                        <span key={alias}>
+                          {index > 0 ? ', ' : null}
+                          <code>{alias}</code>
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                </span>
+              </th>
+              <td className="whitespace-nowrap text-right align-top tabular-nums">
+                {runner.cpu} vCPU · {runner.memory_gib} GiB
+              </td>
+              <td className="whitespace-nowrap text-right align-top tabular-nums">
+                {runner.workspace_disk_gib} GiB
+              </td>
+              <td className="whitespace-nowrap text-right align-top tabular-nums">
+                {formatRunnerPrice(runner)}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </section>
