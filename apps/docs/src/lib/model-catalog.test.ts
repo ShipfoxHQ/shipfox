@@ -7,6 +7,8 @@ import {serializeMachineReadableMarkdown} from './machine-readable';
 import {
   createModelCatalogClient,
   formatMicrodollars,
+  formatModelPrice,
+  formatTokenCount,
   type ModelCatalog,
   modelCatalogSchema,
   serializeModelCatalog,
@@ -49,6 +51,13 @@ test('formats microdollar prices without floating-point rounding', () => {
   assert.equal(formatMicrodollars(210_000), '$0.21');
   assert.equal(formatMicrodollars(1_000_001), '$1.000001');
   assert.equal(formatMicrodollars(14_700_000), '$14.70');
+});
+
+test('formats compact model catalog values', () => {
+  assert.equal(formatTokenCount(1_000_000), '1M tok');
+  assert.equal(formatTokenCount(1_050_000), '1.05M tok');
+  assert.equal(formatTokenCount(128_000), '128K tok');
+  assert.equal(formatModelPrice(null), 'N/A');
 });
 
 test('validates the public model catalog allowlist and pricing dimensions', () => {
@@ -100,8 +109,10 @@ test('renders the same catalog values in HTML and machine-readable Markdown', ()
   assert.ok(html.includes('gpt-5.6-luna'));
   assert.ok(html.includes('$0.21'));
   assert.ok(html.includes('Token pricing'));
-  assert.ok(html.includes('1,050,000'));
+  assert.ok(html.includes('1.05M tok'));
+  assert.ok(html.includes('class="sr-only">1,050,000 tokens'));
   assert.ok(markdown.includes('| GPT 5.6 Luna | `gpt-5.6-luna` |'));
+  assert.ok(markdown.includes('Context: 1.05M tok; Max output: 128K tok'));
   assert.ok(markdown.includes('$14.70'));
   assert.equal(serializedComponent, markdown);
 });

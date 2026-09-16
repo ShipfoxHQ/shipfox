@@ -5,6 +5,10 @@ const MILLION_TOKENS = 'million_tokens';
 const THOUSAND_REQUESTS = 'thousand_requests';
 const MODEL_CATALOG_REVALIDATE_SECONDS = 300;
 const TRAILING_ZEROES_PATTERN = /0+$/;
+const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 2,
+  notation: 'compact',
+});
 
 const priceSchema = (unit: typeof MILLION_TOKENS | typeof THOUSAND_REQUESTS) =>
   z
@@ -138,17 +142,21 @@ export function formatMicrodollars(priceMicrodollars: number): string {
   return `$${wholeDollars}.${fractionalDollars}`;
 }
 
+export function formatTokenCount(tokenCount: number): string {
+  return `${TOKEN_COUNT_FORMATTER.format(tokenCount)} tok`;
+}
+
 export function formatModelCapabilities(capabilities: CatalogModel['capabilities']): string {
   return [
-    `Context: ${capabilities.context_window_tokens.toLocaleString('en-US')} tokens`,
-    `Max output: ${capabilities.max_output_tokens.toLocaleString('en-US')} tokens`,
+    `Context: ${formatTokenCount(capabilities.context_window_tokens)}`,
+    `Max output: ${formatTokenCount(capabilities.max_output_tokens)}`,
     ...(capabilities.image_input ? ['Image input'] : []),
     ...(capabilities.reasoning ? ['Reasoning'] : []),
   ].join('; ');
 }
 
 export function formatModelPrice(price: ModelPrice | null): string {
-  return price === null ? 'Not available' : formatMicrodollars(price.price_microdollars);
+  return price === null ? 'N/A' : formatMicrodollars(price.price_microdollars);
 }
 
 export function serializeModelCatalog(catalog: ModelCatalog): string {

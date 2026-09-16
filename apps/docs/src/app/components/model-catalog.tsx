@@ -2,7 +2,7 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the model catalog region is intentionally keyboard focusable.
 
 import type {CatalogModel, ModelCatalog} from '@/lib/model-catalog';
-import {formatModelPrice} from '@/lib/model-catalog';
+import {formatModelPrice, formatTokenCount} from '@/lib/model-catalog';
 
 const TOKEN_PRICE_COLUMNS = [
   ['Input', 'input'],
@@ -105,13 +105,23 @@ function ModelRow({model}: {model: CatalogModel}) {
             <div className="flex items-baseline justify-between gap-inline">
               <dt className="text-fd-muted-foreground">Context</dt>
               <dd className="whitespace-nowrap font-mono text-fd-foreground">
-                {model.capabilities.context_window_tokens.toLocaleString('en-US')} tokens
+                <span aria-hidden="true">
+                  {formatTokenCount(model.capabilities.context_window_tokens)}
+                </span>
+                <span className="sr-only">
+                  {model.capabilities.context_window_tokens.toLocaleString('en-US')} tokens
+                </span>
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-inline">
               <dt className="text-fd-muted-foreground">Max output</dt>
               <dd className="whitespace-nowrap font-mono text-fd-foreground">
-                {model.capabilities.max_output_tokens.toLocaleString('en-US')} tokens
+                <span aria-hidden="true">
+                  {formatTokenCount(model.capabilities.max_output_tokens)}
+                </span>
+                <span className="sr-only">
+                  {model.capabilities.max_output_tokens.toLocaleString('en-US')} tokens
+                </span>
               </dd>
             </div>
           </dl>
