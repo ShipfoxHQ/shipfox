@@ -1,35 +1,19 @@
-import type {UsageTokenTotals} from '#core/usage.js';
-import {
-  formatExactUsageNumber,
-  formatUsageCacheWrite,
-  formatUsageDuration,
-  formatUsageNumber,
-  formatUsageRate,
-  usageTokenBreakdownTitle,
-} from './usage-format.js';
+import {formatUsageDuration, formatUsageNumber, formatUsageRate} from './usage-format.js';
 
-const totals: UsageTokenTotals = {
-  requestCount: 2,
-  inputTokens: 1_200,
-  cachedInputTokens: 100,
-  cacheWriteTokens: 40,
-  outputTokens: 500,
-  totalTokens: 1_840,
-  cacheHitRate: 100 / 1_300,
-  reasoningTokens: 80,
-  webSearchRequests: 3,
-  reportedTokenCounts: [
-    {
-      dialect: 'anthropic-messages',
-      inputTokens: 1_200,
-      outputTokens: 500,
-      cacheCreationTokens: 40,
-      cacheReadTokens: 100,
-      reasoningTokens: 80,
-      webSearchRequests: 3,
-    },
-  ],
-};
+describe('usage value formatting', () => {
+  test('formats compact numbers', () => {
+    expect(formatUsageNumber(1_840)).toBe('1.8K');
+  });
+
+  test.each([
+    [100 / 1_300, '7.7%'],
+    [-1, '—'],
+    [1.1, '—'],
+    [Number.NaN, '—'],
+  ])('formats rate %s as %s', (rate, expected) => {
+    expect(formatUsageRate(rate)).toBe(expected);
+  });
+});
 
 describe('formatUsageDuration', () => {
   test.each([
@@ -42,37 +26,5 @@ describe('formatUsageDuration', () => {
 
   test.each([null, undefined, Number.NaN, -1])('rejects invalid duration %s', (seconds) => {
     expect(formatUsageDuration(seconds)).toBe('—');
-  });
-});
-
-describe('usage token formatting', () => {
-  test('formats cache hit rates and reported token details', () => {
-    expect(formatUsageNumber(1_840)).toBe('1.8K');
-    expect(formatExactUsageNumber(1_840)).toBe('1,840');
-    expect(formatUsageRate(100 / 1_300)).toBe('7.7%');
-    expect(formatUsageCacheWrite(totals)).toBe('40');
-    expect(usageTokenBreakdownTitle(totals)).toContain(
-      'As reported: anthropic-messages: input 1,200, output 500, cache write 40, cache read 100, reasoning 80, web searches 3',
-    );
-  });
-
-  test('omits cache write when no dialect reports it', () => {
-    expect(
-      formatUsageCacheWrite({
-        ...totals,
-        cacheWriteTokens: 0,
-        reportedTokenCounts: [
-          {
-            dialect: 'openai-responses',
-            inputTokens: 1_200,
-            outputTokens: 500,
-            cacheCreationTokens: 0,
-            cacheReadTokens: 100,
-            reasoningTokens: 80,
-            webSearchRequests: 3,
-          },
-        ],
-      }),
-    ).toBe('—');
   });
 });

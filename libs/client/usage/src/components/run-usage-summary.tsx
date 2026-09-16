@@ -70,13 +70,10 @@ function useRunCost(runId: string, usage: RunUsage | undefined) {
                     })),
                   }
                 : {}),
-              models: groupUsageByModel(usage.inferenceSegments).map(
-                ({model, upstream, totals}) => ({
-                  model,
-                  upstream,
-                  quantities: usageQuantitiesFromTotals(totals),
-                }),
-              ),
+              models: groupUsageByModel(usage.inferenceSegments).map(({model, totals}) => ({
+                model,
+                quantities: usageQuantitiesFromTotals(totals),
+              })),
             },
           ]
         : [],

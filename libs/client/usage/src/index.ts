@@ -1,9 +1,7 @@
 export {
   emptyUsageTokenTotals,
-  groupInferenceSegmentsByStepAttempt,
   type JobExecutionUsage,
   type RunUsage,
-  type StepInferenceUsage,
   summarizeRunUsage,
   type UsageInferenceDialect,
   type UsageInferenceSegment,
@@ -11,7 +9,6 @@ export {
   type UsageJobExecutionState,
   type UsageJobExecutionStatus,
   type UsageModelTotals,
-  type UsageReportedTokenTotals,
   type UsageRunSummary,
   type UsageTokenClasses,
   type UsageTokenTotals,

@@ -55,7 +55,6 @@ export function toInferenceSegmentUsageDto(
     job_execution_id: row.jobExecutionId,
     step_id: row.stepId,
     step_attempt_id: row.stepAttemptId,
-    upstream: row.upstream,
     model: row.model,
     dialect: row.dialect,
     window_start: row.windowStart.toISOString(),

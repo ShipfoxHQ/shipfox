@@ -82,23 +82,21 @@ describe('ClientUsagePricing', () => {
     expect(formatMoney).toHaveBeenCalledWith(1);
   });
 
-  test('keeps model and upstream references distinct', () => {
+  test('keeps model references distinct', () => {
     const first = usagePricingReferenceKey({
       workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model-a',
-      upstream: 'upstream-a',
     });
     const second = usagePricingReferenceKey({
       workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model-b',
-      upstream: 'upstream-a',
     });
 
-    expect(first).toBe('workspace-a:step-attempt:attempt-1:["model-a","upstream-a"]');
+    expect(first).toBe('workspace-a:step-attempt:attempt-1:["model-a"]');
     expect(second).not.toBe(first);
   });
 
@@ -114,29 +112,21 @@ describe('ClientUsagePricing', () => {
       id: 'attempt-1',
       model: 'model-a',
     });
-    const upstreamOnly = usagePricingReferenceKey({
-      workspaceId: WORKSPACE_ID,
-      kind: 'step-attempt',
-      id: 'attempt-1',
-      upstream: 'model-a',
-    });
     const firstColonValue = usagePricingReferenceKey({
       workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
       model: 'model:a',
-      upstream: 'upstream',
     });
     const secondColonValue = usagePricingReferenceKey({
       workspaceId: WORKSPACE_ID,
       kind: 'step-attempt',
       id: 'attempt-1',
-      model: 'model',
-      upstream: 'a:upstream',
+      model: 'model:a:',
     });
 
     expect(aggregate).toBe('workspace-a:step-attempt:attempt-1');
-    expect(modelOnly).not.toBe(upstreamOnly);
+    expect(modelOnly).not.toBe(aggregate);
     expect(firstColonValue).not.toBe(secondColonValue);
   });
 

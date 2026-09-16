@@ -13,8 +13,6 @@ import {UsageBreakdown} from './usage-details.js';
 export interface JobUsageCellsProps {
   usage: JobExecutionUsage | undefined;
   className?: string | undefined;
-  stepLabels?: ReadonlyMap<string, string> | undefined;
-  stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
 }
 
 export function JobUsageCells({usage, className}: JobUsageCellsProps) {
@@ -37,20 +35,13 @@ export function JobUsageCells({usage, className}: JobUsageCellsProps) {
   );
 }
 
-export function JobUsageBreakdown({usage, stepLabels, stepAttemptLabels}: JobUsageCellsProps) {
+export function JobUsageBreakdown({usage}: JobUsageCellsProps) {
   const {runUsage, cost} = useJobCost(usage);
   if (!runUsage)
     return (
       <p className="text-xs text-foreground-neutral-muted">Usage is not available for this job.</p>
     );
-  return (
-    <UsageBreakdown
-      usage={runUsage}
-      cost={cost}
-      stepLabels={stepLabels}
-      stepAttemptLabels={stepAttemptLabels}
-    />
-  );
+  return <UsageBreakdown usage={runUsage} cost={cost} />;
 }
 
 function useJobCost(usage: JobExecutionUsage | undefined) {
@@ -88,13 +79,10 @@ function useJobCost(usage: JobExecutionUsage | undefined) {
                 },
               ],
             }),
-        models: groupUsageByModel(usage.inferenceSegments).map(
-          ({model, upstream, totals: modelTotals}) => ({
-            model,
-            upstream,
-            quantities: usageQuantitiesFromTotals(modelTotals),
-          }),
-        ),
+        models: groupUsageByModel(usage.inferenceSegments).map(({model, totals: modelTotals}) => ({
+          model,
+          quantities: usageQuantitiesFromTotals(modelTotals),
+        })),
       },
     ];
   }, [usage]);

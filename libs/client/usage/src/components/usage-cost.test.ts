@@ -17,13 +17,12 @@ describe('usage pricing values', () => {
     expect(usagePricingCostFromResolution(resolution, reference)).toMatchObject(cost);
   });
 
-  test('matches model and upstream dimensions in array resolutions', () => {
+  test('matches model dimensions in array resolutions', () => {
     const first = {
       workspaceId: 'workspace-a',
       kind: 'step-attempt' as const,
       id: 'attempt-1',
       model: 'model-a',
-      upstream: 'upstream-a',
     };
     const second = {...first, model: 'model-b'};
 
@@ -44,7 +43,6 @@ describe('usage pricing values', () => {
       kind: 'step-attempt' as const,
       id: 'attempt-1',
       model: 'model-a',
-      upstream: 'upstream-a',
     };
     const second = {...first, model: 'model-b'};
     const aggregate: UsagePricingCost = {amount: 3, state: 'resolved'};

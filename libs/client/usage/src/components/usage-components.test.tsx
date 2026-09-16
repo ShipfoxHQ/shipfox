@@ -13,7 +13,6 @@ import type {
 } from '#core/usage.js';
 import {JobUsageBreakdown, JobUsageCells} from './job-usage-cells.js';
 import {RunUsageBreakdown, RunUsageSummary} from './run-usage-summary.js';
-import {StepInferenceTable} from './step-inference-table.js';
 import {type UsageCostRequest, useUsageCosts} from './usage-cost.js';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
@@ -66,7 +65,6 @@ const segment: UsageInferenceSegment = {
   jobExecutionId: EXECUTION_ID,
   stepId: STEP_ID,
   stepAttemptId: STEP_ATTEMPT_ID,
-  upstream: 'anthropic',
   model: 'claude-sonnet-4',
   dialect: 'anthropic-messages',
   windowStart: '2026-06-26T11:59:20.000Z',
@@ -180,7 +178,6 @@ describe('Usage components', () => {
         models: [
           expect.objectContaining({
             model: segment.model,
-            upstream: segment.upstream,
             quantities: expect.objectContaining({requestCount: 2}),
           }),
         ],
@@ -211,7 +208,12 @@ describe('Usage components', () => {
             seconds: 60,
           },
         ],
-        models: [expect.objectContaining({model: segment.model, upstream: segment.upstream})],
+        models: [
+          expect.objectContaining({
+            model: segment.model,
+            quantities: expect.objectContaining({requestCount: 2}),
+          }),
+        ],
       }),
     );
   });
@@ -329,7 +331,6 @@ describe('Usage components', () => {
                     models: [
                       {
                         model: segment.model,
-                        upstream: segment.upstream,
                         cost: {amount: 1, state: 'resolved'},
                         skus: [
                           {
@@ -362,6 +363,7 @@ describe('Usage components', () => {
 
     expect(within(dialog).getByText('Output tokens')).toBeVisible();
     expect(within(dialog).getByText('500 tokens · $2.00 / 1K tokens')).toBeVisible();
+    expect(within(dialog).queryByText('Steps and attempts')).not.toBeInTheDocument();
     expect(estimate).not.toHaveBeenCalled();
   });
 
@@ -435,12 +437,10 @@ describe('Usage components', () => {
       >
         <RunUsageSummary runId={RUN_ID} usage={runUsage} />
         <JobUsageCells usage={jobUsage} />
-        <StepInferenceTable usage={jobUsage} />
       </ClientUsagePricingProvider>,
     );
 
-    await waitFor(() => expect(screen.getAllByText(disclosure)).toHaveLength(3));
-    expect(screen.getByTitle(disclosure)).toBeVisible();
+    await waitFor(() => expect(screen.getAllByText(disclosure)).toHaveLength(2));
   });
 
   test('renders an estimated job cost while preserving job quantities', async () => {
@@ -494,88 +494,6 @@ describe('Usage components', () => {
 
     expect(screen.queryByText('1.8K tokens')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Est. $0.90')).toBeVisible());
-  });
-
-  test('estimates each model row separately for a shared step attempt', async () => {
-    const estimate = vi.fn(
-      ({
-        reference,
-        models,
-      }: {
-        reference: {model?: string; upstream?: string};
-        models?: readonly {
-          model: string;
-          upstream: string;
-          quantities: {requestCount: number};
-        }[];
-      }) => ({
-        amount:
-          (models ?? []).find(
-            (model) => model.model === reference.model && model.upstream === reference.upstream,
-          )?.quantities.requestCount ?? 0,
-        state: 'estimated' as const,
-      }),
-    );
-    const secondSegment: UsageInferenceSegment = {
-      ...segment,
-      id: '77777777-7777-4777-8777-777777777777',
-      upstream: 'openai',
-      model: 'gpt-5',
-      dialect: 'openai-responses',
-      requestCount: 3,
-      inputTokens: 400,
-      tokenClasses: {
-        inputTokens: 300,
-        cachedInputTokens: 100,
-        cacheWriteTokens: 0,
-        outputTokens: 500,
-        totalTokens: 900,
-        cacheHitRate: 100 / 400,
-      },
-    };
-    const multipleRowsUsage: JobExecutionUsage = {
-      ...jobUsage,
-      inferenceSegments: [segment, secondSegment],
-    };
-    render(
-      <ClientUsagePricingProvider
-        usagePricing={{...pricing, resolveCosts: () => new Map(), estimate}}
-      >
-        <StepInferenceTable usage={multipleRowsUsage} />
-      </ClientUsagePricingProvider>,
-    );
-
-    await waitFor(() => expect(screen.getByText('Est. $2.00')).toBeVisible());
-    expect(screen.getByText('Est. $3.00')).toBeVisible();
-    expect(estimate).toHaveBeenCalledTimes(2);
-    expect(estimate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reference: {
-          workspaceId: jobExecution.workspaceId,
-          kind: 'step-attempt',
-          id: STEP_ATTEMPT_ID,
-          model: segment.model,
-          upstream: segment.upstream,
-        },
-        quantities: expect.objectContaining({requestCount: 5}),
-        models: expect.arrayContaining([
-          expect.objectContaining({model: segment.model, upstream: segment.upstream}),
-          expect.objectContaining({model: 'gpt-5', upstream: 'openai'}),
-        ]),
-      }),
-    );
-    expect(estimate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reference: {
-          workspaceId: jobExecution.workspaceId,
-          kind: 'step-attempt',
-          id: STEP_ATTEMPT_ID,
-          model: 'gpt-5',
-          upstream: 'openai',
-        },
-        quantities: expect.objectContaining({requestCount: 5}),
-      }),
-    );
   });
 
   test('does not reload pricing when equivalent request inputs are recreated', async () => {
@@ -662,32 +580,5 @@ describe('Usage components', () => {
     expect(resolveCosts).toHaveBeenNthCalledWith(2, [
       expect.objectContaining({workspaceId: 'workspace-b'}),
     ]);
-  });
-
-  test('renders step inference quantities and hides the absent cost column', () => {
-    render(
-      <StepInferenceTable
-        usage={jobUsage}
-        stepLabels={new Map([[STEP_ID, 'Generate release notes']])}
-        stepAttemptLabels={new Map([[STEP_ATTEMPT_ID, '1']])}
-      />,
-    );
-
-    expect(screen.getByText('Generate release notes')).toBeVisible();
-    expect(screen.getByRole('table', {name: 'Inference usage'})).toHaveAttribute('tabindex', '0');
-    expect(screen.getByText('claude-sonnet-4')).toBeVisible();
-    expect(screen.getByText('1.8K')).toBeVisible();
-    expect(screen.queryByRole('columnheader', {name: 'Cost'})).not.toBeInTheDocument();
-  });
-
-  test('adds the cost column after pricing resolves a step attempt', async () => {
-    render(
-      <ClientUsagePricingProvider usagePricing={pricing}>
-        <StepInferenceTable usage={jobUsage} />
-      </ClientUsagePricingProvider>,
-    );
-
-    await waitFor(() => expect(screen.getByRole('columnheader', {name: 'Cost'})).toBeVisible());
-    expect(screen.getByText('$1.20')).toBeVisible();
   });
 });

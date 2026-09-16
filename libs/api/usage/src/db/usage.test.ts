@@ -321,6 +321,7 @@ describe('Usage projections', () => {
     expect(toInferenceSegmentUsageDto(firstSegment)).toMatchObject({
       web_search_requests: 3,
     });
+    expect(toInferenceSegmentUsageDto(firstSegment)).not.toHaveProperty('upstream');
     const {web_search_requests: webSearchRequests, ...legacyHttpDto} =
       toInferenceSegmentUsageDto(firstSegment);
     void webSearchRequests;

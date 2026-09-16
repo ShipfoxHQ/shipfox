@@ -162,7 +162,6 @@ const inferenceSegmentUsageHttpObjectSchema = z
     job_execution_id: idSchema,
     step_id: idSchema,
     step_attempt_id: idSchema,
-    upstream: nonEmptyStringSchema,
     model: nonEmptyStringSchema,
     dialect: inferenceSegmentDialectSchema,
     window_start: inferenceWindowDateTimeSchema,

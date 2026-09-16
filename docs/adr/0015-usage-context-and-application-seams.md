@@ -123,7 +123,8 @@ The interface has three operations:
 each run, job execution, or step attempt. Usage carries this identity from its records so the
 pricing implementation can authorize the lookup against the selected workspace and fence its
 cache by workspace. The implementation must not derive it from a URL slug, router state, or
-mutable global state. Model-scoped step references retain their model and upstream identity.
+mutable global state. Model-scoped step references retain their model identity. Provider routing
+stays inside metering and pricing implementations.
 
 | Operation | Purpose |
 | --- | --- |
@@ -214,6 +215,11 @@ and a second copy of the rule would drift. A composing application informs users
 existing `ChromeSlots.SessionBanner` and `ChromeSlots.WorkspaceSetupChecklist` slots.
 
 ### Amendments
+
+**2026-09-16: model provider identity becomes internal.** Public Usage responses and the
+`usagePricing` seam identify model-scoped costs by model only. Reference keys change from
+`[model, upstream]` to `[model]`. Composing applications update their resolved-cost keys in the
+same coordinated release.
 
 **ADR 0001 gains the `usagePricing` seam.** `composeClientApp()` accepts a second optional
 application-provided implementation beside `clientAnalytics`. The rules from ADR 0013 apply:

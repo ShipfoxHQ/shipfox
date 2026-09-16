@@ -14,16 +14,6 @@ export interface UsageTokenClasses {
   cacheHitRate: number;
 }
 
-export interface UsageReportedTokenTotals {
-  dialect: UsageInferenceDialect;
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  reasoningTokens: number;
-  webSearchRequests: number;
-}
-
 export interface UsageJobExecution {
   jobId: string;
   jobExecutionId: string;
@@ -69,7 +59,6 @@ export interface UsageInferenceSegment {
   jobExecutionId: string;
   stepId: string;
   stepAttemptId: string;
-  upstream: string;
   model: string;
   dialect: UsageInferenceDialect;
   windowStart: string;
@@ -100,7 +89,6 @@ export interface UsageTokenTotals extends UsageTokenClasses {
   /** Raw reasoning tokens are included in outputTokens and retained for detail views. */
   reasoningTokens: number;
   webSearchRequests: number;
-  reportedTokenCounts: readonly UsageReportedTokenTotals[];
 }
 
 export interface UsageModelTotals extends UsageTokenTotals {
@@ -111,14 +99,6 @@ export interface UsageRunSummary {
   computeSeconds: number;
   totals: UsageTokenTotals;
   byModel: UsageModelTotals[];
-}
-
-export interface StepInferenceUsage extends UsageTokenTotals {
-  jobExecutionId: string;
-  stepId: string;
-  stepAttemptId: string;
-  upstream: string;
-  model: string;
 }
 
 export function emptyUsageTokenTotals(): UsageTokenTotals {
@@ -132,7 +112,6 @@ export function emptyUsageTokenTotals(): UsageTokenTotals {
     cacheHitRate: 0,
     reasoningTokens: 0,
     webSearchRequests: 0,
-    reportedTokenCounts: [],
   };
 }
 
@@ -179,44 +158,12 @@ export function summarizeRunUsage(usage: RunUsage): UsageRunSummary {
   };
 }
 
-export function groupInferenceSegmentsByStepAttempt(
-  segments: readonly UsageInferenceSegment[],
-): StepInferenceUsage[] {
-  const grouped = new Map<string, StepInferenceUsage>();
-  for (const segment of segments) {
-    const key = JSON.stringify([segment.stepAttemptId, segment.upstream, segment.model]);
-    const current = grouped.get(key);
-    if (current) {
-      addUsageTokenTotalsInPlace(current, segment);
-      continue;
-    }
-    grouped.set(key, {
-      jobExecutionId: segment.jobExecutionId,
-      stepId: segment.stepId,
-      stepAttemptId: segment.stepAttemptId,
-      upstream: segment.upstream,
-      model: segment.model,
-      ...addUsageTokenTotals(emptyUsageTokenTotals(), segment),
-    });
-  }
-
-  return [...grouped.values()].sort(
-    (left, right) =>
-      left.stepId.localeCompare(right.stepId) ||
-      left.stepAttemptId.localeCompare(right.stepAttemptId) ||
-      left.upstream.localeCompare(right.upstream) ||
-      left.model.localeCompare(right.model),
-  );
-}
-
 export function groupUsageByModel(segments: readonly UsageInferenceSegment[]) {
-  const grouped = new Map<string, {model: string; upstream: string; totals: UsageTokenTotals}>();
+  const grouped = new Map<string, {model: string; totals: UsageTokenTotals}>();
   for (const segment of segments) {
-    const key = JSON.stringify([segment.upstream, segment.model]);
-    const current = grouped.get(key);
-    grouped.set(key, {
+    const current = grouped.get(segment.model);
+    grouped.set(segment.model, {
       model: segment.model,
-      upstream: segment.upstream,
       totals: addUsageTokenTotals(current?.totals ?? emptyUsageTokenTotals(), segment),
     });
   }
@@ -230,15 +177,7 @@ function addUsageTokenTotals(
   totals: UsageTokenTotals,
   segment: Pick<
     UsageInferenceSegment,
-    | 'dialect'
-    | 'requestCount'
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'cacheCreationTokens'
-    | 'cacheReadTokens'
-    | 'reasoningTokens'
-    | 'webSearchRequests'
-    | 'tokenClasses'
+    'requestCount' | 'reasoningTokens' | 'webSearchRequests' | 'tokenClasses'
   >,
 ): UsageTokenTotals {
   const {tokenClasses} = segment;
@@ -252,81 +191,8 @@ function addUsageTokenTotals(
     cacheHitRate: 0,
     reasoningTokens: totals.reasoningTokens + segment.reasoningTokens,
     webSearchRequests: totals.webSearchRequests + segment.webSearchRequests,
-    reportedTokenCounts: addReportedTokenTotals(totals.reportedTokenCounts, segment),
   };
   return {...next, cacheHitRate: aggregateCacheHitRate(next)};
-}
-
-function addUsageTokenTotalsInPlace(
-  totals: UsageTokenTotals,
-  segment: Pick<
-    UsageInferenceSegment,
-    | 'dialect'
-    | 'requestCount'
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'cacheCreationTokens'
-    | 'cacheReadTokens'
-    | 'reasoningTokens'
-    | 'webSearchRequests'
-    | 'tokenClasses'
-  >,
-): void {
-  const {tokenClasses} = segment;
-  totals.requestCount += segment.requestCount;
-  totals.inputTokens += tokenClasses.inputTokens;
-  totals.cachedInputTokens += tokenClasses.cachedInputTokens;
-  totals.cacheWriteTokens += tokenClasses.cacheWriteTokens;
-  totals.outputTokens += tokenClasses.outputTokens;
-  totals.totalTokens += tokenClasses.totalTokens;
-  totals.reasoningTokens += segment.reasoningTokens;
-  totals.webSearchRequests += segment.webSearchRequests;
-  totals.reportedTokenCounts = addReportedTokenTotals(totals.reportedTokenCounts, segment);
-  totals.cacheHitRate = aggregateCacheHitRate(totals);
-}
-
-function addReportedTokenTotals(
-  reportedTokenCounts: readonly UsageReportedTokenTotals[],
-  segment: Pick<
-    UsageInferenceSegment,
-    | 'dialect'
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'cacheCreationTokens'
-    | 'cacheReadTokens'
-    | 'reasoningTokens'
-    | 'webSearchRequests'
-  >,
-): readonly UsageReportedTokenTotals[] {
-  const current = reportedTokenCounts.find(({dialect}) => dialect === segment.dialect);
-  if (!current) {
-    return [
-      ...reportedTokenCounts,
-      {
-        dialect: segment.dialect,
-        inputTokens: segment.inputTokens,
-        outputTokens: segment.outputTokens,
-        cacheCreationTokens: segment.cacheCreationTokens,
-        cacheReadTokens: segment.cacheReadTokens,
-        reasoningTokens: segment.reasoningTokens,
-        webSearchRequests: segment.webSearchRequests,
-      },
-    ];
-  }
-
-  return reportedTokenCounts.map((reported) =>
-    reported.dialect === segment.dialect
-      ? {
-          ...reported,
-          inputTokens: reported.inputTokens + segment.inputTokens,
-          outputTokens: reported.outputTokens + segment.outputTokens,
-          cacheCreationTokens: reported.cacheCreationTokens + segment.cacheCreationTokens,
-          cacheReadTokens: reported.cacheReadTokens + segment.cacheReadTokens,
-          reasoningTokens: reported.reasoningTokens + segment.reasoningTokens,
-          webSearchRequests: reported.webSearchRequests + segment.webSearchRequests,
-        }
-      : reported,
-  );
 }
 
 function aggregateCacheHitRate(

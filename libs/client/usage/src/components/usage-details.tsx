@@ -3,34 +3,27 @@ import {
   type UsagePricingModel,
   useUsagePricing,
 } from '@shipfox/client-shell/runtime';
-import {useMemo, useState} from 'react';
+import {useMemo} from 'react';
 import {groupUsageByModel, type RunUsage, type UsageTokenTotals} from '#core/usage.js';
-import {StepInferenceTable} from './step-inference-table.js';
 import {formatUsageCost} from './usage-cost.js';
 import {formatUsageDuration, formatUsageNumber, formatUsageRate} from './usage-format.js';
 
 interface UsageDetailsProps {
   usage: RunUsage;
   cost: UsagePricingCost | undefined;
-  stepLabels?: ReadonlyMap<string, string> | undefined;
-  stepAttemptLabels?: ReadonlyMap<string, string> | undefined;
 }
 
-export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: UsageDetailsProps) {
+export function UsageBreakdown({usage, cost}: UsageDetailsProps) {
   const pricing = useUsagePricing();
   const showPrices = Boolean(formatUsageCost(pricing, cost));
   const recordedModels = useMemo(
     () => groupUsageByModel(usage.inferenceSegments),
     [usage.inferenceSegments],
   );
-  const models: {model: string; upstream: string; totals: UsageTokenTotals | undefined}[] = [
-    ...recordedModels,
-  ];
+  const models: {model: string; totals: UsageTokenTotals | undefined}[] = [...recordedModels];
   for (const priced of cost?.breakdown?.models ?? []) {
-    if (
-      !models.some((model) => model.model === priced.model && model.upstream === priced.upstream)
-    ) {
-      models.push({model: priced.model, upstream: priced.upstream, totals: undefined});
+    if (!models.some((model) => model.model === priced.model)) {
+      models.push({model: priced.model, totals: undefined});
     }
   }
   const durationKnown =
@@ -75,38 +68,26 @@ export function UsageBreakdown({usage, cost, stepLabels, stepAttemptLabels}: Usa
         ) : (
           models.map((model) => (
             <ModelUsage
-              key={JSON.stringify([model.upstream, model.model])}
+              key={model.model}
               model={model.model}
-              upstream={model.upstream}
               totals={model.totals}
               showPrices={showPrices}
-              pricing={cost?.breakdown?.models.find(
-                (priced) => priced.model === model.model && priced.upstream === model.upstream,
-              )}
+              pricing={cost?.breakdown?.models.find((priced) => priced.model === model.model)}
             />
           ))
         )}
       </details>
-      {usage.inferenceSegments.length > 0 ? (
-        <StepUsageDisclosure
-          usage={usage}
-          stepLabels={stepLabels}
-          stepAttemptLabels={stepAttemptLabels}
-        />
-      ) : null}
     </div>
   );
 }
 
 function ModelUsage({
   model,
-  upstream,
   totals,
   pricing,
   showPrices,
 }: {
   model: string;
-  upstream: string;
   totals: UsageTokenTotals | undefined;
   pricing: UsagePricingModel | undefined;
   showPrices: boolean;
@@ -115,10 +96,7 @@ function ModelUsage({
     <details className="ml-cluster border-t border-border-neutral-base">
       <summary className={SUMMARY_CLASS}>
         <span className="flex min-w-0 flex-1 items-center justify-between gap-inline">
-          <span className="min-w-0">
-            <span className="block break-words font-code text-xs">{model}</span>
-            <span className="block text-xs text-foreground-neutral-subtle">{upstream}</span>
-          </span>
+          <span className="min-w-0 break-words font-code text-xs">{model}</span>
           {showPrices ? <CostValue cost={pricing?.cost} /> : null}
         </span>
       </summary>
@@ -192,45 +170,6 @@ function CostValue({cost}: {cost: UsagePricingCost | undefined}) {
     <span className="shrink-0 text-xs tabular-nums text-foreground-neutral-subtle">
       {formatted ? `${cost?.state === 'estimated' ? 'Est. ' : ''}${formatted}` : 'Unavailable'}
     </span>
-  );
-}
-
-function StepUsageDisclosure(
-  props: Pick<UsageDetailsProps, 'usage' | 'stepLabels' | 'stepAttemptLabels'>,
-) {
-  const [open, setOpen] = useState(false);
-  return (
-    <details
-      className="mt-cluster border-t border-border-neutral-base"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className={SUMMARY_CLASS}>Steps and attempts</summary>
-      {open ? <StepUsageDetails {...props} /> : null}
-    </details>
-  );
-}
-
-function StepUsageDetails({
-  usage,
-  stepLabels,
-  stepAttemptLabels,
-}: Pick<UsageDetailsProps, 'usage' | 'stepLabels' | 'stepAttemptLabels'>) {
-  return (
-    <div className="min-w-0 overflow-x-auto">
-      {usage.jobExecutions.map((job) => (
-        <StepInferenceTable
-          key={job.jobExecutionId}
-          usage={{
-            jobExecution: job,
-            inferenceSegments: usage.inferenceSegments.filter(
-              (segment) => segment.jobExecutionId === job.jobExecutionId,
-            ),
-          }}
-          stepLabels={stepLabels}
-          stepAttemptLabels={stepAttemptLabels}
-        />
-      ))}
-    </div>
   );
 }
 

@@ -1,5 +1,4 @@
 import {
-  groupInferenceSegmentsByStepAttempt,
   groupUsageByModel,
   summarizeRunUsage,
   type UsageInferenceSegment,
@@ -8,13 +7,14 @@ import {
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
 
-test('keeps the same model on different providers separate when grouping costs', () => {
-  const result = groupUsageByModel([segment(), segment(), segment({upstream: 'another-provider'})]);
+test('groups usage by public model identity', () => {
+  const result = groupUsageByModel([segment(), segment(), segment({model: 'gpt-5'})]);
 
-  expect(result).toHaveLength(2);
-  expect(result.find((model) => model.upstream === 'anthropic')?.totals.requestCount).toBe(2);
-  expect(result.find((model) => model.upstream === 'another-provider')?.totals.requestCount).toBe(
-    1,
+  expect(result.map(({model, totals}) => [model, totals.requestCount, totals.totalTokens])).toEqual(
+    [
+      ['claude-sonnet-4', 2, 320],
+      ['gpt-5', 1, 160],
+    ],
   );
 });
 
@@ -31,7 +31,6 @@ function segment(overrides: Partial<UsageInferenceSegment> = {}): UsageInference
     jobExecutionId: '33333333-3333-4333-8333-333333333333',
     stepId: '99999999-9999-4999-8999-999999999999',
     stepAttemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    upstream: 'anthropic',
     model: 'claude-sonnet-4',
     dialect: 'anthropic-messages',
     windowStart: '2026-06-26T11:59:20.000Z',
@@ -131,84 +130,5 @@ describe('Usage aggregation', () => {
       ['gpt-5', 235],
       ['claude-sonnet-4', 160],
     ]);
-  });
-
-  test('groups adjacent segments by step attempt, upstream, and model', () => {
-    const rows = groupInferenceSegmentsByStepAttempt([
-      segment(),
-      segment({
-        id: '77777777-7777-4777-8777-777777777777',
-        requestCount: 2,
-        inputTokens: 50,
-        tokenClasses: {
-          inputTokens: 50,
-          cachedInputTokens: 10,
-          cacheWriteTokens: 0,
-          outputTokens: 50,
-          totalTokens: 110,
-          cacheHitRate: 10 / 60,
-        },
-      }),
-      segment({
-        id: '66666666-6666-4666-8666-666666666666',
-        stepAttemptId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      }),
-    ]);
-
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      stepAttemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      requestCount: 3,
-      inputTokens: 150,
-      cachedInputTokens: 20,
-      totalTokens: 270,
-      cacheHitRate: 20 / 170,
-    });
-    expect(rows[1]).toMatchObject({
-      stepAttemptId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      requestCount: 1,
-    });
-  });
-
-  test('keeps provider and model values containing separators distinct', () => {
-    const rows = groupInferenceSegmentsByStepAttempt([
-      segment({upstream: 'provider:one', model: 'model'}),
-      segment({upstream: 'provider', model: 'one:model'}),
-    ]);
-
-    expect(rows.map(({upstream, model}) => [upstream, model])).toEqual([
-      ['provider', 'one:model'],
-      ['provider:one', 'model'],
-    ]);
-  });
-
-  test('aggregates OpenAI counts from the shared token classes', () => {
-    const rows = groupInferenceSegmentsByStepAttempt([
-      segment({
-        dialect: 'openai-responses',
-        inputTokens: 100,
-        outputTokens: 30,
-        cacheReadTokens: 20,
-        reasoningTokens: 9,
-        tokenClasses: {
-          inputTokens: 80,
-          cachedInputTokens: 20,
-          cacheWriteTokens: 0,
-          outputTokens: 30,
-          totalTokens: 130,
-          cacheHitRate: 0.2,
-        },
-      }),
-    ]);
-
-    expect(rows[0]).toMatchObject({
-      inputTokens: 80,
-      cachedInputTokens: 20,
-      cacheWriteTokens: 0,
-      outputTokens: 30,
-      totalTokens: 130,
-      cacheHitRate: 0.2,
-      reasoningTokens: 9,
-    });
   });
 });

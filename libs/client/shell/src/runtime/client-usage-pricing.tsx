@@ -9,7 +9,6 @@ export interface UsagePricingReference {
   kind: UsagePricingReferenceKind;
   id: string;
   model?: string;
-  upstream?: string;
 }
 
 export interface UsagePricingQuantities {
@@ -31,7 +30,6 @@ export interface UsagePricingEstimateCompute {
 
 export interface UsagePricingEstimateModel {
   model: string;
-  upstream: string;
   quantities: UsagePricingQuantities;
 }
 
@@ -61,7 +59,6 @@ export interface UsagePricingSku {
 
 export interface UsagePricingModel {
   model: string;
-  upstream: string;
   cost: UsagePricingAmount;
   skus: readonly UsagePricingSku[];
 }
@@ -128,8 +125,8 @@ export function useUsagePricing(): ClientUsagePricing | undefined {
 
 export function usagePricingReferenceKey(reference: UsagePricingReference): string {
   const baseKey = `${reference.workspaceId}:${reference.kind}:${reference.id}`;
-  if (reference.model === undefined && reference.upstream === undefined) return baseKey;
-  return `${baseKey}:${JSON.stringify([reference.model ?? null, reference.upstream ?? null])}`;
+  if (reference.model === undefined) return baseKey;
+  return `${baseKey}:${JSON.stringify([reference.model])}`;
 }
 
 function createSafeClientUsagePricing(pricing: ClientUsagePricing): ClientUsagePricing {

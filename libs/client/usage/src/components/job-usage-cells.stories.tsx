@@ -51,7 +51,6 @@ const usage: JobExecutionUsage = {
       jobExecutionId: JOB_EXECUTION_ID,
       stepId: '99999999-9999-4999-8999-999999999999',
       stepAttemptId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      upstream: 'openai',
       model: 'gpt-5',
       dialect: 'openai-responses',
       windowStart: '2026-06-26T11:59:20.000Z',
