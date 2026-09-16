@@ -20,7 +20,7 @@ import {
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
-import {seedAndWaitForDefinition} from '#workflow-project.js';
+import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const RUNNER_TERMINAL_TIMEOUT_MS = 180_000;
@@ -143,7 +143,7 @@ test('renews managed inference credentials for both harnesses', async ({suite}, 
     'get',
     '/__e2e/managed-inference/stats',
   );
-  const project = await seedAndWaitForDefinition({
+  const project = await seedProjectWithApiDefinition({
     suite,
     token: suite.sessionToken,
     name: 'renewable-inference',
