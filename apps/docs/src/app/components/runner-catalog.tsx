@@ -1,4 +1,13 @@
+// biome-ignore-all lint/a11y/noNoninteractiveTabindex: the catalog region is intentionally keyboard focusable for horizontal scrolling.
 import {getRunnerCatalog, renderRunnerCatalogMarkdown} from '@/lib/runner-catalog';
+
+const ALIGNMENT_CLASS_BY_HEADER: Record<string, string> = {
+  CPU: 'text-right',
+  Memory: 'text-right',
+  'Workspace disk': 'text-right',
+  'System disk': 'text-right',
+  Price: 'text-right',
+};
 
 export async function RunnerCatalog() {
   const catalog = await getRunnerCatalog();
@@ -12,12 +21,18 @@ export async function RunnerCatalog() {
     .map((value) => value.trim());
 
   return (
-    <div className="overflow-x-auto">
+    <section
+      aria-label="Runner catalog"
+      tabIndex={0}
+      className="overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-fd-ring"
+    >
       <table>
         <thead>
           <tr>
             {headers.map((value) => (
-              <th key={value}>{value}</th>
+              <th key={value} className={ALIGNMENT_CLASS_BY_HEADER[value]}>
+                {value}
+              </th>
             ))}
           </tr>
         </thead>
@@ -30,7 +45,10 @@ export async function RunnerCatalog() {
             return (
               <tr key={values[0]}>
                 {values.map((value, index) => (
-                  <td key={`${values[0]}-${index}`}>
+                  <td
+                    key={`${values[0]}-${index}`}
+                    className={ALIGNMENT_CLASS_BY_HEADER[headers[index] ?? '']}
+                  >
                     {value
                       .split(/(`[^`]+`)/g)
                       .map((part, partIndex) =>
@@ -47,7 +65,7 @@ export async function RunnerCatalog() {
           })}
         </tbody>
       </table>
-    </div>
+    </section>
   );
 }
 

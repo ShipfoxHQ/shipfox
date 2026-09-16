@@ -13,12 +13,17 @@ interface MdxElementNode {
 
 export function remarkRunnerCatalog() {
   return async (tree: RootNode) => {
-    const catalog = await getRunnerCatalog();
+    const runnerCatalogNodes: MdxElementNode[] = [];
     walk(tree, (node) => {
-      if (node.name !== 'RunnerCatalog') return;
+      if (node.name === 'RunnerCatalog') runnerCatalogNodes.push(node);
+    });
+    if (runnerCatalogNodes.length === 0) return;
+
+    const catalog = await getRunnerCatalog();
+    for (const node of runnerCatalogNodes) {
       node.data ??= {};
       node.data._stringify = {text: renderRunnerCatalogMarkdown(catalog)};
-    });
+    }
   };
 }
 

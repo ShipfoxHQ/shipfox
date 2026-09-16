@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {remarkRunnerCatalog} from './remark-runner-catalog';
 import {
   createRunnerCatalogClient,
   formatMicrodollars,
   parseRunnerCatalog,
   renderRunnerCatalogMarkdown,
+  runnerCatalogClient,
 } from './runner-catalog';
 
 const CANONICAL_RUNNER_PATTERN = /`shipfox-2cpu`/;
@@ -123,4 +125,43 @@ test('fails closed for private fields and invalid response data', async () => {
   });
 
   await assert.rejects(client.get(), CATALOG_LOAD_ERROR_PATTERN);
+});
+
+test('does not load the catalog when a document has no RunnerCatalog component', async (t) => {
+  let calls = 0;
+  t.mock.method(runnerCatalogClient, 'get', () => {
+    calls += 1;
+    return parseRunnerCatalog(catalog);
+  });
+
+  await remarkRunnerCatalog()({children: [{type: 'paragraph', children: []}]});
+
+  assert.equal(calls, 0);
+});
+
+test('serializes every RunnerCatalog component after loading the catalog', async (t) => {
+  let calls = 0;
+  t.mock.method(runnerCatalogClient, 'get', () => {
+    calls += 1;
+    return parseRunnerCatalog(catalog);
+  });
+  const first = {
+    type: 'mdxJsxFlowElement' as const,
+    name: 'RunnerCatalog',
+    children: [],
+    data: undefined as Record<string, unknown> | undefined,
+  };
+  const second = {
+    type: 'mdxJsxTextElement' as const,
+    name: 'RunnerCatalog',
+    children: [],
+    data: undefined as Record<string, unknown> | undefined,
+  };
+
+  await remarkRunnerCatalog()({children: [first, {children: [second]}]});
+
+  const text = renderRunnerCatalogMarkdown(parseRunnerCatalog(catalog));
+  assert.equal(calls, 1);
+  assert.deepEqual(first.data, {_stringify: {text}});
+  assert.deepEqual(second.data, {_stringify: {text}});
 });
