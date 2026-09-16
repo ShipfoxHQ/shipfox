@@ -32,7 +32,7 @@ import {triggerEventResult} from './trigger-event-result.js';
 import {TriggerSourceIcon} from './trigger-source-icon.js';
 
 const DETAIL_RAIL_CLASS =
-  '@min-[820px]:sticky @min-[820px]:top-16 @min-[820px]:max-h-[calc(var(--app-content-h,100dvh_-_96px)_-_32px)] @min-[820px]:min-h-[min(320px,calc(var(--app-content-h,100dvh_-_96px)_-_32px))]';
+  '@min-[820px]:sticky @min-[820px]:top-16 @min-[820px]:max-h-[calc(var(--app-content-h,100dvh_-_96px)_-_var(--events-detail-rail-offset,var(--pad-frame-y)))] @min-[820px]:min-h-[min(320px,calc(var(--app-content-h,100dvh_-_96px)_-_var(--events-detail-rail-offset,var(--pad-frame-y))))]';
 
 export interface TriggerEventDetailProps {
   workspaceId?: string | undefined;
@@ -138,7 +138,7 @@ export function TriggerEventDetailView({
 
       <div
         key={event.id}
-        className="flex min-h-0 flex-1 flex-col gap-group overflow-y-auto scrollbar"
+        className="flex min-h-0 flex-1 flex-col gap-group overflow-y-auto scrollbar [&>*]:shrink-0"
       >
         <EventIssueCallout event={event} />
         <EventRuns workspaceId={workspaceId} workspaceSlug={workspaceSlug} event={event} />

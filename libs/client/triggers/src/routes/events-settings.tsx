@@ -30,7 +30,7 @@ export default defineRoute({
       void navigate({search: {...search, eventId: nextEventId}, replace: true});
     };
     return (
-      <div className="flex min-w-0 flex-col gap-section">
+      <div className="flex min-w-0 flex-col gap-section [--events-detail-rail-offset:calc(var(--pad-frame-y)_+_var(--text-3xl--line-height)_+_var(--space-section))]">
         <Header variant="h1">Events</Header>
         <EventsPage
           workspaceId={workspace.id}
