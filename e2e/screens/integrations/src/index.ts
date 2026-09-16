@@ -202,10 +202,33 @@ export class SentryCallbackScreen {
   }
 }
 
+export class GithubCallbackScreen {
+  constructor(private readonly page: Page) {}
+
+  async goto(query: string): Promise<void> {
+    await this.page.goto(`/integrations/github/callback?${query}`);
+  }
+
+  heading(name: string): Locator {
+    return this.page.getByRole('heading', {name});
+  }
+
+  message(text: string | RegExp): Locator {
+    return typeof text === 'string'
+      ? this.page.getByText(text, {exact: false})
+      : this.page.getByText(text);
+  }
+
+  openWorkspaceLink(): Locator {
+    return this.page.getByRole('link', {name: 'Open workspace'});
+  }
+}
+
 export interface IntegrationsScreenFixtures {
   integrationsCatalogue: IntegrationsCatalogueScreen;
   connectionDetails: ConnectionDetailsScreen;
   providerInstall: ProviderInstallScreen;
+  githubCallback: GithubCallbackScreen;
   sentryCallback: SentryCallbackScreen;
   sourceControlSetup: SourceControlSetupScreen;
 }
@@ -222,6 +245,9 @@ export const integrationsScreens = {
   },
   providerInstall: async ({page}: {page: Page}, use: FixtureUse<ProviderInstallScreen>) => {
     await use(new ProviderInstallScreen(page));
+  },
+  githubCallback: async ({page}: {page: Page}, use: FixtureUse<GithubCallbackScreen>) => {
+    await use(new GithubCallbackScreen(page));
   },
   sentryCallback: async ({page}: {page: Page}, use: FixtureUse<SentryCallbackScreen>) => {
     await use(new SentryCallbackScreen(page));

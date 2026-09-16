@@ -6,6 +6,7 @@ const GITHUB_INSTALL_URL = 'https://github.com/apps/test-app/installations/new';
 const LINEAR_INSTALL_URL = 'https://linear.app/oauth/authorize?state=test-state';
 const CLICKUP_INSTALL_URL = 'https://app.clickup.com/api?state=test-state';
 const SENTRY_INSTALL_WORKSPACE_KEY = 'shipfox.sentry-install.workspace-id';
+const GITHUB_INSTALL_WORKSPACE_KEY = 'shipfox.github-install.workspace-id';
 
 test('Sentry install redirects to Sentry and stores the workspace handoff', async ({
   page,
@@ -50,6 +51,13 @@ test('GitHub install redirects to GitHub', async ({page, auth, workspaces}) => {
     installEndpoint: '**/integrations/github/install',
     externalHost: 'https://github.com',
     expectedUrl: GITHUB_INSTALL_URL,
+    beforeReleaseInstall: async () => {
+      const storedWorkspaceId = await page.evaluate(
+        (key) => window.sessionStorage.getItem(key),
+        GITHUB_INSTALL_WORKSPACE_KEY,
+      );
+      expect(storedWorkspaceId).toBe(workspace.id);
+    },
   });
 });
 
