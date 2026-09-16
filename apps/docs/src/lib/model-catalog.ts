@@ -5,10 +5,7 @@ const MILLION_TOKENS = 'million_tokens';
 const THOUSAND_REQUESTS = 'thousand_requests';
 const MODEL_CATALOG_REVALIDATE_SECONDS = 300;
 const TRAILING_ZEROES_PATTERN = /0+$/;
-const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat('en-US', {
-  maximumFractionDigits: 2,
-  notation: 'compact',
-});
+const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat('en-US');
 
 const priceSchema = (unit: typeof MILLION_TOKENS | typeof THOUSAND_REQUESTS) =>
   z
@@ -143,7 +140,29 @@ export function formatMicrodollars(priceMicrodollars: number): string {
 }
 
 export function formatTokenCount(tokenCount: number): string {
-  return `${TOKEN_COUNT_FORMATTER.format(tokenCount)} tok`;
+  const groupedTokenCount = TOKEN_COUNT_FORMATTER.format(tokenCount);
+  const compactUnits = [
+    {divisor: 1_000_000, suffix: 'M'},
+    {divisor: 1_000, suffix: 'K'},
+  ];
+
+  for (const {divisor, suffix} of compactUnits) {
+    if (tokenCount < divisor) continue;
+
+    const whole = Math.floor(tokenCount / divisor);
+    const remainder = tokenCount % divisor;
+    const fraction = remainder
+      .toString()
+      .padStart(Math.log10(divisor), '0')
+      .replace(TRAILING_ZEROES_PATTERN, '');
+    const compactTokenCount = `${whole}${fraction ? `.${fraction}` : ''}${suffix}`;
+
+    if (compactTokenCount.length < groupedTokenCount.length) {
+      return `${compactTokenCount} tok`;
+    }
+  }
+
+  return `${groupedTokenCount} tok`;
 }
 
 export function formatModelCapabilities(capabilities: CatalogModel['capabilities']): string {
@@ -168,8 +187,6 @@ export function serializeModelCatalog(catalog: ModelCatalog): string {
   });
 
   return [
-    '## Available models',
-    '',
     '| Model | `model` ID | Capabilities | Input / 1M tokens | Cached input / 1M tokens | Cache write / 1M tokens | Output / 1M tokens | Web search / 1K requests |',
     '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
     ...rows,

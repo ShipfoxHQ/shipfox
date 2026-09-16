@@ -57,6 +57,9 @@ test('formats compact model catalog values', () => {
   assert.equal(formatTokenCount(1_000_000), '1M tok');
   assert.equal(formatTokenCount(1_050_000), '1.05M tok');
   assert.equal(formatTokenCount(128_000), '128K tok');
+  assert.equal(formatTokenCount(202_800), '202.8K tok');
+  assert.equal(formatTokenCount(999_999), '999,999 tok');
+  assert.equal(formatTokenCount(9_999), '9,999 tok');
   assert.equal(formatModelPrice(null), 'N/A');
 });
 
@@ -130,6 +133,8 @@ test('serializes model IDs and table values containing backticks and pipes safel
 test('serializes a cloud models page with one Available models heading', () => {
   const page = [
     'Shipfox managed inference prices include a 5% service markup over the reference gateway rate.',
+    '',
+    '## Available models',
     '',
     '\0{"name":"ModelCatalog","children":"","attributes":{}}\0',
   ].join('\n');
