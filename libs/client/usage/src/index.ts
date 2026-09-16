@@ -9,7 +9,6 @@ export {
   type UsageJobExecutionState,
   type UsageJobExecutionStatus,
   type UsageModelTotals,
-  type UsageReportedTokenTotals,
   type UsageRunSummary,
   type UsageTokenClasses,
   type UsageTokenTotals,

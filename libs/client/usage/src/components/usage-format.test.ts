@@ -1,4 +1,19 @@
-import {formatUsageDuration} from './usage-format.js';
+import {formatUsageDuration, formatUsageNumber, formatUsageRate} from './usage-format.js';
+
+describe('usage value formatting', () => {
+  test('formats compact numbers', () => {
+    expect(formatUsageNumber(1_840)).toBe('1.8K');
+  });
+
+  test.each([
+    [100 / 1_300, '7.7%'],
+    [-1, '—'],
+    [1.1, '—'],
+    [Number.NaN, '—'],
+  ])('formats rate %s as %s', (rate, expected) => {
+    expect(formatUsageRate(rate)).toBe(expected);
+  });
+});
 
 describe('formatUsageDuration', () => {
   test.each([

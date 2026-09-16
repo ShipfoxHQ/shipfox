@@ -14,16 +14,6 @@ export interface UsageTokenClasses {
   cacheHitRate: number;
 }
 
-export interface UsageReportedTokenTotals {
-  dialect: UsageInferenceDialect;
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  reasoningTokens: number;
-  webSearchRequests: number;
-}
-
 export interface UsageJobExecution {
   jobId: string;
   jobExecutionId: string;
@@ -99,7 +89,6 @@ export interface UsageTokenTotals extends UsageTokenClasses {
   /** Raw reasoning tokens are included in outputTokens and retained for detail views. */
   reasoningTokens: number;
   webSearchRequests: number;
-  reportedTokenCounts: readonly UsageReportedTokenTotals[];
 }
 
 export interface UsageModelTotals extends UsageTokenTotals {
@@ -123,7 +112,6 @@ export function emptyUsageTokenTotals(): UsageTokenTotals {
     cacheHitRate: 0,
     reasoningTokens: 0,
     webSearchRequests: 0,
-    reportedTokenCounts: [],
   };
 }
 
@@ -189,15 +177,7 @@ function addUsageTokenTotals(
   totals: UsageTokenTotals,
   segment: Pick<
     UsageInferenceSegment,
-    | 'dialect'
-    | 'requestCount'
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'cacheCreationTokens'
-    | 'cacheReadTokens'
-    | 'reasoningTokens'
-    | 'webSearchRequests'
-    | 'tokenClasses'
+    'requestCount' | 'reasoningTokens' | 'webSearchRequests' | 'tokenClasses'
   >,
 ): UsageTokenTotals {
   const {tokenClasses} = segment;
@@ -211,53 +191,8 @@ function addUsageTokenTotals(
     cacheHitRate: 0,
     reasoningTokens: totals.reasoningTokens + segment.reasoningTokens,
     webSearchRequests: totals.webSearchRequests + segment.webSearchRequests,
-    reportedTokenCounts: addReportedTokenTotals(totals.reportedTokenCounts, segment),
   };
   return {...next, cacheHitRate: aggregateCacheHitRate(next)};
-}
-
-function addReportedTokenTotals(
-  reportedTokenCounts: readonly UsageReportedTokenTotals[],
-  segment: Pick<
-    UsageInferenceSegment,
-    | 'dialect'
-    | 'inputTokens'
-    | 'outputTokens'
-    | 'cacheCreationTokens'
-    | 'cacheReadTokens'
-    | 'reasoningTokens'
-    | 'webSearchRequests'
-  >,
-): readonly UsageReportedTokenTotals[] {
-  const current = reportedTokenCounts.find(({dialect}) => dialect === segment.dialect);
-  if (!current) {
-    return [
-      ...reportedTokenCounts,
-      {
-        dialect: segment.dialect,
-        inputTokens: segment.inputTokens,
-        outputTokens: segment.outputTokens,
-        cacheCreationTokens: segment.cacheCreationTokens,
-        cacheReadTokens: segment.cacheReadTokens,
-        reasoningTokens: segment.reasoningTokens,
-        webSearchRequests: segment.webSearchRequests,
-      },
-    ];
-  }
-
-  return reportedTokenCounts.map((reported) =>
-    reported.dialect === segment.dialect
-      ? {
-          ...reported,
-          inputTokens: reported.inputTokens + segment.inputTokens,
-          outputTokens: reported.outputTokens + segment.outputTokens,
-          cacheCreationTokens: reported.cacheCreationTokens + segment.cacheCreationTokens,
-          cacheReadTokens: reported.cacheReadTokens + segment.cacheReadTokens,
-          reasoningTokens: reported.reasoningTokens + segment.reasoningTokens,
-          webSearchRequests: reported.webSearchRequests + segment.webSearchRequests,
-        }
-      : reported,
-  );
 }
 
 function aggregateCacheHitRate(
