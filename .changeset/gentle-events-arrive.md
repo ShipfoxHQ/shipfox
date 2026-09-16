@@ -5,3 +5,4 @@
 ---
 
 Publishes supported events even when the connected account created them.
+Workflows that write back through an integration can trigger another run from their own changes.

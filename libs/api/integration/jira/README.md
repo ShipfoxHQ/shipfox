@@ -43,7 +43,7 @@ The composed integrations module supplies route and worker dependencies.
 
 ## Behavior notes
 
-Connect Jira with a dedicated Shipfox service account. Jira 3LO actions use the authorizing account. Events from that account are dropped to prevent agent self-triggering.
+Connect Jira with a dedicated Shipfox service account. Jira 3LO actions use the authorizing account. Shipfox also delivers events from that account. A workflow that writes back to Jira can trigger another run from its own change.
 
 ## Data model
 

@@ -30,9 +30,8 @@ Comment events include a `comment` object. See the
 [Jira webhook documentation](https://developer.atlassian.com/cloud/jira/platform/webhooks/)
 for provider-specific field details.
 
-Shipfox discards `jira:issue_updated`, `comment_created`, and
-`comment_updated` events authored by the account that authorized the integration
-connection.
+Shipfox delivers events authored by the account that authorized the integration
+connection. A workflow that writes back to Jira can trigger another run from its own change.
 
 ## Trigger fragment
 
