@@ -362,37 +362,11 @@ export class GithubSourceControlProvider
       const {repositoryId} = parseGithubRepositoryLocator(target.externalRepositoryId);
       return await this.github.getRepository({installationId, repositoryId});
     }
-
-    const visitedCursors = new Set<string>();
-    let cursor: string | undefined;
-    while (true) {
-      const repositories = await this.github.listInstallationRepositories({
-        installationId,
-        limit: SEARCH_PAGE_SIZE,
-        cursor,
-      });
-      const repository = repositories.repositories.find(
-        (candidate) =>
-          candidate.ownerLogin.toLowerCase() === target.owner.toLowerCase() &&
-          candidate.name.toLowerCase() === target.name.toLowerCase(),
-      );
-      if (repository) return repository;
-      const nextCursor = repositories.nextCursor ?? undefined;
-      if (!nextCursor) break;
-      if (visitedCursors.has(nextCursor)) {
-        throw new GithubIntegrationProviderError(
-          'malformed-provider-response',
-          'GitHub repository pagination cursor did not advance',
-        );
-      }
-      visitedCursors.add(nextCursor);
-      cursor = nextCursor;
-    }
-
-    throw new GithubIntegrationProviderError(
-      'repository-not-found',
-      `GitHub repository ${target.owner}/${target.name} was not found for the installation`,
-    );
+    return await this.github.getRepository({
+      installationId,
+      owner: target.owner,
+      name: target.name,
+    });
   }
 
   private async mintCheckoutToken(params: {

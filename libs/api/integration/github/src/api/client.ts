@@ -84,6 +84,8 @@ export interface GithubBotUserClient {
   getBotUser(input: {username: string; installationAccessToken: string}): Promise<GithubBotUser>;
 }
 
+type GithubRepositoryLocator = {repositoryId: number} | {owner: string; name: string};
+
 export interface GithubApiClient extends Partial<GithubBotUserClient> {
   exchangeOAuthCode(code: string): Promise<string>;
   listUserInstallations(input: {
@@ -96,7 +98,9 @@ export interface GithubApiClient extends Partial<GithubBotUserClient> {
     limit: number;
     cursor?: string | undefined;
   }): Promise<GithubRepositoryPage>;
-  getRepository(input: {installationId: number; repositoryId: number}): Promise<GithubRepository>;
+  getRepository(
+    input: {installationId: number} & GithubRepositoryLocator,
+  ): Promise<GithubRepository>;
   listRepositoryFiles(input: {
     installationId: number;
     repositoryId: number;
@@ -283,22 +287,32 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     };
   }
 
-  async getRepository(input: {
-    installationId: number;
-    repositoryId: number;
-  }): Promise<GithubRepository> {
+  async getRepository(
+    input: {installationId: number} & GithubRepositoryLocator,
+  ): Promise<GithubRepository> {
     const octokit = await mapGithubError(
       () => getGithubInstallationOctokit(this.getApp(), input.installationId),
       'installation-not-found',
     );
-    const response = await mapGithubError(
-      () =>
-        octokit.request('GET /repositories/{repository_id}', {
-          repository_id: input.repositoryId,
-          request: {signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)},
-        }),
-      'repository-not-found',
-    );
+    const response =
+      'repositoryId' in input
+        ? await mapGithubError(
+            () =>
+              octokit.request('GET /repositories/{repository_id}', {
+                repository_id: input.repositoryId,
+                request: {signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)},
+              }),
+            'repository-not-found',
+          )
+        : await mapGithubError(
+            () =>
+              octokit.request('GET /repos/{owner}/{repo}', {
+                owner: input.owner,
+                repo: input.name,
+                request: {signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS)},
+              }),
+            'repository-not-found',
+          );
 
     return toGithubRepository(response.data);
   }
