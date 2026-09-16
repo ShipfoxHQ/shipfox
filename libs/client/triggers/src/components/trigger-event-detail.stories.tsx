@@ -12,7 +12,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import {screen} from 'storybook/test';
+import {expect, screen} from 'storybook/test';
 import {toTriggerEventDetail} from '#hooks/api/trigger-event-mapper.js';
 import {TriggerEventDetailView} from './trigger-event-detail.js';
 
@@ -232,12 +232,26 @@ const unavailableDetailsEventDto: TriggerEventDetailResponseDto = {
   ],
 };
 
+const scrollingEventDto: TriggerEventDetailResponseDto = {
+  ...routedEventDto,
+  id: '18181818-1818-4818-8818-181818181818',
+  event_ref: 'github:delivery-185:push',
+  delivery_id: 'delivery-185',
+  payload: {
+    commits: Array.from({length: 40}, (_, index) => ({
+      id: `commit-${index + 1}`,
+      message: `Update event detail fixture ${index + 1}`,
+    })),
+  },
+};
+
 const routedEvent = toTriggerEventDetail(routedEventDto);
 const discardedEvent = toTriggerEventDetail(discardedEventDto);
 const failedFilterEvent = toTriggerEventDetail(failedFilterEventDto);
 const groupedErrorsEvent = toTriggerEventDetail(groupedErrorsEventDto);
 const partialFailureEvent = toTriggerEventDetail(partialFailureEventDto);
 const unavailableDetailsEvent = toTriggerEventDetail(unavailableDetailsEventDto);
+const scrollingEvent = toTriggerEventDetail(scrollingEventDto);
 
 const meta = {
   title: 'Triggers/EventDetail',
@@ -306,5 +320,19 @@ export const UnavailableDetails: Story = {
   args: {event: unavailableDetailsEvent},
   play: async (ctx) => {
     await captureDetail(ctx, 'Trigger Event Detail Unavailable Details');
+  },
+};
+
+export const TestScrollable: Story = {
+  args: {event: scrollingEvent},
+  play: async () => {
+    const detail = await screen.findByRole('complementary', {name: 'Event details'});
+    const scrollport = detail.children.item(1);
+    expect(scrollport).toBeInstanceOf(HTMLElement);
+    if (!(scrollport instanceof HTMLElement)) return;
+
+    expect(scrollport.scrollHeight).toBeGreaterThan(scrollport.clientHeight);
+    scrollport.scrollTop = scrollport.scrollHeight;
+    expect(scrollport.scrollTop).toBeGreaterThan(0);
   },
 };
