@@ -1,7 +1,8 @@
+import {ApiError} from '@shipfox/client-api';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
 import {FocusedFrame, useClientAnalytics} from '@shipfox/client-shell/runtime';
 import {createSingleFlight, sessionStorageOrUndefined} from '@shipfox/client-ui';
-import {Button, ButtonLink} from '@shipfox/react-ui/button';
+import {ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
@@ -29,6 +30,8 @@ const callbackRequests = createSingleFlight<string, IntegrationConnection>({
   maxTerminalResults: 32,
 });
 const capturedCompletions = new Set<string>();
+const reportedFailures = new Set<string>();
+const toastedCallbacks = new Set<string>();
 
 export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   const auth = useAuthState();
@@ -45,7 +48,6 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   const storedWorkspace = auth.workspaces.find(({id}) => id === storedWorkspaceId);
   const [failure, setFailure] = useState<GithubCallbackFailure>();
   const [completedWorkspaceId, setCompletedWorkspaceId] = useState<string>();
-  const [retryAttempt, setRetryAttempt] = useState(0);
   const capturedViews = useRef(new Set<string>());
 
   useEffect(() => {
@@ -104,7 +106,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     let active = true;
     const callbackKey = serializeGithubCallback(intent.params);
     const request = callbackRequests.run(
-      `${callbackKey}|${retryAttempt}`,
+      callbackKey,
       async () =>
         await completeIntegrationCallback({
           input: intent.params,
@@ -128,7 +130,11 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
       (error: unknown) => {
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
-        if (!classified.retryable) clearGithubInstallWorkspace(sessionStorageOrUndefined());
+        if (!(error instanceof ApiError) && !reportedFailures.has(callbackKey)) {
+          rememberCallbackKey(reportedFailures, callbackKey);
+          globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
+        }
+        clearGithubInstallWorkspace(sessionStorageOrUndefined());
         setFailure((previous) => (previous?.kind === classified.kind ? previous : classified));
       },
     );
@@ -148,7 +154,6 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     navigate,
     refreshAuth,
     resolveIntegrationWorkspaceSlug,
-    retryAttempt,
   ]);
 
   if (auth.isLoading) return <FullPageLoader aria-label="Loading GitHub callback" />;
@@ -205,17 +210,6 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     const outcome = failureCopy(failure);
     return (
       <GithubOutcome title={outcome.title} message={outcome.message} status={outcome.status}>
-        {failure.retryable ? (
-          <Button
-            className="w-full sm:w-fit"
-            onClick={() => {
-              setFailure(undefined);
-              setRetryAttempt((value) => value + 1);
-            }}
-          >
-            Try again
-          </Button>
-        ) : null}
         <MemberWorkspaceActions workspaces={auth.workspaces} />
       </GithubOutcome>
     );
@@ -258,7 +252,10 @@ async function handleGithubCallbackSuccess({
     setCompletedWorkspaceId(connection.workspaceId);
     return;
   }
-  toast.success('GitHub installed.');
+  if (!toastedCallbacks.has(callbackKey)) {
+    rememberCallbackKey(toastedCallbacks, callbackKey);
+    toast.success('GitHub installed.');
+  }
   try {
     await navigate({
       to: '/w/$workspaceSlug/settings/integrations',
@@ -358,7 +355,11 @@ function MemberWorkspaceActions({
             </Text>
             <div className="flex flex-col gap-inline sm:flex-row">
               <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
-                <Link to="/w/$workspaceSlug/integrations" params={{workspaceSlug: workspace.slug}}>
+                <Link
+                  to="/w/$workspaceSlug/integrations"
+                  params={{workspaceSlug: workspace.slug}}
+                  aria-label={`Open ${workspace.name} workspace`}
+                >
                   Open workspace
                 </Link>
               </ButtonLink>
@@ -366,6 +367,7 @@ function MemberWorkspaceActions({
                 <Link
                   to="/w/$workspaceSlug/settings/members"
                   params={{workspaceSlug: workspace.slug}}
+                  aria-label={`Invite a teammate to ${workspace.name}`}
                 >
                   Invite a teammate
                 </Link>
@@ -451,13 +453,14 @@ function failureCopy(failure: GithubCallbackFailure): {
       return {
         title: 'GitHub is temporarily unavailable',
         message:
-          'The connection was not completed. Try the callback again or return to a member workspace.',
+          'The connection was not completed. Return to a member workspace and start the installation again.',
         status: 'warning',
       };
     case 'unknown':
       return {
         title: 'Could not connect GitHub',
-        message: 'The connection was not completed. Try again or return to a member workspace.',
+        message:
+          'The connection was not completed. Return to a member workspace and start the installation again.',
         status: 'error',
       };
   }

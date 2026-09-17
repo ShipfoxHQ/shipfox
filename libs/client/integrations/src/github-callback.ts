@@ -103,41 +103,44 @@ export function serializeGithubCallback(params: GithubCallbackParams): string {
 }
 
 export type GithubCallbackFailure =
-  | {kind: 'expired'; retryable: false}
-  | {kind: 'invalid'; retryable: false}
-  | {kind: 'actor-mismatch'; retryable: false}
-  | {kind: 'not-authorized'; retryable: false}
-  | {kind: 'already-linked'; retryable: false}
-  | {kind: 'provider-error'; retryable: true}
-  | {kind: 'unknown'; retryable: true};
+  | {kind: 'expired'}
+  | {kind: 'invalid'}
+  | {kind: 'actor-mismatch'}
+  | {kind: 'not-authorized'}
+  | {kind: 'already-linked'}
+  | {kind: 'provider-error'}
+  | {kind: 'unknown'};
 
 export function classifyGithubCallbackError(error: unknown): GithubCallbackFailure {
-  if (!(error instanceof ApiError)) return {kind: 'unknown', retryable: true};
+  if (!(error instanceof ApiError)) return {kind: 'unknown'};
   if (error.code === 'invalid-github-install-state') {
-    return EXPIRED_STATE_MESSAGE.test(error.message)
-      ? {kind: 'expired', retryable: false}
-      : {kind: 'invalid', retryable: false};
+    return EXPIRED_STATE_MESSAGE.test(error.message) ? {kind: 'expired'} : {kind: 'invalid'};
   }
   if (error.code === 'github-install-state-actor-mismatch') {
-    return {kind: 'actor-mismatch', retryable: false};
+    return {kind: 'actor-mismatch'};
   }
-  if (error.code === 'github-installation-not-authorized') {
-    return {kind: 'not-authorized', retryable: false};
+  if (
+    error.code === 'github-installation-not-authorized' ||
+    error.code === 'access-denied' ||
+    error.code === 'installation-not-found'
+  ) {
+    return {kind: 'not-authorized'};
   }
   if (error.code === 'github-installation-already-linked' || error.code === 'slug-conflict') {
-    return {kind: 'already-linked', retryable: false};
+    return {kind: 'already-linked'};
   }
   if (
     error.code === 'rate-limited' ||
     error.code === 'timeout' ||
     error.code === 'provider-unavailable' ||
+    error.code === 'malformed-provider-response' ||
     error.code === 'network-error' ||
     error.status === 0 ||
     error.status >= 500
   ) {
-    return {kind: 'provider-error', retryable: true};
+    return {kind: 'provider-error'};
   }
-  return {kind: 'unknown', retryable: true};
+  return {kind: 'unknown'};
 }
 
 function stringParam(value: unknown): string | undefined {

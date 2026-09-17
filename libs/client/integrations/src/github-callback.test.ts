@@ -64,10 +64,10 @@ describe('GitHub callback failures', () => {
   ])('classifies state failure %s as %s', (message, kind) => {
     const error = new ApiError({code: 'invalid-github-install-state', message, status: 400});
 
-    expect(classifyGithubCallbackError(error)).toEqual({kind, retryable: false});
+    expect(classifyGithubCallbackError(error)).toEqual({kind});
   });
 
-  test('classifies actor mismatch and retryable provider failures', () => {
+  test('classifies actor mismatch and transient provider failures', () => {
     const actorMismatch = new ApiError({
       code: 'github-install-state-actor-mismatch',
       message: 'wrong actor',
@@ -79,14 +79,18 @@ describe('GitHub callback failures', () => {
       status: 503,
     });
 
-    expect(classifyGithubCallbackError(actorMismatch)).toEqual({
-      kind: 'actor-mismatch',
-      retryable: false,
-    });
-    expect(classifyGithubCallbackError(providerFailure)).toEqual({
-      kind: 'provider-error',
-      retryable: true,
-    });
+    expect(classifyGithubCallbackError(actorMismatch)).toEqual({kind: 'actor-mismatch'});
+    expect(classifyGithubCallbackError(providerFailure)).toEqual({kind: 'provider-error'});
+  });
+
+  test.each([
+    ['malformed-provider-response', 'provider-error'],
+    ['access-denied', 'not-authorized'],
+    ['installation-not-found', 'not-authorized'],
+  ])('classifies callback provider reason %s as %s', (code, kind) => {
+    const error = new ApiError({code, message: 'GitHub callback failed', status: 422});
+
+    expect(classifyGithubCallbackError(error)).toEqual({kind});
   });
 });
 
