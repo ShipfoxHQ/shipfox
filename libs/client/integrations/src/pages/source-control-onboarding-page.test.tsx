@@ -32,10 +32,9 @@ describe('SourceControlOnboardingPage', () => {
 
     expect(await screen.findByRole('heading', {name: 'Install source control'})).toBeVisible();
     expect(await screen.findByRole('link', {name: 'Install GitHub'})).toBeVisible();
-    expect(await screen.findByRole('link', {name: 'Invite a teammate'})).toHaveAttribute(
-      'href',
-      '/w/acme/settings/members',
-    );
+    const inviteLink = await screen.findByRole('link', {name: 'Invite a teammate'});
+    expect(inviteLink).toHaveAttribute('href', '/w/acme/settings/members');
+    expect(inviteLink).toHaveClass('self-start');
     expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
     expect(screen.queryByRole('region', {name: 'Available integrations'})).not.toBeInTheDocument();
     expect(

@@ -55,7 +55,10 @@ export async function loadWorkspaceSetupRoute({
     return {hideProjectNavigation: false};
   }
 
-  if (isMembersSettingsPath(normalizedPathname, workspaceSlug)) {
+  if (
+    isWorkspaceSettingsIndexPath(normalizedPathname, workspaceSlug) ||
+    isMembersSettingsPath(normalizedPathname, workspaceSlug)
+  ) {
     return {hideProjectNavigation: true};
   }
 
@@ -196,6 +199,10 @@ function isProjectCreationPath(pathname: string, workspaceSlug: string) {
 
 function isMembersSettingsPath(pathname: string, workspaceSlug: string) {
   return pathname === workspacePath(workspaceSlug, '/settings/members');
+}
+
+function isWorkspaceSettingsIndexPath(pathname: string, workspaceSlug: string) {
+  return pathname === workspacePath(workspaceSlug, '/settings');
 }
 
 function isModelProviderOnboardingPath(pathname: string, workspaceSlug: string) {

@@ -16,7 +16,7 @@ export function SourceControlOnboardingPage() {
         <Text size="md" className="text-foreground-neutral-muted">
           Shipfox needs a source control integration to import your repositories.
         </Text>
-        <ButtonLink asChild variant="interactive" underline>
+        <ButtonLink asChild variant="interactive" underline className="self-start">
           <Link to="/w/$workspaceSlug/settings/members" params={{workspaceSlug: workspace.slug}}>
             Invite a teammate
           </Link>

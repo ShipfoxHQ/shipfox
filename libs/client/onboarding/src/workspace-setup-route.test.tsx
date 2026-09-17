@@ -217,6 +217,7 @@ function renderSetupRoute(
     guardedRoute('/w/$workspaceSlug/integrations', 'VCS onboarding'),
     guardedRoute('/w/$workspaceSlug/integrations/gitea', 'Gitea install'),
     guardedRoute('/w/$workspaceSlug/projects/new', 'Create project'),
+    guardedRoute('/w/$workspaceSlug/settings', 'Workspace settings'),
     guardedRoute('/w/$workspaceSlug/settings/agents', 'Settings agents'),
     guardedRoute('/w/$workspaceSlug/settings/integrations', 'Settings integrations'),
     guardedRoute('/w/$workspaceSlug/settings/members', 'Members settings'),
@@ -381,6 +382,13 @@ describe('workspace setup route hook', () => {
     renderSetupRoute(`/w/${WORKSPACE_SLUG}/settings/integrations`, setupFetch({connections: []}));
 
     expect(await screen.findByText('Settings integrations')).toBeInTheDocument();
+    expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('keeps the workspace settings entry available before source-control onboarding', async () => {
+    renderSetupRoute(`/w/${WORKSPACE_SLUG}/settings`, setupFetch({connections: []}));
+
+    expect(await screen.findByText('Workspace settings')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
