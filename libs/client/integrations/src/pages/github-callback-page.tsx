@@ -400,7 +400,7 @@ function MemberWorkspaceActions({
             key={workspace.id}
             className="flex flex-col gap-inline border-b border-border-neutral-base pb-inline last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
           >
-            <Text size="sm" bold className="truncate">
+            <Text size="sm" bold className="min-w-0 truncate">
               {workspace.name}
             </Text>
             <div className="flex flex-col gap-inline sm:flex-row">
