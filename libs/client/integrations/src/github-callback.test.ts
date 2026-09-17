@@ -84,12 +84,15 @@ describe('GitHub callback failures', () => {
   });
 
   test.each([
-    ['malformed-provider-response', 'provider-error'],
-    ['provider-rejected', 'provider-error'],
-    ['access-denied', 'not-authorized'],
-    ['installation-not-found', 'not-authorized'],
-  ])('classifies callback provider reason %s as %s', (code, kind) => {
-    const error = new ApiError({code, message: 'GitHub callback failed', status: 422});
+    ['malformed-provider-response', 'provider-error', 422],
+    ['provider-rejected', 'provider-error', 422],
+    ['access-denied', 'not-authorized', 422],
+    ['installation-not-found', 'not-authorized', 422],
+    ['not-found', 'workspace-access-changed', 404],
+    ['forbidden', 'workspace-access-changed', 403],
+    ['workspace-inactive', 'workspace-access-changed', 403],
+  ])('classifies callback reason %s as %s', (code, kind, status) => {
+    const error = new ApiError({code, message: 'GitHub callback failed', status});
 
     expect(classifyGithubCallbackError(error)).toEqual({kind});
   });

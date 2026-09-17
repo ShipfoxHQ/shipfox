@@ -138,6 +138,25 @@ describe('GithubCallbackPage', () => {
     expect(JSON.stringify(capture.mock.calls)).not.toContain('secret-state');
   });
 
+  test('tells a guest when GitHub did not complete the request', async () => {
+    const capture = vi.fn<ClientAnalytics['capture']>();
+
+    renderCallback(
+      {error: 'access_denied', errorDescription: 'The user denied access'},
+      {analytics: {capture}, guest: true},
+    );
+
+    expect(
+      await screen.findByRole('heading', {name: 'GitHub did not complete the request'}),
+    ).toBeVisible();
+    expect(screen.getByText('No connection was changed.', {exact: false})).toBeVisible();
+    expect(document.body).not.toHaveTextContent('If you approved Shipfox in GitHub');
+    expect(completeGithubCallbackMock).not.toHaveBeenCalled();
+    expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {
+      outcome: 'provider-error',
+    });
+  });
+
   test('falls back to current memberships when the workspace hint is stale', async () => {
     const capture = vi.fn<ClientAnalytics['capture']>();
     const workspaces = [
@@ -271,6 +290,24 @@ describe('GithubCallbackPage', () => {
       await screen.findByRole('heading', {name: 'GitHub is temporarily unavailable'}),
     ).toBeVisible();
     expect(screen.queryByRole('button', {name: 'Try again'})).not.toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
+    expect(reportError).not.toHaveBeenCalled();
+  });
+
+  test('renders workspace-access recovery when callback membership changes', async () => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    completeGithubCallbackMock.mockRejectedValue(
+      new ApiError({
+        code: 'forbidden',
+        message: 'Workspace membership required',
+        status: 403,
+      }),
+    );
+
+    renderCallback({installationId: 42, code: 'access-code', state: 'access-state'});
+
+    expect(await screen.findByRole('heading', {name: 'Workspace access changed'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
     expect(reportError).not.toHaveBeenCalled();
   });

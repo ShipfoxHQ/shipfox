@@ -106,6 +106,7 @@ export type GithubCallbackFailure =
   | {kind: 'expired'}
   | {kind: 'invalid'}
   | {kind: 'actor-mismatch'}
+  | {kind: 'workspace-access-changed'}
   | {kind: 'not-authorized'}
   | {kind: 'already-linked'}
   | {kind: 'provider-error'}
@@ -118,6 +119,13 @@ export function classifyGithubCallbackError(error: unknown): GithubCallbackFailu
   }
   if (error.code === 'github-install-state-actor-mismatch') {
     return {kind: 'actor-mismatch'};
+  }
+  if (
+    error.code === 'not-found' ||
+    error.code === 'forbidden' ||
+    error.code === 'workspace-inactive'
+  ) {
+    return {kind: 'workspace-access-changed'};
   }
   if (
     error.code === 'github-installation-not-authorized' ||

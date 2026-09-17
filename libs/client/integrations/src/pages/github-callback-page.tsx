@@ -173,7 +173,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   if (auth.isLoading) return <FullPageLoader aria-label="Loading GitHub callback" />;
 
   if (!auth.isAuthenticated) {
-    return <GuestOutcome />;
+    return <GuestOutcome providerError={intent.kind === 'provider-error'} />;
   }
 
   if (membershipHydrationFailed) {
@@ -324,12 +324,18 @@ function RequestOutcome({
   );
 }
 
-function GuestOutcome() {
+function GuestOutcome({providerError}: {providerError: boolean}) {
   return (
     <GithubOutcome
-      title="You can return to your teammate"
-      message="If you approved Shipfox in GitHub, let the person setting it up know. You do not need a Shipfox account just to approve GitHub access."
-      status="info"
+      title={
+        providerError ? 'GitHub did not complete the request' : 'You can return to your teammate'
+      }
+      message={
+        providerError
+          ? 'No connection was changed. Let the person setting it up know that GitHub did not complete the request.'
+          : 'If you approved Shipfox in GitHub, let the person setting it up know. You do not need a Shipfox account just to approve GitHub access.'
+      }
+      status={providerError ? 'warning' : 'info'}
     >
       <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
         <Link to="/">Back to Shipfox</Link>
@@ -477,6 +483,13 @@ function failureCopy(failure: GithubCallbackFailure): {
         title: 'Use the account that started this install',
         message:
           'This callback belongs to another Shipfox account. Return to a member workspace and start a new installation for this account.',
+        status: 'warning',
+      };
+    case 'workspace-access-changed':
+      return {
+        title: 'Workspace access changed',
+        message:
+          'Shipfox could not verify access to the workspace that started this installation. Continue in a workspace where you are already a member, or ask a teammate for access.',
         status: 'warning',
       };
     case 'not-authorized':
