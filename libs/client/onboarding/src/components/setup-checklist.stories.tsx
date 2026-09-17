@@ -326,6 +326,7 @@ function createStoryRouter(children: ReactNode) {
     '/w/$workspaceSlug/settings/runners',
     '/w/$workspaceSlug/settings/agents',
     '/w/$workspaceSlug/settings/members',
+    '/w/$workspaceSlug/setup/members',
   ].map((path) =>
     createRoute({
       getParentRoute: () => rootRoute,

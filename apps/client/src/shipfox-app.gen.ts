@@ -46,7 +46,8 @@ import * as route39Module from "@shipfox/client-secrets/routes/variables-setting
 import * as route40Module from "@shipfox/client-triggers/routes/events-settings";
 import * as route41Module from "@shipfox/client-workspace-settings/routes/index";
 import * as route42Module from "@shipfox/client-workspace-settings/routes/members";
-import * as route43Module from "@shipfox/client-workspace-settings/routes/general";
+import * as route43Module from "@shipfox/client-workspace-settings/routes/members";
+import * as route44Module from "@shipfox/client-workspace-settings/routes/general";
 
 function routeOptions<T extends RouteImpl>(routeImpl: T, impl: string, path: string): T['options'] {
   assertRouteImplFrame(routeImpl, impl, path);
@@ -436,17 +437,23 @@ const route42 = createRoute({
 });
 
 const route43 = createRoute({
+  getParentRoute: () => skeleton.workspaceLayout,
+  path: "/setup/members",
+  ...routeOptions(route43Module.default, "@shipfox/client-workspace-settings/routes/members", "/w/$workspaceSlug/setup/members"),
+});
+
+const route44 = createRoute({
   getParentRoute: () => skeleton.workspaceSettings,
   path: "/general",
-  ...routeOptions(route43Module.default, "@shipfox/client-workspace-settings/routes/general", "/w/$workspaceSlug/settings/general"),
+  ...routeOptions(route44Module.default, "@shipfox/client-workspace-settings/routes/general", "/w/$workspaceSlug/settings/general"),
 });
 
 const projectSettings = skeleton.projectSettings.addChildren([route26, route27]);
 const projectLayout = skeleton.projectLayout.addChildren([route25, route28, route29, route30, route31,
   projectSettings]);
-const workspaceSettings = skeleton.workspaceSettings.addChildren([route21, route22, route33, route35, route36, route37, route38, route39, route40, route41, route42, route43]);
+const workspaceSettings = skeleton.workspaceSettings.addChildren([route21, route22, route33, route35, route36, route37, route38, route39, route40, route41, route42, route44]);
 const workspaceLayout = skeleton.workspaceLayout.addChildren([
-  route13, route14, route15, route16, route17, route18, route19, route20, route23, route24, route32,
+  route13, route14, route15, route16, route17, route18, route19, route20, route23, route24, route32, route43,
   projectLayout,
   workspaceSettings,
 ]);

@@ -217,10 +217,10 @@ function renderSetupRoute(
     guardedRoute('/w/$workspaceSlug/integrations', 'VCS onboarding'),
     guardedRoute('/w/$workspaceSlug/integrations/gitea', 'Gitea install'),
     guardedRoute('/w/$workspaceSlug/projects/new', 'Create project'),
-    guardedRoute('/w/$workspaceSlug/settings', 'Workspace settings'),
     guardedRoute('/w/$workspaceSlug/settings/agents', 'Settings agents'),
     guardedRoute('/w/$workspaceSlug/settings/integrations', 'Settings integrations'),
     guardedRoute('/w/$workspaceSlug/settings/members', 'Members settings'),
+    guardedRoute('/w/$workspaceSlug/setup/members', 'Setup members'),
   ]);
   const router = createRouter({
     defaultPendingMs: 0,
@@ -320,10 +320,10 @@ describe('workspace setup route hook', () => {
   test.each([
     'suspended',
     'deleted',
-  ] as const)('keeps member settings unavailable for a %s workspace', async (workspaceStatus) => {
+  ] as const)('keeps setup members unavailable for a %s workspace', async (workspaceStatus) => {
     const fetchImpl = setupFetch({workspaceStatus, projectsPending: true});
 
-    renderSetupRoute(`/w/${WORKSPACE_SLUG}/settings/members`, fetchImpl);
+    renderSetupRoute(`/w/${WORKSPACE_SLUG}/setup/members`, fetchImpl);
 
     expect(await screen.findByText('Workspace unavailable')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
@@ -385,11 +385,31 @@ describe('workspace setup route hook', () => {
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 
-  test('keeps the workspace settings entry available before source-control onboarding', async () => {
-    renderSetupRoute(`/w/${WORKSPACE_SLUG}/settings`, setupFetch({connections: []}));
+  test('keeps setup members available before source-control onboarding', async () => {
+    renderSetupRoute(`/w/${WORKSPACE_SLUG}/setup/members`, setupFetch({connections: []}));
 
-    expect(await screen.findByText('Workspace settings')).toBeInTheDocument();
+    expect(await screen.findByText('Setup members')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
+  });
+
+  test('routes normal members settings back to source-control onboarding before project creation', async () => {
+    const {router} = renderSetupRoute(
+      `/w/${WORKSPACE_SLUG}/settings/members`,
+      setupFetch({connections: []}),
+    );
+
+    expect(await screen.findByText('VCS onboarding')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`/w/${WORKSPACE_SLUG}/integrations`);
+  });
+
+  test('redirects setup members to normal settings after project creation', async () => {
+    const {router} = renderSetupRoute(
+      `/w/${WORKSPACE_SLUG}/setup/members`,
+      setupFetch({projects: [projectStub()]}),
+    );
+
+    expect(await screen.findByText('Members settings')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`/w/${WORKSPACE_SLUG}/settings/members`);
   });
 
   test.each([
@@ -408,19 +428,19 @@ describe('workspace setup route hook', () => {
     ],
   ] as Array<
     [string, string, string, SetupFetchOptions]
-  >)('keeps member settings available throughout %s onboarding', async (_stage, path, label, options) => {
+  >)('keeps setup members available throughout %s onboarding', async (_stage, path, label, options) => {
     const {router} = renderSetupRoute(path, setupFetch(options));
 
     expect(await screen.findByText(label)).toBeInTheDocument();
 
     await act(async () => {
       await router.navigate({
-        to: '/w/$workspaceSlug/settings/members',
+        to: '/w/$workspaceSlug/setup/members',
         params: {workspaceSlug: WORKSPACE_SLUG},
       });
     });
 
-    expect(await screen.findByText('Members settings')).toBeInTheDocument();
+    expect(await screen.findByText('Setup members')).toBeInTheDocument();
     expect(screen.getByTestId('project-navigation')).toHaveTextContent('hidden');
   });
 

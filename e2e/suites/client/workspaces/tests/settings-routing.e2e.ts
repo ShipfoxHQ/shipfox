@@ -1,4 +1,5 @@
 import {expect, test} from './test.js';
+import {SETUP_NAVIGATION_TIMEOUT_MS} from './workspace-urls.js';
 
 test.describe('workspace settings routing', () => {
   test('routes workspace settings to members by default', async ({
@@ -19,10 +20,10 @@ test.describe('workspace settings routing', () => {
     await expect(membersSettings.heading()).toBeVisible();
   });
 
-  test('keeps setup workspace settings on members settings', async ({
+  test('routes setup workspace settings back to source-control onboarding', async ({
     auth,
-    membersSettings,
     page,
+    setupShell,
     workspaceHome,
     workspaces,
   }) => {
@@ -35,8 +36,11 @@ test.describe('workspace settings routing', () => {
 
     await workspaceHome.gotoSettings(workspace.slug);
 
-    await expect(page).toHaveURL(new RegExp(`/w/${workspace.slug}/settings/members/?$`, 'u'));
-    await expect(membersSettings.heading()).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/w/${workspace.slug}/integrations/?$`, 'u'));
+    await expect(setupShell.sourceControlHeading()).toBeVisible({
+      timeout: SETUP_NAVIGATION_TIMEOUT_MS,
+    });
+    await setupShell.expectNavigationHidden();
   });
 
   test('settings tab opens members settings', async ({

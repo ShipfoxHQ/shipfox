@@ -153,7 +153,7 @@ test('creates, rejects duplicate, and revokes a pending invitation before source
   const pendingEmail = `pending-${randomUUID()}@example.test`;
   await auth.loginAs(page, owner);
 
-  await membersSettings.goto(workspace.slug);
+  await membersSettings.gotoSetup(workspace.slug);
   await expect(membersSettings.pendingInvitationsHeading()).toBeVisible();
   await expect(membersSettings.emptyPendingInvitations()).toBeVisible();
   const ownerJoinedText = await membersSettings.memberCellText(textRe(owner.email), 2);

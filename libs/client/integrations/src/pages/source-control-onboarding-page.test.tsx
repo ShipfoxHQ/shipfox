@@ -27,13 +27,13 @@ describe('SourceControlOnboardingPage', () => {
       path: '/w/acme/integrations',
       routePath: '/w/$workspaceSlug/integrations',
       element: <SourceControlOnboardingPage />,
-      extraRoutes: ['/w/$workspaceSlug/integrations/github', '/w/$workspaceSlug/settings/members'],
+      extraRoutes: ['/w/$workspaceSlug/integrations/github', '/w/$workspaceSlug/setup/members'],
     });
 
     expect(await screen.findByRole('heading', {name: 'Install source control'})).toBeVisible();
     expect(await screen.findByRole('link', {name: 'Install GitHub'})).toBeVisible();
     const inviteLink = await screen.findByRole('link', {name: 'Invite a teammate'});
-    expect(inviteLink).toHaveAttribute('href', '/w/acme/settings/members');
+    expect(inviteLink).toHaveAttribute('href', '/w/acme/setup/members');
     expect(inviteLink).toHaveClass('self-start');
     expect(screen.queryByRole('region', {name: 'Installed integrations'})).not.toBeInTheDocument();
     expect(screen.queryByRole('region', {name: 'Available integrations'})).not.toBeInTheDocument();

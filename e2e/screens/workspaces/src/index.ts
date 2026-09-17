@@ -268,6 +268,10 @@ export class MembersSettingsScreen {
     await this.shell.goto(workspaceSlug, 'members');
   }
 
+  async gotoSetup(workspaceSlug: string): Promise<void> {
+    await this.page.goto(`/w/${workspaceSlug}/setup/members`);
+  }
+
   async gotoDefault(workspaceSlug: string): Promise<void> {
     await this.page.goto(`/w/${workspaceSlug}/settings`);
   }

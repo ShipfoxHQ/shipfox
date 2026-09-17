@@ -44,6 +44,14 @@ export async function loadWorkspaceSetupRoute({
   const normalizedPathname = normalizePath(pathname);
 
   if (projects.projects.length > 0) {
+    if (isSetupMembersPath(normalizedPathname, workspaceSlug)) {
+      throw redirect({
+        to: '/w/$workspaceSlug/settings/members',
+        params: {workspaceSlug},
+        replace: true,
+      });
+    }
+
     if (isIntegrationsIndexPath(normalizedPathname, workspaceSlug)) {
       throw redirect({
         to: '/w/$workspaceSlug/settings/integrations',
@@ -55,10 +63,7 @@ export async function loadWorkspaceSetupRoute({
     return {hideProjectNavigation: false};
   }
 
-  if (
-    isWorkspaceSettingsIndexPath(normalizedPathname, workspaceSlug) ||
-    isMembersSettingsPath(normalizedPathname, workspaceSlug)
-  ) {
+  if (isSetupMembersPath(normalizedPathname, workspaceSlug)) {
     return {hideProjectNavigation: true};
   }
 
@@ -197,12 +202,8 @@ function isProjectCreationPath(pathname: string, workspaceSlug: string) {
   return pathname === workspacePath(workspaceSlug, '/projects/new');
 }
 
-function isMembersSettingsPath(pathname: string, workspaceSlug: string) {
-  return pathname === workspacePath(workspaceSlug, '/settings/members');
-}
-
-function isWorkspaceSettingsIndexPath(pathname: string, workspaceSlug: string) {
-  return pathname === workspacePath(workspaceSlug, '/settings');
+function isSetupMembersPath(pathname: string, workspaceSlug: string) {
+  return pathname === workspacePath(workspaceSlug, '/setup/members');
 }
 
 function isModelProviderOnboardingPath(pathname: string, workspaceSlug: string) {
