@@ -81,8 +81,8 @@ export {
   githubAgentToolSelectionCatalog,
   githubRepositoryScope,
 } from '#core/agent-tools.js';
+export type {ConnectGithubInstallationInput} from '#core/connection.js';
 export {GithubIntegrationProviderError} from '#core/errors.js';
-export type {ConnectGithubInstallationInput} from '#core/install.js';
 export {handleGithubCallback} from '#core/install.js';
 export {signGithubInstallState, verifyGithubInstallState} from '#core/state.js';
 export type {HandleGithubEventOutcome} from '#core/webhook.js';

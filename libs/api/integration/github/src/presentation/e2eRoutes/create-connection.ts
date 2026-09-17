@@ -4,7 +4,7 @@ import {
 } from '@shipfox/api-integration-github-dto';
 import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import type {ConnectGithubInstallationInput} from '#core/install.js';
+import type {ConnectGithubInstallationInput} from '#core/connection.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 
 export interface CreateE2eGithubConnectionRouteOptions {

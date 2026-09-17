@@ -12,6 +12,7 @@ interface GithubInstallStatePayload {
 }
 
 export interface GithubInstallStateClaims {
+  kind: 'install';
   workspaceId: string;
   userId: string;
 }
@@ -51,7 +52,7 @@ export function verifyGithubInstallState(
     throw new GithubInstallStateError('Expired GitHub install state');
   }
 
-  return {workspaceId: payload.workspaceId, userId: payload.userId};
+  return {kind: 'install', workspaceId: payload.workspaceId, userId: payload.userId};
 }
 
 function sign(encodedPayload: string): string {
