@@ -162,6 +162,24 @@ describe('GithubCallbackPage', () => {
     });
   });
 
+  test('tells a guest when the callback link is invalid', async () => {
+    const capture = vi.fn<ClientAnalytics['capture']>();
+
+    renderCallback({}, {analytics: {capture}, guest: true});
+
+    expect(
+      await screen.findByRole('heading', {name: 'This GitHub request cannot be completed'}),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'This link is missing required information. Ask the person who sent you here to start the GitHub connection again.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+    expect(completeGithubCallbackMock).not.toHaveBeenCalled();
+    expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {outcome: 'invalid'});
+  });
+
   test('falls back to current memberships when the workspace hint is stale', async () => {
     const capture = vi.fn<ClientAnalytics['capture']>();
     const workspaces = [

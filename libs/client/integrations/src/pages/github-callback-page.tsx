@@ -24,6 +24,7 @@ import {
   classifyGithubCallbackError,
   clearGithubInstallWorkspace,
   type GithubCallbackFailure,
+  type GithubCallbackIntent,
   type GithubCallbackSearch,
   readGithubInstallWorkspace,
   serializeGithubCallback,
@@ -37,6 +38,7 @@ const callbackRequests = createSingleFlight<string, IntegrationConnection>({
 const capturedCompletions = new Set<string>();
 const reportedFailures = new Set<string>();
 const toastedCallbacks = new Set<string>();
+type GithubOutcomeStatus = 'error' | 'info' | 'success' | 'warning';
 
 export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   const auth = useAuthState();
@@ -173,7 +175,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   if (auth.isLoading) return <FullPageLoader aria-label="Loading GitHub callback" />;
 
   if (!auth.isAuthenticated) {
-    return <GuestOutcome providerError={intent.kind === 'provider-error'} />;
+    return <GuestOutcome intent={intent} />;
   }
 
   if (membershipHydrationFailed) {
@@ -324,20 +326,42 @@ function RequestOutcome({
   );
 }
 
-function GuestOutcome({providerError}: {providerError: boolean}) {
+function GuestOutcome({intent}: {intent: GithubCallbackIntent}) {
+  const outcome = guestOutcomeCopy(intent);
   return (
-    <GithubOutcome
-      title={providerError ? 'GitHub did not complete the request' : 'GitHub request approved'}
-      message={
-        providerError
-          ? 'No connection was changed. Let the person setting it up know that GitHub did not complete the request.'
-          : 'Let the person who asked you to approve Shipfox know. They can now continue setup in Shipfox.'
-      }
-      status={providerError ? 'warning' : 'info'}
-    >
+    <GithubOutcome title={outcome.title} message={outcome.message} status={outcome.status}>
       <ShipfoxHomeAction />
     </GithubOutcome>
   );
+}
+
+function guestOutcomeCopy(intent: GithubCallbackIntent): {
+  title: string;
+  message: string;
+  status: GithubOutcomeStatus;
+} {
+  if (intent.kind === 'provider-error') {
+    return {
+      title: 'GitHub did not complete the request',
+      message:
+        'No connection was changed. Let the person setting it up know that GitHub did not complete the request.',
+      status: 'warning',
+    };
+  }
+  if (intent.kind === 'invalid') {
+    return {
+      title: 'This GitHub request cannot be completed',
+      message:
+        'This link is missing required information. Ask the person who sent you here to start the GitHub connection again.',
+      status: 'error',
+    };
+  }
+  return {
+    title: 'GitHub request approved',
+    message:
+      'Let the person who asked you to approve Shipfox know. They can now continue setup in Shipfox.',
+    status: 'info',
+  };
 }
 
 function FailureActions({
@@ -456,7 +480,7 @@ function GithubOutcome({
 }: {
   title: string;
   message: string;
-  status: 'error' | 'info' | 'success' | 'warning';
+  status: GithubOutcomeStatus;
   children: React.ReactNode;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
