@@ -16,6 +16,7 @@ const {completeGithubCallbackMock, refreshAuthMock, resolveWorkspaceSlugMock} = 
   resolveWorkspaceSlugMock: vi.fn(),
 }));
 const AUTH_LINK_NAME = /sign up|create account/iu;
+const INVITE_TEAMMATE_LINK_NAME = /Invite a teammate/iu;
 const MEMBER_WORKSPACE_LINK_NAME = /^Open workspace – .+$/u;
 const SECOND_WORKSPACE_ID = '33333333-3333-4333-8333-333333333333';
 
@@ -126,9 +127,13 @@ describe('GithubCallbackPage', () => {
       },
     );
 
+    expect(await screen.findByRole('heading', {name: 'GitHub request approved'})).toBeVisible();
     expect(
-      await screen.findByRole('heading', {name: 'You can return to your teammate'}),
+      screen.getByText(
+        'Let the person who asked you to approve Shipfox know. They can now continue setup in Shipfox.',
+      ),
     ).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
     expect(screen.queryByRole('link', {name: AUTH_LINK_NAME})).not.toBeInTheDocument();
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
     expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {
@@ -252,10 +257,19 @@ describe('GithubCallbackPage', () => {
     renderCallback({installationId: 42, code: 'actor-code', state: 'actor-state'});
 
     expect(
-      await screen.findByRole('heading', {name: 'Use the account that started this install'}),
+      await screen.findByRole('heading', {
+        name: 'This GitHub connection cannot be completed',
+      }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'It was started with a different Shipfox account. Go to Shipfox and start the connection again.',
+      ),
+    ).toBeVisible();
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
-    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', {name: MEMBER_WORKSPACE_LINK_NAME})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: INVITE_TEAMMATE_LINK_NAME})).not.toBeInTheDocument();
   });
 
   test('distinguishes expired state from a malformed callback', async () => {

@@ -41,10 +41,9 @@ test('GitHub request callback gives guests a terminal explanation', async ({
 
   await githubCallback.goto('setup_action=request');
 
-  await expect(githubCallback.heading('You can return to your teammate')).toBeVisible();
-  await expect(
-    githubCallback.message('You do not need a Shipfox account just to approve GitHub access.'),
-  ).toBeVisible();
+  await expect(githubCallback.heading('GitHub request approved')).toBeVisible();
+  await expect(githubCallback.message('They can now continue setup in Shipfox.')).toBeVisible();
+  await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
   expect(callbackRequested).toBe(false);
   await stableScreenshot(page, 'integrations/github-callback-guest');
 });
@@ -91,8 +90,12 @@ test('GitHub callback explains an actor mismatch', async ({
 
   await githubCallback.goto('code=actor-code&installation_id=42&state=actor-state');
 
-  await expect(githubCallback.heading('Use the account that started this install')).toBeVisible();
-  await expect(githubCallback.openWorkspaceLink()).toBeVisible();
+  await expect(githubCallback.heading('This GitHub connection cannot be completed')).toBeVisible();
+  await expect(
+    githubCallback.message('It was started with a different Shipfox account.'),
+  ).toBeVisible();
+  await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
+  await expect(githubCallback.openWorkspaceLink()).toHaveCount(0);
   await stableScreenshot(page, 'integrations/github-callback-actor-mismatch');
 });
 

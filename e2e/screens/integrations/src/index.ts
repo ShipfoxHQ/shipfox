@@ -223,6 +223,10 @@ export class GithubCallbackScreen {
   openWorkspaceLink(): Locator {
     return this.page.getByRole('link', {name: OPEN_WORKSPACE_LINK_RE});
   }
+
+  goToShipfoxLink(): Locator {
+    return this.page.getByRole('link', {name: 'Go to Shipfox'});
+  }
 }
 
 export interface IntegrationsScreenFixtures {

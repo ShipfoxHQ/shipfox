@@ -228,7 +228,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     const outcome = failureCopy(failure);
     return (
       <GithubOutcome title={outcome.title} message={outcome.message} status={outcome.status}>
-        <MemberWorkspaceActions workspaces={auth.workspaces} />
+        <FailureActions failure={failure} workspaces={auth.workspaces} />
       </GithubOutcome>
     );
   }
@@ -327,20 +327,38 @@ function RequestOutcome({
 function GuestOutcome({providerError}: {providerError: boolean}) {
   return (
     <GithubOutcome
-      title={
-        providerError ? 'GitHub did not complete the request' : 'You can return to your teammate'
-      }
+      title={providerError ? 'GitHub did not complete the request' : 'GitHub request approved'}
       message={
         providerError
           ? 'No connection was changed. Let the person setting it up know that GitHub did not complete the request.'
-          : 'If you approved Shipfox in GitHub, let the person setting it up know. You do not need a Shipfox account just to approve GitHub access.'
+          : 'Let the person who asked you to approve Shipfox know. They can now continue setup in Shipfox.'
       }
       status={providerError ? 'warning' : 'info'}
     >
-      <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
-        <Link to="/">Back to Shipfox</Link>
-      </ButtonLink>
+      <ShipfoxHomeAction />
     </GithubOutcome>
+  );
+}
+
+function FailureActions({
+  failure,
+  workspaces,
+}: {
+  failure: GithubCallbackFailure;
+  workspaces: ReturnType<typeof useAuthState>['workspaces'];
+}) {
+  return failure.kind === 'actor-mismatch' ? (
+    <ShipfoxHomeAction />
+  ) : (
+    <MemberWorkspaceActions workspaces={workspaces} />
+  );
+}
+
+function ShipfoxHomeAction() {
+  return (
+    <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
+      <Link to="/">Go to Shipfox</Link>
+    </ButtonLink>
   );
 }
 
@@ -480,9 +498,9 @@ function failureCopy(failure: GithubCallbackFailure): {
       };
     case 'actor-mismatch':
       return {
-        title: 'Use the account that started this install',
+        title: 'This GitHub connection cannot be completed',
         message:
-          'This callback belongs to another Shipfox account. Return to a member workspace and start a new installation for this account.',
+          'It was started with a different Shipfox account. Go to Shipfox and start the connection again.',
         status: 'warning',
       };
     case 'workspace-access-changed':
