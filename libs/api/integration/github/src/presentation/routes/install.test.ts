@@ -11,7 +11,7 @@ import {
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import type {GithubApiClient} from '#api/client.js';
-import type {ConnectGithubInstallationInput} from '#core/install.js';
+import type {ConnectGithubInstallationInput} from '#core/connection.js';
 import {verifyGithubInstallState} from '#core/state.js';
 import {createGithubIntegrationProvider} from '#index.js';
 
