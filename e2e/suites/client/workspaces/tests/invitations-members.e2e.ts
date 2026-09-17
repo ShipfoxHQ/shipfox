@@ -137,11 +137,10 @@ test('creates an account from an invitation outside the signup allowlist with th
   await expect(membersSettings.memberText('Signup Invitee')).toBeVisible();
 });
 
-test('creates, rejects duplicate, and revokes a pending invitation from members settings', async ({
+test('creates, rejects duplicate, and revokes a pending invitation before source connection', async ({
   page,
   auth,
   membersSettings,
-  projects,
   workspaces,
 }) => {
   const owner = await auth.createUser({name: 'Settings Owner'});
@@ -152,10 +151,9 @@ test('creates, rejects duplicate, and revokes a pending invitation from members 
     name: 'Members Settings Workspace',
   });
   const pendingEmail = `pending-${randomUUID()}@example.test`;
-  await projects.createProject({workspaceId: workspace.id});
   await auth.loginAs(page, owner);
 
-  await membersSettings.goto(workspace.slug);
+  await membersSettings.gotoSetup(workspace.slug);
   await expect(membersSettings.pendingInvitationsHeading()).toBeVisible();
   await expect(membersSettings.emptyPendingInvitations()).toBeVisible();
   const ownerJoinedText = await membersSettings.memberCellText(textRe(owner.email), 2);

@@ -16,7 +16,7 @@ export type SetupChecklistActionHref =
   | '/docs/getting-started'
   | '/settings/agents'
   | '/settings/integrations'
-  | '/settings/members'
+  | '/setup/members'
   | '/settings/runners';
 
 export interface SetupChecklistAction {
@@ -34,7 +34,7 @@ export interface SetupChecklistItem {
   attention?: boolean;
   /** One line of purpose, rendered for open and pointer rows. */
   purpose?: string;
-  /** Primary action, a link to the settings page where the work happens. */
+  /** Primary action, a link to where the work happens. */
   action?: SetupChecklistAction;
 }
 
@@ -133,7 +133,7 @@ export function deriveSetupChecklist({
         membership.memberCount >= 2 || membership.pendingInvitationCount >= 1 ? 'done' : 'info',
       tracked: false,
       purpose: TEAMMATES_PURPOSE,
-      action: {label: 'Invite', href: '/settings/members'},
+      action: {label: 'Invite', href: '/setup/members'},
     },
   );
 

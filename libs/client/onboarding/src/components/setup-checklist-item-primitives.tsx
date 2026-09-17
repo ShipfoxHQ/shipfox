@@ -83,9 +83,9 @@ export function checklistActionTarget({
           {action.label}
         </Link>
       );
-    case '/settings/members':
+    case '/setup/members':
       return (
-        <Link to="/w/$workspaceSlug/settings/members" params={{workspaceSlug}} onClick={onClick}>
+        <Link to="/w/$workspaceSlug/setup/members" params={{workspaceSlug}} onClick={onClick}>
           {action.label}
         </Link>
       );

@@ -45,6 +45,11 @@ export const workspaceSettingsFeature = defineClientFeature({
       impl: '@shipfox/client-workspace-settings/routes/members',
     },
     {
+      path: '/w/$workspaceSlug/setup/members',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-workspace-settings/routes/members',
+    },
+    {
       path: '/w/$workspaceSlug/settings/general',
       parent: 'workspaceSettings',
       impl: '@shipfox/client-workspace-settings/routes/general',

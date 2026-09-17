@@ -307,7 +307,7 @@ describe('deriveSetupChecklist', () => {
     expect(checklist.items.find((item) => item.id === 'teammates')).toMatchObject({
       status: 'info',
       tracked: false,
-      action: {href: '/settings/members'},
+      action: {href: '/setup/members'},
     });
   });
 

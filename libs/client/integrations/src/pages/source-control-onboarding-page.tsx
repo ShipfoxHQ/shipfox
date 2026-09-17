@@ -1,5 +1,7 @@
 import {useActiveWorkspace} from '@shipfox/client-auth';
+import {ButtonLink} from '@shipfox/react-ui/button';
 import {Header, Text} from '@shipfox/react-ui/typography';
+import {Link} from '@tanstack/react-router';
 import {ProviderGrid} from '#components/provider-grid.js';
 import {useIntegrationProvidersQuery} from '#hooks/api/integrations.js';
 
@@ -14,6 +16,11 @@ export function SourceControlOnboardingPage() {
         <Text size="md" className="text-foreground-neutral-muted">
           Shipfox needs a source control integration to import your repositories.
         </Text>
+        <ButtonLink asChild variant="interactive" underline className="self-start">
+          <Link to="/w/$workspaceSlug/setup/members" params={{workspaceSlug: workspace.slug}}>
+            Invite a teammate
+          </Link>
+        </ButtonLink>
       </header>
 
       <ProviderGrid

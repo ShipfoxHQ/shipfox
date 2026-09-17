@@ -136,6 +136,7 @@ function renderWithProviders(
     '/w/$workspaceSlug/settings/runners',
     '/w/$workspaceSlug/settings/agents',
     '/w/$workspaceSlug/settings/members',
+    '/w/$workspaceSlug/setup/members',
   ];
   const routes = routePaths.map((path) =>
     createRoute({
@@ -202,7 +203,7 @@ describe('SetupChecklistBody', () => {
     );
     expect(await screen.findByRole('link', {name: 'Invite'})).toHaveAttribute(
       'href',
-      `/w/${WORKSPACE.slug}/settings/members`,
+      `/w/${WORKSPACE.slug}/setup/members`,
     );
     expect(screen.queryByText('Next', {exact: true})).not.toBeInTheDocument();
     expect(await screen.findAllByText('next step', {exact: true})).toHaveLength(2);
