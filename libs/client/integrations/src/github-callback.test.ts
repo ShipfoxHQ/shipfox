@@ -85,6 +85,7 @@ describe('GitHub callback failures', () => {
 
   test.each([
     ['malformed-provider-response', 'provider-error'],
+    ['provider-rejected', 'provider-error'],
     ['access-denied', 'not-authorized'],
     ['installation-not-found', 'not-authorized'],
   ])('classifies callback provider reason %s as %s', (code, kind) => {

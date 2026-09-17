@@ -4,13 +4,15 @@ import {ApiError} from '@shipfox/client-api';
 import type {ClientAnalytics} from '@shipfox/client-shell/runtime';
 import {QueryClient} from '@tanstack/react-query';
 import {screen, waitFor} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {StrictMode} from 'react';
 import {GITHUB_INSTALL_WORKSPACE_KEY, type GithubCallbackSearch} from '#github-callback.js';
 import {INTEGRATIONS_TEST_WID, renderIntegrationsPage, testWorkspace} from '#test/render.js';
 import {GithubCallbackPage} from './github-callback-page.js';
 
-const {completeGithubCallbackMock, resolveWorkspaceSlugMock} = vi.hoisted(() => ({
+const {completeGithubCallbackMock, refreshAuthMock, resolveWorkspaceSlugMock} = vi.hoisted(() => ({
   completeGithubCallbackMock: vi.fn(),
+  refreshAuthMock: vi.fn(),
   resolveWorkspaceSlugMock: vi.fn(),
 }));
 const AUTH_LINK_NAME = /sign up|create account/iu;
@@ -21,7 +23,7 @@ vi.mock('@shipfox/client-auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shipfox/client-auth')>();
   return {
     ...actual,
-    useRefreshAuth: () => () => Promise.resolve({accessToken: 'test-token'}),
+    useRefreshAuth: () => refreshAuthMock,
   };
 });
 
@@ -66,6 +68,7 @@ function renderCallback(
 beforeEach(() => {
   window.sessionStorage.clear();
   completeGithubCallbackMock.mockReset();
+  refreshAuthMock.mockReset().mockResolvedValue({accessToken: 'test-token'});
   resolveWorkspaceSlugMock
     .mockReset()
     .mockImplementation(
@@ -174,6 +177,7 @@ describe('GithubCallbackPage', () => {
   });
 
   test('preserves callback state when workspace membership hydration fails', async () => {
+    const user = userEvent.setup();
     vi.spyOn(QueryClient.prototype, 'getQueryState').mockReturnValue({status: 'error'} as never);
     window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
 
@@ -185,7 +189,9 @@ describe('GithubCallbackPage', () => {
     expect(
       await screen.findByRole('heading', {name: 'Could not load your workspaces'}),
     ).toBeVisible();
-    expect(screen.getByRole('button', {name: 'Try again'})).toBeVisible();
+    await user.click(screen.getByRole('button', {name: 'Try again'}));
+
+    expect(refreshAuthMock).toHaveBeenCalledOnce();
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBe(INTEGRATIONS_TEST_WID);
   });

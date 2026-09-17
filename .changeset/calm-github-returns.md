@@ -1,5 +1,6 @@
 ---
+"@shipfox/api-integration-github": patch
 "@shipfox/client-integrations": patch
 ---
 
-Shows actionable GitHub request, callback, and recovery outcomes.
+Returns typed GitHub callback errors and shows actionable recovery outcomes.

@@ -99,6 +99,13 @@ export const clientArchitectureExceptions = {
       test: 'libs/client/integrations/src/pages/jira-callback-page.test.tsx',
     },
     {
+      file: 'libs/client/integrations/src/pages/github-callback-page.tsx',
+      owner: 'GitHub callback coordinator',
+      reason:
+        'The callback reads workspace hydration failure from the auth cache before selecting a terminal recovery outcome.',
+      test: 'libs/client/integrations/src/pages/github-callback-page.test.tsx',
+    },
+    {
       file: 'libs/client/integrations/src/pages/sentry-callback-page.tsx',
       owner: 'Sentry callback coordinator',
       reason:

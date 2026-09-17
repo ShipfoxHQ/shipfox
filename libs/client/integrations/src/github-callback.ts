@@ -133,6 +133,7 @@ export function classifyGithubCallbackError(error: unknown): GithubCallbackFailu
     error.code === 'rate-limited' ||
     error.code === 'timeout' ||
     error.code === 'provider-unavailable' ||
+    error.code === 'provider-rejected' ||
     error.code === 'malformed-provider-response' ||
     error.code === 'network-error' ||
     error.status === 0 ||

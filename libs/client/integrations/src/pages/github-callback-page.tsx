@@ -440,7 +440,7 @@ function GithubOutcome({
   return (
     <main className="flex min-h-screen px-frame py-frame">
       <FocusedFrame className="flex flex-col justify-center gap-section">
-        <h1 ref={headingRef} tabIndex={-1} className="text-24 font-semibold outline-none">
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold outline-none">
           {title}
         </h1>
         <Callout role={status === 'error' ? 'alert' : 'status'} type={status}>
