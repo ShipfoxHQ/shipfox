@@ -19,6 +19,8 @@ import type {StepResult} from '#core/step-result.js';
 
 const URL_CREDENTIAL_RE = /(https?:\/\/)[^/@\s]+@/gi;
 
+class FreshCheckoutCredentialRequestError extends CheckoutError {}
+
 export interface CheckoutLogSink {
   writeGroupStart(name: string): void;
   writeGroupEnd(): void;
@@ -185,7 +187,7 @@ async function requestFreshCheckoutCredential(params: {
       });
     }
     const kind = classifyCheckoutTokenFailure(error);
-    throw new CheckoutError(kind, freshCredentialFailureMessage(kind), {
+    throw new FreshCheckoutCredentialRequestError(kind, freshCredentialFailureMessage(kind), {
       phase: 'fetch',
       retryExhausted: true,
     });
@@ -434,10 +436,11 @@ function checkoutFailureResult(params: {
       : 'checkout_failed';
   const repositoryVisibilityFailure =
     params.error instanceof CheckoutError && params.error.repositoryVisibilityFailure;
+  const freshCredentialRequestFailure = params.error instanceof FreshCheckoutCredentialRequestError;
   writeFailure(
     params.log,
     checkoutFailureSummary(params.scope, params.error),
-    checkoutFailureHelp(reason, repositoryVisibilityFailure),
+    checkoutFailureHelp(reason, repositoryVisibilityFailure, freshCredentialRequestFailure),
     params.error,
   );
   return {ok: false, result: fail(params.error, reason)};
@@ -445,6 +448,9 @@ function checkoutFailureResult(params: {
 
 function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): string {
   const subject = scope === 'setup' ? 'Setup' : 'Checkout step';
+  if (error instanceof FreshCheckoutCredentialRequestError) {
+    return `${subject} failed while requesting a fresh checkout credential.`;
+  }
   if (
     error instanceof CheckoutError &&
     error.retryExhausted &&
@@ -465,12 +471,18 @@ function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): st
 function checkoutFailureHelp(
   reason: StepErrorReasonDto,
   repositoryVisibilityFailure = false,
+  freshCredentialRequestFailure = false,
 ): string {
   if (repositoryVisibilityFailure) {
     return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
   }
   if (reason === 'checkout_auth_failed') {
     return 'Check the repository connection in Shipfox and confirm it has permission to read this repository.';
+  }
+  if (freshCredentialRequestFailure) {
+    return reason === 'checkout_unavailable'
+      ? 'Retry the job; Shipfox may be temporarily unavailable.'
+      : 'Retry the job. If this repeats, inspect the Shipfox credential request in the runner log.';
   }
   if (reason === 'checkout_unavailable') {
     return 'Check the runner network and DNS access to the Git provider, then retry the job.';

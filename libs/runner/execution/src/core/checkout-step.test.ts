@@ -289,7 +289,7 @@ describe('executeCheckoutStep', () => {
       reason: 'checkout_auth_failed',
     });
     expect(log.writeOutputLine).toHaveBeenCalledWith(
-      'Checkout step failed while fetching the requested ref. Details: Shipfox rejected the fresh checkout credential request',
+      'Checkout step failed while requesting a fresh checkout credential. Details: Shipfox rejected the fresh checkout credential request',
       'stderr',
     );
     expect(log.writeOutputLine).toHaveBeenCalledWith(
@@ -303,6 +303,46 @@ describe('executeCheckoutStep', () => {
         rejectedGeneration: 'generation-one',
         retry: 0,
       }),
+    );
+  });
+
+  it('uses Shipfox guidance when a fresh credential request is unavailable', async () => {
+    requestCheckoutTokenMock
+      .mockResolvedValueOnce(
+        checkoutResponse('initial-repository', 'initial-ref', {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'initial-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-one',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        }),
+      )
+      .mockRejectedValueOnce(checkoutTokenHttpError(503));
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Shipfox could not provide a fresh checkout credential',
+      reason: 'checkout_unavailable',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed while requesting a fresh checkout credential. Details: Shipfox could not provide a fresh checkout credential',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Retry the job; Shipfox may be temporarily unavailable.',
+      'stderr',
     );
   });
 
