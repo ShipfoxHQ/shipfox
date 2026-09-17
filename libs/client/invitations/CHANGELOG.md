@@ -1,5 +1,13 @@
 # @shipfox/client-invitations
 
+## 46.0.0
+
+### Patch Changes
+
+- Updated dependencies [34037aa]
+- Updated dependencies [0ddc7ef]
+  - @shipfox/client-shell@46.0.0
+
 ## 45.0.0
 
 ### Patch Changes

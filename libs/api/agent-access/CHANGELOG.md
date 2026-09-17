@@ -1,5 +1,13 @@
 # @shipfox/api-agent-access
 
+## 27.0.0
+
+### Patch Changes
+
+- b9e9794: Activates agent-access action tools after operators revoke pre-activation grants.
+  - @shipfox/api-workflows-dto@27.0.0
+  - @shipfox/api-triggers-dto@27.0.0
+
 ## 26.1.0
 
 ### Patch Changes

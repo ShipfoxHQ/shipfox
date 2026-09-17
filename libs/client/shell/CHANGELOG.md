@@ -1,5 +1,12 @@
 # Changelog
 
+## 46.0.0
+
+### Major Changes
+
+- 34037aa: Remove the pricing disclosure option. Render estimated and resolved usage costs as plain amounts without estimate prefixes or disclosure notices.
+- 0ddc7ef: Removes the `upstream` provider field, provider-reported token aggregates, and per-step attempt breakdowns from public usage surfaces. Model-scoped pricing reference keys now encode `[model]` instead of `[model, upstream]`.
+
 ## 45.0.0
 
 ### Patch Changes

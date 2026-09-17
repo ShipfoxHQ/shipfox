@@ -1,5 +1,13 @@
 # @shipfox/api-integration-clickup
 
+## 27.0.0
+
+### Patch Changes
+
+- f939c8d: Publishes supported events even when the connected account created them.
+  Workflows that write back through an integration can trigger another run from their own changes.
+  Removes the obsolete `isSelfAuthoredSlackEvent` export and `self-message` outcome.
+
 ## 26.1.0
 
 ### Patch Changes

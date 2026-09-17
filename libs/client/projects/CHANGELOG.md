@@ -1,5 +1,18 @@
 # @shipfox/client-projects
 
+## 46.0.0
+
+### Patch Changes
+
+- Updated dependencies [717736a]
+- Updated dependencies [f2c3e90]
+- Updated dependencies [34037aa]
+- Updated dependencies [0ddc7ef]
+  - @shipfox/client-agent@46.0.0
+  - @shipfox/client-integrations@46.0.0
+  - @shipfox/client-shell@46.0.0
+  - @shipfox/client-auth@46.0.0
+
 ## 45.0.0
 
 ### Patch Changes

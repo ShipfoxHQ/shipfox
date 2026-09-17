@@ -1,5 +1,11 @@
 # @shipfox/api-agent-dto
 
+## 27.0.0
+
+### Major Changes
+
+- 45c9598: Removes `claude.auth_token` from the managed runtime contract and uses the shared API credential for Claude authentication.
+
 ## 25.0.0
 
 ### Major Changes

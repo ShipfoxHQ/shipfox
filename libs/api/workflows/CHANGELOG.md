@@ -1,5 +1,14 @@
 # @shipfox/api-workflows
 
+## 27.0.0
+
+### Patch Changes
+
+- 7b45939: Allows an initial checkout to replace a rejected credential generation with a fresh exact-scope credential for the lease token's current step.
+- Updated dependencies [45c9598]
+  - @shipfox/api-agent-dto@27.0.0
+  - @shipfox/api-workflows-dto@27.0.0
+
 ## 26.1.0
 
 ### Minor Changes

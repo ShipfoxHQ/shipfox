@@ -1,5 +1,21 @@
 # @shipfox/client-onboarding
 
+## 46.0.0
+
+### Patch Changes
+
+- f2c3e90: Allows members to open invitation settings before project setup and adds an invitation link to source-control setup.
+- Updated dependencies [717736a]
+- Updated dependencies [f2c3e90]
+- Updated dependencies [34037aa]
+- Updated dependencies [0ddc7ef]
+  - @shipfox/client-agent@46.0.0
+  - @shipfox/client-integrations@46.0.0
+  - @shipfox/client-shell@46.0.0
+  - @shipfox/client-projects@46.0.0
+  - @shipfox/client-runners@46.0.0
+  - @shipfox/client-workspace-settings@46.0.0
+
 ## 45.0.0
 
 ### Patch Changes
