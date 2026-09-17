@@ -20,6 +20,8 @@ import {createProject} from '@shipfox/e2e-setup-projects';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {expect, test} from './test.js';
 
+const ACTION_NOT_FOUND_CODES = /not-found|manual-trigger-not-found/u;
+
 const EXPECTED_TOOL_NAMES = [
   'list_projects',
   'list_workflow_definitions',
@@ -40,6 +42,10 @@ const EXPECTED_TOOL_NAMES = [
   'get_run_annotations',
   'get_step_logs',
   'get_step_log_download',
+  'cancel_workflow_run',
+  'rerun_workflow_run',
+  'fire_manual_trigger',
+  'create_dev_run',
   'get_trigger_event',
   'get_trigger_event_facets',
   'list_trigger_events',
@@ -244,6 +250,34 @@ test('exposes the composed OAuth and agent-access contract through a real MCP cl
           error: {code: 'not-found'},
         });
       }
+
+      const actionCalls = [
+        {
+          name: 'cancel_workflow_run',
+          arguments: {run_id: randomUUID(), expected_attempt: 1},
+        },
+        {
+          name: 'rerun_workflow_run',
+          arguments: {run_id: randomUUID(), expected_attempt: 1, mode: 'failed'},
+        },
+        {name: 'fire_manual_trigger', arguments: {definition_id: randomUUID()}},
+        {
+          name: 'create_dev_run',
+          arguments: {
+            project_id: randomUUID(),
+            ref: 'main',
+            config_path: '.shipfox/workflow.yml',
+            trigger: 'manual',
+          },
+        },
+      ] as const;
+      for (const actionCall of actionCalls) {
+        const result = await client.callTool(actionCall, CallToolResultSchema);
+        expect(result.isError).toBe(true);
+        const envelope = agentAccessEnvelopeSchema.parse(result.structuredContent);
+        expect(envelope.ok).toBe(false);
+        expect(envelope.error?.code).toMatch(ACTION_NOT_FOUND_CODES);
+      }
     } finally {
       await client.close();
     }
@@ -280,6 +314,19 @@ test('exposes the composed OAuth and agent-access contract through a real MCP cl
       );
       expect(stillValidProjects.isError).not.toBe(true);
       expect(agentAccessEnvelopeSchema.parse(stillValidProjects.structuredContent).ok).toBe(true);
+
+      const revokedAction = await stillValidClient.callTool(
+        {
+          name: 'cancel_workflow_run',
+          arguments: {run_id: randomUUID(), expected_attempt: 1},
+        },
+        CallToolResultSchema,
+      );
+      expect(revokedAction.isError).toBe(true);
+      expect(agentAccessEnvelopeSchema.parse(revokedAction.structuredContent)).toEqual({
+        ok: false,
+        error: expect.objectContaining({code: 'authority-revoked'}),
+      });
     } finally {
       await stillValidClient.close();
     }

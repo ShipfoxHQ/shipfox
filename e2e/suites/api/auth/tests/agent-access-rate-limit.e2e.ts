@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -60,6 +61,56 @@ test('rate-limits a fresh agent-access credential during one burst', async ({req
     expect(allowedCount + rateLimitedCount).toBe(61);
     expect(allowedCount).toBeLessThanOrEqual(60);
     expect(rateLimitedCount).toBeGreaterThanOrEqual(1);
+  } finally {
+    await client.close();
+  }
+});
+
+test('rate-limits action tools in their separate window', async ({request, auth}) => {
+  const apiOrigin = new URL(config.API_URL).origin;
+  const publicOrigin = new URL(config.API_PUBLIC_URL).origin;
+  const clientOrigin = new URL(config.CLIENT_BASE_URL).origin;
+  const user = await auth.createUser();
+  const session = await auth.createSession({user_id: user.user.id});
+  const workspace = await createWorkspace({userId: user.user.id, userEmail: user.email});
+  const tokenBody = await authorizeAgentAccess({
+    request,
+    apiOrigin,
+    publicOrigin,
+    sessionToken: session.token,
+    workspaceId: workspace.id,
+    clientName: 'Agent Access Action Rate Limit E2E Client',
+    redirectUri: 'http://127.0.0.1:43126/oauth/callback',
+  });
+  const client = new Client({name: 'agent-access-action-rate-limit-e2e-client', version: '0.0.0'});
+  const transport = new StreamableHTTPClientTransport(new URL('/mcp', apiOrigin), {
+    requestInit: {
+      headers: {
+        authorization: `Bearer ${tokenBody.access_token}`,
+        origin: clientOrigin,
+      },
+    },
+  });
+
+  try {
+    await client.connect(transport as unknown as Transport);
+    const envelopes: Array<ReturnType<typeof agentAccessEnvelopeSchema.parse>> = [];
+    for (let index = 0; index < 11; index += 1) {
+      const result = await client.callTool(
+        {
+          name: 'cancel_workflow_run',
+          arguments: {run_id: randomUUID(), expected_attempt: 1},
+        },
+        CallToolResultSchema,
+      );
+      envelopes.push(agentAccessEnvelopeSchema.parse(result.structuredContent));
+    }
+
+    expect(envelopes.slice(0, 10).every((envelope) => !envelope.ok)).toBe(true);
+    expect(envelopes[10]).toEqual({
+      ok: false,
+      error: {code: 'rate-limited', retry_after_seconds: expect.any(Number)},
+    });
   } finally {
     await client.close();
   }

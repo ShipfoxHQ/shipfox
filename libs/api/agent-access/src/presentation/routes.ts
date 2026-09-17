@@ -31,6 +31,7 @@ import {
   AGENT_ACCESS_MCP_PATH,
   AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH,
 } from '#constants.js';
+import {createAgentAccessActionTools} from '#core/action-tools.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
@@ -181,6 +182,7 @@ function toolsFromProducerClients(
       triggers,
       integrations,
     }),
+    ...createAgentAccessActionTools({workflows, triggers}),
     ...createAgentAccessDiagnosticTools({triggers}),
     ...createAgentAccessWorkflowDiagnosticTools(workflows),
   ];
