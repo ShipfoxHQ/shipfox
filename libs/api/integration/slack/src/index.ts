@@ -81,7 +81,7 @@ export type {
   HandleSlackEventParams,
   SlackWebhookOutcome,
 } from '#core/webhook.js';
-export {handleSlackCommand, handleSlackEvent, isSelfAuthoredSlackEvent} from '#core/webhook.js';
+export {handleSlackCommand, handleSlackEvent} from '#core/webhook.js';
 export type {
   CreateSlackWebhookProcessorOptions,
   SlackWebhookProcessingResult,
