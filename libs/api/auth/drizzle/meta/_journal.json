@@ -71,13 +71,6 @@
       "when": 1789120548379,
       "tag": "0009_handy_richard_fisk",
       "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1789576534000,
-      "tag": "0010_revoke_pre_activation_agent_grants",
-      "breakpoints": true
     }
   ]
 }
