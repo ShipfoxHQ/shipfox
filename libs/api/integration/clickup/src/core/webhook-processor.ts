@@ -163,17 +163,12 @@ async function processVerifiedClickUpPayload(
       connection: context.connection,
       installation: context.installation,
       publishIntegrationEventReceived: options.publishIntegrationEventReceived,
-      recordDeliveryOnly: options.recordDeliveryOnly,
     }),
   );
 
   if (result === 'duplicate') {
     recordClickUpWebhookDelivery('duplicate');
     return {outcome: 'duplicate', deliveryId};
-  }
-  if (result === 'discarded') {
-    recordClickUpWebhookDelivery('discarded');
-    return {outcome: 'discarded', reason: 'unsupported_event', deliveryId};
   }
   recordClickUpWebhookDelivery('processed');
   return {outcome: 'processed', deliveryId};

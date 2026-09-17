@@ -16,8 +16,8 @@ For Events API deliveries, Shipfox keeps the Slack event fields and adds
 `team_id`, `api_app_id`, `event_id`, and `event_time` from the event envelope.
 Slack owns the remaining provider fields.
 
-Shipfox discards events authored by the installed bot. This prevents an agent's
-Slack actions from triggering the same workflow again.
+Shipfox delivers events authored by the installed bot. A workflow that writes
+back to Slack can trigger another run from its own change.
 
 For `slash_command`, Shipfox exposes the command, text, workspace, channel, user,
 response URL, and trigger ID. It omits Slack's deprecated verification token.

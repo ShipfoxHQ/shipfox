@@ -18,26 +18,7 @@ import type {
   RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
-import {z} from 'zod';
-import {
-  getSlackInstallationByTeamId,
-  markSlackInstallationRevoked,
-  type SlackInstallation,
-} from '#db/installations.js';
-
-const slackSelfAuthoredEventSchema = z
-  .object({
-    bot_id: z.string().optional(),
-    user: z.string().optional(),
-    message: z
-      .object({
-        bot_id: z.string().optional(),
-        user: z.string().optional(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough();
+import {getSlackInstallationByTeamId, markSlackInstallationRevoked} from '#db/installations.js';
 
 export type SlackWebhookOutcome =
   | 'published'
@@ -49,8 +30,7 @@ export type SlackWebhookOutcome =
   | 'stale-lifecycle-event'
   | 'missing-connection'
   | 'inactive-connection'
-  | 'unsupported-event'
-  | 'self-message';
+  | 'unsupported-event';
 
 interface SlackWebhookParams {
   tx: IntegrationTx;
@@ -70,7 +50,7 @@ export interface HandleSlackCommandParams extends SlackWebhookParams {
 }
 
 type SlackConnectionResolution =
-  | {kind: 'ok'; connection: IntegrationConnection; installation: SlackInstallation}
+  | {kind: 'ok'; connection: IntegrationConnection}
   | {
       kind: 'drop';
       outcome: SlackConnectionDropOutcome;
@@ -78,11 +58,7 @@ type SlackConnectionResolution =
 
 type SlackCommandOutcome = Exclude<
   SlackWebhookOutcome,
-  | 'unsupported-event'
-  | 'self-message'
-  | 'revoked'
-  | 'unaffected-revocation'
-  | 'stale-lifecycle-event'
+  'unsupported-event' | 'revoked' | 'unaffected-revocation' | 'stale-lifecycle-event'
 >;
 type SlackConnectionDropOutcome = Exclude<SlackCommandOutcome, 'published' | 'duplicate'>;
 
@@ -97,11 +73,6 @@ export async function handleSlackEvent(
     teamId: params.envelope.team_id,
   });
   if (resolution.kind === 'drop') return resolution;
-
-  if (isSelfAuthoredSlackEvent(params.envelope.event, resolution.installation.botUserId)) {
-    await recordSlackDeliveryOnly(params);
-    return {outcome: 'self-message'};
-  }
 
   const supported = slackEventEnvelopeSchema.safeParse(params.envelope);
   if (!supported.success) {
@@ -167,18 +138,6 @@ export async function handleSlackCommand(
   });
 
   return {outcome: result.published ? 'published' : 'duplicate'};
-}
-
-export function isSelfAuthoredSlackEvent(event: unknown, botUserId: string): boolean {
-  const parsed = slackSelfAuthoredEventSchema.safeParse(event);
-  if (!parsed.success) return false;
-  const nestedMessage = parsed.data.message;
-  return (
-    parsed.data.bot_id !== undefined ||
-    parsed.data.user === botUserId ||
-    nestedMessage?.bot_id !== undefined ||
-    nestedMessage?.user === botUserId
-  );
 }
 
 function asSlackLifecycleEventType(eventType: string): SlackLifecycleEventType | undefined {
@@ -346,7 +305,7 @@ async function resolveSlackConnection(
     return {kind: 'drop', outcome: 'inactive-connection'};
   }
 
-  return {kind: 'ok', connection, installation};
+  return {kind: 'ok', connection};
 }
 
 async function recordSlackDeliveryOnly(

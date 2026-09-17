@@ -12,11 +12,7 @@ import {
   CLICKUP_TASK_RESULT_MARKER,
   startClickUpApiMock,
 } from '#clickup-api.js';
-import {
-  expectNoClickUpRun,
-  postClickUpCommentDelivery,
-  triggerClickUpCommentAndAwaitRun,
-} from '#clickup-events.js';
+import {triggerClickUpCommentAndAwaitRun} from '#clickup-events.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
@@ -31,7 +27,7 @@ const CLICKUP_TERMINAL_TIMEOUT_MS = 60_000;
 
 test.describe.configure({mode: 'serial'});
 
-test('starts a run from a signed ClickUp comment and calls ClickUp agent tools', async ({
+test('starts a run from an authorizing user ClickUp comment and calls ClickUp agent tools', async ({
   suite,
 }: {suite: SuiteContext}, testInfo: ClickUpTestInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
@@ -118,7 +114,7 @@ test('starts a run from a signed ClickUp comment and calls ClickUp agent tools',
       webhookId,
       connectionId: connection.id,
       taskId,
-      actorId: `human-user-${uniqueId}`,
+      actorId: authorizingUserId,
       commentText,
     });
     const terminal = await waitForRunTerminalOrFailedRunner({
@@ -164,26 +160,6 @@ test('starts a run from a signed ClickUp comment and calls ClickUp agent tools',
     expect(providerRequests.some((request) => request.tools.includes(getTaskTool))).toBe(true);
     expect(providerRequests.some((request) => request.tools.includes(addCommentTool))).toBe(true);
     expect(providerRequests.every((request) => request.assertion_failures.length === 0)).toBe(true);
-
-    const selfAuthoredDeliveryId = await postClickUpCommentDelivery({
-      webhookSecret,
-      webhookId,
-      connectionId: connection.id,
-      taskId,
-      historyItemId: `self-authored-${crypto.randomUUID().replaceAll('-', '')}`,
-      actorId: authorizingUserId,
-      commentText: 'This delivery must be ignored by loop safety.',
-    });
-    const expectedClickUpCallCount = 2;
-    await expectNoClickUpRun({
-      projectId: project.id,
-      workspaceId: suite.workspaceId,
-      token: suite.sessionToken,
-      deliveryId: selfAuthoredDeliveryId,
-      expectedClickUpCallCount,
-      getClickUpCallCount: () => clickupApi.calls.length,
-    });
-    expect(clickupApi.calls).toHaveLength(expectedClickUpCallCount);
   } finally {
     if (localRunner !== undefined) {
       await attachLocalRunnerLog(

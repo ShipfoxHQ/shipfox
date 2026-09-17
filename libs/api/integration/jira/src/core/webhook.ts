@@ -3,7 +3,6 @@ import type {
   IntegrationConnection,
   IntegrationTx,
   PublishIntegrationEventReceivedFn,
-  RecordDeliveryOnlyFn,
 } from '@shipfox/api-integration-spi';
 import type {JiraInstallation} from '#db/installations.js';
 
@@ -16,25 +15,14 @@ export interface HandleJiraWebhookParams {
   rawPayload: JiraWebhookEnvelopeDto;
   cloudId: string;
   connection: IntegrationConnection<'jira'>;
-  authorizingAccountId: string;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
-  recordDeliveryOnly: RecordDeliveryOnlyFn;
 }
 
-export type HandleJiraWebhookResult = 'published' | 'duplicate' | 'discarded';
+export type HandleJiraWebhookResult = 'published' | 'duplicate';
 
 export async function handleJiraWebhook(
   params: HandleJiraWebhookParams,
 ): Promise<HandleJiraWebhookResult> {
-  if (isSelfAuthoredEvent(params.rawPayload, params.authorizingAccountId)) {
-    await params.recordDeliveryOnly({
-      tx: params.tx,
-      provider: JIRA_PROVIDER,
-      deliveryId: params.deliveryId,
-    });
-    return 'discarded';
-  }
-
   const payload = {...params.rawPayload, cloudId: params.cloudId};
   const result = await params.publishIntegrationEventReceived({
     tx: params.tx,
@@ -51,15 +39,6 @@ export async function handleJiraWebhook(
     },
   });
   return result.published ? 'published' : 'duplicate';
-}
-
-function isSelfAuthoredEvent(payload: JiraWebhookEnvelopeDto, authorizingAccountId: string) {
-  return (
-    (payload.webhookEvent === 'comment_created' ||
-      payload.webhookEvent === 'comment_updated' ||
-      payload.webhookEvent === 'jira:issue_updated') &&
-    payload.user.accountId === authorizingAccountId
-  );
 }
 
 export function isJiraInstallationUsable(

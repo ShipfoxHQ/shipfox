@@ -116,15 +116,11 @@ async function processJiraWebhookRequest(
       rawPayload: payload.data,
       cloudId: installation.cloudId,
       connection: connection as typeof connection & {provider: 'jira'},
-      authorizingAccountId: installation.authorizingAccountId,
       publishIntegrationEventReceived: options.publishIntegrationEventReceived,
-      recordDeliveryOnly: options.recordDeliveryOnly,
     }),
   );
 
   if (result === 'duplicate') return {outcome: 'duplicate', deliveryId};
-  if (result === 'discarded')
-    return {outcome: 'discarded', reason: 'unsupported_event', deliveryId};
   return {outcome: 'processed', deliveryId};
 }
 

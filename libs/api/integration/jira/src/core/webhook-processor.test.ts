@@ -203,49 +203,32 @@ describe('Jira webhook processor', () => {
     }
   });
 
-  it('records authenticated deliberate drops for mismatched and self-authored deliveries', async () => {
+  it('records an authenticated delivery with a mismatched webhook id', async () => {
     const harness = createHarness();
     const token = await signedAuthorization();
     const mismatch = await createRequest(
       {...createPayload(), matchedWebhookIds: [99]},
       `Bearer ${token}`,
     );
-    const selfAuthored = await createRequest(
-      createPayload('comment_created', 'account-1'),
-      `Bearer ${token}`,
-    );
 
     const mismatchResult = await harness.processor.process(mismatch);
-    const selfAuthoredResult = await harness.processor.process(selfAuthored);
 
     expect(mismatchResult).toMatchObject({outcome: 'discarded', reason: 'connection_unavailable'});
-    expect(selfAuthoredResult).toMatchObject({outcome: 'discarded', reason: 'unsupported_event'});
-    expect(harness.recordDeliveryOnly).toHaveBeenCalledTimes(2);
+    expect(harness.recordDeliveryOnly).toHaveBeenCalledOnce();
     expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
   it.each([
+    'comment_created',
     'comment_updated',
     'jira:issue_updated',
-  ] as const)('drops self-authored %s events without publishing', async (event) => {
+    'comment_deleted',
+  ] as const)('publishes self-authored %s events', async (event) => {
     const harness = createHarness();
     const token = await signedAuthorization();
 
     const result = await harness.processor.process(
       createRequest(createPayload(event, 'account-1'), `Bearer ${token}`),
-    );
-
-    expect(result).toMatchObject({outcome: 'discarded', reason: 'unsupported_event'});
-    expect(harness.recordDeliveryOnly).toHaveBeenCalledOnce();
-    expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
-  });
-
-  it('publishes a self-authored comment_deleted event', async () => {
-    const harness = createHarness();
-    const token = await signedAuthorization();
-
-    const result = await harness.processor.process(
-      createRequest(createPayload('comment_deleted', 'account-1'), `Bearer ${token}`),
     );
 
     expect(result).toMatchObject({outcome: 'processed'});
