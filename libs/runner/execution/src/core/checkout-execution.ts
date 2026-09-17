@@ -19,6 +19,8 @@ import type {StepResult} from '#core/step-result.js';
 
 const URL_CREDENTIAL_RE = /(https?:\/\/)[^/@\s]+@/gi;
 
+class FreshCheckoutCredentialRequestError extends CheckoutError {}
+
 export interface CheckoutLogSink {
   writeGroupStart(name: string): void;
   writeGroupEnd(): void;
@@ -70,6 +72,7 @@ export async function requestCheckoutCredentials(params: {
 export async function checkoutRepositoryAt(params: {
   destination: string;
   gitConfigPath: string;
+  leaseClient: KyInstance;
   checkout: CheckoutTokenResponseDto;
   checkoutStepId: string;
   checkoutAttempt: number;
@@ -88,6 +91,7 @@ export async function checkoutRepositoryAt(params: {
   const {
     destination,
     gitConfigPath,
+    leaseClient,
     checkout,
     checkoutStepId,
     checkoutAttempt,
@@ -105,6 +109,7 @@ export async function checkoutRepositoryAt(params: {
         `Path: ${destination}`,
       ],
     });
+    let effectiveAuth = checkout.auth;
     const commit = await checkoutRepository({
       repositoryUrl: checkout.repository_url,
       ref: checkout.ref,
@@ -116,11 +121,25 @@ export async function checkoutRepositoryAt(params: {
       onCommandStart: (metadata) => writeCheckoutCommand(log, metadata),
       onOutput: checkoutOutput(log),
       onRetry: (event) => writeCheckoutRetryLog(log, event),
+      onFreshCredential: async (rejectedGeneration) => {
+        const replacement = await requestFreshCheckoutCredential({
+          leaseClient,
+          stepId: params.checkoutStepId,
+          attempt: params.checkoutAttempt,
+          rejectedGeneration,
+          signal,
+          log,
+        });
+        effectiveAuth = replacement;
+        return replacement;
+      },
     });
+    const effectiveCheckout =
+      effectiveAuth === checkout.auth ? checkout : {...checkout, auth: effectiveAuth};
     log?.writeGroup({name: 'Checkout complete', lines: [`Checked out commit: ${commit}`]});
     const ambientGitConfig = await persistAmbientGitCredential({
       gitConfigPath,
-      checkout,
+      checkout: effectiveCheckout,
       log,
       scope,
       checkoutStepId,
@@ -129,10 +148,62 @@ export async function checkoutRepositoryAt(params: {
     });
     return {
       ok: true,
-      value: checkoutPhaseValue({checkout, destination, commit, ambientGitConfig}),
+      value: checkoutPhaseValue({
+        checkout: effectiveCheckout,
+        destination,
+        commit,
+        ambientGitConfig,
+      }),
     };
   } catch (error) {
     return checkoutFailureResult({error, log, scope});
+  }
+}
+
+async function requestFreshCheckoutCredential(params: {
+  leaseClient: KyInstance;
+  stepId: string;
+  attempt: number;
+  rejectedGeneration: string;
+  signal: AbortSignal;
+  log: CheckoutLogSink | undefined;
+}): Promise<CheckoutTokenResponseDto['auth']> {
+  try {
+    const response = await requestCheckoutToken(params.leaseClient, {
+      stepId: params.stepId,
+      attempt: params.attempt,
+      rejectedGeneration: params.rejectedGeneration,
+      signal: params.signal,
+      retry: 0,
+    });
+    if (response.auth) params.log?.addSecrets(ambientGitCredentialSecrets(response.auth));
+    return response.auth;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new CheckoutError('aborted', freshCredentialFailureMessage('aborted'), {
+        cause: error,
+        phase: 'fetch',
+      });
+    }
+    const kind = classifyCheckoutTokenFailure(error);
+    throw new FreshCheckoutCredentialRequestError(kind, freshCredentialFailureMessage(kind), {
+      phase: 'fetch',
+      retryExhausted: true,
+    });
+  }
+}
+
+function freshCredentialFailureMessage(kind: CheckoutFailureKind): string {
+  switch (kind) {
+    case 'auth':
+      return 'Shipfox rejected the fresh checkout credential request';
+    case 'unavailable':
+      return 'Shipfox could not provide a fresh checkout credential';
+    case 'failed':
+      return 'Shipfox failed to provide a fresh checkout credential';
+    case 'aborted':
+      return 'Fresh checkout credential request was aborted';
   }
 }
 
@@ -365,14 +436,11 @@ function checkoutFailureResult(params: {
       : 'checkout_failed';
   const repositoryVisibilityFailure =
     params.error instanceof CheckoutError && params.error.repositoryVisibilityFailure;
+  const freshCredentialRequestFailure = params.error instanceof FreshCheckoutCredentialRequestError;
   writeFailure(
     params.log,
     checkoutFailureSummary(params.scope, params.error),
-    checkoutFailureHelp(
-      reason,
-      repositoryVisibilityFailure,
-      params.error instanceof CheckoutError && params.error.retryExhausted,
-    ),
+    checkoutFailureHelp(reason, repositoryVisibilityFailure, freshCredentialRequestFailure),
     params.error,
   );
   return {ok: false, result: fail(params.error, reason)};
@@ -380,7 +448,15 @@ function checkoutFailureResult(params: {
 
 function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): string {
   const subject = scope === 'setup' ? 'Setup' : 'Checkout step';
-  if (error instanceof CheckoutError && error.retryExhausted && error.kind === 'auth') {
+  if (error instanceof FreshCheckoutCredentialRequestError) {
+    return `${subject} failed while requesting a fresh checkout credential.`;
+  }
+  if (
+    error instanceof CheckoutError &&
+    error.retryExhausted &&
+    error.kind === 'auth' &&
+    error.repositoryVisibilityFailure
+  ) {
     return `${subject} failed because GitHub still did not expose this repository after retrying.`;
   }
   if (error instanceof CheckoutError && error.repositoryVisibilityFailure) {
@@ -395,16 +471,18 @@ function checkoutFailureSummary(scope: CheckoutFailureScope, error: unknown): st
 function checkoutFailureHelp(
   reason: StepErrorReasonDto,
   repositoryVisibilityFailure = false,
-  retryExhausted = false,
+  freshCredentialRequestFailure = false,
 ): string {
-  if (retryExhausted && reason === 'checkout_auth_failed') {
-    return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
-  }
   if (repositoryVisibilityFailure) {
     return 'Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.';
   }
   if (reason === 'checkout_auth_failed') {
     return 'Check the repository connection in Shipfox and confirm it has permission to read this repository.';
+  }
+  if (freshCredentialRequestFailure) {
+    return reason === 'checkout_unavailable'
+      ? 'Retry the job; Shipfox may be temporarily unavailable.'
+      : 'Retry the job. If this repeats, inspect the Shipfox credential request in the runner log.';
   }
   if (reason === 'checkout_unavailable') {
     return 'Check the runner network and DNS access to the Git provider, then retry the job.';
@@ -426,8 +504,20 @@ function writeCheckoutRetryLog(log: CheckoutLogSink | undefined, event: Checkout
       'Checkout recovered after a transient GitHub authorization failure.',
       'stderr',
     );
+  } else if (event === 'fresh-retrying') {
+    log?.writeOutputLine(
+      'Both GitHub fetch attempts were rejected. Shipfox will request one fresh checkout credential and retry once.',
+      'stderr',
+    );
+  } else if (event === 'fresh-recovered') {
+    log?.writeOutputLine(
+      'Checkout recovered after retrying with a fresh GitHub credential.',
+      'stderr',
+    );
   } else if (event === 'exhausted') {
     log?.writeOutputLine('Checkout retry exhausted after the second fetch failed.', 'stderr');
+  } else if (event === 'fresh-exhausted') {
+    log?.writeOutputLine('Checkout retry with a fresh credential was exhausted.', 'stderr');
   }
 }
 

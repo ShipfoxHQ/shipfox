@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import type {StepDto} from '@shipfox/api-workflows-dto';
 import {CheckoutError} from '@shipfox/runner-workspace';
+import {HTTPError} from 'ky';
 
 vi.hoisted(() => {
   process.env.SHIPFOX_API_URL = 'https://api.test';
@@ -50,6 +51,16 @@ function checkoutResponse(repository = 'repo-a', ref = 'main', auth?: unknown) {
     fetch_depth: 1,
     ...(auth === undefined ? {} : {auth}),
   };
+}
+
+function checkoutTokenHttpError(status: number, data?: unknown): HTTPError {
+  const error = new HTTPError(
+    new Response(null, {status}),
+    new Request('https://runner.example.test'),
+    {} as ConstructorParameters<typeof HTTPError>[2],
+  );
+  error.data = data;
+  return error;
 }
 
 function checkoutStep(config: Record<string, unknown> = {}): StepDto {
@@ -127,6 +138,73 @@ describe('executeCheckoutStep', () => {
     });
   }
 
+  it('requests one fresh credential without replacing server-owned checkout fields', async () => {
+    requestCheckoutTokenMock
+      .mockResolvedValueOnce(
+        checkoutResponse('initial-repository', 'initial-ref', {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'initial-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-one',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        }),
+      )
+      .mockResolvedValueOnce({
+        repository_url: 'https://github.com/acme/replacement-repository.git',
+        ref: 'replacement-ref',
+        fetch_depth: 99,
+        auth: {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'replacement-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-two',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        },
+      });
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log, {attempt: 4});
+
+    expect(result.result).toMatchObject({
+      success: true,
+      checkout: {
+        repository: 'https://github.com/acme/initial-repository.git',
+        ref: 'initial-ref',
+      },
+    });
+    expect(requestCheckoutTokenMock).toHaveBeenNthCalledWith(
+      2,
+      leaseClient,
+      expect.objectContaining({
+        stepId: expect.any(String),
+        attempt: 4,
+        rejectedGeneration: 'generation-one',
+        retry: 0,
+      }),
+    );
+    expect(log.addSecrets).toHaveBeenCalledWith(['replacement-token', expect.any(String)]);
+    expect(writeAmbientGitCredentialMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repositoryUrl: 'https://github.com/acme/initial-repository.git',
+        auth: expect.objectContaining({token: 'replacement-token'}),
+      }),
+    );
+  });
+
   it('logs retry and recovery messages from the workspace checkout', async () => {
     checkoutRepositoryMock.mockImplementation((params: {onRetry?: (event: string) => void}) => {
       params.onRetry?.('retrying');
@@ -176,6 +254,165 @@ describe('executeCheckoutStep', () => {
     );
     expect(log.writeOutputLine).toHaveBeenCalledWith(
       'Next step: Retry the job. If this repeats, reconnect GitHub or confirm the GitHub App can read the repository.',
+      'stderr',
+    );
+  });
+
+  it('uses non-visibility guidance for a fresh credential provider failure', async () => {
+    requestCheckoutTokenMock
+      .mockResolvedValueOnce(
+        checkoutResponse('initial-repository', 'initial-ref', {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'initial-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-one',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        }),
+      )
+      .mockRejectedValueOnce(checkoutTokenHttpError(401));
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Shipfox rejected the fresh checkout credential request',
+      reason: 'checkout_auth_failed',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed while requesting a fresh checkout credential. Details: Shipfox rejected the fresh checkout credential request',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Check the repository connection in Shipfox and confirm it has permission to read this repository.',
+      'stderr',
+    );
+    expect(requestCheckoutTokenMock).toHaveBeenNthCalledWith(
+      2,
+      leaseClient,
+      expect.objectContaining({
+        rejectedGeneration: 'generation-one',
+        retry: 0,
+      }),
+    );
+  });
+
+  it('uses Shipfox guidance when a fresh credential request is unavailable', async () => {
+    requestCheckoutTokenMock
+      .mockResolvedValueOnce(
+        checkoutResponse('initial-repository', 'initial-ref', {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'initial-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-one',
+          renewal: {mode: 'on-rejection'},
+          carry: 'header',
+          host: 'github.com',
+          persist: true,
+        }),
+      )
+      .mockRejectedValueOnce(checkoutTokenHttpError(503));
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Shipfox could not provide a fresh checkout credential',
+      reason: 'checkout_unavailable',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed while requesting a fresh checkout credential. Details: Shipfox could not provide a fresh checkout credential',
+      'stderr',
+    );
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Retry the job; Shipfox may be temporarily unavailable.',
+      'stderr',
+    );
+  });
+
+  it('preserves auth guidance when a non-renewable checkout cannot be replaced', async () => {
+    requestCheckoutTokenMock
+      .mockResolvedValueOnce(
+        checkoutResponse('initial-repository', 'initial-ref', {
+          kind: 'basic',
+          username: 'x-access-token',
+          token: 'initial-token',
+          expires_at: '2030-01-01T00:00:00.000Z',
+          generation: 'generation-one',
+          carry: 'header',
+          host: 'github.com',
+          persist: false,
+        }),
+      )
+      .mockRejectedValueOnce(checkoutTokenHttpError(409, {code: 'checkout-renewal-unavailable'}));
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Shipfox rejected the fresh checkout credential request',
+      reason: 'checkout_auth_failed',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Next step: Check the repository connection in Shipfox and confirm it has permission to read this repository.',
+      'stderr',
+    );
+  });
+
+  it('maps a fresh checkout-token timeout to setup_aborted', async () => {
+    requestCheckoutTokenMock.mockResolvedValueOnce(
+      checkoutResponse('initial-repository', 'initial-ref', {
+        kind: 'bearer',
+        token: 'initial-token',
+        expires_at: '2030-01-01T00:00:00.000Z',
+        generation: 'generation-one',
+        carry: 'header',
+        host: 'github.com',
+        persist: true,
+      }),
+    );
+    const timeoutError = Object.assign(new Error('The operation timed out'), {
+      name: 'TimeoutError',
+    });
+    requestCheckoutTokenMock.mockRejectedValueOnce(timeoutError);
+    checkoutRepositoryMock.mockImplementation(
+      async (params: {onFreshCredential?: (generation: string) => Promise<unknown>}) => {
+        await params.onFreshCredential?.('generation-one');
+        return 'abc123';
+      },
+    );
+    const log = fakeLog();
+
+    const result = await run({}, new Map(), log);
+
+    expect(result.result.error).toEqual({
+      message: 'Fresh checkout credential request was aborted',
+      reason: 'setup_aborted',
+    });
+    expect(log.writeOutputLine).toHaveBeenCalledWith(
+      'Checkout step failed while fetching the requested ref. Details: Fresh checkout credential request was aborted',
       'stderr',
     );
   });

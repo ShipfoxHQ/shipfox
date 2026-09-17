@@ -101,6 +101,7 @@ export async function executeCheckoutStep(params: {
     const checkout = await checkoutRepositoryAt({
       destination,
       gitConfigPath,
+      leaseClient,
       checkout: requested.value,
       checkoutStepId: step.id,
       checkoutAttempt: attempt,

@@ -160,6 +160,7 @@ async function runCheckoutSetup(params: {
     return await checkoutRepositoryAt({
       destination,
       gitConfigPath: params.gitConfigPath,
+      leaseClient: params.leaseClient,
       checkout: checkout.value,
       checkoutStepId: params.stepId,
       checkoutAttempt: params.attempt,

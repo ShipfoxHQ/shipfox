@@ -6,7 +6,7 @@ import {dirname, join, resolve} from 'node:path';
 import {promisify} from 'node:util';
 import type {CheckoutTokenAuthDto} from '@shipfox/api-workflows-dto';
 import {normalizeRepositoryUrl} from '#credential-broker.js';
-import {recordCheckoutFetchAttempt} from '#credential-metrics.js';
+import {recordCheckoutFetchAttempt, recordCheckoutRecovery} from '#credential-metrics.js';
 import {assertCredentialSocketCapability} from '#credential-socket.js';
 import {assertCredentialSocketTimeout} from '#credential-socket-transport.js';
 
@@ -39,7 +39,13 @@ export class GitUnavailableError extends Error {
 }
 
 export type CheckoutOutputSink = (chunk: Buffer, source: 'stdout' | 'stderr') => void;
-export type CheckoutRetryEvent = 'retrying' | 'recovered' | 'exhausted';
+export type CheckoutRetryEvent =
+  | 'retrying'
+  | 'recovered'
+  | 'exhausted'
+  | 'fresh-retrying'
+  | 'fresh-recovered'
+  | 'fresh-exhausted';
 export type CheckoutRetryDelay = (delayMs: number, signal?: AbortSignal) => Promise<void>;
 
 export type CheckoutPhase = 'init' | 'remote' | 'fetch' | 'checkout' | 'resolve';
@@ -133,6 +139,9 @@ export async function checkoutRepository(params: {
   onCommandStart?: ((metadata: CheckoutCommandStartMetadata) => void) | undefined;
   onSecrets?: ((secrets: string[]) => void) | undefined;
   onRetry?: ((event: CheckoutRetryEvent) => void) | undefined;
+  onFreshCredential?:
+    | ((rejectedGeneration: string) => Promise<CheckoutTokenAuthDto | undefined>)
+    | undefined;
   retryDelay?: CheckoutRetryDelay | undefined;
   retryJitter?: (() => number) | undefined;
 }): Promise<string> {
@@ -147,6 +156,7 @@ export async function checkoutRepository(params: {
     onOutput,
     onSecrets,
     onRetry,
+    onFreshCredential,
     retryDelay = waitForRetry,
     retryJitter = Math.random,
   } = params;
@@ -156,8 +166,6 @@ export async function checkoutRepository(params: {
   }
   const secrets = secretsOf(auth);
   onSecrets?.(secrets);
-
-  let retryExhausted = false;
 
   try {
     await runGitCommand({
@@ -188,7 +196,7 @@ export async function checkoutRepository(params: {
       'origin',
       ref,
     ];
-    const fetchConfig = {
+    const fetchConfig = (fetchAuth: CheckoutTokenAuthDto | undefined) => ({
       phase: 'fetch' as const,
       args: fetchArgs,
       displayArgs: fetchArgs,
@@ -196,45 +204,30 @@ export async function checkoutRepository(params: {
       signal,
       onCommandStart,
       onOutput,
-      ...(auth
+      ...(fetchAuth
         ? {
             configEnv: {
               GIT_CONFIG_COUNT: '2',
               GIT_CONFIG_KEY_0: `http.${repositoryUrl}.extraHeader`,
-              GIT_CONFIG_VALUE_0: `Authorization: ${authorizationValue(auth)}`,
+              GIT_CONFIG_VALUE_0: `Authorization: ${authorizationValue(fetchAuth)}`,
               GIT_CONFIG_KEY_1: 'http.followRedirects',
               GIT_CONFIG_VALUE_1: 'false',
             },
           }
         : {}),
-    };
+    });
 
-    try {
-      await runGitCommand(fetchConfig);
-      recordCheckoutFetchAttempt('initial', 'success', 'none');
-    } catch (error) {
-      const classified = classifyCheckoutError(error, auth, repositoryUrl);
-      recordCheckoutFetchAttempt('initial', 'failure', classified.kind);
-      if (!isRetryableFetchFailure(classified, auth, repositoryUrl)) throw error;
-
-      onRetry?.('retrying');
-      await retryDelay(retryDelayMilliseconds(retryJitter), signal);
-      throwIfAborted(signal);
-
-      try {
-        await runGitCommand(fetchConfig);
-        recordCheckoutFetchAttempt('retry', 'success', 'none');
-        onRetry?.('recovered');
-      } catch (retryError) {
-        const retryClassified = classifyCheckoutError(retryError, auth, repositoryUrl);
-        recordCheckoutFetchAttempt('retry', 'failure', retryClassified.kind);
-        if (retryClassified.kind !== 'aborted') {
-          retryExhausted = true;
-          onRetry?.('exhausted');
-        }
-        throw retryError;
-      }
-    }
+    await runFetchWithRecovery({
+      auth,
+      repositoryUrl,
+      signal,
+      onFreshCredential,
+      onRetry,
+      onSecrets,
+      retryDelay,
+      retryJitter,
+      runFetch: (fetchAuth) => runGitCommand(fetchConfig(fetchAuth)),
+    });
     await runGitCommand({
       phase: 'checkout',
       args: ['checkout', '--progress', '--force', 'FETCH_HEAD'],
@@ -255,7 +248,8 @@ export async function checkoutRepository(params: {
     });
     return stdout.trim();
   } catch (error) {
-    throw classifyCheckoutError(error, auth, repositoryUrl, retryExhausted);
+    if (error instanceof CheckoutError) throw error;
+    throw classifyCheckoutError(error, auth, repositoryUrl);
   }
 }
 
@@ -640,6 +634,109 @@ function classifyCheckoutError(
   return new CheckoutError('failed', message, {cause, phase, retryExhausted});
 }
 
+type CheckoutFetchRecoveryOptions = {
+  auth: CheckoutTokenAuthDto | undefined;
+  repositoryUrl: string;
+  signal: AbortSignal | undefined;
+  onFreshCredential:
+    | ((rejectedGeneration: string) => Promise<CheckoutTokenAuthDto | undefined>)
+    | undefined;
+  onRetry: ((event: CheckoutRetryEvent) => void) | undefined;
+  onSecrets: ((secrets: string[]) => void) | undefined;
+  retryDelay: CheckoutRetryDelay;
+  retryJitter: () => number;
+  runFetch: (auth: CheckoutTokenAuthDto | undefined) => Promise<unknown>;
+};
+
+async function runFetchWithRecovery(params: CheckoutFetchRecoveryOptions): Promise<void> {
+  try {
+    await params.runFetch(params.auth);
+    recordCheckoutFetchAttempt('initial', 'success', 'none');
+  } catch (error) {
+    const classified = classifyCheckoutError(error, params.auth, params.repositoryUrl);
+    recordCheckoutFetchAttempt('initial', 'failure', classified.kind);
+    if (!isRetryableFetchFailure(classified, params.auth, params.repositoryUrl)) throw error;
+
+    params.onRetry?.('retrying');
+    await params.retryDelay(retryDelayMilliseconds(params.retryJitter), params.signal);
+    throwIfAborted(params.signal);
+    await runSameCredentialRetry(params);
+  }
+}
+
+async function runSameCredentialRetry(params: CheckoutFetchRecoveryOptions): Promise<void> {
+  try {
+    await params.runFetch(params.auth);
+    recordCheckoutFetchAttempt('retry', 'success', 'none');
+    recordCheckoutRecovery('same-token-recovered');
+    params.onRetry?.('recovered');
+  } catch (error) {
+    const classified = classifyCheckoutError(error, params.auth, params.repositoryUrl);
+    recordCheckoutFetchAttempt('retry', 'failure', classified.kind);
+    const rejectedGeneration = params.auth?.generation;
+    const canRequestFreshCredential =
+      classified.kind === 'auth' &&
+      rejectedGeneration !== undefined &&
+      params.onFreshCredential !== undefined;
+    if (canRequestFreshCredential) {
+      await runFreshCredentialRetry(params, rejectedGeneration);
+      return;
+    }
+    if (classified.kind === 'aborted') throw error;
+
+    recordCheckoutRecovery('exhausted');
+    params.onRetry?.('exhausted');
+    throw classifyCheckoutError(error, params.auth, params.repositoryUrl, true);
+  }
+}
+
+async function runFreshCredentialRetry(
+  params: CheckoutFetchRecoveryOptions,
+  rejectedGeneration: string,
+): Promise<void> {
+  params.onRetry?.('fresh-retrying');
+  let replacement: CheckoutTokenAuthDto | undefined;
+  try {
+    replacement = await params.onFreshCredential?.(rejectedGeneration);
+    if (
+      replacement === undefined ||
+      replacement.generation === undefined ||
+      replacement.generation === rejectedGeneration
+    ) {
+      throw new CheckoutError(
+        'auth',
+        'Checkout credential replacement did not produce a fresh generation',
+        {phase: 'fetch', retryExhausted: true},
+      );
+    }
+    params.onSecrets?.(secretsOf(replacement));
+  } catch (error) {
+    if (params.signal?.aborted) throw abortError();
+    if (isAbortError(error)) throw error;
+    if (error instanceof CheckoutError && error.kind === 'aborted') throw error;
+
+    recordCheckoutRecovery('exhausted');
+    params.onRetry?.('fresh-exhausted');
+    if (error instanceof CheckoutError) throw error;
+    throw classifyCheckoutError(error, params.auth, params.repositoryUrl, true);
+  }
+
+  try {
+    await params.runFetch(replacement);
+    recordCheckoutFetchAttempt('fresh', 'success', 'none');
+    recordCheckoutRecovery('fresh-token-recovered');
+    params.onRetry?.('fresh-recovered');
+  } catch (error) {
+    const classified = classifyCheckoutError(error, replacement, params.repositoryUrl);
+    recordCheckoutFetchAttempt('fresh', 'failure', classified.kind);
+    if (classified.kind === 'aborted') throw classified;
+
+    recordCheckoutRecovery('exhausted');
+    params.onRetry?.('fresh-exhausted');
+    throw classifyCheckoutError(error, replacement, params.repositoryUrl, true);
+  }
+}
+
 function isRetryableFetchFailure(
   error: CheckoutError,
   auth: CheckoutTokenAuthDto | undefined,
@@ -830,7 +927,7 @@ function redactedCause(error: unknown, secrets: string[]): Error {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
 }
 
 function stderrOf(error: unknown): string {

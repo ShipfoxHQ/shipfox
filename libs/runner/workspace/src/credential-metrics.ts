@@ -4,9 +4,13 @@ const meter = instanceMetrics.getMeter('runner-workspace');
 
 type CredentialSocketOperation = 'get' | 'store' | 'erase' | 'unknown';
 type CredentialSocketOutcome = 'success' | 'rejected' | 'error';
-export type CheckoutFetchAttempt = 'initial' | 'retry';
+export type CheckoutFetchAttempt = 'initial' | 'retry' | 'fresh';
 export type CheckoutFetchOutcome = 'success' | 'failure';
 export type CheckoutFetchReason = 'none' | 'auth' | 'unavailable' | 'failed' | 'aborted';
+export type CheckoutRecoveryOutcome =
+  | 'same-token-recovered'
+  | 'fresh-token-recovered'
+  | 'exhausted';
 
 const socketRequestCount = meter.createCounter<{
   operation: CredentialSocketOperation;
@@ -27,6 +31,11 @@ const checkoutFetchAttemptCount = meter.createCounter<{
 }>('runner_checkout_fetch_attempts', {
   description: 'Checkout fetch attempts by bounded attempt, outcome, and reason',
 });
+
+const checkoutRecoveryCount = meter.createCounter<{outcome: CheckoutRecoveryOutcome}>(
+  'runner_checkout_recoveries',
+  {description: 'Checkout recovery outcomes by bounded recovery state'},
+);
 
 export function recordCredentialSocketRequest(
   operation: CredentialSocketOperation,
@@ -54,6 +63,14 @@ export function recordCheckoutFetchAttempt(
 ): void {
   try {
     checkoutFetchAttemptCount.add(1, {attempt, outcome, reason});
+  } catch {
+    // Metrics must not affect checkout operations.
+  }
+}
+
+export function recordCheckoutRecovery(outcome: CheckoutRecoveryOutcome): void {
+  try {
+    checkoutRecoveryCount.add(1, {outcome});
   } catch {
     // Metrics must not affect checkout operations.
   }

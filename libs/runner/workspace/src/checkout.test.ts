@@ -7,6 +7,7 @@ import {join} from 'node:path';
 const execFileMock = vi.fn();
 const spawnMock = vi.fn();
 const recordCheckoutFetchAttemptMock = vi.fn();
+const recordCheckoutRecoveryMock = vi.fn();
 
 vi.mock('node:child_process', () => ({
   execFile: (...args: unknown[]) => execFileMock(...args),
@@ -15,6 +16,7 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('#credential-metrics.js', () => ({
   recordCheckoutFetchAttempt: (...args: unknown[]) => recordCheckoutFetchAttemptMock(...args),
+  recordCheckoutRecovery: (...args: unknown[]) => recordCheckoutRecoveryMock(...args),
 }));
 
 const {
@@ -87,6 +89,8 @@ const AUTH = {
   host: 'github.com',
   persist: true,
 };
+const AUTH_WITH_GENERATION = {...AUTH, generation: 'generation-one'};
+const FRESH_AUTH = {...AUTH, token: 'tok-456', generation: 'generation-two'};
 const GITHUB_INSTALLATION_TOKEN_PATTERN = /^ghs_[A-Za-z0-9._-]{36,}$/u;
 const GITHUB_STATEFUL_INSTALLATION_TOKEN = `ghs_${'d'.repeat(36)}`;
 const GITHUB_STATELESS_INSTALLATION_TOKEN =
@@ -479,6 +483,214 @@ describe('checkoutRepository failure classification', () => {
     ]);
   });
 
+  it('requests one fresh generation and fetches with only the replacement auth', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'success', stdout: 'fresh-commit\n'},
+    ]);
+    const onFreshCredential = vi.fn().mockResolvedValue(FRESH_AUTH);
+    const onRetry = vi.fn();
+    const onSecrets = vi.fn();
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        fetchDepth: 7,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        onRetry,
+        onSecrets,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).resolves.toBe('fresh-commit');
+
+    expect(onFreshCredential).toHaveBeenCalledOnce();
+    expect(onFreshCredential).toHaveBeenCalledWith('generation-one');
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual([
+      'retrying',
+      'fresh-retrying',
+      'fresh-recovered',
+    ]);
+    expect(spawnMock.mock.calls.map((call) => call[1][0])).toEqual([
+      'init',
+      'remote',
+      'fetch',
+      'fetch',
+      'fetch',
+      'checkout',
+      'rev-parse',
+    ]);
+    expect(spawnMock.mock.calls[2]?.[1]).toEqual(spawnMock.mock.calls[4]?.[1]);
+    expect((spawnMock.mock.calls[4]?.[2] as {env: Record<string, string>}).env).toMatchObject({
+      GIT_CONFIG_VALUE_0: 'Authorization: Bearer tok-456',
+    });
+    expect(onSecrets).toHaveBeenCalledWith(['tok-456']);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+      ['fresh', 'success', 'none'],
+    ]);
+    expect(recordCheckoutRecoveryMock).toHaveBeenCalledWith('fresh-token-recovered');
+  });
+
+  it('stops after one fresh credential request when the replacement is rejected', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+    ]);
+    const onFreshCredential = vi.fn().mockResolvedValue(FRESH_AUTH);
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({kind: 'auth', retryExhausted: true});
+
+    expect(onFreshCredential).toHaveBeenCalledOnce();
+    expect(spawnMock).toHaveBeenCalledTimes(5);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+      ['fresh', 'failure', 'auth'],
+    ]);
+    expect(recordCheckoutRecoveryMock).toHaveBeenCalledWith('exhausted');
+  });
+
+  it('rejects a replacement that repeats the rejected generation', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+    ]);
+    const onFreshCredential = vi.fn().mockResolvedValue(AUTH_WITH_GENERATION);
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({
+      kind: 'auth',
+      message: 'Checkout credential replacement did not produce a fresh generation',
+    });
+
+    expect(onFreshCredential).toHaveBeenCalledOnce();
+    expect(spawnMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not fetch after a fresh credential request fails', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+    ]);
+    const onFreshCredential = vi.fn().mockRejectedValue(new Error('replacement unavailable'));
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({kind: 'failed', retryExhausted: true});
+
+    expect(onFreshCredential).toHaveBeenCalledOnce();
+    expect(spawnMock).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    'AbortError',
+    'TimeoutError',
+  ] as const)('stops fresh recovery when the replacement request reports %s', async (errorName) => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+    ]);
+    const stopError = Object.assign(new Error('The operation was aborted'), {
+      name: errorName,
+    });
+    const onFreshCredential = vi.fn().mockRejectedValue(stopError);
+    const onRetry = vi.fn();
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        onRetry,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({kind: 'aborted'});
+
+    expect(spawnMock).toHaveBeenCalledTimes(4);
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'fresh-retrying']);
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+    ]);
+    expect(recordCheckoutRecoveryMock).not.toHaveBeenCalled();
+  });
+
+  it('redacts a replacement token from the final fetch error', async () => {
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'fatal: rejected fresh-token-456'},
+    ]);
+    const onFreshCredential = vi.fn().mockResolvedValue({
+      ...AUTH_WITH_GENERATION,
+      token: 'fresh-token-456',
+      generation: 'generation-two',
+    });
+    const events: string[] = [];
+    const registeredSecrets: string[] = [];
+    const emittedOutput: string[] = [];
+    const onSecrets = vi.fn((secrets: string[]) => {
+      registeredSecrets.push(...secrets);
+      events.push(secrets.includes('fresh-token-456') ? 'replacement-secret' : 'initial-secret');
+    });
+    const onOutput = vi.fn((chunk: Buffer) => {
+      events.push('output');
+      emittedOutput.push(redactSecrets(chunk.toString(), registeredSecrets));
+    });
+
+    const error = await checkoutRepository({
+      ...BASE,
+      auth: AUTH_WITH_GENERATION,
+      onFreshCredential,
+      onOutput,
+      onSecrets,
+      retryDelay: vi.fn(async () => undefined),
+    }).catch((value: unknown) => value);
+
+    expect(error).toMatchObject({kind: 'failed', retryExhausted: true});
+    expect((error as Error).message).not.toContain('fresh-token-456');
+    expect(emittedOutput).toContain('fatal: rejected ***');
+    expect(emittedOutput.join('')).not.toContain('fresh-token-456');
+    expect(events.indexOf('replacement-secret')).toBeGreaterThanOrEqual(0);
+    expect(events.lastIndexOf('output')).toBeGreaterThan(events.indexOf('replacement-secret'));
+  });
+
   it('does not mark a cancelled second fetch as exhausted', async () => {
     const abortError = Object.assign(new Error('The operation was aborted'), {
       name: 'AbortError',
@@ -503,6 +715,41 @@ describe('checkoutRepository failure classification', () => {
       ['initial', 'failure', 'auth'],
       ['retry', 'failure', 'aborted'],
     ]);
+  });
+
+  it('does not mark a cancelled fresh fetch as exhausted', async () => {
+    const abortError = Object.assign(new Error('The operation was aborted'), {
+      name: 'AbortError',
+    });
+    queueGitResults([
+      {kind: 'success'},
+      {kind: 'success'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'failure', stderr: 'remote: Repository not found.'},
+      {kind: 'error', error: abortError},
+    ]);
+    const onFreshCredential = vi.fn().mockResolvedValue(FRESH_AUTH);
+    const onRetry = vi.fn();
+
+    await expect(
+      checkoutRepository({
+        ...BASE,
+        auth: AUTH_WITH_GENERATION,
+        onFreshCredential,
+        onRetry,
+        retryDelay: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({kind: 'aborted', retryExhausted: false});
+
+    expect(spawnMock).toHaveBeenCalledTimes(5);
+    expect(onRetry.mock.calls.map(([event]) => event)).toEqual(['retrying', 'fresh-retrying']);
+    expect(onRetry).not.toHaveBeenCalledWith('fresh-exhausted');
+    expect(recordCheckoutFetchAttemptMock.mock.calls).toEqual([
+      ['initial', 'failure', 'auth'],
+      ['retry', 'failure', 'auth'],
+      ['fresh', 'failure', 'aborted'],
+    ]);
+    expect(recordCheckoutRecoveryMock).not.toHaveBeenCalledWith('exhausted');
   });
 
   it('does not fetch again when cancellation happens during the retry delay', async () => {
