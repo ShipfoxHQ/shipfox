@@ -35,7 +35,7 @@ export async function handleGithubCallback(
 ): Promise<IntegrationConnection<'github'>> {
   const claims = verifyGithubInstallState(params.state);
   const interaction: GithubConnectionInteraction = {
-    kind: claims.kind,
+    kind: 'install',
     actorUserId: claims.userId,
     workspaceId: claims.workspaceId,
     installationId: params.installationId,

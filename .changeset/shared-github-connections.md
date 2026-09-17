@@ -2,4 +2,4 @@
 "@shipfox/api-integration-github": patch
 ---
 
-Preserves in-flight GitHub install state while sharing integration connection authorization for recovery flows.
+Keeps in-flight GitHub install states valid while direct installation uses shared integration connection authorization and ownership checks.

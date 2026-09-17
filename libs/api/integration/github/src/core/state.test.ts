@@ -14,7 +14,7 @@ describe('GitHub install state', () => {
 
     const result = verifyGithubInstallState(state, new Date('2026-04-30T00:01:00.000Z'));
 
-    expect(result).toEqual({kind: 'install', workspaceId, userId});
+    expect(result).toEqual({workspaceId, userId});
   });
 
   it('keeps the legacy install-state wire format', () => {
