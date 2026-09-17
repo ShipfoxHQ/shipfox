@@ -446,6 +446,7 @@ describe('api-client auth contexts', () => {
     [401, {code: 'timeout'}, 'auth'],
     [500, {code: 'access-denied'}, 'auth'],
     [500, {code: 'forbidden'}, 'auth'],
+    [409, {code: 'checkout-renewal-unavailable'}, 'auth'],
     [429, undefined, 'unavailable'],
     [503, undefined, 'unavailable'],
     [500, {code: 'rate-limited'}, 'unavailable'],
