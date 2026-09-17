@@ -1,12 +1,17 @@
 import {ApiError} from '@shipfox/client-api';
 import {useAuthState, useRefreshAuth} from '@shipfox/client-auth';
-import {FocusedFrame, useClientAnalytics} from '@shipfox/client-shell/runtime';
+import {
+  FocusedFrame,
+  useClientAnalytics,
+  userWorkspacesQueryKey,
+} from '@shipfox/client-shell/runtime';
 import {createSingleFlight, sessionStorageOrUndefined} from '@shipfox/client-ui';
-import {ButtonLink} from '@shipfox/react-ui/button';
+import {Button, ButtonLink} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {FullPageLoader} from '@shipfox/react-ui/loader';
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
+import {useQueryClient} from '@tanstack/react-query';
 import {Link, useNavigate} from '@tanstack/react-router';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {
@@ -38,6 +43,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   const analytics = useClientAnalytics();
   const completeIntegrationCallback = useCompleteIntegrationCallback();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const refreshAuth = useRefreshAuth();
   const resolveIntegrationWorkspaceSlug = useResolveIntegrationWorkspaceSlug();
   const intent = useMemo(() => classifyGithubCallback(search), [search]);
@@ -49,6 +55,10 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   const [failure, setFailure] = useState<GithubCallbackFailure>();
   const [completedWorkspaceId, setCompletedWorkspaceId] = useState<string>();
   const capturedViews = useRef(new Set<string>());
+  const membershipHydrationFailed =
+    auth.isAuthenticated &&
+    !auth.hasWorkspace &&
+    queryClient.getQueryState(userWorkspacesQueryKey)?.status === 'error';
 
   useEffect(() => {
     if (auth.isLoading) return;
@@ -64,6 +74,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
       );
       return;
     }
+    if (membershipHydrationFailed) return;
     if (intent.kind !== 'request') return;
     captureViewOnce(
       capturedViews.current,
@@ -81,12 +92,14 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     auth.isAuthenticated,
     auth.isLoading,
     intent.kind,
+    membershipHydrationFailed,
     storedWorkspace,
   ]);
 
   const isTerminalWithoutApi =
-    intent.kind !== 'complete' ||
-    (!auth.isLoading && (!auth.isAuthenticated || !auth.hasWorkspace));
+    !membershipHydrationFailed &&
+    (intent.kind !== 'complete' ||
+      (!auth.isLoading && (!auth.isAuthenticated || !auth.hasWorkspace)));
   useEffect(() => {
     if (!isTerminalWithoutApi) return;
     clearGithubInstallWorkspace(sessionStorageOrUndefined());
@@ -130,7 +143,8 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
       (error: unknown) => {
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
-        if (!(error instanceof ApiError) && !reportedFailures.has(callbackKey)) {
+        const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
+        if (shouldReport && !reportedFailures.has(callbackKey)) {
           rememberCallbackKey(reportedFailures, callbackKey);
           globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
         }
@@ -160,6 +174,10 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
 
   if (!auth.isAuthenticated) {
     return <GuestOutcome />;
+  }
+
+  if (membershipHydrationFailed) {
+    return <MembershipUnavailableOutcome refreshAuth={refreshAuth} />;
   }
 
   if (!auth.hasWorkspace) {
@@ -334,6 +352,32 @@ function NoMembershipOutcome() {
   );
 }
 
+function MembershipUnavailableOutcome({
+  refreshAuth,
+}: {
+  refreshAuth: ReturnType<typeof useRefreshAuth>;
+}) {
+  return (
+    <GithubOutcome
+      title="Could not load your workspaces"
+      message="Shipfox could not verify your workspace memberships. Check your connection and try again."
+      status="warning"
+    >
+      <div className="flex flex-col gap-inline sm:flex-row">
+        <Button
+          className="min-h-44 w-full sm:w-fit"
+          onClick={() => void refreshAuth().catch(() => undefined)}
+        >
+          Try again
+        </Button>
+        <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
+          <Link to="/">Back to Shipfox</Link>
+        </ButtonLink>
+      </div>
+    </GithubOutcome>
+  );
+}
+
 function MemberWorkspaceActions({
   workspaces,
 }: {
@@ -358,7 +402,7 @@ function MemberWorkspaceActions({
                 <Link
                   to="/w/$workspaceSlug/integrations"
                   params={{workspaceSlug: workspace.slug}}
-                  aria-label={`Open ${workspace.name} workspace`}
+                  aria-label={`Open workspace – ${workspace.name}`}
                 >
                   Open workspace
                 </Link>

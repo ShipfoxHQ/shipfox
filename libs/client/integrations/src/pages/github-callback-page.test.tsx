@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
 import type {ClientAnalytics} from '@shipfox/client-shell/runtime';
+import {QueryClient} from '@tanstack/react-query';
 import {screen, waitFor} from '@testing-library/react';
 import {StrictMode} from 'react';
 import {GITHUB_INSTALL_WORKSPACE_KEY, type GithubCallbackSearch} from '#github-callback.js';
@@ -13,7 +14,7 @@ const {completeGithubCallbackMock, resolveWorkspaceSlugMock} = vi.hoisted(() => 
   resolveWorkspaceSlugMock: vi.fn(),
 }));
 const AUTH_LINK_NAME = /sign up|create account/iu;
-const MEMBER_WORKSPACE_LINK_NAME = /Open .* workspace/iu;
+const MEMBER_WORKSPACE_LINK_NAME = /^Open workspace – .+$/u;
 const SECOND_WORKSPACE_ID = '33333333-3333-4333-8333-333333333333';
 
 vi.mock('@shipfox/client-auth', async (importOriginal) => {
@@ -78,7 +79,10 @@ beforeEach(() => {
     );
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('GithubCallbackPage', () => {
   test('renders request guidance before completion validation and uses an authorized workspace hint', async () => {
@@ -146,11 +150,11 @@ describe('GithubCallbackPage', () => {
 
     renderCallback({setupAction: 'request'}, {analytics: {capture}, workspaces});
 
-    expect(await screen.findByRole('link', {name: 'Open Acme workspace'})).toHaveAttribute(
+    expect(await screen.findByRole('link', {name: 'Open workspace – Acme'})).toHaveAttribute(
       'href',
       '/w/acme/integrations',
     );
-    expect(screen.getByRole('link', {name: 'Open Beta workspace'})).toHaveAttribute(
+    expect(screen.getByRole('link', {name: 'Open workspace – Beta'})).toHaveAttribute(
       'href',
       '/w/beta/integrations',
     );
@@ -167,6 +171,23 @@ describe('GithubCallbackPage', () => {
       }),
     ).toBeVisible();
     expect(screen.queryByRole('link', {name: MEMBER_WORKSPACE_LINK_NAME})).not.toBeInTheDocument();
+  });
+
+  test('preserves callback state when workspace membership hydration fails', async () => {
+    vi.spyOn(QueryClient.prototype, 'getQueryState').mockReturnValue({status: 'error'} as never);
+    window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
+
+    renderCallback(
+      {installationId: 42, code: 'membership-code', state: 'membership-state'},
+      {workspaces: []},
+    );
+
+    expect(
+      await screen.findByRole('heading', {name: 'Could not load your workspaces'}),
+    ).toBeVisible();
+    expect(screen.getByRole('button', {name: 'Try again'})).toBeVisible();
+    expect(completeGithubCallbackMock).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBe(INTEGRATIONS_TEST_WID);
   });
 
   test('keeps malformed callbacks on an actionable member recovery page', async () => {
@@ -186,8 +207,8 @@ describe('GithubCallbackPage', () => {
 
     expect(heading).toBeVisible();
     expect(document.activeElement).toBe(heading);
-    expect(screen.getByRole('link', {name: 'Open Acme workspace'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Open Beta workspace'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Open workspace – Beta'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Invite a teammate to Acme'})).toBeVisible();
     expect(screen.getByRole('link', {name: 'Invite a teammate to Beta'})).toBeVisible();
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
@@ -209,7 +230,7 @@ describe('GithubCallbackPage', () => {
       await screen.findByRole('heading', {name: 'Use the account that started this install'}),
     ).toBeInTheDocument();
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
-    expect(screen.getByRole('link', {name: 'Open Acme workspace'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
   });
 
   test('distinguishes expired state from a malformed callback', async () => {
@@ -244,8 +265,38 @@ describe('GithubCallbackPage', () => {
       await screen.findByRole('heading', {name: 'GitHub is temporarily unavailable'}),
     ).toBeVisible();
     expect(screen.queryByRole('button', {name: 'Try again'})).not.toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Open Acme workspace'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
     expect(reportError).not.toHaveBeenCalled();
+  });
+
+  test('reports a network failure once without forwarding callback secrets', async () => {
+    const reportError = vi.fn();
+    vi.stubGlobal('reportError', reportError);
+    completeGithubCallbackMock.mockRejectedValue(
+      new ApiError({
+        code: 'network-error',
+        message:
+          'GET https://api.example.test/integrations/github/callback?code=network-secret-code&state=network-secret-state failed',
+        status: 0,
+      }),
+    );
+
+    renderCallback({
+      installationId: 42,
+      code: 'network-secret-code',
+      state: 'network-secret-state',
+    });
+
+    expect(
+      await screen.findByRole('heading', {name: 'GitHub is temporarily unavailable'}),
+    ).toBeVisible();
+    expect(reportError).toHaveBeenCalledOnce();
+    expect(reportError).toHaveBeenCalledWith(
+      expect.objectContaining({message: 'Failed to complete the GitHub callback.'}),
+    );
+    expect((reportError.mock.calls[0]?.[0] as Error).cause).toBeUndefined();
+    expect(JSON.stringify(reportError.mock.calls)).not.toContain('network-secret-code');
+    expect(JSON.stringify(reportError.mock.calls)).not.toContain('network-secret-state');
   });
 
   test('reports an unexpected failure without exposing callback secrets', async () => {

@@ -114,7 +114,7 @@ test('GitHub callback navigates to the API-confirmed workspace on direct success
   await githubCallback.goto('code=grant-code&installation_id=42&state=signed-state');
 
   await expect(page).toHaveURL(new RegExp(`/w/${workspace.slug}/settings/integrations/?$`, 'u'));
-  await expect(page.getByText('GitHub installed.')).toBeVisible();
+  await expect(githubCallback.message('GitHub installed.')).toBeVisible();
   await expect(integrationsCatalogue.emptyInstalledState()).toBeVisible();
   await stableScreenshot(page, 'integrations/github-callback-success');
 });

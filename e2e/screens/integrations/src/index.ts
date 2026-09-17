@@ -5,6 +5,7 @@ type Locator = ReturnType<Page['locator']>;
 type FixtureUse<T> = (fixture: T) => Promise<void>;
 const SELECTED_REPOSITORY_MODE_RE = /Only your projects' repositories/u;
 const ALL_REPOSITORY_MODE_RE = /Every repository this integration can access/u;
+const OPEN_WORKSPACE_LINK_RE = /^Open workspace – .+$/u;
 
 export class IntegrationsCatalogueScreen {
   private readonly shell: SettingsShell;
@@ -220,7 +221,7 @@ export class GithubCallbackScreen {
   }
 
   openWorkspaceLink(): Locator {
-    return this.page.getByRole('link', {name: 'Open workspace'});
+    return this.page.getByRole('link', {name: OPEN_WORKSPACE_LINK_RE});
   }
 }
 
