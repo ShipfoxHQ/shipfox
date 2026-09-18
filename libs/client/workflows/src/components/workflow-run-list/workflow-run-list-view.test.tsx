@@ -822,10 +822,7 @@ function renderListView(
   // Row links need router context; the query and data stay injected by props.
   // The real list defaults to synced runs, so direct local-dev fixtures must opt into the
   // development scope before they can exercise their provenance rendering.
-  const localDevRun = runs.some((run) => {
-    const source = run.devSource as {definitionSource?: string} | null;
-    return run.origin === 'dev' && source?.definitionSource === 'local';
-  });
+  const localDevRun = runs.some((run) => run.origin === 'dev');
   const effectiveSearch = search ?? (localDevRun ? {origin: 'dev' as const} : undefined);
 
   renderWithRouter(
