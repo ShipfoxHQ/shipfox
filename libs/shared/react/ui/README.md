@@ -4,7 +4,7 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## What it does
 
-- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, CodeBlock, Collapsible, Combobox, Command, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
 - **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
 - **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).
@@ -118,6 +118,30 @@ import {FormField, FormFieldInput, FormFieldTextarea} from '@shipfox/react-ui/fo
   <FormFieldTextarea value={value} onChange={...} />
 </FormField>
 ```
+
+### Checkbox
+
+Import `Checkbox` from `@shipfox/react-ui/checkbox`. It supports controlled and
+uncontrolled checked, unchecked, and indeterminate states through the Radix
+checkbox contract. Supply an accessible name with a visible `Label`,
+`aria-label`, or `aria-labelledby`. Forward descriptions with
+`aria-describedby`; native disabled, focus, and form properties pass through.
+
+```tsx
+import {Checkbox, type CheckedState} from '@shipfox/react-ui/checkbox';
+
+const [checked, setChecked] = useState<CheckedState>('indeterminate');
+
+<Checkbox
+  aria-label="Select visible workflows"
+  checked={checked}
+  onCheckedChange={setChecked}
+/>;
+```
+
+For table selection, place the same component directly inside `TableHead` or
+`TableCell`. The table primitives already recognize its checkbox role and apply
+the selection-column spacing.
 
 ## Storybook
 
