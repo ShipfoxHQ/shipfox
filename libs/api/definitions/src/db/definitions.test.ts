@@ -711,6 +711,15 @@ describe('definition queries', () => {
         source: 'vcs',
         ref: 'main',
       });
+      const dev = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI dev',
+        ...definitionFields('CI dev'),
+        source: 'vcs',
+        ref: 'dev',
+      });
       const result = await getDefinitionByConfigPath({
         projectId,
         configPath: 'ci.yml',
@@ -722,6 +731,7 @@ describe('definition queries', () => {
         workflowId: main.workflowId,
         name: 'CI main',
       });
+      expect(result?.id).not.toBe(dev.id);
     });
 
     test('does not return an unknown path, manual definition, or dev-only lineage', async () => {

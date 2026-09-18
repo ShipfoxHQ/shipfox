@@ -161,6 +161,10 @@ describe('definitions inter-module presentation', () => {
       projectId: PROJECT_ID,
       configPath: CONFIG_PATH,
     });
+    expect(mocks.requireProjectForWorkspace).toHaveBeenCalledWith({
+      workspaceId,
+      projectId: PROJECT_ID,
+    });
     expect(mocks.getDefinitionByConfigPath).not.toHaveBeenCalled();
   });
 
