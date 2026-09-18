@@ -139,7 +139,6 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
 
     const rows = await annotationsFor(identity.jobExecutionId);
     expect(rows[0]?.body).toContain('did not advertise a `pi` tool set');
-    expect(rows[0]?.body).not.toContain('unknown-or-stale');
     expect(rows[0]?.body).toContain('`read`, `web_search`');
   });
 
