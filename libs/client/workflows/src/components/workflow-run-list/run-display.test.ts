@@ -85,6 +85,24 @@ describe('runMatchesSearch', () => {
     expect(runMatchesSearch(run, 'abcdef1')).toBe(true);
   });
 
+  test('matches a local dev run by its source without indexing its fallback checkout', () => {
+    const run = workflowRunListItem({
+      origin: 'dev',
+      dev_source: {
+        ref: 'fallback-only-branch',
+        commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'local',
+        config_path: '.shipfox/workflows/triage-sentry.yml',
+        initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
+        replay_of_event_id: null,
+      },
+    });
+
+    expect(runMatchesSearch(run, 'local file')).toBe(true);
+    expect(runMatchesSearch(run, 'fallback-only-branch')).toBe(false);
+    expect(runMatchesSearch(run, 'abcdef1')).toBe(false);
+  });
+
   test('reports no match for an unrelated query', () => {
     expect(runMatchesSearch(workflowRunListItem(), 'no-such-run')).toBe(false);
   });

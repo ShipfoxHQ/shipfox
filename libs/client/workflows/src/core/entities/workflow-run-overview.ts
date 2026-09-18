@@ -12,7 +12,12 @@ import {
   jobExecutionDisplayDurationFromTimestamps,
 } from './job-execution.js';
 import type {StepSourceLocation} from './step.js';
-import type {WorkflowRunOrigin, WorkflowRunStatus, WorkflowSourceSnapshot} from './workflow-run.js';
+import type {
+  WorkflowRunDevSource,
+  WorkflowRunOrigin,
+  WorkflowRunStatus,
+  WorkflowSourceSnapshot,
+} from './workflow-run.js';
 import type {WorkflowRunAttempt} from './workflow-run-attempt.js';
 
 export type BoundedExecutionCount = number | '100+';
@@ -51,13 +56,7 @@ export interface WorkflowRunOverviewHeader {
   name: string;
   workflowName: string;
   origin: WorkflowRunOrigin;
-  devSource: {
-    ref: string;
-    commit: string;
-    configPath: string;
-    initiatedByUserId: string;
-    replayOfEventId: string | null;
-  } | null;
+  devSource: WorkflowRunDevSource | null;
   triggerProvider: string | null;
   triggerSource: string;
   triggerEvent: string;

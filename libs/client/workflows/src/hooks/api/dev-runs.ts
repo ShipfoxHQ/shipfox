@@ -105,6 +105,7 @@ function buildTempDevRun({
     devSource: {
       ref,
       commit,
+      definitionSource: 'ref',
       configPath,
       // The run list renders no initiator when the id is empty; the real row
       // carries the acting user once the server has created the run.

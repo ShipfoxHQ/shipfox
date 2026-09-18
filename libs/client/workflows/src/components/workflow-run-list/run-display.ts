@@ -4,6 +4,7 @@ import {
   workflowRunActor,
   workflowRunBranchLabel,
   workflowRunCommitLabel,
+  workflowRunDevSourceLabel,
 } from '#core/workflow-run.js';
 import type {WorkflowRunListStatus, WorkflowRunsSearch} from '#routes/inputs.js';
 
@@ -38,8 +39,9 @@ export function runMatchesSearch(run: WorkflowRunListItem, query: string): boole
     run.number?.toString(),
     workflowRunBranchLabel(run),
     workflowRunCommitLabel(run),
-    run.devSource?.ref,
-    run.devSource?.commit,
+    workflowRunDevSourceLabel(run),
+    run.devSource?.definitionSource === 'ref' ? run.devSource.ref : null,
+    run.devSource?.definitionSource === 'ref' ? run.devSource.commit : null,
     workflowRunActor(run),
   ]
     .filter(Boolean)

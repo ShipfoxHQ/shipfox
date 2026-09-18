@@ -491,6 +491,23 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).queryByText(REPLAY_OF_TEXT)).not.toBeInTheDocument();
   });
 
+  test('separates a local definition from its default checkout', async () => {
+    renderSummary({
+      ...devRunOverrides(),
+      dev_source: {...devSourceDto(), definition_source: 'local'},
+    });
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getByText('local file')).toBeInTheDocument();
+    expect(within(summary).getByRole('img', {name: 'Dev source local file'})).toBeInTheDocument();
+    expect(within(summary).getByText('Default checkout')).toBeInTheDocument();
+    expect(within(summary).getByText('fix-triage-prompt @ abcdef1')).toBeInTheDocument();
+    expect(
+      within(summary).getByText('A step or a replayed event can override this.'),
+    ).toBeInTheDocument();
+  });
+
   test('gives summary provenance chips an accessible kind and truncated initiator value', async () => {
     renderSummary(devRunOverrides());
 
