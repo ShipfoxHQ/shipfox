@@ -725,10 +725,21 @@ describe('definition queries', () => {
     });
 
     test('does not return an unknown path, manual definition, or dev-only lineage', async () => {
+      await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'manual-only.yml',
+        name: 'Manual only',
+        ...definitionFields('Manual only'),
+        source: 'manual',
+      });
       await findOrCreateWorkflowLineage({projectId, configPath: 'dev-only.yml'});
 
       await expect(
         getDefinitionByConfigPath({projectId, configPath: 'missing.yml', ref: 'main'}),
+      ).resolves.toBeUndefined();
+      await expect(
+        getDefinitionByConfigPath({projectId, configPath: 'manual-only.yml', ref: 'main'}),
       ).resolves.toBeUndefined();
       await expect(
         getDefinitionByConfigPath({projectId, configPath: 'dev-only.yml', ref: 'main'}),

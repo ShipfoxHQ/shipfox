@@ -3,4 +3,4 @@
 "@shipfox/api-definitions-dto": minor
 ---
 
-Adds a contract lookup for synced workflow definitions by project and config path.
+Adds `getDefinitionByConfigPath` to the definitions contract, returning the synced definition id, workflow id, and name for a project and config path.

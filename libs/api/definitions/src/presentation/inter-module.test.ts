@@ -93,6 +93,52 @@ describe('definitions inter-module presentation', () => {
     });
   });
 
+  it('maps an absent synced definition to definition-not-found', async () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000010';
+    mocks.requireProjectForWorkspace.mockResolvedValue({
+      project: {id: PROJECT_ID, workspaceId, sourceDefaultBranch: 'main'},
+    });
+    mocks.getDefinitionByConfigPath.mockResolvedValue(undefined);
+
+    const error = await rejection(
+      presentation().handlers.getDefinitionByConfigPath(
+        {workspaceId, projectId: PROJECT_ID, configPath: CONFIG_PATH},
+        {signal: new AbortController().signal},
+      ),
+    );
+
+    expect((error as {code: string}).code).toBe('definition-not-found');
+    expect((error as {details: unknown}).details).toEqual({
+      projectId: PROJECT_ID,
+      configPath: CONFIG_PATH,
+    });
+  });
+
+  it('masks an unknown project as definition-not-found', async () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000010';
+    mocks.requireProjectForWorkspace.mockRejectedValue(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-not-found',
+        {projectId: PROJECT_ID},
+      ),
+    );
+
+    const error = await rejection(
+      presentation().handlers.getDefinitionByConfigPath(
+        {workspaceId, projectId: PROJECT_ID, configPath: CONFIG_PATH},
+        {signal: new AbortController().signal},
+      ),
+    );
+
+    expect((error as {code: string}).code).toBe('definition-not-found');
+    expect((error as {details: unknown}).details).toEqual({
+      projectId: PROJECT_ID,
+      configPath: CONFIG_PATH,
+    });
+    expect(mocks.getDefinitionByConfigPath).not.toHaveBeenCalled();
+  });
+
   it('masks a project in another workspace as definition-not-found', async () => {
     const workspaceId = '00000000-0000-4000-8000-000000000010';
     mocks.requireProjectForWorkspace.mockRejectedValue(
