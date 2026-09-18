@@ -37,10 +37,6 @@ export async function warnRenewableGitCapabilityMismatchOnDispatch(params: {
     return;
   }
 
-  // A stale report means the runner's current capability is unknown. Treating the empty fallback
-  // as an explicit absence would replace a valid annotation during a heartbeat race.
-  if (!capabilities.reportFresh) return;
-
   const context = `renewable-git-capability:${params.step.id}`;
   const renewableGitAdvertised = capabilities.capabilities.features?.renewable_git === true;
   const annotation = renewableGitAdvertised

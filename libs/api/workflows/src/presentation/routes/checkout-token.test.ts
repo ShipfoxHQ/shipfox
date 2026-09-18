@@ -209,7 +209,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     if (!lease) throw new Error('Expected minted lease token to verify');
     setRunnerToolCapabilities(lease.runnerSessionId, {
       capabilities: {harnesses: {}},
-      reportFresh: true,
     });
 
     const res = await app.inject({
@@ -257,7 +256,6 @@ describe('POST /runs/jobs/current/steps/:stepId/checkout-token', () => {
     if (!lease) throw new Error('Expected minted lease token to verify');
     setRunnerToolCapabilities(lease.runnerSessionId, {
       capabilities: {harnesses: {}},
-      reportFresh: true,
     });
 
     const res = await app.inject({

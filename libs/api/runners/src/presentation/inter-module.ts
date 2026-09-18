@@ -10,7 +10,7 @@ export function createRunnersInterModulePresentation(): InterModulePresentation<
     getLeaseState: getJobLeaseState,
     getEffectiveRunnerToolCapabilities: async (input) => {
       const result = await getEffectiveRunnerToolCapabilities(input);
-      return {capabilities: result.capabilities, reportFresh: result.reportFresh};
+      return {capabilities: result.capabilities};
     },
     getWorkspaceJobCounts: async ({workspaceIds}) => ({
       counts: await getWorkspaceJobCounts({workspaceIds}),

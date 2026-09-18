@@ -22,7 +22,6 @@ export const runnersInterModuleContract = defineInterModuleContract({
       input: z.object({runnerSessionId: idSchema}),
       output: z.object({
         capabilities: runnerToolCapabilitiesSchema,
-        reportFresh: z.boolean(),
       }),
     },
     getWorkspaceJobCounts: {

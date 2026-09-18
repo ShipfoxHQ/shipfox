@@ -399,7 +399,7 @@ describe('claimPendingJobExecution', () => {
     expect(running?.firstHeartbeatAt).toBeNull();
   });
 
-  it('snapshots renewable inference eligibility at claim and ignores later heartbeat changes', async () => {
+  it('snapshots renewable inference from an hours-old report and ignores later heartbeat changes', async () => {
     await db()
       .update(runnerSessions)
       .set({
@@ -407,7 +407,7 @@ describe('claimPendingJobExecution', () => {
           features: {renewable_git: false, renewable_inference: true},
           harnesses: {},
         },
-        toolCapabilitiesReportedAt: new Date(),
+        toolCapabilitiesReportedAt: new Date('2025-01-01T00:00:00.000Z'),
       })
       .where(eq(runnerSessions.id, runnerSessionId));
     const created = await pendingJobFactory.create({workspaceId});
@@ -433,29 +433,6 @@ describe('claimPendingJobExecution', () => {
         runnerSessionId,
       }),
     ).resolves.toEqual({active: true, renewableInference: true});
-  });
-
-  it('does not authorize renewable inference from a stale capability report', async () => {
-    await db()
-      .update(runnerSessions)
-      .set({
-        toolCapabilities: {
-          features: {renewable_git: false, renewable_inference: true},
-          harnesses: {},
-        },
-        toolCapabilitiesReportedAt: new Date('2025-01-01T00:00:00.000Z'),
-      })
-      .where(eq(runnerSessions.id, runnerSessionId));
-    const created = await pendingJobFactory.create({workspaceId});
-
-    await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
-
-    const [running] = await db()
-      .select({renewableInference: runningJobExecutions.renewableInference})
-      .from(runningJobExecutions)
-      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
-
-    expect(running?.renewableInference).toBe(false);
   });
 
   it('snapshots false for a claim without renewable inference capability', async () => {

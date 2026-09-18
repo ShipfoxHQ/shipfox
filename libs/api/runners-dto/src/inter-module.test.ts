@@ -14,12 +14,10 @@ describe('runnersInterModuleContract', () => {
     const result =
       runnersInterModuleContract.methods.getEffectiveRunnerToolCapabilities.output.parse({
         capabilities: {harnesses: {pi: {tools: ['read']}}},
-        reportFresh: true,
       });
 
     expect(result).toEqual({
       capabilities: {harnesses: {pi: {tools: ['read']}}},
-      reportFresh: true,
     });
   });
 });

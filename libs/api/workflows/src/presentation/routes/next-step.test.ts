@@ -74,7 +74,7 @@ function setRunnerToolCapabilities(
   runnerSessionId: string,
   capabilities: RunnerToolCapabilitiesDto,
 ): void {
-  setTestRunnerToolCapabilities(runnerSessionId, {capabilities, reportFresh: true});
+  setTestRunnerToolCapabilities(runnerSessionId, {capabilities});
 }
 
 const annotationWrites = vi.fn<AnnotationsInterModuleClient['replaceOrRemoveAnnotation']>();
