@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import type {CatalogCapability, CatalogProvider} from '@/lib/integration-catalog';
 import {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
+import {sortRegisteredIntegrationProviders} from '@/lib/registered-integration-providers';
 import {source} from '@/lib/source';
 
 export {validateIntegrationCatalog} from '@/lib/integration-catalog-validation';
@@ -50,7 +51,7 @@ export function getIntegrationCatalog(): CatalogProvider[] {
     ),
   );
 
-  return providers.toSorted((left, right) => left.name.localeCompare(right.name));
+  return sortRegisteredIntegrationProviders(providers);
 }
 
 function getGeneratedCatalogData(): Record<string, GeneratedCatalogData> {

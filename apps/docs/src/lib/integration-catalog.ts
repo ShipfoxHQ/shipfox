@@ -5,10 +5,10 @@ export const INTEGRATION_CATALOG_CAPABILITIES = [
 ] as const;
 export const INTEGRATION_CATALOG_CATEGORIES = [
   'source-control',
-  'observability',
-  'custom',
   'issue-tracking',
+  'observability',
   'messaging',
+  'custom',
 ] as const;
 export const INTEGRATION_CATALOG_ICONS = [
   'github',
