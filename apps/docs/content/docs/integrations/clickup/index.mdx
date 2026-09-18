@@ -13,9 +13,9 @@ catalog:
 
 ## Authentication
 
-Shipfox uses ClickUp OAuth. The token carries the authorizing account's ClickUp
-permissions. ClickUp decides which resources that account can access and which
-events it can see.
+Shipfox connects to ClickUp through OAuth and acts on behalf of the account that
+authorizes it. That account's ClickUp permissions determine which resources
+Shipfox can use and which events it can receive.
 
 Use a dedicated ClickUp user account as a service account, not a personal
 account. Name it Shipfox so its actions are easy to identify, and grant it only
