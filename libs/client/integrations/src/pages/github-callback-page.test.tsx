@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import {ApiError} from '@shipfox/client-api';
 import type {ClientAnalytics} from '@shipfox/client-shell/runtime';
 import {QueryClient} from '@tanstack/react-query';
-import {screen, waitFor} from '@testing-library/react';
+import {act, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {StrictMode} from 'react';
 import {GITHUB_INSTALL_WORKSPACE_KEY, type GithubCallbackSearch} from '#github-callback.js';
@@ -390,7 +390,7 @@ describe('GithubCallbackPage', () => {
     expect((reportError.mock.calls[0]?.[0] as Error).cause).toBeUndefined();
   });
 
-  test('clears the workspace handoff when completion fails after unmount', async () => {
+  test('preserves a newer workspace handoff when abandoned completion fails', async () => {
     let rejectCallback: ((reason: unknown) => void) | undefined;
     completeGithubCallbackMock.mockImplementation(
       async () =>
@@ -407,12 +407,12 @@ describe('GithubCallbackPage', () => {
     });
 
     await waitFor(() => expect(completeGithubCallbackMock).toHaveBeenCalledOnce());
+    expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
     unmount();
-    rejectCallback?.(new Error('network down'));
+    window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, SECOND_WORKSPACE_ID);
+    await act(async () => rejectCallback?.(new Error('network down')));
 
-    await waitFor(() =>
-      expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull(),
-    );
+    expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBe(SECOND_WORKSPACE_ID);
   });
 
   test('completes a direct install once, records API-confirmed telemetry, and navigates to its workspace', async () => {

@@ -120,6 +120,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
 
     let active = true;
     const callbackKey = serializeGithubCallback(intent.params);
+    clearGithubInstallWorkspace(sessionStorageOrUndefined());
     const request = callbackRequests.run(
       callbackKey,
       async () =>
@@ -143,7 +144,6 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
           setCompletedWorkspaceId,
         }),
       (error: unknown) => {
-        clearGithubInstallWorkspace(sessionStorageOrUndefined());
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
         const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
@@ -257,7 +257,6 @@ async function handleGithubCallbackSuccess({
   isActive: () => boolean;
   setCompletedWorkspaceId: (workspaceId: string) => void;
 }) {
-  clearGithubInstallWorkspace(sessionStorageOrUndefined());
   if (!capturedCompletions.has(callbackKey)) {
     rememberCallbackKey(capturedCompletions, callbackKey);
     analytics.capture('github_connection_completed', {workspace_id: connection.workspaceId});
