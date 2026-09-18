@@ -157,6 +157,7 @@ describe('the run list URL contract', () => {
     ['status', {status: ['failed' as const, 'running' as const]}],
     ['origin', {origin: 'dev' as const}],
     ['origin synced', {origin: 'synced' as const}],
+    ['origin all', {origin: 'all' as const}],
     ['branch', {branch: ['main', 'release/v2']}],
     ['actor', {actor: ['octocat', 'hubot']}],
     ['event', {event: ['push', 'pull_request']}],
@@ -181,6 +182,10 @@ describe('the run list URL contract', () => {
     };
 
     expect(roundTrip(search)).toEqual(search);
+  });
+
+  test('accepts the explicit all-origins value', () => {
+    expect(validateWorkflowRunsSearch({origin: 'all'})).toEqual({origin: 'all'});
   });
 
   test('drops an origin outside the vocabulary instead of rejecting the URL', () => {

@@ -57,7 +57,6 @@ const INTEGRATION_TESTS_RE = /integration-tests/u;
 const BUILD_IMAGE_RE = /build-image/u;
 const STATUS_FILTER_RE = /^Status\b.*filter$/u;
 const WORKFLOW_FILTER_RE = /^Workflow\b.*filter$/u;
-const ORIGIN_FILTER_RE = /^Origin\b.*filter$/u;
 const JOBS_TAB_NAME = /^Jobs/u;
 const BUILD_JOB_BUTTON_NAME = 'build, Succeeded';
 const DEPLOY_JOB_BUTTON_NAME = 'deploy, Running';
@@ -161,7 +160,7 @@ describe('WorkflowRunPages', () => {
     expect(router.state.location.searchStr).toBe('?status=failed&status=running');
   });
 
-  test('honors an origin deep link and clears it without exposing an Origin filter', async () => {
+  test('honors an origin deep link and defaults to synced after clearing it', async () => {
     const user = userEvent.setup();
     const fetchImpl = createMixedOriginRunsFetch();
     configureApiClient({fetchImpl});
@@ -178,7 +177,9 @@ describe('WorkflowRunPages', () => {
       }),
     ).toBe(true);
 
-    expect(screen.queryByRole('button', {name: ORIGIN_FILTER_RE})).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
+      'Development runs',
+    );
 
     await user.click(screen.getByRole('button', {name: 'Clear filters'}));
     await waitFor(() => {
@@ -186,7 +187,26 @@ describe('WorkflowRunPages', () => {
     });
     expect(router.state.location.searchStr).toBe('');
     expect(await screen.findByRole('link', {name: DEPLOY_WEB_RE})).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: TRIAGE_SENTRY_RE})).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: TRIAGE_SENTRY_RE})).not.toBeInTheDocument();
+  });
+
+  test('honors the explicit all origin without sending an origin API filter', async () => {
+    const fetchImpl = createMixedOriginRunsFetch();
+    configureApiClient({fetchImpl});
+
+    const {router} = renderRunsPath('?origin=all');
+
+    expect(await screen.findByRole('link', {name: DEPLOY_WEB_RE})).toBeInTheDocument();
+    expect(await screen.findByRole('link', {name: TRIAGE_SENTRY_RE})).toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
+      'All runs',
+    );
+    expect(router.state.location.searchStr).toBe('?origin=all');
+    expect(
+      fetchImpl.mock.calls.some(
+        (call) => new URL(requestInputUrl(call[0])).searchParams.get('origin') === null,
+      ),
+    ).toBe(true);
   });
 
   test('writes the selected workflow to the URL and filters the full history through the API', async () => {

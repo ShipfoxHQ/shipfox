@@ -140,6 +140,7 @@ export const Playground: Story = {};
 /** Dev runs carry the Dev badge and fall back to their dev ref and commit for provenance. */
 export const DevRuns: Story = {
   args: {
+    search: {origin: 'dev'},
     runs: [
       makeDevRun('running', 'triage-sentry', 3, {
         ref: 'fix-triage-prompt',
@@ -159,6 +160,20 @@ export const DevRuns: Story = {
       makeDevRun('failed', 'triage-sentry', 45, {
         ref: 'refs/tags/v2.14.0',
         commit: '0123456789abcdef0123456789abcdef01234567',
+      }),
+    ],
+  },
+};
+
+/** The explicit All origin keeps synced and dev runs visible together. */
+export const AllOrigins: Story = {
+  args: {
+    search: {origin: 'all'},
+    runs: [
+      makeRun('succeeded', 'deploy-web', 1),
+      makeDevRun('running', 'triage-sentry', 3, {
+        ref: 'fix-triage-prompt',
+        commit: 'abcdef1234567890abcdef1234567890abcdef12',
       }),
     ],
   },
