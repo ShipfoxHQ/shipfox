@@ -3,4 +3,4 @@
 '@shipfox/api-workflows-dto': patch
 ---
 
-Add bounded periodic repair for workflow concurrency claims and durable orchestration recovery.
+Repairs drifted workflow concurrency state: releases claims left by finished runs, promotes waiting runs, cancels superseded attempts, and restarts orchestrations that never started.

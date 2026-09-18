@@ -182,18 +182,17 @@ async function runWorkflowConcurrencyReconcilerLoop(params: {
 
 function waitForRepair(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      {once: true},
-    );
-    if (signal.aborted) {
+    let timer: ReturnType<typeof setTimeout>;
+    const onAbort = () => {
       clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
       resolve();
-    }
+    };
+    timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, {once: true});
+    if (signal.aborted) onAbort();
   });
 }

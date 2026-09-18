@@ -59,6 +59,43 @@ describe('workflow concurrency reconciler', () => {
     expect(mocks.metrics).toHaveBeenCalledWith('superseded_attempt', 'repaired');
     expect(mocks.metrics).toHaveBeenCalledWith('acquired_without_orchestration', 'repaired');
   });
+
+  test('records a failed repair and stops later candidates', async () => {
+    const first = candidate({claimState: 'acquired', attemptStatus: 'failed', runStatus: 'failed'});
+    const later = candidate({
+      claimState: 'waiting',
+      attemptStatus: 'waiting',
+      runStatus: 'waiting',
+    });
+    const failure = new Error('repair failed');
+    mocks.list.mockResolvedValue({candidates: [first, later]});
+    mocks.release.mockRejectedValueOnce(failure);
+
+    await expect(
+      runWorkflowConcurrencyReconcilerCycle({
+        batchSize: 2,
+        signal: new AbortController().signal,
+        startOrchestration: () => Promise.resolve(),
+      }),
+    ).rejects.toBe(failure);
+
+    expect(mocks.metrics).toHaveBeenCalledWith('terminal_holder', 'failed');
+    expect(mocks.promote).not.toHaveBeenCalled();
+  });
+
+  test('returns false without listing when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const repaired = await runWorkflowConcurrencyReconcilerCycle({
+      batchSize: 1,
+      signal: controller.signal,
+      startOrchestration: () => Promise.resolve(),
+    });
+
+    expect(repaired).toBe(false);
+    expect(mocks.list).not.toHaveBeenCalled();
+  });
 });
 
 function candidate(input: {

@@ -6,6 +6,7 @@ import {
   loadRunnerCatalog,
   MAX_NODE_TIMER_DELAY_MS,
   validateToolStepExecutorConfig,
+  validateWorkflowConcurrencyRepairConfig,
 } from './config.js';
 
 let dir: string;
@@ -115,5 +116,34 @@ describe('validateToolStepExecutorConfig', () => {
     ['callTimeoutMs', MAX_NODE_TIMER_DELAY_MS + 1],
   ] as const)('rejects an invalid %s value (%s)', (key, value) => {
     expect(() => validateToolStepExecutorConfig({...valid, [key]: value})).toThrow();
+  });
+});
+
+describe('validateWorkflowConcurrencyRepairConfig', () => {
+  const valid = {
+    pollIntervalMs: 1_000,
+    batchSize: 100,
+  };
+
+  it('accepts the Node timer maximum and larger safe batch sizes', () => {
+    expect(() =>
+      validateWorkflowConcurrencyRepairConfig({
+        ...valid,
+        pollIntervalMs: MAX_NODE_TIMER_DELAY_MS,
+        batchSize: MAX_NODE_TIMER_DELAY_MS + 1,
+      }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['pollIntervalMs', 0],
+    ['pollIntervalMs', 1.5],
+    ['pollIntervalMs', Number.MAX_SAFE_INTEGER + 1],
+    ['pollIntervalMs', MAX_NODE_TIMER_DELAY_MS + 1],
+    ['batchSize', 0],
+    ['batchSize', 1.5],
+    ['batchSize', Number.MAX_SAFE_INTEGER + 1],
+  ] as const)('rejects an invalid %s value (%s)', (key, value) => {
+    expect(() => validateWorkflowConcurrencyRepairConfig({...valid, [key]: value})).toThrow();
   });
 });

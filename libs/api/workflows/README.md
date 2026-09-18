@@ -47,8 +47,8 @@ const run = await runWorkflow(definitions, {
 | `WORKFLOWS_TOOL_STEP_POLL_INTERVAL_MS` | `1000` | Delay between scans for due server-executed tool-step invocations, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_TOOL_STEP_EXECUTOR_CONCURRENCY` | `8` | Maximum number of tool-step invocations claimed in one executor pass. The value must be a safe whole number greater than `0`. |
 | `WORKFLOWS_TOOL_STEP_CALL_TIMEOUT_MS` | `30000` | Maximum duration of one provider call, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
-| `WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS` | `1000` | Delay between bounded workflow concurrency repair scans, in milliseconds. |
-| `WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE` | `100` | Maximum number of concurrency drift candidates processed in one scan. |
+| `WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS` | `1000` | Delay between bounded workflow concurrency repair scans, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
+| `WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE` | `100` | Maximum number of concurrency drift candidates processed in one scan. The value must be a safe whole number greater than `0`. |
 
 The catalog is loaded and validated once when the Workflows module is imported;
 restart the API after changing the file. An empty YAML document behaves like an
