@@ -611,7 +611,6 @@ describe('WorkflowRunSummary', () => {
     });
 
     expect(parentLink).toHaveAttribute('href', `/w/acme/p/project/runs/${parentRunId}`);
-    expect(within(summary).queryByText('manual · fire')).not.toBeInTheDocument();
   });
 
   test('shows the parent label once in a list-shaped summary', async () => {

@@ -178,7 +178,7 @@ export const StartedByAnotherRun: Story = {
         id: ROOT_RUN_ID,
         number: 41,
         name: 'release-production',
-        project_id: '44444444-4444-4444-8444-444444444444',
+        project_id: '22222222-2222-4222-8222-222222222222',
       },
     }),
   },

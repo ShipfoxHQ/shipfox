@@ -120,8 +120,6 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
   };
 }
 
-// The persisted reference predates `actor` and carries an internal project id the client has
-// no use for, so each field is read defensively rather than spread onto the response.
 function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {
   if (!parentRun) return null;
   return {
@@ -132,6 +130,8 @@ function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {
   };
 }
 
+// The persisted reference predates `actor` and carries an internal project id the client has
+// no use for, so each field is read defensively rather than spread onto the response.
 function toTriggerReferenceDto(
   reference: WorkflowRunTriggerReference | null | undefined,
 ): WorkflowRunTriggerReferenceDto | null {

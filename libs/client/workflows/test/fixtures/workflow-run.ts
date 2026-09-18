@@ -166,8 +166,11 @@ export function workflowRunResponseDto(
     source_snapshot: sourceSnapshot = null,
     ...runOverrides
   } = overrides;
+  const {parent_run: _parentRun, ...responseRun} = workflowRunDto(
+    runOverrides as Partial<WorkflowRunListItemDto>,
+  );
   return {
-    ...workflowRunDto(runOverrides as Partial<WorkflowRunListItemDto>),
+    ...responseRun,
     trigger_payload: triggerPayload,
     inputs,
     source_snapshot: sourceSnapshot,

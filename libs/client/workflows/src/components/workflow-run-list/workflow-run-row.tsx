@@ -99,7 +99,7 @@ export function WorkflowRunRow({
         </span>
 
         <span className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-subtle @min-[976px]:flex-nowrap @min-[976px]:shrink-0">
-          {run.triggerDisplayLabel ? <TriggerLabel run={run} /> : null}
+          {run.triggerDisplayLabel && !run.parentRun ? <TriggerLabel run={run} /> : null}
           {branch ? <BranchLabel branch={branch} isPullRequest={branch.startsWith('#')} /> : null}
           {commit ? <CommitLabel commit={commit} /> : null}
           <RunActorMetadata
@@ -147,7 +147,7 @@ export function WorkflowRunRow({
     return <div className={rowClassName}>{body}</div>;
   }
 
-  return (
+  const runLink = (
     <Link
       to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
       params={{workspaceSlug, projectSlug, workflowRunId: run.id}}
@@ -174,10 +174,25 @@ export function WorkflowRunRow({
       ]
         .filter((part): part is string => Boolean(part))
         .join(', ')}
-      className={rowClassName}
+      className={
+        run.parentRun
+          ? 'absolute inset-0 z-0 focus-visible:shadow-focus-inset focus-visible:outline-none'
+          : rowClassName
+      }
     >
-      {body}
+      {run.parentRun ? null : body}
     </Link>
+  );
+
+  if (!run.parentRun) return runLink;
+
+  return (
+    <div className={cn(rowClassName, 'relative')}>
+      {runLink}
+      <div className="pointer-events-none relative z-10 flex w-full min-w-0 items-center gap-inline">
+        {body}
+      </div>
+    </div>
   );
 }
 
@@ -199,7 +214,7 @@ function RunActorMetadata({
         runProjectId={run.projectId}
         workspaceSlug={workspaceSlug}
         projectSlug={projectSlug}
-        className="text-foreground-neutral-subtle hover:text-foreground-neutral-base"
+        className="pointer-events-auto relative z-10 text-foreground-neutral-subtle hover:text-foreground-neutral-base"
       />
     );
   }
