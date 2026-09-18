@@ -34,16 +34,17 @@ See ClickUp's [webhook reference](https://developer.clickup.com/docs/webhooks)
 and [task webhook payloads](https://developer.clickup.com/docs/webhooktaskpayloads)
 for provider-owned field details.
 
-## Control access and prevent loops
+## Control access and prevent repeated runs
 
 Shipfox receives events only for ClickUp items the connected account can
 access. Give the service account access to every Space, Folder, and List your
 workflows should monitor.
 
-ClickUp also sends events for changes made by Shipfox. If a workflow updates the
-same task that triggered it, the workflow can start again. Add a [trigger
-filter](/reference/workflow-schema#trigger-fields) that ignores changes made by
-the Shipfox service account or matches only fields the workflow does not update.
+ClickUp sends a new event when Shipfox updates a task. If that event matches the
+workflow's trigger, the workflow runs again and may repeat the update. To prevent
+repeated runs, add a [trigger filter](/reference/workflow-schema#trigger-fields)
+that ignores changes made by the Shipfox service account or matches only fields
+the workflow does not update.
 
 ## Paired deliveries
 
