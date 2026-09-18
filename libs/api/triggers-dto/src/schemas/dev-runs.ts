@@ -1,3 +1,4 @@
+import {definitionValidationWarningSchema} from '@shipfox/api-definitions-dto';
 import {isSafeRefInput} from '@shipfox/regex';
 import {z} from 'zod';
 
@@ -6,7 +7,16 @@ export const createDevRunBodySchema = z
     project_id: z.string().uuid(),
     // A branch or tag name in the project repository. Raw commit SHAs and
     // pull-request refs are rejected by the ref resolution pipeline.
-    ref: z.string().min(1).max(256).refine(isSafeRefInput, 'Ref contains a control character'),
+    ref: z
+      .string()
+      .min(1)
+      .max(256)
+      .refine(isSafeRefInput, 'Ref contains a control character')
+      .optional(),
+    // When supplied, the definitions module validates this YAML instead of
+    // fetching the workflow file from the repository. The domain layer owns
+    // the byte limit so callers receive `content-too-large`.
+    content: z.string().optional(),
     // The commit the ref resolved to when the picker listed the file; a
     // mismatch answers 409 `ref-moved`.
     commit: z
@@ -27,6 +37,22 @@ export const createDevRunBodySchema = z
     // integration source answers 422 `replay-event-required`.
     replay_event_id: z.string().uuid().optional(),
   })
+  .superRefine(({content, ref, commit}, ctx) => {
+    if (ref === undefined && content === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ref'],
+        message: 'ref is required when content is not supplied',
+      });
+    }
+    if (ref === undefined && commit !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['commit'],
+        message: 'commit requires ref',
+      });
+    }
+  })
   .strict();
 
 export type CreateDevRunBodyDto = z.infer<typeof createDevRunBodySchema>;
@@ -34,7 +60,9 @@ export type CreateDevRunBodyDto = z.infer<typeof createDevRunBodySchema>;
 export const createDevRunResponseSchema = z
   .object({
     workflow_run_id: z.string().uuid(),
+    ref: z.string().optional(),
     commit: z.string(),
+    warnings: z.array(definitionValidationWarningSchema).optional(),
   })
   .strict();
 

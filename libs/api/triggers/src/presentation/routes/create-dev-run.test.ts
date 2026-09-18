@@ -104,6 +104,73 @@ describe('POST /dev-runs', () => {
     ).toHaveLength(0);
   });
 
+  test('accepts local content without a ref and forwards the content', async () => {
+    const runId = crypto.randomUUID();
+    const content = 'name: Local\n';
+    createDevRunMock.mockResolvedValue({
+      id: runId,
+      ref: 'main',
+      commit: COMMIT,
+      warnings: [],
+    });
+    const {ref: _ref, commit: _commit, ...localBody} = VALID_BODY;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {...localBody, content},
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({
+      workflow_run_id: runId,
+      ref: 'main',
+      commit: COMMIT,
+      warnings: [],
+    });
+    expect(createDevRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ref: undefined, content}),
+    );
+
+    const pinnedLocalRes = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {...localBody, content, commit: COMMIT},
+    });
+    expect(pinnedLocalRes.statusCode).toBe(400);
+  });
+
+  test('returns content-too-large for content above the domain limit', async () => {
+    createDevRunMock.mockRejectedValue(
+      createInterModuleKnownError(
+        definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+        'content-too-large',
+        {configPath: VALID_BODY.config_path},
+      ),
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {...VALID_BODY, content: 'x'.repeat(300 * 1024)},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('content-too-large');
+    expect(createDevRunMock).toHaveBeenCalled();
+  });
+
+  test('returns 413 when the request exceeds the transport body limit', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: {...VALID_BODY, content: 'x'.repeat(1024 * 1024)},
+    });
+
+    expect(res.statusCode).toBe(413);
+    expect(createDevRunMock).not.toHaveBeenCalled();
+  });
+
   test('rejects a ref with a control character', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -235,7 +302,9 @@ describe('POST /dev-runs', () => {
   });
 
   test('maps a missing trigger key to 422 trigger-not-found', async () => {
-    createDevRunMock.mockRejectedValue(new DevRunTriggerNotFoundError('missing'));
+    createDevRunMock.mockRejectedValue(
+      new DevRunTriggerNotFoundError('missing', ['on_demand', 'on_push']),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -244,7 +313,10 @@ describe('POST /dev-runs', () => {
     });
 
     expect(res.statusCode).toBe(422);
-    expect(res.json().code).toBe('trigger-not-found');
+    expect(res.json()).toMatchObject({
+      code: 'trigger-not-found',
+      details: {availableTriggerKeys: ['on_demand', 'on_push']},
+    });
   });
 
   test('maps request inputs on a cron trigger to 422 inputs-not-allowed', async () => {
@@ -300,7 +372,14 @@ describe('POST /dev-runs', () => {
   });
 
   test('maps a mismatched replay event to 409 replay-event-mismatch', async () => {
-    createDevRunMock.mockRejectedValue(new DevRunReplayEventMismatchError(crypto.randomUUID()));
+    createDevRunMock.mockRejectedValue(
+      new DevRunReplayEventMismatchError(crypto.randomUUID(), {
+        eventSource: 'github_acme',
+        eventName: 'pull_request.opened',
+        triggerSource: 'github_acme',
+        triggerEvent: 'push',
+      }),
+    );
 
     const res = await app.inject({
       method: 'POST',
@@ -309,7 +388,15 @@ describe('POST /dev-runs', () => {
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('replay-event-mismatch');
+    expect(res.json()).toMatchObject({
+      code: 'replay-event-mismatch',
+      details: {
+        eventSource: 'github_acme',
+        eventName: 'pull_request.opened',
+        triggerSource: 'github_acme',
+        triggerEvent: 'push',
+      },
+    });
   });
 
   test('maps a pruned replay event to 410 replay-event-unavailable', async () => {

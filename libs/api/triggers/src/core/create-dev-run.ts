@@ -1,6 +1,7 @@
-import {randomUUID} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import type {TriggerDto} from '@shipfox/api-definitions-dto';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
+import {logger} from '@shipfox/node-opentelemetry';
 import {getTriggerEventById} from '#db/event-queries.js';
 import {devRunsCount} from '#metrics/instance.js';
 import {evaluateTriggerFilter} from './config.js';
@@ -26,8 +27,10 @@ export interface CreateDevRunParams {
   workflows: WorkflowsModuleClient;
   workspaceId: string;
   projectId: string;
-  /** Branch or tag name the definition is read from. */
-  ref: string;
+  /** Branch or tag name the definition is read from. Optional for local content. */
+  ref?: string | undefined;
+  /** Workflow YAML supplied by the caller instead of fetched from the repository. */
+  content?: string | undefined;
   /** Commit the ref resolved to when the picker listed the file; a mismatch answers `ref-moved`. */
   commit?: string | undefined;
   configPath: string;
@@ -44,7 +47,11 @@ export type DevRunTriggerKind = 'manual' | 'cron' | 'replay';
 
 export interface DevRunResult {
   id: string;
+  ref?: string | undefined;
   commit: string;
+  warnings?: Awaited<
+    ReturnType<CreateDevRunParams['definitions']['resolveDefinitionAtRef']>
+  >['warnings'];
 }
 
 /**
@@ -60,16 +67,19 @@ export interface DevRunResult {
 export async function createDevRun(params: CreateDevRunParams): Promise<DevRunResult> {
   const resolved = await params.definitions.resolveDefinitionAtRef({
     projectId: params.projectId,
-    ref: params.ref,
+    ...(params.ref === undefined ? {} : {ref: params.ref}),
+    ...(params.content === undefined ? {} : {content: params.content}),
     configPath: params.configPath,
     ...(params.commit === undefined ? {} : {expectedCommit: params.commit}),
   });
+  const definitionSource = params.content === undefined ? 'ref' : 'local';
+  const resolvedRef = resolved.ref ?? params.ref ?? missingResolvedRef();
 
   const trigger = Object.hasOwn(resolved.triggers, params.triggerKey)
     ? resolved.triggers[params.triggerKey]
     : undefined;
   if (!trigger) {
-    throw new DevRunTriggerNotFoundError(params.triggerKey);
+    throw new DevRunTriggerNotFoundError(params.triggerKey, Object.keys(resolved.triggers));
   }
 
   const built = await buildDevRunTrigger(trigger, params);
@@ -96,7 +106,7 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     const refusal = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await refusal.devFiltered(params.triggerKey, resolved.workflow.id);
     await refusal.discarded();
-    devRunsCount.add(1, {trigger_kind: built.triggerKind, outcome: 'filtered'});
+    recordDevRunMetric(built.triggerKind, 'filtered', definitionSource);
     throw new DevRunTriggerFilteredError(built.reason);
   }
 
@@ -109,17 +119,32 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
       built.diagnostic,
     );
     await refusal.allErrored(1);
-    devRunsCount.add(1, {trigger_kind: built.triggerKind, outcome: 'errored'});
+    recordDevRunMetric(built.triggerKind, 'errored', definitionSource);
     throw new DevRunTriggerFilteredError(built.reason);
   }
 
-  const run = await startDevRunAndRecordFailure(params, resolved, built, historyBase);
+  const run = await startDevRunAndRecordFailure(params, resolved, built, historyBase, resolvedRef);
 
   const history = await beginTriggerHistory({...historyBase, eventRef: run.id});
   await history.devTriggered(params.triggerKey, resolved.workflow.id, run);
-  devRunsCount.add(1, {trigger_kind: built.triggerKind, outcome: 'routed'});
+  recordDevRunMetric(built.triggerKind, 'routed', definitionSource);
   await history.routed(1);
-  return {id: run.id, commit: resolved.commit};
+  logger().info(
+    {
+      workflowRunId: run.id,
+      definition_source: definitionSource,
+      content_sha256: createHash('sha256')
+        .update(resolved.sourceSnapshot.content, 'utf8')
+        .digest('hex'),
+    },
+    'dev run created',
+  );
+  return {
+    id: run.id,
+    ref: resolvedRef,
+    commit: resolved.commit,
+    warnings: resolved.warnings,
+  };
 }
 
 async function startDevRunAndRecordFailure(
@@ -127,6 +152,7 @@ async function startDevRunAndRecordFailure(
   resolved: Awaited<ReturnType<CreateDevRunParams['definitions']['resolveDefinitionAtRef']>>,
   built: BuiltDevRunTrigger,
   historyBase: Omit<Parameters<typeof beginTriggerHistory>[0], 'eventRef'>,
+  resolvedRef: string,
 ): Promise<{id: string; name: string}> {
   try {
     return await params.workflows.startDevRun({
@@ -136,9 +162,10 @@ async function startDevRunAndRecordFailure(
       model: resolved.model,
       sourceSnapshot: resolved.sourceSnapshot,
       devSource: {
-        ref: params.ref,
+        ref: resolvedRef,
         commit: resolved.commit,
         configPath: params.configPath,
+        definitionSource: params.content === undefined ? 'ref' : 'local',
         initiatedByUserId: params.userId,
         ...(built.replaySource === undefined
           ? {}
@@ -159,14 +186,38 @@ async function startDevRunAndRecordFailure(
       startDevRunDiagnostic(error),
     );
     if (isPermanentStartDevRunError(error)) {
-      devRunsCount.add(1, {trigger_kind: built.triggerKind, outcome: 'errored'});
+      recordDevRunMetric(
+        built.triggerKind,
+        'errored',
+        params.content === undefined ? 'ref' : 'local',
+      );
       await failure.allErrored(1);
     } else {
-      devRunsCount.add(1, {trigger_kind: built.triggerKind, outcome: 'failed'});
+      recordDevRunMetric(
+        built.triggerKind,
+        'failed',
+        params.content === undefined ? 'ref' : 'local',
+      );
       await failure.failed(1);
     }
     throw error;
   }
+}
+
+function missingResolvedRef(): never {
+  throw new Error('Definition resolution did not return a ref');
+}
+
+function recordDevRunMetric(
+  triggerKind: DevRunTriggerKind,
+  outcome: 'routed' | 'errored' | 'failed' | 'filtered',
+  definitionSource: 'ref' | 'local',
+): void {
+  devRunsCount.add(1, {
+    trigger_kind: triggerKind,
+    outcome,
+    definition_source: definitionSource,
+  });
 }
 
 interface ReplaySource {
@@ -271,7 +322,12 @@ async function buildReplayTrigger(
     sourceEvent.source !== trigger.source ||
     (trigger.event !== undefined && sourceEvent.event !== trigger.event)
   ) {
-    throw new DevRunReplayEventMismatchError(params.replayEventId);
+    throw new DevRunReplayEventMismatchError(params.replayEventId, {
+      eventSource: sourceEvent.source,
+      eventName: sourceEvent.event,
+      triggerSource: trigger.source,
+      ...(trigger.event === undefined ? {} : {triggerEvent: trigger.event}),
+    });
   }
   // Integration rows always carry provider and delivery id (dispatch requires
   // them); a pruned payload is the expected unavailability: `replayable`

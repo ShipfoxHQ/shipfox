@@ -40,6 +40,7 @@ export const cronFiredCount = meter.createCounter<{outcome: 'fired' | 'errored'}
 export const devRunsCount = meter.createCounter<{
   trigger_kind: 'manual' | 'cron' | 'replay';
   outcome: 'routed' | 'errored' | 'failed' | 'filtered';
+  definition_source: 'ref' | 'local';
 }>('triggers_dev_runs', {
   description: 'Dev runs started from POST /dev-runs by trigger kind and outcome',
 });
