@@ -27,7 +27,6 @@ it('keeps the protocol default explicit', () => {
 });
 
 const validEnrollment = {
-  capabilities: undefined,
   labels: ['linux'],
   provider_kind: 'docker',
   protocol_version: '1',
@@ -49,4 +48,16 @@ test('rejects runner enrollment above the shared maximum label count', () => {
   });
 
   expect(result.success).toBe(false);
+});
+
+test('accepts capabilities from deployed runners for compatibility', () => {
+  const result = runnerEnrollmentBodySchema.safeParse({
+    ...validEnrollment,
+    capabilities: {harnesses: {pi: {tools: ['read']}}},
+  });
+
+  expect(result.success).toBe(true);
+  if (result.success) {
+    expect(result.data).not.toHaveProperty('capabilities');
+  }
 });

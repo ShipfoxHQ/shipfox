@@ -115,7 +115,8 @@ export const exchangeRunnerBootstrapRoute = defineRoute({
 export const enrollRunnerRoute = defineRoute({
   method: 'POST',
   path: '/enrollment',
-  description: 'Declare the authenticated runner instance labels and protocol capabilities',
+  description:
+    'Declare the authenticated runner instance labels, provider kind, and protocol version',
   schema: {body: runnerEnrollmentBodySchema, response: {200: runnerEnrollmentResponseSchema}},
   preHandler: authenticateRunnerControlSession,
   errorHandler: (error) => {
@@ -129,7 +130,6 @@ export const enrollRunnerRoute = defineRoute({
       runnerInstanceId: session.runnerInstanceId,
       provisionerId: session.provisionerId,
       labels: request.body.labels,
-      ...(request.body.capabilities ? {capabilities: request.body.capabilities} : {}),
       providerKind: request.body.provider_kind,
       protocolVersion: request.body.protocol_version,
     });

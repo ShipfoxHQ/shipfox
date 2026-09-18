@@ -568,7 +568,6 @@ async function initializeManagedRunnerSession(
   const enrollmentConfig = managedRunnerEnrollmentConfig();
   const enrollmentActivationToken = await enrollRunnerControlSession({
     controlSessionToken,
-    capabilities: runnerToolCapabilities(),
     providerKind: enrollmentConfig.providerKind,
     protocolVersion: enrollmentConfig.protocolVersion,
   });

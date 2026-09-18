@@ -138,6 +138,7 @@ describe('runner enrollment control plane', () => {
       headers: {authorization: `Bearer ${controlToken}`},
       payload: {
         labels: ['Linux', 'linux', 'shipfox-managed'],
+        capabilities: {harnesses: {pi: {tools: ['read']}}},
         provider_kind: 'docker',
         protocol_version: '1',
       },
@@ -164,6 +165,7 @@ describe('runner enrollment control plane', () => {
       launchKind: 'warm',
       state: 'running',
       protocolVersion: '1',
+      capabilities: null,
     });
     const [session] = await db()
       .select()
