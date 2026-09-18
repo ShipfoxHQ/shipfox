@@ -1,4 +1,5 @@
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
+import type {AgentAccessTool} from '@shipfox/api-agent-access';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {
   type AuthInterModuleClient,
@@ -451,7 +452,28 @@ describe('defaultModules', () => {
   });
 
   it('forwards additional Agent Access tools from the composition options', async () => {
-    const additionalTools = [] as const;
+    const additionalTool: AgentAccessTool = {
+      name: 'billing_get_quota',
+      description: 'Returns the current workspace quota.',
+      inputSchema: {type: 'object', properties: {}, additionalProperties: false},
+      outputSchema: {
+        type: 'object',
+        properties: {
+          ok: {type: 'boolean'},
+          result: {
+            type: 'object',
+            properties: {quota: {type: 'number'}},
+            required: ['quota'],
+            additionalProperties: false,
+          },
+        },
+        required: ['ok'],
+        additionalProperties: false,
+      },
+      annotations: {readOnlyHint: true},
+      execute: vi.fn(() => ({ok: true, result: {quota: 100}})),
+    };
+    const additionalTools = [additionalTool] as const;
 
     await defaultModules({agentAccess: {additionalTools}});
 
