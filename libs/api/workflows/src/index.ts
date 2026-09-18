@@ -45,7 +45,6 @@ import {
   onRunnerJobClaimed,
   onRunnerJobLeaseExpired,
   onStepAttemptTerminatedFailureAnnotation,
-  onWorkflowRunAttemptCreated,
   onWorkflowRunCancelled,
   onWorkflowRunConcurrencyAcquired,
   onWorkflowRunConcurrencyHolderCancellationRequested,
@@ -159,12 +158,9 @@ export function createWorkflowsModule({
   workspaces: WorkspacesInterModuleClient;
 }): ShipfoxModule {
   const toolStepExecutor = createToolStepExecutor({integrations, logs});
+  const onWorkflowRunAttemptCreated = createOnWorkflowRunAttemptCreated(agent);
   const concurrencyReconciler = createWorkflowConcurrencyReconciler({
-    startOrchestration: (input) =>
-      onWorkflowRunAttemptCreated({
-        ...input,
-        attempt: input.attempt,
-      }),
+    startOrchestration: onWorkflowRunAttemptCreated,
   });
 
   return {
@@ -191,7 +187,7 @@ export function createWorkflowsModule({
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
     ],
     subscribers: [
-      subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, createOnWorkflowRunAttemptCreated(agent)),
+      subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, onWorkflowRunAttemptCreated),
       subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
       subscriber(
         WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,

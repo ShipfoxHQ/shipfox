@@ -1,5 +1,8 @@
 import {randomUUID} from 'node:crypto';
-import {WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED} from '@shipfox/api-workflows-dto';
+import {
+  WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+} from '@shipfox/api-workflows-dto';
 import {and, asc, eq, inArray, isNull, notExists, or, sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
 import {
@@ -22,6 +25,7 @@ import {
 } from '#metrics/instance.js';
 import {db, type Tx} from './db.js';
 import {writeWorkflowsOutboxEvent} from './outbox-writes.js';
+import {workflowsOutbox} from './schema/outbox.js';
 import {
   toWorkflowConcurrencyClaim,
   workflowConcurrencyClaims,
@@ -45,6 +49,7 @@ export interface WorkflowConcurrencyRepairCandidate {
   readonly projectId: string;
   readonly definitionId: string;
   readonly attempt: number;
+  readonly carryOverFromWorkflowRunAttemptId: string | null;
   readonly claimState: WorkflowConcurrencyClaimState;
   readonly attemptStatus: string;
   readonly runStatus: string;
@@ -288,6 +293,7 @@ export async function listWorkflowConcurrencyRepairCandidates(
   limit: number,
 ): Promise<WorkflowConcurrencyRepairCandidatePage> {
   const acquiredClaims = alias(workflowConcurrencyClaims, 'repair_acquired_claim');
+  const sourceAttempts = alias(workflowRunAttempts, 'repair_source_attempt');
   const rows = await db()
     .select({
       claimId: workflowConcurrencyClaims.id,
@@ -297,6 +303,7 @@ export async function listWorkflowConcurrencyRepairCandidates(
       projectId: workflowConcurrencyClaims.projectId,
       definitionId: workflowRuns.definitionId,
       attempt: workflowRunAttempts.attempt,
+      carryOverFromWorkflowRunAttemptId: sourceAttempts.id,
       claimState: workflowConcurrencyClaims.state,
       attemptStatus: workflowRunAttempts.status,
       runStatus: workflowRuns.status,
@@ -307,6 +314,14 @@ export async function listWorkflowConcurrencyRepairCandidates(
       eq(workflowRunAttempts.id, workflowConcurrencyClaims.workflowRunAttemptId),
     )
     .innerJoin(workflowRuns, eq(workflowRuns.id, workflowConcurrencyClaims.workflowRunId))
+    .leftJoin(
+      sourceAttempts,
+      and(
+        eq(workflowRunAttempts.rerunMode, 'failed'),
+        eq(sourceAttempts.workflowRunId, workflowRunAttempts.workflowRunId),
+        sql`${sourceAttempts.attempt} = ${workflowRunAttempts.attempt} - 1`,
+      ),
+    )
     .where(
       or(
         and(
@@ -314,7 +329,22 @@ export async function listWorkflowConcurrencyRepairCandidates(
           or(
             inArray(workflowRunAttempts.status, TERMINAL_RUN_STATUSES),
             inArray(workflowRuns.status, TERMINAL_RUN_STATUSES),
-            eq(workflowRunAttempts.status, 'pending'),
+            and(
+              inArray(workflowRunAttempts.status, ['pending', 'waiting']),
+              notExists(
+                db()
+                  .select({id: workflowsOutbox.id})
+                  .from(workflowsOutbox)
+                  .where(
+                    and(
+                      eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED),
+                      sql`${workflowsOutbox.payload} ->> 'workflowRunAttemptId' = ${workflowRunAttempts.id}::text`,
+                      isNull(workflowsOutbox.dispatchedAt),
+                      isNull(workflowsOutbox.deadLetteredAt),
+                    ),
+                  ),
+              ),
+            ),
           ),
         ),
         and(
@@ -374,7 +404,7 @@ async function releaseWorkflowConcurrencyClaimForAttemptInTransaction(
     .from(workflowConcurrencyClaims)
     .where(eq(workflowConcurrencyClaims.workflowRunAttemptId, workflowRunAttemptId))
     .limit(1);
-  if (claimReference?.state !== 'acquired') {
+  if (claimReference?.state !== 'acquired' && claimReference?.state !== 'waiting') {
     return {changed: false, promotedClaim: null};
   }
 
@@ -389,7 +419,10 @@ async function releaseWorkflowConcurrencyClaimForAttemptInTransaction(
     .innerJoin(workflowRuns, eq(workflowRuns.id, workflowConcurrencyClaims.workflowRunId))
     .where(eq(workflowConcurrencyClaims.id, claimReference.id))
     .limit(1);
-  if (claim?.workflow_concurrency_claims.state !== 'acquired') {
+  if (
+    claim?.workflow_concurrency_claims.state !== 'acquired' &&
+    claim?.workflow_concurrency_claims.state !== 'waiting'
+  ) {
     return {changed: false, promotedClaim: null};
   }
   const claimRow = claim.workflow_concurrency_claims;
@@ -407,6 +440,10 @@ async function releaseWorkflowConcurrencyClaimForAttemptInTransaction(
     .update(workflowConcurrencyClaims)
     .set({state: 'released', releasedAt: now, stateChangedAt: now, updatedAt: now})
     .where(eq(workflowConcurrencyClaims.id, claimRow.id));
+
+  if (claimRow.state === 'waiting') {
+    return {changed: true, promotedClaim: null};
+  }
 
   const [waitingClaim] = await tx
     .select()
@@ -427,9 +464,16 @@ async function releaseWorkflowConcurrencyClaimForAttemptInTransaction(
     .limit(1)
     .for('update');
 
-  const promotedClaim = waitingClaim
-    ? await promoteWorkflowConcurrencyClaim(waitingClaim, now, tx)
-    : null;
+  const promotedClaim =
+    waitingClaim && !(await isWorkflowConcurrencyClaimTerminal(waitingClaim, tx))
+      ? await promoteWorkflowConcurrencyClaim(waitingClaim, now, tx)
+      : null;
+  if (waitingClaim && !promotedClaim) {
+    await tx
+      .update(workflowConcurrencyClaims)
+      .set({state: 'released', releasedAt: now, stateChangedAt: now, updatedAt: now})
+      .where(eq(workflowConcurrencyClaims.id, waitingClaim.id));
+  }
   if (promotedClaim) {
     await writeWorkflowConcurrencyAcquiredEvent(tx, promotedClaim);
   }
@@ -480,6 +524,14 @@ async function promoteWorkflowConcurrencyWaiterInTransaction(
   if (currentWaitingClaim?.state !== 'waiting') {
     return {changed: false, promotedClaim: null};
   }
+  if (await isWorkflowConcurrencyClaimTerminal(currentWaitingClaim, tx)) {
+    const now = new Date();
+    await tx
+      .update(workflowConcurrencyClaims)
+      .set({state: 'released', releasedAt: now, stateChangedAt: now, updatedAt: now})
+      .where(eq(workflowConcurrencyClaims.id, currentWaitingClaim.id));
+    return {changed: true, promotedClaim: null};
+  }
   const promotedClaim = await promoteWorkflowConcurrencyClaim(currentWaitingClaim, new Date(), tx);
   await writeWorkflowConcurrencyAcquiredEvent(tx, promotedClaim);
   return {changed: true, promotedClaim};
@@ -513,6 +565,30 @@ async function promoteWorkflowConcurrencyClaim(
     .returning();
   if (!updated) throw new Error(`Waiting concurrency claim disappeared: ${claim.id}`);
   return toWorkflowConcurrencyClaim(updated);
+}
+
+async function isWorkflowConcurrencyClaimTerminal(
+  claim: typeof workflowConcurrencyClaims.$inferSelect,
+  tx: Tx,
+): Promise<boolean> {
+  const [statuses] = await tx
+    .select({attemptStatus: workflowRunAttempts.status, runStatus: workflowRuns.status})
+    .from(workflowRunAttempts)
+    .innerJoin(workflowRuns, eq(workflowRuns.id, workflowRunAttempts.workflowRunId))
+    .where(
+      and(
+        eq(workflowRunAttempts.id, claim.workflowRunAttemptId),
+        eq(workflowRuns.id, claim.workflowRunId),
+      ),
+    )
+    .limit(1);
+  if (!statuses) return false;
+  return (
+    TERMINAL_RUN_STATUSES.includes(
+      statuses.attemptStatus as (typeof TERMINAL_RUN_STATUSES)[number],
+    ) ||
+    TERMINAL_RUN_STATUSES.includes(statuses.runStatus as (typeof TERMINAL_RUN_STATUSES)[number])
+  );
 }
 
 async function writeWorkflowConcurrencyAcquiredEvent(

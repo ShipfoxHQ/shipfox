@@ -21,6 +21,7 @@ export interface WorkflowConcurrencyOrchestrationStart {
   readonly projectId: string;
   readonly definitionId: string;
   readonly attempt: number;
+  readonly carryOverFromWorkflowRunAttemptId?: string | undefined;
 }
 
 export interface WorkflowConcurrencyReconcilerOptions {
@@ -138,6 +139,9 @@ async function repairWorkflowConcurrencyCandidate(params: {
     projectId: candidate.projectId,
     definitionId: candidate.definitionId,
     attempt: candidate.attempt,
+    ...(candidate.carryOverFromWorkflowRunAttemptId === null
+      ? {}
+      : {carryOverFromWorkflowRunAttemptId: candidate.carryOverFromWorkflowRunAttemptId}),
   });
   recordWorkflowConcurrencyRepair(category, 'repaired');
   return true;
@@ -147,7 +151,7 @@ function repairCategory(
   candidate: WorkflowConcurrencyRepairCandidate,
 ): 'terminal_holder' | 'orphaned_group' | 'superseded_attempt' | 'acquired_without_orchestration' {
   if (
-    candidate.claimState === 'acquired' &&
+    (candidate.claimState === 'acquired' || candidate.claimState === 'waiting') &&
     (isTerminal(candidate.attemptStatus) || isTerminal(candidate.runStatus))
   ) {
     return 'terminal_holder';

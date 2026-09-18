@@ -29,18 +29,25 @@ describe('workflow concurrency reconciler', () => {
     mocks.list.mockResolvedValue({candidates: []});
   });
 
-  test('repairs each bounded drift category and starts acquired pending attempts', async () => {
+  test('repairs each bounded drift category and restarts acquired attempts', async () => {
+    const carryOverFromWorkflowRunAttemptId = crypto.randomUUID();
     const candidates = [
       candidate({claimState: 'acquired', attemptStatus: 'failed', runStatus: 'failed'}),
       candidate({claimState: 'waiting', attemptStatus: 'waiting', runStatus: 'waiting'}),
       candidate({claimState: 'superseded', attemptStatus: 'running', runStatus: 'running'}),
       candidate({claimState: 'acquired', attemptStatus: 'pending', runStatus: 'pending'}),
+      candidate({
+        claimState: 'acquired',
+        attemptStatus: 'waiting',
+        runStatus: 'waiting',
+        carryOverFromWorkflowRunAttemptId,
+      }),
     ];
     mocks.list.mockResolvedValue({candidates});
     const starts: unknown[] = [];
 
     const repaired = await runWorkflowConcurrencyReconcilerCycle({
-      batchSize: 4,
+      batchSize: 5,
       signal: new AbortController().signal,
       startOrchestration: (input) => Promise.resolve(starts.push(input)).then(() => undefined),
     });
@@ -53,11 +60,34 @@ describe('workflow concurrency reconciler', () => {
     });
     expect(starts).toEqual([
       expect.objectContaining({workflowRunAttemptId: candidates[3]?.workflowRunAttemptId}),
+      expect.objectContaining({
+        workflowRunAttemptId: candidates[4]?.workflowRunAttemptId,
+        carryOverFromWorkflowRunAttemptId,
+      }),
     ]);
     expect(mocks.metrics).toHaveBeenCalledWith('terminal_holder', 'repaired');
     expect(mocks.metrics).toHaveBeenCalledWith('orphaned_group', 'repaired');
     expect(mocks.metrics).toHaveBeenCalledWith('superseded_attempt', 'repaired');
     expect(mocks.metrics).toHaveBeenCalledWith('acquired_without_orchestration', 'repaired');
+  });
+
+  test('releases a terminal waiting claim instead of promoting it', async () => {
+    const terminalWaiter = candidate({
+      claimState: 'waiting',
+      attemptStatus: 'cancelled',
+      runStatus: 'cancelled',
+    });
+    mocks.list.mockResolvedValue({candidates: [terminalWaiter]});
+
+    await runWorkflowConcurrencyReconcilerCycle({
+      batchSize: 1,
+      signal: new AbortController().signal,
+      startOrchestration: () => Promise.resolve(),
+    });
+
+    expect(mocks.release).toHaveBeenCalledWith(terminalWaiter.workflowRunAttemptId);
+    expect(mocks.promote).not.toHaveBeenCalled();
+    expect(mocks.metrics).toHaveBeenCalledWith('terminal_holder', 'repaired');
   });
 
   test('records a failed repair and stops later candidates', async () => {
@@ -102,6 +132,7 @@ function candidate(input: {
   claimState: 'acquired' | 'waiting' | 'superseded';
   attemptStatus: string;
   runStatus: string;
+  carryOverFromWorkflowRunAttemptId?: string | null;
 }) {
   return {
     claimId: crypto.randomUUID(),
@@ -111,6 +142,7 @@ function candidate(input: {
     projectId: crypto.randomUUID(),
     definitionId: crypto.randomUUID(),
     attempt: 1,
+    carryOverFromWorkflowRunAttemptId: null,
     ...input,
   };
 }

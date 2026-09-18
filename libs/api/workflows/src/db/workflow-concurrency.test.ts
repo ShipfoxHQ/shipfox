@@ -1,5 +1,8 @@
-import {WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED} from '@shipfox/api-workflows-dto';
-import {and, eq} from 'drizzle-orm';
+import {
+  WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+} from '@shipfox/api-workflows-dto';
+import {and, eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
 import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
@@ -83,6 +86,58 @@ describe('workflow concurrency claims', () => {
     );
   });
 
+  test('releases a terminal waiter without disturbing the holder', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const [holderRun, waiterRun] = await Promise.all([
+      workflowRunFactory.create({projectId, definitionId}),
+      workflowRunFactory.create({projectId, definitionId}),
+    ]);
+    const [holderAttempt = '', waiterAttempt = ''] = await Promise.all(
+      [holderRun.id, waiterRun.id].map(async (workflowRunId) => {
+        const [attempt] = await db()
+          .select({id: workflowRunAttempts.id})
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.workflowRunId, workflowRunId));
+        return attempt?.id ?? '';
+      }),
+    );
+    const holder = await admitWorkflowConcurrencyClaim({
+      workflowRunId: holderRun.id,
+      workflowRunAttemptId: holderAttempt,
+      concurrency: {group: 'terminal-waiter', scope: 'workflow', cancelInProgress: false},
+    });
+    const waiter = await admitWorkflowConcurrencyClaim({
+      workflowRunId: waiterRun.id,
+      workflowRunAttemptId: waiterAttempt,
+      concurrency: {group: 'terminal-waiter', scope: 'workflow', cancelInProgress: false},
+    });
+
+    const finishedAt = new Date();
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'cancelled', finishedAt})
+      .where(eq(workflowRunAttempts.id, waiterAttempt));
+    await db()
+      .update(workflowRuns)
+      .set({status: 'cancelled', finishedAt})
+      .where(eq(workflowRuns.id, waiterRun.id));
+
+    const repaired = await releaseWorkflowConcurrencyClaimForAttempt(waiterAttempt);
+    const claims = await db()
+      .select({id: workflowConcurrencyClaims.id, state: workflowConcurrencyClaims.state})
+      .from(workflowConcurrencyClaims)
+      .where(eq(workflowConcurrencyClaims.projectId, projectId));
+
+    expect(repaired).toEqual({changed: true, promotedClaim: null});
+    expect(claims).toEqual(
+      expect.arrayContaining([
+        {id: holder.claim.id, state: 'acquired'},
+        {id: waiter.claim.id, state: 'released'},
+      ]),
+    );
+  });
+
   test('promotes an orphaned waiter and is idempotent', async () => {
     const projectId = crypto.randomUUID();
     const definitionId = crypto.randomUUID();
@@ -161,6 +216,7 @@ describe('workflow concurrency claims', () => {
     const superseded = await admitWorkflowConcurrencyClaim(params(1, 'superseded'));
     await admitWorkflowConcurrencyClaim(params(2, 'superseded'));
     const acquiredPending = await admitWorkflowConcurrencyClaim(params(3, 'acquired-pending'));
+    await markAttemptCreatedEventDispatched(acquiredPending.claim.workflowRunAttemptId);
 
     const page = await listWorkflowConcurrencyRepairCandidates(100);
 
@@ -177,6 +233,126 @@ describe('workflow concurrency claims', () => {
           claimState: 'acquired',
           attemptStatus: 'pending',
           runStatus: 'pending',
+        }),
+      ]),
+    );
+  });
+
+  test('waits for the normal attempt-created delivery before repairing orchestration', async () => {
+    const run = await workflowRunFactory.create();
+    const [attempt] = await db()
+      .select({id: workflowRunAttempts.id})
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.workflowRunId, run.id));
+    const admitted = await admitWorkflowConcurrencyClaim({
+      workflowRunId: run.id,
+      workflowRunAttemptId: attempt?.id ?? '',
+      concurrency: {group: 'pending-start', scope: 'workflow', cancelInProgress: false},
+    });
+
+    const beforeDispatch = await listWorkflowConcurrencyRepairCandidates(100);
+    expect(beforeDispatch.candidates).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({claimId: admitted.claim.id})]),
+    );
+
+    await markAttemptCreatedEventDispatched(admitted.claim.workflowRunAttemptId);
+    const afterDispatch = await listWorkflowConcurrencyRepairCandidates(100);
+    expect(afterDispatch.candidates).toEqual(
+      expect.arrayContaining([expect.objectContaining({claimId: admitted.claim.id})]),
+    );
+  });
+
+  test('reconstructs failed-rerun session carry-over for orchestration repair', async () => {
+    const run = await workflowRunFactory.create();
+    const [sourceAttempt] = await db()
+      .select()
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.workflowRunId, run.id));
+    if (!sourceAttempt) throw new Error('Expected source attempt');
+    const finishedAt = new Date();
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'failed', finishedAt})
+      .where(eq(workflowRunAttempts.id, sourceAttempt.id));
+    await db()
+      .update(workflowRuns)
+      .set({status: 'pending', currentAttempt: 2, finishedAt: null})
+      .where(eq(workflowRuns.id, run.id));
+    const [rerunAttempt] = await db()
+      .insert(workflowRunAttempts)
+      .values({workflowRunId: run.id, attempt: 2, rerunMode: 'failed'})
+      .returning({id: workflowRunAttempts.id});
+    if (!rerunAttempt) throw new Error('Expected rerun attempt');
+    const admitted = await admitWorkflowConcurrencyClaim({
+      workflowRunId: run.id,
+      workflowRunAttemptId: rerunAttempt.id,
+      concurrency: {group: 'failed-rerun-start', scope: 'workflow', cancelInProgress: false},
+    });
+
+    const page = await listWorkflowConcurrencyRepairCandidates(100);
+    expect(page.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          claimId: admitted.claim.id,
+          carryOverFromWorkflowRunAttemptId: sourceAttempt.id,
+        }),
+      ]),
+    );
+  });
+
+  test('restarts a promoted attempt that remains waiting', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const [holderRun, waiterRun] = await Promise.all([
+      workflowRunFactory.create({projectId, definitionId}),
+      workflowRunFactory.create({projectId, definitionId}),
+    ]);
+    const [holderAttempt = '', waiterAttempt = ''] = await Promise.all(
+      [holderRun.id, waiterRun.id].map(async (workflowRunId) => {
+        const [attempt] = await db()
+          .select({id: workflowRunAttempts.id})
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.workflowRunId, workflowRunId));
+        return attempt?.id ?? '';
+      }),
+    );
+    await admitWorkflowConcurrencyClaim({
+      workflowRunId: holderRun.id,
+      workflowRunAttemptId: holderAttempt,
+      concurrency: {group: 'promoted-start', scope: 'workflow', cancelInProgress: false},
+    });
+    const waiter = await admitWorkflowConcurrencyClaim({
+      workflowRunId: waiterRun.id,
+      workflowRunAttemptId: waiterAttempt,
+      concurrency: {group: 'promoted-start', scope: 'workflow', cancelInProgress: false},
+    });
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'waiting'})
+      .where(eq(workflowRunAttempts.id, waiterAttempt));
+    await db()
+      .update(workflowRuns)
+      .set({status: 'waiting'})
+      .where(eq(workflowRuns.id, waiterRun.id));
+    await markAttemptCreatedEventDispatched(waiterAttempt);
+    const finishedAt = new Date();
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'succeeded', finishedAt})
+      .where(eq(workflowRunAttempts.id, holderAttempt));
+    await db()
+      .update(workflowRuns)
+      .set({status: 'succeeded', finishedAt})
+      .where(eq(workflowRuns.id, holderRun.id));
+    await releaseWorkflowConcurrencyClaimForAttempt(holderAttempt);
+
+    const page = await listWorkflowConcurrencyRepairCandidates(100);
+    expect(page.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          claimId: waiter.claim.id,
+          claimState: 'acquired',
+          attemptStatus: 'waiting',
         }),
       ]),
     );
@@ -205,6 +381,11 @@ describe('workflow concurrency claims', () => {
     const first = await admitWorkflowConcurrencyClaim(params(0, 'page-first'));
     const second = await admitWorkflowConcurrencyClaim(params(1, 'page-second'));
     const third = await admitWorkflowConcurrencyClaim(params(2, 'page-third'));
+    await Promise.all(
+      [first, second, third].map((result) =>
+        markAttemptCreatedEventDispatched(result.claim.workflowRunAttemptId),
+      ),
+    );
 
     await db()
       .update(workflowConcurrencyClaims)
@@ -447,3 +628,15 @@ describe('workflow concurrency claims', () => {
     await expect(admission).rejects.toThrow('does not belong to run');
   });
 });
+
+async function markAttemptCreatedEventDispatched(workflowRunAttemptId: string): Promise<void> {
+  await db()
+    .update(workflowsOutbox)
+    .set({dispatchedAt: new Date()})
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED),
+        sql`${workflowsOutbox.payload} ->> 'workflowRunAttemptId' = ${workflowRunAttemptId}`,
+      ),
+    );
+}
