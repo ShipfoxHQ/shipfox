@@ -14,9 +14,11 @@ import {
   useAuthState,
 } from '@shipfox/client-shell/runtime';
 import {ShellProviders} from '@shipfox/client-shell/testing';
+import {DataTable} from '@shipfox/react-ui/data-table';
 import {DropdownMenuItem} from '@shipfox/react-ui/dropdown-menu';
 import {QueryClient} from '@tanstack/react-query';
 import {RouterProvider} from '@tanstack/react-router';
+import {createColumnHelper, tableFeatures, useTable} from '@tanstack/react-table';
 import {createStore} from 'jotai';
 import {useState} from 'react';
 import {createRoot} from 'react-dom/client';
@@ -46,6 +48,28 @@ export const auth: AuthStateValue = {
 export const workspaceSetup: NonNullable<RouterContext['workspaceSetup']> = async () => ({
   hideProjectNavigation: false,
 });
+
+interface PackedTableRow {
+  id: string;
+  name: string;
+}
+
+const packedTableFeatures = tableFeatures({});
+const packedTableColumnHelper = createColumnHelper<typeof packedTableFeatures, PackedTableRow>();
+const packedTableColumns = packedTableColumnHelper.columns([
+  packedTableColumnHelper.accessor('name', {header: 'Workflow'}),
+]);
+
+export function PackedDataTableFixture() {
+  const table = useTable({
+    columns: packedTableColumns,
+    data: [{id: 'packed-workflow', name: 'Packed workflow'}],
+    features: packedTableFeatures,
+    getRowId: (row) => row.id,
+  });
+
+  return <DataTable table={table} aria-label="Packed workflows" />;
+}
 
 function FixtureProjectBreadcrumb() {
   return null;

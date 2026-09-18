@@ -9,6 +9,7 @@ export * from './code-block/index.js';
 export * from './collapsible/index.js';
 export * from './combobox/index.js';
 export * from './command/index.js';
+export * from './data-table/index.js';
 export * from './date-picker/index.js';
 export * from './date-range-picker/index.js';
 export * from './dot/index.js';
