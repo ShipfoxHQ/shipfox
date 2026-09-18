@@ -140,6 +140,19 @@ describe('POST /dev-runs', () => {
     expect(pinnedLocalRes.statusCode).toBe(400);
   });
 
+  test('requires a ref when content is omitted', async () => {
+    const {ref: _ref, commit: _commit, ...bodyWithoutSource} = VALID_BODY;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev-runs',
+      payload: bodyWithoutSource,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(createDevRunMock).not.toHaveBeenCalled();
+  });
+
   test('returns content-too-large for content above the domain limit', async () => {
     createDevRunMock.mockRejectedValue(
       createInterModuleKnownError(

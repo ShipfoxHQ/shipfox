@@ -298,10 +298,11 @@ It also exports lower-level pieces for tests and advanced wiring:
   `TriggerSubscriptionNotFoundError`,
   `TriggerSubscriptionNotManualError`, or
   `TriggerWorkspaceMismatchError`.
-- `createDevRun()`: core function used by `POST /dev-runs`. Resolves the
-  definition at a git ref or from supplied YAML, fires a manual or cron trigger
-  without a subscription row, and journals the attempt. Returns the resolved
-  ref and definition warnings. Throws `DevRunTriggerNotFoundError`,
+- `createDevRun()`: core function used by `POST /dev-runs`. It resolves the
+  definition at a git ref or from supplied YAML and journals the attempt. It
+  fires a manual or cron trigger, or replays an integration event, without a
+  subscription row. Returns the resolved ref and definition warnings. Throws
+  `DevRunTriggerNotFoundError`,
   `DevRunInputsNotAllowedError`, or `DevRunReplayEventRequiredError` for
   integration triggers.
 - `ManualTriggerNotFoundError`: thrown by the route handler when the
