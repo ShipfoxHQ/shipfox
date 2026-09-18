@@ -150,6 +150,63 @@ export function WorkflowTable({workflows}: {workflows: Workflow[]}) {
 composition. `DataTable` uses them automatically for initial loading and empty
 results. Background refresh keeps current rows visible and sets `aria-busy`.
 
+#### Pagination
+
+`DataTablePagination` uses a controlled, data-source-neutral contract. Pass capability
+flags and callbacks from the feature that owns pagination. The component never
+accepts or stores an opaque cursor.
+
+```tsx
+<DataTablePagination
+  aria-label="Workflow pages"
+  canPreviousPage={previousCursor !== null}
+  canNextPage={nextCursor !== null}
+  onPreviousPage={() => navigateToCursor(previousCursor)}
+  onNextPage={() => navigateToCursor(nextCursor)}
+  pageLabel="Current result page"
+/>
+```
+
+Bounded client-side tables can pass `table.getCanPreviousPage()`,
+`table.getCanNextPage()`, `table.previousPage()`, and `table.nextPage()`.
+Add `pageSize`, `pageSizeOptions`, and `onPageSizeChange` together when users
+can control the page size.
+
+#### Row selection
+
+Use `DataTableSelectionHeader` and `DataTableSelectionCell` in a TanStack
+display column. Both helpers compose the shared `Checkbox`. The header affects
+selectable rows on the current loaded page and becomes indeterminate after a
+partial selection.
+
+```tsx
+const selectionColumn = columnHelper.display({
+  id: 'selection',
+  header: ({table}) => (
+    <DataTableSelectionHeader
+      table={table}
+      aria-label="Select current page workflows"
+    />
+  ),
+  cell: ({row}) => (
+    <DataTableSelectionCell
+      row={row}
+      aria-label={`Select ${row.original.name}`}
+    />
+  ),
+});
+```
+
+Configure `getRowId` with a stable ID from the application. `DataTable` maps
+TanStack selection to the existing `data-selected` row style. A checked row
+also contains a checkbox, so selection does not depend on color.
+
+`DataTableSelectionSummary` announces selected and total row counts through a
+polite live region. Selection resets after page, filter, and sorting changes by
+default. `shouldResetDataTableSelection()` exposes that policy for feature-owned
+state transitions. Only override a page reset when the feature owns a defined
+cross-page bulk action.
+
 Version 2 removes `Card`. Migrate `Card` to `Panel`, `CardHeader` to
 `PanelHeader variant="plain"`, `CardTitle` to `PanelTitle`, `CardContent` to
 `PanelBody`, `CardAction` to `PanelActions`, and `CardDescription` to a `Text`
