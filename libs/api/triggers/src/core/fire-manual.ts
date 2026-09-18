@@ -45,6 +45,8 @@ export interface FireManualSubscriptionParams {
 export async function fireManualTrigger(
   params: FireManualTriggerParams,
 ): Promise<{id: string; name: string; deduplicated: boolean}> {
+  assertExactlyOneManualTriggerCaller(params);
+
   const subscription = await getManualSubscriptionByDefinitionId(params.definitionId);
   if (!subscription || subscription.workspaceId !== params.workspaceId) {
     throw new ManualTriggerNotFoundError(params.definitionId);
@@ -65,6 +67,8 @@ export async function fireManualTrigger(
 export async function fireManualSubscription(
   params: FireManualSubscriptionParams,
 ): Promise<{id: string; name: string; deduplicated?: boolean}> {
+  assertExactlyOneManualTriggerCaller(params);
+
   const subscription = await getTriggerSubscriptionById(params.subscriptionId);
   if (!subscription) throw new TriggerSubscriptionNotFoundError(params.subscriptionId);
   if (subscription.source !== 'manual') {
@@ -138,4 +142,14 @@ export async function fireManualSubscription(
   eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
+}
+
+function assertExactlyOneManualTriggerCaller(
+  params: Pick<FireManualTriggerParams, 'userId' | 'parentRun'>,
+): void {
+  const hasUserId = params.userId !== undefined;
+  const hasParentRun = params.parentRun !== undefined;
+  if (hasUserId === hasParentRun) {
+    throw new TypeError('Exactly one of userId or parentRun must be provided');
+  }
 }

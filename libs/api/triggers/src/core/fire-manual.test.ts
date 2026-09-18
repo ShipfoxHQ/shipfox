@@ -32,6 +32,38 @@ describe('fireManualSubscription (trigger history)', () => {
     runWorkflow.mockReset();
   });
 
+  test.each([
+    ['neither', {}],
+    ['both', {userId: crypto.randomUUID(), parentRun: {runId: crypto.randomUUID()}}],
+  ] as const)('rejects %s caller forms without side effects', async (_label, caller) => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const callerError = 'Exactly one of userId or parentRun must be provided';
+
+    await expect(
+      fireManualTrigger({
+        workflows,
+        workspaceId: subscription.workspaceId,
+        definitionId: subscription.workflowDefinitionId,
+        ...caller,
+      }),
+    ).rejects.toThrow(callerError);
+    await expect(
+      fireManualSubscription({
+        workflows,
+        subscriptionId: subscription.id,
+        callerWorkspaceId: subscription.workspaceId,
+        ...caller,
+      }),
+    ).rejects.toThrow(callerError);
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(await eventsForWorkspace(subscription.workspaceId)).toHaveLength(0);
+  });
+
   test('passes a caller idempotency key through and returns deduplication', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
