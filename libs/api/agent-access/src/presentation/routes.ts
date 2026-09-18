@@ -37,7 +37,11 @@ import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';
-import {type AgentAccessTool, createAgentAccessFixtureTool} from '#core/tools.js';
+import {
+  type AgentAccessTool,
+  createAgentAccessFixtureTool,
+  createAgentAccessToolMap,
+} from '#core/tools.js';
 import {createAgentAccessWorkflowDiagnosticTools} from '#core/workflow-diagnostic-tools.js';
 import {recordAgentAccessAuthFailure} from '#metrics/index.js';
 import {type AgentAccessToolCallRecorder, createAgentAccessToolCallRecorder} from './audit.js';
@@ -47,6 +51,8 @@ export interface CreateAgentAccessRoutesOptions {
   apiPublicUrl?: string | undefined;
   protectedResourceMetadataUrl?: string | undefined;
   tools?: readonly AgentAccessTool[] | undefined;
+  /** Appended to the resolved tools; duplicate names fail during route creation. */
+  additionalTools?: readonly AgentAccessTool[] | undefined;
   rateLimiter?: AgentAccessRateLimiter | undefined;
   actionRateLimiter?: AgentAccessRateLimiter | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
@@ -62,7 +68,9 @@ export interface CreateAgentAccessRoutesOptions {
 }
 
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
-  const tools = options.tools ?? toolsFromProducerClients(options);
+  const resolvedTools = options.tools ?? toolsFromProducerClients(options);
+  const tools = [...resolvedTools, ...(options.additionalTools ?? [])];
+  createAgentAccessToolMap(tools);
   const rateLimiter = options.rateLimiter ?? createAgentAccessRateLimiter();
   const actionRateLimiter =
     options.actionRateLimiter ??

@@ -450,6 +450,25 @@ describe('defaultModules', () => {
     });
   });
 
+  it('forwards additional Agent Access tools from the composition options', async () => {
+    const additionalTools = [] as const;
+
+    await defaultModules({agentAccess: {additionalTools}});
+
+    expect(mocks.createAgentAccessModule).toHaveBeenCalledWith({
+      annotations: expect.any(Object),
+      apiPublicUrl: 'https://api.example.test',
+      auth: expect.any(Object),
+      definitions: expect.any(Object),
+      integrations: expect.any(Object),
+      logs: expect.any(Object),
+      projects: expect.any(Object),
+      triggers: expect.any(Object),
+      workflows: expect.any(Object),
+      additionalTools,
+    });
+  });
+
   it('uses the default Auth module factory when none is supplied', async () => {
     await defaultModules();
 
