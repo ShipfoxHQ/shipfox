@@ -1,5 +1,12 @@
 # @shipfox/react-ui
 
+## 2.5.0
+
+### Minor Changes
+
+- 15f7b58: Adds the accessible `@shipfox/react-ui/checkbox` subpath with controlled checked, unchecked, and indeterminate states, plus form, disabled, and focus support.
+- 3d1afa1: Adds the DataTable renderer and shared loading and empty states.
+
 ## 2.4.0
 
 ### Minor Changes

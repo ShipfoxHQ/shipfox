@@ -1,5 +1,11 @@
 # @shipfox/api-usage-dto
 
+## 27.1.0
+
+### Minor Changes
+
+- e0b7bd1: Carries workflow lineage and name snapshots through job-execution and inference Usage records.
+
 ## 27.0.0
 
 ### Major Changes

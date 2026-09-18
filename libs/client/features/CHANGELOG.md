@@ -1,5 +1,23 @@
 # @shipfox/client-features
 
+## 46.0.1
+
+### Patch Changes
+
+- Updated dependencies [aa6726e]
+  - @shipfox/client-integrations@46.0.1
+  - @shipfox/client-agent@46.0.1
+  - @shipfox/client-auth@46.0.1
+  - @shipfox/client-invitations@46.0.1
+  - @shipfox/client-onboarding@46.0.1
+  - @shipfox/client-projects@46.0.1
+  - @shipfox/client-runners@46.0.1
+  - @shipfox/client-secrets@46.0.1
+  - @shipfox/client-shell@46.0.1
+  - @shipfox/client-triggers@46.0.1
+  - @shipfox/client-workflows@46.0.1
+  - @shipfox/client-workspace-settings@46.0.1
+
 ## 46.0.0
 
 ### Patch Changes

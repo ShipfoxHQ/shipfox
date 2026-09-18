@@ -1,5 +1,13 @@
 # @shipfox/api-integration-github
 
+## 27.1.0
+
+### Patch Changes
+
+- aa6726e: Returns typed GitHub callback errors and shows actionable recovery outcomes.
+- Updated dependencies [7a5e884]
+  - @shipfox/api-integration-github-dto@27.1.0
+
 ## 27.0.0
 
 ### Patch Changes
