@@ -18,13 +18,13 @@ and [Agent integration fields](/reference/workflow-schema#agent-integration-fiel
 
 ## Permissions
 
-ClickUp OAuth has no fine-grained scopes. The generated catalog's `read` and
-`write` permissions classify Shipfox tool access. ClickUp makes the final
-resource permission decision for every call.
+ClickUp tools can access only what the connected account can access. Shipfox
+labels tools as `read` or `write` so you can control whether workflows may
+change ClickUp data.
 
-Searches stay within the ClickUp workspace selected during setup. Tools that
-use a task, List, or comment ID can also access items in other workspaces
-available to the connected account.
+Shipfox searches only the workspace you selected during setup. A workflow can
+still update a task in another workspace when it supplies that task's ID and
+the connected account has access.
 
 An agent step's `integrations` entry must set `allow_write: true` to include a
 write tool. A tool step needs no flag because naming the write tool is the

@@ -23,9 +23,9 @@ the access it needs.
 
 ## Integration connection identity
 
-When you connect ClickUp, select one workspace. Shipfox uses that workspace for
-searches and event delivery. Tools that use a task, List, or comment ID can also
-access items in other ClickUp workspaces available to the connected account.
+When you connect ClickUp, choose the workspace Shipfox should search and receive
+events from. A workflow can still update a task in another workspace when it
+supplies that task's ID and the connected account has access.
 
 The slug of a ClickUp integration connection defaults to
 `clickup_<workspace>`, where `<workspace>` is the normalized ClickUp workspace
