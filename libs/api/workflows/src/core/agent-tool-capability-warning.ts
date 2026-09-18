@@ -18,7 +18,7 @@ import type {Step} from './entities/step.js';
 const TOOL_LIST_LIMIT = 10;
 
 type WarningFailureReason = 'budget' | 'lookup' | 'write';
-type WarningReason = 'known-absence' | 'harness-not-advertised' | 'unknown-or-stale';
+type WarningReason = 'known-absence' | 'harness-not-advertised';
 
 export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
   annotations: AnnotationsInterModuleClient;
@@ -66,7 +66,6 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
             harness: harness.data,
             missing,
             reason: warningReason({
-              reportFresh: effective.reportFresh,
               harnessKnown: effective.capabilities.harnesses[harness.data] !== undefined,
             }),
           }),
@@ -103,7 +102,6 @@ export async function warnAgentToolCapabilityMismatchOnDispatch(params: {
         harness: harness.data,
         missing,
         reason: warningReason({
-          reportFresh: effective.reportFresh,
           harnessKnown: effective.capabilities.harnesses[harness.data] !== undefined,
         }),
       },
@@ -135,20 +133,11 @@ function warningBody(params: {
     ].join('\n');
   }
 
-  if (params.reason === 'harness-not-advertised') {
-    return [
-      '**Runner missing requested agent harness tools**',
-      '',
-      `The matched runner advertised fresh tool capabilities, but did not advertise a ${harness} tool set. Support for ${tools} could not be confirmed.`,
-      'Execution is continuing on this runner because labels matched; the step may fail if the harness cannot provide these tools.',
-    ].join('\n');
-  }
-
   return [
-    '**Could not confirm runner agent tools**',
+    '**Runner missing requested agent harness tools**',
     '',
-    `The matched runner reported no or stale tool capabilities, so support for ${tools} could not be confirmed.`,
-    'Execution is continuing on this runner because labels matched.',
+    `The matched runner did not advertise a ${harness} tool set. Support for ${tools} could not be confirmed.`,
+    'Execution is continuing on this runner because labels matched; the step may fail if the harness cannot provide these tools.',
   ].join('\n');
 }
 
@@ -169,9 +158,8 @@ function markdownInlineCode(value: string): string {
   return `${delimiter}${content}${delimiter}`;
 }
 
-function warningReason(params: {reportFresh: boolean; harnessKnown: boolean}): WarningReason {
-  if (params.harnessKnown) return 'known-absence';
-  return params.reportFresh ? 'harness-not-advertised' : 'unknown-or-stale';
+function warningReason(params: {harnessKnown: boolean}): WarningReason {
+  return params.harnessKnown ? 'known-absence' : 'harness-not-advertised';
 }
 
 function isAnnotationBudgetError(error: unknown): boolean {

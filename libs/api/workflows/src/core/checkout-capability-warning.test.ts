@@ -21,7 +21,6 @@ beforeEach(() => {
   getEffectiveRunnerToolCapabilities.mockClear();
   getEffectiveRunnerToolCapabilities.mockResolvedValue({
     capabilities: {harnesses: {}},
-    reportFresh: true,
   });
 });
 
@@ -51,12 +50,11 @@ describe('warnRenewableGitCapabilityMismatchOnDispatch', () => {
     );
   });
 
-  it('warns when a fresh runner report explicitly disables renewable Git', async () => {
+  it('warns when a runner explicitly disables renewable Git', async () => {
     const leaseIdentity = lease();
     const step = checkoutStep({jobExecutionId: leaseIdentity.jobExecutionId});
     getEffectiveRunnerToolCapabilities.mockResolvedValue({
       capabilities: {features: {renewable_git: false}, harnesses: {}},
-      reportFresh: true,
     });
 
     await warnRenewableGitCapabilityMismatchOnDispatch({
@@ -79,7 +77,6 @@ describe('warnRenewableGitCapabilityMismatchOnDispatch', () => {
     const step = checkoutStep({jobExecutionId: leaseIdentity.jobExecutionId});
     getEffectiveRunnerToolCapabilities.mockResolvedValue({
       capabilities: {features: {renewable_git: true}, harnesses: {}},
-      reportFresh: true,
     });
 
     await warnRenewableGitCapabilityMismatchOnDispatch({
@@ -152,24 +149,6 @@ describe('warnRenewableGitCapabilityMismatchOnDispatch', () => {
     ).resolves.toBeUndefined();
 
     expect(annotation).toHaveBeenCalledOnce();
-  });
-
-  it('does not project a warning from a stale capability report', async () => {
-    const leaseIdentity = lease();
-    const step = checkoutStep({jobExecutionId: leaseIdentity.jobExecutionId});
-    getEffectiveRunnerToolCapabilities.mockResolvedValue({
-      capabilities: {features: {renewable_git: true}, harnesses: {}},
-      reportFresh: false,
-    });
-
-    await warnRenewableGitCapabilityMismatchOnDispatch({
-      annotations,
-      runners,
-      leaseIdentity,
-      step,
-    });
-
-    expect(annotation).not.toHaveBeenCalled();
   });
 });
 

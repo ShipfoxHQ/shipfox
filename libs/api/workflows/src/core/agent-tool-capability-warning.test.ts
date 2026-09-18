@@ -94,11 +94,9 @@ function setRunnerSessionCapabilities(params: {
         ReturnType<RunnersInterModuleClient['getEffectiveRunnerToolCapabilities']>
       >['capabilities']
     | null;
-  reportedAt?: 'fresh' | 'stale' | 'missing';
 }): void {
   setRunnerToolCapabilities(params.runnerSessionId, {
     capabilities: params.toolCapabilities === null ? {harnesses: {}} : params.toolCapabilities,
-    reportFresh: params.reportedAt !== 'missing' && params.reportedAt !== 'stale',
   });
 }
 
@@ -128,24 +126,23 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
     expect(rows[0]?.body).toContain('Execution is continuing');
   });
 
-  it('writes unknown wording when capabilities are missing', async () => {
+  it('classifies missing capabilities as an unadvertised harness', async () => {
     const identity = lease();
     const step = agentStep({jobExecutionId: identity.jobExecutionId});
     setRunnerSessionCapabilities({
       runnerSessionId: identity.runnerSessionId,
       workspaceId: identity.workspaceId,
       toolCapabilities: null,
-      reportedAt: 'missing',
     });
 
     await warnAgentToolCapabilityMismatchOnDispatch({leaseIdentity: identity, step});
 
     const rows = await annotationsFor(identity.jobExecutionId);
-    expect(rows[0]?.body).toContain('reported no or stale tool capabilities');
+    expect(rows[0]?.body).toContain('did not advertise a `pi` tool set');
     expect(rows[0]?.body).toContain('`read`, `web_search`');
   });
 
-  it('writes missing-harness wording when fresh capabilities omit the harness', async () => {
+  it('writes missing-harness wording when capabilities omit the harness', async () => {
     const identity = lease();
     const step = agentStep({jobExecutionId: identity.jobExecutionId});
     setRunnerSessionCapabilities({
@@ -197,7 +194,6 @@ describe('warnAgentToolCapabilityMismatchOnDispatch', () => {
     await warnAgentToolCapabilityMismatchOnDispatch({leaseIdentity: identity, step});
     setRunnerToolCapabilities(identity.runnerSessionId, {
       capabilities: {harnesses: {pi: {tools: ['read', 'web_search']}}},
-      reportFresh: true,
     });
 
     await warnAgentToolCapabilityMismatchOnDispatch({leaseIdentity: identity, step});

@@ -51,7 +51,7 @@ export const runnersTestClient: RunnersInterModuleClient = {
   getLeaseState: async (params) =>
     leaseStates.get(leaseKey(params)) ?? {active: activeLeases.has(leaseKey(params))},
   getEffectiveRunnerToolCapabilities: async ({runnerSessionId}) =>
-    toolCapabilities.get(runnerSessionId) ?? {capabilities: {harnesses: {}}, reportFresh: false},
+    toolCapabilities.get(runnerSessionId) ?? {capabilities: {harnesses: {}}},
   getWorkspaceJobCounts: async ({workspaceIds}) => ({
     counts: workspaceIds.map((workspaceId) => ({workspaceId, queued: 0, running: 0})),
   }),

@@ -81,8 +81,5 @@ export {
   type RunnerRegistrationCredential,
   registerRunnerSession,
 } from './runner-sessions.js';
-export {
-  EMPTY_RUNNER_TOOL_CAPABILITIES,
-  effectiveRunnerToolCapabilities,
-} from './runner-tool-capabilities.js';
+export {EMPTY_RUNNER_TOOL_CAPABILITIES} from './runner-tool-capabilities.js';
 export {authorizeRunnerTermination} from './termination-authorization.js';
