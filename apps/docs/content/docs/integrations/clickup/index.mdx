@@ -1,0 +1,53 @@
+---
+title: "ClickUp integration"
+sidebarTitle: "Overview"
+description: "Connect a ClickUp workspace to receive task and comment events and call ClickUp tools from workflows."
+catalog:
+  name: "ClickUp"
+  summary: "Connect a ClickUp workspace, receive task events, and call task and comment tools from workflows."
+  capabilities: ["events", "agent_tools"]
+  categories: ["issue-tracking"]
+  aliases: ["tasks", "project management", "tickets"]
+  icon: "clickup"
+---
+
+## Authentication
+
+Shipfox connects to ClickUp through OAuth and acts on behalf of the account that
+authorizes it. That account's ClickUp permissions determine which resources
+Shipfox can use and which events it can receive.
+
+Use a dedicated ClickUp user account as a service account, not a personal
+account. Name it Shipfox so its actions are easy to identify, and grant it only
+the access it needs.
+
+## Integration connection identity
+
+When you connect ClickUp, choose the workspace Shipfox should search and receive
+events from. A workflow can still update a task in another workspace when it
+supplies that task's ID and the connected account has access.
+
+The slug of a ClickUp integration connection defaults to
+`clickup_<workspace>`, where `<workspace>` is the normalized ClickUp workspace
+name. For example, `clickup_acme`. Shipfox makes the slug unique within the
+Shipfox workspace.
+
+Use the slug as `source` for ClickUp events:
+
+```yaml
+triggers:
+  on_clickup_comment:
+    source: clickup_acme
+    event: taskCommentPosted
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Capabilities
+
+| Capability | Details |
+| --- | --- |
+| Events | [View ClickUp events](/integrations/clickup/events). |
+| Tools | [View ClickUp tools](/integrations/clickup/tools). |
+
+[Connect ClickUp](/integrations/clickup/setup) to create an integration connection.

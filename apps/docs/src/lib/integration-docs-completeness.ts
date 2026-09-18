@@ -141,6 +141,13 @@ function collectCatalogFrontmatterIssues(
       );
     }
   }
+
+  const actualCategories = strings(overview.catalog.categories);
+  if (!actualCategories.includes(provider.category)) {
+    issues.push(
+      `${prefix}: add the primary "${provider.category}" category to catalog frontmatter.`,
+    );
+  }
 }
 
 function collectReferencePageIssues(

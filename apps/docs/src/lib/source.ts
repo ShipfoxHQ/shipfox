@@ -4,9 +4,14 @@ import {loader} from 'fumadocs-core/source';
 import {statusBadgesPlugin} from 'fumadocs-core/source/status-badges';
 import {icons} from 'lucide-react';
 import {createElement} from 'react';
-import {siGithub, siJira, siLinear, siSentry, siSlack} from 'simple-icons';
+import {siClickup, siGithub, siJira, siLinear, siSentry, siSlack} from 'simple-icons';
+import {
+  isRegisteredCatalogIntegrationProvider,
+  sortRegisteredIntegrationProviders,
+} from '@/lib/registered-integration-providers';
 
 const simpleIcons = {
+  clickup: siClickup,
   github: siGithub,
   jira: siJira,
   sentry: siSentry,
@@ -32,12 +37,40 @@ const sidebarTitlePlugin: LoaderPlugin = {
   },
 };
 
+const integrationProviderOrderPlugin: LoaderPlugin = {
+  name: 'shipfox:integration-provider-order',
+  transformPageTree: {
+    folder(node, folderPath) {
+      if (folderPath !== 'integrations') return node;
+
+      const providers = node.children.flatMap((child) => {
+        if (child.type !== 'folder') return [];
+        const slug = child.$ref?.folder.split('/').at(-1);
+        if (!slug || !isRegisteredCatalogIntegrationProvider(slug)) return [];
+        return [{slug, name: typeof child.name === 'string' ? child.name : slug, child}];
+      });
+      const providerNodes: ReadonlySet<(typeof node.children)[number]> = new Set(
+        providers.map(({child}) => child),
+      );
+
+      return {
+        ...node,
+        children: [
+          ...sortRegisteredIntegrationProviders(providers).map(({child}) => child),
+          ...node.children.filter((child) => !providerNodes.has(child)),
+        ],
+      };
+    },
+  },
+};
+
 // See https://fumadocs.vercel.app/docs/headless/source-api for more info
 export const source = loader({
   // it assigns a URL to your pages
   baseUrl: '/',
   source: docs.toFumadocsSource(),
   plugins: [
+    integrationProviderOrderPlugin,
     sidebarTitlePlugin,
     statusBadgesPlugin({
       renderBadge: (status) =>

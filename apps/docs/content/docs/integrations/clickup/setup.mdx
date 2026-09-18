@@ -1,0 +1,76 @@
+---
+title: "Connect ClickUp to a Shipfox workspace"
+sidebarTitle: "Setup"
+description: "Authorize one ClickUp workspace with a dedicated account, then verify event and tool access."
+---
+
+Connect ClickUp when a workflow needs task events or ClickUp tools. See the
+[ClickUp overview](/integrations/clickup) for its capabilities and access
+boundary.
+
+## Before you begin
+
+You need access to workspace integration settings. You also need a ClickUp
+account that can authorize Shipfox for the target ClickUp workspace.
+
+Use a dedicated ClickUp user account as a service account, not a personal
+account. Name it Shipfox so its actions are easy to identify, and grant it only
+the access it needs.
+
+Shipfox acts on behalf of this account. Its ClickUp permissions determine which
+resources Shipfox can use and which events it can receive. A dedicated account
+also avoids tying event delivery to one person's employment or account status.
+
+## Authorize ClickUp
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    Open **Settings → Integrations** in the Shipfox workspace. Select
+    **ClickUp**, then start the integration connection.
+  </Step>
+  <Step>
+
+    **Sign in with the dedicated account**
+
+    Sign in to ClickUp with the service account. Review its ClickUp permissions
+    before authorizing Shipfox.
+  </Step>
+  <Step>
+
+    **Authorize one ClickUp workspace**
+
+    Select exactly one ClickUp workspace. The integration connection cannot be
+    created when the authorization returns zero or several workspaces.
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    Open the new integration connection's menu. Select **Use this integration**.
+    Copy the slug from the event or tool example. Workflows use the slug as
+    `source` or `connection`.
+  </Step>
+</Steps>
+
+Shipfox searches and receives events from the workspace you selected. A
+workflow can still update a task in another workspace when it supplies that
+task's ID and the connected account has access.
+
+## Verify the integration connection
+
+Open **Settings → Integrations**. Check that the ClickUp integration connection
+is active and advertises Events and Agent tools.
+
+Create a safe task or comment that the dedicated account can see. Confirm that
+the event appears under **Settings → Events**. If you test a write tool, confirm
+that ClickUp attributes the change to the dedicated account.
+
+## If events or tools stop working
+
+Select **Delete integration** for the ClickUp integration connection. Then
+connect it again with the dedicated account. ClickUp does not provide an
+in-place recovery flow. Shipfox does not replay events missed before the new
+integration connection.

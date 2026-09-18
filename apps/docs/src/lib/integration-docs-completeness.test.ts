@@ -13,6 +13,8 @@ const sentryCapabilitiesIssuePattern =
 const cronEventIssuePattern = /Built-in source "cron": mention event "tick"/;
 const linearMissingSetupIssuePattern =
   /Integration provider "linear": add setup\.mdx for the connectable provider\./;
+const clickupPrimaryCategoryIssuePattern =
+  /Integration provider "clickup": add the primary "issue-tracking" category/;
 
 const validInput: IntegrationDocsCompletenessInput = {
   providers: registeredIntegrationProviders,
@@ -38,6 +40,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       capabilities: ['events', 'agent_tools'],
       eventCount: 6,
       toolCount: 11,
+    },
+    clickup: {
+      capabilities: ['events', 'agent_tools'],
+      eventCount: 11,
+      toolCount: 6,
     },
   },
   integrationDirectories: {
@@ -89,6 +96,16 @@ const validInput: IntegrationDocsCompletenessInput = {
         capabilities: ['events', 'agent_tools'],
         categories: ['issue-tracking'],
         aliases: ['issues', 'tickets'],
+      },
+    ),
+    clickup: directory(
+      'clickup',
+      ['index', 'setup', 'events', 'tools'],
+      ['index', 'setup', 'events', 'tools'],
+      {
+        capabilities: ['events', 'agent_tools'],
+        categories: ['issue-tracking'],
+        aliases: ['tasks', 'project management', 'tickets'],
       },
     ),
   },
@@ -146,6 +163,28 @@ test('reports a missing setup page for a catalog provider', () => {
   const issues = collectIntegrationDocIssues(input);
 
   assert.match(issues.join('\n'), linearMissingSetupIssuePattern);
+});
+
+test('reports catalog frontmatter that omits the registered primary category', () => {
+  const clickup = validInput.integrationDirectories.clickup;
+  const clickupOverview = catalogOverview(clickup);
+  const input: IntegrationDocsCompletenessInput = {
+    ...validInput,
+    integrationDirectories: {
+      ...validInput.integrationDirectories,
+      clickup: {
+        ...clickup,
+        overview: {
+          ...clickupOverview,
+          catalog: {...clickupOverview.catalog, categories: ['custom']},
+        },
+      },
+    },
+  };
+
+  const issues = collectIntegrationDocIssues(input);
+
+  assert.match(issues.join('\n'), clickupPrimaryCategoryIssuePattern);
 });
 
 test('accepts built-in source documentation without reference-page structure', () => {
