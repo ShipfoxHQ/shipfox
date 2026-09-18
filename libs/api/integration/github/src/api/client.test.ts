@@ -543,13 +543,13 @@ describe('OctokitGithubApiClient.createInstallationAccessToken', () => {
     await client.createInstallationAccessToken({
       installationId: 1,
       repositoryName: 'platform',
-      permissions: {contents: 'write'},
+      permissions: {contents: 'write', workflows: 'write'},
     });
 
     expect(createInstallationAccessTokenMock).toHaveBeenCalledWith({
       installation_id: 1,
       repositories: ['platform'],
-      permissions: {contents: 'write'},
+      permissions: {contents: 'write', workflows: 'write'},
     });
   });
 

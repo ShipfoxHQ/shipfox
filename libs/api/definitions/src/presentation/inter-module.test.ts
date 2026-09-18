@@ -504,6 +504,7 @@ describe('definitions inter-module presentation', () => {
   it('resolves a definition at a ref through the core method', async () => {
     const resolved = {
       workflow: {id: '00000000-0000-4000-8000-000000000002', configPath: CONFIG_PATH},
+      ref: REF,
       commit: COMMIT,
       model: {
         version: 4,

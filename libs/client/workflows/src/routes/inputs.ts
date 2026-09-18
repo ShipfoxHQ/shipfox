@@ -1,6 +1,6 @@
 import {isUuid} from '@shipfox/regex';
 import {RUN_ANNOTATION_SEVERITIES, type RunAnnotationSeverity} from '#core/run-annotation.js';
-import {WORKFLOW_RUN_ORIGINS, type WorkflowRunOrigin} from '#core/workflow-run.js';
+import {WORKFLOW_RUN_ORIGINS} from '#core/workflow-run.js';
 import type {WorkflowRunSelectionInput} from '#core/workflow-run-url-state.js';
 
 /**
@@ -18,12 +18,12 @@ export const WORKFLOW_RUN_LIST_STATUSES = [
 export type WorkflowRunListStatus = (typeof WORKFLOW_RUN_LIST_STATUSES)[number];
 
 /**
- * Origins the run list can filter by. Absent means all, matching the server's `origin`
- * query parameter being optional; there is deliberately no `all` value.
+ * Origins the run list can filter by. `all` is a client-only value that keeps the explicit
+ * all-origins choice distinct from the default synced view; it is omitted from API requests.
  */
-export const WORKFLOW_RUN_LIST_ORIGINS = WORKFLOW_RUN_ORIGINS;
+export const WORKFLOW_RUN_LIST_ORIGINS = [...WORKFLOW_RUN_ORIGINS, 'all'] as const;
 
-export type WorkflowRunListOrigin = WorkflowRunOrigin;
+export type WorkflowRunListOrigin = (typeof WORKFLOW_RUN_LIST_ORIGINS)[number];
 
 export const WORKFLOW_RUN_TABS = ['summary', 'jobs', 'annotations', 'source'] as const;
 

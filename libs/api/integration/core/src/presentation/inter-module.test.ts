@@ -15,6 +15,7 @@ import type {
   IntegrationToolCallCaller,
   IntegrationToolCallRecorder,
 } from '#core/tool-call-audit.js';
+import {SHIPFOX_BUILTIN_CONNECTION_ID} from '#core/tool-call-service.js';
 import {
   type AgentToolsProviderOptions,
   agentToolsProvider,
@@ -487,6 +488,45 @@ describe('integrations inter-module presentation', () => {
     ]);
     expect(context.fixedEventProviders).toEqual(['webhook']);
   });
+  it('adds declared built-in providers to the workspace connection snapshot', async () => {
+    const builtinWorkspaceId = crypto.randomUUID();
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'shipfox',
+        displayName: 'Shipfox',
+        adapters: {agent_tools: agentToolsProvider([])},
+      },
+    ]);
+    const sourceControl = createSourceControlIntegrationService({
+      registry,
+      getIntegrationConnectionById: async () => undefined,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    transport.register(
+      createIntegrationsInterModulePresentation({
+        registry,
+        sourceControl,
+        builtinConnections: [
+          {provider: 'shipfox', slug: 'shipfox', id: SHIPFOX_BUILTIN_CONNECTION_ID},
+        ],
+      }),
+    );
+    transport.seal();
+
+    const context = await client.getAgentToolsContext({
+      workspaceId: builtinWorkspaceId,
+      defaultConnectionId: connectionId,
+    });
+
+    expect(context.workspaceConnections).toContainEqual({
+      slug: 'shipfox',
+      id: SHIPFOX_BUILTIN_CONNECTION_ID,
+      provider: 'shipfox',
+      capabilities: ['agent_tools'],
+    });
+  });
+
   it('lists workspace connections and returns a workspace-scoped provider catalog', async () => {
     const otherWorkspaceId = crypto.randomUUID();
     const catalog = [

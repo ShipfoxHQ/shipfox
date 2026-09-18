@@ -39,6 +39,7 @@ import {createIntegrationRoutes} from '#presentation/routes/index.js';
 import {loadEnabledProviderModules} from '#providers/modules.js';
 import type {
   IntegrationModuleParts,
+  IntegrationProviderInterModuleClients,
   IntegrationProviderSecrets,
   WebhookProcessorRegistration,
 } from '#providers/types.js';
@@ -109,6 +110,7 @@ export type {
   AgentToolRepositoryTarget,
   AgentToolSensitivity,
   AgentToolSession,
+  AgentToolsCallerContext,
   AgentToolsProvider,
   OpenAgentToolsSessionInput,
 } from '#core/providers/agent-tools.js';
@@ -196,6 +198,7 @@ export type {
 export {
   callIntegrationTool,
   loadAuthorizedToolConnection,
+  SHIPFOX_BUILTIN_CONNECTION_ID,
 } from '#core/tool-call-service.js';
 export type {
   GetIntegrationConnectionByIdFn,
@@ -223,6 +226,14 @@ export {
   publishSourceRepositoryUpdated,
 } from '#db/webhook-deliveries.js';
 export {integrationRouteErrorHandler} from '#presentation/routes/errors.js';
+export type {
+  IntegrationBuiltinConnection,
+  IntegrationModuleParts,
+  IntegrationProviderInterModuleClients,
+  IntegrationProviderModule,
+  IntegrationProviderModuleLoadOptions,
+  IntegrationProviderSecrets,
+} from '#providers/types.js';
 
 export interface CreateIntegrationsModuleOptions {
   providers?: IntegrationProvider[] | undefined;
@@ -239,6 +250,7 @@ export interface CreateIntegrationsModuleOptions {
    * that do not provide Projects must inject an explicit authorizer seam.
    */
   projects?: ProjectsModuleClient | undefined;
+  interModule?: IntegrationProviderInterModuleClients | undefined;
   /** Test seam for composing repository authorization without configuration. */
   repositoryAuthorizer?: RepositoryAuthorizer | undefined;
   /** Test seam for composing checkout authorization without a database connection. */
@@ -303,6 +315,7 @@ export async function createIntegrationsContext(
         }))
       : await loadEnabledProviderModules({
           secrets: options.secrets,
+          interModule: options.interModule,
           ...(workspaces
             ? {
                 requireActiveWorkspaceMembership: (input: {
@@ -323,6 +336,12 @@ export async function createIntegrationsContext(
         }));
 
   const registry = createIntegrationProviderRegistry(parts.map((part) => part.provider));
+  const builtinConnections = parts.flatMap((part) => {
+    const builtinConnection = part.builtinConnection;
+    return builtinConnection === undefined
+      ? []
+      : [{...builtinConnection, provider: part.provider.provider}];
+  });
   const resolveIntegrationConnectionById =
     options.getIntegrationConnectionById ?? getIntegrationConnectionById;
   const sourceControl = createSourceControlIntegrationService({
@@ -359,6 +378,7 @@ export async function createIntegrationsContext(
         sourceControl,
         getIntegrationConnectionById: resolveIntegrationConnectionById,
         repositoryAuthorizer,
+        builtinConnections,
       }),
     ],
     startupTasks: runStartupTasks,
@@ -374,6 +394,7 @@ export async function createIntegrationsContext(
             workflows: options.agentTools.workflows,
             getIntegrationConnectionById,
             repositoryAuthorizer,
+            builtinConnections,
           }
         : undefined,
     }),

@@ -138,6 +138,23 @@ function makeClients(projectId = crypto.randomUUID(), workspaceId = crypto.rando
       getProjectById: vi.fn(async () => ({project})),
     } as unknown as ProjectsModuleClient,
     integrations: {
+      resolveSourceRepository: vi.fn(async () => ({
+        connection: {
+          id: project.sourceConnectionId,
+          provider: 'gitea',
+          slug: 'gitea-main',
+        },
+        repository: {
+          externalRepositoryId: project.sourceExternalRepositoryId,
+          owner: 'gitea-owner',
+          name: 'platform',
+          fullName: 'gitea-owner/platform',
+          defaultBranch: 'main',
+          visibility: 'private' as const,
+          cloneUrl: 'https://gitea.test/gitea-owner/platform.git',
+          htmlUrl: 'https://gitea.test/gitea-owner/platform',
+        },
+      })),
       resolveSourceRef: vi.fn(async () => ({ref: 'fix-branch', commit: COMMIT})),
       fetchSourceFile: vi.fn(async () => ({path: CONFIG_PATH, ref: COMMIT, content: validYaml})),
       listSourceFiles: vi.fn(async () => ({
@@ -190,6 +207,13 @@ async function countOutboxRows(projectId: string) {
     .where(sql`${definitionsOutbox.payload}->>'projectId' = ${projectId}`);
 }
 
+async function countDefinitionRows(projectId: string) {
+  return await db()
+    .select({id: workflowDefinitions.id})
+    .from(workflowDefinitions)
+    .where(eq(workflowDefinitions.projectId, projectId));
+}
+
 beforeEach(() => {
   metrics.recordDefinitionRefResolution.mockReset();
 });
@@ -207,6 +231,7 @@ describe('resolveDefinitionAtRef', () => {
       ...clients,
     });
 
+    expect(result.ref).toBe('fix-branch');
     expect(result.commit).toBe(COMMIT);
     expect(result.workflow.configPath).toBe(CONFIG_PATH);
     expect(result.model).toEqual({version: 3, model: expect.any(Object)});
@@ -240,6 +265,130 @@ describe('resolveDefinitionAtRef', () => {
     expect(definitions).toHaveLength(0);
     expect(await countOutboxRows(projectId)).toHaveLength(0);
     expect(metrics.recordDefinitionRefResolution).toHaveBeenCalledWith('resolved');
+  });
+
+  test('validates supplied content without fetching the file', async () => {
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId);
+
+    const result = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      content: validYaml,
+      ...clients,
+    });
+
+    expect(result.ref).toBe('fix-branch');
+    expect(result.sourceSnapshot).toEqual({content: validYaml, format: 'yaml'});
+    expect(clients.integrations.fetchSourceFile).not.toHaveBeenCalled();
+    expect(await countDefinitionRows(projectId)).toHaveLength(0);
+    expect(await countOutboxRows(projectId)).toHaveLength(0);
+  });
+
+  test('uses the repository default branch when supplied content omits ref', async () => {
+    const clients = makeClients();
+    vi.mocked(clients.integrations.resolveSourceRepository).mockResolvedValueOnce({
+      connection: {
+        id: '00000000-0000-4000-8000-000000000003',
+        provider: 'gitea',
+        slug: 'gitea-main',
+      },
+      repository: {
+        externalRepositoryId: 'gitea:gitea-owner/platform',
+        owner: 'gitea-owner',
+        name: 'platform',
+        fullName: 'gitea-owner/platform',
+        defaultBranch: 'trunk',
+        visibility: 'private',
+        cloneUrl: 'https://gitea.test/gitea-owner/platform.git',
+        htmlUrl: 'https://gitea.test/gitea-owner/platform',
+      },
+    });
+
+    const result = await resolveDefinitionAtRef({
+      projectId: crypto.randomUUID(),
+      configPath: CONFIG_PATH,
+      content: validYaml,
+      ...clients,
+    });
+
+    expect(result.ref).toBe('fix-branch');
+    expect(clients.integrations.resolveSourceRepository).toHaveBeenCalledOnce();
+    expect(clients.integrations.resolveSourceRef).toHaveBeenCalledWith(
+      expect.objectContaining({ref: 'trunk'}),
+    );
+    expect(clients.integrations.fetchSourceFile).not.toHaveBeenCalled();
+  });
+
+  test('measures supplied content in UTF-8 bytes', async () => {
+    const clients = makeClients();
+    const content = '🙂'.repeat(65_537);
+
+    const error = await expectRefError(
+      resolveDefinitionAtRef({
+        projectId: crypto.randomUUID(),
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        content,
+        ...clients,
+      }),
+      'content-too-large',
+    );
+
+    expect(error.details).toEqual({configPath: CONFIG_PATH});
+    expect(clients.integrations.fetchSourceFile).not.toHaveBeenCalled();
+  });
+
+  test('preserves validation reasons for invalid supplied content', async () => {
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId);
+
+    const error = await expectRefError(
+      resolveDefinitionAtRef({
+        projectId,
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        content: invalidPredicateYaml,
+        ...clients,
+      }),
+      'invalid-definition',
+    );
+
+    expect(error.details.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'jobs.build.success',
+          reason: expect.stringContaining('must return bool'),
+        }),
+      ]),
+    );
+    expect(await countLineageRows(projectId)).toHaveLength(0);
+    expect(await countOutboxRows(projectId)).toHaveLength(0);
+  });
+
+  test('reuses a synced definition lineage for supplied content with the same path', async () => {
+    const projectId = crypto.randomUUID();
+    const clients = makeClients(projectId);
+
+    const synced = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      ...clients,
+    });
+    const local = await resolveDefinitionAtRef({
+      projectId,
+      ref: 'fix-branch',
+      configPath: CONFIG_PATH,
+      content: validYaml,
+      ...clients,
+    });
+
+    expect(local.workflow.id).toBe(synced.workflow.id);
+    expect(await countLineageRows(projectId)).toHaveLength(1);
+    expect(await countOutboxRows(projectId)).toHaveLength(0);
+    expect(clients.integrations.fetchSourceFile).toHaveBeenCalledOnce();
   });
 
   test('reuses the lineage across calls so dev runs share numbering', async () => {

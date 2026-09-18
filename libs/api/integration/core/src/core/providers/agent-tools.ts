@@ -9,6 +9,7 @@ export type {
   AgentToolRepositoryTarget,
   AgentToolSensitivity,
   AgentToolSession,
+  AgentToolsCallerContext,
   AgentToolsProvider,
   OpenAgentToolsSessionInput,
 } from '@shipfox/api-integration-spi';

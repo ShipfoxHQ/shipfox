@@ -69,8 +69,8 @@ describe('WorkflowRunListView', () => {
         within(header as HTMLElement).getByRole('button', {name: filterTrigger('Event')}),
       ).toBeInTheDocument();
       expect(
-        within(header as HTMLElement).queryByRole('button', {name: filterTrigger('Origin')}),
-      ).not.toBeInTheDocument();
+        within(header as HTMLElement).getByRole('combobox', {name: 'Filter runs by type'}),
+      ).toHaveTextContent('Synced runs');
       expect(
         within(header as HTMLElement).getByLabelText('Filter runs by creation date'),
       ).toBeInTheDocument();
@@ -175,6 +175,30 @@ describe('WorkflowRunListView', () => {
       await user.click(screen.getByRole('button', {name: 'Retry'}));
 
       expect(onRetryWorkflowOptions).toHaveBeenCalledOnce();
+    });
+
+    test('defaults to synced runs and allows selecting development and all runs', async () => {
+      const user = userEvent.setup();
+      renderListView([
+        run('succeeded', 'deploy-web'),
+        run('running', 'triage-sentry', 'dev-run', {
+          ...devRunOverrides(),
+          workflow_name: 'Triage prompt',
+        }),
+      ]);
+
+      expect(await screen.findByText('deploy-web')).toBeInTheDocument();
+      expect(screen.queryByText('triage-sentry')).not.toBeInTheDocument();
+
+      await selectRunScope(user, 'Development runs');
+
+      expect(screen.queryByText('deploy-web')).not.toBeInTheDocument();
+      expect(screen.getByText('triage-sentry')).toBeInTheDocument();
+
+      await selectRunScope(user, 'All runs');
+
+      expect(screen.getByText('deploy-web')).toBeInTheDocument();
+      expect(screen.getByText('triage-sentry')).toBeInTheDocument();
     });
 
     test('narrows the list to the selected status', async () => {
@@ -463,7 +487,9 @@ describe('WorkflowRunListView', () => {
     });
 
     test('labels a dev run with a Dev badge and its ref and commit from the dev source', async () => {
-      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides())]);
+      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides())], {
+        search: {origin: 'dev'},
+      });
 
       expect(await screen.findByText('triage-sentry')).toBeInTheDocument();
       expect(screen.getByText('Dev')).toHaveClass('bg-tag-purple-bg');
@@ -472,6 +498,20 @@ describe('WorkflowRunListView', () => {
       expect(screen.getByText('abcdef1')).toBeInTheDocument();
       expect(
         screen.getByRole('link', {name: (name) => name.includes('dev run')}),
+      ).toBeInTheDocument();
+    });
+
+    test('labels a local dev run without showing its fallback checkout as provenance', async () => {
+      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides('local'))], {
+        search: {origin: 'dev'},
+      });
+
+      expect(await screen.findByText('triage-sentry')).toBeInTheDocument();
+      expect(screen.getByText('Dev · local file')).toHaveClass('bg-tag-purple-bg');
+      expect(screen.queryByText('fix-triage-prompt')).not.toBeInTheDocument();
+      expect(screen.queryByText('abcdef1')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('link', {name: (name) => name.includes('dev run from local file')}),
       ).toBeInTheDocument();
     });
 
@@ -852,6 +892,11 @@ async function selectFilterOption(
   await user.keyboard('{Escape}');
 }
 
+async function selectRunScope(user: ReturnType<typeof userEvent.setup>, option: string) {
+  await user.click(await screen.findByRole('combobox', {name: 'Filter runs by type'}));
+  await user.click(await screen.findByRole('option', {name: option}));
+}
+
 function reference(overrides: Partial<NonNullable<WorkflowRunListItem['triggerReference']>> = {}) {
   return {
     repository: 'acme/api',
@@ -862,13 +907,16 @@ function reference(overrides: Partial<NonNullable<WorkflowRunListItem['triggerRe
   };
 }
 
-function devRunOverrides(): NonNullable<Parameters<typeof workflowRunListItem>[0]> {
+function devRunOverrides(
+  definitionSource: 'ref' | 'local' = 'ref',
+): NonNullable<Parameters<typeof workflowRunListItem>[0]> {
   return {
     origin: 'dev',
     trigger_reference: null,
     dev_source: {
       ref: 'fix-triage-prompt',
       commit: 'abcdef1234567890abcdef1234567890abcdef12',
+      definition_source: definitionSource,
       config_path: '.shipfox/workflows/triage-sentry.yml',
       initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
       replay_of_event_id: null,

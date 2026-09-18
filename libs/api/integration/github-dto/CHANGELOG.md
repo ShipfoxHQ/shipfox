@@ -1,5 +1,11 @@
 # @shipfox/api-integration-github-dto
 
+## 27.1.0
+
+### Minor Changes
+
+- 7a5e884: Adds GitHub issue comment, pull request review, and review thread events to workflow authoring and integration documentation.
+
 ## 26.0.0
 
 ### Patch Changes

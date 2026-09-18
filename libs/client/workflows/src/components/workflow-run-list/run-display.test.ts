@@ -74,6 +74,7 @@ describe('runMatchesSearch', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: '88888888-8888-4888-8888-888888888888',
@@ -82,6 +83,24 @@ describe('runMatchesSearch', () => {
 
     expect(runMatchesSearch(run, 'fix-triage-prompt')).toBe(true);
     expect(runMatchesSearch(run, 'abcdef1')).toBe(true);
+  });
+
+  test('matches a local dev run by its source without indexing its fallback checkout', () => {
+    const run = workflowRunListItem({
+      origin: 'dev',
+      dev_source: {
+        ref: 'fallback-only-branch',
+        commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'local',
+        config_path: '.shipfox/workflows/triage-sentry.yml',
+        initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
+        replay_of_event_id: null,
+      },
+    });
+
+    expect(runMatchesSearch(run, 'local file')).toBe(true);
+    expect(runMatchesSearch(run, 'fallback-only-branch')).toBe(false);
+    expect(runMatchesSearch(run, 'abcdef1')).toBe(false);
   });
 
   test('reports no match for an unrelated query', () => {
@@ -165,6 +184,7 @@ describe('runMatchesFilters', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,
@@ -173,7 +193,9 @@ describe('runMatchesFilters', () => {
 
     expect(runMatchesFilters(devRun, {origin: 'dev'})).toBe(true);
     expect(runMatchesFilters(devRun, {origin: 'synced'})).toBe(false);
+    expect(runMatchesFilters(devRun, {origin: 'all'})).toBe(true);
     expect(runMatchesFilters(run, {origin: 'synced'})).toBe(true);
+    expect(runMatchesFilters(run, {origin: 'all'})).toBe(true);
     expect(runMatchesFilters(run, {origin: 'dev'})).toBe(false);
   });
 
@@ -183,6 +205,7 @@ describe('runMatchesFilters', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,

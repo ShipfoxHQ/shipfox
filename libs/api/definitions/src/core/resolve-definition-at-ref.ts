@@ -40,10 +40,13 @@ import {
 } from './sync-definitions.js';
 import type {ValidationError} from './validate-definition.js';
 
+const MAX_LOCAL_WORKFLOW_CONTENT_BYTES = 256 * 1024;
+
 export interface ResolveDefinitionAtRefParams {
   projectId: string;
-  ref: string;
+  ref?: string | undefined;
   configPath: string;
+  content?: string | undefined;
   expectedCommit?: string | undefined;
   projects: ProjectsModuleClient;
   agent: AgentInterModuleClient;
@@ -59,6 +62,7 @@ export interface ValidationWarning {
 
 export interface ResolvedDefinitionAtRef {
   workflow: {id: string; configPath: string};
+  ref: string;
   commit: string;
   model: WorkflowModelSnapshot;
   sourceSnapshot: WorkflowSourceSnapshot;
@@ -103,11 +107,10 @@ interface ResolvedProjectSource {
 }
 
 /**
- * Resolves a workflow definition file at a git ref without persisting it.
- * The ref is pinned to a commit, the file is fetched at that commit, and the
- * result is validated with the sync pipeline. Only the workflow lineage row is
- * created so the dev run can be numbered; no definition row and no outbox
- * event are written.
+ * Resolves a workflow definition at a git ref without persisting it.
+ * The ref is pinned to a commit and the content is validated with the sync
+ * pipeline. Only the workflow lineage row is created so the dev run can be
+ * numbered; no definition row and no outbox event are written.
  */
 export async function resolveDefinitionAtRef(
   params: ResolveDefinitionAtRefParams,
@@ -132,30 +135,40 @@ async function resolveDefinitionAtRefUnsafe(
     undefined,
     params.signal,
   );
-  const commit = await resolveRefToCommit({
+  const ref = await resolveDefinitionRef({
     integrations: params.integrations,
     source,
     ref: params.ref,
+    hasContent: params.content !== undefined,
+    signal: params.signal,
+  });
+  const resolved = await resolveRefToCommit({
+    integrations: params.integrations,
+    source,
+    ref,
     signal: params.signal,
   });
   throwIfAborted(params.signal);
-  if (params.expectedCommit !== undefined && commit !== params.expectedCommit) {
+  if (params.expectedCommit !== undefined && resolved.commit !== params.expectedCommit) {
     throw new DefinitionAtRefError(
       'ref-moved',
-      `Git ref ${params.ref} no longer resolves to the expected commit`,
-      {ref: params.ref, expectedCommit: params.expectedCommit},
+      `Git ref ${ref} no longer resolves to the expected commit`,
+      {ref, expectedCommit: params.expectedCommit},
     );
   }
 
-  const snapshot = await fetchFileAtCommit({
-    integrations: params.integrations,
-    source,
-    commit,
-    ref: params.ref,
-    configPath: params.configPath,
-    signal: params.signal,
-  });
-  assertFileSize(snapshot.content, snapshot.path);
+  const snapshot =
+    params.content === undefined
+      ? await fetchFileAtCommit({
+          integrations: params.integrations,
+          source,
+          commit: resolved.commit,
+          ref,
+          configPath: params.configPath,
+          signal: params.signal,
+        })
+      : {path: params.configPath, content: params.content};
+  assertFileSize(snapshot.content, snapshot.path, params.content !== undefined);
 
   const parsed = await parseDefinitionAtRef({
     content: snapshot.content,
@@ -173,7 +186,8 @@ async function resolveDefinitionAtRefUnsafe(
 
   return {
     workflow: {id: workflowId, configPath: params.configPath},
-    commit,
+    ref: resolved.ref,
+    commit: resolved.commit,
     model: createWorkflowModelSnapshot(parsed.model),
     sourceSnapshot: {content: snapshot.content, format: 'yaml'},
     triggers: definitionTriggersFor(parsed.model),
@@ -213,13 +227,14 @@ async function listDefinitionsAtRefUnsafe(
     params.project,
     params.signal,
   );
-  const commit = await resolveRefToCommit({
+  const resolved = await resolveRefToCommit({
     integrations: params.integrations,
     source,
     ref: params.ref,
     signal: params.signal,
   });
   throwIfAborted(params.signal);
+  const commit = resolved.commit;
   const paths = await listWorkflowFilesAtCommit({
     integrations: params.integrations,
     source,
@@ -303,12 +318,49 @@ function sourceForProject(project: DefinitionAtRefProject): ResolvedProjectSourc
   };
 }
 
+async function resolveDefinitionRef(params: {
+  integrations: IntegrationsModuleClient;
+  source: ResolvedProjectSource;
+  ref: string | undefined;
+  hasContent: boolean;
+  signal: AbortSignal | undefined;
+}): Promise<string> {
+  if (params.ref !== undefined) return params.ref;
+  if (!params.hasContent) {
+    throw new Error('A ref is required when workflow content is not supplied');
+  }
+
+  try {
+    const resolved = await callWithSignal(
+      params.integrations.resolveSourceRepository,
+      {
+        workspaceId: params.source.workspaceId,
+        connectionId: params.source.connectionId,
+        externalRepositoryId: params.source.externalRepositoryId,
+      },
+      params.signal,
+    );
+    return resolved.repository.defaultBranch;
+  } catch (error) {
+    throwIfAborted(params.signal);
+    if (
+      isInterModuleKnownError(
+        integrationsInterModuleContract.methods.resolveSourceRepository,
+        error,
+      )
+    ) {
+      throw sourceUnavailable(error, 'The source repository is unavailable');
+    }
+    throw error;
+  }
+}
+
 async function resolveRefToCommit(params: {
   integrations: IntegrationsModuleClient;
   source: ResolvedProjectSource;
   ref: string;
   signal: AbortSignal | undefined;
-}): Promise<string> {
+}): Promise<{ref: string; commit: string}> {
   try {
     const resolved = await callWithSignal(
       params.integrations.resolveSourceRef,
@@ -320,7 +372,7 @@ async function resolveRefToCommit(params: {
       },
       params.signal,
     );
-    return resolved.commit;
+    return resolved;
   } catch (error) {
     if (isInterModuleKnownError(integrationsInterModuleContract.methods.resolveSourceRef, error)) {
       if (error.code === 'ref-not-found') {
@@ -413,11 +465,12 @@ async function fetchFileAtCommit(params: {
   }
 }
 
-function assertFileSize(content: string, path: string): void {
-  if (Buffer.byteLength(content, 'utf8') > MAX_WORKFLOW_FILE_BYTES) {
+function assertFileSize(content: string, path: string, isLocalContent = false): void {
+  const maxBytes = isLocalContent ? MAX_LOCAL_WORKFLOW_CONTENT_BYTES : MAX_WORKFLOW_FILE_BYTES;
+  if (Buffer.byteLength(content, 'utf8') > maxBytes) {
     throw new DefinitionAtRefError(
       'content-too-large',
-      `Workflow file is larger than ${MAX_WORKFLOW_FILE_BYTES} bytes: ${path}`,
+      `Workflow file is larger than ${maxBytes} bytes: ${path}`,
       {configPath: path},
     );
   }
@@ -615,6 +668,7 @@ function sourceUnavailable(error: unknown, message: string): DefinitionAtRefErro
 
 function sourceFailureDetails(error: unknown): Record<string, unknown> {
   const methods = [
+    integrationsInterModuleContract.methods.resolveSourceRepository,
     integrationsInterModuleContract.methods.resolveSourceRef,
     integrationsInterModuleContract.methods.listSourceFiles,
     integrationsInterModuleContract.methods.fetchSourceFile,

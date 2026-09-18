@@ -90,6 +90,7 @@ describe('workflow run model mapping', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,
@@ -102,6 +103,7 @@ describe('workflow run model mapping', () => {
     expect(run.devSource).toEqual({
       ref: 'fix-triage-prompt',
       commit: 'abcdef1234567890abcdef1234567890abcdef12',
+      definitionSource: 'ref',
       configPath: '.shipfox/workflows/triage-sentry.yml',
       initiatedByUserId: '99999999-9999-4999-8999-999999999999',
       replayOfEventId: null,
@@ -298,6 +300,7 @@ describe('workflow run helpers', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,
@@ -320,6 +323,7 @@ describe('workflow run helpers', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: '88888888-8888-4888-8888-888888888888',
@@ -342,6 +346,7 @@ describe('workflow run helpers', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,
@@ -374,6 +379,7 @@ describe('workflow run helpers', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,
@@ -393,6 +399,7 @@ describe('workflow run helpers', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: '88888888-8888-4888-8888-888888888888',
@@ -403,12 +410,37 @@ describe('workflow run helpers', () => {
     expect(workflowRunDevSourceLabel(workflowRunListItem())).toBeNull();
   });
 
+  test('labels a local definition without borrowing ref or commit provenance', () => {
+    const localRun = workflowRunListItem({
+      origin: 'dev',
+      trigger_reference: {
+        repository: 'acme/api',
+        ref: 'refs/heads/event-branch',
+        commit: '0123456789abcdef0123456789abcdef01234567',
+        actor: 'octocat',
+      },
+      dev_source: {
+        ref: 'main',
+        commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'local',
+        config_path: '.shipfox/workflows/triage-sentry.yml',
+        initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
+        replay_of_event_id: '88888888-8888-4888-8888-888888888888',
+      },
+    });
+
+    expect(workflowRunDevSourceLabel(localRun)).toBe('local file');
+    expect(workflowRunBranchLabel(localRun)).toBeNull();
+    expect(workflowRunCommitLabel(localRun)).toBeNull();
+  });
+
   test('names the initiating member, shortening the id of anyone else', () => {
     const devRun = workflowRunListItem({
       origin: 'dev',
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,

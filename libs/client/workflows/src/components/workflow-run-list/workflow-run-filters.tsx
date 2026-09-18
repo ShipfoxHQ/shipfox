@@ -11,6 +11,13 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {Input} from '@shipfox/react-ui/input';
 import {Label} from '@shipfox/react-ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@shipfox/react-ui/select';
+import {
   Sheet,
   SheetBody,
   SheetContent,
@@ -25,6 +32,7 @@ import {
   countWorkflowRunFilters,
   WORKFLOW_RUN_LIST_STATUSES,
   type WorkflowRunFilterPatch,
+  type WorkflowRunListOrigin,
   type WorkflowRunListStatus,
   type WorkflowRunsSearch,
 } from '#routes/inputs.js';
@@ -32,6 +40,14 @@ import type {WorkflowRunFacets} from './run-display.js';
 import type {WorkflowOptionsStatus} from './types.js';
 import {WorkflowRunFilterMenu, type WorkflowRunFilterOption} from './workflow-run-filter-menu.js';
 
+const RUN_SCOPE_OPTIONS: readonly {
+  value: WorkflowRunListOrigin;
+  label: string;
+}[] = [
+  {value: 'synced', label: 'Synced runs'},
+  {value: 'dev', label: 'Development runs'},
+  {value: 'all', label: 'All runs'},
+];
 const STATUS_OPTIONS: WorkflowRunFilterOption[] = WORKFLOW_RUN_LIST_STATUSES.map((status) => ({
   value: status,
   label: getWorkflowStatusVisual(status).label,
@@ -51,8 +67,8 @@ export interface WorkflowRunFiltersProps {
 /**
  * The run list filter row.
  *
- * Inline from `md` up, and behind a sheet below it, where a five-control toolbar would eat
- * the viewport the list is supposed to fill. Both layouts render the same controls, so the
+ * Inline from `md` up, and behind a sheet below it, where the full toolbar would eat the
+ * viewport the list is supposed to fill. Both layouts render the same controls, so the
  * narrow surface is the full filter set rather than a reduced one.
  */
 export function WorkflowRunFilters({
@@ -66,7 +82,11 @@ export function WorkflowRunFilters({
   onRetryWorkflowOptions,
 }: WorkflowRunFiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const activeSheetFilterCount = countWorkflowRunFilters(search, {includeSearch: false});
+  const {origin, ...searchWithoutOrigin} = search;
+  const activeSheetFilterCount = countWorkflowRunFilters(
+    origin === 'synced' ? searchWithoutOrigin : search,
+    {includeSearch: false},
+  );
 
   return (
     <div className="flex w-full flex-wrap items-center gap-inline">
@@ -169,6 +189,25 @@ function WorkflowRunFilterControls({
         {...(onRetryWorkflowOptions ? {onRetryWorkflowOptions} : {})}
         stacked={stacked}
       />
+      <Select
+        value={search.origin ?? 'synced'}
+        onValueChange={(origin) => onChange({origin: origin as WorkflowRunListOrigin})}
+      >
+        <SelectTrigger
+          size="small"
+          aria-label="Filter runs by type"
+          className={controlClassName ?? 'w-auto max-w-[200px]'}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start">
+          {RUN_SCOPE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <WorkflowRunFilterMenu
         label="Status"
         options={STATUS_OPTIONS}
@@ -336,9 +375,10 @@ function ClearFiltersButton({onClear}: {onClear: () => void}) {
       variant="transparentMuted"
       size="sm"
       iconLeft="closeLine"
+      aria-label="Clear filters"
       onClick={onClear}
     >
-      Clear filters
+      Clear
     </Button>
   );
 }

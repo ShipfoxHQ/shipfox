@@ -12,6 +12,7 @@ import {
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {z} from 'zod';
+import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
 import {
   buildAgentToolCatalogs,
   buildAgentToolSelectionCatalogs,
@@ -136,6 +137,7 @@ export function createIntegrationsInterModulePresentation(params: {
     caller: IntegrationToolCallCaller,
   ) => IntegrationToolCallRecorder;
   repositoryAuthorizer?: RepositoryAuthorizer | undefined;
+  builtinConnections?: readonly WorkspaceBuiltinConnection[] | undefined;
 }): InterModulePresentation<typeof integrationsInterModuleContract> {
   const contract = integrationsInterModuleContract;
   const getConnectionById = params.getIntegrationConnectionById ?? getIntegrationConnectionById;
@@ -283,7 +285,10 @@ export function createIntegrationsInterModulePresentation(params: {
         const [selectionCatalogs, catalogs, snapshot, defaultConnection] = await Promise.all([
           buildAgentToolSelectionCatalogs(params.registry),
           buildAgentToolCatalogs(params.registry),
-          createWorkspaceConnectionSnapshotLoader(params.registry)(input.workspaceId),
+          createWorkspaceConnectionSnapshotLoader(
+            params.registry,
+            params.builtinConnections,
+          )(input.workspaceId),
           getConnectionById(input.defaultConnectionId),
         ]);
         return {
@@ -331,6 +336,9 @@ export function createIntegrationsInterModulePresentation(params: {
           provider: input.tool.provider,
           registry: params.registry,
           getIntegrationConnectionById: getConnectionById,
+          ...(params.builtinConnections === undefined
+            ? {}
+            : {builtinConnections: params.builtinConnections}),
         });
         // The frozen tool is caller-supplied, so its id, method allowlist,
         // sensitivity, and requiredScope are re-validated against the live

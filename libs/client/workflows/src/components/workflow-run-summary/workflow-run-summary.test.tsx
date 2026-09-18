@@ -491,6 +491,23 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).queryByText(REPLAY_OF_TEXT)).not.toBeInTheDocument();
   });
 
+  test('separates a local definition from its default checkout', async () => {
+    renderSummary({
+      ...devRunOverrides(),
+      dev_source: {...devSourceDto(), definition_source: 'local'},
+    });
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+
+    expect(within(summary).getByText('local file')).toBeInTheDocument();
+    expect(within(summary).getByRole('img', {name: 'Dev source local file'})).toBeInTheDocument();
+    expect(within(summary).getByText('Default checkout')).toBeInTheDocument();
+    expect(within(summary).getByText('fix-triage-prompt @ abcdef1')).toBeInTheDocument();
+    expect(
+      within(summary).getByText('A step or a replayed event can override this.'),
+    ).toBeInTheDocument();
+  });
+
   test('gives summary provenance chips an accessible kind and truncated initiator value', async () => {
     renderSummary(devRunOverrides());
 
@@ -611,6 +628,7 @@ function devSourceDto() {
   return {
     ref: 'fix-triage-prompt',
     commit: 'abcdef1234567890abcdef1234567890abcdef12',
+    definition_source: 'ref' as const,
     config_path: '.shipfox/workflows/triage-sentry.yml',
     initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
     replay_of_event_id: null,

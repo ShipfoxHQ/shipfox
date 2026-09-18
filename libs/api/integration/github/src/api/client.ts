@@ -127,11 +127,16 @@ export interface GithubApiClient extends Partial<GithubBotUserClient> {
 
 export type GithubInstallationAccessTokenInput = {
   installationId: number;
-  permissions?: {contents: 'read' | 'write'} | undefined;
+  permissions?: GithubInstallationAccessTokenPermissions | undefined;
 } & (
   | {repositoryId: number; repositoryName?: never}
   | {repositoryName: string; repositoryId?: never}
 );
+
+export interface GithubInstallationAccessTokenPermissions {
+  contents: 'read' | 'write';
+  workflows?: 'write';
+}
 
 export interface GithubInstallationAccessToken {
   token: string;

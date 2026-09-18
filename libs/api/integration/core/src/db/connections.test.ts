@@ -166,7 +166,7 @@ describe('integration connection queries', () => {
     // Sync classifies a trigger source by literal: `manual` and `cron` are
     // built-in sources, never connection slugs, so every provider must refuse
     // to allocate them.
-    for (const baseSlug of ['manual', 'cron'] as const) {
+    for (const baseSlug of ['manual', 'cron', 'shipfox'] as const) {
       await expect(
         resolveUniqueConnectionSlug({
           workspaceId,
@@ -207,6 +207,7 @@ describe('integration connection queries', () => {
   it.each([
     'manual',
     'cron',
+    'shipfox',
   ] as const)('refuses direct writes for reserved slug %s', async (slug) => {
     await expect(
       createIntegrationConnection({

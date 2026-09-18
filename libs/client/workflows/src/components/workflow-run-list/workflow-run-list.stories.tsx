@@ -60,12 +60,14 @@ function makeDevRun(
   {
     ref,
     commit,
+    definitionSource = 'ref',
     replayOfEventId = null,
     triggerReference = null,
     jobs = [],
   }: {
     ref: string;
     commit: string;
+    definitionSource?: 'ref' | 'local';
     replayOfEventId?: string | null;
     triggerReference?: WorkflowRunListItem['triggerReference'];
     jobs?: JobStatusDto[];
@@ -79,6 +81,7 @@ function makeDevRun(
     dev_source: {
       ref,
       commit,
+      definition_source: definitionSource,
       config_path: '.shipfox/workflows/triage-sentry.yml',
       initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
       replay_of_event_id: replayOfEventId,
@@ -137,17 +140,19 @@ type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {};
 
-/** Dev runs carry the Dev badge and fall back to their dev ref and commit for provenance. */
+/** Ref and local-file dev runs keep definition provenance distinct from checkout. */
 export const DevRuns: Story = {
   args: {
+    search: {origin: 'dev'},
     runs: [
       makeDevRun('running', 'triage-sentry', 3, {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
       }),
       makeDevRun('succeeded', 'triage-sentry', 22, {
-        ref: 'fix-triage-prompt',
+        ref: 'main',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definitionSource: 'local',
         replayOfEventId: '88888888-8888-4888-8888-888888888888',
         triggerReference: {
           repository: 'acme/checkout-api',
@@ -159,6 +164,20 @@ export const DevRuns: Story = {
       makeDevRun('failed', 'triage-sentry', 45, {
         ref: 'refs/tags/v2.14.0',
         commit: '0123456789abcdef0123456789abcdef01234567',
+      }),
+    ],
+  },
+};
+
+/** The explicit All origin keeps synced and dev runs visible together. */
+export const AllOrigins: Story = {
+  args: {
+    search: {origin: 'all'},
+    runs: [
+      makeRun('succeeded', 'deploy-web', 1),
+      makeDevRun('running', 'triage-sentry', 3, {
+        ref: 'fix-triage-prompt',
+        commit: 'abcdef1234567890abcdef1234567890abcdef12',
       }),
     ],
   },

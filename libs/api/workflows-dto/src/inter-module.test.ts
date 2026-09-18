@@ -472,6 +472,18 @@ describe('workflowsInterModuleContract', () => {
     },
   };
 
+  test.each([
+    'ref',
+    'local',
+  ] as const)('accepts %s as a dev run definition source', (definitionSource) => {
+    const start = workflowsInterModuleContract.methods.startDevRun.input.parse({
+      ...devInput,
+      devSource: {...devInput.devSource, definitionSource},
+    });
+
+    expect(start.devSource.definitionSource).toBe(definitionSource);
+  });
+
   test('accepts a dev run command with a manual payload that has no subscription id', () => {
     const start = workflowsInterModuleContract.methods.startDevRun.input.parse(devInput);
 

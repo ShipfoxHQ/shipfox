@@ -1,6 +1,7 @@
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteExport} from '@shipfox/node-fastify';
+import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {RepositoryAuthorizer} from '#core/repository-authorizer.js';
 import type {IntegrationSourceControlService} from '#core/source-control-service.js';
@@ -32,6 +33,7 @@ export interface CreateIntegrationRoutesOptions {
     | {
         workflows: WorkflowsModuleClient;
         getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+        builtinConnections?: readonly WorkspaceBuiltinConnection[] | undefined;
         repositoryAuthorizer?: RepositoryAuthorizer | undefined;
       }
     | undefined;
@@ -49,6 +51,7 @@ export function createIntegrationRoutes(
           registry,
           loadLeasedAgentStep: createWorkflowsLeasedAgentStepLoader(options.agentTools.workflows),
           getIntegrationConnectionById: options.agentTools.getIntegrationConnectionById,
+          builtinConnections: options.agentTools.builtinConnections,
           repositoryAuthorizer: options.agentTools.repositoryAuthorizer,
         }),
       ]

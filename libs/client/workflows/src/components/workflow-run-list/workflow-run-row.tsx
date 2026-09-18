@@ -78,13 +78,14 @@ export function WorkflowRunRow({
   const branch = workflowRunBranchLabel(run);
   const commit = workflowRunCommitLabel(run);
   const actor = workflowRunActor(run);
+  const devBadgeLabel = workflowRunDevBadgeLabel(run);
 
   const body = (
     <>
       <WorkflowStatusIcon status={status} size={14} className="shrink-0" />
-      {run.origin === 'dev' ? (
+      {devBadgeLabel ? (
         <Badge variant="feature" size="2xs">
-          Dev
+          {devBadgeLabel}
         </Badge>
       ) : null}
 
@@ -162,7 +163,7 @@ export function WorkflowRunRow({
         run.triggerLabel,
         branch ? `branch ${branch}` : undefined,
         actor ? `by ${actor}` : undefined,
-        run.origin === 'dev' ? 'dev run' : undefined,
+        workflowRunDevAccessibleLabel(run),
         run.jobs.total > 0 ? jobStatusSummary(run.jobs) : undefined,
       ]
         .filter((part): part is string => Boolean(part))
@@ -172,6 +173,16 @@ export function WorkflowRunRow({
       {body}
     </Link>
   );
+}
+
+function workflowRunDevBadgeLabel(run: WorkflowRunListItem): string | null {
+  if (run.origin !== 'dev') return null;
+  return run.devSource?.definitionSource === 'local' ? 'Dev · local file' : 'Dev';
+}
+
+function workflowRunDevAccessibleLabel(run: WorkflowRunListItem): string | null {
+  if (run.origin !== 'dev') return null;
+  return run.devSource?.definitionSource === 'local' ? 'dev run from local file' : 'dev run';
 }
 
 function TriggerLabel({run}: {run: WorkflowRunListItem}) {
