@@ -528,8 +528,9 @@ describe('workflowsInterModuleContract', () => {
         source: 'manual',
         event: 'fire',
         subscriptionId: '00000000-0000-4000-8000-000000000008',
-        userId: devInput.devSource.initiatedByUserId,
+        parentRun: {runId: '00000000-0000-4000-8000-000000000010'},
       },
+      parentRun: {runId: '00000000-0000-4000-8000-000000000010'},
       idempotencyKey: 'manual-1',
     });
     const cron = workflowsInterModuleContract.methods.startRunFromTrigger.input.parse({
@@ -545,7 +546,11 @@ describe('workflowsInterModuleContract', () => {
       idempotencyKey: 'cron-1',
     });
 
-    expect(manual.triggerPayload).toMatchObject({subscriptionId: expect.any(String)});
+    expect(manual.triggerPayload).toMatchObject({
+      subscriptionId: expect.any(String),
+      parentRun: {runId: expect.any(String)},
+    });
+    expect(manual.parentRun).toEqual({runId: '00000000-0000-4000-8000-000000000010'});
     expect(cron.triggerPayload).toMatchObject({scheduleId: expect.any(String)});
   });
 

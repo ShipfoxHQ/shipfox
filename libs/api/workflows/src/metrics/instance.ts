@@ -15,6 +15,12 @@ const runCreatedCount = meter.createCounter<{provider: string}>('workflows_run_c
   description: 'Workflow runs created by bounded trigger provider',
 });
 
+const childRunStartOutcomeCount = meter.createCounter<{
+  outcome: 'started' | 'deduplicated' | 'depth-exceeded' | 'tree-limit-exceeded' | 'error';
+}>('workflows_child_run_start_outcomes', {
+  description: 'Child workflow run starts by bounded outcome',
+});
+
 const concurrencyClaimOutcomeCount = meter.createCounter<{
   outcome: 'acquired' | 'waiting';
 }>('workflows_concurrency_claim_outcomes', {
@@ -239,6 +245,12 @@ const toolInvocationLogAppendFailuresCount = meter.createCounter<{
 
 export function recordWorkflowRunCreated(provider: string): void {
   runCreatedCount.add(1, {provider});
+}
+
+export function recordWorkflowChildRunStart(
+  outcome: 'started' | 'deduplicated' | 'depth-exceeded' | 'tree-limit-exceeded' | 'error',
+): void {
+  childRunStartOutcomeCount.add(1, {outcome});
 }
 
 export function recordWorkflowConcurrencyClaimOutcome(outcome: 'acquired' | 'waiting'): void {

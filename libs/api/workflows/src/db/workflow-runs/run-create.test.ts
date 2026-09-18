@@ -9,6 +9,9 @@ import {and, eq, sql} from 'drizzle-orm';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
 import {
   InterpolationUnresolvableError,
+  WorkflowRunDepthExceededError,
+  WorkflowRunNotFoundError,
+  WorkflowRunTreeLimitExceededError,
   type WorkflowSourceSnapshotTooLargeError,
 } from '#core/errors.js';
 import {nextStepForJob, recordStepResult} from '#core/job-execution.js';
@@ -63,6 +66,159 @@ describe('workflow run queries', () => {
   });
 
   describe('createWorkflowRun', () => {
+    test('leaves ordinary runs without causation at depth zero', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+      });
+
+      const [row] = await db()
+        .select({
+          parentRunId: workflowRuns.parentRunId,
+          rootRunId: workflowRuns.rootRunId,
+          depth: workflowRuns.depth,
+        })
+        .from(workflowRuns)
+        .where(eq(workflowRuns.id, run.id));
+
+      expect(row).toEqual({parentRunId: null, rootRunId: null, depth: 0});
+    });
+
+    test('propagates the root and depth through three child levels', async () => {
+      const root = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+      });
+      let parent = root;
+
+      for (let depth = 1; depth <= 3; depth += 1) {
+        const child = await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: buildModel(),
+          parentRun: {runId: parent.id},
+          triggerPayload: {source: 'manual', event: 'fire'},
+        });
+        const [row] = await db()
+          .select({
+            parentRunId: workflowRuns.parentRunId,
+            rootRunId: workflowRuns.rootRunId,
+            depth: workflowRuns.depth,
+          })
+          .from(workflowRuns)
+          .where(eq(workflowRuns.id, child.id));
+
+        expect(row).toEqual({parentRunId: parent.id, rootRunId: root.id, depth});
+        parent = child;
+      }
+    });
+
+    test('rejects a parent from another workspace without creating a child', async () => {
+      const parent = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+      });
+
+      await expect(
+        createWorkflowRun({
+          workspaceId: crypto.randomUUID(),
+          projectId: crypto.randomUUID(),
+          definitionId: crypto.randomUUID(),
+          model: buildModel(),
+          parentRun: {runId: parent.id},
+          triggerPayload: {source: 'manual', event: 'fire'},
+        }),
+      ).rejects.toBeInstanceOf(WorkflowRunNotFoundError);
+    });
+
+    test('rejects a child whose parent is already at depth five', async () => {
+      let parent = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+      });
+
+      for (let depth = 1; depth <= 5; depth += 1) {
+        parent = await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: buildModel(),
+          parentRun: {runId: parent.id},
+          triggerPayload: {source: 'manual', event: 'fire'},
+        });
+      }
+
+      await expect(
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: buildModel(),
+          parentRun: {runId: parent.id},
+          triggerPayload: {source: 'manual', event: 'fire'},
+        }),
+      ).rejects.toBeInstanceOf(WorkflowRunDepthExceededError);
+    });
+
+    test('rejects the 101st descendant of one root run', async () => {
+      const root = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'cron', event: 'tick'},
+      });
+
+      for (let count = 0; count < 100; count += 1) {
+        await createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: buildModel(),
+          parentRun: {runId: root.id},
+          triggerPayload: {source: 'manual', event: 'fire'},
+        });
+      }
+
+      await expect(
+        createWorkflowRun({
+          workspaceId,
+          projectId,
+          definitionId,
+          model: buildModel(),
+          parentRun: {runId: root.id},
+          triggerPayload: {source: 'manual', event: 'fire'},
+        }),
+      ).rejects.toBeInstanceOf(WorkflowRunTreeLimitExceededError);
+    });
+
+    test('does not attribute a manual run without a user id', async () => {
+      const run = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel(),
+        triggerPayload: {source: 'manual', event: 'fire'},
+      });
+
+      expect(await runAttemptCreatedEvents(run.id)).toEqual([
+        expect.not.objectContaining({actorUserId: expect.anything()}),
+      ]);
+    });
+
     test('enforces the workflow run origin and dev source relationship at the database boundary', async () => {
       const run = await createWorkflowRun({
         workspaceId,
