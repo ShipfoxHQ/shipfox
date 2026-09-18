@@ -3,4 +3,4 @@
 "@shipfox/api-workflows": minor
 ---
 
-Record whether dev-run workflow definitions come from a repository ref or local request content.
+`startDevRun` accepts an optional `devSource.definitionSource` (`'ref' | 'local'`, default `'ref'`), and dev-run sources expose `definition_source`, so callers can tell whether a workflow definition came from the repository at a ref or was sent in the request.

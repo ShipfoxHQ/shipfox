@@ -462,7 +462,6 @@ describe('workflowsInterModuleContract', () => {
     devSource: {
       ref: 'fix-triage-prompt',
       commit: 'a'.repeat(40),
-      definitionSource: 'ref' as const,
       configPath: '.shipfox/workflows/triage-sentry.yml',
       initiatedByUserId: '00000000-0000-4000-8000-000000000004',
     },
