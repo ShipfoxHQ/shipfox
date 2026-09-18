@@ -26,7 +26,7 @@ const diagnosticCount = vi.hoisted(() => ({add: vi.fn()}));
 
 vi.mock('#metrics/instance.js', () => ({devRunsCount, diagnosticCount}));
 
-const {createDevRun} = await import('./create-dev-run.js');
+const {checkDevRun, createDevRun} = await import('./create-dev-run.js');
 
 const definitions = {
   resolveDefinitionAtRef: (...args: unknown[]) => resolveDefinitionAtRef(...args),
@@ -115,6 +115,76 @@ function subscriptionsForWorkspace(workspaceId: string) {
     .from(triggerSubscriptions)
     .where(eq(triggerSubscriptions.workspaceId, workspaceId));
 }
+
+describe('checkDevRun', () => {
+  beforeEach(() => {
+    resolveDefinitionAtRef.mockReset();
+    startDevRun.mockReset();
+    devRunsCount.add.mockReset();
+    diagnosticCount.add.mockReset();
+  });
+
+  test('returns the resolved trigger details without starting or journaling a run', async () => {
+    const params = buildParams();
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
+
+    const result = await checkDevRun(params);
+
+    expect(result).toEqual({
+      checkPassed: true,
+      triggerKind: 'manual',
+      ref: params.ref,
+      commit: COMMIT,
+      warnings: [],
+    });
+    expect(startDevRun).not.toHaveBeenCalled();
+    expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
+    expect(devRunsCount.add).toHaveBeenCalledWith(1, {
+      trigger_kind: 'manual',
+      outcome: 'dry-run',
+      definition_source: 'ref',
+    });
+  });
+
+  test.each([
+    ['filtered', 'Trigger filter evaluated to false'],
+    ['filter-error', 'Trigger filter evaluation failed'],
+  ] as const)('refuses a %s replay without journaling a dev event', async (_kind, reason) => {
+    const params = buildParams({
+      triggerKey: 'on_push',
+      triggers: {
+        on_push: {
+          source: 'github',
+          event: 'push',
+          filter:
+            reason === 'Trigger filter evaluated to false'
+              ? 'event.ref == "refs/heads/main"'
+              : 'event.ref.size() > 1',
+        },
+      },
+    });
+    const sourceEvent = await receivedEventFactory.create({
+      workspaceId: params.workspaceId,
+      origin: 'integration',
+      provider: 'github',
+      source: 'github',
+      event: 'push',
+      deliveryId: 'delivery-check',
+      connectionId: crypto.randomUUID(),
+      connectionName: 'Acme Production',
+      payload:
+        reason === 'Trigger filter evaluated to false' ? {ref: 'refs/heads/other'} : {ref: null},
+    });
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+
+    await expect(checkDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
+      new DevRunTriggerFilteredError(reason),
+    );
+    expect(startDevRun).not.toHaveBeenCalled();
+    expect(await devEventsForWorkspace(params.workspaceId)).toHaveLength(0);
+    expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(1);
+  });
+});
 
 describe('createDevRun', () => {
   beforeEach(() => {

@@ -64,25 +64,21 @@ export interface DevRunResult {
  * dispatch does. Nothing is persisted per branch and no trigger subscription
  * is created; the journal records the attempt with a single `dev` decision.
  */
+type ResolvedDevRunDefinition = Awaited<
+  ReturnType<CreateDevRunParams['definitions']['resolveDefinitionAtRef']>
+>;
+
+interface DevRunPreparation {
+  resolved: ResolvedDevRunDefinition;
+  built: DevRunTriggerBuild;
+  definitionSource: 'ref' | 'local';
+  resolvedRef: string;
+  triggerSource: string;
+}
+
 export async function createDevRun(params: CreateDevRunParams): Promise<DevRunResult> {
-  const resolved = await params.definitions.resolveDefinitionAtRef({
-    projectId: params.projectId,
-    ...(params.ref === undefined ? {} : {ref: params.ref}),
-    ...(params.content === undefined ? {} : {content: params.content}),
-    configPath: params.configPath,
-    ...(params.commit === undefined ? {} : {expectedCommit: params.commit}),
-  });
-  const definitionSource = params.content === undefined ? 'ref' : 'local';
-  const resolvedRef = resolved.ref ?? params.ref ?? missingResolvedRef();
-
-  const trigger = Object.hasOwn(resolved.triggers, params.triggerKey)
-    ? resolved.triggers[params.triggerKey]
-    : undefined;
-  if (!trigger) {
-    throw new DevRunTriggerNotFoundError(params.triggerKey, Object.keys(resolved.triggers));
-  }
-
-  const built = await buildDevRunTrigger(trigger, params);
+  const {resolved, built, definitionSource, resolvedRef, triggerSource} =
+    await prepareDevRun(params);
 
   // Dev runs have no upstream event id. Use the run id after success; failed
   // attempts need a synthesized ref because there is no run to key on. A
@@ -92,7 +88,7 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     origin: 'dev' as const,
     workspaceId: params.workspaceId,
     provider: built.replaySource?.provider ?? null,
-    source: trigger.source,
+    source: triggerSource,
     event: built.event,
     replayOfEventId: built.replaySource?.replayOfEventId ?? null,
     deliveryId: built.replaySource?.deliveryId ?? null,
@@ -147,9 +143,61 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
   };
 }
 
+export interface DevRunCheckResult {
+  checkPassed: true;
+  triggerKind: DevRunTriggerKind;
+  ref: string;
+  commit: string;
+  warnings: ResolvedDevRunDefinition['warnings'];
+}
+
+export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunCheckResult> {
+  const {resolved, built, definitionSource, resolvedRef} = await prepareDevRun(params);
+
+  if (built.kind === 'filtered' || built.kind === 'filter-error') {
+    throw new DevRunTriggerFilteredError(built.reason);
+  }
+
+  recordDevRunMetric(built.triggerKind, 'dry-run', definitionSource);
+  return {
+    checkPassed: true,
+    triggerKind: built.triggerKind,
+    ref: resolvedRef,
+    commit: resolved.commit,
+    warnings: resolved.warnings,
+  };
+}
+
+async function prepareDevRun(params: CreateDevRunParams): Promise<DevRunPreparation> {
+  const resolved = await params.definitions.resolveDefinitionAtRef({
+    projectId: params.projectId,
+    ...(params.ref === undefined ? {} : {ref: params.ref}),
+    ...(params.content === undefined ? {} : {content: params.content}),
+    configPath: params.configPath,
+    ...(params.commit === undefined ? {} : {expectedCommit: params.commit}),
+  });
+  const definitionSource = params.content === undefined ? 'ref' : 'local';
+  const resolvedRef = resolved.ref ?? params.ref ?? missingResolvedRef();
+
+  const trigger = Object.hasOwn(resolved.triggers, params.triggerKey)
+    ? resolved.triggers[params.triggerKey]
+    : undefined;
+  if (!trigger) {
+    throw new DevRunTriggerNotFoundError(params.triggerKey, Object.keys(resolved.triggers));
+  }
+
+  return {
+    resolved,
+    built: await buildDevRunTrigger(trigger, params),
+    definitionSource,
+    resolvedRef,
+    triggerSource: trigger.source,
+  };
+}
+
 async function startDevRunAndRecordFailure(
   params: CreateDevRunParams,
-  resolved: Awaited<ReturnType<CreateDevRunParams['definitions']['resolveDefinitionAtRef']>>,
+  resolved: ResolvedDevRunDefinition,
   built: BuiltDevRunTrigger,
   historyBase: Omit<Parameters<typeof beginTriggerHistory>[0], 'eventRef'>,
   resolvedRef: string,
@@ -210,7 +258,7 @@ function missingResolvedRef(): never {
 
 function recordDevRunMetric(
   triggerKind: DevRunTriggerKind,
-  outcome: 'routed' | 'errored' | 'failed' | 'filtered',
+  outcome: 'routed' | 'errored' | 'failed' | 'filtered' | 'dry-run',
   definitionSource: 'ref' | 'local',
 ): void {
   devRunsCount.add(1, {

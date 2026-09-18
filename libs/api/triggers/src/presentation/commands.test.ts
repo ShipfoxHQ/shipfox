@@ -11,6 +11,7 @@ import {
 import {createInterModuleKnownError, isInterModuleKnownError} from '@shipfox/inter-module';
 import {
   DevRunReplayEventMismatchError,
+  DevRunTriggerFilteredError,
   ManualTriggerNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
@@ -18,6 +19,7 @@ import {
 } from '#core/errors.js';
 
 const mocks = vi.hoisted(() => ({
+  checkDevRun: vi.fn(),
   createDevRun: vi.fn(),
   fireManualTrigger: vi.fn(),
   getTriggerEventById: vi.fn(),
@@ -30,7 +32,10 @@ const mocks = vi.hoisted(() => ({
   requireProjectForWorkspace: vi.fn(),
 }));
 
-vi.mock('#core/create-dev-run.js', () => ({createDevRun: mocks.createDevRun}));
+vi.mock('#core/create-dev-run.js', () => ({
+  checkDevRun: mocks.checkDevRun,
+  createDevRun: mocks.createDevRun,
+}));
 vi.mock('#core/fire-manual.js', () => ({fireManualTrigger: mocks.fireManualTrigger}));
 vi.mock('#db/index.js', () => ({
   getTriggerEventById: mocks.getTriggerEventById,
@@ -68,6 +73,7 @@ function presentation() {
 
 describe('trigger command presentation', () => {
   beforeEach(() => {
+    mocks.checkDevRun.mockReset();
     mocks.createDevRun.mockReset();
     mocks.fireManualTrigger.mockReset();
     mocks.requireProjectForWorkspace.mockReset();
@@ -165,6 +171,64 @@ describe('trigger command presentation', () => {
       definitions: {},
       workflows: {},
     });
+  });
+
+  test('delegates dry-run checks without starting a run', async () => {
+    mocks.checkDevRun.mockResolvedValue({
+      checkPassed: true,
+      triggerKind: 'manual',
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    });
+    const input = {
+      workspaceId: WORKSPACE_ID,
+      projectId: PROJECT_ID,
+      ref: 'main',
+      configPath: '.shipfox/workflows/main.yml',
+      triggerKey: 'on_demand',
+      userId: USER_ID,
+    };
+
+    const result = await presentation().handlers.checkDevRun(input, context);
+
+    expect(result).toEqual({
+      checkPassed: true,
+      triggerKind: 'manual',
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    });
+    expect(mocks.checkDevRun).toHaveBeenCalledWith({
+      ...input,
+      definitions: {},
+      workflows: {},
+    });
+    expect(mocks.createDevRun).not.toHaveBeenCalled();
+  });
+
+  test('maps a dry-run filter refusal with the same details as a real call', async () => {
+    const reason = 'Trigger filter evaluated to false';
+    mocks.checkDevRun.mockRejectedValue(new DevRunTriggerFilteredError(reason));
+
+    const error = await rejection(
+      presentation().handlers.checkDevRun(
+        {
+          workspaceId: WORKSPACE_ID,
+          projectId: PROJECT_ID,
+          ref: 'main',
+          configPath: '.shipfox/workflows/main.yml',
+          triggerKey: 'on_push',
+          userId: USER_ID,
+        },
+        context,
+      ),
+    );
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.checkDevRun, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject({code: 'trigger-filtered', details: {reason}});
   });
 
   test('maps a project workspace mismatch to project-not-found', async () => {
@@ -332,6 +396,19 @@ describe('trigger command presentation', () => {
       [
         'manual-trigger-not-found',
         ...Object.keys(workflowsInterModuleContract.methods.startRunFromTrigger.errors),
+      ].sort(),
+    );
+    expect(Object.keys(triggersInterModuleContract.methods.checkDevRun.errors).sort()).toEqual(
+      [
+        'trigger-not-found',
+        'inputs-not-allowed',
+        'replay-event-required',
+        'replay-event-not-allowed',
+        'replay-event-not-found',
+        'replay-event-mismatch',
+        'replay-event-unavailable',
+        'trigger-filtered',
+        ...Object.keys(definitionsInterModuleContract.methods.resolveDefinitionAtRef.errors),
       ].sort(),
     );
     expect(Object.keys(triggersInterModuleContract.methods.createDevRun.errors).sort()).toEqual(

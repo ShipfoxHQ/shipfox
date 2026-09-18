@@ -18,7 +18,7 @@ import {
   type InterModulePresentation,
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
-import {createDevRun} from '#core/create-dev-run.js';
+import {checkDevRun, createDevRun} from '#core/create-dev-run.js';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
   TriggerEventReplay,
@@ -77,6 +77,21 @@ export function createTriggersInterModulePresentation(params: {
         });
       } catch (error) {
         throw toCreateDevRunKnownError(error, input.projectId);
+      }
+    },
+    checkDevRun: async (input) => {
+      try {
+        await params.projects.requireProjectForWorkspace({
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+        });
+        return await checkDevRun({
+          ...input,
+          definitions: params.definitions,
+          workflows: params.workflows,
+        });
+      } catch (error) {
+        throw toCheckDevRunKnownError(error, input.projectId);
       }
     },
     listTriggerEvents: async ({workspaceId, limit, cursor, filters}) => {
@@ -177,6 +192,59 @@ function toFireManualTriggerKnownError(error: unknown, definitionId: string): un
   return (
     forwardKnownError(workflowsInterModuleContract.methods.startRunFromTrigger, method, error) ??
     error
+  );
+}
+
+function toCheckDevRunKnownError(error: unknown, projectId: string): unknown {
+  const method = triggersInterModuleContract.methods.checkDevRun;
+  if (
+    isInterModuleKnownError(projectsInterModuleContract.methods.requireProjectForWorkspace, error)
+  ) {
+    return createInterModuleKnownError(method, 'project-not-found', {projectId});
+  }
+  if (error instanceof DevRunTriggerNotFoundError) {
+    return createInterModuleKnownError(
+      method,
+      'trigger-not-found',
+      toTriggerNotFoundDetails(error),
+    );
+  }
+  if (error instanceof DevRunInputsNotAllowedError) {
+    return createInterModuleKnownError(method, 'inputs-not-allowed', {});
+  }
+  if (error instanceof DevRunReplayEventRequiredError) {
+    return createInterModuleKnownError(method, 'replay-event-required', {source: error.source});
+  }
+  if (error instanceof DevRunReplayEventNotAllowedError) {
+    return createInterModuleKnownError(method, 'replay-event-not-allowed', {source: error.source});
+  }
+  if (error instanceof DevRunReplayEventNotFoundError) {
+    return createInterModuleKnownError(method, 'replay-event-not-found', {
+      replayEventId: error.replayEventId,
+    });
+  }
+  if (error instanceof DevRunReplayEventMismatchError) {
+    return createInterModuleKnownError(
+      method,
+      'replay-event-mismatch',
+      toReplayEventMismatchDetails(error),
+    );
+  }
+  if (error instanceof DevRunReplayEventUnavailableError) {
+    return createInterModuleKnownError(method, 'replay-event-unavailable', {
+      replayEventId: error.replayEventId,
+    });
+  }
+  if (error instanceof DevRunTriggerFilteredError) {
+    return createInterModuleKnownError(method, 'trigger-filtered', {reason: error.reason});
+  }
+
+  return (
+    forwardKnownError(
+      definitionsInterModuleContract.methods.resolveDefinitionAtRef,
+      method,
+      error,
+    ) ?? error
   );
 }
 
