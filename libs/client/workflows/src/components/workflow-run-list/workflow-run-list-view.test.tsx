@@ -803,6 +803,7 @@ function renderListView(
   runs: WorkflowRunListItem[],
   {
     query = loadedQuery(),
+    search,
     ...options
   }: Partial<
     Pick<
@@ -819,6 +820,14 @@ function renderListView(
   > = {},
 ) {
   // Row links need router context; the query and data stay injected by props.
+  // The real list defaults to synced runs, so direct local-dev fixtures must opt into the
+  // development scope before they can exercise their provenance rendering.
+  const localDevRun = runs.some((run) => {
+    const source = run.devSource as {definitionSource?: string} | null;
+    return run.origin === 'dev' && source?.definitionSource === 'local';
+  });
+  const effectiveSearch = search ?? (localDevRun ? {origin: 'dev' as const} : undefined);
+
   renderWithRouter(
     <WorkflowRunListView
       runs={runs}
@@ -826,6 +835,7 @@ function renderListView(
       workspaceSlug={WORKSPACE_SLUG}
       projectSlug={PROJECT_SLUG}
       {...options}
+      {...(effectiveSearch ? {search: effectiveSearch} : {})}
     />,
   );
 }
