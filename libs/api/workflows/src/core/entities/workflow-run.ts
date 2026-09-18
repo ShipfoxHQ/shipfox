@@ -62,7 +62,8 @@ export type TriggerPayload =
       event: 'fire';
       // A dev trigger has no subscription row, so the id is optional here.
       subscriptionId?: string | undefined;
-      userId: string;
+      userId?: string | undefined;
+      parentRun?: {runId: string} | undefined;
     }
   | {
       source: 'cron';

@@ -354,6 +354,20 @@ export class JobNotActiveError extends Error {
   }
 }
 
+export class WorkflowRunDepthExceededError extends Error {
+  constructor() {
+    super('Workflow run depth limit exceeded');
+    this.name = 'WorkflowRunDepthExceededError';
+  }
+}
+
+export class WorkflowRunTreeLimitExceededError extends Error {
+  constructor() {
+    super('Workflow run tree size limit exceeded');
+    this.name = 'WorkflowRunTreeLimitExceededError';
+  }
+}
+
 export class WorkflowRunNotFoundError extends Error {
   constructor(workflowRunId: string) {
     super(`Workflow run not found: ${workflowRunId}`);

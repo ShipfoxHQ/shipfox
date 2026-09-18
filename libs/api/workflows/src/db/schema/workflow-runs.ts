@@ -57,6 +57,9 @@ export const workflowRuns = pgTable(
     status: workflowRunStatusEnum('status').notNull().default('pending'),
     origin: text('origin').notNull().default('synced'),
     devSource: jsonb('dev_source').$type<WorkflowRunDevSourceDb>(),
+    parentRunId: uuid('parent_run_id'),
+    rootRunId: uuid('root_run_id'),
+    depth: integer('depth').notNull().default(0),
     currentAttempt: integer('current_attempt').notNull().default(1),
     triggerProvider: text('trigger_provider'),
     triggerSource: text('trigger_source').notNull(),
@@ -105,6 +108,9 @@ export const workflowRuns = pgTable(
     // Prometheus scrape. Indexes only active rows so the count stays cheap as the
     // historical table grows.
     index('workflows_wr_running_idx').on(table.status).where(sql`${table.status} = 'running'`),
+    index('workflows_wr_root_run_id_idx')
+      .on(table.rootRunId)
+      .where(sql`${table.rootRunId} is not null`),
     check('workflows_wr_current_attempt_positive_ck', sql`${table.currentAttempt} > 0`),
     check('workflows_wr_origin_ck', sql`${table.origin} in ('synced', 'dev')`),
     check(
@@ -123,7 +129,10 @@ export const workflowRuns = pgTable(
 
 export type WorkflowRunDb = typeof workflowRuns.$inferSelect;
 export type WorkflowRunCreateDb = typeof workflowRuns.$inferInsert;
-export type WorkflowRunListDb = Omit<WorkflowRunDb, WorkflowRunListOmittedField>;
+export type WorkflowRunListDb = Omit<
+  WorkflowRunDb,
+  WorkflowRunListOmittedField | 'parentRunId' | 'rootRunId' | 'depth'
+>;
 
 export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
   const originState = toWorkflowRunOriginState(row);

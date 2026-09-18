@@ -24,6 +24,9 @@ import {
   WorkflowAdmissionDeniedError,
   WorkflowDiagnosticTooLargeError,
   WorkflowExecutionPayloadTooLargeError,
+  WorkflowRunDepthExceededError,
+  WorkflowRunNotFoundError,
+  WorkflowRunTreeLimitExceededError,
   WorkflowSourceSnapshotTooLargeError,
 } from '#core/errors.js';
 import {
@@ -1247,6 +1250,9 @@ describe('Workflows inter-module presentation', () => {
         }),
     ],
     ['project-mismatch', () => new ProjectMismatchError(input.projectId, input.definitionId)],
+    ['parent-run-not-found', () => new WorkflowRunNotFoundError(crypto.randomUUID())],
+    ['run-depth-exceeded', () => new WorkflowRunDepthExceededError()],
+    ['run-tree-limit-exceeded', () => new WorkflowRunTreeLimitExceededError()],
     ['agent-config-unresolvable', () => new AgentConfigUnresolvableError(input.definitionId)],
     [
       'agent-integration-materialization-failed',

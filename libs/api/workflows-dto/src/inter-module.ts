@@ -80,7 +80,8 @@ const triggerPayloadSchema = z.union([
     // A dev trigger has no subscription row, so the id is optional here. Manual
     // fires from a subscription keep sending it.
     subscriptionId: idSchema.optional(),
-    userId: idSchema,
+    userId: idSchema.optional(),
+    parentRun: z.object({runId: idSchema}).optional(),
   }),
   z.object({
     provider: z.literal('cron').optional(),
@@ -212,6 +213,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         triggerConnectionId: idSchema.optional(),
         triggerPayload: triggerPayloadSchema,
         inputs: z.record(z.string(), z.unknown()).optional(),
+        parentRun: z.object({runId: idSchema}).optional(),
         idempotencyKey: z.string().min(1),
       }),
       output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean().optional()}),
@@ -222,6 +224,9 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'admission-denied': admissionDeniedDetailsSchema,
         'definition-not-found': z.object({definitionId: idSchema}),
         'project-mismatch': z.object({}),
+        'parent-run-not-found': z.object({}),
+        'run-depth-exceeded': z.object({}),
+        'run-tree-limit-exceeded': z.object({}),
         'agent-config-unresolvable': z.object({definitionId: idSchema}),
         'agent-integration-materialization-failed': z.object({}),
         'interpolation-unresolvable': z.object({

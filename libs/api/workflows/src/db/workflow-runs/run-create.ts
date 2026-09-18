@@ -35,7 +35,13 @@ import type {
   WorkflowRunOrigin,
   WorkflowSourceSnapshot,
 } from '#core/entities/workflow-run.js';
-import {InterpolationUnresolvableError, WorkflowSourceSnapshotTooLargeError} from '#core/errors.js';
+import {
+  InterpolationUnresolvableError,
+  WorkflowRunDepthExceededError,
+  WorkflowRunNotFoundError,
+  WorkflowRunTreeLimitExceededError,
+  WorkflowSourceSnapshotTooLargeError,
+} from '#core/errors.js';
 import {resolveWorkflowRunTriggerReference} from '#core/resolve-trigger-reference.js';
 import {assembleCreationContext} from '#core/step-config/assemble-run-context.js';
 import type {MaterializedWorkflowJob} from '#core/step-config/materialize-workflow-model.js';
@@ -84,6 +90,7 @@ export interface CreateWorkflowRunParams {
   triggerPayload: TriggerPayload;
   triggerConnectionId?: string | undefined;
   inputs?: Record<string, unknown> | undefined;
+  parentRun?: {runId: string} | undefined;
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
   /** Run provenance. Defaults to a synced run with no dev source. */
@@ -206,6 +213,7 @@ async function insertWorkflowRun(
 > {
   const {params} = context;
   assertWorkflowSourceSnapshotSize(params.sourceSnapshot);
+  const causation = await resolveRunCausation(params, tx);
   // Keep allocation on the existing transaction so a trigger burst cannot pin
   // every pool connection and then wait for a second connection per run.
   const number = await allocateWorkflowRunNumber(tx, params.definitionId);
@@ -225,6 +233,9 @@ async function insertWorkflowRun(
       triggerEvent: params.triggerPayload.event,
       triggerPayload: params.triggerPayload,
       triggerReference: context.triggerReference,
+      parentRunId: causation.parentRunId,
+      rootRunId: causation.rootRunId,
+      depth: causation.depth,
       inputs: params.inputs ?? null,
       sourceSnapshot: params.sourceSnapshot ?? null,
       triggerIdempotencyKey: params.triggerIdempotencyKey ?? null,
@@ -238,6 +249,45 @@ async function insertWorkflowRun(
     .returning();
   if (runRow) return {kind: 'created', row: runRow};
   return loadConflictingWorkflowRun(params.triggerIdempotencyKey, tx);
+}
+
+const MAX_WORKFLOW_RUN_DEPTH = 5;
+const MAX_WORKFLOW_RUN_TREE_SIZE = 100;
+
+async function resolveRunCausation(
+  params: CreateWorkflowRunParams,
+  tx: Tx,
+): Promise<{parentRunId: string | null; rootRunId: string | null; depth: number}> {
+  const parentRunId =
+    params.parentRun?.runId ??
+    ('parentRun' in params.triggerPayload ? params.triggerPayload.parentRun?.runId : undefined);
+  if (parentRunId === undefined) return {parentRunId: null, rootRunId: null, depth: 0};
+
+  const [parent] = await tx
+    .select({
+      id: workflowRuns.id,
+      workspaceId: workflowRuns.workspaceId,
+      rootRunId: workflowRuns.rootRunId,
+      depth: workflowRuns.depth,
+    })
+    .from(workflowRuns)
+    .where(eq(workflowRuns.id, parentRunId))
+    .limit(1);
+  if (!parent || parent.workspaceId !== params.workspaceId) {
+    throw new WorkflowRunNotFoundError(parentRunId);
+  }
+  if (parent.depth >= MAX_WORKFLOW_RUN_DEPTH) throw new WorkflowRunDepthExceededError();
+
+  const rootRunId = parent.rootRunId ?? parent.id;
+  const [tree] = await tx
+    .select({count: sql<number>`count(*)`})
+    .from(workflowRuns)
+    .where(eq(workflowRuns.rootRunId, rootRunId));
+  if (Number(tree?.count ?? 0) >= MAX_WORKFLOW_RUN_TREE_SIZE) {
+    throw new WorkflowRunTreeLimitExceededError();
+  }
+
+  return {parentRunId, rootRunId, depth: parent.depth + 1};
 }
 
 function assertWorkflowSourceSnapshotSize(

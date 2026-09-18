@@ -23,6 +23,7 @@ export interface RunWorkflowParams {
   triggerPayload: TriggerPayload;
   triggerConnectionId?: string | undefined;
   inputs?: Record<string, unknown> | undefined;
+  parentRun?: {runId: string} | undefined;
   triggerIdempotencyKey?: string | undefined;
   integrations?: IntegrationsModuleClient | undefined;
   projects?: ProjectsModuleClient | undefined;
@@ -56,6 +57,9 @@ export async function runWorkflow(
     triggerPayload: params.triggerPayload,
     triggerConnectionId: params.triggerConnectionId,
     inputs: params.inputs,
+    parentRun:
+      params.parentRun ??
+      ('parentRun' in params.triggerPayload ? params.triggerPayload.parentRun : undefined),
     sourceSnapshot: definition.sourceSnapshot,
     triggerIdempotencyKey: params.triggerIdempotencyKey,
     resolveAgentDefaults,

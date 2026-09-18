@@ -225,6 +225,15 @@ describe('WorkflowsModuleClient consumer parity', () => {
       {workspaceId: input.workspaceId, reason: 'billing-payment-method-required'},
     );
     expect(startRunDiagnostic(admissionError)).toEqual({version: 1, code: 'admission-denied'});
+    const parentNotFoundError = createInterModuleKnownError(
+      workflowsInterModuleContract.methods.startRunFromTrigger,
+      'parent-run-not-found',
+      {},
+    );
+    expect(startRunDiagnostic(parentNotFoundError)).toEqual({
+      version: 1,
+      code: 'unexpected-workflow-start-failure',
+    });
     expect(startRunDiagnostic(new Error('database host unavailable'))).toEqual({
       version: 1,
       code: 'unexpected-workflow-start-failure',

@@ -45,8 +45,10 @@ import {
   WorkflowAdmissionDeniedError,
   WorkflowExecutionPayloadTooLargeError,
   WorkflowRunAttemptMismatchError,
+  WorkflowRunDepthExceededError,
   WorkflowRunNotCancellableError,
   WorkflowRunNotFoundError,
+  WorkflowRunTreeLimitExceededError,
   WorkflowSourceSnapshotTooLargeError,
   WorkspaceDeletedError,
   WorkspaceNotFoundError,
@@ -100,6 +102,7 @@ import {
   workflowRunAnnotationOriginKey,
 } from '#db/index.js';
 import {deliverEventToListener} from '#db/job-listener-events.js';
+import {recordWorkflowChildRunStart} from '#metrics/instance.js';
 import {
   toRunAttemptDto,
   toRunListItemDto,
@@ -124,6 +127,31 @@ type WorkspaceAdmissionMethod =
   | typeof workflowsInterModuleContract.methods.deliverEventToJobListener
   | typeof workflowsInterModuleContract.methods.rerunWorkflowRun;
 type WorkspaceAdmissionKnownError = InterModuleKnownErrorFor<WorkspaceAdmissionMethod>;
+type ChildRunStartOutcome =
+  | 'started'
+  | 'deduplicated'
+  | 'depth-exceeded'
+  | 'tree-limit-exceeded'
+  | 'error';
+
+function hasChildRunParent(input: {
+  parentRun?: {runId: string} | undefined;
+  triggerPayload: unknown;
+}): boolean {
+  return (
+    input.parentRun !== undefined ||
+    (typeof input.triggerPayload === 'object' &&
+      input.triggerPayload !== null &&
+      'parentRun' in input.triggerPayload &&
+      input.triggerPayload.parentRun !== undefined)
+  );
+}
+
+function childRunStartErrorOutcome(error: unknown): ChildRunStartOutcome {
+  if (error instanceof WorkflowRunDepthExceededError) return 'depth-exceeded';
+  if (error instanceof WorkflowRunTreeLimitExceededError) return 'tree-limit-exceeded';
+  return 'error';
+}
 
 const DECIMAL_CURSOR_VALUE = /^\d+$/;
 
@@ -199,6 +227,7 @@ export function createWorkflowsInterModulePresentation(params: {
 
   return defineInterModulePresentation(workflowsInterModuleContract, {
     startRunFromTrigger: async (input) => {
+      const isChildRunStart = hasChildRunParent(input);
       try {
         await assertWorkspaceAdmitsNewJobs(params.workspaces, input.workspaceId, {
           policy: params.admission?.policy,
@@ -215,18 +244,25 @@ export function createWorkflowsInterModulePresentation(params: {
             triggerPayload: input.triggerPayload,
             triggerConnectionId: input.triggerConnectionId,
             inputs: input.inputs,
+            parentRun: input.parentRun,
             triggerIdempotencyKey: input.idempotencyKey,
             integrations: params.integrations,
             projects: params.projects,
           },
           {secrets: params.secrets},
         );
+        if (isChildRunStart) {
+          recordWorkflowChildRunStart(run.deduplicated === true ? 'deduplicated' : 'started');
+        }
         return {
           id: run.id,
           name: run.name,
           ...(run.deduplicated === true ? {deduplicated: true} : {}),
         };
       } catch (error) {
+        if (isChildRunStart) {
+          recordWorkflowChildRunStart(childRunStartErrorOutcome(error));
+        }
         throw toStartRunKnownError(error, input.definitionId);
       }
     },
@@ -963,6 +999,15 @@ function toRerunWorkflowRunKnownError(error: unknown): unknown {
 
 export function toStartRunKnownError(error: unknown, definitionId: string): unknown {
   const method = workflowsInterModuleContract.methods.startRunFromTrigger;
+  if (error instanceof WorkflowRunNotFoundError) {
+    return createInterModuleKnownError(method, 'parent-run-not-found', {});
+  }
+  if (error instanceof WorkflowRunDepthExceededError) {
+    return createInterModuleKnownError(method, 'run-depth-exceeded', {});
+  }
+  if (error instanceof WorkflowRunTreeLimitExceededError) {
+    return createInterModuleKnownError(method, 'run-tree-limit-exceeded', {});
+  }
   const mapped = toRunCreationKnownError(method, error);
   if (mapped !== undefined) return mapped;
   if (error instanceof DefinitionNotFoundError) {
