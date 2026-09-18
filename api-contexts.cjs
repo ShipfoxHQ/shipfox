@@ -41,6 +41,7 @@ const architecturePackages = {
       'libs/api/integration/github-dto',
       'libs/api/integration/jira-dto',
       'libs/api/integration/linear-dto',
+      'libs/api/integration/notion-dto',
       'libs/api/integration/sentry-dto',
       'libs/api/integration/slack-dto',
       'libs/api/integration/webhook-dto',

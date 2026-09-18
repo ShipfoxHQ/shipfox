@@ -324,6 +324,7 @@ jobs:
           turbo build type:emit \
             --filter=@shipfox/application-release... \
             --filter=@shipfox/api... \
+            --filter=@shipfox/api-integration-notion-dto... \
             --filter=@shipfox/client-shell... \
             --filter=@shipfox/client-features... \
             --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
