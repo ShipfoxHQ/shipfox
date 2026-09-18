@@ -2,6 +2,8 @@ import {
   ConnectionSlugConflictError,
   type IntegrationProviderErrorReason,
 } from '@shipfox/api-integration-spi';
+import {workspacesInterModuleContract} from '@shipfox/api-workspaces-dto/inter-module';
+import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
 import {
   GithubInstallationAlreadyLinkedError,
@@ -18,6 +20,11 @@ function providerStatus(reason: IntegrationProviderErrorReason): number {
 }
 
 export function githubRouteErrorHandler(error: unknown): never {
+  if (
+    isInterModuleKnownError(workspacesInterModuleContract.methods.requireActiveMembership, error)
+  ) {
+    throwGithubWorkspaceMembershipError(error);
+  }
   if (error instanceof GithubInstallStateError) {
     throw new ClientError(error.message, 'invalid-github-install-state', {status: 400});
   }
@@ -40,4 +47,26 @@ export function githubRouteErrorHandler(error: unknown): never {
     });
   }
   throw error;
+}
+
+function throwGithubWorkspaceMembershipError(error: {
+  code: 'workspace-not-found' | 'membership-required' | 'workspace-inactive';
+  details: {workspaceId: string};
+}): never {
+  if (error.code === 'workspace-not-found') {
+    throw new ClientError('Workspace not found', 'not-found', {
+      status: 404,
+      details: {workspace_id: error.details.workspaceId},
+    });
+  }
+  if (error.code === 'membership-required') {
+    throw new ClientError('Workspace membership required', 'forbidden', {
+      status: 403,
+      details: {workspace_id: error.details.workspaceId},
+    });
+  }
+  throw new ClientError('Workspace is inactive', 'workspace-inactive', {
+    status: 403,
+    details: {workspace_id: error.details.workspaceId},
+  });
 }

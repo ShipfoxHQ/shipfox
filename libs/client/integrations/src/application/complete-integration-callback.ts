@@ -2,6 +2,7 @@ import {type QueryClient, useQueryClient} from '@tanstack/react-query';
 import {useCallback} from 'react';
 import type {IntegrationConnection} from '#core/models.js';
 import {integrationsQueryKeys} from '#hooks/api/integrations.js';
+import {resolveWorkspaceSlug} from '#workspace-navigation.js';
 
 export interface CompleteIntegrationCallbackOptions<TInput> {
   input: TInput;
@@ -87,6 +88,20 @@ export function useCompleteIntegrationCallbackResult() {
     async <TInput, TResult>(
       options: Omit<CompleteIntegrationCallbackResultOptions<TInput, TResult>, 'queryClient'>,
     ): Promise<TResult> => completeIntegrationCallbackResult({...options, queryClient}),
+    [queryClient],
+  );
+}
+
+export function useResolveIntegrationWorkspaceSlug() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    async ({
+      workspaceId,
+      fallbackWorkspaces,
+    }: {
+      workspaceId: string;
+      fallbackWorkspaces: readonly {id: string; slug: string}[];
+    }) => await resolveWorkspaceSlug({workspaceId, fallbackWorkspaces, queryClient}),
     [queryClient],
   );
 }

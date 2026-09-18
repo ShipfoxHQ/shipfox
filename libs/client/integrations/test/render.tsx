@@ -1,5 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {type AuthState, authStateAtom} from '@shipfox/client-auth';
+import {type ClientAnalytics, ClientAnalyticsProvider} from '@shipfox/client-shell/runtime';
 import {Toaster} from '@shipfox/react-ui/toast';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
@@ -59,14 +60,27 @@ interface RenderIntegrationsPageOptions {
   extraRoutes?: string[];
   /** Seed auth as still-loading (the cold-load window) instead of authenticated. */
   loadingAuth?: boolean;
+  /** Seed a settled public session with no authenticated user. */
+  guestAuth?: boolean;
+  clientAnalytics?: ClientAnalytics;
 }
 
-function AuthSeed({workspaces, loading}: {workspaces: TestWorkspace[]; loading?: boolean}) {
+function AuthSeed({
+  workspaces,
+  loading,
+  guest,
+}: {
+  workspaces: TestWorkspace[];
+  loading?: boolean;
+  guest?: boolean;
+}) {
   const setAuth = useSetAtom(authStateAtom);
 
   useEffect(() => {
-    setAuth(loading ? {status: 'loading'} : authState(workspaces));
-  }, [setAuth, workspaces, loading]);
+    if (loading) setAuth({status: 'loading'});
+    else if (guest) setAuth({status: 'guest'});
+    else setAuth(authState(workspaces));
+  }, [guest, loading, setAuth, workspaces]);
 
   return null;
 }
@@ -99,9 +113,17 @@ export function renderIntegrationsPage(options: RenderIntegrationsPageOptions): 
   return render(
     <QueryClientProvider client={queryClient}>
       <JotaiProvider>
-        <AuthSeed workspaces={workspaces} loading={options.loadingAuth ?? false} />
-        <RouterProvider router={router} />
-        <Toaster />
+        <AuthSeed
+          workspaces={workspaces}
+          loading={options.loadingAuth ?? false}
+          guest={options.guestAuth ?? false}
+        />
+        <ClientAnalyticsProvider
+          {...(options.clientAnalytics ? {analytics: options.clientAnalytics} : {})}
+        >
+          <RouterProvider router={router} />
+          <Toaster />
+        </ClientAnalyticsProvider>
       </JotaiProvider>
     </QueryClientProvider>,
   );
