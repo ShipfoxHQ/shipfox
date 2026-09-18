@@ -22,8 +22,4 @@ fields](/reference/workflow-schema#agent-integration-fields).
 The catalog uses the Slack bot scopes required by each tool. Read tools inspect
 workspace data. Write tools change messages, reactions, or canvases.
 
-An agent step's `integrations` entry must set `allow_write: true` to include a
-write tool, or Shipfox rejects the step at validation. A tool step needs no
-flag: naming the write tool is the choice.
-
 <SlackTools />

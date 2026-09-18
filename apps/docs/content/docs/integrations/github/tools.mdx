@@ -32,11 +32,6 @@ Authorized `create_commit` calls can write files under `.github/workflows/`. Tho
 writes reach GitHub, which returns success or denial based on the installation's
 grants and repository rules. They do not use a separate workflow-file switch.
 
-Write tools (for example `create_branch` and `merge_pull_request`) in an agent
-step require the workflow step's `integrations` entry to set `allow_write: true`;
-without it, Shipfox rejects the step at validation. A tool step needs no flag:
-naming the write tool is the choice.
-
 The generated catalog also states each operation's repository classification:
 
 - **Declared targets:** Shipfox can check repository coordinates from the tool
