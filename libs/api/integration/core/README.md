@@ -26,13 +26,25 @@ The application composition root must provide the clients and secrets required b
 
 ## Usage
 
+The following fixture uses the `parts` test seam. Production enables and composes providers through `IntegrationProviderModule` instead of passing `parts`.
+
 ```ts
 import {createIntegrationsContext} from '@shipfox/api-integration-core';
 
 const integrations = await createIntegrationsContext({
   parts: [
     {
-      provider: {provider: 'example', displayName: 'Example', adapters: {}},
+      provider: {
+        provider: 'example',
+        displayName: 'Example',
+        adapters: {
+          agent_tools: {
+            catalog: () => [],
+            selectionCatalog: () => ({selectors: []}),
+            openSession: async () => ({call: async () => ({})}),
+          },
+        },
+      },
       builtinConnection: {
         slug: 'example',
         id: '00000000-0000-4000-8000-000000000010',

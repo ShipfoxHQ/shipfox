@@ -74,6 +74,9 @@ export function createWorkspaceConnectionSnapshotLoader(
   const capabilitiesByProvider = new Map(
     registry.list().map((provider) => [provider.provider, provider.capabilities]),
   );
+  const agentToolProviders = new Set(
+    registry.list('agent_tools').map((provider) => provider.provider),
+  );
 
   return async (workspaceId) => {
     const connections = await listIntegrationConnections({workspaceId});
@@ -88,7 +91,8 @@ export function createWorkspaceConnectionSnapshotLoader(
       ]),
     );
     for (const builtin of builtinConnections) {
-      if (!registry.list().some((provider) => provider.provider === builtin.provider)) continue;
+      if (!agentToolProviders.has(builtin.provider)) continue;
+      if (snapshot.has(builtin.slug)) continue;
       snapshot.set(builtin.slug, {
         id: builtin.id,
         provider: builtin.provider,

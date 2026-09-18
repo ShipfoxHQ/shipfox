@@ -4,4 +4,4 @@
 "@shipfox/api-integration-spi": minor
 ---
 
-Adds the built-in provider seam with a reserved connection slug, synthetic connection support, inter-module clients, and caller context.
+Reserves the `shipfox` connection slug for built-in providers and passes optional caller context to provider tool calls through `OpenAgentToolsSessionInput`.
