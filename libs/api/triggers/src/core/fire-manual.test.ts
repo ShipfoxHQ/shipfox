@@ -32,6 +32,38 @@ describe('fireManualSubscription (trigger history)', () => {
     runWorkflow.mockReset();
   });
 
+  test.each([
+    ['neither', {}],
+    ['both', {userId: crypto.randomUUID(), parentRun: {runId: crypto.randomUUID()}}],
+  ] as const)('rejects %s caller forms without side effects', async (_label, caller) => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const callerError = 'Exactly one of userId or parentRun must be provided';
+
+    await expect(
+      fireManualTrigger({
+        workflows,
+        workspaceId: subscription.workspaceId,
+        definitionId: subscription.workflowDefinitionId,
+        ...caller,
+      }),
+    ).rejects.toThrow(callerError);
+    await expect(
+      fireManualSubscription({
+        workflows,
+        subscriptionId: subscription.id,
+        callerWorkspaceId: subscription.workspaceId,
+        ...caller,
+      }),
+    ).rejects.toThrow(callerError);
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    expect(await eventsForWorkspace(subscription.workspaceId)).toHaveLength(0);
+  });
+
   test('passes a caller idempotency key through and returns deduplication', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
@@ -53,6 +85,39 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({idempotencyKey: 'retry-key'}),
     );
+  });
+
+  test('records a routed workflow event and forwards its parent run', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const parentRun = {runId: crypto.randomUUID()};
+    const run = {id: crypto.randomUUID(), name: 'Child run'};
+    runWorkflow.mockResolvedValue(run);
+
+    const result = await fireManualTrigger({
+      workflows,
+      workspaceId: subscription.workspaceId,
+      definitionId: subscription.workflowDefinitionId,
+      parentRun,
+    });
+
+    expect(result).toEqual({...run, deduplicated: false});
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentRun,
+        triggerPayload: expect.objectContaining({parentRun}),
+      }),
+    );
+    const [event] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.eventRef, run.id));
+    if (!event) throw new Error('received event not found');
+    expect(event.origin).toBe('workflow');
+    expect(event.outcome).toBe('routed');
   });
 
   test('records a routed manual event and a triggered decision on success', async () => {

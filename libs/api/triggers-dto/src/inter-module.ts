@@ -362,13 +362,24 @@ export const triggersInterModuleContract = defineInterModuleContract({
   module: 'triggers',
   methods: {
     fireManualTrigger: {
-      input: z.object({
-        workspaceId: idSchema,
-        definitionId: idSchema,
-        userId: idSchema,
-        inputs: z.record(z.string(), z.unknown()).optional(),
-        idempotencyKey: z.string().min(1).optional(),
-      }),
+      input: z
+        .object({
+          workspaceId: idSchema,
+          definitionId: idSchema,
+          userId: idSchema.optional(),
+          parentRun: z.object({runId: idSchema}).optional(),
+          inputs: z.record(z.string(), z.unknown()).optional(),
+          idempotencyKey: z.string().min(1).optional(),
+        })
+        .superRefine((value, ctx) => {
+          if ((value.userId === undefined) === (value.parentRun === undefined)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Exactly one of userId or parentRun must be provided',
+              path: ['userId'],
+            });
+          }
+        }),
       output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean()}),
       errors: {
         'manual-trigger-not-found': z.object({definitionId: idSchema}),

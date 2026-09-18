@@ -91,7 +91,7 @@ export const getRunAnnotationsInputSchema = z
   })
   .strict();
 
-const triggerEventOriginSchema = z.enum(['integration', 'manual', 'cron', 'dev']);
+const triggerEventOriginSchema = z.enum(['integration', 'manual', 'workflow', 'cron', 'dev']);
 const triggerEventOutcomeSchema = z.enum(['received', 'routed', 'discarded', 'failed', 'errored']);
 
 export const listTriggerEventsInputSchema = z
@@ -197,7 +197,7 @@ export const listTriggerEventsInputJsonSchema = {
     },
     origin: {
       type: 'array',
-      items: {type: 'string', enum: ['integration', 'manual', 'cron', 'dev']},
+      items: {type: 'string', enum: ['integration', 'manual', 'workflow', 'cron', 'dev']},
     },
     outcome: {
       type: 'array',
@@ -388,7 +388,7 @@ export const getRunAnnotationsResultSchema = z
 const triggerEventResultItemSchema = z
   .object({
     id: idSchema,
-    origin: z.enum(['integration', 'manual', 'cron', 'dev']),
+    origin: z.enum(['integration', 'manual', 'workflow', 'cron', 'dev']),
     provider: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES).nullable(),
     source: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
     event: utf8CappedString(AGENT_ACCESS_TEXT_MAX_BYTES),
@@ -660,7 +660,7 @@ const triggerEventResultJsonSchema = {
   type: 'object',
   properties: {
     id: uuid,
-    origin: {type: 'string', enum: ['integration', 'manual', 'cron', 'dev']},
+    origin: {type: 'string', enum: ['integration', 'manual', 'workflow', 'cron', 'dev']},
     provider: nullable(cappedText),
     source: cappedText,
     event: cappedText,

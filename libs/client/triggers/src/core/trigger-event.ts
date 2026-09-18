@@ -1,4 +1,4 @@
-export type TriggerEventOrigin = 'integration' | 'manual' | 'cron' | 'dev';
+export type TriggerEventOrigin = 'integration' | 'manual' | 'workflow' | 'cron' | 'dev';
 
 export type TriggerEventOutcome = 'received' | 'routed' | 'discarded' | 'failed' | 'errored';
 

@@ -543,7 +543,7 @@ function toAnnotationResult(annotation: {
 
 function toTriggerEventResult(event: {
   id: string;
-  origin: 'integration' | 'manual' | 'cron' | 'dev';
+  origin: 'integration' | 'manual' | 'workflow' | 'cron' | 'dev';
   provider: string | null;
   source: string;
   event: string;
