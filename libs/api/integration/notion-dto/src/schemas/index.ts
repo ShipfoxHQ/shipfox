@@ -35,6 +35,7 @@ export type NotionWebhookEventName = z.infer<typeof notionWebhookEventNameSchema
 export type NotionEventName = NotionWebhookEventName;
 
 const notionWebhookActorTypeSchema = z.enum(['person', 'bot', 'agent']);
+const notionWebhookAccessibleByActorTypeSchema = z.enum(['person', 'bot']);
 const notionWebhookEntityTypeSchema = z.enum(['page', 'data_source', 'database', 'comment']);
 
 export const notionWebhookActorSchema = z
@@ -44,6 +45,13 @@ export const notionWebhookActorSchema = z
   })
   .passthrough();
 export type NotionWebhookActorDto = z.infer<typeof notionWebhookActorSchema>;
+
+const notionWebhookAccessibleByActorSchema = z
+  .object({
+    id: z.string().min(1),
+    type: notionWebhookAccessibleByActorTypeSchema,
+  })
+  .passthrough();
 
 export const notionWebhookEntitySchema = z
   .object({
@@ -60,8 +68,8 @@ const notionWebhookEnvelopeFields = {
   subscription_id: z.string().min(1),
   integration_id: z.string().min(1),
   authors: z.array(notionWebhookActorSchema).min(1),
-  accessible_by: z.array(notionWebhookActorSchema).min(1).optional(),
-  attempt_number: z.number().int().min(1),
+  accessible_by: z.array(notionWebhookAccessibleByActorSchema).min(1).optional(),
+  attempt_number: z.number().int().min(1).max(8),
   entity: notionWebhookEntitySchema,
   data: z.record(z.string(), z.unknown()),
 };

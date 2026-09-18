@@ -93,6 +93,21 @@ describe('Notion webhook schemas', () => {
 
     expect(result.accessible_by).toBeUndefined();
   });
+
+  it('rejects a delivery attempt above the Notion retry limit', () => {
+    const result = notionWebhookEnvelopeSchema.safeParse({...webhookSample, attempt_number: 9});
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an agent from the grant visibility actors', () => {
+    const result = notionWebhookEnvelopeSchema.safeParse({
+      ...webhookSample,
+      accessible_by: [{id: 'agent-1', type: 'agent'}],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('Notion install and callback DTOs', () => {
