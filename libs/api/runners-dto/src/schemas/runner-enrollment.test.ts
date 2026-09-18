@@ -57,4 +57,7 @@ test('accepts capabilities from deployed runners for compatibility', () => {
   });
 
   expect(result.success).toBe(true);
+  if (result.success) {
+    expect(result.data).not.toHaveProperty('capabilities');
+  }
 });

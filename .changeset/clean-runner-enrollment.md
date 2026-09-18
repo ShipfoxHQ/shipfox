@@ -2,4 +2,4 @@
 "@shipfox/api-runners": patch
 ---
 
-Stops persisting the duplicate provider-runner capability manifest during runner enrollment.
+Runner enrollment no longer records a capability manifest; runner-session registration remains the sole source of runner capabilities.
