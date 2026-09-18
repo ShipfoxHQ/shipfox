@@ -463,7 +463,9 @@ describe('WorkflowRunListView', () => {
     });
 
     test('labels a dev run with a Dev badge and its ref and commit from the dev source', async () => {
-      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides())]);
+      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides())], {
+        search: {origin: 'dev'},
+      });
 
       expect(await screen.findByText('triage-sentry')).toBeInTheDocument();
       expect(screen.getByText('Dev')).toHaveClass('bg-tag-purple-bg');
@@ -803,7 +805,6 @@ function renderListView(
   runs: WorkflowRunListItem[],
   {
     query = loadedQuery(),
-    search,
     ...options
   }: Partial<
     Pick<
@@ -820,11 +821,6 @@ function renderListView(
   > = {},
 ) {
   // Row links need router context; the query and data stay injected by props.
-  // The real list defaults to synced runs, so direct local-dev fixtures must opt into the
-  // development scope before they can exercise their provenance rendering.
-  const localDevRun = runs.some((run) => run.origin === 'dev');
-  const effectiveSearch = search ?? (localDevRun ? {origin: 'dev' as const} : undefined);
-
   renderWithRouter(
     <WorkflowRunListView
       runs={runs}
@@ -832,7 +828,6 @@ function renderListView(
       workspaceSlug={WORKSPACE_SLUG}
       projectSlug={PROJECT_SLUG}
       {...options}
-      {...(effectiveSearch ? {search: effectiveSearch} : {})}
     />,
   );
 }
