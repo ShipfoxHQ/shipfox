@@ -196,6 +196,23 @@ describe('agent-access action tools', () => {
     expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
   });
 
+  test.each([
+    'run-depth-exceeded',
+    'run-tree-limit-exceeded',
+  ] as const)('maps %s from manual trigger starts', async (code) => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.fireManualTrigger).mockRejectedValue(
+      createInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, code, {}),
+    );
+
+    const response = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(response).toEqual({ok: false, error: {code}});
+  });
+
   test('maps admission details and passes dev-run fields to the producer', async () => {
     const {triggers, tools} = clients();
     vi.mocked(triggers.createDevRun).mockRejectedValue(

@@ -26,7 +26,8 @@ export interface FireManualTriggerParams {
   workflows: WorkflowsModuleClient;
   workspaceId: string;
   definitionId: string;
-  userId: string;
+  userId?: string | undefined;
+  parentRun?: {runId: string} | undefined;
   inputs?: Record<string, unknown> | undefined;
   idempotencyKey?: string | undefined;
 }
@@ -35,7 +36,8 @@ export interface FireManualSubscriptionParams {
   workflows: WorkflowsModuleClient;
   subscriptionId: string;
   callerWorkspaceId: string;
-  userId: string;
+  userId?: string | undefined;
+  parentRun?: {runId: string} | undefined;
   inputs?: Record<string, unknown> | undefined;
   idempotencyKey?: string | undefined;
 }
@@ -53,6 +55,7 @@ export async function fireManualTrigger(
     subscriptionId: subscription.id,
     callerWorkspaceId: params.workspaceId,
     userId: params.userId,
+    parentRun: params.parentRun,
     inputs: params.inputs,
     idempotencyKey: params.idempotencyKey,
   });
@@ -78,8 +81,9 @@ export async function fireManualSubscription(
 
   // Manual fires have no upstream event id. Use the run id after success; failed
   // attempts need a synthesized ref because there is no run to key on.
+  const origin = params.parentRun === undefined ? ('manual' as const) : ('workflow' as const);
   const historyBase = {
-    origin: 'manual' as const,
+    origin,
     workspaceId: subscription.workspaceId,
     provider: null,
     source: subscription.source,
@@ -94,7 +98,7 @@ export async function fireManualSubscription(
     receivedAt: new Date(),
   };
 
-  eventReceivedCount.add(1, {origin: 'manual', provider: 'manual'});
+  eventReceivedCount.add(1, {origin, provider: 'manual'});
 
   const inputs = params.inputs ?? readConfigInputs(subscription);
   let run: {id: string; name: string};
@@ -108,19 +112,21 @@ export async function fireManualSubscription(
         source: 'manual',
         event: 'fire',
         subscriptionId: subscription.id,
-        userId: params.userId,
+        ...(params.userId === undefined ? {} : {userId: params.userId}),
+        ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
       },
       ...(inputs === undefined ? {} : {inputs}),
+      ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
       idempotencyKey: params.idempotencyKey ?? randomUUID(),
     });
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
     if (isPermanentStartRunError(error)) {
-      eventOutcomeCount.add(1, {origin: 'manual', provider: 'manual', outcome: 'errored'});
+      eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'errored'});
       await failure.allErrored(1);
     } else {
-      eventOutcomeCount.add(1, {origin: 'manual', provider: 'manual', outcome: 'failed'});
+      eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'failed'});
       await failure.failed(1);
     }
     throw error;
@@ -128,8 +134,8 @@ export async function fireManualSubscription(
 
   const history = await beginTriggerHistory({...historyBase, eventRef: run.id});
   await history.triggered(subscription, run);
-  subscriptionTriggeredCount.add(1, {origin: 'manual', provider: 'manual'});
-  eventOutcomeCount.add(1, {origin: 'manual', provider: 'manual', outcome: 'routed'});
+  subscriptionTriggeredCount.add(1, {origin, provider: 'manual'});
+  eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
 }

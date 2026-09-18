@@ -55,6 +55,39 @@ describe('fireManualSubscription (trigger history)', () => {
     );
   });
 
+  test('records a routed workflow event and forwards its parent run', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {},
+    });
+    const parentRun = {runId: crypto.randomUUID()};
+    const run = {id: crypto.randomUUID(), name: 'Child run'};
+    runWorkflow.mockResolvedValue(run);
+
+    const result = await fireManualTrigger({
+      workflows,
+      workspaceId: subscription.workspaceId,
+      definitionId: subscription.workflowDefinitionId,
+      parentRun,
+    });
+
+    expect(result).toEqual({...run, deduplicated: false});
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentRun,
+        triggerPayload: expect.objectContaining({parentRun}),
+      }),
+    );
+    const [event] = await db()
+      .select()
+      .from(triggersReceivedEvents)
+      .where(eq(triggersReceivedEvents.eventRef, run.id));
+    if (!event) throw new Error('received event not found');
+    expect(event.origin).toBe('workflow');
+    expect(event.outcome).toBe('routed');
+  });
+
   test('records a routed manual event and a triggered decision on success', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',

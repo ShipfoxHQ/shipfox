@@ -256,7 +256,8 @@ describe('trigger event DTO contract', () => {
     created_at: '2026-05-07T00:00:02.000Z',
   };
 
-  test('accepts dev origins and decisions with a null subscription id', () => {
+  test('accepts workflow and dev origins and decisions with a null subscription id', () => {
+    expect(triggerEventOriginSchema.safeParse('workflow').success).toBe(true);
     expect(triggerEventOriginSchema.safeParse('dev').success).toBe(true);
     expect(triggerDecisionSubscriptionKindSchema.safeParse('dev').success).toBe(true);
     expect(

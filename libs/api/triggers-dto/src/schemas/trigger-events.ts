@@ -1,6 +1,12 @@
 import {z} from 'zod';
 
-export const triggerEventOriginSchema = z.enum(['integration', 'manual', 'cron', 'dev']);
+export const triggerEventOriginSchema = z.enum([
+  'integration',
+  'manual',
+  'workflow',
+  'cron',
+  'dev',
+]);
 export type TriggerEventOriginDto = z.infer<typeof triggerEventOriginSchema>;
 
 export const triggerEventOutcomeSchema = z.enum([

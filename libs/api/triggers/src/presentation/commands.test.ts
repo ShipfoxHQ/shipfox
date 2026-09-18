@@ -94,6 +94,18 @@ describe('trigger command presentation', () => {
     expect(mocks.fireManualTrigger).toHaveBeenCalledWith({...input, workflows: {}});
   });
 
+  test('requires exactly one manual trigger caller', () => {
+    const input = triggersInterModuleContract.methods.fireManualTrigger.input;
+    const base = {workspaceId: WORKSPACE_ID, definitionId: DEFINITION_ID};
+
+    expect(input.safeParse(base).success).toBe(false);
+    expect(
+      input.safeParse({...base, userId: USER_ID, parentRun: {runId: PROJECT_ID}}).success,
+    ).toBe(false);
+    expect(input.safeParse({...base, userId: USER_ID}).success).toBe(true);
+    expect(input.safeParse({...base, parentRun: {runId: PROJECT_ID}}).success).toBe(true);
+  });
+
   test('maps a missing manual trigger to the command error', async () => {
     mocks.fireManualTrigger.mockRejectedValue(new ManualTriggerNotFoundError(DEFINITION_ID));
 

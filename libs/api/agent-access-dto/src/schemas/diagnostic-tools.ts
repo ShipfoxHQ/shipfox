@@ -26,7 +26,7 @@ export const getTriggerEventFacetsInputSchema = z.object({}).strict();
 export type GetTriggerEventInputDto = z.infer<typeof getTriggerEventInputSchema>;
 export type GetTriggerEventFacetsInputDto = z.infer<typeof getTriggerEventFacetsInputSchema>;
 
-const triggerOriginSchema = z.enum(['integration', 'manual', 'cron', 'dev']);
+const triggerOriginSchema = z.enum(['integration', 'manual', 'workflow', 'cron', 'dev']);
 const triggerOutcomeSchema = z.enum(['received', 'routed', 'discarded', 'failed', 'errored']);
 const triggerDecisionOutcomeSchema = z.enum([
   'triggered',
@@ -179,7 +179,7 @@ export const getTriggerEventResultJsonSchema = {
   type: 'object',
   properties: {
     id: uuid,
-    origin: {type: 'string', enum: ['integration', 'manual', 'cron', 'dev']},
+    origin: {type: 'string', enum: ['integration', 'manual', 'workflow', 'cron', 'dev']},
     provider: nullable(text),
     source: text,
     event: text,
