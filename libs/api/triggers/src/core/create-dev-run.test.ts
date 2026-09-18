@@ -40,6 +40,7 @@ interface BaseParams {
   workspaceId?: string;
   projectId?: string;
   commit?: string | undefined;
+  content?: string | undefined;
   inputs?: Record<string, unknown> | undefined;
   triggerKey?: string;
   replayEventId?: string | undefined;
@@ -57,6 +58,7 @@ function buildParams(overrides: BaseParams = {}) {
     projectId: overrides.projectId ?? crypto.randomUUID(),
     ref: 'fix-triage-prompt',
     commit: overrides.commit,
+    content: overrides.content,
     configPath: '.shipfox/workflows/triage-sentry.yml',
     triggerKey: overrides.triggerKey ?? 'on_demand',
     inputs: overrides.inputs,
@@ -130,10 +132,16 @@ describe('createDevRun', () => {
 
     const result = await createDevRun(params);
 
-    expect(result).toEqual({id: run.id, commit: COMMIT});
+    expect(result).toEqual({
+      id: run.id,
+      ref: params.ref,
+      commit: COMMIT,
+      warnings: [],
+    });
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'manual',
       outcome: 'routed',
+      definition_source: 'ref',
     });
     expect(resolveDefinitionAtRef).toHaveBeenCalledWith({
       projectId: params.projectId,
@@ -244,6 +252,7 @@ describe('createDevRun', () => {
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'cron',
       outcome: 'routed',
+      definition_source: 'ref',
     });
   });
 
@@ -282,13 +291,53 @@ describe('createDevRun', () => {
     expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
   });
 
-  test('refuses a missing trigger key', async () => {
+  test('refuses a missing trigger key with the available trigger keys', async () => {
     const params = buildParams({triggerKey: 'missing'});
     resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(undefined));
 
-    await expect(createDevRun(params)).rejects.toThrow(DevRunTriggerNotFoundError);
+    await expect(createDevRun(params)).rejects.toMatchObject({
+      name: 'DevRunTriggerNotFoundError',
+      triggerKey: 'missing',
+      availableTriggerKeys: ['on_demand'],
+    });
     expect(startDevRun).not.toHaveBeenCalled();
     expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
+  });
+
+  test('passes local content to definition resolution and records local provenance', async () => {
+    const content = 'name: Local\n';
+    const {ref: _ref, ...params} = buildParams({content});
+    resolveDefinitionAtRef.mockResolvedValue({
+      ...resolvedDefinition(undefined),
+      ref: 'main',
+      warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+    });
+    const run = {id: crypto.randomUUID(), name: 'Local dev run'};
+    startDevRun.mockResolvedValue(run);
+
+    const result = await createDevRun(params);
+
+    expect(result).toEqual({
+      id: run.id,
+      ref: 'main',
+      commit: COMMIT,
+      warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+    });
+    expect(resolveDefinitionAtRef).toHaveBeenCalledWith({
+      projectId: params.projectId,
+      content,
+      configPath: params.configPath,
+    });
+    expect(startDevRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        devSource: expect.objectContaining({ref: 'main', definitionSource: 'local'}),
+      }),
+    );
+    expect(devRunsCount.add).toHaveBeenCalledWith(1, {
+      trigger_kind: 'manual',
+      outcome: 'routed',
+      definition_source: 'local',
+    });
   });
 
   test.each([
@@ -372,10 +421,16 @@ describe('createDevRun', () => {
 
     const result = await createDevRun({...params, replayEventId: sourceEvent.id});
 
-    expect(result).toEqual({id: run.id, commit: COMMIT});
+    expect(result).toEqual({
+      id: run.id,
+      ref: params.ref,
+      commit: COMMIT,
+      warnings: [],
+    });
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'replay',
       outcome: 'routed',
+      definition_source: 'ref',
     });
     // The same payload shape and connection id a dispatch would pass, so
     // `resolveWorkflowRunTriggerReference` resolves the trigger reference as
@@ -567,6 +622,7 @@ describe('createDevRun', () => {
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'replay',
       outcome: 'filtered',
+      definition_source: 'ref',
     });
 
     const events = await devEventsForWorkspace(params.workspaceId);
@@ -626,6 +682,7 @@ describe('createDevRun', () => {
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'replay',
       outcome: 'errored',
+      definition_source: 'ref',
     });
     expect(diagnosticCount.add).toHaveBeenCalledWith(1, {
       scope: 'decision',
@@ -722,6 +779,7 @@ describe('createDevRun', () => {
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'replay',
       outcome,
+      definition_source: 'ref',
     });
   });
 
@@ -781,6 +839,7 @@ describe('createDevRun', () => {
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'manual',
       outcome: 'errored',
+      definition_source: 'ref',
     });
     const decisions = await decisionsForEvent(event.id);
     expect(decisions).toHaveLength(1);
@@ -850,6 +909,7 @@ describe('createDevRun', () => {
     expect(devRunsCount.add).toHaveBeenCalledWith(1, {
       trigger_kind: 'manual',
       outcome: 'failed',
+      definition_source: 'ref',
     });
   });
 });

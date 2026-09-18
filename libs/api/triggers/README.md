@@ -145,12 +145,13 @@ It also depends on the API database connection from `@shipfox/node-postgres`.
 
 ## Routes
 
-The routes are mounted by the host app under the `/workflow-definitions` and
-`/trigger-events` prefixes.
+The routes are mounted by the host app under the `/workflow-definitions`,
+`/dev-runs`, and `/trigger-events` prefixes.
 
 | Method | Path | Auth | Result |
 | --- | --- | --- | --- |
 | `POST` | `/workflow-definitions/:definitionId/fire-manual` | bearer token | Fires the workflow's manual trigger and returns the new `workflow_run_id`. Optional `inputs` in the body are forwarded to the run. |
+| `POST` | `/dev-runs` | bearer token | Creates a dev run from a workflow file at a ref or from supplied YAML. The supplied YAML is not stored as a definition or projected into a subscription. |
 | `GET` | `/trigger-events?workspace_id=:workspaceId` | bearer token | Lists received trigger events for a workspace, newest first. Supports source, event, origin, outcome, `replayable=true`, received-at window, limit, and cursor filters. List items include the optional source event ID for replay rows. |
 | `GET` | `/trigger-events/facets?workspace_id=:workspaceId` | bearer token | Returns the workspace's distinct `source`, `event`, and `origin` filter values with counts (top 50 each, by count). Backs the Events page filter dropdowns. |
 | `GET` | `/trigger-events/:id` | bearer token | Returns one received trigger event with its full payload, routing decisions, optional source event ID, and replay links. Cross-workspace ids return `404`. |
@@ -160,6 +161,25 @@ server resolves the manual subscription for the workflow internally; the
 "at most one manual trigger per workflow" invariant from the parser keeps
 that lookup unambiguous. Integration sources (github, etc.) fire through
 the event bus and have no HTTP entry point.
+
+### Dev-run errors
+
+`POST /dev-runs` keeps `config_path` required because it names the workflow lineage.
+A local run shares numbering with a synced file at the same path. `content` is
+limited to 256 KiB of UTF-8 bytes by the definitions core. A request larger than
+Fastify's 1 MiB body limit is rejected by the transport before application code.
+
+| Code | Useful details |
+| --- | --- |
+| `content-too-large` | The supplied YAML exceeds the domain limit. |
+| `invalid-workflow-definition` | `errors` contains validation messages, paths, and reasons when available. |
+| `trigger-not-found` | `availableTriggerKeys` lists the keys found in the resolved workflow. |
+| `replay-event-mismatch` | `eventSource`, `eventName`, `triggerSource`, and `triggerEvent` describe both sides of the mismatch when available. |
+| `trigger-filtered` | `reason` explains why the replayed event did not match the filter. |
+
+The response includes the resolved `ref` and definition warnings when present. A
+local run records `definition_source: local`, stores the YAML on the run, and
+creates no definition or live subscription.
 
 ## Vocabulary
 
@@ -278,11 +298,13 @@ It also exports lower-level pieces for tests and advanced wiring:
   `TriggerSubscriptionNotFoundError`,
   `TriggerSubscriptionNotManualError`, or
   `TriggerWorkspaceMismatchError`.
-- `createDevRun()`: core function used by `POST /dev-runs`. Resolves the
-  definition at a git ref, fires a manual or cron trigger without a
-  subscription row, and journals the attempt. Throws
-  `DevRunTriggerNotFoundError`, `DevRunInputsNotAllowedError`, or
-  `DevRunReplayEventRequiredError` for integration triggers.
+- `createDevRun()`: core function used by `POST /dev-runs`. It resolves the
+  definition at a git ref or from supplied YAML and journals the attempt. It
+  fires a manual or cron trigger, or replays an integration event, without a
+  subscription row. Returns the resolved ref and definition warnings. Throws
+  `DevRunTriggerNotFoundError`,
+  `DevRunInputsNotAllowedError`, or `DevRunReplayEventRequiredError` for
+  integration triggers.
 - `ManualTriggerNotFoundError`: thrown by the route handler when the
   caller's workspace cannot reach the workflow, or the workflow declares
   no manual trigger. Surfaced as `404 manual-trigger-not-found`.

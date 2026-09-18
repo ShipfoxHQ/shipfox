@@ -199,7 +199,14 @@ describe('trigger command presentation', () => {
 
   test('maps the closed dev-run domain union', async () => {
     const replayEventId = '00000000-0000-4000-8000-000000000005';
-    mocks.createDevRun.mockRejectedValue(new DevRunReplayEventMismatchError(replayEventId));
+    mocks.createDevRun.mockRejectedValue(
+      new DevRunReplayEventMismatchError(replayEventId, {
+        eventSource: 'github_acme',
+        eventName: 'pull_request.opened',
+        triggerSource: 'github_acme',
+        triggerEvent: 'push',
+      }),
+    );
 
     const error = await rejection(
       presentation().handlers.createDevRun(
@@ -221,7 +228,13 @@ describe('trigger command presentation', () => {
     );
     expect(error).toMatchObject({
       code: 'replay-event-mismatch',
-      details: {replayEventId},
+      details: {
+        replayEventId,
+        eventSource: 'github_acme',
+        eventName: 'pull_request.opened',
+        triggerSource: 'github_acme',
+        triggerEvent: 'push',
+      },
     });
   });
 

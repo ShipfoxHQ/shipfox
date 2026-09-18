@@ -43,7 +43,7 @@ export function createDevRunRoute(
     method: 'POST',
     path: '/',
     description:
-      'Create a dev run from a workflow file at a git ref for a manual, cron, or replayed integration trigger.',
+      'Create a dev run from a workflow file at a git ref or supplied YAML for a manual, cron, or replayed integration trigger.',
     schema: {
       body: createDevRunBodySchema,
       response: {
@@ -63,7 +63,8 @@ export function createDevRunRoute(
     },
     handler: async (request, reply) => {
       const userContext = requireUserContext(request);
-      const {project_id, ref, commit, config_path, trigger, inputs, replay_event_id} = request.body;
+      const {project_id, ref, content, commit, config_path, trigger, inputs, replay_event_id} =
+        request.body;
       const {workspaceId} = await requireProjectAccess(request, project_id, projects);
 
       const run = await createDevRun({
@@ -72,6 +73,7 @@ export function createDevRunRoute(
         workspaceId,
         projectId: project_id,
         ref,
+        content,
         commit,
         configPath: config_path,
         triggerKey: trigger,
@@ -81,14 +83,22 @@ export function createDevRunRoute(
       });
 
       reply.status(201);
-      return {workflow_run_id: run.id, commit: run.commit};
+      return {
+        workflow_run_id: run.id,
+        ref: run.ref,
+        commit: run.commit,
+        warnings: run.warnings,
+      };
     },
   });
 }
 
 function handleDevRunDomainError(error: unknown): void {
   if (error instanceof DevRunTriggerNotFoundError) {
-    throw new ClientError(error.message, 'trigger-not-found', {status: 422});
+    throw new ClientError(error.message, 'trigger-not-found', {
+      status: 422,
+      details: triggerNotFoundDetails(error),
+    });
   }
   if (error instanceof DevRunInputsNotAllowedError) {
     throw new ClientError(error.message, 'inputs-not-allowed', {status: 422});
@@ -103,7 +113,11 @@ function handleDevRunDomainError(error: unknown): void {
     throw new ClientError(error.message, 'replay-event-not-found', {status: 404, cause: error});
   }
   if (error instanceof DevRunReplayEventMismatchError) {
-    throw new ClientError(error.message, 'replay-event-mismatch', {status: 409, cause: error});
+    throw new ClientError(error.message, 'replay-event-mismatch', {
+      status: 409,
+      cause: error,
+      details: replayEventMismatchDetails(error),
+    });
   }
   if (error instanceof DevRunReplayEventUnavailableError) {
     throw new ClientError(error.message, 'replay-event-unavailable', {status: 410, cause: error});
@@ -115,6 +129,22 @@ function handleDevRunDomainError(error: unknown): void {
       cause: error,
     });
   }
+}
+
+function triggerNotFoundDetails(error: DevRunTriggerNotFoundError) {
+  return error.availableTriggerKeys === undefined
+    ? undefined
+    : {availableTriggerKeys: error.availableTriggerKeys};
+}
+
+function replayEventMismatchDetails(error: DevRunReplayEventMismatchError) {
+  return {
+    replayEventId: error.replayEventId,
+    ...(error.eventSource === undefined ? {} : {eventSource: error.eventSource}),
+    ...(error.eventName === undefined ? {} : {eventName: error.eventName}),
+    ...(error.triggerSource === undefined ? {} : {triggerSource: error.triggerSource}),
+    ...(error.triggerEvent === undefined ? {} : {triggerEvent: error.triggerEvent}),
+  };
 }
 
 function handleDefinitionResolutionError(error: unknown): void {

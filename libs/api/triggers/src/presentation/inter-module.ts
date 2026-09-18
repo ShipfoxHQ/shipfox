@@ -188,9 +188,11 @@ function toCreateDevRunKnownError(error: unknown, projectId: string): unknown {
     return createInterModuleKnownError(method, 'project-not-found', {projectId});
   }
   if (error instanceof DevRunTriggerNotFoundError) {
-    return createInterModuleKnownError(method, 'trigger-not-found', {
-      triggerKey: error.triggerKey,
-    });
+    return createInterModuleKnownError(
+      method,
+      'trigger-not-found',
+      toTriggerNotFoundDetails(error),
+    );
   }
   if (error instanceof DevRunInputsNotAllowedError) {
     return createInterModuleKnownError(method, 'inputs-not-allowed', {});
@@ -207,9 +209,11 @@ function toCreateDevRunKnownError(error: unknown, projectId: string): unknown {
     });
   }
   if (error instanceof DevRunReplayEventMismatchError) {
-    return createInterModuleKnownError(method, 'replay-event-mismatch', {
-      replayEventId: error.replayEventId,
-    });
+    return createInterModuleKnownError(
+      method,
+      'replay-event-mismatch',
+      toReplayEventMismatchDetails(error),
+    );
   }
   if (error instanceof DevRunReplayEventUnavailableError) {
     return createInterModuleKnownError(method, 'replay-event-unavailable', {
@@ -229,6 +233,25 @@ function toCreateDevRunKnownError(error: unknown, projectId: string): unknown {
     forwardKnownError(workflowsInterModuleContract.methods.startDevRun, method, error) ??
     error
   );
+}
+
+function toTriggerNotFoundDetails(error: DevRunTriggerNotFoundError) {
+  return {
+    triggerKey: error.triggerKey,
+    ...(error.availableTriggerKeys === undefined
+      ? {}
+      : {availableTriggerKeys: error.availableTriggerKeys}),
+  };
+}
+
+function toReplayEventMismatchDetails(error: DevRunReplayEventMismatchError) {
+  return {
+    replayEventId: error.replayEventId,
+    ...(error.eventSource === undefined ? {} : {eventSource: error.eventSource}),
+    ...(error.eventName === undefined ? {} : {eventName: error.eventName}),
+    ...(error.triggerSource === undefined ? {} : {triggerSource: error.triggerSource}),
+    ...(error.triggerEvent === undefined ? {} : {triggerEvent: error.triggerEvent}),
+  };
 }
 
 function forwardKnownError(

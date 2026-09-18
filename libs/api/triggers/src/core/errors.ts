@@ -64,11 +64,13 @@ export class TriggerWorkspaceMismatchError extends Error {
 
 export class DevRunTriggerNotFoundError extends Error {
   readonly triggerKey: string;
+  readonly availableTriggerKeys: string[] | undefined;
 
-  constructor(triggerKey: string) {
+  constructor(triggerKey: string, availableTriggerKeys?: string[]) {
     super(`Workflow definition has no trigger named '${triggerKey}'`);
     this.name = 'DevRunTriggerNotFoundError';
     this.triggerKey = triggerKey;
+    this.availableTriggerKeys = availableTriggerKeys;
   }
 }
 
@@ -113,11 +115,27 @@ export class DevRunReplayEventNotFoundError extends Error {
 
 export class DevRunReplayEventMismatchError extends Error {
   readonly replayEventId: string;
+  readonly eventSource: string | undefined;
+  readonly eventName: string | undefined;
+  readonly triggerSource: string | undefined;
+  readonly triggerEvent: string | undefined;
 
-  constructor(replayEventId: string) {
+  constructor(
+    replayEventId: string,
+    details?: {
+      eventSource?: string | undefined;
+      eventName?: string | undefined;
+      triggerSource?: string | undefined;
+      triggerEvent?: string | undefined;
+    },
+  ) {
     super(`Journaled event ${replayEventId} does not match the trigger's source and event`);
     this.name = 'DevRunReplayEventMismatchError';
     this.replayEventId = replayEventId;
+    this.eventSource = details?.eventSource;
+    this.eventName = details?.eventName;
+    this.triggerSource = details?.triggerSource;
+    this.triggerEvent = details?.triggerEvent;
   }
 }
 

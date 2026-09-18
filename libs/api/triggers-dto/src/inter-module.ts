@@ -1,4 +1,7 @@
-import {definitionValidationErrorSchema} from '@shipfox/api-definitions-dto';
+import {
+  definitionValidationErrorSchema,
+  definitionValidationWarningSchema,
+} from '@shipfox/api-definitions-dto';
 import {
   workflowDiagnosticFieldSchema,
   workflowExecutionPayloadFieldSchema,
@@ -325,12 +328,21 @@ const definitionResolutionErrors = {
   'source-unavailable': z.object({}),
 };
 const devRunDomainErrors = {
-  'trigger-not-found': z.object({triggerKey: z.string()}),
+  'trigger-not-found': z.object({
+    triggerKey: z.string(),
+    availableTriggerKeys: z.array(z.string()).optional(),
+  }),
   'inputs-not-allowed': z.object({}),
   'replay-event-required': z.object({source: z.string()}),
   'replay-event-not-allowed': z.object({source: z.string()}),
   'replay-event-not-found': z.object({replayEventId: idSchema}),
-  'replay-event-mismatch': z.object({replayEventId: idSchema}),
+  'replay-event-mismatch': z.object({
+    replayEventId: idSchema,
+    eventSource: z.string().optional(),
+    eventName: z.string().optional(),
+    triggerSource: z.string().optional(),
+    triggerEvent: z.string().optional(),
+  }),
   'replay-event-unavailable': z.object({replayEventId: idSchema}),
   'trigger-filtered': z.object({reason: z.string()}),
 };
@@ -364,21 +376,44 @@ export const triggersInterModuleContract = defineInterModuleContract({
       },
     },
     createDevRun: {
-      input: z.object({
-        workspaceId: idSchema,
-        projectId: idSchema,
-        ref: refSchema,
-        configPath: configPathSchema,
-        triggerKey: z.string().min(1),
-        commit: z
-          .string()
-          .regex(/^[0-9a-f]{40}$/)
-          .optional(),
-        inputs: z.record(z.string(), z.unknown()).optional(),
-        replayEventId: idSchema.optional(),
-        userId: idSchema,
+      input: z
+        .object({
+          workspaceId: idSchema,
+          projectId: idSchema,
+          ref: refSchema.optional(),
+          content: z.string().optional(),
+          configPath: configPathSchema,
+          triggerKey: z.string().min(1),
+          commit: z
+            .string()
+            .regex(/^[0-9a-f]{40}$/)
+            .optional(),
+          inputs: z.record(z.string(), z.unknown()).optional(),
+          replayEventId: idSchema.optional(),
+          userId: idSchema,
+        })
+        .superRefine(({content, ref, commit}, ctx) => {
+          if (ref === undefined && content === undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['ref'],
+              message: 'ref is required when content is not supplied',
+            });
+          }
+          if (ref === undefined && commit !== undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['commit'],
+              message: 'commit requires ref',
+            });
+          }
+        }),
+      output: z.object({
+        id: idSchema,
+        ref: z.string().optional(),
+        commit: z.string(),
+        warnings: z.array(definitionValidationWarningSchema).optional(),
       }),
-      output: z.object({id: idSchema, commit: z.string()}),
       errors: {
         ...devRunDomainErrors,
         ...definitionResolutionErrors,
