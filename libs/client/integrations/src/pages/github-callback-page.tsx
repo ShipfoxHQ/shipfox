@@ -143,6 +143,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
           setCompletedWorkspaceId,
         }),
       (error: unknown) => {
+        clearGithubInstallWorkspace(sessionStorageOrUndefined());
         if (!active) return;
         const classified = classifyGithubCallbackError(error);
         const shouldReport = !(error instanceof ApiError) || error.code === 'network-error';
@@ -150,7 +151,6 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
           rememberCallbackKey(reportedFailures, callbackKey);
           globalThis.reportError?.(new Error('Failed to complete the GitHub callback.'));
         }
-        clearGithubInstallWorkspace(sessionStorageOrUndefined());
         setFailure((previous) => (previous?.kind === classified.kind ? previous : classified));
       },
     );

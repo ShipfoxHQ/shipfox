@@ -390,6 +390,31 @@ describe('GithubCallbackPage', () => {
     expect((reportError.mock.calls[0]?.[0] as Error).cause).toBeUndefined();
   });
 
+  test('clears the workspace handoff when completion fails after unmount', async () => {
+    let rejectCallback: ((reason: unknown) => void) | undefined;
+    completeGithubCallbackMock.mockImplementation(
+      async () =>
+        await new Promise((_, reject) => {
+          rejectCallback = reject;
+        }),
+    );
+    window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
+
+    const {unmount} = renderCallback({
+      installationId: 42,
+      code: 'unmounted-code',
+      state: 'unmounted-state',
+    });
+
+    await waitFor(() => expect(completeGithubCallbackMock).toHaveBeenCalledOnce());
+    unmount();
+    rejectCallback?.(new Error('network down'));
+
+    await waitFor(() =>
+      expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull(),
+    );
+  });
+
   test('completes a direct install once, records API-confirmed telemetry, and navigates to its workspace', async () => {
     const capture = vi.fn<ClientAnalytics['capture']>();
     const analytics = {capture};

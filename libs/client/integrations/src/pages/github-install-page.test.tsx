@@ -20,8 +20,9 @@ beforeEach(() => {
 });
 
 test('clears the workspace handoff when the install request fails', async () => {
+  let workspaceHandoffAtRequest: string | null | undefined;
   createGithubInstallMock.mockImplementation(() => {
-    expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBe(INTEGRATIONS_TEST_WID);
+    workspaceHandoffAtRequest = window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY);
     return Promise.reject(new Error('network down'));
   });
 
@@ -33,6 +34,7 @@ test('clears the workspace handoff when the install request fails', async () => 
   });
 
   expect(await screen.findByText('Could not start GitHub install.')).toBeInTheDocument();
+  expect(workspaceHandoffAtRequest).toBe(INTEGRATIONS_TEST_WID);
   expect(createGithubInstallMock).toHaveBeenCalledWith({workspace_id: INTEGRATIONS_TEST_WID});
   expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
 });
