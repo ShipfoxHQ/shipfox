@@ -349,6 +349,33 @@ export async function getDefinitionById(id: string): Promise<WorkflowDefinition 
   });
 }
 
+export async function getDefinitionByConfigPath(params: {
+  projectId: string;
+  configPath: string;
+  ref: string;
+}): Promise<WorkflowDefinition | undefined> {
+  return await db().transaction(async (tx) => {
+    const rows = await tx
+      .select()
+      .from(workflowDefinitions)
+      .where(
+        and(
+          eq(workflowDefinitions.projectId, params.projectId),
+          eq(workflowDefinitions.configPath, params.configPath),
+          eq(workflowDefinitions.ref, params.ref),
+          eq(workflowDefinitions.source, 'vcs'),
+          isNull(workflowDefinitions.deletedAt),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return undefined;
+
+    const workflowId = await ensureWorkflowId(tx, row);
+    return toDefinition({...row, workflowId});
+  });
+}
+
 export async function getWorkflowLineageById(
   id: string,
 ): Promise<{id: string; projectId: string} | undefined> {

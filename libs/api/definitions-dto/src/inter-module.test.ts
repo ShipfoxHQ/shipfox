@@ -13,6 +13,34 @@ const COMMIT = 'a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d0';
 const MODEL = {version: 4 as const, model: {kind: 'workflow'}};
 
 describe('definitionsInterModuleContract', () => {
+  test('parses a synced definition lookup by config path', () => {
+    const method = definitionsInterModuleContract.methods.getDefinitionByConfigPath;
+    const input = {
+      workspaceId: '00000000-0000-4000-8000-000000000010',
+      projectId: PROJECT_ID,
+      configPath: CONFIG_PATH,
+    };
+
+    expect(method.input.parse(input)).toEqual(input);
+    expect(
+      method.output.parse({
+        definitionId: '00000000-0000-4000-8000-000000000003',
+        workflowId: WORKFLOW_ID,
+        name: 'CI',
+      }),
+    ).toEqual({
+      definitionId: '00000000-0000-4000-8000-000000000003',
+      workflowId: WORKFLOW_ID,
+      name: 'CI',
+    });
+    expect(
+      method.errors['definition-not-found'].parse({
+        projectId: PROJECT_ID,
+        configPath: CONFIG_PATH,
+      }),
+    ).toEqual({projectId: PROJECT_ID, configPath: CONFIG_PATH});
+  });
+
   test('exposes a versioned workflow snapshot', () => {
     const result = definitionsInterModuleContract.methods.getDefinitionForWorkflowRun.output.parse({
       definition: {

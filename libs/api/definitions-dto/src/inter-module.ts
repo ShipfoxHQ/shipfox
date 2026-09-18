@@ -110,6 +110,24 @@ export const definitionsInterModuleContract = defineInterModuleContract({
       input: z.object({definitionId: idSchema}),
       output: z.object({definition: definitionSnapshotSchema.nullable()}),
     },
+    getDefinitionByConfigPath: {
+      input: z.object({
+        workspaceId: idSchema,
+        projectId: idSchema,
+        configPath: configPathSchema,
+      }),
+      output: z.object({
+        definitionId: idSchema,
+        workflowId: idSchema,
+        name: z.string(),
+      }),
+      errors: {
+        'definition-not-found': z.object({
+          projectId: idSchema,
+          configPath: configPathSchema,
+        }),
+      },
+    },
     listDefinitionsByProject: {
       input: z.object({
         workspaceId: idSchema,

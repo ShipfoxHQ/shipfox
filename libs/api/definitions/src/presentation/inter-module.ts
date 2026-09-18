@@ -15,7 +15,7 @@ import {
 } from '@shipfox/inter-module';
 import {DefinitionAtRefError, listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/index.js';
 import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
-import {getDefinitionById} from '#db/definitions.js';
+import {getDefinitionByConfigPath, getDefinitionById} from '#db/definitions.js';
 import {toDefinitionReadModel, toDefinitionSyncSummary} from '#presentation/dto/index.js';
 import {listDefinitionsWithSync} from '#presentation/list-definitions.js';
 
@@ -42,6 +42,51 @@ export function createDefinitionsInterModulePresentation(
           model: createWorkflowModelSnapshot(populateDefaultGateMaxAttempts(definition.model)),
           sourceSnapshot: definition.sourceSnapshot,
         },
+      };
+    },
+    getDefinitionByConfigPath: async ({workspaceId, projectId, configPath}) => {
+      const method = definitionsInterModuleContract.methods.getDefinitionByConfigPath;
+      let project: Awaited<
+        ReturnType<ProjectsModuleClient['requireProjectForWorkspace']>
+      >['project'];
+      try {
+        ({project} = await params.projects.requireProjectForWorkspace({
+          workspaceId,
+          projectId,
+        }));
+      } catch (error) {
+        if (
+          !isInterModuleKnownError(
+            projectsInterModuleContract.methods.requireProjectForWorkspace,
+            error,
+          )
+        ) {
+          throw error;
+        }
+        throw createInterModuleKnownError(method, 'definition-not-found', {
+          projectId,
+          configPath,
+        });
+      }
+
+      const definition = project.sourceDefaultBranch
+        ? await getDefinitionByConfigPath({
+            projectId,
+            configPath,
+            ref: project.sourceDefaultBranch,
+          })
+        : undefined;
+      if (!definition) {
+        throw createInterModuleKnownError(method, 'definition-not-found', {
+          projectId,
+          configPath,
+        });
+      }
+
+      return {
+        definitionId: definition.id,
+        workflowId: definition.workflowId,
+        name: definition.name,
       };
     },
     listDefinitionsByProject: async ({workspaceId, projectId, limit, cursor}) => {
