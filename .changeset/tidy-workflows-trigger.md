@@ -1,4 +1,5 @@
 ---
+"@shipfox/api-agent-access": patch
 "@shipfox/api-agent-access-dto": patch
 "@shipfox/api-triggers": minor
 "@shipfox/api-triggers-dto": minor
