@@ -1,6 +1,7 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {
   AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
+  AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
   agentAccessOutputSchema,
   cancelWorkflowRunInputJsonSchema,
   cancelWorkflowRunInputSchema,
@@ -33,6 +34,11 @@ export interface AgentAccessActionToolsOptions {
   workflows: WorkflowsModuleClient;
   triggers: TriggersInterModuleClient;
 }
+
+const AGENT_ACCESS_ERROR_DETAILS_RESERVE_BYTES = 128;
+const AGENT_ACCESS_ERROR_LIST_BUDGET_BYTES =
+  AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES - AGENT_ACCESS_ERROR_DETAILS_RESERVE_BYTES;
+const utf8Encoder = new TextEncoder();
 
 /** Creates the action tools without registering them in the production tool list. */
 export function createAgentAccessActionTools(
@@ -250,6 +256,18 @@ function mapProducerError(
   code: string,
   details: Record<string, unknown>,
 ): ReturnType<typeof agentAccessError> {
+  if (code === 'invalid-definition' && Array.isArray(details.errors)) {
+    return agentAccessError(code, {
+      details: buildBoundedErrorListDetails(
+        'errors',
+        details.errors as Array<Record<string, unknown>>,
+        mapDefinitionError,
+      ),
+    });
+  }
+  if (code === 'trigger-filtered' && typeof details.reason === 'string') {
+    return agentAccessError(code, {details: {reason: boundErrorDetail(details.reason)}});
+  }
   if (code === 'admission-denied' && typeof details.reason === 'string') {
     const requiredAction = mapRequiredAction(details.requiredAction);
     return agentAccessError(code, {
@@ -282,6 +300,44 @@ function mapRequiredAction(value: unknown): Record<string, string> | undefined {
     message: boundErrorDetail(value.message),
     url: boundErrorDetail(value.url),
   };
+}
+
+function buildBoundedErrorListDetails<T>(
+  itemKey: string,
+  items: readonly T[],
+  mapItem: (item: T) => Record<string, unknown>,
+): Record<string, unknown> {
+  const boundedItems: Record<string, unknown>[] = [];
+  for (const item of items) {
+    const candidateItem = mapItem(item);
+    const candidate = {
+      [itemKey]: [...boundedItems, candidateItem],
+      total: items.length,
+      truncated: false,
+    };
+    if (serializedErrorDetailsByteLength(candidate) > AGENT_ACCESS_ERROR_LIST_BUDGET_BYTES) break;
+    boundedItems.push(candidateItem);
+  }
+
+  return {
+    [itemKey]: boundedItems,
+    total: items.length,
+    truncated: boundedItems.length < items.length,
+  };
+}
+
+function mapDefinitionError(value: Record<string, unknown>): Record<string, unknown> {
+  return {
+    message: boundErrorDetail(value.message as string),
+    ...(typeof value.path === 'string' ? {path: boundErrorDetail(value.path)} : {}),
+    ...(typeof value.reason === 'string' ? {reason: boundErrorDetail(value.reason)} : {}),
+  };
+}
+
+function serializedErrorDetailsByteLength(value: Record<string, unknown>): number {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new Error('Agent-access error details are not serializable');
+  return utf8Encoder.encode(serialized).byteLength;
 }
 
 function boundErrorDetail(value: string): string {
