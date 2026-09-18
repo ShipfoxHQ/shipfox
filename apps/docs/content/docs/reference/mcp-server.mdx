@@ -42,8 +42,8 @@ inside it.
 | --- | --- |
 | Access request created | Valid for five minutes. Restart sign-in from the MCP client after it expires. |
 | Access token issued | Valid for 15 minutes. The client refreshes it on its own. |
-| App disconnected in Shipfox | Refresh stops immediately. An issued access token stays valid until it expires. |
-| Membership removed, workspace suspended, or account suspended | The next refresh fails. Access ends within 15 minutes. |
+| App disconnected in Shipfox | Refresh stops immediately. Actions and log downloads stop on their next request. Read access ends when the current access token expires. |
+| Membership removed, workspace suspended, or account suspended | Actions and log downloads stop on their next request. The next refresh fails, and read access ends within 15 minutes. |
 | Client idle | The stored sign-in expires after the installation's refresh-token lifetime, 14 days by default. The client asks the user to sign in again. |
 
 ## Limits
