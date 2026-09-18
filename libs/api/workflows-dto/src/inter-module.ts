@@ -299,6 +299,7 @@ export const workflowsInterModuleContract = defineInterModuleContract({
           configPath: z.string().min(1).max(1024),
           initiatedByUserId: idSchema,
           replayOfEventId: idSchema.optional(),
+          definitionSource: z.enum(['ref', 'local']).optional(),
         }),
         triggerConnectionId: idSchema.optional(),
         triggerPayload: triggerPayloadSchema,

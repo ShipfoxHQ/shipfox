@@ -267,6 +267,7 @@ export function createWorkflowsInterModulePresentation(params: {
             sourceSnapshot: input.sourceSnapshot,
             devSource: {
               ...input.devSource,
+              definitionSource: input.devSource.definitionSource ?? 'ref',
               replayOfEventId: input.devSource.replayOfEventId ?? null,
             },
             triggerPayload: input.triggerPayload,

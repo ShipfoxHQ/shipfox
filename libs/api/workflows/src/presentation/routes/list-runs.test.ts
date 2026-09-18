@@ -239,6 +239,7 @@ describe('GET /api/workflows/runs', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abc123',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: initiatedByUserId,
         replay_of_event_id: null,

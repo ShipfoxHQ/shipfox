@@ -532,6 +532,7 @@ function toWorkflowRunDevSourceDb(source: WorkflowRunDevSource): WorkflowRunDevS
   return {
     ref: source.ref,
     commit: source.commit,
+    definition_source: source.definitionSource,
     config_path: source.configPath,
     initiated_by_user_id: source.initiatedByUserId,
     replay_of_event_id: source.replayOfEventId,

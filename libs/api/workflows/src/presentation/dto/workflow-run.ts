@@ -141,6 +141,7 @@ function toDevSourceDto(
   return {
     ref: devSource.ref,
     commit: devSource.commit,
+    definition_source: devSource.definitionSource ?? 'ref',
     config_path: devSource.configPath,
     initiated_by_user_id: devSource.initiatedByUserId,
     replay_of_event_id: devSource.replayOfEventId,
