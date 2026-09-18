@@ -460,7 +460,7 @@ async function applyInitialConcurrencyAdmission(params: {
   return {run: toWorkflowRun(waitingRunRow), admission};
 }
 
-function workflowConcurrencyClaimEvents(
+export function workflowConcurrencyClaimEvents(
   admission: Awaited<ReturnType<typeof admitWorkflowConcurrencyClaim>>,
 ): WorkflowsOutboxEvent[] {
   const events: WorkflowsOutboxEvent[] = [];

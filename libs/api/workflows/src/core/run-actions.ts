@@ -25,6 +25,7 @@ export interface RerunWorkflowRunParams {
   expectedAttempt?: number | undefined;
   mode: 'all' | 'failed';
   actorUserId: string;
+  confirmConcurrencyImpact?: boolean | undefined;
   workspaces: Pick<WorkspacesInterModuleClient, 'getWorkspaceOperatingState'>;
   admission?: {policy: WorkflowAdmissionPolicy} | undefined;
 }
@@ -68,6 +69,7 @@ export async function rerunWorkflowRun(params: RerunWorkflowRunParams): Promise<
     workflowRunId: params.workflowRunId,
     mode: params.mode,
     actorUserId: params.actorUserId,
+    confirmConcurrencyImpact: params.confirmConcurrencyImpact,
     expectedAttempt: params.expectedAttempt,
   });
 }

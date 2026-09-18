@@ -43,6 +43,7 @@ import {
   RunNotTerminalError,
   SourceRunNotFoundError,
   WorkflowAdmissionDeniedError,
+  WorkflowConcurrencyImpactError,
   WorkflowExecutionPayloadTooLargeError,
   WorkflowRunAttemptMismatchError,
   WorkflowRunNotCancellableError,
@@ -957,6 +958,11 @@ function toRerunWorkflowRunKnownError(error: unknown): unknown {
   }
   if (error instanceof NoFailedJobsError) {
     return createInterModuleKnownError(method, 'no-failed-jobs', {});
+  }
+  if (error instanceof WorkflowConcurrencyImpactError) {
+    return createInterModuleKnownError(method, 'concurrency-impact', {
+      affectedAttempts: [...error.affectedAttempts],
+    });
   }
   return toWorkspaceAdmissionKnownError(method, error) ?? error;
 }

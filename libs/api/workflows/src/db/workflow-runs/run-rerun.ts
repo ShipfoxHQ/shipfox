@@ -18,11 +18,15 @@ import {
 import {deriveJobExecutionRunner} from '#core/workflow-run-creation.js';
 import {recordWorkflowRunCreated} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
+import {writeWorkflowsOutboxEvents} from '../outbox-writes.js';
 import {type JobExecutionDb, jobExecutions} from '../schema/job-executions.js';
 import {type JobDb, jobs} from '../schema/jobs.js';
 import {type StepDb, steps} from '../schema/steps.js';
+import {workflowConcurrencyClaims} from '../schema/workflow-concurrency-claims.js';
 import {type WorkflowRunAttemptDb, workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
+import {admitWorkflowConcurrencyClaim} from '../workflow-concurrency.js';
+import {workflowConcurrencyClaimEvents} from './run-create.js';
 import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
 import {lockWorkflowRun} from './shared.js';
 
@@ -30,6 +34,7 @@ export interface CreateRerunWorkflowRunParams {
   workflowRunId: string;
   mode: 'all' | 'failed';
   actorUserId: string;
+  confirmConcurrencyImpact?: boolean | undefined;
   expectedAttempt?: number | undefined;
 }
 
@@ -53,45 +58,10 @@ export async function createRerunWorkflowRun(
   params: CreateRerunWorkflowRunParams,
 ): Promise<WorkflowRun> {
   const result = await db().transaction(async (tx) => {
-    const workflowRunId = params.workflowRunId;
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workflowRunId}))`);
-
-    const sourceRow = await lockWorkflowRun(workflowRunId, tx);
-    if (!sourceRow) throw new SourceRunNotFoundError(workflowRunId);
-    assertExpectedAttempt(params, sourceRow);
-
-    const [sourceAttemptRow] = await tx
-      .select()
-      .from(workflowRunAttempts)
-      .where(
-        and(
-          eq(workflowRunAttempts.workflowRunId, sourceRow.id),
-          eq(workflowRunAttempts.attempt, sourceRow.currentAttempt),
-        ),
-      )
-      .limit(1)
-      .for('update');
-    if (!sourceAttemptRow) {
-      throw new Error(
-        `Current attempt ${sourceRow.currentAttempt} missing for run ${sourceRow.id}`,
-      );
-    }
-    if (!isWorkflowRunTerminal(sourceAttemptRow.status)) {
-      throw new RunNotTerminalError(sourceRow.id);
-    }
-
-    const sourceJobs = await tx
-      .select()
-      .from(jobs)
-      .where(eq(jobs.workflowRunAttemptId, sourceAttemptRow.id))
-      .orderBy(asc(jobs.position), asc(jobs.id));
-
-    if (
-      params.mode === 'failed' &&
-      !sourceJobs.some((job) => job.status === 'failed' || job.status === 'cancelled')
-    ) {
-      throw new NoFailedJobsError(sourceRow.id);
-    }
+    const {sourceRow, sourceAttemptRow, sourceClaimRow, sourceJobs} = await loadRerunSource(
+      params,
+      tx,
+    );
 
     const [attemptRow] = await tx
       .select({value: sql<number>`coalesce(max(${workflowRunAttempts.attempt}), 1)`})
@@ -132,26 +102,125 @@ export async function createRerunWorkflowRun(
       ...rerunSessionCarryOver(sourceAttemptRow.id, params.mode),
     });
 
-    const [newRunRow] = await tx
-      .update(workflowRuns)
-      .set({
-        currentAttempt: attempt,
-        status: 'pending',
-        version: sql`${workflowRuns.version} + 1`,
-        updatedAt: new Date(),
-        startedAt: null,
-        finishedAt: null,
-      })
-      .where(eq(workflowRuns.id, sourceRow.id))
-      .returning();
-    if (!newRunRow) throw new Error(`Workflow run missing after rerun: ${sourceRow.id}`);
+    const concurrencyAdmission = sourceClaimRow
+      ? await admitWorkflowConcurrencyClaim({
+          workflowRunId: sourceRow.id,
+          workflowRunAttemptId: newAttemptRow.id,
+          concurrency: {
+            group: sourceClaimRow.displayGroup,
+            scope: sourceClaimRow.scope,
+            cancelInProgress: sourceClaimRow.cancelInProgress,
+          },
+          sourceClaim: sourceClaimRow,
+          rejectOnImpact: params.confirmConcurrencyImpact !== true,
+          tx,
+        })
+      : undefined;
+    if (concurrencyAdmission) {
+      await writeWorkflowsOutboxEvents(tx, workflowConcurrencyClaimEvents(concurrencyAdmission));
+    }
 
-    return toWorkflowRun(newRunRow);
+    return toWorkflowRun(
+      await finalizeRerunWorkflowRun({
+        tx,
+        sourceRunId: sourceRow.id,
+        attemptId: newAttemptRow.id,
+        attempt,
+        waiting: concurrencyAdmission?.claim.state === 'waiting',
+      }),
+    );
   });
 
   recordWorkflowRunCreated(result.triggerPayload.provider ?? result.triggerSource);
 
   return result;
+}
+
+async function finalizeRerunWorkflowRun(params: {
+  readonly tx: Tx;
+  readonly sourceRunId: string;
+  readonly attemptId: string;
+  readonly attempt: number;
+  readonly waiting: boolean;
+}): Promise<typeof workflowRuns.$inferSelect> {
+  const [newRunRow] = await params.tx
+    .update(workflowRuns)
+    .set({
+      currentAttempt: params.attempt,
+      status: params.waiting ? 'waiting' : 'pending',
+      version: sql`${workflowRuns.version} + 1`,
+      updatedAt: new Date(),
+      startedAt: null,
+      finishedAt: null,
+    })
+    .where(eq(workflowRuns.id, params.sourceRunId))
+    .returning();
+  if (!newRunRow) throw new Error(`Workflow run missing after rerun: ${params.sourceRunId}`);
+  if (!params.waiting) return newRunRow;
+
+  const [newWaitingAttemptRow] = await params.tx
+    .update(workflowRunAttempts)
+    .set({status: 'waiting', updatedAt: new Date()})
+    .where(eq(workflowRunAttempts.id, params.attemptId))
+    .returning({id: workflowRunAttempts.id});
+  if (!newWaitingAttemptRow) {
+    throw new Error(`Workflow run attempt missing while entering waiting: ${params.attemptId}`);
+  }
+  return newRunRow;
+}
+
+async function loadRerunSource(
+  params: CreateRerunWorkflowRunParams,
+  tx: Tx,
+): Promise<{
+  readonly sourceRow: typeof workflowRuns.$inferSelect;
+  readonly sourceAttemptRow: WorkflowRunAttemptDb;
+  readonly sourceClaimRow: typeof workflowConcurrencyClaims.$inferSelect | undefined;
+  readonly sourceJobs: readonly JobDb[];
+}> {
+  const workflowRunId = params.workflowRunId;
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${workflowRunId}))`);
+
+  const sourceRow = await lockWorkflowRun(workflowRunId, tx);
+  if (!sourceRow) throw new SourceRunNotFoundError(workflowRunId);
+  assertExpectedAttempt(params, sourceRow);
+
+  const [sourceAttemptRow] = await tx
+    .select()
+    .from(workflowRunAttempts)
+    .where(
+      and(
+        eq(workflowRunAttempts.workflowRunId, sourceRow.id),
+        eq(workflowRunAttempts.attempt, sourceRow.currentAttempt),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (!sourceAttemptRow) {
+    throw new Error(`Current attempt ${sourceRow.currentAttempt} missing for run ${sourceRow.id}`);
+  }
+  if (!isWorkflowRunTerminal(sourceAttemptRow.status)) {
+    throw new RunNotTerminalError(sourceRow.id);
+  }
+
+  const [sourceClaimRow] = await tx
+    .select()
+    .from(workflowConcurrencyClaims)
+    .where(eq(workflowConcurrencyClaims.workflowRunAttemptId, sourceAttemptRow.id))
+    .limit(1);
+  const sourceJobs = await tx
+    .select()
+    .from(jobs)
+    .where(eq(jobs.workflowRunAttemptId, sourceAttemptRow.id))
+    .orderBy(asc(jobs.position), asc(jobs.id));
+  const hasFailedJob = sourceJobs.some(
+    (job) => job.status === 'failed' || job.status === 'cancelled',
+  );
+  if (params.mode === 'failed' && !hasFailedJob) {
+    throw new NoFailedJobsError(sourceRow.id);
+  }
+
+  return {sourceRow, sourceAttemptRow, sourceClaimRow, sourceJobs};
 }
 
 async function loadRerunSourceGraph(

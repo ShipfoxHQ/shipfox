@@ -5,6 +5,7 @@ import {
   type WorkflowConcurrencyClaim,
   type WorkflowConcurrencyClaimState,
 } from '#core/entities/workflow-concurrency-claim.js';
+import {WorkflowConcurrencyImpactError} from '#core/errors.js';
 import {
   canonicalizeWorkflowConcurrencyGroup,
   nextWorkflowConcurrencyAdmission,
@@ -21,6 +22,7 @@ import {
 import {db, type Tx} from './db.js';
 import {
   toWorkflowConcurrencyClaim,
+  type WorkflowConcurrencyClaimDb,
   workflowConcurrencyClaims,
 } from './schema/workflow-concurrency-claims.js';
 import {workflowRunAttempts} from './schema/workflow-run-attempts.js';
@@ -50,10 +52,18 @@ export async function getWorkflowRunAttemptConcurrencyAdmission(
   return row;
 }
 
+export interface WorkflowConcurrencyImpact {
+  readonly workflowRunId: string;
+  readonly workflowRunAttemptId: string;
+  readonly plannedEffect: 'supersede_waiter' | 'cancel_holder';
+}
+
 export interface AdmitWorkflowConcurrencyClaimParams {
   readonly workflowRunId: string;
   readonly workflowRunAttemptId: string;
   readonly concurrency: ResolvedWorkflowConcurrency;
+  readonly sourceClaim?: WorkflowConcurrencyClaimDb | undefined;
+  readonly rejectOnImpact?: boolean | undefined;
   readonly tx?: Tx | undefined;
 }
 
@@ -63,6 +73,7 @@ export interface AdmitWorkflowConcurrencyClaimResult {
   readonly holderClaim: WorkflowConcurrencyClaim | null;
   readonly holderCancellationRequested: boolean;
   readonly holderCancellationJustRequested: boolean;
+  readonly impact: readonly WorkflowConcurrencyImpact[];
 }
 
 /**
@@ -107,16 +118,30 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     );
   }
   const origin = toWorkflowRunOriginState(participant);
-  const originScope = workflowConcurrencyOriginScope({
-    origin: origin.origin,
-    initiatedByUserId: origin.devSource?.initiatedByUserId,
-  });
-  const normalizedGroup = canonicalizeWorkflowConcurrencyGroup(params.concurrency.group);
+  const originScope =
+    params.sourceClaim?.originScope ??
+    workflowConcurrencyOriginScope({
+      origin: origin.origin,
+      initiatedByUserId: origin.devSource?.initiatedByUserId,
+    });
+  const normalizedGroup = params.sourceClaim
+    ? {
+        displayGroup: params.sourceClaim.displayGroup,
+        canonicalGroupKey: params.sourceClaim.canonicalGroupKey,
+      }
+    : canonicalizeWorkflowConcurrencyGroup(params.concurrency.group);
+  const concurrency = params.sourceClaim
+    ? {
+        group: params.sourceClaim.displayGroup,
+        scope: params.sourceClaim.scope,
+        cancelInProgress: params.sourceClaim.cancelInProgress,
+      }
+    : params.concurrency;
   const identity = workflowConcurrencyIdentity({
     projectId: participant.projectId,
     definitionId: participant.definitionId,
     originScope,
-    concurrency: {...normalizedGroup, scope: params.concurrency.scope},
+    concurrency: {...normalizedGroup, scope: concurrency.scope},
   });
 
   // A hash collision only makes unrelated identities wait for one another. Every slot query and
@@ -143,6 +168,21 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     hasAcquiredClaim: acquiredClaim !== undefined,
     hasWaitingClaim: waitingClaim !== undefined,
   });
+  const impact = plannedWorkflowConcurrencyImpact({
+    acquiredClaim,
+    waitingClaim,
+    supersedesWaiter: admission.supersedesWaiter,
+    cancelInProgress: concurrency.cancelInProgress,
+  });
+  if (params.rejectOnImpact && impact.length > 0) {
+    throw new WorkflowConcurrencyImpactError(
+      impact.map((entry) => ({
+        workflow_run_id: entry.workflowRunId,
+        workflow_run_attempt_id: entry.workflowRunAttemptId,
+        planned_effect: entry.plannedEffect,
+      })),
+    );
+  }
   const claimId = randomUUID();
   const now = new Date();
   let supersededClaim: WorkflowConcurrencyClaim | null = null;
@@ -184,7 +224,7 @@ async function admitWorkflowConcurrencyClaimInTransaction(
       workflowRunId: params.workflowRunId,
       workflowRunAttemptId: params.workflowRunAttemptId,
       generation,
-      cancelInProgress: params.concurrency.cancelInProgress,
+      cancelInProgress: concurrency.cancelInProgress,
       state: admission.state,
       stateChangedAt: now,
       acquiredAt: admission.state === 'acquired' ? now : null,
@@ -196,7 +236,7 @@ async function admitWorkflowConcurrencyClaimInTransaction(
   const holderCancellation = await requestHolderCancellation({
     tx,
     holder: acquiredClaim,
-    requested: params.concurrency.cancelInProgress,
+    requested: concurrency.cancelInProgress,
     now,
   });
 
@@ -206,7 +246,36 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     holderClaim: holderCancellation.claim,
     holderCancellationRequested: holderCancellation.requested,
     holderCancellationJustRequested: holderCancellation.justRequested,
+    impact,
   };
+}
+
+function plannedWorkflowConcurrencyImpact(params: {
+  readonly acquiredClaim: WorkflowConcurrencyClaimDb | undefined;
+  readonly waitingClaim: WorkflowConcurrencyClaimDb | undefined;
+  readonly supersedesWaiter: boolean;
+  readonly cancelInProgress: boolean;
+}): WorkflowConcurrencyImpact[] {
+  const impact: WorkflowConcurrencyImpact[] = [];
+  if (params.supersedesWaiter && params.waitingClaim) {
+    impact.push({
+      workflowRunId: params.waitingClaim.workflowRunId,
+      workflowRunAttemptId: params.waitingClaim.workflowRunAttemptId,
+      plannedEffect: 'supersede_waiter',
+    });
+  }
+  if (
+    params.cancelInProgress &&
+    params.acquiredClaim &&
+    params.acquiredClaim.cancellationRequestedAt === null
+  ) {
+    impact.push({
+      workflowRunId: params.acquiredClaim.workflowRunId,
+      workflowRunAttemptId: params.acquiredClaim.workflowRunAttemptId,
+      plannedEffect: 'cancel_holder',
+    });
+  }
+  return impact;
 }
 
 async function requestHolderCancellation(params: {
