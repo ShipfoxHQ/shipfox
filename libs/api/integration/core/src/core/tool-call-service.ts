@@ -3,6 +3,7 @@ import type {
   MaterializedAgentIntegrationConfigDto,
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
+import type {AgentToolsCallerContext} from '@shipfox/api-integration-spi';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {
@@ -44,6 +45,8 @@ import {
 } from './tool-call-audit.js';
 
 export type {IntegrationToolCallCaller} from './tool-call-audit.js';
+
+export const SHIPFOX_BUILTIN_CONNECTION_ID = '00000000-0000-4000-8000-000000000001';
 
 export interface IntegrationToolCallError {
   code: IntegrationAgentToolCallErrorCode;
@@ -105,10 +108,12 @@ async function executeIntegrationTool(
     typeof input.integration,
     CallToolResult
   >;
+  const caller = toAgentToolsCaller(input.caller);
   state.openingSession = adapter.openSession({
     connection: input.connection,
     tools: [agentToolCatalogEntry(input)],
     scope: input.integration,
+    ...(caller === undefined ? {} : {caller}),
   });
   state.session = await raceWithSignal(state.openingSession, input.signal);
   if (input.signal?.aborted) return {outcome: 'error', error: abortOutcome(input.signal)};
@@ -459,6 +464,54 @@ function classifyToolCall(
   };
 }
 
+function toAgentToolsCaller(
+  caller: IntegrationToolCallCaller,
+): AgentToolsCallerContext | undefined {
+  if (caller.caller === 'tool_step') {
+    return {
+      workspaceId: caller.workspaceId,
+      projectId: caller.projectId,
+      runId: caller.runId,
+      jobExecutionId: caller.jobExecutionId,
+      stepId: caller.stepId,
+      stepAttempt: caller.stepAttempt,
+    };
+  }
+
+  const lease = caller.lease;
+  if (lease?.currentStepId === undefined || lease.currentStepAttempt === undefined)
+    return undefined;
+  return {
+    workspaceId: lease.workspaceId,
+    projectId: lease.projectId,
+    runId: lease.workflowRunId,
+    jobExecutionId: lease.jobExecutionId,
+    stepId: lease.currentStepId,
+    stepAttempt: lease.currentStepAttempt,
+  };
+}
+
+function syntheticConnection(params: {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  slug: string;
+}): IntegrationConnection {
+  const timestamp = new Date(0);
+  return {
+    id: params.id,
+    workspaceId: params.workspaceId,
+    provider: params.provider,
+    externalAccountId: params.provider,
+    slug: params.slug,
+    displayName: params.provider,
+    lifecycleStatus: 'active',
+    repositoryAccessMode: 'all',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
 function runProjectId(caller: IntegrationToolCallCaller): string | undefined {
   return caller.caller === 'agent' ? caller.lease?.projectId : caller.projectId;
 }
@@ -488,6 +541,11 @@ export interface LoadAuthorizedToolConnectionParams {
   connectionId: string;
   provider: string;
   registry: IntegrationProviderRegistry;
+  builtinConnections?: readonly {
+    provider: string;
+    slug: string;
+    id: string;
+  }[];
   getIntegrationConnectionById: (
     connectionId: string,
   ) => Promise<IntegrationConnection | undefined>;
@@ -504,6 +562,24 @@ export interface LoadAuthorizedToolConnectionParams {
 export async function loadAuthorizedToolConnection(
   params: LoadAuthorizedToolConnectionParams,
 ): Promise<IntegrationConnection> {
+  const builtin = params.builtinConnections?.find(
+    (candidate) => candidate.id === params.connectionId && candidate.provider === params.provider,
+  );
+  let synthetic = builtin;
+  if (
+    synthetic === undefined &&
+    params.connectionId === SHIPFOX_BUILTIN_CONNECTION_ID &&
+    params.provider === 'shipfox'
+  ) {
+    synthetic = {id: SHIPFOX_BUILTIN_CONNECTION_ID, slug: 'shipfox', provider: 'shipfox'};
+  }
+  if (synthetic !== undefined) {
+    if (!providerSupportsAgentTools(params.registry, synthetic.provider)) {
+      throw new IntegrationCapabilityUnavailableError('agent_tools', synthetic.provider);
+    }
+    return syntheticConnection({...synthetic, workspaceId: params.workspaceId});
+  }
+
   const connection = await params.getIntegrationConnectionById(params.connectionId);
   if (!connection) throw new IntegrationConnectionNotFoundError(params.connectionId);
   if (connection.workspaceId !== params.workspaceId) {

@@ -4,6 +4,7 @@ import {AUTH_LEASED_JOB, requireLeasedJobContext} from '@shipfox/api-auth-contex
 import {reportError} from '@shipfox/node-error-monitoring';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import type {RepositoryAuthorizer} from '#core/repository-authorizer.js';
 import {createIntegrationToolCallRecorder} from '#core/tool-call-audit.js';
@@ -22,6 +23,7 @@ export interface CreateAgentToolsGatewayRoutesParams {
   loadLeasedAgentStep: LeasedAgentStepLoader;
   registry: IntegrationProviderRegistry;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  builtinConnections?: readonly WorkspaceBuiltinConnection[] | undefined;
   repositoryAuthorizer?: RepositoryAuthorizer | undefined;
 }
 
@@ -43,6 +45,7 @@ export function createAgentToolsGatewayRoutes(
             loadLeasedAgentStep: params.loadLeasedAgentStep,
             registry: params.registry,
             getIntegrationConnectionById: params.getIntegrationConnectionById,
+            builtinConnections: params.builtinConnections,
           });
           const server = buildAgentToolsMcpServer({
             authorizedTools,

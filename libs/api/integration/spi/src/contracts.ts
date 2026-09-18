@@ -308,6 +308,15 @@ export interface AgentToolSession<CallResult = unknown> {
   close?(): Promise<void>;
 }
 
+export interface AgentToolsCallerContext {
+  workspaceId: string;
+  projectId: string;
+  runId: string;
+  jobExecutionId: string;
+  stepId: string;
+  stepAttempt: number;
+}
+
 export interface OpenAgentToolsSessionInput<
   Connection extends IntegrationConnection = IntegrationConnection,
   RequiredScope = unknown,
@@ -316,6 +325,7 @@ export interface OpenAgentToolsSessionInput<
   connection: Connection;
   tools: readonly AgentToolCatalogEntry<RequiredScope>[];
   scope: ProviderScope;
+  caller?: AgentToolsCallerContext | undefined;
 }
 
 export interface AgentToolsProvider<

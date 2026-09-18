@@ -34,7 +34,13 @@ export async function loadEnabledProviderModules(
   const parts: IntegrationModuleParts[] = [];
   for (const module of providerModules) {
     if (!module.enabled) continue;
-    parts.push(await module.load(options));
+    const loaded = await module.load(options);
+    parts.push({
+      ...loaded,
+      ...(module.builtinConnection === undefined
+        ? {}
+        : {builtinConnection: module.builtinConnection}),
+    });
   }
   return parts;
 }

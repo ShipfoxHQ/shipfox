@@ -1001,6 +1001,14 @@ describe('defaultModules', () => {
           setSecrets: expect.any(Function),
         },
       },
+      interModule: {
+        annotations: expect.objectContaining({listAnnotationsForRunAttempt: expect.any(Function)}),
+        definitions: expect.objectContaining({listDefinitionsByProject: expect.any(Function)}),
+        logs: expect.objectContaining({readStepLogTail: expect.any(Function)}),
+        projects: expect.objectContaining({getProjectBySource: expect.any(Function)}),
+        triggers: expect.objectContaining({fireManualTrigger: expect.any(Function)}),
+        workflows: expect.objectContaining({getWorkflowRunOverview: expect.any(Function)}),
+      },
       agentTools: {workflows: expect.objectContaining({getStepLogContext: expect.any(Function)})},
       projects: expect.objectContaining({
         getProjectBySource: expect.any(Function),

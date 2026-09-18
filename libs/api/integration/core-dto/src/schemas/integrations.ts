@@ -3,11 +3,11 @@ import {z} from 'zod';
 export const CONNECTION_SLUG_MAX_LENGTH = 100;
 
 /**
- * Slugs sync classifies by literal: a source equal to one of these names is a
- * built-in trigger source, never a connection. No provider may allocate a
- * connection holding one of them.
+ * Slugs sync classifies by literal: a value equal to one of these names is
+ * reserved for a built-in source or provider, never a user connection. No
+ * provider may allocate a connection holding one of them.
  */
-export const RESERVED_CONNECTION_SLUGS = ['manual', 'cron'] as const;
+export const RESERVED_CONNECTION_SLUGS = ['manual', 'cron', 'shipfox'] as const;
 
 export const connectionSlugSchema = z
   .string()
