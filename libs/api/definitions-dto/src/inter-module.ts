@@ -87,6 +87,7 @@ const refListingErrors = {
 };
 const resolvedDefinitionAtRefSchema = z.object({
   workflow: z.object({id: idSchema, configPath: configPathSchema}),
+  ref: refSchema.optional(),
   commit: z.string(),
   model: workflowModelSnapshotSchema,
   sourceSnapshot: z.object({content: z.string(), format: z.literal('yaml')}),
@@ -127,12 +128,30 @@ export const definitionsInterModuleContract = defineInterModuleContract({
       },
     },
     resolveDefinitionAtRef: {
-      input: z.object({
-        projectId: idSchema,
-        ref: refSchema,
-        configPath: configPathSchema,
-        expectedCommit: z.string().optional(),
-      }),
+      input: z
+        .object({
+          projectId: idSchema,
+          ref: refSchema.optional(),
+          configPath: configPathSchema,
+          content: z.string().optional(),
+          expectedCommit: z.string().optional(),
+        })
+        .superRefine(({content, ref, expectedCommit}, ctx) => {
+          if (ref === undefined && content === undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['ref'],
+              message: 'ref is required when content is not supplied',
+            });
+          }
+          if (ref === undefined && expectedCommit !== undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['expectedCommit'],
+              message: 'expectedCommit requires ref',
+            });
+          }
+        }),
       output: resolvedDefinitionAtRefSchema,
       errors: refResolutionErrors,
     },

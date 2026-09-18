@@ -98,14 +98,30 @@ describe('definitionsInterModuleContract', () => {
         projectId: PROJECT_ID,
         ref: REF,
         configPath: CONFIG_PATH,
+        content: 'name: CI',
         expectedCommit: COMMIT,
       }),
     ).toEqual({
       projectId: PROJECT_ID,
       ref: REF,
       configPath: CONFIG_PATH,
+      content: 'name: CI',
       expectedCommit: COMMIT,
     });
+    expect(
+      resolve.input.parse({projectId: PROJECT_ID, configPath: CONFIG_PATH, content: 'name: CI'}),
+    ).toEqual({projectId: PROJECT_ID, configPath: CONFIG_PATH, content: 'name: CI'});
+    expect(resolve.input.safeParse({projectId: PROJECT_ID, configPath: CONFIG_PATH}).success).toBe(
+      false,
+    );
+    expect(
+      resolve.input.safeParse({
+        projectId: PROJECT_ID,
+        configPath: CONFIG_PATH,
+        content: 'name: CI',
+        expectedCommit: COMMIT,
+      }).success,
+    ).toBe(false);
     expect(list.input.parse({projectId: PROJECT_ID, ref: REF})).toEqual({
       projectId: PROJECT_ID,
       ref: REF,
@@ -114,6 +130,7 @@ describe('definitionsInterModuleContract', () => {
     expect(
       resolve.output.parse({
         workflow: {id: WORKFLOW_ID, configPath: CONFIG_PATH},
+        ref: REF,
         commit: COMMIT,
         model: MODEL,
         sourceSnapshot: {content: 'name: CI', format: 'yaml'},
