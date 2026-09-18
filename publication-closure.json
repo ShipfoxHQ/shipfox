@@ -63,6 +63,7 @@
     "@shipfox/api-integration-jira-dto",
     "@shipfox/api-integration-linear",
     "@shipfox/api-integration-linear-dto",
+    "@shipfox/api-integration-notion-dto",
     "@shipfox/api-integration-sentry",
     "@shipfox/api-integration-sentry-dto",
     "@shipfox/api-integration-slack",
