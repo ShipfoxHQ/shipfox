@@ -3,11 +3,12 @@ import {
   WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT,
   type WorkflowRunRerunModeDto,
   workflowRunAttemptsResponseSchema,
+  workflowRunConcurrencyImpactSchema,
   workflowRunDtoSchema,
   workflowRunListResponseSchema,
   workflowRunResponseSchema,
 } from '@shipfox/api-workflows-dto';
-import {checkedApiRequest, type StandardSchema} from '@shipfox/client-api';
+import {ApiError, checkedApiRequest, type StandardSchema} from '@shipfox/client-api';
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -24,6 +25,7 @@ import {
   type WorkflowRun,
   type WorkflowRunAttempt,
   WorkflowRunAttemptSummary,
+  type WorkflowRunConcurrencyImpact,
   type WorkflowRunListItem,
   type WorkflowRunListPage,
   type WorkflowRunOrigin,
@@ -339,16 +341,44 @@ async function cancelWorkflowRun({
 export async function rerunWorkflowRun({
   workflowRunId,
   mode,
+  confirmConcurrencyImpact = false,
 }: {
   workflowRunId: string;
   mode: WorkflowRunRerunModeDto;
+  confirmConcurrencyImpact?: boolean | undefined;
 }): Promise<WorkflowRunRecord> {
+  const body: RerunWorkflowRunBodyDto = {
+    mode,
+    ...(confirmConcurrencyImpact ? {confirm_concurrency_impact: true} : {}),
+  };
   return toWorkflowRunRecord(
     await checkedApiRequest(workflowRunResponseSchema, `/workflows/runs/${workflowRunId}/rerun`, {
       method: 'POST',
-      body: {mode} satisfies RerunWorkflowRunBodyDto,
+      body,
     }),
   );
+}
+
+export function workflowRunConcurrencyImpact(
+  error: unknown,
+): WorkflowRunConcurrencyImpact[] | undefined {
+  if (!(error instanceof ApiError) || error.code !== 'concurrency-impact') return undefined;
+  if (!isRecord(error.details) || !isRecord(error.details.details)) return undefined;
+
+  const parsed = workflowRunConcurrencyImpactSchema
+    .array()
+    .safeParse(error.details.details.affected_attempts);
+  if (!parsed.success || parsed.data.length === 0) return undefined;
+
+  return parsed.data.map((impact) => ({
+    workflowRunId: impact.workflow_run_id,
+    workflowRunAttemptId: impact.workflow_run_attempt_id,
+    plannedEffect: impact.planned_effect,
+  }));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 const manualWorkflowResponseSchema: StandardSchema<unknown, {workflow_run_id: string}> = {

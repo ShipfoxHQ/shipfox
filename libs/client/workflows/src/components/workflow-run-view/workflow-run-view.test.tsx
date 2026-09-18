@@ -1,6 +1,7 @@
 import type {AnnotationDto} from '@shipfox/annotations-dto';
 import type {
   WorkflowRunAnnotationItemDto,
+  WorkflowRunConcurrencyImpactDto,
   WorkflowRunJobExplanationDto,
 } from '@shipfox/api-workflows-dto';
 import {configureApiClient} from '@shipfox/client-api';
@@ -13,6 +14,7 @@ import {
   workflowRunAttemptDto,
   workflowRunFixtureDto,
   workflowRunOverviewResponseDto,
+  workflowRunResponseDto,
   workflowStepAttemptDto,
   workflowStepDto,
 } from '#test/fixtures/workflow-run.js';
@@ -22,6 +24,8 @@ import {WorkflowRunView} from './workflow-run-view.js';
 const RUN_ID = '66666666-6666-4666-8666-666666666666';
 const RELATED_RUN_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const RELATED_ATTEMPT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const ACTIVE_RUN_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const ACTIVE_ATTEMPT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const BUILD_JOB_ID = '77777777-7777-4777-8777-777777777777';
 const DEPLOY_JOB_ID = '88888888-8888-4888-8888-888888888888';
@@ -190,6 +194,65 @@ describe('WorkflowRunView', () => {
     expect(requestUrls(fetchImpl).map(({pathname}) => pathname)).not.toContain(
       `/workflows/runs/${RELATED_RUN_ID}/attempts`,
     );
+  });
+
+  test('lists every rerun impact and dismisses without confirming it', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = configureRerunImpactFetch([
+      rerunImpactResponse([
+        rerunImpact(RELATED_RUN_ID, RELATED_ATTEMPT_ID, 'supersede_waiter'),
+        rerunImpact(ACTIVE_RUN_ID, ACTIVE_ATTEMPT_ID, 'cancel_holder'),
+      ]),
+    ]);
+
+    renderView();
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
+
+    const dialog = await screen.findByRole('dialog', {name: 'Confirm re-run impact'});
+    expect(within(dialog).getByText('Supersede waiting run')).toBeVisible();
+    expect(within(dialog).getByText('Cancel active run')).toBeVisible();
+    expect(
+      await within(dialog).findByRole('link', {name: 'Release run #42, attempt 3'}),
+    ).toBeVisible();
+    expect(
+      await within(dialog).findByRole('link', {name: 'Deploy run #43, attempt 4'}),
+    ).toBeVisible();
+
+    await user.click(within(dialog).getByRole('button', {name: 'Cancel'}));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', {name: 'Confirm re-run impact'})).not.toBeInTheDocument(),
+    );
+    expect(await rerunRequestBodies(fetchImpl)).toEqual([{mode: 'all'}]);
+  });
+
+  test('requires another confirmation when a resubmission returns changed impacts', async () => {
+    const user = userEvent.setup();
+    const fetchImpl = configureRerunImpactFetch([
+      rerunImpactResponse([rerunImpact(RELATED_RUN_ID, RELATED_ATTEMPT_ID, 'supersede_waiter')]),
+      rerunImpactResponse([rerunImpact(ACTIVE_RUN_ID, ACTIVE_ATTEMPT_ID, 'cancel_holder')]),
+      rerunSuccessResponse(),
+    ]);
+
+    renderView();
+    await user.click(await screen.findByRole('button', {name: 'Re-run workflow'}));
+    await user.click(await screen.findByRole('button', {name: 'Confirm and re-run'}));
+
+    const dialog = await screen.findByRole('dialog', {name: 'Confirm re-run impact'});
+    expect(within(dialog).getByText('Concurrency changed')).toBeVisible();
+    expect(within(dialog).getByText('Cancel active run')).toBeVisible();
+    expect(within(dialog).queryByText('Supersede waiting run')).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', {name: 'Confirm and re-run'}));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', {name: 'Confirm re-run impact'})).not.toBeInTheDocument(),
+    );
+    expect(await rerunRequestBodies(fetchImpl)).toEqual([
+      {mode: 'all'},
+      {mode: 'all', confirm_concurrency_impact: true},
+      {mode: 'all', confirm_concurrency_impact: true},
+    ]);
   });
 
   test.each([
@@ -659,6 +722,132 @@ function configureRunFetch(
     fetchImpl,
   });
   return fetchImpl;
+}
+
+type RerunResponse = {body: unknown; status: number};
+
+function configureRerunImpactFetch(responses: readonly RerunResponse[]) {
+  let rerunResponseIndex = 0;
+  const detail = workflowRunViewDetailDto({
+    status: 'succeeded',
+    jobs: [],
+    run_attempt: workflowRunAttemptDto({
+      workflow_run_id: RUN_ID,
+      status: 'succeeded',
+      finished_at: '2026-05-07T01:02:00.000Z',
+    }),
+  });
+  const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+    const url = new URL(requestUrl(input), 'https://api.example.test');
+    const path = url.pathname;
+    if (path === `/workflows/runs/${RUN_ID}/rerun`) {
+      const response = responses[rerunResponseIndex];
+      rerunResponseIndex += 1;
+      if (!response) throw new Error('Missing rerun response fixture');
+      return Promise.resolve(jsonResponse(response.body, {status: response.status}));
+    }
+    const referenceResponse = rerunImpactReferenceResponse(path);
+    if (referenceResponse) return Promise.resolve(jsonResponse(referenceResponse));
+    return Promise.resolve(jsonResponse(runResourceResponse(path, detail)));
+  });
+  configureApiClient({fetchImpl});
+  return fetchImpl;
+}
+
+function rerunImpactResponse(affectedAttempts: WorkflowRunConcurrencyImpactDto[]): RerunResponse {
+  return {
+    status: 409,
+    body: {
+      code: 'concurrency-impact',
+      message: 'Rerun would affect another workflow attempt',
+      details: {affected_attempts: affectedAttempts},
+    },
+  };
+}
+
+function rerunSuccessResponse(): RerunResponse {
+  return {
+    status: 200,
+    body: workflowRunResponseDto({
+      id: RUN_ID,
+      current_attempt: 2,
+      latest_attempt: 2,
+      status: 'pending',
+    }),
+  };
+}
+
+function rerunImpact(
+  workflowRunId: string,
+  workflowRunAttemptId: string,
+  plannedEffect: WorkflowRunConcurrencyImpactDto['planned_effect'],
+): WorkflowRunConcurrencyImpactDto {
+  return {
+    workflow_run_id: workflowRunId,
+    workflow_run_attempt_id: workflowRunAttemptId,
+    planned_effect: plannedEffect,
+  };
+}
+
+function rerunImpactReferenceResponse(path: string) {
+  if (path === `/workflows/runs/${RELATED_RUN_ID}/attempts`) {
+    return runAttemptsResponseDto({
+      items: [
+        workflowRunAttemptDto({
+          id: RELATED_ATTEMPT_ID,
+          workflow_run_id: RELATED_RUN_ID,
+          attempt: 3,
+          status: 'waiting',
+        }),
+      ],
+    });
+  }
+  if (path === `/workflows/runs/${RELATED_RUN_ID}/overview`) {
+    return relatedRunOverviewResponse('Release');
+  }
+  if (path === `/workflows/runs/${ACTIVE_RUN_ID}/attempts`) {
+    return runAttemptsResponseDto({
+      items: [
+        workflowRunAttemptDto({
+          id: ACTIVE_ATTEMPT_ID,
+          workflow_run_id: ACTIVE_RUN_ID,
+          attempt: 4,
+          status: 'running',
+        }),
+      ],
+    });
+  }
+  if (path === `/workflows/runs/${ACTIVE_RUN_ID}/overview`) {
+    return workflowRunOverviewResponseDto(
+      workflowRunFixtureDto({
+        id: ACTIVE_RUN_ID,
+        number: 43,
+        name: 'deploy-production',
+        workflow_name: 'Deploy',
+        current_attempt: 4,
+        latest_attempt: 4,
+        run_attempt: workflowRunAttemptDto({
+          id: ACTIVE_ATTEMPT_ID,
+          workflow_run_id: ACTIVE_RUN_ID,
+          attempt: 4,
+          status: 'running',
+        }),
+      }),
+    );
+  }
+  return undefined;
+}
+
+async function rerunRequestBodies(fetchImpl: ReturnType<typeof vi.fn>): Promise<unknown[]> {
+  const requests = fetchImpl.mock.calls
+    .map(([input]) => input)
+    .filter((input): input is Request => input instanceof Request)
+    .filter(
+      (request) =>
+        request.method === 'POST' &&
+        new URL(request.url).pathname === `/workflows/runs/${RUN_ID}/rerun`,
+    );
+  return await Promise.all(requests.map((request) => request.clone().json()));
 }
 
 function workflowRunSourceResponse(

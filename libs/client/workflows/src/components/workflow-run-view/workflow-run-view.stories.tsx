@@ -31,6 +31,8 @@ const RUN_ID = '11111111-1111-4111-8111-111111111111';
 const RUN_ATTEMPT_ID = '22222222-2222-4222-8222-222222222222';
 const RELATED_RUN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const RELATED_ATTEMPT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const ACTIVE_RUN_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const ACTIVE_ATTEMPT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const RUN_STARTED_AT = '2026-06-26T11:57:00.000Z';
 const RUN_FINISHED_AT = '2026-06-26T11:59:00.000Z';
 const BUILD_JOB_ID = '44444444-4444-4444-8444-00000000000b';
@@ -51,7 +53,12 @@ function responseForPath(
   explanations: readonly WorkflowRunJobExplanationDto[],
   workflowSize: 'complete' | 'large',
   concurrencyState: ConcurrencyStoryState,
+  rerunImpact: boolean,
 ) {
+  const rerunResponse = rerunImpactResponseForPath(path, rerunImpact);
+  if (rerunResponse) return rerunResponse;
+  const concurrencyReferenceResponse = concurrencyReferenceResponseForPath(path);
+  if (concurrencyReferenceResponse) return concurrencyReferenceResponse;
   if (path === `/workflows/runs/${RUN_ID}/annotations`) {
     return {body: {items: annotations.map(annotationItemDto), next_cursor: null}, status: 200};
   }
@@ -106,16 +113,51 @@ function responseForPath(
       status: 200,
     };
   }
+  if (path === `/workflows/runs/${RUN_ID}/jobs`) {
+    return {body: RUN_LARGE_JOBS_RESPONSE, status: 200};
+  }
+  return {body: {code: 'not-found'}, status: 404};
+}
+
+function concurrencyReferenceResponseForPath(path: string) {
   if (path === `/workflows/runs/${RELATED_RUN_ID}/attempts`) {
     return {body: RELATED_RUN_ATTEMPTS_RESPONSE, status: 200};
   }
   if (path === `/workflows/runs/${RELATED_RUN_ID}/overview`) {
     return {body: RELATED_RUN_OVERVIEW_RESPONSE, status: 200};
   }
-  if (path === `/workflows/runs/${RUN_ID}/jobs`) {
-    return {body: RUN_LARGE_JOBS_RESPONSE, status: 200};
+  if (path === `/workflows/runs/${ACTIVE_RUN_ID}/attempts`) {
+    return {body: ACTIVE_RUN_ATTEMPTS_RESPONSE, status: 200};
   }
-  return {body: {code: 'not-found'}, status: 404};
+  if (path === `/workflows/runs/${ACTIVE_RUN_ID}/overview`) {
+    return {body: ACTIVE_RUN_OVERVIEW_RESPONSE, status: 200};
+  }
+  return undefined;
+}
+
+function rerunImpactResponseForPath(path: string, enabled: boolean) {
+  if (!enabled || path !== `/workflows/runs/${RUN_ID}/rerun`) return undefined;
+  return {
+    body: {
+      code: 'concurrency-impact',
+      message: 'Rerun would affect another workflow attempt',
+      details: {
+        affected_attempts: [
+          {
+            workflow_run_id: RELATED_RUN_ID,
+            workflow_run_attempt_id: RELATED_ATTEMPT_ID,
+            planned_effect: 'supersede_waiter',
+          },
+          {
+            workflow_run_id: ACTIVE_RUN_ID,
+            workflow_run_attempt_id: ACTIVE_ATTEMPT_ID,
+            planned_effect: 'cancel_holder',
+          },
+        ],
+      },
+    },
+    status: 409,
+  };
 }
 
 const RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({items: []});
@@ -125,6 +167,16 @@ const RELATED_RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({
       id: RELATED_ATTEMPT_ID,
       workflow_run_id: RELATED_RUN_ID,
       attempt: 3,
+      status: 'running',
+    }),
+  ],
+});
+const ACTIVE_RUN_ATTEMPTS_RESPONSE = runAttemptsResponseDto({
+  items: [
+    workflowRunAttemptDto({
+      id: ACTIVE_ATTEMPT_ID,
+      workflow_run_id: ACTIVE_RUN_ID,
+      attempt: 4,
       status: 'running',
     }),
   ],
@@ -237,6 +289,23 @@ const RELATED_RUN_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
     id: RELATED_ATTEMPT_ID,
     workflow_run_id: RELATED_RUN_ID,
     attempt: 3,
+    status: 'running',
+  },
+};
+const ACTIVE_RUN_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
+  ...RUN_OVERVIEW_RESPONSE,
+  run: {
+    ...RUN_OVERVIEW_RESPONSE.run,
+    id: ACTIVE_RUN_ID,
+    number: 43,
+    name: 'deploy-production',
+    workflow_name: 'Deploy',
+  },
+  attempt: {
+    ...RUN_OVERVIEW_RESPONSE.attempt,
+    id: ACTIVE_ATTEMPT_ID,
+    workflow_run_id: ACTIVE_RUN_ID,
+    attempt: 4,
     status: 'running',
   },
 };
@@ -581,6 +650,7 @@ const withRunApi: Decorator = (Story, context) => (
     concurrencyState={
       (context.parameters.concurrencyState as ConcurrencyStoryState | undefined) ?? 'none'
     }
+    rerunImpact={context.parameters.rerunImpact === true}
   >
     <Story />
   </RunWorkspaceStoryProviders>
@@ -645,6 +715,19 @@ export const SupersededByConcurrency: Story = {
     await expect(
       await canvas.findByRole('link', {name: 'View newer run: Release run #42, attempt 3'}),
     ).toBeVisible();
+  },
+};
+
+export const RerunConcurrencyImpact: Story = {
+  parameters: {rerunImpact: true},
+  play: async ({canvasElement}) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByRole('button', {name: 'Re-run workflow'}));
+    const dialog = await body.findByRole('dialog', {name: 'Confirm re-run impact'});
+    await waitFor(() => expect(within(dialog).getByText('Supersede waiting run')).toBeVisible());
+    await waitFor(() => expect(within(dialog).getByText('Cancel active run')).toBeVisible());
+    await expect(await within(dialog).findByText('Release run #42, attempt 3')).toBeVisible();
+    await expect(await within(dialog).findByText('Deploy run #43, attempt 4')).toBeVisible();
   },
 };
 
@@ -722,6 +805,7 @@ function RunWorkspaceStoryProviders({
   workflowSize,
   includeUsage,
   concurrencyState,
+  rerunImpact,
   children,
 }: {
   annotations: AnnotationDto[];
@@ -729,6 +813,7 @@ function RunWorkspaceStoryProviders({
   workflowSize: 'complete' | 'large';
   includeUsage: boolean;
   concurrencyState: ConcurrencyStoryState;
+  rerunImpact: boolean;
   children: ReactNode;
 }) {
   const [queryClient] = useState(
@@ -751,6 +836,7 @@ function RunWorkspaceStoryProviders({
           explanations,
           workflowSize,
           concurrencyState,
+          rerunImpact,
         );
         return new Response(JSON.stringify(response.body), {
           status: response.status,
@@ -766,7 +852,15 @@ function RunWorkspaceStoryProviders({
     return () => {
       resetApiClient();
     };
-  }, [annotations, concurrencyState, explanations, includeUsage, queryClient, workflowSize]);
+  }, [
+    annotations,
+    concurrencyState,
+    explanations,
+    includeUsage,
+    queryClient,
+    rerunImpact,
+    workflowSize,
+  ]);
 
   if (!configured) return null;
 

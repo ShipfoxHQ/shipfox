@@ -177,7 +177,7 @@ function useConcurrencyReference(
   return queries[0]?.data ?? undefined;
 }
 
-function WorkflowRunReferenceLink({
+export function WorkflowRunReferenceLink({
   reference,
   workspaceSlug,
   projectSlug,
