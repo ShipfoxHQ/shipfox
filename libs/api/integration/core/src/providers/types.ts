@@ -1,5 +1,11 @@
+import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {UserContextMembership} from '@shipfox/api-auth-context';
+import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {WebhookRequestProcessor, WebhookRouteId} from '@shipfox/api-integration-spi';
+import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
+import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
+import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteExport} from '@shipfox/node-fastify';
 import type {ModuleDatabase, ModuleService, ModuleWorker} from '@shipfox/node-module';
 import type {IntegrationProvider} from '#core/entities/provider.js';
@@ -13,8 +19,23 @@ import type {IntegrationProvider} from '#core/entities/provider.js';
  * provider owns its own wiring: core runs each task generically and isolates
  * failures so a task can never gate API boot.
  */
+export interface IntegrationBuiltinConnection {
+  slug: string;
+  id: string;
+}
+
+export interface IntegrationProviderInterModuleClients {
+  annotations: AnnotationsInterModuleClient;
+  definitions: DefinitionsInterModuleClient;
+  logs: LogsModuleClient;
+  projects: ProjectsModuleClient;
+  triggers: TriggersInterModuleClient;
+  workflows: WorkflowsModuleClient;
+}
+
 export interface IntegrationModuleParts {
   provider: IntegrationProvider;
+  builtinConnection?: IntegrationBuiltinConnection | undefined;
   database?: ModuleDatabase | undefined;
   services?: ModuleService[] | undefined;
   e2eRoutes?: RouteExport[] | undefined;
@@ -36,11 +57,13 @@ export interface WebhookProcessorRegistration {
 export interface IntegrationProviderModule {
   id: string;
   enabled: boolean;
+  builtinConnection?: IntegrationBuiltinConnection | undefined;
   load(options?: IntegrationProviderModuleLoadOptions): Promise<IntegrationModuleParts>;
 }
 
 export interface IntegrationProviderModuleLoadOptions {
   secrets?: IntegrationProviderSecrets | undefined;
+  interModule?: IntegrationProviderInterModuleClients | undefined;
   /** Invalidates local repository authorization decisions after committed provider-owned changes. */
   invalidateRepositoryAuthorizationCache?: ((connectionId: string) => void) | undefined;
   requireActiveWorkspaceMembership?:

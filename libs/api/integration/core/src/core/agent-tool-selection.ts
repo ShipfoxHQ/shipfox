@@ -7,6 +7,11 @@ import {
 } from '@shipfox/api-integration-spi';
 import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
 import {listIntegrationConnections} from '#db/connections.js';
+import type {IntegrationBuiltinConnection} from '#providers/types.js';
+
+export interface WorkspaceBuiltinConnection extends IntegrationBuiltinConnection {
+  provider: IntegrationProviderKind;
+}
 
 export type AgentToolSelectionCatalogs = ReadonlyMap<
   IntegrationProviderKind,
@@ -64,6 +69,7 @@ export async function buildAgentToolCatalogs(
 
 export function createWorkspaceConnectionSnapshotLoader(
   registry: IntegrationProviderRegistry,
+  builtinConnections: readonly WorkspaceBuiltinConnection[] = [],
 ): LoadWorkspaceConnectionSnapshot {
   const capabilitiesByProvider = new Map(
     registry.list().map((provider) => [provider.provider, provider.capabilities]),
@@ -71,7 +77,7 @@ export function createWorkspaceConnectionSnapshotLoader(
 
   return async (workspaceId) => {
     const connections = await listIntegrationConnections({workspaceId});
-    return new Map(
+    const snapshot = new Map(
       connections.map((connection) => [
         connection.slug,
         {
@@ -81,5 +87,14 @@ export function createWorkspaceConnectionSnapshotLoader(
         },
       ]),
     );
+    for (const builtin of builtinConnections) {
+      if (!registry.list().some((provider) => provider.provider === builtin.provider)) continue;
+      snapshot.set(builtin.slug, {
+        id: builtin.id,
+        provider: builtin.provider,
+        capabilities: ['agent_tools'],
+      });
+    }
+    return snapshot;
   };
 }

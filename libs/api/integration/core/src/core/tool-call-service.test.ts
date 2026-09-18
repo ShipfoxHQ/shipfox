@@ -23,6 +23,7 @@ import {
   callIntegrationTool,
   type IntegrationToolCallInput,
   loadAuthorizedToolConnection,
+  SHIPFOX_BUILTIN_CONNECTION_ID,
 } from './tool-call-service.js';
 
 const serviceMocks = vi.hoisted(() => ({
@@ -76,6 +77,67 @@ describe('callIntegrationTool', () => {
       ],
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes normalized caller context to the provider session', async () => {
+    const onOpenSession = vi.fn();
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'github',
+        displayName: 'GitHub',
+        adapters: {
+          agent_tools: {
+            catalog: () => [catalogTool()],
+            selectionCatalog: () => ({selectors: []}),
+            openSession: (input) => {
+              onOpenSession(input);
+              return Promise.resolve({
+                call: () => Promise.resolve({content: [{type: 'text', text: 'ok'}]}),
+              });
+            },
+          },
+        },
+      },
+    ]);
+
+    await callIntegrationTool(
+      createInput(
+        {},
+        {
+          registry,
+          caller: {
+            caller: 'tool_step',
+            workspaceId: 'workspace-1',
+            projectId: 'project-1',
+            runId: 'run-1',
+            jobExecutionId: 'execution-1',
+            stepId: 'step-1',
+            stepAttempt: 2,
+            callIndex: 4,
+          },
+        },
+      ),
+    );
+
+    expect(onOpenSession.mock.calls[0]?.[0].caller).toEqual({
+      workspaceId: 'workspace-1',
+      projectId: 'project-1',
+      runId: 'run-1',
+      jobExecutionId: 'execution-1',
+      stepId: 'step-1',
+      stepAttempt: 2,
+    });
+
+    await callIntegrationTool(createInput({}, {registry}));
+
+    expect(onOpenSession.mock.calls[1]?.[0].caller).toEqual({
+      workspaceId: 'workspace-1',
+      projectId: 'project-1',
+      runId: 'run-1',
+      jobExecutionId: 'execution-1',
+      stepId: 'step-1',
+      stepAttempt: 2,
+    });
   });
 
   it('denies a declared repository before opening a provider session', async () => {
@@ -1395,6 +1457,40 @@ describe('loadAuthorizedToolConnection', () => {
         getIntegrationConnectionById: async () => resolved,
       }),
     ).resolves.toBe(resolved);
+  });
+
+  it('loads the built-in connection without querying the database', async () => {
+    const getIntegrationConnectionById = vi.fn();
+    const registry = createIntegrationProviderRegistry([
+      {
+        provider: 'shipfox',
+        displayName: 'Shipfox',
+        adapters: {
+          agent_tools: {
+            catalog: () => [],
+            selectionCatalog: () => ({selectors: []}),
+            openSession: async () => ({call: async () => ({content: []})}),
+          },
+        },
+      },
+    ]);
+
+    await expect(
+      loadAuthorizedToolConnection({
+        workspaceId: 'workspace-1',
+        connectionId: SHIPFOX_BUILTIN_CONNECTION_ID,
+        provider: 'shipfox',
+        registry,
+        getIntegrationConnectionById,
+      }),
+    ).resolves.toMatchObject({
+      id: SHIPFOX_BUILTIN_CONNECTION_ID,
+      workspaceId: 'workspace-1',
+      provider: 'shipfox',
+      slug: 'shipfox',
+      lifecycleStatus: 'active',
+    });
+    expect(getIntegrationConnectionById).not.toHaveBeenCalled();
   });
 
   it('rejects when the connection is missing', async () => {

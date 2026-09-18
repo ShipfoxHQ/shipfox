@@ -11,6 +11,7 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {ClientError} from '@shipfox/node-fastify';
+import type {WorkspaceBuiltinConnection} from '#core/agent-tool-selection.js';
 import type {IntegrationConnection} from '#core/entities/connection.js';
 import {
   IntegrationCapabilityUnavailableError,
@@ -91,6 +92,7 @@ export interface ResolveAuthorizedToolsParams {
   loadLeasedAgentStep: LeasedAgentStepLoader;
   registry: IntegrationProviderRegistry;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  builtinConnections?: readonly WorkspaceBuiltinConnection[] | undefined;
 }
 
 export async function resolveAuthorizedIntegrationTools(
@@ -118,6 +120,9 @@ export async function resolveAuthorizedIntegrationTools(
       workspaceId,
       registry: params.registry,
       getIntegrationConnectionById: params.getIntegrationConnectionById,
+      ...(params.builtinConnections === undefined
+        ? {}
+        : {builtinConnections: params.builtinConnections}),
     });
     const catalog = await params.registry.getAdapter(integration.provider, 'agent_tools').catalog();
     const catalogByToolId = new Map(catalog.map((entry) => [entry.id, entry]));
@@ -208,6 +213,7 @@ async function loadAuthorizedConnection(params: {
   workspaceId: string;
   registry: IntegrationProviderRegistry;
   getIntegrationConnectionById: GetIntegrationConnectionByIdFn;
+  builtinConnections?: readonly WorkspaceBuiltinConnection[] | undefined;
 }): Promise<IntegrationConnection> {
   try {
     return await loadAuthorizedToolConnection({
@@ -216,6 +222,9 @@ async function loadAuthorizedConnection(params: {
       provider: params.integration.provider,
       registry: params.registry,
       getIntegrationConnectionById: params.getIntegrationConnectionById,
+      ...(params.builtinConnections === undefined
+        ? {}
+        : {builtinConnections: params.builtinConnections}),
     });
   } catch (error) {
     if (error instanceof IntegrationConnectionNotFoundError) {

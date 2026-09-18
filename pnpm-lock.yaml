@@ -3034,12 +3034,18 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
+      '@shipfox/annotations-dto':
+        specifier: workspace:*
+        version: link:../../annotations-dto
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../agent-dto
       '@shipfox/api-auth-context':
         specifier: workspace:*
         version: link:../../auth-context
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../../definitions-dto
       '@shipfox/api-integration-clickup':
         specifier: workspace:*
         version: link:../clickup
@@ -3070,9 +3076,15 @@ importers:
       '@shipfox/api-integration-webhook':
         specifier: workspace:*
         version: link:../webhook
+      '@shipfox/api-logs-dto':
+        specifier: workspace:*
+        version: link:../../logs-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../../projects-dto
+      '@shipfox/api-triggers-dto':
+        specifier: workspace:*
+        version: link:../../triggers-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../../workflows-dto
