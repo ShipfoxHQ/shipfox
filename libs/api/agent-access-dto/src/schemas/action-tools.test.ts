@@ -3,6 +3,8 @@ import {
   cancelWorkflowRunInputSchema,
   createDevRunInputJsonSchema,
   createDevRunInputSchema,
+  createDevRunResultJsonSchema,
+  createDevRunResultSchema,
   fireManualTriggerInputJsonSchema,
   fireManualTriggerInputSchema,
   rerunWorkflowRunInputSchema,
@@ -64,16 +66,43 @@ describe('agent-access action tool schemas', () => {
     }
   });
 
-  test('requires config_path for development runs', () => {
+  test('accepts local content without a ref and leaves content unbounded by Zod', () => {
     const input = {
       project_id: uuid,
-      ref: 'main',
+      content: 'x'.repeat(300 * 1024),
       trigger: 'manual',
+      config_path: '.shipfox/workflow.yml',
+    };
+
+    expect(createDevRunInputSchema.safeParse(input).success).toBe(true);
+    expect(createDevRunInputJsonSchema.required).toEqual(['project_id', 'config_path', 'trigger']);
+    expect(createDevRunInputJsonSchema.properties.content).toEqual({type: 'string'});
+  });
+
+  test('requires a ref without local content and rejects a commit without a ref', () => {
+    const input = {
+      project_id: uuid,
+      trigger: 'manual',
+      config_path: '.shipfox/workflow.yml',
     };
     expect(createDevRunInputSchema.safeParse(input).success).toBe(false);
     expect(
-      createDevRunInputSchema.safeParse({...input, config_path: '.shipfox/workflow.yml'}).success,
-    ).toBe(true);
+      createDevRunInputSchema.safeParse({...input, commit: 'a'.repeat(40), content: 'workflow'})
+        .success,
+    ).toBe(false);
+    expect(createDevRunInputSchema.safeParse({...input, ref: 'main'}).success).toBe(true);
+  });
+
+  test('validates development-run results with provenance and warnings', () => {
+    const result = {
+      run_id: uuid,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+    };
+
+    expect(createDevRunResultSchema.safeParse(result).success).toBe(true);
+    expect(createDevRunResultJsonSchema.properties.warnings).toMatchObject({maxItems: 100});
   });
 
   test('keeps development-run descriptors aligned with safe runtime strings', () => {

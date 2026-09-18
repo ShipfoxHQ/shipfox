@@ -13,16 +13,23 @@ import {
 } from '@shipfox/api-auth-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
-import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
+import {
+  type TriggersInterModuleClient,
+  triggersInterModuleContract,
+} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {createAgentAccessActionTools} from '#core/action-tools.js';
 import {agentAccessSuccess} from '#core/envelope.js';
 import {AGENT_ACCESS_INTEGRATION_TOOL_NAMES} from '#core/integration-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
+import type {AgentAccessTool} from '#core/tools.js';
 import {createAgentAccessFixtureActionTool, createAgentAccessFixtureTool} from '#core/tools.js';
 import {AGENT_ACCESS_PACKAGE_VERSION} from '#version.js';
 import {buildAgentAccessMcpServer} from './mcp-server.js';
+
+const sha256HexPattern = /^[0-9a-f]{64}$/u;
 
 const context: AgentAccessContext = {
   userId: 'user-1',
@@ -134,6 +141,63 @@ describe('buildAgentAccessMcpServer', () => {
         authority_outcome: 'not-checked',
       },
     });
+  });
+
+  test('forwards oversized local content to the producer for a domain refusal', async () => {
+    const createDevRun = vi
+      .fn()
+      .mockRejectedValue(
+        createInterModuleKnownError(
+          triggersInterModuleContract.methods.createDevRun,
+          'content-too-large',
+          {configPath: '.shipfox/workflow.yml'},
+        ),
+      );
+    const triggers = {createDevRun} as unknown as TriggersInterModuleClient;
+    const tools = createAgentAccessActionTools({
+      workflows: {} as unknown as WorkflowsModuleClient,
+      triggers,
+    });
+    const auth = {
+      checkAgentGrantAuthority: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AuthInterModuleClient;
+    const recordCall = vi.fn();
+    const {client, close} = await connectClient(
+      createAgentAccessRateLimiter(),
+      tools,
+      recordCall,
+      auth,
+    );
+    const content = 'x'.repeat(300 * 1024);
+
+    const result = await client.callTool(
+      {
+        name: 'create_dev_run',
+        arguments: {
+          project_id: '00000000-0000-4000-8000-000000000001',
+          content,
+          config_path: '.shipfox/workflow.yml',
+          trigger: 'manual',
+        },
+      },
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toEqual({
+      ok: false,
+      error: {code: 'content-too-large'},
+    });
+    expect(createDevRun).toHaveBeenCalledTimes(1);
+    expect(recordCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({
+          definition_source: 'local',
+          content_hash: expect.stringMatching(sha256HexPattern),
+        }),
+      }),
+    );
   });
 
   test('rejects multibyte input at the MCP boundary before calling a producer', async () => {
@@ -448,7 +512,7 @@ describe('buildAgentAccessMcpServer', () => {
 
 async function connectClient(
   rateLimiter = createAgentAccessRateLimiter(),
-  tools = [createAgentAccessFixtureTool()],
+  tools: readonly AgentAccessTool[] = [createAgentAccessFixtureTool()],
   recordCall?: Parameters<typeof buildAgentAccessMcpServer>[0]['recordCall'],
   auth?: AuthInterModuleClient,
   actionRateLimiter?: Parameters<typeof buildAgentAccessMcpServer>[0]['actionRateLimiter'],

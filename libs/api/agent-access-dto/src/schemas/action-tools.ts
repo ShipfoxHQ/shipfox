@@ -61,6 +61,13 @@ const safeConfigPathSchema = z
   .min(1)
   .max(1024)
   .refine(isSafeRefInput, 'Config path contains a control character');
+const createDevRunWarningSchema = z
+  .object({
+    code: z.string().max(128),
+    message: z.string().max(2048),
+    path: z.string().max(512).optional(),
+  })
+  .strict();
 
 function isSafeRefInput(value: string): boolean {
   return [...value].every((character) => {
@@ -131,7 +138,8 @@ export type FireManualTriggerResultDto = z.infer<typeof fireManualTriggerResultS
 export const createDevRunInputSchema = z
   .object({
     project_id: uuidSchema,
-    ref: safeRefSchema,
+    ref: safeRefSchema.optional(),
+    content: z.string().optional(),
     config_path: safeConfigPathSchema,
     trigger: z.string().min(1),
     commit: z
@@ -141,6 +149,22 @@ export const createDevRunInputSchema = z
     inputs: inputsSchema.optional(),
     replay_event_id: uuidSchema.optional(),
   })
+  .superRefine(({content, ref, commit}, context) => {
+    if (ref === undefined && content === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ref'],
+        message: 'ref is required when content is not supplied',
+      });
+    }
+    if (ref === undefined && commit !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['commit'],
+        message: 'commit requires ref',
+      });
+    }
+  })
   .strict();
 
 export type CreateDevRunInputDto = z.infer<typeof createDevRunInputSchema>;
@@ -148,7 +172,9 @@ export type CreateDevRunInputDto = z.infer<typeof createDevRunInputSchema>;
 export const createDevRunResultSchema = z
   .object({
     run_id: uuidSchema,
+    ref: z.string().optional(),
     commit: z.string(),
+    warnings: z.array(createDevRunWarningSchema).max(100).optional(),
   })
   .strict();
 
@@ -233,11 +259,23 @@ export const fireManualTriggerResultJsonSchema = {
   additionalProperties: false,
 } as const;
 
+const createDevRunWarningJsonSchema = {
+  type: 'object',
+  properties: {
+    code: {type: 'string', maxLength: 128},
+    message: {type: 'string', maxLength: 2048},
+    path: {type: 'string', maxLength: 512},
+  },
+  required: ['code', 'message'],
+  additionalProperties: false,
+} as const;
+
 export const createDevRunInputJsonSchema = {
   type: 'object',
   properties: {
     project_id: uuidJsonSchema,
     ref: {type: 'string', minLength: 1, maxLength: 256, pattern: safeRefInputPattern},
+    content: {type: 'string'},
     config_path: {
       type: 'string',
       minLength: 1,
@@ -249,13 +287,18 @@ export const createDevRunInputJsonSchema = {
     inputs: inputsJsonSchema,
     replay_event_id: uuidJsonSchema,
   },
-  required: ['project_id', 'ref', 'config_path', 'trigger'],
+  required: ['project_id', 'config_path', 'trigger'],
   additionalProperties: false,
 } as const;
 
 export const createDevRunResultJsonSchema = {
   type: 'object',
-  properties: {run_id: uuidJsonSchema, commit: {type: 'string'}},
+  properties: {
+    run_id: uuidJsonSchema,
+    ref: {type: 'string'},
+    commit: {type: 'string'},
+    warnings: {type: 'array', items: createDevRunWarningJsonSchema, maxItems: 100},
+  },
   required: ['run_id', 'commit'],
   additionalProperties: false,
 } as const;

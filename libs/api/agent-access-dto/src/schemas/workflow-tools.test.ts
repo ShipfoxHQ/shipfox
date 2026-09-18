@@ -72,6 +72,26 @@ describe('workflow agent-access schemas', () => {
     expect(getWorkflowRunResultJsonSchema.properties.status.enum).toContain('waiting');
   });
 
+  test('accepts local dev-run provenance in the bounded source object', () => {
+    const result = {
+      ...runResult(),
+      origin: 'dev' as const,
+      dev_source: {
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        definition_source: 'local' as const,
+        config_path: '.shipfox/workflow.yml',
+        initiated_by_user_id: runId,
+        replay_of_event_id: null,
+      },
+    };
+
+    expect(getWorkflowRunResultSchema.safeParse(result).success).toBe(true);
+    expect(getWorkflowRunResultJsonSchema.properties.dev_source.anyOf[0].properties).toHaveProperty(
+      'definition_source',
+    );
+  });
+
   test('declares one object result schema without embedded traversal children', () => {
     const schemas = [
       getWorkflowRunResultJsonSchema,

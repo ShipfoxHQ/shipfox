@@ -360,6 +360,7 @@ function toWorkflowRunResult(overview: WorkflowRunOverviewResponseDto): GetWorkf
         : {
             ref: cap(overview.run.dev_source.ref),
             commit: cap(overview.run.dev_source.commit),
+            definition_source: overview.run.dev_source.definition_source,
             config_path: cap(overview.run.dev_source.config_path),
             initiated_by_user_id: overview.run.dev_source.initiated_by_user_id,
             replay_of_event_id: overview.run.dev_source.replay_of_event_id,
