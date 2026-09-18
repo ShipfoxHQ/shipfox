@@ -30,9 +30,6 @@ Each history item can include its ID, type, date, field, parent List ID, source,
 actor, and before and after values. Comment events also include the ClickUp
 comment object.
 
-`taskDeleted` contains only `event`, `webhook_id`, `task_id`, and the added
-`team_id`. It has no `history_items`, but Shipfox still delivers it.
-
 See ClickUp's [webhook reference](https://developer.clickup.com/docs/webhooks)
 and [task webhook payloads](https://developer.clickup.com/docs/webhooktaskpayloads)
 for provider-owned field details.
