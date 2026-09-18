@@ -35,6 +35,23 @@ const pullRequestReviewCommentActions = [
   ['deleted', 'A comment on a pull request diff is deleted.'],
 ] as const satisfies readonly GithubWebhookActionDetail[];
 
+const pullRequestReviewActions = [
+  ['submitted', 'A pull request review is submitted.'],
+  ['edited', 'A pull request review is edited.'],
+  ['dismissed', 'A pull request review is dismissed.'],
+] as const satisfies readonly GithubWebhookActionDetail[];
+
+const pullRequestReviewThreadActions = [
+  ['resolved', 'A pull request review thread is resolved.'],
+  ['unresolved', 'A pull request review thread is marked unresolved.'],
+] as const satisfies readonly GithubWebhookActionDetail[];
+
+const issueCommentActions = [
+  ['created', 'A comment on an issue or pull request is created.'],
+  ['edited', 'A comment on an issue or pull request is edited.'],
+  ['deleted', 'A comment on an issue or pull request is deleted.'],
+] as const satisfies readonly GithubWebhookActionDetail[];
+
 const issueActions = [
   ['opened', 'An issue opens.'],
   ['closed', 'An issue closes.'],
@@ -107,7 +124,10 @@ export const githubEventCatalog = {
       payloadDocUrl: githubWebhookPayloadDocsUrl,
     },
     ...githubActionEvents('pull_request', pullRequestActions),
+    ...githubActionEvents('pull_request_review', pullRequestReviewActions),
     ...githubActionEvents('pull_request_review_comment', pullRequestReviewCommentActions),
+    ...githubActionEvents('pull_request_review_thread', pullRequestReviewThreadActions),
+    ...githubActionEvents('issue_comment', issueCommentActions),
     ...githubActionEvents('issues', issueActions),
     ...githubActionEvents('release', releaseActions),
     ...githubActionEvents('workflow_job', workflowJobActions),
