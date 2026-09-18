@@ -1,7 +1,7 @@
 import {annotationsModule} from '@shipfox/annotations';
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {type CreateAgentModuleOptions, createAgentModule} from '@shipfox/api-agent';
-import {createAgentAccessModule} from '@shipfox/api-agent-access';
+import {type AgentAccessTool, createAgentAccessModule} from '@shipfox/api-agent-access';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {type CreateAuthModuleOptions, createAuthModule} from '@shipfox/api-auth';
 import {config as authConfig} from '@shipfox/api-auth/config';
@@ -58,6 +58,12 @@ export interface DefaultModulesOptions {
   agentModuleOptions?: DefaultAgentModuleOptions | undefined;
   runnersModuleOptions?: DefaultRunnersModuleOptions | undefined;
   workflowsModuleOptions?: DefaultWorkflowsModuleOptions | undefined;
+  /** Appends composition-root tools to the standard Agent Access tool list. */
+  agentAccess?:
+    | {
+        additionalTools?: readonly AgentAccessTool[] | undefined;
+      }
+    | undefined;
   authModuleFactory?: DefaultAuthModuleFactory | undefined;
   agentModuleFactory?: DefaultAgentModuleFactory | undefined;
   runnersModuleFactory?: DefaultRunnersModuleFactory | undefined;
@@ -362,6 +368,7 @@ export async function defaultModules(
       triggers: triggersClient,
       workflows: workflowsClient,
       integrations: integrationsClient,
+      ...(options.agentAccess ?? {}),
     }),
     createWorkspacesModule({auth: authClient, projects: projectsClient, runners: runnersClient}),
     createSecretsModule(projectsClient),

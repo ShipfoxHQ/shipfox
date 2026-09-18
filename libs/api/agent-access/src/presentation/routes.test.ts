@@ -22,6 +22,7 @@ import {
   type FastifyRequest,
 } from '@shipfox/node-fastify';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
+import {createAgentAccessFixtureTool} from '#core/tools.js';
 import {type CreateAgentAccessRoutesOptions, createAgentAccessRoutes} from './routes.js';
 
 const context: AgentAccessContext = {
@@ -75,6 +76,72 @@ describe('agent-access MCP routes', () => {
     ).toThrow(
       'Agent-access core producer clients must be configured together: projects, definitions, workflows, annotations, and triggers',
     );
+  });
+
+  test('rejects duplicate additional tools at startup', () => {
+    const duplicate = {...createAgentAccessFixtureTool(), name: 'agent_access_fixture'};
+
+    expect(() => createAgentAccessRoutes({additionalTools: [duplicate]})).toThrow(
+      'Duplicate agent-access tool: agent_access_fixture',
+    );
+  });
+
+  test('lists and executes additional tools through the shared rate limiter and audit recorder', async () => {
+    const additionalTool = {...createAgentAccessFixtureTool(), name: 'additional_fixture'};
+    const rateLimiter = createAgentAccessRateLimiter({limit: 1, now: () => 1_000});
+    const recordCall = vi.fn();
+    const app = await createTestApp(rateLimiter, {
+      additionalTools: [additionalTool],
+      recordCall,
+    });
+    const address = await app.listen({port: 0, host: '127.0.0.1'});
+    const client = new Client({name: 'test-http-client', version: '0.0.0'});
+    const transport = new StreamableHTTPClientTransport(new URL('/mcp', address), {
+      requestInit: {headers: {authorization: 'Bearer valid-token'}},
+    });
+
+    try {
+      await client.connect(transport as unknown as Transport);
+      const tools = await client.listTools();
+      const first = await client.callTool(
+        {name: additionalTool.name, arguments: {message: 'additional tool'}},
+        CallToolResultSchema,
+      );
+      const second = await client.callTool(
+        {name: additionalTool.name, arguments: {message: 'rate limited'}},
+        CallToolResultSchema,
+      );
+
+      expect(tools.tools.map((tool) => tool.name)).toContain(additionalTool.name);
+      expect(first.structuredContent).toEqual({
+        ok: true,
+        result: {message: 'additional tool'},
+      });
+      expect(second.structuredContent).toEqual({
+        ok: false,
+        error: {code: 'rate-limited', retry_after_seconds: 60},
+      });
+      expect(rateLimiter.size()).toBe(1);
+      expect(recordCall).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          tool: additionalTool.name,
+          outcome: 'success',
+          errorCode: 'none',
+          context,
+        }),
+      );
+      expect(recordCall).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          tool: additionalTool.name,
+          outcome: 'rate-limited',
+          errorCode: 'rate-limited',
+          context,
+        }),
+      );
+    } finally {
+      await client.close();
+    }
   });
 
   test('keeps diagnostic tools when optional log reads are not configured', async () => {
