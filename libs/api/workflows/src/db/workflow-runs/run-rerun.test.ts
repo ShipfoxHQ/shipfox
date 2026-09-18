@@ -302,12 +302,24 @@ describe('workflow run queries', () => {
         actorUserId: crypto.randomUUID(),
         confirmConcurrencyImpact: true,
       });
-      const attempts = await listTestRunAttempts({workflowRunId: holder.id, projectId});
-      const rerunAttempt = attempts.find((attempt) => attempt.attempt === rerun.currentAttempt);
-      if (!rerunAttempt) throw new Error('Expected rerun attempt');
+      const holderAttempts = await listTestRunAttempts({workflowRunId: holder.id, projectId});
+      const holderAttempt = holderAttempts.find(
+        (attempt) => attempt.attempt === holder.currentAttempt,
+      );
+      const rerunAttempt = holderAttempts.find(
+        (attempt) => attempt.attempt === rerun.currentAttempt,
+      );
+      const waiterAttempts = await listTestRunAttempts({workflowRunId: waiter.id, projectId});
+      const waiterAttempt = waiterAttempts.find(
+        (attempt) => attempt.attempt === waiter.currentAttempt,
+      );
+      if (!holderAttempt || !rerunAttempt || !waiterAttempt) {
+        throw new Error('Expected holder, rerun, and waiter attempts');
+      }
       const claims = await db()
         .select({
           workflowRunId: workflowConcurrencyClaims.workflowRunId,
+          workflowRunAttemptId: workflowConcurrencyClaims.workflowRunAttemptId,
           state: workflowConcurrencyClaims.state,
           cancellationRequestedAt: workflowConcurrencyClaims.cancellationRequestedAt,
         })
@@ -315,14 +327,24 @@ describe('workflow run queries', () => {
         .where(eq(workflowConcurrencyClaims.projectId, projectId));
 
       expect(rerun.status).toBe('waiting');
+      expect(claims).toHaveLength(3);
       expect(claims).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({workflowRunId: waiter.id, state: 'superseded'}),
-          expect.objectContaining({workflowRunId: holder.id, state: 'acquired'}),
+          expect.objectContaining({
+            workflowRunId: waiter.id,
+            workflowRunAttemptId: waiterAttempt.id,
+            state: 'superseded',
+          }),
           expect.objectContaining({
             workflowRunId: holder.id,
+            workflowRunAttemptId: holderAttempt.id,
             state: 'acquired',
             cancellationRequestedAt: expect.any(Date),
+          }),
+          expect.objectContaining({
+            workflowRunId: rerun.id,
+            workflowRunAttemptId: rerunAttempt.id,
+            state: 'waiting',
           }),
         ]),
       );

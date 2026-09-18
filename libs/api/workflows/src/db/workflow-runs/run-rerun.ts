@@ -16,7 +16,10 @@ import {
   materializeJobExecutionSteps,
 } from '#core/step-config/materialize-job-execution-steps.js';
 import {deriveJobExecutionRunner} from '#core/workflow-run-creation.js';
-import {recordWorkflowRunCreated} from '#metrics/instance.js';
+import {
+  recordWorkflowConcurrencyCancellationOutcome,
+  recordWorkflowRunCreated,
+} from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
 import {writeWorkflowsOutboxEvents} from '../outbox-writes.js';
 import {type JobExecutionDb, jobExecutions} from '../schema/job-executions.js';
@@ -25,7 +28,10 @@ import {type StepDb, steps} from '../schema/steps.js';
 import {workflowConcurrencyClaims} from '../schema/workflow-concurrency-claims.js';
 import {type WorkflowRunAttemptDb, workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
-import {admitWorkflowConcurrencyClaim} from '../workflow-concurrency.js';
+import {
+  admitWorkflowConcurrencyClaim,
+  recordWorkflowConcurrencyAdmissionMetrics,
+} from '../workflow-concurrency.js';
 import {workflowConcurrencyClaimEvents} from './run-create.js';
 import {type MaterializedRunGraphJob, persistMaterializedRunGraph} from './run-graph.js';
 import {lockWorkflowRun} from './shared.js';
@@ -120,20 +126,33 @@ export async function createRerunWorkflowRun(
       await writeWorkflowsOutboxEvents(tx, workflowConcurrencyClaimEvents(concurrencyAdmission));
     }
 
-    return toWorkflowRun(
-      await finalizeRerunWorkflowRun({
-        tx,
-        sourceRunId: sourceRow.id,
-        attemptId: newAttemptRow.id,
-        attempt,
-        waiting: concurrencyAdmission?.claim.state === 'waiting',
-      }),
-    );
+    return {
+      run: toWorkflowRun(
+        await finalizeRerunWorkflowRun({
+          tx,
+          sourceRunId: sourceRow.id,
+          attemptId: newAttemptRow.id,
+          attempt,
+          waiting: concurrencyAdmission?.claim.state === 'waiting',
+        }),
+      ),
+      concurrencyAdmission,
+    };
   });
 
-  recordWorkflowRunCreated(result.triggerPayload.provider ?? result.triggerSource);
+  if (result.concurrencyAdmission !== undefined) {
+    recordWorkflowConcurrencyAdmissionMetrics(result.concurrencyAdmission);
+    const cancellationRequestCount =
+      Number(result.concurrencyAdmission.supersededClaim !== null) +
+      Number(result.concurrencyAdmission.holderCancellationJustRequested);
+    if (cancellationRequestCount > 0) {
+      recordWorkflowConcurrencyCancellationOutcome('requested', cancellationRequestCount);
+    }
+  }
 
-  return result;
+  recordWorkflowRunCreated(result.run.triggerPayload.provider ?? result.run.triggerSource);
+
+  return result.run;
 }
 
 async function finalizeRerunWorkflowRun(params: {
