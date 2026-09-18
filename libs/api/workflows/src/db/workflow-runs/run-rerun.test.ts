@@ -180,14 +180,33 @@ describe('workflow run queries', () => {
         actorUserId: crypto.randomUUID(),
       });
       const attempts = await listTestRunAttempts({workflowRunId: source.id, projectId});
+      const sourceAttempt = attempts.find((attempt) => attempt.attempt === source.currentAttempt);
       const rerunAttempt = attempts.find((attempt) => attempt.attempt === rerun.currentAttempt);
-      if (!rerunAttempt) throw new Error('Expected rerun attempt');
-      const [claim] = await db()
-        .select()
+      if (!sourceAttempt || !rerunAttempt) throw new Error('Expected source and rerun attempts');
+      const claims = await db()
+        .select({
+          workflowRunAttemptId: workflowConcurrencyClaims.workflowRunAttemptId,
+          originScope: workflowConcurrencyClaims.originScope,
+          state: workflowConcurrencyClaims.state,
+        })
         .from(workflowConcurrencyClaims)
-        .where(eq(workflowConcurrencyClaims.workflowRunAttemptId, rerunAttempt.id));
+        .where(eq(workflowConcurrencyClaims.workflowRunId, source.id));
 
-      expect(claim).toMatchObject({originScope: `dev:${initiatedByUserId}`});
+      expect(rerun.status).toBe('pending');
+      expect(claims).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            workflowRunAttemptId: sourceAttempt.id,
+            originScope: `dev:${initiatedByUserId}`,
+            state: 'released',
+          }),
+          {
+            workflowRunAttemptId: rerunAttempt.id,
+            originScope: `dev:${initiatedByUserId}`,
+            state: 'acquired',
+          },
+        ]),
+      );
     });
 
     test('returns the complete concurrency impact without mutating the rerun', async () => {
@@ -240,10 +259,6 @@ describe('workflow run queries', () => {
           {
             workflow_run_id: waiter.id,
             planned_effect: 'supersede_waiter',
-          },
-          {
-            workflow_run_id: holder.id,
-            planned_effect: 'cancel_holder',
           },
         ],
       });
@@ -326,7 +341,7 @@ describe('workflow run queries', () => {
         .from(workflowConcurrencyClaims)
         .where(eq(workflowConcurrencyClaims.projectId, projectId));
 
-      expect(rerun.status).toBe('waiting');
+      expect(rerun.status).toBe('pending');
       expect(claims).toHaveLength(3);
       expect(claims).toEqual(
         expect.arrayContaining([
@@ -338,13 +353,13 @@ describe('workflow run queries', () => {
           expect.objectContaining({
             workflowRunId: holder.id,
             workflowRunAttemptId: holderAttempt.id,
-            state: 'acquired',
-            cancellationRequestedAt: expect.any(Date),
+            state: 'released',
+            cancellationRequestedAt: null,
           }),
           expect.objectContaining({
             workflowRunId: rerun.id,
             workflowRunAttemptId: rerunAttempt.id,
-            state: 'waiting',
+            state: 'acquired',
           }),
         ]),
       );

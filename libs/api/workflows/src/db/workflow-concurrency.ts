@@ -150,6 +150,8 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     sql`select pg_advisory_xact_lock(hashtextextended(${workflowConcurrencyIdentityKey(identity)}, 0))`,
   );
 
+  await releaseRerunSourceClaim(params.sourceClaim?.id, tx);
+
   const identityConditions = workflowConcurrencyIdentityConditions(identity);
   const [acquiredClaim] = await tx
     .select()
@@ -248,6 +250,30 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     holderCancellationJustRequested: holderCancellation.justRequested,
     impact,
   };
+}
+
+async function releaseRerunSourceClaim(sourceClaimId: string | undefined, tx: Tx): Promise<void> {
+  if (!sourceClaimId) return;
+  const [sourceClaim] = await tx
+    .select()
+    .from(workflowConcurrencyClaims)
+    .where(eq(workflowConcurrencyClaims.id, sourceClaimId))
+    .limit(1)
+    .for('update');
+  if (!sourceClaim || (sourceClaim.state !== 'acquired' && sourceClaim.state !== 'waiting')) return;
+
+  const now = new Date();
+  const [releasedClaim] = await tx
+    .update(workflowConcurrencyClaims)
+    .set({
+      state: transitionWorkflowConcurrencyClaim(sourceClaim.state, 'release'),
+      releasedAt: now,
+      stateChangedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(workflowConcurrencyClaims.id, sourceClaim.id))
+    .returning({id: workflowConcurrencyClaims.id});
+  if (!releasedClaim) throw new Error(`Rerun source claim disappeared: ${sourceClaim.id}`);
 }
 
 function plannedWorkflowConcurrencyImpact(params: {

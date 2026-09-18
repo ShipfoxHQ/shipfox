@@ -230,15 +230,11 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
       expectedVersion: holder.version,
     });
 
-    const holderAttempts = await listTestRunAttempts({workflowRunId: holder.id, projectId});
-    const holderAttempt = holderAttempts.find(
-      (attempt) => attempt.attempt === holder.currentAttempt,
-    );
     const waiterAttempts = await listTestRunAttempts({workflowRunId: waiter.id, projectId});
     const waiterAttempt = waiterAttempts.find(
       (attempt) => attempt.attempt === waiter.currentAttempt,
     );
-    if (!holderAttempt || !waiterAttempt) throw new Error('Expected holder and waiter attempts');
+    if (!waiterAttempt) throw new Error('Expected waiter attempt');
 
     const res = await app.inject({
       method: 'POST',
@@ -248,7 +244,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
 
     expect(res.statusCode).toBe(409);
     const affectedAttempts = res.json().details.affected_attempts;
-    expect(affectedAttempts).toHaveLength(2);
+    expect(affectedAttempts).toHaveLength(1);
     expect(res.json()).toMatchObject({
       code: 'concurrency-impact',
       details: {
@@ -257,11 +253,6 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
             workflow_run_id: waiter.id,
             workflow_run_attempt_id: waiterAttempt.id,
             planned_effect: 'supersede_waiter',
-          },
-          {
-            workflow_run_id: holder.id,
-            workflow_run_attempt_id: holderAttempt.id,
-            planned_effect: 'cancel_holder',
           },
         ]),
       },
