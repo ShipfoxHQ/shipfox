@@ -55,6 +55,21 @@ export const workflowRunAttemptIdentitySchema = z.object({
 
 export type WorkflowRunAttemptIdentityDto = z.infer<typeof workflowRunAttemptIdentitySchema>;
 
+export const workflowRunConcurrencyImpactEffectSchema = z.enum([
+  'supersede_waiter',
+  'cancel_holder',
+]);
+
+export type WorkflowRunConcurrencyImpactEffectDto = z.infer<
+  typeof workflowRunConcurrencyImpactEffectSchema
+>;
+
+export const workflowRunConcurrencyImpactSchema = workflowRunAttemptIdentitySchema.extend({
+  planned_effect: workflowRunConcurrencyImpactEffectSchema,
+});
+
+export type WorkflowRunConcurrencyImpactDto = z.infer<typeof workflowRunConcurrencyImpactSchema>;
+
 export const workflowRunConcurrencySchema = z.object({
   display_group: z.string(),
   scope: workflowRunConcurrencyScopeSchema,
@@ -83,6 +98,7 @@ export type WorkflowRunDevSourceDto = z.infer<typeof workflowRunDevSourceSchema>
 
 export const rerunWorkflowRunBodySchema = z.object({
   mode: workflowRunRerunModeSchema,
+  confirm_concurrency_impact: z.boolean().optional(),
 });
 
 export type RerunWorkflowRunBodyDto = z.infer<typeof rerunWorkflowRunBodySchema>;

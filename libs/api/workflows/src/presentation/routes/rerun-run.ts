@@ -11,6 +11,7 @@ import {
   RunNotTerminalError,
   SourceRunNotFoundError,
   WorkflowAdmissionDeniedError,
+  WorkflowConcurrencyImpactError,
   WorkspaceDeletedError,
   WorkspaceNotFoundError,
   WorkspaceSuspendedError,
@@ -56,31 +57,15 @@ export function rerunRunRoute(
       if (error instanceof NoFailedJobsError) {
         throw new ClientError('Run has no failed jobs', 'no-failed-jobs', {status: 409});
       }
-      if (error instanceof WorkspaceSuspendedError) {
-        throw new ClientError('Workspace is suspended', 'workspace-suspended', {
+      if (error instanceof WorkflowConcurrencyImpactError) {
+        throw new ClientError('Rerun would affect another workflow attempt', 'concurrency-impact', {
           status: 409,
+          details: {affected_attempts: error.affectedAttempts},
           cause: error,
         });
       }
-      if (error instanceof WorkspaceDeletedError) {
-        throw new ClientError('Workspace is deleted', 'workspace-deleted', {
-          status: 404,
-          cause: error,
-        });
-      }
-      if (error instanceof WorkspaceNotFoundError) {
-        throw new ClientError('Workspace not found', 'workspace-not-found', {
-          status: 404,
-          cause: error,
-        });
-      }
-      if (error instanceof WorkflowAdmissionDeniedError) {
-        throw new ClientError('Workflow admission denied', 'admission-denied', {
-          status: 409,
-          details: admissionDeniedDetails(error),
-          cause: error,
-        });
-      }
+      const workspaceError = toWorkspaceRerunError(error);
+      if (workspaceError) throw workspaceError;
       throw error;
     },
     handler: async (request) => {
@@ -93,6 +78,7 @@ export function rerunRunRoute(
         workflowRunId: sourceRun.id,
         mode: request.body.mode,
         actorUserId: actor.userId,
+        confirmConcurrencyImpact: request.body.confirm_concurrency_impact,
         workspaces,
         admission,
       });
@@ -110,6 +96,35 @@ export function rerunRunRoute(
       return toRunDto(run, run.currentAttempt, concurrency?.get(run.id) ?? null);
     },
   });
+}
+
+function toWorkspaceRerunError(error: unknown): ClientError | undefined {
+  if (error instanceof WorkspaceSuspendedError) {
+    return new ClientError('Workspace is suspended', 'workspace-suspended', {
+      status: 409,
+      cause: error,
+    });
+  }
+  if (error instanceof WorkspaceDeletedError) {
+    return new ClientError('Workspace is deleted', 'workspace-deleted', {
+      status: 404,
+      cause: error,
+    });
+  }
+  if (error instanceof WorkspaceNotFoundError) {
+    return new ClientError('Workspace not found', 'workspace-not-found', {
+      status: 404,
+      cause: error,
+    });
+  }
+  if (error instanceof WorkflowAdmissionDeniedError) {
+    return new ClientError('Workflow admission denied', 'admission-denied', {
+      status: 409,
+      details: admissionDeniedDetails(error),
+      cause: error,
+    });
+  }
+  return undefined;
 }
 
 function admissionDeniedDetails(error: WorkflowAdmissionDeniedError) {

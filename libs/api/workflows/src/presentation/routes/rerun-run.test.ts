@@ -191,6 +191,78 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
     });
   });
 
+  test('returns the rerun concurrency impact as an atomic conflict', async () => {
+    const definitionId = crypto.randomUUID();
+    const model = workflowModel({
+      concurrency: {group: 'route-rerun-impact', cancelInProgress: true},
+      jobs: {build: {steps: [{run: 'echo build'}]}},
+    });
+    const holder = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model,
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const waiter = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: workflowModel({
+        concurrency: {group: 'route-rerun-impact', cancelInProgress: false},
+        jobs: {build: {steps: [{run: 'echo build'}]}},
+      }),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    await updateWorkflowRunStatus({
+      workflowRunId: holder.id,
+      status: 'failed',
+      expectedVersion: holder.version,
+    });
+
+    const waiterAttempts = await listTestRunAttempts({workflowRunId: waiter.id, projectId});
+    const waiterAttempt = waiterAttempts.find(
+      (attempt) => attempt.attempt === waiter.currentAttempt,
+    );
+    if (!waiterAttempt) throw new Error('Expected waiter attempt');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/workflows/runs/${holder.id}/rerun`,
+      payload: {mode: 'all'},
+    });
+
+    expect(res.statusCode).toBe(409);
+    const affectedAttempts = res.json().details.affected_attempts;
+    expect(affectedAttempts).toHaveLength(1);
+    expect(res.json()).toMatchObject({
+      code: 'concurrency-impact',
+      details: {
+        affected_attempts: expect.arrayContaining([
+          {
+            workflow_run_id: waiter.id,
+            workflow_run_attempt_id: waiterAttempt.id,
+            planned_effect: 'supersede_waiter',
+          },
+        ]),
+      },
+    });
+    await expect(getWorkflowRunById(holder.id)).resolves.toMatchObject({
+      currentAttempt: 1,
+      status: 'failed',
+    });
+  });
+
   test('creates a new attempt for failed mode and carries sessions between attempts', async () => {
     const source = await createFailedRunWithFailedJob();
     const [sourceAttempt] = await listTestRunAttempts({workflowRunId: source.id, projectId});

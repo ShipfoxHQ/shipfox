@@ -1,4 +1,7 @@
-import type {WorkflowExecutionPayloadFieldDto} from '@shipfox/api-workflows-dto';
+import type {
+  WorkflowExecutionPayloadFieldDto,
+  WorkflowRunConcurrencyImpactDto,
+} from '@shipfox/api-workflows-dto';
 import type {JobStatus} from './entities/job.js';
 import type {WorkflowRunStatus} from './entities/workflow-run.js';
 import type {RequiredAction} from './workspace-admission.js';
@@ -415,6 +418,13 @@ export class NoFailedJobsError extends Error {
   constructor(workflowRunId: string) {
     super(`Workflow run has no failed or cancelled jobs to re-run: ${workflowRunId}`);
     this.name = 'NoFailedJobsError';
+  }
+}
+
+export class WorkflowConcurrencyImpactError extends Error {
+  constructor(readonly affectedAttempts: readonly WorkflowRunConcurrencyImpactDto[]) {
+    super('Rerun would affect another workflow attempt.');
+    this.name = 'WorkflowConcurrencyImpactError';
   }
 }
 

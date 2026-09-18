@@ -20,6 +20,7 @@ import {db} from '../db.js';
 import {jobExecutions} from '../schema/job-executions.js';
 import {jobs} from '../schema/jobs.js';
 import {steps as stepsTable} from '../schema/steps.js';
+import {workflowConcurrencyClaims} from '../schema/workflow-concurrency-claims.js';
 import {
   createRerunWorkflowRun,
   createWorkflowRun,
@@ -139,6 +140,229 @@ describe('workflow run queries', () => {
         expect(jobSteps.every((step) => step.status === 'pending')).toBe(true);
         expect(jobSteps.every((step) => step.error === null)).toBe(true);
       }
+    });
+
+    test('copies the source claim origin scope instead of the rerun actor scope', async () => {
+      const initiatedByUserId = crypto.randomUUID();
+      const source = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        origin: 'dev',
+        devSource: {
+          ref: 'refs/heads/feature',
+          commit: 'abc123',
+          definitionSource: 'ref',
+          configPath: '.shipfox/workflow.yml',
+          initiatedByUserId,
+          replayOfEventId: null,
+        },
+        model: buildModel({
+          concurrency: {group: 'dev-rerun', cancelInProgress: false},
+          jobs: {build: {steps: [{run: 'echo build'}]}},
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: initiatedByUserId,
+        },
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: source.id,
+        status: 'failed',
+        expectedVersion: source.version,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: source.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+      });
+      const attempts = await listTestRunAttempts({workflowRunId: source.id, projectId});
+      const sourceAttempt = attempts.find((attempt) => attempt.attempt === source.currentAttempt);
+      const rerunAttempt = attempts.find((attempt) => attempt.attempt === rerun.currentAttempt);
+      if (!sourceAttempt || !rerunAttempt) throw new Error('Expected source and rerun attempts');
+      const claims = await db()
+        .select({
+          workflowRunAttemptId: workflowConcurrencyClaims.workflowRunAttemptId,
+          originScope: workflowConcurrencyClaims.originScope,
+          state: workflowConcurrencyClaims.state,
+        })
+        .from(workflowConcurrencyClaims)
+        .where(eq(workflowConcurrencyClaims.workflowRunId, source.id));
+
+      expect(rerun.status).toBe('pending');
+      expect(claims).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            workflowRunAttemptId: sourceAttempt.id,
+            originScope: `dev:${initiatedByUserId}`,
+            state: 'released',
+          }),
+          {
+            workflowRunAttemptId: rerunAttempt.id,
+            originScope: `dev:${initiatedByUserId}`,
+            state: 'acquired',
+          },
+        ]),
+      );
+    });
+
+    test('returns the complete concurrency impact without mutating the rerun', async () => {
+      const holderModel = buildModel({
+        concurrency: {group: 'rerun-impact', cancelInProgress: true},
+        jobs: {build: {steps: [{run: 'echo build'}]}},
+      });
+      const holder = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: holderModel,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const waiter = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          concurrency: {group: 'rerun-impact', cancelInProgress: false},
+          jobs: {build: {steps: [{run: 'echo build'}]}},
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: holder.id,
+        status: 'failed',
+        expectedVersion: holder.version,
+      });
+      const attemptsBefore = await listTestRunAttempts({workflowRunId: holder.id, projectId});
+
+      await expect(
+        createRerunWorkflowRun({
+          workflowRunId: holder.id,
+          mode: 'all',
+          actorUserId: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({
+        affectedAttempts: [
+          {
+            workflow_run_id: waiter.id,
+            planned_effect: 'supersede_waiter',
+          },
+        ],
+      });
+
+      await expect(
+        listTestRunAttempts({workflowRunId: holder.id, projectId}),
+      ).resolves.toHaveLength(attemptsBefore.length);
+      await expect(getWorkflowRunById(holder.id)).resolves.toMatchObject({
+        currentAttempt: holder.currentAttempt,
+        status: 'failed',
+      });
+      await expect(getWorkflowRunById(waiter.id)).resolves.toMatchObject({status: 'waiting'});
+    });
+
+    test('confirmed reruns supersede the waiter and acquire the group claim', async () => {
+      const holderModel = buildModel({
+        concurrency: {group: 'confirmed-rerun', cancelInProgress: true},
+        jobs: {build: {steps: [{run: 'echo build'}]}},
+      });
+      const holder = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: holderModel,
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      const waiter = await createWorkflowRun({
+        workspaceId,
+        projectId,
+        definitionId,
+        model: buildModel({
+          concurrency: {group: 'confirmed-rerun', cancelInProgress: false},
+          jobs: {build: {steps: [{run: 'echo build'}]}},
+        }),
+        triggerPayload: {
+          source: 'manual',
+          event: 'fire',
+          subscriptionId: crypto.randomUUID(),
+          userId: crypto.randomUUID(),
+        },
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: holder.id,
+        status: 'failed',
+        expectedVersion: holder.version,
+      });
+
+      const rerun = await createRerunWorkflowRun({
+        workflowRunId: holder.id,
+        mode: 'all',
+        actorUserId: crypto.randomUUID(),
+        confirmConcurrencyImpact: true,
+      });
+      const holderAttempts = await listTestRunAttempts({workflowRunId: holder.id, projectId});
+      const holderAttempt = holderAttempts.find(
+        (attempt) => attempt.attempt === holder.currentAttempt,
+      );
+      const rerunAttempt = holderAttempts.find(
+        (attempt) => attempt.attempt === rerun.currentAttempt,
+      );
+      const waiterAttempts = await listTestRunAttempts({workflowRunId: waiter.id, projectId});
+      const waiterAttempt = waiterAttempts.find(
+        (attempt) => attempt.attempt === waiter.currentAttempt,
+      );
+      if (!holderAttempt || !rerunAttempt || !waiterAttempt) {
+        throw new Error('Expected holder, rerun, and waiter attempts');
+      }
+      const claims = await db()
+        .select({
+          workflowRunId: workflowConcurrencyClaims.workflowRunId,
+          workflowRunAttemptId: workflowConcurrencyClaims.workflowRunAttemptId,
+          state: workflowConcurrencyClaims.state,
+          cancellationRequestedAt: workflowConcurrencyClaims.cancellationRequestedAt,
+        })
+        .from(workflowConcurrencyClaims)
+        .where(eq(workflowConcurrencyClaims.projectId, projectId));
+
+      expect(rerun.status).toBe('pending');
+      expect(claims).toHaveLength(3);
+      expect(claims).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            workflowRunId: waiter.id,
+            workflowRunAttemptId: waiterAttempt.id,
+            state: 'superseded',
+          }),
+          expect.objectContaining({
+            workflowRunId: holder.id,
+            workflowRunAttemptId: holderAttempt.id,
+            state: 'released',
+            cancellationRequestedAt: null,
+          }),
+          expect.objectContaining({
+            workflowRunId: rerun.id,
+            workflowRunAttemptId: rerunAttempt.id,
+            state: 'acquired',
+          }),
+        ]),
+      );
     });
 
     test('reruns listening agent jobs without materializing execution steps', async () => {
