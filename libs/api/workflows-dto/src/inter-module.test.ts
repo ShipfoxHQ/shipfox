@@ -417,6 +417,7 @@ describe('workflowsInterModuleContract', () => {
     ],
     ['definition-not-found', {definitionId: '00000000-0000-4000-8000-000000000001'}],
     ['project-mismatch', {}],
+    ['parent-run-not-found', {}],
     ['agent-config-unresolvable', {definitionId: '00000000-0000-4000-8000-000000000001'}],
     ['agent-integration-materialization-failed', {}],
     [

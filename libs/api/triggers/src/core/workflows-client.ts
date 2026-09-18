@@ -71,6 +71,7 @@ function knownStartDiagnostic(
     case 'agent-config-unresolvable':
     case 'agent-integration-materialization-failed':
       return {version: 1, code: error.code};
+    case 'parent-run-not-found':
     case 'run-depth-exceeded':
     case 'run-tree-limit-exceeded':
       return {version: 1, code: 'unexpected-workflow-start-failure'};

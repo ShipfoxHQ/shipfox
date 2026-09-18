@@ -272,6 +272,7 @@ const startRunErrors = {
   'admission-denied': admissionDeniedDetailsSchema,
   'definition-not-found': z.object({definitionId: idSchema}),
   'project-mismatch': z.object({}),
+  'parent-run-not-found': z.object({}),
   'run-depth-exceeded': z.object({}),
   'run-tree-limit-exceeded': z.object({}),
   'agent-config-unresolvable': z.object({definitionId: idSchema}),

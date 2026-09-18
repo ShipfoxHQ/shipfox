@@ -999,6 +999,9 @@ function toRerunWorkflowRunKnownError(error: unknown): unknown {
 
 export function toStartRunKnownError(error: unknown, definitionId: string): unknown {
   const method = workflowsInterModuleContract.methods.startRunFromTrigger;
+  if (error instanceof WorkflowRunNotFoundError) {
+    return createInterModuleKnownError(method, 'parent-run-not-found', {});
+  }
   if (error instanceof WorkflowRunDepthExceededError) {
     return createInterModuleKnownError(method, 'run-depth-exceeded', {});
   }
