@@ -1,11 +1,25 @@
 import type {Meta, StoryObj} from '@storybook/react';
-import {createColumnHelper, tableFeatures, useTable} from '@tanstack/react-table';
+import {
+  createColumnHelper,
+  createPaginatedRowModel,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table';
 import type {ReactNode} from 'react';
+import {useState} from 'react';
 import {StatusBadge} from '#components/badge/index.js';
 import {Button} from '#components/button/index.js';
 import {EmptyState} from '#components/empty-state/index.js';
 import {Code, Text} from '#components/typography/index.js';
 import {DataTable} from './data-table.js';
+import {DataTablePagination} from './data-table-pagination.js';
+import {
+  DataTableSelectionCell,
+  DataTableSelectionHeader,
+  DataTableSelectionSummary,
+} from './data-table-selection.js';
 
 interface Workflow {
   id: string;
@@ -207,6 +221,150 @@ export const Layouts: Story = {
       </div>
       <WorkflowTable className="max-h-240" data={scrollingWorkflows} sticky />
       <WorkflowTable compact />
+    </div>
+  ),
+};
+
+const paginatedFeatures = tableFeatures({
+  paginatedRowModel: createPaginatedRowModel(),
+  rowPaginationFeature,
+  rowSelectionFeature,
+});
+const paginatedColumnHelper = createColumnHelper<typeof paginatedFeatures, Workflow>();
+const paginatedColumns = paginatedColumnHelper.columns([
+  paginatedColumnHelper.display({
+    id: 'selection',
+    header: ({table}) => (
+      <DataTableSelectionHeader table={table} aria-label="Select current page workflows" />
+    ),
+    cell: ({row}) => (
+      <DataTableSelectionCell row={row} aria-label={`Select ${row.original.name}`} />
+    ),
+  }),
+  paginatedColumnHelper.accessor('name', {
+    header: 'Workflow',
+    cell: ({getValue}) => <span className="font-medium">{getValue()}</span>,
+  }),
+  paginatedColumnHelper.accessor('status', {
+    header: 'Status',
+    cell: ({getValue}) => {
+      const status = getValue();
+      return <StatusBadge variant={statusVariant(status)}>{status}</StatusBadge>;
+    },
+  }),
+  paginatedColumnHelper.accessor('updatedAt', {header: 'Updated'}),
+]);
+
+function BoundedPaginationExample() {
+  const table = useTable({
+    columns: paginatedColumns,
+    data: scrollingWorkflows,
+    enableRowSelection: (row) => row.original.status !== 'Failed',
+    features: paginatedFeatures,
+    getRowId: (workflow) => workflow.id,
+    initialState: {pagination: {pageIndex: 0, pageSize: 3}},
+  });
+  const currentRows = table.getRowModel().rows;
+  const currentPage = table.state.pagination.pageIndex + 1;
+  const pageCount = table.getPageCount();
+
+  function resetSelection() {
+    table.resetRowSelection(true);
+  }
+
+  return (
+    <DataTable
+      table={table}
+      aria-label="Paginated workflows"
+      footer={
+        <div className="flex w-full flex-col gap-8">
+          <DataTableSelectionSummary
+            selectedCount={table.getSelectedRowIds().length}
+            totalCount={currentRows.filter((row) => row.getCanSelect()).length}
+          />
+          <DataTablePagination
+            canNextPage={table.getCanNextPage()}
+            canPreviousPage={table.getCanPreviousPage()}
+            onFirstPage={() => {
+              table.firstPage();
+              resetSelection();
+            }}
+            onNextPage={() => {
+              table.nextPage();
+              resetSelection();
+            }}
+            onPageSizeChange={(pageSize) => {
+              table.setPageSize(pageSize);
+              resetSelection();
+            }}
+            onPreviousPage={() => {
+              table.previousPage();
+              resetSelection();
+            }}
+            pageLabel={`Page ${currentPage} of ${pageCount}`}
+            pageSize={table.state.pagination.pageSize}
+            pageSizeOptions={[3, 6, 12]}
+            resultCount={scrollingWorkflows.length}
+          />
+        </div>
+      }
+    />
+  );
+}
+
+const cursorPages = {
+  start: {
+    data: workflows.slice(0, 2),
+    next: 'after-nightly',
+    previous: null,
+  },
+  'after-nightly': {
+    data: workflows.slice(2),
+    next: null,
+    previous: 'start',
+  },
+} as const;
+
+type CursorPage = keyof typeof cursorPages;
+
+function CursorPaginationExample() {
+  const [cursor, setCursor] = useState<CursorPage>('start');
+  const page = cursorPages[cursor];
+  const table = useTable({
+    columns,
+    data: page.data,
+    features,
+    getRowId: (workflow) => workflow.id,
+  });
+
+  return (
+    <DataTable
+      table={table}
+      aria-label="Cursor-backed workflows"
+      footer={
+        <DataTablePagination
+          aria-label="Cursor-backed workflow pages"
+          canNextPage={page.next !== null}
+          canPreviousPage={page.previous !== null}
+          onFirstPage={() => setCursor('start')}
+          onNextPage={() => {
+            if (page.next) setCursor(page.next);
+          }}
+          onPreviousPage={() => {
+            if (page.previous) setCursor(page.previous);
+          }}
+          pageLabel="Current result page"
+        />
+      }
+    />
+  );
+}
+
+export const PaginationAndSelection: Story = {
+  render: () => (
+    <div className="grid w-[calc(100vw-32px)] max-w-1120 grid-cols-1 gap-24 lg:grid-cols-2">
+      <BoundedPaginationExample />
+      <CursorPaginationExample />
     </div>
   ),
 };
