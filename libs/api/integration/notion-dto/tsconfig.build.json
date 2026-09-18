@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "@shipfox/ts-config/node",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist"
