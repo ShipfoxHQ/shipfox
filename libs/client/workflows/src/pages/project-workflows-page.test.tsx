@@ -10,6 +10,9 @@ import {ProjectWorkflowsPage} from './project-workflows-page.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
+const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
+const UNSORTED_WORKFLOW_REGEX = /Workflow, not sorted\. Sort ascending/;
+const UNSORTED_UPDATED_REGEX = /Updated, not sorted\. Sort descending/;
 
 describe('ProjectWorkflowsPage', () => {
   test('renders workflow definitions and their panel regions', async () => {
@@ -26,11 +29,19 @@ describe('ProjectWorkflowsPage', () => {
     const sourcePanel = screen
       .getByRole('region', {name: 'Project source'})
       .closest('[data-slot="panel"]');
-    const definitionsPanel = screen.getByRole('region', {name: 'Workflow definitions'});
+    const definitionsRegion = screen.getByRole('region', {name: 'Workflow definitions'});
+    const definitionsPanel = within(definitionsRegion)
+      .getByRole('table', {name: 'Workflow definitions table'})
+      .closest('[data-slot="panel"]');
     expect(sourcePanel).toBeInTheDocument();
+    expect(definitionsRegion).toBeInTheDocument();
     expect(definitionsPanel).toBeInTheDocument();
     expect(sourcePanel).not.toBe(definitionsPanel);
     expect(screen.getByRole('table').closest('[data-slot="panel"]')).toBe(definitionsPanel);
+    expect(screen.getByRole('row', {name: DEPLOY_WORKFLOW_ROW_REGEX})).toHaveAttribute(
+      'data-row-id',
+      '55555555-5555-4555-8555-555555555555',
+    );
     // Source strip resolves connection display_name from the integrations
     // workspace cache; external_repository_id renders as a Code chip.
     expect(await screen.findByText('Acme GitHub')).toBeInTheDocument();
@@ -148,7 +159,9 @@ describe('ProjectWorkflowsPage', () => {
     expect(screen.getAllByText('Workflow data is re-executed as shell code.')).toHaveLength(2);
     expect(screen.getAllByText('.shipfox/workflows/warning.yml')).toHaveLength(1);
     expect(screen.getAllByText('jobs.build.steps.0.run')).toHaveLength(2);
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(
+      screen.getByText('Workflow definition warnings').closest('[data-slot="callout"]'),
+    ).toHaveAttribute('role', 'status');
     expect(screen.queryByText('Workflow sync failed')).not.toBeInTheDocument();
   });
 
@@ -197,7 +210,12 @@ describe('ProjectWorkflowsPage', () => {
     renderWorkflowsPage();
 
     expect(await screen.findByText('Workflow definition diagnostics')).toBeInTheDocument();
-    const diagnosticsCallout = screen.getByRole('status');
+    const diagnosticsCallout = screen
+      .getByText('Workflow definition diagnostics')
+      .closest('[data-slot="callout"]');
+    if (!(diagnosticsCallout instanceof HTMLElement)) {
+      throw new Error('Diagnostics callout was not rendered');
+    }
     expect(diagnosticsCallout).toBeInTheDocument();
     // Two groups: the deploy workflow file and the build workflow file.
     expect(within(diagnosticsCallout).getAllByText('.shipfox/workflows/deploy.yml')).toHaveLength(
@@ -225,7 +243,58 @@ describe('ProjectWorkflowsPage', () => {
     ).toBeInTheDocument();
   });
 
-  test('opens and closes the definition drawer by clicking the row', async () => {
+  test('sorts and searches the loaded workflow definitions', async () => {
+    const deployDefinition = baseDefinitionsDto().definitions[0];
+    if (!deployDefinition) throw new Error('Deploy definition fixture is missing');
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(
+          definitionsDto({
+            definitions: [
+              deployDefinition,
+              {
+                ...deployDefinition,
+                id: '77777777-7777-4777-8777-777777777777',
+                name: 'Archive artifacts',
+                config_path: '.shipfox/workflows/archive.yml',
+                updated_at: '2026-05-06T01:00:00.000Z',
+              },
+            ],
+          }),
+        ),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
+    fireEvent.click(within(table).getByRole('button', {name: UNSORTED_WORKFLOW_REGEX}));
+
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Archive artifacts');
+
+    fireEvent.click(within(table).getByRole('button', {name: UNSORTED_UPDATED_REGEX}));
+
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Deploy production');
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
+      target: {value: 'deploy.yml'},
+    });
+
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('1 workflow');
+
+    fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
+      target: {value: 'no match'},
+    });
+
+    expect(screen.getByText('No matching workflows')).toBeInTheDocument();
+    const clearSearchActions = screen.getAllByRole('button', {name: 'Clear search'});
+    expect(clearSearchActions.length).toBeGreaterThan(0);
+    fireEvent.click(clearSearchActions[0] as HTMLButtonElement);
+    expect(screen.getByText('Deploy production')).toBeInTheDocument();
+  });
+
+  test('opens and closes the definition drawer from the workflow action', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
     renderWorkflowsPage();
@@ -249,8 +318,6 @@ describe('ProjectWorkflowsPage', () => {
 
     renderWorkflowsPage();
 
-    // Run button lives in the row's hover-reveal slot; getAllByRole still
-    // sees it (opacity-0, not display:none).
     const [runButton] = await screen.findAllByRole('button', {name: 'Run'});
     if (!runButton) throw new Error('Run button was not rendered');
 
