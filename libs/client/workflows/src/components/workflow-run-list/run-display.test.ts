@@ -173,7 +173,9 @@ describe('runMatchesFilters', () => {
 
     expect(runMatchesFilters(devRun, {origin: 'dev'})).toBe(true);
     expect(runMatchesFilters(devRun, {origin: 'synced'})).toBe(false);
+    expect(runMatchesFilters(devRun, {origin: 'all'})).toBe(true);
     expect(runMatchesFilters(run, {origin: 'synced'})).toBe(true);
+    expect(runMatchesFilters(run, {origin: 'all'})).toBe(true);
     expect(runMatchesFilters(run, {origin: 'dev'})).toBe(false);
   });
 

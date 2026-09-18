@@ -69,8 +69,8 @@ describe('WorkflowRunListView', () => {
         within(header as HTMLElement).getByRole('button', {name: filterTrigger('Event')}),
       ).toBeInTheDocument();
       expect(
-        within(header as HTMLElement).queryByRole('button', {name: filterTrigger('Origin')}),
-      ).not.toBeInTheDocument();
+        within(header as HTMLElement).getByRole('button', {name: filterTrigger('Origin')}),
+      ).toHaveTextContent('Origin: Synced');
       expect(
         within(header as HTMLElement).getByLabelText('Filter runs by creation date'),
       ).toBeInTheDocument();
@@ -175,6 +175,27 @@ describe('WorkflowRunListView', () => {
       await user.click(screen.getByRole('button', {name: 'Retry'}));
 
       expect(onRetryWorkflowOptions).toHaveBeenCalledOnce();
+    });
+
+    test('defaults to synced runs and allows selecting Dev and All origins', async () => {
+      const user = userEvent.setup();
+      renderListView([
+        run('succeeded', 'deploy-web'),
+        run('running', 'triage-sentry', 'dev-run', devRunOverrides()),
+      ]);
+
+      expect(await screen.findByText('deploy-web')).toBeInTheDocument();
+      expect(screen.queryByText('triage-sentry')).not.toBeInTheDocument();
+
+      await selectFilterOption(user, 'Origin', 'Dev');
+
+      expect(screen.queryByText('deploy-web')).not.toBeInTheDocument();
+      expect(screen.getByText('triage-sentry')).toBeInTheDocument();
+
+      await selectFilterOption(user, 'Origin', 'All');
+
+      expect(screen.getByText('deploy-web')).toBeInTheDocument();
+      expect(screen.getByText('triage-sentry')).toBeInTheDocument();
     });
 
     test('narrows the list to the selected status', async () => {
@@ -463,7 +484,9 @@ describe('WorkflowRunListView', () => {
     });
 
     test('labels a dev run with a Dev badge and its ref and commit from the dev source', async () => {
-      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides())]);
+      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides())], {
+        search: {origin: 'dev'},
+      });
 
       expect(await screen.findByText('triage-sentry')).toBeInTheDocument();
       expect(screen.getByText('Dev')).toHaveClass('bg-tag-purple-bg');

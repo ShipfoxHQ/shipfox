@@ -9,7 +9,7 @@ const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const ORIGIN_FILTER_RE = /^Origin\b.*filter$/u;
 
 describe('WorkflowRunList', () => {
-  test('shows all run origins without exposing an Origin filter', async () => {
+  test('defaults to synced runs and exposes the Origin filter', async () => {
     const syncedRun = workflowRunDto({
       id: '66666666-6666-4666-8666-000000000001',
       name: 'deploy-web',
@@ -27,7 +27,7 @@ describe('WorkflowRunList', () => {
       },
     });
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
-      expect(new URL(requestInputUrl(input)).searchParams.get('origin')).toBeNull();
+      expect(new URL(requestInputUrl(input)).searchParams.get('origin')).toBe('synced');
       return Promise.resolve(
         jsonResponse(
           workflowRunListResponseDto({
@@ -47,13 +47,15 @@ describe('WorkflowRunList', () => {
     );
 
     await screen.findByText('deploy-web');
-    expect(screen.getByText('triage-sentry')).toBeInTheDocument();
+    expect(screen.queryByText('triage-sentry')).not.toBeInTheDocument();
     expect(
       fetchImpl.mock.calls.every(
-        ([input]) => new URL(requestInputUrl(input)).searchParams.get('origin') === null,
+        ([input]) => new URL(requestInputUrl(input)).searchParams.get('origin') === 'synced',
       ),
     ).toBe(true);
-    expect(screen.queryByRole('button', {name: ORIGIN_FILTER_RE})).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: ORIGIN_FILTER_RE})).toHaveTextContent(
+      'Origin: Synced',
+    );
   });
 });
 

@@ -37,7 +37,11 @@ export function WorkflowRunListView({
 }: WorkflowRunListViewProps) {
   const headingId = useId();
   const [localSearch, setLocalSearch] = useState<WorkflowRunsSearch>(search);
-  const currentSearch = onFiltersChange ? search : localSearch;
+  const rawSearch = onFiltersChange ? search : localSearch;
+  const currentSearch = useMemo<WorkflowRunsSearch>(
+    () => ({...rawSearch, origin: rawSearch.origin ?? 'synced'}),
+    [rawSearch],
+  );
 
   const filteredRuns = useMemo(
     () => runs.filter((run) => runMatchesFilters(run, currentSearch)),
@@ -47,7 +51,9 @@ export function WorkflowRunListView({
     () => workflowRunFacets(runs, currentSearch, workflowOptions),
     [runs, currentSearch, workflowOptions],
   );
-  const hasActiveFilters = hasWorkflowRunFilters(currentSearch);
+  // The default origin is presentation state, not an explicitly selected filter. This keeps
+  // Clear filters useful while still making the list show synced runs when the URL is absent.
+  const hasActiveFilters = hasWorkflowRunFilters(rawSearch);
 
   function handleFiltersChange(patch: WorkflowRunFilterPatch) {
     if (onFiltersChange) onFiltersChange(patch);

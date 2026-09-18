@@ -78,7 +78,7 @@ export function runMatchesFilters(
   // Workflow and origin are also sent to the API. These predicates keep the standalone view
   // honest and prevent placeholder data from briefly showing stale rows between queries.
   if (criteria.workflow && run.definitionId !== criteria.workflow) return false;
-  if (criteria.origin && run.origin !== criteria.origin) return false;
+  if (criteria.origin && criteria.origin !== 'all' && run.origin !== criteria.origin) return false;
   if (!matchesFacet(criteria.branch, workflowRunBranchLabel(run))) return false;
   if (!matchesFacet(criteria.actor, workflowRunActor(run))) return false;
   if (!matchesFacet(criteria.event, run.triggerEvent)) return false;

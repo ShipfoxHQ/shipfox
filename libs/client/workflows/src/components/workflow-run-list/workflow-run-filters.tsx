@@ -25,6 +25,7 @@ import {
   countWorkflowRunFilters,
   WORKFLOW_RUN_LIST_STATUSES,
   type WorkflowRunFilterPatch,
+  type WorkflowRunListOrigin,
   type WorkflowRunListStatus,
   type WorkflowRunsSearch,
 } from '#routes/inputs.js';
@@ -32,6 +33,11 @@ import type {WorkflowRunFacets} from './run-display.js';
 import type {WorkflowOptionsStatus} from './types.js';
 import {WorkflowRunFilterMenu, type WorkflowRunFilterOption} from './workflow-run-filter-menu.js';
 
+const ORIGIN_OPTIONS: WorkflowRunFilterOption[] = [
+  {value: 'synced', label: 'Synced'},
+  {value: 'dev', label: 'Dev'},
+  {value: 'all', label: 'All'},
+];
 const STATUS_OPTIONS: WorkflowRunFilterOption[] = WORKFLOW_RUN_LIST_STATUSES.map((status) => ({
   value: status,
   label: getWorkflowStatusVisual(status).label,
@@ -66,7 +72,11 @@ export function WorkflowRunFilters({
   onRetryWorkflowOptions,
 }: WorkflowRunFiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const activeSheetFilterCount = countWorkflowRunFilters(search, {includeSearch: false});
+  const {origin, ...searchWithoutOrigin} = search;
+  const activeSheetFilterCount = countWorkflowRunFilters(
+    origin === 'synced' ? searchWithoutOrigin : search,
+    {includeSearch: false},
+  );
 
   return (
     <div className="flex w-full flex-wrap items-center gap-inline">
@@ -168,6 +178,14 @@ function WorkflowRunFilterControls({
         {...(onOpenWorkflowOptions ? {onOpenWorkflowOptions} : {})}
         {...(onRetryWorkflowOptions ? {onRetryWorkflowOptions} : {})}
         stacked={stacked}
+      />
+      <WorkflowRunFilterMenu
+        label="Origin"
+        options={ORIGIN_OPTIONS}
+        selected={[search.origin ?? 'synced']}
+        onChange={(next) => onChange({origin: next.at(-1) as WorkflowRunListOrigin | undefined})}
+        emptyMessage="No origins available."
+        className={controlClassName}
       />
       <WorkflowRunFilterMenu
         label="Status"

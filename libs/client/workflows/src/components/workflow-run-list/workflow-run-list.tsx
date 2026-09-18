@@ -12,6 +12,10 @@ import {WorkflowRunListView} from './workflow-run-list-view.js';
 
 const EMPTY_SEARCH: WorkflowRunsSearch = {};
 
+function apiOrigin(origin: WorkflowRunsSearch['origin']) {
+  return origin === 'all' ? undefined : (origin ?? 'synced');
+}
+
 export function WorkflowRunList({
   projectId,
   workspaceSlug,
@@ -37,7 +41,8 @@ export function WorkflowRunList({
   // Origin and workflow are server-backed so those filters cover the full run history. The
   // remaining dimensions stay client-side over the pages the user has loaded.
   const query = useWorkflowRunsInfiniteQuery(projectId, {
-    origin: effectiveSearch?.origin,
+    // `all` is a client-only choice; an omitted API origin requests every origin.
+    origin: apiOrigin(effectiveSearch?.origin),
     definitionId: effectiveSearch?.workflow,
   });
   const handleLoadMore = useCallback(() => {
