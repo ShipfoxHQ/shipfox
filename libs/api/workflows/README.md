@@ -47,6 +47,8 @@ const run = await runWorkflow(definitions, {
 | `WORKFLOWS_TOOL_STEP_POLL_INTERVAL_MS` | `1000` | Delay between scans for due server-executed tool-step invocations, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
 | `WORKFLOWS_TOOL_STEP_EXECUTOR_CONCURRENCY` | `8` | Maximum number of tool-step invocations claimed in one executor pass. The value must be a safe whole number greater than `0`. |
 | `WORKFLOWS_TOOL_STEP_CALL_TIMEOUT_MS` | `30000` | Maximum duration of one provider call, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
+| `WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS` | `1000` | Delay between bounded workflow concurrency repair scans, in milliseconds. The value must be a safe whole number from `1` through `2147483647`. |
+| `WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE` | `100` | Maximum number of concurrency drift candidates processed in one scan. The value must be a safe whole number greater than `0`. |
 
 The catalog is loaded and validated once when the Workflows module is imported;
 restart the API after changing the file. An empty YAML document behaves like an
@@ -116,6 +118,7 @@ remain in logs and traces.
 | `workflows_concurrency_claim_outcomes` | Instance | `outcome` | Workflow concurrency admissions by `acquired` or `waiting` outcome. |
 | `workflows_concurrency_waiter_supersessions` | Instance | none | Waiting claims replaced by a newer claim. |
 | `workflows_concurrency_cancellation_outcomes` | Instance | `outcome` | Cancellation event deliveries by lifecycle stage. `requested` counts events committed by run creation. `completed` counts a delivery that newly moves an attempt to `cancelled`. `no_op` counts a delivery that finds the attempt terminal. A retry can record `completed` and later `no_op` for the same event. |
+| `workflows_concurrency_repairs` | Instance | `category`, `outcome` | Bounded concurrency drift repairs by `terminal_holder`, `orphaned_group`, `superseded_attempt`, or `acquired_without_orchestration`. |
 | `workflows_tool_invocation_duration_ms` | Instance | `provider`, `outcome` | Elapsed time for a claimed tool invocation through its durable result. The histogram uses millisecond units and explicit buckets through 120 seconds. |
 | `workflows_tool_invocation_reclaims` | Instance | `action` | Expired or non-retryable claims handled by the executor. `requeued` means the call advances for another read attempt. `failed` means the invocation is settled as interrupted. |
 | `workflows_next_step_response_size` | Instance | `kind` | Serialized `/steps/next` response size in bytes (`unit: By`) by `step`, `wait`, or `done`; explicit buckets are 1,024, 10,240, 100,000, 256,000, 500,000, 868,928, and 1,000,000 bytes. |

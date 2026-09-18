@@ -38,6 +38,17 @@ const concurrencyCancellationOutcomeCount = meter.createCounter<{
   description: 'Workflow concurrency cancellation requests by bounded outcome',
 });
 
+const concurrencyRepairCount = meter.createCounter<{
+  category:
+    | 'terminal_holder'
+    | 'orphaned_group'
+    | 'superseded_attempt'
+    | 'acquired_without_orchestration';
+  outcome: 'repaired' | 'no_op' | 'failed';
+}>('workflows_concurrency_repairs', {
+  description: 'Workflow concurrency repairs by bounded category and outcome',
+});
+
 const displayNameResolutionDegradedCount = meter.createCounter<{
   field: 'workflow.run_name' | 'job.execution_name';
   cause: 'missing_value' | 'evaluation_error' | 'empty_value' | 'sanitization';
@@ -266,6 +277,17 @@ export function recordWorkflowConcurrencyCancellationOutcome(
   count = 1,
 ): void {
   if (count > 0) concurrencyCancellationOutcomeCount.add(count, {outcome});
+}
+
+export function recordWorkflowConcurrencyRepair(
+  category:
+    | 'terminal_holder'
+    | 'orphaned_group'
+    | 'superseded_attempt'
+    | 'acquired_without_orchestration',
+  outcome: 'repaired' | 'no_op' | 'failed',
+): void {
+  concurrencyRepairCount.add(1, {category, outcome});
 }
 
 export function recordWorkflowDisplayNameResolutionDegraded(

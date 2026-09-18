@@ -19,10 +19,12 @@ import {
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
+  WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED,
   WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
   WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
+  WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
   workflowsEventSchemas,
 } from '@shipfox/api-workflows-dto';
@@ -30,6 +32,7 @@ import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inte
 import {type ShipfoxModule, subscriberFactory} from '@shipfox/node-module';
 import {config} from '#config.js';
 import {createToolStepExecutor} from '#core/tool-step/tool-step-executor.js';
+import {createWorkflowConcurrencyReconciler} from '#core/workflow-concurrency-reconciler.js';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
 import {db, migrationsPath, workflowsOutbox} from '#db/index.js';
 import {registerWorkflowsServiceMetrics} from '#metrics/index.js';
@@ -43,8 +46,10 @@ import {
   onRunnerJobLeaseExpired,
   onStepAttemptTerminatedFailureAnnotation,
   onWorkflowRunCancelled,
+  onWorkflowRunConcurrencyAcquired,
   onWorkflowRunConcurrencyHolderCancellationRequested,
   onWorkflowRunConcurrencyWaiterSuperseded,
+  onWorkflowRunTerminated,
 } from '#presentation/index.js';
 import {createWorkflowsInterModulePresentation} from '#presentation/inter-module.js';
 import {createOrchestrationActivities, WORKFLOWS_TASK_QUEUE} from '#temporal/index.js';
@@ -107,7 +112,14 @@ export {
   getStepById,
   getStepByIdForJobExecution,
   type ListenerDeliveryRejection,
+  listWorkflowConcurrencyRepairCandidates,
   migrationsPath,
+  promoteWorkflowConcurrencyWaiter,
+  releaseWorkflowConcurrencyClaimForAttempt,
+  type WorkflowConcurrencyRepairCandidate,
+  type WorkflowConcurrencyRepairCandidatePage,
+  type WorkflowConcurrencyRepairCategory,
+  type WorkflowConcurrencyRepairResult,
   workflowsOutbox,
 } from '#db/index.js';
 export {loadRunningLeasedStep} from '#presentation/routes/leased-step.js';
@@ -146,6 +158,10 @@ export function createWorkflowsModule({
   workspaces: WorkspacesInterModuleClient;
 }): ShipfoxModule {
   const toolStepExecutor = createToolStepExecutor({integrations, logs});
+  const onWorkflowRunAttemptCreated = createOnWorkflowRunAttemptCreated(agent);
+  const concurrencyReconciler = createWorkflowConcurrencyReconciler({
+    startOrchestration: onWorkflowRunAttemptCreated,
+  });
 
   return {
     name: 'workflows',
@@ -163,12 +179,15 @@ export function createWorkflowsModule({
       admission,
     }),
     metrics: registerWorkflowsServiceMetrics,
-    ...(config.WORKFLOWS_TOOL_STEP_EXECUTOR_ENABLED ? {services: [toolStepExecutor.service]} : {}),
+    services: [
+      ...(config.WORKFLOWS_TOOL_STEP_EXECUTOR_ENABLED ? [toolStepExecutor.service] : []),
+      concurrencyReconciler.service,
+    ],
     publishers: [
       {name: 'workflows', table: workflowsOutbox, db, eventSchemas: workflowsEventSchemas},
     ],
     subscribers: [
-      subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, createOnWorkflowRunAttemptCreated(agent)),
+      subscriber(WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED, onWorkflowRunAttemptCreated),
       subscriber(WORKFLOWS_WORKFLOW_RUN_CANCELLED, onWorkflowRunCancelled),
       subscriber(
         WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
@@ -178,6 +197,8 @@ export function createWorkflowsModule({
         WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
         onWorkflowRunConcurrencyHolderCancellationRequested,
       ),
+      subscriber(WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED, onWorkflowRunConcurrencyAcquired),
+      subscriber(WORKFLOWS_WORKFLOW_RUN_TERMINATED, onWorkflowRunTerminated),
       subscriber(WORKFLOWS_JOB_EVENT_DELIVERED, onJobEventDelivered),
       subscriber(WORKFLOWS_JOB_STEPS_SETTLED, onJobStepsSettled),
       subscriber(
