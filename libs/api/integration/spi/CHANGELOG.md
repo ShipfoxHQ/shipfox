@@ -1,5 +1,16 @@
 # @shipfox/api-integration-spi
 
+## 4.3.0
+
+### Minor Changes
+
+- 0827733: Reserves the `shipfox` connection slug for built-in providers and passes optional caller context to provider tool calls through `OpenAgentToolsSessionInput`.
+
+### Patch Changes
+
+- Updated dependencies [0827733]
+  - @shipfox/api-integration-core-dto@27.2.0
+
 ## 4.2.0
 
 ### Minor Changes

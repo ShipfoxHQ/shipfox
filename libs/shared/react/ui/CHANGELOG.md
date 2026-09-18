@@ -1,5 +1,12 @@
 # @shipfox/react-ui
 
+## 2.6.0
+
+### Minor Changes
+
+- 33d9ee2: Adds controlled DataTable pagination and current-page row selection controls.
+- 29247a2: Adds shared DataTable sorting, filter-toolbar, result-count, and column-visibility controls.
+
 ## 2.5.0
 
 ### Minor Changes

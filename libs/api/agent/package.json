@@ -1,7 +1,7 @@
 {
   "name": "@shipfox/api-agent",
   "license": "MIT",
-  "version": "27.1.0",
+  "version": "27.2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",

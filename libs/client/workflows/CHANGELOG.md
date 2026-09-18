@@ -1,5 +1,33 @@
 # @shipfox/client-workflows
 
+## 47.0.0
+
+### Minor Changes
+
+- b1fa63a: Shows local-file provenance separately from the default checkout on dev runs.
+- 178e5fc: Defaults dashboard run lists to synced runs and adds a Runs filter for viewing development or all runs.
+
+### Patch Changes
+
+- 4b4cc56: Adds local name and path search and sortable Workflow and Updated columns to project workflows.
+- Updated dependencies [33d9ee2]
+- Updated dependencies [29247a2]
+- Updated dependencies [ef44a76]
+- Updated dependencies [6ad8c2e]
+- Updated dependencies [45cf692]
+- Updated dependencies [f5bc959]
+  - @shipfox/react-ui@2.6.0
+  - @shipfox/api-definitions-dto@27.2.0
+  - @shipfox/api-workflows-dto@27.2.0
+  - @shipfox/client-integrations@47.0.0
+  - @shipfox/client-projects@47.0.0
+  - @shipfox/client-logs@47.0.0
+  - @shipfox/client-shell@47.0.0
+  - @shipfox/client-triggers@47.0.0
+  - @shipfox/client-ui@47.0.0
+  - @shipfox/client-usage@47.0.0
+  - @shipfox/api-triggers-dto@27.2.0
+
 ## 46.0.1
 
 ### Patch Changes

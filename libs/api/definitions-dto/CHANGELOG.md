@@ -1,5 +1,12 @@
 # @shipfox/api-definitions-dto
 
+## 27.2.0
+
+### Minor Changes
+
+- ef44a76: Adds supplied workflow content support to definition resolution at a pinned ref.
+- f5bc959: Adds `getDefinitionByConfigPath` to the definitions contract, returning the synced definition id, workflow id, and name for a project and config path.
+
 ## 26.1.0
 
 ### Minor Changes

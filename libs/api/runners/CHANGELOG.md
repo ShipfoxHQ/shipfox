@@ -1,5 +1,16 @@
 # @shipfox/api-runners
 
+## 27.2.0
+
+### Patch Changes
+
+- 6bc8256: Runner enrollment no longer records a capability manifest; runner-session registration remains the sole source of runner capabilities.
+- Updated dependencies [6ad8c2e]
+- Updated dependencies [6bc8256]
+- Updated dependencies [45cf692]
+  - @shipfox/api-workflows-dto@27.2.0
+  - @shipfox/api-runners-dto@27.2.0
+
 ## 27.1.0
 
 ### Patch Changes
