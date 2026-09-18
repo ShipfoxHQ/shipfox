@@ -67,6 +67,7 @@ function run(params: Partial<WorkflowRunListItemDto> = {}): WorkflowRunListItemD
       commit: 'abc123',
       actor: 'e2e',
     }),
+    parent_run: valueOr(params.parent_run, null),
     created_at: valueOr(params.created_at, timestamp),
     updated_at: valueOr(params.updated_at, timestamp),
     started_at: valueOr(params.started_at, null),
@@ -105,6 +106,7 @@ function runHeader(): WorkflowRunOverviewHeaderDto {
     trigger_source: 'gitea_e2e',
     trigger_event: 'push',
     trigger_reference: null,
+    parent_run: null,
     created_at: timestamp,
   };
 }

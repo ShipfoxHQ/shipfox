@@ -14,6 +14,7 @@ import {
   formatWorkflowRunNumberLabel,
   WorkflowRunNumberLabel,
 } from '#components/workflow-run-number-label.js';
+import {WorkflowRunParentLabel} from '#components/workflow-run-parent-label.js';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {
@@ -101,7 +102,12 @@ export function WorkflowRunRow({
           {run.triggerDisplayLabel ? <TriggerLabel run={run} /> : null}
           {branch ? <BranchLabel branch={branch} isPullRequest={branch.startsWith('#')} /> : null}
           {commit ? <CommitLabel commit={commit} /> : null}
-          {actor ? <ActorLabel actor={actor} /> : null}
+          <RunActorMetadata
+            run={run}
+            actor={actor}
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+          />
         </span>
       </div>
 
@@ -162,7 +168,7 @@ export function WorkflowRunRow({
         durationLabel,
         run.triggerLabel,
         branch ? `branch ${branch}` : undefined,
-        actor ? `by ${actor}` : undefined,
+        workflowRunActorAccessibleLabel(run, actor),
         workflowRunDevAccessibleLabel(run),
         run.jobs.total > 0 ? jobStatusSummary(run.jobs) : undefined,
       ]
@@ -173,6 +179,41 @@ export function WorkflowRunRow({
       {body}
     </Link>
   );
+}
+
+function RunActorMetadata({
+  run,
+  actor,
+  workspaceSlug,
+  projectSlug,
+}: {
+  run: WorkflowRunListItem;
+  actor: string | null;
+  workspaceSlug?: string | undefined;
+  projectSlug?: string | undefined;
+}) {
+  if (run.parentRun) {
+    return (
+      <WorkflowRunParentLabel
+        parentRun={run.parentRun}
+        runProjectId={run.projectId}
+        workspaceSlug={workspaceSlug}
+        projectSlug={projectSlug}
+        className="text-foreground-neutral-subtle hover:text-foreground-neutral-base"
+      />
+    );
+  }
+  if (actor) return <ActorLabel actor={actor} />;
+  return null;
+}
+
+function workflowRunActorAccessibleLabel(
+  run: WorkflowRunListItem,
+  actor: string | null,
+): string | undefined {
+  if (run.parentRun) return `started by ${run.parentRun.name} #${run.parentRun.number}`;
+  if (actor) return `by ${actor}`;
+  return undefined;
 }
 
 function workflowRunDevBadgeLabel(run: WorkflowRunListItem): string | null {

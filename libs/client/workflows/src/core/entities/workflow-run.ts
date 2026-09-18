@@ -98,6 +98,13 @@ export interface WorkflowSourceSnapshot {
  * Provider-neutral trigger facts. Every field is nullable: only source-control triggers
  * resolve a reference at all, and a payload can name a ref without naming an actor.
  */
+export interface WorkflowRunParent {
+  id: string;
+  number: number;
+  name: string;
+  projectId: string;
+}
+
 export interface WorkflowRunTriggerReference {
   repository: string | null;
   ref: string | null;
@@ -154,6 +161,7 @@ export interface WorkflowRun {
   triggerDisplayLabel: string;
   triggerLabel: string;
   triggerReference: WorkflowRunTriggerReference | null;
+  parentRun?: WorkflowRunParent | null;
   createdAt: string;
   updatedAt: string;
   isTemporary: boolean;

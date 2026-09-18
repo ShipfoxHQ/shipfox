@@ -115,6 +115,68 @@ describe('GET /api/workflows/runs', () => {
     expect(body.filtered_total_count).toBe(2);
   });
 
+  test('returns the parent run for children and null for ordinary runs', async () => {
+    const parentProjectId = crypto.randomUUID();
+    const parent = await createWorkflowRun({
+      workspaceId,
+      projectId: parentProjectId,
+      definitionId: crypto.randomUUID(),
+      name: 'release-production',
+      model: workflowModel({name: 'release-production'}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const ordinary = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      name: 'ordinary',
+      model: workflowModel({name: 'ordinary'}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const child = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId: crypto.randomUUID(),
+      name: 'child',
+      model: workflowModel({name: 'child'}),
+      parentRun: {runId: parent.id},
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+      },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs?project_id=${projectId}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.runs.find((run: {id: string}) => run.id === ordinary.id)).toMatchObject({
+      parent_run: null,
+    });
+    expect(body.runs.find((run: {id: string}) => run.id === child.id)).toMatchObject({
+      parent_run: {
+        id: parent.id,
+        number: parent.number,
+        name: 'release-production',
+        project_id: parentProjectId,
+      },
+    });
+  });
+
   test('carries the current attempt jobs in graph order so a row can draw its status strip', async () => {
     await createWorkflowRun({
       workspaceId,

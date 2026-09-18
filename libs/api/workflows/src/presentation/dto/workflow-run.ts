@@ -17,6 +17,7 @@ import type {
   WorkflowRun,
   WorkflowRunDevSource,
   WorkflowRunList,
+  WorkflowRunParent,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
@@ -110,6 +111,7 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
     trigger_source: run.triggerSource,
     trigger_event: run.triggerEvent,
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
+    parent_run: toParentRunDto(run.parentRun),
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
@@ -120,6 +122,16 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
 
 // The persisted reference predates `actor` and carries an internal project id the client has
 // no use for, so each field is read defensively rather than spread onto the response.
+function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {
+  if (!parentRun) return null;
+  return {
+    id: parentRun.id,
+    number: parentRun.number,
+    name: parentRun.name,
+    project_id: parentRun.projectId,
+  };
+}
+
 function toTriggerReferenceDto(
   reference: WorkflowRunTriggerReference | null | undefined,
 ): WorkflowRunTriggerReferenceDto | null {
@@ -231,6 +243,7 @@ export function toRunOverviewDto(
       trigger_source: overview.run.triggerSource,
       trigger_event: overview.run.triggerEvent,
       trigger_reference: toTriggerReferenceDto(overview.run.triggerReference),
+      parent_run: toParentRunDto(overview.run.parentRun),
       created_at: overview.run.createdAt.toISOString(),
     },
     attempt: toRunOverviewAttemptDto(overview.attempt),

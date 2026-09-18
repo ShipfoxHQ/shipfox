@@ -19,6 +19,7 @@ import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactElement, useId} from 'react';
 import {WorkflowRunNumberLabel} from '#components/workflow-run-number-label.js';
+import {WorkflowRunParentLabel} from '#components/workflow-run-parent-label.js';
 import {
   isWorkflowRunTerminal,
   WORKFLOW_RUN_STATUSES,
@@ -74,6 +75,7 @@ export function WorkflowRunSummary({
   const attemptSwitcher = workflowAttemptSwitcher(latestAttempt, workspaceSlug, projectSlug);
   const displayDuration = run.runAttempt.displayDuration;
   const hasStarted = workflowRunHasStartedJobExecution(run);
+  const hasStartedBy = Boolean(run.parentRun);
   const {ref: headingTextRef, isTruncated: isHeadingTruncated} =
     useIsTextTruncated<HTMLSpanElement>(run.name);
   const currentUser = useAuthState().user;
@@ -148,7 +150,9 @@ export function WorkflowRunSummary({
             {run.number !== null ? (
               <>
                 <WorkflowRunNumberLabel run={run} />
-                {attemptSwitcher || run.triggerDisplayLabel ? <MetadataSeparator /> : null}
+                {attemptSwitcher || run.triggerDisplayLabel || hasStartedBy ? (
+                  <MetadataSeparator />
+                ) : null}
               </>
             ) : null}
 
@@ -161,37 +165,12 @@ export function WorkflowRunSummary({
               />
             ) : null}
 
-            {run.triggerDisplayLabel ? (
-              <>
-                {attemptSwitcher ? <MetadataSeparator /> : null}
-                <span className="min-w-0">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={run.triggerLabel}
-                        className="inline-flex max-w-full min-w-0 cursor-help items-center gap-tight rounded-6 border-0 bg-transparent p-0 text-left text-foreground-neutral-subtle outline-none focus-visible:shadow-button-neutral-focus"
-                      >
-                        <TriggerSourceIcon
-                          provider={run.triggerProvider}
-                          source={run.triggerSource}
-                          aria-hidden="true"
-                          className="size-12 shrink-0"
-                        />
-                        <Text as="span" size="xs" className="min-w-0 truncate">
-                          {run.triggerDisplayLabel}
-                        </Text>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <Text as="span" size="xs" className="block max-w-[360px] break-words">
-                        {run.triggerLabel}
-                      </Text>
-                    </TooltipContent>
-                  </Tooltip>
-                </span>
-              </>
-            ) : null}
+            <WorkflowRunTriggerMetadata
+              run={run}
+              attemptSwitcher={attemptSwitcher}
+              workspaceSlug={workspaceSlug}
+              projectSlug={projectSlug}
+            />
 
             {isDevRun ? (
               <RunProvenanceItems
@@ -211,7 +190,11 @@ export function WorkflowRunSummary({
               />
             )}
 
-            {run.number !== null || attemptSwitcher || run.triggerDisplayLabel || hasProvenance ? (
+            {run.number !== null ||
+            attemptSwitcher ||
+            run.triggerDisplayLabel ||
+            hasStartedBy ||
+            hasProvenance ? (
               <MetadataSeparator />
             ) : null}
             <RelativeTime
@@ -251,6 +234,67 @@ export function WorkflowRunSummary({
   );
 }
 
+function WorkflowRunTriggerMetadata({
+  run,
+  attemptSwitcher,
+  workspaceSlug,
+  projectSlug,
+}: {
+  run: WorkflowRunSummaryRun;
+  attemptSwitcher: ReturnType<typeof workflowAttemptSwitcher>;
+  workspaceSlug?: string | undefined;
+  projectSlug?: string | undefined;
+}) {
+  if (run.parentRun) {
+    return (
+      <>
+        {attemptSwitcher ? <MetadataSeparator /> : null}
+        <WorkflowRunParentLabel
+          parentRun={run.parentRun}
+          runProjectId={run.projectId}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+          className="text-foreground-neutral-subtle hover:text-foreground-neutral-base"
+        />
+      </>
+    );
+  }
+
+  if (!run.triggerDisplayLabel) return null;
+
+  return (
+    <>
+      {attemptSwitcher ? <MetadataSeparator /> : null}
+      <span className="min-w-0">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={run.triggerLabel}
+              className="inline-flex max-w-full min-w-0 cursor-help items-center gap-tight rounded-6 border-0 bg-transparent p-0 text-left text-foreground-neutral-subtle outline-none focus-visible:shadow-button-neutral-focus"
+            >
+              <TriggerSourceIcon
+                provider={run.triggerProvider}
+                source={run.triggerSource}
+                aria-hidden="true"
+                className="size-12 shrink-0"
+              />
+              <Text as="span" size="xs" className="min-w-0 truncate">
+                {run.triggerDisplayLabel}
+              </Text>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <Text as="span" size="xs" className="block max-w-[360px] break-words">
+              {run.triggerLabel}
+            </Text>
+          </TooltipContent>
+        </Tooltip>
+      </span>
+    </>
+  );
+}
+
 function workflowRunLocalDefaultCheckout(
   run: WorkflowRunSummaryRun,
 ): {ref: string; commit: string} | null {
@@ -276,7 +320,12 @@ function metadataHasLeadingContent(
   run: WorkflowRunSummaryRun,
   attemptSwitcher: ReturnType<typeof workflowAttemptSwitcher>,
 ): boolean {
-  return run.number !== null || attemptSwitcher !== null || Boolean(run.triggerDisplayLabel);
+  return (
+    run.number !== null ||
+    attemptSwitcher !== null ||
+    Boolean(run.triggerDisplayLabel) ||
+    Boolean(run.parentRun)
+  );
 }
 
 function runHasProvenance({

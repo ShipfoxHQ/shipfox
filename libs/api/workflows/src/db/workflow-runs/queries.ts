@@ -10,6 +10,7 @@ import {
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {and, asc, count, desc, eq, gte, lt, lte, or, type SQL, sql} from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
 import type {JobMode, JobStatus, ListenerStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {StepSourceLocation} from '#core/entities/step.js';
@@ -569,6 +570,7 @@ export async function listWorkflowRuns(
   params: ListWorkflowRunsParams,
 ): Promise<ListWorkflowRunsResult> {
   const conditions = buildWorkflowRunListConditions(params);
+  const parentRun = alias(workflowRuns, 'parent_workflow_run');
   const rows = await db()
     .select({
       id: workflowRuns.id,
@@ -590,8 +592,20 @@ export async function listWorkflowRuns(
       updatedAt: workflowRuns.updatedAt,
       startedAt: workflowRuns.startedAt,
       finishedAt: workflowRuns.finishedAt,
+      parentRunId: parentRun.id,
+      parentRunNumber: parentRun.number,
+      parentRunName: parentRun.name,
+      parentRunWorkflowName: parentRun.workflowName,
+      parentRunProjectId: parentRun.projectId,
     })
     .from(workflowRuns)
+    .leftJoin(
+      parentRun,
+      and(
+        eq(parentRun.id, workflowRuns.parentRunId),
+        eq(parentRun.workspaceId, workflowRuns.workspaceId),
+      ),
+    )
     .where(and(...conditions))
     .orderBy(desc(workflowRuns.createdAt), desc(workflowRuns.id))
     .limit(params.limit + 1);
@@ -616,7 +630,20 @@ export async function listWorkflowRuns(
   const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'createdAt'});
 
   return {
-    runs: page.pageRows.map(toWorkflowRunList),
+    runs: page.pageRows.map((row) =>
+      toWorkflowRunList({
+        ...row,
+        parentRun:
+          row.parentRunId && row.parentRunNumber !== null && row.parentRunProjectId
+            ? {
+                id: row.parentRunId,
+                number: row.parentRunNumber,
+                name: row.parentRunName ?? row.parentRunWorkflowName ?? '',
+                projectId: row.parentRunProjectId,
+              }
+            : null,
+      }),
+    ),
     nextCursor: page.nextCursor,
     filteredTotalCount: totalCount,
   };

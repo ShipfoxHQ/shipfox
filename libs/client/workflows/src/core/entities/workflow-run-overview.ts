@@ -15,6 +15,7 @@ import type {StepSourceLocation} from './step.js';
 import type {
   WorkflowRunDevSource,
   WorkflowRunOrigin,
+  WorkflowRunParent,
   WorkflowRunStatus,
   WorkflowSourceSnapshot,
 } from './workflow-run.js';
@@ -68,6 +69,7 @@ export interface WorkflowRunOverviewHeader {
     commit: string | null;
     actor: string | null;
   } | null;
+  parentRun: WorkflowRunParent | null;
   createdAt: string;
 }
 

@@ -7,6 +7,7 @@ import type {
   WorkflowRunListItemDto,
   WorkflowRunListResponseDto,
   WorkflowRunOverviewResponseDto,
+  WorkflowRunParentDto,
   WorkflowRunResponseDto,
   WorkflowRunSelectionResponseDto,
   WorkflowRunSourceResponseDto,
@@ -27,6 +28,7 @@ import {
   WorkflowRunOverviewJob,
   type WorkflowRunOverviewJobPage,
   type WorkflowRunOverviewJobs,
+  type WorkflowRunParent,
   type WorkflowRunRecord,
   type WorkflowRunSelectionResolution,
   type WorkflowRunSource,
@@ -66,7 +68,7 @@ type WorkflowRunBaseDto = Pick<
   | 'trigger_reference'
   | 'created_at'
   | 'updated_at'
->;
+> & {parent_run?: WorkflowRunParentDto | null | undefined};
 
 export function toWorkflowRun(dto: WorkflowRunBaseDto): WorkflowRun {
   return {
@@ -93,9 +95,22 @@ export function toWorkflowRun(dto: WorkflowRunBaseDto): WorkflowRun {
       triggerEvent: dto.trigger_event,
     }),
     triggerReference: dto.trigger_reference,
+    parentRun: toWorkflowRunParent(dto.parent_run),
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     isTemporary: dto.id.startsWith('temp-'),
+  };
+}
+
+function toWorkflowRunParent(
+  parent: WorkflowRunParentDto | null | undefined,
+): WorkflowRunParent | null {
+  if (!parent) return null;
+  return {
+    id: parent.id,
+    number: parent.number,
+    name: parent.name,
+    projectId: parent.project_id,
   };
 }
 
@@ -185,6 +200,7 @@ export function toWorkflowRunOverview(dto: WorkflowRunOverviewResponseDto): Work
       triggerEvent: dto.run.trigger_event,
     }),
     triggerReference: dto.run.trigger_reference,
+    parentRun: toWorkflowRunParent(dto.run.parent_run),
     createdAt: dto.run.created_at,
     currentAttempt: attempt.attempt,
     latestAttempt: attempt.attempt,
