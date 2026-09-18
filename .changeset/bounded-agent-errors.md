@@ -2,4 +2,4 @@
 "@shipfox/api-agent-access": minor
 ---
 
-Forwards bounded workflow validation and trigger-filter details through agent-access errors.
+Forwards workflow validation errors and trigger-filter explanations through agent-access errors.
