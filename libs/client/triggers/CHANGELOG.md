@@ -1,5 +1,16 @@
 # @shipfox/client-triggers
 
+## 46.0.0
+
+### Patch Changes
+
+- 3d3ce6b: Keeps event details scrollable within the Events settings viewport.
+- Updated dependencies [34037aa]
+- Updated dependencies [0ddc7ef]
+  - @shipfox/client-shell@46.0.0
+  - @shipfox/client-projects@46.0.0
+  - @shipfox/api-triggers-dto@27.0.0
+
 ## 45.0.0
 
 ### Patch Changes

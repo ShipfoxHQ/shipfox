@@ -1,5 +1,12 @@
 # @shipfox/api-integration-github
 
+## 27.0.0
+
+### Patch Changes
+
+- c7a0a93: Concurrent initial GitHub checkouts for the same repository, installation, and permissions now share one provider token mint.
+- f7a3ad9: Keeps in-flight GitHub install states valid while direct installation uses shared integration connection authorization and ownership checks.
+
 ## 26.1.0
 
 ### Patch Changes

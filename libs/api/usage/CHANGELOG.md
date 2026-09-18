@@ -1,5 +1,17 @@
 # @shipfox/api-usage
 
+## 27.0.0
+
+### Major Changes
+
+- 0ddc7ef: Removes the `upstream` provider field, provider-reported token aggregates, and per-step attempt breakdowns from public usage surfaces. Model-scoped pricing reference keys now encode `[model]` instead of `[model, upstream]`.
+
+### Patch Changes
+
+- Updated dependencies [0ddc7ef]
+  - @shipfox/api-usage-dto@27.0.0
+  - @shipfox/api-workflows-dto@27.0.0
+
 ## 26.1.0
 
 ### Patch Changes

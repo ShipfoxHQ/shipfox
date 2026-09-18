@@ -1,5 +1,23 @@
 # @shipfox/client-workflows
 
+## 46.0.0
+
+### Patch Changes
+
+- 0ddc7ef: Removes the `upstream` provider field, provider-reported token aggregates, and per-step attempt breakdowns from public usage surfaces. Model-scoped pricing reference keys now encode `[model]` instead of `[model, upstream]`.
+- 81fd234: Places the workflow graph scroll bar at the bottom of its panel.
+- Updated dependencies [f2c3e90]
+- Updated dependencies [34037aa]
+- Updated dependencies [0ddc7ef]
+- Updated dependencies [3d3ce6b]
+  - @shipfox/client-integrations@46.0.0
+  - @shipfox/client-shell@46.0.0
+  - @shipfox/client-usage@46.0.0
+  - @shipfox/client-triggers@46.0.0
+  - @shipfox/client-projects@46.0.0
+  - @shipfox/api-workflows-dto@27.0.0
+  - @shipfox/api-triggers-dto@27.0.0
+
 ## 45.0.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @shipfox/client-agent
 
+## 46.0.0
+
+### Minor Changes
+
+- 717736a: Describes connected-app capabilities on the consent and settings pages.
+
+### Patch Changes
+
+- Updated dependencies [45c9598]
+- Updated dependencies [34037aa]
+- Updated dependencies [0ddc7ef]
+  - @shipfox/api-agent-dto@27.0.0
+  - @shipfox/client-shell@46.0.0
+
 ## 45.0.0
 
 ### Patch Changes
