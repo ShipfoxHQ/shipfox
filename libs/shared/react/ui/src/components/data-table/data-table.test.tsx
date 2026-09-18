@@ -107,12 +107,12 @@ describe('DataTable', () => {
   test('keeps stale rows visible and marks the table busy during a background refresh', () => {
     render(
       <CoreTable>
-        {(table) => <DataTable table={table} aria-labelledby="table-title" isRefreshing />}
+        {(table) => <DataTable table={table} aria-label="Workflows" isRefreshing />}
       </CoreTable>,
     );
 
     expect(screen.getByText('Deploy production')).toBeDefined();
-    expect(screen.getByRole('table').getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('table', {name: 'Workflows'}).getAttribute('aria-busy')).toBe('true');
     expect(screen.queryByText('Loading results')).toBeNull();
   });
 

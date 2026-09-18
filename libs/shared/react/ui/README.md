@@ -110,7 +110,8 @@ Choose the table API by behavior:
 
 `DataTable` renders a configured TanStack Table instance. The feature keeps
 ownership of columns, row models, data fetching, route state, and browser state.
-It also supplies a stable `getRowId` when array position is not durable.
+The feature must also supply a stable `getRowId` when array position is not
+durable.
 
 ```tsx
 import {createColumnHelper, tableFeatures, useTable} from '@tanstack/react-table';
