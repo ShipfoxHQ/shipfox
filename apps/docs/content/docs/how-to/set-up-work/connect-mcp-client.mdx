@@ -5,8 +5,9 @@ description: "Connect Claude Code, Codex CLI, Cursor, or VS Code to the Shipfox 
 ---
 
 Connect an existing coding agent to the Shipfox MCP server. The agent gets
-read-only access to one workspace. Your browser handles sign-in. For server
-details and the tool list, see the [reference for the Shipfox MCP
+access to one workspace. It can read workspace data, download step logs, and
+start or manage workflow runs. Your browser handles sign-in. For server details
+and the tool list, see the [reference for the Shipfox MCP
 server](/reference/mcp-server).
 
 ## Before you begin
@@ -111,15 +112,16 @@ you to approve the sign-in and opens your browser.
     destination. Check that the app name matches the client you started. Select
     **Deny** if it doesn't.
 
-    The requested access is always **Read workspace data**. A local client
-    shows **on this device** as its return destination.
+    The requested access is **Read workspace data and start or manage workflow
+    runs**. This includes downloading complete step logs. A local client shows
+    **on this device** as its return destination.
   </Step>
   <Step>
 
     **Choose the workspace**
 
-    If you belong to several workspaces, select the one the agent may read.
-    Each connected app reads one workspace.
+    If you belong to several workspaces, select the one the agent may use. Each
+    connected app reads and acts in one workspace.
   </Step>
   <Step>
 
@@ -129,6 +131,14 @@ you to approve the sign-in and opens your browser.
     stores and refreshes the credential.
   </Step>
 </Steps>
+
+When Shipfox activated action tools, it revoked previously connected apps.
+These clients ask you to sign in and approve the current access again.
+
+Some clients can approve tool calls or shell commands automatically. These
+clients can act without a prompt. Disconnect the app in Shipfox to stop actions
+and log downloads on their next request. Read calls can continue for up to 15
+minutes.
 
 The approval page expires after [five
 minutes](/reference/mcp-server#access-lifetime). If the request is unavailable
@@ -141,6 +151,41 @@ projects from the workspace you chose.
 
 In Shipfox, open **Shipfox MCP server** under **Settings**. The app appears
 under **Connected apps** with the date when Shipfox connected it.
+
+## Download a complete step log
+
+Ask the agent to call `get_step_logs` first. Use `get_step_log_download` when
+the tail is incomplete or the task needs the whole log.
+
+The tool returns `url` and `token` separately. Have the agent set `$URL` and
+`$TOKEN` from that result, then run this command:
+
+```sh
+curl -fsSL --compressed -H "Authorization: Bearer $TOKEN" -o step-log.ndjson "$URL" \
+  && jq -r 'select(.type == "output") | .data' step-log.ndjson
+```
+
+The command writes the complete log in NDJSON format before it reads output
+records. Use the status or exit code to decide what to do next:
+
+| Result | Action |
+| --- | --- |
+| Exit 18 | Run the same command again. It replaces the partial file. |
+| API status 401 | Call `get_step_log_download` once for a new token. Stop after a second 401. |
+| Object store status 403 | Run the same command up to three times. |
+| Status 404 | Stop. The log no longer exists. |
+| Status 503 | Wait for the `Retry-After` value, then run the command again. Stop after three attempts. |
+| Any other status or exit code | Stop and report the failure. |
+
+## Discover integration connection slugs
+
+Before an agent writes a trigger `source` or tool-step `connection`, have it
+call `list_integration_connections`. The returned `slug` is the slug of an
+integration connection used by those fields.
+
+Call `get_integration_connection_tools` with `connection_id` or `slug` before
+choosing a tool ID or event. `list_projects` returns each project's
+`source_connection`, the default when a tool step omits `connection`.
 
 ## Review connected apps
 
@@ -159,8 +204,8 @@ The next refresh fails. The client asks you to connect again.
 ## Disconnect an app
 
 Select **Disconnect** on the app's row. Confirm **Disconnect app**. The app can
-no longer refresh its access. Existing access can continue for up to 15
-minutes.
+no longer refresh its access. Action calls and log downloads stop on their next
+request. Read calls can continue for up to 15 minutes.
 
 Disconnecting does not remove the server from your client. Remove the server
 entry if you no longer need it. Otherwise, the client asks you to sign in
@@ -168,7 +213,7 @@ again.
 
 ## Switch to another workspace
 
-A client stores one Shipfox sign-in for each endpoint. That sign-in reads one
+A client stores one Shipfox sign-in for each endpoint. That sign-in uses one
 workspace. Clear it before connecting the client to another workspace. In
 Claude Code, select **Clear authentication** in the `/mcp` menu. Connect again
 and choose another workspace. Disconnect the old app in Shipfox when you no

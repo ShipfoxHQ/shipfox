@@ -4,9 +4,12 @@ import {existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync} from 'node
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
+  AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
   AGENT_ACCESS_TOOL_CALL_LIMIT,
   AGENT_ACCESS_TOOL_CALL_WINDOW_MS,
+  createAgentAccessActionTools,
   createAgentAccessDiagnosticTools,
+  createAgentAccessIntegrationTools,
   createAgentAccessLogTools,
   createAgentAccessTools,
   createAgentAccessWorkflowDiagnosticTools,
@@ -817,7 +820,13 @@ function environmentFields() {
 const mcpToolGroups = [
   {
     title: 'Discovery',
-    tools: ['list_projects', 'list_workflow_definitions', 'list_workflow_runs'],
+    tools: [
+      'list_projects',
+      'list_workflow_definitions',
+      'list_workflow_runs',
+      'list_integration_connections',
+      'get_integration_connection_tools',
+    ],
   },
   {
     title: 'Workflow run traversal',
@@ -843,7 +852,11 @@ const mcpToolGroups = [
       'get_execution_trigger_event',
     ],
   },
-  {title: 'Step logs', tools: ['get_step_logs']},
+  {
+    title: 'Workflow actions',
+    tools: ['cancel_workflow_run', 'rerun_workflow_run', 'fire_manual_trigger', 'create_dev_run'],
+  },
+  {title: 'Step logs', tools: ['get_step_logs', 'get_step_log_download']},
   {
     title: 'Trigger events',
     tools: ['list_trigger_events', 'get_trigger_event', 'get_trigger_event_facets'],
@@ -861,10 +874,18 @@ function listMcpTools() {
       workflows: stub,
       annotations: stub,
       triggers: stub,
+      integrations: stub,
     }),
+    ...createAgentAccessActionTools({workflows: stub, triggers: stub}),
     ...createAgentAccessDiagnosticTools({triggers: stub}),
     ...createAgentAccessWorkflowDiagnosticTools(stub),
-    ...createAgentAccessLogTools({logs: stub, workflows: stub}),
+    ...createAgentAccessLogTools({
+      auth: stub,
+      apiPublicUrl: 'https://api.shipfox.io',
+      logs: stub,
+      workflows: stub,
+    }),
+    ...createAgentAccessIntegrationTools(stub),
   ];
 }
 
@@ -1140,6 +1161,10 @@ function renderMcpToolLimits() {
     [
       'Tool calls',
       `${AGENT_ACCESS_TOOL_CALL_LIMIT} per credential per ${windowLabel} on each API instance`,
+    ],
+    [
+      'Action tool calls',
+      `${AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT} per credential per ${windowLabel} on each API instance, within the tool-call limit`,
     ],
   ];
   return [
