@@ -2,4 +2,4 @@
 "@shipfox/client-workflows": minor
 ---
 
-Defaults the dashboard run list to synced runs and adds an explicit all-origins filter.
+Defaults dashboard run lists to synced runs and adds a Runs filter for viewing development or all runs.

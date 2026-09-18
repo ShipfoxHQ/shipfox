@@ -57,7 +57,6 @@ const INTEGRATION_TESTS_RE = /integration-tests/u;
 const BUILD_IMAGE_RE = /build-image/u;
 const STATUS_FILTER_RE = /^Status\b.*filter$/u;
 const WORKFLOW_FILTER_RE = /^Workflow\b.*filter$/u;
-const ORIGIN_FILTER_RE = /^Origin\b.*filter$/u;
 const JOBS_TAB_NAME = /^Jobs/u;
 const BUILD_JOB_BUTTON_NAME = 'build, Succeeded';
 const DEPLOY_JOB_BUTTON_NAME = 'deploy, Running';
@@ -178,7 +177,9 @@ describe('WorkflowRunPages', () => {
       }),
     ).toBe(true);
 
-    expect(screen.getByRole('button', {name: ORIGIN_FILTER_RE})).toHaveTextContent('Origin: Dev');
+    expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
+      'Development runs',
+    );
 
     await user.click(screen.getByRole('button', {name: 'Clear filters'}));
     await waitFor(() => {
@@ -197,7 +198,9 @@ describe('WorkflowRunPages', () => {
 
     expect(await screen.findByRole('link', {name: DEPLOY_WEB_RE})).toBeInTheDocument();
     expect(await screen.findByRole('link', {name: TRIAGE_SENTRY_RE})).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: ORIGIN_FILTER_RE})).toHaveTextContent('Origin: All');
+    expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
+      'All runs',
+    );
     expect(router.state.location.searchStr).toBe('?origin=all');
     expect(
       fetchImpl.mock.calls.some(

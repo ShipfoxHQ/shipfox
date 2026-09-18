@@ -6,10 +6,8 @@ import {renderWithRouter} from '#test/render.js';
 import {WorkflowRunList} from './workflow-run-list.js';
 
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
-const ORIGIN_FILTER_RE = /^Origin\b.*filter$/u;
-
 describe('WorkflowRunList', () => {
-  test('defaults to synced runs and exposes the Origin filter', async () => {
+  test('defaults to synced runs and exposes the run scope filter', async () => {
     const syncedRun = workflowRunDto({
       id: '66666666-6666-4666-8666-000000000001',
       name: 'deploy-web',
@@ -53,8 +51,8 @@ describe('WorkflowRunList', () => {
         ([input]) => new URL(requestInputUrl(input)).searchParams.get('origin') === 'synced',
       ),
     ).toBe(true);
-    expect(screen.getByRole('button', {name: ORIGIN_FILTER_RE})).toHaveTextContent(
-      'Origin: Synced',
+    expect(screen.getByRole('combobox', {name: 'Filter runs by type'})).toHaveTextContent(
+      'Synced runs',
     );
   });
 });
