@@ -1,5 +1,6 @@
 import {
   AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
+  AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
   agentAccessEnvelopeSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
@@ -248,6 +249,133 @@ describe('agent-access action tools', () => {
         },
       },
     });
+  });
+
+  test('forwards trigger-filtered reasons', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'trigger-filtered',
+        {reason: 'The replayed event did not satisfy the trigger filter.'},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'trigger-filtered',
+        details: {reason: 'The replayed event did not satisfy the trigger filter.'},
+      },
+    });
+  });
+
+  test('forwards invalid-definition errors within the details byte budget', async () => {
+    const {triggers, tools} = clients();
+    const errors = Array.from({length: 200}, (_, index) => ({
+      message: `Validation error ${index}: ${'x'.repeat(700)}`,
+      path: `jobs.${index}.steps.0.run`,
+      reason: `The expression at item ${index} is invalid: ${'y'.repeat(700)}`,
+    }));
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'invalid-definition',
+        {errors},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+    const details = response.ok ? undefined : response.error?.details;
+
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+    expect(details).toMatchObject({total: 200, truncated: true});
+    expect(Array.isArray(details?.errors)).toBe(true);
+    expect(new TextEncoder().encode(JSON.stringify(details)).byteLength).toBeLessThanOrEqual(
+      AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
+    );
+  });
+
+  test('bounds invalid-definition strings by UTF-8 bytes', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'invalid-definition',
+        {errors: [{message: '🙂'.repeat(200), path: 'jobs.build', reason: '原因'.repeat(300)}]},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+    if (response.ok) throw new Error('Expected invalid-definition details');
+    const errorDetails = response.error?.details;
+    if (!errorDetails) throw new Error('Expected invalid-definition details');
+    const [error] = errorDetails.errors as Array<Record<string, string>>;
+
+    expect(new TextEncoder().encode(error?.message).byteLength).toBe(
+      AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
+    );
+    expect(new TextEncoder().encode(error?.reason).byteLength).toBe(510);
+    expect(errorDetails).toMatchObject({total: 1, truncated: false});
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+  });
+
+  test('reports the original total and whether the next error fits', async () => {
+    const {triggers, tools} = clients();
+    const errors = Array.from({length: 8}, (_, index) => ({
+      message: `${index}:${'x'.repeat(AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES)}`,
+    }));
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'invalid-definition',
+        {errors},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+    if (response.ok) throw new Error('Expected invalid-definition details');
+    const details = response.error?.details;
+    if (!details) throw new Error('Expected invalid-definition details');
+
+    expect(details.total).toBe(8);
+    expect(details.truncated).toBe(true);
+    expect((details.errors as unknown[]).length).toBeLessThan(8);
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
   });
 
   test('bounds admission details and preserves the reason without a required action', async () => {
