@@ -18,21 +18,16 @@ Open **Settings → Events**. Filter by source, event name, and time.
 
 If the event is absent, the problem is before trigger matching:
 
-- For GitHub, check that the integration connection is enabled. Check that the App can read
-  the repository. Repeat the [GitHub setup](/integrations/github/setup)
-  checks.
-- For Sentry, check the organization integration connection. Send a safe test issue. Repeat
-  the [Sentry setup](/integrations/sentry/setup) checks.
-- For a custom webhook, inspect the sender's HTTP response and delivery ID.
-  Repeat [Create a custom
-  webhook](/integrations/webhooks/setup) checks.
-- For ClickUp, check that the dedicated account can see the affected resource.
-  Repeat the [ClickUp setup](/integrations/clickup/setup) checks.
-- If the integration connection is disabled, [enable it and send a new
-  event](/how-to/set-up-work/disable-integration-connection).
+- Confirm that the integration connection is enabled and connected. Reconnect
+  it if its authorization expired or was revoked.
+- Confirm that the connected account or app can access the resource that
+  produced the event.
+- Check the provider's delivery history, when available, to confirm that it sent
+  the event.
+- Repeat the provider's setup checks in the [Integrations
+  reference](/integrations).
 
-Repair or replace an expired provider installation. Do the same for an
-unauthorized installation. Shipfox cannot receive a new event until then.
+After repairing the connection or its permissions, send a new test event.
 
 ## If delivery succeeded but no workflow matched
 
