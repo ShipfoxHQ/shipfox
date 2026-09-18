@@ -48,7 +48,7 @@ test('GitHub request callback gives guests a terminal explanation', async ({
   await stableScreenshot(page, 'integrations/github-callback-guest');
 });
 
-test('GitHub callback keeps malformed requests on member recovery', async ({
+test('GitHub callback keeps malformed requests on Shipfox recovery', async ({
   auth,
   githubCallback,
   page,
@@ -66,7 +66,12 @@ test('GitHub callback keeps malformed requests on member recovery', async ({
   await githubCallback.goto('setup_action=install&installation_id=42');
 
   await expect(githubCallback.heading('Invalid GitHub callback')).toBeVisible();
-  await expect(githubCallback.openWorkspaceLink()).toBeVisible();
+  await expect(
+    githubCallback.message(
+      'This link is missing required callback information. Go to Shipfox to start the installation again.',
+    ),
+  ).toBeVisible();
+  await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
   expect(callbackRequested).toBe(false);
   await stableScreenshot(page, 'integrations/github-callback-invalid');
 });
@@ -95,7 +100,6 @@ test('GitHub callback explains an actor mismatch', async ({
     githubCallback.message('It was started with a different Shipfox account.'),
   ).toBeVisible();
   await expect(githubCallback.goToShipfoxLink()).toHaveAttribute('href', '/');
-  await expect(githubCallback.openWorkspaceLink()).toHaveCount(0);
   await stableScreenshot(page, 'integrations/github-callback-actor-mismatch');
 });
 

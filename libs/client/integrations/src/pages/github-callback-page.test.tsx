@@ -16,8 +16,7 @@ const {completeGithubCallbackMock, refreshAuthMock, resolveWorkspaceSlugMock} = 
   resolveWorkspaceSlugMock: vi.fn(),
 }));
 const AUTH_LINK_NAME = /sign up|create account/iu;
-const INVITE_TEAMMATE_LINK_NAME = /Invite a teammate/iu;
-const MEMBER_WORKSPACE_LINK_NAME = /^Open workspace – .+$/u;
+const WORKSPACE_ACTION_LINK_NAME = /Open workspace|Invite a teammate/iu;
 const SECOND_WORKSPACE_ID = '33333333-3333-4333-8333-333333333333';
 
 vi.mock('@shipfox/client-auth', async (importOriginal) => {
@@ -89,24 +88,21 @@ afterEach(() => {
 });
 
 describe('GithubCallbackPage', () => {
-  test('renders request guidance before completion validation and uses an authorized workspace hint', async () => {
+  test('renders request guidance before completion validation without workspace actions', async () => {
     const capture = vi.fn<ClientAnalytics['capture']>();
     const analytics = {capture};
     window.sessionStorage.setItem(GITHUB_INSTALL_WORKSPACE_KEY, INTEGRATIONS_TEST_WID);
 
     renderCallback({setupAction: 'request'}, {analytics});
 
+    expect(await screen.findByRole('heading', {name: 'GitHub approval requested'})).toBeVisible();
     expect(
-      await screen.findByRole('heading', {name: 'Approval requested on GitHub'}),
+      screen.getByText(
+        "GitHub sent the request to your organization's administrators. No Shipfox connection was created yet. Go to Shipfox to continue.",
+      ),
     ).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Return to workspace'})).toHaveAttribute(
-      'href',
-      '/w/acme/integrations',
-    );
-    expect(screen.getByRole('link', {name: 'Invite a teammate'})).toHaveAttribute(
-      'href',
-      '/w/acme/settings/members',
-    );
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', {name: WORKSPACE_ACTION_LINK_NAME})).not.toBeInTheDocument();
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
     expect(capture).toHaveBeenCalledWith('github_install_request_viewed', {
@@ -180,7 +176,7 @@ describe('GithubCallbackPage', () => {
     expect(capture).toHaveBeenCalledWith('github_callback_guest_viewed', {outcome: 'invalid'});
   });
 
-  test('falls back to current memberships when the workspace hint is stale', async () => {
+  test('falls back to Shipfox when the workspace hint is stale', async () => {
     const capture = vi.fn<ClientAnalytics['capture']>();
     const workspaces = [
       testWorkspace(),
@@ -195,14 +191,8 @@ describe('GithubCallbackPage', () => {
 
     renderCallback({setupAction: 'request'}, {analytics: {capture}, workspaces});
 
-    expect(await screen.findByRole('link', {name: 'Open workspace – Acme'})).toHaveAttribute(
-      'href',
-      '/w/acme/integrations',
-    );
-    expect(screen.getByRole('link', {name: 'Open workspace – Beta'})).toHaveAttribute(
-      'href',
-      '/w/beta/integrations',
-    );
+    expect(await screen.findByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', {name: WORKSPACE_ACTION_LINK_NAME})).not.toBeInTheDocument();
     expect(capture).toHaveBeenCalledWith('github_install_request_viewed', {viewer: 'member'});
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
   });
@@ -215,7 +205,8 @@ describe('GithubCallbackPage', () => {
         exact: false,
       }),
     ).toBeVisible();
-    expect(screen.queryByRole('link', {name: MEMBER_WORKSPACE_LINK_NAME})).not.toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', {name: WORKSPACE_ACTION_LINK_NAME})).not.toBeInTheDocument();
   });
 
   test('preserves callback state when workspace membership hydration fails', async () => {
@@ -238,7 +229,7 @@ describe('GithubCallbackPage', () => {
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBe(INTEGRATIONS_TEST_WID);
   });
 
-  test('keeps malformed callbacks on an actionable member recovery page', async () => {
+  test('keeps malformed callbacks on an explicit Shipfox recovery page', async () => {
     const workspaces = [
       testWorkspace(),
       testWorkspace({
@@ -255,10 +246,13 @@ describe('GithubCallbackPage', () => {
 
     expect(heading).toBeVisible();
     expect(document.activeElement).toBe(heading);
-    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Open workspace – Beta'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Invite a teammate to Acme'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Invite a teammate to Beta'})).toBeVisible();
+    expect(
+      screen.getByText(
+        'This link is missing required callback information. Go to Shipfox to start the installation again.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', {name: WORKSPACE_ACTION_LINK_NAME})).not.toBeInTheDocument();
     expect(completeGithubCallbackMock).not.toHaveBeenCalled();
   });
 
@@ -286,8 +280,7 @@ describe('GithubCallbackPage', () => {
     ).toBeVisible();
     expect(window.sessionStorage.getItem(GITHUB_INSTALL_WORKSPACE_KEY)).toBeNull();
     expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
-    expect(screen.queryByRole('link', {name: MEMBER_WORKSPACE_LINK_NAME})).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', {name: INVITE_TEAMMATE_LINK_NAME})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: WORKSPACE_ACTION_LINK_NAME})).not.toBeInTheDocument();
   });
 
   test('distinguishes expired state from a malformed callback', async () => {
@@ -303,6 +296,7 @@ describe('GithubCallbackPage', () => {
 
     expect(await screen.findByRole('heading', {name: 'GitHub callback expired'})).toBeVisible();
     expect(screen.queryByRole('button', {name: 'Try again'})).not.toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
   });
 
   test('renders fresh-install recovery for a provider failure', async () => {
@@ -322,7 +316,7 @@ describe('GithubCallbackPage', () => {
       await screen.findByRole('heading', {name: 'GitHub is temporarily unavailable'}),
     ).toBeVisible();
     expect(screen.queryByRole('button', {name: 'Try again'})).not.toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
     expect(reportError).not.toHaveBeenCalled();
   });
 
@@ -340,7 +334,7 @@ describe('GithubCallbackPage', () => {
     renderCallback({installationId: 42, code: 'access-code', state: 'access-state'});
 
     expect(await screen.findByRole('heading', {name: 'Workspace access changed'})).toBeVisible();
-    expect(screen.getByRole('link', {name: 'Open workspace – Acme'})).toBeVisible();
+    expect(screen.getByRole('link', {name: 'Go to Shipfox'})).toHaveAttribute('href', '/');
     expect(reportError).not.toHaveBeenCalled();
   });
 

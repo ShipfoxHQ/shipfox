@@ -187,17 +187,17 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
   }
 
   if (intent.kind === 'request') {
-    return <RequestOutcome storedWorkspace={storedWorkspace} workspaces={auth.workspaces} />;
+    return <RequestOutcome />;
   }
 
   if (intent.kind === 'provider-error') {
     return (
       <GithubOutcome
         title="GitHub did not complete installation"
-        message="No connection was changed. Return to a member workspace to start the installation again."
+        message="No connection was changed. Go to Shipfox to start the installation again."
         status="warning"
       >
-        <MemberWorkspaceActions workspaces={auth.workspaces} />
+        <ShipfoxHomeAction />
       </GithubOutcome>
     );
   }
@@ -206,10 +206,10 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     return (
       <GithubOutcome
         title="Invalid GitHub callback"
-        message="This link is missing required callback information. Start the installation again from a member workspace."
+        message="This link is missing required callback information. Go to Shipfox to start the installation again."
         status="error"
       >
-        <MemberWorkspaceActions workspaces={auth.workspaces} />
+        <ShipfoxHomeAction />
       </GithubOutcome>
     );
   }
@@ -218,10 +218,10 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     return (
       <GithubOutcome
         title="GitHub installed"
-        message="The connection is ready. Open a member workspace to continue."
+        message="The connection is ready. Go to Shipfox to continue."
         status="success"
       >
-        <MemberWorkspaceActions workspaces={auth.workspaces} />
+        <ShipfoxHomeAction />
       </GithubOutcome>
     );
   }
@@ -230,7 +230,7 @@ export function GithubCallbackPage({search}: {search: GithubCallbackSearch}) {
     const outcome = failureCopy(failure);
     return (
       <GithubOutcome title={outcome.title} message={outcome.message} status={outcome.status}>
-        <FailureActions failure={failure} workspaces={auth.workspaces} />
+        <ShipfoxHomeAction />
       </GithubOutcome>
     );
   }
@@ -287,41 +287,14 @@ async function handleGithubCallbackSuccess({
   }
 }
 
-function RequestOutcome({
-  storedWorkspace,
-  workspaces,
-}: {
-  storedWorkspace: ReturnType<typeof useAuthState>['workspaces'][number] | undefined;
-  workspaces: ReturnType<typeof useAuthState>['workspaces'];
-}) {
+function RequestOutcome() {
   return (
     <GithubOutcome
-      title="Approval requested on GitHub"
-      message="A GitHub administrator can approve the request without a Shipfox account. Return to your workspace, or invite a teammate if they also need to finish setup."
+      title="GitHub approval requested"
+      message="GitHub sent the request to your organization's administrators. No Shipfox connection was created yet. Go to Shipfox to continue."
       status="info"
     >
-      {storedWorkspace ? (
-        <div className="flex flex-col gap-inline sm:flex-row">
-          <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
-            <Link
-              to="/w/$workspaceSlug/integrations"
-              params={{workspaceSlug: storedWorkspace.slug}}
-            >
-              Return to workspace
-            </Link>
-          </ButtonLink>
-          <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
-            <Link
-              to="/w/$workspaceSlug/settings/members"
-              params={{workspaceSlug: storedWorkspace.slug}}
-            >
-              Invite a teammate
-            </Link>
-          </ButtonLink>
-        </div>
-      ) : (
-        <MemberWorkspaceActions workspaces={workspaces} />
-      )}
+      <ShipfoxHomeAction />
     </GithubOutcome>
   );
 }
@@ -364,23 +337,9 @@ function guestOutcomeCopy(intent: GithubCallbackIntent): {
   };
 }
 
-function FailureActions({
-  failure,
-  workspaces,
-}: {
-  failure: GithubCallbackFailure;
-  workspaces: ReturnType<typeof useAuthState>['workspaces'];
-}) {
-  return failure.kind === 'actor-mismatch' ? (
-    <ShipfoxHomeAction />
-  ) : (
-    <MemberWorkspaceActions workspaces={workspaces} />
-  );
-}
-
 function ShipfoxHomeAction() {
   return (
-    <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
+    <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
       <Link to="/">Go to Shipfox</Link>
     </ButtonLink>
   );
@@ -393,9 +352,7 @@ function NoMembershipOutcome() {
       message="This account is not a member of a Shipfox workspace. Ask your teammate for an invitation if they need you to finish the connection."
       status="info"
     >
-      <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
-        <Link to="/">Back to Shipfox</Link>
-      </ButtonLink>
+      <ShipfoxHomeAction />
     </GithubOutcome>
   );
 }
@@ -419,56 +376,10 @@ function MembershipUnavailableOutcome({
           Try again
         </Button>
         <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
-          <Link to="/">Back to Shipfox</Link>
+          <Link to="/">Go to Shipfox</Link>
         </ButtonLink>
       </div>
     </GithubOutcome>
-  );
-}
-
-function MemberWorkspaceActions({
-  workspaces,
-}: {
-  workspaces: ReturnType<typeof useAuthState>['workspaces'];
-}) {
-  return (
-    <section className="flex flex-col gap-inline" aria-label="Member workspaces">
-      <Text size="sm" className="text-foreground-neutral-muted">
-        Continue in a workspace where you are already a member.
-      </Text>
-      <div className="flex flex-col gap-inline">
-        {workspaces.map((workspace) => (
-          <div
-            key={workspace.id}
-            className="flex flex-col gap-inline border-b border-border-neutral-base pb-inline last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <Text size="sm" bold className="min-w-0 truncate">
-              {workspace.name}
-            </Text>
-            <div className="flex flex-col gap-inline sm:flex-row">
-              <ButtonLink asChild className="min-h-44 w-full sm:w-fit">
-                <Link
-                  to="/w/$workspaceSlug/integrations"
-                  params={{workspaceSlug: workspace.slug}}
-                  aria-label={`Open workspace – ${workspace.name}`}
-                >
-                  Open workspace
-                </Link>
-              </ButtonLink>
-              <ButtonLink asChild variant="muted" className="min-h-44 w-full sm:w-fit">
-                <Link
-                  to="/w/$workspaceSlug/settings/members"
-                  params={{workspaceSlug: workspace.slug}}
-                  aria-label={`Invite a teammate to ${workspace.name}`}
-                >
-                  Invite a teammate
-                </Link>
-              </ButtonLink>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -510,14 +421,13 @@ function failureCopy(failure: GithubCallbackFailure): {
       return {
         title: 'GitHub callback expired',
         message:
-          'This installation link has expired. Start the installation again from a member workspace.',
+          'This installation link has expired. Go to Shipfox to start the installation again.',
         status: 'warning',
       };
     case 'invalid':
       return {
         title: 'Invalid GitHub callback',
-        message:
-          'Shipfox could not verify this installation link. Start again from a member workspace.',
+        message: 'Shipfox could not verify this installation link. Go to Shipfox to start again.',
         status: 'error',
       };
     case 'actor-mismatch':
@@ -531,35 +441,33 @@ function failureCopy(failure: GithubCallbackFailure): {
       return {
         title: 'Workspace access changed',
         message:
-          'Shipfox could not verify access to the workspace that started this installation. Continue in a workspace where you are already a member, or ask a teammate for access.',
+          'Your Shipfox account no longer has access to the workspace that started this installation. Go to Shipfox to continue, or ask a teammate to restore your access.',
         status: 'warning',
       };
     case 'not-authorized':
       return {
         title: 'GitHub access could not be verified',
         message:
-          'This account cannot connect the selected GitHub installation. Return to a member workspace to try another installation.',
+          'This account cannot connect the selected GitHub installation. Go to Shipfox to try another installation.',
         status: 'warning',
       };
     case 'already-linked':
       return {
         title: 'GitHub is already connected elsewhere',
         message:
-          'This GitHub installation cannot be moved from another workspace. Choose another installation or return to a member workspace.',
+          'This GitHub installation cannot be moved from another workspace. Go to Shipfox to choose another installation.',
         status: 'warning',
       };
     case 'provider-error':
       return {
         title: 'GitHub is temporarily unavailable',
-        message:
-          'The connection was not completed. Return to a member workspace and start the installation again.',
+        message: 'The connection was not completed. Go to Shipfox to start the installation again.',
         status: 'warning',
       };
     case 'unknown':
       return {
         title: 'Could not connect GitHub',
-        message:
-          'The connection was not completed. Return to a member workspace and start the installation again.',
+        message: 'The connection was not completed. Go to Shipfox to start the installation again.',
         status: 'error',
       };
   }
