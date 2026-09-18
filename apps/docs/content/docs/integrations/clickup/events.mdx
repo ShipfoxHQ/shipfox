@@ -37,16 +37,16 @@ See ClickUp's [webhook reference](https://developer.clickup.com/docs/webhooks)
 and [task webhook payloads](https://developer.clickup.com/docs/webhooktaskpayloads)
 for provider-owned field details.
 
-## Visibility and write-backs
+## Control access and prevent loops
 
-ClickUp controls event visibility from the authorizing account's resource
-access. Shipfox does not receive private resources that ClickUp hides from that
-account.
+Shipfox receives events only for ClickUp items the connected account can
+access. Give the service account access to every Space, Folder, and List your
+workflows should monitor.
 
-Shipfox delivers events authored by the account that authorized the integration
-connection. A workflow that writes back to ClickUp can trigger another run from
-its own change. Design write-back workflows so they stop deliberate feedback
-loops.
+ClickUp also sends events for changes made by Shipfox. If a workflow updates the
+same task that triggered it, the workflow can start again. Add a [trigger
+filter](/reference/workflow-schema#trigger-fields) that ignores changes made by
+the Shipfox service account or matches only fields the workflow does not update.
 
 ## Paired deliveries
 
