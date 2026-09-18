@@ -128,6 +128,7 @@ checkbox contract. Supply an accessible name with a visible `Label`,
 `aria-describedby`; native disabled, focus, and form properties pass through.
 
 ```tsx
+import {useState} from 'react';
 import {Checkbox, type CheckedState} from '@shipfox/react-ui/checkbox';
 
 const [checked, setChecked] = useState<CheckedState>('indeterminate');

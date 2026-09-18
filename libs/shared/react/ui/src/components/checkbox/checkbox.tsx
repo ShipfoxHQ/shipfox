@@ -17,7 +17,7 @@ export function Checkbox({className, ...props}: CheckboxProps) {
         'border-checkbox-unchecked-border bg-checkbox-unchecked-bg shadow-checkbox-unchecked hover:bg-checkbox-unchecked-bg-hover focus-visible:shadow-checkbox-unchecked-focus',
         'data-[state=checked]:border-checkbox-checked-border data-[state=checked]:bg-checkbox-checked-bg data-[state=checked]:shadow-checkbox-checked data-[state=checked]:hover:bg-checkbox-checked-bg-hover data-[state=checked]:focus-visible:shadow-checkbox-checked-focus',
         'data-[state=indeterminate]:border-checkbox-indeterminate-border data-[state=indeterminate]:bg-checkbox-indeterminate-bg data-[state=indeterminate]:shadow-checkbox-indeterminate data-[state=indeterminate]:hover:bg-checkbox-indeterminate-bg-hover data-[state=indeterminate]:focus-visible:shadow-checkbox-indeterminate-focus',
-        'disabled:cursor-not-allowed disabled:opacity-50',
+        'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
       {...props}
