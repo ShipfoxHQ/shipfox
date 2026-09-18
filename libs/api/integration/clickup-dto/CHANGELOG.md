@@ -1,5 +1,12 @@
 # @shipfox/api-integration-clickup-dto
 
+## 27.2.0
+
+### Patch Changes
+
+- Updated dependencies [0827733]
+  - @shipfox/api-integration-core-dto@27.2.0
+
 ## 26.0.0
 
 ### Patch Changes

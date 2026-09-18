@@ -1,5 +1,14 @@
 # @shipfox/api-integration-github
 
+## 27.2.0
+
+### Patch Changes
+
+- ec9f0ed: Grants GitHub write checkouts permission to update Actions workflow files.
+- Updated dependencies [0827733]
+  - @shipfox/api-integration-spi@4.3.0
+  - @shipfox/api-integration-github-dto@27.2.0
+
 ## 27.1.0
 
 ### Patch Changes

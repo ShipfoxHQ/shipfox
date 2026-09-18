@@ -1,5 +1,11 @@
 # @shipfox/api-runners-dto
 
+## 27.2.0
+
+### Patch Changes
+
+- 6bc8256: Runner enrollment no longer declares capabilities and ignores legacy undeclared fields so deployed runners continue enrolling.
+
 ## 25.0.0
 
 ### Minor Changes

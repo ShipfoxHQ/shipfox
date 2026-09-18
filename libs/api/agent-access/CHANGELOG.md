@@ -1,5 +1,24 @@
 # @shipfox/api-agent-access
 
+## 27.2.0
+
+### Minor Changes
+
+- bc7f35c: Forwards workflow validation errors and trigger-filter explanations through agent-access errors.
+- dd4c495: Allows composition roots to append custom Agent Access tools while retaining the standard tool behavior.
+
+### Patch Changes
+
+- Updated dependencies [0827733]
+- Updated dependencies [ef44a76]
+- Updated dependencies [6ad8c2e]
+- Updated dependencies [45cf692]
+- Updated dependencies [f5bc959]
+  - @shipfox/api-integration-core-dto@27.2.0
+  - @shipfox/api-definitions-dto@27.2.0
+  - @shipfox/api-workflows-dto@27.2.0
+  - @shipfox/api-triggers-dto@27.2.0
+
 ## 27.1.0
 
 ### Patch Changes

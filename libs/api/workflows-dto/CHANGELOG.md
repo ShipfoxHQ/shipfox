@@ -1,5 +1,18 @@
 # @shipfox/api-workflows-dto
 
+## 27.2.0
+
+### Minor Changes
+
+- 6ad8c2e: `startDevRun` accepts an optional `devSource.definitionSource` (`'ref' | 'local'`, default `'ref'`), and dev-run sources expose `definition_source`, so callers can tell whether a workflow definition came from the repository at a ref or was sent in the request.
+- 45cf692: Adds workflow run causation fields and fixed depth and tree-size limits for child runs.
+
+### Patch Changes
+
+- Updated dependencies [ef44a76]
+- Updated dependencies [f5bc959]
+  - @shipfox/api-definitions-dto@27.2.0
+
 ## 27.1.0
 
 ### Minor Changes

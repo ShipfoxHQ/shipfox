@@ -1,5 +1,33 @@
 # @shipfox/api-integration-core
 
+## 27.2.0
+
+### Minor Changes
+
+- 0827733: Reserves the `shipfox` connection slug for built-in providers and passes optional caller context to provider tool calls through `OpenAgentToolsSessionInput`.
+
+### Patch Changes
+
+- Updated dependencies [0827733]
+- Updated dependencies [ec9f0ed]
+- Updated dependencies [ef44a76]
+- Updated dependencies [6ad8c2e]
+- Updated dependencies [45cf692]
+- Updated dependencies [f5bc959]
+  - @shipfox/api-integration-core-dto@27.2.0
+  - @shipfox/api-integration-spi@4.3.0
+  - @shipfox/api-integration-github@27.2.0
+  - @shipfox/api-definitions-dto@27.2.0
+  - @shipfox/api-workflows-dto@27.2.0
+  - @shipfox/api-integration-clickup@27.2.0
+  - @shipfox/api-integration-gitea@27.2.0
+  - @shipfox/api-integration-jira@27.2.0
+  - @shipfox/api-integration-linear@27.2.0
+  - @shipfox/api-integration-sentry@27.2.0
+  - @shipfox/api-integration-slack@27.2.0
+  - @shipfox/api-integration-webhook@27.2.0
+  - @shipfox/api-triggers-dto@27.2.0
+
 ## 27.1.0
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @shipfox/api-integration-sentry
 
+## 27.2.0
+
+### Patch Changes
+
+- Updated dependencies [0827733]
+  - @shipfox/api-integration-spi@4.3.0
+  - @shipfox/api-integration-sentry-dto@27.2.0
+
 ## 26.1.0
 
 ### Patch Changes

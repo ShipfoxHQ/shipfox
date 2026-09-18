@@ -1,5 +1,17 @@
 # @shipfox/client-runners
 
+## 47.0.0
+
+### Patch Changes
+
+- Updated dependencies [33d9ee2]
+- Updated dependencies [29247a2]
+- Updated dependencies [6bc8256]
+  - @shipfox/react-ui@2.6.0
+  - @shipfox/api-runners-dto@27.2.0
+  - @shipfox/client-shell@47.0.0
+  - @shipfox/client-ui@47.0.0
+
 ## 46.0.1
 
 ### Patch Changes

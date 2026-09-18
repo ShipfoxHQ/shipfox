@@ -1,5 +1,40 @@
 # @shipfox/api-server
 
+## 27.2.0
+
+### Minor Changes
+
+- dd4c495: Allows composition roots to append custom Agent Access tools while retaining the standard tool behavior.
+
+### Patch Changes
+
+- Updated dependencies [0827733]
+- Updated dependencies [bc7f35c]
+- Updated dependencies [dd4c495]
+- Updated dependencies [6bc8256]
+- Updated dependencies [ef44a76]
+- Updated dependencies [6ad8c2e]
+- Updated dependencies [6bc8256]
+- Updated dependencies [45cf692]
+- Updated dependencies [f5bc959]
+  - @shipfox/api-integration-core@27.2.0
+  - @shipfox/api-integration-core-dto@27.2.0
+  - @shipfox/api-agent-access@27.2.0
+  - @shipfox/api-runners@27.2.0
+  - @shipfox/api-definitions-dto@27.2.0
+  - @shipfox/api-definitions@27.2.0
+  - @shipfox/api-workflows-dto@27.2.0
+  - @shipfox/api-workflows@27.2.0
+  - @shipfox/api-runners-dto@27.2.0
+  - @shipfox/api-projects@27.2.0
+  - @shipfox/api-triggers@27.2.0
+  - @shipfox/api-dispatcher@26.1.0
+  - @shipfox/api-triggers-dto@27.2.0
+  - @shipfox/api-agent@27.2.0
+  - @shipfox/api-logs@27.2.0
+  - @shipfox/api-usage@27.2.0
+  - @shipfox/api-workspaces@27.2.0
+
 ## 27.1.0
 
 ### Patch Changes
