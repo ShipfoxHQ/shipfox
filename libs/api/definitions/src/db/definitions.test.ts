@@ -22,6 +22,8 @@ import {agentValidationCatalog} from '#test/agent-validation-catalog.js';
 import {db} from './db.js';
 import {
   applyVcsDefinitionsBatch,
+  findOrCreateWorkflowLineage,
+  getDefinitionByConfigPath,
   getDefinitionById,
   invalidateCache,
   listDefinitionsByProject,
@@ -695,6 +697,42 @@ describe('definition queries', () => {
       const found = await getDefinitionById(crypto.randomUUID());
 
       expect(found).toBeUndefined();
+    });
+  });
+
+  describe('getDefinitionByConfigPath', () => {
+    test('returns the active synced definition for the requested branch', async () => {
+      const main = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: 'ci.yml',
+        name: 'CI main',
+        ...definitionFields('CI main'),
+        source: 'vcs',
+        ref: 'main',
+      });
+      const result = await getDefinitionByConfigPath({
+        projectId,
+        configPath: 'ci.yml',
+        ref: 'main',
+      });
+
+      expect(result).toMatchObject({
+        id: main.id,
+        workflowId: main.workflowId,
+        name: 'CI main',
+      });
+    });
+
+    test('does not return an unknown path, manual definition, or dev-only lineage', async () => {
+      await findOrCreateWorkflowLineage({projectId, configPath: 'dev-only.yml'});
+
+      await expect(
+        getDefinitionByConfigPath({projectId, configPath: 'missing.yml', ref: 'main'}),
+      ).resolves.toBeUndefined();
+      await expect(
+        getDefinitionByConfigPath({projectId, configPath: 'dev-only.yml', ref: 'main'}),
+      ).resolves.toBeUndefined();
     });
   });
 

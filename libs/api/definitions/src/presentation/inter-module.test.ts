@@ -6,6 +6,7 @@ import {UNRESOLVED_SYNC_REF} from '#core/sync-definitions.js';
 import {createDefinitionsInterModulePresentation} from './inter-module.js';
 
 const mocks = vi.hoisted(() => ({
+  getDefinitionByConfigPath: vi.fn(),
   getDefinitionById: vi.fn(),
   getLatestDefinitionSyncState: vi.fn(),
   listDefinitions: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('#db/definitions.js', () => ({
+  getDefinitionByConfigPath: mocks.getDefinitionByConfigPath,
   getDefinitionById: mocks.getDefinitionById,
   listDefinitions: mocks.listDefinitions,
 }));
@@ -53,10 +55,67 @@ describe('definitions inter-module presentation', () => {
   beforeEach(() => {
     mocks.resolveDefinitionAtRef.mockReset();
     mocks.listDefinitionsAtRef.mockReset();
+    mocks.getDefinitionByConfigPath.mockReset();
     mocks.getDefinitionById.mockReset();
     mocks.getLatestDefinitionSyncState.mockReset();
     mocks.listDefinitions.mockReset();
     mocks.requireProjectForWorkspace.mockReset();
+  });
+
+  it('looks up the synced definition on the project default branch', async () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000010';
+    const definition = {
+      id: '00000000-0000-4000-8000-000000000012',
+      workflowId: '00000000-0000-4000-8000-000000000013',
+      name: 'CI',
+    };
+    mocks.requireProjectForWorkspace.mockResolvedValue({
+      project: {id: PROJECT_ID, workspaceId, sourceDefaultBranch: 'main'},
+    });
+    mocks.getDefinitionByConfigPath.mockResolvedValue(definition);
+
+    const result = await presentation().handlers.getDefinitionByConfigPath(
+      {workspaceId, projectId: PROJECT_ID, configPath: CONFIG_PATH},
+      {signal: new AbortController().signal},
+    );
+
+    expect(mocks.getDefinitionByConfigPath).toHaveBeenCalledWith({
+      projectId: PROJECT_ID,
+      configPath: CONFIG_PATH,
+      ref: 'main',
+    });
+    expect(
+      definitionsInterModuleContract.methods.getDefinitionByConfigPath.output.parse(result),
+    ).toEqual({
+      definitionId: definition.id,
+      workflowId: definition.workflowId,
+      name: definition.name,
+    });
+  });
+
+  it('masks a project in another workspace as definition-not-found', async () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000010';
+    mocks.requireProjectForWorkspace.mockRejectedValue(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-workspace-mismatch',
+        {projectId: PROJECT_ID, workspaceId},
+      ),
+    );
+
+    const error = await rejection(
+      presentation().handlers.getDefinitionByConfigPath(
+        {workspaceId, projectId: PROJECT_ID, configPath: CONFIG_PATH},
+        {signal: new AbortController().signal},
+      ),
+    );
+
+    expect((error as {code: string}).code).toBe('definition-not-found');
+    expect((error as {details: unknown}).details).toEqual({
+      projectId: PROJECT_ID,
+      configPath: CONFIG_PATH,
+    });
+    expect(mocks.getDefinitionByConfigPath).not.toHaveBeenCalled();
   });
 
   it('fills the new-run gate default when serving a legacy stored model', async () => {

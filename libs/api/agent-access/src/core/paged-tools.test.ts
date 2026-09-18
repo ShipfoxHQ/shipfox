@@ -586,6 +586,7 @@ function clients() {
     }),
     definitions: defineInterModulePresentation(definitionsInterModuleContract, {
       getDefinitionForWorkflowRun: vi.fn(),
+      getDefinitionByConfigPath: vi.fn(),
       listDefinitionsByProject: (input) => definitionHandlers.listDefinitionsByProject(input),
       resolveDefinitionAtRef: vi.fn(),
       listDefinitionsAtRef: vi.fn(),

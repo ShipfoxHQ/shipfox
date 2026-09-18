@@ -15,6 +15,7 @@ export {
   applyVcsDefinitionsBatch,
   auditStoredDefinitions,
   findOrCreateWorkflowLineage,
+  getDefinitionByConfigPath,
   getDefinitionById,
   invalidateCache,
   listDefinitions,
