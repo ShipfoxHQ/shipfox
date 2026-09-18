@@ -103,6 +103,7 @@ describe('workflow run model mapping', () => {
     expect(run.devSource).toEqual({
       ref: 'fix-triage-prompt',
       commit: 'abcdef1234567890abcdef1234567890abcdef12',
+      definitionSource: 'ref',
       configPath: '.shipfox/workflows/triage-sentry.yml',
       initiatedByUserId: '99999999-9999-4999-8999-999999999999',
       replayOfEventId: null,
@@ -407,6 +408,30 @@ describe('workflow run helpers', () => {
 
     expect(workflowRunDevSourceLabel(replayedDevRun)).toBe('v2.14.0 @ 0123456');
     expect(workflowRunDevSourceLabel(workflowRunListItem())).toBeNull();
+  });
+
+  test('labels a local definition without borrowing ref or commit provenance', () => {
+    const localRun = workflowRunListItem({
+      origin: 'dev',
+      trigger_reference: {
+        repository: 'acme/api',
+        ref: 'refs/heads/event-branch',
+        commit: '0123456789abcdef0123456789abcdef01234567',
+        actor: 'octocat',
+      },
+      dev_source: {
+        ref: 'main',
+        commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'local',
+        config_path: '.shipfox/workflows/triage-sentry.yml',
+        initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
+        replay_of_event_id: '88888888-8888-4888-8888-888888888888',
+      },
+    });
+
+    expect(workflowRunDevSourceLabel(localRun)).toBe('local file');
+    expect(workflowRunBranchLabel(localRun)).toBeNull();
+    expect(workflowRunCommitLabel(localRun)).toBeNull();
   });
 
   test('names the initiating member, shortening the id of anyone else', () => {

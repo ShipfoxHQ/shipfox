@@ -375,6 +375,7 @@ export function workflowRunTreeFixture(
       ? {
           ref: detail.dev_source.ref,
           commit: detail.dev_source.commit,
+          definitionSource: detail.dev_source.definition_source,
           configPath: detail.dev_source.config_path,
           initiatedByUserId: detail.dev_source.initiated_by_user_id,
           replayOfEventId: detail.dev_source.replay_of_event_id,

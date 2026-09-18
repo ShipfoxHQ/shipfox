@@ -60,12 +60,14 @@ function makeDevRun(
   {
     ref,
     commit,
+    definitionSource = 'ref',
     replayOfEventId = null,
     triggerReference = null,
     jobs = [],
   }: {
     ref: string;
     commit: string;
+    definitionSource?: 'ref' | 'local';
     replayOfEventId?: string | null;
     triggerReference?: WorkflowRunListItem['triggerReference'];
     jobs?: JobStatusDto[];
@@ -79,6 +81,7 @@ function makeDevRun(
     dev_source: {
       ref,
       commit,
+      definition_source: definitionSource,
       config_path: '.shipfox/workflows/triage-sentry.yml',
       initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
       replay_of_event_id: replayOfEventId,
@@ -137,7 +140,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {};
 
-/** Dev runs carry the Dev badge and fall back to their dev ref and commit for provenance. */
+/** Ref and local-file dev runs keep definition provenance distinct from checkout. */
 export const DevRuns: Story = {
   args: {
     runs: [
@@ -146,8 +149,9 @@ export const DevRuns: Story = {
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
       }),
       makeDevRun('succeeded', 'triage-sentry', 22, {
-        ref: 'fix-triage-prompt',
+        ref: 'main',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definitionSource: 'local',
         replayOfEventId: '88888888-8888-4888-8888-888888888888',
         triggerReference: {
           repository: 'acme/checkout-api',

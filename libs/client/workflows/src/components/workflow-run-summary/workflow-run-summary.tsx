@@ -83,6 +83,7 @@ export function WorkflowRunSummary({
   const initiator = workflowRunInitiatorLabel(run, currentUser?.id);
   const replayOfEvent = run.devSource?.replayOfEventId;
   const isDevRun = run.origin === 'dev';
+  const localDefaultCheckout = workflowRunLocalDefaultCheckout(run);
   // The provenance segment only earns a leading separator when something already sits on the
   // line; a run with nothing else (no number, no trigger label) must not start with a dot.
   const metadataHasLeading = metadataHasLeadingContent(run, attemptSwitcher);
@@ -230,10 +231,31 @@ export function WorkflowRunSummary({
             ) : null}
             <WorkflowRunUsageMetadata runId={run.id} usage={usage} />
           </div>
+
+          {localDefaultCheckout ? (
+            <div className="col-span-2 row-start-3 flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-subtle max-[480px]:col-span-1 max-[480px]:row-start-auto">
+              <Text as="span" size="xs" bold>
+                Default checkout
+              </Text>
+              <Code as="span" variant="label">
+                {localDefaultCheckout.ref} @ {localDefaultCheckout.commit}
+              </Code>
+              <Text as="span" size="xs" className="text-foreground-neutral-muted">
+                A step or a replayed event can override this.
+              </Text>
+            </div>
+          ) : null}
         </div>
       </section>
     </TimeTickerProvider>
   );
+}
+
+function workflowRunLocalDefaultCheckout(
+  run: WorkflowRunSummaryRun,
+): {ref: string; commit: string} | null {
+  if (run.devSource?.definitionSource !== 'local') return null;
+  return {ref: run.devSource.ref, commit: run.devSource.commit.slice(0, 7)};
 }
 
 function WorkflowRunUsageMetadata({runId, usage}: {runId: string; usage: RunUsage | undefined}) {
@@ -364,8 +386,8 @@ function workflowRunActionForRun(run: WorkflowRunSummaryRun): WorkflowRunAction 
 
 /**
  * The provenance run of the summary line: branch and commit for a synced run (from the
- * trigger reference), and for a dev run the effective `ref @ commit`, the member who started
- * it, and the replay link to the source event when the run replays one.
+ * trigger reference), and for a dev run its definition source, the member who started it,
+ * and the replay link to the source event when the run replays one.
  *
  * Each item is followed by a separator; the line's other segments already do the same, so
  * the whole metadata row reads as one separated list.
@@ -464,9 +486,8 @@ function CommitLabel({commit}: {commit: string}) {
 }
 
 /**
- * The dev run's provenance in one label: `fix-triage-prompt @ a1b2c3d`. The ref is the
- * branch or tag the definition came from, the commit the ref was pinned to when the run
- * started, so a force-push after submit cannot change what the label promises.
+ * The dev run's definition provenance in one label: `fix-triage-prompt @ a1b2c3d` for a ref
+ * definition, or `local file` for YAML sent in the request.
  */
 function DevSourceLabel({label}: {label: string}) {
   return (

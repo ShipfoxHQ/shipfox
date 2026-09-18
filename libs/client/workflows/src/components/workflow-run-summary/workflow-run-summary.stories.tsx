@@ -380,13 +380,14 @@ export const MissingTriggerMetadata: Story = {
 const DEV_SOURCE = {
   ref: 'fix-triage-prompt',
   commit: 'abcdef1234567890abcdef1234567890abcdef12',
+  definition_source: 'ref' as const,
   config_path: '.shipfox/workflows/triage-sentry.yml',
   initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
   replay_of_event_id: null,
 };
 
-/** A dev run started from a branch: badge, ref @ commit, and the member who started it. */
-export const DevManualRun: Story = {
+/** A dev run using the workflow committed at a ref. */
+export const DevRefRun: Story = {
   args: {
     run: workflowRunOverview({
       status: 'succeeded',
@@ -394,6 +395,23 @@ export const DevManualRun: Story = {
       origin: 'dev',
       trigger_reference: null,
       dev_source: DEV_SOURCE,
+    }),
+  },
+};
+
+/** A dev run using YAML sent from a local file, with checkout provenance kept separate. */
+export const DevLocalFileRun: Story = {
+  args: {
+    run: workflowRunOverview({
+      status: 'succeeded',
+      name: 'triage-sentry',
+      origin: 'dev',
+      trigger_reference: null,
+      dev_source: {
+        ...DEV_SOURCE,
+        ref: 'main',
+        definition_source: 'local',
+      },
     }),
   },
 };

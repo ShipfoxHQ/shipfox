@@ -39,18 +39,19 @@ export interface WorkflowRunAttemptReference extends WorkflowRunAttemptIdentity 
   workflowName: string;
 }
 
-/** Where a run's definition came from: the synced default branch, or a dev run from a ref. */
+/** Where a run's definition came from: the synced default branch, or a dev run. */
 export const WORKFLOW_RUN_ORIGINS = ['synced', 'dev'] as const;
 
 export type WorkflowRunOrigin = (typeof WORKFLOW_RUN_ORIGINS)[number];
 
 /**
- * Dev-run provenance: the ref and pinned commit the definition came from, the file that
- * ran, the user who started the run, and the journaled event it replays when any.
+ * Dev-run provenance: where the definition came from, the fallback checkout revision, the
+ * file that ran, the user who started the run, and the journaled event it replays when any.
  */
 export interface WorkflowRunDevSource {
   ref: string;
   commit: string;
+  definitionSource: 'ref' | 'local';
   configPath: string;
   initiatedByUserId: string;
   replayOfEventId: string | null;
@@ -221,6 +222,7 @@ const PULL_REQUEST_REF_PATTERN = /^refs\/pull\/(\d+)\/head$/u;
 export function workflowRunBranchLabel(
   run: Pick<WorkflowRun, 'triggerReference' | 'devSource'>,
 ): string | null {
+  if (run.devSource?.definitionSource === 'local') return null;
   const ref = workflowRunProvenanceSource(run)?.ref ?? null;
   if (!ref) return null;
   const pullRequest = PULL_REQUEST_REF_PATTERN.exec(ref);
@@ -233,6 +235,7 @@ export function workflowRunBranchLabel(
 export function workflowRunCommitLabel(
   run: Pick<WorkflowRun, 'triggerReference' | 'devSource'>,
 ): string | null {
+  if (run.devSource?.definitionSource === 'local') return null;
   const commit = workflowRunProvenanceSource(run)?.commit ?? null;
   return commit ? commit.slice(0, SHORT_COMMIT_LENGTH) : null;
 }
@@ -257,14 +260,15 @@ export function workflowRunActor(run: Pick<WorkflowRun, 'triggerReference'>): st
 }
 
 /**
- * The dev run's effective provenance as one label: `ref @ commit`. Replayed runs use the
- * trigger reference shown by the list; other dev runs use the dev source. The commit is
- * shortened like the list row's commit label.
+ * The dev run's definition provenance as one label. Local definitions read `local file` and
+ * never borrow a ref or commit from checkout. Ref definitions keep the effective `ref @ commit`
+ * label shown by the list.
  */
 export function workflowRunDevSourceLabel(
   run: Pick<WorkflowRun, 'origin' | 'devSource' | 'triggerReference'>,
 ): string | null {
   if (run.origin !== 'dev' || !run.devSource) return null;
+  if (run.devSource.definitionSource === 'local') return 'local file';
   const ref = workflowRunBranchLabel(run);
   const commit = workflowRunCommitLabel(run);
   if (!ref || !commit) return null;

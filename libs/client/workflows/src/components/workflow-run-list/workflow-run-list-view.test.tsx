@@ -475,6 +475,18 @@ describe('WorkflowRunListView', () => {
       ).toBeInTheDocument();
     });
 
+    test('labels a local dev run without showing its fallback checkout as provenance', async () => {
+      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides('local'))]);
+
+      expect(await screen.findByText('triage-sentry')).toBeInTheDocument();
+      expect(screen.getByText('Dev · local file')).toHaveClass('bg-tag-purple-bg');
+      expect(screen.queryByText('fix-triage-prompt')).not.toBeInTheDocument();
+      expect(screen.queryByText('abcdef1')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('link', {name: (name) => name.includes('dev run from local file')}),
+      ).toBeInTheDocument();
+    });
+
     test('shows no Dev badge on a synced run', async () => {
       renderListView([run('succeeded', 'deploy-web', 'run-1')]);
 
@@ -862,14 +874,16 @@ function reference(overrides: Partial<NonNullable<WorkflowRunListItem['triggerRe
   };
 }
 
-function devRunOverrides(): NonNullable<Parameters<typeof workflowRunListItem>[0]> {
+function devRunOverrides(
+  definitionSource: 'ref' | 'local' = 'ref',
+): NonNullable<Parameters<typeof workflowRunListItem>[0]> {
   return {
     origin: 'dev',
     trigger_reference: null,
     dev_source: {
       ref: 'fix-triage-prompt',
       commit: 'abcdef1234567890abcdef1234567890abcdef12',
-      definition_source: 'ref',
+      definition_source: definitionSource,
       config_path: '.shipfox/workflows/triage-sentry.yml',
       initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
       replay_of_event_id: null,

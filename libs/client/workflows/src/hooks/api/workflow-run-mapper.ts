@@ -104,6 +104,7 @@ function toDevSource(devSource: WorkflowRunResponseDto['dev_source']): WorkflowR
   return {
     ref: devSource.ref,
     commit: devSource.commit,
+    definitionSource: devSource.definition_source,
     configPath: devSource.config_path,
     initiatedByUserId: devSource.initiated_by_user_id,
     replayOfEventId: devSource.replay_of_event_id,
