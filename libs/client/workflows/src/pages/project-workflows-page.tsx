@@ -8,13 +8,9 @@ import {
   useProjectQuery,
 } from '@shipfox/client-projects';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
-import {Icon, type IconName} from '@shipfox/react-ui/icon';
-import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
-import {Panel} from '@shipfox/react-ui/panel';
-import {RelativeTime, RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
+import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import {
   Sheet,
   SheetBody,
@@ -24,17 +20,10 @@ import {
   SheetTitle,
 } from '@shipfox/react-ui/sheet';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@shipfox/react-ui/table';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {type ReactNode, useState} from 'react';
+import {WorkflowDefinitionsTable} from '#components/workflow-definitions-table.js';
 import {useFireManualWorkflowMutation} from '#hooks/api/workflow-runs.js';
 
 export function ProjectWorkflowsPage({projectId}: {projectId: string}) {
@@ -108,10 +97,11 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
           <WorkflowSyncAlert sync={sync} />
           <WorkflowSyncDiagnostics sync={sync} />
 
-          <WorkflowDefinitionsList
+          <WorkflowDefinitionsTable
             definitions={definitions}
             isPending={definitionsQuery.isPending}
             isError={definitionsQuery.isError}
+            isRefreshing={definitionsQuery.isRefetching}
             sync={sync ?? null}
             runError={runError}
             runningDefinitionId={
@@ -140,234 +130,6 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
       />
     </div>
   );
-}
-
-function WorkflowDefinitionsList({
-  definitions,
-  isPending,
-  isError,
-  sync,
-  runError,
-  runningDefinitionId,
-  hasNextPage,
-  isFetchingNextPage,
-  isFetchNextPageError,
-  onRetry,
-  onLoadMore,
-  onOpenDefinition,
-  onRun,
-}: {
-  definitions: Definition[];
-  isPending: boolean;
-  isError: boolean;
-  sync: DefinitionSyncSummary | null;
-  runError: {definitionId: string; message: string} | null;
-  runningDefinitionId: string | null;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  isFetchNextPageError: boolean;
-  onRetry: () => void;
-  onLoadMore: () => void;
-  onOpenDefinition: (definition: Definition) => void;
-  onRun: (definition: Definition) => void;
-}) {
-  if (isPending) {
-    return (
-      <Panel role="status" aria-label="Loading workflows" className="divide-y">
-        <Skeleton className="h-44 w-full rounded-none" />
-        <Skeleton className="h-44 w-full rounded-none" />
-        <Skeleton className="h-44 w-full rounded-none" />
-      </Panel>
-    );
-  }
-
-  if (isError && definitions.length === 0) {
-    return (
-      <Panel role="region" aria-label="Workflow definitions">
-        <LoadErrorState
-          title="Couldn't load workflows"
-          description="Definitions could not be loaded. Source metadata remains visible."
-          onRetry={onRetry}
-          retryLabel="Retry loading workflows"
-          variant="panel"
-        />
-      </Panel>
-    );
-  }
-
-  if (definitions.length === 0) {
-    return (
-      <Panel role="region" aria-label="Workflow definitions">
-        <WorkflowEmptyState sync={sync} />
-      </Panel>
-    );
-  }
-
-  return (
-    <>
-      <Panel role="region" aria-label="Workflow definitions">
-        <div className="hidden md:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-40"></TableHead>
-                <TableHead>Workflow</TableHead>
-                <TableHead className="w-180">Updated</TableHead>
-                <TableHead className="w-80 text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {definitions.map((definition) => {
-                const runErrorMessage =
-                  runError?.definitionId === definition.id ? runError.message : null;
-                const isRunning = runningDefinitionId === definition.id;
-
-                return (
-                  // The workflow-name cell holds a `<button>` so the row is
-                  // keyboard-reachable (Tab focuses, Enter/Space activates
-                  // via native button semantics). The TableRow itself is no
-                  // longer clickable: a row-level onClick would be invisible
-                  // to keyboard users and require custom keydown handling.
-                  // The `group` class on the row still drives the Run button
-                  // reveal on hover or focus-within.
-                  <TableRow key={definition.id} className="group">
-                    <TableCell>
-                      <Icon
-                        name={sourceIcon(definition.source)}
-                        className="size-16 text-foreground-neutral-muted"
-                        aria-hidden="true"
-                      />
-                    </TableCell>
-                    <TableCell className="max-w-260">
-                      <div className="flex min-w-0 flex-col gap-tight">
-                        <button
-                          type="button"
-                          onClick={() => onOpenDefinition(definition)}
-                          className="flex min-w-0 flex-col gap-tight rounded-4 text-left outline-none focus-visible:shadow-border-interactive-with-active"
-                        >
-                          <Text size="sm" bold className="truncate">
-                            {definition.name}
-                          </Text>
-                          <Code className="truncate text-foreground-neutral-muted">
-                            {definition.configPath ?? 'Manual definition'}
-                          </Code>
-                        </button>
-                        {runErrorMessage ? (
-                          <Text size="xs" className="text-tag-error-text">
-                            {runErrorMessage}
-                          </Text>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-foreground-neutral-muted">
-                      <RelativeTime value={definition.updatedAt} />
-                    </TableCell>
-                    <TableCell>
-                      {definition.manualTrigger ? (
-                        <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                          <Button size="xs" isLoading={isRunning} onClick={() => onRun(definition)}>
-                            Run
-                          </Button>
-                        </div>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-
-        <div className="flex flex-col md:hidden">
-          {definitions.map((definition) => {
-            const runErrorMessage =
-              runError?.definitionId === definition.id ? runError.message : null;
-            const isRunning = runningDefinitionId === definition.id;
-
-            return (
-              <div
-                key={definition.id}
-                className="flex flex-col gap-inline border-b border-border-neutral-base p-panel-compact last:border-b-0"
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 items-start gap-inline text-left"
-                  onClick={() => onOpenDefinition(definition)}
-                >
-                  <Icon
-                    name={sourceIcon(definition.source)}
-                    className="size-16 shrink-0 text-foreground-neutral-muted"
-                    aria-hidden="true"
-                  />
-                  <div className="flex min-w-0 flex-col gap-tight">
-                    <Text size="sm" bold className="break-words">
-                      {definition.name}
-                    </Text>
-                    <Code className="break-words text-foreground-neutral-muted">
-                      {definition.configPath ?? 'Manual definition'}
-                    </Code>
-                  </div>
-                </button>
-                <div className="flex items-center justify-between gap-inline">
-                  <Text size="xs" className="text-foreground-neutral-muted">
-                    Updated <RelativeTime value={definition.updatedAt} />
-                  </Text>
-                  {definition.manualTrigger ? (
-                    <Button size="sm" isLoading={isRunning} onClick={() => onRun(definition)}>
-                      Run
-                    </Button>
-                  ) : null}
-                </div>
-                {runErrorMessage ? (
-                  <Text size="xs" className="text-tag-error-text">
-                    {runErrorMessage}
-                  </Text>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </Panel>
-
-      {isFetchNextPageError ? (
-        <Callout role="alert" type="error">
-          <div className="flex items-center justify-between gap-cluster">
-            <Text size="sm">Could not load more workflows.</Text>
-            <Button size="sm" variant="secondary" onClick={onLoadMore}>
-              Retry
-            </Button>
-          </div>
-        </Callout>
-      ) : null}
-
-      {hasNextPage ? (
-        <div className="flex justify-center">
-          <Button size="sm" variant="secondary" isLoading={isFetchingNextPage} onClick={onLoadMore}>
-            Load more
-          </Button>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function sourceIcon(source: 'manual' | 'vcs'): IconName {
-  return source === 'vcs' ? ('gitBranchLine' as IconName) : ('terminalLine' as IconName);
-}
-
-function WorkflowEmptyState({sync}: {sync: DefinitionSyncSummary | null}) {
-  let message = 'Workflow sync has not reported yet.';
-  if (sync?.status === 'failed' && sync.lastErrorCode === 'no-workflow-files') {
-    message = 'No workflow files found under .shipfox/workflows/.';
-  } else if (sync?.status === 'failed') {
-    message = sync.lastErrorMessage ?? 'Workflow definitions could not be synced.';
-  } else if (sync?.status === 'syncing') {
-    message = 'Workflow definitions are being discovered.';
-  } else if (sync?.status === 'succeeded') {
-    message = 'No workflow definitions found.';
-  }
-
-  return <EmptyState icon="flowChart" title="No workflows" description={message} variant="panel" />;
 }
 
 function WorkflowSyncAlert({sync}: {sync: DefinitionSyncSummary | null | undefined}) {
