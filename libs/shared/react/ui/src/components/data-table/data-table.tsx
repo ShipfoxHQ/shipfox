@@ -1,4 +1,11 @@
-import type {ReactTable, Row, RowData, TableFeatures, TableState} from '@tanstack/react-table';
+import type {
+  Column,
+  ReactTable,
+  Row,
+  RowData,
+  TableFeatures,
+  TableState,
+} from '@tanstack/react-table';
 import type {ComponentProps, CSSProperties, ReactNode} from 'react';
 import {Panel, PanelHeader} from '#components/panel/index.js';
 import {Skeleton} from '#components/skeleton/index.js';
@@ -155,6 +162,22 @@ function getIsSelected<TFeatures extends TableFeatures, TData extends RowData>(
   return rowWithSelection.getIsSelected?.() ?? false;
 }
 
+function getColumnAriaSort<TFeatures extends TableFeatures, TData extends RowData>(
+  column: Column<TFeatures, TData, unknown>,
+): ComponentProps<'th'>['aria-sort'] {
+  const sortableColumn = column as typeof column & {
+    getCanSort?: () => boolean;
+    getIsSorted?: () => false | 'asc' | 'desc';
+  };
+
+  if (!sortableColumn.getCanSort?.()) return undefined;
+
+  const direction = sortableColumn.getIsSorted?.();
+  if (direction === 'asc') return 'ascending';
+  if (direction === 'desc') return 'descending';
+  return 'none';
+}
+
 export function DataTable<
   TFeatures extends TableFeatures,
   TData extends RowData,
@@ -223,7 +246,11 @@ export function DataTable<
   }
 
   return (
-    <Panel className={className} data-component="data-table">
+    <Panel
+      className={className}
+      data-component="data-table"
+      data-density={isCompact ? 'compact' : undefined}
+    >
       {toolbar ? <PanelHeader data-slot="data-table-toolbar">{toolbar}</PanelHeader> : null}
       <Table
         {...accessibleName}
@@ -240,6 +267,7 @@ export function DataTable<
                 return (
                   <TableHead
                     key={header.id}
+                    aria-sort={getColumnAriaSort(header.column)}
                     colSpan={header.colSpan}
                     rowSpan={header.rowSpan > 1 ? header.rowSpan : undefined}
                     className={cn(isCompact && 'h-32 px-8')}

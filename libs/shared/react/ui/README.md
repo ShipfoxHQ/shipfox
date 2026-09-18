@@ -207,6 +207,81 @@ default. `shouldResetDataTableSelection()` exposes that policy for feature-owned
 state transitions. Only override a page reset when the feature owns a defined
 cross-page bulk action.
 
+#### Sorting and filters
+
+`DataTableToolbar` lays out feature-owned controls. Pass Search, Select,
+Combobox, DatePicker, or DateRangePicker components as children. The toolbar
+doesn't define filter state or a filter schema.
+
+Use `clearFiltersAction` for the feature's reset button. `resultCount` renders
+visible feedback in a polite live region. The `actions` slot holds view controls
+such as `DataTableColumnVisibility`.
+
+Sortable and hideable columns use TanStack features. Add
+`DataTableColumnMeta` through `metaHelper()` so visibility labels stay typed.
+
+```tsx
+import {
+  columnVisibilityFeature,
+  createColumnHelper,
+  createSortedRowModel,
+  metaHelper,
+  rowSortingFeature,
+  tableFeatures,
+} from '@tanstack/react-table';
+import {
+  DataTableColumnVisibility,
+  type DataTableColumnMeta,
+  DataTableSortableHeader,
+  DataTableToolbar,
+} from '@shipfox/react-ui/data-table';
+
+const interactiveFeatures = tableFeatures({
+  columnMeta: metaHelper<DataTableColumnMeta>(),
+  columnVisibilityFeature,
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+const interactiveColumnHelper = createColumnHelper<typeof interactiveFeatures, Workflow>();
+const interactiveColumns = interactiveColumnHelper.columns([
+  interactiveColumnHelper.accessor('name', {
+    enableHiding: false,
+    header: ({column}) => <DataTableSortableHeader column={column} label="Workflow" />,
+    meta: {label: 'Workflow'},
+  }),
+]);
+
+<DataTableToolbar
+  resultCount={table.getRowModel().rows.length}
+  clearFiltersAction={clearFiltersButton}
+  actions={<DataTableColumnVisibility table={table} />}
+>
+  {featureFilters}
+</DataTableToolbar>;
+```
+
+Set `enableHiding: false` on primary identity and required action columns.
+Column visibility uses the table's local state by default. DataTable doesn't
+write browser storage.
+
+Client-side sorting registers `createSortedRowModel()`. Manual sorting sets
+`manualSorting: true` and passes server-sorted data. Reset pagination in the
+feature callback that owns both values:
+
+```tsx
+const table = useTable({
+  columns,
+  data: serverSortedWorkflows,
+  features,
+  manualSorting: true,
+  state: {sorting},
+  onSortingChange: (updater) => {
+    setSorting(updater);
+    setPageIndex(0);
+  },
+});
+```
+
 Version 2 removes `Card`. Migrate `Card` to `Panel`, `CardHeader` to
 `PanelHeader variant="plain"`, `CardTitle` to `PanelTitle`, `CardContent` to
 `PanelBody`, `CardAction` to `PanelActions`, and `CardDescription` to a `Text`
