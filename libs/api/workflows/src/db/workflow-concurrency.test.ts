@@ -4,10 +4,116 @@ import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
 import * as workflowMetrics from '#metrics/instance.js';
 import {workflowRunFactory} from '#test/factories/workflow-run.js';
 import {workflowConcurrencyClaims} from './schema/workflow-concurrency-claims.js';
-import {admitWorkflowConcurrencyClaim} from './workflow-concurrency.js';
+import {workflowRuns} from './schema/workflow-runs.js';
+import {
+  admitWorkflowConcurrencyClaim,
+  listWorkflowConcurrencyRepairCandidates,
+  promoteWorkflowConcurrencyWaiter,
+  releaseWorkflowConcurrencyClaimForAttempt,
+} from './workflow-concurrency.js';
 import {listWorkflowRunConcurrencyByAttemptIds} from './workflow-runs/concurrency.js';
 
 describe('workflow concurrency claims', () => {
+  test('releases a terminal holder, promotes its waiter, and is idempotent', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const [holderRun, waiterRun] = await Promise.all([
+      workflowRunFactory.create({projectId, definitionId}),
+      workflowRunFactory.create({projectId, definitionId}),
+    ]);
+    const [holderAttempt = '', waiterAttempt = ''] = await Promise.all(
+      [holderRun.id, waiterRun.id].map(async (workflowRunId) => {
+        const [attempt] = await db()
+          .select({id: workflowRunAttempts.id})
+          .from(workflowRunAttempts)
+          .where(eq(workflowRunAttempts.workflowRunId, workflowRunId));
+        return attempt?.id ?? '';
+      }),
+    );
+    const holder = await admitWorkflowConcurrencyClaim({
+      workflowRunId: holderRun.id,
+      workflowRunAttemptId: holderAttempt,
+      concurrency: {group: 'repair', scope: 'workflow', cancelInProgress: false},
+    });
+    await admitWorkflowConcurrencyClaim({
+      workflowRunId: waiterRun.id,
+      workflowRunAttemptId: waiterAttempt,
+      concurrency: {group: 'repair', scope: 'workflow', cancelInProgress: false},
+    });
+
+    const finishedAt = new Date();
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'succeeded', finishedAt})
+      .where(eq(workflowRunAttempts.id, holderAttempt));
+    await db()
+      .update(workflowRuns)
+      .set({status: 'succeeded', finishedAt})
+      .where(eq(workflowRuns.id, holderRun.id));
+
+    const repaired = await releaseWorkflowConcurrencyClaimForAttempt(holderAttempt);
+    const retry = await releaseWorkflowConcurrencyClaimForAttempt(holderAttempt);
+    const claims = await db()
+      .select({id: workflowConcurrencyClaims.id, state: workflowConcurrencyClaims.state})
+      .from(workflowConcurrencyClaims)
+      .where(eq(workflowConcurrencyClaims.projectId, projectId));
+
+    expect(repaired).toMatchObject({changed: true, promotedClaim: {state: 'acquired'}});
+    expect(retry).toEqual({changed: false, promotedClaim: null});
+    expect(claims).toEqual(
+      expect.arrayContaining([
+        {id: holder.claim.id, state: 'released'},
+        {id: repaired.promotedClaim?.id, state: 'acquired'},
+      ]),
+    );
+  });
+
+  test('promotes an orphaned waiter and is idempotent', async () => {
+    const projectId = crypto.randomUUID();
+    const definitionId = crypto.randomUUID();
+    const [holderRun, waiterRun] = await Promise.all([
+      workflowRunFactory.create({projectId, definitionId}),
+      workflowRunFactory.create({projectId, definitionId}),
+    ]);
+    const attemptId = async (workflowRunId: string) => {
+      const [attempt] = await db()
+        .select({id: workflowRunAttempts.id})
+        .from(workflowRunAttempts)
+        .where(eq(workflowRunAttempts.workflowRunId, workflowRunId));
+      return attempt?.id ?? '';
+    };
+    const holder = await admitWorkflowConcurrencyClaim({
+      workflowRunId: holderRun.id,
+      workflowRunAttemptId: await attemptId(holderRun.id),
+      concurrency: {group: 'orphan', scope: 'workflow', cancelInProgress: false},
+    });
+    const waiter = await admitWorkflowConcurrencyClaim({
+      workflowRunId: waiterRun.id,
+      workflowRunAttemptId: await attemptId(waiterRun.id),
+      concurrency: {group: 'orphan', scope: 'workflow', cancelInProgress: false},
+    });
+    const now = new Date();
+    await db()
+      .update(workflowConcurrencyClaims)
+      .set({state: 'released', releasedAt: now, stateChangedAt: now, updatedAt: now})
+      .where(eq(workflowConcurrencyClaims.id, holder.claim.id));
+
+    const repaired = await promoteWorkflowConcurrencyWaiter(waiter.claim.id);
+    const retry = await promoteWorkflowConcurrencyWaiter(waiter.claim.id);
+
+    expect(repaired).toMatchObject({
+      changed: true,
+      promotedClaim: {id: waiter.claim.id, state: 'acquired'},
+    });
+    expect(retry).toEqual({changed: false, promotedClaim: null});
+  });
+
+  test('keeps a repair page bounded', async () => {
+    const page = await listWorkflowConcurrencyRepairCandidates(1);
+
+    expect(page.candidates.length).toBeLessThanOrEqual(1);
+  });
+
   test('records committed admission metrics and ignores a caller-owned rollback', async () => {
     const outcomeMetric = vi.spyOn(workflowMetrics, 'recordWorkflowConcurrencyClaimOutcome');
     const supersededMetric = vi.spyOn(workflowMetrics, 'recordWorkflowConcurrencyWaiterSuperseded');

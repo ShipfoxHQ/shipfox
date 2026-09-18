@@ -11,6 +11,8 @@ export const WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED =
   'workflows.workflow_concurrency.waiter_superseded' as const;
 export const WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED =
   'workflows.workflow_concurrency.holder_cancellation_requested' as const;
+export const WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED =
+  'workflows.workflow_concurrency.acquired' as const;
 // Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
 // Intent fact for cooperative run cancellation. Consumers use this to stop orchestration.
@@ -78,6 +80,11 @@ export const workflowsWorkflowConcurrencyHolderCancellationRequestedSchema =
   });
 export type WorkflowsWorkflowConcurrencyHolderCancellationRequestedEventDto = z.infer<
   typeof workflowsWorkflowConcurrencyHolderCancellationRequestedSchema
+>;
+
+export const workflowsWorkflowConcurrencyAcquiredSchema = workflowConcurrencyClaimEventBaseSchema;
+export type WorkflowsWorkflowConcurrencyAcquiredEventDto = z.infer<
+  typeof workflowsWorkflowConcurrencyAcquiredSchema
 >;
 
 // Keep outbox terminal statuses narrower than the public status schemas, which
@@ -311,6 +318,7 @@ export interface WorkflowsEventMapDto {
   [WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED]: WorkflowsWorkflowRunAttemptCreatedEventDto;
   [WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED]: WorkflowsWorkflowConcurrencyWaiterSupersededEventDto;
   [WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED]: WorkflowsWorkflowConcurrencyHolderCancellationRequestedEventDto;
+  [WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED]: WorkflowsWorkflowConcurrencyAcquiredEventDto;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEventDto;
   [WORKFLOWS_JOB_EXECUTION_QUEUED]: WorkflowsJobExecutionQueuedEventDto;
@@ -329,6 +337,7 @@ export const workflowsEventSchemas = {
     workflowsWorkflowConcurrencyWaiterSupersededSchema,
   [WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED]:
     workflowsWorkflowConcurrencyHolderCancellationRequestedSchema,
+  [WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED]: workflowsWorkflowConcurrencyAcquiredSchema,
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
   [WORKFLOWS_JOB_EXECUTION_QUEUED]: workflowsJobExecutionQueuedSchema,

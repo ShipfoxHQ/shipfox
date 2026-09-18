@@ -79,6 +79,20 @@ describe('workflow concurrency metrics', () => {
     expect(counterAdd('workflows_concurrency_waiter_supersessions')).toHaveBeenCalledWith(1);
   });
 
+  test('records repair outcomes with stable categories only', () => {
+    metrics.recordWorkflowConcurrencyRepair('terminal_holder', 'repaired');
+    metrics.recordWorkflowConcurrencyRepair('orphaned_group', 'no_op');
+
+    expect(counterAdd('workflows_concurrency_repairs')).toHaveBeenNthCalledWith(1, 1, {
+      category: 'terminal_holder',
+      outcome: 'repaired',
+    });
+    expect(counterAdd('workflows_concurrency_repairs')).toHaveBeenNthCalledWith(2, 1, {
+      category: 'orphaned_group',
+      outcome: 'no_op',
+    });
+  });
+
   test('records cancellation outcomes without entity labels', () => {
     metrics.recordWorkflowConcurrencyCancellationOutcome('requested', 2);
     metrics.recordWorkflowConcurrencyCancellationOutcome('completed');

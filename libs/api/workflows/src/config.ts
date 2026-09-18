@@ -28,6 +28,14 @@ export const config = createConfig({
     desc: 'Maximum duration, in milliseconds, of one server-executed tool provider call.',
     default: 30_000,
   }),
+  WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS: num({
+    desc: 'Delay, in milliseconds, between bounded workflow concurrency repair scans.',
+    default: 1_000,
+  }),
+  WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE: num({
+    desc: 'Maximum number of workflow concurrency drift candidates repaired in one scan.',
+    default: 100,
+  }),
 });
 
 export const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
@@ -36,6 +44,18 @@ export interface ToolStepExecutorConfigValues {
   pollIntervalMs: number;
   concurrency: number;
   callTimeoutMs: number;
+}
+
+export function validateWorkflowConcurrencyRepairConfig(values: {
+  pollIntervalMs: number;
+  batchSize: number;
+}): void {
+  assertPositiveSafeInteger(
+    'WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS',
+    values.pollIntervalMs,
+    true,
+  );
+  assertPositiveSafeInteger('WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE', values.batchSize, false);
 }
 
 export function validateToolStepExecutorConfig(values: ToolStepExecutorConfigValues): void {
@@ -56,6 +76,11 @@ validateToolStepExecutorConfig({
   pollIntervalMs: config.WORKFLOWS_TOOL_STEP_POLL_INTERVAL_MS,
   concurrency: config.WORKFLOWS_TOOL_STEP_EXECUTOR_CONCURRENCY,
   callTimeoutMs: config.WORKFLOWS_TOOL_STEP_CALL_TIMEOUT_MS,
+});
+
+validateWorkflowConcurrencyRepairConfig({
+  pollIntervalMs: config.WORKFLOWS_CONCURRENCY_REPAIR_POLL_INTERVAL_MS,
+  batchSize: config.WORKFLOWS_CONCURRENCY_REPAIR_BATCH_SIZE,
 });
 
 /** Raised when the configured runner catalog cannot be read, parsed, or validated. */

@@ -43,6 +43,13 @@ export {
   type AdmitWorkflowConcurrencyClaimResult,
   admitWorkflowConcurrencyClaim,
   getWorkflowRunAttemptConcurrencyAdmission,
+  listWorkflowConcurrencyRepairCandidates,
+  promoteWorkflowConcurrencyWaiter,
+  releaseWorkflowConcurrencyClaimForAttempt,
+  type WorkflowConcurrencyRepairCandidate,
+  type WorkflowConcurrencyRepairCandidatePage,
+  type WorkflowConcurrencyRepairCategory,
+  type WorkflowConcurrencyRepairResult,
   type WorkflowRunAttemptConcurrencyAdmission,
 } from './workflow-concurrency.js';
 export type {
