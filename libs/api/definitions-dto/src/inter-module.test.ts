@@ -137,7 +137,7 @@ describe('definitionsInterModuleContract', () => {
         triggers: {manual: {source: 'manual', event: 'fire'}},
         warnings: [{code: 'warning', message: 'Use a pinned runner', path: 'runner'}],
       }),
-    ).toMatchObject({workflow: {id: WORKFLOW_ID}, commit: COMMIT});
+    ).toMatchObject({workflow: {id: WORKFLOW_ID}, ref: REF, commit: COMMIT});
     expect(
       list.output.parse({
         commit: COMMIT,
