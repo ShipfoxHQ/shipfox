@@ -3,7 +3,7 @@ import {QueryClient} from '@tanstack/react-query';
 import {createMemoryHistory} from '@tanstack/react-router';
 import {flushSync} from 'react-dom';
 import {createRoot, type Root} from 'react-dom/client';
-import {auth, ClientApp, workspaceSetup} from './main';
+import {auth, ClientApp, PackedDataTableFixture, workspaceSetup} from './main';
 import {readProviderEvidence, resetProviderEvidence} from './provider';
 import {router} from './shipfox-app.gen';
 
@@ -42,6 +42,15 @@ function heading(name: string): Element | undefined {
     (element) => element.textContent?.trim() === name,
   );
 }
+
+test('renders the packed data-table public contract', () => {
+  flushSync(() => root.render(<PackedDataTableFixture />));
+
+  expect(container.querySelector('table[aria-label="Packed workflows"]')).toBeTruthy();
+  expect(container.textContent).toContain('Workflow');
+  expect(container.textContent).toContain('Packed workflow');
+  expect(container.querySelector('[data-row-id="packed-workflow"]')).toBeTruthy();
+});
 
 test('reports a missing external config fragment', async () => {
   window.__SHIPFOX_CONFIG__ = undefined;

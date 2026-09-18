@@ -4,7 +4,7 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## What it does
 
-- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
 - **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
 - **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).
@@ -98,6 +98,57 @@ export function ProjectList() {
 keep panels flat. Rows use a neutral hover surface, and status stays in glyphs or
 pills. Use `PanelHeader` with `variant="plain"` for a titled block on a focused
 surface.
+
+### Tables
+
+Choose the table API by behavior:
+
+| Need | API |
+| --- | --- |
+| Fixed read-only rows without dataset controls | `@shipfox/react-ui/table` |
+| Sorting, filtering, pagination, selection, visibility, or shared data states | `@shipfox/react-ui/data-table` |
+
+`DataTable` renders a configured TanStack Table instance. The feature keeps
+ownership of columns, row models, data fetching, route state, and browser state.
+The feature must also supply a stable `getRowId` when array position is not
+durable.
+
+```tsx
+import {createColumnHelper, tableFeatures, useTable} from '@tanstack/react-table';
+import {DataTable} from '@shipfox/react-ui/data-table';
+
+interface Workflow {
+  id: string;
+  name: string;
+}
+
+const features = tableFeatures({});
+const columnHelper = createColumnHelper<typeof features, Workflow>();
+const columns = columnHelper.columns([
+  columnHelper.accessor('name', {header: 'Workflow'}),
+]);
+
+export function WorkflowTable({workflows}: {workflows: Workflow[]}) {
+  const table = useTable({
+    columns,
+    data: workflows,
+    features,
+    getRowId: (workflow) => workflow.id,
+  });
+
+  return (
+    <DataTable
+      table={table}
+      aria-label="Project workflows"
+      emptyContent="No workflows yet."
+    />
+  );
+}
+```
+
+`DataTableLoading` and `DataTableEmpty` expose the table-body states for custom
+composition. `DataTable` uses them automatically for initial loading and empty
+results. Background refresh keeps current rows visible and sets `aria-busy`.
 
 Version 2 removes `Card`. Migrate `Card` to `Panel`, `CardHeader` to
 `PanelHeader variant="plain"`, `CardTitle` to `PanelTitle`, `CardContent` to

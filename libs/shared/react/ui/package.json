@@ -106,6 +106,7 @@
     "@radix-ui/react-tooltip": "catalog:",
     "@remixicon/react": "catalog:",
     "@swc/helpers": "catalog:",
+    "@tanstack/react-table": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "catalog:",
