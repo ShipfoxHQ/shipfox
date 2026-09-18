@@ -1,7 +1,6 @@
 import {MAX_RUNNER_LABELS} from '@shipfox/runner-labels';
 import {z} from 'zod';
 import {runnerLabelSchema} from './register.js';
-import {runnerToolCapabilitiesSchema} from './tool-capabilities.js';
 
 export const runnerBootstrapExchangeBodySchema = z
   .object({bootstrap_token: z.string().min(1)})
@@ -40,14 +39,11 @@ export const runnerBootstrapExchangeResponseSchema = z.object({
   control_session_token: z.string().min(1),
   expires_at: z.string().datetime(),
 });
-export const runnerEnrollmentBodySchema = z
-  .object({
-    labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
-    capabilities: runnerToolCapabilitiesSchema.optional(),
-    provider_kind: z.string().min(1).max(64),
-    protocol_version: z.string().min(1).max(64),
-  })
-  .strict();
+export const runnerEnrollmentBodySchema = z.object({
+  labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
+  provider_kind: z.string().min(1).max(64),
+  protocol_version: z.string().min(1).max(64),
+});
 export const runnerEnrollmentResponseSchema = z.object({
   activation_token: z.string().min(1).nullable(),
 });

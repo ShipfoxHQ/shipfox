@@ -379,7 +379,6 @@ describe('enrollRunnerControlSession', () => {
       runnerInstanceId,
       provisionerId,
       labels: ['gpu'],
-      capabilities: {harnesses: {claude: {tools: ['bash']}}},
       providerKind: 'docker',
       protocolVersion: '2',
     });
@@ -409,9 +408,6 @@ describe('enrollRunnerControlSession', () => {
   it('repairs assignment metadata when a provider report precedes assignment commit', async () => {
     const provisionerId = crypto.randomUUID();
     const reservation = await createReservation({provisionerId});
-    const capabilities: RunnerToolCapabilitiesDto = {
-      harnesses: {pi: {tools: ['read']}},
-    };
     const runnerInstanceId = await createRunner({
       provisionerId,
       intendedReservationId: reservation.id,
@@ -423,7 +419,6 @@ describe('enrollRunnerControlSession', () => {
       runnerInstanceId,
       provisionerId,
       labels: ['linux'],
-      capabilities,
       providerKind: 'ec2',
       protocolVersion: '1',
     });
@@ -451,7 +446,7 @@ describe('enrollRunnerControlSession', () => {
       labels: ['linux'],
       providerKind: 'ec2',
       protocolVersion: '1',
-      capabilities,
+      capabilities: null,
       state: 'running',
     });
   });
@@ -533,16 +528,12 @@ describe('enrollRunnerControlSession', () => {
 
   it('updates metadata during enrollment for an unassigned runner', async () => {
     const provisionerId = crypto.randomUUID();
-    const capabilities: RunnerToolCapabilitiesDto = {
-      harnesses: {pi: {tools: ['read']}},
-    };
     const runnerInstanceId = await createRunner({provisionerId});
 
     const activationToken = await enrollRunnerControlSession({
       runnerInstanceId,
       provisionerId,
       labels: ['linux'],
-      capabilities,
       providerKind: 'docker',
       protocolVersion: '1',
     });
@@ -564,7 +555,7 @@ describe('enrollRunnerControlSession', () => {
       labels: ['linux'],
       providerKind: 'docker',
       protocolVersion: '1',
-      capabilities,
+      capabilities: null,
       state: 'running',
     });
   });

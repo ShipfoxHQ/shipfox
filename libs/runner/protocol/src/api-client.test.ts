@@ -130,7 +130,6 @@ describe('api-client auth contexts', () => {
 
     const enrollmentActivationToken = await enrollRunnerControlSession({
       controlSessionToken: 'control-token',
-      capabilities: TOOL_CAPABILITIES,
       providerKind: 'ec2',
       protocolVersion: '1',
     });
@@ -140,7 +139,6 @@ describe('api-client auth contexts', () => {
     expect(calls[0]?.authorization).toBe('Bearer control-token');
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
       labels: ['linux', 'x64'],
-      capabilities: TOOL_CAPABILITIES,
       provider_kind: 'ec2',
       protocol_version: '1',
     });

@@ -1,4 +1,3 @@
-import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import type {NodePgDatabase} from '@shipfox/node-drizzle';
 import {logger} from '@shipfox/node-opentelemetry';
 import {extractDisplayPrefix, generateOpaqueToken, hashOpaqueToken} from '@shipfox/node-tokens';
@@ -258,7 +257,6 @@ export async function enrollRunnerControlSession(params: {
   runnerInstanceId: string;
   provisionerId: string;
   labels: string[];
-  capabilities?: RunnerToolCapabilitiesDto | null;
   providerKind: string;
   protocolVersion: string;
 }): Promise<string | null> {
@@ -315,7 +313,6 @@ export async function enrollRunnerControlSession(params: {
         }),
         providerKind: params.providerKind,
         protocolVersion: params.protocolVersion,
-        capabilities: params.capabilities ?? null,
       })
       .where(
         and(

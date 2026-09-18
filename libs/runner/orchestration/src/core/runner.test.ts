@@ -1054,7 +1054,6 @@ describe('startRunner', () => {
     expect(mockExchangeRunnerBootstrapToken).toHaveBeenCalledWith('sf_rbt_bootstrap-token');
     expect(mockEnrollRunnerControlSession).toHaveBeenCalledWith({
       controlSessionToken: 'control-token',
-      capabilities: {harnesses: {pi: {tools: ['read']}}},
       providerKind: 'ec2',
       protocolVersion: '1',
     });

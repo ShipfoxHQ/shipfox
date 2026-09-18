@@ -235,13 +235,11 @@ export async function exchangeRunnerBootstrapToken(
 
 export async function enrollRunnerControlSession(params: {
   controlSessionToken: string;
-  capabilities: RunnerToolCapabilitiesDto;
   providerKind: string;
   protocolVersion: string;
 }): Promise<string | null> {
   const body = runnerEnrollmentBodySchema.parse({
     labels: configuredRunnerLabels(),
-    capabilities: params.capabilities,
     provider_kind: params.providerKind,
     protocol_version: params.protocolVersion,
   });

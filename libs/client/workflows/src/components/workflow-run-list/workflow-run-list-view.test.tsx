@@ -502,7 +502,9 @@ describe('WorkflowRunListView', () => {
     });
 
     test('labels a local dev run without showing its fallback checkout as provenance', async () => {
-      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides('local'))]);
+      renderListView([run('succeeded', 'triage-sentry', 'run-1', devRunOverrides('local'))], {
+        search: {origin: 'dev'},
+      });
 
       expect(await screen.findByText('triage-sentry')).toBeInTheDocument();
       expect(screen.getByText('Dev · local file')).toHaveClass('bg-tag-purple-bg');
