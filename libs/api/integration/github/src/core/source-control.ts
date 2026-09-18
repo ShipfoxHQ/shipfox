@@ -36,6 +36,7 @@ import {
 import type {
   GithubApiClient,
   GithubInstallationAccessToken,
+  GithubInstallationAccessTokenPermissions,
   GithubRepository,
 } from '#api/client.js';
 import {
@@ -53,6 +54,14 @@ type GithubIntegrationConnection = IntegrationConnection<'github'>;
 const GITHUB_PROVIDER = 'github';
 const SEARCH_PAGE_SIZE = 100;
 const SEARCH_MAX_PAGES_PER_REQUEST = 5;
+
+function githubCheckoutTokenPermissions(permissions: {
+  contents: 'read' | 'write';
+}): GithubInstallationAccessTokenPermissions {
+  return permissions.contents === 'write'
+    ? {contents: 'write', workflows: 'write'}
+    : {contents: 'read'};
+}
 
 function buildGithubTriggerReference(
   repositoryId: string | null,
@@ -309,11 +318,12 @@ export class GithubSourceControlProvider
     permissions: {contents: 'read' | 'write'};
     rejectedGeneration?: string | undefined;
   }): Promise<CheckoutCredentials> {
+    const tokenPermissions = githubCheckoutTokenPermissions(params.permissions);
     const mint = () =>
       this.mintCheckoutToken({
         installationId: params.installationId,
         target: params.target,
-        permissions: params.permissions,
+        permissions: tokenPermissions,
       });
     const cached =
       params.target.kind === 'external-id' && this.checkoutTokenCache
@@ -327,7 +337,7 @@ export class GithubSourceControlProvider
               installationId: params.installationId,
               repositoryId: parseGithubRepositoryLocator(params.target.externalRepositoryId)
                 .repositoryId,
-              permissions: {...params.permissions},
+              permissions: {...tokenPermissions},
             },
             mint,
             params.rejectedGeneration,
@@ -372,7 +382,7 @@ export class GithubSourceControlProvider
   private async mintCheckoutToken(params: {
     installationId: number;
     target: CheckoutTarget;
-    permissions: {contents: 'read' | 'write'};
+    permissions: GithubInstallationAccessTokenPermissions;
   }): Promise<GithubInstallationAccessToken> {
     const minted = await this.github.createInstallationAccessToken({
       installationId: params.installationId,

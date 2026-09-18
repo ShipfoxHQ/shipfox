@@ -491,7 +491,7 @@ describe('GithubSourceControlProvider', () => {
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
       installationId,
       repositoryId: 42,
-      permissions: {contents: 'write'},
+      permissions: {contents: 'write', workflows: 'write'},
     });
     expect(github.createInstallationAccessToken).toHaveBeenCalledTimes(1);
     expect(github.getRepository).toHaveBeenCalledWith({
@@ -705,13 +705,13 @@ describe('GithubSourceControlProvider', () => {
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
       installationId,
       repositoryId: 42,
-      permissions: {contents: 'write'},
+      permissions: {contents: 'write', workflows: 'write'},
     });
     expect(github.getRepository).not.toHaveBeenCalled();
     expect(github.getBotUser).not.toHaveBeenCalled();
   });
 
-  it('uses the injected exact-scope checkout cache without broad installation cache access', async () => {
+  it('adds workflow writes to the exact-scope cache for write checkouts', async () => {
     await createInstallation();
     const github = githubClient();
     const getOrMint = vi.fn<GithubCheckoutTokenCachePort['getOrMint']>(() =>
@@ -728,7 +728,7 @@ describe('GithubSourceControlProvider', () => {
     const result = await provider.createCheckoutCredentials({
       connection: connection(),
       externalRepositoryId: 'github:42',
-      permissions: {contents: 'read'},
+      permissions: {contents: 'write'},
       rejectedGeneration: 'rejected-generation',
     });
 
@@ -742,14 +742,14 @@ describe('GithubSourceControlProvider', () => {
     expect(github.createInstallationAccessToken).toHaveBeenCalledWith({
       installationId,
       repositoryId: 42,
-      permissions: {contents: 'read'},
+      permissions: {contents: 'write', workflows: 'write'},
     });
     expect(checkoutTokenCache.getOrMint).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: expect.any(String),
         installationId,
         repositoryId: 42,
-        permissions: {contents: 'read'},
+        permissions: {contents: 'write', workflows: 'write'},
       }),
       expect.any(Function),
       'rejected-generation',
