@@ -181,7 +181,10 @@ describe('WorkflowRunListView', () => {
       const user = userEvent.setup();
       renderListView([
         run('succeeded', 'deploy-web'),
-        run('running', 'triage-sentry', 'dev-run', devRunOverrides()),
+        run('running', 'triage-sentry', 'dev-run', {
+          ...devRunOverrides(),
+          workflow_name: 'Triage prompt',
+        }),
       ]);
 
       expect(await screen.findByText('deploy-web')).toBeInTheDocument();
