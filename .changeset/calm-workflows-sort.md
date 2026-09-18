@@ -2,4 +2,4 @@
 "@shipfox/client-workflows": patch
 ---
 
-Adopts the shared DataTable for project workflows with local search and sorting.
+Adds local name and path search and sortable Workflow and Updated columns to project workflows.

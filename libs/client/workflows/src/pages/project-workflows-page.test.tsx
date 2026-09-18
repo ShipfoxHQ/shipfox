@@ -257,7 +257,7 @@ describe('ProjectWorkflowsPage', () => {
                 id: '77777777-7777-4777-8777-777777777777',
                 name: 'Archive artifacts',
                 config_path: '.shipfox/workflows/archive.yml',
-                updated_at: '2026-05-08T01:00:00.000Z',
+                updated_at: '2026-05-06T01:00:00.000Z',
               },
             ],
           }),
@@ -274,7 +274,7 @@ describe('ProjectWorkflowsPage', () => {
 
     fireEvent.click(within(table).getByRole('button', {name: UNSORTED_UPDATED_REGEX}));
 
-    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Archive artifacts');
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Deploy production');
 
     fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
       target: {value: 'deploy.yml'},
