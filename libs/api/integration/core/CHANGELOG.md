@@ -1,5 +1,14 @@
 # @shipfox/api-integration-core
 
+## 27.1.0
+
+### Patch Changes
+
+- Updated dependencies [aa6726e]
+- Updated dependencies [e0b7bd1]
+  - @shipfox/api-integration-github@27.1.0
+  - @shipfox/api-workflows-dto@27.1.0
+
 ## 27.0.0
 
 ### Patch Changes
