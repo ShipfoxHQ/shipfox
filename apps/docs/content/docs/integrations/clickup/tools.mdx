@@ -1,0 +1,50 @@
+---
+title: "ClickUp tools"
+sidebarTitle: "Tools"
+description: "Look up the six ClickUp tools, selectors, permissions, and inputs available to tool steps and agent steps."
+---
+
+import ClickUpTools from '../../../generated/integrations/clickup/tools.mdx';
+
+This reference lists the six shipped ClickUp tools. See the [ClickUp
+overview](/integrations/clickup) for authentication and access boundaries.
+
+## Selectors
+
+A tool step names one standalone tool ID in its `tool` field. An agent step
+lists standalone selectors in its `integrations:` block. For the field
+contracts, see [Tool step fields](/reference/workflow-schema#tool-step-fields)
+and [Agent integration fields](/reference/workflow-schema#agent-integration-fields).
+
+## Permissions
+
+ClickUp OAuth has no fine-grained scopes. The generated catalog's `read` and
+`write` permissions classify Shipfox tool access. ClickUp makes the final
+resource permission decision for every call.
+
+Search uses the configured ClickUp workspace. Tools that accept task, List, or
+comment IDs can reach any resource that ClickUp permits for the authorizing
+account. The configured workspace is not a token-isolation boundary.
+
+An agent step's `integrations` entry must set `allow_write: true` to include a
+write tool. A tool step needs no flag because naming the write tool is the
+choice.
+
+## Read the task from an event
+
+ClickUp events contain a task ID instead of the complete task. Add this fragment
+under an existing job's `steps` list to fetch the current task:
+
+```yaml
+- key: task
+  tool: get_task
+  connection: clickup_acme # Replace with your ClickUp integration connection slug.
+  with:
+    task_id: ${{ event.task_id }}
+```
+
+The `get_task` result becomes available as `steps.task.outputs.result`.
+
+## Tool catalog
+
+<ClickUpTools />

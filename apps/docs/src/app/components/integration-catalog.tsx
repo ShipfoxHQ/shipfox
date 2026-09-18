@@ -3,7 +3,7 @@
 import {ArrowRight, Search, Webhook, X} from 'lucide-react';
 import Link from 'next/link';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {siGithub, siJira, siLinear, siSentry, siSlack} from 'simple-icons';
+import {siClickup, siGithub, siJira, siLinear, siSentry, siSlack} from 'simple-icons';
 import {captureDocsEvent} from '@/lib/docs-analytics';
 import {nextCatalogSearchState, normalizeCatalogQuery} from '@/lib/docs-analytics-core';
 import {
@@ -402,6 +402,7 @@ function ProviderIcon({icon}: {icon: CatalogIcon}) {
     return <Webhook aria-hidden="true" className="size-5 shrink-0 text-fd-muted-foreground" />;
 
   const brandIcon = {
+    clickup: siClickup,
     github: siGithub,
     jira: siJira,
     sentry: siSentry,

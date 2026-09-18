@@ -49,6 +49,11 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     capabilities: ['events', 'agent_tools'],
   },
   {
+    slug: 'clickup',
+    kind: 'catalog',
+    capabilities: ['events', 'agent_tools'],
+  },
+  {
     slug: 'cron',
     kind: 'built-in-source',
     events: ['tick'],

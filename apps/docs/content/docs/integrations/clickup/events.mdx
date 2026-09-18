@@ -1,0 +1,78 @@
+---
+title: "ClickUp events"
+sidebarTitle: "Events"
+description: "Look up the ClickUp task and comment events Shipfox delivers and the payload fields available to workflows."
+---
+
+import ClickUpEvents from '../../../generated/integrations/clickup/events.mdx';
+
+This reference lists ClickUp task and comment events that Shipfox delivers to a
+ClickUp integration connection. See the [ClickUp overview](/integrations/clickup)
+for authentication and access boundaries.
+
+## Payload
+
+ClickUp webhook payloads are thin. They identify the task and describe its
+change, but they do not contain the complete current task.
+
+Shipfox validates the ClickUp webhook envelope and adds `team_id` for the
+configured ClickUp workspace. The `event` value exposes these fields:
+
+| Field | Description |
+| --- | --- |
+| `event` | The ClickUp event name. |
+| `webhook_id` | The ClickUp webhook that delivered the event. |
+| `task_id` | The affected ClickUp task ID. |
+| `history_items` | Change records supplied by ClickUp, when the event includes them. |
+| `team_id` | The configured ClickUp workspace ID, added by Shipfox. |
+
+Each history item can include its ID, type, date, field, parent List ID, source,
+actor, and before and after values. Comment events also include the ClickUp
+comment object.
+
+`taskDeleted` contains only `event`, `webhook_id`, `task_id`, and the added
+`team_id`. It has no `history_items`, but Shipfox still delivers it.
+
+See ClickUp's [webhook reference](https://developer.clickup.com/docs/webhooks)
+and [task webhook payloads](https://developer.clickup.com/docs/webhooktaskpayloads)
+for provider-owned field details.
+
+## Visibility and write-backs
+
+ClickUp controls event visibility from the authorizing account's resource
+access. Shipfox does not receive private resources that ClickUp hides from that
+account.
+
+Shipfox delivers events authored by the account that authorized the integration
+connection. A workflow that writes back to ClickUp can trigger another run from
+its own change. Design write-back workflows so they stop deliberate feedback
+loops.
+
+## Paired deliveries
+
+One ClickUp action can produce more than one delivered event:
+
+- `taskCreated` is also delivered as `taskStatusUpdated`.
+- `taskStatusUpdated`, `taskAssigneeUpdated`, `taskPriorityUpdated`,
+  `taskDueDateUpdated`, and `taskTagUpdated` are also delivered as
+  `taskUpdated`.
+
+A source-only trigger can therefore start more than one run for one user
+action. Match the specific event name when the workflow needs one change type.
+
+## Trigger fragment
+
+Replace `clickup_acme` with the slug of your ClickUp integration connection:
+
+```yaml
+triggers:
+  on_clickup_comment:
+    source: clickup_acme
+    event: taskCommentPosted
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Event catalog
+
+<ClickUpEvents />

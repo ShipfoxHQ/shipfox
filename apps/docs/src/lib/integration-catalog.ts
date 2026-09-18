@@ -17,6 +17,7 @@ export const INTEGRATION_CATALOG_ICONS = [
   'linear',
   'slack',
   'jira',
+  'clickup',
 ] as const;
 
 export type CatalogCapability = (typeof INTEGRATION_CATALOG_CAPABILITIES)[number];

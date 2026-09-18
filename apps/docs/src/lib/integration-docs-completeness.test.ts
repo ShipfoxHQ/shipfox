@@ -39,6 +39,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 6,
       toolCount: 11,
     },
+    clickup: {
+      capabilities: ['events', 'agent_tools'],
+      eventCount: 11,
+      toolCount: 6,
+    },
   },
   integrationDirectories: {
     github: directory(
@@ -89,6 +94,16 @@ const validInput: IntegrationDocsCompletenessInput = {
         capabilities: ['events', 'agent_tools'],
         categories: ['issue-tracking'],
         aliases: ['issues', 'tickets'],
+      },
+    ),
+    clickup: directory(
+      'clickup',
+      ['index', 'setup', 'events', 'tools'],
+      ['index', 'setup', 'events', 'tools'],
+      {
+        capabilities: ['events', 'agent_tools'],
+        categories: ['issue-tracking'],
+        aliases: ['tasks', 'project management', 'tickets'],
       },
     ),
   },

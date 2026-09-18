@@ -31,6 +31,11 @@ import {
 } from '@shipfox/api-agent-access-dto';
 import {listHarnessDescriptors, MODEL_PROVIDER_CATALOG_SEED} from '@shipfox/api-agent-dto';
 import {
+  clickupAgentToolCatalog,
+  clickupAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-clickup/agent-tools';
+import {clickupEventCatalog} from '@shipfox/api-integration-clickup-dto';
+import {
   githubAgentToolCatalog,
   githubAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-github/agent-tools';
@@ -73,6 +78,11 @@ import {slugForHeading} from './lib/slug.mjs';
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const markdownLinkPattern = /^\[([^\]]+)\]\(([^)]*)\)$/;
 const dtoCatalogBySlug = {
+  clickup: {
+    eventCatalog: clickupEventCatalog,
+    toolCatalog: clickupAgentToolCatalog,
+    toolSelectionCatalog: clickupAgentToolSelectionCatalog,
+  },
   github: {
     eventCatalog: githubEventCatalog,
     toolCatalog: githubAgentToolCatalog,

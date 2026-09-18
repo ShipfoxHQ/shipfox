@@ -743,6 +743,12 @@ importers:
       '@shipfox/api-agent-dto':
         specifier: workspace:*
         version: link:../../libs/api/agent-dto
+      '@shipfox/api-integration-clickup':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/clickup
+      '@shipfox/api-integration-clickup-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/clickup-dto
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../../libs/api/integration/core-dto
