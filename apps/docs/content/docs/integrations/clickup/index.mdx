@@ -23,10 +23,9 @@ the access it needs.
 
 ## Integration connection identity
 
-Each integration connection configures one ClickUp workspace for naming,
-search, and webhook registration. This is a product boundary, not token
-isolation. ID-based tools can reach any resource that ClickUp permits for the
-authorizing account.
+When you connect ClickUp, select one workspace. Shipfox uses that workspace for
+searches and event delivery. Tools that use a task, List, or comment ID can also
+access items in other ClickUp workspaces available to the connected account.
 
 The slug of a ClickUp integration connection defaults to
 `clickup_<workspace>`, where `<workspace>` is the normalized ClickUp workspace
