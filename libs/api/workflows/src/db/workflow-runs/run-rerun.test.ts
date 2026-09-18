@@ -273,7 +273,7 @@ describe('workflow run queries', () => {
       await expect(getWorkflowRunById(waiter.id)).resolves.toMatchObject({status: 'waiting'});
     });
 
-    test('rechecks concurrency impact under the group lock after confirmation', async () => {
+    test('confirmed reruns supersede the waiter and acquire the group claim', async () => {
       const holderModel = buildModel({
         concurrency: {group: 'confirmed-rerun', cancelInProgress: true},
         jobs: {build: {steps: [{run: 'echo build'}]}},
