@@ -306,7 +306,7 @@ describe('createDevRun', () => {
 
   test('passes local content to definition resolution and records local provenance', async () => {
     const content = 'name: Local\n';
-    const params = buildParams({content});
+    const {ref: _ref, ...params} = buildParams({content});
     resolveDefinitionAtRef.mockResolvedValue({
       ...resolvedDefinition(undefined),
       ref: 'main',
@@ -325,7 +325,6 @@ describe('createDevRun', () => {
     });
     expect(resolveDefinitionAtRef).toHaveBeenCalledWith({
       projectId: params.projectId,
-      ref: params.ref,
       content,
       configPath: params.configPath,
     });
