@@ -10,6 +10,7 @@ import {
 import {writeOutboxEvents} from '@shipfox/node-outbox';
 import {and, asc, eq, gt, gte, isNotNull, or, sql} from 'drizzle-orm';
 import {db, type Transaction} from './db.js';
+import {resolveInferenceWorkflowIdentity} from './job-executions.js';
 import {usageInferenceSegments} from './schema/inference-segments.js';
 import {usageOutbox} from './schema/outbox.js';
 
@@ -30,6 +31,29 @@ export interface ListInferenceSegmentsParams {
 export interface ListInferenceSegmentsResult {
   segments: UsageInferenceSegmentRow[];
   nextCursor: InferenceSegmentUsageCursor | null;
+}
+
+type CachedWorkflowIdentity = {
+  segment: InferenceSegmentInputDto;
+  identity: Awaited<ReturnType<typeof resolveInferenceWorkflowIdentity>>;
+};
+
+async function resolveWorkflowIdentityForSegment(
+  tx: Transaction,
+  segment: InferenceSegmentInputDto,
+  cache: Map<string, CachedWorkflowIdentity>,
+): Promise<CachedWorkflowIdentity['identity']> {
+  const cached = cache.get(segment.jobExecutionId);
+  if (cached) {
+    if (!sameJobExecutionIdentity(cached.segment, segment)) {
+      throw new Error(`Inference segment identity mismatch for ${segment.jobExecutionId}`);
+    }
+    return cached.identity;
+  }
+
+  const identity = await resolveInferenceWorkflowIdentity(tx, segment);
+  cache.set(segment.jobExecutionId, {segment, identity});
+  return identity;
 }
 
 export function recordInferenceSegments(params: {
@@ -54,6 +78,7 @@ export function recordInferenceSegments(params: {
     }> = [];
     let duplicates = 0;
     const recordedAt = params.now ?? new Date();
+    const workflowIdentityByJobExecutionId = new Map<string, CachedWorkflowIdentity>();
 
     const segmentKeys = [...new Set(segments.map((segment) => segment.segmentKey))].sort();
     for (const segmentKey of segmentKeys) {
@@ -70,6 +95,12 @@ export function recordInferenceSegments(params: {
         continue;
       }
 
+      const workflowIdentity = await resolveWorkflowIdentityForSegment(
+        tx,
+        segment,
+        workflowIdentityByJobExecutionId,
+      );
+
       const [row] = await tx
         .insert(usageInferenceSegments)
         .values({
@@ -81,6 +112,8 @@ export function recordInferenceSegments(params: {
           workflowRunAttemptId: segment.workflowRunAttemptId,
           jobId: segment.jobId,
           jobExecutionId: segment.jobExecutionId,
+          workflowId: workflowIdentity.workflowId,
+          workflowName: workflowIdentity.workflowName,
           stepId: segment.stepId,
           stepAttemptId: segment.stepAttemptId,
           upstream: segment.upstream,
@@ -210,6 +243,8 @@ export function toInferenceSegmentUsage(row: UsageInferenceSegmentRow): Inferenc
     workflowRunAttemptId: row.workflowRunAttemptId,
     jobId: row.jobId,
     jobExecutionId: row.jobExecutionId,
+    workflowId: row.workflowId,
+    workflowName: row.workflowName,
     stepId: row.stepId,
     stepAttemptId: row.stepAttemptId,
     upstream: row.upstream,
@@ -226,6 +261,20 @@ export function toInferenceSegmentUsage(row: UsageInferenceSegmentRow): Inferenc
     webSearchRequests: row.webSearchRequests,
     recordedAt: row.recordedAt.toISOString(),
   };
+}
+
+function sameJobExecutionIdentity(
+  first: InferenceSegmentInputDto,
+  second: InferenceSegmentInputDto,
+): boolean {
+  return (
+    first.workspaceId === second.workspaceId &&
+    first.projectId === second.projectId &&
+    first.workflowRunId === second.workflowRunId &&
+    first.workflowRunAttemptId === second.workflowRunAttemptId &&
+    first.jobId === second.jobId &&
+    first.jobExecutionId === second.jobExecutionId
+  );
 }
 
 async function lockSegment(tx: Transaction, segmentKey: string): Promise<void> {

@@ -66,6 +66,8 @@ export async function getWorkflowContextForJob(
   workspaceId: string;
   projectId: string;
   definitionId: string;
+  workflowId: string;
+  workflowName: string;
   runNumber: number;
   vars: Record<string, string> | null;
 }> {
@@ -78,6 +80,8 @@ export async function getWorkflowContextForJob(
       workspaceId: workflowRuns.workspaceId,
       projectId: workflowRuns.projectId,
       definitionId: workflowRuns.definitionId,
+      workflowId: workflowRuns.definitionId,
+      workflowName: workflowRuns.workflowName,
       runNumber: workflowRuns.number,
       vars: workflowRunAttempts.vars,
     })

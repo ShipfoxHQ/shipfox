@@ -1,5 +1,6 @@
 import type {RunnerJobClaimedEvent, RunnerJobLeaseExpiredEvent} from '@shipfox/api-runners-dto';
 import {
+  type InferenceSegmentInputDto,
   MAX_USAGE_REPLAY_LIMIT,
   USAGE_JOB_EXECUTION_RECORDED,
   type UsageEventMap,
@@ -35,6 +36,54 @@ export interface ListJobExecutionUsageResult {
   nextCursor: JobExecutionUsageCursor | null;
 }
 
+export interface InferenceWorkflowIdentity {
+  workflowId: string;
+  workflowName: string | null;
+}
+
+export async function resolveInferenceWorkflowIdentity(
+  tx: Transaction,
+  segment: Pick<
+    InferenceSegmentInputDto,
+    | 'workspaceId'
+    | 'projectId'
+    | 'workflowRunId'
+    | 'workflowRunAttemptId'
+    | 'jobId'
+    | 'jobExecutionId'
+  >,
+): Promise<InferenceWorkflowIdentity> {
+  const [row] = await tx
+    .select()
+    .from(usageJobExecutions)
+    .where(eq(usageJobExecutions.jobExecutionId, segment.jobExecutionId));
+
+  if (!row) {
+    throw new Error(
+      `Cannot record inference segment ${segment.jobExecutionId}: Usage job execution is not projected`,
+    );
+  }
+
+  const identityMatches =
+    row.jobId === segment.jobId &&
+    row.workflowRunId === segment.workflowRunId &&
+    row.workflowRunAttemptId === segment.workflowRunAttemptId &&
+    row.workspaceId === segment.workspaceId &&
+    row.projectId === segment.projectId;
+  if (!identityMatches) {
+    throw new Error(`Inference segment identity mismatch for ${segment.jobExecutionId}`);
+  }
+
+  const workflowId = row.workflowId ?? row.definitionId;
+  if (!workflowId) {
+    throw new Error(
+      `Cannot record inference segment ${segment.jobExecutionId}: workflow identity is missing`,
+    );
+  }
+
+  return {workflowId, workflowName: row.workflowName};
+}
+
 export interface JobExecutionEventIdentity {
   jobExecutionId: string;
   jobId: string;
@@ -68,6 +117,8 @@ async function insertQueuedJobExecution(
       workspaceId: payload.workspaceId,
       projectId: payload.projectId,
       definitionId: payload.definitionId ?? null,
+      workflowId: workflowIdFromPayload(payload),
+      workflowName: payload.workflowName ?? null,
       jobKey: payload.jobKey ?? null,
       runNumber: payload.runNumber ?? null,
       requestedLabels: payload.requiredLabels,
@@ -93,6 +144,13 @@ async function updateQueuedJobExecution(
       workspaceId: current.workspaceId ?? payload.workspaceId,
       projectId: current.projectId ?? payload.projectId,
       definitionId: current.definitionId ?? payload.definitionId ?? null,
+      workflowId:
+        current.workflowId ??
+        payload.workflowId ??
+        payload.definitionId ??
+        current.definitionId ??
+        null,
+      workflowName: current.workflowName ?? payload.workflowName ?? null,
       jobKey: current.jobKey ?? payload.jobKey ?? null,
       runNumber: current.runNumber ?? payload.runNumber ?? null,
       requestedLabels: current.requestedLabels ?? payload.requiredLabels,
@@ -277,6 +335,8 @@ async function insertTerminatedJobExecution(
       workspaceId: payload.workspaceId ?? null,
       projectId: payload.projectId ?? null,
       definitionId: payload.definitionId ?? null,
+      workflowId: workflowIdFromPayload(payload),
+      workflowName: payload.workflowName ?? null,
       jobKey: payload.jobKey ?? null,
       runnerLabels: parsed.runnerLabels,
       templateKey: payload.templateKey ?? null,
@@ -321,6 +381,8 @@ async function updateTerminatedJobExecution(
       workspaceId: firstValue(current.workspaceId, payload.workspaceId),
       projectId: firstValue(current.projectId, payload.projectId),
       definitionId: firstValue(current.definitionId, payload.definitionId),
+      workflowId: firstValue(current.workflowId, payload.workflowId ?? payload.definitionId),
+      workflowName: firstValue(current.workflowName, payload.workflowName),
       jobKey: firstValue(current.jobKey, payload.jobKey),
       ...runnerIdentity,
       templateKey: firstValue(current.templateKey, payload.templateKey),
@@ -486,6 +548,8 @@ export function toJobExecutionUsage(
     workspaceId: row.workspaceId,
     projectId: row.projectId,
     definitionId: row.definitionId,
+    workflowId: row.workflowId,
+    workflowName: row.workflowName,
     jobKey: row.jobKey,
     runNumber: row.runNumber,
     requestedLabels: row.requestedLabels,
@@ -510,6 +574,13 @@ export function toJobExecutionUsage(
     state: row.state,
     recordedAt: iso(row.recordedAt),
   };
+}
+
+function workflowIdFromPayload(payload: {
+  workflowId?: string | undefined;
+  definitionId?: string | undefined;
+}): string | null {
+  return payload.workflowId ?? payload.definitionId ?? null;
 }
 
 function eventIdentity(payload: JobExecutionEventIdentity): JobExecutionEventIdentity {

@@ -16,6 +16,8 @@ export const usageJobExecutions = pgTable(
     workspaceId: uuid('workspace_id'),
     projectId: uuid('project_id'),
     definitionId: uuid('definition_id'),
+    workflowId: uuid('workflow_id'),
+    workflowName: text('workflow_name'),
     jobKey: text('job_key'),
     runNumber: integer('run_number'),
     requestedLabels: text('requested_labels').array(),

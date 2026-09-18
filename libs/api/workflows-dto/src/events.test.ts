@@ -216,6 +216,19 @@ describe('workflowsJobExecutionTerminatedSchema', () => {
     expect(result).toEqual(validJobExecutionTerminated);
   });
 
+  it('accepts explicit workflow lineage and name snapshots', () => {
+    const input = {
+      ...validJobExecutionTerminated,
+      workflowId: 'workflow-lineage-1',
+      workflowName: 'Deploy',
+    };
+
+    expect(workflowsJobExecutionTerminatedSchema.parse(input)).toMatchObject({
+      workflowId: 'workflow-lineage-1',
+      workflowName: 'Deploy',
+    });
+  });
+
   it('rejects a non-terminal status', () => {
     const parse = () =>
       workflowsJobExecutionTerminatedSchema.parse({
