@@ -121,6 +121,9 @@ export const workflowsJobExecutionQueuedSchema = z.object({
   // existed. New outbox events always include the value.
   jobKey: nonEmptyStringSchema.optional(),
   definitionId: nonEmptyStringSchema.optional(),
+  // Explicit lineage identity and name snapshot. Optional for rolling deployments.
+  workflowId: nonEmptyStringSchema.optional(),
+  workflowName: nonEmptyStringSchema.optional(),
   runNumber: z.number().int().positive().optional(),
 });
 export type WorkflowsJobExecutionQueuedEventDto = z.infer<typeof workflowsJobExecutionQueuedSchema>;
@@ -154,6 +157,9 @@ export const workflowsJobExecutionTerminatedSchema = z.object({
   workspaceId: nonEmptyStringSchema.optional(),
   projectId: nonEmptyStringSchema.optional(),
   definitionId: nonEmptyStringSchema.optional(),
+  // Explicit lineage identity and name snapshot. Optional for rolling deployments.
+  workflowId: nonEmptyStringSchema.optional(),
+  workflowName: nonEmptyStringSchema.optional(),
   jobKey: nonEmptyStringSchema.optional(),
   queuedAt: z.string().datetime().nullable().optional(),
   startedAt: z.string().datetime().nullable().optional(),

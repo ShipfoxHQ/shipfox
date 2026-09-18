@@ -15,6 +15,8 @@ export const usageInferenceSegments = pgTable(
     workflowRunAttemptId: uuid('workflow_run_attempt_id').notNull(),
     jobId: uuid('job_id').notNull(),
     jobExecutionId: uuid('job_execution_id').notNull(),
+    workflowId: uuid('workflow_id'),
+    workflowName: text('workflow_name'),
     stepId: uuid('step_id').notNull(),
     stepAttemptId: uuid('step_attempt_id').notNull(),
     upstream: text('upstream').notNull(),

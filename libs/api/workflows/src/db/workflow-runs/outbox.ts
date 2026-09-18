@@ -40,6 +40,8 @@ export async function writeJobExecutionQueuedOutbox(
       queuedAt: params.queuedAt.toISOString(),
       jobKey: identity.jobKey,
       definitionId: identity.definitionId,
+      workflowId: identity.workflowId,
+      workflowName: identity.workflowName,
       runNumber: identity.runNumber,
     },
   });
@@ -87,6 +89,8 @@ export async function writeJobExecutionTerminatedOutbox(
       workspaceId: identity.workspaceId,
       projectId: identity.projectId,
       definitionId: identity.definitionId,
+      workflowId: identity.workflowId,
+      workflowName: identity.workflowName,
       jobKey: identity.jobKey,
       status: params.status,
       finishedAt: (params.finishedAt ?? new Date()).toISOString(),

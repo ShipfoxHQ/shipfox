@@ -96,6 +96,8 @@ describe('workflow run job executions', () => {
       queuedAt: queued.queuedAt?.toISOString(),
       jobKey: job.key,
       definitionId,
+      workflowId: definitionId,
+      workflowName: run.workflowName,
       runNumber: run.number,
     });
   });
@@ -198,6 +200,8 @@ describe('workflow run job executions', () => {
         workspaceId,
         projectId,
         definitionId,
+        workflowId: definitionId,
+        workflowName: run.workflowName,
         jobKey: job.key,
         status: 'failed',
         statusReason: 'unknown',

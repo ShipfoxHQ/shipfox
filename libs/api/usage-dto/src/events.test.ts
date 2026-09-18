@@ -27,6 +27,8 @@ const validJobExecution = {
   workspaceId: ids.workspaceId,
   projectId: ids.projectId,
   definitionId: crypto.randomUUID(),
+  workflowId: crypto.randomUUID(),
+  workflowName: 'Deploy',
   jobKey: 'build',
   runNumber: 3,
   requestedLabels: ['linux'],
@@ -57,6 +59,8 @@ const validSegment = {
   segmentKey: 'gateway:segment-1',
   source: 'gateway' as const,
   ...ids,
+  workflowId: crypto.randomUUID(),
+  workflowName: 'Deploy',
   upstream: 'openai',
   model: 'gpt-5',
   dialect: 'openai-responses' as const,
@@ -108,9 +112,11 @@ describe('Usage event contracts', () => {
   });
 
   it('accepts the maximum persisted web-search count', () => {
-    const {id, recordedAt, ...validInputSegment} = validSegment;
+    const {id, recordedAt, workflowId, workflowName, ...validInputSegment} = validSegment;
     void id;
     void recordedAt;
+    void workflowId;
+    void workflowName;
     expect(
       inferenceSegmentInputSchema.parse({
         ...validInputSegment,

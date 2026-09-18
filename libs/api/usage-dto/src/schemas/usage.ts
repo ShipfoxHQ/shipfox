@@ -42,6 +42,9 @@ export const jobExecutionUsageSchema = z
     workspaceId: idSchema.nullable(),
     projectId: idSchema.nullable(),
     definitionId: idSchema.nullable(),
+    // Optional for replaying Usage events written before workflow identity was added.
+    workflowId: idSchema.nullable().optional(),
+    workflowName: nonEmptyStringSchema.nullable().optional(),
     jobKey: nonEmptyStringSchema.nullable(),
     runNumber: z.number().int().positive().nullable(),
     requestedLabels: z.array(nonEmptyStringSchema).nullable(),
@@ -107,7 +110,12 @@ export const inferenceSegmentInputSchema =
 export type InferenceSegmentInputDto = z.infer<typeof inferenceSegmentInputSchema>;
 
 const inferenceSegmentUsageObjectSchema = inferenceSegmentInputObjectSchema
-  .extend({id: idSchema, recordedAt: dateTimeSchema})
+  .extend({
+    id: idSchema,
+    workflowId: idSchema.nullable().optional(),
+    workflowName: nonEmptyStringSchema.nullable().optional(),
+    recordedAt: dateTimeSchema,
+  })
   .strict();
 export const inferenceSegmentUsageSchema =
   inferenceSegmentUsageObjectSchema.superRefine(validateInferenceWindow);
@@ -122,6 +130,9 @@ export const jobExecutionUsageHttpSchema = z
     workspace_id: idSchema,
     project_id: idSchema,
     definition_id: idSchema.nullable(),
+    // Optional for HTTP responses produced by older Usage deployments.
+    workflow_id: idSchema.nullable().optional(),
+    workflow_name: nonEmptyStringSchema.nullable().optional(),
     job_key: nonEmptyStringSchema.nullable(),
     run_number: z.number().int().positive().nullable(),
     requested_labels: z.array(nonEmptyStringSchema).nullable(),
@@ -160,6 +171,9 @@ const inferenceSegmentUsageHttpObjectSchema = z
     workflow_run_attempt_id: idSchema,
     job_id: idSchema,
     job_execution_id: idSchema,
+    // Optional for HTTP responses produced by older Usage deployments.
+    workflow_id: idSchema.nullable().optional(),
+    workflow_name: nonEmptyStringSchema.nullable().optional(),
     step_id: idSchema,
     step_attempt_id: idSchema,
     model: nonEmptyStringSchema,

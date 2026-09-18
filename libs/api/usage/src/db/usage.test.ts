@@ -40,6 +40,8 @@ function jobEvents(): JobEventSet {
   const jobId = crypto.randomUUID();
   const jobExecutionId = crypto.randomUUID();
   const definitionId = crypto.randomUUID();
+  const workflowId = definitionId;
+  const workflowName = 'Deploy';
   const queuedAt = '2026-09-04T10:00:00.000Z';
   const startedAt = '2026-09-04T10:00:01.000Z';
   const finishedAt = '2026-09-04T10:00:11.000Z';
@@ -53,6 +55,8 @@ function jobEvents(): JobEventSet {
       jobId,
       jobExecutionId,
       definitionId,
+      workflowId,
+      workflowName,
       jobKey: 'build',
       runNumber: 2,
       requiredLabels: ['linux'],
@@ -84,6 +88,8 @@ function jobEvents(): JobEventSet {
       workspaceId,
       projectId,
       definitionId,
+      workflowId,
+      workflowName,
       jobKey: 'build',
       workflowRunId,
       workflowRunAttemptId,
@@ -105,16 +111,26 @@ function jobEvents(): JobEventSet {
   };
 }
 
-function inferenceSegment(workspaceId = crypto.randomUUID()) {
+function inferenceSegment(
+  identity?: Pick<
+    WorkflowsJobExecutionQueuedEventDto,
+    | 'workspaceId'
+    | 'projectId'
+    | 'workflowRunId'
+    | 'workflowRunAttemptId'
+    | 'jobId'
+    | 'jobExecutionId'
+  >,
+) {
   return {
     segmentKey: `gateway:${crypto.randomUUID()}`,
     source: 'gateway' as const,
-    workspaceId,
-    projectId: crypto.randomUUID(),
-    workflowRunId: crypto.randomUUID(),
-    workflowRunAttemptId: crypto.randomUUID(),
-    jobId: crypto.randomUUID(),
-    jobExecutionId: crypto.randomUUID(),
+    workspaceId: identity?.workspaceId ?? crypto.randomUUID(),
+    projectId: identity?.projectId ?? crypto.randomUUID(),
+    workflowRunId: identity?.workflowRunId ?? crypto.randomUUID(),
+    workflowRunAttemptId: identity?.workflowRunAttemptId ?? crypto.randomUUID(),
+    jobId: identity?.jobId ?? crypto.randomUUID(),
+    jobExecutionId: identity?.jobExecutionId ?? crypto.randomUUID(),
     stepId: crypto.randomUUID(),
     stepAttemptId: crypto.randomUUID(),
     upstream: 'openai',
@@ -178,13 +194,18 @@ describe('Usage projections', () => {
     expect(row?.managed).toBe(true);
     expect(row?.leaseExpiredAt?.toISOString()).toBe('2026-09-04T10:00:05.000Z');
     expect(row?.durationSeconds).toBe(10);
-    expect(
-      await outboxFor(
-        'usage.job_execution.recorded',
-        'jobExecutionId',
-        events.queued.jobExecutionId,
-      ),
-    ).toHaveLength(1);
+    expect(row?.workflowId).toBe(events.queued.workflowId);
+    expect(row?.workflowName).toBe(events.queued.workflowName);
+    const recordedEvents = await outboxFor(
+      'usage.job_execution.recorded',
+      'jobExecutionId',
+      events.queued.jobExecutionId,
+    );
+    expect(recordedEvents).toHaveLength(1);
+    expect(recordedEvents[0]?.payload).toMatchObject({
+      workflowId: events.queued.workflowId,
+      workflowName: events.queued.workflowName,
+    });
 
     const duplicate = await recordJobExecutionTerminated(events.terminated);
     expect(duplicate.published).toBe(false);
@@ -284,12 +305,42 @@ describe('Usage projections', () => {
     expect(row?.durationSeconds).toBe(10);
   });
 
-  it('records inference segments idempotently and exposes replay cursors', async () => {
-    const workspaceId = crypto.randomUUID();
-    const first = inferenceSegment(workspaceId);
-    const second = inferenceSegment(workspaceId);
-    const recordedAt = new Date('2026-09-04T10:05:00.000Z');
+  it('does not record an inference segment before its job identity is projected', async () => {
+    const events = jobEvents();
+    const segment = inferenceSegment(events.queued);
 
+    await expect(recordInferenceSegments({segments: [segment]})).rejects.toThrow(
+      'Usage job execution is not projected',
+    );
+    await recordJobExecutionQueued(events.queued);
+
+    await expect(recordInferenceSegments({segments: [segment]})).resolves.toEqual({
+      recorded: 1,
+      duplicates: 0,
+    });
+    const [recorded] = (
+      await listInferenceSegments({
+        workspaceId: events.queued.workspaceId,
+        limit: 1,
+      })
+    ).segments;
+    expect(recorded).toMatchObject({
+      workflowId: events.queued.workflowId,
+      workflowName: events.queued.workflowName,
+    });
+  });
+
+  it('records inference segments idempotently and exposes replay cursors', async () => {
+    const events = jobEvents();
+    const secondEvents = jobEvents();
+    secondEvents.queued.workspaceId = events.queued.workspaceId;
+    const first = inferenceSegment(events.queued);
+    const second = inferenceSegment(secondEvents.queued);
+    const recordedAt = new Date('2026-09-04T10:05:00.000Z');
+    const workspaceId = events.queued.workspaceId;
+
+    await recordJobExecutionQueued(events.queued);
+    await recordJobExecutionQueued(secondEvents.queued);
     await expect(
       recordInferenceSegments({segments: [first, second], now: recordedAt}),
     ).resolves.toEqual({
@@ -316,6 +367,8 @@ describe('Usage projections', () => {
     if (!firstSegment) throw new Error('Expected a first inference segment');
     expect(toInferenceSegmentUsage(firstSegment)).toMatchObject({
       workspaceId,
+      workflowId: events.queued.workflowId,
+      workflowName: events.queued.workflowName,
       webSearchRequests: 3,
     });
     expect(toInferenceSegmentUsageDto(firstSegment)).toMatchObject({
@@ -329,13 +382,17 @@ describe('Usage projections', () => {
       web_search_requests: 0,
     });
 
-    const boundaryWorkspaceId = crypto.randomUUID();
-    const boundarySegment = inferenceSegment(boundaryWorkspaceId);
+    const boundaryEvents = jobEvents();
+    const boundarySegment = inferenceSegment(boundaryEvents.queued);
     boundarySegment.webSearchRequests = 2_147_483_647;
+    await recordJobExecutionQueued(boundaryEvents.queued);
     await expect(
       recordInferenceSegments({segments: [boundarySegment], now: recordedAt}),
     ).resolves.toEqual({recorded: 1, duplicates: 0});
-    const boundaryPage = await listInferenceSegments({workspaceId: boundaryWorkspaceId, limit: 1});
+    const boundaryPage = await listInferenceSegments({
+      workspaceId: boundaryEvents.queued.workspaceId,
+      limit: 1,
+    });
     const persistedBoundarySegment = boundaryPage.segments[0];
     if (!persistedBoundarySegment) throw new Error('Expected the boundary inference segment');
     expect(toInferenceSegmentUsage(persistedBoundarySegment).webSearchRequests).toBe(2_147_483_647);
@@ -379,7 +436,9 @@ describe('Usage projections', () => {
     `);
     expect(Number(partitions.rows[0]?.count)).toBeGreaterThan(200);
 
-    const future = inferenceSegment();
+    const futureEvents = jobEvents();
+    const future = inferenceSegment(futureEvents.queued);
+    await recordJobExecutionQueued(futureEvents.queued);
     await recordInferenceSegments({
       segments: [future],
       now: new Date('2032-02-15T00:00:00.000Z'),
