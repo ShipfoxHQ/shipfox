@@ -82,6 +82,10 @@ describe('workflow run queries', () => {
           sql`UPDATE ${workflowRuns} SET origin = 'dev', dev_source = '{}'::jsonb WHERE ${workflowRuns.id} = ${run.id}`,
         ),
       ).resolves.toBeDefined();
+      await expect(getWorkflowRunById(run.id)).resolves.toMatchObject({
+        origin: 'dev',
+        devSource: {definitionSource: 'ref'},
+      });
 
       await expect(
         db().update(workflowRuns).set({origin: 'synced'}).where(eq(workflowRuns.id, run.id)),
@@ -102,10 +106,14 @@ describe('workflow run queries', () => {
         .where(eq(workflowRuns.id, run.id));
     });
 
-    test('persists a dev origin with its dev source', async () => {
+    test.each([
+      'ref',
+      'local',
+    ] as const)('persists a dev origin with its %s definition source', async (definitionSource) => {
       const devSource = {
         ref: 'fix-triage-prompt',
         commit: 'a'.repeat(40),
+        definitionSource,
         configPath: '.shipfox/workflows/triage-sentry.yml',
         initiatedByUserId: crypto.randomUUID(),
         replayOfEventId: null,
@@ -142,6 +150,7 @@ describe('workflow run queries', () => {
           devSource: {
             ref: devSource.ref,
             commit: devSource.commit,
+            definition_source: devSource.definitionSource,
             config_path: devSource.configPath,
             initiated_by_user_id: devSource.initiatedByUserId,
             replay_of_event_id: devSource.replayOfEventId,
@@ -1612,6 +1621,7 @@ describe('workflow run queries', () => {
         devSource: {
           ref: 'feature/workflow',
           commit: 'a'.repeat(40),
+          definitionSource: 'ref',
           configPath: '.shipfox/workflows.yml',
           initiatedByUserId: developerUserId,
           replayOfEventId: null,

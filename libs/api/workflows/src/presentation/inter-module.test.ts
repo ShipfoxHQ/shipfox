@@ -1553,6 +1553,7 @@ describe('Workflows inter-module presentation', () => {
       name: 'Dev Workflow',
       sourceSnapshot: devInput.sourceSnapshot,
     });
+    expect(firstRun?.devSource?.definitionSource).toBe('ref');
     // Each call is a distinct intent, so the lineage number sequence continues.
     expect(secondRun).toMatchObject({definitionId: workflowId, origin: 'dev', number: 2});
   });

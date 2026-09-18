@@ -73,6 +73,7 @@ export type WorkflowRunConcurrencyDto = z.infer<typeof workflowRunConcurrencySch
 export const workflowRunDevSourceSchema = z.object({
   ref: z.string(),
   commit: z.string(),
+  definition_source: z.enum(['ref', 'local']).default('ref'),
   config_path: z.string(),
   initiated_by_user_id: z.string().uuid(),
   replay_of_event_id: z.string().uuid().nullable(),

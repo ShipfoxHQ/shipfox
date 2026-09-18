@@ -38,6 +38,7 @@ export const workflowRunRerunModeEnum = pgEnum('workflows_rerun_mode', ['all', '
 export interface WorkflowRunDevSourceDb {
   ref: string;
   commit: string;
+  definition_source?: 'ref' | 'local';
   config_path: string;
   initiated_by_user_id: string;
   replay_of_event_id: string | null;
@@ -200,6 +201,7 @@ export function toWorkflowRunOriginState(
     devSource: {
       ref: row.devSource.ref,
       commit: row.devSource.commit,
+      definitionSource: row.devSource.definition_source ?? 'ref',
       configPath: row.devSource.config_path,
       initiatedByUserId: row.devSource.initiated_by_user_id,
       replayOfEventId: row.devSource.replay_of_event_id,

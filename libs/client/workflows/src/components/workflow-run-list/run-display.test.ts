@@ -74,6 +74,7 @@ describe('runMatchesSearch', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: '88888888-8888-4888-8888-888888888888',
@@ -165,6 +166,7 @@ describe('runMatchesFilters', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,
@@ -183,6 +185,7 @@ describe('runMatchesFilters', () => {
       dev_source: {
         ref: 'fix-triage-prompt',
         commit: 'abcdef1234567890abcdef1234567890abcdef12',
+        definition_source: 'ref',
         config_path: '.shipfox/workflows/triage-sentry.yml',
         initiated_by_user_id: '99999999-9999-4999-8999-999999999999',
         replay_of_event_id: null,

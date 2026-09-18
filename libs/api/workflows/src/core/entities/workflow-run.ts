@@ -15,6 +15,7 @@ export type WorkflowRunOrigin = 'synced' | 'dev';
 export interface WorkflowRunDevSource {
   ref: string;
   commit: string;
+  definitionSource: 'ref' | 'local';
   configPath: string;
   initiatedByUserId: string;
   replayOfEventId: string | null;
