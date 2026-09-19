@@ -168,6 +168,35 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(session?.toolCapabilitiesReportedAt).toEqual(reportedAt);
   });
 
+  it('renews without a payload and preserves the session manifest', async () => {
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+    const reportedAt = new Date('2026-01-01T00:00:00.000Z');
+    await db()
+      .update(runnerSessions)
+      .set({toolCapabilities: partialCapabilities, toolCapabilitiesReportedAt: reportedAt})
+      .where(eq(runnerSessions.id, runnerSessionId));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/runners/jobs/${jobId}/heartbeat`,
+      headers: {authorization: `Bearer ${leaseToken}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({cancel: false, lease_token: expect.any(String)});
+    const [running] = await db()
+      .select()
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
+    const [session] = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, runnerSessionId));
+    expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
+    expect(session?.toolCapabilities).toEqual(partialCapabilities);
+    expect(session?.toolCapabilitiesReportedAt).toEqual(reportedAt);
+  });
+
   it('returns 200 + cancel:true after reconcileTerminalJobExecution', async () => {
     const {jobId, jobExecutionId, workflowRunId, workflowRunAttemptId, leaseToken} =
       await claimAvailableJob();
