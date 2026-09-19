@@ -1,5 +1,18 @@
 # @shipfox/api-integration-core
 
+## 28.0.0
+
+### Patch Changes
+
+- Updated dependencies [16b21f3]
+- Updated dependencies [6338cc4]
+- Updated dependencies [e8f0212]
+- Updated dependencies [d62e17e]
+- Updated dependencies [7067bc3]
+- Updated dependencies [c2f1aab]
+  - @shipfox/api-triggers-dto@28.0.0
+  - @shipfox/api-workflows-dto@28.0.0
+
 ## 27.2.0
 
 ### Minor Changes

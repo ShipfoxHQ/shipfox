@@ -1,5 +1,11 @@
 # @shipfox/client-onboarding
 
+## 48.0.0
+
+### Patch Changes
+
+- @shipfox/client-runners@48.0.0
+
 ## 47.0.0
 
 ### Patch Changes

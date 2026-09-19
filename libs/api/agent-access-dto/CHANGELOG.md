@@ -1,5 +1,15 @@
 # @shipfox/api-agent-access-dto
 
+## 28.0.0
+
+### Minor Changes
+
+- f081104: Adds local workflow content, actionable refusal details, and provenance warnings to the `create_dev_run` agent tool.
+
+### Patch Changes
+
+- c2f1aab: Allows workflow runs to fire manual triggers with parent-run causation and workflow trigger history.
+
 ## 26.1.0
 
 ### Minor Changes

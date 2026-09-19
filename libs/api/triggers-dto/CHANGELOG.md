@@ -1,5 +1,21 @@
 # @shipfox/api-triggers-dto
 
+## 28.0.0
+
+### Minor Changes
+
+- 16b21f3: Accepts local workflow `content` with an optional `ref`, and returns the resolved `ref` and validation `warnings`.
+  Adds `availableTriggerKeys` and replay-event mismatch fields to refusal details.
+- 6338cc4: Adds the `checkDevRun` inter-module command for validating dev-run definitions and trigger filters without starting a run or journaling an event.
+- c2f1aab: Allows workflow runs to fire manual triggers with parent-run causation and workflow trigger history.
+
+### Patch Changes
+
+- Updated dependencies [e8f0212]
+- Updated dependencies [d62e17e]
+- Updated dependencies [7067bc3]
+  - @shipfox/api-workflows-dto@28.0.0
+
 ## 27.2.0
 
 ### Patch Changes

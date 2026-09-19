@@ -1,5 +1,15 @@
 # @shipfox/client-triggers
 
+## 48.0.0
+
+### Patch Changes
+
+- c2f1aab: Allows workflow runs to fire manual triggers with parent-run causation and workflow trigger history.
+- Updated dependencies [16b21f3]
+- Updated dependencies [6338cc4]
+- Updated dependencies [c2f1aab]
+  - @shipfox/api-triggers-dto@28.0.0
+
 ## 47.0.0
 
 ### Patch Changes

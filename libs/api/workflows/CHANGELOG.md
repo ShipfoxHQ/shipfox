@@ -1,5 +1,23 @@
 # @shipfox/api-workflows
 
+## 28.0.0
+
+### Minor Changes
+
+- e8f0212: Adds the confirm_concurrency_impact request field and the concurrency-impact response with affected attempts and planned effects for workflow reruns.
+- 7067bc3: Shows which workflow run started a child run in the run list and overview.
+
+### Patch Changes
+
+- 48ec879: Removes `reportFresh` from runner capability results. Job claims and workflow warnings now use the stored session manifest without freshness checks.
+- d62e17e: Repairs drifted workflow concurrency state: releases claims left by finished runs, promotes waiting runs, cancels superseded attempts, and restarts orchestrations that never started.
+- Updated dependencies [48ec879]
+- Updated dependencies [e8f0212]
+- Updated dependencies [d62e17e]
+- Updated dependencies [7067bc3]
+  - @shipfox/api-runners-dto@28.0.0
+  - @shipfox/api-workflows-dto@28.0.0
+
 ## 27.2.0
 
 ### Minor Changes
