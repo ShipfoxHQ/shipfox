@@ -13,6 +13,7 @@ const WEBHOOK_SOURCE_PLACEHOLDER = '__WEBHOOK_SOURCE__';
 const RUNNER_LABEL_PLACEHOLDER = '__RUNNER_LABEL__';
 const MODEL_PROVIDER_PLACEHOLDER = '__MODEL_PROVIDER__';
 const AGENT_MODEL_PLACEHOLDER = '__AGENT_MODEL__';
+const DEFAULT_SOURCE_BRANCH = 'main';
 
 export interface WorkflowProjectFile {
   path: string;
@@ -167,7 +168,8 @@ export async function seedProjectWithApiDefinition(
     json: {
       project_id: seeded.project.id,
       config_path: params.configPath,
-      source: 'manual',
+      source: 'vcs',
+      ref: DEFAULT_SOURCE_BRANCH,
       yaml: seeded.renderedWorkflowYaml,
     },
   });
@@ -186,7 +188,8 @@ export async function seedProjectWithApiDefinition(
         json: {
           project_id: seeded.project.id,
           config_path: additional.configPath,
-          source: 'manual',
+          source: 'vcs',
+          ref: DEFAULT_SOURCE_BRANCH,
           yaml: renderedYaml,
         },
       },

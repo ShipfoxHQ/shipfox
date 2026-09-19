@@ -186,6 +186,26 @@ describe('evaluateExpectations', () => {
     expect(result).toEqual({mismatches: [], logRequirements: []});
   });
 
+  test('defaults child run depth to one and rejects zero', () => {
+    const input = {
+      run: {status: 'succeeded'},
+      child_run: {
+        workflow: '.shipfox/workflows/child.yml',
+        status: 'succeeded',
+      },
+    };
+
+    const defaultExpectation = parseExpectation(input);
+
+    expect(defaultExpectation.child_run?.depth).toBe(1);
+    expect(() =>
+      parseExpectation({
+        ...input,
+        child_run: {...input.child_run, depth: 0},
+      }),
+    ).toThrow();
+  });
+
   test('collects a log requirement with the step id and current attempt', () => {
     const detail = makeDetail({
       jobs: [makeJob({executions: [makeJobExecution({steps: [makeStep({current_attempt: 2})]})]})],

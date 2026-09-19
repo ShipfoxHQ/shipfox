@@ -397,6 +397,18 @@ async function evaluateRejectedScenario(params: {
 
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'cancelled']);
 
+export function selectTargetDefinition<T>(params: {
+  childConfigPath: string | undefined;
+  childDefinition: T | undefined;
+  configPath: string;
+  definition: T;
+  workflow: string;
+}): T | undefined {
+  if (params.workflow === params.configPath) return params.definition;
+  if (params.workflow === params.childConfigPath) return params.childDefinition;
+  return undefined;
+}
+
 async function waitForDescendantRun(params: {
   client: ReturnType<typeof createApiClient>;
   childDefinitionId: string;
@@ -585,9 +597,13 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
     const logRequirements = [...evaluated.logRequirements];
     const childExpectation = scenario.expectation.child_run;
     if (childExpectation !== undefined) {
-      const targetDefinition =
-        childDefinition ??
-        (scenario.configPath === childExpectation.workflow ? definition : undefined);
+      const targetDefinition = selectTargetDefinition({
+        childConfigPath: scenario.childConfigPath,
+        childDefinition,
+        configPath: scenario.configPath,
+        definition,
+        workflow: childExpectation.workflow,
+      });
       if (targetDefinition === undefined) {
         throw new Error(
           `Scenario ${scenario.name} child_run.workflow must name child-workflow.yml or the scenario workflow`,

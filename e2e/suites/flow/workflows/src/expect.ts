@@ -181,7 +181,7 @@ const childRunExpectationSchema = z
     // The config path identifies the definition. The harness follows parent_run links
     // from the triggering run, so the same block also supports a deeper loop descendant.
     workflow: z.string().min(1),
-    depth: z.number().int().nonnegative().default(1),
+    depth: z.number().int().positive().default(1),
     status: runStatusSchema,
     parent_run: z.boolean().default(true),
     inputs: z.record(z.string(), z.unknown()).optional(),
