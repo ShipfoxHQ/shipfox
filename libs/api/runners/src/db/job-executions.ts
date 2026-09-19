@@ -57,7 +57,11 @@ import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
 import {providerRunners} from './schema/runner-instances.js';
-import {runnerSessions} from './schema/runner-sessions.js';
+import {
+  normalizeRunnerLifecycleCapabilities,
+  normalizeRunnerToolCapabilities,
+  runnerSessions,
+} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
 const runnerJobExecutionLockPrefix = 'runners_job_execution:';
@@ -255,7 +259,9 @@ async function lockStaleRunnerSessionsTx(
   return new Map(
     sessions.map((session) => [
       session.id,
-      hasLocalExecutionFenceCapability(session.lifecycleCapabilities),
+      hasLocalExecutionFenceCapability(
+        normalizeRunnerLifecycleCapabilities(session.lifecycleCapabilities),
+      ),
     ]),
   );
 }
@@ -901,7 +907,8 @@ async function loadClaimRunnerContextTx(
   if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   // Snapshot the registered manifest at claim time. Later heartbeat reports must not change the
   // execution's eligibility.
-  renewableInference = session.toolCapabilities.features?.renewable_inference === true;
+  renewableInference = normalizeRunnerToolCapabilities(session.toolCapabilities).features
+    .renewable_inference;
   const runnerInstanceCondition = claimRunnerInstanceCondition(
     runnerInstanceId,
     provisionerId,

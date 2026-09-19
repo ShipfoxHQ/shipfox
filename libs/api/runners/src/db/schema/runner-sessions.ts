@@ -18,6 +18,14 @@ import {
 import type {RunnerSession} from '#core/entities/runner-session.js';
 import {pgTable} from './common.js';
 
+export interface PersistedRunnerToolCapabilities {
+  features?: {
+    renewable_git?: boolean;
+    renewable_inference?: boolean;
+  };
+  harnesses?: RunnerToolCapabilitiesDto['harnesses'];
+}
+
 export const runnerSessionScopeEnum = pgEnum('runners_runner_session_scope', ['workspace']);
 export const runnerSessionRegistrationTokenKindEnum = pgEnum(
   'runners_runner_session_registration_token_kind',
@@ -37,11 +45,9 @@ export const runnerSessions = pgTable(
     provisionerId: uuid('provisioner_id'),
     providerRunnerId: text('provider_runner_id'),
     labels: text('labels').array().notNull(),
-    toolCapabilities: jsonb('tool_capabilities').$type<RunnerToolCapabilitiesDto>().notNull(),
+    toolCapabilities: jsonb('tool_capabilities').$type<PersistedRunnerToolCapabilities>(),
     toolCapabilitiesReportedAt: timestamp('tool_capabilities_reported_at', {withTimezone: true}),
-    lifecycleCapabilities: jsonb('lifecycle_capabilities')
-      .$type<RunnerLifecycleCapabilitiesDto>()
-      .notNull(),
+    lifecycleCapabilities: jsonb('lifecycle_capabilities').$type<RunnerLifecycleCapabilitiesDto>(),
     lifecycleCapabilitiesReportedAt: timestamp('lifecycle_capabilities_reported_at', {
       withTimezone: true,
     }),
@@ -83,6 +89,24 @@ export const runnerSessions = pgTable(
 export type RunnerSessionDb = typeof runnerSessions.$inferSelect;
 export type RunnerSessionInsertDb = typeof runnerSessions.$inferInsert;
 
+export function normalizeRunnerToolCapabilities(
+  capabilities: PersistedRunnerToolCapabilities | null,
+): RunnerToolCapabilitiesDto {
+  return {
+    features: {
+      renewable_git: capabilities?.features?.renewable_git === true,
+      renewable_inference: capabilities?.features?.renewable_inference === true,
+    },
+    harnesses: capabilities?.harnesses ?? {},
+  };
+}
+
+export function normalizeRunnerLifecycleCapabilities(
+  capabilities: RunnerLifecycleCapabilitiesDto | null,
+): RunnerLifecycleCapabilitiesDto {
+  return capabilities ?? [];
+}
+
 export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
   if (row.scope !== 'workspace') {
     throw new Error(`Unexpected runner session scope: ${row.scope}`);
@@ -98,9 +122,9 @@ export function toRunnerSession(row: RunnerSessionDb): RunnerSession {
     provisionerId: row.provisionerId,
     providerRunnerId: row.providerRunnerId,
     labels: row.labels,
-    toolCapabilities: row.toolCapabilities,
+    toolCapabilities: normalizeRunnerToolCapabilities(row.toolCapabilities),
     toolCapabilitiesReportedAt: row.toolCapabilitiesReportedAt,
-    lifecycleCapabilities: row.lifecycleCapabilities,
+    lifecycleCapabilities: normalizeRunnerLifecycleCapabilities(row.lifecycleCapabilities),
     lifecycleCapabilitiesReportedAt: row.lifecycleCapabilitiesReportedAt,
     maxClaims: row.maxClaims,
     claimsUsed: row.claimsUsed,

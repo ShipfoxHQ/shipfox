@@ -1,8 +1,34 @@
 import {and, eq, inArray} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {deleteExpiredRunnerSessions} from '#db/runner-sessions.js';
-import {runnerSessions} from '#db/schema/runner-sessions.js';
+import {
+  normalizeRunnerLifecycleCapabilities,
+  normalizeRunnerToolCapabilities,
+  runnerSessions,
+} from '#db/schema/runner-sessions.js';
 import {runningJobExecutions} from '#db/schema/running-job-executions.js';
+
+describe('runner session capability persistence', () => {
+  it('defaults nullable legacy capabilities', () => {
+    expect(normalizeRunnerToolCapabilities(null)).toEqual({
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {},
+    });
+    expect(normalizeRunnerLifecycleCapabilities(null)).toEqual([]);
+  });
+
+  it('defaults missing legacy feature flags without discarding reported capabilities', () => {
+    expect(
+      normalizeRunnerToolCapabilities({
+        features: {renewable_git: true},
+        harnesses: {pi: {tools: ['read']}},
+      }),
+    ).toEqual({
+      features: {renewable_git: true, renewable_inference: false},
+      harnesses: {pi: {tools: ['read']}},
+    });
+  });
+});
 
 describe('deleteExpiredRunnerSessions', () => {
   let workspaceId: string;

@@ -113,13 +113,6 @@
       "when": 1789038497039,
       "tag": "0015_supreme_mercury",
       "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1789827161460,
-      "tag": "0016_closed_whirlwind",
-      "breakpoints": true
     }
   ]
 }
