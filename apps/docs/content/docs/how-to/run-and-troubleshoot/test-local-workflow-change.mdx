@@ -1,11 +1,11 @@
 ---
 title: "Test a Local Workflow Change"
 sidebarTitle: "Test Local Changes"
-description: "Use a coding agent to check unpushed workflow YAML, replay it against a retained event, and inspect the result."
+description: "Use a coding agent to run validated, unpushed workflow YAML against a retained event and inspect the result."
 ---
 
-Use this guide to test an unpushed workflow change against a real event. Your
-coding agent checks the local YAML, starts a replay, and reads the run logs.
+Use this guide to test validated, unpushed workflow YAML against a real event.
+Your coding agent starts a replay and reads the run logs.
 
 ## Before you begin
 
@@ -13,7 +13,8 @@ You need:
 
 - A coding agent [connected to the Shipfox MCP server](/how-to/set-up-work/connect-mcp-client).
 - A Shipfox project with its repository, integration connections, runners, and secrets configured.
-- A workflow YAML file in your working tree.
+- A workflow YAML file in your working tree that has passed a
+  [dry-run validation](/how-to/run-and-troubleshoot/validate-local-workflow-change).
 - A matching event received within the last 30 days.
 
 Shipfox retains trigger events for 30 days by default. Ask the agent to use a
@@ -26,68 +27,10 @@ newer event when the event you need no longer appears.
   request, issue, channel, or other external resource.
 </Callout>
 
-## Check the local change
-
-Give the coding agent the workflow path and the Shipfox project. Ask it to
-follow these steps:
-
-<Steps>
-  <Step>
-
-    **Choose a past event as test input**
-
-    Call `list_trigger_events` with `replayable: true`. Choose an event whose
-    source and event name match the workflow trigger. The event is the input
-    used to exercise the local change.
-
-    Use `get_trigger_event` with the event ID to read its payload. Review the
-    target resource and any outsider-written text before continuing.
-  </Step>
-  <Step>
-
-    **Check the local YAML**
-
-    Call `create_dev_run` with these values:
-
-    - `project_id`: the Shipfox project ID.
-    - `config_path`: the workflow file path in the repository.
-    - `trigger`: the trigger key from the YAML.
-    - `replay_event_id`: the selected event ID.
-    - `content`: the complete local YAML file.
-    - `dry_run`: `true`.
-
-    A successful check returns `check_passed: true`. It confirms four facts:
-
-    - The definition resolved and passed validation.
-    - The trigger exists.
-    - The event matches the trigger.
-    - The trigger filter passed.
-
-    The check does not test admission, run creation, or execution. A real call
-    can still fail after a successful check.
-  </Step>
-  <Step>
-
-    **Fix a refusal and check again**
-
-    Use the error details instead of changing the event or trigger blindly:
-
-    | Error | What to inspect |
-    | --- | --- |
-    | `invalid-definition` | Read each validation error's `message` and any `path` or `reason`. `total` counts all errors. `truncated` shows whether the response omitted some errors. |
-    | `trigger-filtered` | Read `reason`, then compare the filter with the event payload. |
-    | `trigger-not-found` | Read `available_trigger_keys`, `total`, and `truncated`. Use a key defined in the YAML. |
-    | `replay-event-mismatch` | Compare the event source and name with the selected trigger. |
-
-    Edit the YAML and repeat the dry run until it passes.
-
-    `content-too-large` means the YAML exceeds 256 KiB of UTF-8 content. A
-    transport error means the complete request exceeded the server body limit.
-    Reduce the request before trying again.
-  </Step>
-</Steps>
-
 ## Run and inspect the local change
+
+Give the coding agent the workflow path, Shipfox project, and retained event
+used for the validation. Ask it to follow these steps:
 
 <Steps>
   <Step>
@@ -95,7 +38,14 @@ follow these steps:
     **Start the real replay**
 
     Review the target resource and expected side effects. Call `create_dev_run`
-    again with the same fields and YAML. Omit `dry_run`, or set it to `false`.
+    with these values:
+
+    - `project_id`: the Shipfox project ID.
+    - `config_path`: the workflow file path in the repository.
+    - `trigger`: the trigger key from the YAML.
+    - `replay_event_id`: the event used for validation.
+    - `content`: the complete local YAML file.
+    - `dry_run`: `false`, or omit this field.
 
     The result includes `run_id`. The replay acts on the real pull request,
     issue, channel, or other resource from the event.
@@ -114,7 +64,8 @@ follow these steps:
 
     **Fix and repeat**
 
-    Edit the YAML, run the dry check again, and start another real replay.
+    Edit the YAML, [validate the local change again](/how-to/run-and-troubleshoot/validate-local-workflow-change),
+    and start another real replay.
 
     If the YAML is unchanged, call `rerun_workflow_run` on the terminal run.
     Supply its current attempt and choose `all` or `failed` mode. The rerun uses
@@ -146,7 +97,6 @@ The local YAML does not need to exist at any of these revisions.
 
 Confirm these results:
 
-- The dry run returned `check_passed: true` before the real run started.
 - The real run shows **Dev · local file** and the expected workflow source.
 - The run and step logs show the expected result.
 - The external pull request, issue, channel, or other resource has only the

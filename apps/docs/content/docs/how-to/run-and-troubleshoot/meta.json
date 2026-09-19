@@ -2,6 +2,7 @@
   "title": "Run and Troubleshoot",
   "pages": [
     "index",
+    "validate-local-workflow-change",
     "test-local-workflow-change",
     "inspect-runs-and-attempts",
     "inspect-logs",
