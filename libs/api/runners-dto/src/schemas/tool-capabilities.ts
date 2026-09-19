@@ -3,7 +3,7 @@ import {z} from 'zod';
 export const runnerFeaturesSchema = z
   .object({
     renewable_git: z.boolean(),
-    renewable_inference: z.boolean().optional(),
+    renewable_inference: z.boolean(),
   })
   .strict();
 
@@ -31,7 +31,7 @@ export const runnerHarnessToolCapabilitiesSchema = z
 
 export const runnerToolCapabilitiesSchema = z
   .object({
-    features: runnerFeaturesSchema.optional(),
+    features: runnerFeaturesSchema,
     harnesses: z
       .object({
         pi: runnerHarnessToolCapabilitiesSchema.optional(),

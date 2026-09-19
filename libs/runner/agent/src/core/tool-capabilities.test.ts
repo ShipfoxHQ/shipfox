@@ -49,7 +49,7 @@ describe('runnerToolCapabilities', () => {
     ]);
   });
 
-  it('does not advertise renewable Git when it is not enabled', async () => {
+  it('reports both renewable features as false when they are not enabled', async () => {
     vi.stubEnv('SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT', undefined);
     vi.resetModules();
 
@@ -57,7 +57,10 @@ describe('runnerToolCapabilities', () => {
       '#core/tool-capabilities.js'
     );
 
-    expect(disabledCapabilities().features).toBeUndefined();
+    expect(disabledCapabilities().features).toEqual({
+      renewable_git: false,
+      renewable_inference: false,
+    });
   });
 
   it('advertises renewable Git only when explicitly enabled', async () => {
@@ -68,7 +71,10 @@ describe('runnerToolCapabilities', () => {
       '#core/tool-capabilities.js'
     );
 
-    expect(enabledCapabilities().features).toEqual({renewable_git: true});
+    expect(enabledCapabilities().features).toEqual({
+      renewable_git: true,
+      renewable_inference: false,
+    });
   });
 
   it('advertises renewable inference only when explicitly enabled', async () => {

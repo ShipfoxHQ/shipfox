@@ -27,6 +27,14 @@ const fakeProvisionerAuth: AuthMethod = {
   authenticate: () => Promise.resolve(),
 };
 
+const registrationCapabilities = {
+  capabilities: {
+    features: {renewable_git: false, renewable_inference: false},
+    harnesses: {},
+  },
+  lifecycle_capabilities: ['local_execution_fence_v1'],
+};
+
 describe('POST /runners/jobs/request', () => {
   let app: FastifyInstance;
   let rawToken: string;
@@ -72,6 +80,7 @@ describe('POST /runners/jobs/request', () => {
       headers: {authorization: `Bearer ${token}`},
       payload: {
         labels: ['Linux', 'x64'],
+        ...registrationCapabilities,
         ...(lifecycleCapabilities ? {lifecycle_capabilities: lifecycleCapabilities} : {}),
       },
     });
@@ -116,7 +125,7 @@ describe('POST /runners/jobs/request', () => {
     expect(typeof body.lease_token).toBe('string');
     expect(body.job_name).toBeUndefined();
     expect(body.steps).toBeUndefined();
-    expect(body.isolation_timeout_seconds).toBeUndefined();
+    expect(body.isolation_timeout_seconds).toBe(config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS);
 
     const claims = getLeaseTokenClaims(body.lease_token);
     expect(claims).toMatchObject({

@@ -190,23 +190,19 @@ export function requireRunnerLabels(): string[] {
   return labels;
 }
 
-export async function registerRunnerSession(
-  options: {
-    capabilities?: RunnerToolCapabilitiesDto;
-    lifecycleCapabilities?: RunnerLifecycleCapabilitiesDto;
-    registrationToken?: string;
-  } = {},
-): Promise<RegisterRunnerResponseDto> {
+export async function registerRunnerSession(options: {
+  capabilities: RunnerToolCapabilitiesDto;
+  lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
+  registrationToken?: string;
+}): Promise<RegisterRunnerResponseDto> {
   const labels = configuredRunnerLabels();
 
   logger().debug({labels}, 'Registering runner session');
 
   const body = registerRunnerBodySchema.parse({
     labels,
-    ...(options.capabilities ? {capabilities: options.capabilities} : {}),
-    ...(options.lifecycleCapabilities
-      ? {lifecycle_capabilities: options.lifecycleCapabilities}
-      : {}),
+    capabilities: options.capabilities,
+    lifecycle_capabilities: options.lifecycleCapabilities,
   });
   const response = await createRegistrationApi(
     options.registrationToken ?? config.SHIPFOX_RUNNER_REGISTRATION_TOKEN,

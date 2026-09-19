@@ -162,6 +162,11 @@ describe('provisioner token db', () => {
         provisionerId: provisioner.id,
         providerRunnerId: runner.providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
       })
@@ -177,6 +182,11 @@ describe('provisioner token db', () => {
         provisionerId: provisioner.id,
         providerRunnerId: crypto.randomUUID(),
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 1,
       })

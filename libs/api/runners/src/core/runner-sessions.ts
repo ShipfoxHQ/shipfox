@@ -3,6 +3,7 @@ import type {
   RunnerLifecycleCapabilitiesDto,
   RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
+import {logger} from '@shipfox/node-opentelemetry';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   createRunnerSession,
@@ -31,8 +32,8 @@ export async function registerRunnerSession(params: {
   auth: AuthInterModuleClient;
   credential: RunnerRegistrationCredential;
   labels: string[];
-  toolCapabilities?: RunnerToolCapabilitiesDto | null;
-  lifecycleCapabilities?: RunnerLifecycleCapabilitiesDto | null;
+  toolCapabilities: RunnerToolCapabilitiesDto;
+  lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
 }): Promise<RegisterRunnerSessionResult> {
   const labels =
     params.credential.kind === 'manual'
@@ -52,24 +53,33 @@ export async function registerRunnerSession(params: {
           scope: 'workspace',
           registrationTokenId: params.credential.registrationTokenId,
           labels,
-          toolCapabilities: params.toolCapabilities ?? null,
-          lifecycleCapabilities: params.lifecycleCapabilities ?? null,
+          toolCapabilities: params.toolCapabilities,
+          lifecycleCapabilities: params.lifecycleCapabilities,
         })
       : await createRunnerSessionConsumingActivationToken({
           activationTokenId: params.credential.activationTokenId,
           labels,
-          toolCapabilities: params.toolCapabilities ?? null,
-          lifecycleCapabilities: params.lifecycleCapabilities ?? null,
+          toolCapabilities: params.toolCapabilities,
+          lifecycleCapabilities: params.lifecycleCapabilities,
         });
+  logger().info(
+    {
+      runnerSessionId: session.id,
+      ...(session.runnerInstanceId ? {runnerInstanceId: session.runnerInstanceId} : {}),
+      mode,
+      renewableGit: session.toolCapabilities.features.renewable_git,
+      renewableInference: session.toolCapabilities.features.renewable_inference,
+    },
+    'Runner capability profile registered',
+  );
+
   const {token: sessionToken} = await params.auth.mintRunnerSessionToken({
     runnerSessionId: session.id,
     workspaceId: session.workspaceId,
     scope: session.scope,
     labels: session.labels,
     maxClaims,
-    ...(session.lifecycleCapabilities !== null
-      ? {lifecycleCapabilities: session.lifecycleCapabilities}
-      : {}),
+    lifecycleCapabilities: session.lifecycleCapabilities,
   });
 
   return {session, sessionToken, mode, maxClaims};

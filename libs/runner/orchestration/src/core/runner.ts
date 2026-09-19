@@ -466,7 +466,7 @@ export async function runJob(
     releaseCredentialLock = await createJobCredentialsDir(credentialsDir);
 
     const leaseClient = createLeaseClient(() => currentLeaseToken);
-    const renewableGitEnabled = runnerToolCapabilities().features?.renewable_git === true;
+    const renewableGitEnabled = runnerToolCapabilities().features.renewable_git;
     if (renewableGitEnabled) {
       let candidate: ReturnType<typeof createJobCredentialLifecycle> | undefined;
       try {

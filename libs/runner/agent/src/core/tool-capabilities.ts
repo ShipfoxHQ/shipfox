@@ -21,18 +21,13 @@ export function runnerToolCapabilities(): RunnerToolCapabilitiesDto {
   const piTools = isPiExtensionAvailable({packageName: 'pi-web-access'})
     ? [...PI_BUILTIN_TOOLS, ...PI_WEB_ACCESS_TOOLS]
     : [...PI_BUILTIN_TOOLS];
-  const features =
-    config.SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT || config.SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE
-      ? {
-          renewable_git: config.SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT,
-          ...(config.SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE
-            ? {renewable_inference: true as const}
-            : {}),
-        }
-      : undefined;
+  const features = {
+    renewable_git: config.SHIPFOX_RUNNER_ENABLE_RENEWABLE_GIT,
+    renewable_inference: config.SHIPFOX_RUNNER_ENABLE_RENEWABLE_INFERENCE,
+  };
 
   return {
-    ...(features === undefined ? {} : {features}),
+    features,
     harnesses: {
       pi: {tools: piTools},
       claude: {tools: [...CLAUDE_TOOLS]},

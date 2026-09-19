@@ -11,13 +11,15 @@ describe('runnersInterModuleContract', () => {
   });
 
   test('exposes bounded JSON capability results', () => {
+    const capabilities = {
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {pi: {tools: ['read']}},
+    };
     const result =
       runnersInterModuleContract.methods.getEffectiveRunnerToolCapabilities.output.parse({
-        capabilities: {harnesses: {pi: {tools: ['read']}}},
+        capabilities,
       });
 
-    expect(result).toEqual({
-      capabilities: {harnesses: {pi: {tools: ['read']}}},
-    });
+    expect(result).toEqual({capabilities});
   });
 });

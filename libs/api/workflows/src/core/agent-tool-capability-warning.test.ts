@@ -1,6 +1,6 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {JobLeaseTokenClaims} from '@shipfox/api-auth-dto';
-import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
+import type {RunnerFeaturesDto, RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {runnersTestClient, setRunnerToolCapabilities} from '#test/fixtures/runners-inter-module.js';
 import {warnAgentToolCapabilityMismatchOnDispatch as warnAgentToolCapabilityMismatchOnDispatchImpl} from './agent-tool-capability-warning.js';
 import type {Step} from './entities/step.js';
@@ -86,14 +86,14 @@ function agentStep(params: Partial<Step> = {}): Step {
   };
 }
 
+type TestRunnerToolCapabilities = Omit<RunnerToolCapabilitiesDto, 'features'> & {
+  features?: Partial<RunnerFeaturesDto>;
+};
+
 function setRunnerSessionCapabilities(params: {
   runnerSessionId: string;
   workspaceId: string;
-  toolCapabilities:
-    | Awaited<
-        ReturnType<RunnersInterModuleClient['getEffectiveRunnerToolCapabilities']>
-      >['capabilities']
-    | null;
+  toolCapabilities: TestRunnerToolCapabilities | null;
 }): void {
   setRunnerToolCapabilities(params.runnerSessionId, {
     capabilities: params.toolCapabilities === null ? {harnesses: {}} : params.toolCapabilities,

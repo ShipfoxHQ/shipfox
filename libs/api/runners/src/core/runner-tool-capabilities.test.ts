@@ -6,6 +6,7 @@ import {
 } from './runner-tool-capabilities.js';
 
 const capabilities: RunnerToolCapabilitiesDto = {
+  features: {renewable_git: false, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash']},
   },
@@ -46,7 +47,10 @@ describe('unadvertisedRunnerTools', () => {
     const missing = unadvertisedRunnerTools({
       harness: 'claude',
       requestedTools: ['read', 'Read'],
-      capabilities: {harnesses: {claude: {tools: ['read']}, pi: {tools: ['Read']}}},
+      capabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {claude: {tools: ['read']}, pi: {tools: ['Read']}},
+      },
     });
 
     expect(missing).toEqual(['Read']);
@@ -64,12 +68,9 @@ describe('getEffectiveRunnerToolCapabilities', () => {
     expect(result.harnessKnown('claude')).toBe(false);
   });
 
-  it('treats missing capabilities as unknown', async () => {
-    const runnerSession = await runnerSessionFactory.create({toolCapabilities: null});
-
-    const result = await getEffectiveRunnerToolCapabilities({runnerSessionId: runnerSession.id});
-
-    expect(result.capabilities).toEqual({harnesses: {}});
-    expect(result.harnessKnown('pi')).toBe(false);
+  it('throws when the runner session does not exist', async () => {
+    await expect(
+      getEffectiveRunnerToolCapabilities({runnerSessionId: crypto.randomUUID()}),
+    ).rejects.toThrow('Runner session not found');
   });
 });

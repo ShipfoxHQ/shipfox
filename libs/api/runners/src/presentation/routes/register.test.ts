@@ -31,11 +31,15 @@ const fakeProvisionerAuth: AuthMethod = {
 };
 
 const fullCapabilities: RunnerToolCapabilitiesDto = {
-  features: {renewable_git: true},
+  features: {renewable_git: true, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash', 'web_search']},
     claude: {tools: ['Read', 'Bash', 'WebSearch']},
   },
+};
+const completeRegistration = {
+  capabilities: fullCapabilities,
+  lifecycle_capabilities: ['local_execution_fence_v1'],
 };
 
 describe('POST /runners/register', () => {
@@ -73,7 +77,7 @@ describe('POST /runners/register', () => {
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {labels: ['Linux', 'x64', 'linux']},
+      payload: {labels: ['Linux', 'x64', 'linux'], ...completeRegistration},
     });
 
     expect(res.statusCode).toBe(200);
@@ -100,9 +104,9 @@ describe('POST /runners/register', () => {
     expect(rows[0]?.registrationTokenKind).toBe('manual');
     expect(rows[0]?.provisionerId).toBeNull();
     expect(rows[0]?.providerRunnerId).toBeNull();
-    expect(rows[0]?.toolCapabilities).toBeNull();
+    expect(rows[0]?.toolCapabilities).toEqual(fullCapabilities);
     expect(rows[0]?.toolCapabilitiesReportedAt).toBeNull();
-    expect(rows[0]?.lifecycleCapabilities).toBeNull();
+    expect(rows[0]?.lifecycleCapabilities).toEqual(['local_execution_fence_v1']);
     expect(rows[0]?.lifecycleCapabilitiesReportedAt).toBeNull();
   });
 
@@ -113,8 +117,7 @@ describe('POST /runners/register', () => {
       headers: {authorization: `Bearer ${rawToken}`},
       payload: {
         labels: ['linux'],
-        capabilities: fullCapabilities,
-        lifecycle_capabilities: ['local_execution_fence_v1'],
+        ...completeRegistration,
       },
     });
 
@@ -124,9 +127,9 @@ describe('POST /runners/register', () => {
       .from(runnerSessions)
       .where(eq(runnerSessions.id, res.json().session_id));
     expect(session?.toolCapabilities).toEqual(fullCapabilities);
-    expect(session?.toolCapabilitiesReportedAt).toBeInstanceOf(Date);
+    expect(session?.toolCapabilitiesReportedAt).toBeNull();
     expect(session?.lifecycleCapabilities).toEqual(['local_execution_fence_v1']);
-    expect(session?.lifecycleCapabilitiesReportedAt).toBeInstanceOf(Date);
+    expect(session?.lifecycleCapabilitiesReportedAt).toBeNull();
   });
 
   it('strips reserved labels from manual registration', async () => {
@@ -134,7 +137,7 @@ describe('POST /runners/register', () => {
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {labels: ['linux', 'shipfox-managed', 'x64']},
+      payload: {labels: ['linux', 'shipfox-managed', 'x64'], ...completeRegistration},
     });
 
     const [session] = await db()
@@ -151,7 +154,7 @@ describe('POST /runners/register', () => {
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {labels: ['shipfox-managed']},
+      payload: {labels: ['shipfox-managed'], ...completeRegistration},
     });
 
     expect(res.statusCode).toBe(400);
@@ -161,12 +164,35 @@ describe('POST /runners/register', () => {
     });
   });
 
+  it('rejects registration without a capability manifest before creating a runner session', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/register',
+      headers: {authorization: `Bearer ${rawToken}`},
+      payload: {labels: ['linux']},
+    });
+
+    expect(res.statusCode).toBe(400);
+    const rows = await db()
+      .select()
+      .from(runnerSessions)
+      .where(eq(runnerSessions.workspaceId, workspaceId));
+    expect(rows).toHaveLength(0);
+  });
+
   it('rejects malformed capability reports without creating a runner session', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {labels: ['linux'], capabilities: {harnesses: {pi: {tools: ['read', 'read']}}}},
+      payload: {
+        labels: ['linux'],
+        capabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {pi: {tools: ['read', 'read']}},
+        },
+        lifecycle_capabilities: ['local_execution_fence_v1'],
+      },
     });
 
     expect(res.statusCode).toBe(400);
@@ -182,13 +208,13 @@ describe('POST /runners/register', () => {
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {labels: ['linux']},
+      payload: {labels: ['linux'], ...completeRegistration},
     });
     const second = await app.inject({
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${rawToken}`},
-      payload: {labels: ['macos']},
+      payload: {labels: ['macos'], ...completeRegistration},
     });
 
     expect(first.statusCode).toBe(200);
@@ -284,8 +310,11 @@ describe('POST /runners/register', () => {
   });
 
   it.each([
-    ['20 labels', {labels: Array.from({length: 20}, (_, index) => `label-${index}`)}],
-    ['128-character label', {labels: ['a'.repeat(128)]}],
+    [
+      '20 labels',
+      {labels: Array.from({length: 20}, (_, index) => `label-${index}`), ...completeRegistration},
+    ],
+    ['128-character label', {labels: ['a'.repeat(128)], ...completeRegistration}],
   ])('accepts %s', async (_case, payload) => {
     const res = await app.inject({
       method: 'POST',

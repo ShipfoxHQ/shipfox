@@ -32,7 +32,7 @@ const fakeProvisionerAuth: AuthMethod = {
 };
 
 const fullCapabilities: RunnerToolCapabilitiesDto = {
-  features: {renewable_git: true},
+  features: {renewable_git: true, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash', 'web_search']},
     claude: {tools: ['Read', 'Bash', 'WebSearch']},
@@ -40,6 +40,7 @@ const fullCapabilities: RunnerToolCapabilitiesDto = {
 };
 
 const partialCapabilities: RunnerToolCapabilitiesDto = {
+  features: {renewable_git: false, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read']},
   },

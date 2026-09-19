@@ -37,11 +37,11 @@ export const runnerSessions = pgTable(
     provisionerId: uuid('provisioner_id'),
     providerRunnerId: text('provider_runner_id'),
     labels: text('labels').array().notNull(),
-    toolCapabilities: jsonb('tool_capabilities').$type<RunnerToolCapabilitiesDto | null>(),
+    toolCapabilities: jsonb('tool_capabilities').$type<RunnerToolCapabilitiesDto>().notNull(),
     toolCapabilitiesReportedAt: timestamp('tool_capabilities_reported_at', {withTimezone: true}),
-    lifecycleCapabilities: jsonb(
-      'lifecycle_capabilities',
-    ).$type<RunnerLifecycleCapabilitiesDto | null>(),
+    lifecycleCapabilities: jsonb('lifecycle_capabilities')
+      .$type<RunnerLifecycleCapabilitiesDto>()
+      .notNull(),
     lifecycleCapabilitiesReportedAt: timestamp('lifecycle_capabilities_reported_at', {
       withTimezone: true,
     }),

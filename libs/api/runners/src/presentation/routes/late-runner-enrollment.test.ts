@@ -206,7 +206,14 @@ describe('late runner enrollment recovery', () => {
       method: 'POST',
       url: '/runners/register',
       headers: {authorization: `Bearer ${activationToken}`},
-      payload: {labels: ['linux']},
+      payload: {
+        labels: ['linux'],
+        capabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycle_capabilities: ['local_execution_fence_v1'],
+      },
     });
     expect(registered.statusCode).toBe(200);
     expect(registered.json()).toMatchObject({mode: 'activation', max_claims: 1});

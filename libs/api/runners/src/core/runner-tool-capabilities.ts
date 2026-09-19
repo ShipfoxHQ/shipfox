@@ -3,10 +3,6 @@ import {getRunnerSessionById} from '#db/runner-sessions.js';
 
 type RunnerToolHarness = keyof RunnerToolCapabilitiesDto['harnesses'];
 
-export const EMPTY_RUNNER_TOOL_CAPABILITIES: RunnerToolCapabilitiesDto = {
-  harnesses: {},
-};
-
 export function unadvertisedRunnerTools(params: {
   harness: RunnerToolHarness;
   requestedTools: readonly string[];
@@ -25,7 +21,8 @@ export async function getEffectiveRunnerToolCapabilities(params: {
   runnerSessionId: string;
 }): Promise<EffectiveRunnerToolCapabilitiesResult> {
   const runnerSession = await getRunnerSessionById(params.runnerSessionId);
-  const capabilities = runnerSession?.toolCapabilities ?? EMPTY_RUNNER_TOOL_CAPABILITIES;
+  if (!runnerSession) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
+  const capabilities = runnerSession.toolCapabilities;
 
   return {
     capabilities,

@@ -67,6 +67,7 @@ vi.mock('@shipfox/runner-agent', () => {
     isPiExtensionAvailable: isPiExtensionAvailableMock,
     PI_HARNESS_EXTENSION_PACKAGE_NAMES: ['pi-web-access', 'pi-mcp-adapter'],
     runnerToolCapabilities: vi.fn(() => ({
+      features: {renewable_git: false, renewable_inference: false},
       harnesses: {
         pi: {tools: ['read']},
       },
@@ -81,6 +82,7 @@ vi.mock('@shipfox/runner-agent/pi-extensions', () => ({
 
 vi.mock('@shipfox/runner-agent/tool-capabilities', () => ({
   runnerToolCapabilities: vi.fn(() => ({
+    features: {renewable_git: false, renewable_inference: false},
     harnesses: {
       pi: {tools: ['read']},
     },
@@ -330,7 +332,7 @@ describe('runJob', () => {
 
   it('starts the broker lifecycle only when renewable Git is explicitly enabled', async () => {
     mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true},
+      features: {renewable_git: true, renewable_inference: false},
       harnesses: {pi: {tools: ['read']}},
     });
 
@@ -354,7 +356,7 @@ describe('runJob', () => {
   it('refuses an opted-in job when the broker cannot start', async () => {
     const startError = new Error('socket unavailable');
     mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true},
+      features: {renewable_git: true, renewable_inference: false},
       harnesses: {pi: {tools: ['read']}},
     });
     mockCredentialLifecycle.start.mockRejectedValueOnce(startError);
@@ -464,7 +466,7 @@ describe('runJob', () => {
   it('replaces inference generations without dropping other job secrets', async () => {
     const observedSecrets: string[][] = [];
     mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true},
+      features: {renewable_git: true, renewable_inference: false},
       harnesses: {pi: {tools: ['read']}},
     });
     mockRunJobSteps.mockImplementationOnce((params) => {
@@ -634,7 +636,7 @@ describe('runJob', () => {
       },
     };
     mockRunnerToolCapabilities.mockReturnValueOnce({
-      features: {renewable_git: true},
+      features: {renewable_git: true, renewable_inference: false},
       harnesses: {pi: {tools: ['read']}},
     });
     createJobCredentialLifecycleMock.mockImplementationOnce((options) => {
@@ -749,7 +751,10 @@ describe('startRunner', () => {
 
     expect(mockRegisterRunnerSession).toHaveBeenCalledTimes(1);
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
-      capabilities: {harnesses: {pi: {tools: ['read']}}},
+      capabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {pi: {tools: ['read']}},
+      },
       lifecycleCapabilities: ['local_execution_fence_v1'],
     });
     expect(mockRunnerToolCapabilities).toHaveBeenCalled();
@@ -1062,7 +1067,10 @@ describe('startRunner', () => {
     );
     expect(mockPollRunnerAssignment).toHaveBeenCalledWith('control-token', expect.any(AbortSignal));
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
-      capabilities: {harnesses: {pi: {tools: ['read']}}},
+      capabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {pi: {tools: ['read']}},
+      },
       lifecycleCapabilities: ['local_execution_fence_v1'],
       registrationToken: 'activation-token',
     });
@@ -1149,7 +1157,10 @@ describe('startRunner', () => {
 
     expect(mockPollRunnerAssignment).toHaveBeenCalledTimes(2);
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
-      capabilities: {harnesses: {pi: {tools: ['read']}}},
+      capabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {pi: {tools: ['read']}},
+      },
       lifecycleCapabilities: ['local_execution_fence_v1'],
       registrationToken: 'activation-token',
     });
@@ -1204,7 +1215,10 @@ describe('startRunner', () => {
 
     expect(mockPollRunnerAssignment).not.toHaveBeenCalled();
     expect(mockRegisterRunnerSession).toHaveBeenCalledWith({
-      capabilities: {harnesses: {pi: {tools: ['read']}}},
+      capabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {pi: {tools: ['read']}},
+      },
       lifecycleCapabilities: ['local_execution_fence_v1'],
       registrationToken: 'enrollment-activation-token',
     });

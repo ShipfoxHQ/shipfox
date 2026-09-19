@@ -29,6 +29,12 @@ Add the package to the API application workspace:
 The application must provide an `AuthInterModuleClient` and register the module
 with the API composition root.
 
+Runner registration requires a complete capability manifest and lifecycle
+capability list. The API stores both values on the runner session and never
+refreshes them from heartbeats. The manifest includes boolean
+`renewable_git` and `renewable_inference` feature values, plus each harness's
+advertised tools.
+
 ## Usage
 
 ```ts

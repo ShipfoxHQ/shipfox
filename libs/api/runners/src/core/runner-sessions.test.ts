@@ -24,6 +24,12 @@ import {
 import {getRunnerAssignment, issueRunnerActivationToken} from './runner-activation.js';
 import {registerRunnerSession} from './runner-sessions.js';
 
+const toolCapabilities = {
+  features: {renewable_git: false, renewable_inference: false},
+  harnesses: {},
+};
+const lifecycleCapabilities: ['local_execution_fence_v1'] = ['local_execution_fence_v1'];
+
 const activationTokenNotIssuedCases: Array<{
   reason: RunnerActivationTokenNotIssuedReason;
   update: Partial<RunnerInstanceInsertDb>;
@@ -69,6 +75,8 @@ describe('registerRunnerSession', () => {
       auth: runnersTestAuthClient,
       credential: {kind: 'manual', registrationTokenId, workspaceId},
       labels: [' Linux ', 'x64', 'linux'],
+      toolCapabilities,
+      lifecycleCapabilities,
     });
 
     expect(result.mode).toBe('manual');
@@ -89,7 +97,7 @@ describe('registerRunnerSession', () => {
     const claims = getRunnerSessionTokenClaims(result.sessionToken);
     expect(claims?.labels).toEqual(['linux', 'x64']);
     expect(claims?.maxClaims).toBeNull();
-    expect(claims).not.toHaveProperty('lifecycleCapabilities');
+    expect(claims?.lifecycleCapabilities).toEqual(lifecycleCapabilities);
   });
 
   it('throws EmptyRunnerLabelsError when labels canonicalize to empty', async () => {
@@ -98,6 +106,8 @@ describe('registerRunnerSession', () => {
         auth: runnersTestAuthClient,
         credential: {kind: 'manual', registrationTokenId, workspaceId},
         labels: [' ', '\t'],
+        toolCapabilities,
+        lifecycleCapabilities,
       }),
     ).rejects.toBeInstanceOf(EmptyRunnerLabelsError);
   });
@@ -123,6 +133,8 @@ describe('registerRunnerSession', () => {
           provisionerId: crypto.randomUUID(),
           providerRunnerId: `provisioned-runner-${crypto.randomUUID()}`,
           labels: ['linux'],
+          toolCapabilities,
+          lifecycleCapabilities,
           maxClaims: null,
           claimsUsed: 0,
         }),
@@ -139,6 +151,8 @@ describe('registerRunnerSession', () => {
           registrationTokenId: crypto.randomUUID(),
           registrationTokenKind: 'ephemeral',
           labels: ['linux'],
+          toolCapabilities,
+          lifecycleCapabilities,
           maxClaims: 1,
           claimsUsed: 0,
         }),
@@ -216,6 +230,8 @@ describe('activation runner sessions', () => {
             provisionerId,
             providerRunnerId: runner.providerRunnerId,
             labels: ['linux'],
+            toolCapabilities,
+            lifecycleCapabilities,
             maxClaims: 1,
             claimsUsed: 0,
           });
@@ -366,6 +382,8 @@ describe('activation runner sessions', () => {
         auth: runnersTestAuthClient,
         credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
         labels: ['linux'],
+        toolCapabilities,
+        lifecycleCapabilities,
       }),
     ).rejects.toBeInstanceOf(RunnerActivationTokenInvalidError);
     const [storedToken] = await db()
@@ -393,11 +411,15 @@ describe('activation runner sessions', () => {
         auth: runnersTestAuthClient,
         credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
         labels: ['linux'],
+        toolCapabilities,
+        lifecycleCapabilities,
       }),
       registerRunnerSession({
         auth: runnersTestAuthClient,
         credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
         labels: ['linux'],
+        toolCapabilities,
+        lifecycleCapabilities,
       }),
     ]);
 
@@ -437,6 +459,8 @@ describe('activation runner sessions', () => {
       auth: runnersTestAuthClient,
       credential: {kind: 'activation', activationTokenId: activationToken.id, workspaceId},
       labels: ['linux', 'shipfox-managed'],
+      toolCapabilities,
+      lifecycleCapabilities,
     });
 
     expect(result.session.labels).toEqual(['linux']);

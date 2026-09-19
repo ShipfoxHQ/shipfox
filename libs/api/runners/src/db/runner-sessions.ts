@@ -25,8 +25,8 @@ export interface CreateRunnerSessionParams {
   scope: 'workspace';
   registrationTokenId: string;
   labels: string[];
-  toolCapabilities?: RunnerToolCapabilitiesDto | null;
-  lifecycleCapabilities?: RunnerLifecycleCapabilitiesDto | null;
+  toolCapabilities: RunnerToolCapabilitiesDto;
+  lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
 }
 
 export async function createRunnerSession(
@@ -40,10 +40,8 @@ export async function createRunnerSession(
       registrationTokenId: params.registrationTokenId,
       registrationTokenKind: 'manual',
       labels: params.labels,
-      toolCapabilities: params.toolCapabilities ?? null,
-      toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
-      lifecycleCapabilities: params.lifecycleCapabilities ?? null,
-      lifecycleCapabilitiesReportedAt: params.lifecycleCapabilities ? sql`now()` : null,
+      toolCapabilities: params.toolCapabilities,
+      lifecycleCapabilities: params.lifecycleCapabilities,
       maxClaims: null,
       claimsUsed: 0,
     })
@@ -68,8 +66,8 @@ export async function getRunnerSessionById(runnerSessionId: string): Promise<Run
 export async function createRunnerSessionConsumingActivationToken(params: {
   activationTokenId: string;
   labels: string[];
-  toolCapabilities?: RunnerToolCapabilitiesDto | null;
-  lifecycleCapabilities?: RunnerLifecycleCapabilitiesDto | null;
+  toolCapabilities: RunnerToolCapabilitiesDto;
+  lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
 }) {
   let assignmentToActivationObservation: ProviderRunnerLifecycleObservation | null = null;
   const session = await db().transaction(async (tx) => {
@@ -135,10 +133,8 @@ export async function createRunnerSessionConsumingActivationToken(params: {
         provisionerId: runner.provisionerId,
         providerRunnerId: runner.providerRunnerId,
         labels,
-        toolCapabilities: params.toolCapabilities ?? null,
-        toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
-        lifecycleCapabilities: params.lifecycleCapabilities ?? null,
-        lifecycleCapabilitiesReportedAt: params.lifecycleCapabilities ? sql`now()` : null,
+        toolCapabilities: params.toolCapabilities,
+        lifecycleCapabilities: params.lifecycleCapabilities,
         maxClaims: 1,
         claimsUsed: 0,
       })

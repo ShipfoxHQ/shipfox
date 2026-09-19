@@ -128,6 +128,11 @@ describe('deleteExpiredRunnerSessions', () => {
         provisionerId,
         providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: params.kind === 'manual' ? null : 1,
         claimsUsed: 0,
         createdAt,

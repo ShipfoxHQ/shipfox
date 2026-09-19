@@ -54,7 +54,7 @@ const STEP_ID = crypto.randomUUID();
 const SESSION_ID = crypto.randomUUID();
 const ZOD_ERROR_TEXT_REGEX = /Zod|Invalid|Required/;
 const TOOL_CAPABILITIES: RunnerToolCapabilitiesDto = {
-  features: {renewable_git: true},
+  features: {renewable_git: true, renewable_inference: false},
   harnesses: {
     pi: {tools: ['read', 'bash']},
     claude: {tools: ['Read', 'Bash']},
@@ -199,32 +199,47 @@ describe('api-client auth contexts', () => {
   it('registerRunnerSession sends the registration token and configured labels', async () => {
     stubFetch(() => jsonResponse(registerResponse()));
 
-    const session = await registerRunnerSession();
+    const session = await registerRunnerSession({
+      capabilities: TOOL_CAPABILITIES,
+      lifecycleCapabilities: ['local_execution_fence_v1'],
+    });
 
     expect(session).toEqual(registerResponse());
     expect(calls[0]?.url).toContain('runners/register');
     expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_REGISTRATION_TOKEN}`);
-    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({labels: ['linux', 'x64']});
+    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
+      labels: ['linux', 'x64'],
+      capabilities: TOOL_CAPABILITIES,
+      lifecycle_capabilities: ['local_execution_fence_v1'],
+    });
   });
 
   it('registerRunnerSession sends runner tool capabilities when provided', async () => {
     stubFetch(() => jsonResponse(registerResponse()));
 
-    await registerRunnerSession({capabilities: TOOL_CAPABILITIES});
+    await registerRunnerSession({
+      capabilities: TOOL_CAPABILITIES,
+      lifecycleCapabilities: ['local_execution_fence_v1'],
+    });
 
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
       labels: ['linux', 'x64'],
       capabilities: TOOL_CAPABILITIES,
+      lifecycle_capabilities: ['local_execution_fence_v1'],
     });
   });
 
   it('registerRunnerSession advertises lifecycle capabilities when provided', async () => {
     stubFetch(() => jsonResponse(registerResponse()));
 
-    await registerRunnerSession({lifecycleCapabilities: ['local_execution_fence_v1']});
+    await registerRunnerSession({
+      capabilities: TOOL_CAPABILITIES,
+      lifecycleCapabilities: ['local_execution_fence_v1'],
+    });
 
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
       labels: ['linux', 'x64'],
+      capabilities: TOOL_CAPABILITIES,
       lifecycle_capabilities: ['local_execution_fence_v1'],
     });
   });
