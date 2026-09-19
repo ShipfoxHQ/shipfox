@@ -187,7 +187,7 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
   return {
     name: 'create_dev_run',
     description:
-      'Create a development workflow run from a project ref. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
+      'Iterate on a workflow against a real past event: call list_trigger_events with replayable=true, read one payload with get_trigger_event, call create_dev_run with content and replay_event_id, read the run with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
     inputSchema: createDevRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(createDevRunResultJsonSchema),
     validateInput: (input) => createDevRunInputSchema.safeParse(input).success,
@@ -206,7 +206,8 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
         const result = await triggers.createDevRun({
           workspaceId: context.workspaceId,
           projectId: input.project_id,
-          ref: input.ref,
+          ...optionalField('ref', input.ref),
+          ...optionalField('content', input.content),
           configPath: input.config_path,
           triggerKey: input.trigger,
           ...optionalField('commit', input.commit),
@@ -214,7 +215,19 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
           ...optionalField('replayEventId', input.replay_event_id),
           userId: context.userId,
         });
-        return agentAccessSuccess({run_id: result.id, commit: result.commit});
+        return agentAccessSuccess({
+          run_id: result.id,
+          ...(result.ref === undefined ? {} : {ref: result.ref}),
+          commit: result.commit,
+          ...(result.warnings === undefined
+            ? {}
+            : {
+                warnings: result.warnings.slice(
+                  0,
+                  createDevRunResultJsonSchema.properties.warnings.maxItems,
+                ),
+              }),
+        });
       } catch (error) {
         if (isInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, error)) {
           return mapProducerError(error.code, error.details);
@@ -265,9 +278,8 @@ function mapProducerError(
       ),
     });
   }
-  if (code === 'trigger-filtered' && typeof details.reason === 'string') {
-    return agentAccessError(code, {details: {reason: boundErrorDetail(details.reason)}});
-  }
+  const devRunDetails = mapDevRunErrorDetails(code, details);
+  if (devRunDetails !== undefined) return agentAccessError(code, {details: devRunDetails});
   if (code === 'admission-denied' && typeof details.reason === 'string') {
     const requiredAction = mapRequiredAction(details.requiredAction);
     return agentAccessError(code, {
@@ -284,6 +296,26 @@ function mapProducerError(
     return agentAccessError(code, {details: {status: details.status}});
   }
   return agentAccessError(code);
+}
+
+function mapDevRunErrorDetails(
+  code: string,
+  details: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (code === 'trigger-not-found' && Array.isArray(details.availableTriggerKeys)) {
+    return buildBoundedStringListDetails(
+      'available_trigger_keys',
+      details.availableTriggerKeys.filter((key): key is string => typeof key === 'string'),
+    );
+  }
+  if (code === 'replay-event-mismatch') {
+    const mismatchDetails = mapReplayEventMismatchDetails(details);
+    if (Object.keys(mismatchDetails).length > 0) return mismatchDetails;
+  }
+  if (code === 'trigger-filtered' && typeof details.reason === 'string') {
+    return {reason: boundErrorDetail(details.reason)};
+  }
+  return undefined;
 }
 
 function mapRequiredAction(value: unknown): Record<string, string> | undefined {
@@ -305,9 +337,9 @@ function mapRequiredAction(value: unknown): Record<string, string> | undefined {
 function buildBoundedErrorListDetails<T>(
   itemKey: string,
   items: readonly T[],
-  mapItem: (item: T) => Record<string, unknown>,
+  mapItem: (item: T) => unknown,
 ): Record<string, unknown> {
-  const boundedItems: Record<string, unknown>[] = [];
+  const boundedItems: unknown[] = [];
   for (const item of items) {
     const candidateItem = mapItem(item);
     const candidate = {
@@ -324,6 +356,27 @@ function buildBoundedErrorListDetails<T>(
     total: items.length,
     truncated: boundedItems.length < items.length,
   };
+}
+
+function buildBoundedStringListDetails(
+  itemKey: string,
+  items: readonly string[],
+): Record<string, unknown> {
+  return buildBoundedErrorListDetails(itemKey, items, (item) => boundErrorDetail(item));
+}
+
+function mapReplayEventMismatchDetails(details: Record<string, unknown>): Record<string, string> {
+  const fields = {
+    event_source: details.eventSource,
+    event_name: details.eventName,
+    trigger_source: details.triggerSource,
+    trigger_event: details.triggerEvent,
+  };
+  return Object.fromEntries(
+    Object.entries(fields)
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+      .map(([key, value]) => [key, boundErrorDetail(value)]),
+  );
 }
 
 function mapDefinitionError(value: Record<string, unknown>): Record<string, unknown> {

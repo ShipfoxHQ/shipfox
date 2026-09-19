@@ -2,6 +2,7 @@ import {
   AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
   AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
   agentAccessEnvelopeSchema,
+  createDevRunResultJsonSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
@@ -213,6 +214,81 @@ describe('agent-access action tools', () => {
     expect(response).toEqual({ok: false, error: {code}});
   });
 
+  test('passes local content and maps the resolved ref and warnings', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockResolvedValue({
+      id: runId,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+    });
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        content: 'triggers: {}',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+        replay_event_id: uuid(7),
+      },
+    });
+
+    expect(triggers.createDevRun).toHaveBeenCalledWith({
+      workspaceId,
+      projectId,
+      content: 'triggers: {}',
+      configPath: '.shipfox/workflow.yml',
+      triggerKey: 'manual',
+      replayEventId: uuid(7),
+      userId,
+    });
+    expect(response).toEqual({
+      ok: true,
+      result: {
+        run_id: runId,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+      },
+    });
+  });
+
+  test('caps development-run warnings at the tool result limit', async () => {
+    const {triggers, tools} = clients();
+    const warningLimit = createDevRunResultJsonSchema.properties.warnings.maxItems;
+    const warnings = Array.from({length: warningLimit + 1}, (_, index) => ({
+      code: `warning-${index}`,
+      message: `Warning ${index}`,
+    }));
+    vi.mocked(triggers.createDevRun).mockResolvedValue({
+      id: runId,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings,
+    });
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: true,
+      result: {
+        run_id: runId,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: warnings.slice(0, warningLimit),
+      },
+    });
+  });
+
   test('maps admission details and passes dev-run fields to the producer', async () => {
     const {triggers, tools} = clients();
     vi.mocked(triggers.createDevRun).mockRejectedValue(
@@ -266,6 +342,86 @@ describe('agent-access action tools', () => {
         },
       },
     });
+  });
+
+  test.each([
+    {
+      code: 'trigger-not-found',
+      details: {triggerKey: 'missing', availableTriggerKeys: ['on_push', 'on_pull_request']},
+      expected: {
+        available_trigger_keys: ['on_push', 'on_pull_request'],
+        total: 2,
+        truncated: false,
+      },
+    },
+    {
+      code: 'replay-event-mismatch',
+      details: {
+        replayEventId: uuid(7),
+        eventSource: 'github',
+        eventName: 'pull_request',
+        triggerSource: 'gitlab',
+        triggerEvent: 'merge_request',
+      },
+      expected: {
+        event_source: 'github',
+        event_name: 'pull_request',
+        trigger_source: 'gitlab',
+        trigger_event: 'merge_request',
+      },
+    },
+  ])('forwards $code details', async ({code, details, expected}) => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        code as 'trigger-not-found' | 'replay-event-mismatch',
+        details as never,
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toEqual({ok: false, error: {code, details: expected}});
+  });
+
+  test('truncates available trigger keys within the error detail budget', async () => {
+    const {triggers, tools} = clients();
+    const availableTriggerKeys = Array.from(
+      {length: 200},
+      (_, index) => `trigger-${index}-${'x'.repeat(700)}`,
+    );
+    vi.mocked(triggers.createDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.createDevRun,
+        'trigger-not-found',
+        {triggerKey: 'missing', availableTriggerKeys},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+    if (response.ok || response.error === undefined) {
+      throw new Error('Expected trigger-not-found details');
+    }
+
+    expect(response.error.details).toMatchObject({total: 200, truncated: true});
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
   });
 
   test('forwards trigger-filtered reasons', async () => {

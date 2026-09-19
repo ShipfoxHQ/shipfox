@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -396,6 +397,14 @@ function createActionAudit(
       : {}),
     inputs_supplied: input.inputs !== undefined,
     idempotency_key: typeof input.idempotency_key === 'string',
+    ...(tool.name === 'create_dev_run'
+      ? {
+          definition_source: typeof input.content === 'string' ? 'local' : 'ref',
+          ...(typeof input.content === 'string'
+            ? {content_hash: createHash('sha256').update(input.content, 'utf8').digest('hex')}
+            : {}),
+        }
+      : {}),
     authority_outcome: 'not-checked',
   };
 }

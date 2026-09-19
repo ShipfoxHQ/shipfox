@@ -138,6 +138,7 @@ const workflowRunDevSourceSchema = z
   .object({
     ref: textSchema,
     commit: textSchema,
+    definition_source: z.enum(['ref', 'local']),
     config_path: textSchema,
     initiated_by_user_id: idSchema,
     replay_of_event_id: idSchema.nullable(),
@@ -436,11 +437,19 @@ const devSourceJsonSchema = {
   properties: {
     ref: text,
     commit: text,
+    definition_source: {type: 'string', enum: ['ref', 'local']},
     config_path: text,
     initiated_by_user_id: uuid,
     replay_of_event_id: nullable(uuid),
   },
-  required: ['ref', 'commit', 'config_path', 'initiated_by_user_id', 'replay_of_event_id'],
+  required: [
+    'ref',
+    'commit',
+    'definition_source',
+    'config_path',
+    'initiated_by_user_id',
+    'replay_of_event_id',
+  ],
   additionalProperties: false,
 } as const;
 
