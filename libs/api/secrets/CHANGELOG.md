@@ -1,5 +1,16 @@
 # @shipfox/api-secrets
 
+## 29.0.0
+
+### Patch Changes
+
+- Updated dependencies [a34066f]
+- Updated dependencies [f4f1f10]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+
 ## 26.1.0
 
 ### Patch Changes

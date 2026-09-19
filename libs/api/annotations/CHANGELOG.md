@@ -1,5 +1,19 @@
 # @shipfox/annotations
 
+## 29.0.0
+
+### Patch Changes
+
+- ddceb5d: Speeds up annotation summary reads without changing their response.
+- Updated dependencies [a34066f]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [8e74f71]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+
 ## 26.1.0
 
 ### Patch Changes

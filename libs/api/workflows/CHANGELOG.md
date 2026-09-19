@@ -1,5 +1,38 @@
 # @shipfox/api-workflows
 
+## 29.0.0
+
+### Major Changes
+
+- e7a8fe4: Removes rerun concurrency confirmation and applies the current concurrency policy atomically when creating the next attempt.
+- b891938: Backfills NULL job snapshots to false and denies renewable-inference credential resolution with runner-capability-required when a runner lacks the capability.
+
+### Patch Changes
+
+- 883bcda: Reduces database round trips for workflow run overviews.
+- 4d2e493: Measures workflow run access phases and avoids hydrating full run payloads on routes that only need access scope.
+- f4f1f10: Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [d1c07bb]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [f571b7f]
+- Updated dependencies [8e74f71]
+- Updated dependencies [0e7c381]
+- Updated dependencies [b891938]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/api-runners-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/workflow-document@3.8.0
+  - @shipfox/api-logs-dto@29.0.0
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/api-agent-dto@29.0.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+  - @shipfox/api-definitions-dto@29.0.0
+  - @shipfox/expression@2.10.1
+
 ## 28.0.0
 
 ### Minor Changes

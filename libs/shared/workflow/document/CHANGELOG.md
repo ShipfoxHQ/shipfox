@@ -1,5 +1,11 @@
 # @shipfox/workflow-document
 
+## 3.8.0
+
+### Minor Changes
+
+- f571b7f: Adds top-level workflow `concurrency` with required `group`. `scope` defaults to `workflow`, and `cancel_in_progress` defaults to `false`. Definitions warns when group roots may be unavailable and rejects unsupported policies.
+
 ## 3.7.0
 
 ### Minor Changes

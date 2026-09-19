@@ -1,5 +1,24 @@
 # @shipfox/api-triggers
 
+## 29.0.0
+
+### Patch Changes
+
+- f4f1f10: Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [f571b7f]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/workflow-document@3.8.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+  - @shipfox/api-triggers-dto@29.0.0
+  - @shipfox/api-definitions-dto@29.0.0
+  - @shipfox/expression@2.10.1
+
 ## 28.0.0
 
 ### Minor Changes

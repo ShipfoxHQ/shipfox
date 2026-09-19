@@ -1,5 +1,16 @@
 # @shipfox/runner-execution
 
+## 0.1.56
+
+### Patch Changes
+
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [8e74f71]
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/runner-protocol@0.2.49
+  - @shipfox/runner-workspace@0.0.51
+
 ## 0.1.55
 
 ### Patch Changes

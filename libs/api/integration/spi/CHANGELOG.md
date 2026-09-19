@@ -1,5 +1,11 @@
 # @shipfox/api-integration-spi
 
+## 4.3.1
+
+### Patch Changes
+
+- a859808: Adds the built-in Shipfox workflow tool provider and its `start_workflow_run` tool.
+
 ## 4.3.0
 
 ### Minor Changes
