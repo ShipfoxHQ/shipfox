@@ -127,6 +127,13 @@
       "when": 1789841168454,
       "tag": "0017_drop_dead_runner_capability_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789844032095,
+      "tag": "0018_installation_scope_running_jobs",
+      "breakpoints": true
     }
   ]
 }

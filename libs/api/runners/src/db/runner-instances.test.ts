@@ -1,7 +1,7 @@
 import {pgClient} from '@shipfox/node-postgres';
 import {beforeEach, vi} from '@shipfox/vitest/vi';
 import {and, desc, eq, inArray, isNull, or, sql} from 'drizzle-orm';
-import {reconcileRunnerInstances as reconcileRunnerInstancesCore} from '#core/runner-instances.js';
+import {reconcileRunnerInstances as reconcileRunnerInstancesCoreImplementation} from '#core/runner-instances.js';
 import {
   authorizeRunnerTermination,
   authorizeRunnerTerminationTx,
@@ -25,7 +25,7 @@ import {
   persistRunnerTerminationAuthorizationTx,
   type RecoverStaleIdleRunnerSessionsParams,
   reapStaleRunnerInstances,
-  reconcileRunnerInstances,
+  reconcileRunnerInstances as reconcileRunnerInstancesDbImplementation,
   recoverStaleIdleRunnerSessions,
   reportRunnerInstances as reportRunnerInstancesDb,
 } from '#db/runner-instances.js';
@@ -45,6 +45,34 @@ import {
 } from '#test/index.js';
 
 type ReportRunnerInstancesTestParams = Parameters<typeof reportRunnerInstancesDb>[0];
+
+type ReconcileScope = 'installation' | 'workspace';
+
+function inferReconcileScope(workspaceId: string | null, scope?: ReconcileScope): ReconcileScope {
+  return scope ?? (workspaceId === null ? 'installation' : 'workspace');
+}
+
+function reconcileRunnerInstancesCore(
+  params: Omit<Parameters<typeof reconcileRunnerInstancesCoreImplementation>[0], 'scope'> & {
+    scope?: ReconcileScope;
+  },
+) {
+  return reconcileRunnerInstancesCoreImplementation({
+    ...params,
+    scope: inferReconcileScope(params.workspaceId, params.scope),
+  });
+}
+
+function reconcileRunnerInstances(
+  params: Omit<Parameters<typeof reconcileRunnerInstancesDbImplementation>[0], 'scope'> & {
+    scope?: ReconcileScope;
+  },
+) {
+  return reconcileRunnerInstancesDbImplementation({
+    ...params,
+    scope: inferReconcileScope(params.workspaceId, params.scope),
+  });
+}
 
 function reportRunnerInstances(params: ReportRunnerInstancesTestParams) {
   return reportRunnerInstancesDb(params);
@@ -126,12 +154,15 @@ async function insertRunningJobRow(params: {
   workspaceId: string;
   provisionerId: string;
   providerRunnerId: string;
+  runnerSessionId?: string;
   jobExecutionId?: string;
   startedAt?: Date;
   cancellationRequestedAt?: Date | null;
 }) {
   const startedAt = params.startedAt ?? new Date('2025-01-01T00:00:00.000Z');
-  const runnerSession = await runnerSessionFactory.create({workspaceId: params.workspaceId});
+  const runnerSessionId =
+    params.runnerSessionId ??
+    (await runnerSessionFactory.create({workspaceId: params.workspaceId})).id;
 
   await db()
     .insert(runningJobExecutions)
@@ -143,7 +174,7 @@ async function insertRunningJobRow(params: {
       jobId: crypto.randomUUID(),
       jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),
       projectId: crypto.randomUUID(),
-      runnerSessionId: runnerSession.id,
+      runnerSessionId,
       provisionerId: params.provisionerId,
       providerRunnerId: params.providerRunnerId,
       requiredLabels: ['linux'],
@@ -3580,6 +3611,130 @@ describe('reconcileRunnerInstances', () => {
     expect(afterAuthorization?.terminationReason).toBe('session-exhausted');
   });
 
+  it('authorizes exhausted sessions for assigned installation runners across workspaces', async () => {
+    const installationProvisionerId = crypto.randomUUID();
+    const firstWorkspaceId = crypto.randomUUID();
+    const secondWorkspaceId = crypto.randomUUID();
+    const availableRunnerId = 'installation-exhausted-runner';
+    const busyRunnerId = 'installation-busy-exhausted-runner';
+
+    await createRunnerInstance({
+      providerRunnerId: availableRunnerId,
+      workspaceId: firstWorkspaceId,
+      provisionerId: installationProvisionerId,
+    });
+    await createEphemeralSession({
+      providerRunnerId: availableRunnerId,
+      workspaceId: firstWorkspaceId,
+      provisionerId: installationProvisionerId,
+      updatedAt: new Date(Date.now() - 120_000),
+    });
+
+    await createRunnerInstance({
+      providerRunnerId: busyRunnerId,
+      workspaceId: secondWorkspaceId,
+      provisionerId: installationProvisionerId,
+    });
+    const busySession = await createEphemeralSession({
+      providerRunnerId: busyRunnerId,
+      workspaceId: secondWorkspaceId,
+      provisionerId: installationProvisionerId,
+      updatedAt: new Date(Date.now() - 120_000),
+    });
+    await insertRunningJobRow({
+      workspaceId: secondWorkspaceId,
+      provisionerId: installationProvisionerId,
+      providerRunnerId: busyRunnerId,
+      runnerSessionId: busySession.id,
+    });
+
+    const result = await reconcileRunnerInstancesCore({
+      scope: 'installation',
+      workspaceId: null,
+      provisionerId: installationProvisionerId,
+      observedRunnerInstanceIds: [availableRunnerId, busyRunnerId],
+    });
+
+    expect(result.runners).toMatchObject([
+      {
+        providerRunnerId: availableRunnerId,
+        desiredIntent: 'terminate',
+        desiredIntentReason: 'session-exhausted',
+      },
+      {providerRunnerId: busyRunnerId, desiredIntent: 'keep'},
+    ]);
+    const authorizations = await db()
+      .select({
+        providerRunnerId: providerRunners.providerRunnerId,
+        terminationReason: providerRunners.terminationReason,
+      })
+      .from(providerRunners)
+      .where(
+        and(
+          eq(providerRunners.provisionerId, installationProvisionerId),
+          inArray(providerRunners.providerRunnerId, [availableRunnerId, busyRunnerId]),
+        ),
+      );
+    expect(authorizations).toHaveLength(2);
+    expect(authorizations).toEqual(
+      expect.arrayContaining([
+        {providerRunnerId: availableRunnerId, terminationReason: 'session-exhausted'},
+        {providerRunnerId: busyRunnerId, terminationReason: null},
+      ]),
+    );
+  });
+
+  it('keeps workspace reconciliation restricted to its workspace for exhausted sessions', async () => {
+    const assignedWorkspaceId = crypto.randomUUID();
+    const outsideWorkspaceId = crypto.randomUUID();
+    const assignedRunnerId = 'workspace-exhausted-runner';
+    const outsideRunnerId = 'outside-workspace-exhausted-runner';
+
+    await createRunnerInstance({
+      providerRunnerId: assignedRunnerId,
+      workspaceId: assignedWorkspaceId,
+      provisionerId,
+    });
+    await createEphemeralSession({
+      providerRunnerId: assignedRunnerId,
+      workspaceId: assignedWorkspaceId,
+      provisionerId,
+      updatedAt: new Date(Date.now() - 120_000),
+    });
+    await createRunnerInstance({
+      providerRunnerId: outsideRunnerId,
+      workspaceId: outsideWorkspaceId,
+      provisionerId,
+    });
+    await createEphemeralSession({
+      providerRunnerId: outsideRunnerId,
+      workspaceId: outsideWorkspaceId,
+      provisionerId,
+      updatedAt: new Date(Date.now() - 120_000),
+    });
+
+    const result = await reconcileRunnerInstancesCore({
+      scope: 'workspace',
+      workspaceId: assignedWorkspaceId,
+      provisionerId,
+      observedRunnerInstanceIds: [assignedRunnerId, outsideRunnerId],
+    });
+
+    expect(result.runners).toMatchObject([
+      {
+        providerRunnerId: assignedRunnerId,
+        desiredIntent: 'terminate',
+        desiredIntentReason: 'session-exhausted',
+      },
+      {providerRunnerId: outsideRunnerId, state: null, desiredIntent: 'keep'},
+    ]);
+    const [outsideRunner] = await db()
+      .select({terminationReason: providerRunners.terminationReason})
+      .from(providerRunners)
+      .where(eq(providerRunners.providerRunnerId, outsideRunnerId));
+    expect(outsideRunner?.terminationReason).toBeNull();
+  });
+
   it('removes a stop handoff after the bounded cleanup grace', async () => {
     const providerRunnerId = 'expired-stop-handoff-runner';
     const jobExecutionId = crypto.randomUUID();
@@ -4407,15 +4562,19 @@ describe('reconcileRunnerInstances', () => {
 
   async function createRunnerInstance(params: {
     providerRunnerId: string;
+    workspaceId?: string;
+    provisionerId?: string;
     launchKind?: 'demand' | 'warm' | 'manual';
     reservationId?: string | null;
     runnerSessionId?: string | null;
     createdAt?: Date;
     reportedAt?: Date;
   }) {
+    const runnerWorkspaceId = params.workspaceId ?? workspaceId;
+    const runnerProvisionerId = params.provisionerId ?? provisionerId;
     return await providerRunnerFactory.create({
-      workspaceId,
-      provisionerId,
+      workspaceId: runnerWorkspaceId,
+      provisionerId: runnerProvisionerId,
       providerRunnerId: params.providerRunnerId,
       launchKind: params.launchKind ?? 'manual',
       reservationId: params.reservationId ?? null,
@@ -4428,21 +4587,25 @@ describe('reconcileRunnerInstances', () => {
 
   async function createEphemeralSession(params: {
     providerRunnerId: string;
+    workspaceId?: string;
+    provisionerId?: string;
     kind?: 'ephemeral' | 'activation';
     runnerInstanceId?: string;
     maxClaims?: number;
     claimsUsed?: number;
     updatedAt?: Date;
   }) {
+    const sessionWorkspaceId = params.workspaceId ?? workspaceId;
+    const sessionProvisionerId = params.provisionerId ?? provisionerId;
     const [session] = await db()
       .insert(runnerSessions)
       .values({
-        workspaceId,
+        workspaceId: sessionWorkspaceId,
         scope: 'workspace',
         registrationTokenId: crypto.randomUUID(),
         registrationTokenKind: params.kind ?? 'ephemeral',
         runnerInstanceId: params.runnerInstanceId,
-        provisionerId,
+        provisionerId: sessionProvisionerId,
         providerRunnerId: params.providerRunnerId,
         labels: ['linux'],
         toolCapabilities: {

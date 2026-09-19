@@ -67,6 +67,7 @@ export interface ProviderTerminationCandidate {
 }
 
 export interface ReconcileRunnerInstancesParams {
+  scope: 'installation' | 'workspace';
   workspaceId: string | null;
   provisionerId: string;
   observedRunnerInstanceIds: string[];

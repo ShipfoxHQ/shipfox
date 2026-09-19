@@ -1,0 +1,1 @@
+CREATE INDEX "runners_running_jobs_provisioner_runner_started_idx" ON "runners_running_jobs" USING btree ("provisioner_id","provider_runner_id","started_at" DESC NULLS LAST) WHERE "provisioner_id" IS NOT NULL;

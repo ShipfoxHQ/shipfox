@@ -42,6 +42,9 @@ export const runningJobExecutions = pgTable(
     index('runners_running_jobs_provider_runner_started_idx')
       .on(table.workspaceId, table.provisionerId, table.providerRunnerId, table.startedAt.desc())
       .where(sql`"provisioner_id" IS NOT NULL`),
+    index('runners_running_jobs_provisioner_runner_started_idx')
+      .on(table.provisionerId, table.providerRunnerId, table.startedAt.desc())
+      .where(sql`"provisioner_id" IS NOT NULL`),
     index('runners_running_jobs_cancellation_requested_idx')
       .on(table.workspaceId, table.provisionerId, table.providerRunnerId)
       .where(sql`"cancellation_requested_at" IS NOT NULL`),
