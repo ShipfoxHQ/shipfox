@@ -58,6 +58,7 @@
     "@shipfox/api-integration-github": "workspace:*",
     "@shipfox/api-integration-jira": "workspace:*",
     "@shipfox/api-integration-linear": "workspace:*",
+    "@shipfox/api-integration-shipfox": "workspace:*",
     "@shipfox/api-integration-sentry": "workspace:*",
     "@shipfox/api-integration-slack": "workspace:*",
     "@shipfox/api-integration-webhook": "workspace:*",

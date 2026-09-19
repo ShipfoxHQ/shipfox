@@ -38,6 +38,11 @@ export type IntegrationAgentToolCallErrorCode =
   | 'repository-not-granted'
   | 'repository-ambiguous'
   | 'repository-authorization-unavailable'
+  | 'definition-not-found'
+  | 'manual-trigger-not-found'
+  | 'run-depth-exceeded'
+  | 'run-tree-limit-exceeded'
+  | 'admission-denied'
   | IntegrationProviderErrorReason;
 
 export type IntegrationAgentToolCallErrorLabel = IntegrationAgentToolCallErrorCode | 'none';
@@ -60,6 +65,11 @@ const integrationAgentToolCallErrorCodes = new Set<string>([
   'provider-unavailable',
   'provider-rejected',
   'malformed-provider-response',
+  'definition-not-found',
+  'manual-trigger-not-found',
+  'run-depth-exceeded',
+  'run-tree-limit-exceeded',
+  'admission-denied',
   'content-too-large',
   'too-many-files',
   'repository-required',

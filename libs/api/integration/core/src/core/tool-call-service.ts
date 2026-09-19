@@ -108,7 +108,7 @@ async function executeIntegrationTool(
     typeof input.integration,
     CallToolResult
   >;
-  const caller = toAgentToolsCaller(input.caller);
+  const caller = toAgentToolsCaller(input.caller, input.integration.provider === 'shipfox');
   state.openingSession = adapter.openSession({
     connection: input.connection,
     tools: [agentToolCatalogEntry(input)],
@@ -466,9 +466,11 @@ function classifyToolCall(
 
 function toAgentToolsCaller(
   caller: IntegrationToolCallCaller,
+  includeCallerKind: boolean,
 ): AgentToolsCallerContext | undefined {
   if (caller.caller === 'tool_step') {
     return {
+      ...(includeCallerKind ? {callerKind: 'tool_step' as const} : {}),
       workspaceId: caller.workspaceId,
       projectId: caller.projectId,
       runId: caller.runId,
@@ -482,6 +484,7 @@ function toAgentToolsCaller(
   if (lease?.currentStepId === undefined || lease.currentStepAttempt === undefined)
     return undefined;
   return {
+    ...(includeCallerKind ? {callerKind: 'agent' as const} : {}),
     workspaceId: lease.workspaceId,
     projectId: lease.projectId,
     runId: lease.workflowRunId,

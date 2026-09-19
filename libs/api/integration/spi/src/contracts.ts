@@ -309,6 +309,8 @@ export interface AgentToolSession<CallResult = unknown> {
 }
 
 export interface AgentToolsCallerContext {
+  /** Identifies whether the call came from deterministic tool execution or an agent lease. */
+  callerKind?: 'agent' | 'tool_step' | undefined;
   workspaceId: string;
   projectId: string;
   runId: string;
