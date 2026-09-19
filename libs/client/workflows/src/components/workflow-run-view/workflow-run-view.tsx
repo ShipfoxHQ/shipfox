@@ -231,6 +231,7 @@ export function WorkflowRunView({
     <RelativeTimeProvider>
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <RunViewContent
+          key={`${workflowRunId ?? 'none'}:${overviewAttempt ?? 'none'}`}
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
           projectSlug={projectSlug}
@@ -611,19 +612,12 @@ function RunViewContent({
       toast.error('Could not start re-run from this route.');
       return;
     }
+    let run: Awaited<ReturnType<typeof rerunMutation.mutateAsync>>;
     try {
-      const run = await rerunMutation.mutateAsync({
+      run = await rerunMutation.mutateAsync({
         workflowRunId: actionRun.id,
         mode,
         confirmConcurrencyImpact,
-      });
-      setRerunImpact(null);
-      toast.success('Re-run started');
-      await navigate({
-        to: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
-        params: {workspaceSlug, projectSlug, workflowRunId: run.id},
-        search: ((previous: Record<string, unknown>) =>
-          withoutWorkflowRunSelectionSearch(previous)) as never,
       });
     } catch (error) {
       const impacts = workflowRunConcurrencyImpact(error);
@@ -642,6 +636,20 @@ function RunViewContent({
         return;
       }
       toast.error(message);
+      return;
+    }
+
+    setRerunImpact(null);
+    toast.success('Re-run started');
+    try {
+      await navigate({
+        to: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
+        params: {workspaceSlug, projectSlug, workflowRunId: run.id},
+        search: ((previous: Record<string, unknown>) =>
+          withoutWorkflowRunSelectionSearch(previous)) as never,
+      });
+    } catch {
+      toast.error('Re-run started, but could not be opened. Refresh to find the new attempt.');
     }
   }
 

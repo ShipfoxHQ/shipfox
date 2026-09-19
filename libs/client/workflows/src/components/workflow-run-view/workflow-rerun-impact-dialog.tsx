@@ -41,6 +41,12 @@ export function WorkflowRerunImpactDialog({
   onConfirm,
 }: WorkflowRerunImpactDialogProps) {
   const referenceQueries = useWorkflowRunAttemptReferenceQueries(impacts, impacts.length > 0);
+  const referencesUnavailable = referenceQueries.some(
+    (query) => query.isError || query.data === null,
+  );
+  const referencesReady =
+    referenceQueries.length === impacts.length &&
+    referenceQueries.every((query) => query.data !== undefined && query.data !== null);
 
   return (
     <Modal
@@ -79,11 +85,24 @@ export function WorkflowRerunImpactDialog({
                 impact={impact}
                 reference={referenceQueries[index]?.data ?? undefined}
                 referencePending={referenceQueries[index]?.isPending ?? false}
+                referenceUnavailable={
+                  referenceQueries[index]?.isError || referenceQueries[index]?.data === null
+                }
                 workspaceSlug={workspaceSlug}
                 projectSlug={projectSlug}
               />
             ))}
           </ul>
+          {referencesUnavailable ? (
+            <Callout role="alert" type="error">
+              <CalloutContent>
+                <CalloutTitle>Run details unavailable</CalloutTitle>
+                <Text size="xs" className="text-foreground-neutral-muted">
+                  Cancel and try the re-run again before confirming its impact.
+                </Text>
+              </CalloutContent>
+            </Callout>
+          ) : null}
           {errorMessage ? (
             <Callout role="alert" type="error">
               <CalloutContent>
@@ -96,7 +115,12 @@ export function WorkflowRerunImpactDialog({
           <Button type="button" variant="secondary" disabled={isPending} onClick={onDismiss}>
             Cancel
           </Button>
-          <Button type="button" isLoading={isPending} onClick={onConfirm}>
+          <Button
+            type="button"
+            disabled={!referencesReady}
+            isLoading={isPending}
+            onClick={onConfirm}
+          >
             Confirm and re-run
           </Button>
         </ModalFooter>
@@ -109,18 +133,21 @@ function WorkflowRerunImpactItem({
   impact,
   reference,
   referencePending,
+  referenceUnavailable,
   workspaceSlug,
   projectSlug,
 }: {
   impact: WorkflowRunConcurrencyImpact;
   reference: WorkflowRunAttemptReference | null | undefined;
   referencePending: boolean;
+  referenceUnavailable: boolean;
   workspaceSlug?: string | undefined;
   projectSlug?: string | undefined;
 }) {
   const presentation = impactPresentation(impact.plannedEffect);
   let referenceContent = 'Unavailable workflow run';
   if (referencePending) referenceContent = 'Loading run details…';
+  else if (referenceUnavailable) referenceContent = 'Run details unavailable';
 
   return (
     <li className="flex min-w-0 flex-col gap-inline py-row">
