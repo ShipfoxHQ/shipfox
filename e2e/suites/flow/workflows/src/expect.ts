@@ -1,3 +1,4 @@
+import {isDeepStrictEqual} from 'node:util';
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import type {JobStatusReasonDto, StepErrorReasonDto} from '@shipfox/api-workflows-dto';
 import type {
@@ -119,6 +120,7 @@ const webhookExpectationSchema = z
 
 const stepErrorExpectationSchema = z
   .object({
+    code: z.string().optional(),
     reason: stepErrorReasonSchema.optional(),
     field: z.string().optional(),
     source: z.string().optional(),
@@ -174,6 +176,19 @@ const jobExpectationSchema = z
   })
   .strict();
 
+const childRunExpectationSchema = z
+  .object({
+    // The config path identifies the definition. The harness follows parent_run links
+    // from the triggering run, so the same block also supports a deeper loop descendant.
+    workflow: z.string().min(1),
+    depth: z.number().int().nonnegative().default(1),
+    status: runStatusSchema,
+    parent_run: z.boolean().default(true),
+    inputs: z.record(z.string(), z.unknown()).optional(),
+    jobs: z.record(z.string(), jobExpectationSchema).optional(),
+  })
+  .strict();
+
 export const expectationSchema = z
   .object({
     trigger: z.enum(['push', 'manual', 'webhook']).default('push'),
@@ -183,6 +198,7 @@ export const expectationSchema = z
     timeout_seconds: z.number().int().positive().default(180),
     run: z.object({status: runStatusSchema}).strict(),
     jobs: z.record(z.string(), jobExpectationSchema).optional(),
+    child_run: childRunExpectationSchema.optional(),
     runner_log: logsExpectationSchema.optional(),
     gitea: giteaExpectationSchema.optional(),
   })
@@ -219,6 +235,12 @@ export interface StepLogRequirement {
 export interface ExpectationResult {
   mismatches: Mismatch[];
   logRequirements: StepLogRequirement[];
+}
+
+export interface ChildRunObservation {
+  observation: WorkflowRunObservation;
+  parentRunId: string | null;
+  inputs: Record<string, unknown> | null;
 }
 
 function findJob(
@@ -272,6 +294,25 @@ function formatOptionalInteger(value: number | null | undefined): string {
 type JobExpectation = NonNullable<Expectation['jobs']>[string];
 type StepExpectation = NonNullable<JobExpectation['steps']>[string];
 
+function evaluateErrorField(
+  error: Record<string, unknown>,
+  field: string,
+  expected: string | undefined,
+  path: string,
+  mismatches: Mismatch[],
+  include: boolean,
+): void {
+  if (expected === undefined) return;
+  const actual = stringField(error, field);
+  const matches = include ? actual?.includes(expected) : actual === expected;
+  if (matches) return;
+  mismatches.push({
+    path,
+    expected: include ? `include ${expected}` : expected,
+    actual: actual ?? 'null',
+  });
+}
+
 function evaluateStepError(
   step: WorkflowStepObservation,
   expectation: NonNullable<StepExpectation['error']>,
@@ -283,6 +324,8 @@ function evaluateStepError(
     return;
   }
 
+  evaluateErrorField(step.error, 'code', expectation.code, `${path}.code`, mismatches, false);
+
   if (expectation.reason !== undefined && step.error.reason !== expectation.reason) {
     mismatches.push({
       path: `${path}.reason`,
@@ -291,27 +334,8 @@ function evaluateStepError(
     });
   }
 
-  if (expectation.field !== undefined) {
-    const field = stringField(step.error, 'field');
-    if (field !== expectation.field) {
-      mismatches.push({
-        path: `${path}.field`,
-        expected: expectation.field,
-        actual: field ?? 'null',
-      });
-    }
-  }
-
-  if (expectation.source !== undefined) {
-    const source = stringField(step.error, 'source');
-    if (source === null || !source.includes(expectation.source)) {
-      mismatches.push({
-        path: `${path}.source`,
-        expected: `include ${expectation.source}`,
-        actual: source ?? 'null',
-      });
-    }
-  }
+  evaluateErrorField(step.error, 'field', expectation.field, `${path}.field`, mismatches, false);
+  evaluateErrorField(step.error, 'source', expectation.source, `${path}.source`, mismatches, true);
 }
 
 function evaluateGateResult(
@@ -415,8 +439,9 @@ function evaluateJobExpectation(
   jobKey: string,
   expectation: JobExpectation,
   result: ExpectationResult,
+  pathPrefix = 'jobs',
 ): void {
-  const path = `jobs.${jobKey}`;
+  const path = `${pathPrefix}.${jobKey}`;
   const job = findJob(observation, jobKey);
   if (!job) {
     result.mismatches.push({path, expected: 'present', actual: 'missing'});
@@ -465,6 +490,42 @@ export function evaluateExpectations(
 
   for (const [jobKey, jobExpectation] of Object.entries(expectation.jobs ?? {})) {
     evaluateJobExpectation(observation, jobKey, jobExpectation, result);
+  }
+
+  return result;
+}
+
+/**
+ * Compares the discovered child/descendant run separately from the triggering run. The
+ * child inputs come from the full run resource because the bounded run overview intentionally
+ * omits inputs; parent linkage and jobs come from the normal workflow observation.
+ */
+export function evaluateChildRunExpectation(
+  child: ChildRunObservation,
+  expectation: NonNullable<Expectation['child_run']>,
+): ExpectationResult {
+  const result: ExpectationResult = {mismatches: [], logRequirements: []};
+
+  if (child.observation.status !== expectation.status) {
+    result.mismatches.push({
+      path: 'child_run.status',
+      expected: expectation.status,
+      actual: child.observation.status,
+    });
+  }
+  if (expectation.parent_run && child.parentRunId === null) {
+    result.mismatches.push({path: 'child_run.parent_run', expected: 'present', actual: 'null'});
+  }
+  if (expectation.inputs !== undefined && !isDeepStrictEqual(child.inputs, expectation.inputs)) {
+    result.mismatches.push({
+      path: 'child_run.inputs',
+      expected: JSON.stringify(expectation.inputs),
+      actual: child.inputs === null ? 'null' : JSON.stringify(child.inputs),
+    });
+  }
+
+  for (const [jobKey, jobExpectation] of Object.entries(expectation.jobs ?? {})) {
+    evaluateJobExpectation(child.observation, jobKey, jobExpectation, result, 'child_run.jobs');
   }
 
   return result;

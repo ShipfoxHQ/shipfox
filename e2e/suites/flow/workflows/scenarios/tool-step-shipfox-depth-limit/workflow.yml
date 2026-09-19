@@ -1,0 +1,14 @@
+name: Shipfox depth limit
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  start_self:
+    steps:
+      - key: start_self
+        name: Start this workflow again
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox/workflows/tool-step-shipfox-depth-limit.yml

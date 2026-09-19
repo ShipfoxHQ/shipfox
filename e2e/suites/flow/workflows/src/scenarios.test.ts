@@ -34,6 +34,24 @@ describe('discoverScenarios', () => {
     }
   });
 
+  test('loads an optional child workflow definition', () => {
+    const root = createTempScenariosRoot();
+    try {
+      writeScenarioFile(root, 'chained', 'expect.yaml', 'run:\n  status: succeeded\n');
+      writeScenarioFile(root, 'chained', 'workflow.yml', 'jobs:\n  build:\n    steps: []\n');
+      writeScenarioFile(root, 'chained', 'child-workflow.yml', 'name: Child\n');
+
+      const scenarios = discoverScenarios(root);
+
+      expect(scenarios[0]).toMatchObject({
+        childConfigPath: '.shipfox/workflows/chained-child.yml',
+        childWorkflowYaml: 'name: Child\n',
+      });
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  });
+
   test('loads optional scenario secrets', () => {
     const root = createTempScenariosRoot();
     try {

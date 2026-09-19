@@ -1,0 +1,26 @@
+trigger: manual
+timeout_seconds: 180
+run:
+  status: succeeded
+jobs:
+  start_self:
+    status: succeeded
+    steps:
+      start_self:
+        type: tool
+        status: succeeded
+child_run:
+  workflow: .shipfox/workflows/tool-step-shipfox-depth-limit.yml
+  depth: 5
+  status: failed
+  parent_run: true
+  jobs:
+    start_self:
+      status: failed
+      steps:
+        start_self:
+          type: tool
+          status: failed
+          error:
+            code: run-depth-exceeded
+            reason: tool_error

@@ -6,7 +6,13 @@ import type {
   WorkflowRunObservation,
   WorkflowStepObservation,
 } from '@shipfox/e2e-observe-workflows';
-import {evaluateExpectations, evaluateLogs, logText, parseExpectation} from './expect.js';
+import {
+  evaluateChildRunExpectation,
+  evaluateExpectations,
+  evaluateLogs,
+  logText,
+  parseExpectation,
+} from './expect.js';
 
 const timestamp = '2026-07-02T08:00:00.000Z';
 
@@ -152,6 +158,32 @@ describe('evaluateExpectations', () => {
     const result = evaluateExpectations(detail, parseExpectation({run: {status: 'succeeded'}}));
 
     expect(result.mismatches).toEqual([]);
+  });
+
+  test('matches a child run parent, inputs, and nested job assertions', () => {
+    const expectation = parseExpectation({
+      run: {status: 'succeeded'},
+      child_run: {
+        workflow: '.shipfox/workflows/child.yml',
+        status: 'succeeded',
+        parent_run: true,
+        inputs: {message: 'from-parent'},
+        jobs: {build: {status: 'succeeded'}},
+      },
+    });
+
+    const childExpectation = expectation.child_run;
+    if (childExpectation === undefined) throw new Error('child expectation missing');
+    const result = evaluateChildRunExpectation(
+      {
+        observation: makeDetail(),
+        parentRunId: '99999999-9999-4999-8999-999999999999',
+        inputs: {message: 'from-parent'},
+      },
+      childExpectation,
+    );
+
+    expect(result).toEqual({mismatches: [], logRequirements: []});
   });
 
   test('collects a log requirement with the step id and current attempt', () => {
@@ -318,6 +350,7 @@ describe('evaluateExpectations', () => {
                   status: 'failed',
                   error: {
                     message: 'Could not resolve env.VERSION from steps.build.outputs.version',
+                    code: 'run-depth-exceeded',
                     reason: 'config_unresolvable',
                     field: 'env.VERSION',
                     source: 'steps.build.outputs.version',
@@ -341,6 +374,7 @@ describe('evaluateExpectations', () => {
             steps: {
               greet: {
                 error: {
+                  code: 'run-depth-exceeded',
                   reason: 'config_unresolvable',
                   field: 'env.VERSION',
                   source: 'build.outputs',
@@ -793,7 +827,7 @@ describe('parseExpectation', () => {
     expect(() =>
       parseExpectation({
         run: {status: 'succeeded'},
-        jobs: {build: {steps: {greet: {error: {code: 'config_unresolvable'}}}}},
+        jobs: {build: {steps: {greet: {error: {unknown: 'config_unresolvable'}}}}},
       }),
     ).toThrow();
   });

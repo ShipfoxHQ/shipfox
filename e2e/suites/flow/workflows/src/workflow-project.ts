@@ -37,6 +37,12 @@ export interface SeededWorkflowProject {
 
 export interface ReadyWorkflowProject extends SeededWorkflowProject {
   definition: DefinitionResponseDto;
+  additionalDefinitions: DefinitionResponseDto[];
+}
+
+export interface AdditionalWorkflowDefinition {
+  configPath: string;
+  workflowYaml: string;
 }
 
 export function renderWorkflowYaml(params: {
@@ -151,20 +157,45 @@ export async function seedAndWaitForDefinition(params: Parameters<typeof seedWor
  * instead of a poll timing out with no error to report.
  */
 export async function seedProjectWithApiDefinition(
-  params: Parameters<typeof seedWorkflowProject>[0],
+  params: Parameters<typeof seedWorkflowProject>[0] & {
+    additionalDefinitions?: AdditionalWorkflowDefinition[] | undefined;
+  },
 ): Promise<ReadyWorkflowProject> {
   const seeded = await seedWorkflowProject({...params, definitionDelivery: 'api'});
-  const definition = await createApiClient({
-    token: params.token,
-  }).requestJson<DefinitionResponseDto>('post', '/definitions', {
+  const client = createApiClient({token: params.token});
+  const definition = await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
     json: {
       project_id: seeded.project.id,
+      config_path: params.configPath,
       source: 'manual',
       yaml: seeded.renderedWorkflowYaml,
     },
   });
   assertResolvedReferences(definition, params.name);
-  return {...seeded, definition};
+
+  const additionalDefinitions: DefinitionResponseDto[] = [];
+  for (const additional of params.additionalDefinitions ?? []) {
+    const renderedYaml = renderWorkflowYaml({
+      ...params,
+      workflowYaml: additional.workflowYaml,
+    });
+    const additionalDefinition = await client.requestJson<DefinitionResponseDto>(
+      'post',
+      '/definitions',
+      {
+        json: {
+          project_id: seeded.project.id,
+          config_path: additional.configPath,
+          source: 'manual',
+          yaml: renderedYaml,
+        },
+      },
+    );
+    assertResolvedReferences(additionalDefinition, `${params.name} (${additional.configPath})`);
+    additionalDefinitions.push(additionalDefinition);
+  }
+
+  return {...seeded, definition, additionalDefinitions};
 }
 
 /**

@@ -44,6 +44,32 @@ Driver-specific docs live with their drivers:
 - [`drivers/runner-process/README.md`](drivers/runner-process/README.md) explains local runner and provisioner processes.
 - [`suites/flow/workflows/README.md`](suites/flow/workflows/README.md) is the deep runbook for the workflow flow suite.
 
+## Workflow flow scenarios
+
+The workflow flow suite accepts an optional `child_run` block in `expect.yaml`
+when a `tool:` step starts another workflow:
+
+```yaml
+child_run:
+  workflow: .shipfox/workflows/child.yml
+  depth: 1                 # parent links to follow; defaults to 1
+  status: succeeded        # succeeded | failed | cancelled
+  parent_run: true         # require a recorded parent run
+  inputs:                  # exact match against the child run's stored inputs
+    message: from-parent
+  jobs:                    # optional, the same job/step assertions as the parent
+    build:
+      status: succeeded
+```
+
+A scenario using this assertion may include `child-workflow.yml` beside its
+`workflow.yml`. The harness seeds it through the API as a second definition in
+the same project at `.shipfox/workflows/<scenario>-child.yml`; `workflow` names
+that definition. The harness follows `parent_run` links `depth` times, waits for
+the selected run to reach a terminal state, and checks its parent, inputs, and
+optional jobs. A deeper descendant can therefore assert a self-starting workflow
+stopping with `run-depth-exceeded` without adding a bespoke test.
+
 ## Pick the Right Level
 
 Use this decision tree before adding a spec:

@@ -1,0 +1,24 @@
+trigger: manual
+timeout_seconds: 180
+run:
+  status: succeeded
+jobs:
+  start_child:
+    status: succeeded
+    steps:
+      start_child:
+        type: tool
+        status: succeeded
+child_run:
+  workflow: .shipfox/workflows/tool-step-shipfox-child.yml
+  status: succeeded
+  parent_run: true
+  inputs:
+    message: from-parent
+  jobs:
+    receive_input:
+      status: succeeded
+      steps:
+        verify_input:
+          status: succeeded
+          exit_code: 0

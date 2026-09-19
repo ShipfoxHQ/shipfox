@@ -45,6 +45,8 @@ interface BaseScenario {
   dir: string;
   configPath: string;
   workflowYaml: string;
+  childConfigPath?: string;
+  childWorkflowYaml?: string;
   extraFiles: ScenarioFile[];
   seededSecrets: SeededSecret[];
   seededVariables: SeededVariable[];
@@ -121,11 +123,18 @@ function loadScenario(root: string, name: string): Scenario {
     throw new Error(`Scenario "${name}" must contain exactly one of expect.yaml or reject.yaml`);
   }
 
+  const childWorkflowPath = join(dir, 'child-workflow.yml');
   const base = {
     name,
     dir,
     configPath: `.shipfox/workflows/${name}.yml`,
     workflowYaml: readFileSync(workflowPath, 'utf8'),
+    ...(existsSync(childWorkflowPath)
+      ? {
+          childConfigPath: `.shipfox/workflows/${name}-child.yml`,
+          childWorkflowYaml: readFileSync(childWorkflowPath, 'utf8'),
+        }
+      : {}),
     extraFiles: readScenarioFiles(join(dir, 'files')),
     seededSecrets: loadSeededSecrets(dir),
     seededVariables: loadSeededVariables(dir),
