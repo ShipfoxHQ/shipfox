@@ -12,6 +12,7 @@ import {
   fakeRunnerSessionAuthMethod,
   getLeaseTokenClaims,
   manualRegistrationTokenFactory,
+  mintRunnerSessionToken,
   pendingJobFactory,
   runnersTestAuthClient,
 } from '#test/index.js';
@@ -106,6 +107,27 @@ describe('POST /runners/jobs/request', () => {
     });
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 409 when a capped runner session no longer exists', async () => {
+    const missingSessionToken = mintRunnerSessionToken({
+      runnerSessionId: crypto.randomUUID(),
+      workspaceId,
+      scope: 'workspace',
+      labels: ['linux', 'x64'],
+      maxClaims: 1,
+      lifecycleCapabilities: ['local_execution_fence_v1'],
+    });
+    await pendingJobFactory.create({workspaceId});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${missingSessionToken}`},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('runner-session-exhausted');
   });
 
   it('returns 200 with the job ids and a verifiable lease token when a job is available', async () => {

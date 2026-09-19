@@ -891,7 +891,6 @@ async function loadClaimRunnerContextTx(
     .limit(1);
   const [session] =
     params.maxClaims === null ? await sessionQuery : await sessionQuery.for('update');
-  if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   let renewableInference: boolean | null = null;
   if (params.maxClaims !== null) {
     assertClaimSessionAvailable(session, params.runnerSessionId);
@@ -899,6 +898,7 @@ async function loadClaimRunnerContextTx(
     provisionerId = session.provisionerId;
     providerRunnerId = session.providerRunnerId;
   }
+  if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   // Snapshot the registered manifest at claim time. Later heartbeat reports must not change the
   // execution's eligibility.
   renewableInference = session.toolCapabilities.features.renewable_inference;
