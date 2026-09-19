@@ -148,6 +148,7 @@ export const createDevRunInputSchema = z
       .optional(),
     inputs: inputsSchema.optional(),
     replay_event_id: uuidSchema.optional(),
+    dry_run: z.boolean().default(false),
   })
   .superRefine(({content, ref, commit}, context) => {
     if (ref === undefined && content === undefined) {
@@ -169,14 +170,27 @@ export const createDevRunInputSchema = z
 
 export type CreateDevRunInputDto = z.infer<typeof createDevRunInputSchema>;
 
-export const createDevRunResultSchema = z
-  .object({
-    run_id: uuidSchema,
-    ref: z.string().optional(),
-    commit: z.string(),
-    warnings: z.array(createDevRunWarningSchema).max(100).optional(),
-  })
-  .strict();
+const createDevRunResultShape = {
+  ref: z.string().optional(),
+  commit: z.string(),
+  warnings: z.array(createDevRunWarningSchema).max(100).optional(),
+} as const;
+
+export const createDevRunResultSchema = z.union([
+  z
+    .object({
+      run_id: uuidSchema,
+      ...createDevRunResultShape,
+    })
+    .strict(),
+  z
+    .object({
+      dry_run: z.literal(true),
+      check_passed: z.literal(true),
+      ...createDevRunResultShape,
+    })
+    .strict(),
+]);
 
 export type CreateDevRunResultDto = z.infer<typeof createDevRunResultSchema>;
 
@@ -286,6 +300,7 @@ export const createDevRunInputJsonSchema = {
     commit: {type: 'string', pattern: '^[0-9a-f]{40}$'},
     inputs: inputsJsonSchema,
     replay_event_id: uuidJsonSchema,
+    dry_run: {type: 'boolean', default: false},
   },
   required: ['project_id', 'config_path', 'trigger'],
   anyOf: [{required: ['ref']}, {required: ['content'], not: {required: ['commit']}}],
@@ -296,10 +311,22 @@ export const createDevRunResultJsonSchema = {
   type: 'object',
   properties: {
     run_id: uuidJsonSchema,
+    dry_run: {const: true},
+    check_passed: {const: true},
     ref: {type: 'string'},
     commit: {type: 'string'},
     warnings: {type: 'array', items: createDevRunWarningJsonSchema, maxItems: 100},
   },
-  required: ['run_id', 'commit'],
+  required: ['commit'],
+  oneOf: [
+    {
+      required: ['run_id'],
+      not: {anyOf: [{required: ['dry_run']}, {required: ['check_passed']}]},
+    },
+    {
+      required: ['dry_run', 'check_passed'],
+      not: {required: ['run_id']},
+    },
+  ],
   additionalProperties: false,
 } as const;

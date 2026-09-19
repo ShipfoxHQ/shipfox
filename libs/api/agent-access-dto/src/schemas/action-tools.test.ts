@@ -1,3 +1,5 @@
+import {Ajv} from 'ajv';
+import * as addFormatsModule from 'ajv-formats';
 import {
   AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES,
   cancelWorkflowRunInputSchema,
@@ -11,6 +13,7 @@ import {
 } from './action-tools.js';
 
 const uuid = '00000000-0000-4000-8000-000000000001';
+const addFormats = addFormatsModule.default as unknown as (validator: Ajv) => void;
 
 describe('agent-access action tool schemas', () => {
   test('requires retry identity and rerun mode', () => {
@@ -75,6 +78,7 @@ describe('agent-access action tool schemas', () => {
     };
 
     expect(createDevRunInputSchema.safeParse(input).success).toBe(true);
+    expect(createDevRunInputSchema.parse(input).dry_run).toBe(false);
     expect(createDevRunInputJsonSchema.required).toEqual(['project_id', 'config_path', 'trigger']);
     expect(createDevRunInputJsonSchema.properties.content).toEqual({type: 'string'});
   });
@@ -98,15 +102,68 @@ describe('agent-access action tool schemas', () => {
   });
 
   test('validates development-run results with provenance and warnings', () => {
-    const result = {
+    const realResult = {
       run_id: uuid,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
     };
+    const dryRunResult = {
+      dry_run: true,
+      check_passed: true,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    };
 
-    expect(createDevRunResultSchema.safeParse(result).success).toBe(true);
+    expect(createDevRunResultSchema.safeParse(realResult).success).toBe(true);
+    expect(createDevRunResultSchema.safeParse(dryRunResult).success).toBe(true);
+    expect(createDevRunResultJsonSchema.required).toEqual(['commit']);
     expect(createDevRunResultJsonSchema.properties.warnings).toMatchObject({maxItems: 100});
+  });
+
+  test('requires exactly one development-run result variant', () => {
+    const commit = 'a'.repeat(40);
+    const validResults = [
+      {
+        run_id: uuid,
+        ref: 'main',
+        commit,
+        warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+      },
+      {
+        dry_run: true,
+        check_passed: true,
+        ref: 'main',
+        commit,
+        warnings: [],
+      },
+    ];
+    const invalidResults = [
+      {commit},
+      {run_id: uuid, dry_run: true, commit},
+      {run_id: uuid, check_passed: true, commit},
+      {run_id: uuid, dry_run: true, check_passed: true, commit},
+      {dry_run: true, commit},
+      {check_passed: true, commit},
+    ];
+    const ajv = new Ajv({strict: true, strictRequired: false});
+    addFormats(ajv);
+    const validateResult = ajv.compile(createDevRunResultJsonSchema);
+    const validateVariants = createDevRunResultJsonSchema.oneOf.map((variant) =>
+      ajv.compile({type: 'object', ...variant}),
+    );
+
+    for (const result of validResults) {
+      expect(validateResult(result)).toBe(true);
+      expect(validateVariants.filter((validate) => validate(result))).toHaveLength(1);
+    }
+
+    for (const result of invalidResults) {
+      expect(createDevRunResultSchema.safeParse(result).success).toBe(false);
+      expect(validateResult(result)).toBe(false);
+      expect(validateVariants.filter((validate) => validate(result))).toHaveLength(0);
+    }
   });
 
   test('keeps development-run descriptors aligned with safe runtime strings', () => {

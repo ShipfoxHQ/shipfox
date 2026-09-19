@@ -187,7 +187,7 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
   return {
     name: 'create_dev_run',
     description:
-      'Iterate on a workflow against a real past event: call list_trigger_events with replayable=true, read one payload with get_trigger_event, call create_dev_run with content and replay_event_id, read the run with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
+      'Iterate on a workflow against a real past event: call list_trigger_events with replayable=true, read one payload with get_trigger_event, then call create_dev_run with content, replay_event_id, and dry_run: true until check_passed is true. A passing check means the definition resolved and validated, the trigger exists, the event matches, and the filter passed; it does not cover admission, run creation, or execution, so call create_dev_run again for a real run and it can still fail. Read the run with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
     inputSchema: createDevRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(createDevRunResultJsonSchema),
     validateInput: (input) => createDevRunInputSchema.safeParse(input).success,
@@ -198,42 +198,10 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
       idempotentHint: false,
       openWorldHint: true,
     },
-    execute: async ({context, arguments: rawInput}) => {
+    execute: ({context, arguments: rawInput}) => {
       const input = parseInput(createDevRunInputSchema, rawInput);
       if (!input) return invalidRequest();
-
-      try {
-        const result = await triggers.createDevRun({
-          workspaceId: context.workspaceId,
-          projectId: input.project_id,
-          ...optionalField('ref', input.ref),
-          ...optionalField('content', input.content),
-          configPath: input.config_path,
-          triggerKey: input.trigger,
-          ...optionalField('commit', input.commit),
-          ...optionalField('inputs', input.inputs),
-          ...optionalField('replayEventId', input.replay_event_id),
-          userId: context.userId,
-        });
-        return agentAccessSuccess({
-          run_id: result.id,
-          ...(result.ref === undefined ? {} : {ref: result.ref}),
-          commit: result.commit,
-          ...(result.warnings === undefined
-            ? {}
-            : {
-                warnings: result.warnings.slice(
-                  0,
-                  createDevRunResultJsonSchema.properties.warnings.maxItems,
-                ),
-              }),
-        });
-      } catch (error) {
-        if (isInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, error)) {
-          return mapProducerError(error.code, error.details);
-        }
-        throw error;
-      }
+      return executeDevRun(input, context.workspaceId, context.userId, triggers);
     },
   };
 }
@@ -263,6 +231,73 @@ function canonicalizeJson(value: unknown): unknown {
     sorted[key] = canonicalizeJson((value as Record<string, unknown>)[key]);
   }
   return sorted;
+}
+
+type CreateDevRunRequest = Parameters<TriggersInterModuleClient['createDevRun']>[0];
+
+type CreateDevRunInput = ReturnType<typeof createDevRunInputSchema.parse>;
+
+async function executeDevRun(
+  input: CreateDevRunInput,
+  workspaceId: string,
+  userId: string,
+  triggers: TriggersInterModuleClient,
+) {
+  const request: CreateDevRunRequest = {
+    workspaceId,
+    projectId: input.project_id,
+    ...optionalField('ref', input.ref),
+    ...optionalField('content', input.content),
+    configPath: input.config_path,
+    triggerKey: input.trigger,
+    ...optionalField('commit', input.commit),
+    ...optionalField('inputs', input.inputs),
+    ...optionalField('replayEventId', input.replay_event_id),
+    userId,
+  };
+
+  try {
+    if (input.dry_run) return await executeDryRun(triggers, request);
+    return await executeRealDevRun(triggers, request);
+  } catch (error) {
+    const method = input.dry_run
+      ? triggersInterModuleContract.methods.checkDevRun
+      : triggersInterModuleContract.methods.createDevRun;
+    if (isInterModuleKnownError(method, error)) {
+      return mapProducerError(error.code, error.details);
+    }
+    throw error;
+  }
+}
+
+async function executeDryRun(triggers: TriggersInterModuleClient, request: CreateDevRunRequest) {
+  const result = await triggers.checkDevRun(request);
+  return agentAccessSuccess({
+    dry_run: true,
+    check_passed: result.checkPassed,
+    ...(result.ref === undefined ? {} : {ref: result.ref}),
+    commit: result.commit,
+    ...(result.warnings === undefined ? {} : {warnings: mapDevRunWarnings(result.warnings)}),
+  });
+}
+
+async function executeRealDevRun(
+  triggers: TriggersInterModuleClient,
+  request: CreateDevRunRequest,
+) {
+  const result = await triggers.createDevRun(request);
+  return agentAccessSuccess({
+    run_id: result.id,
+    ...(result.ref === undefined ? {} : {ref: result.ref}),
+    commit: result.commit,
+    ...(result.warnings === undefined ? {} : {warnings: mapDevRunWarnings(result.warnings)}),
+  });
+}
+
+function mapDevRunWarnings(
+  warnings: readonly {code: string; message: string; path?: string | undefined}[],
+) {
+  return warnings.slice(0, createDevRunResultJsonSchema.properties.warnings.maxItems);
 }
 
 function mapProducerError(
