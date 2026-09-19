@@ -26,12 +26,14 @@ import {
   type InterModulePresentation,
 } from '@shipfox/inter-module';
 import {
+  createTimestampIdCursor,
   decodeNumberIdCursor,
   decodeStringIdCursor,
   decodeTimestampIdCursor,
   encodeNumberIdCursor,
   encodeStringIdCursor,
   encodeTimestampIdCursor,
+  timestampIdCursorTimestamp,
 } from '@shipfox/node-drizzle';
 import {DEFAULT_HARNESS, harnessSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
@@ -381,9 +383,7 @@ export function createWorkflowsInterModulePresentation(params: {
         workspaceId: input.workspaceId,
         projectId: input.projectId,
         limit: input.limit,
-        cursor: input.cursor
-          ? {createdAt: new Date(input.cursor.createdAt), id: input.cursor.id}
-          : undefined,
+        cursor: input.cursor ? createTimestampIdCursor(input.cursor) : undefined,
         filters: input.filters
           ? {
               status: input.filters.status,
@@ -412,7 +412,10 @@ export function createWorkflowsInterModulePresentation(params: {
           toRunListItemDto(run, jobsByRun.get(run.id), concurrencyByRun.get(run.id) ?? null),
         ),
         nextCursor: result.nextCursor
-          ? {createdAt: result.nextCursor.createdAt.toISOString(), id: result.nextCursor.id}
+          ? {
+              createdAt: timestampIdCursorTimestamp(result.nextCursor),
+              id: result.nextCursor.id,
+            }
           : null,
         filteredTotalCount: result.filteredTotalCount,
       };

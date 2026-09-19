@@ -1,4 +1,8 @@
-import {paginateTimestampIdRows, timestampIdCursorWhere} from '@shipfox/node-drizzle';
+import {
+  paginateTimestampIdRows,
+  timestampIdCursorColumn,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
 import {and, asc, count, desc, eq, gte, inArray, isNotNull, lte, type SQL} from 'drizzle-orm';
 import type {PgColumn} from 'drizzle-orm/pg-core';
 import type {TriggerDecision} from '#core/entities/decision.js';
@@ -76,16 +80,26 @@ export async function listTriggerEvents(
   params: ListTriggerEventsParams,
 ): Promise<ListTriggerEventsResult> {
   const rows = await db()
-    .select(triggerReceivedEventSummaryColumns)
+    .select({
+      ...triggerReceivedEventSummaryColumns,
+      cursorReceivedAt: timestampIdCursorColumn(triggersReceivedEvents.receivedAt),
+    })
     .from(triggersReceivedEvents)
     .where(and(...listConditions(params)))
     .orderBy(desc(triggersReceivedEvents.receivedAt), desc(triggersReceivedEvents.id))
     .limit(params.limit + 1);
 
-  const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'receivedAt'});
+  const page = paginateTimestampIdRows({
+    rows,
+    limit: params.limit,
+    timestampKey: 'receivedAt',
+    cursorTimestamp: (row) => row.cursorReceivedAt,
+  });
 
   return {
-    events: page.pageRows.map(toTriggerReceivedEventSummary),
+    events: page.pageRows.map(({cursorReceivedAt: _cursorReceivedAt, ...row}) =>
+      toTriggerReceivedEventSummary(row),
+    ),
     nextCursor: page.nextCursor
       ? {receivedAt: page.nextCursor.createdAt, id: page.nextCursor.id}
       : null,

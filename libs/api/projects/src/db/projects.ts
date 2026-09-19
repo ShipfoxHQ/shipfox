@@ -1,15 +1,20 @@
-import {isUniqueViolation} from '@shipfox/node-drizzle';
+import {
+  createTimestampIdCursor,
+  isUniqueViolation,
+  timestampIdCursorColumn,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
 import {
   and,
   asc,
   count,
   desc,
   eq,
+  getTableColumns,
   gt,
   ilike,
   inArray,
   isNotNull,
-  lt,
   or,
   type SQL,
   sql,
@@ -94,11 +99,11 @@ export interface ListAdminProjectsResult {
 const PROJECTS_WORKSPACE_SLUG_UNIQUE_CONSTRAINT = 'projects_workspace_slug_unique';
 
 function cursorWhere(cursor: ProjectCursor | undefined): SQL | undefined {
-  if (!cursor) return undefined;
-  return or(
-    lt(projects.createdAt, cursor.createdAt),
-    and(eq(projects.createdAt, cursor.createdAt), lt(projects.id, cursor.id)),
-  );
+  return timestampIdCursorWhere({
+    timestampColumn: projects.createdAt,
+    idColumn: projects.id,
+    cursor,
+  });
 }
 
 export async function createProject(params: CreateProjectParams): Promise<Project> {
@@ -484,7 +489,10 @@ export async function listProjects(params: ListProjectsParams): Promise<ListProj
   }
 
   const rows = await db()
-    .select()
+    .select({
+      ...getTableColumns(projects),
+      cursorCreatedAt: timestampIdCursorColumn(projects.createdAt),
+    })
     .from(projects)
     .where(and(...conditions))
     .orderBy(desc(projects.createdAt), desc(projects.id))
@@ -496,7 +504,10 @@ export async function listProjects(params: ListProjectsParams): Promise<ListProj
 
   return {
     projects: pageRows.map(toProject),
-    nextCursor: hasMore && last ? {createdAt: last.createdAt, id: last.id} : null,
+    nextCursor:
+      hasMore && last
+        ? createTimestampIdCursor({createdAt: last.cursorCreatedAt, id: last.id})
+        : null,
   };
 }
 
@@ -517,6 +528,7 @@ export async function listAdminProjects(
       workspaceId: projects.workspaceId,
       name: projects.name,
       createdAt: projects.createdAt,
+      cursorCreatedAt: timestampIdCursorColumn(projects.createdAt),
       updatedAt: projects.updatedAt,
     })
     .from(projects)
@@ -529,8 +541,11 @@ export async function listAdminProjects(
   const last = pageRows.at(-1);
 
   return {
-    projects: pageRows,
-    nextCursor: hasMore && last ? {createdAt: last.createdAt, id: last.id} : null,
+    projects: pageRows.map(({cursorCreatedAt: _cursorCreatedAt, ...project}) => project),
+    nextCursor:
+      hasMore && last
+        ? createTimestampIdCursor({createdAt: last.cursorCreatedAt, id: last.id})
+        : null,
   };
 }
 

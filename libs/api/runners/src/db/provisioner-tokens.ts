@@ -2,9 +2,27 @@ import type {
   AdministrationActionEvent,
   AdministrationActionEventMap,
 } from '@shipfox/api-common-dto';
-import {type TimestampIdCursor, timestampIdCursorWhere} from '@shipfox/node-drizzle';
+import {
+  createTimestampIdCursor,
+  type TimestampIdCursor,
+  timestampIdCursorColumn,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, type SQL, sql} from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 import type {
   ActiveProvisionerToken,
   ProvisionerScope,
@@ -385,7 +403,10 @@ export async function listInstallationProvisionerTokens(
   if (params.status === 'revoked') conditions.push(isNotNull(provisionerTokens.revokedAt));
 
   const rows = await db()
-    .select()
+    .select({
+      ...getTableColumns(provisionerTokens),
+      cursorCreatedAt: timestampIdCursorColumn(provisionerTokens.createdAt),
+    })
     .from(provisionerTokens)
     .where(and(...conditions))
     .orderBy(desc(provisionerTokens.createdAt), desc(provisionerTokens.id))
@@ -395,7 +416,9 @@ export async function listInstallationProvisionerTokens(
   return {
     tokens: pageRows.map(toProvisionerToken),
     nextCursor:
-      rows.length > params.limit && last ? {createdAt: last.createdAt, id: last.id} : null,
+      rows.length > params.limit && last
+        ? createTimestampIdCursor({createdAt: last.cursorCreatedAt, id: last.id})
+        : null,
   };
 }
 

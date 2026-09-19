@@ -14,7 +14,7 @@ import {
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
 import {vi} from '@shipfox/vitest/vi';
-import {eq} from 'drizzle-orm';
+import {eq, sql} from 'drizzle-orm';
 import type {FastifyInstance, FastifyRequest} from 'fastify';
 import {db} from '#db/db.js';
 import {provisionerTokens} from '#db/schema/provisioner-tokens.js';
@@ -189,7 +189,7 @@ describe('GET /admin/runners/instances', () => {
       headers: {authorization: 'Bearer user'},
     });
 
-    expect(secondPage.statusCode).toBe(200);
+    expect(secondPage.statusCode, secondPage.body).toBe(200);
     expect(secondPage.json()).toMatchObject({
       runners: [
         {
@@ -207,6 +207,53 @@ describe('GET /admin/runners/instances', () => {
       ],
       next_cursor: null,
     });
+  });
+
+  test('does not skip rows whose timestamps differ below millisecond precision', async () => {
+    const label = `precision-${crypto.randomUUID()}`;
+    const provisioner = await provisionerTokenFactory.create({scope: 'installation'});
+    const ids = [
+      '00000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000003',
+      '00000000-0000-4000-8000-000000000002',
+    ];
+    await db()
+      .insert(providerRunners)
+      .values(
+        ids.map((id) => ({
+          id,
+          provisionerId: provisioner.id,
+          labels: [label],
+          state: 'starting' as const,
+          reportedAt: new Date(),
+        })),
+      );
+    for (const [index, id] of ids.entries()) {
+      const timestamp = `2026-07-12T12:00:00.000${900 - index * 100}Z`;
+      await db()
+        .update(providerRunners)
+        .set({createdAt: sql`${timestamp}::timestamptz`})
+        .where(eq(providerRunners.id, id));
+    }
+
+    const seenIds: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const query = new URLSearchParams({label, limit: '1'});
+      if (cursor) query.set('cursor', cursor);
+      const response = await app.inject({
+        method: 'GET',
+        url: `/admin/runners/instances?${query.toString()}`,
+        headers: {authorization: 'Bearer user'},
+      });
+
+      expect(response.statusCode, response.body).toBe(200);
+      const body = response.json();
+      seenIds.push(...body.runners.map((runner: {id: string}) => runner.id));
+      cursor = body.next_cursor;
+    } while (cursor);
+
+    expect(seenIds).toEqual(ids);
   });
 
   test('checks bounded lifecycle, assignment, and label filters', async () => {

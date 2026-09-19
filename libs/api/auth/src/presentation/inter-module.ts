@@ -8,7 +8,11 @@ import {
   defineInterModulePresentation,
   type InterModulePresentation,
 } from '@shipfox/inter-module';
-import type {TimestampIdCursor} from '@shipfox/node-drizzle';
+import {
+  createTimestampIdCursor,
+  type TimestampIdCursor,
+  timestampIdCursorTimestamp,
+} from '@shipfox/node-drizzle';
 import {z} from 'zod';
 import {getCurrentAdminRole, requireAdminRole} from '#core/admin-role.js';
 import {listImpersonationEligibleUserSummaries} from '#core/administration.js';
@@ -33,7 +37,7 @@ function encodeImpersonationEligibilityCursor(cursor: TimestampIdCursor): string
   return Buffer.from(
     JSON.stringify({
       mode: 'search',
-      createdAt: cursor.createdAt.toISOString(),
+      createdAt: timestampIdCursorTimestamp(cursor),
       id: cursor.id,
     }),
     'utf8',
@@ -48,7 +52,7 @@ function decodeImpersonationEligibilityCursor(cursor: string): TimestampIdCursor
     if (!parsed.success) return undefined;
     const createdAt = new Date(parsed.data.createdAt);
     if (Number.isNaN(createdAt.getTime())) return undefined;
-    return {createdAt, id: parsed.data.id};
+    return createTimestampIdCursor({createdAt: parsed.data.createdAt, id: parsed.data.id});
   } catch {
     return undefined;
   }

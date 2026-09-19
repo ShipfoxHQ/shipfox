@@ -7,6 +7,7 @@ import {
   type NumberIdCursor,
   paginateTimestampIdRows,
   type TimestampIdCursor,
+  timestampIdCursorColumn,
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {and, asc, count, desc, eq, gte, lt, lte, or, type SQL, sql} from 'drizzle-orm';
@@ -589,6 +590,7 @@ export async function listWorkflowRuns(
       triggerEvent: workflowRuns.triggerEvent,
       triggerReference: workflowRuns.triggerReference,
       createdAt: workflowRuns.createdAt,
+      cursorCreatedAt: timestampIdCursorColumn(workflowRuns.createdAt),
       updatedAt: workflowRuns.updatedAt,
       startedAt: workflowRuns.startedAt,
       finishedAt: workflowRuns.finishedAt,
@@ -627,7 +629,12 @@ export async function listWorkflowRuns(
     totalCount = value;
   }
 
-  const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'createdAt'});
+  const page = paginateTimestampIdRows({
+    rows,
+    limit: params.limit,
+    timestampKey: 'createdAt',
+    cursorTimestamp: (row) => row.cursorCreatedAt,
+  });
 
   return {
     runs: page.pageRows.map((row) =>

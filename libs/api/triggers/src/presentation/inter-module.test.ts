@@ -1,5 +1,6 @@
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
+import {createTimestampIdCursor, timestampIdCursorTimestamp} from '@shipfox/node-drizzle';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
   TriggerEventReplay,
@@ -83,9 +84,13 @@ describe('triggers inter-module presentation', () => {
   });
 
   it('lists events with public filters and preserves the timestamp cursor', async () => {
-    const nextCursor = {
-      receivedAt: new Date('2026-08-05T11:00:00.000Z'),
+    const preciseNextCursor = createTimestampIdCursor({
+      createdAt: '2026-08-05T11:00:00.000123Z',
       id: '00000000-0000-4000-8000-000000000004',
+    });
+    const nextCursor = {
+      receivedAt: preciseNextCursor.createdAt,
+      id: preciseNextCursor.id,
     };
     const item = event();
     mocks.listTriggerEvents.mockResolvedValue({
@@ -93,7 +98,7 @@ describe('triggers inter-module presentation', () => {
       nextCursor,
     });
     const cursor = {
-      receivedAt: '2026-08-05T13:00:00.000Z',
+      receivedAt: '2026-08-05T13:00:00.000456Z',
       id: '00000000-0000-4000-8000-000000000005',
     };
     const from = '2026-08-01T00:00:00.000Z';
@@ -131,6 +136,15 @@ describe('triggers inter-module presentation', () => {
         to: new Date(to),
       },
     });
+    const receivedCursor = mocks.listTriggerEvents.mock.calls[0]?.[0].cursor;
+    expect(
+      receivedCursor
+        ? timestampIdCursorTimestamp({
+            createdAt: receivedCursor.receivedAt,
+            id: receivedCursor.id,
+          })
+        : undefined,
+    ).toBe(cursor.receivedAt);
     expect(triggersInterModuleContract.methods.listTriggerEvents.output.parse(result)).toEqual({
       events: [
         {
@@ -141,7 +155,7 @@ describe('triggers inter-module presentation', () => {
         },
       ],
       nextCursor: {
-        receivedAt: nextCursor.receivedAt.toISOString(),
+        receivedAt: '2026-08-05T11:00:00.000123Z',
         id: nextCursor.id,
       },
     });

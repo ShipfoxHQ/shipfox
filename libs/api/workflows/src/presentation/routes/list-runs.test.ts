@@ -1,6 +1,6 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
-import {encodeTimestampIdCursor} from '@shipfox/node-drizzle';
+import {decodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import {eq} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
@@ -389,9 +389,10 @@ describe('GET /api/workflows/runs', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.runs.map((run: {name: string}) => run.name)).toEqual(['Other', 'Second']);
-    expect(body.next_cursor).toBe(
-      encodeTimestampIdCursor({createdAt: second.createdAt, id: second.id}),
-    );
+    expect(decodeTimestampIdCursor(body.next_cursor)).toEqual({
+      createdAt: second.createdAt,
+      id: second.id,
+    });
 
     const next = await app.inject({
       method: 'GET',

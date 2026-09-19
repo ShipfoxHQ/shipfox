@@ -18,6 +18,7 @@ import {
   type InterModulePresentation,
   isInterModuleKnownError,
 } from '@shipfox/inter-module';
+import {createTimestampIdCursor, timestampIdCursorTimestamp} from '@shipfox/node-drizzle';
 import {checkDevRun, createDevRun} from '#core/create-dev-run.js';
 import type {TriggerDecision} from '#core/entities/decision.js';
 import type {
@@ -95,10 +96,15 @@ export function createTriggersInterModulePresentation(params: {
       }
     },
     listTriggerEvents: async ({workspaceId, limit, cursor, filters}) => {
+      const decodedCursor = cursor
+        ? createTimestampIdCursor({createdAt: cursor.receivedAt, id: cursor.id})
+        : undefined;
       const result = await listTriggerEvents({
         workspaceId,
         limit,
-        cursor: cursor ? {receivedAt: new Date(cursor.receivedAt), id: cursor.id} : undefined,
+        cursor: decodedCursor
+          ? {receivedAt: decodedCursor.createdAt, id: decodedCursor.id}
+          : undefined,
         filters: filters
           ? {
               source: filters.source,
@@ -116,7 +122,10 @@ export function createTriggersInterModulePresentation(params: {
         events: result.events.map(toTriggerEventListItem),
         nextCursor: result.nextCursor
           ? {
-              receivedAt: result.nextCursor.receivedAt.toISOString(),
+              receivedAt: timestampIdCursorTimestamp({
+                createdAt: result.nextCursor.receivedAt,
+                id: result.nextCursor.id,
+              }),
               id: result.nextCursor.id,
             }
           : null,

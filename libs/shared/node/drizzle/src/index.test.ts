@@ -3,6 +3,7 @@ import * as publicApi from './index.js';
 describe('@shipfox/node-drizzle public exports', () => {
   it('exposes only the supported runtime API', () => {
     expect(Object.keys(publicApi).sort()).toEqual([
+      'createTimestampIdCursor',
       'decodeNumberIdCursor',
       'decodeStringIdCursor',
       'decodeTimestampIdCursor',
@@ -13,6 +14,8 @@ describe('@shipfox/node-drizzle public exports', () => {
       'isUniqueViolation',
       'paginateTimestampIdRows',
       'runMigrations',
+      'timestampIdCursorColumn',
+      'timestampIdCursorTimestamp',
       'timestampIdCursorWhere',
       'uuidv7PrimaryKey',
     ]);

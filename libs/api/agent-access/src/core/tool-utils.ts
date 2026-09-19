@@ -3,10 +3,12 @@ import {
   type AgentAccessEnvelopeDto,
 } from '@shipfox/api-agent-access-dto';
 import {
+  createTimestampIdCursor,
   decodeNumberIdCursor,
   decodeStringIdCursor,
   decodeTimestampIdCursor,
   encodeTimestampIdCursor,
+  timestampIdCursorTimestamp,
 } from '@shipfox/node-drizzle';
 import {agentAccessError} from './envelope.js';
 import {reducePagedAgentAccessResponse, truncateAgentAccessUtf8} from './response.js';
@@ -47,7 +49,7 @@ export function decodeTimestampCursor(
 ): {createdAt: string; id: string} | undefined {
   if (value === undefined) return undefined;
   const cursor = decodeTimestampIdCursor(value);
-  return cursor ? {createdAt: cursor.createdAt.toISOString(), id: cursor.id} : undefined;
+  return cursor ? {createdAt: timestampIdCursorTimestamp(cursor), id: cursor.id} : undefined;
 }
 
 export function validateTimestampCursor(value: string | undefined): string | undefined {
@@ -109,7 +111,7 @@ export function validateBoundedPositionCursor(
 }
 
 export function encodeTimestampCursor(createdAt: string, id: string): string {
-  return encodeTimestampIdCursor({createdAt: new Date(createdAt), id});
+  return encodeTimestampIdCursor(createTimestampIdCursor({createdAt, id}));
 }
 
 export function cap(value: string, maxBytes = AGENT_ACCESS_TEXT_MAX_BYTES): string {

@@ -3,6 +3,7 @@ import type {AdministrationActionEvent} from '@shipfox/api-common-dto';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
+  timestampIdCursorColumn,
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
 import {and, desc, eq, isNull} from 'drizzle-orm';
@@ -89,6 +90,7 @@ export async function listAdminGrantSummaries(params: {
       id: adminGrants.id,
       role: adminGrants.role,
       createdAt: adminGrants.createdAt,
+      cursorCreatedAt: timestampIdCursorColumn(adminGrants.createdAt),
       revokedAt: adminGrants.revokedAt,
       user: {
         id: users.id,
@@ -103,9 +105,14 @@ export async function listAdminGrantSummaries(params: {
     .orderBy(desc(adminGrants.createdAt), desc(adminGrants.id))
     .limit(params.limit + 1);
 
-  const page = paginateTimestampIdRows({rows, limit: params.limit, timestampKey: 'createdAt'});
+  const page = paginateTimestampIdRows({
+    rows,
+    limit: params.limit,
+    timestampKey: 'createdAt',
+    cursorTimestamp: (row) => row.cursorCreatedAt,
+  });
   return {
-    rows: page.pageRows,
+    rows: page.pageRows.map(({cursorCreatedAt: _cursorCreatedAt, ...row}) => row),
     nextCursor: page.nextCursor,
   };
 }
