@@ -170,16 +170,27 @@ export const createDevRunInputSchema = z
 
 export type CreateDevRunInputDto = z.infer<typeof createDevRunInputSchema>;
 
-export const createDevRunResultSchema = z
-  .object({
-    run_id: uuidSchema.optional(),
-    dry_run: z.literal(true).optional(),
-    check_passed: z.literal(true).optional(),
-    ref: z.string().optional(),
-    commit: z.string(),
-    warnings: z.array(createDevRunWarningSchema).max(100).optional(),
-  })
-  .strict();
+const createDevRunResultShape = {
+  ref: z.string().optional(),
+  commit: z.string(),
+  warnings: z.array(createDevRunWarningSchema).max(100).optional(),
+} as const;
+
+export const createDevRunResultSchema = z.union([
+  z
+    .object({
+      run_id: uuidSchema,
+      ...createDevRunResultShape,
+    })
+    .strict(),
+  z
+    .object({
+      dry_run: z.literal(true),
+      check_passed: z.literal(true),
+      ...createDevRunResultShape,
+    })
+    .strict(),
+]);
 
 export type CreateDevRunResultDto = z.infer<typeof createDevRunResultSchema>;
 
@@ -307,5 +318,15 @@ export const createDevRunResultJsonSchema = {
     warnings: {type: 'array', items: createDevRunWarningJsonSchema, maxItems: 100},
   },
   required: ['commit'],
+  oneOf: [
+    {
+      required: ['run_id'],
+      not: {anyOf: [{required: ['dry_run']}, {required: ['check_passed']}]},
+    },
+    {
+      required: ['dry_run', 'check_passed'],
+      not: {required: ['run_id']},
+    },
+  ],
   additionalProperties: false,
 } as const;

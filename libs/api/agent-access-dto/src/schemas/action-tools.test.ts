@@ -99,25 +99,50 @@ describe('agent-access action tool schemas', () => {
   });
 
   test('validates development-run results with provenance and warnings', () => {
-    const result = {
+    const realResult = {
       run_id: uuid,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
     };
+    const dryRunResult = {
+      dry_run: true,
+      check_passed: true,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    };
 
-    expect(createDevRunResultSchema.safeParse(result).success).toBe(true);
-    expect(
-      createDevRunResultSchema.safeParse({
-        dry_run: true,
-        check_passed: true,
-        ref: 'main',
-        commit: 'a'.repeat(40),
-        warnings: [],
-      }).success,
-    ).toBe(true);
+    expect(createDevRunResultSchema.safeParse(realResult).success).toBe(true);
+    expect(createDevRunResultSchema.safeParse(dryRunResult).success).toBe(true);
     expect(createDevRunResultJsonSchema.required).toEqual(['commit']);
     expect(createDevRunResultJsonSchema.properties.warnings).toMatchObject({maxItems: 100});
+  });
+
+  test('requires exactly one development-run result variant', () => {
+    const commit = 'a'.repeat(40);
+    const invalidResults = [
+      {commit},
+      {run_id: uuid, dry_run: true, commit},
+      {run_id: uuid, check_passed: true, commit},
+      {run_id: uuid, dry_run: true, check_passed: true, commit},
+      {dry_run: true, commit},
+      {check_passed: true, commit},
+    ];
+
+    for (const result of invalidResults) {
+      expect(createDevRunResultSchema.safeParse(result).success).toBe(false);
+    }
+    expect(createDevRunResultJsonSchema.oneOf).toEqual([
+      {
+        required: ['run_id'],
+        not: {anyOf: [{required: ['dry_run']}, {required: ['check_passed']}]},
+      },
+      {
+        required: ['dry_run', 'check_passed'],
+        not: {required: ['run_id']},
+      },
+    ]);
   });
 
   test('keeps development-run descriptors aligned with safe runtime strings', () => {
