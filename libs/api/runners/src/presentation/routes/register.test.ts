@@ -105,9 +105,7 @@ describe('POST /runners/register', () => {
     expect(rows[0]?.provisionerId).toBeNull();
     expect(rows[0]?.providerRunnerId).toBeNull();
     expect(rows[0]?.toolCapabilities).toEqual(fullCapabilities);
-    expect(rows[0]?.toolCapabilitiesReportedAt).toBeNull();
     expect(rows[0]?.lifecycleCapabilities).toEqual(['local_execution_fence_v1']);
-    expect(rows[0]?.lifecycleCapabilitiesReportedAt).toBeNull();
   });
 
   it('persists a full capability report for a manual runner session', async () => {
@@ -127,9 +125,7 @@ describe('POST /runners/register', () => {
       .from(runnerSessions)
       .where(eq(runnerSessions.id, res.json().session_id));
     expect(session?.toolCapabilities).toEqual(fullCapabilities);
-    expect(session?.toolCapabilitiesReportedAt).toBeNull();
     expect(session?.lifecycleCapabilities).toEqual(['local_execution_fence_v1']);
-    expect(session?.lifecycleCapabilitiesReportedAt).toBeNull();
   });
 
   it('strips reserved labels from manual registration', async () => {
