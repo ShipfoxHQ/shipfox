@@ -1961,6 +1961,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
+      '@shipfox/api-agent-access-dto':
+        specifier: workspace:*
+        version: link:../../../../libs/api/agent-access-dto
       '@shipfox/api-common-dto':
         specifier: workspace:*
         version: link:../../../../libs/api/common-dto
