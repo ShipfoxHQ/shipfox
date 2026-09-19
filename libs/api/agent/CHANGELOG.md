@@ -1,5 +1,26 @@
 # @shipfox/api-agent
 
+## 29.0.0
+
+### Major Changes
+
+- b891938: Backfills NULL job snapshots to false and denies renewable-inference credential resolution with runner-capability-required when a runner lacks the capability.
+
+### Patch Changes
+
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [f571b7f]
+- Updated dependencies [b891938]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/workflow-document@3.8.0
+  - @shipfox/api-agent-dto@29.0.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+
 ## 28.0.0
 
 ### Patch Changes

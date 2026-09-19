@@ -1,5 +1,26 @@
 # @shipfox/api-definitions
 
+## 29.0.0
+
+### Minor Changes
+
+- f571b7f: Adds top-level workflow `concurrency` with required `group`. `scope` defaults to `workflow`, and `cancel_in_progress` defaults to `false`. Definitions warns when group roots may be unavailable and rejects unsupported policies.
+
+### Patch Changes
+
+- Updated dependencies [a34066f]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [f571b7f]
+- Updated dependencies [b891938]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/workflow-document@3.8.0
+  - @shipfox/api-agent-dto@29.0.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+  - @shipfox/api-definitions-dto@29.0.0
+  - @shipfox/expression@2.10.1
+
 ## 27.2.0
 
 ### Minor Changes

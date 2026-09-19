@@ -1,5 +1,11 @@
 # @shipfox/node-fastify
 
+## 0.4.7
+
+### Patch Changes
+
+- a34066f: Caches browser CORS preflights for two hours.
+
 ## 0.4.6
 
 ### Patch Changes

@@ -1,5 +1,38 @@
 # @shipfox/api-integration-core
 
+## 29.0.0
+
+### Patch Changes
+
+- a859808: Adds the built-in Shipfox workflow tool provider and its `start_workflow_run` tool.
+- Updated dependencies [a859808]
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [8e74f71]
+- Updated dependencies [4de2dde]
+- Updated dependencies [b891938]
+  - @shipfox/api-integration-shipfox@29.0.0
+  - @shipfox/api-integration-spi@4.3.1
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-logs-dto@29.0.0
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/api-agent-dto@29.0.0
+  - @shipfox/api-integration-clickup@29.0.0
+  - @shipfox/api-integration-gitea@29.0.0
+  - @shipfox/api-integration-github@29.0.0
+  - @shipfox/api-integration-jira@29.0.0
+  - @shipfox/api-integration-linear@29.0.0
+  - @shipfox/api-integration-sentry@29.0.0
+  - @shipfox/api-integration-slack@29.0.0
+  - @shipfox/api-integration-webhook@29.0.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+  - @shipfox/api-triggers-dto@29.0.0
+  - @shipfox/api-definitions-dto@29.0.0
+
 ## 28.0.0
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @shipfox/api-usage
 
+## 29.0.0
+
+### Patch Changes
+
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [d1c07bb]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [0e7c381]
+- Updated dependencies [b891938]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/api-runners-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+
 ## 28.0.0
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @shipfox/client-workflows
 
+## 48.0.1
+
+### Patch Changes
+
+- 3149247: Distinguish lease expiry, provider loss, and runner lifecycle violations in job details while preserving generic runner-loss guidance as a fallback.
+- Updated dependencies [61f3cfb]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [8e74f71]
+  - @shipfox/client-ui@48.0.1
+  - @shipfox/react-ui@2.6.1
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/client-integrations@48.0.1
+  - @shipfox/client-projects@48.0.1
+  - @shipfox/client-shell@48.0.1
+  - @shipfox/client-triggers@48.0.1
+  - @shipfox/client-logs@48.0.1
+  - @shipfox/client-usage@48.0.1
+  - @shipfox/api-triggers-dto@29.0.0
+  - @shipfox/api-definitions-dto@29.0.0
+
 ## 48.0.0
 
 ### Minor Changes
