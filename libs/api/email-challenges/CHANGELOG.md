@@ -1,5 +1,13 @@
 # @shipfox/api-email-challenges
 
+## 1.1.20
+
+### Patch Changes
+
+- Updated dependencies [f4f1f10]
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/node-module@1.1.2
+
 ## 1.1.19
 
 ### Patch Changes

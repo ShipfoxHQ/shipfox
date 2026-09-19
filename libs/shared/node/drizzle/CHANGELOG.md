@@ -1,5 +1,11 @@
 # @shipfox/node-drizzle
 
+## 0.3.6
+
+### Patch Changes
+
+- f4f1f10: Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.
+
 ## 0.3.5
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @shipfox/api-workflows-dto
 
+## 29.0.0
+
+### Major Changes
+
+- e7a8fe4: Removes rerun concurrency confirmation and applies the current concurrency policy atomically when creating the next attempt.
+
+### Patch Changes
+
+- Updated dependencies [8e74f71]
+- Updated dependencies [b891938]
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/api-agent-dto@29.0.0
+  - @shipfox/api-definitions-dto@29.0.0
+
 ## 28.0.0
 
 ### Minor Changes

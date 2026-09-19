@@ -1,5 +1,30 @@
 # @shipfox/api-agent-access
 
+## 29.0.0
+
+### Minor Changes
+
+- 86ad2b7: Adds dry-run validation to the `create_dev_run` agent tool so workflows can be checked against a past event before starting a run.
+
+### Patch Changes
+
+- f4f1f10: Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.
+- Updated dependencies [86ad2b7]
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [8e74f71]
+  - @shipfox/api-agent-access-dto@29.0.0
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-logs-dto@29.0.0
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+  - @shipfox/api-triggers-dto@29.0.0
+  - @shipfox/api-definitions-dto@29.0.0
+
 ## 28.0.0
 
 ### Minor Changes

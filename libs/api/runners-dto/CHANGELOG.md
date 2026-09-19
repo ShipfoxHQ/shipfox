@@ -1,5 +1,13 @@
 # @shipfox/api-runners-dto
 
+## 29.0.0
+
+### Major Changes
+
+- d1c07bb: Makes runner job heartbeats liveness-only and ignores legacy capability fields.
+- 0e7c381: Requires runner registration to include `features.renewable_git`, `features.renewable_inference`, `capabilities`, and `lifecycle_capabilities`, and rejects incomplete registration.
+- b891938: Backfills NULL job snapshots to false and denies renewable-inference credential resolution with runner-capability-required when a runner lacks the capability.
+
 ## 28.0.0
 
 ### Major Changes

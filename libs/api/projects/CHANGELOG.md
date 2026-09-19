@@ -1,5 +1,17 @@
 # @shipfox/api-projects
 
+## 29.0.0
+
+### Patch Changes
+
+- f4f1f10: Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.
+- Updated dependencies [a34066f]
+- Updated dependencies [f4f1f10]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+
 ## 27.2.0
 
 ### Patch Changes

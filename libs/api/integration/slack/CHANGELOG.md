@@ -1,5 +1,17 @@
 # @shipfox/api-integration-slack
 
+## 29.0.0
+
+### Patch Changes
+
+- Updated dependencies [a859808]
+- Updated dependencies [a34066f]
+- Updated dependencies [f4f1f10]
+  - @shipfox/api-integration-spi@4.3.1
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-auth-context@29.0.0
+
 ## 27.2.0
 
 ### Patch Changes

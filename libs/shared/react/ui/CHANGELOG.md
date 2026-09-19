@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 2.6.1
+
+### Patch Changes
+
+- 61f3cfb: Adds `ps-row` and density-aware spacing for slug warnings, annotation cards, and setup checklists.
+
 ## 2.6.0
 
 ### Minor Changes

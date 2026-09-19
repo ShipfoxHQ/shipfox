@@ -1,5 +1,16 @@
 # @shipfox/client-integrations
 
+## 48.0.1
+
+### Patch Changes
+
+- Updated dependencies [61f3cfb]
+  - @shipfox/client-ui@48.0.1
+  - @shipfox/react-ui@2.6.1
+  - @shipfox/client-auth@48.0.1
+  - @shipfox/client-shell@48.0.1
+  - @shipfox/integration-icons@0.4.3
+
 ## 47.0.0
 
 ### Patch Changes
