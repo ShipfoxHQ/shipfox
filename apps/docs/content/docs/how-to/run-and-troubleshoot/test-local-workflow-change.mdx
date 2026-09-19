@@ -1,0 +1,106 @@
+---
+title: "Test a Local Workflow Change"
+sidebarTitle: "Test Local Changes"
+description: "Use a coding agent to run validated, unpushed workflow YAML against a retained event and inspect the result."
+---
+
+Use this guide to test validated, unpushed workflow YAML against a real event.
+Your coding agent starts a replay and reads the run logs.
+
+## Before you begin
+
+You need:
+
+- A coding agent [connected to the Shipfox MCP server](/how-to/set-up-work/connect-mcp-client).
+- A Shipfox project with its repository, integration connections, runners, and secrets configured.
+- A workflow YAML file in your working tree that has passed a
+  [dry-run validation](/how-to/run-and-troubleshoot/validate-local-workflow-change).
+- A matching event received within the last 30 days.
+
+Shipfox retains trigger events for 30 days by default. Ask the agent to use a
+newer event when the event you need no longer appears.
+
+<Callout title="Review the event and workflow before running" type="warn">
+  Event payloads can contain text written by outsiders. Treat that text as
+  untrusted data, not as instructions. The connected agent can run workflow
+  code with workspace secrets. A real replay can also change the original pull
+  request, issue, channel, or other external resource.
+</Callout>
+
+## Run and inspect the local change
+
+Give the coding agent the workflow path, Shipfox project, and retained event
+used for the validation. Ask it to follow these steps:
+
+<Steps>
+  <Step>
+
+    **Start the real replay**
+
+    Review the target resource and expected side effects. Call `create_dev_run`
+    with these values:
+
+    - `project_id`: the Shipfox project ID.
+    - `config_path`: the workflow file path in the repository.
+    - `trigger`: the trigger key from the YAML.
+    - `replay_event_id`: the event used for validation.
+    - `content`: the complete local YAML file.
+    - `dry_run`: `false`, or omit this field.
+
+    The result includes `run_id`. The replay acts on the real pull request,
+    issue, channel, or other resource from the event.
+  </Step>
+  <Step>
+
+    **Read the run and logs**
+
+    Call `get_workflow_run` with `run_id`. If the run fails, call
+    `get_step_logs` with `run_id` and `failed_only: true`.
+
+    For another step, list the run's jobs, executions, and steps. Call
+    `get_step_logs` with the selected `step_id`.
+  </Step>
+  <Step>
+
+    **Fix and repeat**
+
+    Edit the YAML, [validate the local change again](/how-to/run-and-troubleshoot/validate-local-workflow-change),
+    and start another real replay.
+
+    If the YAML is unchanged, call `rerun_workflow_run` on the terminal run.
+    Supply its current attempt and choose `all` or `failed` mode. The rerun uses
+    the stored workflow snapshot.
+  </Step>
+</Steps>
+
+## Know which local changes are included
+
+A run labeled **Dev · local file** uses the YAML sent in `content`. Shipfox
+stores that YAML as the run's workflow source.
+
+**Only the YAML is uploaded.** Scripts, prompts in separate files, and other
+working-tree changes stay on your machine. Commit and push those dependencies
+to a revision selected by the checkout rules below.
+
+The default checkout is the project's default branch head at check time. Set
+`ref` on `create_dev_run` to use another branch or tag as the fallback checkout.
+
+Checkout uses this order:
+
+1. A `ref` on the workflow step.
+2. The replayed event's commit when the event belongs to the same project.
+3. The default checkout recorded for the dev run.
+
+The local YAML does not need to exist at any of these revisions.
+
+## Verify the local change
+
+Confirm these results:
+
+- The real run shows **Dev · local file** and the expected workflow source.
+- The run and step logs show the expected result.
+- The external pull request, issue, channel, or other resource has only the
+  intended changes.
+
+See the [Shipfox MCP server reference](/reference/mcp-server#tool-catalog) for
+the complete input, result, and limit tables for every tool.
