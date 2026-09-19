@@ -94,6 +94,27 @@ describe('workflowDocumentSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts the top-level concurrency policy', () => {
+    const workflowDocument = {
+      name: 'concurrent build',
+      concurrency: {
+        group: interpolation('event.pull_request.number'),
+        scope: 'project',
+        cancel_in_progress: true,
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const result = workflowDocumentSchema.safeParse(workflowDocument);
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.concurrency).toEqual(workflowDocument.concurrency);
+  });
+
   it('types job checkout opt-out', () => {
     const checkout = false satisfies WorkflowDocumentJobCheckout;
 

@@ -6,15 +6,15 @@ import {normalizeWorkflowDocument} from './normalize-workflow-document.js';
 
 function normalize(
   document: WorkflowDocument,
-  concurrency: Parameters<typeof normalizeWorkflowDocument>[1]['concurrency'],
+  concurrency: WorkflowDocument['concurrency'],
 ): {
   model: ReturnType<typeof normalizeWorkflowDocument>;
   diagnostics: WorkflowModelValidationIssue[];
 } {
   const diagnostics: WorkflowModelValidationIssue[] = [];
-  const model = normalizeWorkflowDocument(document, {
+  const authoredDocument = concurrency === undefined ? document : {...document, concurrency};
+  const model = normalizeWorkflowDocument(authoredDocument, {
     agentValidationCatalog,
-    concurrency,
     diagnostics,
   });
   return {model, diagnostics};
@@ -59,17 +59,6 @@ describe('normalizeWorkflowConcurrency', () => {
       scope: 'project',
       cancelInProgress: true,
     });
-    expect(diagnostics).toEqual([]);
-  });
-
-  it('ignores document-carried concurrency outside the typed option', () => {
-    const document = {...baseDocument(), concurrency: null} as WorkflowDocument & {
-      readonly concurrency: null;
-    };
-
-    const {model, diagnostics} = normalize(document, undefined);
-
-    expect(model.concurrency).toBeUndefined();
     expect(diagnostics).toEqual([]);
   });
 

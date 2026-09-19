@@ -7,6 +7,7 @@ import {
   parseDefinition as parseDefinitionBase,
   parseDefinitionWithDiagnostics as parseDefinitionWithDiagnosticsBase,
 } from './parse-definition.js';
+import {validateDefinition as validateDefinitionBase} from './validate-definition.js';
 
 const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../test/fixtures');
 
@@ -20,6 +21,10 @@ function parseDefinitionWithDiagnostics(yaml: string, options = {}) {
 
 function readFixture(name: string): string {
   return readFileSync(resolve(fixturesDir, name), 'utf-8');
+}
+
+function interpolation(source: string): string {
+  return '$'.concat('{{ ', source, ' }}');
 }
 
 describe('parseDefinition', () => {
@@ -81,9 +86,8 @@ describe('parseDefinition', () => {
     });
   });
 
-  test('keeps authored concurrency rejected until its document field is enabled', () => {
-    try {
-      parseDefinition(`
+  test('parses and normalizes authored concurrency defaults', () => {
+    const definition = parseDefinition(`
 name: Concurrency
 runner: ubuntu-latest
 concurrency:
@@ -93,11 +97,69 @@ jobs:
     steps:
       - run: echo ok
 `);
-      expect.fail('Expected DefinitionParseError');
-    } catch (error) {
-      expect(error).toBeInstanceOf(DefinitionParseError);
-      expect((error as DefinitionParseError).details).toEqual([
-        expect.objectContaining({message: 'Unrecognized key: "concurrency"'}),
+
+    expect(definition.document.concurrency).toEqual({group: 'production'});
+    expect(definition.model.concurrency).toEqual({
+      group: [{kind: 'literal', value: 'production'}],
+      scope: 'workflow',
+      cancelInProgress: false,
+    });
+  });
+
+  test('emits the conservative diagnostic for a nullable concurrency root', () => {
+    const definition = parseDefinitionWithDiagnostics(`
+name: Concurrency diagnostic
+runner: ubuntu-latest
+concurrency:
+  group: '${interpolation('event.pull_request.number')}'
+triggers:
+  manual:
+    source: manual
+  push:
+    source: github_acme
+    event: push
+jobs:
+  build:
+    steps:
+      - run: echo ok
+`);
+
+    expect(definition.diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'concurrency-group-root-may-be-null',
+        path: 'concurrency.group',
+        severity: 'warning',
+      }),
+    ]);
+  });
+
+  test('rejects authored concurrency for listening jobs', () => {
+    const result = validateDefinitionBase(
+      `
+name: Listening concurrency
+runner: ubuntu-latest
+concurrency:
+  group: production
+jobs:
+  listen:
+    listening:
+      on:
+        - source: github_acme
+          event: pull_request
+      timeout: 1h
+    steps:
+      - run: echo event
+`,
+      {agentValidationCatalog},
+    );
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: 'concurrency',
+          message: expect.stringContaining('listening jobs'),
+        }),
       ]);
     }
   });
