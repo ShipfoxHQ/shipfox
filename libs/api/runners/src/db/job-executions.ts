@@ -5,7 +5,6 @@ import {
   type RunnerJobStopReasonDto,
   type RunnerLifecycleCapabilitiesDto,
   type RunnersEventMap,
-  type RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
@@ -58,7 +57,11 @@ import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
 import {providerRunners} from './schema/runner-instances.js';
-import {normalizeRunnerLifecycleCapabilities, runnerSessions} from './schema/runner-sessions.js';
+import {
+  normalizeRunnerLifecycleCapabilities,
+  normalizeRunnerToolCapabilities,
+  runnerSessions,
+} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
 const runnerJobExecutionLockPrefix = 'runners_job_execution:';
@@ -903,7 +906,7 @@ async function loadClaimRunnerContextTx(
   if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   // Snapshot the registered manifest at claim time. Later heartbeat reports must not change the
   // execution's eligibility.
-  const toolCapabilities = session.toolCapabilities as RunnerToolCapabilitiesDto;
+  const toolCapabilities = normalizeRunnerToolCapabilities(session.toolCapabilities);
   const renewableInference = toolCapabilities.features.renewable_inference;
   const runnerInstanceCondition = claimRunnerInstanceCondition(
     runnerInstanceId,

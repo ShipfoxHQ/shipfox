@@ -90,6 +90,7 @@ describe('agentInterModuleContract', () => {
         provider: 'shipfox',
         model: 'managed-model',
         thinking: 'high',
+        renewableInference: true,
       }),
     ).toThrow();
   });

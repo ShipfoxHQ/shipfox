@@ -6,4 +6,4 @@
 "@shipfox/api-agent": major
 ---
 
-Requires the renewable-inference execution snapshot throughout runner, workflow, and agent credential contracts.
+Backfills NULL job snapshots to false and denies renewable-inference credential resolution with runner-capability-required when a runner lacks the capability.
