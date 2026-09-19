@@ -199,6 +199,10 @@ describe('trigger command presentation', () => {
       commit: 'a'.repeat(40),
       warnings: [],
     });
+    expect(mocks.requireProjectForWorkspace).toHaveBeenCalledWith({
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+    });
     expect(mocks.checkDevRun).toHaveBeenCalledWith({
       ...input,
       definitions: {},
@@ -259,6 +263,36 @@ describe('trigger command presentation', () => {
     );
     expect(error).toMatchObject({code: 'project-not-found', details: {projectId: PROJECT_ID}});
     expect(mocks.createDevRun).not.toHaveBeenCalled();
+  });
+
+  test('maps a dry-run project workspace mismatch to project-not-found', async () => {
+    mocks.requireProjectForWorkspace.mockRejectedValue(
+      createInterModuleKnownError(
+        projectsInterModuleContract.methods.requireProjectForWorkspace,
+        'project-workspace-mismatch',
+        {projectId: PROJECT_ID, workspaceId: WORKSPACE_ID},
+      ),
+    );
+
+    const error = await rejection(
+      presentation().handlers.checkDevRun(
+        {
+          workspaceId: WORKSPACE_ID,
+          projectId: PROJECT_ID,
+          ref: 'main',
+          configPath: '.shipfox/workflows/main.yml',
+          triggerKey: 'on_demand',
+          userId: USER_ID,
+        },
+        context,
+      ),
+    );
+
+    expect(isInterModuleKnownError(triggersInterModuleContract.methods.checkDevRun, error)).toBe(
+      true,
+    );
+    expect(error).toMatchObject({code: 'project-not-found', details: {projectId: PROJECT_ID}});
+    expect(mocks.checkDevRun).not.toHaveBeenCalled();
   });
 
   test('maps the closed dev-run domain union', async () => {
