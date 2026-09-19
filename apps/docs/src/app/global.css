@@ -247,6 +247,10 @@ html {
   margin-inline-start: var(--margin-inline);
 }
 
+@utility mb-inline {
+  margin-bottom: var(--margin-inline);
+}
+
 @utility -mt-inline {
   margin-top: calc(var(--margin-inline) * -1);
 }
@@ -285,6 +289,10 @@ html {
 
 @utility px-row {
   padding-inline: var(--pad-row-x);
+}
+
+@utility ps-row {
+  padding-inline-start: var(--pad-row-x);
 }
 
 @utility py-row {

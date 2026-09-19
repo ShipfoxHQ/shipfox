@@ -190,14 +190,15 @@ function AnnotationCard({
   return (
     <div className="flex min-w-0 flex-1 gap-cluster">
       {styleLabel ? <span className="sr-only">{styleLabel}: </span> : null}
-      <Icon
-        data-slot="annotation-style-icon"
-        name={ANNOTATION_STYLE_ICON[style]}
-        size={16}
-        aria-hidden="true"
-        // Optically centered on the 20px line box of the title beside it, not on the column.
-        className={cn('mt-2 shrink-0', ANNOTATION_STYLE_TONE[style])}
-      />
+      <span className="flex h-20 shrink-0 items-center">
+        <Icon
+          data-slot="annotation-style-icon"
+          name={ANNOTATION_STYLE_ICON[style]}
+          size={16}
+          aria-hidden="true"
+          className={ANNOTATION_STYLE_TONE[style]}
+        />
+      </span>
 
       <div className="flex min-w-0 flex-1 flex-col gap-inline">
         <AnnotationHeader

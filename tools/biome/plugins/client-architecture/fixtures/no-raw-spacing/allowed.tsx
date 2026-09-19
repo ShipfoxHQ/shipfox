@@ -12,6 +12,10 @@ export function AllowedSpacing() {
       <div className="p-tight px-tight px-row py-row p-panel-compact p-panel px-frame py-frame" />
       <div className="p-0 gap-0 mt-0 first:pt-0 last:pb-0 p-[15%] pl-[2ch]" />
       <div className="p-0" />
+      <div
+        // biome-ignore lint/plugin/no-raw-spacing: fixed optical contract
+        className="gap-16"
+      />
       <div className={`p-4`} />
       <div className={templateClassName} />
       <div className={cn('p-4')} />

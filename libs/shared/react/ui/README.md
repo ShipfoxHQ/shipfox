@@ -13,6 +13,18 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## Public API
 
+### Spacing boundary
+
+The package owns two spacing vocabularies across one deliberate boundary:
+
+- `libs/shared/react/ui` internals use the numeric scale for component tokens and dimensions.
+- Consumers use semantic roles such as `gap-group`, `p-panel`, and `px-row` for product composition.
+
+`index.css` sets `--spacing: 1px`, so numeric utility names equal pixel values.
+The numeric vocabulary inside this package is permanent, not an unfinished
+migration. See the [spacing rules in `DESIGN.md`](../../../../DESIGN.md#spacing)
+for the role vocabulary and exception policy.
+
 ### Surface roles
 
 The `@shipfox/react-ui/index.css` entry defines four target surface roles for page and component authors.
