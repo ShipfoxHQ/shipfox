@@ -4,10 +4,10 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 
 ## What it does
 
-- **`ShipfoxAgentToolsProvider`** starts workflows and reads projects, workflow definitions, and workflow runs.
-- **`shipfoxAgentToolCatalog`** describes the five current Shipfox tools for workflow definitions and documentation generation.
+- **`ShipfoxAgentToolsProvider`** starts workflows and reads projects, workflow definitions, workflow runs, step logs, and run annotations.
+- **`shipfoxAgentToolCatalog`** describes the seven current Shipfox tools for workflow definitions and documentation generation.
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
-- **`createShipfoxAgentToolsProvider`** creates a provider with projects, definitions, triggers, and workflow clients.
+- **`createShipfoxAgentToolsProvider`** creates a provider with annotations, definitions, logs, projects, triggers, and workflow clients.
 
 The provider uses the caller workspace and starts the child with the caller run as its parent. It has no connection row, database, or secrets.
 
@@ -23,7 +23,7 @@ Add the package to an integration composition package:
 }
 ```
 
-Pass the projects, definitions, triggers, and workflows inter-module clients when creating the provider.
+Pass the annotations, definitions, logs, projects, triggers, and workflows inter-module clients when creating the provider.
 
 ## Usage
 
@@ -33,7 +33,9 @@ import {
 } from '@shipfox/api-integration-shipfox';
 
 const provider = createShipfoxAgentToolsProvider({
+  annotations,
   definitions,
+  logs,
   projects,
   triggers,
   workflows,
@@ -63,7 +65,7 @@ await session.close?.();
 
 `callerKind` is required. Use `tool_step` for workflow tool execution and `agent` for agent leases.
 
-The target workflow must have a synced `manual` trigger. The call returns after the child run exists and does not wait for completion. Inputs are stored in clear on the child run, so they must not contain secrets.
+The target workflow must have a synced `manual` trigger. The call returns after the child run exists and does not wait for completion. Inputs are stored in clear on the child run, so they must not contain secrets. Read tools use workspace-scoped producer clients: `get_step_logs` reads a bounded direct or failed-step tail, and `get_run_annotations` pages the latest or requested run attempt.
 
 ## Development
 

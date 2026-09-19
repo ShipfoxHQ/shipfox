@@ -15,8 +15,10 @@ async function loadShipfoxModuleParts(
         : {
             adapters: {
               agent_tools: createShipfoxAgentToolsProvider({
+                annotations: interModule.annotations,
                 definitions: interModule.definitions,
                 projects: interModule.projects,
+                logs: interModule.logs,
                 triggers: interModule.triggers,
                 workflows: interModule.workflows,
               }),

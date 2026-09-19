@@ -1,8 +1,13 @@
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import {STEP_LOG_READ_CONTENT_MAX_BYTES} from '@shipfox/api-logs-dto';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
-import {encodeStringIdCursor, encodeTimestampIdCursor} from '@shipfox/node-drizzle';
+import {
+  encodeNumberIdCursor,
+  encodeStringIdCursor,
+  encodeTimestampIdCursor,
+} from '@shipfox/node-drizzle';
 import {
   createShipfoxAgentToolsProvider,
   SHIPFOX_INPUTS_MAX_BYTES,
@@ -14,6 +19,11 @@ const projectId = '00000000-0000-4000-8000-000000000002';
 const parentRunId = '00000000-0000-4000-8000-000000000004';
 const childRunId = '00000000-0000-4000-8000-000000000005';
 const definitionId = '00000000-0000-4000-8000-000000000006';
+const stepId = '00000000-0000-4000-8000-000000000010';
+const stepAttemptId = '00000000-0000-4000-8000-000000000011';
+const jobId = '00000000-0000-4000-8000-000000000012';
+const jobExecutionId = '00000000-0000-4000-8000-000000000013';
+const annotationId = '00000000-0000-4000-8000-000000000014';
 
 function caller(overrides: Record<string, unknown> = {}) {
   return {
@@ -84,24 +94,59 @@ function createProvider() {
     getWorkflowRunOverview: vi.fn().mockResolvedValue({
       run: {number: 42},
     }),
+    getWorkflowStepAttemptDetail: vi.fn().mockResolvedValue({
+      workflow_run_id: parentRunId,
+      workflow_run_attempt: 1,
+      job_id: jobId,
+      job_execution_id: jobExecutionId,
+      step_id: stepId,
+      step_attempt_id: stepAttemptId,
+      attempt: 2,
+    }),
+    listFailedStepAttempts: vi.fn().mockResolvedValue({
+      workflow_run_attempt: 1,
+      items: [],
+    }),
+    getLatestRunAttempt: vi.fn().mockResolvedValue({attempt: 1}),
   };
-  const provider = createShipfoxAgentToolsProvider({definitions, projects, triggers, workflows});
-  return {definitions, projects, triggers, workflows, provider};
+  const logs = {readStepLogTail: vi.fn().mockResolvedValue({content: 'step output'})};
+  const annotations = {
+    listAnnotationsForRunAttempt: vi.fn().mockResolvedValue({annotations: [], nextCursor: null}),
+  };
+  const provider = createShipfoxAgentToolsProvider({
+    annotations,
+    definitions,
+    logs,
+    projects,
+    triggers,
+    workflows,
+  });
+  return {annotations, definitions, logs, projects, triggers, workflows, provider};
 }
 
 describe('Shipfox agent tools', () => {
-  it('has exactly the start_workflow_run catalog entry', () => {
+  it('has the closed read and write catalog entries', () => {
     expect(shipfoxAgentToolCatalog.map((tool) => tool.id)).toEqual([
       'start_workflow_run',
       'list_projects',
       'list_workflow_definitions',
       'list_workflow_runs',
       'get_workflow_run',
+      'get_step_logs',
+      'get_run_annotations',
     ]);
     expect('methods' in (shipfoxAgentToolCatalog[0] ?? {})).toBe(false);
     expect(shipfoxAgentToolCatalog[0]?.outputSchema).toMatchObject({
       additionalProperties: false,
       required: ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],
+    });
+    expect(shipfoxAgentToolCatalog[1]?.sensitivity).toBe('read');
+    expect(shipfoxAgentToolCatalog[1]?.outputSchema).toMatchObject({
+      additionalProperties: false,
+    });
+    expect(shipfoxAgentToolCatalog[2]?.sensitivity).toBe('read');
+    expect(shipfoxAgentToolCatalog[2]?.outputSchema).toMatchObject({
+      additionalProperties: false,
     });
   });
 
@@ -337,6 +382,189 @@ describe('Shipfox agent tools', () => {
 
     expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
     expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
+  });
+
+  it('reads logs directly by step id and resolves the requested attempt', async () => {
+    const {logs, workflows, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_step_logs',
+      arguments: {step_id: stepId, attempt: 2, tail_lines: 25},
+    });
+
+    expect(result).toMatchObject({
+      structuredContent: {
+        sections: [{step_id: stepId, attempt: 2, content: 'step output'}],
+      },
+    });
+    expect(workflows.getWorkflowStepAttemptDetail).toHaveBeenCalledWith({
+      workspaceId,
+      stepId,
+      attempt: 2,
+    });
+    expect(logs.readStepLogTail).toHaveBeenCalledWith({
+      stepId,
+      attempt: 2,
+      tailLines: 25,
+    });
+  });
+
+  it('reads the failed steps in a run and splits the byte budget', async () => {
+    const {logs, workflows, provider} = createProvider();
+    workflows.listFailedStepAttempts.mockResolvedValue({
+      workflow_run_attempt: 3,
+      items: [
+        {
+          workflow_run_id: parentRunId,
+          workflow_run_attempt: 3,
+          job_id: jobId,
+          job_execution_id: jobExecutionId,
+          step_id: stepId,
+          step_attempt_id: stepAttemptId,
+          step_attempt: 1,
+        },
+      ],
+    });
+    logs.readStepLogTail.mockResolvedValue({
+      content: `${'x'.repeat(STEP_LOG_READ_CONTENT_MAX_BYTES)}\n`,
+    });
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_step_logs',
+      arguments: {run_id: parentRunId, failed_only: true},
+    });
+    const section = (
+      result.structuredContent as {sections: [{content: string; content_total_bytes: number}]}
+    ).sections[0];
+
+    expect(section.content_total_bytes).toBeGreaterThan(STEP_LOG_READ_CONTENT_MAX_BYTES);
+    expect(new TextEncoder().encode(section.content).byteLength).toBeLessThanOrEqual(
+      STEP_LOG_READ_CONTENT_MAX_BYTES,
+    );
+    expect(result.structuredContent).toMatchObject({
+      run_id: parentRunId,
+      workflow_run_attempt: 3,
+      sections: [{step_id: stepId, attempt: 1, content_truncated: true}],
+    });
+  });
+
+  it('pages run annotations with the producer cursor', async () => {
+    const {annotations, provider} = createProvider();
+    const nextCursor = {value: 7, id: annotationId};
+    annotations.listAnnotationsForRunAttempt.mockResolvedValue({
+      annotations: [
+        {
+          id: annotationId,
+          origin_step_id: stepId,
+          origin_step_attempt: 1,
+          job_execution_id: jobExecutionId,
+          sequence: 7,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          body: 'failed because the deploy command exited',
+        },
+      ],
+      nextCursor,
+    });
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_run_annotations',
+      arguments: {
+        run_id: parentRunId,
+        cursor: encodeNumberIdCursor({value: 3, id: stepId}),
+        limit: 10,
+      },
+    });
+
+    expect(annotations.listAnnotationsForRunAttempt).toHaveBeenCalledWith({
+      workspaceId,
+      workflowRunId: parentRunId,
+      workflowRunAttempt: 1,
+      cursor: {value: 3, id: stepId},
+      limit: 10,
+    });
+    expect(result.structuredContent).toMatchObject({
+      annotations: [{id: annotationId, body: 'failed because the deploy command exited'}],
+      next_cursor: encodeNumberIdCursor(nextCursor),
+    });
+  });
+
+  it('bounds an annotation page and resumes after the last retained item', async () => {
+    const {annotations, provider} = createProvider();
+    const page = Array.from({length: 100}, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
+      origin_step_id: stepId,
+      origin_step_attempt: 1,
+      job_execution_id: jobExecutionId,
+      sequence: index + 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      body: 'x'.repeat(8 * 1024),
+    }));
+    const producerLast = page.at(-1);
+    if (producerLast === undefined) throw new Error('Expected a producer annotation');
+    annotations.listAnnotationsForRunAttempt.mockResolvedValue({
+      annotations: page,
+      nextCursor: {value: 100, id: producerLast.id},
+    });
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_run_annotations',
+      arguments: {run_id: parentRunId, limit: 100},
+    });
+
+    const structured = result.structuredContent as {
+      annotations: {id: string; sequence: number}[];
+      next_cursor: string | null;
+    };
+    expect(new TextEncoder().encode(JSON.stringify(structured)).byteLength).toBeLessThanOrEqual(
+      128 * 1024,
+    );
+    expect(structured.annotations.length).toBeGreaterThan(0);
+    expect(structured.annotations.length).toBeLessThan(page.length);
+    const last = structured.annotations.at(-1);
+    if (last === undefined) throw new Error('Expected a retained annotation');
+    expect(structured.next_cursor).toBe(encodeNumberIdCursor({value: last.sequence, id: last.id}));
+  });
+
+  it('masks a foreign workspace step as not found', async () => {
+    const {workflows, provider} = createProvider();
+    workflows.getWorkflowStepAttemptDetail.mockResolvedValue(null);
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_step_logs',
+      arguments: {step_id: stepId},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'not-found'}});
   });
 
   it('rejects inputs above the UTF-8 byte limit before resolving the definition', async () => {

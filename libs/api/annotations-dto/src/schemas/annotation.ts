@@ -3,7 +3,36 @@ import {z} from 'zod';
 export const ANNOTATION_STYLES = ['default', 'info', 'success', 'warning', 'error'] as const;
 export const ANNOTATION_CONTEXT_MAX_LENGTH = 255;
 export const READ_ANNOTATIONS_MAX_LIMIT = 500;
+export const ANNOTATION_READ_BODY_MAX_BYTES = 8 * 1024;
 export const WORKFLOW_RUN_ATTEMPT_MAX = 2_147_483_647;
+
+export interface AnnotationBodyTruncation {
+  value: string;
+  truncated: boolean;
+  totalBytes: number;
+}
+
+const utf8Encoder = new TextEncoder();
+
+/** Bounds annotation bodies for read surfaces without splitting a UTF-8 code point. */
+export function truncateAnnotationBody(
+  value: string,
+  maxBytes = ANNOTATION_READ_BODY_MAX_BYTES,
+): AnnotationBodyTruncation {
+  const totalBytes = utf8Encoder.encode(value).byteLength;
+  if (totalBytes <= maxBytes) return {value, truncated: false, totalBytes};
+  if (maxBytes <= 0) return {value: '', truncated: true, totalBytes};
+
+  let bytes = 0;
+  let result = '';
+  for (const codePoint of value) {
+    const codePointBytes = utf8Encoder.encode(codePoint).byteLength;
+    if (bytes + codePointBytes > maxBytes) break;
+    result += codePoint;
+    bytes += codePointBytes;
+  }
+  return {value: result, truncated: true, totalBytes};
+}
 export const ANNOTATION_CONTEXT_TRIM_CODE_POINTS = [
   9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201,
   8202, 8232, 8233, 8239, 8287, 12288, 65279,

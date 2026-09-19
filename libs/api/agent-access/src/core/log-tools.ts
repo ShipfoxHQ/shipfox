@@ -14,6 +14,7 @@ import {
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {AuthInterModuleClient} from '@shipfox/api-auth-dto/inter-module';
+import {boundStepLogContent} from '@shipfox/api-logs-dto';
 import {type LogsModuleClient, logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import type {StepAttemptDetailResponseDto} from '@shipfox/api-workflows-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -319,7 +320,7 @@ function projectSection(
   budget: number,
   unavailableReason?: AgentAccessLogSectionUnavailableReason,
 ): Record<string, unknown> {
-  const bounded = boundLogContent(log?.content ?? '', budget);
+  const bounded = boundStepLogContent(log?.content ?? '', budget);
   return {
     ...definedCoordinates(coordinates),
     content: bounded.value,
@@ -376,54 +377,4 @@ interface GetStepLogsInput {
   attempt?: number | undefined;
   failed_only?: true | undefined;
   tail_lines: number;
-}
-
-interface BoundedLogContent {
-  value: string;
-  truncated: boolean;
-  totalBytes: number;
-}
-
-const utf8Encoder = new TextEncoder();
-const utf8Decoder = new TextDecoder('utf-8', {ignoreBOM: true});
-
-function boundLogContent(value: string, maxBytes: number): BoundedLogContent {
-  const totalBytes = utf8Encoder.encode(value).byteLength;
-  if (totalBytes <= maxBytes) return {value, truncated: false, totalBytes};
-
-  const hasTrailingNewline = value.endsWith('\n');
-  const lines = value.split('\n');
-  if (hasTrailingNewline) lines.pop();
-
-  const selected: string[] = [];
-  let selectedBytes = 0;
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index] ?? '';
-    const lineBytes = utf8Encoder.encode(line).byteLength;
-    const separatorBytes = selected.length > 0 || hasTrailingNewline ? 1 : 0;
-    if (selectedBytes + separatorBytes + lineBytes > maxBytes) {
-      if (selected.length === 0) {
-        selected.push(utf8Suffix(line, maxBytes - separatorBytes));
-      }
-      break;
-    }
-    selected.push(line);
-    selectedBytes += separatorBytes + lineBytes;
-  }
-
-  return {
-    value: `${selected.reverse().join('\n')}${hasTrailingNewline && selected.length > 0 ? '\n' : ''}`,
-    truncated: true,
-    totalBytes,
-  };
-}
-
-function utf8Suffix(value: string, maxBytes: number): string {
-  if (maxBytes <= 0) return '';
-  const encoded = utf8Encoder.encode(value);
-  if (encoded.byteLength <= maxBytes) return value;
-
-  let start = encoded.byteLength - maxBytes;
-  while (start < encoded.byteLength && (encoded[start] ?? 0) >> 6 === 2) start += 1;
-  return utf8Decoder.decode(encoded.subarray(start));
 }
