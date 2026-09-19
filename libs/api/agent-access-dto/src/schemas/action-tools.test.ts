@@ -91,6 +91,10 @@ describe('agent-access action tool schemas', () => {
         .success,
     ).toBe(false);
     expect(createDevRunInputSchema.safeParse({...input, ref: 'main'}).success).toBe(true);
+    expect(createDevRunInputJsonSchema.anyOf).toEqual([
+      {required: ['ref']},
+      {required: ['content'], not: {required: ['commit']}},
+    ]);
   });
 
   test('validates development-run results with provenance and warnings', () => {

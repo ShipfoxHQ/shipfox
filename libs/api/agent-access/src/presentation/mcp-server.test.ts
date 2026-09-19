@@ -200,6 +200,42 @@ describe('buildAgentAccessMcpServer', () => {
     );
   });
 
+  test('does not audit malformed content as unhashed local content', async () => {
+    const createDevRun = vi.fn();
+    const triggers = {createDevRun} as unknown as TriggersInterModuleClient;
+    const tools = createAgentAccessActionTools({
+      workflows: {} as unknown as WorkflowsModuleClient,
+      triggers,
+    });
+    const recordCall = vi.fn();
+    const {client, close} = await connectClient(createAgentAccessRateLimiter(), tools, recordCall);
+
+    const result = await client.callTool(
+      {
+        name: 'create_dev_run',
+        arguments: {
+          project_id: '00000000-0000-4000-8000-000000000001',
+          ref: 'main',
+          content: null,
+          config_path: '.shipfox/workflow.yml',
+          trigger: 'manual',
+        },
+      },
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(result.structuredContent).toEqual({ok: false, error: {code: 'invalid-request'}});
+    expect(createDevRun).not.toHaveBeenCalled();
+    expect(recordCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'invalid-request',
+        action: expect.objectContaining({definition_source: 'ref'}),
+      }),
+    );
+    expect(recordCall.mock.calls[0]?.[0].action).not.toHaveProperty('content_hash');
+  });
+
   test('rejects multibyte input at the MCP boundary before calling a producer', async () => {
     const listWorkflowRuns = vi.fn();
     const tool = createAgentAccessTools({

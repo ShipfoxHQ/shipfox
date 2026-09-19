@@ -219,7 +219,14 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
           run_id: result.id,
           ...(result.ref === undefined ? {} : {ref: result.ref}),
           commit: result.commit,
-          ...(result.warnings === undefined ? {} : {warnings: result.warnings}),
+          ...(result.warnings === undefined
+            ? {}
+            : {
+                warnings: result.warnings.slice(
+                  0,
+                  createDevRunResultJsonSchema.properties.warnings.maxItems,
+                ),
+              }),
         });
       } catch (error) {
         if (isInterModuleKnownError(triggersInterModuleContract.methods.createDevRun, error)) {

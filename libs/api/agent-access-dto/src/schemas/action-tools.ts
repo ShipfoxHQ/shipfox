@@ -288,6 +288,7 @@ export const createDevRunInputJsonSchema = {
     replay_event_id: uuidJsonSchema,
   },
   required: ['project_id', 'config_path', 'trigger'],
+  anyOf: [{required: ['ref']}, {required: ['content'], not: {required: ['commit']}}],
   additionalProperties: false,
 } as const;
 

@@ -2,6 +2,7 @@ import {
   AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
   AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
   agentAccessEnvelopeSchema,
+  createDevRunResultJsonSchema,
 } from '@shipfox/api-agent-access-dto';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
@@ -249,6 +250,41 @@ describe('agent-access action tools', () => {
         ref: 'main',
         commit: 'a'.repeat(40),
         warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+      },
+    });
+  });
+
+  test('caps development-run warnings at the tool result limit', async () => {
+    const {triggers, tools} = clients();
+    const warningLimit = createDevRunResultJsonSchema.properties.warnings.maxItems;
+    const warnings = Array.from({length: warningLimit + 1}, (_, index) => ({
+      code: `warning-${index}`,
+      message: `Warning ${index}`,
+    }));
+    vi.mocked(triggers.createDevRun).mockResolvedValue({
+      id: runId,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings,
+    });
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: true,
+      result: {
+        run_id: runId,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: warnings.slice(0, warningLimit),
       },
     });
   });
