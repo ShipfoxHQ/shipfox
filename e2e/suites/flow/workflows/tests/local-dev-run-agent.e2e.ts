@@ -5,19 +5,21 @@ import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import {
   agentAccessEnvelopeSchema,
   createDevRunResultSchema,
+  getTriggerEventResultSchema,
   getWorkflowRunResultSchema,
   getWorkflowRunSourceResultSchema,
   listTriggerEventsResultSchema,
   listWorkflowDefinitionsResultSchema,
   listWorkflowRunsResultSchema,
 } from '@shipfox/api-agent-access-dto';
-import {config, pollUntil} from '@shipfox/e2e-core';
+import {config, PollTimeoutError, pollUntil} from '@shipfox/e2e-core';
 import {commitFiles} from '@shipfox/e2e-driver-gitea';
 import {authorizeAgentAccess} from '@shipfox/e2e-setup-auth';
 import {renderWorkflowYaml, seedWorkflowProject} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/u;
+const RUN_STABILITY_TIMEOUT_MS = 2_000;
 const textEncoder = new TextEncoder();
 
 test('covers the local dev-run loop through the agent MCP tool', async ({request, suite}) => {
@@ -86,6 +88,7 @@ jobs:
       client,
       source: suite.connectionSlug,
       event: 'push',
+      repositoryFullName: `${suite.org}/${repo}`,
       description: `the README push for ${repo}`,
     });
     const initialEventIds = await listEventIds(client);
@@ -199,7 +202,7 @@ jobs:
     ).toEqual([]);
 
     const runIdsBeforeLiveEvent = (await getRuns(client, seeded.project.id)).map(({id}) => id);
-    await commitFiles({
+    const secondCommit = await commitFiles({
       org: suite.org,
       repo,
       message: 'create a second live event',
@@ -209,13 +212,14 @@ jobs:
       client,
       source: suite.connectionSlug,
       event: 'push',
+      repositoryFullName: `${suite.org}/${repo}`,
+      after: secondCommit,
+      requireProcessed: true,
       description: `the second live push for ${repo}`,
       excludedIds: new Set(initialEventIds),
     });
     expect(secondEvent.id).not.toBe(sourceEvent.id);
-    expect((await getRuns(client, seeded.project.id)).map(({id}) => id)).toEqual(
-      runIdsBeforeLiveEvent,
-    );
+    await expectRunIdsToRemain(client, seeded.project.id, runIdsBeforeLiveEvent);
 
     const filtered = await callTool(client, 'create_dev_run', {
       project_id: seeded.project.id,
@@ -268,6 +272,12 @@ async function getRun(client: Client, runId: string) {
   return getWorkflowRunResultSchema.parse(response.envelope.result);
 }
 
+async function getTriggerEvent(client: Client, eventId: string) {
+  const response = await callTool(client, 'get_trigger_event', {event_id: eventId});
+  if (!response.envelope.ok) throw new Error('Trigger event lookup returned an MCP error');
+  return getTriggerEventResultSchema.parse(response.envelope.result);
+}
+
 async function listEventIds(client: Client): Promise<string[]> {
   const response = await callTool(client, 'list_trigger_events', {});
   if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
@@ -281,6 +291,9 @@ async function waitForIntegrationEvent(params: {
   client: Client;
   source: string;
   event: string;
+  repositoryFullName: string;
+  after?: string;
+  requireProcessed?: boolean;
   description: string;
   excludedIds?: Set<string>;
 }) {
@@ -297,12 +310,80 @@ async function waitForIntegrationEvent(params: {
       });
       if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
       const events = listTriggerEventsResultSchema.parse(response.envelope.result).trigger_events;
-      return (
-        events.find(
-          (candidate) =>
-            candidate.origin === 'integration' && !params.excludedIds?.has(candidate.id),
-        ) ?? null
-      );
+      return await findMatchingIntegrationEvent({...params, events});
     },
   );
+}
+
+async function findMatchingIntegrationEvent(params: {
+  client: Client;
+  events: ReturnType<typeof listTriggerEventsResultSchema.parse>['trigger_events'];
+  repositoryFullName: string;
+  after?: string;
+  requireProcessed?: boolean;
+  excludedIds?: Set<string>;
+}) {
+  for (const candidate of params.events) {
+    const excluded = params.excludedIds?.has(candidate.id) ?? false;
+    if (candidate.origin !== 'integration' || excluded) continue;
+    const detail = await getTriggerEvent(params.client, candidate.id);
+    if (triggerEventMatches(detail, params)) return detail;
+  }
+  return null;
+}
+
+function triggerEventMatches(
+  detail: ReturnType<typeof getTriggerEventResultSchema.parse>,
+  params: {repositoryFullName: string; after?: string; requireProcessed?: boolean},
+): boolean {
+  if (params.requireProcessed && detail.processed_at === null) return false;
+  const payload = JSON.parse(detail.payload_preview) as unknown;
+  const repositoryMatches =
+    nestedString(payload, ['repository', 'full_name']) === params.repositoryFullName;
+  const commitMatches =
+    params.after === undefined || nestedString(payload, ['after']) === params.after;
+  return repositoryMatches && commitMatches;
+}
+
+async function expectRunIdsToRemain(
+  client: Client,
+  projectId: string,
+  expectedIds: string[],
+): Promise<void> {
+  let observedSuccessfully = false;
+  try {
+    const unexpectedIds = await pollUntil(
+      {
+        timeoutMs: RUN_STABILITY_TIMEOUT_MS,
+        intervalMs: 250,
+        maxIntervalMs: 250,
+        describe: () => 'the project run list to remain unchanged',
+      },
+      async () => {
+        const runIds = (await getRuns(client, projectId)).map(({id}) => id);
+        observedSuccessfully = true;
+        return runIds.length === expectedIds.length &&
+          runIds.every((runId, index) => runId === expectedIds[index])
+          ? null
+          : runIds;
+      },
+    );
+    throw new Error(
+      `A live event unexpectedly changed the project runs: ${unexpectedIds.join(', ')}`,
+    );
+  } catch (error) {
+    if (error instanceof PollTimeoutError && observedSuccessfully) return;
+    throw error;
+  }
+}
+
+function nestedString(value: unknown, path: string[]): string | undefined {
+  let current = value;
+  for (const segment of path) {
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === 'string' ? current : undefined;
 }
