@@ -11,6 +11,8 @@ const pullRequestBaseExpression =
   '${{' + " github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}";
 const pullRequestRequiredExpression =
   '${{' + " github.event_name == 'pull_request' && needs.release-mode.outputs.mode != 'normal' }}";
+const e2eRunCondition =
+  "always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')";
 
 function readWorkflow() {
   return readFile(workflowPath, 'utf8');
@@ -111,5 +113,16 @@ describe('generated release CI path', () => {
       workflow.includes('needs.release-mode.outputs.mode }}" = "generated-release"') &&
         workflow.includes('needs.build-image.result }}" = "skipped"'),
     );
+  });
+
+  test('reports the E2E suite matrix through one required check', async () => {
+    const parsedWorkflow = parse(await readWorkflow());
+    const e2eCheck = parsedWorkflow.jobs.e2e;
+    const e2eSuites = parsedWorkflow.jobs['e2e-suite'];
+
+    assert.equal(e2eCheck.name, 'E2E tests');
+    assert.ok(e2eCheck.needs.includes('e2e-suite'));
+    assert.equal(e2eCheck.if, e2eRunCondition);
+    assert.equal(e2eSuites.if, e2eRunCondition);
   });
 });

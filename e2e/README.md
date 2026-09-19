@@ -281,8 +281,9 @@ starts the API with E2E routes enabled, starts the client with the test VCS
 provider enabled, waits for both to become ready, and then runs
 `turbo test:e2e`.
 
-Diagnostics land in `.context/shipfox-e2e-logs/` locally. In CI, failed E2E runs
-upload the same logs as the `e2e-diagnostics` artifact. Runner logs from the Flow workflow
+Diagnostics land in `.context/shipfox-e2e-logs/` locally. In CI, a failed browser
+and API job uploads the same logs as the `e2e-diagnostics` artifact. A failed flow job
+uploads `e2e-diagnostics-flow`. Runner logs from the Flow workflow
 are written under `e2e/suites/flow/workflows/.e2e-run/runners/` and attached to
 failed scenario results.
 
