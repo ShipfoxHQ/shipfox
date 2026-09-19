@@ -40,7 +40,6 @@ export interface CreateRerunWorkflowRunParams {
   workflowRunId: string;
   mode: 'all' | 'failed';
   actorUserId: string;
-  confirmConcurrencyImpact?: boolean | undefined;
   expectedAttempt?: number | undefined;
 }
 
@@ -118,7 +117,6 @@ export async function createRerunWorkflowRun(
             cancelInProgress: sourceClaimRow.cancelInProgress,
           },
           sourceClaim: sourceClaimRow,
-          rejectOnImpact: params.confirmConcurrencyImpact !== true,
           tx,
         })
       : undefined;

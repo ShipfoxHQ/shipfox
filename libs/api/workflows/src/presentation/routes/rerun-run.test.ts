@@ -191,7 +191,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
     });
   });
 
-  test('returns the rerun concurrency impact as an atomic conflict', async () => {
+  test('applies the current concurrency policy while rerunning', async () => {
     const definitionId = crypto.randomUUID();
     const model = workflowModel({
       concurrency: {group: 'route-rerun-impact', cancelInProgress: true},
@@ -209,7 +209,7 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
         userId: crypto.randomUUID(),
       },
     });
-    const waiter = await createWorkflowRun({
+    await createWorkflowRun({
       workspaceId,
       projectId,
       definitionId,
@@ -230,36 +230,22 @@ describe('POST /api/workflows/runs/:id/rerun', () => {
       expectedVersion: holder.version,
     });
 
-    const waiterAttempts = await listTestRunAttempts({workflowRunId: waiter.id, projectId});
-    const waiterAttempt = waiterAttempts.find(
-      (attempt) => attempt.attempt === waiter.currentAttempt,
-    );
-    if (!waiterAttempt) throw new Error('Expected waiter attempt');
-
     const res = await app.inject({
       method: 'POST',
       url: `/api/workflows/runs/${holder.id}/rerun`,
       payload: {mode: 'all'},
     });
 
-    expect(res.statusCode).toBe(409);
-    const affectedAttempts = res.json().details.affected_attempts;
-    expect(affectedAttempts).toHaveLength(1);
+    expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
-      code: 'concurrency-impact',
-      details: {
-        affected_attempts: expect.arrayContaining([
-          {
-            workflow_run_id: waiter.id,
-            workflow_run_attempt_id: waiterAttempt.id,
-            planned_effect: 'supersede_waiter',
-          },
-        ]),
-      },
+      id: holder.id,
+      current_attempt: 2,
+      status: 'pending',
+      concurrency: null,
     });
     await expect(getWorkflowRunById(holder.id)).resolves.toMatchObject({
-      currentAttempt: 1,
-      status: 'failed',
+      currentAttempt: 2,
+      status: 'pending',
     });
   });
 

@@ -31,7 +31,6 @@ import {
   WORKFLOW_RUN_ATTEMPT_MAX,
   WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT,
   workflowRunAttemptDtoSchema,
-  workflowRunConcurrencyImpactSchema,
   workflowRunListItemSchema,
   workflowRunOriginSchema,
   workflowRunStatusSchema,
@@ -278,7 +277,6 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         expectedAttempt: attemptSchema,
         mode: z.enum(['all', 'failed']),
         actorUserId: idSchema,
-        confirmConcurrencyImpact: z.boolean().optional(),
       }),
       output: z.object({id: idSchema, attempt: attemptSchema, status: workflowRunStatusSchema}),
       errors: {
@@ -286,9 +284,6 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         'attempt-mismatch': z.object({currentAttempt: attemptSchema}),
         'run-not-terminal': z.object({}),
         'no-failed-jobs': z.object({}),
-        'concurrency-impact': z.object({
-          affectedAttempts: z.array(workflowRunConcurrencyImpactSchema),
-        }),
         'workspace-not-found': z.object({workspaceId: idSchema}),
         'workspace-suspended': z.object({workspaceId: idSchema}),
         'workspace-deleted': z.object({workspaceId: idSchema}),

@@ -10,7 +10,6 @@ import {
   type WorkflowConcurrencyClaim,
   type WorkflowConcurrencyClaimState,
 } from '#core/entities/workflow-concurrency-claim.js';
-import {WorkflowConcurrencyImpactError} from '#core/errors.js';
 import {
   canonicalizeWorkflowConcurrencyGroup,
   nextWorkflowConcurrencyAdmission,
@@ -101,7 +100,6 @@ export interface AdmitWorkflowConcurrencyClaimParams {
   readonly workflowRunAttemptId: string;
   readonly concurrency: ResolvedWorkflowConcurrency;
   readonly sourceClaim?: WorkflowConcurrencyClaimDb | undefined;
-  readonly rejectOnImpact?: boolean | undefined;
   readonly tx?: Tx | undefined;
 }
 
@@ -214,15 +212,6 @@ async function admitWorkflowConcurrencyClaimInTransaction(
     supersedesWaiter: admission.supersedesWaiter,
     cancelInProgress: concurrency.cancelInProgress,
   });
-  if (params.rejectOnImpact && impact.length > 0) {
-    throw new WorkflowConcurrencyImpactError(
-      impact.map((entry) => ({
-        workflow_run_id: entry.workflowRunId,
-        workflow_run_attempt_id: entry.workflowRunAttemptId,
-        planned_effect: entry.plannedEffect,
-      })),
-    );
-  }
   const claimId = randomUUID();
   const now = new Date();
   let supersededClaim: WorkflowConcurrencyClaim | null = null;
