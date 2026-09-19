@@ -18,8 +18,9 @@ export interface SuiteFixtures {
 type FixtureUse<T> = (value: T) => Promise<void>;
 type FixtureRequest = {request: unknown};
 type FixtureTestInfo = {status?: string; expectedStatus?: string};
+type SuiteTest = ReturnType<typeof base.extend<SuiteFixtures>>;
 
-export const test = base.extend<SuiteFixtures>({
+export const test: SuiteTest = base.extend<SuiteFixtures>({
   suite: async ({request: _request}: FixtureRequest, use: FixtureUse<SuiteContext>) => {
     await use(readSuiteContext());
   },

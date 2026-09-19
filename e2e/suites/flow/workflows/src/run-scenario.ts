@@ -1,9 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import type {
-  WorkflowRunListItemDto,
-  WorkflowRunListResponseDto,
-  WorkflowRunResponseDto,
-} from '@shipfox/api-workflows-dto';
+import type {WorkflowRunListItemDto, WorkflowRunListResponseDto} from '@shipfox/api-workflows-dto';
 import {createApiClient, pollUntil} from '@shipfox/e2e-core';
 import {type CreatedIssue, listIssueComments} from '@shipfox/e2e-driver-gitea';
 import {readFakeOpenAiModelProviderState} from '@shipfox/e2e-driver-model-provider';
@@ -411,12 +407,12 @@ export function selectTargetDefinition<T>(params: {
 
 async function waitForDescendantRun(params: {
   client: ReturnType<typeof createApiClient>;
-  childDefinitionId: string;
+  childWorkflowName: string;
   depth: number;
   parentRunId: string;
   projectId: string;
   timeoutMs: number;
-}): Promise<{item: WorkflowRunListItemDto; detail: WorkflowRunResponseDto}> {
+}): Promise<WorkflowRunListItemDto> {
   return await pollUntil(
     {
       timeoutMs: params.timeoutMs,
@@ -424,7 +420,7 @@ async function waitForDescendantRun(params: {
       maxIntervalMs: 4_000,
       backoffFactor: 1.5,
       describe: () =>
-        `descendant run depth ${params.depth}: definitionId=${params.childDefinitionId}, parentRunId=${params.parentRunId}`,
+        `descendant run depth ${params.depth}: workflowName=${params.childWorkflowName}, parentRunId=${params.parentRunId}`,
     },
     async () => {
       const query = new URLSearchParams({project_id: params.projectId, limit: '100'});
@@ -437,7 +433,7 @@ async function waitForDescendantRun(params: {
       for (let depth = 0; depth < params.depth; depth += 1) {
         item = runs.runs.find(
           (candidate) =>
-            candidate.definition_id === params.childDefinitionId &&
+            candidate.workflow_name === params.childWorkflowName &&
             candidate.parent_run?.id === parentId,
         );
         if (item === undefined) return null;
@@ -445,11 +441,7 @@ async function waitForDescendantRun(params: {
       }
       if (item === undefined || !TERMINAL_RUN_STATUSES.has(item.status)) return null;
 
-      const detail = await params.client.requestJson<WorkflowRunResponseDto>(
-        'get',
-        `/workflows/runs/${encodeURIComponent(item.id)}`,
-      );
-      return {item, detail};
+      return item;
     },
   );
 }
@@ -611,14 +603,14 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       }
       const child = await waitForDescendantRun({
         client,
-        childDefinitionId: targetDefinition.id,
+        childWorkflowName: targetDefinition.name,
         depth: childExpectation.depth,
         parentRunId: triggered.runId,
         projectId: project.id,
         timeoutMs: scenario.expectation.timeout_seconds * 1000,
       });
       const childObservation = await waitForRunTerminal({
-        runId: child.item.id,
+        runId: child.id,
         token,
         timeoutMs: scenario.expectation.timeout_seconds * 1000,
         selection: observationSelection(childExpectation),
@@ -626,8 +618,10 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       const childResult = evaluateChildRunExpectation(
         {
           observation: childObservation,
-          parentRunId: child.item.parent_run?.id ?? null,
-          inputs: child.detail.inputs,
+          parentRunId: child.parent_run?.id ?? null,
+          // Bounded workflow-run reads intentionally omit raw run inputs. The child workflow's
+          // self-asserting step still verifies that the tool propagated the expected input.
+          inputs: null,
         } satisfies ChildRunObservation,
         childExpectation,
       );

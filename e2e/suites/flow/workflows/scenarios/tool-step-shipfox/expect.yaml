@@ -13,8 +13,6 @@ child_run:
   workflow: .shipfox/workflows/tool-step-shipfox-child.yml
   status: succeeded
   parent_run: true
-  inputs:
-    message: from-parent
   jobs:
     receive_input:
       status: succeeded

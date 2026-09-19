@@ -104,8 +104,7 @@ const startWorkflowRunInputSchema = objectSchema(
     },
     project_id: {
       type: 'string',
-      format: 'uuid',
-      description: 'Project that owns the workflow. Defaults to the calling run project.',
+      description: 'Project UUID that owns the workflow. Defaults to the calling run project.',
     },
     inputs: {
       type: 'object',
@@ -155,10 +154,10 @@ const getWorkflowRunInputSchema = objectSchema({run_id: {type: 'string', format:
 
 const startWorkflowRunOutputSchema = objectSchema(
   {
-    run_id: {type: 'string', format: 'uuid'},
+    run_id: {type: 'string', description: 'Started workflow run UUID.'},
     run_number: {type: 'integer', minimum: 1},
     name: {type: 'string'},
-    project_id: {type: 'string', format: 'uuid'},
+    project_id: {type: 'string', description: 'Project UUID that owns the workflow.'},
     deduplicated: {type: 'boolean'},
   },
   ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],
