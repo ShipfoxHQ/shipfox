@@ -10,7 +10,7 @@ export default defineConfig({
   globalTeardown: './tests/global-teardown.ts',
   reporter: process.env.CI ? 'github' : 'list',
   fullyParallel: true,
-  // CI shares one API, dispatcher, and Temporal stack with other E2E packages.
+  // The 4-vCPU CI runner also hosts the API, Temporal, and the local runners.
   workers: process.env.CI ? 2 : 4,
   // A scenario waits on real provisioning and execution; its own poll budgets
   // (expect.yaml timeout_seconds, plus the helper defaults) are the real deadlines,

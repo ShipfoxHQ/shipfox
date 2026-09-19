@@ -441,8 +441,10 @@ jobs:
         timeout-minutes: 2
         run: pnpm exec turbo test:integration --filter=@shipfox/provisioner-docker-provider
 
-  e2e:
-    name: E2E tests
+  # The flow suite is the E2E long pole, so it runs on its own runner instead of
+  # waiting behind the browser suites for a turbo slot.
+  e2e-suite:
+    name: E2E tests (${{ matrix.suite }})
     needs: [release-mode]
     if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
     runs-on: ubuntu-latest
@@ -452,6 +454,16 @@ jobs:
       # Reserve one of the runner's four CPUs for the API/client processes,
       # Docker services, and Ollama-backed provider validation.
       SHIPFOX_TURBO_CONCURRENCY: "3"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: browser and API
+            turbo-filter: "!@shipfox/e2e-flow-workflows"
+            diagnostics: e2e-diagnostics
+          - suite: flow
+            turbo-filter: "@shipfox/e2e-flow-workflows"
+            diagnostics: e2e-diagnostics-flow
 
     steps:
       - name: Check out repository
@@ -496,21 +508,40 @@ jobs:
           VITE_API_URL: http://localhost:16101
           VITE_ENABLE_TEST_VCS_PROVIDER: "true"
           ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
+          SUITE_FILTER: ${{ matrix.turbo-filter }}
         run: |
+          args=("--filter=$SUITE_FILTER")
           if [[ -n "$SHIPFOX_TURBO_AFFECTED" ]]; then
-            mise run e2e -- "$SHIPFOX_TURBO_AFFECTED"
-          else
-            mise run e2e
+            args+=("$SHIPFOX_TURBO_AFFECTED")
           fi
+          mise run e2e -- "${args[@]}"
 
       - name: Upload E2E diagnostics
         if: failure() && steps.e2e.outcome == 'failure'
         timeout-minutes: 3
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-diagnostics
+          name: ${{ matrix.diagnostics }}
           path: ${{ runner.temp }}/shipfox-e2e-logs/
           if-no-files-found: error
+
+  # Keeps the single required "E2E tests" check across the suite matrix. The
+  # condition mirrors the matrix, so dependents still see `skipped` when a
+  # release mode skips E2E.
+  e2e:
+    name: E2E tests
+    needs: [release-mode, e2e-suite]
+    if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report E2E suites
+        env:
+          SUITE_RESULT: ${{ needs.e2e-suite.result }}
+        run: |
+          echo "E2E suite matrix result: $SUITE_RESULT"
+          [[ "$SUITE_RESULT" == success ]]
 
   # PR image validation stays separate so it can run without package write
   # permission. Main publishes images in `publish-images`.

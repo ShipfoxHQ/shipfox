@@ -112,4 +112,14 @@ describe('generated release CI path', () => {
         workflow.includes('needs.build-image.result }}" = "skipped"'),
     );
   });
+
+  test('reports the E2E suite matrix through one required check', async () => {
+    const parsedWorkflow = parse(await readWorkflow());
+    const e2eCheck = parsedWorkflow.jobs.e2e;
+    const e2eSuites = parsedWorkflow.jobs['e2e-suite'];
+
+    assert.equal(e2eCheck.name, 'E2E tests');
+    assert.ok(e2eCheck.needs.includes('e2e-suite'));
+    assert.equal(e2eCheck.if, e2eSuites.if);
+  });
 });
