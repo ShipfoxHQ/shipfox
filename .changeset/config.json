@@ -33,6 +33,7 @@
       "@shipfox/api-integration-notion-dto",
       "@shipfox/api-integration-sentry",
       "@shipfox/api-integration-sentry-dto",
+      "@shipfox/api-integration-shipfox",
       "@shipfox/api-integration-slack",
       "@shipfox/api-integration-slack-dto",
       "@shipfox/api-integration-webhook",

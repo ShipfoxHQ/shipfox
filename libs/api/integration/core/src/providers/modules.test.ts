@@ -4,6 +4,7 @@ import {eq, sql} from 'drizzle-orm';
 import {db} from '#db/db.js';
 import {integrationConnections} from '#db/schema/connections.js';
 import {integrationsOutbox} from '#db/schema/outbox.js';
+import type {IntegrationProviderInterModuleClients} from '#providers/types.js';
 
 describe('loadEnabledProviderModules', () => {
   afterEach(async () => {
@@ -18,7 +19,7 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual(['shipfox', 'cron', 'webhook']);
   });
 
   it('does not load cron when the provider is disabled', async () => {
@@ -28,7 +29,34 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual(['shipfox', 'webhook']);
+  });
+
+  it('loads the built-in Shipfox provider with inter-module clients', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules({
+      interModule: {
+        definitions: {getDefinitionByConfigPath: vi.fn()},
+        triggers: {fireManualTrigger: vi.fn()},
+        workflows: {getWorkflowRunOverview: vi.fn()},
+      } as unknown as IntegrationProviderInterModuleClients,
+    });
+    const shipfox = parts.find((part) => part.provider.provider === 'shipfox');
+
+    expect(shipfox).toMatchObject({
+      builtinConnection: {
+        id: '00000000-0000-4000-8000-000000000001',
+        slug: 'shipfox',
+      },
+      provider: {
+        provider: 'shipfox',
+        displayName: 'Shipfox',
+        adapters: {agent_tools: expect.any(Object)},
+      },
+    });
+    expect(shipfox?.database).toBeUndefined();
   });
 
   it('loads Linear when the provider is enabled', async () => {
@@ -38,7 +66,12 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['linear', 'cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'linear',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
     expect(parts[0]?.provider).toMatchObject({
       provider: 'linear',
       displayName: 'Linear',
@@ -53,7 +86,12 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['slack', 'cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'slack',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
     expect(parts[0]?.provider).toMatchObject({
       provider: 'slack',
       displayName: 'Slack',
@@ -68,7 +106,12 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules();
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['jira', 'cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'jira',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
     expect(parts[0]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
   });
 
@@ -93,7 +136,12 @@ describe('loadEnabledProviderModules', () => {
     const parts = await loadEnabledProviderModules();
     const clickup = parts.find((part) => part.provider.provider === 'clickup');
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['clickup', 'cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'clickup',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
     expect(clickup?.provider).toMatchObject({provider: 'clickup', displayName: 'ClickUp'});
   });
 
@@ -105,7 +153,12 @@ describe('loadEnabledProviderModules', () => {
     const parts = await loadEnabledProviderModules();
     const testVcsPart = parts.find((part) => part.provider.provider === 'test-vcs');
 
-    expect(parts.map((part) => part.provider.provider)).toEqual(['test-vcs', 'cron', 'webhook']);
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'test-vcs',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
     expect(testVcsPart?.provider.adapters?.source_control).toBeDefined();
     expect(testVcsPart?.services).toHaveLength(1);
   });

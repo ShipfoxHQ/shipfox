@@ -1,4 +1,8 @@
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {
+  createShipfoxAgentToolsProvider,
+  shipfoxAgentToolCatalog,
+} from '@shipfox/api-integration-shipfox';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import type {z} from 'zod';
@@ -1159,6 +1163,76 @@ describe('integrations inter-module callTool', () => {
         outcome: 'success',
         errorCode: 'none',
       }),
+    );
+  });
+
+  it('dispatches start_workflow_run through callTool with the parent run', async () => {
+    const trigger = vi.fn().mockResolvedValue({
+      id: crypto.randomUUID(),
+      name: 'Child workflow',
+      deduplicated: false,
+    });
+    const provider = createShipfoxAgentToolsProvider({
+      definitions: {
+        getDefinitionByConfigPath: vi.fn().mockResolvedValue({
+          definitionId: crypto.randomUUID(),
+          workflowId: crypto.randomUUID(),
+          name: 'Child workflow',
+        }),
+      },
+      triggers: {fireManualTrigger: trigger},
+      workflows: {
+        getWorkflowRunOverview: vi.fn().mockResolvedValue({run: {number: 7}}),
+      },
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    const tool = shipfoxAgentToolCatalog[0];
+    const parentRunId = crypto.randomUUID();
+    transport.register(
+      createIntegrationsInterModulePresentation({
+        registry: createIntegrationProviderRegistry([
+          {provider: 'shipfox', displayName: 'Shipfox', adapters: {agent_tools: provider}},
+        ]),
+        sourceControl: createSourceControlIntegrationService({
+          registry: createIntegrationProviderRegistry([]),
+          getIntegrationConnectionById: async () => undefined,
+        }),
+        getIntegrationConnectionById: async () => undefined,
+        builtinConnections: [
+          {provider: 'shipfox', slug: 'shipfox', id: SHIPFOX_BUILTIN_CONNECTION_ID},
+        ],
+      }),
+    );
+    transport.seal();
+
+    const result = await client.callTool({
+      workspaceId,
+      connectionId: SHIPFOX_BUILTIN_CONNECTION_ID,
+      tool: {
+        id: tool.id,
+        provider: 'shipfox',
+        sensitivity: tool.sensitivity,
+        sensitive: tool.sensitive,
+        requiredScope: [],
+        inputSchema: tool.inputSchema,
+        outputSchema: tool.outputSchema,
+      },
+      arguments: {workflow: 'child.yml'},
+      caller: {
+        kind: 'tool_step',
+        projectId: crypto.randomUUID(),
+        runId: parentRunId,
+        jobExecutionId: crypto.randomUUID(),
+        stepId: 'start-child',
+        stepAttempt: 1,
+        callIndex: 3,
+      },
+    });
+
+    expect(result).toMatchObject({outcome: 'success', result: {run_number: 7}});
+    expect(trigger).toHaveBeenCalledWith(
+      expect.objectContaining({parentRun: {runId: parentRunId}}),
     );
   });
 

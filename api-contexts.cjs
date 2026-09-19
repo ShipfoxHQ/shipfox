@@ -16,6 +16,7 @@ const architecturePackages = {
       'libs/api/integration/linear',
       'libs/api/integration/sentry',
       'libs/api/integration/slack',
+      'libs/api/integration/shipfox',
       'libs/api/integration/webhook',
     ],
     logs: ['libs/api/logs'],

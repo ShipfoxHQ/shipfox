@@ -3073,6 +3073,9 @@ importers:
       '@shipfox/api-integration-sentry':
         specifier: workspace:*
         version: link:../sentry
+      '@shipfox/api-integration-shipfox':
+        specifier: workspace:*
+        version: link:../shipfox
       '@shipfox/api-integration-slack':
         specifier: workspace:*
         version: link:../slack
@@ -3757,6 +3760,43 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/api/integration/shipfox:
+    dependencies:
+      '@shipfox/api-definitions-dto':
+        specifier: workspace:*
+        version: link:../../definitions-dto
+      '@shipfox/api-integration-spi':
+        specifier: workspace:*
+        version: link:../spi
+      '@shipfox/api-triggers-dto':
+        specifier: workspace:*
+        version: link:../../triggers-dto
+      '@shipfox/api-workflows-dto':
+        specifier: workspace:*
+        version: link:../../workflows-dto
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../../shared/common/inter-module
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*

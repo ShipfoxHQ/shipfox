@@ -120,6 +120,7 @@ describe('callIntegrationTool', () => {
     );
 
     expect(onOpenSession.mock.calls[0]?.[0].caller).toEqual({
+      callerKind: 'tool_step',
       workspaceId: 'workspace-1',
       projectId: 'project-1',
       runId: 'run-1',
@@ -131,6 +132,7 @@ describe('callIntegrationTool', () => {
     await callIntegrationTool(createInput({}, {registry}));
 
     expect(onOpenSession.mock.calls[1]?.[0].caller).toEqual({
+      callerKind: 'agent',
       workspaceId: 'workspace-1',
       projectId: 'project-1',
       runId: 'run-1',

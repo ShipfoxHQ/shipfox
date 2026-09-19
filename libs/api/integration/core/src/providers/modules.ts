@@ -5,6 +5,7 @@ import {githubProviderModule} from '#providers/github.js';
 import {jiraProviderModule} from '#providers/jira.js';
 import {linearProviderModule} from '#providers/linear.js';
 import {sentryProviderModule} from '#providers/sentry.js';
+import {shipfoxProviderModule} from '#providers/shipfox.js';
 import {slackProviderModule} from '#providers/slack.js';
 import {testVcsProviderModule} from '#providers/test-vcs-module.js';
 import type {
@@ -24,6 +25,7 @@ const providerModules = [
   sentryProviderModule,
   giteaProviderModule,
   testVcsProviderModule,
+  shipfoxProviderModule,
   cronProviderModule,
   webhookProviderModule,
 ];

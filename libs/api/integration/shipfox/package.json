@@ -1,0 +1,68 @@
+{
+  "name": "@shipfox/api-integration-shipfox",
+  "license": "MIT",
+  "version": "27.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
+    "directory": "libs/api/integration/shipfox"
+  },
+  "private": false,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "imports": {
+    "#test/*": "./test/*",
+    "#*": {
+      "workspace-source": "./src/*",
+      "default": "./dist/*"
+    }
+  },
+  "exports": {
+    ".": {
+      "workspace-source": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "default": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./agent-tools": {
+      "workspace-source": {
+        "types": "./src/agent-tools.ts",
+        "default": "./src/agent-tools.ts"
+      },
+      "default": {
+        "types": "./dist/agent-tools.d.ts",
+        "default": "./dist/agent-tools.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "shipfox-swc",
+    "check": "shipfox-biome-check",
+    "check:fix": "shipfox-biome-check --write",
+    "depcruise": "shipfox-depcruise",
+    "test": "shipfox-vitest-run",
+    "test:watch": "shipfox-vitest-watch",
+    "type": "shipfox-tsc-check",
+    "type:emit": "shipfox-tsc-emit"
+  },
+  "dependencies": {
+    "@shipfox/api-definitions-dto": "workspace:*",
+    "@shipfox/api-integration-spi": "workspace:*",
+    "@shipfox/api-triggers-dto": "workspace:*",
+    "@shipfox/api-workflows-dto": "workspace:*",
+    "@shipfox/inter-module": "workspace:*"
+  },
+  "devDependencies": {
+    "@shipfox/biome": "workspace:*",
+    "@shipfox/depcruise": "workspace:*",
+    "@shipfox/swc": "workspace:*",
+    "@shipfox/ts-config": "workspace:*",
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/vitest": "workspace:*"
+  }
+}
