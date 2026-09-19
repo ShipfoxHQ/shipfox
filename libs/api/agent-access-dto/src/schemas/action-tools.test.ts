@@ -1,3 +1,5 @@
+import {Ajv} from 'ajv';
+import * as addFormatsModule from 'ajv-formats';
 import {
   AGENT_ACCESS_ACTION_INPUTS_MAX_BYTES,
   cancelWorkflowRunInputSchema,
@@ -11,6 +13,7 @@ import {
 } from './action-tools.js';
 
 const uuid = '00000000-0000-4000-8000-000000000001';
+const addFormats = addFormatsModule.default as unknown as (validator: Ajv) => void;
 
 describe('agent-access action tool schemas', () => {
   test('requires retry identity and rerun mode', () => {
@@ -121,6 +124,21 @@ describe('agent-access action tool schemas', () => {
 
   test('requires exactly one development-run result variant', () => {
     const commit = 'a'.repeat(40);
+    const validResults = [
+      {
+        run_id: uuid,
+        ref: 'main',
+        commit,
+        warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+      },
+      {
+        dry_run: true,
+        check_passed: true,
+        ref: 'main',
+        commit,
+        warnings: [],
+      },
+    ];
     const invalidResults = [
       {commit},
       {run_id: uuid, dry_run: true, commit},
@@ -129,20 +147,23 @@ describe('agent-access action tool schemas', () => {
       {dry_run: true, commit},
       {check_passed: true, commit},
     ];
+    const ajv = new Ajv({strict: true, strictRequired: false});
+    addFormats(ajv);
+    const validateResult = ajv.compile(createDevRunResultJsonSchema);
+    const validateVariants = createDevRunResultJsonSchema.oneOf.map((variant) =>
+      ajv.compile({type: 'object', ...variant}),
+    );
+
+    for (const result of validResults) {
+      expect(validateResult(result)).toBe(true);
+      expect(validateVariants.filter((validate) => validate(result))).toHaveLength(1);
+    }
 
     for (const result of invalidResults) {
       expect(createDevRunResultSchema.safeParse(result).success).toBe(false);
+      expect(validateResult(result)).toBe(false);
+      expect(validateVariants.filter((validate) => validate(result))).toHaveLength(0);
     }
-    expect(createDevRunResultJsonSchema.oneOf).toEqual([
-      {
-        required: ['run_id'],
-        not: {anyOf: [{required: ['dry_run']}, {required: ['check_passed']}]},
-      },
-      {
-        required: ['dry_run', 'check_passed'],
-        not: {required: ['run_id']},
-      },
-    ]);
   });
 
   test('keeps development-run descriptors aligned with safe runtime strings', () => {

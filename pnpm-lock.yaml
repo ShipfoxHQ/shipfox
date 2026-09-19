@@ -2307,6 +2307,12 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../tools/vitest
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
+      ajv-formats:
+        specifier: 'catalog:'
+        version: 3.0.1(ajv@8.20.0)
 
   libs/api/agent-dto:
     dependencies:
