@@ -1,12 +1,6 @@
 import {z} from 'zod';
 import {runnerJobStopReasonSchema} from './reconcile-runner-instances.js';
-import {runnerToolCapabilitiesSchema} from './tool-capabilities.js';
-
-export const heartbeatBodySchema = z
-  .object({
-    capabilities: runnerToolCapabilitiesSchema.optional(),
-  })
-  .strict();
+export const heartbeatBodySchema = z.object({});
 
 export const heartbeatResponseSchema = z.object({
   cancel: z.boolean(),

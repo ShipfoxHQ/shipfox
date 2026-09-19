@@ -456,7 +456,6 @@ export async function runJob(
     ...(job.isolation_timeout_seconds !== undefined
       ? {isolationTimeoutSeconds: job.isolation_timeout_seconds}
       : {}),
-    getToolCapabilities: runnerToolCapabilities,
     onLeaseTokenRenewed: rememberLeaseToken,
   });
   let releaseAgentStateLock: (() => Promise<void>) | undefined;

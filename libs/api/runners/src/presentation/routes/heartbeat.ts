@@ -37,28 +37,7 @@ export function createHeartbeatRoute(auth: AuthInterModuleClient) {
       const heartbeatResult = await recordHeartbeat({
         jobExecutionId: lease.jobExecutionId,
         runnerSessionId: lease.runnerSessionId,
-        toolCapabilities: request.body?.capabilities ?? null,
       });
-
-      if (
-        heartbeatResult.previousToolCapabilities &&
-        !sameToolCapabilities(
-          heartbeatResult.previousToolCapabilities,
-          heartbeatResult.currentToolCapabilities,
-        )
-      ) {
-        request.log.info(
-          {
-            runnerSessionId: lease.runnerSessionId,
-            jobExecutionId: lease.jobExecutionId,
-            previousHarnesses: Object.keys(heartbeatResult.previousToolCapabilities.harnesses),
-            currentHarnesses: heartbeatResult.currentToolCapabilities
-              ? Object.keys(heartbeatResult.currentToolCapabilities.harnesses)
-              : [],
-          },
-          'Runner heartbeat changed advertised tool capabilities',
-        );
-      }
 
       const {token: leaseToken} = await auth.mintJobLeaseToken({
         workflowRunId: heartbeatResult.runningJobExecution.workflowRunId,
@@ -82,8 +61,4 @@ export function createHeartbeatRoute(auth: AuthInterModuleClient) {
       };
     },
   });
-}
-
-function sameToolCapabilities(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
 }
