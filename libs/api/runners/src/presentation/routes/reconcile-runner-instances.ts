@@ -22,6 +22,7 @@ export const reconcileRunnerInstancesRoute = defineRoute({
   handler: async (request) => {
     const context = requireProvisionerContext(request);
     const result = await reconcileRunnerInstances({
+      scope: context.scope,
       workspaceId: context.scope === 'workspace' ? context.workspaceId : null,
       provisionerId: context.provisionerTokenId,
       observedRunnerInstanceIds: request.body.observed_provider_runner_ids,

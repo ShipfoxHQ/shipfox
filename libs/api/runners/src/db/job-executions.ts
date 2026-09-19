@@ -1409,7 +1409,7 @@ export async function listActiveRunningJobExecutions(params: {
 export async function listRunningJobExecutionsByRunnerInstanceTx(
   tx: Tx,
   params: {
-    workspaceId: string;
+    workspaceId: string | null;
     provisionerId: string;
     providerRunnerIds: string[];
   },
@@ -1424,7 +1424,7 @@ export async function listRunningJobExecutionsByRunnerInstanceTx(
     .from(runningJobExecutions)
     .where(
       and(
-        eq(runningJobExecutions.workspaceId, params.workspaceId),
+        params.workspaceId ? eq(runningJobExecutions.workspaceId, params.workspaceId) : undefined,
         eq(runningJobExecutions.provisionerId, params.provisionerId),
         inArray(runningJobExecutions.providerRunnerId, params.providerRunnerIds),
       ),
@@ -1469,7 +1469,7 @@ export async function listRunningJobExecutionsByRunnerInstanceTx(
       ${runningJobExecutions.cancellationReason} AS "cancellationReason"
     FROM ${runningJobExecutions}
     WHERE
-      ${runningJobExecutions.workspaceId} = ${params.workspaceId}
+      ${params.workspaceId ? sql`${runningJobExecutions.workspaceId} = ${params.workspaceId}` : sql`true`}
       AND ${runningJobExecutions.provisionerId} = ${params.provisionerId}
       AND ${runningJobExecutions.providerRunnerId} IN (${sql.join(
         params.providerRunnerIds.map((providerRunnerId) => sql`${providerRunnerId}`),
