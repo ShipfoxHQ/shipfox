@@ -117,6 +117,7 @@ describe('agent inter-module presentation', () => {
       provider: 'anthropic' as const,
       model: 'claude-opus-4-8',
       thinking: 'high' as const,
+      renewableInference: false,
     };
 
     const result = await Promise.resolve(
@@ -168,6 +169,7 @@ describe('agent inter-module presentation', () => {
           provider: 'shipfox',
           model: 'managed-model',
           thinking: 'high',
+          renewableInference: false,
         },
         {signal: new AbortController().signal},
       ),

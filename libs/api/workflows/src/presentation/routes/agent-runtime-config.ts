@@ -143,7 +143,7 @@ export function createAgentRuntimeConfigRoute(params: {
         provider: agentConfig.provider,
         model: agentConfig.model,
         thinking: agentConfig.thinking,
-        ...(renewableInference === undefined ? {} : {renewableInference}),
+        renewableInference,
       });
 
       await loadRunningLeasedStep({

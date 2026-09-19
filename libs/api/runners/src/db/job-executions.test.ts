@@ -439,44 +439,13 @@ describe('claimPendingJobExecution', () => {
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
     expect(running?.renewableInference).toBe(false);
-  });
-
-  it.each([
-    ['the features object', {harnesses: {}}],
-    ['the renewable inference flag', {features: {renewable_git: false}, harnesses: {}}],
-  ])('snapshots false for a legacy manifest without %s', async (_description, capabilities) => {
-    await db()
-      .update(runnerSessions)
-      .set({toolCapabilities: sql`${JSON.stringify(capabilities)}::jsonb`})
-      .where(eq(runnerSessions.id, runnerSessionId));
-    const created = await pendingJobFactory.create({workspaceId});
-
-    await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
-
-    const [running] = await db()
-      .select({renewableInference: runningJobExecutions.renewableInference})
-      .from(runningJobExecutions)
-      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
-    expect(running?.renewableInference).toBe(false);
-  });
-
-  it('omits the renewable snapshot for legacy running rows', async () => {
-    const created = await pendingJobFactory.create({workspaceId});
-    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
-    expect(claimed?.jobExecutionId).toBe(created.jobExecutionId);
-
-    await db()
-      .update(runningJobExecutions)
-      .set({renewableInference: null})
-      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
-
     await expect(
       getJobLeaseState({
         jobId: created.jobId,
         jobExecutionId: created.jobExecutionId,
         runnerSessionId,
       }),
-    ).resolves.toEqual({active: true});
+    ).resolves.toEqual({active: true, renewableInference: false});
   });
 
   it('reports an active lease only for the session that claimed the job', async () => {
@@ -866,6 +835,7 @@ describe('claimPendingJobExecution', () => {
 
     await expect(
       db().insert(runningJobExecutions).values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: created.workflowRunId,
         jobId: created.jobId,

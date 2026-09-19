@@ -264,6 +264,7 @@ describe('POST /provisioners/runner-instances/report', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),

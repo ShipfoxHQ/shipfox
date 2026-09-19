@@ -16,7 +16,7 @@ export interface MintActiveLeaseTokenParams {
     currentStepId?: string;
     currentStepAttempt?: number;
   };
-  renewableInference?: boolean | undefined;
+  renewableInference: boolean;
 }
 
 export async function mintActiveLeaseToken(params: MintActiveLeaseTokenParams): Promise<string> {
@@ -56,7 +56,7 @@ export interface InsertRunningJobLeaseParams {
   jobExecutionId: string;
   projectId: string;
   runnerSessionId: string;
-  renewableInference?: boolean | undefined;
+  renewableInference: boolean;
 }
 
 export function insertRunningJobLease(params: InsertRunningJobLeaseParams): Promise<void> {

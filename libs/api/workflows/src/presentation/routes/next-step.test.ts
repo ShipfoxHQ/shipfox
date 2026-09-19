@@ -147,7 +147,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('returns the lowest-position pending step and marks it running', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     const lease = getLeaseTokenClaims(token);
     if (!lease) throw new Error('Expected minted lease token to verify');
     const getLeaseState = vi.spyOn(runnersTestClient, 'getLeaseState');
@@ -189,7 +192,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
       run: 'x'.repeat(MAX_RESOLVED_STEP_CONFIG_BYTES - RUN_CONFIG_JSON_OVERHEAD_BYTES),
     };
     await db().update(stepsTable).set({config, configPlan: null}).where(eq(stepsTable.id, step.id));
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
 
     const res = await app.inject({
       method: 'POST',
@@ -216,7 +222,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
       ),
     };
     await db().update(stepsTable).set({config, configPlan: null}).where(eq(stepsTable.id, step.id));
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     const headers = {authorization: `Bearer ${token}`};
 
     const first = await app.inject({method: 'POST', url: URL, headers});
@@ -237,7 +246,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('re-delivers the in-flight step on a retried pull', async () => {
     const {jobId} = await arrangeJobWithSteps(3);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     const first = await app.inject({
       method: 'POST',
       url: URL,
@@ -275,7 +287,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
         configPlan: null,
       })
       .where(eq(stepsTable.id, step.id));
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     const headers = {authorization: `Bearer ${token}`};
 
     const first = await app.inject({method: 'POST', url: URL, headers});
@@ -323,7 +338,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
         },
       })
       .where(eq(stepsTable.id, steps[0]?.id as string));
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     const lease = getLeaseTokenClaims(token);
     if (!lease) throw new Error('Expected minted lease token to verify');
     setRunnerToolCapabilities(lease.runnerSessionId, {harnesses: {pi: {tools: ['read']}}});
@@ -367,7 +385,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
         },
       })
       .where(eq(stepsTable.id, step.id));
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     const lease = getLeaseTokenClaims(token);
     if (!lease) throw new Error('Expected minted lease token to verify');
     setRunnerToolCapabilities(lease.runnerSessionId, {harnesses: {}});
@@ -413,6 +434,7 @@ describe('POST /runs/jobs/current/steps/next', () => {
     const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
     if (!run) throw new Error('Expected workflow run to exist');
     await insertRunningJobLease({
+      renewableInference: false,
       workspaceId: run.workspaceId,
       workflowRunId: run.id,
       workflowRunAttemptId: job.workflowRunAttemptId,
@@ -443,7 +465,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('reports {done, succeeded} once every step succeeded', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     for (const step of steps) {
       await app.inject({method: 'POST', url: URL, headers: {authorization: `Bearer ${token}`}});
       await recordStepResult({jobId, stepId: step.id, status: 'succeeded'});
@@ -465,7 +490,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('reports {done, failed} after a failed step skips the default-gated rest', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await app.inject({method: 'POST', url: URL, headers: {authorization: `Bearer ${token}`}});
     await recordStepResult({jobId, stepId: steps[0]?.id as string, status: 'failed'});
 
@@ -485,7 +513,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
 
   test('concurrent pulls hand out the same step exactly once', async () => {
     const {jobId} = await arrangeJobWithSteps(3);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
 
     const responses = await Promise.all(
       Array.from({length: 5}, () =>
@@ -509,7 +540,10 @@ describe('POST /runs/jobs/current/steps/next', () => {
       .update(stepsTable)
       .set({currentAttempt: 2})
       .where(eq(stepsTable.id, steps[0]?.id as string));
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
 
     const res = await app.inject({
       method: 'POST',

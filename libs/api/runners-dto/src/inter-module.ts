@@ -15,7 +15,7 @@ export const runnersInterModuleContract = defineInterModuleContract({
       }),
       output: z.object({
         active: z.boolean(),
-        renewableInference: z.boolean().optional(),
+        renewableInference: z.boolean(),
       }),
     },
     getEffectiveRunnerToolCapabilities: {

@@ -23,7 +23,7 @@ export const runningJobExecutions = pgTable(
     runnerSessionId: uuid('runner_session_id')
       .notNull()
       .references(() => runnerSessions.id),
-    renewableInference: boolean('renewable_inference'),
+    renewableInference: boolean('renewable_inference').notNull(),
     provisionerId: uuid('provisioner_id'),
     providerRunnerId: text('provider_runner_id'),
     requiredLabels: text('required_labels').array().notNull(),

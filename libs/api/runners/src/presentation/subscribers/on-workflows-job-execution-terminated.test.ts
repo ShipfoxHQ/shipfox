@@ -41,6 +41,7 @@ describe('onWorkflowsJobExecutionTerminated', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId,
         workflowRunAttemptId,
@@ -114,6 +115,7 @@ describe('onWorkflowsJobExecutionTerminated', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId,
         workflowRunAttemptId,
@@ -155,6 +157,7 @@ describe('onWorkflowsJobExecutionTerminated', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -192,6 +195,7 @@ describe('onWorkflowsJobExecutionTerminated', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -232,6 +236,7 @@ describe('onWorkflowsJobExecutionTerminated', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),

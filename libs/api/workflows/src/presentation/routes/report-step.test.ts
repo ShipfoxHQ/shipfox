@@ -73,6 +73,7 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
     const run = await getWorkflowRunByAttemptId(job.workflowRunAttemptId);
     if (!run) throw new Error('Expected workflow run to exist');
     await insertRunningJobLease({
+      renewableInference: false,
       workspaceId: run.workspaceId,
       workflowRunId: run.id,
       workflowRunAttemptId: job.workflowRunAttemptId,
@@ -104,7 +105,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('records a succeeded mid-job step → {ok, cancel:false}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -121,7 +125,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('finishing the job fully succeeded → {ok, cancel:false}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -137,7 +144,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a failed final report finishes the job → {ok, cancel:true}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -153,7 +163,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a failed report leaves remaining steps dispatchable → {ok, cancel:false}', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(3);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -173,7 +186,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('persists the wire error snake_case fields as camelCase on the step row', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -195,7 +211,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('persists structured output on the attempt row', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -217,7 +236,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('turns a UTF-8 response overflow into a terminal failed attempt', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
     const response = '😀'.repeat(3_000);
 
@@ -248,7 +270,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('persists dedicated checkout details alongside user output', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
     const checkout = {
       repository: 'https://github.com/acme/api.git',
@@ -273,7 +298,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
   });
   test('rejects a failed report without an error', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -289,7 +317,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects a succeeded report with an error', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({
@@ -305,7 +336,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a duplicate succeeded report is a no-op with the same response', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
     const first = await app.inject({
       method: 'POST',
@@ -331,7 +365,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a late succeeded report after failure completion never downgrades and says cancel', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
     await app.inject({
       method: 'POST',
@@ -357,7 +394,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects a result for a pending (never-dispatched) step with 409', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
 
     const res = await app.inject({
       method: 'POST',
@@ -372,7 +412,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('rejects an unknown stepId with 404', async () => {
     const {jobId} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
 
     const res = await app.inject({
       method: 'POST',
@@ -388,7 +431,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
   test("rejects another job's stepId with 404", async () => {
     const a = await arrangeJobWithSteps(1);
     const b = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId: a.jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId: a.jobId,
+    });
     await nextStepForJob(b.jobId);
 
     const res = await app.inject({
@@ -404,7 +450,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('concurrent duplicate reports all succeed and land one result', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(2);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const responses = await Promise.all(
@@ -429,7 +478,10 @@ describe('POST /runs/jobs/current/steps/:stepId/report', () => {
 
   test('a report whose attempt is ahead of the current attempt → 409 step-attempt-ahead', async () => {
     const {jobId, steps} = await arrangeJobWithSteps(1);
-    const token = await mintActiveLeaseToken({jobId});
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId,
+    });
     await nextStepForJob(jobId);
 
     const res = await app.inject({

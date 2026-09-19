@@ -27,15 +27,13 @@ export function registerActiveRunnerLease(params: {
   jobId: string;
   jobExecutionId: string;
   runnerSessionId: string;
-  renewableInference?: boolean | undefined;
+  renewableInference: boolean;
 }): void {
   const key = leaseKey(params);
   activeLeases.add(key);
   leaseStates.set(key, {
     active: true,
-    ...(params.renewableInference === undefined
-      ? {}
-      : {renewableInference: params.renewableInference}),
+    renewableInference: params.renewableInference,
   });
 }
 
@@ -62,7 +60,10 @@ export function resetRunnersTestClient(): void {
 
 export const runnersTestClient: RunnersInterModuleClient = {
   getLeaseState: async (params) =>
-    leaseStates.get(leaseKey(params)) ?? {active: activeLeases.has(leaseKey(params))},
+    leaseStates.get(leaseKey(params)) ?? {
+      active: activeLeases.has(leaseKey(params)),
+      renewableInference: false,
+    },
   getEffectiveRunnerToolCapabilities: async ({runnerSessionId}) =>
     toolCapabilities.get(runnerSessionId) ?? {
       capabilities: {

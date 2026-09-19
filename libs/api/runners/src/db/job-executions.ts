@@ -5,6 +5,7 @@ import {
   type RunnerJobStopReasonDto,
   type RunnerLifecycleCapabilitiesDto,
   type RunnersEventMap,
+  type RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
@@ -57,11 +58,7 @@ import {pendingJobExecutions} from './schema/pending-job-executions.js';
 import {provisionerTokens} from './schema/provisioner-tokens.js';
 import {reservations} from './schema/reservations.js';
 import {providerRunners} from './schema/runner-instances.js';
-import {
-  normalizeRunnerLifecycleCapabilities,
-  normalizeRunnerToolCapabilities,
-  runnerSessions,
-} from './schema/runner-sessions.js';
+import {normalizeRunnerLifecycleCapabilities, runnerSessions} from './schema/runner-sessions.js';
 import {runningJobExecutions} from './schema/running-job-executions.js';
 
 const runnerJobExecutionLockPrefix = 'runners_job_execution:';
@@ -759,7 +756,7 @@ interface ClaimPendingJobExecutionParams {
 interface ClaimRunnerContext {
   provisionerId: string | null;
   providerRunnerId: string | null;
-  renewableInference: boolean | null;
+  renewableInference: boolean;
   runnerInstanceCondition: ReturnType<typeof eq> | undefined;
 }
 
@@ -897,7 +894,6 @@ async function loadClaimRunnerContextTx(
     .limit(1);
   const [session] =
     params.maxClaims === null ? await sessionQuery : await sessionQuery.for('update');
-  let renewableInference: boolean | null = null;
   if (params.maxClaims !== null) {
     assertClaimSessionAvailable(session, params.runnerSessionId);
     runnerInstanceId = session.runnerInstanceId;
@@ -907,8 +903,8 @@ async function loadClaimRunnerContextTx(
   if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   // Snapshot the registered manifest at claim time. Later heartbeat reports must not change the
   // execution's eligibility.
-  renewableInference = normalizeRunnerToolCapabilities(session.toolCapabilities).features
-    .renewable_inference;
+  const toolCapabilities = session.toolCapabilities as RunnerToolCapabilitiesDto;
+  const renewableInference = toolCapabilities.features.renewable_inference;
   const runnerInstanceCondition = claimRunnerInstanceCondition(
     runnerInstanceId,
     provisionerId,
@@ -995,7 +991,7 @@ async function claimPendingCandidateTx(
   params: ClaimPendingJobExecutionParams,
   provisionerId: string | null,
   providerRunnerId: string | null,
-  renewableInference: boolean | null,
+  renewableInference: boolean,
 ): Promise<{
   row: typeof pendingJobExecutions.$inferSelect;
   claimed: {
@@ -1509,7 +1505,7 @@ export async function isJobLeaseActive(params: {
 
 export interface JobLeaseState {
   active: boolean;
-  renewableInference?: boolean;
+  renewableInference: boolean;
 }
 
 export async function getJobLeaseState(params: {
@@ -1532,11 +1528,8 @@ export async function getJobLeaseState(params: {
     )
     .limit(1);
 
-  if (!row) return {active: false};
-  return {
-    active: true,
-    ...(row.renewableInference === null ? {} : {renewableInference: row.renewableInference}),
-  };
+  if (!row) return {active: false, renewableInference: false};
+  return {active: true, renewableInference: row.renewableInference};
 }
 
 export async function recordHeartbeat(params: {
