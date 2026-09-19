@@ -2,6 +2,7 @@
   "title": "Run and Troubleshoot",
   "pages": [
     "index",
+    "test-local-workflow-change",
     "inspect-runs-and-attempts",
     "inspect-logs",
     "agent-provider-failures",

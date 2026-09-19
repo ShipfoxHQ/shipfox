@@ -1,11 +1,11 @@
 ---
-title: "Test a Workflow Against a Past Event"
-sidebarTitle: "Test a Past Event"
-description: "Use a coding agent to check local workflow YAML against a past event, run it, and inspect the result."
+title: "Test a Local Workflow Change"
+sidebarTitle: "Test Local Changes"
+description: "Use a coding agent to check unpushed workflow YAML, replay it against a retained event, and inspect the result."
 ---
 
-Use this guide when you need to test edited workflow YAML without pushing it.
-Your coding agent checks the file against a recorded event before starting a run.
+Use this guide to test an unpushed workflow change against a real event. Your
+coding agent checks the local YAML, starts a replay, and reads the run logs.
 
 ## Before you begin
 
@@ -26,7 +26,7 @@ newer event when the event you need no longer appears.
   request, issue, channel, or other external resource.
 </Callout>
 
-## Check the workflow against an event
+## Check the local change
 
 Give the coding agent the workflow path and the Shipfox project. Ask it to
 follow these steps:
@@ -34,10 +34,11 @@ follow these steps:
 <Steps>
   <Step>
 
-    **Find a replayable event**
+    **Choose a past event as test input**
 
     Call `list_trigger_events` with `replayable: true`. Choose an event whose
-    source and event name match the workflow trigger.
+    source and event name match the workflow trigger. The event is the input
+    used to exercise the local change.
 
     Use `get_trigger_event` with the event ID to read its payload. Review the
     target resource and any outsider-written text before continuing.
@@ -86,7 +87,7 @@ follow these steps:
   </Step>
 </Steps>
 
-## Start and inspect the run
+## Run and inspect the local change
 
 <Steps>
   <Step>
@@ -121,7 +122,7 @@ follow these steps:
   </Step>
 </Steps>
 
-## Understand the local file checkout
+## Know which local changes are included
 
 A run labeled **Dev · local file** uses the YAML sent in `content`. Shipfox
 stores that YAML as the run's workflow source.
@@ -141,7 +142,7 @@ Checkout uses this order:
 
 The local YAML does not need to exist at any of these revisions.
 
-## Verify the test
+## Verify the local change
 
 Confirm these results:
 
