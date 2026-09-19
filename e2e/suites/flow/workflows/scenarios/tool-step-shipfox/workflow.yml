@@ -1,0 +1,16 @@
+name: Shipfox tool starts a child
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  start_child:
+    steps:
+      - key: start_child
+        name: Start child workflow
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox/workflows/tool-step-shipfox-child.yml
+          inputs:
+            message: from-parent

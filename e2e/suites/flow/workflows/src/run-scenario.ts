@@ -1,10 +1,14 @@
 import {readFile} from 'node:fs/promises';
-import {createApiClient} from '@shipfox/e2e-core';
+import type {WorkflowRunListItemDto, WorkflowRunListResponseDto} from '@shipfox/api-workflows-dto';
+import {createApiClient, pollUntil} from '@shipfox/e2e-core';
 import {type CreatedIssue, listIssueComments} from '@shipfox/e2e-driver-gitea';
 import {readFakeOpenAiModelProviderState} from '@shipfox/e2e-driver-model-provider';
 import {type LocalRunnerHandle, stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {fetchStepLogs} from '@shipfox/e2e-observe-logs';
-import type {WorkflowRunObservationSelection} from '@shipfox/e2e-observe-workflows';
+import {
+  type WorkflowRunObservationSelection,
+  waitForRunTerminal,
+} from '@shipfox/e2e-observe-workflows';
 import {createSecret, createVariable} from '@shipfox/e2e-setup-secrets';
 import type {Attachment} from './attachments.js';
 import {
@@ -13,6 +17,9 @@ import {
   fetchLogAttachment,
 } from './attachments.js';
 import {
+  type ChildRunObservation,
+  type Expectation,
+  evaluateChildRunExpectation,
   evaluateExpectations,
   evaluateLogs,
   logText,
@@ -52,7 +59,7 @@ export interface RunScenarioParams {
 type RunObservation = Awaited<ReturnType<typeof waitForRunTerminalOrFailedRunner>>;
 
 function observationSelection(
-  expectation: Extract<Scenario, {kind: 'expect'}>['expectation'],
+  expectation: Pick<Expectation, 'jobs'>,
 ): WorkflowRunObservationSelection {
   return {
     jobs: Object.entries(expectation.jobs ?? {}).map(([jobKey, jobExpectation]) => ({
@@ -289,13 +296,32 @@ async function seedScenarioProject(params: {
             __GITEA_COMMENT_BODY__: JSON.stringify(gitea.comment),
           },
         }),
+    ...(params.scenario.childWorkflowYaml === undefined
+      ? {}
+      : {
+          additionalDefinitions: [
+            {
+              configPath: params.scenario.childConfigPath as string,
+              workflowYaml: params.scenario.childWorkflowYaml,
+            },
+          ],
+        }),
+    ...(params.scenario.kind === 'expect' && params.scenario.expectation.child_run !== undefined
+      ? {repositoryBacked: true}
+      : {}),
   };
   if (params.scenario.kind === 'reject') {
     const seeded = await seedWorkflowProject(seedParams);
-    return {definition: undefined, project: seeded.project, giteaIssue: seeded.giteaIssue};
+    return {
+      childDefinition: undefined,
+      definition: undefined,
+      project: seeded.project,
+      giteaIssue: seeded.giteaIssue,
+    };
   }
   const seeded = await seedProjectWithApiDefinition(seedParams);
   return {
+    childDefinition: seeded.additionalDefinitions[0],
     definition: seeded.definition,
     project: seeded.project,
     giteaIssue: seeded.giteaIssue,
@@ -366,6 +392,61 @@ async function evaluateRejectedScenario(params: {
     body: JSON.stringify(mismatches, null, 2),
   });
   return mismatches;
+}
+
+const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'cancelled']);
+
+export function selectTargetDefinition<T>(params: {
+  childConfigPath: string | undefined;
+  childDefinition: T | undefined;
+  configPath: string;
+  definition: T;
+  workflow: string;
+}): T | undefined {
+  if (params.workflow === params.configPath) return params.definition;
+  if (params.workflow === params.childConfigPath) return params.childDefinition;
+  return undefined;
+}
+
+async function waitForDescendantRun(params: {
+  client: ReturnType<typeof createApiClient>;
+  childWorkflowName: string;
+  depth: number;
+  parentRunId: string;
+  projectId: string;
+  timeoutMs: number;
+}): Promise<WorkflowRunListItemDto> {
+  return await pollUntil(
+    {
+      timeoutMs: params.timeoutMs,
+      intervalMs: 250,
+      maxIntervalMs: 4_000,
+      backoffFactor: 1.5,
+      describe: () =>
+        `descendant run depth ${params.depth}: workflowName=${params.childWorkflowName}, parentRunId=${params.parentRunId}`,
+    },
+    async () => {
+      const query = new URLSearchParams({project_id: params.projectId, limit: '100'});
+      const runs = await params.client.requestJson<WorkflowRunListResponseDto>(
+        'get',
+        `/workflows/runs?${query}`,
+      );
+      let parentId = params.parentRunId;
+      let item: WorkflowRunListItemDto | undefined;
+      for (let depth = 0; depth < params.depth; depth += 1) {
+        item = runs.runs.find(
+          (candidate) =>
+            candidate.workflow_name === params.childWorkflowName &&
+            candidate.parent_run?.id === parentId,
+        );
+        if (item === undefined) return null;
+        parentId = item.id;
+      }
+      if (item === undefined || !TERMINAL_RUN_STATUSES.has(item.status)) return null;
+
+      return item;
+    },
+  );
 }
 
 async function triggerScenario(params: {
@@ -452,7 +533,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       uniqueId,
       webhookSlug,
     });
-    const {definition, project, giteaIssue} = await seedScenarioProject({
+    const {childDefinition, definition, project, giteaIssue} = await seedScenarioProject({
       repo,
       runnerLabel,
       scenario,
@@ -506,7 +587,47 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       selection: observationSelection(scenario.expectation),
     });
 
-    const {mismatches, logRequirements} = evaluateExpectations(observation, scenario.expectation);
+    const evaluated = evaluateExpectations(observation, scenario.expectation);
+    const mismatches = [...evaluated.mismatches];
+    const logRequirements = [...evaluated.logRequirements];
+    const childExpectation = scenario.expectation.child_run;
+    if (childExpectation !== undefined) {
+      const targetDefinition = selectTargetDefinition({
+        childConfigPath: scenario.childConfigPath,
+        childDefinition,
+        configPath: scenario.configPath,
+        definition,
+        workflow: childExpectation.workflow,
+      });
+      if (targetDefinition === undefined) {
+        throw new Error(
+          `Scenario ${scenario.name} child_run.workflow must name child-workflow.yml or the scenario workflow`,
+        );
+      }
+      const child = await waitForDescendantRun({
+        client,
+        childWorkflowName: targetDefinition.name,
+        depth: childExpectation.depth,
+        parentRunId: triggered.runId,
+        projectId: project.id,
+        timeoutMs: scenario.expectation.timeout_seconds * 1000,
+      });
+      const childObservation = await waitForRunTerminal({
+        runId: child.id,
+        token,
+        timeoutMs: scenario.expectation.timeout_seconds * 1000,
+        selection: observationSelection(childExpectation),
+      });
+      const childResult = evaluateChildRunExpectation(
+        {
+          observation: childObservation,
+          parentRunId: child.parent_run?.id ?? null,
+        } satisfies ChildRunObservation,
+        childExpectation,
+      );
+      mismatches.push(...childResult.mismatches);
+      logRequirements.push(...childResult.logRequirements);
+    }
     const giteaMismatches = await evaluateGiteaScenario({
       expectation: scenario.expectation.gitea,
       issue: giteaIssue,

@@ -42,7 +42,9 @@ export const SHIPFOX_INPUTS_MAX_BYTES = 16 * 1024;
 export const SHIPFOX_IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const DEFAULT_PAGE_LIMIT = 50;
 const WORKFLOW_RUN_JOB_LIMIT = 50;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID_JSON_SCHEMA_PATTERN =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
+const UUID_PATTERN = new RegExp(UUID_JSON_SCHEMA_PATTERN, 'u');
 const ISO_DATE_PATTERN =
   /^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$/u;
 const ISO_TIME_PATTERN = /^(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?)Z$/u;
@@ -104,8 +106,8 @@ const startWorkflowRunInputSchema = objectSchema(
     },
     project_id: {
       type: 'string',
-      format: 'uuid',
-      description: 'Project that owns the workflow. Defaults to the calling run project.',
+      pattern: UUID_JSON_SCHEMA_PATTERN,
+      description: 'Project UUID that owns the workflow. Defaults to the calling run project.',
     },
     inputs: {
       type: 'object',
@@ -155,10 +157,10 @@ const getWorkflowRunInputSchema = objectSchema({run_id: {type: 'string', format:
 
 const startWorkflowRunOutputSchema = objectSchema(
   {
-    run_id: {type: 'string', format: 'uuid'},
+    run_id: {type: 'string', description: 'Started workflow run UUID.'},
     run_number: {type: 'integer', minimum: 1},
     name: {type: 'string'},
-    project_id: {type: 'string', format: 'uuid'},
+    project_id: {type: 'string', description: 'Project UUID that owns the workflow.'},
     deduplicated: {type: 'boolean'},
   },
   ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],

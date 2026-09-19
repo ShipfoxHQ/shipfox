@@ -1,0 +1,13 @@
+name: Shipfox child
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  receive_input:
+    steps:
+      - key: verify_input
+        name: Verify child input
+        env:
+          MESSAGE: '${{ inputs.message }}'
+        run: test "$MESSAGE" = "from-parent"

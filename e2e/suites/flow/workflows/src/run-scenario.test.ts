@@ -1,6 +1,6 @@
 import type {CreatedIssue, listIssueComments} from '@shipfox/e2e-driver-gitea';
 import {parseExpectation} from './expect.js';
-import {evaluateGiteaScenario} from './run-scenario.js';
+import {evaluateGiteaScenario, selectTargetDefinition} from './run-scenario.js';
 
 const issue: CreatedIssue = {
   number: 1,
@@ -32,6 +32,37 @@ function scenarioParams(
     ...(listComments === undefined ? {} : {listComments}),
   };
 }
+
+describe('selectTargetDefinition', () => {
+  const definition = {id: 'parent'};
+  const childDefinition = {id: 'child'};
+  const paths = {
+    childConfigPath: '.shipfox/workflows/child.yml',
+    configPath: '.shipfox/workflows/parent.yml',
+  };
+
+  test('selects the parent definition when the parent path is expected', () => {
+    const result = selectTargetDefinition({
+      ...paths,
+      definition,
+      childDefinition,
+      workflow: paths.configPath,
+    });
+
+    expect(result).toBe(definition);
+  });
+
+  test('does not select a definition for an unknown path', () => {
+    const result = selectTargetDefinition({
+      ...paths,
+      definition,
+      childDefinition,
+      workflow: '.shipfox/workflows/unknown.yml',
+    });
+
+    expect(result).toBeUndefined();
+  });
+});
 
 describe('evaluateGiteaScenario', () => {
   test('reports a missing fixture issue', async () => {

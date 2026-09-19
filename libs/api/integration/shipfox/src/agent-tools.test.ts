@@ -136,6 +136,12 @@ describe('Shipfox agent tools', () => {
       'get_run_annotations',
     ]);
     expect('methods' in (shipfoxAgentToolCatalog[0] ?? {})).toBe(false);
+    expect(shipfoxAgentToolCatalog[0]?.inputSchema).toMatchObject({
+      properties: {project_id: {type: 'string', pattern: expect.any(String)}},
+    });
+    expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty(
+      'properties.project_id.format',
+    );
     expect(shipfoxAgentToolCatalog[0]?.outputSchema).toMatchObject({
       additionalProperties: false,
       required: ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],
