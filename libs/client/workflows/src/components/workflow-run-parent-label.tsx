@@ -1,5 +1,6 @@
 import {useProjectQuery} from '@shipfox/client-projects';
 import {Text} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import type {WorkflowRunParent} from '#core/workflow-run.js';
 
@@ -24,7 +25,7 @@ export function WorkflowRunParentLabel({
       <Link
         to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
         params={{workspaceSlug, projectSlug, workflowRunId: parentRun.id}}
-        className={className}
+        className={cn(className, 'pointer-events-auto')}
       >
         <Text as="span" size="xs">
           {label}
@@ -66,7 +67,7 @@ function CrossProjectParentRunLink({
         projectSlug: resolvedProjectSlug,
         workflowRunId: parentRun.id,
       }}
-      className={className}
+      className={cn(className, 'pointer-events-auto')}
     >
       <Text as="span" size="xs">
         {label}
@@ -77,7 +78,7 @@ function CrossProjectParentRunLink({
 
 function ParentRunText({label, className}: {label: string; className?: string | undefined}) {
   return (
-    <Text as="span" size="xs" className={className}>
+    <Text as="span" size="xs" className={cn(className, 'pointer-events-none')}>
       {label}
     </Text>
   );

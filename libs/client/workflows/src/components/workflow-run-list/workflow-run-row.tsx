@@ -214,7 +214,7 @@ function RunActorMetadata({
         runProjectId={run.projectId}
         workspaceSlug={workspaceSlug}
         projectSlug={projectSlug}
-        className="pointer-events-auto relative z-10 text-foreground-neutral-subtle hover:text-foreground-neutral-base"
+        className="relative z-10 text-foreground-neutral-subtle hover:text-foreground-neutral-base"
       />
     );
   }
