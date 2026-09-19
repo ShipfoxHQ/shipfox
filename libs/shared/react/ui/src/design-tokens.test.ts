@@ -13,7 +13,7 @@ describe('surface token contract', () => {
 });
 
 describe('semantic spacing contract', () => {
-  test('offers logical-axis utilities for asymmetric content', () => {
+  test('offers asymmetric semantic spacing utilities', () => {
     expect(css).toContain('@utility ps-row');
     expect(css).toContain('padding-inline-start: var(--pad-row-x);');
     expect(css).toContain('@utility mb-inline');
