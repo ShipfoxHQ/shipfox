@@ -5,6 +5,8 @@ export const migrationsPath = resolve(dirname(fileURLToPath(import.meta.url)), '
 
 export type {
   AnnotationSummary,
+  AnnotationSummaryReadMeasurement,
+  AnnotationSummaryReadOptions,
   ListAnnotationsForRunAttemptParams,
   SummarizeAnnotationsForRunAttemptParams,
 } from './annotations.js';

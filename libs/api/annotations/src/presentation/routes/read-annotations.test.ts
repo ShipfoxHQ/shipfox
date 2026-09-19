@@ -1,5 +1,6 @@
 import {AUTH_USER, buildUserContext, setUserContext} from '@shipfox/api-auth-context';
 import {type AuthMethod, ClientError, closeApp, createApp} from '@shipfox/node-fastify';
+import {logger} from '@shipfox/node-opentelemetry';
 import type {FastifyRequest} from 'fastify';
 import {annotationFactory} from '#test/index.js';
 import {readAnnotationSummaryRoute} from './read-annotation-summary.js';
@@ -174,6 +175,7 @@ describe('GET /annotations', () => {
       context: 'warning',
       style: 'warning',
     });
+    const infoSpy = vi.spyOn(logger(), 'info').mockImplementation(() => undefined);
 
     const res = await app.inject({
       method: 'GET',
@@ -193,6 +195,19 @@ describe('GET /annotations', () => {
         {origin_step_id: secondStepId, origin_step_attempt: 2, total: 1},
       ],
     });
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: 'annotations/summary',
+        status: 200,
+        outcome: 'success',
+        runId: workflowRunId,
+        attempt: 1,
+        resultCount: 3,
+        databaseDurationMs: expect.any(Number),
+        durationMs: expect.any(Number),
+      }),
+      'Read annotation summary',
+    );
   });
 
   it('returns an empty list for annotations outside the user workspaces', async () => {
