@@ -87,12 +87,16 @@ describe('registerRunnerSession', () => {
     expect(result.session.providerRunnerId).toBeNull();
     expect(result.session.maxClaims).toBeNull();
     expect(result.session.claimsUsed).toBe(0);
+    expect(result.session.toolCapabilities).toEqual(toolCapabilities);
+    expect(result.session.lifecycleCapabilities).toEqual(lifecycleCapabilities);
 
     const rows = await db()
       .select()
       .from(runnerSessions)
       .where(eq(runnerSessions.id, result.session.id));
     expect(rows[0]?.labels).toEqual(['linux', 'x64']);
+    expect(rows[0]?.toolCapabilities).toEqual(toolCapabilities);
+    expect(rows[0]?.lifecycleCapabilities).toEqual(lifecycleCapabilities);
 
     const claims = getRunnerSessionTokenClaims(result.sessionToken);
     expect(claims?.labels).toEqual(['linux', 'x64']);

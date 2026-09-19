@@ -295,9 +295,12 @@ describe('POST /runners/register', () => {
   });
 
   it.each([
-    ['too many labels', {labels: Array.from({length: 21}, (_, index) => `label-${index}`)}],
-    ['too long label', {labels: ['a'.repeat(129)]}],
-    ['bad charset', {labels: ['linux/amd64']}],
+    [
+      'too many labels',
+      {labels: Array.from({length: 21}, (_, index) => `label-${index}`), ...completeRegistration},
+    ],
+    ['too long label', {labels: ['a'.repeat(129)], ...completeRegistration}],
+    ['bad charset', {labels: ['linux/amd64'], ...completeRegistration}],
   ])('returns 400 for %s', async (_case, payload) => {
     const res = await app.inject({
       method: 'POST',

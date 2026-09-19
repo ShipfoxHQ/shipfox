@@ -43,6 +43,15 @@ describe('runnerToolCapabilitiesSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a capability report without renewable_git', () => {
+    const result = runnerToolCapabilitiesSchema.safeParse({
+      features: {renewable_inference: true},
+      harnesses: {},
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('accepts no harness support', () => {
     const result = runnerToolCapabilitiesSchema.safeParse({
       features: {renewable_git: false, renewable_inference: false},
@@ -91,10 +100,22 @@ describe('runnerToolCapabilitiesSchema', () => {
     null,
     {},
     {harnesses: {}, extra: true},
-    {harnesses: {pi: {tools: ['read']}, unknown: {tools: ['x']}}},
-    {harnesses: {pi: {tools: ['read'], extra: true}}},
-    {harnesses: {pi: {tools: ['']}}},
-    {harnesses: {pi: {tools: [42]}}},
+    {
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {pi: {tools: ['read']}, unknown: {tools: ['x']}},
+    },
+    {
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {pi: {tools: ['read'], extra: true}},
+    },
+    {
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {pi: {tools: ['']}},
+    },
+    {
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {pi: {tools: [42]}},
+    },
   ])('rejects malformed capability report %#', (value) => {
     const result = runnerToolCapabilitiesSchema.safeParse(value);
 

@@ -90,8 +90,9 @@ Verified managed runner images advertise renewable inference credentials for Pi
 and Claude sessions. The runner refreshes a managed credential when the harness
 needs it while the job attempt remains active.
 
-Only a verified managed image may advertise this capability. Older or
-unverified runners keep the flag disabled.
+Runner binaries that predate the capability manifest are rejected at registration
+and must be upgraded. Current unverified runners keep both renewable feature flags
+disabled.
 
 For the Claude runtime contract cleanup, upgrade runners using the pre-cleanup
 schema before deploying an API release that omits `claude.auth_token`. This

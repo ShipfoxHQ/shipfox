@@ -196,7 +196,7 @@ describe('api-client auth contexts', () => {
     }
   });
 
-  it('registerRunnerSession sends the registration token and configured labels', async () => {
+  it('registerRunnerSession always sends the required capability manifest', async () => {
     stubFetch(() => jsonResponse(registerResponse()));
 
     const session = await registerRunnerSession({
@@ -207,36 +207,6 @@ describe('api-client auth contexts', () => {
     expect(session).toEqual(registerResponse());
     expect(calls[0]?.url).toContain('runners/register');
     expect(calls[0]?.authorization).toBe(`Bearer ${config.SHIPFOX_RUNNER_REGISTRATION_TOKEN}`);
-    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
-      labels: ['linux', 'x64'],
-      capabilities: TOOL_CAPABILITIES,
-      lifecycle_capabilities: ['local_execution_fence_v1'],
-    });
-  });
-
-  it('registerRunnerSession sends runner tool capabilities when provided', async () => {
-    stubFetch(() => jsonResponse(registerResponse()));
-
-    await registerRunnerSession({
-      capabilities: TOOL_CAPABILITIES,
-      lifecycleCapabilities: ['local_execution_fence_v1'],
-    });
-
-    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
-      labels: ['linux', 'x64'],
-      capabilities: TOOL_CAPABILITIES,
-      lifecycle_capabilities: ['local_execution_fence_v1'],
-    });
-  });
-
-  it('registerRunnerSession advertises lifecycle capabilities when provided', async () => {
-    stubFetch(() => jsonResponse(registerResponse()));
-
-    await registerRunnerSession({
-      capabilities: TOOL_CAPABILITIES,
-      lifecycleCapabilities: ['local_execution_fence_v1'],
-    });
-
     expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({
       labels: ['linux', 'x64'],
       capabilities: TOOL_CAPABILITIES,

@@ -3,4 +3,4 @@
 "@shipfox/api-runners": major
 ---
 
-Requires every runner registration to provide a complete capability manifest and lifecycle capability list, then persists both values as non-null session data.
+Requires runner registration to include `features.renewable_git`, `features.renewable_inference`, `capabilities`, and `lifecycle_capabilities`, and rejects incomplete registration.
