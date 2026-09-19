@@ -901,7 +901,7 @@ async function loadClaimRunnerContextTx(
   if (!session) throw new Error(`Runner session not found: ${params.runnerSessionId}`);
   // Snapshot the registered manifest at claim time. Later heartbeat reports must not change the
   // execution's eligibility.
-  renewableInference = session.toolCapabilities.features.renewable_inference;
+  renewableInference = session.toolCapabilities.features?.renewable_inference === true;
   const runnerInstanceCondition = claimRunnerInstanceCondition(
     runnerInstanceId,
     provisionerId,
