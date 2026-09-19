@@ -38,7 +38,8 @@ describe('loadEnabledProviderModules', () => {
     const {loadEnabledProviderModules} = await import('#providers/modules.js');
     const parts = await loadEnabledProviderModules({
       interModule: {
-        definitions: {getDefinitionByConfigPath: vi.fn()},
+        definitions: {getDefinitionByConfigPath: vi.fn(), listDefinitionsByProject: vi.fn()},
+        projects: {listProjectsByWorkspace: vi.fn(), requireProjectForWorkspace: vi.fn()},
         triggers: {fireManualTrigger: vi.fn()},
         workflows: {getWorkflowRunOverview: vi.fn()},
       } as unknown as IntegrationProviderInterModuleClients,
