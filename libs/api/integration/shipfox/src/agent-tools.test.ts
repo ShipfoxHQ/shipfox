@@ -3,7 +3,11 @@ import {STEP_LOG_READ_CONTENT_MAX_BYTES} from '@shipfox/api-logs-dto';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
-import {encodeNumberIdCursor, encodeStringIdCursor, encodeTimestampIdCursor} from '@shipfox/node-drizzle';
+import {
+  encodeNumberIdCursor,
+  encodeStringIdCursor,
+  encodeTimestampIdCursor,
+} from '@shipfox/node-drizzle';
 import {
   createShipfoxAgentToolsProvider,
   SHIPFOX_INPUTS_MAX_BYTES,
@@ -500,6 +504,49 @@ describe('Shipfox agent tools', () => {
       annotations: [{id: annotationId, body: 'failed because the deploy command exited'}],
       next_cursor: encodeNumberIdCursor(nextCursor),
     });
+  });
+
+  it('bounds an annotation page and resumes after the last retained item', async () => {
+    const {annotations, provider} = createProvider();
+    const page = Array.from({length: 100}, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
+      origin_step_id: stepId,
+      origin_step_attempt: 1,
+      job_execution_id: jobExecutionId,
+      sequence: index + 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      body: 'x'.repeat(8 * 1024),
+    }));
+    const producerLast = page.at(-1);
+    if (producerLast === undefined) throw new Error('Expected a producer annotation');
+    annotations.listAnnotationsForRunAttempt.mockResolvedValue({
+      annotations: page,
+      nextCursor: {value: 100, id: producerLast.id},
+    });
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'get_run_annotations',
+      arguments: {run_id: parentRunId, limit: 100},
+    });
+
+    const structured = result.structuredContent as {
+      annotations: {id: string; sequence: number}[];
+      next_cursor: string | null;
+    };
+    expect(new TextEncoder().encode(JSON.stringify(structured)).byteLength).toBeLessThanOrEqual(
+      128 * 1024,
+    );
+    expect(structured.annotations.length).toBeGreaterThan(0);
+    expect(structured.annotations.length).toBeLessThan(page.length);
+    const last = structured.annotations.at(-1);
+    if (last === undefined) throw new Error('Expected a retained annotation');
+    expect(structured.next_cursor).toBe(encodeNumberIdCursor({value: last.sequence, id: last.id}));
   });
 
   it('masks a foreign workspace step as not found', async () => {

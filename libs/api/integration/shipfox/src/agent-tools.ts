@@ -55,6 +55,9 @@ const WORKFLOW_RUN_STATUSES = [
   'cancelled',
 ] as const;
 
+const SHIPFOX_TOOL_RESULT_MAX_BYTES = 128 * 1024;
+const utf8Encoder = new TextEncoder();
+
 export type ShipfoxAgentToolRequiredScope = readonly unknown[];
 export type ShipfoxIntegrationConnection = IntegrationConnection<'shipfox'>;
 
@@ -926,10 +929,12 @@ export class ShipfoxAgentToolsProvider
       ...(decodedCursor === undefined ? {} : {cursor: decodedCursor}),
       limit: numberArgument(arguments_, 'limit') ?? 50,
     });
-    return toolResult({
-      annotations: page.annotations.map(toShipfoxAnnotation),
-      next_cursor: page.nextCursor === null ? null : encodeNumberIdCursor(page.nextCursor),
-    });
+    return toolResult(
+      fitAnnotationPage(
+        page.annotations.map(toShipfoxAnnotation),
+        page.nextCursor === null ? null : encodeNumberIdCursor(page.nextCursor),
+      ),
+    );
   }
 }
 
@@ -1151,6 +1156,18 @@ function definedCoordinates(coordinates: LogCoordinates): Record<string, string 
   ) as Record<string, string | number>;
 }
 
+type ShipfoxAnnotation = {
+  id: string;
+  origin_step_id: string;
+  origin_step_attempt: number;
+  job_execution_id: string;
+  sequence: number;
+  created_at: string;
+  body: string;
+  body_truncated?: true | undefined;
+  body_total_bytes?: number | undefined;
+};
+
 function toShipfoxAnnotation(annotation: {
   id: string;
   origin_step_id: string;
@@ -1159,7 +1176,7 @@ function toShipfoxAnnotation(annotation: {
   sequence: number;
   createdAt: string;
   body: string;
-}): Record<string, unknown> {
+}): ShipfoxAnnotation {
   const body = truncateAnnotationBody(annotation.body, ANNOTATION_READ_BODY_MAX_BYTES);
   return {
     id: annotation.id,
@@ -1180,6 +1197,50 @@ function parseDefinitionArguments(args: Record<string, unknown>, defaultProjectI
   if (!isUuid(projectId))
     return {success: false as const, error: 'Parameter project_id must be a UUID'};
   return {...page, success: true as const, projectId: projectId as string};
+}
+
+function fitAnnotationPage(
+  annotations: readonly ShipfoxAnnotation[],
+  producerNextCursor: string | null,
+): Record<string, unknown> {
+  const page = {annotations, next_cursor: producerNextCursor};
+  if (serializedJsonByteLength(page) <= SHIPFOX_TOOL_RESULT_MAX_BYTES) return page;
+
+  let lowerBound = 1;
+  let upperBound = annotations.length;
+  let fittingCount = 0;
+  while (lowerBound <= upperBound) {
+    const count = Math.floor((lowerBound + upperBound) / 2);
+    const candidate = annotationPagePrefix(annotations, count);
+    if (serializedJsonByteLength(candidate) <= SHIPFOX_TOOL_RESULT_MAX_BYTES) {
+      fittingCount = count;
+      lowerBound = count + 1;
+    } else {
+      upperBound = count - 1;
+    }
+  }
+
+  if (fittingCount === 0) throw new Error('Bounded annotation page cannot fit one annotation');
+  return annotationPagePrefix(annotations, fittingCount);
+}
+
+function annotationPagePrefix(
+  annotations: readonly ShipfoxAnnotation[],
+  count: number,
+): Record<string, unknown> {
+  const retained = annotations.slice(0, count);
+  const last = retained.at(-1);
+  return {
+    annotations: retained,
+    next_cursor:
+      last === undefined ? null : encodeNumberIdCursor({value: last.sequence, id: last.id}),
+  };
+}
+
+function serializedJsonByteLength(value: unknown): number {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new Error('Shipfox tool result is not serializable');
+  return utf8Encoder.encode(serialized).byteLength;
 }
 
 type ParsedRunArguments = Extract<ReturnType<typeof parseRunArguments>, {success: true}>;
@@ -1430,7 +1491,7 @@ function validateInputs(value: unknown): string | undefined {
     return 'Parameter inputs must be JSON serializable';
   }
   if (serialized === undefined) return 'Parameter inputs must be JSON serializable';
-  return new TextEncoder().encode(serialized).byteLength > SHIPFOX_INPUTS_MAX_BYTES
+  return utf8Encoder.encode(serialized).byteLength > SHIPFOX_INPUTS_MAX_BYTES
     ? `Parameter inputs must contain at most ${SHIPFOX_INPUTS_MAX_BYTES} UTF-8 bytes when serialized`
     : undefined;
 }
