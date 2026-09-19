@@ -1,5 +1,4 @@
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
-import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {
   MAX_RESOLVED_STEP_CONFIG_BYTES,
   RUNNER_NEXT_STEP_RESPONSE_BUDGET_BYTES,
@@ -72,7 +71,7 @@ async function recordStepResult(
 
 function setRunnerToolCapabilities(
   runnerSessionId: string,
-  capabilities: RunnerToolCapabilitiesDto,
+  capabilities: Parameters<typeof setTestRunnerToolCapabilities>[1]['capabilities'],
 ): void {
   setTestRunnerToolCapabilities(runnerSessionId, {capabilities});
 }

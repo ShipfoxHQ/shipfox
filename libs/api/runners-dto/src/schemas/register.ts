@@ -15,8 +15,8 @@ export const runnerLabelSchema = z
 
 export const registerRunnerBodySchema = z.object({
   labels: z.array(runnerLabelSchema).min(1).max(MAX_RUNNER_LABELS),
-  capabilities: runnerToolCapabilitiesSchema.optional(),
-  lifecycle_capabilities: runnerLifecycleCapabilitiesSchema.optional(),
+  capabilities: runnerToolCapabilitiesSchema,
+  lifecycle_capabilities: runnerLifecycleCapabilitiesSchema,
 });
 
 export const registerRunnerResponseSchema = z.object({

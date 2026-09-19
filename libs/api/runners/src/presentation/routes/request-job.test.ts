@@ -12,6 +12,7 @@ import {
   fakeRunnerSessionAuthMethod,
   getLeaseTokenClaims,
   manualRegistrationTokenFactory,
+  mintRunnerSessionToken,
   pendingJobFactory,
   runnersTestAuthClient,
 } from '#test/index.js';
@@ -25,6 +26,14 @@ const fakeUserAuth: AuthMethod = {
 const fakeProvisionerAuth: AuthMethod = {
   name: AUTH_PROVISIONER_TOKEN,
   authenticate: () => Promise.resolve(),
+};
+
+const registrationCapabilities = {
+  capabilities: {
+    features: {renewable_git: false, renewable_inference: false},
+    harnesses: {},
+  },
+  lifecycle_capabilities: ['local_execution_fence_v1'],
 };
 
 describe('POST /runners/jobs/request', () => {
@@ -72,6 +81,7 @@ describe('POST /runners/jobs/request', () => {
       headers: {authorization: `Bearer ${token}`},
       payload: {
         labels: ['Linux', 'x64'],
+        ...registrationCapabilities,
         ...(lifecycleCapabilities ? {lifecycle_capabilities: lifecycleCapabilities} : {}),
       },
     });
@@ -99,6 +109,27 @@ describe('POST /runners/jobs/request', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('returns 409 when a capped runner session no longer exists', async () => {
+    const missingSessionToken = mintRunnerSessionToken({
+      runnerSessionId: crypto.randomUUID(),
+      workspaceId,
+      scope: 'workspace',
+      labels: ['linux', 'x64'],
+      maxClaims: 1,
+      lifecycleCapabilities: ['local_execution_fence_v1'],
+    });
+    await pendingJobFactory.create({workspaceId});
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/runners/jobs/request',
+      headers: {authorization: `Bearer ${missingSessionToken}`},
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('runner-session-exhausted');
+  });
+
   it('returns 200 with the job ids and a verifiable lease token when a job is available', async () => {
     const created = await pendingJobFactory.create({workspaceId});
 
@@ -116,7 +147,7 @@ describe('POST /runners/jobs/request', () => {
     expect(typeof body.lease_token).toBe('string');
     expect(body.job_name).toBeUndefined();
     expect(body.steps).toBeUndefined();
-    expect(body.isolation_timeout_seconds).toBeUndefined();
+    expect(body.isolation_timeout_seconds).toBe(config.RUNNER_LOCAL_ISOLATION_TIMEOUT_SECONDS);
 
     const claims = getLeaseTokenClaims(body.lease_token);
     expect(claims).toMatchObject({

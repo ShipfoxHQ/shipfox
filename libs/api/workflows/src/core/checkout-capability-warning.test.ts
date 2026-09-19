@@ -20,7 +20,10 @@ beforeEach(() => {
   annotation.mockResolvedValue({});
   getEffectiveRunnerToolCapabilities.mockClear();
   getEffectiveRunnerToolCapabilities.mockResolvedValue({
-    capabilities: {harnesses: {}},
+    capabilities: {
+      features: {renewable_git: false, renewable_inference: false},
+      harnesses: {},
+    },
   });
 });
 
@@ -54,7 +57,10 @@ describe('warnRenewableGitCapabilityMismatchOnDispatch', () => {
     const leaseIdentity = lease();
     const step = checkoutStep({jobExecutionId: leaseIdentity.jobExecutionId});
     getEffectiveRunnerToolCapabilities.mockResolvedValue({
-      capabilities: {features: {renewable_git: false}, harnesses: {}},
+      capabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {},
+      },
     });
 
     await warnRenewableGitCapabilityMismatchOnDispatch({
@@ -76,7 +82,10 @@ describe('warnRenewableGitCapabilityMismatchOnDispatch', () => {
     const leaseIdentity = lease();
     const step = checkoutStep({jobExecutionId: leaseIdentity.jobExecutionId});
     getEffectiveRunnerToolCapabilities.mockResolvedValue({
-      capabilities: {features: {renewable_git: true}, harnesses: {}},
+      capabilities: {
+        features: {renewable_git: true, renewable_inference: false},
+        harnesses: {},
+      },
     });
 
     await warnRenewableGitCapabilityMismatchOnDispatch({

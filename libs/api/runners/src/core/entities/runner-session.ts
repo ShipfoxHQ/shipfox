@@ -13,9 +13,9 @@ export interface RunnerSession {
   provisionerId: string | null;
   providerRunnerId: string | null;
   labels: string[];
-  toolCapabilities: RunnerToolCapabilitiesDto | null;
+  toolCapabilities: RunnerToolCapabilitiesDto;
   toolCapabilitiesReportedAt: Date | null;
-  lifecycleCapabilities: RunnerLifecycleCapabilitiesDto | null;
+  lifecycleCapabilities: RunnerLifecycleCapabilitiesDto;
   lifecycleCapabilitiesReportedAt: Date | null;
   maxClaims: number | null;
   claimsUsed: number;

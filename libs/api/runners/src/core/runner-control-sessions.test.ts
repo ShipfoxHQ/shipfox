@@ -361,6 +361,7 @@ describe('enrollRunnerControlSession', () => {
     const provisionerId = crypto.randomUUID();
     const reservation = await createReservation({provisionerId});
     const committedCapabilities: RunnerToolCapabilitiesDto = {
+      features: {renewable_git: false, renewable_inference: false},
       harnesses: {pi: {tools: ['read']}},
     };
     const runnerInstanceId = await createRunner({
@@ -478,6 +479,11 @@ describe('enrollRunnerControlSession', () => {
         provisionerId,
         providerRunnerId: runner.providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
       });

@@ -441,6 +441,25 @@ describe('claimPendingJobExecution', () => {
     expect(running?.renewableInference).toBe(false);
   });
 
+  it.each([
+    ['the features object', {harnesses: {}}],
+    ['the renewable inference flag', {features: {renewable_git: false}, harnesses: {}}],
+  ])('snapshots false for a legacy manifest without %s', async (_description, capabilities) => {
+    await db()
+      .update(runnerSessions)
+      .set({toolCapabilities: sql`${JSON.stringify(capabilities)}::jsonb`})
+      .where(eq(runnerSessions.id, runnerSessionId));
+    const created = await pendingJobFactory.create({workspaceId});
+
+    await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+
+    const [running] = await db()
+      .select({renewableInference: runningJobExecutions.renewableInference})
+      .from(runningJobExecutions)
+      .where(eq(runningJobExecutions.jobExecutionId, created.jobExecutionId));
+    expect(running?.renewableInference).toBe(false);
+  });
+
   it('omits the renewable snapshot for legacy running rows', async () => {
     const created = await pendingJobFactory.create({workspaceId});
     const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
@@ -887,12 +906,18 @@ describe('claimPendingJobExecution', () => {
     const matchingRunner = await runnerSessionFactory.create({
       workspaceId,
       labels: sessionLabels,
-      toolCapabilities: {harnesses: {pi: {tools: ['read']}}},
+      toolCapabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {pi: {tools: ['read']}},
+      },
     });
     const underRunnerInstance = await runnerSessionFactory.create({
       workspaceId,
       labels: sessionLabels,
-      toolCapabilities: {harnesses: {pi: {tools: []}}},
+      toolCapabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {pi: {tools: []}},
+      },
     });
     const firstJob = await pendingJobFactory.create({
       workspaceId,
@@ -1756,7 +1781,7 @@ describe('detectAndExpireStuckJobs', () => {
   }
 
   async function makeManagedStaleJob(
-    lifecycleCapabilities: RunnerLifecycleCapabilitiesDto | null,
+    lifecycleCapabilities: RunnerLifecycleCapabilitiesDto,
     options: {
       providerRunnerWorkspaceId?: string | null;
       providerRunnerState?: 'running' | 'stopped' | 'failed' | 'terminated';
@@ -1789,6 +1814,10 @@ describe('detectAndExpireStuckJobs', () => {
         provisionerId: provisioner.id,
         providerRunnerId: providerRunner.providerRunnerId,
         labels: sessionLabels,
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
         lifecycleCapabilities,
         maxClaims: 1,
         claimsUsed: 0,
@@ -1864,6 +1893,10 @@ describe('detectAndExpireStuckJobs', () => {
         provisionerId: provisioner.id,
         providerRunnerId,
         labels: sessionLabels,
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
         lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 2,
         claimsUsed: 0,
@@ -1887,7 +1920,11 @@ describe('detectAndExpireStuckJobs', () => {
         provisionerId: provisioner.id,
         providerRunnerId,
         labels: sessionLabels,
-        lifecycleCapabilities: null,
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: [],
         maxClaims: 1,
         claimsUsed: 0,
       })
@@ -2019,7 +2056,7 @@ describe('detectAndExpireStuckJobs', () => {
       expectedCause: 'lease_expired' as const,
     },
   ])('publishes $name', async ({options, expectedCause}) => {
-    const stale = await makeManagedStaleJob(null, options);
+    const stale = await makeManagedStaleJob([], options);
     if (options.providerRunnerWorkspaceId === null) {
       await db()
         .update(providerRunners)
@@ -2039,7 +2076,7 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('classifies a job-timeout authorization as a lifecycle violation', async () => {
-    const stale = await makeManagedStaleJob(null);
+    const stale = await makeManagedStaleJob([]);
     await db()
       .update(providerRunners)
       .set({terminationReason: 'job-timeout'})
@@ -2059,7 +2096,7 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('keeps terminal provider loss when job-scoped authorization follows terminal state', async () => {
-    const stale = await makeManagedStaleJob(null, {providerRunnerState: 'terminated'});
+    const stale = await makeManagedStaleJob([], {providerRunnerState: 'terminated'});
     await db()
       .update(providerRunners)
       .set({terminationAuthorizedAt: new Date(), terminationReason: 'job-cancelled'})
@@ -2077,7 +2114,7 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('falls back to runner loss when the managed provider row is unavailable', async () => {
-    const stale = await makeManagedStaleJob(null, {authorizeTermination: false});
+    const stale = await makeManagedStaleJob([], {authorizeTermination: false});
     await db()
       .update(providerRunners)
       .set({providerRunnerId: crypto.randomUUID()})
@@ -2160,7 +2197,7 @@ describe('detectAndExpireStuckJobs', () => {
   });
 
   it('records lease loss but no execution fence for a legacy runner session', async () => {
-    const stale = await makeManagedStaleJob(null);
+    const stale = await makeManagedStaleJob([]);
 
     await expireStuckJobExecutions({
       thresholdSeconds: 1,

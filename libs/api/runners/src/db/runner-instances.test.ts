@@ -104,6 +104,11 @@ async function createStaleIdleRunnerSession(params: {
       provisionerId: provisioner.id,
       providerRunnerId: providerRunner.providerRunnerId,
       labels: ['linux'],
+      toolCapabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {},
+      },
+      lifecycleCapabilities: ['local_execution_fence_v1'],
       maxClaims: 1,
       claimsUsed: params.claimsUsed ?? 0,
       updatedAt: params.updatedAt ?? new Date(Date.now() - 120_000),
@@ -196,6 +201,11 @@ describe('authorizeRunnerTermination', () => {
         provisionerId,
         providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
       });
@@ -449,6 +459,11 @@ describe('recoverStaleIdleRunnerSessions', () => {
         provisionerId: provisioner.id,
         providerRunnerId: providerRunner.providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
         createdAt: staleAt,
@@ -539,6 +554,11 @@ describe('recoverStaleIdleRunnerSessions', () => {
         provisionerId: provisioner.id,
         providerRunnerId: providerRunner.providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
         updatedAt: options.sessionUpdatedAt,
@@ -2545,6 +2565,11 @@ describe('listProvisionerTerminateIntents', () => {
         provisionerId,
         providerRunnerId: 'activated-demand-runner',
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
       });
@@ -4415,6 +4440,11 @@ describe('reconcileRunnerInstances', () => {
         provisionerId,
         providerRunnerId: params.providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: params.maxClaims ?? 1,
         claimsUsed: params.claimsUsed ?? 1,
         updatedAt: params.updatedAt ?? new Date(),

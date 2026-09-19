@@ -452,6 +452,11 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
         provisionerId: provisionerTokenId,
         providerRunnerId: 'enrolled-candidate',
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
       });

@@ -117,6 +117,11 @@ describe('recoverStaleIdleRunnerSessions', () => {
         provisionerId: provisioner.id,
         providerRunnerId: providerRunner.providerRunnerId,
         labels: ['linux'],
+        toolCapabilities: {
+          features: {renewable_git: false, renewable_inference: false},
+          harnesses: {},
+        },
+        lifecycleCapabilities: ['local_execution_fence_v1'],
         maxClaims: 1,
         claimsUsed: 0,
         createdAt: staleAt,
@@ -239,6 +244,11 @@ describe('deleteExpiredRunnerSessions', () => {
       provisionerId,
       providerRunnerId: params.kind === 'ephemeral' ? `provisioned-${params.id}` : null,
       labels: ['linux'],
+      toolCapabilities: {
+        features: {renewable_git: false, renewable_inference: false},
+        harnesses: {},
+      },
+      lifecycleCapabilities: ['local_execution_fence_v1'],
       maxClaims: params.kind === 'ephemeral' ? 1 : null,
       claimsUsed: 0,
       createdAt: params.createdAt,
