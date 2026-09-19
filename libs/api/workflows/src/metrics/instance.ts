@@ -242,6 +242,18 @@ const toolInvocationDuration = meter.createHistogram<{
   advice: {explicitBucketBoundaries: [10, 50, 100, 500, 1_000, 5_000, 30_000, 120_000]},
 });
 
+type WorkflowRunAccessCheckOutcome = 'success' | 'not_found' | 'error';
+type WorkflowRunAccessCheckPhase = 'run_lookup' | 'project_lookup' | 'total';
+
+const runAccessCheckDuration = meter.createHistogram<{
+  phase: WorkflowRunAccessCheckPhase;
+  outcome: WorkflowRunAccessCheckOutcome;
+}>('workflows_run_access_check_duration', {
+  description: 'Workflow run access-check duration by bounded phase and outcome',
+  unit: 'ms',
+  advice: {explicitBucketBoundaries: [1, 5, 10, 20, 50, 100, 200, 500, 1_000]},
+});
+
 const toolInvocationReclaimsCount = meter.createCounter<{
   action: 'requeued' | 'failed';
 }>('workflows_tool_invocation_reclaims', {
@@ -415,6 +427,14 @@ export function recordWorkflowToolInvocationDuration(
   durationMs: number,
 ): void {
   toolInvocationDuration.record(durationMs, {provider, outcome});
+}
+
+export function recordWorkflowRunAccessCheckDuration(
+  phase: WorkflowRunAccessCheckPhase,
+  outcome: WorkflowRunAccessCheckOutcome,
+  durationMs: number,
+): void {
+  recordMetric(() => runAccessCheckDuration.record(durationMs, {phase, outcome}));
 }
 
 export function recordWorkflowToolInvocationReclaims(

@@ -9,7 +9,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {getWorkflowRunSelection} from '#db/index.js';
 import {toRunSelectionDto} from '#presentation/dto/index.js';
-import {requireAccessibleRun} from './require-accessible-run.js';
+import {requireAccessibleRunScope} from './require-accessible-run.js';
 import {serializedResponseByteLength} from './serialized-response-byte-length.js';
 
 export function getRunSelectionRoute(projects: ProjectsModuleClient) {
@@ -39,7 +39,7 @@ export function getRunSelectionRoute(projects: ProjectsModuleClient) {
       let outcome: 'success' | 'not_found' | 'error' = 'success';
 
       try {
-        const run = await requireAccessibleRun({request, id, projects});
+        const run = await requireAccessibleRunScope({request, id, projects});
         const selection = await getWorkflowRunSelection(
           {
             workflowRunId: run.id,

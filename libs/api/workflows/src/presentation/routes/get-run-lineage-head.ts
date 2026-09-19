@@ -5,7 +5,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {getWorkflowRunLineageHead} from '#db/index.js';
 import {toRunLineageHeadDto} from '#presentation/dto/index.js';
-import {requireAccessibleRun} from './require-accessible-run.js';
+import {requireAccessibleRunScope} from './require-accessible-run.js';
 import {serializedResponseByteLength} from './serialized-response-byte-length.js';
 
 export function getRunLineageHeadRoute(projects: ProjectsModuleClient) {
@@ -31,7 +31,7 @@ export function getRunLineageHeadRoute(projects: ProjectsModuleClient) {
       let outcome: 'success' | 'not_found' | 'error' = 'success';
 
       try {
-        const run = await requireAccessibleRun({request, id, projects});
+        const run = await requireAccessibleRunScope({request, id, projects});
         const head = await getWorkflowRunLineageHead(
           {workflowRunId: run.id, projectId: run.projectId},
           {
