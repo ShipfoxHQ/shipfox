@@ -53,6 +53,7 @@ describe('global browser CORS', () => {
     expect(res.statusCode).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBe(testConfig.clientBaseUrl);
     expect(res.headers['access-control-allow-credentials']).toBe('true');
+    expect(res.headers['access-control-max-age']).toBe('7200');
   });
 
   test('allows mutating browser methods used by client APIs', async () => {

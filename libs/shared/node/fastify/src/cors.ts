@@ -5,6 +5,7 @@ import {config} from './config.js';
 
 const ORIGIN_SEPARATOR_RE = /\s*,\s*/;
 const TRAILING_SLASH_RE = /\/$/;
+const CORS_PREFLIGHT_MAX_AGE_SECONDS = 7_200;
 
 type AllowedOrigin =
   | {kind: 'exact'; origin: string}
@@ -110,6 +111,7 @@ export async function registerCors(app: FastifyInstance): Promise<void> {
 
   await app.register(cors, {
     credentials: true,
+    maxAge: CORS_PREFLIGHT_MAX_AGE_SECONDS,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     origin: (
       origin: string | undefined,
