@@ -19,6 +19,9 @@ import {renderWorkflowYaml, seedWorkflowProject} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/u;
+const EVENT_PAGE_LIMIT = 10;
+const MAIN_REF = 'refs/heads/main';
+const MCP_POLL_INTERVAL_MS = 5_000;
 const RUN_STABILITY_TIMEOUT_MS = 2_000;
 const textEncoder = new TextEncoder();
 
@@ -84,12 +87,22 @@ jobs:
   try {
     await client.connect(transport as unknown as Transport);
 
+    const sourceEventFrom = new Date().toISOString();
+    const sourceCommit = await commitFiles({
+      org: suite.org,
+      repo,
+      message: 'create a replay source event',
+      files: [{path: 'replay-event.txt', content: 'Replay this event for the local dev run.'}],
+    });
     const sourceEvent = await waitForIntegrationEvent({
       client,
       source: suite.connectionSlug,
       event: 'push',
       repositoryFullName: `${suite.org}/${repo}`,
-      description: `the README push for ${repo}`,
+      after: sourceCommit,
+      from: sourceEventFrom,
+      requireProcessed: true,
+      description: `the replay source push for ${repo}`,
     });
     const initialEventIds = await listEventIds(client);
     expect(initialEventIds).toContain(sourceEvent.id);
@@ -98,6 +111,7 @@ jobs:
       project_id: seeded.project.id,
       content: 'name: [invalid',
       config_path: configPath,
+      ref: MAIN_REF,
       trigger: 'on_push',
       replay_event_id: sourceEvent.id,
       dry_run: true,
@@ -132,6 +146,7 @@ jobs:
       project_id: seeded.project.id,
       content: workflowYaml,
       config_path: configPath,
+      ref: MAIN_REF,
       trigger: 'on_push',
       replay_event_id: sourceEvent.id,
       dry_run: true,
@@ -144,7 +159,7 @@ jobs:
       expect.objectContaining({
         dry_run: true,
         check_passed: true,
-        ref: 'main',
+        ref: MAIN_REF,
         commit: expect.stringMatching(COMMIT_SHA_PATTERN),
       }),
     );
@@ -155,6 +170,7 @@ jobs:
       project_id: seeded.project.id,
       content: workflowYaml,
       config_path: configPath,
+      ref: MAIN_REF,
       trigger: 'on_push',
       replay_event_id: sourceEvent.id,
     });
@@ -202,6 +218,7 @@ jobs:
     ).toEqual([]);
 
     const runIdsBeforeLiveEvent = (await getRuns(client, seeded.project.id)).map(({id}) => id);
+    const secondEventFrom = new Date().toISOString();
     const secondCommit = await commitFiles({
       org: suite.org,
       repo,
@@ -214,6 +231,7 @@ jobs:
       event: 'push',
       repositoryFullName: `${suite.org}/${repo}`,
       after: secondCommit,
+      from: secondEventFrom,
       requireProcessed: true,
       description: `the second live push for ${repo}`,
       excludedIds: new Set(initialEventIds),
@@ -228,6 +246,7 @@ jobs:
         'event: push\n    filter: \'event.ref == "refs/heads/never"\'',
       ),
       config_path: `${configPath}.filtered.yml`,
+      ref: MAIN_REF,
       trigger: 'on_push',
       replay_event_id: sourceEvent.id,
     });
@@ -293,24 +312,30 @@ async function waitForIntegrationEvent(params: {
   event: string;
   repositoryFullName: string;
   after?: string;
+  from: string;
   requireProcessed?: boolean;
   description: string;
   excludedIds?: Set<string>;
 }) {
+  const inspectedIds = new Set<string>();
   return await pollUntil(
     {
       timeoutMs: 60_000,
-      intervalMs: 250,
+      intervalMs: MCP_POLL_INTERVAL_MS,
+      maxIntervalMs: MCP_POLL_INTERVAL_MS,
       describe: () => params.description,
     },
     async () => {
       const response = await callTool(params.client, 'list_trigger_events', {
         source: [params.source],
         event: [params.event],
+        origin: ['integration'],
+        from: params.from,
+        limit: EVENT_PAGE_LIMIT,
       });
       if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
       const events = listTriggerEventsResultSchema.parse(response.envelope.result).trigger_events;
-      return await findMatchingIntegrationEvent({...params, events});
+      return await findMatchingIntegrationEvent({...params, events, inspectedIds});
     },
   );
 }
@@ -322,12 +347,19 @@ async function findMatchingIntegrationEvent(params: {
   after?: string;
   requireProcessed?: boolean;
   excludedIds?: Set<string>;
+  inspectedIds: Set<string>;
 }) {
   for (const candidate of params.events) {
     const excluded = params.excludedIds?.has(candidate.id) ?? false;
-    if (candidate.origin !== 'integration' || excluded) continue;
+    if (candidate.origin !== 'integration' || excluded || params.inspectedIds.has(candidate.id)) {
+      continue;
+    }
     const detail = await getTriggerEvent(params.client, candidate.id);
-    if (triggerEventMatches(detail, params)) return detail;
+    if (!triggerEventMatches(detail, params)) {
+      params.inspectedIds.add(candidate.id);
+      continue;
+    }
+    if (!params.requireProcessed || detail.processed_at !== null) return detail;
   }
   return null;
 }
@@ -336,7 +368,6 @@ function triggerEventMatches(
   detail: ReturnType<typeof getTriggerEventResultSchema.parse>,
   params: {repositoryFullName: string; after?: string; requireProcessed?: boolean},
 ): boolean {
-  if (params.requireProcessed && detail.processed_at === null) return false;
   const payload = JSON.parse(detail.payload_preview) as unknown;
   const repositoryMatches =
     nestedString(payload, ['repository', 'full_name']) === params.repositoryFullName;
