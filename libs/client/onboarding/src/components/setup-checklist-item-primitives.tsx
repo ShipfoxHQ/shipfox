@@ -17,7 +17,7 @@ export function ChecklistStatus({item}: {item: SetupChecklistItem}) {
   const pointer = !item.tracked;
 
   return (
-    <span className="mt-1 shrink-0">
+    <span className="flex h-20 shrink-0 items-center">
       {done || pointer ? (
         <Icon
           name={done ? 'checkCircleSolid' : 'circleDottedLine'}

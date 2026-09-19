@@ -1223,6 +1223,10 @@
   padding-inline: var(--pad-row-x);
 }
 
+@utility ps-row {
+  padding-inline-start: var(--pad-row-x);
+}
+
 @utility py-row {
   padding-block: var(--pad-row-y);
 }

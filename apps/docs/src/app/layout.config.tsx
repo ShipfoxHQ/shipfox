@@ -10,7 +10,7 @@ export function ShipfoxDashboardButton() {
       rel="noreferrer"
       className={buttonVariants({
         color: 'primary',
-        className: 'w-full md:order-first md:mb-2',
+        className: 'w-full md:order-first',
       })}
     >
       Go to dashboard

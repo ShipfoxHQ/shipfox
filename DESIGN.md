@@ -73,6 +73,50 @@ spacing:
   "40": "40px"
   "48": "48px"
   "64": "64px"
+semanticSpacing:
+  gap:
+    tight:
+      default: "4px"
+      compact: "2px"
+    inline:
+      default: "8px"
+      compact: "4px"
+    cluster:
+      default: "12px"
+      compact: "8px"
+    group:
+      default: "16px"
+      compact: "12px"
+    section:
+      default: "24px"
+      compact: "16px"
+    region:
+      default: "32px"
+      compact: "24px"
+  padding:
+    tight:
+      default: "8px"
+      compact: "4px"
+    row:
+      default:
+        x: "16px"
+        y: "12px"
+      compact:
+        x: "12px"
+        y: "8px"
+    panel-compact:
+      default: "16px"
+      compact: "12px"
+    panel:
+      default: "24px"
+      compact: "16px"
+    frame:
+      default:
+        x: "24px"
+        y: "32px"
+      compact:
+        x: "16px"
+        y: "24px"
 components:
   button-primary:
     backgroundColor: "{colors.primary-fill}"
@@ -132,13 +176,14 @@ system serves is recorded in [PRODUCT.md](PRODUCT.md).
 
 **The code is canonical.** [The shared CSS](libs/shared/react/ui/index.css) and
 the [`@shipfox/react-ui`](libs/shared/react/ui/) package hold the exact token and
-component values. This document explains the system and its intent; the
-frontmatter above is the machine-readable source of the primitives, recorded as
-their light-mode canonical values. The semantic tokens named in each section flip
-for dark mode, so tooling that needs theme-correct output resolves the named token
-(for example `--background-button-inverted-default`) rather than the raw hex. When
-code and prose disagree, the code wins and this file is corrected in the same
-change.
+component values. This document explains the system's intent. The frontmatter is
+the machine-readable source of the primitives at their light-mode canonical
+values. `spacing` records the internal numeric scale. `semanticSpacing` records
+the 11 core product composition roles in default and compact density. The
+semantic tokens named in each section flip for dark mode, so tooling that needs
+theme-correct output resolves the named token (for example
+`--background-button-inverted-default`) rather than the raw hex. When code and
+prose disagree, the code wins and this file is corrected in the same change.
 
 The one exception is the surface, frame, and panel model. It is described under
 [Layout](#layout), [Elevation and depth](#elevation-and-depth), and
@@ -380,20 +425,16 @@ heading, so the title stays in the page content.
 
 ### Spacing
 
-**The Pixel-Spacing Rule.** `index.css` sets `--spacing: 1px`, so in this Tailwind
-v4 setup **utility numbers are pixels**: `p-16` is 16px, `gap-8` is 8px, and `h-32`
-is 32px. This is *not* stock Tailwind, where `p-4` would be 16px. Here `p-4` is
-4px. The raw scale remains useful for token definitions and component internals.
-Product surfaces should use the semantic roles below.
-
-**Semantic spacing roles.** Values are listed as `default / compact` pixels.
-Compact values apply below an ancestor with `data-density="compact"`.
+**The Semantic-Spacing Rule.** Product composition uses role names, not numeric
+spacing utilities. Gap roles name relationships between items. Padding roles name
+the containing surface. Values below are `default / compact` pixels. Compact
+values apply below an ancestor with `data-density="compact"`.
 
 | Family | Roles |
 | --- | --- |
 | Gaps | `gap-tight` 4 / 2, `gap-inline` 8 / 4, `gap-cluster` 12 / 8, `gap-group` 16 / 12, `gap-section` 24 / 16, `gap-region` 32 / 24 |
 | Axis gaps | `gap-x-*` and `gap-y-*` in the same six roles and the same values, for a grid whose column and row rhythm differ |
-| Padding | `p-menu-surface` 4 / 2, `p-tight` and `px-tight` 8 / 4, `px-row` 16 / 12, `py-row` 12 / 8, `p-panel-compact` and `pt-panel-compact` 16 / 12, `p-panel` and `pb-panel` 24 / 16, `px-frame` 24 / 16, `py-frame` 32 / 24 |
+| Padding | `p-menu-surface` 4 / 2, `p-tight` and `px-tight` 8 / 4, `px-row` and `ps-row` 16 / 12, `py-row` 12 / 8, `p-panel-compact` and `pt-panel-compact` 16 / 12, `p-panel` and `pb-panel` 24 / 16, `px-frame` 24 / 16, `py-frame` 32 / 24 |
 | Margins | `ms-inline` 8 / 4, `my-region` 32 / 24, `mt-page` 48 / 32, `-mt-inline`, `-mr-inline`, and `-mx-inline` -8 / -4 |
 
 Use a parent `gap-*` role before adding a child margin, and reach for `gap-x-*`
@@ -403,6 +444,17 @@ surface; `-mx-inline` cancels a `px-tight` row so the bleed tracks density
 instead of freezing at one pixel value. Keep zero utilities for explicit resets.
 Use arbitrary spacing only for a fixed optical offset, reserved control space, or
 asymmetric component contract that has no semantic role.
+
+A genuine one-off may keep a raw numeric utility with `// biome-ignore plugin:`
+on the affected `className`. Every suppression must include a concrete reason
+that names the optical or component contract. Never suppress the rule for a whole
+file or package.
+
+**The Pixel-Spacing Rule is internal.** `index.css` sets `--spacing: 1px`, so in
+this Tailwind v4 setup **utility numbers are pixels**: `p-16` is 16px, `gap-8` is
+8px, and `h-32` is 32px. This is *not* stock Tailwind, where `p-4` would be 16px.
+Here `p-4` is 4px. `libs/shared/react/ui` internals use this numeric scale for
+component tokens and dimensions. Consumers use the semantic roles above.
 
 **Density posture.** The default medium button is `h-32`; component sizing owns its
 padding. Use `gap-group` for form row rhythm, `p-panel` for a panel without rows, and

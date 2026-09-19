@@ -148,9 +148,9 @@ export function SlugChangeWarning({
         <ModalHeader>
           <ModalTitle>Change {entityLabel} slug?</ModalTitle>
         </ModalHeader>
-        <ModalBody className="gap-16">
+        <ModalBody className="gap-group">
           <Text size="sm">Changing the slug changes the URL for this {entityLabel}.</Text>
-          <ul className="list-disc pl-20 text-sm text-foreground-neutral-base">
+          <ul className="list-disc ps-row text-sm text-foreground-neutral-base">
             <li>Links and bookmarks pointing at the old URL stop working.</li>
             <li>The old slug becomes available for someone else to take.</li>
             <li>Workflows that reference this {entityLabel} slug may stop working.</li>
