@@ -8,7 +8,11 @@ import {
 import {pgClient} from '@shipfox/node-postgres';
 import {eq, inArray, sql} from 'drizzle-orm';
 import {config} from '#config.js';
-import {EmptyRequiredLabelsError, RunnerSessionExhaustedError} from '#core/errors.js';
+import {
+  EmptyRequiredLabelsError,
+  RunnerSessionExhaustedError,
+  RunningJobExecutionNotFoundError,
+} from '#core/errors.js';
 import {claimJobExecution} from '#core/job-executions.js';
 import {detectAndExpireStuckJobs} from '#core/maintenance.js';
 import * as runnerMetrics from '#metrics/instance.js';
@@ -1538,6 +1542,52 @@ describe('reconcileTerminalJobExecution', () => {
     await expect(reconciliation).resolves.toBeUndefined();
   });
 
+  it('orders heartbeat renewal after terminal reconciliation', async () => {
+    const pending = await pendingJobFactory.create({workspaceId});
+    const claimed = await claimPendingJobExecution({workspaceId, runnerSessionId, maxClaims: null});
+    expect(claimed?.jobExecutionId).toBe(pending.jobExecutionId);
+
+    const releaseSession = deferred<void>();
+    const sessionLockReady = deferred<void>();
+    const sessionLockHolder = db().transaction(async (tx) => {
+      await tx
+        .select({id: runnerSessions.id})
+        .from(runnerSessions)
+        .where(eq(runnerSessions.id, runnerSessionId))
+        .limit(1)
+        .for('update');
+      sessionLockReady.resolve();
+      await releaseSession.promise;
+    });
+
+    let reconciliation: Promise<void> | undefined;
+    let heartbeat: ReturnType<typeof recordHeartbeat> | undefined;
+    try {
+      await sessionLockReady.promise;
+      reconciliation = reconcileTerminalJobExecution({jobExecutionId: pending.jobExecutionId});
+      await waitForLockWait({queryLike: '%runner_sessions%'});
+
+      heartbeat = recordHeartbeat({
+        jobExecutionId: pending.jobExecutionId,
+        runnerSessionId,
+      });
+      await waitForLockWait({queryLike: '%runner_sessions%', minimum: 2});
+    } finally {
+      releaseSession.resolve();
+      await Promise.allSettled([
+        sessionLockHolder,
+        reconciliation ?? Promise.resolve(),
+        heartbeat ?? Promise.resolve({}),
+      ]);
+    }
+
+    if (!reconciliation || !heartbeat) {
+      throw new Error('Reconciliation and heartbeat must both start');
+    }
+    await expect(reconciliation).resolves.toBeUndefined();
+    await expect(heartbeat).rejects.toBeInstanceOf(RunningJobExecutionNotFoundError);
+  });
+
   it('leaves a pending sibling for the same job untouched', async () => {
     const target = await pendingJobFactory.create({workspaceId});
     const sibling = await pendingJobFactory.create({workspaceId, jobId: target.jobId});
@@ -1649,7 +1699,7 @@ function deferred<T>() {
   return {promise, resolve, reject};
 }
 
-async function waitForLockWait(params: {queryLike: string}) {
+async function waitForLockWait(params: {queryLike: string; minimum?: number}) {
   const deadline = Date.now() + 2_000;
   while (Date.now() < deadline) {
     const result = await pgClient().query<{count: number}>(
@@ -1664,7 +1714,7 @@ async function waitForLockWait(params: {queryLike: string}) {
       `,
       [params.queryLike],
     );
-    if ((result.rows[0]?.count ?? 0) > 0) return;
+    if ((result.rows[0]?.count ?? 0) >= (params.minimum ?? 1)) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(`Timed out waiting for lock waiter matching ${params.queryLike}`);

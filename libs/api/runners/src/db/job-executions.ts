@@ -1550,6 +1550,15 @@ export async function recordHeartbeat(params: {
   };
 }> {
   const result = await db().transaction(async (tx) => {
+    // Claims, lease expiry, and terminal reconciliation lock the session before running rows.
+    // Preserve that order so cancellation or deletion wins before a racing heartbeat renews.
+    await tx
+      .select({id: runnerSessions.id})
+      .from(runnerSessions)
+      .where(eq(runnerSessions.id, params.runnerSessionId))
+      .limit(1)
+      .for('update');
+
     const updated = await tx
       .update(runningJobExecutions)
       .set({
