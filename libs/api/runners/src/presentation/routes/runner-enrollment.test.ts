@@ -165,7 +165,6 @@ describe('runner enrollment control plane', () => {
       launchKind: 'warm',
       state: 'running',
       protocolVersion: '1',
-      capabilities: null,
     });
     const [session] = await db()
       .select()

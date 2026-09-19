@@ -142,10 +142,9 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
 
   it('accepts legacy capabilities without changing the session manifest', async () => {
     const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
-    const reportedAt = new Date('2026-01-01T00:00:00.000Z');
     await db()
       .update(runnerSessions)
-      .set({toolCapabilities: partialCapabilities, toolCapabilitiesReportedAt: reportedAt})
+      .set({toolCapabilities: partialCapabilities})
       .where(eq(runnerSessions.id, runnerSessionId));
 
     const res = await app.inject({
@@ -166,15 +165,13 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       .where(eq(runnerSessions.id, runnerSessionId));
     expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
     expect(session?.toolCapabilities).toEqual(partialCapabilities);
-    expect(session?.toolCapabilitiesReportedAt).toEqual(reportedAt);
   });
 
   it('renews without a payload and preserves the session manifest', async () => {
     const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
-    const reportedAt = new Date('2026-01-01T00:00:00.000Z');
     await db()
       .update(runnerSessions)
-      .set({toolCapabilities: partialCapabilities, toolCapabilitiesReportedAt: reportedAt})
+      .set({toolCapabilities: partialCapabilities})
       .where(eq(runnerSessions.id, runnerSessionId));
 
     const res = await app.inject({
@@ -195,7 +192,6 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       .where(eq(runnerSessions.id, runnerSessionId));
     expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
     expect(session?.toolCapabilities).toEqual(partialCapabilities);
-    expect(session?.toolCapabilitiesReportedAt).toEqual(reportedAt);
   });
 
   it('returns 200 + cancel:true after reconcileTerminalJobExecution', async () => {

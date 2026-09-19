@@ -1,4 +1,3 @@
-import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {afterEach, vi} from '@shipfox/vitest/vi';
 import {eq, inArray} from 'drizzle-orm';
@@ -360,10 +359,6 @@ describe('enrollRunnerControlSession', () => {
   it('preserves committed assignment metadata during a later enrollment', async () => {
     const provisionerId = crypto.randomUUID();
     const reservation = await createReservation({provisionerId});
-    const committedCapabilities: RunnerToolCapabilitiesDto = {
-      features: {renewable_git: false, renewable_inference: false},
-      harnesses: {pi: {tools: ['read']}},
-    };
     const runnerInstanceId = await createRunner({
       provisionerId,
       intendedReservationId: reservation.id,
@@ -373,7 +368,6 @@ describe('enrollRunnerControlSession', () => {
       labels: ['linux'],
       providerKind: 'ec2',
       protocolVersion: '1',
-      capabilities: committedCapabilities,
     });
 
     const activationToken = await enrollRunnerControlSession({
@@ -389,7 +383,6 @@ describe('enrollRunnerControlSession', () => {
         labels: providerRunners.labels,
         providerKind: providerRunners.providerKind,
         protocolVersion: providerRunners.protocolVersion,
-        capabilities: providerRunners.capabilities,
         state: providerRunners.state,
       })
       .from(providerRunners)
@@ -401,7 +394,6 @@ describe('enrollRunnerControlSession', () => {
       labels: ['linux'],
       providerKind: 'ec2',
       protocolVersion: '1',
-      capabilities: committedCapabilities,
       state: 'running',
     });
   });
@@ -432,7 +424,6 @@ describe('enrollRunnerControlSession', () => {
         labels: providerRunners.labels,
         providerKind: providerRunners.providerKind,
         protocolVersion: providerRunners.protocolVersion,
-        capabilities: providerRunners.capabilities,
         state: providerRunners.state,
       })
       .from(providerRunners)
@@ -447,7 +438,6 @@ describe('enrollRunnerControlSession', () => {
       labels: ['linux'],
       providerKind: 'ec2',
       protocolVersion: '1',
-      capabilities: null,
       state: 'running',
     });
   });
@@ -549,7 +539,6 @@ describe('enrollRunnerControlSession', () => {
         labels: providerRunners.labels,
         providerKind: providerRunners.providerKind,
         protocolVersion: providerRunners.protocolVersion,
-        capabilities: providerRunners.capabilities,
         state: providerRunners.state,
       })
       .from(providerRunners)
@@ -561,7 +550,6 @@ describe('enrollRunnerControlSession', () => {
       labels: ['linux'],
       providerKind: 'docker',
       protocolVersion: '1',
-      capabilities: null,
       state: 'running',
     });
   });
@@ -740,7 +728,6 @@ async function createRunner(params: {
   labels?: string[];
   providerKind?: string | null;
   protocolVersion?: string | null;
-  capabilities?: RunnerToolCapabilitiesDto | null;
   assignedAt?: Date | null;
   providerRunnerId?: string;
   createControlSession?: boolean;
@@ -770,7 +757,6 @@ async function createRunner(params: {
       labels: params.labels ?? [],
       providerKind: params.providerKind ?? null,
       protocolVersion: params.protocolVersion ?? null,
-      capabilities: params.capabilities ?? null,
       assignedAt: params.assignedAt === undefined ? defaultAssignedAt : params.assignedAt,
       state: 'starting',
       reportedAt: new Date(),

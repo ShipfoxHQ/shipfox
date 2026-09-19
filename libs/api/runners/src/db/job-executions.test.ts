@@ -399,7 +399,7 @@ describe('claimPendingJobExecution', () => {
     expect(running?.firstHeartbeatAt).toBeNull();
   });
 
-  it('snapshots renewable inference from an hours-old report', async () => {
+  it('snapshots renewable inference from the registered manifest', async () => {
     await db()
       .update(runnerSessions)
       .set({
@@ -407,7 +407,6 @@ describe('claimPendingJobExecution', () => {
           features: {renewable_git: false, renewable_inference: true},
           harnesses: {},
         },
-        toolCapabilitiesReportedAt: new Date('2025-01-01T00:00:00.000Z'),
       })
       .where(eq(runnerSessions.id, runnerSessionId));
     const created = await pendingJobFactory.create({workspaceId});
