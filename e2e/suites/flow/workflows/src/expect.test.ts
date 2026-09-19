@@ -160,14 +160,13 @@ describe('evaluateExpectations', () => {
     expect(result.mismatches).toEqual([]);
   });
 
-  test('matches a child run parent, inputs, and nested job assertions', () => {
+  test('matches a child run parent and nested job assertions', () => {
     const expectation = parseExpectation({
       run: {status: 'succeeded'},
       child_run: {
         workflow: '.shipfox/workflows/child.yml',
         status: 'succeeded',
         parent_run: true,
-        inputs: {message: 'from-parent'},
         jobs: {build: {status: 'succeeded'}},
       },
     });
@@ -178,7 +177,6 @@ describe('evaluateExpectations', () => {
       {
         observation: makeDetail(),
         parentRunId: '99999999-9999-4999-8999-999999999999',
-        inputs: {message: 'from-parent'},
       },
       childExpectation,
     );

@@ -306,6 +306,9 @@ async function seedScenarioProject(params: {
             },
           ],
         }),
+    ...(params.scenario.kind === 'expect' && params.scenario.expectation.child_run !== undefined
+      ? {repositoryBacked: true}
+      : {}),
   };
   if (params.scenario.kind === 'reject') {
     const seeded = await seedWorkflowProject(seedParams);
@@ -619,9 +622,6 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         {
           observation: childObservation,
           parentRunId: child.parent_run?.id ?? null,
-          // Bounded workflow-run reads intentionally omit raw run inputs. The child workflow's
-          // self-asserting step still verifies that the tool propagated the expected input.
-          inputs: null,
         } satisfies ChildRunObservation,
         childExpectation,
       );

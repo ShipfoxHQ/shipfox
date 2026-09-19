@@ -46,6 +46,12 @@ export interface AdditionalWorkflowDefinition {
   workflowYaml: string;
 }
 
+interface ApiDefinitionSeedOptions {
+  additionalDefinitions?: AdditionalWorkflowDefinition[] | undefined;
+  /** Commit matching files before creating default-branch VCS definitions through the API. */
+  repositoryBacked?: boolean | undefined;
+}
+
 export function renderWorkflowYaml(params: {
   suite: SuiteContext;
   repo: string;
@@ -158,39 +164,58 @@ export async function seedAndWaitForDefinition(params: Parameters<typeof seedWor
  * instead of a poll timing out with no error to report.
  */
 export async function seedProjectWithApiDefinition(
-  params: Parameters<typeof seedWorkflowProject>[0] & {
-    additionalDefinitions?: AdditionalWorkflowDefinition[] | undefined;
-  },
+  params: Parameters<typeof seedWorkflowProject>[0] & ApiDefinitionSeedOptions,
 ): Promise<ReadyWorkflowProject> {
-  const seeded = await seedWorkflowProject({...params, definitionDelivery: 'api'});
+  const {
+    additionalDefinitions: additionalDefinitionInputs = [],
+    repositoryBacked = false,
+    ...seedParams
+  } = params;
+  const additionalDefinitionsWithYaml = additionalDefinitionInputs.map((additional) => ({
+    configPath: additional.configPath,
+    yaml: renderWorkflowYaml({...seedParams, workflowYaml: additional.workflowYaml}),
+  }));
+  const seeded = await seedWorkflowProject({
+    ...seedParams,
+    definitionDelivery: repositoryBacked ? 'vcs' : 'api',
+    extraFiles: [
+      ...(seedParams.extraFiles ?? []),
+      ...(repositoryBacked
+        ? additionalDefinitionsWithYaml.map((additional) => ({
+            path: additional.configPath,
+            content: additional.yaml,
+          }))
+        : []),
+    ],
+  });
   const client = createApiClient({token: params.token});
   const definition = await client.requestJson<DefinitionResponseDto>('post', '/definitions', {
     json: {
       project_id: seeded.project.id,
-      config_path: params.configPath,
-      source: 'vcs',
-      ref: DEFAULT_SOURCE_BRANCH,
+      ...(repositoryBacked
+        ? {config_path: params.configPath, source: 'vcs' as const, ref: DEFAULT_SOURCE_BRANCH}
+        : {source: 'manual' as const}),
       yaml: seeded.renderedWorkflowYaml,
     },
   });
   assertResolvedReferences(definition, params.name);
 
   const additionalDefinitions: DefinitionResponseDto[] = [];
-  for (const additional of params.additionalDefinitions ?? []) {
-    const renderedYaml = renderWorkflowYaml({
-      ...params,
-      workflowYaml: additional.workflowYaml,
-    });
+  for (const additional of additionalDefinitionsWithYaml) {
     const additionalDefinition = await client.requestJson<DefinitionResponseDto>(
       'post',
       '/definitions',
       {
         json: {
           project_id: seeded.project.id,
-          config_path: additional.configPath,
-          source: 'vcs',
-          ref: DEFAULT_SOURCE_BRANCH,
-          yaml: renderedYaml,
+          ...(repositoryBacked
+            ? {
+                config_path: additional.configPath,
+                source: 'vcs' as const,
+                ref: DEFAULT_SOURCE_BRANCH,
+              }
+            : {source: 'manual' as const}),
+          yaml: additional.yaml,
         },
       },
     );

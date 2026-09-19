@@ -1,4 +1,3 @@
-import {isDeepStrictEqual} from 'node:util';
 import type {LogRecord} from '@shipfox/api-logs-dto';
 import type {JobStatusReasonDto, StepErrorReasonDto} from '@shipfox/api-workflows-dto';
 import type {
@@ -184,7 +183,6 @@ const childRunExpectationSchema = z
     depth: z.number().int().positive().default(1),
     status: runStatusSchema,
     parent_run: z.boolean().default(true),
-    inputs: z.record(z.string(), z.unknown()).optional(),
     jobs: z.record(z.string(), jobExpectationSchema).optional(),
   })
   .strict();
@@ -240,7 +238,6 @@ export interface ExpectationResult {
 export interface ChildRunObservation {
   observation: WorkflowRunObservation;
   parentRunId: string | null;
-  inputs: Record<string, unknown> | null;
 }
 
 function findJob(
@@ -497,8 +494,7 @@ export function evaluateExpectations(
 
 /**
  * Compares the discovered child/descendant run separately from the triggering run. The
- * child inputs come from the full run resource because the bounded run overview intentionally
- * omits inputs; parent linkage and jobs come from the normal workflow observation.
+ * Parent linkage and jobs come from the normal workflow observation.
  */
 export function evaluateChildRunExpectation(
   child: ChildRunObservation,
@@ -516,14 +512,6 @@ export function evaluateChildRunExpectation(
   if (expectation.parent_run && child.parentRunId === null) {
     result.mismatches.push({path: 'child_run.parent_run', expected: 'present', actual: 'null'});
   }
-  if (expectation.inputs !== undefined && !isDeepStrictEqual(child.inputs, expectation.inputs)) {
-    result.mismatches.push({
-      path: 'child_run.inputs',
-      expected: JSON.stringify(expectation.inputs),
-      actual: child.inputs === null ? 'null' : JSON.stringify(child.inputs),
-    });
-  }
-
   for (const [jobKey, jobExpectation] of Object.entries(expectation.jobs ?? {})) {
     evaluateJobExpectation(child.observation, jobKey, jobExpectation, result, 'child_run.jobs');
   }
