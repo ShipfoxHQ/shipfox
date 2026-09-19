@@ -10,14 +10,14 @@ import {getStepAttemptDetailRoute} from './get-step-attempt-detail.js';
 
 vi.mock('#db/index.js', () => ({
   getStepAttemptDetail: vi.fn(),
-  getWorkflowRunById: vi.fn(),
+  getWorkflowRunAccessScopeById: vi.fn(),
 }));
 
 const getProjectById = vi.fn();
 const projects = {getProjectById} as unknown as ProjectsModuleClient;
 const STEP_ID = crypto.randomUUID();
 const getStepAttemptDetail = vi.mocked(dbMocks.getStepAttemptDetail);
-const getWorkflowRunById = vi.mocked(dbMocks.getWorkflowRunById);
+const getWorkflowRunAccessScopeById = vi.mocked(dbMocks.getWorkflowRunAccessScopeById);
 
 describe('GET /api/workflows/runs/steps/:stepId/attempts/:attempt', () => {
   let app: FastifyInstance;
@@ -53,7 +53,7 @@ describe('GET /api/workflows/runs/steps/:stepId/attempts/:attempt', () => {
     getProjectById.mockResolvedValue({
       project: {id: projectId, workspaceId, name: 'Project'},
     });
-    getWorkflowRunById.mockResolvedValue({projectId} as never);
+    getWorkflowRunAccessScopeById.mockResolvedValue({id: workflowRunId, workspaceId, projectId});
   });
 
   it('returns the requested attempt detail for an accessible run', async () => {

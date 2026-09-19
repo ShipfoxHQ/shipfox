@@ -8,7 +8,7 @@ import {WorkflowRunNotCancellableError, WorkflowRunNotFoundError} from '#core/er
 import {cancelWorkflowRun} from '#core/run-actions.js';
 import {listWorkflowRunConcurrencyForRuns} from '#db/index.js';
 import {toRunDto} from '#presentation/dto/index.js';
-import {requireAccessibleRun} from './require-accessible-run.js';
+import {requireAccessibleRunScope} from './require-accessible-run.js';
 
 export function cancelRunRoute(projects: ProjectsModuleClient) {
   return defineRoute({
@@ -34,7 +34,7 @@ export function cancelRunRoute(projects: ProjectsModuleClient) {
     },
     handler: async (request) => {
       const {id} = request.params;
-      const run = await requireAccessibleRun({request, id, projects});
+      const run = await requireAccessibleRunScope({request, id, projects});
 
       const cancelled = await cancelWorkflowRun({
         workspaceId: run.workspaceId,

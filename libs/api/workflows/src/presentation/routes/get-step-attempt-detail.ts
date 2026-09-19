@@ -4,7 +4,7 @@ import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
 import {getStepAttemptDetail} from '#db/index.js';
 import {toStepAttemptDetailResponseDto} from '#presentation/dto/step.js';
-import {requireAccessibleRun} from './require-accessible-run.js';
+import {requireAccessibleRunScope} from './require-accessible-run.js';
 
 export function getStepAttemptDetailRoute(projects: ProjectsModuleClient) {
   return defineRoute({
@@ -26,7 +26,7 @@ export function getStepAttemptDetailRoute(projects: ProjectsModuleClient) {
         throw new ClientError('Step attempt not found', 'not-found', {status: 404});
       }
 
-      await requireAccessibleRun({request, id: detail.workflowRunId, projects});
+      await requireAccessibleRunScope({request, id: detail.workflowRunId, projects});
       return toStepAttemptDetailResponseDto(
         detail.step,
         detail.attempt,

@@ -19,7 +19,7 @@ import {rerunWorkflowRun} from '#core/run-actions.js';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
 import {listWorkflowRunConcurrencyForRuns} from '#db/index.js';
 import {toRunDto} from '#presentation/dto/index.js';
-import {requireAccessibleRun} from './require-accessible-run.js';
+import {requireAccessibleRunScope} from './require-accessible-run.js';
 
 const errorResponseSchema = z.object({
   code: z.string(),
@@ -62,7 +62,7 @@ export function rerunRunRoute(
     },
     handler: async (request) => {
       const {id} = request.params;
-      const sourceRun = await requireAccessibleRun({request, id, projects});
+      const sourceRun = await requireAccessibleRunScope({request, id, projects});
 
       const actor = requireUserContext(request);
       const run = await rerunWorkflowRun({

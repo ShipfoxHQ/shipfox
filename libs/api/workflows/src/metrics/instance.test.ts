@@ -183,6 +183,33 @@ describe('workflow tool invocation metrics', () => {
   });
 });
 
+describe('workflow run access metrics', () => {
+  test('defines the phase duration histogram around the 20 ms target', () => {
+    const histogramCall = (
+      metricMocks.createHistogram.mock.calls as unknown as Array<
+        [string, {unit?: string; advice?: {explicitBucketBoundaries?: number[]}}]
+      >
+    ).find(([name]) => name === 'workflows_run_access_check_duration');
+
+    expect(histogramCall).toEqual([
+      'workflows_run_access_check_duration',
+      expect.objectContaining({
+        unit: 'ms',
+        advice: {explicitBucketBoundaries: [1, 5, 10, 20, 50, 100, 200, 500, 1_000]},
+      }),
+    ]);
+  });
+
+  test('records bounded phases and outcomes', () => {
+    metrics.recordWorkflowRunAccessCheckDuration('run_lookup', 'success', 15);
+
+    expect(histogramRecord('workflows_run_access_check_duration')).toHaveBeenCalledWith(15, {
+      phase: 'run_lookup',
+      outcome: 'success',
+    });
+  });
+});
+
 describe('gate restart metrics', () => {
   test('records exhaustion without labels', () => {
     const counterCall = (

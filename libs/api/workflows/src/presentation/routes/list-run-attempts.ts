@@ -13,7 +13,7 @@ import {logger} from '@shipfox/node-opentelemetry';
 import {z} from 'zod';
 import {listRunAttemptsPage} from '#db/index.js';
 import {toRunAttemptDto} from '#presentation/dto/index.js';
-import {requireAccessibleRun} from './require-accessible-run.js';
+import {requireAccessibleRunScope} from './require-accessible-run.js';
 import {serializedResponseByteLength} from './serialized-response-byte-length.js';
 
 export function listRunAttemptsRoute(projects: ProjectsModuleClient) {
@@ -47,7 +47,7 @@ export function listRunAttemptsRoute(projects: ProjectsModuleClient) {
           throw new ClientError('Invalid cursor', 'invalid-cursor', {status: 400});
         }
 
-        const run = await requireAccessibleRun({request, id, projects});
+        const run = await requireAccessibleRunScope({request, id, projects});
 
         const result = await readRunAttempts({
           workflowRunId: run.id,
