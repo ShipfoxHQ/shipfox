@@ -110,35 +110,37 @@ describe('StepInspectorSheet', () => {
     {
       reason: 'run_cancelled',
       title: 'The run was cancelled',
-      description: 'The run was cancelled before this work completed.',
+      description: 'Start a new run if you still need the result.',
     },
     {
       reason: 'timed_out',
       title: 'Step timed out',
-      description: 'The step exceeded its configured time limit.',
+      description:
+        'Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'lease_expired',
-      title: 'Runner job lease expired',
+      title: 'Connection to the runner was lost',
       description:
-        "The runner's job lease expired because Shipfox stopped receiving heartbeats before the step completed. Check the runner's connection and availability before re-running the workflow.",
+        'Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'provider_lost',
-      title: 'Runner infrastructure was lost',
+      title: 'The runner became unavailable',
       description:
-        'The runner became unavailable at its infrastructure provider before the step completed. Check provider status and capacity before re-running the workflow.',
+        'Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'lifecycle_violation',
-      title: 'Runner stopped for safety',
+      title: 'Runner stopped unexpectedly',
       description:
-        'Shipfox detected an unsafe internal runner state before the step completed. Contact Shipfox support before re-running the workflow.',
+        'Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'runner_lost',
       title: 'Runner stopped responding',
-      description: 'The runner stopped responding before the step completed.',
+      description:
+        'Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
   ] as const)('distinguishes the $reason failure', async ({reason, title, description}) => {
     const user = userEvent.setup();
@@ -162,7 +164,7 @@ describe('StepInspectorSheet', () => {
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
     expect(await screen.findByText('Agent invocation failed')).toBeInTheDocument();
-    expect(screen.queryByText('Runner infrastructure was lost')).toBeNull();
+    expect(screen.queryByText('The runner became unavailable')).toBeNull();
   });
 
   it('shows the evaluation count only after the lazy detail response arrives', async () => {

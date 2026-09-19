@@ -235,18 +235,19 @@ function preStepFailureDescription(
 
   switch (reason) {
     case 'lease_expired':
-      return `The runner's job lease expired before work began because Shipfox stopped receiving heartbeats.${runnerCopy} Check the runner's connection and availability before re-running the workflow.`;
+      return 'Shipfox lost contact with the runner before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'provider_lost':
-      return `The runner became unavailable at its infrastructure provider before work began.${runnerCopy} Check provider status and capacity before re-running the workflow.`;
+      return 'The runner became unavailable before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'lifecycle_violation':
-      return `Shipfox detected an unsafe internal runner state before work began.${runnerCopy} Contact Shipfox support before re-running the workflow.`;
+      return 'The runner stopped unexpectedly before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'runner_lost':
-      return `The runner stopped responding before work began.${runnerCopy} Check runner availability before re-running the workflow.`;
+      return 'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'timed_out':
-      return `The job timed out before work began.${runnerCopy} Check runner capacity and timeout configuration before re-running the workflow.`;
+      return 'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'user_cancelled':
+      return 'A user cancelled the job before work began. Start a new run if you still need the result.';
     case 'run_cancelled':
-      return 'The execution ended while the run was being cancelled.';
+      return 'The run was cancelled before work began. Start a new run if you still need the result.';
     case 'step_failed':
       return `The execution failed before step details were recorded.${runnerCopy} Review run annotations before re-running the workflow.`;
     case 'output_too_large':

@@ -138,32 +138,33 @@ describe('runner-loss failure descriptions', () => {
   test.each([
     {
       reason: 'run_cancelled',
-      description: 'The execution ended while the run was being cancelled.',
+      description:
+        'The run was cancelled before work began. Start a new run if you still need the result.',
     },
     {
       reason: 'timed_out',
       description:
-        'The job timed out before work began. Required runner labels: runner-linux-x64. Check runner capacity and timeout configuration before re-running the workflow.',
+        'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'lease_expired',
       description:
-        "The runner's job lease expired before work began because Shipfox stopped receiving heartbeats. Required runner labels: runner-linux-x64. Check the runner's connection and availability before re-running the workflow.",
+        'Shipfox lost contact with the runner before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'provider_lost',
       description:
-        'The runner became unavailable at its infrastructure provider before work began. Required runner labels: runner-linux-x64. Check provider status and capacity before re-running the workflow.',
+        'The runner became unavailable before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'lifecycle_violation',
       description:
-        'Shipfox detected an unsafe internal runner state before work began. Required runner labels: runner-linux-x64. Contact Shipfox support before re-running the workflow.',
+        'The runner stopped unexpectedly before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
     {
       reason: 'runner_lost',
       description:
-        'The runner stopped responding before work began. Required runner labels: runner-linux-x64. Check runner availability before re-running the workflow.',
+        'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
     },
   ] satisfies Array<{
     reason: NonNullable<Job['statusReason']>;

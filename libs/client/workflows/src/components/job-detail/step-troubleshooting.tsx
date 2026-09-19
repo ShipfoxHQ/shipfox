@@ -1008,11 +1008,11 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
     case 'restart_exhausted':
       return 'Gate attempt limit reached';
     case 'lease_expired':
-      return 'Runner job lease expired';
+      return 'Connection to the runner was lost';
     case 'provider_lost':
-      return 'Runner infrastructure was lost';
+      return 'The runner became unavailable';
     case 'lifecycle_violation':
-      return 'Runner stopped for safety';
+      return 'Runner stopped unexpectedly';
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
@@ -1127,17 +1127,13 @@ function failureDescription(
     case 'restart_exhausted':
       return restartExhaustionDescription(error, gateMaxAttempts);
     case 'lease_expired':
-      return "The runner's job lease expired because Shipfox stopped receiving heartbeats before the step completed. Check the runner's connection and availability before re-running the workflow.";
     case 'provider_lost':
-      return 'The runner became unavailable at its infrastructure provider before the step completed. Check provider status and capacity before re-running the workflow.';
     case 'lifecycle_violation':
-      return 'Shipfox detected an unsafe internal runner state before the step completed. Contact Shipfox support before re-running the workflow.';
     case 'runner_lost':
-      return 'The runner stopped responding before the step completed.';
+    case 'timed_out':
+      return 'Try the workflow again. If the problem continues, contact your workspace administrator.';
     case 'output_too_large':
       return 'The materialized job output exceeded its configured size limit.';
-    case 'timed_out':
-      return 'The step exceeded its configured time limit.';
     case 'dependency_not_completed':
       return 'A required job did not complete, so this job could not start.';
     case 'condition_false':
@@ -1151,7 +1147,7 @@ function failureDescription(
       return 'A step failed before this job could complete.';
     case 'user_cancelled':
     case 'run_cancelled':
-      return 'The run was cancelled before this work completed.';
+      return 'Start a new run if you still need the result.';
     case 'unknown':
       return 'No machine-readable failure reason was recorded.';
     default:

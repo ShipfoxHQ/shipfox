@@ -497,7 +497,7 @@ describe('WorkflowJobDetailPage', () => {
     expect(await screen.findByText('Job failed before its first step started')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The runner stopped responding before work began. Check runner availability before re-running the workflow.',
+        'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
       ),
     ).toBeInTheDocument();
   });
