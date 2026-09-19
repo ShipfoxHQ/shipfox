@@ -358,6 +358,47 @@ export type TriggerEventDiagnosticReadLimits = z.infer<
   typeof triggerEventDiagnosticReadLimitsSchema
 >;
 
+const createDevRunInputSchema = z
+  .object({
+    workspaceId: idSchema,
+    projectId: idSchema,
+    ref: refSchema.optional(),
+    content: z.string().optional(),
+    configPath: configPathSchema,
+    triggerKey: z.string().min(1),
+    commit: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/)
+      .optional(),
+    inputs: z.record(z.string(), z.unknown()).optional(),
+    replayEventId: idSchema.optional(),
+    userId: idSchema,
+  })
+  .superRefine(({content, ref, commit}, ctx) => {
+    if (ref === undefined && content === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ref'],
+        message: 'ref is required when content is not supplied',
+      });
+    }
+    if (ref === undefined && commit !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['commit'],
+        message: 'commit requires ref',
+      });
+    }
+  });
+
+const devRunCheckOutputSchema = z.object({
+  checkPassed: z.literal(true),
+  triggerKind: z.enum(['manual', 'cron', 'replay']),
+  ref: z.string(),
+  commit: z.string(),
+  warnings: z.array(definitionValidationWarningSchema),
+});
+
 export const triggersInterModuleContract = defineInterModuleContract({
   module: 'triggers',
   methods: {
@@ -387,38 +428,7 @@ export const triggersInterModuleContract = defineInterModuleContract({
       },
     },
     createDevRun: {
-      input: z
-        .object({
-          workspaceId: idSchema,
-          projectId: idSchema,
-          ref: refSchema.optional(),
-          content: z.string().optional(),
-          configPath: configPathSchema,
-          triggerKey: z.string().min(1),
-          commit: z
-            .string()
-            .regex(/^[0-9a-f]{40}$/)
-            .optional(),
-          inputs: z.record(z.string(), z.unknown()).optional(),
-          replayEventId: idSchema.optional(),
-          userId: idSchema,
-        })
-        .superRefine(({content, ref, commit}, ctx) => {
-          if (ref === undefined && content === undefined) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['ref'],
-              message: 'ref is required when content is not supplied',
-            });
-          }
-          if (ref === undefined && commit !== undefined) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ['commit'],
-              message: 'commit requires ref',
-            });
-          }
-        }),
+      input: createDevRunInputSchema,
       output: z.object({
         id: idSchema,
         ref: z.string().optional(),
@@ -429,6 +439,14 @@ export const triggersInterModuleContract = defineInterModuleContract({
         ...devRunDomainErrors,
         ...definitionResolutionErrors,
         ...startDevRunErrors,
+      },
+    },
+    checkDevRun: {
+      input: createDevRunInputSchema,
+      output: devRunCheckOutputSchema,
+      errors: {
+        ...devRunDomainErrors,
+        ...definitionResolutionErrors,
       },
     },
     listTriggerEvents: {

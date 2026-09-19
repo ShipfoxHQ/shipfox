@@ -5,7 +5,9 @@ export {
 export {readConfigInputs} from './config.js';
 export {
   type CreateDevRunParams,
+  checkDevRun,
   createDevRun,
+  type DevRunCheckResult,
   type DevRunResult,
 } from './create-dev-run.js';
 export {

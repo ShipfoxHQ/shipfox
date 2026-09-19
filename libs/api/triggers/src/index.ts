@@ -43,6 +43,7 @@ export type {
 } from '#core/entities/job-listener-subscription.js';
 export type {TriggerSubscription} from '#core/entities/subscription.js';
 export {
+  checkDevRun,
   createDevRun,
   DevRunInputsNotAllowedError,
   DevRunReplayEventMismatchError,
