@@ -435,7 +435,7 @@ values apply below an ancestor with `data-density="compact"`.
 | Gaps | `gap-tight` 4 / 2, `gap-inline` 8 / 4, `gap-cluster` 12 / 8, `gap-group` 16 / 12, `gap-section` 24 / 16, `gap-region` 32 / 24 |
 | Axis gaps | `gap-x-*` and `gap-y-*` in the same six roles and the same values, for a grid whose column and row rhythm differ |
 | Padding | `p-menu-surface` 4 / 2, `p-tight` and `px-tight` 8 / 4, `px-row` and `ps-row` 16 / 12, `py-row` 12 / 8, `p-panel-compact` and `pt-panel-compact` 16 / 12, `p-panel` and `pb-panel` 24 / 16, `px-frame` 24 / 16, `py-frame` 32 / 24 |
-| Margins | `ms-inline` 8 / 4, `my-region` 32 / 24, `mt-page` 48 / 32, `-mt-inline`, `-mr-inline`, and `-mx-inline` -8 / -4 |
+| Margins | `ms-inline` and `mb-inline` 8 / 4, `my-region` 32 / 24, `mt-page` 48 / 32, `-mt-inline`, `-mr-inline`, and `-mx-inline` -8 / -4 |
 
 Use a parent `gap-*` role before adding a child margin, and reach for `gap-x-*`
 or `gap-y-*` only when the two axes genuinely differ. Use the negative inline
@@ -445,10 +445,10 @@ instead of freezing at one pixel value. Keep zero utilities for explicit resets.
 Use arbitrary spacing only for a fixed optical offset, reserved control space, or
 asymmetric component contract that has no semantic role.
 
-A genuine one-off may keep a raw numeric utility with `// biome-ignore plugin:`
-on the affected `className`. Every suppression must include a concrete reason
-that names the optical or component contract. Never suppress the rule for a whole
-file or package.
+A genuine one-off may keep a raw numeric utility with
+`// biome-ignore lint/plugin/no-raw-spacing:` on the affected `className`. Every
+suppression must include a concrete reason that names the optical or component
+contract. Never suppress the rule for a whole file or package.
 
 **The Pixel-Spacing Rule is internal.** `index.css` sets `--spacing: 1px`, so in
 this Tailwind v4 setup **utility numbers are pixels**: `p-16` is 16px, `gap-8` is

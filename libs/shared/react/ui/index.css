@@ -1179,6 +1179,10 @@
   margin-inline-start: var(--margin-inline);
 }
 
+@utility mb-inline {
+  margin-bottom: var(--margin-inline);
+}
+
 @utility -mt-inline {
   margin-top: calc(var(--margin-inline) * -1);
 }

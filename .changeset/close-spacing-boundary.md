@@ -4,4 +4,4 @@
 "@shipfox/react-ui": patch
 ---
 
-Moves client UI and onboarding composition onto semantic spacing roles and adds inline-start row padding.
+Adds `ps-row` and density-aware spacing for slug warnings, annotation cards, and setup checklists.
