@@ -1,5 +1,31 @@
 # @shipfox/api-runners
 
+## 29.0.0
+
+### Major Changes
+
+- d1c07bb: Makes runner job heartbeats liveness-only and ignores legacy capability fields.
+- 0e7c381: Requires runner registration to include `features.renewable_git`, `features.renewable_inference`, `capabilities`, and `lifecycle_capabilities`, and rejects incomplete registration.
+- b891938: Backfills NULL job snapshots to false and denies renewable-inference credential resolution with runner-capability-required when a runner lacks the capability.
+
+### Patch Changes
+
+- f4f1f10: Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.
+- 3e3fa1e: Authorizes exhausted one-claim runners across workspaces for installation-scoped provisioners.
+- 30b2d6a: Removes the obsolete runner capability-report timestamps and the duplicate provider-runner capability column.
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [d1c07bb]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [0e7c381]
+- Updated dependencies [b891938]
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/api-runners-dto@29.0.0
+  - @shipfox/node-drizzle@0.3.6
+  - @shipfox/api-auth-context@29.0.0
+  - @shipfox/node-module@1.1.2
+
 ## 28.0.0
 
 ### Major Changes

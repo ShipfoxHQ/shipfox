@@ -1,5 +1,20 @@
 # @shipfox/client-onboarding
 
+## 48.0.1
+
+### Patch Changes
+
+- 6c8f228: Reuses fresh workspace membership data during navigation to avoid blocking each route on the workspace request.
+- 61f3cfb: Adds `ps-row` and density-aware spacing for slug warnings, annotation cards, and setup checklists.
+- Updated dependencies [61f3cfb]
+  - @shipfox/react-ui@2.6.1
+  - @shipfox/client-agent@48.0.1
+  - @shipfox/client-integrations@48.0.1
+  - @shipfox/client-projects@48.0.1
+  - @shipfox/client-runners@48.0.1
+  - @shipfox/client-shell@48.0.1
+  - @shipfox/client-workspace-settings@48.0.1
+
 ## 48.0.0
 
 ### Patch Changes

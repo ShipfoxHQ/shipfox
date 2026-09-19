@@ -1,5 +1,50 @@
 # @shipfox/api-server
 
+## 29.0.0
+
+### Patch Changes
+
+- Updated dependencies [86ad2b7]
+- Updated dependencies [a859808]
+- Updated dependencies [a34066f]
+- Updated dependencies [e7a8fe4]
+- Updated dependencies [883bcda]
+- Updated dependencies [d1c07bb]
+- Updated dependencies [4d2e493]
+- Updated dependencies [f4f1f10]
+- Updated dependencies [f571b7f]
+- Updated dependencies [8e74f71]
+- Updated dependencies [0e7c381]
+- Updated dependencies [3e3fa1e]
+- Updated dependencies [ddceb5d]
+- Updated dependencies [30b2d6a]
+- Updated dependencies [b891938]
+  - @shipfox/api-agent-access@29.0.0
+  - @shipfox/api-integration-core@29.0.0
+  - @shipfox/node-fastify@0.4.7
+  - @shipfox/api-workflows-dto@29.0.0
+  - @shipfox/api-workflows@29.0.0
+  - @shipfox/api-runners-dto@29.0.0
+  - @shipfox/api-runners@29.0.0
+  - @shipfox/api-auth@29.0.0
+  - @shipfox/api-projects@29.0.0
+  - @shipfox/api-triggers@29.0.0
+  - @shipfox/api-definitions@29.0.0
+  - @shipfox/api-logs-dto@29.0.0
+  - @shipfox/annotations-dto@29.0.0
+  - @shipfox/annotations@29.0.0
+  - @shipfox/api-agent-dto@29.0.0
+  - @shipfox/api-agent@29.0.0
+  - @shipfox/api-logs@29.0.0
+  - @shipfox/api-secrets@29.0.0
+  - @shipfox/api-usage@29.0.0
+  - @shipfox/api-workspaces@29.0.0
+  - @shipfox/node-module@1.1.2
+  - @shipfox/api-triggers-dto@29.0.0
+  - @shipfox/api-email-challenges@1.1.20
+  - @shipfox/api-definitions-dto@29.0.0
+  - @shipfox/api-dispatcher@29.0.0
+
 ## 28.0.0
 
 ### Patch Changes

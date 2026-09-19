@@ -1,5 +1,11 @@
 # @shipfox/api-logs-dto
 
+## 29.0.0
+
+### Minor Changes
+
+- 8e74f71: Adds read-only Shipfox tools for bounded step logs and paged run annotations.
+
 ## 26.1.0
 
 ### Minor Changes
