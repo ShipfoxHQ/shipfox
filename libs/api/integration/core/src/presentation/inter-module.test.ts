@@ -1173,6 +1173,9 @@ describe('integrations inter-module callTool', () => {
       deduplicated: false,
     });
     const provider = createShipfoxAgentToolsProvider({
+      annotations: {
+        listAnnotationsForRunAttempt: vi.fn(),
+      },
       definitions: {
         getDefinitionByConfigPath: vi.fn().mockResolvedValue({
           definitionId: crypto.randomUUID(),
@@ -1185,12 +1188,16 @@ describe('integrations inter-module callTool', () => {
         listProjectsByWorkspace: vi.fn(),
         requireProjectForWorkspace: vi.fn(),
       },
+      logs: {readStepLogTail: vi.fn()},
       triggers: {fireManualTrigger: trigger},
       workflows: {
         listWorkflowRuns: vi.fn(),
         listWorkflowRunJobs: vi.fn(),
         getWorkflowJobDetail: vi.fn(),
+        getLatestRunAttempt: vi.fn(),
         getWorkflowRunOverview: vi.fn().mockResolvedValue({run: {number: 7}}),
+        getWorkflowStepAttemptDetail: vi.fn(),
+        listFailedStepAttempts: vi.fn(),
       },
     });
     const transport = createInMemoryInterModuleTransport();

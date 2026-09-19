@@ -3791,12 +3791,18 @@ importers:
 
   libs/api/integration/shipfox:
     dependencies:
+      '@shipfox/annotations-dto':
+        specifier: workspace:*
+        version: link:../../annotations-dto
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../definitions-dto
       '@shipfox/api-integration-spi':
         specifier: workspace:*
         version: link:../spi
+      '@shipfox/api-logs-dto':
+        specifier: workspace:*
+        version: link:../../logs-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../../projects-dto

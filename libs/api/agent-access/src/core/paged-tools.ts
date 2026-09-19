@@ -1,6 +1,6 @@
+import {ANNOTATION_READ_BODY_MAX_BYTES, truncateAnnotationBody} from '@shipfox/annotations-dto';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {
-  AGENT_ACCESS_ANNOTATION_BODY_MAX_BYTES,
   AGENT_ACCESS_CONNECTION_NAME_MAX_BYTES,
   AGENT_ACCESS_DIAGNOSTIC_CODE_MAX_BYTES,
   AGENT_ACCESS_DIAGNOSTIC_MAX_ITEMS,
@@ -58,7 +58,6 @@ import {
   optionalField,
   parseInput,
   reducePage,
-  truncateAgentAccessUtf8,
 } from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
 import {createAgentAccessWorkflowTools} from './workflow-tools.js';
@@ -528,7 +527,7 @@ function toAnnotationResult(annotation: {
   createdAt: string;
   body: string;
 }) {
-  const body = truncateAgentAccessUtf8(annotation.body, AGENT_ACCESS_ANNOTATION_BODY_MAX_BYTES);
+  const body = truncateAnnotationBody(annotation.body, ANNOTATION_READ_BODY_MAX_BYTES);
   return {
     id: annotation.id,
     origin_step_id: annotation.origin_step_id,
