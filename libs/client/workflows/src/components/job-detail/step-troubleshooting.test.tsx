@@ -140,7 +140,7 @@ describe('StepInspectorSheet', () => {
       title: 'Runner stopped responding',
       description: 'The runner stopped responding before the step completed.',
     },
-  ] as const)('distinguishes the $reason job failure', async ({reason, title, description}) => {
+  ] as const)('distinguishes the $reason failure', async ({reason, title, description}) => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
 
