@@ -104,8 +104,6 @@ jobs:
       requireProcessed: true,
       description: `the replay source push for ${repo}`,
     });
-    const initialEventIds = await listEventIds(client);
-    expect(initialEventIds).toContain(sourceEvent.id);
 
     const invalid = await callTool(client, 'create_dev_run', {
       project_id: seeded.project.id,
@@ -138,9 +136,10 @@ jobs:
     );
 
     const beforeDryRun = await getRuns(client, seeded.project.id);
-    const beforeDryRunEvents = await listEventIds(client);
+    const sourceEventAfterInvalid = await getTriggerEvent(client, sourceEvent.id);
     expect(beforeDryRun).toHaveLength(0);
-    expect(beforeDryRunEvents).toEqual(initialEventIds);
+    expect(sourceEventAfterInvalid.replays).toEqual([]);
+    expect(sourceEventAfterInvalid.replays_total_count).toBe(0);
 
     const dryRun = await callTool(client, 'create_dev_run', {
       project_id: seeded.project.id,
@@ -164,7 +163,9 @@ jobs:
       }),
     );
     expect(await getRuns(client, seeded.project.id)).toHaveLength(0);
-    expect(await listEventIds(client)).toEqual(initialEventIds);
+    const sourceEventAfterDryRun = await getTriggerEvent(client, sourceEvent.id);
+    expect(sourceEventAfterDryRun.replays).toEqual([]);
+    expect(sourceEventAfterDryRun.replays_total_count).toBe(0);
 
     const realRun = await callTool(client, 'create_dev_run', {
       project_id: seeded.project.id,
@@ -181,6 +182,10 @@ jobs:
     if (!('run_id' in realRunResult)) throw new Error('Real local run did not return a run id');
     expect(realRunResult.ref).toBe(dryRunResult.ref);
     expect(realRunResult.commit).toBe(dryRunResult.commit);
+    expect(await getTriggerEvent(client, sourceEvent.id)).toMatchObject({
+      replays: [{workflow_run_id: realRunResult.run_id}],
+      replays_total_count: 1,
+    });
 
     const run = await getRun(client, realRunResult.run_id);
     expect(run).toMatchObject({
@@ -234,7 +239,7 @@ jobs:
       from: secondEventFrom,
       requireProcessed: true,
       description: `the second live push for ${repo}`,
-      excludedIds: new Set(initialEventIds),
+      excludedIds: new Set([sourceEvent.id]),
     });
     expect(secondEvent.id).not.toBe(sourceEvent.id);
     await expectRunIdsToRemain(client, seeded.project.id, runIdsBeforeLiveEvent);
@@ -295,15 +300,6 @@ async function getTriggerEvent(client: Client, eventId: string) {
   const response = await callTool(client, 'get_trigger_event', {event_id: eventId});
   if (!response.envelope.ok) throw new Error('Trigger event lookup returned an MCP error');
   return getTriggerEventResultSchema.parse(response.envelope.result);
-}
-
-async function listEventIds(client: Client): Promise<string[]> {
-  const response = await callTool(client, 'list_trigger_events', {});
-  if (!response.envelope.ok) throw new Error('Trigger event list returned an MCP error');
-  return listTriggerEventsResultSchema
-    .parse(response.envelope.result)
-    .trigger_events.map(({id}) => id)
-    .sort();
 }
 
 async function waitForIntegrationEvent(params: {
