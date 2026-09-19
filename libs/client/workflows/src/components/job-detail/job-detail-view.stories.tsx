@@ -30,6 +30,7 @@ import type {RunAnnotationSummary} from '#core/run-annotation.js';
 import type {
   Job,
   JobExecution,
+  JobStatusReason,
   Step,
   StepAttemptDetail,
   WorkflowJobDetail,
@@ -104,7 +105,20 @@ interface JobDetailStoryArgs {
   selectedExecutionId?: string | undefined;
   search?: Parameters<typeof JobDetailView>[0]['search'];
   stepDetails?: readonly StepAttemptDetail[];
+  runnerLossReason?: RunnerLossReason;
 }
+
+type RunnerLossReason = Extract<
+  JobStatusReason,
+  'lease_expired' | 'provider_lost' | 'lifecycle_violation' | 'runner_lost'
+>;
+
+const RUNNER_LOSS_REASONS: readonly RunnerLossReason[] = [
+  'lease_expired',
+  'provider_lost',
+  'lifecycle_violation',
+  'runner_lost',
+];
 
 type JobDetailQuery = ReturnType<typeof useWorkflowJobDetailQuery>;
 
@@ -121,6 +135,12 @@ const meta = {
   title: 'Workflows/JobDetail',
   parameters: {
     layout: 'fullscreen',
+  },
+  args: {
+    runnerLossReason: 'lease_expired',
+  },
+  argTypes: {
+    runnerLossReason: {control: 'select', options: RUNNER_LOSS_REASONS},
   },
 } satisfies Meta<JobDetailStoryArgs>;
 
@@ -201,6 +221,13 @@ export const TimedOutBeforeStep: Story = {
   render: () => {
     const {run, timeoutJobId} = failureRun();
     return <JobDetailStoryFrame run={run} jobId={timeoutJobId} />;
+  },
+};
+
+export const RunnerLossBeforeStep: Story = {
+  render: ({runnerLossReason = 'lease_expired'}) => {
+    const {run, jobId} = runnerLossRun(runnerLossReason);
+    return <JobDetailStoryFrame run={run} jobId={jobId} />;
   },
 };
 
@@ -908,6 +935,32 @@ function failureRun() {
     commandAttemptId,
     stepDetails,
   };
+}
+
+function runnerLossRun(reason: RunnerLossReason) {
+  const jobId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee8';
+  const executionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9';
+  const job = workflowJob({
+    id: jobId,
+    key: 'verify',
+    name: 'verify',
+    status: 'failed',
+    status_reason: reason,
+    runner: ['runner-linux-x64'],
+    position: 0,
+    job_executions: [
+      workflowJobExecutionDto({
+        id: executionId,
+        job_id: jobId,
+        status: 'failed',
+        status_reason: reason,
+        runner: ['runner-linux-x64'],
+        steps: [],
+      }),
+    ],
+  });
+
+  return {run: storyRun({status: 'failed', jobs: [job]}), jobId};
 }
 
 function inspectionRun() {

@@ -384,6 +384,7 @@ export function JobDetailView({
                         renderInspector={(entry) => (
                           <StepInspectorSheet
                             entry={entry}
+                            jobStatusReason={selectedJobExecution.statusReason ?? job.statusReason}
                             open
                             onOpenChange={(open) => onInspectorOpenChange(open ? entry.id : null)}
                             workspaceSlug={workspaceSlug}

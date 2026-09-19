@@ -1,4 +1,4 @@
-import type {Step} from '#core/workflow-run.js';
+import type {Job, Step} from '#core/workflow-run.js';
 import {
   workflowJob,
   workflowJobExecutionDto,
@@ -131,6 +131,62 @@ describe('skippedJobDescription', () => {
     expect(skippedJobDescription('output_too_large')).toBe(
       'The materialized job output exceeded its configured size limit.',
     );
+  });
+});
+
+describe('runner-loss failure descriptions', () => {
+  test.each([
+    {
+      reason: 'run_cancelled',
+      description:
+        'The run was cancelled before work began. Start a new run if you still need the result.',
+    },
+    {
+      reason: 'timed_out',
+      description:
+        'The job timed out before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+    },
+    {
+      reason: 'lease_expired',
+      description:
+        'Shipfox lost contact with the runner before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+    },
+    {
+      reason: 'provider_lost',
+      description:
+        'The runner became unavailable before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+    },
+    {
+      reason: 'lifecycle_violation',
+      description:
+        'The runner stopped unexpectedly before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+    },
+    {
+      reason: 'runner_lost',
+      description:
+        'The runner stopped responding before work began. Try the workflow again. If the problem continues, contact your workspace administrator.',
+    },
+  ] satisfies Array<{
+    reason: NonNullable<Job['statusReason']>;
+    description: string;
+  }>)('distinguishes $reason before the first step', ({reason, description}) => {
+    const job = workflowJob({
+      status: 'failed',
+      status_reason: reason,
+      runner: ['runner-linux-x64'],
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'failed',
+          status_reason: reason,
+          runner: ['runner-linux-x64'],
+          steps: [],
+        }),
+      ],
+    });
+    const execution = job.jobExecutions[0];
+    if (!execution) throw new Error('Expected a job execution');
+
+    expect(emptyStateForJob(job, execution)).toMatchObject({description});
   });
 });
 
