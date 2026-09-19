@@ -151,6 +151,9 @@ export class ShipfoxAgentToolsProvider
     if (caller === undefined) {
       return toolError('Shipfox tools require workflow caller context', 'invalid-request');
     }
+    if (caller.callerKind === undefined) {
+      return toolError('Shipfox tools require callerKind in workflow caller context');
+    }
 
     const arguments_ = call.arguments;
     const projectId = stringArgument(arguments_, 'project_id') ?? caller.projectId;
@@ -279,17 +282,14 @@ function idempotencyKeyForCall(
   args: Record<string, unknown>,
   caller: NonNullable<OpenAgentToolsSessionInput['caller']>,
 ): string {
-  const isAgentCall =
-    caller.callerKind === 'agent' ||
-    (caller.callerKind === undefined && args.idempotency_key !== undefined);
-  if (isAgentCall) {
+  if (caller.callerKind === 'agent') {
     const suppliedKey = stringArgument(args, 'idempotency_key');
     return suppliedKey === undefined ? randomUUID() : `${caller.runId}:${suppliedKey}`;
   }
 
   // The deterministic tool-step path does not include callIndex, so retries of
-  // one step attempt reuse the key while a rerun receives a new step attempt.
-  return `${caller.stepId}:${caller.stepAttempt}`;
+  // one step attempt reuse the key while separate parent runs cannot collide.
+  return `${caller.runId}:${caller.stepId}:${caller.stepAttempt}`;
 }
 
 function mappedToolError(code: string, message: string, details: unknown): ShipfoxToolCallResult {

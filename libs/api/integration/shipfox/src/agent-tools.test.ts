@@ -118,7 +118,7 @@ describe('Shipfox agent tools', () => {
       workspaceId,
       definitionId,
       parentRun: {runId: parentRunId},
-      idempotencyKey: 'start-child:2',
+      idempotencyKey: `${parentRunId}:start-child:2`,
     });
     expect(workflows.getWorkflowRunOverview).toHaveBeenCalledWith({
       workspaceId,
@@ -247,6 +247,24 @@ describe('Shipfox agent tools', () => {
     expect(triggers.fireManualTrigger.mock.calls[0]?.[0].idempotencyKey).not.toBe(
       `${parentRunId}:same-child`,
     );
+  });
+
+  it('rejects a caller without a caller kind', async () => {
+    const {definitions, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller({callerKind: undefined}),
+    });
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml'},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
   });
 
   it('rejects inputs above the UTF-8 byte limit before resolving the definition', async () => {

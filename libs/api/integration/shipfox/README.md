@@ -43,6 +43,7 @@ const session = await provider.openSession({
   tools: provider.catalog(),
   scope: {},
   caller: {
+    callerKind: 'tool_step',
     workspaceId,
     projectId,
     runId,
@@ -58,6 +59,8 @@ const result = await session.call({
 });
 await session.close?.();
 ```
+
+`callerKind` is required. Use `tool_step` for workflow tool execution and `agent` for agent leases.
 
 The target workflow must have a synced `manual` trigger. The call returns after the child run exists and does not wait for completion. Inputs are stored in clear on the child run, so they must not contain secrets.
 
