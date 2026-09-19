@@ -31,7 +31,9 @@ export function boundStepLogContent(
     const separatorBytes = selected.length > 0 || hasTrailingNewline ? 1 : 0;
     const lineBytes = utf8Encoder.encode(line).byteLength;
     if (selectedBytes + separatorBytes + lineBytes > maxBytes) {
-      if (selected.length === 0) selected.push(utf8Suffix(line, maxBytes - separatorBytes));
+      if (selected.length === 0 && maxBytes >= separatorBytes) {
+        selected.push(utf8Suffix(line, maxBytes - separatorBytes));
+      }
       break;
     }
     selected.push(line);
