@@ -1,7 +1,6 @@
-import type {RunnerToolCapabilitiesDto} from '@shipfox/api-runners-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {index, jsonb, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {index, pgEnum, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {RunnerInstance} from '#core/entities/runner-instance.js';
 import {pgTable} from './common.js';
 
@@ -54,7 +53,6 @@ export const providerRunners = pgTable(
     firstClaimedAt: timestamp('first_claimed_at', {withTimezone: true}),
     providerKind: text('provider_kind'),
     protocolVersion: text('protocol_version'),
-    capabilities: jsonb('capabilities').$type<RunnerToolCapabilitiesDto | null>(),
     reportedAt: timestamp('reported_at', {withTimezone: true}).notNull(),
     startedAt: timestamp('started_at', {withTimezone: true}),
     stoppingAt: timestamp('stopping_at', {withTimezone: true}),
