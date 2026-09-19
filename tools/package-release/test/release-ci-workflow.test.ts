@@ -11,6 +11,8 @@ const pullRequestBaseExpression =
   '${{' + " github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}";
 const pullRequestRequiredExpression =
   '${{' + " github.event_name == 'pull_request' && needs.release-mode.outputs.mode != 'normal' }}";
+const e2eRunCondition =
+  "always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')";
 
 function readWorkflow() {
   return readFile(workflowPath, 'utf8');
@@ -120,6 +122,7 @@ describe('generated release CI path', () => {
 
     assert.equal(e2eCheck.name, 'E2E tests');
     assert.ok(e2eCheck.needs.includes('e2e-suite'));
-    assert.equal(e2eCheck.if, e2eSuites.if);
+    assert.equal(e2eCheck.if, e2eRunCondition);
+    assert.equal(e2eSuites.if, e2eRunCondition);
   });
 });
