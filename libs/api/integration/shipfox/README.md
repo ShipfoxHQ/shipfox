@@ -4,10 +4,10 @@ The `@shipfox/api-integration-shipfox` package provides the built-in Shipfox wor
 
 ## What it does
 
-- **`ShipfoxAgentToolsProvider`** starts a synced workflow from a workflow tool call.
-- **`shipfoxAgentToolCatalog`** describes the `start_workflow_run` tool for workflow definitions and documentation generation.
+- **`ShipfoxAgentToolsProvider`** starts workflows and reads projects, workflow definitions, and workflow runs.
+- **`shipfoxAgentToolCatalog`** describes the five current Shipfox tools for workflow definitions and documentation generation.
 - **`shipfoxAgentToolSelectionCatalog`** exposes the standalone tool selector.
-- **`createShipfoxAgentToolsProvider`** creates a provider with definitions, triggers, and workflow clients.
+- **`createShipfoxAgentToolsProvider`** creates a provider with projects, definitions, triggers, and workflow clients.
 
 The provider uses the caller workspace and starts the child with the caller run as its parent. It has no connection row, database, or secrets.
 
@@ -23,7 +23,7 @@ Add the package to an integration composition package:
 }
 ```
 
-Pass the definitions, triggers, and workflows inter-module clients when creating the provider.
+Pass the projects, definitions, triggers, and workflows inter-module clients when creating the provider.
 
 ## Usage
 
@@ -34,6 +34,7 @@ import {
 
 const provider = createShipfoxAgentToolsProvider({
   definitions,
+  projects,
   triggers,
   workflows,
 });

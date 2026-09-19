@@ -1179,9 +1179,17 @@ describe('integrations inter-module callTool', () => {
           workflowId: crypto.randomUUID(),
           name: 'Child workflow',
         }),
+        listDefinitionsByProject: vi.fn(),
+      },
+      projects: {
+        listProjectsByWorkspace: vi.fn(),
+        requireProjectForWorkspace: vi.fn(),
       },
       triggers: {fireManualTrigger: trigger},
       workflows: {
+        listWorkflowRuns: vi.fn(),
+        listWorkflowRunJobs: vi.fn(),
+        getWorkflowJobDetail: vi.fn(),
         getWorkflowRunOverview: vi.fn().mockResolvedValue({run: {number: 7}}),
       },
     });
