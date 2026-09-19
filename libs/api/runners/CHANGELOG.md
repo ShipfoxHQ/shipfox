@@ -1,5 +1,20 @@
 # @shipfox/api-runners
 
+## 28.0.0
+
+### Major Changes
+
+- 48ec879: Removes `reportFresh` from runner capability results. Job claims and workflow warnings now use the stored session manifest without freshness checks.
+
+### Patch Changes
+
+- Updated dependencies [48ec879]
+- Updated dependencies [e8f0212]
+- Updated dependencies [d62e17e]
+- Updated dependencies [7067bc3]
+  - @shipfox/api-runners-dto@28.0.0
+  - @shipfox/api-workflows-dto@28.0.0
+
 ## 27.2.0
 
 ### Patch Changes

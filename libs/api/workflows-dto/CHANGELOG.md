@@ -1,5 +1,16 @@
 # @shipfox/api-workflows-dto
 
+## 28.0.0
+
+### Minor Changes
+
+- e8f0212: Adds the confirm_concurrency_impact request field and the concurrency-impact response with affected attempts and planned effects for workflow reruns.
+- 7067bc3: Shows which workflow run started a child run in the run list and overview.
+
+### Patch Changes
+
+- d62e17e: Repairs drifted workflow concurrency state: releases claims left by finished runs, promotes waiting runs, cancels superseded attempts, and restarts orchestrations that never started.
+
 ## 27.2.0
 
 ### Minor Changes

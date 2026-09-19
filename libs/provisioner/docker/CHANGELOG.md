@@ -1,5 +1,13 @@
 # @shipfox/provisioner-docker-provider
 
+## 2.0.28
+
+### Patch Changes
+
+- Updated dependencies [48ec879]
+  - @shipfox/api-runners-dto@28.0.0
+  - @shipfox/provisioner-core@1.2.21
+
 ## 2.0.27
 
 ### Patch Changes

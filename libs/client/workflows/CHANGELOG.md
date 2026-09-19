@@ -1,5 +1,23 @@
 # @shipfox/client-workflows
 
+## 48.0.0
+
+### Minor Changes
+
+- 7067bc3: Shows which workflow run started a child run in the run list and overview.
+
+### Patch Changes
+
+- Updated dependencies [16b21f3]
+- Updated dependencies [6338cc4]
+- Updated dependencies [e8f0212]
+- Updated dependencies [d62e17e]
+- Updated dependencies [7067bc3]
+- Updated dependencies [c2f1aab]
+  - @shipfox/api-triggers-dto@28.0.0
+  - @shipfox/api-workflows-dto@28.0.0
+  - @shipfox/client-triggers@48.0.0
+
 ## 47.0.0
 
 ### Minor Changes
