@@ -153,12 +153,12 @@ export interface DevRunCheckResult {
 
 export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunCheckResult> {
   const {resolved, built, definitionSource, resolvedRef} = await prepareDevRun(params);
+  recordDevRunMetric(built.triggerKind, 'dry-run', definitionSource);
 
   if (built.kind === 'filtered' || built.kind === 'filter-error') {
     throw new DevRunTriggerFilteredError(built.reason);
   }
 
-  recordDevRunMetric(built.triggerKind, 'dry-run', definitionSource);
   return {
     checkPassed: true,
     triggerKind: built.triggerKind,

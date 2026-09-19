@@ -183,6 +183,12 @@ describe('checkDevRun', () => {
     expect(startDevRun).not.toHaveBeenCalled();
     expect(await devEventsForWorkspace(params.workspaceId)).toHaveLength(0);
     expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(1);
+    expect(devRunsCount.add).toHaveBeenCalledTimes(1);
+    expect(devRunsCount.add).toHaveBeenCalledWith(1, {
+      trigger_kind: 'replay',
+      outcome: 'dry-run',
+      definition_source: 'ref',
+    });
   });
 });
 
