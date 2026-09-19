@@ -2,4 +2,4 @@
 "@shipfox/api-runners": patch
 ---
 
-Preserves runner capability eligibility when runners become idle.
+Removes the obsolete runner capability-report timestamps and the duplicate provider-runner capability column.
