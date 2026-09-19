@@ -297,16 +297,7 @@ describe('api-client auth contexts', () => {
     expect(response.lease_token).toBe('lease-next');
     expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
     expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
-  });
-
-  it('heartbeat sends runner tool capabilities when provided', async () => {
-    stubFetch(() => jsonResponse({cancel: false, lease_token: 'lease-next'}));
-
-    await heartbeat(JOB_ID, 'lease-heartbeat', {capabilities: TOOL_CAPABILITIES});
-
-    expect(calls[0]?.url).toContain(`runners/jobs/${JOB_ID}/heartbeat`);
-    expect(calls[0]?.authorization).toBe('Bearer lease-heartbeat');
-    expect(JSON.parse(calls[0]?.body ?? '{}')).toEqual({capabilities: TOOL_CAPABILITIES});
+    expect(calls[0]?.body).toBeUndefined();
   });
 
   it('requestNextStep sends the lease token, not the runner registration token', async () => {

@@ -5,7 +5,6 @@ import {
   type RunnerJobStopReasonDto,
   type RunnerLifecycleCapabilitiesDto,
   type RunnersEventMap,
-  type RunnerToolCapabilitiesDto,
 } from '@shipfox/api-runners-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {writeOutboxEvent, writeOutboxEvents} from '@shipfox/node-outbox';
@@ -1537,12 +1536,9 @@ export async function getJobLeaseState(params: {
 export async function recordHeartbeat(params: {
   jobExecutionId: string;
   runnerSessionId: string;
-  toolCapabilities?: RunnerToolCapabilitiesDto | null;
 }): Promise<{
   cancellationRequested: boolean;
   cancellationReason: RunnerJobStopReasonDto | null;
-  previousToolCapabilities: RunnerToolCapabilitiesDto | null;
-  currentToolCapabilities: RunnerToolCapabilitiesDto | null;
   runningJobExecution: {
     workflowRunId: string;
     workflowRunAttemptId: string;
@@ -1554,11 +1550,10 @@ export async function recordHeartbeat(params: {
   };
 }> {
   const result = await db().transaction(async (tx) => {
-    // Claims and lease expiry lock the session before they touch running rows. Keep heartbeat
-    // acquisition in that order so a reaper cannot wait on a running row held by a heartbeat that
-    // is waiting for the same session lock.
-    const [previous] = await tx
-      .select({toolCapabilities: runnerSessions.toolCapabilities})
+    // Claims, lease expiry, and terminal reconciliation lock the session before running rows.
+    // Preserve that order so cancellation or deletion wins before a racing heartbeat renews.
+    await tx
+      .select({id: runnerSessions.id})
       .from(runnerSessions)
       .where(eq(runnerSessions.id, params.runnerSessionId))
       .limit(1)
@@ -1613,21 +1608,7 @@ export async function recordHeartbeat(params: {
         );
     }
 
-    const [session] = await tx
-      .update(runnerSessions)
-      .set({
-        toolCapabilities: params.toolCapabilities ?? null,
-        toolCapabilitiesReportedAt: params.toolCapabilities ? sql`now()` : null,
-        updatedAt: sql`now()`,
-      })
-      .where(eq(runnerSessions.id, params.runnerSessionId))
-      .returning({toolCapabilities: runnerSessions.toolCapabilities});
-
-    return {
-      row,
-      previousToolCapabilities: previous?.toolCapabilities ?? null,
-      currentToolCapabilities: session?.toolCapabilities ?? null,
-    };
+    return {row};
   });
 
   const row = result.row;
@@ -1635,8 +1616,6 @@ export async function recordHeartbeat(params: {
   return {
     cancellationRequested: row.cancellationRequestedAt !== null,
     cancellationReason: row.cancellationReason,
-    previousToolCapabilities: result.previousToolCapabilities,
-    currentToolCapabilities: result.currentToolCapabilities,
     runningJobExecution: {
       workflowRunId: row.workflowRunId,
       workflowRunAttemptId: row.workflowRunAttemptId,

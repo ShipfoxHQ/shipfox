@@ -281,7 +281,6 @@ describe('runJob', () => {
         intervalMs: 10_000,
         maxStaleMs: 10_000,
         isolationTimeoutSeconds: 300,
-        getToolCapabilities: runnerToolCapabilities,
       }),
     );
     const leaseTokenSource = mockCreateLeaseClient.mock.calls[0]?.[0];

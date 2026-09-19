@@ -23,7 +23,6 @@ import {
   type ClaimedJobResponseDto,
   claimedJobResponseSchema,
   type HeartbeatResponseDto,
-  heartbeatBodySchema,
   heartbeatResponseSchema,
   type RegisterRunnerResponseDto,
   RUNNER_ASSIGNMENT_POLL_DEFAULT_WAIT_SECONDS,
@@ -858,19 +857,11 @@ export async function writeStepAnnotations(
 export async function heartbeat(
   jobId: string,
   leaseToken: string,
-  options: {signal?: AbortSignal; capabilities?: RunnerToolCapabilitiesDto} = {},
+  options: {signal?: AbortSignal} = {},
 ): Promise<HeartbeatResponseDto> {
-  const body =
-    options.capabilities === undefined
-      ? undefined
-      : heartbeatBodySchema.parse({capabilities: options.capabilities});
-  const requestOptions = {
-    ...(body ? {json: body} : {}),
-    ...(options.signal ? {signal: options.signal} : {}),
-  };
   const response = await createLeaseClient(leaseToken).post(
     `runners/jobs/${jobId}/heartbeat`,
-    Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+    options.signal ? {signal: options.signal} : undefined,
   );
   return heartbeatResponseSchema.parse(await response.json());
 }

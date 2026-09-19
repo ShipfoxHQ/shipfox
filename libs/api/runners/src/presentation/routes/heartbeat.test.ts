@@ -139,8 +139,13 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
   });
 
-  it('refreshes job heartbeat and runner capability report', async () => {
+  it('accepts legacy capabilities without changing the session manifest', async () => {
     const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+    const reportedAt = new Date('2026-01-01T00:00:00.000Z');
+    await db()
+      .update(runnerSessions)
+      .set({toolCapabilities: partialCapabilities, toolCapabilitiesReportedAt: reportedAt})
+      .where(eq(runnerSessions.id, runnerSessionId));
 
     const res = await app.inject({
       method: 'POST',
@@ -159,18 +164,16 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       .from(runnerSessions)
       .where(eq(runnerSessions.id, runnerSessionId));
     expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
-    expect(session?.toolCapabilities).toEqual(fullCapabilities);
-    expect(session?.toolCapabilitiesReportedAt).toBeInstanceOf(Date);
+    expect(session?.toolCapabilities).toEqual(partialCapabilities);
+    expect(session?.toolCapabilitiesReportedAt).toEqual(reportedAt);
   });
 
-  it('clears the stored capability report when heartbeat omits capabilities', async () => {
-    const {jobId, leaseToken} = await claimAvailableJob();
+  it('renews without a payload and preserves the session manifest', async () => {
+    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
+    const reportedAt = new Date('2026-01-01T00:00:00.000Z');
     await db()
       .update(runnerSessions)
-      .set({
-        toolCapabilities: partialCapabilities,
-        toolCapabilitiesReportedAt: new Date('2026-01-01T00:00:00.000Z'),
-      })
+      .set({toolCapabilities: partialCapabilities, toolCapabilitiesReportedAt: reportedAt})
       .where(eq(runnerSessions.id, runnerSessionId));
 
     const res = await app.inject({
@@ -180,37 +183,8 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const [session] = await db()
-      .select()
-      .from(runnerSessions)
-      .where(eq(runnerSessions.id, runnerSessionId));
-    expect(session?.toolCapabilities).toBeNull();
-    expect(session?.toolCapabilitiesReportedAt).toBeNull();
-  });
-
-  it('rejects malformed capability reports without liveness or capability side effects', async () => {
-    const {jobId, jobExecutionId, leaseToken} = await claimAvailableJob();
-    await db()
-      .update(runnerSessions)
-      .set({
-        toolCapabilities: partialCapabilities,
-        toolCapabilitiesReportedAt: new Date('2026-01-01T00:00:00.000Z'),
-      })
-      .where(eq(runnerSessions.id, runnerSessionId));
-    const [beforeRunning] = await db()
-      .select()
-      .from(runningJobExecutions)
-      .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
-
-    const res = await app.inject({
-      method: 'POST',
-      url: `/runners/jobs/${jobId}/heartbeat`,
-      headers: {authorization: `Bearer ${leaseToken}`},
-      payload: {capabilities: {harnesses: {pi: {tools: ['read', 'read']}}}},
-    });
-
-    expect(res.statusCode).toBe(400);
-    const [afterRunning] = await db()
+    expect(res.json()).toMatchObject({cancel: false, lease_token: expect.any(String)});
+    const [running] = await db()
       .select()
       .from(runningJobExecutions)
       .where(eq(runningJobExecutions.jobExecutionId, jobExecutionId));
@@ -218,10 +192,9 @@ describe('POST /runners/jobs/:jobId/heartbeat', () => {
       .select()
       .from(runnerSessions)
       .where(eq(runnerSessions.id, runnerSessionId));
-    expect(afterRunning?.firstHeartbeatAt).toEqual(beforeRunning?.firstHeartbeatAt);
-    expect(afterRunning?.lastHeartbeatAt).toEqual(beforeRunning?.lastHeartbeatAt);
+    expect(running?.firstHeartbeatAt).toBeInstanceOf(Date);
     expect(session?.toolCapabilities).toEqual(partialCapabilities);
-    expect(session?.toolCapabilitiesReportedAt).toEqual(new Date('2026-01-01T00:00:00.000Z'));
+    expect(session?.toolCapabilitiesReportedAt).toEqual(reportedAt);
   });
 
   it('returns 200 + cancel:true after reconcileTerminalJobExecution', async () => {
