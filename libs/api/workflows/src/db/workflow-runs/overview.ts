@@ -5,7 +5,7 @@ import {
   WORKFLOW_RUN_OVERVIEW_COMPLETE_JOB_LIMIT,
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
 } from '@shipfox/api-workflows-dto';
-import {and, asc, count, desc, eq, gt, inArray, ne, or, sql} from 'drizzle-orm';
+import {and, asc, count, desc, eq, gt, inArray, or, sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
 import {
   type JobMode,
@@ -238,17 +238,12 @@ export async function getWorkflowRunOverview(
         returnedRows += target === undefined ? 0 : 1;
         if (!target) return undefined;
 
-        const cardinality = await loadJobCardinality(tx, target.attempt.id);
-        returnedRows += cardinality.returnedRows;
-        const statusCountRows = await loadJobStatusCounts(tx, target.attempt.id);
-        returnedRows += statusCountRows.length;
-        const hasStartedRows = await loadStartedExecution(tx, target.attempt.id);
-        returnedRows += hasStartedRows.length;
+        const statistics = await loadJobStatistics(tx, target.attempt.id);
+        returnedRows += statistics.returnedRows;
 
-        const statusCounts = toJobStatusCounts(statusCountRows);
         const large =
-          cardinality.total > WORKFLOW_RUN_OVERVIEW_COMPLETE_JOB_LIMIT ||
-          cardinality.dependencyEdges > WORKFLOW_RUN_OVERVIEW_COMPLETE_EDGE_LIMIT;
+          statistics.total > WORKFLOW_RUN_OVERVIEW_COMPLETE_JOB_LIMIT ||
+          statistics.dependencyEdges > WORKFLOW_RUN_OVERVIEW_COMPLETE_EDGE_LIMIT;
         const jobRows = large
           ? await loadJobPageRows(tx, target.attempt.id, WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT)
           : {rows: await loadCompleteJobRows(tx, target.attempt.id), nextCursor: null};
@@ -265,22 +260,22 @@ export async function getWorkflowRunOverview(
         return {
           run: target.run,
           attempt: target.attempt,
-          hasStartedJobExecution: hasStartedRows.length > 0,
+          hasStartedJobExecution: statistics.hasStartedJobExecution,
           jobs: large
             ? {
                 kind: 'large' as const,
-                total: cardinality.total,
-                statusCounts,
+                total: statistics.total,
+                statusCounts: statistics.statusCounts,
                 firstPage: {
                   items: items.map(toJobListSummary),
                   nextCursor: jobRows.nextCursor,
-                  total: cardinality.total,
+                  total: statistics.total,
                 },
               }
             : {
                 kind: 'complete' as const,
-                total: cardinality.total,
-                statusCounts,
+                total: statistics.total,
+                statusCounts: statistics.statusCounts,
                 items,
               },
         };
@@ -495,21 +490,51 @@ async function loadOverviewTarget(
   };
 }
 
-async function loadJobCardinality(
+async function loadJobStatistics(
   tx: Tx,
   workflowRunAttemptId: string,
-): Promise<{total: number; dependencyEdges: number; returnedRows: number}> {
-  const [row] = await tx
+): Promise<{
+  total: number;
+  dependencyEdges: number;
+  hasStartedJobExecution: boolean;
+  statusCounts: WorkflowRunOverviewJobStatusCount[];
+  returnedRows: number;
+}> {
+  const hasStartedExecution = sql<boolean>`exists (
+    select 1
+    from ${jobExecutions}
+    where ${jobExecutions.jobId} = ${jobs.id}
+      and ${jobExecutions.startedAt} is not null
+  )`;
+  const rows = await tx
     .select({
-      total: count(),
+      status: jobs.status,
+      count: count(),
       dependencyEdges: sql<number>`coalesce(sum(jsonb_array_length(${jobs.dependencies})), 0)`,
+      hasStartedJobExecution: sql<boolean>`bool_or(${hasStartedExecution})`,
     })
     .from(jobs)
-    .where(eq(jobs.workflowRunAttemptId, workflowRunAttemptId));
+    .where(eq(jobs.workflowRunAttemptId, workflowRunAttemptId))
+    .groupBy(jobs.status)
+    .orderBy(asc(jobs.status));
+
+  let total = 0;
+  let dependencyEdges = 0;
+  let hasStartedJobExecution = false;
+  const statusCounts = rows.map((row) => {
+    const statusCount = Number(row.count);
+    total += statusCount;
+    dependencyEdges += Number(row.dependencyEdges);
+    hasStartedJobExecution ||= row.hasStartedJobExecution;
+    return {status: row.status, count: statusCount};
+  });
+
   return {
-    total: Number(row?.total ?? 0),
-    dependencyEdges: Number(row?.dependencyEdges ?? 0),
-    returnedRows: row ? 1 : 0,
+    total,
+    dependencyEdges,
+    hasStartedJobExecution,
+    statusCounts,
+    returnedRows: rows.length,
   };
 }
 
@@ -519,33 +544,6 @@ async function loadJobCount(tx: Tx, workflowRunAttemptId: string): Promise<numbe
     .from(jobs)
     .where(eq(jobs.workflowRunAttemptId, workflowRunAttemptId));
   return Number(row?.total ?? 0);
-}
-
-async function loadJobStatusCounts(
-  tx: Tx,
-  workflowRunAttemptId: string,
-): Promise<{status: JobStatus; count: number}[]> {
-  const rows = await tx
-    .select({status: jobs.status, count: count()})
-    .from(jobs)
-    .where(eq(jobs.workflowRunAttemptId, workflowRunAttemptId))
-    .groupBy(jobs.status)
-    .orderBy(asc(jobs.status));
-  return rows.map((row) => ({status: row.status, count: Number(row.count)}));
-}
-
-function loadStartedExecution(tx: Tx, workflowRunAttemptId: string) {
-  return tx
-    .select({id: jobExecutions.id})
-    .from(jobExecutions)
-    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .where(
-      and(
-        eq(jobs.workflowRunAttemptId, workflowRunAttemptId),
-        sql`${jobExecutions.startedAt} is not null`,
-      ),
-    )
-    .limit(1);
 }
 
 interface WorkflowRunJobRow {
@@ -629,10 +627,6 @@ async function loadJobPageRows(
   };
 }
 
-interface JobExecutionProjection extends WorkflowRunJobExecutionSummaryRow {
-  jobId: string;
-}
-
 interface JobPresentation {
   executionStatusCounts: Map<string, Record<JobExecutionStatus, BoundedExecutionCount>>;
   executionCounts: Map<string, BoundedExecutionCount>;
@@ -654,50 +648,101 @@ async function loadJobPresentation(
     };
   }
 
-  const statusRows = await tx
-    .select({jobId: jobExecutions.jobId, status: jobExecutions.status, count: count()})
-    .from(jobExecutions)
-    .where(inArray(jobExecutions.jobId, [...jobIds]))
-    .groupBy(jobExecutions.jobId, jobExecutions.status);
-  const runningRows = await loadRunningExecutionRows(tx, workflowRunAttemptId, jobIds);
-  const latestRows = await loadLatestExecutionRows(tx, workflowRunAttemptId, jobIds);
+  const executionStatusCounts = tx.$with('execution_status_counts').as(
+    tx
+      .select({
+        jobId: jobExecutions.jobId,
+        status: jobExecutions.status,
+        count: count().as('count'),
+      })
+      .from(jobExecutions)
+      .where(inArray(jobExecutions.jobId, [...jobIds]))
+      .groupBy(jobExecutions.jobId, jobExecutions.status),
+  );
+  const selectedExecution = tx.$with('selected_execution').as(
+    tx
+      .selectDistinctOn([jobExecutions.jobId], {
+        jobId: jobExecutions.jobId,
+        id: jobExecutions.id,
+        sequence: jobExecutions.sequence,
+        name: sql<string | null>`${jobExecutions.name}`.as('execution_name'),
+        jobName: sql<string | null>`${jobs.name}`.as('job_name'),
+        jobKey: sql<string>`${jobs.key}`.as('job_key'),
+        status: jobExecutions.status,
+        statusReason: jobExecutions.statusReason,
+        statusReasonMessage: jobExecutions.statusReasonMessage,
+        queuedAt: jobExecutions.queuedAt,
+        startedAt: jobExecutions.startedAt,
+        finishedAt: jobExecutions.finishedAt,
+        timedOutAt: jobExecutions.timedOutAt,
+        updatedAt: jobExecutions.updatedAt,
+        hasRunningStep: runningStepExists(jobExecutions.id).as('has_running_step'),
+      })
+      .from(jobExecutions)
+      .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+      .where(
+        and(
+          eq(jobs.workflowRunAttemptId, workflowRunAttemptId),
+          inArray(jobExecutions.jobId, [...jobIds]),
+        ),
+      )
+      .orderBy(
+        asc(jobExecutions.jobId),
+        sql`case when ${jobExecutions.status} = 'running' then 0 else 1 end`,
+        desc(jobExecutions.sequence),
+        desc(jobExecutions.id),
+      ),
+  );
+  const rows = await tx
+    .with(executionStatusCounts, selectedExecution)
+    .select({
+      jobId: executionStatusCounts.jobId,
+      countedStatus: executionStatusCounts.status,
+      countedStatusTotal: executionStatusCounts.count,
+      id: selectedExecution.id,
+      sequence: selectedExecution.sequence,
+      name: selectedExecution.name,
+      jobName: selectedExecution.jobName,
+      jobKey: selectedExecution.jobKey,
+      status: selectedExecution.status,
+      statusReason: selectedExecution.statusReason,
+      statusReasonMessage: selectedExecution.statusReasonMessage,
+      queuedAt: selectedExecution.queuedAt,
+      startedAt: selectedExecution.startedAt,
+      finishedAt: selectedExecution.finishedAt,
+      timedOutAt: selectedExecution.timedOutAt,
+      updatedAt: selectedExecution.updatedAt,
+      hasRunningStep: selectedExecution.hasRunningStep,
+    })
+    .from(executionStatusCounts)
+    .innerJoin(selectedExecution, eq(selectedExecution.jobId, executionStatusCounts.jobId))
+    .orderBy(asc(executionStatusCounts.jobId), asc(executionStatusCounts.status));
 
-  const executionStatusCounts = new Map<
-    string,
-    Record<JobExecutionStatus, BoundedExecutionCount>
-  >();
+  const statusCountsByJob = new Map<string, Record<JobExecutionStatus, BoundedExecutionCount>>();
   const executionCounts = new Map<string, BoundedExecutionCount>();
   const exactTotals = new Map<string, number>();
-  for (const row of statusRows) {
-    const counts = executionStatusCounts.get(row.jobId) ?? createEmptyExecutionStatusCounts();
-    const current = counts[row.status];
-    const currentExact = typeof current === 'number' ? current : WORKFLOW_RUN_EXECUTION_COUNT_LIMIT;
-    const rowCount = Number(row.count);
-    counts[row.status] = boundedExecutionCount(currentExact + rowCount);
-    executionStatusCounts.set(row.jobId, counts);
+  const defaultExecutions = new Map<string, WorkflowRunJobExecutionSummary>();
+  for (const row of rows) {
+    const counts = statusCountsByJob.get(row.jobId) ?? createEmptyExecutionStatusCounts();
+    const rowCount = Number(row.countedStatusTotal);
+    counts[row.countedStatus] = boundedExecutionCount(rowCount);
+    statusCountsByJob.set(row.jobId, counts);
 
     const total = (exactTotals.get(row.jobId) ?? 0) + rowCount;
     exactTotals.set(row.jobId, total);
     executionCounts.set(row.jobId, boundedExecutionCount(total));
-  }
 
-  const defaultExecutions = new Map<string, WorkflowRunJobExecutionSummary>();
-  const runningByJob = new Map<string, JobExecutionProjection>();
-  for (const row of runningRows) {
-    if (!runningByJob.has(row.jobId)) runningByJob.set(row.jobId, row);
+    if (!defaultExecutions.has(row.jobId)) {
+      defaultExecutions.set(row.jobId, toExecutionSummary(row));
+    }
   }
-  const latestByJob = new Map(latestRows.map((row) => [row.jobId, row]));
-  for (const jobId of jobIds) {
-    const row = runningByJob.get(jobId) ?? latestByJob.get(jobId);
-    if (row) defaultExecutions.set(jobId, toExecutionSummary(row));
-  }
-  applyDisplayStatusAdjustments(executionStatusCounts, defaultExecutions, jobIds);
+  applyDisplayStatusAdjustments(statusCountsByJob, defaultExecutions, jobIds);
 
   return {
-    executionStatusCounts,
+    executionStatusCounts: statusCountsByJob,
     executionCounts,
     defaultExecutions,
-    returnedRows: statusRows.length + runningRows.length + latestRows.length,
+    returnedRows: rows.length,
   };
 }
 
@@ -729,75 +774,6 @@ export function runningStepExists(executionId: typeof jobExecutions.id) {
     where ${steps.jobExecutionId} = ${executionId}
       and ${steps.status} = 'running'
   )`;
-}
-
-function loadRunningExecutionRows(
-  tx: Tx,
-  workflowRunAttemptId: string,
-  jobIds: readonly string[],
-): Promise<JobExecutionProjection[]> {
-  return tx
-    .select({
-      jobId: jobExecutions.jobId,
-      id: jobExecutions.id,
-      sequence: jobExecutions.sequence,
-      name: jobExecutions.name,
-      jobName: jobs.name,
-      jobKey: jobs.key,
-      status: jobExecutions.status,
-      statusReason: jobExecutions.statusReason,
-      statusReasonMessage: jobExecutions.statusReasonMessage,
-      queuedAt: jobExecutions.queuedAt,
-      startedAt: jobExecutions.startedAt,
-      finishedAt: jobExecutions.finishedAt,
-      timedOutAt: jobExecutions.timedOutAt,
-      updatedAt: jobExecutions.updatedAt,
-      hasRunningStep: runningStepExists(jobExecutions.id),
-    })
-    .from(jobExecutions)
-    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .where(
-      and(
-        eq(jobs.workflowRunAttemptId, workflowRunAttemptId),
-        eq(jobExecutions.status, 'running'),
-        inArray(jobExecutions.jobId, [...jobIds]),
-      ),
-    )
-    .orderBy(asc(jobExecutions.jobId), desc(jobExecutions.sequence), desc(jobExecutions.id));
-}
-
-function loadLatestExecutionRows(
-  tx: Tx,
-  workflowRunAttemptId: string,
-  jobIds: readonly string[],
-): Promise<JobExecutionProjection[]> {
-  return tx
-    .selectDistinctOn([jobExecutions.jobId], {
-      jobId: jobExecutions.jobId,
-      id: jobExecutions.id,
-      sequence: jobExecutions.sequence,
-      name: jobExecutions.name,
-      jobName: jobs.name,
-      jobKey: jobs.key,
-      status: jobExecutions.status,
-      statusReason: jobExecutions.statusReason,
-      statusReasonMessage: jobExecutions.statusReasonMessage,
-      queuedAt: jobExecutions.queuedAt,
-      startedAt: jobExecutions.startedAt,
-      finishedAt: jobExecutions.finishedAt,
-      timedOutAt: jobExecutions.timedOutAt,
-      updatedAt: jobExecutions.updatedAt,
-    })
-    .from(jobExecutions)
-    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
-    .where(
-      and(
-        eq(jobs.workflowRunAttemptId, workflowRunAttemptId),
-        ne(jobExecutions.status, 'running'),
-        inArray(jobExecutions.jobId, [...jobIds]),
-      ),
-    )
-    .orderBy(asc(jobExecutions.jobId), desc(jobExecutions.sequence), desc(jobExecutions.id));
 }
 
 function assembleJobOverviewItems(
@@ -869,10 +845,4 @@ function decrementBoundedExecutionCount(value: BoundedExecutionCount): BoundedEx
 
 function incrementBoundedExecutionCount(value: BoundedExecutionCount): BoundedExecutionCount {
   return value === '100+' ? value : boundedExecutionCount(value + 1);
-}
-
-function toJobStatusCounts(
-  rows: readonly {status: JobStatus; count: number}[],
-): WorkflowRunOverviewJobStatusCount[] {
-  return rows.map(({status, count: value}) => ({status, count: value}));
 }

@@ -46,6 +46,7 @@ describe('bounded workflow run overview reads', () => {
     expect(overview?.jobs).toMatchObject({kind: 'complete', total: 2});
     if (overview?.jobs.kind !== 'complete') throw new Error('Expected complete overview');
     expect(overview.jobs.items).toHaveLength(2);
+    expect(overview.jobs.statusCounts).toEqual([{status: 'pending', count: 2}]);
     expect(overview.jobs.items.map((job) => job.key)).toEqual(['build', 'test']);
     expect(overview.jobs.items[1]?.dependencies).toEqual(['build']);
     expect(overview.jobs.items[0]).not.toHaveProperty('outputs');
