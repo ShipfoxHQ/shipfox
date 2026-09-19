@@ -645,7 +645,7 @@ describe('workspace setup route hook', () => {
     expect(screen.queryByText('Could not load workspace setup')).not.toBeInTheDocument();
   });
 
-  test('re-evaluates the guard on navigation between children without refetching fresh existence', async () => {
+  test('re-evaluates the guard on navigation between children without refetching fresh setup data', async () => {
     const fetchImpl = setupFetch({projects: [projectStub()]});
     const {router} = renderSetupRoute(`/w/${WORKSPACE_SLUG}`, fetchImpl);
 
@@ -659,6 +659,7 @@ describe('workspace setup route hook', () => {
     });
 
     expect(await screen.findByText('Settings integrations')).toBeInTheDocument();
+    expect(calledUrls(fetchImpl).filter((url) => url.endsWith('/workspaces'))).toHaveLength(1);
     expect(calledUrls(fetchImpl).filter((url) => url.includes('/projects?'))).toHaveLength(1);
   });
 

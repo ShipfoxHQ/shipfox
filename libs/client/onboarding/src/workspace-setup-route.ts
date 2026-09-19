@@ -18,6 +18,7 @@ import type {QueryClient} from '@tanstack/react-query';
 import {redirect} from '@tanstack/react-router';
 
 const TRAILING_SLASHES_RE = /\/+$/u;
+const WORKSPACE_SUMMARY_STALE_TIME_MS = 30_000;
 
 export type {WorkspaceSetupRouteOptions} from '@shipfox/client-shell/runtime';
 
@@ -115,8 +116,13 @@ function assertNever(value: never): never {
 }
 
 async function fetchWorkspaceSummary(queryClient: QueryClient, workspaceId: string) {
+  const options = {
+    ...userWorkspacesQueryOptions(),
+    staleTime: WORKSPACE_SUMMARY_STALE_TIME_MS,
+  };
+
   try {
-    const result = await queryClient.fetchQuery(userWorkspacesQueryOptions());
+    const result = await queryClient.fetchQuery(options);
     return result.memberships.find((workspace) => workspace.id === workspaceId);
   } catch (error) {
     throw new WorkspaceSetupLoadError(error);
