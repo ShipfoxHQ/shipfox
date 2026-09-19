@@ -1,8 +1,9 @@
 import {
-  argosScreenshot as upstreamArgosScreenshot,
   type ArgosScreenshotOptions,
+  argosScreenshot as upstreamArgosScreenshot,
 } from '@argos-ci/playwright';
 import type {Frame, Page} from '@playwright/test';
+import {test as upstreamTest} from '@playwright/test';
 
 export type {ArgosScreenshotOptions} from '@argos-ci/playwright';
 export {
@@ -14,8 +15,9 @@ export {
   type Page,
   type PlaywrightTestConfig,
   request,
-  test,
 } from '@playwright/test';
+
+export const test = upstreamTest;
 
 // `document.fonts.ready` resolves once every font face requested so far has
 // finished loading. Argos's built-in `waitForFonts` only checks
