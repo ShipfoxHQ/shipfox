@@ -8,4 +8,4 @@
 "@shipfox/node-drizzle": patch
 ---
 
-Preserves PostgreSQL timestamp precision across shared cursor pagination and its API consumers.
+Preserves full PostgreSQL timestamp precision in cursor pagination, so records are no longer skipped when their timestamps differ only at sub-millisecond precision.

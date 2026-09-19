@@ -97,7 +97,9 @@ export async function listTriggerEvents(
   });
 
   return {
-    events: page.pageRows.map(toTriggerReceivedEventSummary),
+    events: page.pageRows.map(({cursorReceivedAt: _cursorReceivedAt, ...row}) =>
+      toTriggerReceivedEventSummary(row),
+    ),
     nextCursor: page.nextCursor
       ? {receivedAt: page.nextCursor.createdAt, id: page.nextCursor.id}
       : null,
