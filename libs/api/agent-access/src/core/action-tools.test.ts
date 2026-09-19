@@ -31,6 +31,7 @@ function clients() {
   const triggers = {
     fireManualTrigger: vi.fn(),
     createDevRun: vi.fn(),
+    checkDevRun: vi.fn(),
   } as unknown as TriggersInterModuleClient;
   return {workflows, triggers, tools: createAgentAccessActionTools({workflows, triggers})};
 }
@@ -250,6 +251,82 @@ describe('agent-access action tools', () => {
         ref: 'main',
         commit: 'a'.repeat(40),
         warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
+      },
+    });
+  });
+
+  test('routes dry runs to the check command without creating a run', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.checkDevRun).mockResolvedValue({
+      checkPassed: true,
+      triggerKind: 'replay',
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    });
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        content: 'triggers: {}',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'on_pull_request',
+        replay_event_id: uuid(7),
+        dry_run: true,
+      },
+    });
+
+    expect(triggers.checkDevRun).toHaveBeenCalledWith({
+      workspaceId,
+      projectId,
+      content: 'triggers: {}',
+      configPath: '.shipfox/workflow.yml',
+      triggerKey: 'on_pull_request',
+      replayEventId: uuid(7),
+      userId,
+    });
+    expect(triggers.createDevRun).not.toHaveBeenCalled();
+    expect(response).toEqual({
+      ok: true,
+      result: {
+        dry_run: true,
+        check_passed: true,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: [],
+      },
+    });
+  });
+
+  test('maps filtered dry-run events through the shared producer error mapper', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.checkDevRun).mockRejectedValue(
+      createInterModuleKnownError(
+        triggersInterModuleContract.methods.checkDevRun,
+        'trigger-filtered',
+        {reason: 'The replayed event did not satisfy the trigger filter.'},
+      ),
+    );
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        ref: 'main',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'on_pull_request',
+        replay_event_id: uuid(7),
+        dry_run: true,
+      },
+    });
+
+    expect(triggers.createDevRun).not.toHaveBeenCalled();
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'trigger-filtered',
+        details: {reason: 'The replayed event did not satisfy the trigger filter.'},
       },
     });
   });

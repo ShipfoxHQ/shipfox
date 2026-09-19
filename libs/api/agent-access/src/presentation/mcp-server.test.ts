@@ -200,6 +200,63 @@ describe('buildAgentAccessMcpServer', () => {
     );
   });
 
+  test('audits dry-run mode separately from real dev runs', async () => {
+    const checkDevRun = vi.fn().mockResolvedValue({
+      checkPassed: true,
+      triggerKind: 'replay',
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    });
+    const triggers = {checkDevRun} as unknown as TriggersInterModuleClient;
+    const tools = createAgentAccessActionTools({
+      workflows: {} as unknown as WorkflowsModuleClient,
+      triggers,
+    });
+    const auth = {
+      checkAgentGrantAuthority: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AuthInterModuleClient;
+    const recordCall = vi.fn();
+    const {client, close} = await connectClient(
+      createAgentAccessRateLimiter(),
+      tools,
+      recordCall,
+      auth,
+    );
+
+    const result = await client.callTool(
+      {
+        name: 'create_dev_run',
+        arguments: {
+          project_id: '00000000-0000-4000-8000-000000000001',
+          ref: 'main',
+          config_path: '.shipfox/workflow.yml',
+          trigger: 'on_pull_request',
+          replay_event_id: '00000000-0000-4000-8000-000000000002',
+          dry_run: true,
+        },
+      },
+      CallToolResultSchema,
+    );
+    await close();
+
+    expect(result.structuredContent).toEqual({
+      ok: true,
+      result: {
+        dry_run: true,
+        check_passed: true,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: [],
+      },
+    });
+    expect(recordCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({dry_run: true}),
+      }),
+    );
+  });
+
   test('does not audit malformed content as unhashed local content', async () => {
     const createDevRun = vi.fn();
     const triggers = {createDevRun} as unknown as TriggersInterModuleClient;

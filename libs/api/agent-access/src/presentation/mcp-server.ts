@@ -400,6 +400,7 @@ function createActionAudit(
     ...(tool.name === 'create_dev_run'
       ? {
           definition_source: typeof input.content === 'string' ? 'local' : 'ref',
+          dry_run: input.dry_run === true,
           ...(typeof input.content === 'string'
             ? {content_hash: createHash('sha256').update(input.content, 'utf8').digest('hex')}
             : {}),

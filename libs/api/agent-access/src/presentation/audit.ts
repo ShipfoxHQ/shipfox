@@ -21,6 +21,7 @@ export interface AgentAccessActionAudit {
   idempotency_key: boolean;
   definition_source?: 'ref' | 'local' | undefined;
   content_hash?: string | undefined;
+  dry_run?: boolean | undefined;
   deduplicated?: boolean | undefined;
   result_run_id?: string | undefined;
   result_attempt?: number | undefined;

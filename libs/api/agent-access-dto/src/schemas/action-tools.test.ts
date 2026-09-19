@@ -75,6 +75,7 @@ describe('agent-access action tool schemas', () => {
     };
 
     expect(createDevRunInputSchema.safeParse(input).success).toBe(true);
+    expect(createDevRunInputSchema.parse(input).dry_run).toBe(false);
     expect(createDevRunInputJsonSchema.required).toEqual(['project_id', 'config_path', 'trigger']);
     expect(createDevRunInputJsonSchema.properties.content).toEqual({type: 'string'});
   });
@@ -106,6 +107,16 @@ describe('agent-access action tool schemas', () => {
     };
 
     expect(createDevRunResultSchema.safeParse(result).success).toBe(true);
+    expect(
+      createDevRunResultSchema.safeParse({
+        dry_run: true,
+        check_passed: true,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: [],
+      }).success,
+    ).toBe(true);
+    expect(createDevRunResultJsonSchema.required).toEqual(['commit']);
     expect(createDevRunResultJsonSchema.properties.warnings).toMatchObject({maxItems: 100});
   });
 
