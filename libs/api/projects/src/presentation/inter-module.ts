@@ -4,6 +4,7 @@ import {
   defineInterModulePresentation,
   type InterModulePresentation,
 } from '@shipfox/inter-module';
+import {createTimestampIdCursor, timestampIdCursorTimestamp} from '@shipfox/node-drizzle';
 import type {Project} from '#core/entities/project.js';
 import {
   findProjectBySourceRepositoryName,
@@ -107,14 +108,12 @@ async function listProjectPage(input: {
   return await listProjects({
     workspaceId: input.workspaceId,
     limit: input.limit,
-    ...(input.cursor
-      ? {cursor: {createdAt: new Date(input.cursor.createdAt), id: input.cursor.id}}
-      : {}),
+    ...(input.cursor ? {cursor: createTimestampIdCursor(input.cursor)} : {}),
   });
 }
 
 function toProjectCursor(cursor: {createdAt: Date; id: string} | null) {
-  return cursor ? {createdAt: cursor.createdAt.toISOString(), id: cursor.id} : null;
+  return cursor ? {createdAt: timestampIdCursorTimestamp(cursor), id: cursor.id} : null;
 }
 
 function toProjectRepositoryInterModule(repository: ProjectRepositoryListItem) {

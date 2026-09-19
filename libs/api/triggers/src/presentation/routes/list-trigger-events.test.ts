@@ -1,5 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
-import {encodeTimestampIdCursor} from '@shipfox/node-drizzle';
+import {decodeTimestampIdCursor} from '@shipfox/node-drizzle';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
@@ -375,9 +375,10 @@ describe('GET /trigger-events', () => {
     });
 
     expect(eventIds(page1)).toEqual([third.id, second.id]);
-    expect(page1.json().next_cursor).toBe(
-      encodeTimestampIdCursor({createdAt: second.receivedAt, id: second.id}),
-    );
+    expect(decodeTimestampIdCursor(page1.json().next_cursor)).toEqual({
+      createdAt: second.receivedAt,
+      id: second.id,
+    });
 
     const page2 = await app.inject({
       method: 'GET',

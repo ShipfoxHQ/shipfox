@@ -1,4 +1,9 @@
-import {type TimestampIdCursor, timestampIdCursorWhere} from '@shipfox/node-drizzle';
+import {
+  createTimestampIdCursor,
+  type TimestampIdCursor,
+  timestampIdCursorColumn,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
 import {canonicalizeLabels} from '@shipfox/runner-labels';
 import {
   and,
@@ -97,6 +102,7 @@ export async function listAdministratorRunnerInstances(
       failedAt: providerRunners.failedAt,
       terminatedAt: providerRunners.terminatedAt,
       createdAt: providerRunners.createdAt,
+      cursorCreatedAt: timestampIdCursorColumn(providerRunners.createdAt),
       provisionerId: provisionerTokens.id,
       provisionerName: provisionerTokens.name,
       provisionerLastSeenAt: provisionerTokens.lastSeenAt,
@@ -112,10 +118,13 @@ export async function listAdministratorRunnerInstances(
   const last = pageRows.at(-1);
 
   return {
-    runners: pageRows.map((row) => ({
+    runners: pageRows.map(({cursorCreatedAt: _cursorCreatedAt, ...row}) => ({
       ...row,
       hasActiveControlSession: Boolean(row.hasActiveControlSession),
     })),
-    nextCursor: hasMore && last ? {createdAt: last.createdAt, id: last.id} : null,
+    nextCursor:
+      hasMore && last
+        ? createTimestampIdCursor({createdAt: last.cursorCreatedAt, id: last.id})
+        : null,
   };
 }

@@ -1,5 +1,6 @@
 import {sql} from 'drizzle-orm';
 import {
+  createTimestampIdCursor,
   decodeNumberIdCursor,
   decodeStringIdCursor,
   decodeTimestampIdCursor,
@@ -7,6 +8,7 @@ import {
   encodeStringIdCursor,
   encodeTimestampIdCursor,
   paginateTimestampIdRows,
+  timestampIdCursorTimestamp,
   timestampIdCursorWhere,
 } from './cursor.js';
 
@@ -21,6 +23,19 @@ describe('timestamp cursors', () => {
     const decoded = decodeTimestampIdCursor(encodeTimestampIdCursor(cursor));
 
     expect(decoded).toEqual(cursor);
+  });
+
+  it('preserves PostgreSQL microsecond precision', () => {
+    const timestamp = '2026-07-12T12:00:00.000123Z';
+    const cursor = createTimestampIdCursor({createdAt: timestamp, id: 'run-1'});
+
+    const decoded = decodeTimestampIdCursor(encodeTimestampIdCursor(cursor));
+
+    expect(decoded).toBeDefined();
+    expect(timestampIdCursorTimestamp(decoded as NonNullable<typeof decoded>)).toBe(timestamp);
+    expect(encodeTimestampIdCursor(decoded as NonNullable<typeof decoded>)).toBe(
+      encodeTimestampIdCursor(cursor),
+    );
   });
 
   it.each([

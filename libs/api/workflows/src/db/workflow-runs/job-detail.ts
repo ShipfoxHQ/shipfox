@@ -7,7 +7,12 @@ import {
   WORKFLOW_JOB_DETAIL_STEP_PAGE_LIMIT,
   WORKFLOW_STEP_ATTEMPT_PREVIEW_LIMIT,
 } from '@shipfox/api-workflows-dto';
-import {type TimestampIdCursor, timestampIdCursorWhere} from '@shipfox/node-drizzle';
+import {
+  createTimestampIdCursor,
+  type TimestampIdCursor,
+  timestampIdCursorColumn,
+  timestampIdCursorWhere,
+} from '@shipfox/node-drizzle';
 import {and, asc, count, desc, eq, gt, inArray, lt, lte, or, sql} from 'drizzle-orm';
 import {
   normalizeWorkflowExecutionEvent,
@@ -641,6 +646,7 @@ async function readExecutionTriggerEventPage(
       outcome: jobListenerEvents.outcome,
       outcomeReason: jobListenerEvents.outcomeReason,
       receivedAt: jobListenerEvents.receivedAt,
+      cursorReceivedAt: timestampIdCursorColumn(jobListenerEvents.receivedAt),
       storedPayloadBytes: listenerStoredPayloadBytes(),
       normalizedEventBytes: listenerNormalizedEventBytes(),
     })
@@ -660,8 +666,14 @@ async function readExecutionTriggerEventPage(
       : undefined;
 
   return {
-    items: pageRows,
-    nextCursor: hasMore && last ? {createdAt: last.receivedAt, id: last.id} : null,
+    items: pageRows.map(({cursorReceivedAt, ...item}) => ({
+      ...item,
+      receivedAt: createTimestampIdCursor({createdAt: cursorReceivedAt, id: item.id}).createdAt,
+    })),
+    nextCursor:
+      hasMore && last
+        ? createTimestampIdCursor({createdAt: last.cursorReceivedAt, id: last.id})
+        : null,
     total,
   };
 }

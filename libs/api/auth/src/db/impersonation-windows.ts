@@ -2,9 +2,10 @@ import type {AdminRole} from '@shipfox/api-auth-dto';
 import {
   paginateTimestampIdRows,
   type TimestampIdCursor,
+  timestampIdCursorColumn,
   timestampIdCursorWhere,
 } from '@shipfox/node-drizzle';
-import {and, count, desc, eq, gt, isNull, lte, sql} from 'drizzle-orm';
+import {and, count, desc, eq, getTableColumns, gt, isNull, lte, sql} from 'drizzle-orm';
 import type {
   EffectiveImpersonationWindow,
   ImpersonationWindow,
@@ -190,17 +191,21 @@ export async function listOpenImpersonationWindows(
     ...(cursorCondition ? [cursorCondition] : []),
   ];
   const rows = await executor
-    .select()
+    .select({
+      ...getTableColumns(impersonationWindows),
+      cursorStartedAt: timestampIdCursorColumn(impersonationWindows.startedAt),
+    })
     .from(impersonationWindows)
     .where(and(...conditions))
     .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id))
     .limit(params.limit + 1);
   const page = paginateTimestampIdRows({
-    rows: rows.map(toImpersonationWindow),
+    rows,
     limit: params.limit,
     timestampKey: 'startedAt',
+    cursorTimestamp: (row) => row.cursorStartedAt,
   });
-  return {rows: page.pageRows, nextCursor: page.nextCursor};
+  return {rows: page.pageRows.map(toImpersonationWindow), nextCursor: page.nextCursor};
 }
 
 export const listOpenImpersonationWindowsForActor = listOpenImpersonationWindows;
@@ -235,17 +240,21 @@ export async function listAllOpenImpersonationWindows(
     ...(cursorCondition ? [cursorCondition] : []),
   ];
   const rows = await executor
-    .select()
+    .select({
+      ...getTableColumns(impersonationWindows),
+      cursorStartedAt: timestampIdCursorColumn(impersonationWindows.startedAt),
+    })
     .from(impersonationWindows)
     .where(and(...conditions))
     .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id))
     .limit(params.limit + 1);
   const page = paginateTimestampIdRows({
-    rows: rows.map(toImpersonationWindow),
+    rows,
     limit: params.limit,
     timestampKey: 'startedAt',
+    cursorTimestamp: (row) => row.cursorStartedAt,
   });
-  return {rows: page.pageRows, nextCursor: page.nextCursor};
+  return {rows: page.pageRows.map(toImpersonationWindow), nextCursor: page.nextCursor};
 }
 
 export async function listImpersonationWindowsByTarget(
@@ -271,17 +280,21 @@ export async function listImpersonationWindowsByTarget(
     ...(cursorCondition ? [cursorCondition] : []),
   ];
   const rows = await executor
-    .select()
+    .select({
+      ...getTableColumns(impersonationWindows),
+      cursorStartedAt: timestampIdCursorColumn(impersonationWindows.startedAt),
+    })
     .from(impersonationWindows)
     .where(and(...conditions))
     .orderBy(desc(impersonationWindows.startedAt), desc(impersonationWindows.id))
     .limit(params.limit + 1);
   const page = paginateTimestampIdRows({
-    rows: rows.map(toImpersonationWindow),
+    rows,
     limit: params.limit,
     timestampKey: 'startedAt',
+    cursorTimestamp: (row) => row.cursorStartedAt,
   });
-  return {rows: page.pageRows, nextCursor: page.nextCursor};
+  return {rows: page.pageRows.map(toImpersonationWindow), nextCursor: page.nextCursor};
 }
 
 export const listImpersonationWindowsForTarget = listImpersonationWindowsByTarget;
