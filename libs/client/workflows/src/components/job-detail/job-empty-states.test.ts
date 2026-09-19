@@ -1,4 +1,4 @@
-import type {Step} from '#core/workflow-run.js';
+import type {Job, Step} from '#core/workflow-run.js';
 import {
   workflowJob,
   workflowJobExecutionDto,
@@ -131,6 +131,61 @@ describe('skippedJobDescription', () => {
     expect(skippedJobDescription('output_too_large')).toBe(
       'The materialized job output exceeded its configured size limit.',
     );
+  });
+});
+
+describe('runner-loss failure descriptions', () => {
+  test.each([
+    {
+      reason: 'run_cancelled',
+      description: 'The execution ended while the run was being cancelled.',
+    },
+    {
+      reason: 'timed_out',
+      description:
+        'The job timed out before work began. Required runner labels: runner-linux-x64. Check runner capacity and timeout configuration before re-running the workflow.',
+    },
+    {
+      reason: 'lease_expired',
+      description:
+        "The runner's job lease expired before work began because Shipfox stopped receiving heartbeats. Required runner labels: runner-linux-x64. Check the runner's connection and availability before re-running the workflow.",
+    },
+    {
+      reason: 'provider_lost',
+      description:
+        'The runner became unavailable at its infrastructure provider before work began. Required runner labels: runner-linux-x64. Check provider status and capacity before re-running the workflow.',
+    },
+    {
+      reason: 'lifecycle_violation',
+      description:
+        'Shipfox detected an unsafe internal runner state before work began. Required runner labels: runner-linux-x64. Contact Shipfox support before re-running the workflow.',
+    },
+    {
+      reason: 'runner_lost',
+      description:
+        'The runner stopped responding before work began. Required runner labels: runner-linux-x64. Check runner availability before re-running the workflow.',
+    },
+  ] satisfies Array<{
+    reason: NonNullable<Job['statusReason']>;
+    description: string;
+  }>)('distinguishes $reason before the first step', ({reason, description}) => {
+    const job = workflowJob({
+      status: 'failed',
+      status_reason: reason,
+      runner: ['runner-linux-x64'],
+      job_executions: [
+        workflowJobExecutionDto({
+          status: 'failed',
+          status_reason: reason,
+          runner: ['runner-linux-x64'],
+          steps: [],
+        }),
+      ],
+    });
+    const execution = job.jobExecutions[0];
+    if (!execution) throw new Error('Expected a job execution');
+
+    expect(emptyStateForJob(job, execution)).toMatchObject({description});
   });
 });
 

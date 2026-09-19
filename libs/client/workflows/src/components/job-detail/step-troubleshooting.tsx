@@ -47,6 +47,7 @@ import {JsonCode, type JsonCodeEntry, JsonCodeTabs} from './json-code.js';
 
 export interface StepInspectorSheetProps {
   entry: StepListEntryModel;
+  jobStatusReason?: string | null | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceSlug: string;
@@ -60,6 +61,7 @@ export interface StepInspectorSheetProps {
 
 export function StepInspectorSheet({
   entry,
+  jobStatusReason,
   open,
   onOpenChange,
   workspaceSlug,
@@ -97,6 +99,7 @@ export function StepInspectorSheet({
             step={entry.step}
             attempt={entry}
             error={error}
+            jobStatusReason={jobStatusReason}
             showFailure={entry.statusVisual.kind === 'failed' || entry.error !== null}
             query={inspectorQuery}
             workspaceSlug={workspaceSlug}
@@ -117,6 +120,7 @@ function StepFailureCallout({
   step,
   attempt,
   error,
+  jobStatusReason,
   workspaceSlug,
   projectSlug,
   workflowRunId,
@@ -126,13 +130,14 @@ function StepFailureCallout({
   step: Step;
   attempt: StepAttempt;
   error: StepError | null;
+  jobStatusReason: string | null | undefined;
   workspaceSlug: string;
   projectSlug: string;
   workflowRunId: string;
   runAttempt: number;
   onViewLogs: (() => void) | undefined;
 }) {
-  const reason = error?.reason ?? step.statusReason ?? 'unknown';
+  const reason = failureReason(step, error, jobStatusReason);
   const toolGuidance = toolFailureGuidance(reason, step, attempt, error);
   const title = toolGuidance?.title ?? failureTitle(reason, error);
   const description =
@@ -207,10 +212,29 @@ function StepFailureCallout({
   );
 }
 
+function failureReason(
+  step: Step,
+  error: StepError | null,
+  jobStatusReason: string | null | undefined,
+): string | JobStatusReason {
+  const stepReason = error?.reason ?? step.statusReason ?? 'unknown';
+  if (stepReason !== 'runner_lost') return stepReason;
+
+  switch (jobStatusReason) {
+    case 'lease_expired':
+    case 'provider_lost':
+    case 'lifecycle_violation':
+      return jobStatusReason;
+    default:
+      return stepReason;
+  }
+}
+
 function StepInspector({
   step,
   attempt,
   error,
+  jobStatusReason,
   showFailure,
   query,
   workspaceSlug,
@@ -224,6 +248,7 @@ function StepInspector({
   step: Step;
   attempt: StepAttempt;
   error: StepError | null;
+  jobStatusReason: string | null | undefined;
   showFailure: boolean;
   query: ReturnType<typeof useStepAttemptDetailQuery>;
   workspaceSlug: string;
@@ -244,6 +269,7 @@ function StepInspector({
           step={step}
           attempt={attempt}
           error={error}
+          jobStatusReason={jobStatusReason}
           workspaceSlug={workspaceSlug}
           projectSlug={projectSlug}
           workflowRunId={workflowRunId}
@@ -982,8 +1008,11 @@ function failureTitle(reason: string | JobStatusReason, error: StepError | null)
     case 'restart_exhausted':
       return 'Gate attempt limit reached';
     case 'lease_expired':
+      return 'Runner job lease expired';
     case 'provider_lost':
+      return 'Runner infrastructure was lost';
     case 'lifecycle_violation':
+      return 'Runner stopped for safety';
     case 'runner_lost':
       return 'Runner stopped responding';
     case 'output_too_large':
@@ -1098,8 +1127,11 @@ function failureDescription(
     case 'restart_exhausted':
       return restartExhaustionDescription(error, gateMaxAttempts);
     case 'lease_expired':
+      return "The runner's job lease expired because Shipfox stopped receiving heartbeats before the step completed. Check the runner's connection and availability before re-running the workflow.";
     case 'provider_lost':
+      return 'The runner became unavailable at its infrastructure provider before the step completed. Check provider status and capacity before re-running the workflow.';
     case 'lifecycle_violation':
+      return 'Shipfox detected an unsafe internal runner state before the step completed. Contact Shipfox support before re-running the workflow.';
     case 'runner_lost':
       return 'The runner stopped responding before the step completed.';
     case 'output_too_large':

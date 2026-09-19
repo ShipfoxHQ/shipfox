@@ -2,7 +2,7 @@ import type {StepAttemptDto} from '@shipfox/api-workflows-dto';
 import type {Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useState} from 'react';
-import type {StepAttemptDetail} from '#core/workflow-run.js';
+import type {JobStatusReason, StepAttemptDetail} from '#core/workflow-run.js';
 import {stepAttemptDetailQueryKeys} from '#hooks/api/step-attempt-detail.js';
 import {
   workflowJob,
@@ -17,7 +17,20 @@ type ToolStepOutcome = 'succeeded' | 'failed' | 'running';
 
 interface StepInspectorStoryArgs {
   toolOutcome: ToolStepOutcome;
+  runnerLossReason: RunnerLossReason;
 }
+
+type RunnerLossReason = Extract<
+  JobStatusReason,
+  'lease_expired' | 'provider_lost' | 'lifecycle_violation' | 'runner_lost'
+>;
+
+const RUNNER_LOSS_REASONS: readonly RunnerLossReason[] = [
+  'lease_expired',
+  'provider_lost',
+  'lifecycle_violation',
+  'runner_lost',
+];
 
 const meta = {
   title: 'Workflows/StepInspector',
@@ -26,9 +39,11 @@ const meta = {
   },
   args: {
     toolOutcome: 'succeeded',
+    runnerLossReason: 'lease_expired',
   },
   argTypes: {
     toolOutcome: {control: 'select', options: ['succeeded', 'failed', 'running']},
+    runnerLossReason: {control: 'select', options: RUNNER_LOSS_REASONS},
   },
 } satisfies Meta<StepInspectorStoryArgs>;
 
@@ -45,6 +60,10 @@ export const GateAttemptLimitReached: Story = {
 
 export const ProviderInterrupted: Story = {
   render: () => <ProviderInterruptedStory />,
+};
+
+export const RunnerLossCauses: Story = {
+  render: ({runnerLossReason}) => <RunnerLossStory reason={runnerLossReason} />,
 };
 
 export const ToolStep: Story = {
@@ -81,6 +100,31 @@ function ProviderInterruptedStory() {
           workflowRunId="11111111-1111-4111-8111-111111111111"
           runAttempt={1}
           jobId="44444444-4444-4444-8444-000000000001"
+        />
+      </main>
+    </QueryClientProvider>
+  );
+}
+
+function RunnerLossStory({reason}: {reason: RunnerLossReason}) {
+  const [queryClient] = useState(
+    () => new QueryClient({defaultOptions: {queries: {staleTime: Number.POSITIVE_INFINITY}}}),
+  );
+  const entry = runnerLossEntry(reason);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <main className="min-h-screen bg-background-neutral-base p-16">
+        <StepInspectorSheet
+          entry={entry}
+          jobStatusReason={reason}
+          open
+          onOpenChange={() => undefined}
+          workspaceSlug="acme"
+          projectSlug="platform"
+          workflowRunId="11111111-1111-4111-8111-111111111111"
+          runAttempt={1}
+          jobId="44444444-4444-4444-8444-000000000004"
         />
       </main>
     </QueryClientProvider>
@@ -292,6 +336,54 @@ function gateAttemptLimitEntry(): StepListEntryModel {
 
   const entry = buildStepListModel({job, jobExecution: execution}).entries.at(-1);
   if (!entry) throw new Error('Story fixture is missing a gate attempt.');
+
+  return entry;
+}
+
+function runnerLossEntry(reason: RunnerLossReason): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-000000000004';
+  const executionId = '77777777-7777-4777-8777-000000000004';
+  const stepId = '55555555-5555-4555-8555-000000000004';
+  const job = workflowJob({
+    id: jobId,
+    name: 'verification',
+    key: 'verification',
+    status: 'failed',
+    status_reason: reason,
+    job_executions: [
+      workflowJobExecutionDto({
+        id: executionId,
+        job_id: jobId,
+        status: 'failed',
+        status_reason: reason,
+        steps: [
+          workflowStepDto({
+            id: stepId,
+            job_execution_id: executionId,
+            name: 'Run verification',
+            key: 'run-verification',
+            status: 'failed',
+            status_reason: 'runner_lost',
+            config: {run: 'pnpm test --filter=@shipfox/client-workflows'},
+            error: null,
+            attempts: [
+              workflowStepAttemptDto({
+                id: '66666666-6666-4666-8666-000000000004',
+                step_id: stepId,
+                status: 'failed',
+                error: null,
+                finished_at: '2026-09-19T09:04:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Story fixture is missing a job execution.');
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
+  if (!entry) throw new Error('Story fixture is missing a step attempt.');
 
   return entry;
 }

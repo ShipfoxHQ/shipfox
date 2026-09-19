@@ -235,8 +235,11 @@ function preStepFailureDescription(
 
   switch (reason) {
     case 'lease_expired':
+      return `The runner's job lease expired before work began because Shipfox stopped receiving heartbeats.${runnerCopy} Check the runner's connection and availability before re-running the workflow.`;
     case 'provider_lost':
+      return `The runner became unavailable at its infrastructure provider before work began.${runnerCopy} Check provider status and capacity before re-running the workflow.`;
     case 'lifecycle_violation':
+      return `Shipfox detected an unsafe internal runner state before work began.${runnerCopy} Contact Shipfox support before re-running the workflow.`;
     case 'runner_lost':
       return `The runner stopped responding before work began.${runnerCopy} Check runner availability before re-running the workflow.`;
     case 'timed_out':

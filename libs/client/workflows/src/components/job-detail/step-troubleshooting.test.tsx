@@ -12,7 +12,7 @@ import {
 import {act, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
-import type {StepErrorReason} from '#core/workflow-run.js';
+import type {JobStatusReason, StepErrorReason} from '#core/workflow-run.js';
 import {stepAttemptDetailQueryKeys} from '#hooks/api/step-attempt-detail.js';
 import type {WorkflowStepFixtureDto} from '#test/fixtures/workflow-run.js';
 import {
@@ -104,6 +104,65 @@ describe('StepInspectorSheet', () => {
 
     expect(await screen.findByText(title)).toBeInTheDocument();
     expect(screen.getByText(description)).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      reason: 'run_cancelled',
+      title: 'The run was cancelled',
+      description: 'The run was cancelled before this work completed.',
+    },
+    {
+      reason: 'timed_out',
+      title: 'Step timed out',
+      description: 'The step exceeded its configured time limit.',
+    },
+    {
+      reason: 'lease_expired',
+      title: 'Runner job lease expired',
+      description:
+        "The runner's job lease expired because Shipfox stopped receiving heartbeats before the step completed. Check the runner's connection and availability before re-running the workflow.",
+    },
+    {
+      reason: 'provider_lost',
+      title: 'Runner infrastructure was lost',
+      description:
+        'The runner became unavailable at its infrastructure provider before the step completed. Check provider status and capacity before re-running the workflow.',
+    },
+    {
+      reason: 'lifecycle_violation',
+      title: 'Runner stopped for safety',
+      description:
+        'Shipfox detected an unsafe internal runner state before the step completed. Contact Shipfox support before re-running the workflow.',
+    },
+    {
+      reason: 'runner_lost',
+      title: 'Runner stopped responding',
+      description: 'The runner stopped responding before the step completed.',
+    },
+  ] as const)('distinguishes the $reason job failure', async ({reason, title, description}) => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({entry: jobFailureStepEntry(reason), jobStatusReason: reason});
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText(title)).toBeInTheDocument();
+    expect(screen.getByText(description)).toBeInTheDocument();
+  });
+
+  it('does not replace a specific step failure with the job failure reason', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: stepEntry('agent_invocation_failed'),
+      jobStatusReason: 'provider_lost',
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('Agent invocation failed')).toBeInTheDocument();
+    expect(screen.queryByText('Runner infrastructure was lost')).toBeNull();
   });
 
   it('shows the evaluation count only after the lazy detail response arrives', async () => {
@@ -751,10 +810,12 @@ describe('StepInspectorSheet', () => {
 async function renderPanel({
   annotationCount,
   entry,
+  jobStatusReason,
   onViewLogs,
 }: {
   annotationCount?: number;
   entry?: StepListEntryModel;
+  jobStatusReason?: JobStatusReason | null | undefined;
   onViewLogs?: (() => void) | undefined;
 } = {}) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
@@ -764,7 +825,12 @@ async function renderPanel({
     path: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
     component: () => (
       <QueryClientProvider client={queryClient}>
-        <PanelHarness annotationCount={annotationCount} entry={entry} onViewLogs={onViewLogs} />
+        <PanelHarness
+          annotationCount={annotationCount}
+          entry={entry}
+          jobStatusReason={jobStatusReason}
+          onViewLogs={onViewLogs}
+        />
       </QueryClientProvider>
     ),
   });
@@ -784,10 +850,12 @@ async function renderPanel({
 function PanelHarness({
   annotationCount,
   entry: providedEntry,
+  jobStatusReason,
   onViewLogs,
 }: {
   annotationCount?: number | undefined;
   entry?: StepListEntryModel | undefined;
+  jobStatusReason?: JobStatusReason | null | undefined;
   onViewLogs?: (() => void) | undefined;
 }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -799,6 +867,7 @@ function PanelHarness({
       </button>
       <StepInspectorSheet
         entry={entry}
+        jobStatusReason={jobStatusReason}
         open={inspectorOpen}
         onOpenChange={setInspectorOpen}
         workspaceSlug="acme"
@@ -859,6 +928,67 @@ function stepEntry(
                 step_id: STEP_ID,
                 status: 'failed',
                 output: {result: 'failed'},
+                finished_at: '2026-08-05T12:01:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+  const execution = job.jobExecutions[0];
+  if (!execution) throw new Error('Test fixture is missing an execution.');
+  const entry = buildStepListModel({job, jobExecution: execution}).entries[0];
+  if (!entry) throw new Error('Test fixture is missing a step attempt.');
+
+  return entry;
+}
+
+type PresentedJobFailureReason = Extract<
+  JobStatusReason,
+  | 'run_cancelled'
+  | 'timed_out'
+  | 'lease_expired'
+  | 'provider_lost'
+  | 'lifecycle_violation'
+  | 'runner_lost'
+>;
+
+function jobFailureStepEntry(reason: PresentedJobFailureReason): StepListEntryModel {
+  const jobId = '44444444-4444-4444-8444-444444444444';
+  const job = workflowJob({
+    id: jobId,
+    name: 'verification',
+    key: 'verification',
+    status: 'failed',
+    status_reason: reason,
+    job_executions: [
+      workflowJobExecutionDto({
+        id: EXECUTION_ID,
+        job_id: jobId,
+        status: 'failed',
+        status_reason: reason,
+        steps: [
+          workflowStepDto({
+            id: STEP_ID,
+            job_execution_id: EXECUTION_ID,
+            name: 'Run verification',
+            status: 'failed',
+            status_reason:
+              reason === 'lease_expired' ||
+              reason === 'provider_lost' ||
+              reason === 'lifecycle_violation'
+                ? 'runner_lost'
+                : reason,
+            type: 'run',
+            config: {run: 'pnpm test'},
+            error: null,
+            attempts: [
+              workflowStepAttemptDto({
+                id: ATTEMPT_ID,
+                step_id: STEP_ID,
+                status: 'failed',
+                error: null,
                 finished_at: '2026-08-05T12:01:00.000Z',
               }),
             ],
