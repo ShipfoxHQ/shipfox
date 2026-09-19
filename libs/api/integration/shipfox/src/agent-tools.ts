@@ -263,6 +263,8 @@ function mapStartWorkflowRunError(error: unknown): ShipfoxToolCallResult | undef
     const code = error.code;
     if (
       code === 'manual-trigger-not-found' ||
+      code === 'definition-not-found' ||
+      code === 'parent-run-not-found' ||
       code === 'run-depth-exceeded' ||
       code === 'run-tree-limit-exceeded' ||
       code === 'admission-denied'

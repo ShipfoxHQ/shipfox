@@ -132,15 +132,16 @@ describe('Shipfox agent tools', () => {
       connection: {} as never,
       tools: provider.catalog(),
       scope: {},
-      caller: caller({projectId: '00000000-0000-4000-8000-000000000009'}),
+      caller: caller(),
     });
     const explicitProject = '00000000-0000-4000-8000-000000000009';
 
-    await session.call({
+    const result = await session.call({
       toolId: 'start_workflow_run',
       arguments: {workflow: 'child.yml', project_id: explicitProject, inputs: {version: '1.2.3'}},
     });
 
+    expect(result).toMatchObject({structuredContent: {project_id: explicitProject}});
     expect(definitions.getDefinitionByConfigPath).toHaveBeenCalledWith(
       expect.objectContaining({projectId: explicitProject}),
     );
@@ -162,6 +163,39 @@ describe('Shipfox agent tools', () => {
     if (code === 'definition-not-found')
       definitions.getDefinitionByConfigPath.mockRejectedValue(knownError);
     else triggers.fireManualTrigger.mockRejectedValue(knownError);
+
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml'},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code}});
+  });
+
+  it.each([
+    'definition-not-found',
+    'parent-run-not-found',
+  ] as const)('maps forwarded %s to a tool error', async (code) => {
+    const {triggers, provider} = createProvider();
+    const knownError =
+      code === 'definition-not-found'
+        ? createInterModuleKnownError(
+            triggersInterModuleContract.methods.fireManualTrigger,
+            'definition-not-found',
+            {definitionId},
+          )
+        : createInterModuleKnownError(
+            triggersInterModuleContract.methods.fireManualTrigger,
+            'parent-run-not-found',
+            {},
+          );
+    triggers.fireManualTrigger.mockRejectedValue(knownError);
 
     const session = await provider.openSession({
       connection: {} as never,

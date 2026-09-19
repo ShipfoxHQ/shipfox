@@ -1,4 +1,4 @@
-import {SHIPFOX_BUILTIN_CONNECTION_ID} from '@shipfox/api-integration-shipfox';
+import {SHIPFOX_BUILTIN_CONNECTION_ID} from '#core/tool-call-service.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 async function loadShipfoxModuleParts(
