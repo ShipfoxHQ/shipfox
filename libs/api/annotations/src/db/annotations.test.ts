@@ -1,5 +1,6 @@
+import {pgClient} from '@shipfox/node-postgres';
 import {annotationFactory} from '#test/index.js';
-import {listAnnotationsForRunAttempt} from './annotations.js';
+import {listAnnotationsForRunAttempt, summarizeAnnotationsForRunAttempt} from './annotations.js';
 
 describe('listAnnotationsForRunAttempt', () => {
   it('lists annotations for the requested run attempt and workspace in sequence order', async () => {
@@ -257,5 +258,66 @@ describe('listAnnotationsForRunAttempt', () => {
     });
 
     expect(result).toEqual({annotations: [], hasMore: false, nextCursor: null});
+  });
+});
+
+describe('summarizeAnnotationsForRunAttempt', () => {
+  it('derives consistent style and step totals with one database statement', async () => {
+    const workspaceId = crypto.randomUUID();
+    const workflowRunId = crypto.randomUUID();
+    const firstStepId = '11111111-1111-4111-8111-111111111111';
+    const secondStepId = '22222222-2222-4222-8222-222222222222';
+    await Promise.all([
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        originStepId: firstStepId,
+        context: 'default',
+        style: 'default',
+      }),
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        originStepId: firstStepId,
+        context: 'error',
+        style: 'error',
+      }),
+      annotationFactory.create({
+        workspaceId,
+        workflowRunId,
+        originStepId: secondStepId,
+        originStepAttempt: 2,
+        context: 'warning',
+        style: 'warning',
+      }),
+    ]);
+    const query = vi.spyOn(pgClient(), 'query');
+    const onRead = vi.fn();
+
+    try {
+      const result = await summarizeAnnotationsForRunAttempt(
+        {workflowRunId, workflowRunAttempt: 1, workspaceIds: [workspaceId]},
+        {onRead},
+      );
+
+      expect(result).toEqual({
+        total: 3,
+        error: 1,
+        warning: 1,
+        info: 0,
+        success: 0,
+        stepCounts: [
+          {originStepId: firstStepId, originStepAttempt: 1, total: 2},
+          {originStepId: secondStepId, originStepAttempt: 2, total: 1},
+        ],
+      });
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(onRead).toHaveBeenCalledWith({
+        databaseDurationMilliseconds: expect.any(Number),
+        returnedRows: 3,
+      });
+    } finally {
+      query.mockRestore();
+    }
   });
 });

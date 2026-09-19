@@ -81,9 +81,19 @@ export interface SummarizeAnnotationsForRunAttemptParams {
   jobExecutionId?: string | undefined;
 }
 
+export interface AnnotationSummaryReadMeasurement {
+  databaseDurationMilliseconds: number;
+  returnedRows: number;
+}
+
+export interface AnnotationSummaryReadOptions {
+  onRead?: ((measurement: AnnotationSummaryReadMeasurement) => void) | undefined;
+}
+
 /** Count annotation styles without reading any annotation bodies. */
 export async function summarizeAnnotationsForRunAttempt(
   params: SummarizeAnnotationsForRunAttemptParams,
+  options: AnnotationSummaryReadOptions = {},
 ): Promise<AnnotationSummary> {
   const summary: AnnotationSummary = {
     total: 0,
@@ -93,7 +103,10 @@ export async function summarizeAnnotationsForRunAttempt(
     success: 0,
     stepCounts: [],
   };
-  if (params.workspaceIds.length === 0) return summary;
+  if (params.workspaceIds.length === 0) {
+    notifyAnnotationSummaryRead(options, 0, 0);
+    return summary;
+  }
 
   const conditions: SQL[] = [
     eq(annotations.workflowRunId, params.workflowRunId),
@@ -104,44 +117,60 @@ export async function summarizeAnnotationsForRunAttempt(
     conditions.push(eq(annotations.jobExecutionId, params.jobExecutionId));
   }
 
-  const {rows, stepRows} = await db().transaction(async (tx) => {
-    // Both aggregates must observe the same committed state. READ COMMITTED would allow a
-    // concurrent annotation write between these selects, producing contradictory totals.
-    await tx.execute(sql`set transaction isolation level repeatable read, read only`);
+  const startedAt = performance.now();
+  let returnedRows = 0;
 
-    const rows = await tx
-      .select({style: annotations.style, count: count()})
-      .from(annotations)
-      .where(and(...conditions))
-      .groupBy(annotations.style);
-
-    const stepRows = await tx
+  try {
+    const rows = await db()
       .select({
         originStepId: annotations.originStepId,
         originStepAttempt: annotations.originStepAttempt,
-        total: count(),
+        style: annotations.style,
+        count: count(),
       })
       .from(annotations)
       .where(and(...conditions))
-      .groupBy(annotations.originStepId, annotations.originStepAttempt)
+      .groupBy(annotations.originStepId, annotations.originStepAttempt, annotations.style)
       .orderBy(asc(annotations.originStepId), asc(annotations.originStepAttempt));
+    returnedRows = rows.length;
+    const stepCounts = new Map<string, AnnotationSummary['stepCounts'][number]>();
 
-    return {rows, stepRows};
-  });
+    for (const row of rows) {
+      const value = Number(row.count);
+      summary.total += value;
+      if (row.style !== 'default') summary[row.style] += value;
 
-  for (const row of rows) {
-    const value = Number(row.count);
-    summary.total += value;
-    if (row.style !== 'default') summary[row.style] += value;
+      const key = `${row.originStepId}:${row.originStepAttempt}`;
+      const stepCount = stepCounts.get(key);
+      if (stepCount) {
+        stepCount.total += value;
+      } else {
+        stepCounts.set(key, {
+          originStepId: row.originStepId,
+          originStepAttempt: row.originStepAttempt,
+          total: value,
+        });
+      }
+    }
+
+    summary.stepCounts = [...stepCounts.values()];
+
+    return summary;
+  } finally {
+    notifyAnnotationSummaryRead(options, performance.now() - startedAt, returnedRows);
   }
+}
 
-  summary.stepCounts = stepRows.map((row) => ({
-    originStepId: row.originStepId,
-    originStepAttempt: row.originStepAttempt,
-    total: Number(row.total),
-  }));
-
-  return summary;
+function notifyAnnotationSummaryRead(
+  options: AnnotationSummaryReadOptions,
+  databaseDurationMilliseconds: number,
+  returnedRows: number,
+): void {
+  try {
+    options.onRead?.({databaseDurationMilliseconds, returnedRows});
+  } catch {
+    // Measurement observers must not change the summary read outcome.
+  }
 }
 
 export interface StoredAnnotation {
