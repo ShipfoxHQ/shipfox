@@ -42,6 +42,13 @@ export function isWorkflowRunTerminal(
   return TERMINAL_WORKFLOW_RUN_STATUSES.has(status);
 }
 
+export interface WorkflowRunParent {
+  id: string;
+  number: number;
+  name: string;
+  projectId: string;
+}
+
 export interface WorkflowRunTriggerReference {
   project: {id: string} | null;
   repository: string | null;
@@ -127,7 +134,9 @@ export const WORKFLOW_RUN_LIST_OMITTED_FIELDS = [
 export type WorkflowRunListOmittedField = (typeof WORKFLOW_RUN_LIST_OMITTED_FIELDS)[number];
 
 /** The run fields needed by list responses. */
-export type WorkflowRunList = Omit<WorkflowRun, WorkflowRunListOmittedField>;
+export type WorkflowRunList = Omit<WorkflowRun, WorkflowRunListOmittedField> & {
+  parentRun: WorkflowRunParent | null;
+};
 
 /** A workflow run with the optional result marker used by idempotent trigger starts. */
 export type WorkflowRunCreationResult = WorkflowRun & {deduplicated?: true};

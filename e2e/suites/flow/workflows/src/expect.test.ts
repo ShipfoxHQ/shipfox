@@ -129,6 +129,7 @@ function makeDetail(overrides: Partial<WorkflowRunObservation> = {}): WorkflowRu
     trigger_source: 'gitea',
     trigger_event: 'push',
     trigger_reference: null,
+    parent_run: null,
     created_at: timestamp,
   };
   return {

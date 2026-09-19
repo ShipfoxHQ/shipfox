@@ -19,6 +19,7 @@ import type {
   WorkflowRunList,
   WorkflowRunListOmittedField,
   WorkflowRunOriginState,
+  WorkflowRunParent,
   WorkflowRunTriggerReference,
   WorkflowSourceSnapshot,
 } from '#core/entities/workflow-run.js';
@@ -132,7 +133,9 @@ export type WorkflowRunCreateDb = typeof workflowRuns.$inferInsert;
 export type WorkflowRunListDb = Omit<
   WorkflowRunDb,
   WorkflowRunListOmittedField | 'parentRunId' | 'rootRunId' | 'depth'
->;
+> & {
+  parentRun: WorkflowRunParent | null;
+};
 
 export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
   const originState = toWorkflowRunOriginState(row);
@@ -187,6 +190,7 @@ export function toWorkflowRunList(row: WorkflowRunListDb): WorkflowRunList {
     updatedAt: row.updatedAt,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
+    parentRun: row.parentRun,
   };
 }
 

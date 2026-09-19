@@ -114,6 +114,7 @@ function runObservation(overrides: Partial<WorkflowRunObservation> = {}): Workfl
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_reference: null,
+    parent_run: null,
     created_at: timestamp,
     updated_at: timestamp,
     attempt,

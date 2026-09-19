@@ -103,6 +103,7 @@ type WorkflowRunFixtureDto = Omit<
   WorkflowRunResponseDto,
   'trigger_payload' | 'inputs' | 'source_snapshot'
 > & {
+  parent_run?: WorkflowRunListItemDto['parent_run'];
   run_attempt: WorkflowRunAttemptDto;
   jobs: WorkflowJobFixtureDto[];
   has_started_job_execution: boolean;
@@ -142,6 +143,7 @@ export function workflowRunDto(
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_reference: null,
+    parent_run: null,
     created_at: '2026-06-21T12:00:00.000Z',
     updated_at: '2026-06-21T12:01:00.000Z',
     started_at: null,
@@ -164,8 +166,11 @@ export function workflowRunResponseDto(
     source_snapshot: sourceSnapshot = null,
     ...runOverrides
   } = overrides;
+  const {parent_run: _parentRun, ...responseRun} = workflowRunDto(
+    runOverrides as Partial<WorkflowRunListItemDto>,
+  );
   return {
-    ...workflowRunDto(runOverrides as Partial<WorkflowRunListItemDto>),
+    ...responseRun,
     trigger_payload: triggerPayload,
     inputs,
     source_snapshot: sourceSnapshot,
@@ -337,6 +342,7 @@ export function workflowRunOverviewResponseDto(
       trigger_source: detail.trigger_source,
       trigger_event: detail.trigger_event,
       trigger_reference: detail.trigger_reference,
+      parent_run: detail.parent_run ?? null,
       created_at: detail.created_at,
     },
     attempt: detail.run_attempt,

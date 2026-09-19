@@ -89,7 +89,12 @@ describe('bounded workflow run overview routes', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(workflowRunOverviewResponseSchema.safeParse(body).success).toBe(true);
-    expect(body.run).toMatchObject({id: run.id, name: 'Overview', project_id: projectId});
+    expect(body.run).toMatchObject({
+      id: run.id,
+      name: 'Overview',
+      project_id: projectId,
+      parent_run: null,
+    });
     expect(body.attempt).toMatchObject({workflow_run_id: run.id, attempt: 1});
     expect(body.jobs).toMatchObject({kind: 'complete', total: 2});
     expect(body.jobs.items).toHaveLength(2);
@@ -100,6 +105,39 @@ describe('bounded workflow run overview routes', () => {
     expect(body.jobs.items[0]).not.toHaveProperty('outputs');
     expect(body.jobs.items[0]).not.toHaveProperty('runner');
     expect(body.jobs.items[0].default_execution).not.toHaveProperty('trigger_events');
+  });
+
+  test('includes the parent run in the overview across projects', async () => {
+    const parentProjectId = crypto.randomUUID();
+    const parent = await createWorkflowRun({
+      workspaceId,
+      projectId: parentProjectId,
+      definitionId: crypto.randomUUID(),
+      name: 'release-production',
+      model: buildModel({name: 'release-production'}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const child = await createRun(buildModel({name: 'child'}), {
+      parentRun: {runId: parent.id},
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${child.id}/overview?attempt=1`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().run.parent_run).toEqual({
+      id: parent.id,
+      number: parent.number,
+      name: 'release-production',
+      project_id: parentProjectId,
+    });
   });
 
   test('loads a source snapshot on demand and classifies legacy snapshots', async () => {
@@ -361,7 +399,7 @@ describe('bounded workflow run overview routes', () => {
     model = buildModel(),
     options: Pick<
       Parameters<typeof createWorkflowRun>[0],
-      'sourceSnapshot' | 'origin' | 'devSource'
+      'sourceSnapshot' | 'origin' | 'devSource' | 'parentRun'
     > = {},
   ) {
     return createWorkflowRun({

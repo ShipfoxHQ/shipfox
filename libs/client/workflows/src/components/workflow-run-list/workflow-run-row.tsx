@@ -14,6 +14,7 @@ import {
   formatWorkflowRunNumberLabel,
   WorkflowRunNumberLabel,
 } from '#components/workflow-run-number-label.js';
+import {WorkflowRunParentLabel} from '#components/workflow-run-parent-label.js';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import {
@@ -98,10 +99,15 @@ export function WorkflowRunRow({
         </span>
 
         <span className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-subtle @min-[976px]:flex-nowrap @min-[976px]:shrink-0">
-          {run.triggerDisplayLabel ? <TriggerLabel run={run} /> : null}
+          {run.triggerDisplayLabel && !run.parentRun ? <TriggerLabel run={run} /> : null}
           {branch ? <BranchLabel branch={branch} isPullRequest={branch.startsWith('#')} /> : null}
           {commit ? <CommitLabel commit={commit} /> : null}
-          {actor ? <ActorLabel actor={actor} /> : null}
+          <RunActorMetadata
+            run={run}
+            actor={actor}
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+          />
         </span>
       </div>
 
@@ -141,7 +147,7 @@ export function WorkflowRunRow({
     return <div className={rowClassName}>{body}</div>;
   }
 
-  return (
+  const runLink = (
     <Link
       to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
       params={{workspaceSlug, projectSlug, workflowRunId: run.id}}
@@ -162,17 +168,67 @@ export function WorkflowRunRow({
         durationLabel,
         run.triggerLabel,
         branch ? `branch ${branch}` : undefined,
-        actor ? `by ${actor}` : undefined,
+        workflowRunActorAccessibleLabel(run, actor),
         workflowRunDevAccessibleLabel(run),
         run.jobs.total > 0 ? jobStatusSummary(run.jobs) : undefined,
       ]
         .filter((part): part is string => Boolean(part))
         .join(', ')}
-      className={rowClassName}
+      className={
+        run.parentRun
+          ? 'absolute inset-0 z-0 focus-visible:shadow-focus-inset focus-visible:outline-none'
+          : rowClassName
+      }
     >
-      {body}
+      {run.parentRun ? null : body}
     </Link>
   );
+
+  if (!run.parentRun) return runLink;
+
+  return (
+    <div className={cn(rowClassName, 'relative')}>
+      {runLink}
+      <div className="pointer-events-none relative z-10 flex w-full min-w-0 items-center gap-inline">
+        {body}
+      </div>
+    </div>
+  );
+}
+
+function RunActorMetadata({
+  run,
+  actor,
+  workspaceSlug,
+  projectSlug,
+}: {
+  run: WorkflowRunListItem;
+  actor: string | null;
+  workspaceSlug?: string | undefined;
+  projectSlug?: string | undefined;
+}) {
+  if (run.parentRun) {
+    return (
+      <WorkflowRunParentLabel
+        parentRun={run.parentRun}
+        runProjectId={run.projectId}
+        workspaceSlug={workspaceSlug}
+        projectSlug={projectSlug}
+        className="relative z-10 text-foreground-neutral-subtle hover:text-foreground-neutral-base"
+      />
+    );
+  }
+  if (actor) return <ActorLabel actor={actor} />;
+  return null;
+}
+
+function workflowRunActorAccessibleLabel(
+  run: WorkflowRunListItem,
+  actor: string | null,
+): string | undefined {
+  if (run.parentRun) return `started by ${run.parentRun.name} #${run.parentRun.number}`;
+  if (actor) return `by ${actor}`;
+  return undefined;
 }
 
 function workflowRunDevBadgeLabel(run: WorkflowRunListItem): string | null {

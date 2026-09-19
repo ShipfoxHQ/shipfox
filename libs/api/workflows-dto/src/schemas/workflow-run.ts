@@ -48,6 +48,15 @@ export const workflowRunConcurrencyStateSchema = z.enum([
 
 export type WorkflowRunConcurrencyStateDto = z.infer<typeof workflowRunConcurrencyStateSchema>;
 
+export const workflowRunParentSchema = z.object({
+  id: z.string().uuid(),
+  number: z.number().int().positive(),
+  name: z.string(),
+  project_id: z.string().uuid(),
+});
+
+export type WorkflowRunParentDto = z.infer<typeof workflowRunParentSchema>;
+
 export const workflowRunAttemptIdentitySchema = z.object({
   workflow_run_id: z.string().uuid(),
   workflow_run_attempt_id: z.string().uuid(),
@@ -349,6 +358,7 @@ export const workflowRunListItemSchema = z
      * before this field existed rather than claiming work that ran never began.
      */
     has_started_job_execution: z.boolean().optional().default(true),
+    parent_run: workflowRunParentSchema.nullable().optional().default(null),
   })
   .superRefine(validateWorkflowRunOrigin);
 

@@ -17,6 +17,7 @@ import type {
   WorkflowRun,
   WorkflowRunDevSource,
   WorkflowRunList,
+  WorkflowRunParent,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
@@ -110,11 +111,22 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
     trigger_source: run.triggerSource,
     trigger_event: run.triggerEvent,
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
+    parent_run: toParentRunDto(run.parentRun),
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
     finished_at: run.finishedAt?.toISOString() ?? null,
     concurrency: toRunConcurrencyDto(concurrency),
+  };
+}
+
+function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {
+  if (!parentRun) return null;
+  return {
+    id: parentRun.id,
+    number: parentRun.number,
+    name: parentRun.name,
+    project_id: parentRun.projectId,
   };
 }
 
@@ -231,6 +243,7 @@ export function toRunOverviewDto(
       trigger_source: overview.run.triggerSource,
       trigger_event: overview.run.triggerEvent,
       trigger_reference: toTriggerReferenceDto(overview.run.triggerReference),
+      parent_run: toParentRunDto(overview.run.parentRun),
       created_at: overview.run.createdAt.toISOString(),
     },
     attempt: toRunOverviewAttemptDto(overview.attempt),

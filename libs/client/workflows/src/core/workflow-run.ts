@@ -91,6 +91,7 @@ export type {
   WorkflowRunListItem,
   WorkflowRunListPage,
   WorkflowRunOrigin,
+  WorkflowRunParent,
   WorkflowRunRecord,
   WorkflowRunRerunMode,
   WorkflowRunStatus,

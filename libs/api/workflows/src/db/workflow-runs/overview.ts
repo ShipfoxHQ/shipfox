@@ -6,6 +6,7 @@ import {
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
 } from '@shipfox/api-workflows-dto';
 import {and, asc, count, desc, eq, gt, inArray, ne, or, sql} from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
 import {
   type JobMode,
   type JobStatus,
@@ -16,6 +17,7 @@ import {
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {
   WorkflowRunOriginState,
+  WorkflowRunParent,
   WorkflowRunStatus,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
@@ -40,6 +42,7 @@ export type WorkflowRunOverviewRun = WorkflowRunOriginState & {
   triggerSource: string;
   triggerEvent: string;
   triggerReference: WorkflowRunTriggerReference | null;
+  parentRun: WorkflowRunParent | null;
   createdAt: Date;
 };
 
@@ -400,6 +403,7 @@ async function loadOverviewTarget(
   tx: Tx,
   params: Pick<WorkflowRunOverviewParams, 'workflowRunId' | 'projectId' | 'attempt'>,
 ): Promise<OverviewTarget | undefined> {
+  const parentRun = alias(workflowRuns, 'parent_workflow_run');
   const [row] = await tx
     .select({
       runId: workflowRuns.id,
@@ -414,6 +418,11 @@ async function loadOverviewTarget(
       triggerSource: workflowRuns.triggerSource,
       triggerEvent: workflowRuns.triggerEvent,
       triggerReference: workflowRuns.triggerReference,
+      parentRunId: parentRun.id,
+      parentRunNumber: parentRun.number,
+      parentRunName: parentRun.name,
+      parentRunWorkflowName: parentRun.workflowName,
+      parentRunProjectId: parentRun.projectId,
       createdAt: workflowRuns.createdAt,
       attemptId: workflowRunAttempts.id,
       attemptWorkflowRunId: workflowRunAttempts.workflowRunId,
@@ -425,6 +434,13 @@ async function loadOverviewTarget(
       attemptRerunMode: workflowRunAttempts.rerunMode,
     })
     .from(workflowRuns)
+    .leftJoin(
+      parentRun,
+      and(
+        eq(parentRun.id, workflowRuns.parentRunId),
+        eq(parentRun.workspaceId, workflowRuns.workspaceId),
+      ),
+    )
     .innerJoin(
       workflowRunAttempts,
       and(
@@ -455,6 +471,15 @@ async function loadOverviewTarget(
       triggerSource: row.triggerSource,
       triggerEvent: row.triggerEvent,
       triggerReference: row.triggerReference ?? null,
+      parentRun:
+        row.parentRunId && row.parentRunNumber !== null && row.parentRunProjectId
+          ? {
+              id: row.parentRunId,
+              number: row.parentRunNumber,
+              name: row.parentRunName ?? row.parentRunWorkflowName ?? '',
+              projectId: row.parentRunProjectId,
+            }
+          : null,
       createdAt: row.createdAt,
     },
     attempt: {

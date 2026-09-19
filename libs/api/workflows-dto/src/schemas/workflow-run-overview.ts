@@ -8,6 +8,7 @@ import {
   workflowRunAttemptDtoSchema,
   workflowRunDevSourceSchema,
   workflowRunOriginSchema,
+  workflowRunParentSchema,
   workflowRunTriggerReferenceSchema,
 } from './workflow-run.js';
 
@@ -107,6 +108,7 @@ export const workflowRunOverviewHeaderDtoSchema = z.object({
   trigger_source: z.string(),
   trigger_event: z.string(),
   trigger_reference: workflowRunTriggerReferenceSchema.nullable(),
+  parent_run: workflowRunParentSchema.nullable().optional().default(null),
   created_at: z.string().datetime(),
 });
 

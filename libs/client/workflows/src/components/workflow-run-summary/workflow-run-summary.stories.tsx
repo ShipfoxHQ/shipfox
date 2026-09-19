@@ -167,6 +167,23 @@ const ATTEMPT_SUMMARY_ARGS = {
 
 export const Playground: Story = {};
 
+export const StartedByAnotherRun: Story = {
+  decorators: [withAttemptApi],
+  args: {
+    workspaceSlug: 'acme',
+    projectSlug: 'project',
+    run: workflowRunOverview({
+      name: 'deploy-child',
+      parent_run: {
+        id: ROOT_RUN_ID,
+        number: 41,
+        name: 'release-production',
+        project_id: '22222222-2222-4222-8222-222222222222',
+      },
+    }),
+  },
+};
+
 export const WithAttempts: Story = {
   decorators: [withAttemptApi],
   args: ATTEMPT_SUMMARY_ARGS,

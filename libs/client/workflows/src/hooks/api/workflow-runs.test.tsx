@@ -8,11 +8,18 @@ import {
   runAttemptsResponseDto,
   workflowRunAttemptDto,
   workflowRunDto,
+  workflowRunFixtureDto,
   workflowRunListResponseDto,
+  workflowRunOverviewResponseDto,
   workflowRunResponseDto,
 } from '#test/fixtures/workflow-run.js';
 import {useStepAttemptDetailQuery} from './step-attempt-detail.js';
-import {toStepAttemptDetail, toWorkflowRun, toWorkflowRunListPage} from './workflow-run-mapper.js';
+import {
+  toStepAttemptDetail,
+  toWorkflowRun,
+  toWorkflowRunListPage,
+  toWorkflowRunOverview,
+} from './workflow-run-mapper.js';
 import {
   fireManualWorkflow,
   useCancelWorkflowRunMutation,
@@ -142,6 +149,32 @@ describe('workflow run API hooks', () => {
       updatedAt: '2026-05-07T01:02:00.000Z',
     });
     expect(cached?.pages[0]).toHaveProperty('nextCursor', 'cursor-2');
+  });
+
+  test('maps parent runs on list items and overviews', () => {
+    const parentRun = {
+      id: ROOT_RUN_ID,
+      number: 17,
+      name: 'release-production',
+      project_id: '88888888-8888-4888-8888-888888888888',
+    };
+    const list = toWorkflowRunListPage(
+      workflowRunListResponseDto({runs: [workflowRunDto({parent_run: parentRun})]}),
+    );
+    const overview = toWorkflowRunOverview(
+      workflowRunOverviewResponseDto(
+        workflowRunFixtureDto({parent_run: parentRun, status: 'succeeded'}),
+      ),
+    );
+
+    expect(list.runs[0]?.parentRun).toEqual({
+      id: ROOT_RUN_ID,
+      number: 17,
+      name: 'release-production',
+      projectId: parentRun.project_id,
+    });
+    expect(overview.parentRun).toEqual(list.runs[0]?.parentRun);
+    expect(toWorkflowRunListPage(workflowRunListResponseDto()).runs[0]?.parentRun).toBeNull();
   });
 
   test('maps concurrency details and related attempt identities onto the selected attempt', () => {

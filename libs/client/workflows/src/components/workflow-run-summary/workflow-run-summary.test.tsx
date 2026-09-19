@@ -590,16 +590,44 @@ describe('WorkflowRunSummary', () => {
     expect(within(summary).queryByRole('link', {name: REPLAY_OF_TEXT})).not.toBeInTheDocument();
   });
 
-  test('omits the replay provenance when the dev run replays no event', async () => {
+  test('links to the parent run instead of showing its trigger label', async () => {
+    const parentRunId = '77777777-7777-4777-8777-777777777777';
     renderSummaryWithRouter({
-      run: workflowRunOverview(devRunOverrides()),
+      run: workflowRunOverview({
+        parent_run: {
+          id: parentRunId,
+          number: 42,
+          name: 'release-production',
+          project_id: '22222222-2222-4222-8222-222222222222',
+        },
+      }),
       workspaceSlug: 'acme',
       projectSlug: 'project',
     });
 
     const summary = await screen.findByRole('region', {name: 'deploy-web'});
+    const parentLink = within(summary).getByRole('link', {
+      name: 'Started by release-production #42',
+    });
 
-    expect(within(summary).queryByText(REPLAY_OF_TEXT)).not.toBeInTheDocument();
+    expect(parentLink).toHaveAttribute('href', `/w/acme/p/project/runs/${parentRunId}`);
+  });
+
+  test('shows the parent label once in a list-shaped summary', async () => {
+    const parent = {
+      id: '77777777-7777-4777-8777-777777777777',
+      number: 42,
+      name: 'release-production',
+      project_id: '22222222-2222-4222-8222-222222222222',
+    };
+    renderSummaryWithRouter({
+      run: workflowRunOverview({parent_run: parent}),
+      workspaceSlug: 'acme',
+      projectSlug: 'project',
+    });
+
+    const summary = await screen.findByRole('region', {name: 'deploy-web'});
+    expect(within(summary).getAllByText('Started by release-production #42')).toHaveLength(1);
   });
 });
 
