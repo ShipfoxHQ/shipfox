@@ -58,6 +58,7 @@ describe('resolveRuntimeCredentials', () => {
     });
 
     const result = await resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -158,6 +159,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -196,6 +198,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -228,6 +231,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -254,6 +258,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId,
         stepAttemptId,
@@ -270,6 +275,7 @@ describe('resolveRuntimeCredentials', () => {
       runId,
       stepAttemptId,
       model: 'claude-model',
+      renewableInference: false,
     });
     expect(result).toEqual({
       harness: 'claude',
@@ -299,6 +305,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -332,6 +339,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -361,6 +369,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -387,6 +396,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -422,6 +432,7 @@ describe('resolveRuntimeCredentials', () => {
       });
       const runtime = await resolveRuntimeCredentials(
         {
+          renewableInference: false,
           workspaceId,
           runId: crypto.randomUUID(),
           stepAttemptId: crypto.randomUUID(),
@@ -478,6 +489,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -502,6 +514,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -524,6 +537,7 @@ describe('resolveRuntimeCredentials', () => {
     });
     const result = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -541,6 +555,7 @@ describe('resolveRuntimeCredentials', () => {
   it('returns the instance fallback only for the instance default model provider', async () => {
     const matching = await resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -553,6 +568,7 @@ describe('resolveRuntimeCredentials', () => {
     );
     const mismatched = resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -577,6 +593,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -597,6 +614,7 @@ describe('resolveRuntimeCredentials', () => {
   it('reports the managed provider when a foreign runtime provider is requested', async () => {
     const result = resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),
@@ -632,6 +650,7 @@ describe('resolveRuntimeCredentials', () => {
     });
 
     const result = await resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -673,6 +692,7 @@ describe('resolveRuntimeCredentials', () => {
     });
 
     const result = await resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -693,6 +713,7 @@ describe('resolveRuntimeCredentials', () => {
 
   it('throws when no workspace or instance credential is available', async () => {
     const result = resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -714,6 +735,7 @@ describe('resolveRuntimeCredentials', () => {
     await deleteModelProviderConfig({workspaceId, providerId: 'anthropic'});
 
     const result = resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -735,6 +757,7 @@ describe('resolveRuntimeCredentials', () => {
     });
 
     const result = resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -761,6 +784,7 @@ describe('resolveRuntimeCredentials', () => {
     });
 
     const result = resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -781,6 +805,7 @@ describe('resolveRuntimeCredentials', () => {
     });
 
     const result = resolveRuntimeCredentials({
+      renewableInference: false,
       workspaceId,
       runId: crypto.randomUUID(),
       stepAttemptId: crypto.randomUUID(),
@@ -804,6 +829,7 @@ describe('resolveRuntimeCredentials', () => {
 
     const result = resolveRuntimeCredentials(
       {
+        renewableInference: false,
         workspaceId,
         runId: crypto.randomUUID(),
         stepAttemptId: crypto.randomUUID(),

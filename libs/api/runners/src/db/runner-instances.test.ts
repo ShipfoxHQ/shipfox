@@ -136,6 +136,7 @@ async function insertRunningJobRow(params: {
   await db()
     .insert(runningJobExecutions)
     .values({
+      renewableInference: false,
       workspaceId: params.workspaceId,
       workflowRunId: crypto.randomUUID(),
       workflowRunAttemptId: crypto.randomUUID(),
@@ -3258,6 +3259,7 @@ describe('reapStaleRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -3839,6 +3841,7 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -3919,6 +3922,7 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -3979,6 +3983,7 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: crypto.randomUUID(),
         workflowRunAttemptId: crypto.randomUUID(),
@@ -4465,6 +4470,7 @@ describe('reconcileRunnerInstances', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         jobId: params.jobId,
         jobExecutionId: params.jobExecutionId ?? crypto.randomUUID(),

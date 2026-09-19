@@ -55,6 +55,20 @@ describe('agentInterModuleContract', () => {
     expect(parsed).toEqual(input);
   });
 
+  test('requires the runner capability snapshot for runtime credentials', () => {
+    expect(() =>
+      agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({
+        workspaceId: UUID,
+        runId: '00000000-0000-4000-8000-000000000002',
+        stepAttemptId: '00000000-0000-4000-8000-000000000003',
+        harness: 'pi',
+        provider: 'shipfox',
+        model: 'managed-model',
+        thinking: 'high',
+      }),
+    ).toThrow();
+  });
+
   test('declares the runner capability failure for runtime credentials', () => {
     const error = agentInterModuleContract.methods.resolveRuntimeCredentials.errors[
       RUNNER_CAPABILITY_REQUIRED_ERROR_CODE
@@ -76,6 +90,7 @@ describe('agentInterModuleContract', () => {
         provider: 'shipfox',
         model: 'managed-model',
         thinking: 'high',
+        renewableInference: true,
       }),
     ).toThrow();
   });

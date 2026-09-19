@@ -112,7 +112,7 @@ export function createE2eManagedInferenceProvider(
       const key = params.stepAttemptId;
       const now = Date.now();
       pruneCredentialStates(state, now);
-      const renewableInference = params.renewableInference === true;
+      const renewableInference = params.renewableInference;
       const credentialState = state.credentials.get(key) ??
         state.tombstones.get(key) ?? {
           nextGeneration: 1,

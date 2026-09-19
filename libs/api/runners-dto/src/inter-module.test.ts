@@ -10,6 +10,12 @@ describe('runnersInterModuleContract', () => {
     expect(result).toEqual({active: true, renewableInference: false});
   });
 
+  test('rejects an active lease without its capability snapshot', () => {
+    expect(() =>
+      runnersInterModuleContract.methods.getLeaseState.output.parse({active: true}),
+    ).toThrow();
+  });
+
   test('exposes bounded JSON capability results', () => {
     const capabilities = {
       features: {renewable_git: false, renewable_inference: false},

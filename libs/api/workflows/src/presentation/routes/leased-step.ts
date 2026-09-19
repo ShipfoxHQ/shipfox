@@ -24,7 +24,7 @@ export interface LoadedRunningLeasedStep {
   /** The server-frozen subject for an initial replacement or persisted checkout renewal. */
   checkoutRenewalSubject?: CheckoutRenewalSubject;
   /** The capability snapshot captured when the runner claimed this execution. */
-  renewableInference?: boolean;
+  renewableInference: boolean;
 }
 
 export async function assertLeasedJobActive(
@@ -66,10 +66,7 @@ export async function loadRunningLeasedStep(params: {
   const leasedJob = requireLeasedJobContext(params.request);
 
   const leaseState = await assertLeasedJobActive(params.runners, leasedJob);
-  const renewableInference =
-    leaseState.renewableInference === undefined
-      ? {}
-      : {renewableInference: leaseState.renewableInference};
+  const renewableInference = leaseState.renewableInference;
 
   const step = await getStepByIdForJobExecution({
     stepId: params.stepId,
@@ -102,7 +99,7 @@ export async function loadRunningLeasedStep(params: {
           triggerReference: scope.triggerReference,
           run: scope.run,
           checkoutRenewalSubject,
-          ...renewableInference,
+          renewableInference,
         };
       }
     }
@@ -134,6 +131,6 @@ export async function loadRunningLeasedStep(params: {
     triggerReference: scope.triggerReference,
     run: scope.run,
     ...(checkoutRenewalSubject === null ? {} : {checkoutRenewalSubject}),
-    ...renewableInference,
+    renewableInference,
   };
 }

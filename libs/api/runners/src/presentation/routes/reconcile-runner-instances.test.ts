@@ -894,6 +894,7 @@ describe('POST /provisioners/runner-instances/reconcile', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         workflowRunId: params.workflowRunId,
         jobId: params.jobId,

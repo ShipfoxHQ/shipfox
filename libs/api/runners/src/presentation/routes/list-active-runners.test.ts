@@ -87,6 +87,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         jobId: crypto.randomUUID(),
         jobExecutionId: crypto.randomUUID(),
@@ -143,6 +144,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
           workflowRunAttemptId: crypto.randomUUID(),
           projectId: crypto.randomUUID(),
           runnerSessionId,
+          renewableInference: false,
           requiredLabels: ['linux'],
           runnerLabels: ['linux'],
         },
@@ -154,6 +156,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
           workflowRunAttemptId: crypto.randomUUID(),
           projectId: crypto.randomUUID(),
           runnerSessionId,
+          renewableInference: false,
           requiredLabels: ['linux'],
           runnerLabels: ['linux'],
         },
@@ -206,6 +209,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         jobId,
         jobExecutionId: crypto.randomUUID(),
@@ -245,6 +249,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         jobId,
         jobExecutionId: crypto.randomUUID(),
@@ -312,6 +317,7 @@ describe('GET /workspaces/:workspaceId/runners/active', () => {
     await db()
       .insert(runningJobExecutions)
       .values({
+        renewableInference: false,
         workspaceId,
         jobId,
         jobExecutionId: crypto.randomUUID(),

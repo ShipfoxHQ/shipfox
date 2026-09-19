@@ -129,6 +129,6 @@ export interface ManagedModelProvider {
     /** Complete job identity supplied by the leased workflow step when available. */
     jobIdentity?: ManagedProviderJobIdentity | undefined;
     model: string;
-    renewableInference?: boolean | undefined;
+    renewableInference: boolean;
   }) => Promise<ManagedProviderRuntimeConfig>;
 }
