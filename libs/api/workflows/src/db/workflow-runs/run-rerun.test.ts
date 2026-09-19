@@ -209,71 +209,7 @@ describe('workflow run queries', () => {
       );
     });
 
-    test('returns the complete concurrency impact without mutating the rerun', async () => {
-      const holderModel = buildModel({
-        concurrency: {group: 'rerun-impact', cancelInProgress: true},
-        jobs: {build: {steps: [{run: 'echo build'}]}},
-      });
-      const holder = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model: holderModel,
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-      });
-      const waiter = await createWorkflowRun({
-        workspaceId,
-        projectId,
-        definitionId,
-        model: buildModel({
-          concurrency: {group: 'rerun-impact', cancelInProgress: false},
-          jobs: {build: {steps: [{run: 'echo build'}]}},
-        }),
-        triggerPayload: {
-          source: 'manual',
-          event: 'fire',
-          subscriptionId: crypto.randomUUID(),
-          userId: crypto.randomUUID(),
-        },
-      });
-      await updateWorkflowRunStatus({
-        workflowRunId: holder.id,
-        status: 'failed',
-        expectedVersion: holder.version,
-      });
-      const attemptsBefore = await listTestRunAttempts({workflowRunId: holder.id, projectId});
-
-      await expect(
-        createRerunWorkflowRun({
-          workflowRunId: holder.id,
-          mode: 'all',
-          actorUserId: crypto.randomUUID(),
-        }),
-      ).rejects.toMatchObject({
-        affectedAttempts: [
-          {
-            workflow_run_id: waiter.id,
-            planned_effect: 'supersede_waiter',
-          },
-        ],
-      });
-
-      await expect(
-        listTestRunAttempts({workflowRunId: holder.id, projectId}),
-      ).resolves.toHaveLength(attemptsBefore.length);
-      await expect(getWorkflowRunById(holder.id)).resolves.toMatchObject({
-        currentAttempt: holder.currentAttempt,
-        status: 'failed',
-      });
-      await expect(getWorkflowRunById(waiter.id)).resolves.toMatchObject({status: 'waiting'});
-    });
-
-    test('confirmed reruns supersede the waiter and acquire the group claim', async () => {
+    test('reruns supersede the waiter and acquire the group claim', async () => {
       const holderModel = buildModel({
         concurrency: {group: 'confirmed-rerun', cancelInProgress: true},
         jobs: {build: {steps: [{run: 'echo build'}]}},
@@ -315,7 +251,6 @@ describe('workflow run queries', () => {
         workflowRunId: holder.id,
         mode: 'all',
         actorUserId: crypto.randomUUID(),
-        confirmConcurrencyImpact: true,
       });
       const holderAttempts = await listTestRunAttempts({workflowRunId: holder.id, projectId});
       const holderAttempt = holderAttempts.find(

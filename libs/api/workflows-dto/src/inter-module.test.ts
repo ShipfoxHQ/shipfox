@@ -38,26 +38,14 @@ describe('workflowsInterModuleContract', () => {
       }).deduplicated,
     ).toBe(true);
     expect(
-      workflowsInterModuleContract.methods.rerunWorkflowRun.input.safeParse({
+      workflowsInterModuleContract.methods.rerunWorkflowRun.input.parse({
         workspaceId,
         workflowRunId,
         expectedAttempt: 1,
         mode: 'all',
         actorUserId,
-        confirmConcurrencyImpact: true,
-      }).success,
-    ).toBe(true);
-    expect(
-      workflowsInterModuleContract.methods.rerunWorkflowRun.errors['concurrency-impact'].parse({
-        affectedAttempts: [
-          {
-            workflow_run_id: workflowRunId,
-            workflow_run_attempt_id: actorUserId,
-            planned_effect: 'supersede_waiter',
-          },
-        ],
       }),
-    ).toMatchObject({affectedAttempts: [{planned_effect: 'supersede_waiter'}]});
+    ).toEqual({workspaceId, workflowRunId, expectedAttempt: 1, mode: 'all', actorUserId});
   });
 
   test('accepts workspace-scoped execution reads with decoded cursors and filters', () => {

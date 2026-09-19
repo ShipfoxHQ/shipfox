@@ -26,7 +26,6 @@ import {
 import {
   isWorkflowRunTerminal,
   type StepSourceLocation,
-  type WorkflowRunConcurrencyImpact,
   type WorkflowRunOverview,
   type WorkflowRunOverviewJob,
   type WorkflowRunRerunMode,
@@ -52,7 +51,6 @@ import {
   useCancelWorkflowRunMutation,
   useRerunWorkflowRunMutation,
   useWorkflowRunListItem,
-  workflowRunConcurrencyImpact,
 } from '#hooks/api/workflow-runs.js';
 import {
   type WorkflowJobSearch,
@@ -72,7 +70,6 @@ import {
 import {presentRunJobExplanation} from '../workflow-run-tabs/run-job-explanation.js';
 import {WorkflowSourceContent} from '../workflow-source-panel/index.js';
 import {RunWorkspaceNav} from './run-workspace-nav.js';
-import {WorkflowRerunImpactDialog} from './workflow-rerun-impact-dialog.js';
 import {
   WorkflowRunSupersededAnnotation,
   WorkflowRunWaitingNotice,
@@ -231,7 +228,6 @@ export function WorkflowRunView({
     <RelativeTimeProvider>
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <RunViewContent
-          key={`${workflowRunId ?? 'none'}:${overviewAttempt ?? 'none'}`}
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
           projectSlug={projectSlug}
@@ -599,57 +595,24 @@ function RunViewContent({
   const actionsReady = workflowRunActionsReady({overview, runAttempt, headQuery});
   const actionRun = actionsReady ? overview : undefined;
   const cancelMutation = useCancelWorkflowRunMutation(actionRun);
-  const [rerunImpact, setRerunImpact] = useState<{
-    mode: WorkflowRunRerunMode;
-    impacts: WorkflowRunConcurrencyImpact[];
-    changed: boolean;
-    errorMessage?: string | undefined;
-  } | null>(null);
   const activeAttempt = runAttempt ?? overview?.runAttempt.attempt ?? shellRun?.runAttempt.attempt;
 
-  async function rerun(mode: WorkflowRunRerunMode, confirmConcurrencyImpact = false) {
+  async function rerun(mode: WorkflowRunRerunMode) {
     if (!actionRun || !workspaceSlug || !projectSlug) {
       toast.error('Could not start re-run from this route.');
       return;
     }
-    let run: Awaited<ReturnType<typeof rerunMutation.mutateAsync>>;
     try {
-      run = await rerunMutation.mutateAsync({
-        workflowRunId: actionRun.id,
-        mode,
-        confirmConcurrencyImpact,
-      });
-    } catch (error) {
-      const impacts = workflowRunConcurrencyImpact(error);
-      if (impacts) {
-        setRerunImpact((previous) => ({
-          mode,
-          impacts,
-          changed: previous !== null && !sameWorkflowRunImpacts(previous.impacts, impacts),
-        }));
-        return;
-      }
-
-      const message = rerunErrorMessage(error);
-      if (confirmConcurrencyImpact && rerunImpact) {
-        setRerunImpact({...rerunImpact, errorMessage: message});
-        return;
-      }
-      toast.error(message);
-      return;
-    }
-
-    setRerunImpact(null);
-    toast.success('Re-run started');
-    try {
+      const run = await rerunMutation.mutateAsync({workflowRunId: actionRun.id, mode});
+      toast.success('Re-run started');
       await navigate({
         to: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
         params: {workspaceSlug, projectSlug, workflowRunId: run.id},
         search: ((previous: Record<string, unknown>) =>
           withoutWorkflowRunSelectionSearch(previous)) as never,
       });
-    } catch {
-      toast.error('Re-run started, but could not be opened. Refresh to find the new attempt.');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not start re-run');
     }
   }
 
@@ -711,67 +674,38 @@ function RunViewContent({
   }
 
   return (
-    <>
-      <RunViewLayout
-        workspaceId={workspaceId}
-        workspaceSlug={workspaceSlug}
-        projectSlug={projectSlug}
-        headQuery={headQuery}
-        overviewQuery={overviewQuery}
-        overview={overview}
-        sourceQuery={sourceQuery}
-        shellRun={shellRun}
-        annotations={annotations}
-        jobExplanations={jobExplanations}
-        annotationSummary={annotationSummary}
-        rerunPending={rerunMutation.isPending}
-        activeSection={activeSection}
-        activeJobId={activeJobId}
-        activeJob={activeJob}
-        jobSearch={jobSearch}
-        selection={selection}
-        selectedJobId={selectedJobId}
-        jobContent={jobContent}
-        highlightedLineRange={highlightedLineRange}
-        selectionQuery={selectionQuery}
-        selectionResolutionEnabled={selectionResolutionEnabled}
-        onCancel={actionRun ? cancelRun : undefined}
-        cancelling={cancelMutation.isPending}
-        onRerun={actionRun ? (mode) => void rerun(mode) : undefined}
-        onSelectGraphJob={selectGraphJob}
-        onSelectAnnotationJob={selectAnnotationJob}
-        onClearAnnotationFilters={clearAnnotationFilters}
-        onClearSelection={clearWorkflowRunSelection}
-      />
-      <WorkflowRerunImpactDialog
-        impacts={rerunImpact?.impacts ?? []}
-        impactChanged={rerunImpact?.changed ?? false}
-        errorMessage={rerunImpact?.errorMessage}
-        isPending={rerunMutation.isPending}
-        workspaceSlug={workspaceSlug}
-        projectSlug={projectSlug}
-        onDismiss={() => setRerunImpact(null)}
-        onConfirm={() => {
-          if (rerunImpact) void rerun(rerunImpact.mode, true);
-        }}
-      />
-    </>
+    <RunViewLayout
+      workspaceId={workspaceId}
+      workspaceSlug={workspaceSlug}
+      projectSlug={projectSlug}
+      headQuery={headQuery}
+      overviewQuery={overviewQuery}
+      overview={overview}
+      sourceQuery={sourceQuery}
+      shellRun={shellRun}
+      annotations={annotations}
+      jobExplanations={jobExplanations}
+      annotationSummary={annotationSummary}
+      rerunPending={rerunMutation.isPending}
+      activeSection={activeSection}
+      activeJobId={activeJobId}
+      activeJob={activeJob}
+      jobSearch={jobSearch}
+      selection={selection}
+      selectedJobId={selectedJobId}
+      jobContent={jobContent}
+      highlightedLineRange={highlightedLineRange}
+      selectionQuery={selectionQuery}
+      selectionResolutionEnabled={selectionResolutionEnabled}
+      onCancel={actionRun ? cancelRun : undefined}
+      cancelling={cancelMutation.isPending}
+      onRerun={actionRun ? (mode) => void rerun(mode) : undefined}
+      onSelectGraphJob={selectGraphJob}
+      onSelectAnnotationJob={selectAnnotationJob}
+      onClearAnnotationFilters={clearAnnotationFilters}
+      onClearSelection={clearWorkflowRunSelection}
+    />
   );
-}
-
-function sameWorkflowRunImpacts(
-  left: readonly WorkflowRunConcurrencyImpact[],
-  right: readonly WorkflowRunConcurrencyImpact[],
-): boolean {
-  if (left.length !== right.length) return false;
-  const keys = (impacts: readonly WorkflowRunConcurrencyImpact[]) =>
-    impacts
-      .map(
-        (impact) =>
-          `${impact.workflowRunId}:${impact.workflowRunAttemptId}:${impact.plannedEffect}`,
-      )
-      .sort();
-  return keys(left).every((key, index) => key === keys(right)[index]);
 }
 
 function selectedRunJobId({
@@ -1499,14 +1433,4 @@ function cancelErrorMessage(error: unknown): string {
     return 'This workflow run has already finished.';
   }
   return 'Could not cancel workflow run.';
-}
-
-function rerunErrorMessage(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Could not start re-run. Try again.';
-  if (error.code === 'run-not-terminal') return 'This workflow run is no longer finished.';
-  if (error.code === 'no-failed-jobs') return 'This workflow run has no failed jobs to re-run.';
-  if (error.code === 'network-error') {
-    return 'Could not reach the API. Check your connection and try again.';
-  }
-  return 'Could not start re-run. Try again.';
 }

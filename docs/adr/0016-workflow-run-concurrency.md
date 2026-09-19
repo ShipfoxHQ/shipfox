@@ -224,11 +224,9 @@ canonical key, scope, `cancel_in_progress`, and origin scope. It receives a new 
 not re-evaluate the template or fetch current provider data or variables.
 
 This means rerunning an older, superseded attempt can supersede a newer waiter or cancel the current
-holder. The rerun API requires explicit concurrency-impact confirmation whenever arbitration would
-supersede a waiter or request holder cancellation. Without confirmation, it returns a conflict with
-the affected attempt identities and planned effects. The UI explains the impact and resubmits only
-after confirmation. The server checks this inside arbitration so a stale client read cannot bypass
-the confirmation.
+holder. A rerun is an explicit request to create the newest group participant. The server applies
+the stored concurrency policy immediately. Arbitration reads the current slots under the group lock,
+so the decision does not depend on a stale client preview.
 
 ### Deployment compatibility
 
@@ -307,8 +305,7 @@ deployed system must not parse concurrency and then execute a run without arbitr
 - Workflow-local coordination is the safe default. Authors opt in when several definitions should
   share a group.
 - Every effective group keeps bounded live state: one holder and one waiter.
-- A rerun can intentionally affect newer work, but supersession or cancellation requires explicit
-  confirmation.
+- A rerun can supersede newer work or request holder cancellation under its stored policy.
 - Dev concurrency is isolated by initiating user as well as from synced work.
 - Listening workflows cannot use concurrency in the first version.
 - Integration delivery and processing remain unordered. An older provider event can supersede work

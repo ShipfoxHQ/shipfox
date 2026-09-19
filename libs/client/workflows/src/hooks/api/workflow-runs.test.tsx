@@ -1,5 +1,5 @@
 import type {StepAttemptDetailResponseDto} from '@shipfox/api-workflows-dto';
-import {ApiError, configureApiClient} from '@shipfox/client-api';
+import {configureApiClient} from '@shipfox/client-api';
 import {type InfiniteData, QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react';
 import type {ReactNode} from 'react';
@@ -27,7 +27,6 @@ import {
   useRerunWorkflowRunMutation,
   useWorkflowRunAttemptsQuery,
   useWorkflowRunsInfiniteQuery,
-  workflowRunConcurrencyImpact,
   workflowRunsQueryKeys,
   workflowRunsRefetchInterval,
 } from './workflow-runs.js';
@@ -745,70 +744,6 @@ describe('workflow run API hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: workflowRunsQueryKeys.overviews(RUN_ID),
     });
-  });
-
-  test('posts explicit concurrency confirmation only when requested', async () => {
-    const postBodies: unknown[] = [];
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
-      const request = input as Request;
-      postBodies.push(await request.clone().json());
-      return jsonResponse(workflowRunResponseDto({status: 'pending'}));
-    });
-    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
-    const {result} = renderWithQueryClient(() => useRerunWorkflowRunMutation(PROJECT_ID));
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        workflowRunId: RUN_ID,
-        mode: 'all',
-        confirmConcurrencyImpact: true,
-      });
-    });
-
-    expect(postBodies).toEqual([{mode: 'all', confirm_concurrency_impact: true}]);
-  });
-
-  test('maps a concurrency impact error into the client workflow model', () => {
-    const impacts = workflowRunConcurrencyImpact(
-      new ApiError({
-        code: 'concurrency-impact',
-        message: 'Rerun would affect another workflow attempt',
-        status: 409,
-        details: {
-          code: 'concurrency-impact',
-          details: {
-            affected_attempts: [
-              {
-                workflow_run_id: RUN_ID,
-                workflow_run_attempt_id: ROOT_RUN_ID,
-                planned_effect: 'cancel_holder',
-              },
-            ],
-          },
-        },
-      }),
-    );
-
-    expect(impacts).toEqual([
-      {
-        workflowRunId: RUN_ID,
-        workflowRunAttemptId: ROOT_RUN_ID,
-        plannedEffect: 'cancel_holder',
-      },
-    ]);
-  });
-
-  test('rejects malformed concurrency impact details', () => {
-    const impacts = workflowRunConcurrencyImpact(
-      new ApiError({
-        code: 'concurrency-impact',
-        message: 'Rerun would affect another workflow attempt',
-        status: 409,
-        details: {details: {affected_attempts: [{planned_effect: 'cancel_holder'}]}},
-      }),
-    );
-
-    expect(impacts).toBeUndefined();
   });
 });
 

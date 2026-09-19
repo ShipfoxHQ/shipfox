@@ -11,7 +11,6 @@ import {
   RunNotTerminalError,
   SourceRunNotFoundError,
   WorkflowAdmissionDeniedError,
-  WorkflowConcurrencyImpactError,
   WorkspaceDeletedError,
   WorkspaceNotFoundError,
   WorkspaceSuspendedError,
@@ -57,13 +56,6 @@ export function rerunRunRoute(
       if (error instanceof NoFailedJobsError) {
         throw new ClientError('Run has no failed jobs', 'no-failed-jobs', {status: 409});
       }
-      if (error instanceof WorkflowConcurrencyImpactError) {
-        throw new ClientError('Rerun would affect another workflow attempt', 'concurrency-impact', {
-          status: 409,
-          details: {affected_attempts: error.affectedAttempts},
-          cause: error,
-        });
-      }
       const workspaceError = toWorkspaceRerunError(error);
       if (workspaceError) throw workspaceError;
       throw error;
@@ -78,7 +70,6 @@ export function rerunRunRoute(
         workflowRunId: sourceRun.id,
         mode: request.body.mode,
         actorUserId: actor.userId,
-        confirmConcurrencyImpact: request.body.confirm_concurrency_impact,
         workspaces,
         admission,
       });

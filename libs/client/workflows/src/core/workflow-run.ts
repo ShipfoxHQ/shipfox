@@ -84,8 +84,6 @@ export type {
   WorkflowRunAttemptIdentity,
   WorkflowRunAttemptReference,
   WorkflowRunConcurrency,
-  WorkflowRunConcurrencyImpact,
-  WorkflowRunConcurrencyImpactEffect,
   WorkflowRunDevSource,
   WorkflowRunJobStatusCount,
   WorkflowRunJobSummary,

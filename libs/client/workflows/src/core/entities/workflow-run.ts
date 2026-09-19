@@ -23,12 +23,6 @@ export interface WorkflowRunAttemptIdentity {
   workflowRunAttemptId: string;
 }
 
-export type WorkflowRunConcurrencyImpactEffect = 'supersede_waiter' | 'cancel_holder';
-
-export interface WorkflowRunConcurrencyImpact extends WorkflowRunAttemptIdentity {
-  plannedEffect: WorkflowRunConcurrencyImpactEffect;
-}
-
 export interface WorkflowRunConcurrency {
   displayGroup: string;
   scope: 'workflow' | 'project';
