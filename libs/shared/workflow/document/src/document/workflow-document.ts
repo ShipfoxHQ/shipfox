@@ -452,6 +452,22 @@ const workflowDocumentStepOutputsFieldSchema = z
   .record(z.string(), workflowDocumentStepOutputValueSchema)
   .superRefine((outputs, ctx) => stepOutputsRecordChecks(outputs, ctx));
 
+export const workflowDocumentConcurrencySchema = z
+  .strictObject({
+    group: z.string().min(1).meta({
+      description: 'Required group interpolation template used to coordinate workflow runs.',
+    }),
+    scope: z.enum(['workflow', 'project']).optional().meta({
+      description:
+        'Concurrency scope. Defaults to `workflow`; use `project` to coordinate workflows in one project.',
+    }),
+    cancel_in_progress: z.boolean().optional().meta({
+      description:
+        'Cancel the current holder when a newer run waits for the group. Defaults to `false`.',
+    }),
+  })
+  .meta({description: 'Latest-wins concurrency policy for workflow runs.'});
+
 const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1).meta({
     description:
@@ -1220,6 +1236,7 @@ export const workflowDocumentSchema = z.strictObject({
     description:
       'Workflow-level environment variables for run steps. They do not apply to agent steps. See [secrets and variables](/reference/secrets-variables).',
   }),
+  concurrency: workflowDocumentConcurrencySchema.optional(),
   triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional().meta({
     description:
       'Named events that start workflow runs. A workflow can have at most one `manual` trigger.',
@@ -1231,6 +1248,7 @@ export const workflowDocumentSchema = z.strictObject({
 
 export type WorkflowDocumentStep = z.infer<typeof workflowDocumentStepSchema>;
 export type WorkflowDocumentJob = z.infer<typeof workflowDocumentJobSchema>;
+export type WorkflowDocumentConcurrency = z.infer<typeof workflowDocumentConcurrencySchema>;
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
 export type WorkflowDocumentCheckout = z.infer<typeof workflowDocumentCheckoutSchema>;
 export type WorkflowDocumentJobCheckout = z.infer<typeof workflowDocumentJobCheckoutSchema>;

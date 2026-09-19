@@ -32,6 +32,24 @@ describe('parseWorkflowDocument', () => {
     expect(result).toEqual(workflowDocument);
   });
 
+  it('preserves the top-level concurrency policy when parsing', () => {
+    const result = parseWorkflowDocument({
+      name: 'concurrent build',
+      concurrency: {
+        group: '$' + '{{ event.pull_request.number }}',
+        cancel_in_progress: true,
+      },
+      jobs: {
+        build: {steps: [{run: 'npm run build'}]},
+      },
+    });
+
+    expect(result.concurrency).toEqual({
+      group: '$' + '{{ event.pull_request.number }}',
+      cancel_in_progress: true,
+    });
+  });
+
   it('throws a typed domain error when the document is invalid', () => {
     const workflowDocument = {
       name: 'simple build',
