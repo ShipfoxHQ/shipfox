@@ -31,6 +31,9 @@ export const SHIPFOX_IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const DEFAULT_PAGE_LIMIT = 50;
 const WORKFLOW_RUN_JOB_LIMIT = 50;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const ISO_DATE_PATTERN =
+  /^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$/u;
+const ISO_TIME_PATTERN = /^(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?)Z$/u;
 const WORKFLOW_RUN_STATUSES = [
   'waiting',
   'pending',
@@ -147,8 +150,9 @@ const definitionOutputSchema = objectSchema(
     id: {type: 'string', format: 'uuid'},
     name: {type: 'string'},
     config_path: {type: ['string', 'null']},
+    has_manual_trigger: {type: 'boolean'},
   },
-  ['id', 'name', 'config_path'],
+  ['id', 'name', 'config_path', 'has_manual_trigger'],
 );
 const cursorPageOutputSchema = (key: string, item: AgentToolJsonSchema) =>
   objectSchema(
@@ -219,7 +223,9 @@ const jobOutputSchema = objectSchema(
     mode: {type: 'string'},
     listener_status: {type: 'string'},
     carried_over: {type: 'boolean'},
-    execution_count: {},
+    execution_count: {
+      anyOf: [{type: 'integer', minimum: 0, maximum: 100}, {const: '100+'}],
+    },
     execution_status_counts: {type: 'object'},
     default_execution: {type: ['object', 'null']},
     selected_execution: {type: ['object', 'null']},
@@ -248,10 +254,56 @@ const listWorkflowRunsOutputSchema = objectSchema(
   },
   ['runs', 'next_cursor', 'filtered_total_count'],
 );
+const workflowRunAttemptIdentityOutputSchema = objectSchema(
+  {
+    workflow_run_id: {type: 'string', format: 'uuid'},
+    workflow_run_attempt_id: {type: 'string', format: 'uuid'},
+  },
+  ['workflow_run_id', 'workflow_run_attempt_id'],
+);
+const workflowRunConcurrencyOutputSchema = objectSchema(
+  {
+    display_group: {type: 'string'},
+    scope: {type: 'string', enum: ['workflow', 'project']},
+    state: {type: 'string', enum: ['acquired', 'waiting', 'superseded', 'released']},
+    generation: {type: 'integer', minimum: 1},
+    policy: objectSchema({cancel_in_progress: {type: 'boolean'}}, ['cancel_in_progress']),
+    affected_attempts: {
+      type: 'array',
+      items: workflowRunAttemptIdentityOutputSchema,
+    },
+  },
+  ['display_group', 'scope', 'state', 'generation', 'policy', 'affected_attempts'],
+);
+const workflowRunAttemptOutputSchema = objectSchema(
+  {
+    id: {type: 'string', format: 'uuid'},
+    workflow_run_id: {type: 'string', format: 'uuid'},
+    attempt: {type: 'integer', minimum: 1, maximum: 2_147_483_647},
+    status: {type: 'string', enum: [...WORKFLOW_RUN_STATUSES]},
+    created_at: {type: 'string'},
+    started_at: {type: ['string', 'null']},
+    finished_at: {type: ['string', 'null']},
+    rerun_mode: {
+      anyOf: [{type: 'string', enum: ['all', 'failed']}, {type: 'null'}],
+    },
+    concurrency: {anyOf: [workflowRunConcurrencyOutputSchema, {type: 'null'}]},
+  },
+  [
+    'id',
+    'workflow_run_id',
+    'attempt',
+    'status',
+    'created_at',
+    'started_at',
+    'finished_at',
+    'rerun_mode',
+  ],
+);
 const getWorkflowRunOutputSchema = objectSchema(
   {
     run: runOutputSchema,
-    attempt: {type: 'object'},
+    attempt: workflowRunAttemptOutputSchema,
     jobs: {type: 'array', items: jobOutputSchema},
     jobs_truncated: {type: 'boolean'},
   },
@@ -441,6 +493,7 @@ export class ShipfoxAgentToolsProvider
           id: definition.id,
           name: definition.name,
           config_path: definition.configPath,
+          has_manual_trigger: definition.manualTrigger !== null,
         })),
         next_cursor: page.nextCursor === null ? null : encodeStringIdCursor(page.nextCursor),
       });
@@ -877,7 +930,12 @@ function isUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID_PATTERN.test(value);
 }
 function isDateTime(value: unknown): value is string {
-  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+  return (
+    typeof value === 'string' &&
+    ISO_DATE_PATTERN.test(value.slice(0, 10)) &&
+    value[10] === 'T' &&
+    ISO_TIME_PATTERN.test(value.slice(11))
+  );
 }
 function isSafeConfigPath(value: string): boolean {
   return [...value].every((character) => {

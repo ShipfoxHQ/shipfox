@@ -105,6 +105,62 @@ describe('Shipfox agent tools', () => {
     });
   });
 
+  it('describes producer-shaped workflow result fields in the catalog', () => {
+    const definitionsTool = shipfoxAgentToolCatalog.find(
+      (tool) => tool.id === 'list_workflow_definitions',
+    );
+    const getWorkflowRunTool = shipfoxAgentToolCatalog.find(
+      (tool) => tool.id === 'get_workflow_run',
+    );
+
+    expect(definitionsTool?.outputSchema).toMatchObject({
+      properties: {
+        definitions: {
+          items: {
+            additionalProperties: false,
+            properties: {has_manual_trigger: {type: 'boolean'}},
+            required: expect.arrayContaining(['has_manual_trigger']),
+          },
+        },
+      },
+    });
+    expect(getWorkflowRunTool?.outputSchema).toMatchObject({
+      properties: {
+        attempt: {
+          type: 'object',
+          additionalProperties: false,
+          required: expect.arrayContaining([
+            'id',
+            'workflow_run_id',
+            'attempt',
+            'status',
+            'created_at',
+            'started_at',
+            'finished_at',
+            'rerun_mode',
+          ]),
+          properties: {
+            concurrency: {
+              anyOf: [
+                expect.objectContaining({type: 'object', additionalProperties: false}),
+                {type: 'null'},
+              ],
+            },
+          },
+        },
+        jobs: {
+          items: {
+            properties: {
+              execution_count: {
+                anyOf: [{type: 'integer', minimum: 0, maximum: 100}, {const: '100+'}],
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
   it('uses the caller project by default and starts a child with its parent', async () => {
     const {definitions, triggers, workflows, provider} = createProvider();
     const session = await provider.openSession({
@@ -335,7 +391,14 @@ describe('Shipfox agent tools', () => {
     const otherProjectId = '00000000-0000-4000-8000-000000000009';
     projects.requireProjectForWorkspace.mockResolvedValue({project: {id: otherProjectId}});
     definitions.listDefinitionsByProject.mockResolvedValue({
-      definitions: [{id: definitionId, name: 'Deploy', configPath: '.shipfox/deploy.yml'}],
+      definitions: [
+        {
+          id: definitionId,
+          name: 'Deploy',
+          configPath: '.shipfox/deploy.yml',
+          manualTrigger: {name: 'manual'},
+        },
+      ],
       sync: null,
       nextCursor: {value: 'Deploy', id: definitionId},
     });
@@ -366,7 +429,14 @@ describe('Shipfox agent tools', () => {
       cursor: {value: 'Build', id: parentRunId},
     });
     expect(result.structuredContent).toMatchObject({
-      definitions: [{id: definitionId, name: 'Deploy', config_path: '.shipfox/deploy.yml'}],
+      definitions: [
+        {
+          id: definitionId,
+          name: 'Deploy',
+          config_path: '.shipfox/deploy.yml',
+          has_manual_trigger: true,
+        },
+      ],
       next_cursor: encodeStringIdCursor({value: 'Deploy', id: definitionId}),
     });
   });
@@ -414,7 +484,35 @@ describe('Shipfox agent tools', () => {
     });
   });
 
-  it('gets a run with at most 50 jobs and reports truncation', async () => {
+  it.each([
+    '2026-01-01',
+    'January 1, 2026',
+    '2026-01-01T00:00:00.000+00:00',
+  ] as const)('rejects non-ISO date-time filters before listing runs: %s', async (createdFrom) => {
+    const {provider, workflows} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'list_workflow_runs',
+      arguments: {created_from: createdFrom},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'invalid-request'},
+    });
+    expect(workflows.listWorkflowRuns).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    1,
+    '100+',
+  ] as const)('gets a run with at most 50 jobs and reports truncation for execution count %s', async (executionCount) => {
     const {projects, provider, workflows} = createProvider();
     projects.requireProjectForWorkspace.mockResolvedValue({project: {id: projectId}});
     workflows.getWorkflowRunOverview.mockResolvedValue({
@@ -457,7 +555,7 @@ describe('Shipfox agent tools', () => {
       mode: 'run',
       listener_status: 'none',
       carried_over: false,
-      execution_count: 1,
+      execution_count: executionCount,
       execution_status_counts: {},
       default_execution: null,
     };
@@ -494,7 +592,7 @@ describe('Shipfox agent tools', () => {
     expect(workflows.getWorkflowJobDetail).toHaveBeenCalledWith({workspaceId, jobId: definitionId});
     expect(result.structuredContent).toMatchObject({
       jobs_truncated: true,
-      jobs: [{id: definitionId}],
+      jobs: [{id: definitionId, execution_count: executionCount}],
     });
   });
 
