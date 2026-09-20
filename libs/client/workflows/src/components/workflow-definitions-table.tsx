@@ -1,22 +1,14 @@
 import type {Definition, DefinitionSyncSummary} from '@shipfox/client-projects';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
-import {DataTable, DataTableSortableHeader, DataTableToolbar} from '@shipfox/react-ui/data-table';
+import {DataTable} from '@shipfox/react-ui/data-table';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import {LoadErrorState} from '@shipfox/react-ui/load-error-state';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
-import {SearchInline} from '@shipfox/react-ui/search';
 import {Code, Text} from '@shipfox/react-ui/typography';
-import {
-  createColumnHelper,
-  createSortedRowModel,
-  metaHelper,
-  rowSortingFeature,
-  tableFeatures,
-  useTable,
-} from '@tanstack/react-table';
-import {type ReactNode, useMemo, useState} from 'react';
+import {createColumnHelper, metaHelper, tableFeatures, useTable} from '@tanstack/react-table';
+import type {ReactNode} from 'react';
 
 interface WorkflowDefinitionsTableMeta {
   onOpenDefinition: (definition: Definition) => void;
@@ -27,8 +19,6 @@ interface WorkflowDefinitionsTableMeta {
 
 const workflowDefinitionsFeatures = tableFeatures({
   tableMeta: metaHelper<WorkflowDefinitionsTableMeta>(),
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
 });
 const workflowDefinitionColumnHelper = createColumnHelper<
   typeof workflowDefinitionsFeatures,
@@ -38,7 +28,6 @@ const workflowDefinitionColumnHelper = createColumnHelper<
 const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
   workflowDefinitionColumnHelper.display({
     id: 'source',
-    enableSorting: false,
     header: () => <span className="sr-only">Source</span>,
     cell: ({row}) => (
       <Icon
@@ -49,7 +38,7 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
     ),
   }),
   workflowDefinitionColumnHelper.accessor('name', {
-    header: ({column}) => <DataTableSortableHeader column={column} label="Workflow" />,
+    header: 'Workflow',
     cell: ({row, table}) => {
       const definition = row.original;
       const meta = table.options.meta;
@@ -80,8 +69,7 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
     },
   }),
   workflowDefinitionColumnHelper.accessor('updatedAt', {
-    sortDescFirst: true,
-    header: ({column}) => <DataTableSortableHeader column={column} label="Updated" />,
+    header: 'Updated',
     cell: ({getValue}) => (
       <Text size="sm" className="whitespace-nowrap text-foreground-neutral-muted">
         <RelativeTime value={getValue()} />
@@ -90,7 +78,6 @@ const workflowDefinitionColumns = workflowDefinitionColumnHelper.columns([
   }),
   workflowDefinitionColumnHelper.display({
     id: 'actions',
-    enableSorting: false,
     header: () => <span className="sr-only">Actions</span>,
     cell: ({row, table}) => {
       const definition = row.original;
@@ -146,30 +133,13 @@ export function WorkflowDefinitionsTable({
   runningDefinitionId,
   sync,
 }: WorkflowDefinitionsTableProps) {
-  const [search, setSearch] = useState('');
-  const normalizedSearch = search.trim().toLocaleLowerCase();
-  const filteredDefinitions = useMemo(
-    () =>
-      normalizedSearch
-        ? definitions.filter((definition) =>
-            `${definition.name} ${definition.configPath ?? 'Manual definition'}`
-              .toLocaleLowerCase()
-              .includes(normalizedSearch),
-          )
-        : definitions,
-    [definitions, normalizedSearch],
-  );
   const table = useTable({
     columns: workflowDefinitionColumns,
-    data: filteredDefinitions,
-    enableMultiSort: false,
+    data: definitions,
     features: workflowDefinitionsFeatures,
     getRowId: (definition) => definition.id,
     meta: {onOpenDefinition, onRun, runError, runningDefinitionId},
-    sortDescFirst: false,
   });
-  const hasSearch = normalizedSearch.length > 0;
-  const showToolbar = definitions.length > 0;
   let emptyContent: ReactNode;
 
   if (isError && definitions.length === 0) {
@@ -180,20 +150,6 @@ export function WorkflowDefinitionsTable({
         onRetry={onRetry}
         retryLabel="Retry loading workflows"
         variant="panel"
-      />
-    );
-  } else if (hasSearch) {
-    emptyContent = (
-      <EmptyState
-        icon="searchLine"
-        title="No matching workflows"
-        description="Clear the search to show every workflow."
-        action={
-          <Button size="sm" variant="secondary" onClick={() => setSearch('')}>
-            Clear search
-          </Button>
-        }
-        variant="compact"
       />
     );
   } else {
@@ -223,24 +179,6 @@ export function WorkflowDefinitionsTable({
         loadingLabel="Loading workflows"
         loadingRowCount={3}
         minimumWidth={640}
-        toolbar={
-          showToolbar ? (
-            <DataTableToolbar
-              resultCount={filteredDefinitions.length}
-              formatResultCount={(count) => `${count} ${count === 1 ? 'workflow' : 'workflows'}`}
-            >
-              <SearchInline
-                aria-label="Search workflows"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                onClear={() => setSearch('')}
-                placeholder="Search workflows"
-                size="small"
-                className="min-w-200 flex-1"
-              />
-            </DataTableToolbar>
-          ) : undefined
-        }
       />
 
       {isFetchNextPageError ? (

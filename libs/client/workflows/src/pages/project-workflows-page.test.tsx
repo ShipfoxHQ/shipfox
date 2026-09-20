@@ -11,8 +11,6 @@ import {ProjectWorkflowsPage} from './project-workflows-page.js';
 const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 const DEPLOY_WORKFLOW_ROW_REGEX = /Deploy production/;
-const UNSORTED_WORKFLOW_REGEX = /Workflow, not sorted\. Sort ascending/;
-const UNSORTED_UPDATED_REGEX = /Updated, not sorted\. Sort descending/;
 
 describe('ProjectWorkflowsPage', () => {
   test('renders workflow definitions and their panel regions', async () => {
@@ -243,7 +241,7 @@ describe('ProjectWorkflowsPage', () => {
     ).toBeInTheDocument();
   });
 
-  test('sorts and searches the loaded workflow definitions', async () => {
+  test('renders definitions without client-side sorting or filtering controls', async () => {
     const deployDefinition = baseDefinitionsDto().definitions[0];
     if (!deployDefinition) throw new Error('Deploy definition fixture is missing');
     configureApiClient({
@@ -268,30 +266,16 @@ describe('ProjectWorkflowsPage', () => {
     renderWorkflowsPage();
 
     const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
-    fireEvent.click(within(table).getByRole('button', {name: UNSORTED_WORKFLOW_REGEX}));
-
-    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Archive artifacts');
-
-    fireEvent.click(within(table).getByRole('button', {name: UNSORTED_UPDATED_REGEX}));
-
-    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Deploy production');
-
-    fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
-      target: {value: 'deploy.yml'},
-    });
-
-    expect(within(table).getAllByRole('row')).toHaveLength(2);
-    expect(screen.getByRole('status')).toHaveTextContent('1 workflow');
-
-    fireEvent.change(screen.getByRole('textbox', {name: 'Search workflows'}), {
-      target: {value: 'no match'},
-    });
-
-    expect(screen.getByText('No matching workflows')).toBeInTheDocument();
-    const clearSearchActions = screen.getAllByRole('button', {name: 'Clear search'});
-    expect(clearSearchActions.length).toBeGreaterThan(0);
-    fireEvent.click(clearSearchActions[0] as HTMLButtonElement);
-    expect(screen.getByText('Deploy production')).toBeInTheDocument();
+    const workflowHeader = within(table).getByRole('columnheader', {name: 'Workflow'});
+    const updatedHeader = within(table).getByRole('columnheader', {name: 'Updated'});
+    expect(workflowHeader).toHaveTextContent('Workflow');
+    expect(updatedHeader).toHaveTextContent('Updated');
+    expect(within(workflowHeader).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(updatedHeader).queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', {name: 'Search workflows'})).not.toBeInTheDocument();
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    expect(within(table).getByText('Deploy production')).toBeInTheDocument();
+    expect(within(table).getByText('Archive artifacts')).toBeInTheDocument();
   });
 
   test('opens and closes the definition drawer from the workflow action', async () => {

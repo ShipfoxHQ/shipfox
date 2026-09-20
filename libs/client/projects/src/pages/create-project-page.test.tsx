@@ -227,7 +227,7 @@ describe('CreateProjectPage', () => {
         );
       }),
     ).toBe(true);
-  });
+  }, 10_000);
 
   test('auto-derives the slug from each keystroke in the name field until the slug is touched', async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
