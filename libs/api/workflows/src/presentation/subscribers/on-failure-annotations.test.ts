@@ -343,6 +343,93 @@ describe('failure annotations', () => {
     );
   });
 
+  it('names the unresolved configuration field and reference without exposing raw details', async () => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {
+        reason: 'config_unresolvable',
+        field: 'agent.session',
+        source: 'steps.confirm_current_head.outputs.current_head_sha',
+        message:
+          'Definition 99999999-9999-4999-8999-999999999999 resolved secret value super-secret',
+      },
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: {
+          op: 'replace',
+          style: 'error',
+          body: [
+            '**Step configuration could not be resolved**',
+            '',
+            '`agent.session` references `steps.confirm_current_head.outputs.current_head_sha`, but that value was not available.',
+          ].join('\n'),
+        },
+      }),
+    );
+  });
+
+  it.each([
+    {field: undefined, source: 'steps.build.outputs.sha'},
+    {field: 'env.SHA', source: undefined},
+  ])('uses generic configuration copy when $field or $source is absent', async (errorFields) => {
+    const payload = stepAttemptTerminatedPayload();
+    const step = stepEntity({
+      id: payload.stepId,
+      jobExecutionId: JOB_EXECUTION_ID,
+      status: 'failed',
+    });
+    const attempt = stepAttemptEntity({
+      stepId: step.id,
+      status: 'failed',
+      error: {
+        reason: 'config_unresolvable',
+        message: 'Internal definition and evaluation details',
+        ...errorFields,
+      },
+    });
+    dbMocks.getStepAttemptDetail.mockResolvedValue({
+      workflowRunId: payload.workflowRunId,
+      workflowRunAttemptId: payload.workflowRunAttemptId,
+      step,
+      attempt,
+    });
+    dbMocks.getWorkflowRunAttemptById.mockResolvedValue({attempt: 1});
+
+    await onStepAttemptTerminatedFailureAnnotation(annotations)(payload);
+
+    expect(replaceOrRemoveAnnotation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotation: {
+          op: 'replace',
+          style: 'error',
+          body: [
+            '**Step configuration needs attention**',
+            '',
+            'Review the values referenced by this step before trying again.',
+          ].join('\n'),
+        },
+      }),
+    );
+  });
+
   it('uses provider exhaustion copy without exposing the raw provider phrase', async () => {
     const payload = stepAttemptTerminatedPayload();
     const step = stepEntity({

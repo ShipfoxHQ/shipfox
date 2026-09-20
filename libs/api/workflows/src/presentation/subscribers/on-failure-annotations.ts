@@ -441,6 +441,9 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   if (providerFailure !== undefined) return providerFailure;
 
   const reason = errorReason(error);
+  const configFailure = configUnresolvableFailureCopy(error, reason);
+  if (configFailure !== undefined) return configFailure;
+
   const toolFailure = toolStepFailureCopy(step, attempt, error, reason);
   if (toolFailure !== undefined) return toolFailure;
 
@@ -463,6 +466,22 @@ function stepFailureCopy(step: StepAttemptDetailStep, attempt: StepAttempt): Fai
   if (reason === 'invocation_interrupted') return interruptedToolFailureCopy(step);
 
   return knownStepFailureCopy(reason);
+}
+
+function configUnresolvableFailureCopy(
+  error: Record<string, unknown> | null,
+  reason: string | undefined,
+): FailureCopy | undefined {
+  if (reason !== 'config_unresolvable') return undefined;
+
+  const field = errorString(error, 'field');
+  const source = errorString(error, 'source');
+  if (field === undefined || source === undefined) return undefined;
+
+  return {
+    title: 'Step configuration could not be resolved',
+    description: `\`${field}\` references \`${source}\`, but that value was not available.`,
+  };
 }
 
 function toolStepFailureCopy(
