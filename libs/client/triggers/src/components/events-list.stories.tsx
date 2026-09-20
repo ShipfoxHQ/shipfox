@@ -27,7 +27,9 @@ function makeQuery(overrides: Partial<TriggerEventsListQuery> = {}): TriggerEven
   return {
     isPending: false,
     isError: false,
+    isFetchNextPageError: false,
     isFetching: false,
+    isFetchingNextPage: false,
     data: {pages: [], pageParams: []},
     error: null,
     refetch: () => undefined,
@@ -99,7 +101,6 @@ const meta = {
     filters: {},
     onFiltersChange: () => undefined,
     hasNextPage: false,
-    isFetchingNextPage: false,
     onLoadMore: () => undefined,
     selectedEventId: 'evt-00000002',
     onSelectEvent: () => undefined,
@@ -129,9 +130,12 @@ export const DataStates: Story = {
       <StateExample label="Appending">
         <EventsList
           {...args}
-          query={makeQuery({isFetching: true, isFetchingNextPage: true})}
+          query={makeQuery({
+            isFetching: true,
+            isFetchingNextPage: true,
+            data: {pages: [{events: SAMPLE_EVENTS, nextCursor: 'next'}], pageParams: [undefined]},
+          })}
           hasNextPage
-          isFetchingNextPage
         />
       </StateExample>
       <StateExample label="Append retry">

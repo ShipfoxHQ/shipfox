@@ -33,7 +33,9 @@ function makeProps(overrides: Partial<EventsListProps> = {}): EventsListProps {
     query: {
       isPending: false,
       isError: false,
+      isFetchNextPageError: false,
       isFetching: false,
+      isFetchingNextPage: false,
       data: {pages: [], pageParams: []},
       error: null,
       refetch: () => undefined,
@@ -42,7 +44,6 @@ function makeProps(overrides: Partial<EventsListProps> = {}): EventsListProps {
     filters: {},
     onFiltersChange: vi.fn(),
     hasNextPage: false,
-    isFetchingNextPage: false,
     onLoadMore: vi.fn(),
     selectedEventId: undefined,
     onSelectEvent: vi.fn(),

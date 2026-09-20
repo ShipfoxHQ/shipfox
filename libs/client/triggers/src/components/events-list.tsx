@@ -69,7 +69,6 @@ export function EventsList({
   onFiltersChange,
   workspaceSlug,
   hasNextPage,
-  isFetchingNextPage,
   onLoadMore,
   selectedEventId,
   onSelectEvent,
@@ -139,8 +138,8 @@ export function EventsList({
           ? {
               navigation: {
                 hasMore: hasNextPage,
-                isError: query.isFetchNextPageError ?? false,
-                isLoading: isFetchingNextPage,
+                isError: query.isFetchNextPageError,
+                isLoading: query.isFetchingNextPage,
                 kind: 'append' as const,
                 loadedCount: events.length,
                 onLoadMore,

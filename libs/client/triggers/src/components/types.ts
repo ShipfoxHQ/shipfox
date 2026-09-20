@@ -6,9 +6,9 @@ import type {
 } from '#core/trigger-event.js';
 
 export type TriggerEventsListQuery = QueryLoadErrorQuery & {
-  isFetchNextPageError?: boolean;
+  isFetchNextPageError: boolean;
   isPending: boolean;
-  isFetchingNextPage?: boolean;
+  isFetchingNextPage: boolean;
 };
 
 export interface EventsListProps {
@@ -19,7 +19,6 @@ export interface EventsListProps {
   onFiltersChange: (patch: Partial<TriggerEventFilters>) => void;
   workspaceSlug?: string | undefined;
   hasNextPage: boolean;
-  isFetchingNextPage: boolean;
   onLoadMore: () => void;
   selectedEventId?: string | undefined;
   onSelectEvent: (eventId: string) => void;
