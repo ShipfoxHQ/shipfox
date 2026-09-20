@@ -3,7 +3,7 @@ import {Toaster} from '@shipfox/react-ui/toast';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useEffect, useMemo} from 'react';
-import {within} from 'storybook/test';
+import {expect, userEvent, within} from 'storybook/test';
 import {WorkspaceSecretsSection} from './workspace-secrets-section.js';
 
 // Freeze the clock only while a story is mounted so RelativeTime renders a stable
@@ -112,6 +112,15 @@ export const Empty: Story = {
   args: {scenario: 'empty'},
   play: async ({canvasElement}) => {
     await within(canvasElement).findByText('No secrets yet');
+  },
+};
+
+export const FilteredEmpty: Story = {
+  args: {scenario: 'loaded'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByRole('textbox', {name: 'Search secrets'}), 'DOES_NOT_EXIST');
+    await expect(await canvas.findByText('No matching secrets')).toBeInTheDocument();
   },
 };
 
