@@ -173,6 +173,9 @@ describe('AgentAccessSettingsPage', () => {
       resolveRefresh(jsonResponse({grants: [grantDto()]}));
       await refetch;
     });
+
+    await waitFor(() => expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy'));
+    expect(screen.getByText('Claude Desktop')).toBeVisible();
   });
 
   test('confirms OAuth revocation with its actual propagation window', async () => {
