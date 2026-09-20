@@ -240,10 +240,15 @@ export function WorkspaceSecretsSection({workspaceId}: {workspaceId: string}) {
           isRefreshing={secretsQuery.isFetching && !secretsQuery.isPending}
           loadingLabel="Loading secrets"
           loadingRowCount={3}
-          navigation={{kind: 'complete', count: visibleSecrets}}
+          {...(secretsQuery.isPending
+            ? {
+                onFilterChange: () => undefined,
+                onSortChange: () => undefined,
+              }
+            : {navigation: {kind: 'complete' as const, count: visibleSecrets}})}
           toolbar={
             <DataTableToolbar
-              resultCount={visibleSecrets}
+              {...(secretsQuery.isPending ? {} : {resultCount: visibleSecrets})}
               clearFiltersAction={
                 hasSearch ? (
                   <Button

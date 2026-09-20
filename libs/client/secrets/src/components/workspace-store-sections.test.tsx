@@ -29,13 +29,13 @@ function makeUpdatedAt(index: number) {
 function secretRows() {
   return Array.from({length: ROW_COUNT}, (_, index) =>
     secret({key: makeKey(index), updated_at: makeUpdatedAt(index)}),
-  );
+  ).reverse();
 }
 
 function variableRows() {
   return Array.from({length: ROW_COUNT}, (_, index) =>
     variableListItem({key: makeKey(index), updated_at: makeUpdatedAt(index)}),
-  );
+  ).reverse();
 }
 
 function renderStoreSection(fetchImpl: typeof fetch, section: 'secrets' | 'variables') {

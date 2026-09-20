@@ -237,10 +237,15 @@ export function WorkspaceVariablesSection({workspaceId}: {workspaceId: string}) 
           isRefreshing={variablesQuery.isFetching && !variablesQuery.isPending}
           loadingLabel="Loading variables"
           loadingRowCount={3}
-          navigation={{kind: 'complete', count: visibleVariables}}
+          {...(variablesQuery.isPending
+            ? {
+                onFilterChange: () => undefined,
+                onSortChange: () => undefined,
+              }
+            : {navigation: {kind: 'complete' as const, count: visibleVariables}})}
           toolbar={
             <DataTableToolbar
-              resultCount={visibleVariables}
+              {...(variablesQuery.isPending ? {} : {resultCount: visibleVariables})}
               clearFiltersAction={
                 hasSearch ? (
                   <Button
