@@ -28,6 +28,7 @@ documentation model and other engineering sources, start with the
 | [0016: Workflow run concurrency](0016-workflow-run-concurrency.md) | Proposed | Workflow group scope, latest-wins arbitration, dev isolation, waiting and rerun behavior, unordered integration delivery, lock order, and cancellation boundaries. |
 | [0017: Full installation access for backend GitHub tools](0017-github-backend-tool-authorization.md) | Accepted | Backend GitHub agent-tool credential boundaries, authorization split, provider-error handling, and workflow-file writes. |
 | [0018: Client analytics subject context](0018-client-analytics-subject-context.md) | Accepted; amends ADR 0001 and ADR 0013 | Shell-owned user and workspace context for client analytics captures. |
+| [0019: Collection navigation](0019-collection-navigation.md) | Proposed; amends ADR 0003 | The completeness rule for local sorting and filtering, the shared append footer contract, and feature-owned navigation state. |
 
 When a decision changes, add a new ADR that supersedes or amends the earlier
 record. Keep the original record intact so readers can understand why the
