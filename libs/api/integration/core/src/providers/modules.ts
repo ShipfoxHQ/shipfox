@@ -4,6 +4,7 @@ import {giteaProviderModule} from '#providers/gitea.js';
 import {githubProviderModule} from '#providers/github.js';
 import {jiraProviderModule} from '#providers/jira.js';
 import {linearProviderModule} from '#providers/linear.js';
+import {posthogProviderModule} from '#providers/posthog.js';
 import {sentryProviderModule} from '#providers/sentry.js';
 import {shipfoxProviderModule} from '#providers/shipfox.js';
 import {slackProviderModule} from '#providers/slack.js';
@@ -19,6 +20,7 @@ import {webhookProviderModule} from '#providers/webhook.js';
 const providerModules = [
   githubProviderModule,
   linearProviderModule,
+  posthogProviderModule,
   slackProviderModule,
   jiraProviderModule,
   clickupProviderModule,

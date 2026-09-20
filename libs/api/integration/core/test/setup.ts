@@ -4,6 +4,7 @@ import {closeDb as closeGiteaDb} from '@shipfox/api-integration-gitea';
 import {closeDb as closeGithubDb} from '@shipfox/api-integration-github';
 import {closeDb as closeJiraDb} from '@shipfox/api-integration-jira';
 import {closeDb as closeLinearDb} from '@shipfox/api-integration-linear';
+import {closeDb as closePosthogDb} from '@shipfox/api-integration-posthog';
 import {closeDb as closeSentryDb} from '@shipfox/api-integration-sentry';
 import {closeDb as closeSlackDb} from '@shipfox/api-integration-slack';
 import {closePostgresClient, createPostgresClient} from '@shipfox/node-postgres';
@@ -25,6 +26,7 @@ afterAll(async () => {
   // isolate:false shares provider module state across files, so every memoized
   // Drizzle handle must be cleared before the shared pool is ended.
   closeLinearDb();
+  closePosthogDb();
   closeSlackDb();
   closeJiraDb();
   closeSentryDb();

@@ -67,6 +67,29 @@ describe('integrations E2E setup helper', () => {
     });
   });
 
+  it('creates PostHog connections through the protected setup route', async () => {
+    requestJson.mockResolvedValueOnce({id: 'connection-id'});
+    const {createPosthogConnection} = await import('./index.js');
+
+    await createPosthogConnection({
+      workspaceId: 'workspace-id',
+      apiKey: 'phx-e2e-token',
+      projectId: 'posthog-project',
+      projectName: 'Analytics',
+      organizationId: 'posthog-organization',
+    });
+
+    expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/posthog-connections', {
+      json: {
+        workspace_id: 'workspace-id',
+        api_key: 'phx-e2e-token',
+        project_id: 'posthog-project',
+        project_name: 'Analytics',
+        organization_id: 'posthog-organization',
+      },
+    });
+  });
+
   it('creates GitHub connections through the protected setup route', async () => {
     requestJson.mockResolvedValueOnce({id: 'connection-id'});
     const {createGithubConnection} = await import('./index.js');

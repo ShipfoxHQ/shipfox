@@ -19,6 +19,7 @@ describe('integration provider config', () => {
     const {config} = await import('#config.js');
 
     expect(config.INTEGRATIONS_ENABLE_LINEAR_PROVIDER).toBe(false);
+    expect(config.INTEGRATIONS_ENABLE_POSTHOG_PROVIDER).toBe(false);
   });
 
   it('allows disabling the built-in cron provider', async () => {

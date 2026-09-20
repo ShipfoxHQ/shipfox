@@ -107,6 +107,7 @@ export async function upsertIntegrationConnection(
 }
 
 export interface CreateIntegrationConnectionParams {
+  id?: string | undefined;
   workspaceId: string;
   provider: IntegrationProviderKind;
   externalAccountId: string;
@@ -163,6 +164,7 @@ export async function createIntegrationConnection(
     rows = await executor
       .insert(integrationConnections)
       .values({
+        ...(params.id === undefined ? {} : {id: params.id}),
         workspaceId: params.workspaceId,
         provider: params.provider,
         externalAccountId: params.externalAccountId,
