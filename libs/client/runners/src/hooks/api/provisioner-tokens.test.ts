@@ -23,7 +23,7 @@ describe('provisioner token transports', () => {
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
   });
 
-  test('lists provisioner tokens', async () => {
+  test('requests the complete token collection', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({tokens: []}));
     configureApiClient({fetchImpl});
 

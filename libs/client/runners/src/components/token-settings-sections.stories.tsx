@@ -17,14 +17,9 @@ import {CreatedProvisionerTokenPanel} from './create-provisioner-token-form.js';
 import {
   EmptyManualRegistrationTokens,
   ManualRegistrationTokenList,
-  ManualRegistrationTokenTableSkeleton,
 } from './manual-registration-token-list.js';
 import {WorkspaceManualRegistrationTokensSettingsSection} from './manual-registration-tokens-settings-section.js';
-import {
-  EmptyProvisionerTokens,
-  ProvisionerTokenList,
-  ProvisionerTokenTableSkeleton,
-} from './provisioner-token-list.js';
+import {EmptyProvisionerTokens, ProvisionerTokenList} from './provisioner-token-list.js';
 import {WorkspaceProvisionerTokensSettingsSection} from './provisioner-tokens-settings-section.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
@@ -68,7 +63,10 @@ function TokenSettingsSectionsStory({scenario}: TokenSettingsSectionsStoryProps)
 const meta = {
   title: 'Runners/TokenSettingsSections',
   component: TokenSettingsSectionsStory,
-  parameters: {layout: 'fullscreen'},
+  parameters: {
+    layout: 'fullscreen',
+    argos: {modes: {light: {theme: 'light'}, dark: {theme: 'dark'}}},
+  },
   decorators: [withQueryClient],
   args: {scenario: 'populated'},
 } satisfies Meta<typeof TokenSettingsSectionsStory>;
@@ -87,19 +85,25 @@ export const Playground: Story = {
 };
 
 export const DataStates: Story = {
+  parameters: {viewport: {defaultViewport: 'mobile'}},
   render: () => (
     <StorySurface>
       <StateExample label="Manual empty">
         <EmptyManualRegistrationTokens />
       </StateExample>
       <StateExample label="Manual loading">
-        <ManualRegistrationTokenTableSkeleton />
+        <ManualRegistrationTokenList workspaceId={WORKSPACE_ID} tokens={[]} isLoading />
       </StateExample>
       <StateExample label="Provisioner empty">
         <EmptyProvisionerTokens />
       </StateExample>
       <StateExample label="Provisioner loading">
-        <ProvisionerTokenTableSkeleton />
+        <ProvisionerTokenList
+          workspaceId={WORKSPACE_ID}
+          tokens={[]}
+          activeIds={new Set()}
+          isLoading
+        />
       </StateExample>
     </StorySurface>
   ),
@@ -149,6 +153,7 @@ export const Statuses: Story = {
 };
 
 export const Content: Story = {
+  parameters: {viewport: {defaultViewport: 'mobile'}},
   render: () => (
     <StorySurface>
       <StateExample label="Existing tokens">

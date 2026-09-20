@@ -1,5 +1,6 @@
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
+import {DataTable, DataTableSortableHeader} from '@shipfox/react-ui/data-table';
 import {Dot} from '@shipfox/react-ui/dot';
 import {
   DropdownMenu,
@@ -16,18 +17,15 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@shipfox/react-ui/modal';
-import {Panel} from '@shipfox/react-ui/panel';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@shipfox/react-ui/table';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {
+  createColumnHelper,
+  createSortedRowModel,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table';
 import {useState} from 'react';
 import {
   type ProvisionerToken,
@@ -43,96 +41,95 @@ import {
 import {TokenDate} from './token-date.js';
 import {TokenName} from './token-name.js';
 
+const provisionerTokenFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+const provisionerTokenColumnHelper = createColumnHelper<
+  typeof provisionerTokenFeatures,
+  ProvisionerToken
+>();
+
+function provisionerTokenColumns(workspaceId: string, activeIds: ReadonlySet<string>) {
+  return provisionerTokenColumnHelper.columns([
+    provisionerTokenColumnHelper.accessor((token) => provisionerTokenDisplayName(token), {
+      id: 'name',
+      header: ({column}) => <DataTableSortableHeader column={column} label="Name" />,
+      cell: ({getValue}) => <TokenName name={getValue()} />,
+    }),
+    provisionerTokenColumnHelper.accessor('prefix', {
+      header: ({column}) => <DataTableSortableHeader column={column} label="Prefix" />,
+      cell: ({getValue}) => (
+        <Code variant="paragraph" className="block truncate">
+          {getValue()}
+        </Code>
+      ),
+    }),
+    provisionerTokenColumnHelper.accessor(
+      (token) => provisionerConnectionStatus(token, activeIds).label,
+      {
+        id: 'status',
+        header: ({column}) => <DataTableSortableHeader column={column} label="Status" />,
+        cell: ({row}) => <ProvisionerStatusCell token={row.original} activeIds={activeIds} />,
+      },
+    ),
+    provisionerTokenColumnHelper.accessor('expiresAt', {
+      header: ({column}) => <DataTableSortableHeader column={column} label="Expires" />,
+      cell: ({getValue}) => <ProvisionerTokenDate value={getValue()} />,
+    }),
+    provisionerTokenColumnHelper.accessor('createdAt', {
+      header: ({column}) => <DataTableSortableHeader column={column} label="Created" />,
+      cell: ({getValue}) => <ProvisionerTokenDate value={getValue()} />,
+    }),
+    provisionerTokenColumnHelper.display({
+      id: 'actions',
+      enableSorting: false,
+      header: () => <span className="sr-only">Actions</span>,
+      cell: ({row}) => (
+        <div className="text-right">
+          <RevokeProvisionerTokenButton workspaceId={workspaceId} token={row.original} />
+        </div>
+      ),
+    }),
+  ]);
+}
+
 export function ProvisionerTokenList({
   workspaceId,
   tokens,
   activeIds,
+  isLoading = false,
+  isRefreshing = false,
 }: {
   workspaceId: string;
   tokens: ProvisionerToken[];
   activeIds: ReadonlySet<string>;
+  isLoading?: boolean;
+  isRefreshing?: boolean;
 }) {
+  const table = useTable({
+    columns: provisionerTokenColumns(workspaceId, activeIds),
+    data: tokens,
+    enableMultiSort: false,
+    features: provisionerTokenFeatures,
+    getRowId: (token) => token.id,
+    sortDescFirst: false,
+  });
+
   return (
-    <Panel>
-      <div className="max-[760px]:hidden">
-        <Table className="table-fixed">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[28%]">Name</TableHead>
-              <TableHead>Prefix</TableHead>
-              <TableHead className="w-[18%]">Status</TableHead>
-              <TableHead className="w-112">Expires</TableHead>
-              <TableHead className="w-112">Created</TableHead>
-              <TableHead className="w-80 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tokens.map((token) => (
-              <TableRow key={token.id}>
-                <TableCell>
-                  <TokenName name={provisionerTokenDisplayName(token)} />
-                </TableCell>
-                <TableCell>
-                  <Code variant="paragraph" className="block truncate">
-                    {token.prefix}
-                  </Code>
-                </TableCell>
-                <TableCell>
-                  <ProvisionerStatusCell token={token} activeIds={activeIds} />
-                </TableCell>
-                <TableCell>
-                  <ProvisionerTokenDate value={token.expiresAt} />
-                </TableCell>
-                <TableCell>
-                  <ProvisionerTokenDate value={token.createdAt} />
-                </TableCell>
-                <TableCell className="text-right">
-                  <RevokeProvisionerTokenButton workspaceId={workspaceId} token={token} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <ul
-        className="hidden flex-col divide-y divide-border-neutral-base max-[760px]:flex"
-        aria-label="Provisioner tokens"
-      >
-        {tokens.map((token) => (
-          <li key={token.id} className="flex flex-col gap-cluster p-panel-compact">
-            <div className="flex items-start justify-between gap-cluster">
-              <div className="min-w-0 flex-1">
-                <TokenName name={provisionerTokenDisplayName(token)} />
-                <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
-                  {token.prefix}
-                </Code>
-              </div>
-              <RevokeProvisionerTokenButton workspaceId={workspaceId} token={token} />
-            </div>
-            <dl className="grid grid-cols-2 gap-inline text-sm">
-              <div>
-                <dt className="text-foreground-neutral-muted">Status</dt>
-                <dd>
-                  <ProvisionerStatusCell token={token} activeIds={activeIds} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-foreground-neutral-muted">Expires</dt>
-                <dd>
-                  <ProvisionerTokenDate value={token.expiresAt} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-foreground-neutral-muted">Created</dt>
-                <dd>
-                  <ProvisionerTokenDate value={token.createdAt} />
-                </dd>
-              </div>
-            </dl>
-          </li>
-        ))}
-      </ul>
-    </Panel>
+    <DataTable
+      table={table}
+      aria-label="Provisioner tokens"
+      density="compact"
+      emptyContent="No usable provisioner registration tokens."
+      isLoading={isLoading}
+      isRefreshing={isRefreshing}
+      loadingLabel="Loading provisioner tokens"
+      loadingRowCount={3}
+      minimumWidth={840}
+      navigation={{kind: 'complete', count: tokens.length}}
+      tableClassName="table-fixed"
+    />
   );
 }
 
@@ -259,15 +256,5 @@ export function EmptyProvisionerTokens() {
       description="Create a token to connect a provisioner that provisions runners on demand."
       variant="panel"
     />
-  );
-}
-
-export function ProvisionerTokenTableSkeleton() {
-  return (
-    <Panel role="status" aria-label="Loading provisioner tokens" className="divide-y">
-      {[0, 1, 2].map((row) => (
-        <Skeleton key={row} className="h-44 w-full rounded-none" />
-      ))}
-    </Panel>
   );
 }

@@ -22,11 +22,7 @@ import {
   CreatedProvisionerTokenPanel,
   CreateProvisionerTokenForm,
 } from './create-provisioner-token-form.js';
-import {
-  EmptyProvisionerTokens,
-  ProvisionerTokenList,
-  ProvisionerTokenTableSkeleton,
-} from './provisioner-token-list.js';
+import {EmptyProvisionerTokens, ProvisionerTokenList} from './provisioner-token-list.js';
 
 export function WorkspaceProvisionerTokensSettingsSection({workspaceId}: {workspaceId: string}) {
   const tokensQuery = useProvisionerTokensQuery(workspaceId);
@@ -92,8 +88,6 @@ export function WorkspaceProvisionerTokensSettingsSection({workspaceId}: {worksp
           </div>
         </div>
 
-        {tokensQuery.isPending ? <ProvisionerTokenTableSkeleton /> : null}
-
         {tokensQuery.isError && tokensQuery.data === undefined ? (
           <Panel>
             <QueryLoadError
@@ -110,9 +104,15 @@ export function WorkspaceProvisionerTokensSettingsSection({workspaceId}: {worksp
           </Panel>
         ) : null}
 
-        {tokens.length > 0 ? (
+        {tokensQuery.isPending || tokens.length > 0 ? (
           <RelativeTimeProvider>
-            <ProvisionerTokenList workspaceId={workspaceId} tokens={tokens} activeIds={activeIds} />
+            <ProvisionerTokenList
+              workspaceId={workspaceId}
+              tokens={tokens}
+              activeIds={activeIds}
+              isLoading={tokensQuery.isPending}
+              isRefreshing={tokensQuery.isFetching && !tokensQuery.isPending}
+            />
           </RelativeTimeProvider>
         ) : null}
       </section>

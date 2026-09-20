@@ -6302,6 +6302,9 @@ importers:
       '@tanstack/react-form':
         specifier: 'catalog:'
         version: 1.33.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-table':
+        specifier: 'catalog:'
+        version: 9.2.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@argos-ci/cli':
         specifier: 'catalog:'

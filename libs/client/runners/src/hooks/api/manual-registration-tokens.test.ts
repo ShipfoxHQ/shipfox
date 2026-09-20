@@ -1,6 +1,7 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {
   createManualRegistrationToken,
+  listManualRegistrationTokens,
   revokeManualRegistrationToken,
 } from './manual-registration-tokens.js';
 
@@ -11,6 +12,27 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
     ...init,
   });
 }
+
+describe('listManualRegistrationTokens', () => {
+  beforeEach(() => {
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: undefined});
+  });
+
+  test('requests the complete token collection', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({manual_registration_tokens: []}));
+    configureApiClient({fetchImpl});
+
+    await listManualRegistrationTokens({
+      workspaceId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe(
+      'https://api.example.test/workspaces/11111111-1111-4111-8111-111111111111/runners/manual-registration-tokens',
+    );
+    expect(request.method).toBe('GET');
+  });
+});
 
 describe('createManualRegistrationToken', () => {
   beforeEach(() => {
