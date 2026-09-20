@@ -5332,6 +5332,9 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.16
         version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-table':
+        specifier: 'catalog:'
+        version: 9.2.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@argos-ci/cli':
         specifier: 'catalog:'
