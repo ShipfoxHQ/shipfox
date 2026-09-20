@@ -116,6 +116,23 @@ describe('DataTable', () => {
     expect(screen.queryByText('Loading results')).toBeNull();
   });
 
+  test('does not announce a complete count while the table is loading', () => {
+    const {container} = render(
+      <CoreTable>
+        {(table) => (
+          <DataTable
+            table={table}
+            aria-label="Workflows"
+            isLoading
+            navigation={{kind: 'complete', count: 2}}
+          />
+        )}
+      </CoreTable>,
+    );
+
+    expect(container.querySelector('[data-slot="data-table-footer"]')).toBeNull();
+  });
+
   test('maps selected state and non-navigation row metadata without row click behavior', () => {
     render(
       <CoreTable>

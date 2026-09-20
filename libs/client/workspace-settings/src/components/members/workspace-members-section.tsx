@@ -4,6 +4,7 @@ import {QueryLoadError} from '@shipfox/client-ui';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
+import {DataTable, DataTableSortableHeader, DataTableToolbar} from '@shipfox/react-ui/data-table';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {FormField, FormFieldInput, fieldError} from '@shipfox/react-ui/form-field';
 import {Icon} from '@shipfox/react-ui/icon';
@@ -16,21 +17,23 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@shipfox/react-ui/modal';
-import {Panel} from '@shipfox/react-ui/panel';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@shipfox/react-ui/table';
+import {SearchInline} from '@shipfox/react-ui/search';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Header, Text} from '@shipfox/react-ui/typography';
 import {formatDate} from '@shipfox/react-ui/utils';
 import {useForm} from '@tanstack/react-form';
-import {useState} from 'react';
+import {
+  columnFilteringFeature,
+  createColumnHelper,
+  createFilteredRowModel,
+  createSortedRowModel,
+  filterFn_includesString,
+  globalFilteringFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table';
+import {type ReactNode, useMemo, useState} from 'react';
 import {
   getInvitationExpiry,
   getMemberRemovalRestriction,
@@ -43,6 +46,27 @@ import {useListMembers} from '#hooks/api/list-members.js';
 import {useRemoveMember} from '#hooks/api/remove-member.js';
 import {useRevokeInvitation} from '#hooks/api/revoke-invitation.js';
 import {invitationErrorToFormError, memberRemovalErrorMessage} from './form-errors.js';
+
+const membersTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  filteredRowModel: createFilteredRowModel(),
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+const memberColumnHelper = createColumnHelper<typeof membersTableFeatures, WorkspaceMember>();
+
+const invitationsTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  filteredRowModel: createFilteredRowModel(),
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+const invitationColumnHelper = createColumnHelper<
+  typeof invitationsTableFeatures,
+  PendingInvitation
+>();
 
 export function WorkspaceMembersSettingsSection({
   workspaceId,
@@ -69,6 +93,61 @@ function MembersSection({
   const auth = useAuthState();
   const query = useListMembers(workspaceId);
   const members = query.data ?? [];
+  const [search, setSearch] = useState('');
+  const columns = useMemo(
+    () =>
+      memberColumnHelper.columns([
+        memberColumnHelper.accessor((member) => member.name ?? '', {
+          id: 'name',
+          header: ({column}) => <DataTableSortableHeader column={column} label="Name" />,
+          cell: ({row}) => row.original.name ?? 'N/A',
+        }),
+        memberColumnHelper.accessor('email', {
+          header: ({column}) => <DataTableSortableHeader column={column} label="Email" />,
+          cell: ({getValue}) => <Code variant="paragraph">{getValue()}</Code>,
+        }),
+        memberColumnHelper.accessor('joinedAt', {
+          header: ({column}) => <DataTableSortableHeader column={column} label="Joined" />,
+          cell: ({getValue}) => formatDate(getValue()),
+        }),
+        memberColumnHelper.display({
+          id: 'actions',
+          enableSorting: false,
+          header: () => <span className="sr-only">Actions</span>,
+          cell: ({row}) => (
+            <MemberActions
+              member={row.original}
+              members={members}
+              currentUserId={auth.user?.id}
+              workspaceId={workspaceId}
+              workspaceName={workspaceName}
+            />
+          ),
+        }),
+      ]),
+    [auth.user?.id, members, workspaceId, workspaceName],
+  );
+  const table = useTable({
+    columns,
+    data: members,
+    enableMultiSort: false,
+    features: membersTableFeatures,
+    getColumnCanGlobalFilter: (column) => column.id === 'name' || column.id === 'email',
+    getRowId: (member) => member.id,
+    globalFilterFn: filterFn_includesString,
+    onGlobalFilterChange: (updater) =>
+      setSearch(
+        (current) => (typeof updater === 'function' ? updater(current) : updater) as string,
+      ),
+    state: {globalFilter: search},
+    sortDescFirst: false,
+  });
+  const isFiltered = search.trim().length > 0;
+  const emptyContent = getMembersEmptyContent({
+    isFiltered,
+    onClear: () => setSearch(''),
+    query,
+  });
 
   return (
     <section className="flex flex-col gap-group">
@@ -76,45 +155,86 @@ function MembersSection({
         <Header variant="h1">Members</Header>
       </div>
 
-      {query.isPending ? <TableSkeleton rows={3} cols={3} label="Loading members" /> : null}
-
-      {query.isError && query.data === undefined ? (
-        <Panel>
-          <QueryLoadError query={query} subject="members" variant="panel" />
-        </Panel>
-      ) : null}
-
-      {members.length > 0 ? (
-        <Panel>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="w-80 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => (
-                <MemberRow
-                  key={member.id}
-                  member={member}
-                  members={members}
-                  currentUserId={auth.user?.id}
-                  workspaceId={workspaceId}
-                  workspaceName={workspaceName}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </Panel>
-      ) : null}
+      <DataTable
+        table={table}
+        aria-label="Workspace members"
+        emptyContent={emptyContent}
+        getRowProps={() => ({className: 'group/row'})}
+        isLoading={query.isPending}
+        loadingLabel="Loading members"
+        loadingRowCount={3}
+        minimumWidth={560}
+        navigation={{kind: 'complete', count: table.getRowModel().rows.length}}
+        toolbar={
+          <DataTableToolbar
+            {...(isFiltered
+              ? {
+                  clearFiltersAction: (
+                    <Button
+                      type="button"
+                      size="2xs"
+                      variant="transparentMuted"
+                      onClick={() => setSearch('')}
+                    >
+                      Clear search
+                    </Button>
+                  ),
+                }
+              : {})}
+            {...(query.isPending ? {} : {resultCount: table.getRowModel().rows.length})}
+          >
+            <SearchInline
+              aria-label="Search members"
+              placeholder="Search members"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </DataTableToolbar>
+        }
+      />
     </section>
   );
 }
 
-function MemberRow({
+function getMembersEmptyContent({
+  isFiltered,
+  onClear,
+  query,
+}: {
+  isFiltered: boolean;
+  onClear: () => void;
+  query: ReturnType<typeof useListMembers>;
+}): ReactNode {
+  if (query.isError && query.data === undefined) {
+    return <QueryLoadError query={query} subject="members" variant="panel" />;
+  }
+  if (isFiltered) {
+    return (
+      <EmptyState
+        icon="filterOffLine"
+        title="No matching members"
+        description="No members match your search."
+        action={
+          <Button type="button" size="sm" variant="secondary" onClick={onClear}>
+            Clear search
+          </Button>
+        }
+        variant="panel"
+      />
+    );
+  }
+
+  return (
+    <EmptyState
+      icon="groupLine"
+      title="No members yet"
+      description="Invite someone to give them access to this workspace."
+      variant="panel"
+    />
+  );
+}
+
+function MemberActions({
   member,
   members,
   currentUserId,
@@ -142,54 +262,43 @@ function MemberRow({
   }
 
   return (
-    <TableRow className={remove.isPending ? 'opacity-60' : undefined}>
-      <TableCell className="font-medium">{member.name ?? 'N/A'}</TableCell>
-      <TableCell>
-        <Code variant="paragraph">{member.email}</Code>
-      </TableCell>
-      <TableCell>{formatDate(member.joinedAt)}</TableCell>
-      <TableCell className="text-right">
-        <Modal open={open} onOpenChange={setOpen}>
-          <ModalTrigger asChild>
-            <Button
-              size="sm"
-              variant="transparentMuted"
-              aria-label="Remove member"
-              disabled={restriction !== undefined}
-              isLoading={remove.isPending}
-              className={
-                remove.isPending
-                  ? 'opacity-100 transition-opacity'
-                  : 'opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100'
-              }
-            >
-              <Icon name="userUnfollowLine" className="size-16" />
-            </Button>
-          </ModalTrigger>
-          <ModalContent>
-            <ModalTitle className="sr-only">Remove member</ModalTitle>
-            <ModalHeader>
-              <Text size="lg">
-                Remove {member.name ?? member.email} from {workspaceName}?
-              </Text>
-            </ModalHeader>
-            <ModalBody>
-              <Text size="sm">
-                They will lose access immediately. They can be re-invited later.
-              </Text>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="secondary" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleRemove} isLoading={remove.isPending}>
-                Remove
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      </TableCell>
-    </TableRow>
+    <Modal open={open} onOpenChange={setOpen}>
+      <ModalTrigger asChild>
+        <Button
+          size="sm"
+          variant="transparentMuted"
+          aria-label="Remove member"
+          disabled={restriction !== undefined}
+          isLoading={remove.isPending}
+          className={
+            remove.isPending
+              ? 'opacity-100 transition-opacity'
+              : 'opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100'
+          }
+        >
+          <Icon name="userUnfollowLine" className="size-16" />
+        </Button>
+      </ModalTrigger>
+      <ModalContent>
+        <ModalTitle className="sr-only">Remove member</ModalTitle>
+        <ModalHeader>
+          <Text size="lg">
+            Remove {member.name ?? member.email} from {workspaceName}?
+          </Text>
+        </ModalHeader>
+        <ModalBody>
+          <Text size="sm">They will lose access immediately. They can be re-invited later.</Text>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleRemove} isLoading={remove.isPending}>
+            Remove
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   );
 }
 
@@ -203,6 +312,64 @@ function PendingInvitationsSection({
   const query = useListInvitations(workspaceId);
   const invitations = query.data ?? [];
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const columns = useMemo(
+    () =>
+      invitationColumnHelper.columns([
+        invitationColumnHelper.accessor('email', {
+          header: ({column}) => <DataTableSortableHeader column={column} label="Email" />,
+          cell: ({getValue}) => <Code variant="paragraph">{getValue()}</Code>,
+        }),
+        invitationColumnHelper.accessor((invitation) => invitation.invitedByDisplay ?? '', {
+          id: 'invitedBy',
+          header: ({column}) => <DataTableSortableHeader column={column} label="Invited by" />,
+          cell: ({row}) => row.original.invitedByDisplay ?? 'N/A',
+        }),
+        invitationColumnHelper.accessor('expiresAt', {
+          header: ({column}) => <DataTableSortableHeader column={column} label="Expires" />,
+          cell: ({row}) => {
+            const expiry = getInvitationExpiry(row.original);
+            return (
+              <div className="flex items-center gap-inline">
+                <Text size="sm">{formatDate(row.original.expiresAt)}</Text>
+                {expiry === 'expires-soon' ? <Badge variant="warning">Soon</Badge> : null}
+                {expiry === 'expired' ? <Badge variant="error">Expired</Badge> : null}
+              </div>
+            );
+          },
+        }),
+        invitationColumnHelper.display({
+          id: 'actions',
+          enableSorting: false,
+          header: () => <span className="sr-only">Actions</span>,
+          cell: ({row}) => (
+            <InvitationActions invitation={row.original} workspaceId={workspaceId} />
+          ),
+        }),
+      ]),
+    [workspaceId],
+  );
+  const table = useTable({
+    columns,
+    data: invitations,
+    enableMultiSort: false,
+    features: invitationsTableFeatures,
+    getColumnCanGlobalFilter: (column) => column.id === 'email' || column.id === 'invitedBy',
+    getRowId: (invitation) => invitation.id,
+    globalFilterFn: filterFn_includesString,
+    onGlobalFilterChange: (updater) =>
+      setSearch(
+        (current) => (typeof updater === 'function' ? updater(current) : updater) as string,
+      ),
+    state: {globalFilter: search},
+    sortDescFirst: false,
+  });
+  const isFiltered = search.trim().length > 0;
+  const emptyContent = getInvitationsEmptyContent({
+    isFiltered,
+    onClear: () => setSearch(''),
+    query,
+  });
 
   return (
     <section className="flex flex-col gap-group">
@@ -218,48 +385,79 @@ function PendingInvitationsSection({
         />
       </div>
 
-      {query.isPending ? <TableSkeleton rows={2} cols={3} label="Loading invitations" /> : null}
-
-      {query.isError && query.data === undefined ? (
-        <Panel>
-          <QueryLoadError query={query} subject="invitations" variant="panel" />
-        </Panel>
-      ) : null}
-
-      {query.data !== undefined && invitations.length === 0 ? (
-        <Panel>
-          <EmptyInvitations />
-        </Panel>
-      ) : null}
-
-      {invitations.length > 0 ? (
-        <Panel>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Invited by</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead className="w-80 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invitations.map((invitation) => (
-                <InvitationRow
-                  key={invitation.id}
-                  invitation={invitation}
-                  workspaceId={workspaceId}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </Panel>
-      ) : null}
+      <DataTable
+        table={table}
+        aria-label="Pending invitations"
+        emptyContent={emptyContent}
+        getRowProps={() => ({className: 'group/row'})}
+        isLoading={query.isPending}
+        loadingLabel="Loading invitations"
+        loadingRowCount={2}
+        minimumWidth={560}
+        navigation={{kind: 'complete', count: table.getRowModel().rows.length}}
+        toolbar={
+          <DataTableToolbar
+            {...(isFiltered
+              ? {
+                  clearFiltersAction: (
+                    <Button
+                      type="button"
+                      size="2xs"
+                      variant="transparentMuted"
+                      onClick={() => setSearch('')}
+                    >
+                      Clear search
+                    </Button>
+                  ),
+                }
+              : {})}
+            {...(query.isPending ? {} : {resultCount: table.getRowModel().rows.length})}
+          >
+            <SearchInline
+              aria-label="Search pending invitations"
+              placeholder="Search invitations"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </DataTableToolbar>
+        }
+      />
     </section>
   );
 }
 
-function InvitationRow({
+function getInvitationsEmptyContent({
+  isFiltered,
+  onClear,
+  query,
+}: {
+  isFiltered: boolean;
+  onClear: () => void;
+  query: ReturnType<typeof useListInvitations>;
+}): ReactNode {
+  if (query.isError && query.data === undefined) {
+    return <QueryLoadError query={query} subject="invitations" variant="panel" />;
+  }
+  if (isFiltered) {
+    return (
+      <EmptyState
+        icon="filterOffLine"
+        title="No matching invitations"
+        description="No pending invitations match your search."
+        action={
+          <Button type="button" size="sm" variant="secondary" onClick={onClear}>
+            Clear search
+          </Button>
+        }
+        variant="panel"
+      />
+    );
+  }
+
+  return <EmptyInvitations />;
+}
+
+function InvitationActions({
   invitation,
   workspaceId,
 }: {
@@ -268,7 +466,6 @@ function InvitationRow({
 }) {
   const [open, setOpen] = useState(false);
   const revoke = useRevokeInvitation(workspaceId);
-  const expiry = getInvitationExpiry(invitation);
 
   async function handleRevoke() {
     try {
@@ -281,55 +478,40 @@ function InvitationRow({
   }
 
   return (
-    <TableRow className={revoke.isPending ? 'opacity-60' : undefined}>
-      <TableCell>
-        <Code variant="paragraph">{invitation.email}</Code>
-      </TableCell>
-      <TableCell>{invitation.invitedByDisplay ?? 'N/A'}</TableCell>
-      <TableCell>
-        <div className="flex items-center gap-inline">
-          <Text size="sm">{formatDate(invitation.expiresAt)}</Text>
-          {expiry === 'expires-soon' ? <Badge variant="warning">Soon</Badge> : null}
-          {expiry === 'expired' ? <Badge variant="error">Expired</Badge> : null}
-        </div>
-      </TableCell>
-      <TableCell className="text-right">
-        <Modal open={open} onOpenChange={setOpen}>
-          <ModalTrigger asChild>
-            <Button
-              size="sm"
-              variant="transparentMuted"
-              aria-label="Revoke invitation"
-              isLoading={revoke.isPending}
-              className={
-                revoke.isPending
-                  ? 'opacity-100 transition-opacity'
-                  : 'opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100'
-              }
-            >
-              <Icon name="closeLine" className="size-16" />
-            </Button>
-          </ModalTrigger>
-          <ModalContent>
-            <ModalTitle className="sr-only">Revoke invitation</ModalTitle>
-            <ModalHeader>
-              <Text size="lg">Revoke invitation to {invitation.email}?</Text>
-            </ModalHeader>
-            <ModalBody>
-              <Text size="sm">They will no longer be able to use the link from their email.</Text>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="secondary" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button variant="danger" onClick={handleRevoke} isLoading={revoke.isPending}>
-                Revoke
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      </TableCell>
-    </TableRow>
+    <Modal open={open} onOpenChange={setOpen}>
+      <ModalTrigger asChild>
+        <Button
+          size="sm"
+          variant="transparentMuted"
+          aria-label="Revoke invitation"
+          isLoading={revoke.isPending}
+          className={
+            revoke.isPending
+              ? 'opacity-100 transition-opacity'
+              : 'opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100'
+          }
+        >
+          <Icon name="closeLine" className="size-16" />
+        </Button>
+      </ModalTrigger>
+      <ModalContent>
+        <ModalTitle className="sr-only">Revoke invitation</ModalTitle>
+        <ModalHeader>
+          <Text size="lg">Revoke invitation to {invitation.email}?</Text>
+        </ModalHeader>
+        <ModalBody>
+          <Text size="sm">They will no longer be able to use the link from their email.</Text>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleRevoke} isLoading={revoke.isPending}>
+            Revoke
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   );
 }
 
@@ -457,24 +639,5 @@ function EmptyInvitations() {
       description="Invite someone above to grow your workspace."
       variant="panel"
     />
-  );
-}
-
-function TableSkeleton({rows, cols, label}: {rows: number; cols: number; label: string}) {
-  return (
-    <Panel role="status" aria-label={label} className="divide-y">
-      {Array.from({length: rows}).map((_, rowIdx) => (
-        <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: stable placeholder rows
-          key={rowIdx}
-          className="grid min-h-44 grid-cols-3 gap-group px-row py-row"
-        >
-          {Array.from({length: cols}).map((__, colIdx) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: stable placeholder cells
-            <Skeleton key={colIdx} className="h-20" />
-          ))}
-        </div>
-      ))}
-    </Panel>
   );
 }

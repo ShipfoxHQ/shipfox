@@ -14,7 +14,7 @@ type ListInvitationsQueryOptions = UseQueryOptions<
   ReturnType<typeof listInvitationsQueryKey>
 >;
 
-async function listInvitations(workspaceId: string): Promise<PendingInvitation[]> {
+export async function listInvitations(workspaceId: string): Promise<PendingInvitation[]> {
   const response = await checkedApiRequest(
     listInvitationsResponseSchema,
     `/workspaces/${workspaceId}/invitations`,

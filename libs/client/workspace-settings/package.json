@@ -54,6 +54,8 @@
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
+    "storybook": "storybook dev -p 6018",
+    "storybook:build": "storybook build -o storybook-static",
     "test": "shipfox-vitest-run",
     "test:watch": "shipfox-vitest-watch",
     "type": "shipfox-tsc-check",
@@ -67,7 +69,8 @@
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
-    "@tanstack/react-form": "catalog:"
+    "@tanstack/react-form": "catalog:",
+    "@tanstack/react-table": "catalog:"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.101.0",
@@ -76,6 +79,8 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@argos-ci/cli": "catalog:",
+    "@argos-ci/storybook": "catalog:",
     "@shipfox/biome": "workspace:*",
     "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",
@@ -83,6 +88,10 @@
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vite": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@storybook/addon-vitest": "catalog:",
+    "@storybook/react": "catalog:",
+    "@storybook/react-vite": "catalog:",
+    "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@testing-library/jest-dom": "catalog:",
@@ -90,9 +99,17 @@
     "@testing-library/user-event": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "happy-dom": "catalog:",
     "jotai": "catalog:",
     "jsdom": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "storybook": "catalog:",
+    "storybook-addon-pseudo-states": "catalog:",
+    "tailwindcss": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }
