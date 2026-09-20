@@ -138,12 +138,7 @@ class HttpPosthogApiClient implements PosthogApiClient {
     try {
       response = await this.fetchImplementation(`${posthogApiBaseUrl(input.region)}${path}`, init);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError')
-      ) {
-        throw new PosthogIntegrationProviderError('timeout', 'PostHog request timed out');
-      }
+      if (isPosthogTimeoutError(error)) throw posthogTimeoutError();
       throw new PosthogIntegrationProviderError(
         'provider-unavailable',
         `PostHog request failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -173,6 +168,14 @@ async function posthogHttpError(response: Response): Promise<PosthogIntegrationP
       response.status,
     );
   }
+  if (response.status === 429) {
+    return new PosthogIntegrationProviderError(
+      'rate-limited',
+      message,
+      retryAfterSeconds(response),
+      response.status,
+    );
+  }
   if (response.status >= 400 && response.status < 500) {
     return new PosthogIntegrationProviderError(
       'provider-rejected',
@@ -193,8 +196,9 @@ async function responseErrorMessage(response: Response): Promise<string> {
   const fallback = `PostHog responded ${response.status}`;
   let body: string;
   try {
-    body = (await response.text()).slice(0, MAX_ERROR_BODY_BYTES);
-  } catch {
+    body = await readResponseBody(response);
+  } catch (error) {
+    if (isPosthogTimeoutError(error)) throw posthogTimeoutError();
     return fallback;
   }
   const trimmed = body.trim();
@@ -219,7 +223,8 @@ async function responseErrorMessage(response: Response): Promise<string> {
 async function parseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    if (isPosthogTimeoutError(error)) throw posthogTimeoutError();
     throw new PosthogIntegrationProviderError(
       'malformed-provider-response',
       'PostHog returned invalid JSON',
@@ -228,7 +233,53 @@ async function parseJson(response: Response): Promise<unknown> {
 }
 
 async function consumeResponse(response: Response): Promise<void> {
-  await response.arrayBuffer();
+  try {
+    await response.arrayBuffer();
+  } catch (error) {
+    if (isPosthogTimeoutError(error)) throw posthogTimeoutError();
+    throw error;
+  }
+}
+
+async function readResponseBody(response: Response): Promise<string> {
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const bytes = new Uint8Array(MAX_ERROR_BODY_BYTES);
+  let byteLength = 0;
+  try {
+    while (byteLength < MAX_ERROR_BODY_BYTES) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      const length = Math.min(value.byteLength, MAX_ERROR_BODY_BYTES - byteLength);
+      bytes.set(value.subarray(0, length), byteLength);
+      byteLength += length;
+      if (byteLength === MAX_ERROR_BODY_BYTES) {
+        await reader.cancel();
+        break;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new TextDecoder().decode(bytes.subarray(0, byteLength));
+}
+
+function isPosthogTimeoutError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+}
+
+function posthogTimeoutError(): PosthogIntegrationProviderError {
+  return new PosthogIntegrationProviderError('timeout', 'PostHog request timed out');
+}
+
+function retryAfterSeconds(response: Response): number | undefined {
+  const value = response.headers.get('retry-after');
+  if (!value) return undefined;
+  const parsed = Number(value.trim());
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function toPosthogProject(value: unknown): PosthogProject {
