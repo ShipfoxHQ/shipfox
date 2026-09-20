@@ -79,6 +79,7 @@ export interface IntegrationProviderSecrets {
   github?: IntegrationProviderScopedSecrets | undefined;
   jira?: IntegrationProviderScopedSecrets | undefined;
   clickup?: IntegrationProviderScopedSecrets | undefined;
+  notion?: IntegrationProviderScopedSecrets | undefined;
   linear?: IntegrationProviderScopedSecrets | undefined;
   slack?: IntegrationProviderScopedSecrets | undefined;
   posthog?: IntegrationProviderScopedSecrets | undefined;

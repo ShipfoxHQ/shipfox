@@ -178,12 +178,15 @@ describe('Notion tools and E2E seed DTO', () => {
   });
 
   it('validates the connection seed fields and rejects missing provider credentials', () => {
+    const notionWorkspaceId = '00000000-0000-4000-8000-000000000001';
+    const botId = '00000000-0000-4000-8000-000000000002';
+    const authorizedByUserId = '00000000-0000-4000-8000-000000000003';
     const result = createE2eNotionConnectionBodySchema.safeParse({
       workspace_id: connection.workspace_id,
-      notion_workspace_id: 'notion-workspace-1',
+      notion_workspace_id: notionWorkspaceId,
       workspace_name: 'Acme',
-      bot_id: 'bot-1',
-      authorized_by_user_id: 'user-1',
+      bot_id: botId,
+      authorized_by_user_id: authorizedByUserId,
       access_token: 'token-1',
       display_name: 'Acme Notion',
     });
@@ -192,7 +195,18 @@ describe('Notion tools and E2E seed DTO', () => {
     expect(
       createE2eNotionConnectionBodySchema.safeParse({
         workspace_id: connection.workspace_id,
+        notion_workspace_id: notionWorkspaceId,
+      }).success,
+    ).toBe(false);
+    expect(
+      createE2eNotionConnectionBodySchema.safeParse({
+        workspace_id: connection.workspace_id,
         notion_workspace_id: 'notion-workspace-1',
+        workspace_name: 'Acme',
+        bot_id: 'bot-1',
+        authorized_by_user_id: 'user-1',
+        access_token: 'token-1',
+        display_name: 'Acme Notion',
       }).success,
     ).toBe(false);
   });

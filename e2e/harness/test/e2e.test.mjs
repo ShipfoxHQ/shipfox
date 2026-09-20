@@ -90,6 +90,9 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_ENABLE_GITHUB_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
+    assert.equal(env.INTEGRATIONS_ENABLE_NOTION_PROVIDER, 'true');
+    assert.equal(env.NOTION_API_BASE_URL, 'https://api.notion.com');
+    assert.equal(env.NOTION_WEBHOOK_VERIFICATION_TOKEN, 'e2e-notion-verification-token');
     assert.equal(env.INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '55365');

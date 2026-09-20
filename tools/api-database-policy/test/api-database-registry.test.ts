@@ -31,7 +31,7 @@ describe('database registry', () => {
     const errors = await auditApiDatabaseRegistry();
     assert.deepEqual(errors, []);
     assert.equal(apiDatabaseRegistry.owners.length, 14);
-    assert.equal(apiDatabaseRegistry.migrationUnits.length, 22);
+    assert.equal(apiDatabaseRegistry.migrationUnits.length, 23);
     assert.deepEqual(
       apiDatabaseRegistry.migrationUnits
         .filter((unit) => unit.ownerId === 'integrations')
@@ -42,6 +42,7 @@ describe('database registry', () => {
         'integrations_github',
         'integrations_jira',
         'integrations_clickup',
+        'integrations_notion',
         'integrations_linear',
         'integrations_posthog',
         'integrations_sentry',

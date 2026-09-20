@@ -18,6 +18,10 @@ import type {
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
 import type {
+  CreateE2eNotionConnectionBodyDto,
+  CreateE2eNotionConnectionResponseDto,
+} from '@shipfox/api-integration-notion-dto';
+import type {
   CreateE2ePosthogConnectionBodyDto,
   CreateE2ePosthogConnectionResponseDto,
   PosthogRegion,
@@ -47,6 +51,10 @@ export type {
   CreateE2eLinearConnectionBodyDto,
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
+export type {
+  CreateE2eNotionConnectionBodyDto,
+  CreateE2eNotionConnectionResponseDto,
+} from '@shipfox/api-integration-notion-dto';
 export type {
   CreateE2ePosthogConnectionBodyDto,
   CreateE2ePosthogConnectionResponseDto,
@@ -179,6 +187,42 @@ export async function createClickUpConnection(
     'post',
     '/__e2e/integrations/clickup-connections',
     {json: clickupConnectionBody(params)},
+  );
+}
+
+export interface CreateNotionConnectionParams {
+  workspaceId: string;
+  notionWorkspaceId: string;
+  workspaceName: string;
+  botId: string;
+  authorizedByUserId: string;
+  accessToken: string;
+  tokenExpiresAt?: string | undefined;
+  displayName: string;
+}
+
+function notionConnectionBody(
+  params: CreateNotionConnectionParams,
+): CreateE2eNotionConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    notion_workspace_id: params.notionWorkspaceId,
+    workspace_name: params.workspaceName,
+    bot_id: params.botId,
+    authorized_by_user_id: params.authorizedByUserId,
+    access_token: params.accessToken,
+    ...(params.tokenExpiresAt === undefined ? {} : {token_expires_at: params.tokenExpiresAt}),
+    display_name: params.displayName,
+  };
+}
+
+export async function createNotionConnection(
+  params: CreateNotionConnectionParams,
+): Promise<CreateE2eNotionConnectionResponseDto> {
+  return await requestJson<CreateE2eNotionConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/notion-connections',
+    {json: notionConnectionBody(params)},
   );
 }
 

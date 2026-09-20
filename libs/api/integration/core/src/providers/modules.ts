@@ -4,6 +4,7 @@ import {giteaProviderModule} from '#providers/gitea.js';
 import {githubProviderModule} from '#providers/github.js';
 import {jiraProviderModule} from '#providers/jira.js';
 import {linearProviderModule} from '#providers/linear.js';
+import {notionProviderModule} from '#providers/notion.js';
 import {posthogProviderModule} from '#providers/posthog.js';
 import {sentryProviderModule} from '#providers/sentry.js';
 import {shipfoxProviderModule} from '#providers/shipfox.js';
@@ -24,6 +25,7 @@ const providerModules = [
   slackProviderModule,
   jiraProviderModule,
   clickupProviderModule,
+  notionProviderModule,
   sentryProviderModule,
   giteaProviderModule,
   testVcsProviderModule,

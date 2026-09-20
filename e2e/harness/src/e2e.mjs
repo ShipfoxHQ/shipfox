@@ -214,6 +214,7 @@ export function e2eEnv(sourceEnv) {
   );
   const slackApiBaseUrl = valueOr(sourceEnv.SLACK_API_BASE_URL, () => e2eSlackApiBaseUrl(apiUrl));
   const clickupApiBaseUrl = valueOr(sourceEnv.CLICKUP_API_BASE_URL, () => e2eClickUpApiBaseUrl(apiUrl));
+  const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, 'https://api.notion.com');
   const testVcsPort = valueOr(sourceEnv.INTEGRATIONS_TEST_VCS_PORT, () => e2eTestVcsPort(apiUrl));
   return {
     ...sourceEnv,
@@ -289,6 +290,20 @@ export function e2eEnv(sourceEnv) {
       `${clientUrl}/integrations/clickup/callback`,
     ),
     CLICKUP_WEBHOOK_BASE_URL: valueOr(sourceEnv.CLICKUP_WEBHOOK_BASE_URL, apiUrl),
+    NOTION_API_BASE_URL: notionApiBaseUrl,
+    NOTION_OAUTH_CLIENT_ID: valueOr(sourceEnv.NOTION_OAUTH_CLIENT_ID, 'e2e-notion-client-id'),
+    NOTION_OAUTH_CLIENT_SECRET: valueOr(
+      sourceEnv.NOTION_OAUTH_CLIENT_SECRET,
+      'e2e-notion-client-secret',
+    ),
+    NOTION_OAUTH_REDIRECT_URL: valueOr(
+      sourceEnv.NOTION_OAUTH_REDIRECT_URL,
+      `${clientUrl}/integrations/notion/callback`,
+    ),
+    NOTION_WEBHOOK_VERIFICATION_TOKEN: valueOr(
+      sourceEnv.NOTION_WEBHOOK_VERIFICATION_TOKEN,
+      'e2e-notion-verification-token',
+    ),
     INTEGRATIONS_ENABLE_GITHUB_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_GITHUB_PROVIDER,
       'true',
@@ -303,6 +318,10 @@ export function e2eEnv(sourceEnv) {
     ),
     INTEGRATIONS_ENABLE_CLICKUP_PROVIDER: valueOr(
       sourceEnv.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER,
+      'true',
+    ),
+    INTEGRATIONS_ENABLE_NOTION_PROVIDER: valueOr(
+      sourceEnv.INTEGRATIONS_ENABLE_NOTION_PROVIDER,
       'true',
     ),
     INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER: valueOr(
