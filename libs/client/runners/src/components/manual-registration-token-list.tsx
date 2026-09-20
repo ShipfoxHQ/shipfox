@@ -110,7 +110,9 @@ export function ManualRegistrationTokenList({
       loadingLabel="Loading manual registration tokens"
       loadingRowCount={3}
       minimumWidth={720}
-      navigation={{kind: 'complete', count: tokens.length}}
+      {...(isLoading
+        ? {onSortChange: () => undefined}
+        : {navigation: {kind: 'complete' as const, count: tokens.length}})}
       tableClassName="table-fixed"
     />
   );
