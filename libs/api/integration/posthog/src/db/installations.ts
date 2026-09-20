@@ -62,6 +62,25 @@ export async function getPosthogInstallationByConnectionId(
   return row ? toPosthogInstallation(row) : undefined;
 }
 
+export async function updatePosthogInstallationCredential(params: {
+  connectionId: string;
+  keyHint: string;
+  credentialVersion: number;
+  tx: unknown;
+}): Promise<PosthogInstallation | undefined> {
+  const executor = params.tx as PosthogDatabaseExecutor;
+  const [row] = await executor
+    .update(posthogInstallations)
+    .set({
+      keyHint: params.keyHint.slice(-4),
+      credentialVersion: params.credentialVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(posthogInstallations.connectionId, params.connectionId))
+    .returning();
+  return row ? toPosthogInstallation(row) : undefined;
+}
+
 export async function deletePosthogInstallationByConnectionId(
   connectionId: string,
   options: {tx?: unknown} = {},

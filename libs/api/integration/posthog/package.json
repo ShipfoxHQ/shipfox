@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "catalog:",
+    "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-posthog-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

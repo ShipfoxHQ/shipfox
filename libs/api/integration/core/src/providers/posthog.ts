@@ -5,6 +5,7 @@ import {config} from '#config.js';
 import {
   createIntegrationConnection,
   getIntegrationConnectionById,
+  getIntegrationConnectionByWorkspaceExternalAccountId,
   resolveUniqueConnectionSlug,
   updateIntegrationConnectionLifecycleStatus,
 } from '#db/connections.js';
@@ -17,6 +18,7 @@ async function loadPosthogModuleParts(
 ): Promise<IntegrationModuleParts> {
   const {
     createPosthogApiClient,
+    createPosthogConnectionRoutes,
     createPosthogCredentialStore,
     createPosthogE2eRoutes,
     createPosthogInstallation,
@@ -76,6 +78,58 @@ async function loadPosthogModuleParts(
       })
     : undefined;
 
+  async function createPosthogConnection(input: {
+    id: string;
+    workspaceId: string;
+    region: PosthogRegion;
+    apiKey: string;
+    projectId: string;
+    projectName: string;
+    organizationId: string;
+  }): Promise<CoreIntegrationConnection<'posthog'>> {
+    return await retryConnectionSlugCollision(() =>
+      db().transaction(async (tx) => {
+        const externalAccountId = posthogExternalAccountId(input.region, input.projectId);
+        const slug = await resolveUniqueConnectionSlug(
+          {
+            workspaceId: input.workspaceId,
+            provider: 'posthog',
+            externalAccountId,
+            baseSlug: slugifyConnectionSlug(`posthog_${input.projectName}`, {
+              fallback: 'posthog',
+            }),
+          },
+          {tx},
+        );
+        const connection = await createIntegrationConnection(
+          {
+            id: input.id,
+            workspaceId: input.workspaceId,
+            provider: 'posthog',
+            externalAccountId,
+            slug,
+            displayName: input.projectName,
+            lifecycleStatus: 'active',
+            capabilities: credentialStore ? ['agent_tools'] : [],
+          },
+          {tx},
+        );
+        await createPosthogInstallation(
+          {
+            connectionId: input.id,
+            region: input.region,
+            projectId: input.projectId,
+            projectName: input.projectName,
+            organizationId: input.organizationId,
+            keyHint: input.apiKey,
+          },
+          {tx},
+        );
+        return connection as CoreIntegrationConnection<'posthog'>;
+      }),
+    );
+  }
+
   async function seedPosthogConnection(input: {
     workspaceId: string;
     region: PosthogRegion;
@@ -91,48 +145,7 @@ async function loadPosthogModuleParts(
       connectionId,
       workspaceId: input.workspaceId,
       apiKey: input.apiKey,
-      createConnection: () =>
-        retryConnectionSlugCollision(() =>
-          db().transaction(async (tx) => {
-            const externalAccountId = posthogExternalAccountId(input.region, input.projectId);
-            const slug = await resolveUniqueConnectionSlug(
-              {
-                workspaceId: input.workspaceId,
-                provider: 'posthog',
-                externalAccountId,
-                baseSlug: slugifyConnectionSlug(`posthog_${input.projectName}`, {
-                  fallback: 'posthog',
-                }),
-              },
-              {tx},
-            );
-            const connection = await createIntegrationConnection(
-              {
-                id: connectionId,
-                workspaceId: input.workspaceId,
-                provider: 'posthog',
-                externalAccountId,
-                slug,
-                displayName: input.projectName,
-                lifecycleStatus: 'active',
-                capabilities: credentialStore ? ['agent_tools'] : [],
-              },
-              {tx},
-            );
-            await createPosthogInstallation(
-              {
-                connectionId,
-                region: input.region,
-                projectId: input.projectId,
-                projectName: input.projectName,
-                organizationId: input.organizationId,
-                keyHint: input.apiKey,
-              },
-              {tx},
-            );
-            return connection as CoreIntegrationConnection<'posthog'>;
-          }),
-        ),
+      createConnection: () => createPosthogConnection({...input, id: connectionId}),
     });
   }
 
@@ -156,9 +169,34 @@ async function loadPosthogModuleParts(
       })
     : undefined;
 
+  const posthogApi = createPosthogApiClient();
+  const connectionRoutes = credentialStore
+    ? createPosthogConnectionRoutes({
+        posthog: posthogApi,
+        credentials: credentialStore,
+        getExistingConnection: async ({workspaceId, externalAccountId}) =>
+          (await getIntegrationConnectionByWorkspaceExternalAccountId({
+            workspaceId,
+            provider: 'posthog',
+            externalAccountId,
+          })) as CoreIntegrationConnection<'posthog'> | undefined,
+        createConnection: createPosthogConnection,
+        getConnection: async (connectionId) =>
+          (await getIntegrationConnectionById(connectionId)) as
+            | CoreIntegrationConnection<'posthog'>
+            | undefined,
+        updateConnection: async ({id, lifecycleStatus, tx}) =>
+          (await updateIntegrationConnectionLifecycleStatus(
+            {id, lifecycleStatus},
+            {tx: tx as never},
+          )) as CoreIntegrationConnection<'posthog'> | undefined,
+      })
+    : undefined;
+
   const provider = createPosthogIntegrationProvider({
     getPosthogInstallationByConnectionId,
     ...(agentTools ? {agentTools} : {}),
+    routes: connectionRoutes ? [connectionRoutes] : [],
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {
         await deletePosthogInstallationByConnectionId(connection.id, {tx});
