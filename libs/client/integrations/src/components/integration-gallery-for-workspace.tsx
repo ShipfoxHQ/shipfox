@@ -21,6 +21,8 @@ import {InstalledIntegrationsSection} from './installed-integrations-section.js'
 import {IntegrationDeleteConfirmModal} from './integration-delete-confirm-modal.js';
 import {usageEventsForConnection} from './integration-usage-events.js';
 import {IntegrationUsageModal} from './integration-usage-modal.js';
+import {PosthogConnectModal} from './posthog/posthog-connect-modal.js';
+import {PosthogReplaceApiKeyModal} from './posthog/posthog-replace-api-key-modal.js';
 import {ProviderGrid} from './provider-grid.js';
 import {WebhookCreateModal} from './webhook/webhook-create-modal.js';
 import {WebhookUsageDetails} from './webhook/webhook-usage-details.js';
@@ -39,6 +41,7 @@ export function IntegrationGalleryForWorkspace({
   const {workspaces} = useAuthState();
   const workspaceSlug = workspaces.find((workspace) => workspace.id === workspaceId)?.slug;
   const [createProvider, setCreateProvider] = useState<string | undefined>();
+  const [replaceConnectionId, setReplaceConnectionId] = useState<string | undefined>();
   const [usageConnectionId, setUsageConnectionId] = useState<string | undefined>();
   const [createdUsageConnection, setCreatedUsageConnection] = useState<
     IntegrationConnection | undefined
@@ -78,6 +81,9 @@ export function IntegrationGalleryForWorkspace({
     null;
   const deleteConnectionTarget = sortedConnections.find(
     (connection) => connection.id === deleteConnectionId,
+  );
+  const replaceConnectionTarget = sortedConnections.find(
+    (connection) => connection.id === replaceConnectionId,
   );
 
   async function setConnectionActive(connection: IntegrationConnection, active: boolean) {
@@ -167,6 +173,23 @@ export function IntegrationGalleryForWorkspace({
           </Text>
         )}
       </section>
+      <PosthogConnectModal
+        workspaceId={workspaceId}
+        open={createProvider === 'posthog'}
+        onOpenChange={(open) => setCreateProvider(open ? 'posthog' : undefined)}
+        onOpenReplaceApiKey={(connectionId) => {
+          setCreateProvider(undefined);
+          setReplaceConnectionId(connectionId);
+        }}
+      />
+      <PosthogReplaceApiKeyModal
+        workspaceId={workspaceId}
+        connection={replaceConnectionTarget}
+        open={replaceConnectionTarget !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setReplaceConnectionId(undefined);
+        }}
+      />
       <WebhookCreateModal
         workspaceId={workspaceId}
         open={createProvider === 'webhook'}

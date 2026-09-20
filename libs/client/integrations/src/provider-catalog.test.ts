@@ -41,6 +41,7 @@ describe('PROVIDER_CATALOG', () => {
     expect(PROVIDER_CATALOG.clickup?.kind).toBe('redirect-install');
     expect(PROVIDER_CATALOG.gitea?.kind).toBe('direct-connect');
     expect(PROVIDER_CATALOG.webhook?.kind).toBe('modal-connect');
+    expect(PROVIDER_CATALOG.posthog?.kind).toBe('modal-connect');
   });
 
   test('declares webhook as a modal provider with the remixicon webhook icon', () => {
@@ -48,6 +49,14 @@ describe('PROVIDER_CATALOG', () => {
       kind: 'modal-connect',
       displayName: 'Webhook',
       iconName: 'webhookLine',
+    });
+  });
+
+  test('declares PostHog as a modal provider with its custom icon', () => {
+    expect(PROVIDER_CATALOG.posthog).toEqual({
+      kind: 'modal-connect',
+      displayName: 'PostHog',
+      iconName: 'posthog',
     });
   });
 

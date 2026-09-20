@@ -14,6 +14,13 @@ export interface JiraSite {
   scopes: string[];
 }
 
+export type PosthogRegion = 'us' | 'eu';
+
+export interface PosthogProject {
+  id: string;
+  name: string;
+}
+
 export interface IntegrationConnection {
   id: string;
   workspaceId: string;
