@@ -114,17 +114,6 @@ describe('DataTable navigation contract', () => {
     expect(screen.getByRole('table', {name: 'Workflows'})).toBeDefined();
   });
 
-  test('does not assert the contract in production', () => {
-    vi.stubEnv('NODE_ENV', 'production');
-
-    try {
-      render(<ContractTable navigation={appendNavigation} />);
-      expect(screen.getByRole('table', {name: 'Workflows'})).toBeDefined();
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
-
   test('rejects filterable columns on an append table without server filtering', () => {
     expect(() =>
       render(

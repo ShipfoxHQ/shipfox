@@ -19,6 +19,7 @@ import {
 } from '#components/table/index.js';
 import {cn} from '#utils/cn.js';
 import {DataTableNavigation, type DataTableNavigationProps} from './data-table-navigation.js';
+import {shouldAssertDataTableNavigationContract} from './data-table-runtime.js';
 
 export type DataTableDensity = 'default' | 'compact';
 
@@ -185,12 +186,12 @@ function hasColumnCapability<TFeatures extends TableFeatures, TData extends RowD
   });
 }
 
-function isProductionRuntime() {
-  const buildEnvironment = (import.meta as ImportMeta & {env?: {PROD?: boolean}}).env;
+function shouldAssertNavigationContract() {
+  const buildEnvironment = (import.meta as ImportMeta & {env?: {DEV?: boolean}}).env;
   const nodeEnvironment = (globalThis as {process?: {env?: {NODE_ENV?: string}}}).process?.env
     ?.NODE_ENV;
 
-  return buildEnvironment?.PROD === true || nodeEnvironment === 'production';
+  return shouldAssertDataTableNavigationContract(buildEnvironment?.DEV, nodeEnvironment);
 }
 
 function assertNavigationContract<TFeatures extends TableFeatures, TData extends RowData>(
@@ -199,7 +200,7 @@ function assertNavigationContract<TFeatures extends TableFeatures, TData extends
   onFilterChange: (() => void) | undefined,
   onSortChange: (() => void) | undefined,
 ) {
-  if (isProductionRuntime()) return;
+  if (!shouldAssertNavigationContract()) return;
 
   const hasCompleteNavigation = navigation?.kind === 'complete';
   const hasSortableColumn = hasColumnCapability(table, 'getCanSort');
