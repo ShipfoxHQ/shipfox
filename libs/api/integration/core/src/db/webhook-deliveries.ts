@@ -32,7 +32,9 @@ function providerDedupScope(provider: string): string {
 }
 
 function receivedEventDedupScope(event: IntegrationEventReceivedEvent): string {
-  if (event.provider === 'webhook') return connectionDedupScope(event.connectionId);
+  if (event.provider === 'webhook' || event.provider === 'notion') {
+    return connectionDedupScope(event.connectionId);
+  }
   return providerDedupScope(event.provider);
 }
 
