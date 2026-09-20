@@ -358,6 +358,43 @@ describe('invitations db', () => {
     expect(result).toEqual({status: 'expired'});
   });
 
+  test('lists open invitations in deterministic email order', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const charlie = await createInvitation({
+      workspaceId: workspace.id,
+      email: emailFor('charlie'),
+      hashedToken: hashOpaqueToken('inv-order-charlie'),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    const alpha = await createInvitation({
+      workspaceId: workspace.id,
+      email: emailFor('alpha'),
+      hashedToken: hashOpaqueToken('inv-order-alpha'),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    const bravo = await createInvitation({
+      workspaceId: workspace.id,
+      email: emailFor('bravo'),
+      hashedToken: hashOpaqueToken('inv-order-bravo'),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+
+    const firstRead = await listOpenInvitationsByWorkspace({workspaceId: workspace.id});
+    const secondRead = await listOpenInvitationsByWorkspace({workspaceId: workspace.id});
+
+    expect(firstRead.map((invitation) => invitation.id)).toEqual([alpha.id, bravo.id, charlie.id]);
+    expect(secondRead.map((invitation) => invitation.id)).toEqual(
+      firstRead.map((invitation) => invitation.id),
+    );
+  });
+
   test('lists only open invitations and revokes them', async () => {
     const inviter = await createUser({email: emailFor('inviter'), hashedPassword: 'h'});
     const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});

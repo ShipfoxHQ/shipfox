@@ -101,7 +101,8 @@ export async function listMembershipsByWorkspace(params: {
   const rows = await db()
     .select()
     .from(memberships)
-    .where(eq(memberships.workspaceId, params.workspaceId));
+    .where(eq(memberships.workspaceId, params.workspaceId))
+    .orderBy(asc(memberships.createdAt), asc(memberships.id));
 
   return rows.map(toMembership);
 }
