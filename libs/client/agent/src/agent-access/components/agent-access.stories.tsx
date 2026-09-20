@@ -129,19 +129,8 @@ export const MultipleWorkspaces: Story = {
   },
 };
 
-const settingsVisualParameters = {
-  viewport: {defaultViewport: 'mobile1'},
-  argos: {
-    modes: {
-      light: {theme: 'light'},
-      dark: {theme: 'dark'},
-    },
-  },
-};
-
 export const Settings: Story = {
   args: {view: 'settings-populated'},
-  parameters: settingsVisualParameters,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await canvas.findAllByText('Claude Desktop');
@@ -152,7 +141,6 @@ export const Settings: Story = {
 
 export const EmptySettings: Story = {
   args: {view: 'settings-empty'},
-  parameters: settingsVisualParameters,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await canvas.findByText('No connected apps');
@@ -161,7 +149,6 @@ export const EmptySettings: Story = {
 
 export const LoadingSettings: Story = {
   args: {view: 'settings-loading'},
-  parameters: settingsVisualParameters,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await canvas.findByRole('heading', {name: 'Connected apps'});
