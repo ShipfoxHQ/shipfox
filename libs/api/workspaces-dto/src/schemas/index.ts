@@ -55,6 +55,7 @@ export {
   membershipDtoSchema,
   membershipWithUserSchema,
   membershipWithWorkspaceSchema,
+  WORKSPACES_MAX_LIST_LIMIT,
   type WorkspaceRole,
   workspaceRoleSchema,
 } from './membership.js';

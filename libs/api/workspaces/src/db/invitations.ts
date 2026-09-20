@@ -14,6 +14,7 @@ import {
   recordWorkspaceInvitationCreated,
   recordWorkspaceMembershipChanged,
 } from '#metrics/instance.js';
+import {assertWorkspaceMembershipCap, lockWorkspaceMembership} from './cap.js';
 import {db} from './db.js';
 import {findMembership, membershipValues} from './memberships.js';
 import {invitations, toInvitation} from './schema/invitations.js';
@@ -44,6 +45,7 @@ export type CreateInvitationParams = CreateInvitationBaseParams &
 
 export async function createInvitation(params: CreateInvitationParams): Promise<Invitation> {
   const result = await db().transaction(async (tx) => {
+    await lockWorkspaceMembership(params.workspaceId, tx);
     await tx
       .delete(invitations)
       .where(
@@ -72,6 +74,12 @@ export async function createInvitation(params: CreateInvitationParams): Promise<
     if (open.length > 0) {
       throw new OpenInvitationExistsError(params.email);
     }
+
+    await assertWorkspaceMembershipCap({
+      workspaceId: params.workspaceId,
+      incomingSeats: 1,
+      tx,
+    });
 
     const rows = await tx
       .insert(invitations)
@@ -265,6 +273,14 @@ async function ensureInvitationMembership(
     {tx},
   );
   if (existing) return {membership: existing, alreadyMember: true};
+
+  await lockWorkspaceMembership(invitation.workspaceId, tx);
+  await assertWorkspaceMembershipCap({
+    workspaceId: invitation.workspaceId,
+    incomingSeats: 1,
+    excludeInvitationId: invitation.id,
+    tx,
+  });
   const created = await tx
     .insert(memberships)
     .values(

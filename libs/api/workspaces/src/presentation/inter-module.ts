@@ -11,6 +11,7 @@ import {
   TokenExpiredError,
   TokenInvalidError,
   WorkspaceInactiveError,
+  WorkspaceMembershipCapExceededError,
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 import {acceptWorkspaceInvitation, peekInvitationByRawToken} from '#core/invitations.js';
@@ -127,5 +128,13 @@ function toInvitationKnownError(
     return createInterModuleKnownError(method, 'invitation-token-expired', {});
   if (error instanceof InvitationEmailMismatchError)
     return createInterModuleKnownError(method, 'invitation-email-mismatch', {});
+  if (error instanceof WorkspaceMembershipCapExceededError) {
+    if (methodName !== 'acceptInvitation') return error;
+    return createInterModuleKnownError(
+      workspacesInterModuleContract.methods.acceptInvitation,
+      'workspace-membership-cap-exceeded',
+      {cap: error.cap},
+    );
+  }
   return error;
 }

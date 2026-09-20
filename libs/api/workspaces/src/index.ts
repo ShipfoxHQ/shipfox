@@ -24,6 +24,7 @@ export {
   TokenAlreadyUsedError,
   TokenExpiredError,
   TokenInvalidError,
+  WorkspaceMembershipCapExceededError,
   WorkspaceNotFoundError,
   WorkspaceSlugConflictError,
 } from '#core/errors.js';

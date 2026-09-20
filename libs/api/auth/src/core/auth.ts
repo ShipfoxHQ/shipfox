@@ -186,11 +186,15 @@ function invitationErrorMessage(
     | 'invitation-token-invalid'
     | 'invitation-token-used'
     | 'invitation-token-expired'
-    | 'invitation-email-mismatch',
+    | 'invitation-email-mismatch'
+    | 'workspace-membership-cap-exceeded',
 ): string {
   if (code === 'invitation-token-invalid') return 'Invitation token is invalid';
   if (code === 'invitation-token-used') return 'Invitation has already been accepted';
   if (code === 'invitation-token-expired') return 'Invitation has expired';
+  if (code === 'workspace-membership-cap-exceeded') {
+    return 'This workspace is full. Ask an administrator to free a seat before trying again.';
+  }
   return 'Signup email does not match the invitation';
 }
 

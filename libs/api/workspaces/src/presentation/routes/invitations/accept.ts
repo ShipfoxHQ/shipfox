@@ -9,6 +9,7 @@ import {
   TokenAlreadyUsedError,
   TokenExpiredError,
   TokenInvalidError,
+  WorkspaceMembershipCapExceededError,
 } from '#core/errors.js';
 import {acceptWorkspaceInvitation} from '#core/index.js';
 
@@ -40,6 +41,16 @@ export const acceptInvitationRoute = defineRoute({
       throw new ClientError('Invitation email does not match authenticated user', 'forbidden', {
         status: 403,
       });
+    }
+    if (error instanceof WorkspaceMembershipCapExceededError) {
+      throw new ClientError(
+        'Workspace membership cap exceeded',
+        'workspace-membership-cap-exceeded',
+        {
+          status: 409,
+          details: {cap: error.cap},
+        },
+      );
     }
     throw error;
   },

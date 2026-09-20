@@ -31,6 +31,7 @@ export {
   WorkspaceAdminIdempotencyKeyReuseError,
   WorkspaceAlreadySuspendedError,
   WorkspaceDeletedError,
+  WorkspaceMembershipCapExceededError,
   WorkspaceNotFoundError,
   WorkspaceNotSuspendedError,
   WorkspaceSlugConflictError,

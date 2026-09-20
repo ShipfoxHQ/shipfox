@@ -38,6 +38,7 @@ const membership = await ensureMembership({
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CLIENT_BASE_URL` | `http://localhost:5173` | Base URL used in workspace invitation links. |
+| `WORKSPACES_MAX_PER_WORKSPACE` | `10000` | Maximum number of members and open invitations per workspace. Must be between 1 and 10000, which is the complete members-list limit. |
 | `AUTH_ROOT_KEY` | none | Root key used to HMAC source IPs for the workspace slug availability rate limit. |
 
 Invitation email uses the shared `@shipfox/node-mailer` configuration.

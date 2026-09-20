@@ -1,3 +1,4 @@
+import {isErrorWithCode} from '@shipfox/client-api';
 import {
   AuthShell,
   useAuthState,
@@ -275,23 +276,18 @@ export function InvitationAcceptPage() {
   // result. Show either the pending state or the error state.
   if (accept.isError) {
     return (
-      <AuthShell title={data.workspaceName} description={inviterLine}>
-        <Callout role="alert" type="error">
-          We couldn't add you to {data.workspaceName}. Try again in a moment.
-        </Callout>
-        <Button
-          className="w-full"
-          isLoading={accept.isPending}
-          onClick={() => {
-            runAccept({token, workspaceName: data.workspaceName}).catch(() => {
-              // The mutation state drives the rendered error; avoid an
-              // unhandled rejection from the click handler.
-            });
-          }}
-        >
-          Try again
-        </Button>
-      </AuthShell>
+      <InvitationAcceptanceErrorState
+        error={accept.error}
+        isPending={accept.isPending}
+        navigate={navigate}
+        onRetry={() => {
+          runAccept({token, workspaceName: data.workspaceName}).catch(() => {
+            // The mutation state drives the rendered error; avoid an unhandled rejection from the click handler.
+          });
+        }}
+        inviterLine={inviterLine}
+        workspaceName={data.workspaceName}
+      />
     );
   }
 
@@ -303,6 +299,45 @@ export function InvitationAcceptPage() {
           Adding you to {data.workspaceName}…
         </Text>
       </div>
+    </AuthShell>
+  );
+}
+
+export function InvitationAcceptanceErrorState({
+  error,
+  isPending,
+  navigate,
+  onRetry,
+  inviterLine,
+  workspaceName,
+}: {
+  error: unknown;
+  isPending: boolean;
+  navigate: ReturnType<typeof useNavigate>;
+  onRetry: () => void;
+  inviterLine: string;
+  workspaceName: string;
+}) {
+  if (isErrorWithCode(error, 'workspace-membership-cap-exceeded')) {
+    return (
+      <AuthShell title="Workspace is full" description={inviterLine}>
+        <Callout role="alert" type="error">
+          {workspaceName} has reached its membership limit. Ask an administrator to free a seat
+          before trying again.
+        </Callout>
+        <GoHomeButton navigate={navigate} />
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell title={workspaceName} description={inviterLine}>
+      <Callout role="alert" type="error">
+        We couldn't add you to {workspaceName}. Try again in a moment.
+      </Callout>
+      <Button className="w-full" isLoading={isPending} onClick={onRetry}>
+        Try again
+      </Button>
     </AuthShell>
   );
 }
