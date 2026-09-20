@@ -5,7 +5,8 @@ describe('PostHog API client', () => {
     ['us', 'https://us.posthog.com/api/personal_api_keys/@current/'],
     ['eu', 'https://eu.posthog.com/api/personal_api_keys/@current/'],
   ] as const)('probes the %s regional API', async (region, expectedUrl) => {
-    const fetch = vi.fn().mockResolvedValue({status: 401});
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    const fetch = vi.fn().mockResolvedValue({status: 401, body: {cancel}});
     const client = createPosthogApiClient({fetch});
 
     await expect(client.probeCredential({region, apiKey: 'phx_secret'})).resolves.toEqual({
@@ -14,6 +15,8 @@ describe('PostHog API client', () => {
 
     expect(fetch).toHaveBeenCalledWith(expectedUrl, {
       headers: {authorization: 'Bearer phx_secret'},
+      signal: expect.any(AbortSignal),
     });
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });

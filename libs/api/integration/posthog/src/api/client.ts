@@ -4,6 +4,7 @@ const posthogApiBases: Record<PosthogRegion, string> = {
   us: 'https://us.posthog.com',
   eu: 'https://eu.posthog.com',
 };
+const POSTHOG_CREDENTIAL_PROBE_TIMEOUT_MS = 30_000;
 
 export interface PosthogCredentialProbeResult {
   status: number;
@@ -35,9 +36,12 @@ export function createPosthogApiClient(
         `${posthogApiBases[region]}/api/personal_api_keys/@current/`,
         {
           headers: {authorization: `Bearer ${apiKey}`},
+          signal: AbortSignal.timeout(POSTHOG_CREDENTIAL_PROBE_TIMEOUT_MS),
         },
       );
-      return {status: response.status};
+      const status = response.status;
+      await response.body?.cancel();
+      return {status};
     },
   };
 }

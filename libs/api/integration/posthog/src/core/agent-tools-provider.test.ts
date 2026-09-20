@@ -112,6 +112,18 @@ describe('PosthogAgentToolsProvider', () => {
     expect(options.markConnectionError).not.toHaveBeenCalled();
   });
 
+  it('maps call-time rate limits to a typed provider error', async () => {
+    const callTool = vi.fn().mockRejectedValue(new StreamableHTTPError(429, 'rate limit'));
+    const options = providerOptions({
+      createClient: vi.fn().mockResolvedValue({callTool, close: vi.fn()}),
+    });
+    const session = await openSession(options);
+
+    const call = session.call({toolId: 'execute-sql', arguments: {query: 'SELECT 1'}});
+    await expect(call).rejects.toMatchObject({reason: 'rate-limited', status: 429});
+    await expect(call).rejects.toBeInstanceOf(PosthogIntegrationProviderError);
+  });
+
   it('passes an isError result through as an unstructured generic tool error', async () => {
     const result = {
       isError: true,

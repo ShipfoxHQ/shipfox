@@ -5,7 +5,11 @@ import {posthogAgentToolCatalog} from '../dist/core/agent-tools.js';
 const apiKey = process.env.POSTHOG_API_KEY;
 if (!apiKey) throw new Error('POSTHOG_API_KEY is required');
 
-const regions = process.env.POSTHOG_REGION ? [process.env.POSTHOG_REGION] : ['us', 'eu'];
+const region = requiredEnv('POSTHOG_REGION');
+if (region !== 'us' && region !== 'eu') {
+  throw new Error('POSTHOG_REGION must be us or eu');
+}
+const regions = [region];
 const endpoints = {
   us: 'https://mcp.posthog.com/mcp',
   eu: 'https://mcp-eu.posthog.com/mcp',
@@ -35,8 +39,8 @@ for (const region of regions) {
       failures.push(`${expected.id}: missing`);
       continue;
     }
-    const expectedRequired = JSON.stringify(expected.inputSchema.required ?? []);
-    const actualRequired = JSON.stringify(actual.inputSchema?.required ?? []);
+    const expectedRequired = JSON.stringify([...(expected.inputSchema.required ?? [])].sort());
+    const actualRequired = JSON.stringify([...(actual.inputSchema?.required ?? [])].sort());
     if (expectedRequired !== actualRequired) {
       failures.push(`${expected.id}: required inputs changed (${actualRequired})`);
     }
