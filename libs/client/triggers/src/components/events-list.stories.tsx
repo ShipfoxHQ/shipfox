@@ -127,6 +127,16 @@ export const DataStates: Story = {
       <StateExample label="Load error">
         <EventsList {...args} events={[]} query={makeQuery({isError: true, data: undefined})} />
       </StateExample>
+      <StateExample label="Refresh error">
+        <EventsList
+          {...args}
+          events={SAMPLE_EVENTS}
+          query={makeQuery({
+            isError: true,
+            data: {pages: [{events: SAMPLE_EVENTS, nextCursor: 'next'}], pageParams: [undefined]},
+          })}
+        />
+      </StateExample>
       <StateExample label="Appending">
         <EventsList
           {...args}
