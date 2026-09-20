@@ -34,6 +34,7 @@ import {
   type DataTableColumnMeta,
   DataTableColumnVisibility,
 } from './data-table-column-visibility.js';
+import type {DataTableNavigationProps} from './data-table-navigation.js';
 import {DataTablePagination} from './data-table-pagination.js';
 import {
   DataTableSelectionCell,
@@ -134,6 +135,7 @@ interface WorkflowTableProps {
   initialSorting?: SortingState;
   loading?: boolean;
   minimumWidth?: number;
+  navigation?: DataTableNavigationProps;
   refreshing?: boolean;
   sticky?: boolean;
 }
@@ -148,6 +150,7 @@ function WorkflowTable({
   initialSorting,
   loading = false,
   minimumWidth,
+  navigation,
   refreshing = false,
   sticky = false,
 }: WorkflowTableProps) {
@@ -168,15 +171,11 @@ function WorkflowTable({
       className={className}
       density={compact ? 'compact' : 'default'}
       emptyContent={emptyContent}
-      footer={
-        <Text size="xs" className="text-foreground-neutral-muted">
-          {loading ? 'Loading workflows' : `${data.length} workflows`}
-        </Text>
-      }
       isLoading={loading}
       isRefreshing={refreshing}
       loadingLabel="Loading workflows"
       minimumWidth={minimumWidth}
+      navigation={navigation ?? {kind: 'complete', count: data.length}}
       stickyHeader={sticky}
       toolbar={
         <DataTableToolbar
@@ -371,6 +370,58 @@ export const DataStates: Story = {
   ),
 };
 
+const appendNavigation: DataTableNavigationProps = {
+  hasMore: true,
+  isError: false,
+  isLoading: false,
+  kind: 'append',
+  loadedCount: 50,
+  onLoadMore: () => undefined,
+  onRetry: () => undefined,
+  totalCount: 143,
+};
+
+export const NavigationStates: Story = {
+  render: () => (
+    <div className="grid w-[calc(100vw-32px)] max-w-1120 grid-cols-1 gap-24 lg:grid-cols-2">
+      <div className="flex min-w-0 flex-col gap-tight">
+        <Text size="xs" className="text-foreground-neutral-muted">
+          Loading
+        </Text>
+        <WorkflowTable
+          data={[]}
+          loading
+          navigation={{...appendNavigation, isLoading: true, loadedCount: 0, totalCount: undefined}}
+        />
+      </div>
+      <div className="flex min-w-0 flex-col gap-tight">
+        <Text size="xs" className="text-foreground-neutral-muted">
+          Appending
+        </Text>
+        <WorkflowTable navigation={{...appendNavigation, isLoading: true}} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-tight">
+        <Text size="xs" className="text-foreground-neutral-muted">
+          Retry
+        </Text>
+        <WorkflowTable navigation={{...appendNavigation, isError: true}} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-tight">
+        <Text size="xs" className="text-foreground-neutral-muted">
+          Exhausted
+        </Text>
+        <WorkflowTable navigation={{...appendNavigation, hasMore: false, loadedCount: 143}} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-tight lg:col-span-2">
+        <Text size="xs" className="text-foreground-neutral-muted">
+          Complete
+        </Text>
+        <WorkflowTable navigation={{kind: 'complete', count: workflows.length}} />
+      </div>
+    </div>
+  ),
+};
+
 function FilteredEmptyTable() {
   const [query, setQuery] = useState('production candidate');
   const filteredWorkflows = workflows.filter((workflow) =>
@@ -487,42 +538,37 @@ function BoundedPaginationExample() {
   }
 
   return (
-    <DataTable
-      table={table}
-      aria-label="Paginated workflows"
-      footer={
-        <div className="flex w-full flex-col gap-8">
-          <DataTableSelectionSummary
-            selectedCount={table.getSelectedRowIds().length}
-            totalCount={currentRows.filter((row) => row.getCanSelect()).length}
-          />
-          <DataTablePagination
-            canNextPage={table.getCanNextPage()}
-            canPreviousPage={table.getCanPreviousPage()}
-            onFirstPage={() => {
-              table.firstPage();
-              resetSelection();
-            }}
-            onNextPage={() => {
-              table.nextPage();
-              resetSelection();
-            }}
-            onPageSizeChange={(pageSize) => {
-              table.setPageSize(pageSize);
-              resetSelection();
-            }}
-            onPreviousPage={() => {
-              table.previousPage();
-              resetSelection();
-            }}
-            pageLabel={`Page ${currentPage} of ${pageCount}`}
-            pageSize={table.state.pagination.pageSize}
-            pageSizeOptions={[3, 6, 12]}
-            resultCount={scrollingWorkflows.length}
-          />
-        </div>
-      }
-    />
+    <div className="flex flex-col gap-cluster">
+      <DataTable table={table} aria-label="Paginated workflows" />
+      <DataTableSelectionSummary
+        selectedCount={table.getSelectedRowIds().length}
+        totalCount={currentRows.filter((row) => row.getCanSelect()).length}
+      />
+      <DataTablePagination
+        canNextPage={table.getCanNextPage()}
+        canPreviousPage={table.getCanPreviousPage()}
+        onFirstPage={() => {
+          table.firstPage();
+          resetSelection();
+        }}
+        onNextPage={() => {
+          table.nextPage();
+          resetSelection();
+        }}
+        onPageSizeChange={(pageSize) => {
+          table.setPageSize(pageSize);
+          resetSelection();
+        }}
+        onPreviousPage={() => {
+          table.previousPage();
+          resetSelection();
+        }}
+        pageLabel={`Page ${currentPage} of ${pageCount}`}
+        pageSize={table.state.pagination.pageSize}
+        pageSizeOptions={[3, 6, 12]}
+        resultCount={scrollingWorkflows.length}
+      />
+    </div>
   );
 }
 
@@ -552,25 +598,22 @@ function CursorPaginationExample() {
   });
 
   return (
-    <DataTable
-      table={table}
-      aria-label="Cursor-backed workflows"
-      footer={
-        <DataTablePagination
-          aria-label="Cursor-backed workflow pages"
-          canNextPage={page.next !== null}
-          canPreviousPage={page.previous !== null}
-          onFirstPage={() => setCursor('start')}
-          onNextPage={() => {
-            if (page.next) setCursor(page.next);
-          }}
-          onPreviousPage={() => {
-            if (page.previous) setCursor(page.previous);
-          }}
-          pageLabel="Current result page"
-        />
-      }
-    />
+    <div className="flex flex-col gap-cluster">
+      <DataTable table={table} aria-label="Cursor-backed workflows" />
+      <DataTablePagination
+        aria-label="Cursor-backed workflow pages"
+        canNextPage={page.next !== null}
+        canPreviousPage={page.previous !== null}
+        onFirstPage={() => setCursor('start')}
+        onNextPage={() => {
+          if (page.next) setCursor(page.next);
+        }}
+        onPreviousPage={() => {
+          if (page.previous) setCursor(page.previous);
+        }}
+        pageLabel="Current result page"
+      />
+    </div>
   );
 }
 

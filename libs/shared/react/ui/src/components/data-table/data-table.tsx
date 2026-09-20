@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '#components/table/index.js';
 import {cn} from '#utils/cn.js';
+import {DataTableNavigation, type DataTableNavigationProps} from './data-table-navigation.js';
 
 export type DataTableDensity = 'default' | 'compact';
 
@@ -41,13 +42,13 @@ export interface DataTableBaseProps<
   className?: string;
   density?: DataTableDensity;
   emptyContent?: ReactNode;
-  footer?: ReactNode;
   getRowProps?: (row: Row<TFeatures, TData>) => DataTableRowProps | undefined;
   isLoading?: boolean;
   isRefreshing?: boolean;
   loadingLabel?: string;
   loadingRowCount?: number;
   minimumWidth?: CSSProperties['minWidth'];
+  navigation?: DataTableNavigationProps;
   stickyHeader?: boolean;
   table: ReactTable<TFeatures, TData, TSelected>;
   tableClassName?: string;
@@ -186,13 +187,13 @@ export function DataTable<
   className,
   density = 'default',
   emptyContent,
-  footer,
   getRowProps,
   isLoading = false,
   isRefreshing = false,
   loadingLabel,
   loadingRowCount,
   minimumWidth,
+  navigation,
   stickyHeader = false,
   table,
   tableClassName,
@@ -283,14 +284,7 @@ export function DataTable<
         </TableHeader>
         {tableBody}
       </Table>
-      {footer ? (
-        <div
-          data-slot="data-table-footer"
-          className="flex min-h-44 items-center justify-between gap-group border-t border-border-neutral-base bg-background-neutral-base px-row py-row"
-        >
-          {footer}
-        </div>
-      ) : null}
+      {navigation ? <DataTableNavigation {...navigation} /> : null}
     </Panel>
   );
 }

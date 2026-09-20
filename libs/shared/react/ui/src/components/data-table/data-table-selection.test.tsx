@@ -58,16 +58,13 @@ function SelectionTable({data = workflows, pageSize = 10}: {data?: Workflow[]; p
   });
 
   return (
-    <DataTable
-      table={table}
-      aria-label="Selectable workflows"
-      footer={
-        <DataTableSelectionSummary
-          selectedCount={table.getSelectedRowIds().length}
-          totalCount={data.length}
-        />
-      }
-    />
+    <>
+      <DataTable table={table} aria-label="Selectable workflows" />
+      <DataTableSelectionSummary
+        selectedCount={table.getSelectedRowIds().length}
+        totalCount={data.length}
+      />
+    </>
   );
 }
 
