@@ -44,6 +44,14 @@ import {
   linearCallbackResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
 import type {
+  CreateNotionInstallBodyDto,
+  NotionCallbackQueryDto,
+} from '@shipfox/api-integration-notion-dto';
+import {
+  createNotionInstallResponseSchema,
+  notionCallbackResponseSchema,
+} from '@shipfox/api-integration-notion-dto';
+import type {
   PosthogConnectBodyDto,
   PosthogReplaceApiKeyBodyDto,
 } from '@shipfox/api-integration-posthog-dto';
@@ -64,7 +72,7 @@ import {
   createSlackInstallResponseSchema,
   slackCallbackResponseSchema,
 } from '@shipfox/api-integration-slack-dto';
-import {checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
+import {ApiError, checkedApiRequest, emptyResponseSchema} from '@shipfox/client-api';
 import {
   type FetchQueryOptions,
   type InfiniteData,
@@ -90,6 +98,7 @@ import {
 } from '#core/models.js';
 import {serializeJiraCallbackQuery} from '#jira-callback.js';
 import {serializeLinearCallbackQuery} from '#linear-callback.js';
+import {serializeNotionCallbackQuery} from '#notion-callback.js';
 import {serializeSlackCallbackQuery} from '#slack-callback.js';
 import {
   toInstallRedirect,
@@ -299,6 +308,17 @@ export async function createClickUpInstall(
   );
 }
 
+export async function createNotionInstall(
+  body: CreateNotionInstallBodyDto,
+): Promise<InstallRedirect> {
+  return toInstallRedirect(
+    await checkedApiRequest(createNotionInstallResponseSchema, '/integrations/notion/install', {
+      method: 'POST',
+      body,
+    }),
+  );
+}
+
 export async function createGithubInstall(
   body: CreateGithubInstallBodyDto,
 ): Promise<InstallRedirect> {
@@ -388,6 +408,46 @@ export async function completeClickUpCallback({
     {headers: {authorization: `Bearer ${token}`}},
   );
   return toIntegrationConnection(response);
+}
+
+export async function completeNotionCallback({
+  query,
+  token,
+}: {
+  query: NotionCallbackQueryDto;
+  token: string;
+}): Promise<IntegrationConnection> {
+  const response = await checkedApiRequest(
+    notionCallbackResponseSchema,
+    `/integrations/notion/callback/api?${serializeNotionCallbackQuery(query)}`,
+    {headers: {authorization: `Bearer ${token}`}},
+  );
+  if ('connection' in response) return toIntegrationConnection(response.connection);
+
+  const outcomeErrors = {
+    access_denied: {
+      code: 'access-denied',
+      message: 'Notion did not grant access.',
+      status: 403,
+    },
+    'already-linked': {
+      code: 'notion-installation-already-linked',
+      message: 'This Notion workspace is already linked to another workspace.',
+      status: 409,
+    },
+    'state-invalid': {
+      code: 'invalid-notion-install-state',
+      message: 'The Notion install state is invalid or expired.',
+      status: 400,
+    },
+    'provider-unavailable': {
+      code: 'provider-unavailable',
+      message: 'Notion is temporarily unavailable.',
+      status: 503,
+    },
+  } as const;
+  const error = outcomeErrors[response.outcome];
+  throw new ApiError(error);
 }
 
 export async function completeLinearCallback({
@@ -703,6 +763,10 @@ export function useCreateClickUpInstallMutation() {
   return useMutation({mutationFn: createClickUpInstall});
 }
 
+export function useCreateNotionInstallMutation() {
+  return useMutation({mutationFn: createNotionInstall});
+}
+
 export function useCreateLinearInstallMutation() {
   return useMutation({mutationFn: createLinearInstall});
 }
@@ -717,6 +781,10 @@ export function useCreateJiraInstallMutation() {
 
 export function useCompleteClickUpCallbackMutation() {
   return useMutation({mutationFn: completeClickUpCallback});
+}
+
+export function useCompleteNotionCallbackMutation() {
+  return useMutation({mutationFn: completeNotionCallback});
 }
 
 export function useCompleteLinearCallbackMutation() {

@@ -27,6 +27,12 @@ describe('PROVIDER_CATALOG', () => {
       iconName: 'clickup',
       setupPath: '/w/$workspaceSlug/integrations/clickup',
     });
+    expect(PROVIDER_CATALOG.notion).toMatchObject({
+      kind: 'redirect-install',
+      displayName: 'Notion',
+      iconName: 'notion',
+      setupPath: '/w/$workspaceSlug/integrations/notion',
+    });
     expect(PROVIDER_CATALOG.gitea).toMatchObject({
       kind: 'direct-connect',
       setupPath: '/w/$workspaceSlug/integrations/gitea',
@@ -39,6 +45,7 @@ describe('PROVIDER_CATALOG', () => {
     expect(PROVIDER_CATALOG.linear?.kind).toBe('redirect-install');
     expect(PROVIDER_CATALOG.jira?.kind).toBe('redirect-install');
     expect(PROVIDER_CATALOG.clickup?.kind).toBe('redirect-install');
+    expect(PROVIDER_CATALOG.notion?.kind).toBe('redirect-install');
     expect(PROVIDER_CATALOG.gitea?.kind).toBe('direct-connect');
     expect(PROVIDER_CATALOG.webhook?.kind).toBe('modal-connect');
     expect(PROVIDER_CATALOG.posthog?.kind).toBe('modal-connect');

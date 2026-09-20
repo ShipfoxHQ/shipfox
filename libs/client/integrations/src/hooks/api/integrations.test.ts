@@ -5,11 +5,13 @@ import {
   completeJiraCallback,
   completeJiraSiteSelection,
   completeLinearCallback,
+  completeNotionCallback,
   completeSlackCallback,
   connectPosthog,
   createClickUpInstall,
   createJiraInstall,
   createLinearInstall,
+  createNotionInstall,
   createSlackInstall,
   listIntegrationConnectionRepositoryAccess,
   listSourceConnections,
@@ -245,6 +247,60 @@ describe('ClickUp transport', () => {
       'https://api.example.test/integrations/clickup/callback/api?error=access_denied&state=signed+error+state',
     );
     expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
+  });
+});
+
+describe('Notion transport', () => {
+  it('posts the install workspace and maps callback outcomes', async () => {
+    const requests: Request[] = [];
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn((input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        const url = request.url;
+        return Promise.resolve(
+          jsonResponse(
+            url.endsWith('/install')
+              ? {install_url: 'https://notion.example.test/install'}
+              : {
+                  outcome: 'connected',
+                  connection: connection({provider: 'notion', capabilities: ['agent_tools']}),
+                },
+          ),
+        );
+      }),
+    });
+
+    const install = await createNotionInstall({
+      workspace_id: '11111111-1111-4111-8111-111111111111',
+    });
+    const connected = await completeNotionCallback({
+      query: {code: 'grant code', state: 'signed state'},
+      token: 'session-token',
+    });
+
+    expect(install).toEqual({installUrl: 'https://notion.example.test/install'});
+    expect(connected.provider).toBe('notion');
+    expect(requests[0]?.url).toBe('https://api.example.test/integrations/notion/install');
+    expect(requests[1]?.url).toBe(
+      'https://api.example.test/integrations/notion/callback/api?code=grant+code&state=signed+state',
+    );
+    expect(requests[1]?.headers.get('authorization')).toBe('Bearer session-token');
+  });
+
+  it('turns a denied callback outcome into a classified API error', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => Promise.resolve(jsonResponse({outcome: 'access_denied'}))),
+    });
+
+    await expect(
+      completeNotionCallback({
+        query: {error: 'access_denied', state: 'signed state'},
+        token: 'session-token',
+      }),
+    ).rejects.toMatchObject({code: 'access-denied', status: 403});
   });
 });
 

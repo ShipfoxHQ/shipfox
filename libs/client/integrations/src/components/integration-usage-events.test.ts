@@ -81,6 +81,40 @@ describe('usageEventsForConnection', () => {
     expect(events.map((event) => event.value)).toEqual(linearWebhookEventNames);
   });
 
+  it('uses Notion webhook names directly', () => {
+    const connection = {
+      ...baseConnection,
+      provider: 'notion',
+      capabilities: ['agent_tools'],
+    } satisfies IntegrationConnectionDto;
+
+    const events = usageEventsForConnection(connection);
+
+    expect(events.map((event) => event.value)).toEqual([
+      'page.created',
+      'page.content_updated',
+      'page.properties_updated',
+      'page.moved',
+      'page.deleted',
+      'page.undeleted',
+      'page.locked',
+      'page.unlocked',
+      'data_source.created',
+      'data_source.content_updated',
+      'data_source.moved',
+      'data_source.deleted',
+      'data_source.undeleted',
+      'data_source.schema_updated',
+      'database.created',
+      'database.moved',
+      'database.deleted',
+      'database.undeleted',
+      'comment.created',
+      'comment.updated',
+      'comment.deleted',
+    ]);
+  });
+
   it('uses Jira webhook names directly', () => {
     const connection = {
       ...baseConnection,
