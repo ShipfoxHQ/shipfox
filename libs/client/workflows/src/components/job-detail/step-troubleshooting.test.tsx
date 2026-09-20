@@ -533,6 +533,22 @@ describe('StepInspectorSheet', () => {
     expect(onViewLogs).toHaveBeenCalledOnce();
   });
 
+  it('keeps the source action but hides invocation logs for pre-dispatch failures', async () => {
+    const user = userEvent.setup();
+    const onViewLogs = vi.fn();
+    configureApiClient({fetchImpl: vi.fn(() => new Promise<Response>(() => undefined))});
+
+    await renderPanel({
+      entry: toolStepEntry({status: 'failed', reason: 'config_unresolvable'}),
+      onViewLogs,
+    });
+    await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
+
+    expect(await screen.findByText('Step configuration could not be resolved')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'View in source'})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'View invocation log'})).toBeNull();
+  });
+
   it('explains unavailable credentials and links to reconnection', async () => {
     const user = userEvent.setup();
     configureToolDetailResponse();

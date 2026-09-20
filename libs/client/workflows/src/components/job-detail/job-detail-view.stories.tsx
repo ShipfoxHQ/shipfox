@@ -217,6 +217,33 @@ export const StepFailure: Story = {
   },
 };
 
+export const PreDispatchDiagnostic: Story = {
+  render: () => {
+    const {run, jobId, executionId, stepId, attemptId} = preDispatchDiagnosticRun();
+    return (
+      <JobDetailStoryFrame
+        run={run}
+        jobId={jobId}
+        selectedExecutionId={executionId}
+        search={{jobExecutionId: executionId, stepId, stepAttemptId: attemptId}}
+      />
+    );
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('heading', {name: 'Step did not run'})).toBeVisible();
+    await expect(canvas.getByText('agent.session')).toBeVisible();
+    await expect(
+      canvas.getByText('steps.confirm_current_head.outputs.current_head_sha'),
+    ).toBeVisible();
+    await expect(canvas.getByRole('link', {name: 'View in source'})).toBeVisible();
+    await expect(canvas.getByText('Configuration diagnostic')).toBeVisible();
+    await expect(canvas.queryByRole('searchbox', {name: 'Search logs'})).toBeNull();
+    await expect(canvas.queryByRole('button', {name: 'Refresh logs'})).toBeNull();
+    await expect(canvas.queryByRole('button', {name: 'Log settings'})).toBeNull();
+  },
+};
+
 export const TimedOutBeforeStep: Story = {
   render: () => {
     const {run, timeoutJobId} = failureRun();
@@ -937,6 +964,61 @@ function failureRun() {
   };
 }
 
+function preDispatchDiagnosticRun() {
+  const jobId = 'abababab-abab-4bab-8bab-abababababab';
+  const executionId = 'bcbcbcbc-bcbc-4cbc-8cbc-bcbcbcbcbcbc';
+  const stepId = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd';
+  const attemptId = 'dededede-dede-4ede-8ede-dededededede';
+  const error = {
+    message: 'A referenced step output was unavailable.',
+    reason: 'config_unresolvable' as const,
+    category: 'user' as const,
+    field: 'agent.session',
+    source: 'steps.confirm_current_head.outputs.current_head_sha',
+  };
+  const job = workflowJob({
+    id: jobId,
+    key: 'review',
+    name: 'review',
+    status: 'failed',
+    status_reason: 'step_failed',
+    position: 0,
+    job_executions: [
+      workflowJobExecutionDto({
+        id: executionId,
+        job_id: jobId,
+        status: 'failed',
+        status_reason: 'step_failed',
+        steps: [
+          workflowStepDto({
+            id: stepId,
+            job_execution_id: executionId,
+            key: 'resolve-session',
+            name: 'Resolve agent session',
+            status: 'failed',
+            status_reason: 'config_unresolvable',
+            source_location: {start_line: 42, end_line: 51},
+            type: 'agent',
+            error,
+            attempts: [
+              workflowStepAttemptDto({
+                id: attemptId,
+                step_id: stepId,
+                status: 'failed',
+                error,
+                started_at: '2026-09-20T11:59:59.000Z',
+                finished_at: '2026-09-20T12:00:00.000Z',
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+
+  return {run: storyRun({status: 'failed', jobs: [job]}), jobId, executionId, stepId, attemptId};
+}
+
 function runnerLossRun(reason: RunnerLossReason) {
   const jobId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee8';
   const executionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee9';
@@ -1512,7 +1594,9 @@ function storyStepDto(step: Step) {
     job_execution_id: step.jobExecutionId,
     key: step.key,
     name: step.name,
-    source_location: null,
+    source_location: step.sourceLocation
+      ? {start_line: step.sourceLocation.startLine, end_line: step.sourceLocation.endLine}
+      : null,
     status: step.status,
     type: step.type,
     config: step.config,

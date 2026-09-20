@@ -15,7 +15,7 @@ import type {
   WorkflowRunResponseDto,
   WorkflowRunStatusDto,
 } from '@shipfox/api-workflows-dto';
-import {WORKFLOW_RUN_JOB_PREVIEW_LIMIT} from '@shipfox/api-workflows-dto';
+import {stepErrorDtoSchema, WORKFLOW_RUN_JOB_PREVIEW_LIMIT} from '@shipfox/api-workflows-dto';
 import type {
   RunAnnotationEntry,
   RunAnnotationOrigin,
@@ -589,7 +589,8 @@ function compactStepType(status: string): 'setup' | 'run' | 'agent' | 'checkout'
 
 function compactAttemptError(error: Record<string, unknown> | null): StepErrorDto {
   if (!error || typeof error.message !== 'string') return null;
-  return {message: error.message};
+  const parsed = stepErrorDtoSchema.safeParse(error);
+  return parsed.success ? parsed.data : {message: error.message};
 }
 
 function compactGateResult(

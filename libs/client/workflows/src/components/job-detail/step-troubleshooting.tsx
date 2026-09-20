@@ -201,7 +201,7 @@ function StepFailureCallout({
           </div>
         </CalloutDescription>
       </CalloutContent>
-      {step.type === 'tool' && onViewLogs ? (
+      {step.type === 'tool' && reason !== 'config_unresolvable' && onViewLogs ? (
         <CalloutActions>
           <Button type="button" size="2xs" variant="secondary" onClick={onViewLogs}>
             View invocation log
