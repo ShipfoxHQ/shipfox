@@ -958,6 +958,31 @@ async function runGithubWorkflow(params: {
   const client = createApiClient({token});
   const runnerLabel = `e2e-${params.scenario}-${params.uniqueId}`;
   const repo = `${params.scenario}-${params.uniqueId}`;
+  const definition =
+    params.project === undefined
+      ? (
+          await seedAndWaitForDefinition({
+            suite: params.suite,
+            token,
+            name: params.scenario,
+            repo,
+            runnerLabel,
+            workflowYaml: params.workflowYaml,
+            configPath: `.shipfox/workflows/${params.scenario}.yml`,
+            replacements: params.replacements,
+          })
+        ).definition
+      : await createManualDefinition({
+          client,
+          project: params.project,
+          workflowYaml: renderWorkflowYaml({
+            suite: params.suite,
+            repo,
+            runnerLabel,
+            workflowYaml: params.workflowYaml,
+            replacements: params.replacements,
+          }),
+        });
   const localRunner = await startSuiteLocalRunner({
     workspaceId: params.suite.workspaceId,
     userToken: token,
@@ -967,31 +992,6 @@ async function runGithubWorkflow(params: {
   });
 
   try {
-    const definition =
-      params.project === undefined
-        ? (
-            await seedAndWaitForDefinition({
-              suite: params.suite,
-              token,
-              name: params.scenario,
-              repo,
-              runnerLabel,
-              workflowYaml: params.workflowYaml,
-              configPath: `.shipfox/workflows/${params.scenario}.yml`,
-              replacements: params.replacements,
-            })
-          ).definition
-        : await createManualDefinition({
-            client,
-            project: params.project,
-            workflowYaml: renderWorkflowYaml({
-              suite: params.suite,
-              repo,
-              runnerLabel,
-              workflowYaml: params.workflowYaml,
-              replacements: params.replacements,
-            }),
-          });
     const runId = await fireManualAndAwaitRun({
       client,
       definitionId: definition.id,
@@ -1218,6 +1218,15 @@ async function runGithubToolsWorkflow(params: {
   const scenario = 'github-agent-tools';
   const runnerLabel = `e2e-${scenario}-${params.uniqueId}`;
   const repo = `${scenario}-${params.uniqueId}`;
+  const {definition} = await seedAndWaitForDefinition({
+    suite: params.suite,
+    token,
+    name: scenario,
+    repo,
+    runnerLabel,
+    workflowYaml: githubToolsWorkflowYaml(params.connectionSlug),
+    configPath: `.shipfox/workflows/${scenario}.yml`,
+  });
   const localRunner = await startSuiteLocalRunner({
     workspaceId: params.suite.workspaceId,
     userToken: token,
@@ -1230,15 +1239,6 @@ async function runGithubToolsWorkflow(params: {
   });
 
   try {
-    const {definition} = await seedAndWaitForDefinition({
-      suite: params.suite,
-      token,
-      name: scenario,
-      repo,
-      runnerLabel,
-      workflowYaml: githubToolsWorkflowYaml(params.connectionSlug),
-      configPath: `.shipfox/workflows/${scenario}.yml`,
-    });
     const runId = await fireManualAndAwaitRun({
       client,
       definitionId: definition.id,
