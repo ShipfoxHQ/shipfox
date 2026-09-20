@@ -88,6 +88,10 @@ import {
   type WorkflowJobLandingSelection,
   workflowJobLandingSelection,
 } from './job-selection.js';
+import {
+  PreDispatchStepDiagnostic,
+  preDispatchStepDiagnostic,
+} from './pre-dispatch-step-diagnostic.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {StepInspectorSheet} from './step-troubleshooting.js';
 
@@ -228,6 +232,7 @@ export function JobDetailView({
     expandedLogSelection,
     selectedLogAttempt,
     selectedLogStatus,
+    selectedPreDispatchDiagnostic,
     logIsFetching,
     showRetargetNotice,
     succeededSummary,
@@ -299,7 +304,14 @@ export function JobDetailView({
           />
         ) : null}
         <div ref={pageScrollRef} className="@container min-h-0 flex-1 overflow-auto pb-panel">
-          <section aria-label={`${job.displayName} logs`} className="flex w-full flex-col">
+          <section
+            aria-label={
+              selectedPreDispatchDiagnostic
+                ? `${job.displayName} step diagnostic`
+                : `${job.displayName} logs`
+            }
+            className="flex w-full flex-col"
+          >
             <section className="min-w-0 overflow-hidden">
               <JobDetailHeader
                 job={job}
@@ -339,10 +351,11 @@ export function JobDetailView({
                   wrap={wrapLogs}
                   onWrapChange={setWrapLogs}
                   disabled={!selectedLogAttempt}
+                  diagnostic={selectedPreDispatchDiagnostic !== undefined}
                 />
                 <PanelBody className="min-w-0 p-0">
                   <Text as="h2" className="sr-only">
-                    Logs
+                    {selectedPreDispatchDiagnostic ? 'Step diagnostic' : 'Logs'}
                   </Text>
                   {selectedJobExecution ? (
                     <>
@@ -379,6 +392,10 @@ export function JobDetailView({
                             attemptId={context.attemptId}
                             refreshToken={logRefreshTokens[context.attemptId] ?? 0}
                             onFetchingChange={handleLogFetchingChange}
+                            workspaceSlug={workspaceSlug}
+                            projectSlug={projectSlug}
+                            workflowRunId={run.id}
+                            runAttempt={run.runAttempt.attempt}
                           />
                         )}
                         renderInspector={(entry) => (
@@ -397,10 +414,14 @@ export function JobDetailView({
                               entry.step.id,
                               entry.attempt,
                             )}
-                            onViewLogs={() => {
-                              onInspectorOpenChange(null);
-                              selectAttempt(entry.id);
-                            }}
+                            onViewLogs={
+                              preDispatchStepDiagnostic(entry.status, entry.error)
+                                ? undefined
+                                : () => {
+                                    onInspectorOpenChange(null);
+                                    selectAttempt(entry.id);
+                                  }
+                            }
                           />
                         )}
                       />
@@ -758,7 +779,7 @@ function jobDetailRunStatus(detail: WorkflowJobDetail): JobDetailData['runAttemp
   return status;
 }
 
-function ExpandedStep({
+export function ExpandedStep({
   context,
   pageScrollRef,
   search,
@@ -767,6 +788,10 @@ function ExpandedStep({
   attemptId,
   refreshToken,
   onFetchingChange,
+  workspaceSlug,
+  projectSlug,
+  workflowRunId,
+  runAttempt,
 }: {
   context: StepExpandedContext;
   pageScrollRef: RefObject<HTMLDivElement | null>;
@@ -776,8 +801,30 @@ function ExpandedStep({
   attemptId: string;
   refreshToken: number;
   onFetchingChange: (attemptId: string, isFetching: boolean) => void;
+  workspaceSlug: string;
+  projectSlug: string;
+  workflowRunId: string;
+  runAttempt: number;
 }) {
   if (context.carriedOver) return <CarriedOverStepPanel />;
+
+  const diagnostic = preDispatchStepDiagnostic(context.attemptStatus, context.attemptError);
+  if (diagnostic) {
+    return (
+      <PreDispatchStepDiagnostic
+        diagnostic={diagnostic}
+        stepLabel={context.stepLabel}
+        stepId={context.stepId}
+        attemptId={context.attemptId}
+        attemptOrdinal={context.attemptOrdinal}
+        sourceLocation={context.sourceLocation}
+        workspaceSlug={workspaceSlug}
+        projectSlug={projectSlug}
+        workflowRunId={workflowRunId}
+        runAttempt={runAttempt}
+      />
+    );
+  }
 
   return (
     <section
@@ -816,6 +863,7 @@ function JobLogPanelHeader({
   wrap,
   onWrapChange,
   disabled,
+  diagnostic,
 }: {
   stepLabel: string | undefined;
   attempt: number | undefined;
@@ -829,6 +877,7 @@ function JobLogPanelHeader({
   wrap: boolean;
   onWrapChange: (value: boolean) => void;
   disabled: boolean;
+  diagnostic: boolean;
 }) {
   const statusVisual = status ? getStepStatusVisual(status) : undefined;
 
@@ -846,6 +895,7 @@ function JobLogPanelHeader({
             {attempt ? (
               <span className="font-code text-xs leading-20 tabular-nums">attempt {attempt}</span>
             ) : null}
+            {diagnostic ? <Text size="xs">Configuration diagnostic</Text> : null}
           </div>
         ) : (
           <Text size="xs" className="text-foreground-neutral-muted">
@@ -853,51 +903,53 @@ function JobLogPanelHeader({
           </Text>
         )}
       </div>
-      <PanelActions className="min-w-0 flex-wrap justify-end">
-        <SearchInline
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          aria-label="Search logs"
-          placeholder="Search logs"
-          size="small"
-          className="w-180 max-w-full"
-          disabled={disabled}
-        />
-        <IconButton
-          type="button"
-          variant="transparent"
-          size="sm"
-          icon="refreshLine"
-          aria-label="Refresh logs"
-          onClick={onRefresh}
-          disabled={disabled || refreshing}
-          isLoading={refreshing}
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              type="button"
-              variant="transparent"
-              size="sm"
-              icon="settings3Line"
-              aria-label="Log settings"
-              disabled={disabled}
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" size="sm">
-            <DropdownMenuLabel>Log display</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={showLineNumbers}
-              onCheckedChange={onShowLineNumbersChange}
-            >
-              Line numbers
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={wrap} onCheckedChange={onWrapChange}>
-              Wrap long lines
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </PanelActions>
+      {diagnostic ? null : (
+        <PanelActions className="min-w-0 flex-wrap justify-end">
+          <SearchInline
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            aria-label="Search logs"
+            placeholder="Search logs"
+            size="small"
+            className="w-180 max-w-full"
+            disabled={disabled}
+          />
+          <IconButton
+            type="button"
+            variant="transparent"
+            size="sm"
+            icon="refreshLine"
+            aria-label="Refresh logs"
+            onClick={onRefresh}
+            disabled={disabled || refreshing}
+            isLoading={refreshing}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton
+                type="button"
+                variant="transparent"
+                size="sm"
+                icon="settings3Line"
+                aria-label="Log settings"
+                disabled={disabled}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" size="sm">
+              <DropdownMenuLabel>Log display</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={showLineNumbers}
+                onCheckedChange={onShowLineNumbersChange}
+              >
+                Line numbers
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={wrap} onCheckedChange={onWrapChange}>
+                Wrap long lines
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </PanelActions>
+      )}
     </PanelHeader>
   );
 }
@@ -1084,6 +1136,9 @@ function resolveJobDetailState({
   );
   const selectedLogAttempt = expandedLogSelection?.attempt;
   const selectedLogStatus = selectedLogAttempt?.status ?? expandedLogSelection?.step.status;
+  const selectedPreDispatchDiagnostic = selectedLogAttempt
+    ? preDispatchStepDiagnostic(selectedLogAttempt.status, selectedLogAttempt.error)
+    : undefined;
   const logIsFetching = Boolean(
     selectedLogAttempt && logFetchingByAttemptId[selectedLogAttempt.id],
   );
@@ -1106,6 +1161,7 @@ function resolveJobDetailState({
     expandedLogSelection,
     selectedLogAttempt,
     selectedLogStatus,
+    selectedPreDispatchDiagnostic,
     logIsFetching,
     showRetargetNotice,
     succeededSummary,
