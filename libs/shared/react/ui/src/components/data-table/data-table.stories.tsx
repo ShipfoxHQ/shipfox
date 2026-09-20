@@ -163,6 +163,8 @@ function WorkflowTable({
     initialState: initialSorting ? {sorting: initialSorting} : undefined,
     sortDescFirst: false,
   });
+  const resolvedNavigation: DataTableNavigationProps | undefined =
+    navigation ?? (loading ? undefined : {kind: 'complete', count: data.length});
 
   return (
     <DataTable
@@ -175,7 +177,7 @@ function WorkflowTable({
       isRefreshing={refreshing}
       loadingLabel="Loading workflows"
       minimumWidth={minimumWidth}
-      navigation={navigation ?? {kind: 'complete', count: data.length}}
+      {...(resolvedNavigation ? {navigation: resolvedNavigation} : {})}
       stickyHeader={sticky}
       toolbar={
         <DataTableToolbar
