@@ -99,6 +99,7 @@ describe('memberships db', () => {
       workspaceId: workspace.id,
     });
     const baseCreatedAt = new Date('2025-01-01T00:00:00.000Z');
+    const sameCreatedAt = new Date(baseCreatedAt.getTime() + 1_000);
 
     await db()
       .update(memberships)
@@ -106,17 +107,23 @@ describe('memberships db', () => {
       .where(eq(memberships.id, oldest.id));
     await db()
       .update(memberships)
-      .set({createdAt: new Date(baseCreatedAt.getTime() + 1_000)})
+      .set({createdAt: sameCreatedAt})
       .where(eq(memberships.id, middle.id));
     await db()
       .update(memberships)
-      .set({createdAt: baseCreatedAt})
+      .set({createdAt: sameCreatedAt})
       .where(eq(memberships.id, newest.id));
 
+    const sameCreatedAtOrder = [middle, newest].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
     const firstRead = await listMembershipsByWorkspace({workspaceId: workspace.id});
     const secondRead = await listMembershipsByWorkspace({workspaceId: workspace.id});
 
-    expect(firstRead.map((membership) => membership.id)).toEqual([newest.id, middle.id, oldest.id]);
+    expect(firstRead.map((membership) => membership.id)).toEqual([
+      ...sameCreatedAtOrder.map(({id}) => id),
+      oldest.id,
+    ]);
     expect(secondRead.map((membership) => membership.id)).toEqual(
       firstRead.map((membership) => membership.id),
     );
