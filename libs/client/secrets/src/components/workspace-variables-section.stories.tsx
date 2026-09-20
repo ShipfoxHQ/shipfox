@@ -3,7 +3,7 @@ import {Toaster} from '@shipfox/react-ui/toast';
 import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {useEffect, useMemo} from 'react';
-import {within} from 'storybook/test';
+import {expect, userEvent, within} from 'storybook/test';
 import {WorkspaceVariablesSection} from './workspace-variables-section.js';
 
 // Freeze the clock only while a story is mounted so RelativeTime renders a stable
@@ -23,6 +23,7 @@ const withFrozenClock: Decorator = (Story) => {
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const EDITOR_ID = '22222222-2222-4222-8222-222222222222';
+const RETRY_BUTTON = /retry/i;
 
 const VARIABLES = [
   {
@@ -63,10 +64,19 @@ const VARIABLES = [
   },
 ];
 
-type Scenario = 'loaded' | 'empty';
+type Scenario = 'loaded' | 'empty' | 'loading' | 'error';
 
 function fetchForScenario(scenario: Scenario): typeof fetch {
   return (() => {
+    if (scenario === 'loading') return new Promise<Response>(() => undefined);
+    if (scenario === 'error') {
+      return Promise.resolve(
+        new Response(JSON.stringify({code: 'server-error', message: 'Something failed'}), {
+          status: 500,
+          headers: {'content-type': 'application/json'},
+        }),
+      );
+    }
     const variables = scenario === 'empty' ? [] : VARIABLES;
     return Promise.resolve(
       new Response(JSON.stringify({variables, next_cursor: null}), {
@@ -97,6 +107,14 @@ const meta: Meta<typeof SectionStory> = {
   title: 'Secrets/WorkspaceVariablesSection',
   component: SectionStory,
   decorators: [withFrozenClock],
+  parameters: {
+    argos: {
+      modes: {
+        light: {theme: 'light'},
+        dark: {theme: 'dark'},
+      },
+    },
+  },
 };
 export default meta;
 
@@ -116,5 +134,25 @@ export const Empty: Story = {
   args: {scenario: 'empty'},
   play: async ({canvasElement}) => {
     await within(canvasElement).findByText('No variables yet');
+  },
+};
+
+export const FilteredEmpty: Story = {
+  args: {scenario: 'loaded'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(canvas.getByRole('textbox', {name: 'Search variables'}), 'DOES_NOT_EXIST');
+    await expect(await canvas.findByText('No matching variables')).toBeInTheDocument();
+  },
+};
+
+export const Loading: Story = {
+  args: {scenario: 'loading'},
+};
+
+export const LoadError: Story = {
+  args: {scenario: 'error'},
+  play: async ({canvasElement}) => {
+    await within(canvasElement).findByRole('button', {name: RETRY_BUTTON});
   },
 };
