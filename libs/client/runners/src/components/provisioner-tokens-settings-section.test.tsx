@@ -17,6 +17,7 @@ const CREATED_HEADER = /Created/;
 const UNSORTED_EXPIRES = /Expires, not sorted/;
 const UNSORTED_CREATED = /Created, not sorted/;
 const ASCENDING_CREATED = /Created, sorted ascending/;
+const PROVISIONER_NAME = /^Provisioner \d+$/;
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -134,7 +135,14 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
     await user.click(within(createdHeader).getByRole('button', {name: UNSORTED_CREATED}));
     await user.click(within(createdHeader).getByRole('button', {name: ASCENDING_CREATED}));
 
-    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Provisioner 50');
+    const orderedNames = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => {
+        return within(row).getByRole('button', {name: PROVISIONER_NAME}).textContent;
+      });
+
+    expect(orderedNames).toEqual(tokens.map(({name}) => name).reverse());
   });
 
   test('renders an empty usable-token state', async () => {

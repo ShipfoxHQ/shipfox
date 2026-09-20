@@ -85,7 +85,14 @@ export const Playground: Story = {
 };
 
 export const DataStates: Story = {
-  parameters: {viewport: {defaultViewport: 'mobile'}},
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '375px', height: '812px'}, type: 'mobile'},
+      },
+    },
+  },
   render: () => (
     <StorySurface>
       <StateExample label="Manual empty">
@@ -153,7 +160,14 @@ export const Statuses: Story = {
 };
 
 export const Content: Story = {
-  parameters: {viewport: {defaultViewport: 'mobile'}},
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '375px', height: '812px'}, type: 'mobile'},
+      },
+    },
+  },
   render: () => (
     <StorySurface>
       <StateExample label="Existing tokens">

@@ -127,7 +127,9 @@ export function ProvisionerTokenList({
       loadingLabel="Loading provisioner tokens"
       loadingRowCount={3}
       minimumWidth={840}
-      navigation={{kind: 'complete', count: tokens.length}}
+      {...(isLoading
+        ? {onSortChange: () => undefined}
+        : {navigation: {kind: 'complete' as const, count: tokens.length}})}
       tableClassName="table-fixed"
     />
   );
