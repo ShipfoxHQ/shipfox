@@ -139,7 +139,7 @@ describe('DataTable', () => {
     expect(selectedRow.getAttribute('tabindex')).toBeNull();
   });
 
-  test('composes toolbar, footer, sticky headers, minimum width, and compact density', () => {
+  test('composes toolbar, navigation, sticky headers, minimum width, and compact density', () => {
     const {container} = render(
       <CoreTable>
         {(table) => (
@@ -150,7 +150,7 @@ describe('DataTable', () => {
             minimumWidth={720}
             stickyHeader
             toolbar={<span>Table controls</span>}
-            footer={<span>2 workflows</span>}
+            navigation={{kind: 'complete', count: 2}}
           />
         )}
       </CoreTable>,
@@ -168,8 +168,11 @@ describe('DataTable', () => {
     expect(container.querySelector('[data-slot="data-table-toolbar"]')?.textContent).toBe(
       'Table controls',
     );
-    expect(container.querySelector('[data-slot="data-table-footer"]')?.textContent).toBe(
-      '2 workflows',
-    );
+    expect(container.querySelector('[data-slot="data-table-footer"]')?.textContent).toBe('2 rows');
+    expect(
+      container
+        .querySelector('[data-slot="data-table-footer"]')
+        ?.getAttribute('data-navigation-kind'),
+    ).toBe('complete');
   });
 });
