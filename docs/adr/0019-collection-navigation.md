@@ -28,10 +28,9 @@ indexes that server-side sorting would need.
 Configuration rejects a cap larger than the list limit. The settings client then requests the
 whole bounded set. Completeness is an enforced invariant, not an assumption about size.
 
-**Appending over a cursor has a refresh hazard.** The workflow runs hook documents it. The cursor
-bounding page one came from the last row of page zero. A refresh that shifts the boundary can
-drop a range of rows into a gap between pages. The hook stops polling once more than one page is
-loaded.
+**Appending over a cursor has a shifting-boundary hazard.** The workflow runs hook documents it.
+The cursor bounding page one came from the last row of page zero. Anything that shifts that
+boundary between fetches can drop a range of rows into a gap between pages.
 
 **Two collections have no ordering at all.** `listMembershipsByWorkspace` and
 `listOpenInvitationsByWorkspace` run without an `ORDER BY`. Their row order is not stable between
@@ -126,15 +125,14 @@ collection at an arbitrary point and moving backward from there. No surface need
 A deep link may carry a starting cursor. Whether that link stays meaningful over time is the
 producer's contract, not this record's.
 
-A feature that appends over a cursor defines what happens when fresh rows arrive while the reader
-is in history. The workflow runs hook already does this. It stops periodic polling once more than
-one page is loaded, because a shifted boundary can drop rows into a gap between pages.
+Appending over a keyset cursor carries a hazard the feature must answer. The cursor bounding a
+page came from the last row of the page before it. If the underlying rows shift between fetches,
+a range can fall into a gap between pages and the reader never sees it.
 
-This record preserves that behavior and fixes its boundary. **Periodic polling** pauses. A
-refresh on window focus still runs. A cache invalidation after a mutation still runs. A reader
-deep in history can therefore still see the list rebuild. That is the behavior shipping today, and this record does not
-claim it is a complete refresh policy. A feature that needs history to survive every refresh
-trigger states so and owns the mechanism.
+The feature decides how to handle that, because the feature owns the fetch. The workflow runs
+hook is the existing example: it stops periodic polling once more than one page is loaded. This
+record does not prescribe a refresh policy, and it does not rank the triggers that can shift a
+boundary.
 
 ### One footer component
 
