@@ -580,7 +580,8 @@ building anything: `accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`
 `empty-state`, `form-field`, `icon`, `input`, `kbd`, `label`, `load-error-state`,
 `loader`, `log`, `logo`, `markdown`, `modal`, `panel`, `popover`, `radio-group`,
 `relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`,
-`skeleton`, `table`, `tabs`, `theme`, `toast`, `tooltip`, and `typography`.
+`skeleton`, `switch`, `table`, `tabs`, `textarea`, `theme`, `time-ticker`,
+`toast`, `tooltip`, and `typography`.
 
 `Panel` is the container for a data region and a focused titled block.
 
