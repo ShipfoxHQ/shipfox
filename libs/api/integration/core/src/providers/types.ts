@@ -81,6 +81,7 @@ export interface IntegrationProviderSecrets {
   clickup?: IntegrationProviderScopedSecrets | undefined;
   linear?: IntegrationProviderScopedSecrets | undefined;
   slack?: IntegrationProviderScopedSecrets | undefined;
+  posthog?: IntegrationProviderScopedSecrets | undefined;
   deleteSecrets(params: {workspaceId: string; namespace: string}): Promise<number>;
 }
 

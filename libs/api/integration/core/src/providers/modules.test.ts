@@ -116,6 +116,37 @@ describe('loadEnabledProviderModules', () => {
     expect(parts[0]?.provider).toMatchObject({provider: 'jira', displayName: 'Jira'});
   });
 
+  it('does not load PostHog when the provider is disabled', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+
+    expect(parts.map((part) => part.provider.provider)).not.toContain('posthog');
+  });
+
+  it('loads PostHog without capabilities when the provider is enabled', async () => {
+    vi.stubEnv('INTEGRATIONS_ENABLE_POSTHOG_PROVIDER', 'true');
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+    const posthog = parts.find((part) => part.provider.provider === 'posthog');
+
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'posthog',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
+    expect(posthog?.provider).toMatchObject({
+      provider: 'posthog',
+      displayName: 'PostHog',
+    });
+    expect(posthog?.provider.adapters).toBeUndefined();
+    expect(posthog?.provider.eventCatalog).toBeUndefined();
+  });
+
   it('does not load ClickUp when the provider is disabled', async () => {
     vi.resetModules();
 

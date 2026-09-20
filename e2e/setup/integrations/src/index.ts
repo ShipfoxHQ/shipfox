@@ -18,6 +18,11 @@ import type {
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
 import type {
+  CreateE2ePosthogConnectionBodyDto,
+  CreateE2ePosthogConnectionResponseDto,
+  PosthogRegion,
+} from '@shipfox/api-integration-posthog-dto';
+import type {
   CreateE2eSlackConnectionBodyDto,
   CreateE2eSlackConnectionResponseDto,
 } from '@shipfox/api-integration-slack-dto';
@@ -42,6 +47,10 @@ export type {
   CreateE2eLinearConnectionBodyDto,
   CreateE2eLinearConnectionResponseDto,
 } from '@shipfox/api-integration-linear-dto';
+export type {
+  CreateE2ePosthogConnectionBodyDto,
+  CreateE2ePosthogConnectionResponseDto,
+} from '@shipfox/api-integration-posthog-dto';
 export type {
   CreateE2eSlackConnectionBodyDto,
   CreateE2eSlackConnectionResponseDto,
@@ -170,6 +179,38 @@ export async function createClickUpConnection(
     'post',
     '/__e2e/integrations/clickup-connections',
     {json: clickupConnectionBody(params)},
+  );
+}
+
+export interface CreatePosthogConnectionParams {
+  workspaceId: string;
+  region: PosthogRegion;
+  apiKey: string;
+  projectId: string;
+  projectName: string;
+  organizationId: string;
+}
+
+function posthogConnectionBody(
+  params: CreatePosthogConnectionParams,
+): CreateE2ePosthogConnectionBodyDto {
+  return {
+    workspace_id: params.workspaceId,
+    region: params.region,
+    api_key: params.apiKey,
+    project_id: params.projectId,
+    project_name: params.projectName,
+    organization_id: params.organizationId,
+  };
+}
+
+export async function createPosthogConnection(
+  params: CreatePosthogConnectionParams,
+): Promise<CreateE2ePosthogConnectionResponseDto> {
+  return await requestJson<CreateE2ePosthogConnectionResponseDto>(
+    'post',
+    '/__e2e/integrations/posthog-connections',
+    {json: posthogConnectionBody(params)},
   );
 }
 

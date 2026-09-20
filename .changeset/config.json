@@ -20,6 +20,8 @@
       "@shipfox/api-dispatcher",
       "@shipfox/api-integration-core",
       "@shipfox/api-integration-clickup",
+      "@shipfox/api-integration-posthog",
+      "@shipfox/api-integration-posthog-dto",
       "@shipfox/api-integration-core-dto",
       "@shipfox/api-integration-clickup-dto",
       "@shipfox/api-integration-gitea",

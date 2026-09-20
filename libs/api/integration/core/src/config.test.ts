@@ -13,12 +13,13 @@ describe('integration provider config', () => {
     expect(config.INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER).toBe(true);
   });
 
-  it('disables the Linear provider by default', async () => {
+  it('disables third-party providers by default', async () => {
     vi.resetModules();
 
     const {config} = await import('#config.js');
 
     expect(config.INTEGRATIONS_ENABLE_LINEAR_PROVIDER).toBe(false);
+    expect(config.INTEGRATIONS_ENABLE_POSTHOG_PROVIDER).toBe(false);
   });
 
   it('allows disabling the built-in cron provider', async () => {
