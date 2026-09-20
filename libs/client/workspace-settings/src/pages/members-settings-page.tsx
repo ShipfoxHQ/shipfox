@@ -7,6 +7,7 @@ export function MembersSettingsPage() {
       {(workspace) => (
         <div>
           <WorkspaceMembersSettingsSection
+            key={workspace.id}
             workspaceId={workspace.id}
             workspaceName={workspace.name}
           />

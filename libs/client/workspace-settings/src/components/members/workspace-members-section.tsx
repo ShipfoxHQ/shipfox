@@ -142,7 +142,7 @@ function MembersSection({
     state: {globalFilter: search},
     sortDescFirst: false,
   });
-  const isFiltered = search.trim().length > 0;
+  const isFiltered = search.length > 0;
   const emptyContent = getMembersEmptyContent({
     isFiltered,
     onClear: () => setSearch(''),
@@ -364,7 +364,7 @@ function PendingInvitationsSection({
     state: {globalFilter: search},
     sortDescFirst: false,
   });
-  const isFiltered = search.trim().length > 0;
+  const isFiltered = search.length > 0;
   const emptyContent = getInvitationsEmptyContent({
     isFiltered,
     onClear: () => setSearch(''),

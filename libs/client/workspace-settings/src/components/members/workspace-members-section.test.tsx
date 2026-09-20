@@ -151,6 +151,25 @@ describe('WorkspaceMembersSettingsSection', () => {
     expect(screen.getByRole('table', {name: 'Workspace members'})).toBeInTheDocument();
   });
 
+  test('renders filtered empty states for whitespace-only searches', async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      return Promise.resolve(
+        url.endsWith('/members') ? jsonResponse({members}) : jsonResponse({invitations}),
+      );
+    }) as unknown as typeof fetch;
+
+    renderSection(fetchImpl);
+    await screen.findByText('Zara');
+
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', {name: 'Search members'}), ' ');
+    await user.type(screen.getByRole('textbox', {name: 'Search pending invitations'}), ' ');
+
+    expect(await screen.findByText('No matching members')).toBeInTheDocument();
+    expect(await screen.findByText('No matching invitations')).toBeInTheDocument();
+  });
+
   test('keeps the four-column member header while loading', async () => {
     const fetchImpl = vi.fn(
       () => new Promise<Response>(() => undefined),
