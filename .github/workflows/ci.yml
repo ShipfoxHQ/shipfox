@@ -782,8 +782,8 @@ jobs:
           fi
           oras tag "$APPLICATION_IMAGE_REPOSITORY@$digest" "revision-$GITHUB_SHA"
 
-  publish-runner-image-candidate:
-    name: Publish runner image candidate (${{ matrix.architecture }})
+  plan-runner-image-candidate:
+    name: Plan runner image candidate
     needs: [release-mode, static-verification, external-package-contracts, tests, e2e]
     if: >-
       always() && github.ref == 'refs/heads/main' &&
@@ -794,6 +794,91 @@ jobs:
       needs.tests.result == 'success' &&
       needs.e2e.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: eu-central-1
+          role-session-name: shipfox-runner-image-candidate-plan
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner image planner
+        run: turbo build --filter=@shipfox/runner-image...
+
+      - name: Plan candidate publication
+        id: plan
+        env:
+          PLAN_PATH: ${{ runner.temp }}/runner-image-candidate-plan.json
+        run: |
+          set -euo pipefail
+          node infra/images/runner/bin/plan-runner-image-candidate.js \
+            --revision "$GITHUB_SHA" \
+            --output "$PLAN_PATH"
+          echo "mode=$(jq -r '.mode' "$PLAN_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Report candidate plan
+        env:
+          PLAN_PATH: ${{ runner.temp }}/runner-image-candidate-plan.json
+        run: |
+          set -euo pipefail
+          {
+            echo '## Runner image candidate plan'
+            echo
+            jq -r '"- Decision: `\(.mode)`"' "$PLAN_PATH"
+            jq -r '"- Reason: `\(.reason)` (\(.detail))"' "$PLAN_PATH"
+            jq -r '"- Current revision: `\(.currentRevision)`"' "$PLAN_PATH"
+            jq -r '"- Selected prior revision: `\(.priorPair.revision // "none")`"' "$PLAN_PATH"
+            jq -r '"- Selected AMIs: " + ((.priorPair.images // []) | map("`\(.architecture)=\(.amiId)`") | if length == 0 then "none" else join(", ") end)' "$PLAN_PATH"
+            jq -r '"- Candidate age: " + (if .candidateAgeDays == null then "not available" else ((.candidateAgeDays * 100 | round) / 100 | tostring) + " days" end)' "$PLAN_PATH"
+            jq -r 'if (.effectiveChanges | length) == 0 then "- Effective changes: none" else "- Effective changes:\n" + (.effectiveChanges | map("  - `" + . + "`") | join("\n")) end' "$PLAN_PATH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-runner-image-candidate:
+    name: Publish runner image candidate (${{ matrix.architecture }})
+    needs:
+      [
+        release-mode,
+        static-verification,
+        external-package-contracts,
+        tests,
+        e2e,
+        plan-runner-image-candidate,
+      ]
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      needs.release-mode.result == 'success' &&
+      needs.release-mode.outputs.mode == 'normal' &&
+      needs.static-verification.result == 'success' &&
+      needs.external-package-contracts.result == 'success' &&
+      needs.tests.result == 'success' &&
+      needs.e2e.result == 'success' &&
+      needs['plan-runner-image-candidate'].result == 'success' &&
+      (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
+      needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: runner-image-candidate-${{ github.sha }}-${{ matrix.architecture }}
+      cancel-in-progress: false
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -865,12 +950,17 @@ jobs:
 
   publish-runner-image-candidate-manifest:
     name: Publish runner image candidate manifest
-    needs: [publish-runner-image-candidate]
+    needs: [plan-runner-image-candidate, publish-runner-image-candidate]
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
+      needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current') &&
       needs['publish-runner-image-candidate'].result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      group: runner-image-candidate-manifest-${{ github.sha }}
+      cancel-in-progress: false
     timeout-minutes: 15
     permissions:
       actions: read

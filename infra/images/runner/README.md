@@ -102,8 +102,9 @@ marker disappear when the instance is terminated with its root volume.
 
 ### Image freshness
 
-The image does not update packages after the bake. CI builds a candidate on each
-successful normal merge to `main`, and candidates expire after 14 days.
+The image does not update packages after the bake. After a successful normal
+merge to `main`, CI builds a candidate when effective inputs changed or the
+newest complete pair is at least five days old. Candidates expire after 14 days.
 
 Release promotion should happen at least weekly. When a candidate is stale,
 rebuild or republish it and investigate the release promotion path before using
@@ -189,7 +190,28 @@ total. Record the end-to-end time before retiring the old AMI.
 
 ## Candidate builds
 
-After every successful merge to `main`, CI builds one candidate AMI per architecture in the candidate AWS account. Candidates are not releases: CI shares them only with the configured worker-plane accounts and publishes one immutable OCI manifest at the full source revision. There is no moving `latest` or `main` pointer.
+After the required `main` checks pass, CI evaluates whether the revision needs a
+candidate. It builds the complete `amd64` and `arm64` pair when any effective
+runner image input changed since the newest complete pair. It also refreshes an
+unchanged pair when that pair is at least five days old.
+
+Effective inputs include the runner image directory, the runner's production
+workspace dependency closure, the lockfile, workspace configuration, and
+relevant toolchain pins. CI derives the package closure from workspace package
+manifests. An incomplete inventory, Git comparison, or dependency graph causes
+both architectures to build.
+
+CI skips a recent unchanged revision. A skipped revision gets no AMI, snapshot,
+or candidate manifest. A rerun for a revision that already owns both AMIs
+reuses those AMIs and its immutable manifest.
+
+Use the **Publish runner image candidate** workflow to publish an exact revision
+reachable from `main`. Manual publication bypasses the age gate. Existing
+exact-revision candidates remain idempotent.
+
+Candidates are not releases. CI shares them only with the configured
+worker-plane accounts. The v1 OCI manifest references only the two AMIs built
+from its full source revision. There is no moving `latest` or `main` pointer.
 
 The candidate command writes its AMI ID, architecture, region, owner, creation time, expiration time, source SHA, and whether it built or reused the image to its required `--output` JSON file. The AMI tags are the discovery contract. Internal users resolve an available image by its exact source SHA and architecture with `shipfox.managed=true`, `shipfox.lifecycle=candidate`, `shipfox.candidate_id`, `shipfox.revision`, and `shipfox.architecture`. Candidates are encrypted with `BUILD_CANDIDATE_KMS_KEY_ID`, shared with the comma-separated or JSON-array account IDs in `BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS`, and retain the 14-day expiry.
 
