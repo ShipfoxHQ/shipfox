@@ -11,6 +11,7 @@ import {
   MembershipRequiredError,
   OpenInvitationExistsError,
   WorkspaceInactiveError,
+  WorkspaceMembershipCapExceededError,
   WorkspaceNotFoundError,
 } from '#core/errors.js';
 import {createWorkspaceInvitation} from '#core/index.js';
@@ -40,6 +41,16 @@ export const createInvitationRoute = defineRoute({
     }
     if (error instanceof WorkspaceInactiveError) {
       throw new ClientError('Workspace is not active', 'workspace-inactive', {status: 403});
+    }
+    if (error instanceof WorkspaceMembershipCapExceededError) {
+      throw new ClientError(
+        'Workspace membership cap exceeded',
+        'workspace-membership-cap-exceeded',
+        {
+          status: 409,
+          details: {cap: error.cap},
+        },
+      );
     }
     throw error;
   },

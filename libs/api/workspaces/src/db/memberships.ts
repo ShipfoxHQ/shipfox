@@ -6,6 +6,7 @@ import type {Membership} from '#core/entities/membership.js';
 import type {Workspace} from '#core/entities/workspace.js';
 import {LastMemberError} from '#core/errors.js';
 import {recordWorkspaceMembershipChanged} from '#metrics/instance.js';
+import {assertWorkspaceMembershipCap, lockWorkspaceMembership} from './cap.js';
 import {db} from './db.js';
 import {memberships, toMembership} from './schema/memberships.js';
 import {workspacesOutbox} from './schema/outbox.js';
@@ -35,30 +36,51 @@ export function membershipValues(params: CreateMembershipParams) {
 }
 
 export async function createMembership(params: CreateMembershipParams): Promise<Membership> {
-  const rows = await db().insert(memberships).values(membershipValues(params)).returning();
+  const membership = await db().transaction(async (tx) => {
+    await lockWorkspaceMembership(params.workspaceId, tx);
+    await assertWorkspaceMembershipCap({
+      workspaceId: params.workspaceId,
+      incomingSeats: 1,
+      tx,
+    });
+    const rows = await tx.insert(memberships).values(membershipValues(params)).returning();
 
-  const row = rows[0];
-  if (!row) throw new Error('Insert returned no rows');
+    const row = rows[0];
+    if (!row) throw new Error('Insert returned no rows');
+    return toMembership(row);
+  });
+
   recordWorkspaceMembershipChanged('added');
-  return toMembership(row);
+  return membership;
 }
 
 export async function ensureMembership(params: EnsureMembershipParams): Promise<Membership> {
-  const rows = await db()
-    .insert(memberships)
-    .values(membershipValues(params))
-    .onConflictDoNothing({target: [memberships.userId, memberships.workspaceId]})
-    .returning();
+  const result = await db().transaction(async (tx) => {
+    await lockWorkspaceMembership(params.workspaceId, tx);
+    const existing = await findMembership(params, {tx});
+    if (existing) return {membership: existing, created: false};
 
-  const row = rows[0];
-  if (row) {
-    recordWorkspaceMembershipChanged('added');
-    return toMembership(row);
-  }
+    await assertWorkspaceMembershipCap({
+      workspaceId: params.workspaceId,
+      incomingSeats: 1,
+      tx,
+    });
+    const rows = await tx
+      .insert(memberships)
+      .values(membershipValues(params))
+      .onConflictDoNothing({target: [memberships.userId, memberships.workspaceId]})
+      .returning();
 
-  const existing = await findMembership(params);
-  if (existing) return existing;
-  throw new Error('Membership conflict returned no membership');
+    const row = rows[0];
+    if (row) return {membership: toMembership(row), created: true};
+
+    const membership = await findMembership(params, {tx});
+    if (membership) return {membership, created: false};
+    throw new Error('Membership conflict returned no membership');
+  });
+
+  if (result.created) recordWorkspaceMembershipChanged('added');
+  return result.membership;
 }
 
 export interface MembershipWithWorkspace extends Membership {

@@ -14,6 +14,7 @@ import {
   recordWorkspaceInvitationCreated,
   recordWorkspaceMembershipChanged,
 } from '#metrics/instance.js';
+import {assertWorkspaceMembershipCap, lockWorkspaceMembership} from './cap.js';
 import {db} from './db.js';
 import {findMembership, membershipValues} from './memberships.js';
 import {invitations, toInvitation} from './schema/invitations.js';
@@ -44,6 +45,7 @@ export type CreateInvitationParams = CreateInvitationBaseParams &
 
 export async function createInvitation(params: CreateInvitationParams): Promise<Invitation> {
   const result = await db().transaction(async (tx) => {
+    await lockWorkspaceMembership(params.workspaceId, tx);
     await tx
       .delete(invitations)
       .where(
@@ -72,6 +74,12 @@ export async function createInvitation(params: CreateInvitationParams): Promise<
     if (open.length > 0) {
       throw new OpenInvitationExistsError(params.email);
     }
+
+    await assertWorkspaceMembershipCap({
+      workspaceId: params.workspaceId,
+      incomingSeats: 1,
+      tx,
+    });
 
     const rows = await tx
       .insert(invitations)
@@ -192,6 +200,15 @@ async function reconcileInvitationInTransaction(
   tx: WorkspacesTx,
   params: ReconcileInvitationAcceptanceParams,
 ): Promise<ReconcileInvitationAcceptanceResult> {
+  const workspaceRows = await tx
+    .select({workspaceId: invitations.workspaceId})
+    .from(invitations)
+    .where(eq(invitations.id, params.invitationId))
+    .limit(1);
+  const workspaceId = workspaceRows[0]?.workspaceId;
+  if (!workspaceId) return {status: 'invalid'} as const;
+
+  await lockWorkspaceMembership(workspaceId, tx);
   const rows = await tx
     .select()
     .from(invitations)
@@ -208,7 +225,9 @@ async function reconcileInvitationInTransaction(
   const invalidStatus = invitationAcceptanceInvalidStatus(invitation, params.email);
   if (invalidStatus) return {status: invalidStatus};
 
-  const {membership, alreadyMember} = await ensureInvitationMembership(tx, params, invitation);
+  const membershipResult = await ensureInvitationMembership(tx, params, invitation);
+  if ('status' in membershipResult) return membershipResult;
+  const {membership, alreadyMember} = membershipResult;
 
   const updated = await tx
     .update(invitations)
@@ -259,12 +278,25 @@ async function ensureInvitationMembership(
   tx: WorkspacesTx,
   params: ReconcileInvitationAcceptanceParams,
   invitation: Invitation,
-): Promise<{membership: Membership; alreadyMember: boolean}> {
+): Promise<
+  | {membership: Membership; alreadyMember: boolean}
+  | {status: 'expired' | 'revoked' | 'email_mismatch'}
+> {
   const existing = await findMembership(
     {userId: params.acceptedByUserId, workspaceId: invitation.workspaceId},
     {tx},
   );
   if (existing) return {membership: existing, alreadyMember: true};
+
+  await assertWorkspaceMembershipCap({
+    workspaceId: invitation.workspaceId,
+    incomingSeats: 1,
+    excludeInvitationId: invitation.id,
+    tx,
+  });
+  const invalidStatus = invitationAcceptanceInvalidStatus(invitation, params.email);
+  if (invalidStatus) return {status: invalidStatus};
+
   const created = await tx
     .insert(memberships)
     .values(

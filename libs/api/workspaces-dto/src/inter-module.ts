@@ -69,6 +69,7 @@ export const workspacesInterModuleContract = defineInterModuleContract({
         'invitation-token-used': z.object({}),
         'invitation-token-expired': z.object({}),
         'invitation-email-mismatch': z.object({}),
+        'workspace-membership-cap-exceeded': z.object({cap: z.number().int().positive()}),
       },
     },
     requireActiveMembership: {

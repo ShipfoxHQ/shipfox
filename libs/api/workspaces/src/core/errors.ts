@@ -124,6 +124,18 @@ export class MembershipRequiredError extends Error {
   }
 }
 
+export class WorkspaceMembershipCapExceededError extends Error {
+  readonly workspaceId: string;
+  readonly cap: number;
+
+  constructor(workspaceId: string, cap: number) {
+    super(`Workspace membership cap exceeded: ${workspaceId}`);
+    this.name = 'WorkspaceMembershipCapExceededError';
+    this.workspaceId = workspaceId;
+    this.cap = cap;
+  }
+}
+
 export class LastMemberError extends Error {
   constructor(workspaceId: string) {
     super(`Cannot remove the last member of workspace: ${workspaceId}`);

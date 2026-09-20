@@ -1,7 +1,9 @@
 import {WORKSPACES_MEMBER_INVITED, WORKSPACES_MEMBER_JOINED} from '@shipfox/api-workspaces-dto';
+import {pgClient} from '@shipfox/node-postgres';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
 import {and, eq, sql} from 'drizzle-orm';
 import {OpenInvitationExistsError} from '#core/errors.js';
+import {lockWorkspaceMembership} from './cap.js';
 import {db} from './db.js';
 import {
   createInvitation,
@@ -22,6 +24,37 @@ function emailFor(suffix: string): string {
 async function createUser(params: {email: string; hashedPassword?: string; name?: string}) {
   await Promise.resolve();
   return {userId: crypto.randomUUID(), email: params.email, name: null};
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return {promise, resolve, reject};
+}
+
+async function waitForBlockedTransaction(blockerPid: number): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const result = await pgClient().query<{count: number}>(
+      `
+        SELECT count(*)::int AS count
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND state = 'active'
+          AND wait_event_type = 'Lock'
+          AND $1 = ANY(pg_blocking_pids(pid))
+      `,
+      [blockerPid],
+    );
+    if ((result.rows[0]?.count ?? 0) > 0) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  throw new Error(`Timed out waiting for a transaction blocked by backend ${blockerPid}`);
 }
 
 describe('invitations db', () => {
@@ -307,6 +340,105 @@ describe('invitations db', () => {
     expect(membershipsForWorkspace[0]?.userId).toBe(
       accepted?.status === 'accepted' ? accepted.invitation.acceptedByUserId : undefined,
     );
+  });
+
+  test('takes the workspace lock before locking the invitation row', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const accepter = await createUser({email: emailFor('accepter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: accepter.email,
+      hashedToken: hashOpaqueToken(`lock-order-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    const deleteInvitation = deferred<void>();
+    const blockerReady = deferred<number>();
+    const lockHolder = db().transaction(async (tx) => {
+      await lockWorkspaceMembership(workspace.id, tx);
+      const pidResult = await tx.execute(sql`select pg_backend_pid() as pid`);
+      const pid = pidResult.rows[0]?.pid;
+      if (typeof pid !== 'number') throw new Error('Expected lock holder backend pid');
+      blockerReady.resolve(pid);
+      await deleteInvitation.promise;
+      await tx.delete(invitations).where(eq(invitations.id, invitation.id));
+    });
+    lockHolder.catch(blockerReady.reject);
+
+    const blockerPid = await blockerReady.promise;
+    const acceptance = reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+
+    try {
+      await waitForBlockedTransaction(blockerPid);
+      deleteInvitation.resolve();
+
+      await expect(acceptance).resolves.toEqual({status: 'invalid'});
+      await lockHolder;
+    } finally {
+      deleteInvitation.resolve();
+      await Promise.allSettled([acceptance, lockHolder]);
+    }
+  });
+
+  test('rechecks membership after waiting for the workspace lock', async () => {
+    const inviter = await createUser({email: emailFor('inviter')});
+    const accepter = await createUser({email: emailFor('accepter')});
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const invitation = await createInvitation({
+      workspaceId: workspace.id,
+      email: accepter.email,
+      hashedToken: hashOpaqueToken(`membership-race-${crypto.randomUUID()}`),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      invitedByUserId: inviter.userId,
+      skipEmail: true,
+    });
+    const insertMembership = deferred<void>();
+    const blockerReady = deferred<number>();
+    const membershipId = crypto.randomUUID();
+    const lockHolder = db().transaction(async (tx) => {
+      await lockWorkspaceMembership(workspace.id, tx);
+      const pidResult = await tx.execute(sql`select pg_backend_pid() as pid`);
+      const pid = pidResult.rows[0]?.pid;
+      if (typeof pid !== 'number') throw new Error('Expected lock holder backend pid');
+      blockerReady.resolve(pid);
+      await insertMembership.promise;
+      await tx.insert(memberships).values({
+        id: membershipId,
+        userId: accepter.userId,
+        userEmail: accepter.email,
+        workspaceId: workspace.id,
+      });
+    });
+    lockHolder.catch(blockerReady.reject);
+
+    const blockerPid = await blockerReady.promise;
+    const acceptance = reconcileInvitationAcceptance({
+      invitationId: invitation.id,
+      acceptedByUserId: accepter.userId,
+      email: accepter.email,
+    });
+
+    try {
+      await waitForBlockedTransaction(blockerPid);
+      insertMembership.resolve();
+
+      const result = await acceptance;
+      expect(result.status).toBe('accepted');
+      if (result.status === 'accepted') {
+        expect(result.alreadyMember).toBe(true);
+        expect(result.membership.id).toBe(membershipId);
+      }
+      await lockHolder;
+    } finally {
+      insertMembership.resolve();
+      await Promise.allSettled([acceptance, lockHolder]);
+    }
   });
 
   test('returns revoked without granting membership', async () => {
