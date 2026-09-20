@@ -179,15 +179,19 @@ export function WorkflowDefinitionsTable({
         loadingLabel="Loading workflows"
         loadingRowCount={3}
         minimumWidth={640}
-        navigation={{
-          hasMore: hasNextPage,
-          isError: isFetchNextPageError,
-          isLoading: isFetchingNextPage,
-          kind: 'append',
-          loadedCount: definitions.length,
-          onLoadMore,
-          onRetry: onLoadMore,
-        }}
+        {...(hasNextPage || definitions.length > 0
+          ? {
+              navigation: {
+                hasMore: hasNextPage,
+                isError: isFetchNextPageError,
+                isLoading: isFetchingNextPage,
+                kind: 'append',
+                loadedCount: definitions.length,
+                onLoadMore,
+                onRetry: onLoadMore,
+              },
+            }
+          : {})}
       />
     </section>
   );

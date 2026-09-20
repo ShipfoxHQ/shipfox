@@ -2,4 +2,4 @@
 "@shipfox/client-workflows": patch
 ---
 
-Moves workflow definition append navigation into the shared DataTable footer.
+Adds shared DataTable footer navigation and removes the workflow search and column-sort controls.
