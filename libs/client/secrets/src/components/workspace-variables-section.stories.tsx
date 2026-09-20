@@ -107,14 +107,6 @@ const meta: Meta<typeof SectionStory> = {
   title: 'Secrets/WorkspaceVariablesSection',
   component: SectionStory,
   decorators: [withFrozenClock],
-  parameters: {
-    argos: {
-      modes: {
-        light: {theme: 'light'},
-        dark: {theme: 'dark'},
-      },
-    },
-  },
 };
 export default meta;
 
