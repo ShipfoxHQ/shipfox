@@ -179,26 +179,20 @@ export function WorkflowDefinitionsTable({
         loadingLabel="Loading workflows"
         loadingRowCount={3}
         minimumWidth={640}
+        {...(hasNextPage || definitions.length > 0
+          ? {
+              navigation: {
+                hasMore: hasNextPage,
+                isError: isFetchNextPageError,
+                isLoading: isFetchingNextPage,
+                kind: 'append',
+                loadedCount: definitions.length,
+                onLoadMore,
+                onRetry: onLoadMore,
+              },
+            }
+          : {})}
       />
-
-      {isFetchNextPageError ? (
-        <Callout role="alert" type="error">
-          <div className="flex items-center justify-between gap-cluster">
-            <Text size="sm">Could not load more workflows.</Text>
-            <Button size="sm" variant="secondary" onClick={onLoadMore}>
-              Retry
-            </Button>
-          </div>
-        </Callout>
-      ) : null}
-
-      {hasNextPage ? (
-        <div className="flex justify-center">
-          <Button size="sm" variant="secondary" isLoading={isFetchingNextPage} onClick={onLoadMore}>
-            Load more
-          </Button>
-        </div>
-      ) : null}
     </section>
   );
 }

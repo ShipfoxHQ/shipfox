@@ -278,6 +278,29 @@ describe('ProjectWorkflowsPage', () => {
     expect(within(table).getByText('Archive artifacts')).toBeInTheDocument();
   });
 
+  test('renders append navigation inside the definitions panel', async () => {
+    configureApiClient({
+      fetchImpl: createProjectDetailFetch({
+        definitions: jsonResponse(definitionsDto({next_cursor: 'cursor-1'})),
+      }),
+    });
+
+    renderWorkflowsPage();
+
+    const table = await screen.findByRole('table', {name: 'Workflow definitions table'});
+    const panel = table.closest('[data-slot="panel"]');
+
+    expect(panel).not.toBeNull();
+    expect(
+      within(panel as HTMLElement).getByRole('region', {name: 'Table navigation'}),
+    ).toBeInTheDocument();
+    expect(
+      within(panel as HTMLElement).getByRole('button', {name: 'Load more'}),
+    ).toBeInTheDocument();
+    expect(within(panel as HTMLElement).getByRole('status')).toHaveTextContent('1 row loaded');
+    expect(screen.queryByText('Could not load more workflows.')).not.toBeInTheDocument();
+  });
+
   test('opens and closes the definition drawer from the workflow action', async () => {
     configureApiClient({fetchImpl: createProjectDetailFetch()});
 
@@ -410,7 +433,9 @@ function connectionsDto() {
   };
 }
 
-function definitionsDto(overrides: Partial<{definitions: unknown[]; sync: unknown}> = {}) {
+function definitionsDto(
+  overrides: Partial<{definitions: unknown[]; next_cursor: string | null; sync: unknown}> = {},
+) {
   return {...baseDefinitionsDto(), ...overrides};
 }
 

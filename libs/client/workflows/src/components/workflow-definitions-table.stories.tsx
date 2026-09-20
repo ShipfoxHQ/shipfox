@@ -84,6 +84,17 @@ export const DataStates: Story = {
       <WorkflowDefinitionsTable {...args} definitions={[]} />
       <WorkflowDefinitionsTable {...args} definitions={[]} isError />
       <WorkflowDefinitionsTable {...args} isRefreshing />
+      <WorkflowDefinitionsTable {...args} isError />
+    </div>
+  ),
+};
+
+export const NavigationStates: Story = {
+  render: (args) => (
+    <div className="grid grid-cols-1 gap-section">
+      <WorkflowDefinitionsTable {...args} hasNextPage isFetchingNextPage />
+      <WorkflowDefinitionsTable {...args} hasNextPage isFetchNextPageError />
+      <WorkflowDefinitionsTable {...args} />
     </div>
   ),
 };
