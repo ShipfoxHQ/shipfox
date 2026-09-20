@@ -101,7 +101,12 @@ describe('NotionAgentToolsProvider', () => {
       accessToken: 'notion-token',
       method: 'POST',
       path: '/v1/search',
-      body: {query: 'Roadmap', object: 'page', page_size: 100, start_cursor: 'search-cursor'},
+      body: {
+        query: 'Roadmap',
+        page_size: 100,
+        start_cursor: 'search-cursor',
+        filter: {property: 'object', value: 'page'},
+      },
       operation: 'search',
     });
     expect(options.notion.request).toHaveBeenNthCalledWith(2, {
@@ -170,7 +175,7 @@ describe('NotionAgentToolsProvider', () => {
     expect(options.notion.request).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes once after a 401 and maps the terminal error', async () => {
+  it('refreshes once after a 401 and retries successfully', async () => {
     const options = providerOptions(async ({accessToken}) =>
       accessToken === 'stale-token'
         ? {status: 401, body: {code: 'unauthorized'}}
@@ -189,6 +194,52 @@ describe('NotionAgentToolsProvider', () => {
     const result = await session.call({toolId: 'get_page_content', arguments: {page_id: 'page-1'}});
 
     expect(result.structuredContent).toMatchObject({markdown: '# Read me'});
+    expect(options.tokenStore.getAccessToken).toHaveBeenNthCalledWith(2, {
+      connectionId: 'notion-connection-1',
+      forceRefresh: true,
+    });
+  });
+
+  it('maps a terminal 401 after refresh to credentials-unavailable', async () => {
+    const options = providerOptions(async () => ({status: 401, body: {code: 'unauthorized'}}));
+    options.tokenStore.getAccessToken
+      .mockResolvedValueOnce('stale-token')
+      .mockResolvedValueOnce('fresh-token');
+    const provider = new NotionAgentToolsProvider(options);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: [catalogTool('get_page_content')],
+      scope: {},
+    });
+
+    const result = await session.call({toolId: 'get_page_content', arguments: {page_id: 'page-1'}});
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'credentials-unavailable', status: 401},
+    });
+    expect(options.notion.request).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps a rejected token refresh to credentials-unavailable', async () => {
+    const options = providerOptions(async () => ({status: 401, body: {code: 'unauthorized'}}));
+    options.tokenStore.getAccessToken
+      .mockResolvedValueOnce('stale-token')
+      .mockRejectedValueOnce(new Error('token store unavailable'));
+    const provider = new NotionAgentToolsProvider(options);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: [catalogTool('get_page_content')],
+      scope: {},
+    });
+
+    const result = await session.call({toolId: 'get_page_content', arguments: {page_id: 'page-1'}});
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'credentials-unavailable', status: 401},
+    });
+    expect(options.notion.request).toHaveBeenCalledTimes(1);
     expect(options.tokenStore.getAccessToken).toHaveBeenNthCalledWith(2, {
       connectionId: 'notion-connection-1',
       forceRefresh: true,

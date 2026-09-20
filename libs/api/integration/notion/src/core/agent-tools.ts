@@ -115,13 +115,14 @@ export const NOTION_TOOL_OPERATIONS: Partial<Record<NotionAgentToolId, NotionToo
   search: {
     method: 'POST',
     path: () => '/v1/search',
-    body: (args) =>
-      definedArguments(args, [
+    body: (args) => ({
+      ...definedArguments(args, [
         ['query', 'query'],
-        ['object', 'object'],
         ['page_size', 'page_size'],
         ['cursor', 'start_cursor'],
       ]),
+      ...(args.object === undefined ? {} : {filter: {property: 'object', value: args.object}}),
+    }),
   },
   get_page: {
     method: 'GET',

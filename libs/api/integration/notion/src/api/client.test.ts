@@ -1,4 +1,4 @@
-import {createNotionAgentToolsClient, NOTION_API_VERSION, notionApiUrl} from './client.js';
+import {createNotionAgentToolsClient, NOTION_API_VERSION} from './client.js';
 
 function response(body: unknown, status: number, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -12,7 +12,7 @@ describe('Notion REST client', () => {
     vi.unstubAllGlobals();
   });
 
-  it('pins the API version, bearer token, timeout request, and request shape', async () => {
+  it('pins the API version, bearer token, and request shape', async () => {
     let requestBody: unknown;
     const fetchMock = vi.fn<(input: Request | URL, init?: RequestInit) => Promise<Response>>(
       async (input) => {
@@ -34,7 +34,7 @@ describe('Notion REST client', () => {
     const request = fetchMock.mock.calls[0]?.[0];
     expect(request).toBeInstanceOf(Request);
     if (!(request instanceof Request)) throw new Error('Expected a Request');
-    expect(request.url).toBe(`${notionApiUrl('/v1/search')}`);
+    expect(request.url).toBe('https://api.notion.com/v1/search');
     expect(request.method).toBe('POST');
     expect(request.headers.get('authorization')).toBe('Bearer notion-token');
     expect(request.headers.get('Notion-Version')).toBe(NOTION_API_VERSION);
@@ -59,6 +59,35 @@ describe('Notion REST client', () => {
     await expect(
       client.request({accessToken: 'token', method: 'GET', path: '/v1/pages/3'}),
     ).resolves.toEqual({status: 404, body: {code: 'object_not_found'}});
+  });
+
+  it('maps an HTTP 408 response to provider-unavailable', async () => {
+    const fetchMock = vi
+      .fn<(input: Request | URL, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(response({code: 'request_timeout'}, 408));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createNotionAgentToolsClient();
+
+    await expect(
+      client.request({accessToken: 'token', method: 'GET', path: '/v1/pages/1'}),
+    ).rejects.toMatchObject({reason: 'provider-unavailable', status: 408});
+  });
+
+  it('maps a timeout failure to provider-unavailable', async () => {
+    const timeout = new Error('request timed out');
+    timeout.name = 'TimeoutError';
+    const fetchMock = vi
+      .fn<(input: Request | URL, init?: RequestInit) => Promise<Response>>()
+      .mockRejectedValueOnce(timeout);
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createNotionAgentToolsClient();
+
+    await expect(
+      client.request({accessToken: 'token', method: 'GET', path: '/v1/pages/1'}),
+    ).rejects.toMatchObject({
+      reason: 'provider-unavailable',
+      message: 'Notion request timed out',
+    });
   });
 
   it('maps rate limits and provider outages with their retry metadata', async () => {
