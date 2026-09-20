@@ -1,3 +1,7 @@
+import {IntegrationProviderError} from '@shipfox/api-integration-spi';
+
+export class NotionIntegrationProviderError extends IntegrationProviderError {}
+
 export class NotionConnectionNotFoundError extends Error {
   constructor(connectionId: string) {
     super(`Notion connection not found: ${connectionId}`);

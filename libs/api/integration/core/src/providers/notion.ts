@@ -22,6 +22,7 @@ async function loadNotionModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    createNotionAgentToolsClient,
     createNotionE2eRoutes,
     createNotionIntegrationProvider,
     createNotionTokenStore,
@@ -134,6 +135,10 @@ async function loadNotionModuleParts(
   });
 
   const integrationProvider = createNotionIntegrationProvider({
+    agentTools: {
+      notion: createNotionAgentToolsClient(),
+      tokenStore,
+    },
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {
         await deleteNotionInstallationByConnectionId(connection.id, {tx});
