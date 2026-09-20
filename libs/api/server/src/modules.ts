@@ -251,6 +251,30 @@ export async function defaultModules(
             })
           ).deleted,
       },
+      notion: {
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/notion/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/notion/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/notion/${params.namespace}`,
+            })
+          ).deleted,
+      },
       slack: {
         getSecret: async (params) =>
           (

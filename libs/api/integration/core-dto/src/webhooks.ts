@@ -20,6 +20,7 @@ export const webhookRouteIds = [
   'webhook.connection',
   'jira',
   'clickup',
+  'notion',
 ] as const;
 
 export const webhookRouteIdSchema = z.enum(webhookRouteIds);
@@ -108,11 +109,19 @@ const clickupWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
   })
   .strict();
 
+const notionWebhookRouteRequestSchema = storedWebhookRequestBaseSchema
+  .extend({
+    route_id: z.literal('notion'),
+    path_parameters: emptyPathParametersSchema,
+  })
+  .strict();
+
 export const storedWebhookRequestSchema = z.discriminatedUnion('route_id', [
   standardWebhookRouteRequestSchema,
   genericWebhookRouteRequestSchema,
   jiraWebhookRouteRequestSchema,
   clickupWebhookRouteRequestSchema,
+  notionWebhookRouteRequestSchema,
 ]);
 export type StoredWebhookRequest = z.infer<typeof storedWebhookRequestSchema>;
 

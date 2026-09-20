@@ -42,6 +42,7 @@ describe('database registry', () => {
         'integrations_github',
         'integrations_jira',
         'integrations_clickup',
+        'integrations_notion',
         'integrations_linear',
         'integrations_posthog',
         'integrations_sentry',

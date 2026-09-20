@@ -21,6 +21,10 @@ export const config = createConfig({
     desc: 'Enables the ClickUp integration provider so users can connect ClickUp workspaces.',
     default: false,
   }),
+  INTEGRATIONS_ENABLE_NOTION_PROVIDER: bool({
+    desc: 'Enables the Notion integration provider so users can connect Notion workspaces.',
+    default: false,
+  }),
   INTEGRATIONS_ENABLE_LINEAR_PROVIDER: bool({
     desc: 'Enables the Linear integration provider so users can connect Linear workspaces.',
     default: false,

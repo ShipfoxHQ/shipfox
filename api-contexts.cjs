@@ -10,6 +10,7 @@ const architecturePackages = {
     integrations: [
       'libs/api/integration/core',
       'libs/api/integration/clickup',
+      'libs/api/integration/notion',
       'libs/api/integration/gitea',
       'libs/api/integration/github',
       'libs/api/integration/jira',

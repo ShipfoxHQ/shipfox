@@ -17,6 +17,9 @@ process.env.CLICKUP_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.CLICKUP_OAUTH_REDIRECT_URL =
   'https://shipfox.example.com/integrations/clickup/callback';
 process.env.CLICKUP_WEBHOOK_BASE_URL = 'https://shipfox.example.com';
+process.env.NOTION_OAUTH_CLIENT_ID = 'test-client-id';
+process.env.NOTION_OAUTH_CLIENT_SECRET = 'test-client-secret';
+process.env.NOTION_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/notion/callback';
 process.env.JIRA_OAUTH_CLIENT_ID = 'test-client-id';
 process.env.JIRA_OAUTH_CLIENT_SECRET = 'test-client-secret';
 process.env.JIRA_OAUTH_REDIRECT_URL = 'https://shipfox.example.com/integrations/jira/callback';

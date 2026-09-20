@@ -156,6 +156,32 @@ describe('loadEnabledProviderModules', () => {
     expect(parts.map((part) => part.provider.provider)).not.toContain('clickup');
   });
 
+  it('does not load Notion when the provider is disabled', async () => {
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+
+    expect(parts.map((part) => part.provider.provider)).not.toContain('notion');
+  });
+
+  it('loads Notion after ClickUp when the provider is enabled', async () => {
+    vi.stubEnv('INTEGRATIONS_ENABLE_NOTION_PROVIDER', 'true');
+    vi.resetModules();
+
+    const {loadEnabledProviderModules} = await import('#providers/modules.js');
+    const parts = await loadEnabledProviderModules();
+    const notion = parts.find((part) => part.provider.provider === 'notion');
+
+    expect(parts.map((part) => part.provider.provider)).toEqual([
+      'notion',
+      'shipfox',
+      'cron',
+      'webhook',
+    ]);
+    expect(notion?.provider).toMatchObject({provider: 'notion', displayName: 'Notion'});
+  });
+
   it('loads ClickUp after Jira when the provider is enabled', async () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_CLICKUP_PROVIDER', 'true');
     vi.stubEnv('CLICKUP_OAUTH_CLIENT_ID', 'test-client-id');
