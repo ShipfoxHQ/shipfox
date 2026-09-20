@@ -82,6 +82,7 @@ describe('resolveRuntimeCredentials', () => {
     const stepAttemptId = crypto.randomUUID();
     const jobIdentity = {
       projectId: crypto.randomUUID(),
+      workflowRunAttemptId: crypto.randomUUID(),
       jobId: crypto.randomUUID(),
       jobExecutionId: crypto.randomUUID(),
       stepId: crypto.randomUUID(),

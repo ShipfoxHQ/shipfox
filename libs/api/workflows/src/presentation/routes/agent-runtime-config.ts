@@ -134,6 +134,7 @@ export function createAgentRuntimeConfigRoute(params: {
         stepAttemptId: stepAttempt.attempt.id,
         jobIdentity: {
           projectId,
+          workflowRunAttemptId: stepAttempt.workflowRunAttemptId,
           jobId: stepAttempt.jobId,
           jobExecutionId: stepAttempt.jobExecutionId,
           stepId: stepAttempt.attempt.stepId,
