@@ -32,6 +32,12 @@ describe('agent grant adapter', () => {
     await expect(listAgentGrants()).resolves.toEqual([
       expect.objectContaining({clientName: 'Claude Desktop', workspaceId: WORKSPACE_ID}),
     ]);
+
+    const request = fetchImpl.mock.calls[0]?.[0] as Request;
+    expect({url: request.url, method: request.method}).toEqual({
+      url: 'https://api.example.test/agent-access/grants',
+      method: 'GET',
+    });
   });
 
   test('revokes a grant with DELETE', async () => {

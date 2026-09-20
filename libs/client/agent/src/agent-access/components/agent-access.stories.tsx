@@ -4,7 +4,7 @@ import type {Decorator, Meta, StoryObj} from '@storybook/react';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {createStore, Provider as JotaiProvider} from 'jotai';
 import {type ReactNode, useEffect, useState} from 'react';
-import {within} from 'storybook/test';
+import {expect, within} from 'storybook/test';
 import {AgentAccessSettingsPage} from './agent-access-settings-page.js';
 import {OAuthConsentPage} from './oauth-consent-page.js';
 
@@ -19,6 +19,7 @@ type View =
   | 'consent-multiple-workspaces'
   | 'settings-populated'
   | 'settings-empty'
+  | 'settings-loading'
   | 'settings-errors';
 
 const STORY_WORKSPACES = [
@@ -146,6 +147,16 @@ export const EmptySettings: Story = {
   },
 };
 
+export const LoadingSettings: Story = {
+  args: {view: 'settings-loading'},
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('heading', {name: 'Connected apps'});
+    await canvas.findByRole('table');
+    expect(canvas.getAllByRole('columnheader')).toHaveLength(4);
+  },
+};
+
 export const SettingsErrors: Story = {
   args: {view: 'settings-errors'},
   play: async ({canvasElement}) => {
@@ -165,6 +176,9 @@ function StorySurface({children}: {children: React.ReactNode}) {
 function fetchForView(view: View): typeof fetch {
   return (input) => {
     const request = input as Request;
+    if (view === 'settings-loading') {
+      return new Promise<Response>(() => undefined);
+    }
     if (view === 'settings-errors') {
       return Promise.resolve(
         jsonResponse(

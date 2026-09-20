@@ -70,6 +70,7 @@
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
     "@tanstack/react-form": "catalog:",
+    "@tanstack/react-table": "catalog:",
     "@tanstack/react-query": "catalog:"
   },
   "peerDependencies": {

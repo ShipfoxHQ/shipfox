@@ -1,6 +1,7 @@
 import {QueryLoadError} from '@shipfox/client-ui';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
+import {DataTable, DataTableSortableHeader} from '@shipfox/react-ui/data-table';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {
   Modal,
@@ -12,18 +13,16 @@ import {
   ModalTrigger,
 } from '@shipfox/react-ui/modal';
 import {Panel} from '@shipfox/react-ui/panel';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@shipfox/react-ui/table';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Header, Text} from '@shipfox/react-ui/typography';
-import {useState} from 'react';
+import {
+  createColumnHelper,
+  createSortedRowModel,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table';
+import {type ReactNode, useState} from 'react';
 import type {AgentGrant} from '#agent-access/core/agent-access.js';
 import {
   useAgentGrantsQuery,
@@ -50,91 +49,106 @@ export function AgentAccessSettingsPage({workspaceId}: {workspaceId: string}) {
             Apps connected to this workspace through the Shipfox MCP server.
           </Text>
         </div>
-        {grantsQuery.isPending ? <GrantListSkeleton /> : null}
         {grantsQuery.isError && grantsQuery.data === undefined ? (
           <Panel>
             <QueryLoadError query={grantsQuery} subject="connected apps" variant="panel" />
           </Panel>
-        ) : null}
-        {grantsQuery.data !== undefined && grants.length === 0 ? (
-          <Panel>
-            <EmptyState
-              icon="terminalBoxLine"
-              title="No connected apps"
-              description="Use the instructions above to connect your first app."
-              variant="panel"
-            />
-          </Panel>
-        ) : null}
-        {grants.length > 0 ? <AgentGrantList grants={grants} /> : null}
+        ) : (
+          <AgentGrantList
+            grants={grants}
+            isLoading={grantsQuery.isPending}
+            isRefreshing={grantsQuery.isRefetching}
+            emptyContent={
+              grantsQuery.data !== undefined && grants.length === 0 ? (
+                <EmptyState
+                  icon="terminalBoxLine"
+                  title="No connected apps"
+                  description="Use the instructions above to connect your first app."
+                  variant="compact"
+                />
+              ) : undefined
+            }
+          />
+        )}
       </section>
     </div>
   );
 }
 
-export function AgentGrantList({grants}: {grants: AgentGrant[]}) {
-  return (
-    <Panel>
-      <div className="max-[760px]:hidden">
-        <Table className="table-fixed">
-          <TableHeader>
-            <TableRow>
-              <TableHead>App</TableHead>
-              <TableHead className="w-144">Connected</TableHead>
-              <TableHead className="w-160">Access refreshed</TableHead>
-              <TableHead className="w-128 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {grants.map((grant) => (
-              <TableRow key={grant.id}>
-                <TableCell className="whitespace-normal">
-                  <div className="min-w-0">
-                    <Text bold className="truncate">
-                      {grant.clientName}
-                    </Text>
-                    <div className="mt-tight text-foreground-neutral-muted">
-                      <AgentAccessCapabilities />
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <CredentialDate value={grant.createdAt} />
-                </TableCell>
-                <TableCell>
-                  <CredentialDate value={grant.lastRefreshedAt} />
-                </TableCell>
-                <TableCell className="text-right">
-                  <RevokeGrantButton grant={grant} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+const agentGrantFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+const agentGrantColumnHelper = createColumnHelper<typeof agentGrantFeatures, AgentGrant>();
+const agentGrantColumns = agentGrantColumnHelper.columns([
+  agentGrantColumnHelper.accessor('clientName', {
+    header: ({column}) => <DataTableSortableHeader column={column} label="App" />,
+    cell: ({getValue}) => (
+      <div className="min-w-0 whitespace-normal">
+        <Text bold className="truncate">
+          {getValue()}
+        </Text>
+        <div className="mt-tight text-foreground-neutral-muted">
+          <AgentAccessCapabilities />
+        </div>
       </div>
-      <ul
-        className="hidden flex-col divide-y divide-border-neutral-base max-[760px]:flex"
-        aria-label="Connected apps"
-      >
-        {grants.map((grant) => (
-          <li key={grant.id} className="flex flex-col gap-group p-panel-compact">
-            <div className="min-w-0">
-              <Text bold className="truncate">
-                {grant.clientName}
-              </Text>
-              <div className="mt-tight text-foreground-neutral-muted">
-                <AgentAccessCapabilities />
-              </div>
-              <Text size="sm" className="mt-tight text-foreground-neutral-muted">
-                Connected <CredentialDate value={grant.createdAt} /> · Access refreshed{' '}
-                <CredentialDate value={grant.lastRefreshedAt} />
-              </Text>
-            </div>
-            <RevokeGrantButton grant={grant} />
-          </li>
-        ))}
-      </ul>
-    </Panel>
+    ),
+  }),
+  agentGrantColumnHelper.accessor('createdAt', {
+    header: ({column}) => <DataTableSortableHeader column={column} label="Connected" />,
+    cell: ({getValue}) => <CredentialDate value={getValue()} />,
+  }),
+  agentGrantColumnHelper.accessor('lastRefreshedAt', {
+    header: ({column}) => <DataTableSortableHeader column={column} label="Access refreshed" />,
+    cell: ({getValue}) => <CredentialDate value={getValue()} />,
+  }),
+  agentGrantColumnHelper.display({
+    id: 'actions',
+    enableSorting: false,
+    header: () => <span className="sr-only">Actions</span>,
+    cell: ({row}) => (
+      <div className="flex justify-end">
+        <RevokeGrantButton grant={row.original} />
+      </div>
+    ),
+  }),
+]);
+
+export function AgentGrantList({
+  emptyContent,
+  grants,
+  isLoading = false,
+  isRefreshing = false,
+}: {
+  emptyContent?: ReactNode;
+  grants: AgentGrant[];
+  isLoading?: boolean;
+  isRefreshing?: boolean;
+}) {
+  const table = useTable({
+    columns: agentGrantColumns,
+    data: grants,
+    enableMultiSort: false,
+    features: agentGrantFeatures,
+    getRowId: (grant) => grant.id,
+    sortDescFirst: false,
+  });
+
+  return (
+    <DataTable
+      table={table}
+      aria-label="Connected apps"
+      density="compact"
+      emptyContent={emptyContent}
+      isLoading={isLoading}
+      isRefreshing={isRefreshing}
+      loadingLabel="Loading connected apps"
+      loadingRowCount={3}
+      minimumWidth={640}
+      {...(isLoading
+        ? {onSortChange: () => undefined}
+        : {navigation: {kind: 'complete' as const, count: grants.length}})}
+    />
   );
 }
 
@@ -219,19 +233,5 @@ function CredentialDate({value}: {value: string | null}) {
     </Tooltip>
   ) : (
     <>Never</>
-  );
-}
-
-function GrantListSkeleton() {
-  return (
-    <Panel
-      role="status"
-      aria-label="Loading connected apps"
-      className="divide-y divide-border-neutral-base"
-    >
-      {[0, 1, 2].map((row) => (
-        <Skeleton key={row} className="h-48 w-full rounded-none" />
-      ))}
-    </Panel>
   );
 }
