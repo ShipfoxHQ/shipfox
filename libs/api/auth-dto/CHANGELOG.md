@@ -1,5 +1,12 @@
 # @shipfox/api-auth-dto
 
+## 29.1.0
+
+### Minor Changes
+
+- cbc2ee8: Adds the `auth.user.signed_in` Auth outbox event contract.
+  Successful primary authentication emits `auth.user.signed_in` with the authenticated `userId`.
+
 ## 26.0.0
 
 ### Major Changes

@@ -1,5 +1,15 @@
 # @shipfox/api-auth-context
 
+## 29.1.0
+
+### Patch Changes
+
+- Updated dependencies [3431ccc]
+- Updated dependencies [cbc2ee8]
+- Updated dependencies [58b576b]
+  - @shipfox/api-workspaces-dto@29.1.0
+  - @shipfox/api-auth-dto@29.1.0
+
 ## 29.0.0
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @shipfox/api-triggers
 
+## 29.1.0
+
+### Patch Changes
+
+- @shipfox/api-auth-context@29.1.0
+- @shipfox/api-workflows-dto@29.1.0
+- @shipfox/api-triggers-dto@29.1.0
+
 ## 29.0.0
 
 ### Patch Changes

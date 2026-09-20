@@ -1,5 +1,19 @@
 # @shipfox/client-triggers
 
+## 48.0.2
+
+### Patch Changes
+
+- 29b5367: Migrates trigger events to DataTable with shared filtering and append navigation.
+- Updated dependencies [b7469ab]
+- Updated dependencies [32f6eac]
+  - @shipfox/react-ui@3.0.0
+  - @shipfox/client-shell@48.0.2
+  - @shipfox/client-projects@48.0.2
+  - @shipfox/client-ui@48.0.2
+  - @shipfox/integration-icons@0.4.4
+  - @shipfox/api-triggers-dto@29.1.0
+
 ## 48.0.1
 
 ### Patch Changes

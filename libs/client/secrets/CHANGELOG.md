@@ -1,5 +1,16 @@
 # @shipfox/client-secrets
 
+## 48.0.2
+
+### Patch Changes
+
+- a8d882c: Migrates workspace secrets and variables to DataTable with complete-set sorting and search.
+- Updated dependencies [b7469ab]
+- Updated dependencies [32f6eac]
+  - @shipfox/react-ui@3.0.0
+  - @shipfox/client-shell@48.0.2
+  - @shipfox/client-ui@48.0.2
+
 ## 48.0.1
 
 ### Patch Changes

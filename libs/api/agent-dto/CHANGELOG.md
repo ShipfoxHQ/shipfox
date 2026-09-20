@@ -1,5 +1,11 @@
 # @shipfox/api-agent-dto
 
+## 29.1.0
+
+### Minor Changes
+
+- d12820f: Publishes complete canonical workflow and step identity through managed inference credentials.
+
 ## 29.0.0
 
 ### Major Changes
