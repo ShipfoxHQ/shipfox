@@ -1,0 +1,329 @@
+name: Publish runner image candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Exact revision reachable from main to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-image-candidate-${{ inputs.source_revision }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan runner image candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      revision: ${{ steps.authorize.outputs.revision }}
+
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.source_revision }}
+          fetch-depth: 0
+
+      - name: Authorize source revision
+        id: authorize
+        env:
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Candidate publication requires a full lowercase Git revision.' >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "$SOURCE_REVISION" ]]; then
+            echo 'The checked-out revision does not match the requested source revision.' >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$SOURCE_REVISION" origin/main; then
+            echo 'Candidate publication requires a revision reachable from main.' >&2
+            exit 1
+          fi
+          echo "revision=$SOURCE_REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Plan candidate publication
+        id: plan
+        env:
+          PLAN_PATH: ${{ runner.temp }}/runner-image-candidate-plan.json
+          SOURCE_REVISION: ${{ steps.authorize.outputs.revision }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg currentRevision "$SOURCE_REVISION" \
+            '{
+              mode: "build",
+              reason: "manual-publication",
+              detail: "Manual publication bypasses the freshness and effective-change gates.",
+              currentRevision: $currentRevision,
+              priorPair: null,
+              candidateAgeDays: null,
+              effectiveChanges: []
+            }' > "$PLAN_PATH"
+          echo "mode=$(jq -r '.mode' "$PLAN_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Report candidate plan
+        env:
+          PLAN_PATH: ${{ runner.temp }}/runner-image-candidate-plan.json
+        run: |
+          set -euo pipefail
+          {
+            echo '## Runner image candidate plan'
+            echo
+            jq -r '"- Decision: `\(.mode)`"' "$PLAN_PATH"
+            jq -r '"- Reason: `\(.reason)` (\(.detail))"' "$PLAN_PATH"
+            jq -r '"- Current revision: `\(.currentRevision)`"' "$PLAN_PATH"
+            jq -r '"- Selected prior revision: `\(.priorPair.revision // "none")`"' "$PLAN_PATH"
+            jq -r '"- Selected AMIs: " + ((.priorPair.images // []) | map("`\(.architecture)=\(.amiId)`") | if length == 0 then "none" else join(", ") end)' "$PLAN_PATH"
+            jq -r '"- Candidate age: " + (if .candidateAgeDays == null then "not available" else ((.candidateAgeDays * 100 | round) / 100 | tostring) + " days" end)' "$PLAN_PATH"
+            jq -r 'if (.effectiveChanges | length) == 0 then "- Effective changes: none" else "- Effective changes:\n" + (.effectiveChanges | map("  - `" + . + "`") | join("\n")) end' "$PLAN_PATH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Publish runner image candidate (${{ matrix.architecture }})
+    needs: [plan]
+    if: needs.plan.outputs.mode == 'build' || needs.plan.outputs.mode == 'reuse-current'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ needs.plan.outputs.revision }}
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: node npm:pnpm npm:turbo packer
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Configure candidate AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # v5.1.0
+        with:
+          aws-region: eu-central-1
+          role-duration-seconds: 7200
+          role-session-name: shipfox-runner-image-candidate
+          role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Build runner image tooling
+        run: turbo build --filter=@shipfox/runner-image...
+
+      - name: Build or reuse runner image candidate
+        env:
+          BUILD_ARCH: ${{ matrix.architecture }}
+          BUILD_ATTEMPT: ${{ github.run_attempt }}
+          BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_CONSUMER_ACCOUNT_IDS }}
+          BUILD_CANDIDATE_KMS_KEY_ID: ${{ vars.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_REVISION: ${{ needs.plan.outputs.revision }}
+          PACKER_LOG: "1"
+          PACKER_LOG_PATH: ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+          RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
+        run: node infra/images/runner/bin/build-runner-image-candidate.js --output "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH"
+
+      - name: Report runner image candidate
+        env:
+          RUNNER_IMAGE_CANDIDATE_RESULT_PATH: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
+        run: |
+          set -euo pipefail
+          jq -r '"- Candidate \(.architecture): \(.region):\(.amiId) owner \(.owner), expires \(.expiresAt) for \(.revision) (\(.status))"' "$RUNNER_IMAGE_CANDIDATE_RESULT_PATH" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload runner image candidate result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-image-candidate-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/runner-image-candidate-${{ matrix.architecture }}.json
+          if-no-files-found: error
+
+      - name: Upload Packer diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-image-candidate-packer-diagnostics-${{ matrix.architecture }}
+          path: |
+            ${{ runner.temp }}/packer-${{ matrix.architecture }}.log
+            infra/images/runner/packer-manifest.json
+          if-no-files-found: warn
+
+  publish-manifest:
+    name: Publish runner image candidate manifest
+    needs: [plan, build]
+    if: >-
+      always() &&
+      (needs.plan.outputs.mode == 'build' || needs.plan.outputs.mode == 'reuse-current') &&
+      needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ needs.plan.outputs.revision }}
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: gh node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2
+        with:
+          version: 1.3.3
+
+      - name: Log in to GHCR
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Resolve existing runner image candidate
+        id: runner-image-candidate
+        env:
+          RUNNER_IMAGE_CANDIDATE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-candidates
+          SOURCE_REVISION: ${{ needs.plan.outputs.revision }}
+        run: |
+          set -euo pipefail
+          resolve_error="$(mktemp)"
+          trap 'rm -f "$resolve_error"' EXIT
+
+          set +e
+          existing_digest="$(oras resolve "$RUNNER_IMAGE_CANDIDATE_REPOSITORY:$SOURCE_REVISION" 2>"$resolve_error")"
+          resolve_status=$?
+          set -e
+
+          if (( resolve_status == 0 )); then
+            if [[ ! "$existing_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Existing runner image candidate returned an invalid digest: $existing_digest" >&2
+              exit 1
+            fi
+            echo "digest=$existing_digest" >> "$GITHUB_OUTPUT"
+          # GHCR uses the same not-found response for a missing private package
+          # and a caller without read access. Recheck before publishing so a
+          # temporary permission gap cannot move an immutable revision tag.
+          elif grep -Eiq 'failed to resolve digest:.*not found' "$resolve_error"; then
+            echo 'digest=' >> "$GITHUB_OUTPUT"
+          else
+            cat "$resolve_error" >&2
+            exit "$resolve_status"
+          fi
+
+      - name: Download runner image candidate results
+        if: steps.runner-image-candidate.outputs.digest == ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: runner-image-candidate-*
+          path: runner-image-candidate-results
+          merge-multiple: true
+
+      - name: Build runner image catalog tooling
+        if: steps.runner-image-candidate.outputs.digest == ''
+        run: mise exec -- turbo build --filter=@shipfox/runner-image
+
+      - name: Create immutable runner image candidate manifest
+        if: steps.runner-image-candidate.outputs.digest == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_REVISION: ${{ needs.plan.outputs.revision }}
+        run: |
+          set -euo pipefail
+          build_created_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.run_started_at')"
+          candidate_args=()
+          while IFS= read -r candidate_path; do
+            candidate_args+=(--candidate "$candidate_path")
+          done < <(find runner-image-candidate-results -type f -name '*.json' -print | sort)
+          node infra/images/runner/bin/runner-image-catalog.js merge-candidates \
+            "${candidate_args[@]}" \
+            --source-repository "https://github.com/$GITHUB_REPOSITORY" \
+            --revision "$SOURCE_REVISION" \
+            --build-system github-actions \
+            --build-id "$GITHUB_RUN_ID" \
+            --build-number "$GITHUB_RUN_NUMBER" \
+            --build-attempt "$GITHUB_RUN_ATTEMPT" \
+            --build-created-at "$build_created_at" \
+            --build-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --output runner-image-candidate.json
+
+      # The first successful publication owns the full-revision tag. Reruns
+      # reuse its digest and never move the revision-addressed reference.
+      - name: Publish immutable runner image candidate manifest
+        env:
+          RUNNER_IMAGE_CANDIDATE_EXISTING_DIGEST: ${{ steps.runner-image-candidate.outputs.digest }}
+          RUNNER_IMAGE_CANDIDATE_REPOSITORY: ghcr.io/shipfoxhq/runner-image-candidates
+          SOURCE_REVISION: ${{ needs.plan.outputs.revision }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$RUNNER_IMAGE_CANDIDATE_EXISTING_DIGEST" ]]; then
+            echo "Reused $RUNNER_IMAGE_CANDIDATE_REPOSITORY@$RUNNER_IMAGE_CANDIDATE_EXISTING_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          recheck_error="$(mktemp)"
+          trap 'rm -f "$recheck_error"' EXIT
+          set +e
+          recheck_digest="$(oras resolve "$RUNNER_IMAGE_CANDIDATE_REPOSITORY:$SOURCE_REVISION" 2>"$recheck_error")"
+          recheck_status=$?
+          set -e
+          if (( recheck_status == 0 )); then
+            if [[ ! "$recheck_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Existing runner image candidate returned an invalid digest: $recheck_digest" >&2
+              exit 1
+            fi
+            echo "Reused $RUNNER_IMAGE_CANDIDATE_REPOSITORY@$recheck_digest (found on re-check)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          elif ! grep -Eiq 'failed to resolve digest:.*not found' "$recheck_error"; then
+            cat "$recheck_error" >&2
+            exit "$recheck_status"
+          fi
+
+          created_at="$(jq -r '.build.createdAt' runner-image-candidate.json)"
+          oras push \
+            --artifact-type application/vnd.shipfox.runner-image-candidate.v1+json \
+            --annotation "org.opencontainers.image.created=$created_at" \
+            --annotation "org.opencontainers.image.revision=$SOURCE_REVISION" \
+            --annotation "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --format json \
+            "$RUNNER_IMAGE_CANDIDATE_REPOSITORY:$SOURCE_REVISION" \
+            runner-image-candidate.json:application/vnd.shipfox.runner-image-candidate.v1+json \
+            | tee runner-image-candidate-publication.json
+
+          published_digest="$(jq -r '.digest // (.reference | split("@")[1])' runner-image-candidate-publication.json)"
+          if [[ ! "$published_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "Published runner image candidate returned an invalid digest: $published_digest" >&2
+            exit 1
+          fi
+          echo "Published $RUNNER_IMAGE_CANDIDATE_REPOSITORY@$published_digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report runner image candidate manifest
+        if: steps.runner-image-candidate.outputs.digest == ''
+        run: |
+          set -euo pipefail
+          echo '## Runner image candidate' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.images[] | "- `\(.architecture)`: `\(.region):\(.amiId)` owner `\(.owner)`, expires `\(.expiresAt)`"' runner-image-candidate.json >> "$GITHUB_STEP_SUMMARY"

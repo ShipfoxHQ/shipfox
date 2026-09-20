@@ -9,6 +9,7 @@
   "bin": {
     "build-runner-image": "./bin/build-runner-image.js",
     "build-runner-image-candidate": "./bin/build-runner-image-candidate.js",
+    "plan-runner-image-candidate": "./bin/plan-runner-image-candidate.js",
     "runner-image-catalog": "./bin/runner-image-catalog.js"
   },
   "scripts": {
