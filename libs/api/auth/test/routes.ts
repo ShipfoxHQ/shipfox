@@ -280,7 +280,9 @@ export async function createVerifiedSession(prefix: string): Promise<{
   token: string;
   userId: string;
 }> {
-  const {createUser, createSessionForUser} = await import('#core/auth.js');
+  const {createTestSessionForUser: createSessionForUser, createUser} = await import(
+    '#core/auth.js'
+  );
   const email = uniqueEmail(prefix);
   const password = 'correct horse battery staple';
   const user = await createUser({email, password, name: prefix, verified: true});

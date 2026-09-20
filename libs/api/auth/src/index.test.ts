@@ -2,6 +2,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {
   AUTH_PASSWORD_RESET_SEND_REQUESTED,
+  AUTH_USER_SIGNED_IN,
   AUTH_USER_SIGNED_UP,
   authEventSchemas,
 } from '@shipfox/api-auth-dto';
@@ -132,6 +133,7 @@ describe('authModule', () => {
     expect(Object.keys(publisher?.eventSchemas ?? {}).sort()).toEqual([
       ADMINISTRATION_ACTION_PERFORMED,
       AUTH_PASSWORD_RESET_SEND_REQUESTED,
+      AUTH_USER_SIGNED_IN,
       AUTH_USER_SIGNED_UP,
     ]);
     expect(events).toEqual(expect.arrayContaining([AUTH_PASSWORD_RESET_SEND_REQUESTED]));

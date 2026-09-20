@@ -139,6 +139,7 @@ function isWithinRotationGrace(refreshToken: RefreshToken): boolean {
 async function createRefreshSession(
   user: User,
   refreshSessionId: string,
+  emitSignedInEvent: boolean,
 ): Promise<{refreshToken: string; refreshSessionId: string}> {
   const refreshToken = generateOpaqueToken('refreshToken');
   const session = await createRefreshTokenForActiveUser({
@@ -146,6 +147,7 @@ async function createRefreshSession(
     userId: user.id,
     hashedToken: hashOpaqueToken(refreshToken),
     expiresAt: daysFromNow(config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS),
+    emitSignedInEvent,
   });
   if (!session) throw new InvalidCredentialsError();
   return {refreshToken, refreshSessionId: session.sessionId};
@@ -154,12 +156,13 @@ async function createRefreshSession(
 async function createSessionTokens(
   user: User,
   workspaces: WorkspacesInterModuleClient,
+  emitSignedInEvent: boolean,
 ): Promise<{token: string; refreshToken: string; adminRole: AdminRole | null}> {
   const refreshSessionId = crypto.randomUUID();
   const memberships = await loadTokenMemberships(user.id, workspaces);
   const token = await signAccessToken(user, memberships, refreshSessionId);
   const adminRole = await getCurrentAdminRole({userId: user.id});
-  const {refreshToken} = await createRefreshSession(user, refreshSessionId);
+  const {refreshToken} = await createRefreshSession(user, refreshSessionId, emitSignedInEvent);
   return {token, refreshToken, adminRole};
 }
 
@@ -354,7 +357,11 @@ export async function signupWithInvitation(
 
   // Step 4: Issue session. createSessionTokens reads memberships through the
   // workspaces module API, so a successful accept is reflected in the JWT.
-  const {token, refreshToken, adminRole} = await createSessionTokens(user, params.workspaces);
+  const {token, refreshToken, adminRole} = await createSessionTokens(
+    user,
+    params.workspaces,
+    false,
+  );
 
   if (acceptError) {
     return {token, refreshToken, user, membership, acceptError, adminRole};
@@ -417,7 +424,7 @@ export async function login(params: LoginParams): Promise<LoginResult> {
     throw new EmailNotVerifiedError();
   }
 
-  const {token, refreshToken, adminRole} = await createSessionTokens(user, params.workspaces);
+  const {token, refreshToken, adminRole} = await createSessionTokens(user, params.workspaces, true);
 
   return {token, refreshToken, user, adminRole};
 }
@@ -441,8 +448,9 @@ export type CreateSessionForUserError =
   | InvalidCredentialsError
   | UserNotFoundError;
 
-export async function createSessionForUser(
+async function createSessionForUserWithOptions(
   params: CreateSessionForUserParams,
+  emitSignedInEvent: boolean,
 ): Promise<CreateSessionForUserResult> {
   let user: User | undefined;
   if (params.userId) user = await findUserById({id: params.userId});
@@ -458,9 +466,25 @@ export async function createSessionForUser(
     throw new InvalidCredentialsError();
   }
 
-  const {token, refreshToken, adminRole} = await createSessionTokens(user, params.workspaces);
+  const {token, refreshToken, adminRole} = await createSessionTokens(
+    user,
+    params.workspaces,
+    emitSignedInEvent,
+  );
 
   return {token, refreshToken, user, adminRole};
+}
+
+export async function createSessionForUser(
+  params: CreateSessionForUserParams,
+): Promise<CreateSessionForUserResult> {
+  return await createSessionForUserWithOptions(params, true);
+}
+
+export async function createTestSessionForUser(
+  params: CreateSessionForUserParams,
+): Promise<CreateSessionForUserResult> {
+  return await createSessionForUserWithOptions(params, false);
 }
 
 /**
@@ -687,6 +711,7 @@ export async function confirmEmailVerification(params: {
   const {token, refreshToken, adminRole} = await createSessionTokens(
     verifiedUser,
     params.workspaces,
+    false,
   );
 
   return {token, refreshToken, user: verifiedUser, adminRole};
@@ -759,7 +784,11 @@ export async function confirmPasswordReset(params: {
 
   await revokeRefreshTokensForUser({userId: consumed.userId});
 
-  const {token, refreshToken, adminRole} = await createSessionTokens(user, params.workspaces);
+  const {token, refreshToken, adminRole} = await createSessionTokens(
+    user,
+    params.workspaces,
+    false,
+  );
 
   return {token, refreshToken, user, adminRole};
 }

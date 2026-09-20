@@ -1,11 +1,14 @@
 export {
   AUTH_PASSWORD_RESET_SEND_REQUESTED,
+  AUTH_USER_SIGNED_IN,
   AUTH_USER_SIGNED_UP,
   type AuthEventMap,
   type AuthPasswordResetSendRequestedEvent,
+  type AuthUserSignedInEvent,
   type AuthUserSignedUpEvent,
   authEventSchemas,
   authPasswordResetSendRequestedSchema,
+  authUserSignedInSchema,
   authUserSignedUpSchema,
 } from '../events.js';
 export {

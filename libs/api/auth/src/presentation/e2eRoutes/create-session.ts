@@ -1,7 +1,7 @@
 import {e2eCreateSessionBodySchema, e2eCreateSessionResponseSchema} from '@shipfox/api-auth-dto';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
-import {createSessionForUser} from '#core/auth.js';
+import {createTestSessionForUser} from '#core/auth.js';
 import {EmailNotVerifiedError, InvalidCredentialsError, UserNotFoundError} from '#core/errors.js';
 import {setRefreshTokenCookie} from '#presentation/auth/refresh-cookie.js';
 import {toAuthSessionDto} from '#presentation/dto/user.js';
@@ -30,7 +30,7 @@ export function createE2eSessionRoute(workspaces: WorkspacesInterModuleClient) {
       throw error;
     },
     handler: async (request, reply) => {
-      const result = await createSessionForUser({
+      const result = await createTestSessionForUser({
         ...(request.body.user_id ? {userId: request.body.user_id} : {}),
         ...(request.body.email ? {email: request.body.email} : {}),
         workspaces,
