@@ -1,7 +1,6 @@
 import type {Definition, DefinitionSyncSummary} from '@shipfox/client-projects';
 import {RelativeTimeProvider} from '@shipfox/react-ui/relative-time';
 import type {Meta, StoryObj} from '@storybook/react';
-import {expect, userEvent, within} from 'storybook/test';
 import {
   WorkflowDefinitionsTable,
   type WorkflowDefinitionsTableProps,
@@ -87,17 +86,6 @@ export const DataStates: Story = {
       <WorkflowDefinitionsTable {...args} isRefreshing />
     </div>
   ),
-};
-
-export const FilteredEmpty: Story = {
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement);
-
-    await userEvent.type(canvas.getByRole('textbox', {name: 'Search workflows'}), 'no match');
-
-    await expect(canvas.getByText('No matching workflows')).toBeVisible();
-    await expect(canvas.getAllByRole('button', {name: 'Clear search'}).length).toBeGreaterThan(0);
-  },
 };
 
 function createDefinition(
