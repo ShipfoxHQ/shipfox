@@ -1,5 +1,6 @@
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
+import {DataTable, DataTableSortableHeader} from '@shipfox/react-ui/data-table';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,17 +16,14 @@ import {
   ModalHeader,
   ModalTitle,
 } from '@shipfox/react-ui/modal';
-import {Panel} from '@shipfox/react-ui/panel';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@shipfox/react-ui/table';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {
+  createColumnHelper,
+  createSortedRowModel,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table';
 import {useState} from 'react';
 import {type ManualRegistrationToken, tokenDisplayName} from '#core/token.js';
 import {useRevokeManualRegistrationTokenMutation} from '#hooks/api/manual-registration-tokens.js';
@@ -37,84 +35,86 @@ import {
 import {TokenDate} from './token-date.js';
 import {TokenName} from './token-name.js';
 
+const manualRegistrationTokenFeatures = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+});
+const manualRegistrationTokenColumnHelper = createColumnHelper<
+  typeof manualRegistrationTokenFeatures,
+  ManualRegistrationToken
+>();
+function manualRegistrationTokenColumns(workspaceId: string) {
+  return manualRegistrationTokenColumnHelper.columns([
+    manualRegistrationTokenColumnHelper.accessor((token) => tokenDisplayName(token), {
+      id: 'name',
+      header: ({column}) => <DataTableSortableHeader column={column} label="Name" />,
+      cell: ({getValue}) => <TokenName name={getValue()} />,
+    }),
+    manualRegistrationTokenColumnHelper.accessor('prefix', {
+      header: ({column}) => <DataTableSortableHeader column={column} label="Prefix" />,
+      cell: ({getValue}) => (
+        <Code variant="paragraph" className="block truncate">
+          {getValue()}
+        </Code>
+      ),
+    }),
+    manualRegistrationTokenColumnHelper.accessor('expiresAt', {
+      header: ({column}) => <DataTableSortableHeader column={column} label="Expires" />,
+      cell: ({getValue}) => <ManualRegistrationTokenDate value={getValue()} />,
+    }),
+    manualRegistrationTokenColumnHelper.accessor('createdAt', {
+      header: ({column}) => <DataTableSortableHeader column={column} label="Created" />,
+      cell: ({getValue}) => <ManualRegistrationTokenDate value={getValue()} />,
+    }),
+    manualRegistrationTokenColumnHelper.display({
+      id: 'actions',
+      enableSorting: false,
+      header: () => <span className="sr-only">Actions</span>,
+      cell: ({row}) => (
+        <div className="text-right">
+          <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={row.original} />
+        </div>
+      ),
+    }),
+  ]);
+}
+
 export function ManualRegistrationTokenList({
   workspaceId,
   tokens,
+  isLoading = false,
+  isRefreshing = false,
 }: {
   workspaceId: string;
   tokens: ManualRegistrationToken[];
+  isLoading?: boolean;
+  isRefreshing?: boolean;
 }) {
+  const table = useTable({
+    columns: manualRegistrationTokenColumns(workspaceId),
+    data: tokens,
+    enableMultiSort: false,
+    features: manualRegistrationTokenFeatures,
+    getRowId: (token) => token.id,
+    sortDescFirst: false,
+  });
+
   return (
-    <Panel>
-      <div className="max-[760px]:hidden">
-        <Table className="table-fixed">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[34%]">Name</TableHead>
-              <TableHead>Prefix</TableHead>
-              <TableHead className="w-128">Expires</TableHead>
-              <TableHead className="w-128">Created</TableHead>
-              <TableHead className="w-80 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tokens.map((token) => (
-              <TableRow key={token.id}>
-                <TableCell>
-                  <TokenName name={tokenDisplayName(token)} />
-                </TableCell>
-                <TableCell>
-                  <Code variant="paragraph" className="block truncate">
-                    {token.prefix}
-                  </Code>
-                </TableCell>
-                <TableCell>
-                  <ManualRegistrationTokenDate value={token.expiresAt} />
-                </TableCell>
-                <TableCell>
-                  <ManualRegistrationTokenDate value={token.createdAt} />
-                </TableCell>
-                <TableCell className="text-right">
-                  <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <ul
-        className="hidden flex-col divide-y divide-border-neutral-base max-[760px]:flex"
-        aria-label="Manual registration tokens"
-      >
-        {tokens.map((token) => (
-          <li key={token.id} className="flex flex-col gap-cluster p-panel-compact">
-            <div className="flex items-start justify-between gap-cluster">
-              <div className="min-w-0 flex-1">
-                <TokenName name={tokenDisplayName(token)} />
-                <Code variant="paragraph" className="block truncate text-foreground-neutral-muted">
-                  {token.prefix}
-                </Code>
-              </div>
-              <RevokeManualRegistrationTokenButton workspaceId={workspaceId} token={token} />
-            </div>
-            <dl className="grid grid-cols-2 gap-inline text-sm">
-              <div>
-                <dt className="text-foreground-neutral-muted">Expires</dt>
-                <dd>
-                  <ManualRegistrationTokenDate value={token.expiresAt} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-foreground-neutral-muted">Created</dt>
-                <dd>
-                  <ManualRegistrationTokenDate value={token.createdAt} />
-                </dd>
-              </div>
-            </dl>
-          </li>
-        ))}
-      </ul>
-    </Panel>
+    <DataTable
+      table={table}
+      aria-label="Manual registration tokens"
+      density="compact"
+      emptyContent="No usable manual registration tokens."
+      isLoading={isLoading}
+      isRefreshing={isRefreshing}
+      loadingLabel="Loading manual registration tokens"
+      loadingRowCount={3}
+      minimumWidth={720}
+      {...(isLoading
+        ? {onSortChange: () => undefined}
+        : {navigation: {kind: 'complete' as const, count: tokens.length}})}
+      tableClassName="table-fixed"
+    />
   );
 }
 
@@ -218,15 +218,5 @@ export function EmptyManualRegistrationTokens() {
       description="Create a token to connect a runner to this workspace."
       variant="panel"
     />
-  );
-}
-
-export function ManualRegistrationTokenTableSkeleton() {
-  return (
-    <Panel role="status" aria-label="Loading manual registration tokens" className="divide-y">
-      {[0, 1, 2].map((row) => (
-        <Skeleton key={row} className="h-44 w-full rounded-none" />
-      ))}
-    </Panel>
   );
 }

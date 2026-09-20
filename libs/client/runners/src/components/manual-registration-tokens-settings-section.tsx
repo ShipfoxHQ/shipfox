@@ -21,7 +21,6 @@ import {
 import {
   EmptyManualRegistrationTokens,
   ManualRegistrationTokenList,
-  ManualRegistrationTokenTableSkeleton,
 } from './manual-registration-token-list.js';
 
 export function WorkspaceManualRegistrationTokensSettingsSection({
@@ -89,8 +88,6 @@ export function WorkspaceManualRegistrationTokensSettingsSection({
           </div>
         </div>
 
-        {tokensQuery.isPending ? <ManualRegistrationTokenTableSkeleton /> : null}
-
         {tokensQuery.isError && tokensQuery.data === undefined ? (
           <Panel>
             <QueryLoadError
@@ -107,8 +104,13 @@ export function WorkspaceManualRegistrationTokensSettingsSection({
           </Panel>
         ) : null}
 
-        {tokens.length > 0 ? (
-          <ManualRegistrationTokenList workspaceId={workspaceId} tokens={tokens} />
+        {tokensQuery.isPending || tokens.length > 0 ? (
+          <ManualRegistrationTokenList
+            workspaceId={workspaceId}
+            tokens={tokens}
+            isLoading={tokensQuery.isPending}
+            isRefreshing={tokensQuery.isFetching && !tokensQuery.isPending}
+          />
         ) : null}
       </section>
     </div>

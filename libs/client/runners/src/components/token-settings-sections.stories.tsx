@@ -17,14 +17,9 @@ import {CreatedProvisionerTokenPanel} from './create-provisioner-token-form.js';
 import {
   EmptyManualRegistrationTokens,
   ManualRegistrationTokenList,
-  ManualRegistrationTokenTableSkeleton,
 } from './manual-registration-token-list.js';
 import {WorkspaceManualRegistrationTokensSettingsSection} from './manual-registration-tokens-settings-section.js';
-import {
-  EmptyProvisionerTokens,
-  ProvisionerTokenList,
-  ProvisionerTokenTableSkeleton,
-} from './provisioner-token-list.js';
+import {EmptyProvisionerTokens, ProvisionerTokenList} from './provisioner-token-list.js';
 import {WorkspaceProvisionerTokensSettingsSection} from './provisioner-tokens-settings-section.js';
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
@@ -93,13 +88,18 @@ export const DataStates: Story = {
         <EmptyManualRegistrationTokens />
       </StateExample>
       <StateExample label="Manual loading">
-        <ManualRegistrationTokenTableSkeleton />
+        <ManualRegistrationTokenList workspaceId={WORKSPACE_ID} tokens={[]} isLoading />
       </StateExample>
       <StateExample label="Provisioner empty">
         <EmptyProvisionerTokens />
       </StateExample>
       <StateExample label="Provisioner loading">
-        <ProvisionerTokenTableSkeleton />
+        <ProvisionerTokenList
+          workspaceId={WORKSPACE_ID}
+          tokens={[]}
+          activeIds={new Set()}
+          isLoading
+        />
       </StateExample>
     </StorySurface>
   ),
@@ -198,6 +198,18 @@ export const Content: Story = {
       </StateExample>
     </StorySurface>
   ),
+};
+
+export const MobileContent: Story = {
+  ...Content,
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '375px', height: '812px'}, type: 'mobile'},
+      },
+    },
+  },
 };
 
 export const CreatedTokenPanels: Story = {

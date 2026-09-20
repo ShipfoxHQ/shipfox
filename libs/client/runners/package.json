@@ -67,7 +67,8 @@
     "@shipfox/client-ui": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:",
-    "@tanstack/react-form": "catalog:"
+    "@tanstack/react-form": "catalog:",
+    "@tanstack/react-table": "catalog:"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.101.0",
