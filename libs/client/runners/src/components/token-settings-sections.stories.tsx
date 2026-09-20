@@ -63,10 +63,7 @@ function TokenSettingsSectionsStory({scenario}: TokenSettingsSectionsStoryProps)
 const meta = {
   title: 'Runners/TokenSettingsSections',
   component: TokenSettingsSectionsStory,
-  parameters: {
-    layout: 'fullscreen',
-    argos: {modes: {light: {theme: 'light'}, dark: {theme: 'dark'}}},
-  },
+  parameters: {layout: 'fullscreen'},
   decorators: [withQueryClient],
   args: {scenario: 'populated'},
 } satisfies Meta<typeof TokenSettingsSectionsStory>;
@@ -85,14 +82,6 @@ export const Playground: Story = {
 };
 
 export const DataStates: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: 'mobile',
-      viewports: {
-        mobile: {name: 'Mobile', styles: {width: '375px', height: '812px'}, type: 'mobile'},
-      },
-    },
-  },
   render: () => (
     <StorySurface>
       <StateExample label="Manual empty">
@@ -160,14 +149,6 @@ export const Statuses: Story = {
 };
 
 export const Content: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: 'mobile',
-      viewports: {
-        mobile: {name: 'Mobile', styles: {width: '375px', height: '812px'}, type: 'mobile'},
-      },
-    },
-  },
   render: () => (
     <StorySurface>
       <StateExample label="Existing tokens">
@@ -217,6 +198,18 @@ export const Content: Story = {
       </StateExample>
     </StorySurface>
   ),
+};
+
+export const MobileContent: Story = {
+  ...Content,
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile',
+      viewports: {
+        mobile: {name: 'Mobile', styles: {width: '375px', height: '812px'}, type: 'mobile'},
+      },
+    },
+  },
 };
 
 export const CreatedTokenPanels: Story = {
