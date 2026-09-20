@@ -61,11 +61,12 @@ function makeListQuery(triggerEvents: TriggerEventListItemDto[]) {
     data: {pages: [page], pageParams: [undefined]},
     isPending: false,
     isError: false,
+    isFetchNextPageError: false,
     isFetching: false,
+    isFetchingNextPage: false,
     error: null,
     refetch: vi.fn(),
     hasNextPage: false,
-    isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
   } as unknown as ReturnType<typeof useTriggerEventsInfiniteQuery>;
 }

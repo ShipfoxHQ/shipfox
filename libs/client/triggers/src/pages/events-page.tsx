@@ -103,7 +103,6 @@ export function EventsPage({
               onFiltersChange={onFiltersChange}
               workspaceSlug={workspaceSlug}
               hasNextPage={query.hasNextPage}
-              isFetchingNextPage={query.isFetchingNextPage}
               onLoadMore={() => {
                 void query.fetchNextPage();
               }}

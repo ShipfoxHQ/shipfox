@@ -27,7 +27,9 @@ function makeQuery(overrides: Partial<TriggerEventsListQuery> = {}): TriggerEven
   return {
     isPending: false,
     isError: false,
+    isFetchNextPageError: false,
     isFetching: false,
+    isFetchingNextPage: false,
     data: {pages: [], pageParams: []},
     error: null,
     refetch: () => undefined,
@@ -99,7 +101,6 @@ const meta = {
     filters: {},
     onFiltersChange: () => undefined,
     hasNextPage: false,
-    isFetchingNextPage: false,
     onLoadMore: () => undefined,
     selectedEventId: 'evt-00000002',
     onSelectEvent: () => undefined,
@@ -125,6 +126,38 @@ export const DataStates: Story = {
       </StateExample>
       <StateExample label="Load error">
         <EventsList {...args} events={[]} query={makeQuery({isError: true, data: undefined})} />
+      </StateExample>
+      <StateExample label="Refresh error">
+        <EventsList
+          {...args}
+          events={SAMPLE_EVENTS}
+          query={makeQuery({
+            isError: true,
+            data: {pages: [{events: SAMPLE_EVENTS, nextCursor: 'next'}], pageParams: [undefined]},
+          })}
+        />
+      </StateExample>
+      <StateExample label="Appending">
+        <EventsList
+          {...args}
+          query={makeQuery({
+            isFetching: true,
+            isFetchingNextPage: true,
+            data: {pages: [{events: SAMPLE_EVENTS, nextCursor: 'next'}], pageParams: [undefined]},
+          })}
+          hasNextPage
+        />
+      </StateExample>
+      <StateExample label="Append retry">
+        <EventsList
+          {...args}
+          query={makeQuery({
+            isError: true,
+            isFetchNextPageError: true,
+            data: {pages: [{events: SAMPLE_EVENTS, nextCursor: 'next'}], pageParams: [undefined]},
+          })}
+          hasNextPage
+        />
       </StateExample>
     </div>
   ),
