@@ -22,6 +22,7 @@ export type ManagedModelApi = z.infer<typeof managedModelApiSchema>;
 
 export const managedProviderJobIdentitySchema = z.object({
   projectId: z.string().uuid(),
+  workflowRunAttemptId: z.string().uuid(),
   jobId: z.string().uuid(),
   jobExecutionId: z.string().uuid(),
   stepId: z.string().uuid(),

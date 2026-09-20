@@ -134,6 +134,7 @@ describe('GET /runs/jobs/current/agent-runtime-config', () => {
       stepAttemptId: expect.any(String),
       jobIdentity: {
         projectId: run.projectId,
+        workflowRunAttemptId: job.workflowRunAttemptId,
         jobId: job.id,
         jobExecutionId: step.jobExecutionId,
         stepId: step.id,

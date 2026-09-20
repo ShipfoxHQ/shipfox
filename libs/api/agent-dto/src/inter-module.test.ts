@@ -38,9 +38,10 @@ describe('agentInterModuleContract', () => {
       stepAttemptId: '00000000-0000-4000-8000-000000000003',
       jobIdentity: {
         projectId: '00000000-0000-4000-8000-000000000004',
-        jobId: '00000000-0000-4000-8000-000000000005',
-        jobExecutionId: '00000000-0000-4000-8000-000000000006',
-        stepId: '00000000-0000-4000-8000-000000000007',
+        workflowRunAttemptId: '00000000-0000-4000-8000-000000000005',
+        jobId: '00000000-0000-4000-8000-000000000006',
+        jobExecutionId: '00000000-0000-4000-8000-000000000007',
+        stepId: '00000000-0000-4000-8000-000000000008',
         attempt: 2,
       },
       harness: 'pi' as const,
@@ -77,7 +78,7 @@ describe('agentInterModuleContract', () => {
     expect(error).toEqual({});
   });
 
-  test('rejects an incomplete runtime job identity', () => {
+  test('rejects a runtime job identity without workflowRunAttemptId', () => {
     expect(() =>
       agentInterModuleContract.methods.resolveRuntimeCredentials.input.parse({
         workspaceId: UUID,
@@ -85,6 +86,10 @@ describe('agentInterModuleContract', () => {
         stepAttemptId: '00000000-0000-4000-8000-000000000003',
         jobIdentity: {
           projectId: '00000000-0000-4000-8000-000000000004',
+          jobId: '00000000-0000-4000-8000-000000000006',
+          jobExecutionId: '00000000-0000-4000-8000-000000000007',
+          stepId: '00000000-0000-4000-8000-000000000008',
+          attempt: 2,
         },
         harness: 'pi',
         provider: 'shipfox',
