@@ -546,6 +546,36 @@ describe('workspace checklist hosts', () => {
     expect(capture).not.toHaveBeenCalledWith('onboarding_checklist_shown', {host: 'popover'});
   });
 
+  test('does not report the panel as shown while completion is unresolved', async () => {
+    const queryClient = createQueryClient();
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(() => pendingResponse()),
+    });
+    queryClient.setQueryData(integrationProvidersQueryOptions().queryKey, [
+      githubProvider,
+      linearProvider,
+    ]);
+    queryClient.setQueryData(integrationConnectionsQueryOptions(WORKSPACE.id).queryKey, [
+      connection('github', 'active'),
+      connection('linear', 'active'),
+    ]);
+    const capture = vi.fn();
+
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
+
+    expect(await screen.findByRole('status', {name: 'Loading setup guide'})).toBeInTheDocument();
+
+    act(() => {
+      seedQueries(queryClient, true);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('region', {name: 'Get started'})).not.toBeInTheDocument();
+    });
+    expect(capture).not.toHaveBeenCalledWith('onboarding_checklist_shown', {host: 'panel'});
+  });
+
   test('shows only the next step until the reader opens the full list', async () => {
     const queryClient = createQueryClient();
     seedQueries(queryClient);
@@ -754,14 +784,14 @@ describe('workspace checklist hosts', () => {
   test('does not render an initially complete checklist without a transition', async () => {
     const queryClient = createQueryClient();
     seedQueries(queryClient, true);
+    const capture = vi.fn();
 
-    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {
-      capture: vi.fn(),
-    });
+    renderWithProviders(<WorkspaceSetupChecklist workspace={WORKSPACE} />, queryClient, {capture});
 
     await waitFor(() => {
       expect(screen.queryByRole('region', {name: 'Get started'})).not.toBeInTheDocument();
     });
+    expect(capture).not.toHaveBeenCalledWith('onboarding_checklist_shown', {host: 'panel'});
   });
 
   test('does not render an initially complete indicator without a transition', async () => {

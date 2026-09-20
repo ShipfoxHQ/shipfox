@@ -67,7 +67,7 @@ function WorkspaceSetupChecklistForWorkspace({workspace}: {workspace: WorkspaceR
   const isVisible =
     !dismissal.dismissed &&
     queryState.baseSettled &&
-    (!queryState.checklist.complete || showCompletion);
+    (queryState.checklist.openCount > 0 || showCompletion);
   useShownAnalytics('panel', isVisible);
 
   if (dismissal.dismissed) return null;
