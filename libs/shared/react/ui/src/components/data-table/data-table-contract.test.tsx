@@ -1,5 +1,6 @@
 import {
   columnFilteringFeature,
+  columnVisibilityFeature,
   createColumnHelper,
   rowSortingFeature,
   tableFeatures,
@@ -25,20 +26,28 @@ const appendNavigation: DataTableNavigationProps = {
   onRetry: () => undefined,
 };
 
+type HiddenCapability = 'filtering' | 'sorting';
+
 function ContractTable({
   filtering = false,
+  hiddenCapability,
   navigation,
   onFilterChange,
   onSortChange,
   sortable = true,
 }: {
   filtering?: boolean;
+  hiddenCapability?: HiddenCapability;
   navigation?: DataTableNavigationProps;
   onFilterChange?: () => void;
   onSortChange?: () => void;
   sortable?: boolean;
 }) {
-  const features = tableFeatures({columnFilteringFeature, rowSortingFeature});
+  const features = tableFeatures({
+    columnFilteringFeature,
+    columnVisibilityFeature,
+    rowSortingFeature,
+  });
   const columnHelper = createColumnHelper<typeof features, Workflow>();
   const table = useTable({
     columns: columnHelper.columns([
@@ -51,6 +60,7 @@ function ContractTable({
     data: workflows,
     features,
     getRowId: (workflow) => workflow.id,
+    ...(hiddenCapability ? {initialState: {columnVisibility: {name: false}}} : {}),
   });
 
   return (
@@ -65,6 +75,27 @@ function ContractTable({
 }
 
 describe('DataTable navigation contract', () => {
+  test('ignores hidden sortable columns in the navigation contract', () => {
+    render(<ContractTable hiddenCapability="sorting" navigation={appendNavigation} />);
+
+    expect(screen.queryByRole('columnheader', {name: 'Workflow'})).toBeNull();
+    expect(screen.getByRole('table', {name: 'Workflows'})).toBeDefined();
+  });
+
+  test('ignores hidden filterable columns in the navigation contract', () => {
+    render(
+      <ContractTable
+        filtering
+        hiddenCapability="filtering"
+        navigation={appendNavigation}
+        sortable={false}
+      />,
+    );
+
+    expect(screen.queryByRole('columnheader', {name: 'Workflow'})).toBeNull();
+    expect(screen.getByRole('table', {name: 'Workflows'})).toBeDefined();
+  });
+
   test('rejects sortable columns on an append table without server sorting', () => {
     expect(() => render(<ContractTable navigation={appendNavigation} />)).toThrow(
       'complete navigation or an onSortChange handler',

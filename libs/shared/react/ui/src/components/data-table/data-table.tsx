@@ -171,7 +171,12 @@ function hasColumnCapability<TFeatures extends TableFeatures, TData extends RowD
   table: ReactTable<TFeatures, TData, unknown>,
   capability: 'getCanFilter' | 'getCanSort',
 ) {
-  return table.getAllLeafColumns().some((column) => {
+  const tableWithVisibility = table as typeof table & {
+    getVisibleLeafColumns?: typeof table.getAllLeafColumns;
+  };
+  const columns = tableWithVisibility.getVisibleLeafColumns?.() ?? table.getAllLeafColumns();
+
+  return columns.some((column) => {
     const columnWithCapability = column as typeof column & {
       [key in typeof capability]?: () => boolean;
     };
