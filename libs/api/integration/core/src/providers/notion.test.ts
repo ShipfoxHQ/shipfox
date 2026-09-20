@@ -62,6 +62,22 @@ describe('notionProviderModule lifecycle cleanup', () => {
     expect(first.statusCode).toBe(201);
     const connection = first.json();
 
+    const reseeded = await app.inject({
+      method: 'POST',
+      url: '/integrations/notion-connections',
+      payload: {
+        workspace_id: context.workspaceId.toUpperCase(),
+        notion_workspace_id: notionWorkspaceId,
+        workspace_name: 'Acme',
+        bot_id: botId,
+        authorized_by_user_id: authorizedByUserId,
+        access_token: 'replacement-token',
+        display_name: 'Notion Acme',
+      },
+    });
+    expect(reseeded.statusCode).toBe(201);
+    expect(reseeded.json().id).toBe(connection.id);
+
     const deleteApp = await createTestApp([notionPart.provider]);
     const deleted = await deleteApp.inject({
       method: 'DELETE',
@@ -89,9 +105,17 @@ describe('notionProviderModule lifecycle cleanup', () => {
       },
     });
     expect(second.statusCode).toBe(201);
+    const secondConnection = second.json();
     await expect(
       listIntegrationConnections({workspaceId: context.workspaceId}),
     ).resolves.toHaveLength(1);
+
+    const deletedSecond = await deleteApp.inject({
+      method: 'DELETE',
+      url: `/integration-connections/${secondConnection.id}`,
+      headers: {authorization: 'Bearer user'},
+    });
+    expect(deletedSecond.statusCode).toBe(204);
 
     await app.close();
     await deleteApp.close();

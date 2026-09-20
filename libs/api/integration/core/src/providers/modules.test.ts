@@ -165,7 +165,7 @@ describe('loadEnabledProviderModules', () => {
     expect(parts.map((part) => part.provider.provider)).not.toContain('notion');
   });
 
-  it('loads Notion after ClickUp when the provider is enabled', async () => {
+  it('loads Notion when the provider is enabled', async () => {
     vi.stubEnv('INTEGRATIONS_ENABLE_NOTION_PROVIDER', 'true');
     vi.resetModules();
 

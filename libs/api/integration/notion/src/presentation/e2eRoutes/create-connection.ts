@@ -32,10 +32,11 @@ export function createE2eNotionConnectionRoute(options: CreateE2eNotionConnectio
     },
     handler: async (request, reply) => {
       const body = request.body;
+      const workspaceId = body.workspace_id.toLowerCase();
       const existing = await options.getExistingNotionConnection({
         notionWorkspaceId: body.notion_workspace_id,
       });
-      if (existing && existing.workspaceId !== body.workspace_id) {
+      if (existing && existing.workspaceId !== workspaceId) {
         throw new ClientError(
           'Notion workspace is already connected to another workspace',
           'notion-connection-workspace-mismatch',
@@ -51,7 +52,7 @@ export function createE2eNotionConnectionRoute(options: CreateE2eNotionConnectio
       }
 
       const connection = await options.connectNotionInstallation({
-        workspaceId: body.workspace_id,
+        workspaceId,
         notionWorkspaceId: body.notion_workspace_id,
         workspaceName: body.workspace_name,
         botId: body.bot_id,
