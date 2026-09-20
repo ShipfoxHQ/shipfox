@@ -1,16 +1,16 @@
+import {configureApiClient} from '@shipfox/client-api';
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {render, screen} from '@testing-library/react';
 import {createRef} from 'react';
+import {inlineLogBody} from '#test/fixtures/logs.js';
 import {workflowStep} from '#test/fixtures/workflow-run.js';
 import type {StepExpandedContext} from '../step-list/index.js';
-
-vi.mock('./step-attempt-log-panel.js', () => ({
-  StepAttemptLogPanel: () => <div>Log viewer</div>,
-}));
-
 import {ExpandedStep} from './job-detail-view.js';
 
 describe('ExpandedStep', () => {
   it('does not mount the log panel for a pre-dispatch configuration failure', () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(inlineLogBody('', 0)));
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
     renderExpandedStep({
       attemptStatus: 'failed',
       attemptError: {
@@ -21,13 +21,17 @@ describe('ExpandedStep', () => {
     });
 
     expect(screen.getByRole('heading', {name: 'Step did not run'})).toBeInTheDocument();
-    expect(screen.queryByText('Log viewer')).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('keeps the normal log panel for an executed attempt with no output', () => {
+  it('keeps the normal log panel for an executed attempt with no output', async () => {
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn(async () => jsonResponse(inlineLogBody('', 0))),
+    });
     renderExpandedStep({attemptStatus: 'succeeded', attemptError: null});
 
-    expect(screen.getByText('Log viewer')).toBeInTheDocument();
+    expect(await screen.findByText('Step produced no output')).toBeInTheDocument();
     expect(screen.queryByRole('heading', {name: 'Step did not run'})).toBeNull();
   });
 });
@@ -49,20 +53,30 @@ function renderExpandedStep({
     attemptStatus,
     carriedOver: false,
   };
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
   render(
-    <ExpandedStep
-      context={context}
-      pageScrollRef={createRef<HTMLDivElement>()}
-      search=""
-      wrap={false}
-      showLineNumbers
-      attemptId={context.attemptId}
-      refreshToken={0}
-      onFetchingChange={() => undefined}
-      workspaceSlug="acme"
-      projectSlug="platform"
-      workflowRunId="11111111-1111-4111-8111-111111111111"
-      runAttempt={1}
-    />,
+    <QueryClientProvider client={queryClient}>
+      <ExpandedStep
+        context={context}
+        pageScrollRef={createRef<HTMLDivElement>()}
+        search=""
+        wrap={false}
+        showLineNumbers
+        attemptId={context.attemptId}
+        refreshToken={0}
+        onFetchingChange={() => undefined}
+        workspaceSlug="acme"
+        projectSlug="platform"
+        workflowRunId="11111111-1111-4111-8111-111111111111"
+        runAttempt={1}
+      />
+    </QueryClientProvider>,
   );
+}
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    headers: {'content-type': 'application/json'},
+    status: 200,
+  });
 }
