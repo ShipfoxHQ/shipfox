@@ -1,3 +1,5 @@
+vi.mock('ky', () => ({default: {post: vi.fn().mockResolvedValue(undefined)}}));
+
 import * as notionPackage from '@shipfox/api-integration-notion';
 import {runMigrations} from '@shipfox/node-drizzle';
 import {createApp} from '@shipfox/node-fastify';

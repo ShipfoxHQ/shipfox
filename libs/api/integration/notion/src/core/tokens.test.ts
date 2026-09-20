@@ -1,4 +1,9 @@
-import {NotionAccessTokenMissingError, NotionConnectionNotFoundError} from './errors.js';
+import {upsertNotionInstallation} from '#db/installations.js';
+import {
+  NotionAccessTokenMissingError,
+  NotionConnectionNotFoundError,
+  NotionIntegrationProviderError,
+} from './errors.js';
 import {
   createNotionTokenStore,
   type NotionConnectionResolverResult,
@@ -36,8 +41,12 @@ function createContext() {
     .fn<(id: string) => Promise<NotionConnectionResolverResult | undefined>>()
     .mockResolvedValue({workspaceId});
   const secrets = createSecretsStore();
-  const store = createNotionTokenStore({resolveConnection, secrets});
-  return {workspaceId, connectionId, resolveConnection, secrets, store};
+  const client = {
+    refreshAccessToken: vi.fn(),
+    revokeToken: vi.fn(),
+  };
+  const store = createNotionTokenStore({resolveConnection, secrets, client});
+  return {client, workspaceId, connectionId, resolveConnection, secrets, store};
 }
 
 describe('Notion token store', () => {
@@ -56,9 +65,7 @@ describe('Notion token store', () => {
       values: {ACCESS_TOKEN: 'access-token', REFRESH_TOKEN: 'refresh-token'},
       editedBy: undefined,
     });
-    await expect(store.getAccessToken({connectionId, forceRefresh: true})).resolves.toBe(
-      'access-token',
-    );
+    await expect(store.getAccessToken({connectionId})).resolves.toBe('access-token');
   });
 
   it('deletes credentials through the same scoped namespace', async () => {
@@ -83,4 +90,167 @@ describe('Notion token store', () => {
       NotionAccessTokenMissingError,
     );
   });
+
+  it('refreshes ahead of a known expiry and persists the rotated pair', async () => {
+    const {client, connectionId, secrets, store, workspaceId} = createContext();
+    await store.storeTokens({
+      connectionId,
+      accessToken: 'access-token-0',
+      refreshToken: 'refresh-token-0',
+    });
+    await upsertNotionInstallation({
+      connectionId,
+      notionWorkspaceId: crypto.randomUUID(),
+      workspaceName: 'Acme',
+      botId: crypto.randomUUID(),
+      authorizedByUserId: crypto.randomUUID(),
+      tokenExpiresAt: new Date(Date.now() + 4 * 60 * 1000),
+      status: 'installed',
+    });
+    client.refreshAccessToken.mockResolvedValue({
+      accessToken: 'access-token-1',
+      refreshToken: 'refresh-token-1',
+    });
+
+    const result = await store.getAccessToken({connectionId});
+
+    expect(result).toBe('access-token-1');
+    expect(client.refreshAccessToken).toHaveBeenCalledWith({refreshToken: 'refresh-token-0'});
+    expect(
+      await secrets.getSecret({
+        workspaceId,
+        namespace: notionSecretsNamespace(connectionId),
+        key: 'REFRESH_TOKEN',
+      }),
+    ).toBe('refresh-token-1');
+  });
+
+  it('force refreshes a token without a known expiry', async () => {
+    const {client, connectionId, store} = createContext();
+    await store.storeTokens({
+      connectionId,
+      accessToken: 'access-token-0',
+      refreshToken: 'refresh-token-0',
+    });
+    client.refreshAccessToken.mockResolvedValue({
+      accessToken: 'access-token-1',
+      refreshToken: 'refresh-token-1',
+    });
+
+    await expect(store.getAccessToken({connectionId, forceRefresh: true})).resolves.toBe(
+      'access-token-1',
+    );
+  });
+
+  it('marks the connection as errored when Notion rejects the refresh grant', async () => {
+    const markConnectionError = vi.fn().mockResolvedValue(undefined);
+    const {client, connectionId, resolveConnection, secrets} = createContext();
+    const store = createNotionTokenStore({
+      client,
+      resolveConnection,
+      secrets,
+      markConnectionError,
+    });
+    await store.storeTokens({
+      connectionId,
+      accessToken: 'access-token-0',
+      refreshToken: 'refresh-token-0',
+    });
+    const error = new NotionIntegrationProviderError(
+      'access-denied',
+      'Notion rejected the refresh grant',
+      'invalid_grant',
+    );
+    client.refreshAccessToken.mockRejectedValue(error);
+
+    await expect(store.getAccessToken({connectionId, forceRefresh: true})).rejects.toBe(error);
+    expect(markConnectionError).toHaveBeenCalledWith({connectionId});
+  });
+
+  it('deduplicates concurrent refreshes within one process', async () => {
+    const {client, connectionId, store} = createContext();
+    await store.storeTokens({
+      connectionId,
+      accessToken: 'access-token-0',
+      refreshToken: 'refresh-token-0',
+    });
+    let resolveRefresh!: (value: {accessToken: string; refreshToken: string}) => void;
+    client.refreshAccessToken.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+
+    const first = store.getAccessToken({connectionId, forceRefresh: true});
+    const second = store.getAccessToken({connectionId, forceRefresh: true});
+    await vi.waitFor(() => expect(client.refreshAccessToken).toHaveBeenCalledOnce());
+
+    resolveRefresh({accessToken: 'access-token-1', refreshToken: 'refresh-token-1'});
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      'access-token-1',
+      'access-token-1',
+    ]);
+  });
+
+  it('lets a second replica wait for the winner and return its rotated token', async () => {
+    const workspaceId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    const secrets = createSecretsStore();
+    const resolveConnection = vi.fn().mockResolvedValue({workspaceId});
+    const firstClient = {refreshAccessToken: vi.fn(), revokeToken: vi.fn()};
+    const secondClient = {refreshAccessToken: vi.fn(), revokeToken: vi.fn()};
+    const first = createNotionTokenStore({resolveConnection, secrets, client: firstClient});
+    const second = createNotionTokenStore({resolveConnection, secrets, client: secondClient});
+    await first.storeTokens({
+      connectionId,
+      accessToken: 'access-token-0',
+      refreshToken: 'refresh-token-0',
+    });
+    let resolveRefresh!: (value: {accessToken: string; refreshToken: string}) => void;
+    firstClient.refreshAccessToken.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
+
+    const winner = first.getAccessToken({connectionId, forceRefresh: true});
+    await vi.waitFor(() => expect(firstClient.refreshAccessToken).toHaveBeenCalledOnce());
+    const loser = second.getAccessToken({connectionId, forceRefresh: true});
+    await vi.waitFor(() =>
+      expect(vi.mocked(secrets.getSecret).mock.calls.length).toBeGreaterThanOrEqual(4),
+    );
+
+    resolveRefresh({accessToken: 'access-token-1', refreshToken: 'refresh-token-1'});
+    await expect(winner).resolves.toBe('access-token-1');
+    await expect(loser).resolves.toBe('access-token-1');
+    expect(secondClient.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('times out when the other replica never changes the stored token', async () => {
+    const {connectionId, store} = createContext();
+    await store.storeTokens({
+      connectionId,
+      accessToken: 'access-token-0',
+      refreshToken: 'refresh-token-0',
+    });
+    let releaseLock!: () => void;
+    let markLockStarted!: () => void;
+    const lockHeld = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const lockStarted = new Promise<void>((resolve) => {
+      markLockStarted = resolve;
+    });
+    const lock = (await import('#db/installations.js')).tryWithNotionGrantLock(connectionId, () => {
+      markLockStarted();
+      return lockHeld;
+    });
+    await lockStarted;
+
+    await expect(store.getAccessToken({connectionId, forceRefresh: true})).rejects.toMatchObject({
+      reason: 'provider-unavailable',
+    });
+    releaseLock();
+    await lock;
+  }, 10_000);
 });

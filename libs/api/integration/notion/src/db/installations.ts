@@ -1,8 +1,10 @@
 import {isUniqueViolation} from '@shipfox/node-drizzle';
+import {pgClient} from '@shipfox/node-postgres';
 import {eq} from 'drizzle-orm';
 import {
   NotionConnectionAlreadyLinkedError,
   NotionInstallationAlreadyLinkedError,
+  NotionIntegrationProviderError,
 } from '#core/errors.js';
 import {db} from './db.js';
 import {notionInstallations, toNotionInstallation} from './schema/installations.js';
@@ -36,6 +38,67 @@ type NotionDb = ReturnType<typeof db>;
 type NotionTx = Parameters<Parameters<NotionDb['transaction']>[0]>[0];
 
 type NotionExecutor = NotionDb | NotionTx;
+
+const NOTION_GRANT_LOCK_RETRY_DELAY_MS = 250;
+const NOTION_GRANT_LOCK_TIMEOUT_MS = 5_000;
+
+export type NotionGrantLockResult<T> = {acquired: true; value: T} | {acquired: false};
+
+export function withNotionGrantLock<T>(connectionId: string, fn: () => Promise<T>): Promise<T> {
+  return waitForNotionGrantLock(connectionId, () => tryWithNotionGrantLock(connectionId, fn));
+}
+
+export function tryWithNotionGrantLock<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<NotionGrantLockResult<T>> {
+  return tryWithNotionGrantLockOnClient(connectionId, fn);
+}
+
+async function tryWithNotionGrantLockOnClient<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<NotionGrantLockResult<T>> {
+  const client = await pgClient().connect();
+  let acquired = false;
+  try {
+    const lock = await client.query<{acquired: boolean}>(
+      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+      [`notion-grant:${connectionId}`],
+    );
+    acquired = lock.rows[0]?.acquired === true;
+    if (!acquired) return {acquired: false};
+    return {acquired: true, value: await fn()};
+  } finally {
+    try {
+      if (acquired) {
+        await client.query('SELECT pg_advisory_unlock(hashtext($1))', [
+          `notion-grant:${connectionId}`,
+        ]);
+      }
+    } finally {
+      client.release();
+    }
+  }
+}
+
+async function waitForNotionGrantLock<T>(
+  connectionId: string,
+  attempt: () => Promise<NotionGrantLockResult<T>>,
+): Promise<T> {
+  const deadline = Date.now() + NOTION_GRANT_LOCK_TIMEOUT_MS;
+  while (true) {
+    const result = await attempt();
+    if (result.acquired) return result.value;
+    if (Date.now() >= deadline) {
+      throw new NotionIntegrationProviderError(
+        'provider-unavailable',
+        `Timed out waiting for the Notion grant lock: ${connectionId}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, NOTION_GRANT_LOCK_RETRY_DELAY_MS));
+  }
+}
 
 export async function upsertNotionInstallation(
   params: UpsertNotionInstallationParams,

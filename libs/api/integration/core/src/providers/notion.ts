@@ -10,6 +10,7 @@ import {
   deleteIntegrationConnection,
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionLifecycleStatus,
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
@@ -23,12 +24,15 @@ async function loadNotionModuleParts(
 ): Promise<IntegrationModuleParts> {
   const {
     createNotionAgentToolsClient,
+    createNotionApiClient,
     createNotionE2eRoutes,
     createNotionIntegrationProvider,
     createNotionTokenStore,
     deleteNotionInstallationByConnectionId,
     getNotionInstallationByWorkspaceId,
     notionSecretsNamespace,
+    prepareNotionTokenRevocation,
+    withNotionGrantLock,
     db: notionDb,
     migrationsPath: notionMigrationsPath,
     upsertNotionInstallation,
@@ -129,9 +133,17 @@ async function loadNotionModuleParts(
           }) ?? Promise.resolve(0),
       }
     : fallbackSecrets;
+  const notion = createNotionApiClient();
   const tokenStore = createNotionTokenStore({
+    client: notion,
     resolveConnection: async (connectionId) => getIntegrationConnectionById(connectionId),
     secrets,
+    markConnectionError: async ({connectionId}) => {
+      await updateIntegrationConnectionLifecycleStatus({
+        id: connectionId,
+        lifecycleStatus: 'error',
+      });
+    },
   });
 
   const integrationProvider = createNotionIntegrationProvider({
@@ -140,14 +152,24 @@ async function loadNotionModuleParts(
       tokenStore,
     },
     cleanup: {
+      deleteConnectionRemoteResources: async (connection) =>
+        withNotionGrantLock(connection.id, () =>
+          prepareNotionTokenRevocation({
+            connectionId: connection.id,
+            tokenStore,
+            notion,
+          }),
+        ),
       deleteConnectionRecords: async (connection, {tx}) => {
         await deleteNotionInstallationByConnectionId(connection.id, {tx});
       },
       deleteConnectionSecrets: async (connection) => {
-        await (options.secrets?.notion?.deleteSecrets({
-          workspaceId: connection.workspaceId,
-          namespace: notionNamespaceSuffix(notionSecretsNamespace(connection.id)),
-        }) ?? Promise.resolve(0));
+        await withNotionGrantLock(connection.id, async () => {
+          await (options.secrets?.notion?.deleteSecrets({
+            workspaceId: connection.workspaceId,
+            namespace: notionNamespaceSuffix(notionSecretsNamespace(connection.id)),
+          }) ?? Promise.resolve(0));
+        });
       },
     },
   });

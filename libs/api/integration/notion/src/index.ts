@@ -13,7 +13,8 @@ export type {
   NotionAgentToolResponse,
   NotionAgentToolsClient,
 } from '#api/client.js';
-export {createNotionAgentToolsClient} from '#api/client.js';
+export type {NotionApiClient, NotionAuthorization} from '#api/client.js';
+export {createNotionAgentToolsClient, createNotionApiClient} from '#api/client.js';
 export {config} from '#config.js';
 export type {
   NotionAgentToolCatalogEntry,
@@ -31,10 +32,12 @@ export type {
   NotionToolCall,
 } from '#core/agent-tools-provider.js';
 export {NotionAgentToolsProvider} from '#core/agent-tools-provider.js';
+export {prepareNotionTokenRevocation} from '#core/disconnect.js';
 export {
   NotionAccessTokenMissingError,
   NotionConnectionNotFoundError,
   NotionIntegrationProviderError,
+  NotionTokenUnrefreshableError,
 } from '#core/errors.js';
 export type {ConnectNotionInstallationInput} from '#core/install.js';
 export {normalizeNotionId} from '#core/notion-id.js';
@@ -60,6 +63,7 @@ export {
   markNotionInstallationRevoked,
   updateNotionInstallationTokenExpiry,
   upsertNotionInstallation,
+  withNotionGrantLock,
 } from '#db/installations.js';
 export {
   type CreateE2eNotionConnectionRouteOptions,
@@ -79,6 +83,14 @@ export interface CreateNotionIntegrationProviderOptions {
       }
     | undefined;
   cleanup?: {
+    deleteConnectionRemoteResources?: (connection: {
+      id: string;
+      workspaceId: string;
+    }) => Promise<(() => Promise<void>) | undefined>;
+    withConnectionDeletionLock?: (
+      connection: {id: string},
+      fn: () => Promise<void>,
+    ) => Promise<void>;
     deleteConnectionRecords?: (connection: {id: string}, options: {tx: unknown}) => Promise<void>;
     deleteConnectionSecrets?: (connection: {id: string; workspaceId: string}) => Promise<void>;
   };
