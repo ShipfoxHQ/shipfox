@@ -102,8 +102,9 @@ marker disappear when the instance is terminated with its root volume.
 
 ### Image freshness
 
-The image does not update packages after the bake. CI builds a candidate on each
-successful normal merge to `main`, and candidates expire after 14 days.
+The image does not update packages after the bake. After a successful normal
+merge to `main`, CI builds a candidate when effective inputs changed or the
+newest complete pair is at least five days old. Candidates expire after 14 days.
 
 Release promotion should happen at least weekly. When a candidate is stale,
 rebuild or republish it and investigate the release promotion path before using

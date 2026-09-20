@@ -16,6 +16,7 @@ const ARCHITECTURES = ['amd64', 'arm64'] as const;
 const ROOT_EFFECTIVE_INPUTS = [
   '.github/actions/setup-mise/action.yml',
   '.github/actions/setup-pnpm/action.yml',
+  '.github/workflows/ci.yml',
   '.github/workflows/publish-runner-image-candidate.yml',
   'mise.lock',
   'mise.toml',

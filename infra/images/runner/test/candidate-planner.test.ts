@@ -186,7 +186,7 @@ describe('runner image candidate planner', () => {
     expect(result.detail).toContain('required Git history is unavailable');
   });
 
-  it('builds for a manual publication unless the current pair already exists', async () => {
+  it('builds for a manual publication when only a prior pair exists', async () => {
     const result = await planRunnerImageCandidate(
       {currentRevision: CURRENT_REVISION, force: true, now: NOW},
       plannerDependencies([candidate('amd64'), candidate('arm64')]),
@@ -194,6 +194,18 @@ describe('runner image candidate planner', () => {
 
     expect(result.mode).toBe('build');
     expect(result.reason).toBe('manual-publication');
+  });
+
+  it('reuses the current pair during a manual publication', async () => {
+    const images = [candidate('amd64', CURRENT_REVISION), candidate('arm64', CURRENT_REVISION)];
+
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: true, now: NOW},
+      plannerDependencies(images),
+    );
+
+    expect(result.mode).toBe('reuse-current');
+    expect(result.reason).toBe('current-pair-exists');
   });
 
   it('fails open for ambiguous duplicate architecture inventory', async () => {
@@ -269,7 +281,8 @@ describe('runner image effective input boundary', () => {
     ['Turbo build graph', 'turbo.jsonc'],
     ['SWC build tooling', 'tools/swc/src/swc.ts'],
     ['runner staging tooling', 'tools/utils/src/staging.js'],
-    ['candidate workflow', '.github/workflows/publish-runner-image-candidate.yml'],
+    ['normal candidate workflow', '.github/workflows/ci.yml'],
+    ['manual candidate workflow', '.github/workflows/publish-runner-image-candidate.yml'],
   ])('includes a representative %s change', (_label, path) => {
     expect(findEffectiveChanges([path], productionDirectories)).toEqual([path]);
   });
