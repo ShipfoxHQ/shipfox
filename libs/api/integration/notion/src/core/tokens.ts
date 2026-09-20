@@ -182,7 +182,10 @@ async function refreshAccessTokenForConnection(params: RefreshAccessTokenParams)
     namespace: notionSecretsNamespace(params.connectionId),
     key: REFRESH_TOKEN_KEY,
   });
-  if (!refreshToken) throw new NotionTokenUnrefreshableError(params.connectionId);
+  if (!refreshToken) {
+    if (params.forceRefresh) throw new NotionTokenUnrefreshableError(params.connectionId);
+    return currentAccessToken;
+  }
 
   try {
     const refreshed = await params.client.refreshAccessToken({refreshToken});

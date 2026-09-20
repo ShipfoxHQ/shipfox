@@ -227,7 +227,7 @@ describe('Notion token store', () => {
   });
 
   it('times out when the other replica never changes the stored token', async () => {
-    const {connectionId, store} = createContext();
+    const {connectionId, secrets, store} = createContext();
     await store.storeTokens({
       connectionId,
       accessToken: 'access-token-0',
@@ -247,10 +247,17 @@ describe('Notion token store', () => {
     });
     await lockStarted;
 
-    await expect(store.getAccessToken({connectionId, forceRefresh: true})).rejects.toMatchObject({
-      reason: 'provider-unavailable',
-    });
-    releaseLock();
-    await lock;
-  }, 10_000);
+    vi.useFakeTimers();
+    try {
+      const loser = store.getAccessToken({connectionId, forceRefresh: true});
+      const loserFailure = expect(loser).rejects.toMatchObject({reason: 'provider-unavailable'});
+      await vi.waitFor(() => expect(secrets.getSecret).toHaveBeenCalledTimes(2));
+      await vi.advanceTimersByTimeAsync(5_000);
+      await loserFailure;
+    } finally {
+      releaseLock();
+      await lock;
+      vi.useRealTimers();
+    }
+  });
 });

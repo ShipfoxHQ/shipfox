@@ -49,10 +49,6 @@ interface NotionTokenResponse {
   expires_in?: unknown;
 }
 
-interface NotionErrorResponse {
-  error?: unknown;
-}
-
 export function createNotionAgentToolsClient(): NotionAgentToolsClient {
   return {request: requestNotionRest};
 }
@@ -193,7 +189,7 @@ async function requestNotionOauth<T>(operation: string, request: () => Promise<T
     return await request();
   } catch (error) {
     if (error instanceof NotionIntegrationProviderError) throw error;
-    if (error instanceof HTTPError) throw await mapNotionHttpError(operation, error);
+    if (error instanceof HTTPError) throw mapNotionHttpError(operation, error);
     if (error instanceof TimeoutError) {
       logger().warn({operation}, 'Notion API request timed out');
       throw new NotionIntegrationProviderError('timeout', 'Notion request timed out');
@@ -236,10 +232,10 @@ function mapNotionStatusError(
   );
 }
 
-async function mapNotionHttpError(
+function mapNotionHttpError(
   operation: string,
   error: HTTPError,
-): Promise<NotionIntegrationProviderError> {
+): NotionIntegrationProviderError {
   const {status, statusText} = error.response;
   logger().warn({operation, status, statusText}, 'Notion API request rejected');
   if (status === 429) {
@@ -259,7 +255,7 @@ async function mapNotionHttpError(
     );
   }
 
-  const providerErrorCode = await readProviderErrorCode(error);
+  const providerErrorCode = readProviderErrorCode(error);
   return new NotionIntegrationProviderError(
     'access-denied',
     'Notion request was rejected',
@@ -269,13 +265,10 @@ async function mapNotionHttpError(
   );
 }
 
-async function readProviderErrorCode(error: HTTPError): Promise<string | undefined> {
-  try {
-    const body = (await error.response.clone().json()) as NotionErrorResponse;
-    return typeof body.error === 'string' ? body.error : undefined;
-  } catch {
-    return undefined;
-  }
+function readProviderErrorCode(error: HTTPError): string | undefined {
+  const body = error.data;
+  if (typeof body !== 'object' || body === null || !('error' in body)) return undefined;
+  return typeof body.error === 'string' ? body.error : undefined;
 }
 
 function retryAfterSeconds(headers: Headers): number | undefined {
