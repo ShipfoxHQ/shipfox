@@ -6,6 +6,7 @@ export const WORKSPACES_WORKSPACE_CREATED = 'workspaces.workspace.created' as co
 export const WORKSPACES_WORKSPACE_UPDATED = 'workspaces.workspace.updated' as const;
 export const WORKSPACES_MEMBER_INVITED = 'workspaces.member.invited' as const;
 export const WORKSPACES_MEMBER_JOINED = 'workspaces.member.joined' as const;
+export const WORKSPACES_MEMBER_REMOVED = 'workspaces.member.removed' as const;
 
 export const workspacesInvitationSendRequestedSchema = z.object({
   email: z.string().email(),
@@ -49,12 +50,20 @@ export const workspacesMemberJoinedSchema = z.object({
 });
 export type WorkspacesMemberJoinedEvent = z.infer<typeof workspacesMemberJoinedSchema>;
 
+export const workspacesMemberRemovedSchema = z.object({
+  workspaceId: z.string().uuid(),
+  userId: z.string().uuid(),
+  actorUserId: z.string().uuid().optional(),
+});
+export type WorkspacesMemberRemovedEvent = z.infer<typeof workspacesMemberRemovedSchema>;
+
 export interface WorkspacesEventMap {
   [WORKSPACES_INVITATION_SEND_REQUESTED]: WorkspacesInvitationSendRequestedEvent;
   [WORKSPACES_WORKSPACE_CREATED]: WorkspaceCreatedEvent;
   [WORKSPACES_WORKSPACE_UPDATED]: WorkspaceUpdatedEvent;
   [WORKSPACES_MEMBER_INVITED]: WorkspacesMemberInvitedEvent;
   [WORKSPACES_MEMBER_JOINED]: WorkspacesMemberJoinedEvent;
+  [WORKSPACES_MEMBER_REMOVED]: WorkspacesMemberRemovedEvent;
 }
 
 export const workspacesEventSchemas = {
@@ -63,4 +72,5 @@ export const workspacesEventSchemas = {
   [WORKSPACES_WORKSPACE_UPDATED]: workspaceUpdatedEventSchema,
   [WORKSPACES_MEMBER_INVITED]: workspacesMemberInvitedSchema,
   [WORKSPACES_MEMBER_JOINED]: workspacesMemberJoinedSchema,
+  [WORKSPACES_MEMBER_REMOVED]: workspacesMemberRemovedSchema,
 } satisfies Record<keyof WorkspacesEventMap, z.ZodType>;

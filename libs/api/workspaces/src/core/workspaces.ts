@@ -212,5 +212,9 @@ export async function removeWorkspaceMember(params: {
     throw new MembershipNotFoundError(params.userId, params.workspaceId);
   }
 
-  await removeMembership({userId: params.userId, workspaceId: params.workspaceId});
+  await removeMembership({
+    userId: params.userId,
+    workspaceId: params.workspaceId,
+    actorUserId: params.requesterUserId,
+  });
 }

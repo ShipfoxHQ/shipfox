@@ -1,4 +1,6 @@
+import {WORKSPACES_MEMBER_REMOVED, type WorkspacesEventMap} from '@shipfox/api-workspaces-dto';
 import type {TimestampIdCursor} from '@shipfox/node-drizzle';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, asc, eq, gt, inArray, or, type SQL, sql} from 'drizzle-orm';
 import type {Membership} from '#core/entities/membership.js';
 import type {Workspace} from '#core/entities/workspace.js';
@@ -6,6 +8,7 @@ import {LastMemberError} from '#core/errors.js';
 import {recordWorkspaceMembershipChanged} from '#metrics/instance.js';
 import {db} from './db.js';
 import {memberships, toMembership} from './schema/memberships.js';
+import {workspacesOutbox} from './schema/outbox.js';
 import {workspaces} from './schema/workspaces.js';
 
 export interface CreateMembershipParams {
@@ -186,6 +189,7 @@ export async function findMembership(
 export interface RemoveMembershipParams {
   userId: string;
   workspaceId: string;
+  actorUserId?: string | undefined;
 }
 
 export async function removeMembership(params: RemoveMembershipParams): Promise<void> {
@@ -205,6 +209,17 @@ export async function removeMembership(params: RemoveMembershipParams): Promise<
         and(eq(memberships.userId, params.userId), eq(memberships.workspaceId, params.workspaceId)),
       )
       .returning({id: memberships.id});
+
+    if (deleted.length > 0) {
+      await writeOutboxEvent<WorkspacesEventMap>(tx, workspacesOutbox, {
+        type: WORKSPACES_MEMBER_REMOVED,
+        payload: {
+          workspaceId: params.workspaceId,
+          userId: params.userId,
+          ...(params.actorUserId === undefined ? {} : {actorUserId: params.actorUserId}),
+        },
+      });
+    }
 
     return deleted.length > 0;
   });

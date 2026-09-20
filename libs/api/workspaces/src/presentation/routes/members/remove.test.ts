@@ -1,4 +1,8 @@
+import {WORKSPACES_MEMBER_REMOVED} from '@shipfox/api-workspaces-dto';
+import {and, eq, sql} from 'drizzle-orm';
 import type {FastifyInstance} from 'fastify';
+import {db} from '#db/db.js';
+import {workspacesOutbox} from '#db/schema/outbox.js';
 import {
   createInvite,
   createWorkspace,
@@ -47,6 +51,22 @@ describe('DELETE /workspaces/:workspaceId/members/:userId', () => {
 
     expect(remove.statusCode).toBe(204);
     expect(members.statusCode).toBe(200);
+
+    const removedEvents = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(
+        and(
+          eq(workspacesOutbox.eventType, WORKSPACES_MEMBER_REMOVED),
+          sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspaceId}`,
+        ),
+      );
+    expect(removedEvents).toHaveLength(1);
+    expect(removedEvents[0]?.payload).toMatchObject({
+      workspaceId,
+      userId: guest.userId,
+      actorUserId: owner.userId,
+    });
     expect(members.json().members).toHaveLength(1);
     expect(members.json().members[0].user_id).toBe(owner.userId);
   });

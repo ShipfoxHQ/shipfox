@@ -1,4 +1,5 @@
-import {eq} from 'drizzle-orm';
+import {WORKSPACES_MEMBER_REMOVED} from '@shipfox/api-workspaces-dto';
+import {and, eq, sql} from 'drizzle-orm';
 import {LastMemberError} from '#core/errors.js';
 import {db} from './db.js';
 import {
@@ -9,6 +10,7 @@ import {
   removeMembership,
 } from './memberships.js';
 import {memberships} from './schema/memberships.js';
+import {workspacesOutbox} from './schema/outbox.js';
 import {createWorkspace} from './workspaces.js';
 
 function emailFor(suffix: string): string {
@@ -136,10 +138,57 @@ describe('memberships db', () => {
     await createMembership({userId: userA.userId, workspaceId: workspace.id});
     await createMembership({userId: userB.userId, workspaceId: workspace.id});
 
-    await removeMembership({userId: userA.userId, workspaceId: workspace.id});
+    await removeMembership({
+      userId: userA.userId,
+      workspaceId: workspace.id,
+      actorUserId: userB.userId,
+    });
 
     expect(await findMembership({userId: userA.userId, workspaceId: workspace.id})).toBeUndefined();
+    const removedEvents = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(
+        and(
+          eq(workspacesOutbox.eventType, WORKSPACES_MEMBER_REMOVED),
+          sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspace.id}`,
+        ),
+      );
+    expect(removedEvents).toHaveLength(1);
+    expect(removedEvents[0]?.payload).toEqual({
+      workspaceId: workspace.id,
+      userId: userA.userId,
+      actorUserId: userB.userId,
+    });
     expect(await findMembership({userId: userB.userId, workspaceId: workspace.id})).toBeDefined();
+  });
+
+  test('removeMembership omits the actor for self-leave events', async () => {
+    const member = await createUser({email: emailFor('self-leave'), hashedPassword: 'h'});
+    const remaining = await createUser({
+      email: emailFor('self-leave-remaining'),
+      hashedPassword: 'h',
+    });
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    await createMembership({userId: member.userId, workspaceId: workspace.id});
+    await createMembership({userId: remaining.userId, workspaceId: workspace.id});
+
+    await removeMembership({userId: member.userId, workspaceId: workspace.id});
+
+    const removedEvents = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(
+        and(
+          eq(workspacesOutbox.eventType, WORKSPACES_MEMBER_REMOVED),
+          sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspace.id}`,
+        ),
+      );
+    expect(removedEvents).toHaveLength(1);
+    expect(removedEvents[0]?.payload).toEqual({
+      workspaceId: workspace.id,
+      userId: member.userId,
+    });
   });
 
   test('removeMembership rejects when only 1 member exists', async () => {
@@ -151,5 +200,16 @@ describe('memberships db', () => {
       removeMembership({userId: user.userId, workspaceId: workspace.id}),
     ).rejects.toBeInstanceOf(LastMemberError);
     expect(await findMembership({userId: user.userId, workspaceId: workspace.id})).toBeDefined();
+
+    const removedEvents = await db()
+      .select()
+      .from(workspacesOutbox)
+      .where(
+        and(
+          eq(workspacesOutbox.eventType, WORKSPACES_MEMBER_REMOVED),
+          sql`${workspacesOutbox.payload}->>'workspaceId' = ${workspace.id}`,
+        ),
+      );
+    expect(removedEvents).toHaveLength(0);
   });
 });
