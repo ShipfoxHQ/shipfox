@@ -200,6 +200,15 @@ async function reconcileInvitationInTransaction(
   tx: WorkspacesTx,
   params: ReconcileInvitationAcceptanceParams,
 ): Promise<ReconcileInvitationAcceptanceResult> {
+  const workspaceRows = await tx
+    .select({workspaceId: invitations.workspaceId})
+    .from(invitations)
+    .where(eq(invitations.id, params.invitationId))
+    .limit(1);
+  const workspaceId = workspaceRows[0]?.workspaceId;
+  if (!workspaceId) return {status: 'invalid'} as const;
+
+  await lockWorkspaceMembership(workspaceId, tx);
   const rows = await tx
     .select()
     .from(invitations)
@@ -279,7 +288,6 @@ async function ensureInvitationMembership(
   );
   if (existing) return {membership: existing, alreadyMember: true};
 
-  await lockWorkspaceMembership(invitation.workspaceId, tx);
   await assertWorkspaceMembershipCap({
     workspaceId: invitation.workspaceId,
     incomingSeats: 1,

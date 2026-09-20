@@ -25,6 +25,7 @@ describe('InvitationAcceptanceErrorState', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Acme has reached its membership limit. Ask an administrator to free a seat before trying again.',
     );
+    expect(screen.getByRole('button', {name: 'Go to dashboard'})).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Try again'})).not.toBeInTheDocument();
   });
 });
