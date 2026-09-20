@@ -9,7 +9,7 @@ function connection(
     id: '00000000-0000-4000-8000-000000000001',
     workspaceId: '00000000-0000-4000-8000-000000000002',
     provider: 'posthog',
-    externalAccountId: 'posthog-project',
+    externalAccountId: 'eu:posthog-project',
     slug: 'posthog_analytics',
     displayName: 'Analytics',
     lifecycleStatus: 'active',
@@ -38,8 +38,9 @@ describe('PostHog E2E routes', () => {
       url: '/integrations/posthog-connections',
       payload: {
         workspace_id: seededConnection.workspaceId,
+        region: 'eu',
         api_key: 'phx-e2e-key',
-        project_id: seededConnection.externalAccountId,
+        project_id: 'posthog-project',
         project_name: seededConnection.displayName,
         organization_id: 'posthog-organization',
       },
@@ -60,8 +61,9 @@ describe('PostHog E2E routes', () => {
     });
     expect(seedPosthogConnection).toHaveBeenCalledWith({
       workspaceId: seededConnection.workspaceId,
+      region: 'eu',
       apiKey: 'phx-e2e-key',
-      projectId: seededConnection.externalAccountId,
+      projectId: 'posthog-project',
       projectName: seededConnection.displayName,
       organizationId: 'posthog-organization',
     });

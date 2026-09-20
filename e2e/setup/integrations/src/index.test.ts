@@ -73,6 +73,7 @@ describe('integrations E2E setup helper', () => {
 
     await createPosthogConnection({
       workspaceId: 'workspace-id',
+      region: 'eu',
       apiKey: 'phx-e2e-token',
       projectId: 'posthog-project',
       projectName: 'Analytics',
@@ -82,6 +83,7 @@ describe('integrations E2E setup helper', () => {
     expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/posthog-connections', {
       json: {
         workspace_id: 'workspace-id',
+        region: 'eu',
         api_key: 'phx-e2e-token',
         project_id: 'posthog-project',
         project_name: 'Analytics',

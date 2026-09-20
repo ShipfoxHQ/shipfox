@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import type {PosthogRegion} from '@shipfox/api-integration-posthog';
 import type {IntegrationConnection as CoreIntegrationConnection} from '@shipfox/api-integration-spi';
 import {config} from '#config.js';
 import {
@@ -21,7 +22,8 @@ async function loadPosthogModuleParts(
     deletePosthogInstallationByConnectionId,
     getPosthogInstallationByConnectionId,
     migrationsPath,
-    upsertPosthogInstallation,
+    posthogExternalAccountId,
+    createPosthogInstallation,
   } = await import('@shipfox/api-integration-posthog');
 
   const rawSecrets = options.secrets?.posthog;
@@ -72,6 +74,7 @@ async function loadPosthogModuleParts(
 
   async function seedPosthogConnection(input: {
     workspaceId: string;
+    region: PosthogRegion;
     apiKey: string;
     projectId: string;
     projectName: string;
@@ -79,58 +82,54 @@ async function loadPosthogModuleParts(
   }): Promise<CoreIntegrationConnection<'posthog'>> {
     if (!credentialStore) throw new Error('PostHog credential storage is not configured');
     const connectionId = randomUUID();
-    await credentialStore.setApiKey({
+    return await withPosthogSeedCredential({
+      credentialStore,
       connectionId,
-      apiKey: input.apiKey,
       workspaceId: input.workspaceId,
+      apiKey: input.apiKey,
+      createConnection: () =>
+        retryConnectionSlugCollision(() =>
+          db().transaction(async (tx) => {
+            const externalAccountId = posthogExternalAccountId(input.region, input.projectId);
+            const slug = await resolveUniqueConnectionSlug(
+              {
+                workspaceId: input.workspaceId,
+                provider: 'posthog',
+                externalAccountId,
+                baseSlug: slugifyConnectionSlug(`posthog_${input.projectName}`, {
+                  fallback: 'posthog',
+                }),
+              },
+              {tx},
+            );
+            const connection = await createIntegrationConnection(
+              {
+                id: connectionId,
+                workspaceId: input.workspaceId,
+                provider: 'posthog',
+                externalAccountId,
+                slug,
+                displayName: input.projectName,
+                lifecycleStatus: 'active',
+                capabilities: [],
+              },
+              {tx},
+            );
+            await createPosthogInstallation(
+              {
+                connectionId,
+                region: input.region,
+                projectId: input.projectId,
+                projectName: input.projectName,
+                organizationId: input.organizationId,
+                keyHint: input.apiKey,
+              },
+              {tx},
+            );
+            return connection as CoreIntegrationConnection<'posthog'>;
+          }),
+        ),
     });
-    try {
-      return await retryConnectionSlugCollision(() =>
-        db().transaction(async (tx) => {
-          const slug = await resolveUniqueConnectionSlug(
-            {
-              workspaceId: input.workspaceId,
-              provider: 'posthog',
-              externalAccountId: input.projectId,
-              baseSlug: slugifyConnectionSlug(`posthog_${input.projectName}`, {
-                fallback: 'posthog',
-              }),
-            },
-            {tx},
-          );
-          const connection = await createIntegrationConnection(
-            {
-              id: connectionId,
-              workspaceId: input.workspaceId,
-              provider: 'posthog',
-              externalAccountId: input.projectId,
-              slug,
-              displayName: input.projectName,
-              lifecycleStatus: 'active',
-              capabilities: [],
-            },
-            {tx},
-          );
-          await upsertPosthogInstallation(
-            {
-              connectionId,
-              projectId: input.projectId,
-              projectName: input.projectName,
-              organizationId: input.organizationId,
-              keyHint: input.apiKey.slice(-4),
-              credentialVersion: 1,
-            },
-            {tx},
-          );
-          return connection as CoreIntegrationConnection<'posthog'>;
-        }),
-      );
-    } catch (error) {
-      await credentialStore
-        .deleteApiKey({connectionId, workspaceId: input.workspaceId})
-        .catch(() => undefined);
-      throw error;
-    }
   }
 
   const provider = createPosthogIntegrationProvider({
@@ -165,6 +164,33 @@ async function loadPosthogModuleParts(
       databaseNamespace: 'integrations_posthog',
     },
   };
+}
+
+interface PosthogSeedCredentialStore {
+  setApiKey(params: {connectionId: string; apiKey: string; workspaceId: string}): Promise<void>;
+  deleteApiKey(params: {connectionId: string; workspaceId: string}): Promise<number>;
+}
+
+export async function withPosthogSeedCredential<T>(params: {
+  credentialStore: PosthogSeedCredentialStore;
+  connectionId: string;
+  workspaceId: string;
+  apiKey: string;
+  createConnection: () => Promise<T>;
+}): Promise<T> {
+  try {
+    await params.credentialStore.setApiKey({
+      connectionId: params.connectionId,
+      apiKey: params.apiKey,
+      workspaceId: params.workspaceId,
+    });
+    return await params.createConnection();
+  } catch (error) {
+    await params.credentialStore
+      .deleteApiKey({connectionId: params.connectionId, workspaceId: params.workspaceId})
+      .catch(() => undefined);
+    throw error;
+  }
 }
 
 function requirePosthogSecretNamespace(namespace: string): string {

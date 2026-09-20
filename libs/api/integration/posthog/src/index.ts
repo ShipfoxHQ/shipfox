@@ -1,4 +1,4 @@
-import {POSTHOG_PROVIDER} from '@shipfox/api-integration-posthog-dto';
+import {POSTHOG_PROVIDER, posthogExternalAccountId} from '@shipfox/api-integration-posthog-dto';
 import {closeDb, db} from '#db/db.js';
 import {getPosthogInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -11,7 +11,7 @@ import {
   createPosthogE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
 
-export type {PosthogProvider} from '@shipfox/api-integration-posthog-dto';
+export type {PosthogProvider, PosthogRegion} from '@shipfox/api-integration-posthog-dto';
 export type {
   PosthogConnectionResolver,
   PosthogCredentialStore,
@@ -24,16 +24,15 @@ export {
   posthogSecretsNamespace,
 } from '#core/credentials.js';
 export type {
+  CreatePosthogInstallationParams,
   PosthogDatabaseExecutor,
   PosthogInstallation,
   PosthogVersionGuardResult,
-  UpsertPosthogInstallationParams,
 } from '#db/installations.js';
 export {
+  createPosthogInstallation,
   deletePosthogInstallationByConnectionId,
   getPosthogInstallationByConnectionId,
-  getPosthogInstallationByProjectId,
-  upsertPosthogInstallation,
   withPosthogCredentialVersion,
   withPosthogInstallationVersionGuard,
 } from '#db/installations.js';
@@ -46,6 +45,7 @@ export {
   db,
   migrationsPath,
   POSTHOG_PROVIDER,
+  posthogExternalAccountId,
 };
 
 export interface CreatePosthogIntegrationProviderOptions {
@@ -72,7 +72,7 @@ export function createPosthogIntegrationProvider(
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
       if (!installation) return undefined;
-      return `https://eu.posthog.com/project/${encodeURIComponent(installation.projectId)}`;
+      return `https://${installation.region}.posthog.com/project/${encodeURIComponent(installation.projectId)}`;
     },
     ...options.cleanup,
   };

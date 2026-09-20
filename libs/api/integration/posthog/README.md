@@ -5,7 +5,7 @@ PostHog provider contracts, installation persistence, and credential storage for
 ## What it does
 
 - **PostHog provider** registers PostHog without capabilities until its adapters ship.
-- **PosthogInstallation** stores the project metadata and credential version for one connection.
+- **PosthogInstallation** stores the region, project metadata, and credential version for one connection.
 - **PosthogCredentialStore** stores API keys in the secrets module.
 - **PostHog E2E route** creates seeded connections for integration tests.
 
@@ -42,7 +42,7 @@ The shared integrations configuration owns `INTEGRATIONS_ENABLE_POSTHOG_PROVIDER
 
 ## Data model
 
-The package owns the `integrations_posthog_installations` migration unit. It stores project metadata, the last four characters of the key, and a credential version. The API key is never stored in PostgreSQL.
+The package owns the `integrations_posthog_installations` migration unit. It stores the PostHog region, project metadata, the last four characters of the key, and a credential version. The API key is never stored in PostgreSQL.
 
 ## Behavior notes
 

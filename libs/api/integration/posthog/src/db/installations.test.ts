@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {
+  createPosthogInstallation,
   deletePosthogInstallationByConnectionId,
   getPosthogInstallationByConnectionId,
-  upsertPosthogInstallation,
   withPosthogCredentialVersion,
 } from './installations.js';
 
@@ -10,17 +10,19 @@ describe('PostHog installations', () => {
   it('stores installation metadata with credential version one', async () => {
     const connectionId = randomUUID();
 
-    const created = await upsertPosthogInstallation({
+    const created = await createPosthogInstallation({
       connectionId,
+      region: 'eu',
       projectId: 'project-1',
       projectName: 'Analytics',
       organizationId: 'organization-1',
-      keyHint: '1234',
+      keyHint: 'phx_secret_1234',
     });
 
     expect(created.credentialVersion).toBe(1);
     expect(await getPosthogInstallationByConnectionId(connectionId)).toMatchObject({
       connectionId,
+      region: 'eu',
       projectId: 'project-1',
       keyHint: '1234',
     });
@@ -40,8 +42,9 @@ describe('PostHog installations', () => {
 
   it('runs the callback only for the matching locked credential version', async () => {
     const connectionId = randomUUID();
-    await upsertPosthogInstallation({
+    await createPosthogInstallation({
       connectionId,
+      region: 'us',
       projectId: 'project-2',
       projectName: 'Analytics',
       organizationId: 'organization-2',

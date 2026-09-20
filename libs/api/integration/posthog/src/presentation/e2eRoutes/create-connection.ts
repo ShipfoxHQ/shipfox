@@ -1,6 +1,7 @@
 import {
   createE2ePosthogConnectionBodySchema,
   createE2ePosthogConnectionResponseSchema,
+  type PosthogRegion,
 } from '@shipfox/api-integration-posthog-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute} from '@shipfox/node-fastify';
@@ -8,6 +9,7 @@ import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 
 export interface SeedPosthogConnectionInput {
   workspaceId: string;
+  region: PosthogRegion;
   apiKey: string;
   projectId: string;
   projectName: string;
@@ -34,6 +36,7 @@ export function createE2ePosthogConnectionRoute(options: CreateE2ePosthogConnect
       const body = request.body;
       const connection = await options.seedPosthogConnection({
         workspaceId: body.workspace_id,
+        region: body.region,
         apiKey: body.api_key,
         projectId: body.project_id,
         projectName: body.project_name,

@@ -20,6 +20,7 @@ import type {
 import type {
   CreateE2ePosthogConnectionBodyDto,
   CreateE2ePosthogConnectionResponseDto,
+  PosthogRegion,
 } from '@shipfox/api-integration-posthog-dto';
 import type {
   CreateE2eSlackConnectionBodyDto,
@@ -183,6 +184,7 @@ export async function createClickUpConnection(
 
 export interface CreatePosthogConnectionParams {
   workspaceId: string;
+  region: PosthogRegion;
   apiKey: string;
   projectId: string;
   projectName: string;
@@ -194,6 +196,7 @@ function posthogConnectionBody(
 ): CreateE2ePosthogConnectionBodyDto {
   return {
     workspace_id: params.workspaceId,
+    region: params.region,
     api_key: params.apiKey,
     project_id: params.projectId,
     project_name: params.projectName,

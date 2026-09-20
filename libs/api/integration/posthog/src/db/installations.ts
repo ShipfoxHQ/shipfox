@@ -1,9 +1,11 @@
+import type {PosthogRegion} from '@shipfox/api-integration-posthog-dto';
 import {eq} from 'drizzle-orm';
 import {db} from './db.js';
 import {posthogInstallations, toPosthogInstallation} from './schema/installations.js';
 
 export interface PosthogInstallation {
   connectionId: string;
+  region: PosthogRegion;
   projectId: string;
   projectName: string;
   organizationId: string;
@@ -13,21 +15,21 @@ export interface PosthogInstallation {
   updatedAt: Date;
 }
 
-export interface UpsertPosthogInstallationParams {
+export interface CreatePosthogInstallationParams {
   connectionId: string;
+  region: PosthogRegion;
   projectId: string;
   projectName: string;
   organizationId: string;
   keyHint: string;
-  credentialVersion?: number | undefined;
 }
 
 type PosthogDb = ReturnType<typeof db>;
 type PosthogTx = Parameters<Parameters<PosthogDb['transaction']>[0]>[0];
 export type PosthogDatabaseExecutor = PosthogDb | PosthogTx;
 
-export async function upsertPosthogInstallation(
-  params: UpsertPosthogInstallationParams,
+export async function createPosthogInstallation(
+  params: CreatePosthogInstallationParams,
   options: {tx?: unknown} = {},
 ): Promise<PosthogInstallation> {
   const executor = (options.tx ?? db()) as PosthogDatabaseExecutor;
@@ -35,27 +37,15 @@ export async function upsertPosthogInstallation(
     .insert(posthogInstallations)
     .values({
       connectionId: params.connectionId,
+      region: params.region,
       projectId: params.projectId,
       projectName: params.projectName,
       organizationId: params.organizationId,
-      keyHint: params.keyHint,
-      credentialVersion: params.credentialVersion ?? 1,
-    })
-    .onConflictDoUpdate({
-      target: posthogInstallations.connectionId,
-      set: {
-        projectId: params.projectId,
-        projectName: params.projectName,
-        organizationId: params.organizationId,
-        keyHint: params.keyHint,
-        ...(params.credentialVersion === undefined
-          ? {}
-          : {credentialVersion: params.credentialVersion}),
-        updatedAt: new Date(),
-      },
+      keyHint: params.keyHint.slice(-4),
+      credentialVersion: 1,
     })
     .returning();
-  if (!row) throw new Error('PostHog installation upsert returned no rows');
+  if (!row) throw new Error('PostHog installation insert returned no rows');
   return toPosthogInstallation(row);
 }
 
@@ -68,19 +58,6 @@ export async function getPosthogInstallationByConnectionId(
     .select()
     .from(posthogInstallations)
     .where(eq(posthogInstallations.connectionId, connectionId))
-    .limit(1);
-  return row ? toPosthogInstallation(row) : undefined;
-}
-
-export async function getPosthogInstallationByProjectId(
-  projectId: string,
-  options: {tx?: unknown} = {},
-): Promise<PosthogInstallation | undefined> {
-  const executor = (options.tx ?? db()) as PosthogDatabaseExecutor;
-  const [row] = await executor
-    .select()
-    .from(posthogInstallations)
-    .where(eq(posthogInstallations.projectId, projectId))
     .limit(1);
   return row ? toPosthogInstallation(row) : undefined;
 }

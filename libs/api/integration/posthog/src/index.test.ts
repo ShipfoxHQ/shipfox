@@ -1,10 +1,14 @@
 import {createPosthogIntegrationProvider, POSTHOG_PROVIDER} from './index.js';
 
 describe('PostHog provider', () => {
-  it('has no capabilities or event catalog and links to the EU project', async () => {
+  it.each([
+    'us',
+    'eu',
+  ] as const)('has no capabilities or event catalog and links to the %s project', async (region) => {
     const provider = createPosthogIntegrationProvider({
       getPosthogInstallationByConnectionId: async () => ({
         connectionId: 'connection-1',
+        region,
         projectId: 'project/1',
         projectName: 'Analytics',
         organizationId: 'organization-1',
@@ -20,7 +24,7 @@ describe('PostHog provider', () => {
     expect('adapters' in provider).toBe(false);
     expect('eventCatalog' in provider).toBe(false);
     expect(await provider.connectionExternalUrl({id: 'connection-1'})).toBe(
-      'https://eu.posthog.com/project/project%2F1',
+      `https://${region}.posthog.com/project/project%2F1`,
     );
   });
 });
