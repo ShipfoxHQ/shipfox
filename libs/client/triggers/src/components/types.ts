@@ -5,7 +5,11 @@ import type {
   TriggerEventSummary,
 } from '#core/trigger-event.js';
 
-export type TriggerEventsListQuery = QueryLoadErrorQuery & {isPending: boolean};
+export type TriggerEventsListQuery = QueryLoadErrorQuery & {
+  isFetchNextPageError?: boolean;
+  isPending: boolean;
+  isFetchingNextPage?: boolean;
+};
 
 export interface EventsListProps {
   events: TriggerEventSummary[];

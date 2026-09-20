@@ -59,6 +59,7 @@ function renderList(props: EventsListProps) {
 }
 
 const FILTERS_TOGGLE = /Filters/u;
+const NOT_SORTED_HEADER = /not sorted/u;
 
 async function openFilters() {
   await userEvent.click(screen.getByRole('button', {name: FILTERS_TOGGLE}));
@@ -79,7 +80,7 @@ describe('EventsList', () => {
     const panel = document.querySelector('[data-slot="panel"]');
 
     expect(panel).toBeInTheDocument();
-    expect(panel?.querySelector('[data-slot="panel-header"]')).toBeInTheDocument();
+    expect(panel?.querySelector('[data-slot="data-table-toolbar"]')).toBeInTheDocument();
   });
 
   test('renders a row per event with its match summary', () => {
@@ -173,11 +174,53 @@ describe('EventsList', () => {
     expect(onSelectEvent).toHaveBeenCalledWith('evt-1');
   });
 
-  test('marks the selected event row', () => {
+  test('marks the selected event row and does not expose sorting controls', () => {
     renderList(makeProps({selectedEventId: 'evt-1'}));
 
     expect(
       screen.getByRole('button', {name: 'Open details for github_acme · push'}).closest('tr'),
     ).toHaveAttribute('data-selected', 'true');
+    expect(screen.queryByRole('button', {name: NOT_SORTED_HEADER})).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole('columnheader').every((header) => !header.hasAttribute('aria-sort')),
+    ).toBe(true);
+  });
+
+  test('keeps loaded rows when appending fails and retries from the footer', async () => {
+    const onLoadMore = vi.fn();
+    renderList(
+      makeProps({
+        hasNextPage: true,
+        onLoadMore,
+        query: {
+          ...makeProps().query,
+          isError: true,
+          isFetchNextPageError: true,
+        },
+      }),
+    );
+
+    expect(screen.getByText('Triggered 2 workflows')).toBeInTheDocument();
+    expect(screen.getByRole('status').textContent).toContain('Could not load more rows');
+
+    await userEvent.click(screen.getByRole('button', {name: 'Retry'}));
+
+    expect(onLoadMore).toHaveBeenCalledOnce();
+    expect(screen.getByText('Triggered 2 workflows')).toBeInTheDocument();
+  });
+
+  test('distinguishes a refresh failure while keeping loaded rows visible', () => {
+    renderList(
+      makeProps({
+        query: {
+          ...makeProps().query,
+          isError: true,
+        },
+      }),
+    );
+
+    expect(screen.getByText('Could not refresh events.')).toBeInTheDocument();
+    expect(screen.getByText('Triggered 2 workflows')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load more rows.')).not.toBeInTheDocument();
   });
 });

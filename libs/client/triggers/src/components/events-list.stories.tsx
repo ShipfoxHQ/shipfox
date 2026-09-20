@@ -126,6 +126,25 @@ export const DataStates: Story = {
       <StateExample label="Load error">
         <EventsList {...args} events={[]} query={makeQuery({isError: true, data: undefined})} />
       </StateExample>
+      <StateExample label="Appending">
+        <EventsList
+          {...args}
+          query={makeQuery({isFetching: true, isFetchingNextPage: true})}
+          hasNextPage
+          isFetchingNextPage
+        />
+      </StateExample>
+      <StateExample label="Append retry">
+        <EventsList
+          {...args}
+          query={makeQuery({
+            isError: true,
+            isFetchNextPageError: true,
+            data: {pages: [{events: SAMPLE_EVENTS, nextCursor: 'next'}], pageParams: [undefined]},
+          })}
+          hasNextPage
+        />
+      </StateExample>
     </div>
   ),
 };
