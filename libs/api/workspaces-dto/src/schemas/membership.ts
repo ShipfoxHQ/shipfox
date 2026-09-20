@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {workspaceStatusSchema} from './workspace.js';
 
-/** Maximum number of workspace members returned by the complete members list. */
+/** Admission ceiling for WORKSPACES_MAX_PER_WORKSPACE that keeps complete member fetches affordable. */
 export const WORKSPACES_MAX_LIST_LIMIT = 10000;
 
 export const workspaceRoleSchema = z.enum(['admin']);

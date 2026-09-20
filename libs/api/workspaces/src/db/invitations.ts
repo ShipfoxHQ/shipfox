@@ -216,7 +216,9 @@ async function reconcileInvitationInTransaction(
   const invalidStatus = invitationAcceptanceInvalidStatus(invitation, params.email);
   if (invalidStatus) return {status: invalidStatus};
 
-  const {membership, alreadyMember} = await ensureInvitationMembership(tx, params, invitation);
+  const membershipResult = await ensureInvitationMembership(tx, params, invitation);
+  if ('status' in membershipResult) return membershipResult;
+  const {membership, alreadyMember} = membershipResult;
 
   const updated = await tx
     .update(invitations)
@@ -267,7 +269,10 @@ async function ensureInvitationMembership(
   tx: WorkspacesTx,
   params: ReconcileInvitationAcceptanceParams,
   invitation: Invitation,
-): Promise<{membership: Membership; alreadyMember: boolean}> {
+): Promise<
+  | {membership: Membership; alreadyMember: boolean}
+  | {status: 'expired' | 'revoked' | 'email_mismatch'}
+> {
   const existing = await findMembership(
     {userId: params.acceptedByUserId, workspaceId: invitation.workspaceId},
     {tx},
@@ -281,6 +286,9 @@ async function ensureInvitationMembership(
     excludeInvitationId: invitation.id,
     tx,
   });
+  const invalidStatus = invitationAcceptanceInvalidStatus(invitation, params.email);
+  if (invalidStatus) return {status: invalidStatus};
+
   const created = await tx
     .insert(memberships)
     .values(

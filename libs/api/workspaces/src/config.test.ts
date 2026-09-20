@@ -8,6 +8,7 @@ describe('workspaces config', () => {
 
   it.each([
     ['0', 'greater than 0'],
+    ['10.5', 'whole number'],
     ['10001', 'cannot exceed'],
   ])('rejects WORKSPACES_MAX_PER_WORKSPACE=%s', async (value, message) => {
     vi.stubEnv('WORKSPACES_MAX_PER_WORKSPACE', value);

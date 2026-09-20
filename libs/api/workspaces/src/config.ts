@@ -12,6 +12,9 @@ export const config = createConfig({
   }),
 });
 
+if (!Number.isInteger(config.WORKSPACES_MAX_PER_WORKSPACE)) {
+  throw new Error('WORKSPACES_MAX_PER_WORKSPACE must be a whole number.');
+}
 if (config.WORKSPACES_MAX_PER_WORKSPACE < 1) {
   throw new Error('WORKSPACES_MAX_PER_WORKSPACE must be greater than 0.');
 }

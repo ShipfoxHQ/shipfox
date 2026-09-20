@@ -74,6 +74,7 @@ describe('workspace membership cap', () => {
       .from(memberships)
       .where(eq(memberships.workspaceId, workspace.id));
     expect(rows.map(({userId}) => userId)).toEqual(expect.arrayContaining(existingUserIds));
+    expect(rows).toHaveLength(config.WORKSPACES_MAX_PER_WORKSPACE);
   });
 
   test('binds ensureMembership at the cap', async () => {
