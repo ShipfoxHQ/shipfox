@@ -129,7 +129,7 @@ describe('Notion webhook processor', () => {
     expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
-  it('accepts the handshake and logs through the deployment path when unset', async () => {
+  it('accepts the handshake when the verification token is unset', async () => {
     const harness = createHarness({verificationToken: null});
     const result = await harness.processor.process(
       createRequest({verification_token: 'new-token'}, {signature: ''}),

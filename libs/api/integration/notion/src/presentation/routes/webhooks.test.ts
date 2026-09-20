@@ -57,12 +57,12 @@ describe('Notion webhook route', () => {
   });
 
   it.each([
-    [{outcome: 'discarded', reason: 'invalid_signature'}, 401],
-    [{outcome: 'discarded', reason: 'malformed_payload'}, 400],
-    [{outcome: 'discarded', reason: 'unsupported_event'}, 200],
-    [{outcome: 'discarded', reason: 'connection_unavailable'}, 200],
-    [{outcome: 'duplicate', deliveryId: 'delivery-1'}, 200],
-  ] as const)('maps %s to HTTP %s', async (result, expectedStatus) => {
+    [{outcome: 'discarded', reason: 'invalid_signature'}, 401, {error: 'invalid signature'}],
+    [{outcome: 'discarded', reason: 'malformed_payload'}, 400, {error: 'malformed JSON'}],
+    [{outcome: 'discarded', reason: 'unsupported_event'}, 200, undefined],
+    [{outcome: 'discarded', reason: 'connection_unavailable'}, 200, undefined],
+    [{outcome: 'duplicate', deliveryId: 'delivery-1'}, 200, undefined],
+  ] as const)('maps %s to HTTP %s', async (result, expectedStatus, expectedBody) => {
     const process = vi.fn(async () => result);
     app = await createTestApp(process);
     await app.ready();
@@ -75,5 +75,8 @@ describe('Notion webhook route', () => {
     });
 
     expect(response.statusCode).toBe(expectedStatus);
+    if (expectedBody !== undefined) {
+      expect(response.json()).toEqual(expectedBody);
+    }
   });
 });

@@ -4,7 +4,7 @@ Notion provider persistence, signed webhook ingestion, scoped token storage, RES
 
 ## What it does
 
-- **`createNotionIntegrationProvider`** creates the flag-gated Notion provider, app-level webhook route, and optional `agent_tools` adapter.
+- **`createNotionIntegrationProvider`** creates the flag-gated Notion provider, its optional `agent_tools` adapter, and its webhook route when all route dependencies are supplied.
 - **`NotionAgentToolsProvider`** exposes search, page, page-content, data-source, and comment read tools over the Notion REST API.
 - **`createNotionAgentToolsClient`** creates the version-pinned REST client used by the adapter.
 - **`createNotionWebhookProcessor`** verifies Notion signatures, enforces grant visibility, deduplicates deliveries, and publishes raw events.
@@ -47,6 +47,19 @@ const provider = createNotionIntegrationProvider({
 console.log(provider.adapters?.agent_tools?.catalog().map((tool) => tool.id));
 ```
 
+The no-argument form returns provider metadata without adapters or routes. The application mounts the webhook route by supplying all route dependencies during module composition:
+
+```ts
+const provider = createNotionIntegrationProvider({
+  routes: {
+    coreDb,
+    publishIntegrationEventReceived,
+    recordDeliveryOnly,
+    getIntegrationConnectionById,
+  },
+});
+```
+
 The application supplies the cleanup functions and scoped secrets adapter during module composition.
 
 ## Environment
@@ -55,7 +68,7 @@ Configuration is defined in [`src/config.ts`](src/config.ts). OAuth settings are
 
 ## Routes
 
-The provider mounts `POST /webhooks/integrations/notion` with a raw-body plugin. Notion's unsigned verification handshake is acknowledged while `NOTION_WEBHOOK_VERIFICATION_TOKEN` is unset; signed deliveries are verified with that token, routed by `workspace_id`, and published only when the installation bot appears in `accessible_by`.
+The provider mounts `POST /webhooks/integrations/notion` with a raw-body plugin when `coreDb`, `publishIntegrationEventReceived`, `recordDeliveryOnly`, and `getIntegrationConnectionById` are supplied. Notion's unsigned verification handshake is acknowledged while `NOTION_WEBHOOK_VERIFICATION_TOKEN` is unset; signed deliveries are verified with that token, routed by `workspace_id`, and published only when the installation bot appears in `accessible_by`.
 
 The E2E route group mounts `POST /__e2e/integrations/notion-connections` when E2E routes are enabled. It creates a connection and installation, then stores the access token without returning it.
 

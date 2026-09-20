@@ -109,7 +109,7 @@ export function createNotionIntegrationProvider(
   const webhookRoutesOptions =
     options.routes && hasNotionWebhookRoutesOptions(options.routes) ? options.routes : undefined;
   const webhookProcessor = webhookRoutesOptions
-    ? createNotionWebhookProcessor(webhookRoutesOptions)
+    ? (webhookRoutesOptions.processor ?? createNotionWebhookProcessor(webhookRoutesOptions))
     : undefined;
   const routes =
     webhookProcessor && webhookRoutesOptions
