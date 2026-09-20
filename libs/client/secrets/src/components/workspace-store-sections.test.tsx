@@ -1,6 +1,6 @@
 import {configureApiClient} from '@shipfox/client-api';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
-import {render, screen, within} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {secret, variableListItem} from '#test/fixtures/secrets.js';
 import {WorkspaceSecretsSection} from './workspace-secrets-section.js';
@@ -104,7 +104,9 @@ describe('workspace store DataTables', () => {
     expect(rowIds()[0]).toBe('STORE_KEY_050');
 
     const searchLabel = section === 'secrets' ? 'Search secrets' : 'Search variables';
-    await user.type(screen.getByRole('textbox', {name: searchLabel}), 'STORE_KEY_050');
+    fireEvent.change(screen.getByRole('textbox', {name: searchLabel}), {
+      target: {value: 'STORE_KEY_050'},
+    });
     expect(rowIds()).toEqual(['STORE_KEY_050']);
     expect(screen.getByText('STORE_KEY_050')).toBeInTheDocument();
     expect(screen.queryByText('STORE_KEY_000')).not.toBeInTheDocument();
