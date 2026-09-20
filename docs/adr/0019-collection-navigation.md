@@ -28,10 +28,6 @@ indexes that server-side sorting would need.
 Configuration rejects a cap larger than the list limit. The settings client then requests the
 whole bounded set. Completeness is an enforced invariant, not an assumption about size.
 
-**Appending over a cursor has a shifting-boundary hazard.** The workflow runs hook documents it.
-The cursor bounding page one came from the last row of page zero. Anything that shifts that
-boundary between fetches can drop a range of rows into a gap between pages.
-
 **Two collections have no ordering at all.** `listMembershipsByWorkspace` and
 `listOpenInvitationsByWorkspace` run without an `ORDER BY`. Their row order is not stable between
 requests.
@@ -40,6 +36,10 @@ requests.
 
 This record makes three commitments. It deliberately does not choose a pagination style for
 every collection, and it does not restructure producer response shapes.
+
+It covers navigation, sorting, filtering and their presentation. Data freshness is separate
+logic. Polling, refresh triggers, cache invalidation and staleness belong to the feature and to
+ADR 0003. This record says nothing about them.
 
 ### Sorting and filtering state the truth
 
@@ -125,14 +125,6 @@ collection at an arbitrary point and moving backward from there. No surface need
 A deep link may carry a starting cursor. Whether that link stays meaningful over time is the
 producer's contract, not this record's.
 
-Appending over a keyset cursor carries a hazard the feature must answer. The cursor bounding a
-page came from the last row of the page before it. If the underlying rows shift between fetches,
-a range can fall into a gap between pages and the reader never sees it.
-
-The feature decides how to handle that, because the feature owns the fetch. The workflow runs
-hook is the existing example: it stops periodic polling once more than one page is loaded. This
-record does not prescribe a refresh policy, and it does not rank the triggers that can shift a
-boundary.
 
 ### One footer component
 
