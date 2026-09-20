@@ -575,12 +575,13 @@ pills are `rounded-4` or `rounded-full`, panels are `rounded-8`. Do not drift.
 
 `@shipfox/react-ui` ships the batteries. Reach for an existing component before
 building anything: `accordion`, `alert`, `avatar`, `badge`, `button`, `calendar`,
-`callout`, `code-block`, `collapsible`, `combobox`, `command`,
-`date-picker`, `date-range-picker`, `dot`, `dropdown-menu`, `empty-state`,
-`form-field`, `icon`, `input`, `kbd`, `label`, `load-error-state`, `loader`, `log`,
-`logo`, `markdown`, `modal`, `panel`, `popover`, `radio-group`, `relative-time`,
-`scroll-area`, `search`, `select`, `sheet`, `shiny-text`, `skeleton`, `table`,
-`tabs`, `theme`, `toast`, `tooltip`, and `typography`.
+`callout`, `checkbox`, `code-block`, `collapsible`, `combobox`, `command`,
+`data-table`, `date-picker`, `date-range-picker`, `dot`, `dropdown-menu`,
+`empty-state`, `form-field`, `icon`, `input`, `kbd`, `label`, `load-error-state`,
+`loader`, `log`, `logo`, `markdown`, `modal`, `panel`, `popover`, `radio-group`,
+`relative-time`, `scroll-area`, `search`, `select`, `sheet`, `shiny-text`,
+`skeleton`, `switch`, `table`, `tabs`, `textarea`, `theme`, `time-ticker`,
+`toast`, `tooltip`, and `typography`.
 
 `Panel` is the container for a data region and a focused titled block.
 
