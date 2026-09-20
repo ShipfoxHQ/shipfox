@@ -2,6 +2,7 @@ export {
   WORKSPACES_INVITATION_SEND_REQUESTED,
   WORKSPACES_MEMBER_INVITED,
   WORKSPACES_MEMBER_JOINED,
+  WORKSPACES_MEMBER_REMOVED,
   WORKSPACES_WORKSPACE_CREATED,
   WORKSPACES_WORKSPACE_UPDATED,
   type WorkspaceCreatedEvent,
@@ -9,12 +10,14 @@ export {
   type WorkspacesInvitationSendRequestedEvent,
   type WorkspacesMemberInvitedEvent,
   type WorkspacesMemberJoinedEvent,
+  type WorkspacesMemberRemovedEvent,
   type WorkspaceUpdatedEvent,
   workspaceCreatedEventSchema,
   workspacesEventSchemas,
   workspacesInvitationSendRequestedSchema,
   workspacesMemberInvitedSchema,
   workspacesMemberJoinedSchema,
+  workspacesMemberRemovedSchema,
   workspaceUpdatedEventSchema,
 } from '../events.js';
 export {
