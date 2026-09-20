@@ -549,6 +549,10 @@ function BoundedPaginationExample() {
             table.setPageIndex(pageIndex);
             resetSelection();
           },
+          onPageSizeChange: (pageSize) => {
+            table.setPageSize(pageSize);
+            resetSelection();
+          },
           pageCount,
           pageIndex: currentPage - 1,
           pageLabel: `Page ${currentPage} of ${pageCount}`,
