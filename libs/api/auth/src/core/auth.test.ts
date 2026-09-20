@@ -1,4 +1,8 @@
-import {AUTH_PASSWORD_RESET_SEND_REQUESTED, AUTH_USER_SIGNED_UP} from '@shipfox/api-auth-dto';
+import {
+  AUTH_PASSWORD_RESET_SEND_REQUESTED,
+  AUTH_USER_SIGNED_IN,
+  AUTH_USER_SIGNED_UP,
+} from '@shipfox/api-auth-dto';
 import {userAccessTokenKey} from '@shipfox/node-auth-root-key';
 import type {Mailer, MailMessage} from '@shipfox/node-mailer';
 import {hashOpaqueToken} from '@shipfox/node-tokens';
@@ -8,6 +12,7 @@ import {
   confirmPasswordReset as coreConfirmPasswordReset,
   createImpersonatedSessionToken as coreCreateImpersonatedSessionToken,
   createSessionForUser as coreCreateSessionForUser,
+  createTestSessionForUser as coreCreateTestSessionForUser,
   login as coreLogin,
   refreshAccessToken as coreRefreshAccessToken,
   getCurrentUser,
@@ -96,6 +101,8 @@ const workspaces = {
 const login = (params: {email: string; password: string}) => coreLogin({...params, workspaces});
 const createSessionForUser = (params: {userId?: string; email?: string}) =>
   coreCreateSessionForUser({...params, workspaces});
+const createTestSessionForUser = (params: {userId?: string; email?: string}) =>
+  coreCreateTestSessionForUser({...params, workspaces});
 const createImpersonatedSessionToken = (params: {
   targetUserId: string;
   impersonatorId: string;
@@ -122,6 +129,16 @@ async function outboxEventsTo(email: string, eventType: string) {
     .from(authOutbox)
     .where(
       and(eq(authOutbox.eventType, eventType), sql`${authOutbox.payload}->>'email' = ${email}`),
+    )
+    .orderBy(desc(authOutbox.createdAt));
+}
+
+async function outboxEventsForUser(userId: string, eventType: string) {
+  return await db()
+    .select()
+    .from(authOutbox)
+    .where(
+      and(eq(authOutbox.eventType, eventType), sql`${authOutbox.payload}->>'userId' = ${userId}`),
     )
     .orderBy(desc(authOutbox.createdAt));
 }
@@ -273,6 +290,7 @@ describe('auth core', () => {
       name: 'Invited User',
       viaInvitation: true,
     });
+    expect(await outboxEventsForUser(result.user.id, AUTH_USER_SIGNED_IN)).toHaveLength(0);
   });
 
   test('provisionUser creates a verified user and writes a non-invitation signup event', async () => {
@@ -440,6 +458,11 @@ describe('auth core', () => {
     expect(result.token).toEqual(expect.any(String));
     expect(result.refreshToken).toEqual(expect.any(String));
     expect(result.user.id).toBe(user.id);
+    const signedInEvents = await outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN);
+    expect(signedInEvents).toHaveLength(1);
+    expect(signedInEvents[0]?.payload).toEqual({userId: user.id});
+    expect(signedInEvents[0]?.id).toEqual(expect.any(String));
+    expect(signedInEvents[0]?.createdAt).toBeInstanceOf(Date);
 
     const wrongPassword = login({email: user.email, password: 'not the right password'});
     await expect(wrongPassword).rejects.toBeInstanceOf(InvalidCredentialsError);
@@ -449,6 +472,24 @@ describe('auth core', () => {
       password: user.plainPassword,
     });
     await expect(missingUser).rejects.toBeInstanceOf(InvalidCredentialsError);
+    expect(await outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).toHaveLength(1);
+  });
+
+  test('createSessionForUser emits a signed-in event for an eligible external session', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+
+    const result = await createSessionForUser({userId: user.id});
+
+    expect(result.user.id).toBe(user.id);
+    await expect(outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).resolves.toHaveLength(1);
+  });
+
+  test('test session helpers do not emit a signed-in event', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+
+    await createTestSessionForUser({userId: user.id});
+
+    await expect(outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).resolves.toHaveLength(0);
   });
 
   test('login rejects unverified users with a business error', async () => {
@@ -457,6 +498,7 @@ describe('auth core', () => {
     const promise = login({email: user.email, password: user.plainPassword});
 
     await expect(promise).rejects.toBeInstanceOf(EmailNotVerifiedError);
+    expect(await outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).toHaveLength(0);
   });
 
   test('password login and reset flows refuse password-less users', async () => {
@@ -498,6 +540,8 @@ describe('auth core', () => {
     await expect(createSessionForUser({userId: suspended.id})).rejects.toBeInstanceOf(
       InvalidCredentialsError,
     );
+    expect(await outboxEventsForUser(unverified.id, AUTH_USER_SIGNED_IN)).toHaveLength(0);
+    expect(await outboxEventsForUser(suspended.id, AUTH_USER_SIGNED_IN)).toHaveLength(0);
   });
 
   test('createSessionForUser({email}) resolves surrounding whitespace and mixed case', async () => {
@@ -507,6 +551,7 @@ describe('auth core', () => {
 
     expect(result.user.id).toBe(user.id);
     expect(result.token).toEqual(expect.any(String));
+    expect(await outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).toHaveLength(1);
   });
 
   test('createSessionForUser({email}) retains eligibility checks', async () => {
@@ -606,6 +651,7 @@ describe('auth core', () => {
     expect(refreshed.refreshToken).toEqual(expect.any(String));
     expect(refreshed.refreshToken).not.toBe(loginResult.refreshToken);
     expect(refreshed.user.id).toBe(user.id);
+    expect(await outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).toHaveLength(1);
   });
 
   test('keeps the refresh-session identity stable across a token refresh', async () => {
@@ -632,6 +678,7 @@ describe('auth core', () => {
     const secondClaims = await verifyUserToken({token: second.token, secret: userAccessTokenKey()});
 
     expect(secondClaims.refreshSessionId).not.toBe(firstClaims.refreshSessionId);
+    expect(await outboxEventsForUser(user.id, AUTH_USER_SIGNED_IN)).toHaveLength(2);
   });
 
   test('refreshAccessToken tolerates a concurrent reuse within the grace window', async () => {

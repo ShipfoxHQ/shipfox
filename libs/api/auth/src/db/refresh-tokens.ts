@@ -1,6 +1,9 @@
+import {AUTH_USER_SIGNED_IN, type AuthEventMap} from '@shipfox/api-auth-dto';
+import {writeOutboxEvent} from '@shipfox/node-outbox';
 import {and, eq, gt, isNull, ne, sql} from 'drizzle-orm';
 import type {RefreshToken} from '#core/entities/refresh-token.js';
 import {db} from './db.js';
+import {authOutbox} from './schema/outbox.js';
 import {refreshTokens, toRefreshToken} from './schema/refresh-tokens.js';
 import {users} from './schema/users.js';
 
@@ -15,6 +18,10 @@ export interface CreateRefreshTokenParams {
   userId: string;
   hashedToken: string;
   expiresAt: Date;
+}
+
+interface CreateRefreshTokenForActiveUserParams extends CreateRefreshTokenParams {
+  emitSignedInEvent: boolean;
 }
 
 export async function createRefreshToken(params: CreateRefreshTokenParams): Promise<RefreshToken> {
@@ -34,7 +41,7 @@ export async function createRefreshToken(params: CreateRefreshTokenParams): Prom
 }
 
 export async function createRefreshTokenForActiveUser(
-  params: CreateRefreshTokenParams,
+  params: CreateRefreshTokenForActiveUserParams,
 ): Promise<RefreshToken | undefined> {
   return await db().transaction(async (tx) => {
     await lockUserSessionMutations(tx, params.userId);
@@ -56,6 +63,14 @@ export async function createRefreshTokenForActiveUser(
       .returning();
     const row = rows[0];
     if (!row) throw new Error('Insert returned no rows');
+
+    if (params.emitSignedInEvent) {
+      await writeOutboxEvent<AuthEventMap>(tx, authOutbox, {
+        type: AUTH_USER_SIGNED_IN,
+        payload: {userId: params.userId},
+      });
+    }
+
     return toRefreshToken(row);
   });
 }
