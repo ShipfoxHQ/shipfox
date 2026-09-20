@@ -5,7 +5,7 @@ import {
   type WorkspacesEventMap,
 } from '@shipfox/api-workspaces-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, eq, gt, isNull, lt, sql} from 'drizzle-orm';
+import {and, asc, eq, gt, isNull, lt, sql} from 'drizzle-orm';
 import type {Invitation} from '#core/entities/invitation.js';
 import type {Membership} from '#core/entities/membership.js';
 import {OpenInvitationExistsError} from '#core/errors.js';
@@ -150,7 +150,8 @@ export async function listOpenInvitationsByWorkspace(params: {
         isNull(invitations.revokedAt),
         gt(invitations.expiresAt, sql`now()`),
       ),
-    );
+    )
+    .orderBy(asc(invitations.email), asc(invitations.id));
 
   return rows.map(toInvitation);
 }

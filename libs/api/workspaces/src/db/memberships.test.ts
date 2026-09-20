@@ -1,4 +1,6 @@
+import {eq} from 'drizzle-orm';
 import {LastMemberError} from '#core/errors.js';
+import {db} from './db.js';
 import {
   createMembership,
   findMembership,
@@ -6,6 +8,7 @@ import {
   listMembershipsByWorkspace,
   removeMembership,
 } from './memberships.js';
+import {memberships} from './schema/memberships.js';
 import {createWorkspace} from './workspaces.js';
 
 function emailFor(suffix: string): string {
@@ -79,6 +82,51 @@ describe('memberships db', () => {
     expect(list).toHaveLength(1);
     expect(list[0]?.userEmail).toBe(user.email);
     expect(list[0]?.userName).toBe('Listy');
+  });
+
+  test('lists memberships by workspace in deterministic creation order', async () => {
+    const workspace = await createWorkspace({name: `Workspace ${crypto.randomUUID()}`});
+    const oldest = await createMembership({
+      userId: crypto.randomUUID(),
+      workspaceId: workspace.id,
+    });
+    const middle = await createMembership({
+      userId: crypto.randomUUID(),
+      workspaceId: workspace.id,
+    });
+    const newest = await createMembership({
+      userId: crypto.randomUUID(),
+      workspaceId: workspace.id,
+    });
+    const baseCreatedAt = new Date('2025-01-01T00:00:00.000Z');
+    const sameCreatedAt = new Date(baseCreatedAt.getTime() + 1_000);
+
+    await db()
+      .update(memberships)
+      .set({createdAt: new Date(baseCreatedAt.getTime() + 2_000)})
+      .where(eq(memberships.id, oldest.id));
+    await db()
+      .update(memberships)
+      .set({createdAt: sameCreatedAt})
+      .where(eq(memberships.id, middle.id));
+    await db()
+      .update(memberships)
+      .set({createdAt: sameCreatedAt})
+      .where(eq(memberships.id, newest.id));
+
+    const sameCreatedAtOrder = [middle, newest].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+    const firstRead = await listMembershipsByWorkspace({workspaceId: workspace.id});
+    const secondRead = await listMembershipsByWorkspace({workspaceId: workspace.id});
+
+    expect(firstRead.map((membership) => membership.id)).toEqual([
+      ...sameCreatedAtOrder.map(({id}) => id),
+      oldest.id,
+    ]);
+    expect(secondRead.map((membership) => membership.id)).toEqual(
+      firstRead.map((membership) => membership.id),
+    );
   });
 
   test('removeMembership succeeds when ≥2 members exist', async () => {
