@@ -19,6 +19,7 @@ import {
 } from '#components/table/index.js';
 import {cn} from '#utils/cn.js';
 import {DataTableNavigation, type DataTableNavigationProps} from './data-table-navigation.js';
+import {shouldAssertDataTableNavigationContract} from './data-table-runtime.js';
 
 export type DataTableDensity = 'default' | 'compact';
 
@@ -49,6 +50,10 @@ export interface DataTableBaseProps<
   loadingRowCount?: number;
   minimumWidth?: CSSProperties['minWidth'];
   navigation?: DataTableNavigationProps;
+  /** Declares feature-owned server-side filtering; DataTable does not invoke this callback. */
+  onFilterChange?: () => void;
+  /** Declares feature-owned server-side sorting; DataTable does not invoke this callback. */
+  onSortChange?: () => void;
   stickyHeader?: boolean;
   table: ReactTable<TFeatures, TData, TSelected>;
   tableClassName?: string;
@@ -163,6 +168,57 @@ function getIsSelected<TFeatures extends TableFeatures, TData extends RowData>(
   return rowWithSelection.getIsSelected?.() ?? false;
 }
 
+function hasColumnCapability<TFeatures extends TableFeatures, TData extends RowData>(
+  table: ReactTable<TFeatures, TData, unknown>,
+  capability: 'getCanFilter' | 'getCanSort',
+) {
+  const tableWithVisibility = table as typeof table & {
+    getVisibleLeafColumns?: typeof table.getAllLeafColumns;
+  };
+  const columns = tableWithVisibility.getVisibleLeafColumns?.() ?? table.getAllLeafColumns();
+
+  return columns.some((column) => {
+    const columnWithCapability = column as typeof column & {
+      [key in typeof capability]?: () => boolean;
+    };
+
+    return columnWithCapability[capability]?.() ?? false;
+  });
+}
+
+function shouldAssertNavigationContract() {
+  const buildEnvironment = (import.meta as ImportMeta & {env?: {DEV?: boolean}}).env;
+  const nodeEnvironment = (globalThis as {process?: {env?: {NODE_ENV?: string}}}).process?.env
+    ?.NODE_ENV;
+
+  return shouldAssertDataTableNavigationContract(buildEnvironment?.DEV, nodeEnvironment);
+}
+
+function assertNavigationContract<TFeatures extends TableFeatures, TData extends RowData>(
+  table: ReactTable<TFeatures, TData, unknown>,
+  navigation: DataTableNavigationProps | undefined,
+  onFilterChange: (() => void) | undefined,
+  onSortChange: (() => void) | undefined,
+) {
+  if (!shouldAssertNavigationContract()) return;
+
+  const hasCompleteNavigation = navigation?.kind === 'complete';
+  const hasSortableColumn = hasColumnCapability(table, 'getCanSort');
+  const hasFilterableColumn = hasColumnCapability(table, 'getCanFilter');
+
+  if (hasSortableColumn && !hasCompleteNavigation && onSortChange === undefined) {
+    throw new Error(
+      'DataTable sortable columns require complete navigation or an onSortChange handler for server-side sorting.',
+    );
+  }
+
+  if (hasFilterableColumn && !hasCompleteNavigation && onFilterChange === undefined) {
+    throw new Error(
+      'DataTable filterable columns require complete navigation or an onFilterChange handler for server-side filtering.',
+    );
+  }
+}
+
 function getColumnAriaSort<TFeatures extends TableFeatures, TData extends RowData>(
   column: Column<TFeatures, TData, unknown>,
 ): ComponentProps<'th'>['aria-sort'] {
@@ -194,12 +250,21 @@ export function DataTable<
   loadingRowCount,
   minimumWidth,
   navigation,
+  onFilterChange,
+  onSortChange,
   stickyHeader = false,
   table,
   tableClassName,
   toolbar,
   ...accessibleName
 }: DataTableProps<TFeatures, TData, TSelected>) {
+  assertNavigationContract(
+    table as ReactTable<TFeatures, TData, unknown>,
+    navigation,
+    onFilterChange,
+    onSortChange,
+  );
+
   const headerGroups = table.getHeaderGroups();
   const rows = table.getRowModel().rows;
   const visibleColumnCount = getVisibleColumnCount(table as ReactTable<TFeatures, TData, unknown>);

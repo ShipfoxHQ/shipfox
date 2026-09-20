@@ -135,6 +135,7 @@ interface WorkflowTableProps {
   loading?: boolean;
   minimumWidth?: number;
   navigation?: DataTableNavigationProps;
+  onSortChange?: () => void;
   refreshing?: boolean;
   sticky?: boolean;
 }
@@ -150,6 +151,7 @@ function WorkflowTable({
   loading = false,
   minimumWidth,
   navigation,
+  onSortChange,
   refreshing = false,
   sticky = false,
 }: WorkflowTableProps) {
@@ -176,6 +178,7 @@ function WorkflowTable({
       isRefreshing={refreshing}
       loadingLabel="Loading workflows"
       minimumWidth={minimumWidth}
+      onSortChange={onSortChange}
       {...(resolvedNavigation ? {navigation: resolvedNavigation} : {})}
       stickyHeader={sticky}
       toolbar={
@@ -337,7 +340,7 @@ export const ToolbarLayouts: Story = {
 export const DataStates: Story = {
   render: () => (
     <div className="grid w-[calc(100vw-32px)] max-w-1120 grid-cols-1 gap-24 lg:grid-cols-2">
-      <WorkflowTable data={[]} loading />
+      <WorkflowTable data={[]} loading onSortChange={() => undefined} />
       <WorkflowTable refreshing />
       <WorkflowTable
         data={[]}
@@ -393,25 +396,35 @@ export const NavigationStates: Story = {
           data={[]}
           loading
           navigation={{...appendNavigation, isLoading: true, loadedCount: 0, totalCount: undefined}}
+          onSortChange={() => undefined}
         />
       </div>
       <div className="flex min-w-0 flex-col gap-tight">
         <Text size="xs" className="text-foreground-neutral-muted">
           Appending
         </Text>
-        <WorkflowTable navigation={{...appendNavigation, isLoading: true}} />
+        <WorkflowTable
+          navigation={{...appendNavigation, isLoading: true}}
+          onSortChange={() => undefined}
+        />
       </div>
       <div className="flex min-w-0 flex-col gap-tight">
         <Text size="xs" className="text-foreground-neutral-muted">
           Retry
         </Text>
-        <WorkflowTable navigation={{...appendNavigation, isError: true}} />
+        <WorkflowTable
+          navigation={{...appendNavigation, isError: true}}
+          onSortChange={() => undefined}
+        />
       </div>
       <div className="flex min-w-0 flex-col gap-tight">
         <Text size="xs" className="text-foreground-neutral-muted">
           Exhausted
         </Text>
-        <WorkflowTable navigation={{...appendNavigation, hasMore: false, loadedCount: 143}} />
+        <WorkflowTable
+          navigation={{...appendNavigation, hasMore: false, loadedCount: 143}}
+          onSortChange={() => undefined}
+        />
       </div>
       <div className="flex min-w-0 flex-col gap-tight lg:col-span-2">
         <Text size="xs" className="text-foreground-neutral-muted">
@@ -599,6 +612,7 @@ function CursorPaginationExample() {
       <DataTable
         table={table}
         aria-label="Cursor-backed workflows"
+        onSortChange={() => undefined}
         navigation={{
           'aria-label': 'Cursor-backed workflow pages',
           kind: 'paged',
@@ -646,6 +660,7 @@ function ManualSortingTable() {
     <DataTable
       table={table}
       aria-label="Server-sorted workflows"
+      onSortChange={() => undefined}
       toolbar={
         <DataTableToolbar
           resultCount={workflows.length}
