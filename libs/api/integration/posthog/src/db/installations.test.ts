@@ -28,6 +28,16 @@ describe('PostHog installations', () => {
     await deletePosthogInstallationByConnectionId(connectionId);
   });
 
+  it('returns not-found when guarding an unknown connection', async () => {
+    const result = await withPosthogCredentialVersion({
+      connectionId: randomUUID(),
+      credentialVersion: 1,
+      callback: async () => 'unused',
+    });
+
+    expect(result).toEqual({matched: false, reason: 'not-found'});
+  });
+
   it('runs the callback only for the matching locked credential version', async () => {
     const connectionId = randomUUID();
     await upsertPosthogInstallation({

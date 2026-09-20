@@ -13,7 +13,7 @@ describe('integration provider config', () => {
     expect(config.INTEGRATIONS_ENABLE_WEBHOOK_PROVIDER).toBe(true);
   });
 
-  it('disables the Linear provider by default', async () => {
+  it('disables third-party providers by default', async () => {
     vi.resetModules();
 
     const {config} = await import('#config.js');

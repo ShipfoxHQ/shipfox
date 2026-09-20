@@ -4,4 +4,4 @@
 "@shipfox/api-integration-core": patch
 ---
 
-Adds the PostHog provider scaffold, browser-safe contracts, installation persistence, and credential storage behind a configuration flag.
+Adds the flag-gated PostHog provider, off by default, region-aware API-key and project-selection connect contracts, and an E2E connection-seeding helper.

@@ -252,6 +252,24 @@ describe('integration connection queries', () => {
     expect(result).toBe('sentry_prod');
   });
 
+  it('persists an explicitly supplied connection id', async () => {
+    const id = crypto.randomUUID();
+
+    await createIntegrationConnection({
+      id,
+      workspaceId,
+      provider: 'posthog',
+      externalAccountId: 'posthog-project',
+      slug: 'posthog_project',
+      displayName: 'PostHog Project',
+      capabilities: [],
+    });
+
+    const persisted = await getIntegrationConnectionById(id);
+
+    expect(persisted?.id).toBe(id);
+  });
+
   it('creates a connection without upserting duplicates', async () => {
     const first = await createIntegrationConnection({
       workspaceId,
