@@ -93,6 +93,7 @@ function InteractiveTable({data = workflows}: {data?: Workflow[]}) {
       table={table}
       aria-label="Workflows"
       emptyContent="No workflows match these filters."
+      navigation={{kind: 'complete', count: data.length}}
       toolbar={
         <DataTableToolbar
           resultCount={data.length}
@@ -132,6 +133,7 @@ function ManualSortingTable() {
     <DataTable
       table={table}
       aria-label="Server workflows"
+      onSortChange={() => undefined}
       toolbar={
         <DataTableToolbar resultCount={workflows.length}>
           <span>Page {pageIndex + 1}</span>
