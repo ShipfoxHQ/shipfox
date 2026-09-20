@@ -349,7 +349,7 @@ export function DataTable<
         </TableHeader>
         {tableBody}
       </Table>
-      {navigation ? <DataTableNavigation {...navigation} /> : null}
+      {navigation && !isLoading ? <DataTableNavigation {...navigation} /> : null}
     </Panel>
   );
 }

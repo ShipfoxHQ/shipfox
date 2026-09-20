@@ -14,7 +14,7 @@ type ListMembersQueryOptions = UseQueryOptions<
   ReturnType<typeof listMembersQueryKey>
 >;
 
-async function listMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+export async function listMembers(workspaceId: string): Promise<WorkspaceMember[]> {
   const response = await checkedApiRequest(
     listMembersResponseSchema,
     `/workspaces/${workspaceId}/members`,
