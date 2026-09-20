@@ -165,10 +165,10 @@ export type NotionCallbackResponseDto = z.infer<typeof notionCallbackResponseSch
 
 export const createE2eNotionConnectionBodySchema = z.object({
   workspace_id: z.string().uuid(),
-  notion_workspace_id: z.string().min(1),
+  notion_workspace_id: z.string().uuid(),
   workspace_name: z.string().min(1),
-  bot_id: z.string().min(1),
-  authorized_by_user_id: z.string().min(1),
+  bot_id: z.string().uuid(),
+  authorized_by_user_id: z.string().uuid(),
   access_token: z.string().min(1),
   token_expires_at: z.string().optional(),
   display_name: z.string().min(1),
