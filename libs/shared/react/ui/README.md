@@ -118,12 +118,21 @@ Choose the table API by behavior:
 | Need | API |
 | --- | --- |
 | Fixed read-only rows without dataset controls | `@shipfox/react-ui/table` |
-| Sorting, filtering, pagination, selection, visibility, or shared data states | `@shipfox/react-ui/data-table` |
+| Interactive controls over a complete result set | `@shipfox/react-ui/data-table` with a `complete` navigation descriptor |
+| Interactive controls over a partial result set | `@shipfox/react-ui/data-table` with an `append` or `paged` descriptor; sort and filter through server callbacks or omit those controls |
 
 `DataTable` renders a configured TanStack Table instance. The feature keeps
 ownership of columns, row models, data fetching, route state, and browser state.
 The feature must also supply a stable `getRowId` when array position is not
 durable.
+
+A result set is **complete** only when it contains every row in its declared
+query scope. A complete result set may sort and filter locally. A partial result
+set must sort and filter on the server, or must not offer those controls. A cap
+or producer total does not make a response complete. For a partial result, pass
+`onSortChange` or `onFilterChange` when the feature handles that operation on the
+server. Otherwise, omit the corresponding control. Declare the capability through
+`navigation`, not through a footer node.
 
 ```tsx
 import {createColumnHelper, tableFeatures, useTable} from '@tanstack/react-table';
@@ -153,6 +162,7 @@ export function WorkflowTable({workflows}: {workflows: Workflow[]}) {
       table={table}
       aria-label="Project workflows"
       emptyContent="No workflows yet."
+      navigation={{kind: 'complete', count: workflows.length}}
     />
   );
 }
@@ -162,27 +172,57 @@ export function WorkflowTable({workflows}: {workflows: Workflow[]}) {
 composition. `DataTable` uses them automatically for initial loading and empty
 results. Background refresh keeps current rows visible and sets `aria-busy`.
 
-#### Pagination
+#### Collection navigation
 
-`DataTablePagination` uses a controlled, data-source-neutral contract. Pass capability
-flags and callbacks from the feature that owns pagination. The component never
-accepts or stores an opaque cursor.
+`DataTable` renders one footer from the feature-owned `navigation` descriptor.
+The footer owns presentation, while the feature owns cursors, page indexes,
+fetches, and route state. The descriptor is a discriminated union with three
+arms:
+
+| Arm | Use | Descriptor contract |
+| --- | --- | --- |
+| `complete` | The response contains every row in scope. | `kind`, `count` |
+| `append` | The response is partial and the feature loads the next set. | `kind`, `hasMore`, `isLoading`, `isError`, `loadedCount`, `onLoadMore`, `onRetry`, and optional `totalCount` |
+| `paged` | The feature exposes controlled page navigation. | `kind`, `pageIndex`, `pageCount`, `onPageChange`, and optional page labels, total, and page-size controls |
+
+Pass the descriptor to `DataTable`; do not pass a footer node. An appending
+descriptor cannot carry a page count. A complete descriptor cannot carry a
+load-more callback. An optional total on an appending descriptor reports the
+producer's count for the active filters. It does not imply completeness.
 
 ```tsx
-<DataTablePagination
-  aria-label="Workflow pages"
-  canPreviousPage={previousCursor !== null}
-  canNextPage={nextCursor !== null}
-  onPreviousPage={() => navigateToCursor(previousCursor)}
-  onNextPage={() => navigateToCursor(nextCursor)}
-  pageLabel="Current result page"
+<DataTable
+  table={table}
+  aria-label="Workflow runs"
+  navigation={{
+    kind: 'append',
+    hasMore: nextCursor !== null,
+    isError: nextPageError !== null,
+    isLoading: isFetchingNextPage,
+    loadedCount: runs.length,
+    onLoadMore: fetchNextPage,
+    onRetry: retryNextPage,
+    totalCount: filteredTotal,
+  }}
 />
 ```
 
-Bounded client-side tables can pass `table.getCanPreviousPage()`,
-`table.getCanNextPage()`, `table.previousPage()`, and `table.nextPage()`.
-Add `pageSize`, `pageSizeOptions`, and `onPageSizeChange` together when users
-can control the page size.
+The footer is a named `Table navigation` region. It announces loaded rows in a
+polite live region. An append total uses the form `50 loaded of 143`; without a
+producer total, it announces only the loaded count. Loading, retry, and
+exhaustion messages never imply that a partial response is complete.
+
+The footer keeps focus where the reader moved it. After a failed append, focus
+moves to `Retry` only when the load-more control still has focus. When append
+exhausts the collection, focus moves to the footer region under the same
+condition. Otherwise, the reader's current focus stays in place while the
+footer announces the outcome. The same rule applies when a future surface
+replaces the button with scroll-triggered loading.
+
+The `paged` arm replaces the former `DataTablePagination` export. It accepts
+`pageIndex`, `pageCount`, and `onPageChange`, plus optional page labels, a
+producer total, and the controlled `pageSize`, `pageSizeOptions`, and
+`onPageSizeChange` group.
 
 #### Row selection
 

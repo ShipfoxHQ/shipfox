@@ -15,6 +15,10 @@ screen.
 
 Use the folders that the feature needs. Empty layers add no value.
 
+Collection surfaces also follow [ADR 0019: Collection navigation](../adr/0019-collection-navigation.md).
+It defines complete result sets, the shared navigation descriptor, and feature-owned navigation state.
+The descriptor determines whether a feature may sort and filter locally.
+
 ```text
 src/
   feature.ts       Node-safe composition manifest
