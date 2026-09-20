@@ -1,5 +1,30 @@
 # @shipfox/api-integration-core
 
+## 29.1.0
+
+### Patch Changes
+
+- 61bf190: Adds the flag-gated PostHog provider, off by default, region-aware API-key and project-selection connect contracts, and an E2E connection-seeding helper.
+- Updated dependencies [3431ccc]
+- Updated dependencies [d12820f]
+- Updated dependencies [61bf190]
+- Updated dependencies [58b576b]
+  - @shipfox/api-workspaces-dto@29.1.0
+  - @shipfox/api-agent-dto@29.1.0
+  - @shipfox/api-integration-posthog@29.1.0
+  - @shipfox/api-auth-context@29.1.0
+  - @shipfox/api-integration-clickup@29.1.0
+  - @shipfox/api-integration-github@29.1.0
+  - @shipfox/api-integration-slack@29.1.0
+  - @shipfox/api-workflows-dto@29.1.0
+  - @shipfox/api-integration-gitea@29.1.0
+  - @shipfox/api-integration-jira@29.1.0
+  - @shipfox/api-integration-linear@29.1.0
+  - @shipfox/api-integration-sentry@29.1.0
+  - @shipfox/api-integration-webhook@29.1.0
+  - @shipfox/api-integration-shipfox@29.1.0
+  - @shipfox/api-triggers-dto@29.1.0
+
 ## 29.0.0
 
 ### Patch Changes

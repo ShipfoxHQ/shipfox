@@ -1,5 +1,11 @@
 # @shipfox/api-integration-webhook
 
+## 29.1.0
+
+### Patch Changes
+
+- @shipfox/api-auth-context@29.1.0
+
 ## 29.0.0
 
 ### Patch Changes

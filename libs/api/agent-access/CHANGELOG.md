@@ -1,5 +1,15 @@
 # @shipfox/api-agent-access
 
+## 29.1.0
+
+### Patch Changes
+
+- Updated dependencies [cbc2ee8]
+  - @shipfox/api-auth-dto@29.1.0
+  - @shipfox/api-auth-context@29.1.0
+  - @shipfox/api-workflows-dto@29.1.0
+  - @shipfox/api-triggers-dto@29.1.0
+
 ## 29.0.0
 
 ### Minor Changes

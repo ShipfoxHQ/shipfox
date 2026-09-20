@@ -1,5 +1,19 @@
 # @shipfox/client-agent
 
+## 48.0.2
+
+### Patch Changes
+
+- Updated dependencies [b7469ab]
+- Updated dependencies [32f6eac]
+- Updated dependencies [d12820f]
+- Updated dependencies [cbc2ee8]
+  - @shipfox/react-ui@3.0.0
+  - @shipfox/api-agent-dto@29.1.0
+  - @shipfox/api-auth-dto@29.1.0
+  - @shipfox/client-shell@48.0.2
+  - @shipfox/client-ui@48.0.2
+
 ## 48.0.1
 
 ### Patch Changes

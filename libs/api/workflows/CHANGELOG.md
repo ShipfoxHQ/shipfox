@@ -1,5 +1,24 @@
 # @shipfox/api-workflows
 
+## 29.1.0
+
+### Minor Changes
+
+- d12820f: Publishes complete canonical workflow and step identity through managed inference credentials.
+
+### Patch Changes
+
+- 27ba71a: Shows unresolved workflow configuration fields and references in failure annotations.
+- Updated dependencies [3431ccc]
+- Updated dependencies [d12820f]
+- Updated dependencies [cbc2ee8]
+- Updated dependencies [58b576b]
+  - @shipfox/api-workspaces-dto@29.1.0
+  - @shipfox/api-agent-dto@29.1.0
+  - @shipfox/api-auth-dto@29.1.0
+  - @shipfox/api-auth-context@29.1.0
+  - @shipfox/api-workflows-dto@29.1.0
+
 ## 29.0.0
 
 ### Major Changes

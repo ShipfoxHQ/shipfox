@@ -1,5 +1,25 @@
 # @shipfox/client-workflows
 
+## 48.0.2
+
+### Patch Changes
+
+- bbc6c90: Shows configuration diagnostics when workflow steps fail before runner dispatch.
+- 739e42d: Adds shared DataTable footer navigation and removes the workflow search and column-sort controls.
+- Updated dependencies [b7469ab]
+- Updated dependencies [32f6eac]
+- Updated dependencies [29b5367]
+  - @shipfox/react-ui@3.0.0
+  - @shipfox/client-triggers@48.0.2
+  - @shipfox/client-shell@48.0.2
+  - @shipfox/client-integrations@48.0.2
+  - @shipfox/client-logs@48.0.2
+  - @shipfox/client-projects@48.0.2
+  - @shipfox/client-ui@48.0.2
+  - @shipfox/client-usage@48.0.2
+  - @shipfox/api-workflows-dto@29.1.0
+  - @shipfox/api-triggers-dto@29.1.0
+
 ## 48.0.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @shipfox/react-ui
 
+## 3.0.0
+
+### Major Changes
+
+- b7469ab: Replaces the DataTable footer slot with typed complete and append navigation.
+- 32f6eac: Replaces the standalone `DataTablePagination` export with the `paged` arm of `DataTableNavigation`.
+
 ## 2.6.1
 
 ### Patch Changes

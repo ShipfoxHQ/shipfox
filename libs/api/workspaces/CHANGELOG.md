@@ -1,5 +1,19 @@
 # @shipfox/api-workspaces
 
+## 29.1.0
+
+### Patch Changes
+
+- 3431ccc: Caps workspace membership and reports full-workspace invitation failures to clients.
+- 58b576b: Adds a `workspaces.member.removed` outbox event for workspace membership removals.
+- ee66596: Orders workspace members and open invitations deterministically.
+- Updated dependencies [3431ccc]
+- Updated dependencies [cbc2ee8]
+- Updated dependencies [58b576b]
+  - @shipfox/api-workspaces-dto@29.1.0
+  - @shipfox/api-auth-dto@29.1.0
+  - @shipfox/api-auth-context@29.1.0
+
 ## 29.0.0
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @shipfox/client-usage
 
+## 48.0.2
+
+### Patch Changes
+
+- Updated dependencies [b7469ab]
+- Updated dependencies [32f6eac]
+  - @shipfox/react-ui@3.0.0
+  - @shipfox/client-shell@48.0.2
+
 ## 48.0.1
 
 ### Patch Changes

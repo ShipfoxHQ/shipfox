@@ -1,5 +1,20 @@
 # @shipfox/client-onboarding
 
+## 48.0.2
+
+### Patch Changes
+
+- 6d4769b: Stops completed onboarding checklists from reporting false shown analytics.
+- Updated dependencies [b7469ab]
+- Updated dependencies [32f6eac]
+  - @shipfox/react-ui@3.0.0
+  - @shipfox/client-shell@48.0.2
+  - @shipfox/client-workspace-settings@48.0.2
+  - @shipfox/client-agent@48.0.2
+  - @shipfox/client-integrations@48.0.2
+  - @shipfox/client-projects@48.0.2
+  - @shipfox/client-runners@48.0.2
+
 ## 48.0.1
 
 ### Patch Changes
