@@ -1,4 +1,5 @@
 import {integrationsInterModuleContract} from '@shipfox/api-integration-core-dto/inter-module';
+import {posthogAgentToolCatalog} from '@shipfox/api-integration-posthog';
 import {
   createShipfoxAgentToolsProvider,
   shipfoxAgentToolCatalog,
@@ -722,6 +723,71 @@ describe('integrations inter-module presentation', () => {
 });
 
 describe('integrations inter-module callTool', () => {
+  it('resolves a PostHog tool id for a tool step through the gateway', async () => {
+    const entry = posthogAgentToolCatalog.find((tool) => tool.id === 'execute-sql');
+    if (!entry) throw new Error('PostHog execute-sql tool is missing from the catalog');
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(integrationsInterModuleContract);
+    const posthogConnection = connection({
+      id: connectionId,
+      workspaceId,
+      provider: 'posthog',
+      slug: 'posthog_analytics',
+    });
+    transport.register(
+      createIntegrationsInterModulePresentation({
+        registry: createIntegrationProviderRegistry([
+          {
+            provider: 'posthog',
+            displayName: 'PostHog',
+            adapters: {
+              agent_tools: agentToolsProvider([entry], {
+                result: {
+                  content: [{type: 'text', text: 'ok'}],
+                  structuredContent: {tool_id: 'execute-sql'},
+                },
+              }),
+            },
+          },
+        ]),
+        sourceControl: createSourceControlIntegrationService({
+          registry: createIntegrationProviderRegistry([]),
+          getIntegrationConnectionById: async () => undefined,
+        }),
+        getIntegrationConnectionById: async () => posthogConnection,
+      }),
+    );
+    transport.seal();
+
+    const result = await client.callTool({
+      workspaceId,
+      connectionId,
+      tool: {
+        id: entry.id,
+        provider: 'posthog',
+        sensitivity: entry.sensitivity,
+        sensitive: entry.sensitive,
+        requiredScope: [],
+        inputSchema: entry.inputSchema,
+      },
+      arguments: {query: 'SELECT 1'},
+      caller: {
+        kind: 'tool_step',
+        projectId: 'project-1',
+        runId: 'run-1',
+        jobExecutionId: 'execution-1',
+        stepId: 'step-1',
+        stepAttempt: 1,
+        callIndex: 1,
+      },
+    });
+
+    expect(result).toMatchObject({
+      outcome: 'success',
+      result: expect.objectContaining({tool_id: 'execute-sql'}),
+    });
+  });
+
   const toolCallInput: z.input<typeof integrationsInterModuleContract.methods.callTool.input> = {
     workspaceId,
     connectionId,

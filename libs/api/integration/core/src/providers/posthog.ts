@@ -6,6 +6,7 @@ import {
   createIntegrationConnection,
   getIntegrationConnectionById,
   resolveUniqueConnectionSlug,
+  updateIntegrationConnectionLifecycleStatus,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
@@ -15,15 +16,18 @@ async function loadPosthogModuleParts(
   options: Parameters<IntegrationProviderModule['load']>[0] = {},
 ): Promise<IntegrationModuleParts> {
   const {
+    createPosthogApiClient,
     createPosthogCredentialStore,
-    createPosthogIntegrationProvider,
     createPosthogE2eRoutes,
+    createPosthogInstallation,
+    createPosthogIntegrationProvider,
     db: posthogDb,
     deletePosthogInstallationByConnectionId,
     getPosthogInstallationByConnectionId,
     migrationsPath,
+    PosthogAgentToolsProvider,
     posthogExternalAccountId,
-    createPosthogInstallation,
+    withPosthogCredentialVersion,
   } = await import('@shipfox/api-integration-posthog');
 
   const rawSecrets = options.secrets?.posthog;
@@ -111,7 +115,7 @@ async function loadPosthogModuleParts(
                 slug,
                 displayName: input.projectName,
                 lifecycleStatus: 'active',
-                capabilities: [],
+                capabilities: credentialStore ? ['agent_tools'] : [],
               },
               {tx},
             );
@@ -132,8 +136,29 @@ async function loadPosthogModuleParts(
     });
   }
 
+  const agentTools = credentialStore
+    ? new PosthogAgentToolsProvider({
+        credentialStore,
+        getInstallationByConnectionId: getPosthogInstallationByConnectionId,
+        api: createPosthogApiClient(),
+        markConnectionError: async ({connectionId, credentialVersion}) => {
+          await withPosthogCredentialVersion({
+            connectionId,
+            credentialVersion,
+            callback: async ({tx}) => {
+              await updateIntegrationConnectionLifecycleStatus(
+                {id: connectionId, lifecycleStatus: 'error'},
+                {tx: tx as never},
+              );
+            },
+          });
+        },
+      })
+    : undefined;
+
   const provider = createPosthogIntegrationProvider({
     getPosthogInstallationByConnectionId,
+    ...(agentTools ? {agentTools} : {}),
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {
         await deletePosthogInstallationByConnectionId(connection.id, {tx});
