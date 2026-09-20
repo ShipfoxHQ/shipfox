@@ -3,6 +3,7 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {ReactElement} from 'react';
+import {agentCredentialQueryKeys} from '#hooks/api/agent-access/credentials.js';
 import {AgentAccessSettingsPage} from './agent-access-settings-page.js';
 import {formatAgentAccessDate, formatAgentAccessTimestamp} from './format.js';
 
@@ -23,7 +24,10 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
 
 function renderSettings(element: ReactElement) {
   const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
-  return render(<QueryClientProvider client={queryClient}>{element}</QueryClientProvider>);
+  return {
+    queryClient,
+    ...render(<QueryClientProvider client={queryClient}>{element}</QueryClientProvider>),
+  };
 }
 
 describe('AgentAccessSettingsPage', () => {
@@ -140,6 +144,35 @@ describe('AgentAccessSettingsPage', () => {
     expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getAllByRole('columnheader')).toHaveLength(4);
     expect(screen.getByText('Loading connected apps')).toBeInTheDocument();
+  });
+
+  test('keeps loaded rows visible and marks the table busy during a grants refetch', async () => {
+    let resolveRefresh!: (response: Response) => void;
+    const refreshResponse = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    let requestCount = 0;
+    const fetchImpl = vi.fn(() => {
+      requestCount += 1;
+      return requestCount === 1
+        ? Promise.resolve(jsonResponse({grants: [grantDto()]}))
+        : refreshResponse;
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl});
+    const {queryClient} = renderSettings(<AgentAccessSettingsPage workspaceId={WORKSPACE_ID} />);
+
+    expect(await screen.findByText('Claude Desktop')).toBeVisible();
+
+    const refetch = queryClient.refetchQueries({queryKey: agentCredentialQueryKeys.grants()});
+    await waitFor(() => {
+      expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByText('Claude Desktop')).toBeVisible();
+    });
+
+    await act(async () => {
+      resolveRefresh(jsonResponse({grants: [grantDto()]}));
+      await refetch;
+    });
   });
 
   test('confirms OAuth revocation with its actual propagation window', async () => {

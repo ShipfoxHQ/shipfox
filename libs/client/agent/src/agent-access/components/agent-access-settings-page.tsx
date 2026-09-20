@@ -57,6 +57,7 @@ export function AgentAccessSettingsPage({workspaceId}: {workspaceId: string}) {
           <AgentGrantList
             grants={grants}
             isLoading={grantsQuery.isPending}
+            isRefreshing={grantsQuery.isRefetching}
             emptyContent={
               grantsQuery.data !== undefined && grants.length === 0 ? (
                 <EmptyState
@@ -117,10 +118,12 @@ export function AgentGrantList({
   emptyContent,
   grants,
   isLoading = false,
+  isRefreshing = false,
 }: {
   emptyContent?: ReactNode;
   grants: AgentGrant[];
   isLoading?: boolean;
+  isRefreshing?: boolean;
 }) {
   const table = useTable({
     columns: agentGrantColumns,
@@ -138,6 +141,7 @@ export function AgentGrantList({
       density="compact"
       emptyContent={emptyContent}
       isLoading={isLoading}
+      isRefreshing={isRefreshing}
       loadingLabel="Loading connected apps"
       loadingRowCount={3}
       minimumWidth={640}
