@@ -35,7 +35,6 @@ import {
   DataTableColumnVisibility,
 } from './data-table-column-visibility.js';
 import type {DataTableNavigationProps} from './data-table-navigation.js';
-import {DataTablePagination} from './data-table-pagination.js';
 import {
   DataTableSelectionCell,
   DataTableSelectionHeader,
@@ -541,34 +540,26 @@ function BoundedPaginationExample() {
 
   return (
     <div className="flex flex-col gap-cluster">
-      <DataTable table={table} aria-label="Paginated workflows" />
+      <DataTable
+        table={table}
+        aria-label="Paginated workflows"
+        navigation={{
+          kind: 'paged',
+          onPageChange: (pageIndex) => {
+            table.setPageIndex(pageIndex);
+            resetSelection();
+          },
+          pageCount,
+          pageIndex: currentPage - 1,
+          pageLabel: `Page ${currentPage} of ${pageCount}`,
+          pageSize: table.state.pagination.pageSize,
+          pageSizeOptions: [3, 6, 12],
+          totalCount: scrollingWorkflows.length,
+        }}
+      />
       <DataTableSelectionSummary
         selectedCount={table.getSelectedRowIds().length}
         totalCount={currentRows.filter((row) => row.getCanSelect()).length}
-      />
-      <DataTablePagination
-        canNextPage={table.getCanNextPage()}
-        canPreviousPage={table.getCanPreviousPage()}
-        onFirstPage={() => {
-          table.firstPage();
-          resetSelection();
-        }}
-        onNextPage={() => {
-          table.nextPage();
-          resetSelection();
-        }}
-        onPageSizeChange={(pageSize) => {
-          table.setPageSize(pageSize);
-          resetSelection();
-        }}
-        onPreviousPage={() => {
-          table.previousPage();
-          resetSelection();
-        }}
-        pageLabel={`Page ${currentPage} of ${pageCount}`}
-        pageSize={table.state.pagination.pageSize}
-        pageSizeOptions={[3, 6, 12]}
-        resultCount={scrollingWorkflows.length}
       />
     </div>
   );
@@ -601,19 +592,20 @@ function CursorPaginationExample() {
 
   return (
     <div className="flex flex-col gap-cluster">
-      <DataTable table={table} aria-label="Cursor-backed workflows" />
-      <DataTablePagination
-        aria-label="Cursor-backed workflow pages"
-        canNextPage={page.next !== null}
-        canPreviousPage={page.previous !== null}
-        onFirstPage={() => setCursor('start')}
-        onNextPage={() => {
-          if (page.next) setCursor(page.next);
+      <DataTable
+        table={table}
+        aria-label="Cursor-backed workflows"
+        navigation={{
+          'aria-label': 'Cursor-backed workflow pages',
+          kind: 'paged',
+          onPageChange: (pageIndex) => {
+            if (pageIndex === 0) setCursor('start');
+            if (pageIndex === 1) setCursor('after-nightly');
+          },
+          pageCount: 2,
+          pageIndex: cursor === 'start' ? 0 : 1,
+          pageLabel: 'Current result page',
         }}
-        onPreviousPage={() => {
-          if (page.previous) setCursor(page.previous);
-        }}
-        pageLabel="Current result page"
       />
     </div>
   );
