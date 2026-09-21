@@ -6,4 +6,4 @@ export const PRODUCT_SUBTITLE =
   'Agentic coding makes engineers faster. Shipfox gives them a factory.';
 
 export const PRODUCT_DESCRIPTION =
-  'Agent workflows that run like CI pipelines: they live in your repo and turn a ticket, an alert or a failed check into a pull request. You review and merge. Your week goes to the work that needs you.';
+  'A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request. You review and merge, and spend your week on the work that needs you.';
