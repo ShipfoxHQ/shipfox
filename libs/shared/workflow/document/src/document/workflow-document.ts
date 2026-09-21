@@ -16,9 +16,14 @@ export const WORKFLOW_INTERPOLATION_MARKER_PATTERN = /\$\{\{/;
 export const WORKFLOW_SESSION_KEY_MAX_LENGTH = 128;
 export const WORKFLOW_SESSION_KEY_PATTERN_SOURCE = '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$';
 export const WORKFLOW_SESSION_KEY_PATTERN = new RegExp(WORKFLOW_SESSION_KEY_PATTERN_SOURCE);
+export const WORKFLOW_SECRET_KEY_MAX_LENGTH = 128;
 export const WORKFLOW_SECRET_KEY_PATTERN_SOURCE = '^[A-Z_][A-Z0-9_]*$';
 export const WORKFLOW_SECRET_KEY_PATTERN = new RegExp(WORKFLOW_SECRET_KEY_PATTERN_SOURCE);
-export const workflowDocumentSecretKeySchema = z.string().regex(WORKFLOW_SECRET_KEY_PATTERN);
+export const workflowDocumentSecretKeySchema = z
+  .string()
+  .min(1)
+  .max(WORKFLOW_SECRET_KEY_MAX_LENGTH)
+  .regex(WORKFLOW_SECRET_KEY_PATTERN);
 export type SecretKey = z.infer<typeof workflowDocumentSecretKeySchema>;
 const workflowDocumentTriggerSecretsSchema = z
   .record(workflowDocumentSecretKeySchema, workflowDocumentSecretKeySchema)

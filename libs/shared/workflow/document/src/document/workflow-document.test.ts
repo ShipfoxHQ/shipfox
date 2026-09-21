@@ -12,6 +12,7 @@ import {
   WORKFLOW_DOCUMENT_STEP_OUTPUTS_MAX_ENTRIES,
   WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH,
   WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES,
+  WORKFLOW_SECRET_KEY_MAX_LENGTH,
   workflowDocumentSchema,
   workflowDocumentStepSchema,
   workflowDocumentToolStepWithSchema,
@@ -667,6 +668,19 @@ describe('workflowDocumentSchema', () => {
     const result = workflowDocumentSchema.parse(workflowDocument);
 
     expect(result.triggers?.on_any_github_event).toEqual({source: 'github_acme'});
+  });
+
+  it.each([
+    ['input name', {[`T${'O'.repeat(WORKFLOW_SECRET_KEY_MAX_LENGTH)}`]: 'SOURCE_TOKEN'}],
+    ['source name', {TARGET_TOKEN: `S${'O'.repeat(WORKFLOW_SECRET_KEY_MAX_LENGTH)}`}],
+  ] as const)('rejects a trigger secret %s longer than the key limit', (_label, secrets) => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'trigger secrets',
+      triggers: {manual: {source: 'manual', secrets}},
+      jobs: {build: {steps: [{run: 'npm run build'}]}},
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it('keeps trigger filters as strings', () => {

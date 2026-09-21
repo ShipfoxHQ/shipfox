@@ -1,4 +1,5 @@
 import {requireUserContext, requireWorkspaceResourceAccess} from '@shipfox/api-auth-context';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   fireManualTriggerBodySchema,
   fireManualTriggerResponseSchema,
@@ -21,7 +22,10 @@ const startRunErrorDetailsSchema = z.union([
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
 ]);
 
-export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
+export function createFireManualTriggerRoute(
+  workflows: WorkflowsModuleClient,
+  secrets: Pick<SecretsInterModuleClient, 'getSecret'>,
+) {
   return defineRoute({
     method: 'POST',
     path: '/:definitionId/fire-manual',
@@ -75,6 +79,7 @@ export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
 
       const run = await fireManualTrigger({
         workflows,
+        secrets,
         workspaceId: subscription.workspaceId,
         definitionId,
         userId: userContext.userId,

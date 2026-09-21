@@ -108,7 +108,7 @@ export function createTriggersModule({
   return {
     name: 'triggers',
     database: {db, migrationsPath, databaseNamespace: 'triggers'},
-    routes: createTriggerRoutes(workflows, definitions, projects),
+    routes: createTriggerRoutes(workflows, definitions, projects, secrets),
     e2eRoutes: [createTriggersE2eRoutes({workflows, integrations, secrets})],
     metrics: registerTriggersServiceMetrics,
     interModulePresentations: [

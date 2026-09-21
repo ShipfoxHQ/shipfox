@@ -1,4 +1,5 @@
 import {buildUserContext, setUserContext} from '@shipfox/api-auth-context';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   type WorkflowsModuleClient,
   workflowsInterModuleContract,
@@ -18,6 +19,7 @@ vi.mock('#core/fire-manual.js', () => ({
 const {createFireManualTriggerRoute} = await import('./fire-manual.js');
 
 const workflows = {} as WorkflowsModuleClient;
+const secrets = {getSecret: vi.fn()} as Pick<SecretsInterModuleClient, 'getSecret'>;
 
 describe('POST /:definitionId/fire-manual', () => {
   let app: FastifyInstance;
@@ -39,7 +41,7 @@ describe('POST /:definitionId/fire-manual', () => {
       );
       done();
     });
-    app.post('/:definitionId/fire-manual', createFireManualTriggerRoute(workflows));
+    app.post('/:definitionId/fire-manual', createFireManualTriggerRoute(workflows, secrets));
     await app.ready();
   });
 
@@ -67,6 +69,9 @@ describe('POST /:definitionId/fire-manual', () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.json()).toEqual({workflow_run_id: runId});
+    expect(fireManualTriggerMock).toHaveBeenCalledWith(
+      expect.objectContaining({workflows, secrets, definitionId, workspaceId}),
+    );
   });
 
   test('maps unresolvable workflow interpolation to 422', async () => {
