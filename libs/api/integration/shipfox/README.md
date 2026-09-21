@@ -65,6 +65,8 @@ await session.close?.();
 
 `callerKind` is required. Use `tool_step` for workflow tool execution and `agent` for agent leases.
 
+A tool-step caller can pass `secrets` as a map from child input names to secret keys in the parent project's scope. Both names use `^[A-Z_][A-Z0-9_]*$`, and the map can contain at most 20 entries. The map is forwarded by reference, so logs contain names only. Agent callers cannot pass `secrets`; the tool returns `secrets-not-allowed` and starts no child run. An omitted map uses trigger defaults, while `{}` explicitly supplies an empty map.
+
 The target workflow must have a synced `manual` trigger. The call returns after the child run exists and does not wait for completion. Inputs are stored in clear on the child run, so they must not contain secrets. Read tools use workspace-scoped producer clients: `get_step_logs` reads a bounded direct or failed-step tail, and `get_run_annotations` pages the latest or requested run attempt.
 
 ## Development

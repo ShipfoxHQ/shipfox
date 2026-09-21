@@ -12,6 +12,7 @@ import {
   createShipfoxAgentToolsProvider,
   SHIPFOX_INPUTS_MAX_BYTES,
   shipfoxAgentToolCatalog,
+  shipfoxAgentToolSelectionCatalog,
 } from './agent-tools.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
@@ -58,6 +59,13 @@ function createKnownError(code: string): Error {
       triggersInterModuleContract.methods.fireManualTrigger,
       code,
       {workspaceId, reason: 'quota'},
+    );
+  }
+  if (code === 'secret-not-found') {
+    return createInterModuleKnownError(
+      triggersInterModuleContract.methods.fireManualTrigger,
+      code,
+      {key: 'MISSING_TOKEN'},
     );
   }
   return createInterModuleKnownError(
@@ -142,6 +150,7 @@ describe('Shipfox agent tools', () => {
     expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty(
       'properties.project_id.format',
     );
+    expect(shipfoxAgentToolCatalog[0]?.inputSchema).not.toHaveProperty('properties.secrets');
     expect(shipfoxAgentToolCatalog[0]?.outputSchema).toMatchObject({
       additionalProperties: false,
       required: ['run_id', 'run_number', 'name', 'project_id', 'deduplicated'],
@@ -154,6 +163,11 @@ describe('Shipfox agent tools', () => {
     expect(shipfoxAgentToolCatalog[2]?.outputSchema).toMatchObject({
       additionalProperties: false,
     });
+  });
+
+  it('keeps the tool catalog and selection catalog deliberate', () => {
+    expect(shipfoxAgentToolCatalog).toMatchSnapshot();
+    expect(shipfoxAgentToolSelectionCatalog).toMatchSnapshot();
   });
 
   it('describes producer-shaped workflow result fields in the catalog', () => {
@@ -274,6 +288,100 @@ describe('Shipfox agent tools', () => {
     expect(projectId).not.toBe(explicitProject);
   });
 
+  it('passes tool-step secret references using the parent project scope', async () => {
+    const {triggers, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+    const childProjectId = '00000000-0000-4000-8000-000000000009';
+
+    await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {
+        workflow: 'child.yml',
+        project_id: childProjectId,
+        secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+      },
+    });
+
+    expect(triggers.fireManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretInputs: {
+          DEPLOY_TOKEN: {key: 'PROD_DEPLOY_TOKEN', projectId},
+        },
+      }),
+    );
+    expect(triggers.fireManualTrigger.mock.calls[0]?.[0].secretInputs).not.toEqual({
+      DEPLOY_TOKEN: {key: 'PROD_DEPLOY_TOKEN', projectId: childProjectId},
+    });
+  });
+
+  it('passes an empty secret map instead of omitting it', async () => {
+    const {triggers, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml', secrets: {}},
+    });
+
+    expect(triggers.fireManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({secretInputs: {}}),
+    );
+  });
+
+  it.each([
+    [{DEPLOY_TOKEN: 'invalid-name'}],
+    [{invalid_name: 'PROD_TOKEN'}],
+    [Object.fromEntries(Array.from({length: 21}, (_, index) => [`TOKEN_${index}`, 'PROD_TOKEN']))],
+  ])('validates secret names and map size', async (secrets) => {
+    const {definitions, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml', secrets},
+    });
+
+    expect(result).toMatchObject({isError: true, structuredContent: {code: 'invalid-request'}});
+    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
+  });
+
+  it('rejects secret references from agent callers before creating a run', async () => {
+    const {definitions, triggers, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller({callerKind: 'agent'}),
+    });
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml', secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'secrets-not-allowed'},
+    });
+    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
+    expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+  });
+
   it.each([
     'definition-not-found',
     'manual-trigger-not-found',
@@ -299,6 +407,28 @@ describe('Shipfox agent tools', () => {
     });
 
     expect(result).toMatchObject({isError: true, structuredContent: {code}});
+  });
+
+  it('maps a missing secret source to a named tool error', async () => {
+    const {triggers, provider} = createProvider();
+    triggers.fireManualTrigger.mockRejectedValue(createKnownError('secret-not-found'));
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller(),
+    });
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml', secrets: {DEPLOY_TOKEN: 'MISSING_TOKEN'}},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      content: [{text: 'Secret input source MISSING_TOKEN was not found'}],
+      structuredContent: {code: 'secret-not-found', key: 'MISSING_TOKEN'},
+    });
   });
 
   it.each([

@@ -56,6 +56,8 @@ const WORKFLOW_RUN_STATUSES = [
   'failed',
   'cancelled',
 ] as const;
+const SECRET_INPUT_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/u;
+const MAX_SECRET_INPUTS = 20;
 
 const SHIPFOX_TOOL_RESULT_MAX_BYTES = 128 * 1024;
 const utf8Encoder = new TextEncoder();
@@ -769,10 +771,17 @@ export class ShipfoxAgentToolsProvider
     if (validationError !== undefined) return toolError(validationError);
     if (caller.callerKind === undefined)
       return toolError('Shipfox tools require callerKind in workflow caller context');
+    if (args.secrets !== undefined && caller.callerKind !== 'tool_step') {
+      return toolError(
+        'The secrets parameter is only allowed for tool-step callers',
+        'secrets-not-allowed',
+      );
+    }
     const projectId = stringArgument(args, 'project_id') ?? caller.projectId;
     const workflow = stringArgument(args, 'workflow');
     if (workflow === undefined) throw new Error('Validated workflow argument is missing');
     const idempotencyKey = idempotencyKeyForCall(args, caller);
+    const secretInputs = toSecretInputs(args.secrets, caller.projectId);
 
     try {
       const definition = await this.options.definitions.getDefinitionByConfigPath({
@@ -785,6 +794,7 @@ export class ShipfoxAgentToolsProvider
         definitionId: definition.definitionId,
         parentRun: {runId: caller.runId},
         ...(recordInput(args.inputs) === undefined ? {} : {inputs: recordInput(args.inputs)}),
+        ...(secretInputs === undefined ? {} : {secretInputs}),
         idempotencyKey,
       });
       const overview = await this.options.workflows.getWorkflowRunOverview({
@@ -1312,7 +1322,9 @@ function parsePageArgumentsWithoutProject(args: Record<string, unknown>) {
 
 function validateStartWorkflowRunArguments(args: Record<string, unknown>): string | undefined {
   const properties = startWorkflowRunInputSchema.properties as Record<string, unknown>;
-  const unknownParameter = Object.keys(args).find((name) => !(name in properties));
+  const unknownParameter = Object.keys(args).find(
+    (name) => !(name in properties) && name !== 'secrets',
+  );
   if (unknownParameter !== undefined) return `Unknown parameter: ${unknownParameter}`;
   if (typeof args.workflow !== 'string' || args.workflow.length === 0)
     return 'Missing required parameter: workflow';
@@ -1320,10 +1332,8 @@ function validateStartWorkflowRunArguments(args: Record<string, unknown>): strin
   if (!isSafeConfigPath(args.workflow)) return 'Parameter workflow contains a control character';
   if (args.project_id !== undefined && !isUuid(args.project_id))
     return 'Parameter project_id must be a UUID';
-  if (args.inputs !== undefined) {
-    const inputError = validateInputs(args.inputs);
-    if (inputError !== undefined) return inputError;
-  }
+  const inputError = validateStartWorkflowRunInputs(args);
+  if (inputError !== undefined) return inputError;
   if (
     args.idempotency_key !== undefined &&
     (typeof args.idempotency_key !== 'string' || args.idempotency_key.length === 0)
@@ -1412,7 +1422,16 @@ function mapStartWorkflowRunError(error: unknown): ShipfoxToolCallResult | undef
     return mappedToolError(error.code, error.message, error.details);
   }
   if (isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, error)) {
-    const code = error.code;
+    const code = error.code as string;
+    if (code === 'secret-not-found' || code === 'secret-input-missing') {
+      const details: unknown = error.details;
+      const key = isRecord(details) && typeof details.key === 'string' ? details.key : 'unknown';
+      const message =
+        code === 'secret-not-found'
+          ? `Secret input source ${key} was not found`
+          : `Secret input ${key} was not supplied`;
+      return mappedToolError(code, message, error.details);
+    }
     if (
       code === 'manual-trigger-not-found' ||
       code === 'definition-not-found' ||
@@ -1482,6 +1501,43 @@ function isSafeConfigPath(value: string): boolean {
     return !(code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029);
   });
 }
+function validateStartWorkflowRunInputs(args: Record<string, unknown>): string | undefined {
+  if (args.inputs !== undefined) {
+    const inputError = validateInputs(args.inputs);
+    if (inputError !== undefined) return inputError;
+  }
+  if (args.secrets !== undefined) {
+    const secretInputError = validateSecretInputs(args.secrets);
+    if (secretInputError !== undefined) return secretInputError;
+  }
+  return undefined;
+}
+
+function validateSecretInputs(value: unknown): string | undefined {
+  if (!isRecord(value)) return 'Parameter secrets must be an object';
+  const entries = Object.entries(value);
+  if (entries.length > MAX_SECRET_INPUTS)
+    return `Parameter secrets must contain at most ${MAX_SECRET_INPUTS} entries`;
+  for (const [name, source] of entries) {
+    if (!SECRET_INPUT_NAME_PATTERN.test(name))
+      return `Parameter secrets key ${name} must match /^[A-Z_][A-Z0-9_]*$/`;
+    if (typeof source !== 'string' || !SECRET_INPUT_NAME_PATTERN.test(source))
+      return `Parameter secrets.${name} must be a string matching /^[A-Z_][A-Z0-9_]*$/`;
+  }
+  return undefined;
+}
+
+function toSecretInputs(
+  value: unknown,
+  projectId: string,
+): Record<string, {key: string; projectId: string}> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new Error('Validated secrets argument is not an object');
+  return Object.fromEntries(
+    Object.entries(value).map(([name, key]) => [name, {key: key as string, projectId}]),
+  );
+}
+
 function validateInputs(value: unknown): string | undefined {
   if (!isRecord(value)) return 'Parameter inputs must be an object';
   if (Object.hasOwn(value, '__proto__'))
