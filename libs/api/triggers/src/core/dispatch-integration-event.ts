@@ -7,7 +7,7 @@ import {
 } from '#metrics/instance.js';
 import {evaluateTriggerFilter, readConfigInputs, readConfigSecretInputs} from './config.js';
 import type {TriggerEventOrigin} from './entities/received-event.js';
-import {TriggerReferenceResolutionError} from './errors.js';
+import {SecretInputNotFoundError, TriggerReferenceResolutionError} from './errors.js';
 import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
@@ -215,7 +215,11 @@ async function dispatchMatchingSubscription(
   } catch (error) {
     await history.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
     // A thrown undefined value is still a transient failure and must drive the replay.
-    if (!isPermanentStartRunError(error) && !state.sawTransientError) {
+    if (
+      !(error instanceof SecretInputNotFoundError) &&
+      !isPermanentStartRunError(error) &&
+      !state.sawTransientError
+    ) {
       state.sawTransientError = true;
       state.firstTransientError = error;
     }

@@ -249,6 +249,31 @@ describe('dispatchIntegrationEvent', () => {
     );
   });
 
+  test('records a missing configured secret as a terminal integration error', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {secrets: {DEPLOY_TOKEN: 'MISSING_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: null, projectId: null});
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const [decision] = await decisionsForEvent(event.id);
+    expect(decision).toMatchObject({
+      decision: 'dispatch-error',
+      reason: 'Secret input source not found: MISSING_TOKEN',
+    });
+  });
+
   test('dispatches an arbitrary non-github source without any source-specific handling', async () => {
     const workspaceId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({

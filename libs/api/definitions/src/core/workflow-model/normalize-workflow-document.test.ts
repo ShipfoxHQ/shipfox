@@ -5613,22 +5613,30 @@ describe('normalizeWorkflowDocument', () => {
     );
   });
 
-  it('rejects trigger secret values over the canonical key length', () => {
-    const tooLongKey = 'A'.repeat(129);
-    const {diagnostics} = normalizeWithDiagnostics({
-      name: 'long secret input',
+  it('rejects trigger secret input names and source keys longer than the canonical limit', () => {
+    const overlongKey = 'A'.repeat(129);
+
+    const invalid = normalizeWithDiagnostics({
+      name: 'overlong secret inputs',
       triggers: {
         dispatch: {
           source: 'github',
           event: 'workflow_dispatch',
-          secrets: {DEPLOY_TOKEN: tooLongKey},
+          secrets: {
+            [overlongKey]: 'PROD_DEPLOY_TOKEN',
+            DEPLOY_TOKEN: overlongKey,
+          },
         },
       },
       jobs: {build: {steps: [{run: 'npm run build'}]}},
     });
 
-    expect(diagnostics).toEqual(
+    expect(invalid.diagnostics).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          code: 'secret-input-name-not-literal',
+          path: ['triggers', 'dispatch', 'secrets', overlongKey],
+        }),
         expect.objectContaining({
           code: 'secret-input-name-not-literal',
           path: ['triggers', 'dispatch', 'secrets', 'DEPLOY_TOKEN'],

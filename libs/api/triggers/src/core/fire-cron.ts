@@ -2,7 +2,11 @@ import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-modu
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {cronFiredCount, cronFireLag} from '#metrics/instance.js';
 import {readConfigInputs, readConfigSecretInputs} from './config.js';
-import {TriggerSubscriptionNotCronError, TriggerSubscriptionNotFoundError} from './errors.js';
+import {
+  SecretInputNotFoundError,
+  TriggerSubscriptionNotCronError,
+  TriggerSubscriptionNotFoundError,
+} from './errors.js';
 import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
@@ -94,7 +98,7 @@ export async function fireCronSubscription(
   } catch (error) {
     const failure = await beginTriggerHistory(historyBase);
     await failure.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
-    if (isPermanentStartRunError(error)) {
+    if (error instanceof SecretInputNotFoundError || isPermanentStartRunError(error)) {
       recordFire('errored', params.scheduledSlot);
       await failure.allErrored(1);
       return {outcome: 'errored'};

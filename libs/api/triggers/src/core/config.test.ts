@@ -1,5 +1,10 @@
 import * as expression from '@shipfox/expression';
-import {evaluateStoredFilter, evaluateTriggerFilter, readConfigInputs} from './config.js';
+import {
+  evaluateStoredFilter,
+  evaluateTriggerFilter,
+  readConfigInputs,
+  readConfigSecretInputs,
+} from './config.js';
 import type {TriggerSubscription} from './entities/subscription.js';
 
 function subscriptionWithConfig(config: Record<string, unknown>): TriggerSubscription {
@@ -46,6 +51,24 @@ describe('readConfigInputs', () => {
     const inputs = readConfigInputs(subscriptionWithConfig({with: 'staging'}));
 
     expect(inputs).toBeUndefined();
+  });
+});
+
+describe('readConfigSecretInputs', () => {
+  test('returns the secrets object when every source key is a string', () => {
+    const secretInputs = readConfigSecretInputs(
+      subscriptionWithConfig({secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}}),
+    );
+
+    expect(secretInputs).toEqual({DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'});
+  });
+
+  test('returns undefined when a persisted source key is not a string', () => {
+    const secretInputs = readConfigSecretInputs(
+      subscriptionWithConfig({secrets: {DEPLOY_TOKEN: 42}}),
+    );
+
+    expect(secretInputs).toBeUndefined();
   });
 });
 

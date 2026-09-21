@@ -49,6 +49,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/expression": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/regex": "workspace:*",

@@ -137,6 +137,34 @@ describe('fireCronSubscription', () => {
     expect(decisions[0]?.reason).toContain('definition-not-found');
   });
 
+  test('returns errored when a configured secret is missing', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'cron',
+      event: 'tick',
+      config: {secrets: {DEPLOY_TOKEN: 'MISSING_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: null, projectId: null});
+
+    const result = await fireCronSubscription({
+      workflows,
+      secrets: {getSecret},
+      subscriptionId: subscription.id,
+      scheduledSlot: SLOT,
+    });
+
+    expect(result).toEqual({outcome: 'errored'});
+    expect(runWorkflow).not.toHaveBeenCalled();
+    const [event] = await eventsForWorkspace(subscription.workspaceId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const [decision] = await decisionsForEvent(event.id);
+    expect(decision).toMatchObject({
+      decision: 'dispatch-error',
+      reason: 'Secret input source not found: MISSING_TOKEN',
+    });
+  });
+
   test('records an admission denial reason as a terminal cron event', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'cron',

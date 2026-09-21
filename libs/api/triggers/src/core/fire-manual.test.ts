@@ -92,13 +92,15 @@ describe('fireManualSubscription (trigger history)', () => {
   });
 
   test.each([
-    ['no caller map uses defaults', undefined, {DEPLOY_TOKEN: 'PROJECT_TOKEN'}],
+    ['no caller map uses defaults', undefined, 'PROJECT_TOKEN', 'definition', null],
     [
       'a complete caller map replaces defaults',
       {DEPLOY_TOKEN: {key: 'OVERRIDE_TOKEN', projectId: null}},
-      {DEPLOY_TOKEN: 'OVERRIDE_TOKEN'},
+      'OVERRIDE_TOKEN',
+      null,
+      'definition',
     ],
-  ] as const)('applies the manual secret override rule: %s', async (_label, callerMap, expected) => {
+  ] as const)('applies the manual secret override rule: %s', async (_label, callerMap, expectedKey, expectedRequestedScope, expectedResolvedScope) => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
       event: 'fire',
@@ -120,9 +122,10 @@ describe('fireManualSubscription (trigger history)', () => {
       ...(callerMap === undefined ? {} : {secretInputs: callerMap}),
     });
 
-    const expectedKey = callerMap === undefined ? 'PROJECT_TOKEN' : 'OVERRIDE_TOKEN';
-    const expectedRequestedProjectId = callerMap === undefined ? subscription.projectId : null;
-    const expectedResolvedProjectId = callerMap === undefined ? null : subscription.projectId;
+    const expectedRequestedProjectId =
+      expectedRequestedScope === 'definition' ? subscription.projectId : expectedRequestedScope;
+    const expectedResolvedProjectId =
+      expectedResolvedScope === 'definition' ? subscription.projectId : expectedResolvedScope;
     expect(getSecret).toHaveBeenCalledWith({
       workspaceId: subscription.workspaceId,
       projectId: expectedRequestedProjectId,
@@ -132,18 +135,9 @@ describe('fireManualSubscription (trigger history)', () => {
     });
 
     const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
-    expect(payload.secretInputs).toEqual(
-      Object.fromEntries(
-        Object.entries(expected).map(([name, key]) => [
-          name,
-          {
-            store: 'local',
-            key,
-            projectId: expectedResolvedProjectId,
-          },
-        ]),
-      ),
-    );
+    expect(payload.secretInputs).toEqual({
+      DEPLOY_TOKEN: {store: 'local', key: expectedKey, projectId: expectedResolvedProjectId},
+    });
   });
 
   test('ignores a malformed persisted secret map without attempting to pin an object-valued source', async () => {
@@ -166,7 +160,6 @@ describe('fireManualSubscription (trigger history)', () => {
     const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
     expect(payload).not.toHaveProperty('secretInputs');
   });
-
   test.each([
     ['empty', {}],
     ['partial', {OTHER_TOKEN: {key: 'OTHER_TOKEN', projectId: null}}],
