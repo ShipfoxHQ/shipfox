@@ -5,6 +5,13 @@ import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import type {NotionInstallation} from '#db/installations.js';
 import {createNotionWebhookProcessor} from './webhook-processor.js';
 
+const {warn} = vi.hoisted(() => ({warn: vi.fn()}));
+
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => ({warn}),
+}));
+
 const verificationToken = 'notion-verification-token';
 const workspaceId = 'notion-workspace-1';
 const connectionId = randomUUID();
@@ -119,6 +126,10 @@ function createHarness(
 }
 
 describe('Notion webhook processor', () => {
+  beforeEach(() => {
+    warn.mockClear();
+  });
+
   it('accepts the unsigned handshake and stays silent when the token is configured', async () => {
     const harness = createHarness({verificationToken});
     const result = await harness.processor.process(
@@ -127,15 +138,25 @@ describe('Notion webhook processor', () => {
 
     expect(result).toEqual({outcome: 'processed'});
     expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
   });
 
-  it('accepts the handshake when the verification token is unset', async () => {
+  it('accepts handshakes and logs the verification token once per processor when unset', async () => {
     const harness = createHarness({verificationToken: null});
-    const result = await harness.processor.process(
-      createRequest({verification_token: 'new-token'}, {signature: ''}),
+    const first = await harness.processor.process(
+      createRequest({verification_token: 'first-token'}, {signature: ''}),
+    );
+    const second = await harness.processor.process(
+      createRequest({verification_token: 'second-token'}, {signature: ''}),
     );
 
-    expect(result).toEqual({outcome: 'processed'});
+    expect(first).toEqual({outcome: 'processed'});
+    expect(second).toEqual({outcome: 'processed'});
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      {verificationToken: 'first-token'},
+      'Notion webhook verification token received; set NOTION_WEBHOOK_VERIFICATION_TOKEN',
+    );
   });
 
   it('does not treat an object with extra fields as a handshake', async () => {
@@ -210,6 +231,12 @@ describe('Notion webhook processor', () => {
       deliveryId: expect.any(String),
     });
     expect(harness.recordDeliveryOnly).toHaveBeenCalledOnce();
+    expect(harness.recordDeliveryOnly).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'notion',
+        connectionId,
+      }),
+    );
     expect(harness.publishIntegrationEventReceived).not.toHaveBeenCalled();
   });
 
@@ -223,7 +250,14 @@ describe('Notion webhook processor', () => {
     expect(unknownResult).toMatchObject({outcome: 'discarded', reason: 'connection_unavailable'});
     expect(inactiveResult).toMatchObject({outcome: 'discarded', reason: 'connection_unavailable'});
     expect(unknown.publishIntegrationEventReceived).not.toHaveBeenCalled();
+    expect(unknown.recordDeliveryOnly).not.toHaveBeenCalled();
     expect(inactive.recordDeliveryOnly).toHaveBeenCalledOnce();
+    expect(inactive.recordDeliveryOnly).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'notion',
+        connectionId,
+      }),
+    );
   });
 
   it('publishes the raw payload for the installation bot, including bot-authored events', async () => {

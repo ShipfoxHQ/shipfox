@@ -56,6 +56,7 @@ export type RecordDeliveryOnlyFn = (params: {
   tx: IntegrationTx;
   provider: string;
   deliveryId: string;
+  connectionId?: string | undefined;
 }) => Promise<void>;
 
 export type ClaimWebhookDeliveryFn = (params: {

@@ -190,6 +190,28 @@ describe('integration webhook delivery persistence', () => {
     expect(await outboxFor(deliveryId)).toHaveLength(0);
   });
 
+  it('records a connection-scoped delivery without suppressing another connection', async () => {
+    const deliveryId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    const discardedEvent = buildEvent({provider: 'notion', connectionId, deliveryId});
+    const otherConnectionEvent = buildEvent({provider: 'notion', deliveryId});
+
+    await recordDeliveryOnly({tx: db(), provider: 'notion', connectionId, deliveryId});
+    const discardedRetry = await publishIntegrationEventReceived({
+      tx: db(),
+      event: discardedEvent,
+    });
+    const otherConnection = await publishIntegrationEventReceived({
+      tx: db(),
+      event: otherConnectionEvent,
+    });
+
+    expect(discardedRetry.published).toBe(false);
+    expect(otherConnection.published).toBe(true);
+    expect(await deliveriesFor('notion', deliveryId)).toHaveLength(2);
+    expect(await outboxFor(deliveryId)).toHaveLength(1);
+  });
+
   it('ignores a duplicate delivery record', async () => {
     const deliveryId = crypto.randomUUID();
 

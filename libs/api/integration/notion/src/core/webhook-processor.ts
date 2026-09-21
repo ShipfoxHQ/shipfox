@@ -39,14 +39,20 @@ export interface NotionWebhookProcessor {
   process(request: StoredWebhookRequest): Promise<WebhookProcessingResult>;
 }
 
+interface NotionWebhookProcessorState {
+  verificationTokenLogged: boolean;
+}
+
 export function createNotionWebhookProcessor(
   options: CreateNotionWebhookProcessorOptions,
 ): NotionWebhookProcessor {
-  return {process: (request) => processNotionWebhookRequest(options, request)};
+  const state: NotionWebhookProcessorState = {verificationTokenLogged: false};
+  return {process: (request) => processNotionWebhookRequest(options, state, request)};
 }
 
 async function processNotionWebhookRequest(
   options: CreateNotionWebhookProcessorOptions,
+  state: NotionWebhookProcessorState,
   request: StoredWebhookRequest,
 ): Promise<WebhookProcessingResult> {
   if (request.route_id !== 'notion') {
@@ -61,13 +67,7 @@ async function processNotionWebhookRequest(
       : (options.verificationToken ?? undefined);
 
   if (parsed.success && notionWebhookHandshakeSchema.safeParse(parsed.data).success) {
-    if (verificationToken === undefined) {
-      const handshake = notionWebhookHandshakeSchema.parse(parsed.data);
-      logger().warn(
-        {verificationToken: handshake.verification_token},
-        'Notion webhook verification token received; set NOTION_WEBHOOK_VERIFICATION_TOKEN',
-      );
-    }
+    logVerificationTokenOnce({state, verificationToken, payload: parsed.data});
     recordNotionWebhookDelivery('handshake');
     return {outcome: 'processed'};
   }
@@ -114,18 +114,35 @@ async function processNotionWebhookRequest(
       options.getNotionInstallationByWorkspaceId ?? getNotionInstallationByWorkspaceId
     )(payload.data.workspace_id, {tx});
     if (installation?.status !== 'installed') {
-      if (installation) await recordDeliveryOnly({options, tx, deliveryId});
+      if (installation) {
+        await recordDeliveryOnly({
+          options,
+          tx,
+          deliveryId,
+          connectionId: installation.connectionId,
+        });
+      }
       return {outcome: 'connection-unavailable' as const};
     }
 
     const connection = await options.getIntegrationConnectionById(installation.connectionId, {tx});
     if (!connection || connection.provider !== NOTION_PROVIDER) {
-      await recordDeliveryOnly({options, tx, deliveryId});
+      await recordDeliveryOnly({
+        options,
+        tx,
+        deliveryId,
+        connectionId: installation.connectionId,
+      });
       return {outcome: 'connection-unavailable' as const};
     }
 
     if (connection.lifecycleStatus !== 'active') {
-      await recordDeliveryOnly({options, tx, deliveryId});
+      await recordDeliveryOnly({
+        options,
+        tx,
+        deliveryId,
+        connectionId: installation.connectionId,
+      });
       return {outcome: 'connection-unavailable' as const};
     }
 
@@ -133,7 +150,12 @@ async function processNotionWebhookRequest(
       installation.botId.length > 0 &&
       payload.data.accessible_by?.some((actor) => actor.id === installation.botId) === true;
     if (!isVisible) {
-      await recordDeliveryOnly({options, tx, deliveryId});
+      await recordDeliveryOnly({
+        options,
+        tx,
+        deliveryId,
+        connectionId: installation.connectionId,
+      });
       return {outcome: 'grant-visibility-discarded' as const};
     }
 
@@ -166,6 +188,21 @@ async function processNotionWebhookRequest(
   return {outcome: 'discarded', reason: 'connection_unavailable', deliveryId};
 }
 
+function logVerificationTokenOnce(params: {
+  state: NotionWebhookProcessorState;
+  verificationToken: string | undefined;
+  payload: unknown;
+}): void {
+  if (params.verificationToken !== undefined || params.state.verificationTokenLogged) return;
+
+  const handshake = notionWebhookHandshakeSchema.parse(params.payload);
+  logger().warn(
+    {verificationToken: handshake.verification_token},
+    'Notion webhook verification token received; set NOTION_WEBHOOK_VERIFICATION_TOKEN',
+  );
+  params.state.verificationTokenLogged = true;
+}
+
 function parseJson(rawBody: Uint8Array): {success: true; data: unknown} | {success: false} {
   try {
     return {success: true, data: JSON.parse(Buffer.from(rawBody).toString('utf8'))};
@@ -194,10 +231,12 @@ async function recordDeliveryOnly(params: {
   options: Pick<CreateNotionWebhookProcessorOptions, 'recordDeliveryOnly'>;
   tx: unknown;
   deliveryId: string;
+  connectionId?: string | undefined;
 }): Promise<void> {
   await params.options.recordDeliveryOnly({
     tx: params.tx,
     provider: NOTION_PROVIDER,
     deliveryId: params.deliveryId,
+    ...(params.connectionId === undefined ? {} : {connectionId: params.connectionId}),
   });
 }
