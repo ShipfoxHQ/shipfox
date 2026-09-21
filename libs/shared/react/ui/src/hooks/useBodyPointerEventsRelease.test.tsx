@@ -101,6 +101,18 @@ describe('useBodyPointerEventsRelease', () => {
     expect(document.body.style.pointerEvents).toBe('none');
   });
 
+  test('releases a lock inherited from an open layer after that layer closes', () => {
+    lockBody();
+    const inheritedLayer = addLayer('open');
+    const {rerender} = render(<Probe open />);
+
+    inheritedLayer.setAttribute('data-state', 'closed');
+    rerender(<Probe open={false} />);
+    settleCheckpoints();
+
+    expect(document.body.style.pointerEvents).toBe('');
+  });
+
   test('does not touch the body when no lock is present', () => {
     document.body.style.pointerEvents = 'auto';
     const {rerender} = render(<Probe open />);
