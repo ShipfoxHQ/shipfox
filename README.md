@@ -15,8 +15,8 @@
 **Agentic coding makes engineers faster. Shipfox gives them a factory.**
 
 Agent workflows that run like CI pipelines: they live in your repo and turn a
-ticket, an alert or a failed check into a pull request. You review, merge, and
-keep the week for the work only you can do.
+ticket, an alert or a failed check into a pull request. You review and merge.
+Your week goes to the work that needs you.
 
 Workflows live as YAML in your repository and react to events across your stack.
 Shipfox handles orchestration, secure tool access, isolated execution, and
