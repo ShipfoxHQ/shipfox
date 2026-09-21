@@ -170,6 +170,7 @@ async function triggerNotionDeliveryAndAwaitRun(params: {
   actorId: string;
   actorType?: 'person' | 'bot' | 'agent';
 }): Promise<string> {
+  const deliveryIds: string[] = [];
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_TRIGGER_ATTEMPTS; attempt += 1) {
     const deliveryId = attempt === 1 ? params.deliveryId : `${params.deliveryId}-${attempt}`;
@@ -181,7 +182,43 @@ async function triggerNotionDeliveryAndAwaitRun(params: {
       actorId: params.actorId,
       ...(params.actorType === undefined ? {} : {actorType: params.actorType}),
     });
+    deliveryIds.push(deliveryId);
 
+    let run: Awaited<ReturnType<typeof waitForRunByDeliveryId>>;
+    try {
+      run = await waitForRunByDeliveryId({
+        projectId: params.projectId,
+        deliveryId,
+        token: params.token,
+        timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
+        workspaceId: params.workspaceId,
+      });
+    } catch (error) {
+      lastError = error;
+      continue;
+    }
+
+    await assertNoEarlierNotionRuns({
+      projectId: params.projectId,
+      workspaceId: params.workspaceId,
+      token: params.token,
+      deliveryIds: deliveryIds.slice(0, -1),
+    });
+    return run.id;
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`No run appeared after ${MAX_TRIGGER_ATTEMPTS} signed Notion deliveries.`);
+}
+
+async function assertNoEarlierNotionRuns(params: {
+  projectId: string;
+  workspaceId: string;
+  token: string;
+  deliveryIds: string[];
+}): Promise<void> {
+  for (const deliveryId of params.deliveryIds) {
     try {
       const run = await waitForRunByDeliveryId({
         projectId: params.projectId,
@@ -190,15 +227,14 @@ async function triggerNotionDeliveryAndAwaitRun(params: {
         timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
         workspaceId: params.workspaceId,
       });
-      return run.id;
+      throw new Error(
+        `Notion delivery ${deliveryId} also started workflow run ${run.id}; expected one run for the logical trigger.`,
+      );
     } catch (error) {
-      lastError = error;
+      if (error instanceof PollTimeoutError) continue;
+      throw error;
     }
   }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`No run appeared after ${MAX_TRIGGER_ATTEMPTS} signed Notion deliveries.`);
 }
 
 function notionToolStepWorkflowYaml(connectionSlug: string, pageId: string): string {
