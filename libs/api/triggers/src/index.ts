@@ -59,6 +59,7 @@ export {
   fireManualTrigger,
   ManualTriggerNotFoundError,
   pinSecretInputs,
+  SecretInputMissingError,
   SecretInputNotFoundError,
   type SecretInputReference,
   type SecretInputSource,
@@ -108,7 +109,7 @@ export function createTriggersModule({
     name: 'triggers',
     database: {db, migrationsPath, databaseNamespace: 'triggers'},
     routes: createTriggerRoutes(workflows, definitions, projects),
-    e2eRoutes: [createTriggersE2eRoutes({workflows, integrations})],
+    e2eRoutes: [createTriggersE2eRoutes({workflows, integrations, secrets})],
     metrics: registerTriggersServiceMetrics,
     interModulePresentations: [
       createTriggersInterModulePresentation({
@@ -122,7 +123,7 @@ export function createTriggersModule({
     subscribers: [
       subscriber(DEFINITION_RESOLVED, onDefinitionResolved),
       subscriber(DEFINITION_DELETED, onDefinitionDeleted),
-      subscriber(INTEGRATION_EVENT_RECEIVED, createOnIntegrationEventReceived(workflows)),
+      subscriber(INTEGRATION_EVENT_RECEIVED, createOnIntegrationEventReceived(workflows, secrets)),
       subscriber(WORKFLOWS_JOB_ACTIVATED, onJobActivated),
       subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
     ],
@@ -142,7 +143,7 @@ export function createTriggersModule({
       {
         taskQueue: TRIGGERS_CRON_TASK_QUEUE,
         workflowsPath: temporalWorkflowsPath,
-        activities: () => createTriggersCronActivities(workflows),
+        activities: () => createTriggersCronActivities(workflows, secrets),
         workflows: [
           {
             name: 'cronTickCron',

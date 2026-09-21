@@ -104,6 +104,7 @@ export interface WorkflowModelTrigger {
   readonly source: string;
   readonly event?: string;
   readonly inputs?: Readonly<Record<string, unknown>>;
+  readonly secrets?: Readonly<Record<string, string>>;
   readonly filter?: string;
   readonly config?: Readonly<Record<string, unknown>>;
 }
@@ -141,6 +142,7 @@ export interface WorkflowModelListeningTrigger {
   readonly source: string;
   readonly event?: string;
   readonly inputs?: Readonly<Record<string, unknown>>;
+  readonly secrets?: Readonly<Record<string, string>>;
   readonly filter?: string;
 }
 export interface WorkflowModelListeningBatch {

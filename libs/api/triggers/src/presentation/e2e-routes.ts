@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   e2eDispatchListenerEventBodySchema,
   e2eDispatchListenerEventResponseSchema,
@@ -34,6 +35,7 @@ const listenerReadinessRoute = defineRoute({
 function createDispatchListenerEventRoute(params: {
   workflows: WorkflowsModuleClient;
   integrations: IntegrationsModuleClient;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
 }) {
   return defineRoute({
     method: 'POST',
@@ -84,6 +86,7 @@ function createDispatchListenerEventRoute(params: {
       const eventRef = randomUUID();
       await dispatchIntegrationEvent({
         workflows: params.workflows,
+        secrets: params.secrets,
         eventRef,
         origin: 'dev',
         workspaceId: connection.workspaceId,
@@ -105,6 +108,7 @@ function createDispatchListenerEventRoute(params: {
 export function createTriggersE2eRoutes(params: {
   workflows: WorkflowsModuleClient;
   integrations?: IntegrationsModuleClient | undefined;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
 }): RouteGroup {
   return {
     prefix: '/triggers',
@@ -116,6 +120,7 @@ export function createTriggersE2eRoutes(params: {
             createDispatchListenerEventRoute({
               workflows: params.workflows,
               integrations: params.integrations,
+              secrets: params.secrets,
             }),
           ]),
     ],

@@ -37,6 +37,7 @@ import {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
   ManualTriggerNotFoundError,
+  SecretInputMissingError,
   SecretInputNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
@@ -195,6 +196,9 @@ function toFireManualTriggerKnownError(error: unknown, definitionId: string): un
   const method = triggersInterModuleContract.methods.fireManualTrigger;
   if (error instanceof SecretInputNotFoundError) {
     return createInterModuleKnownError(method, 'secret-not-found', {key: error.key});
+  }
+  if (error instanceof SecretInputMissingError) {
+    return createInterModuleKnownError(method, 'secret-input-missing', {key: error.key});
   }
 
   if (

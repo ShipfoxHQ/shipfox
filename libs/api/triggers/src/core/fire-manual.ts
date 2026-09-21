@@ -9,9 +9,11 @@ import {
   eventReceivedCount,
   subscriptionTriggeredCount,
 } from '#metrics/instance.js';
-import {readConfigInputs} from './config.js';
+import {readConfigInputs, readConfigSecretInputs} from './config.js';
+import type {TriggerSubscription} from './entities/subscription.js';
 import {
   ManualTriggerNotFoundError,
+  SecretInputMissingError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -119,7 +121,11 @@ export async function fireManualSubscription(
   const inputs = params.inputs ?? readConfigInputs(subscription);
   let run: {id: string; name: string};
   try {
-    const secretInputs = await resolveSecretInputs(params, subscription.projectId);
+    const secretInputs = await resolveManualSecretInputs(
+      params,
+      subscription.projectId,
+      subscription,
+    );
     run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
@@ -158,11 +164,25 @@ export async function fireManualSubscription(
   return run;
 }
 
+async function resolveManualSecretInputs(
+  params: FireManualSubscriptionParams,
+  resolutionProjectId: string | null,
+  subscription: TriggerSubscription,
+): Promise<Record<string, SecretInputReference> | undefined> {
+  const defaults = readConfigSecretInputs(subscription);
+  const secretInputs =
+    params.secretInputs === undefined
+      ? defaults
+      : validateSecretInputOverride(params.secretInputs, defaults);
+  return await resolveSecretInputs(params, resolutionProjectId, secretInputs);
+}
+
 async function resolveSecretInputs(
   params: FireManualSubscriptionParams,
   resolutionProjectId: string | null,
+  secretInputs: Record<string, SecretInputSource> | Record<string, string> | undefined,
 ): Promise<Record<string, SecretInputReference> | undefined> {
-  if (params.secretInputs === undefined) return undefined;
+  if (secretInputs === undefined) return undefined;
   if (params.secrets === undefined) {
     throw new TypeError('A Secrets client is required when secret inputs are supplied');
   }
@@ -171,8 +191,20 @@ async function resolveSecretInputs(
     secrets: params.secrets,
     workspaceId: params.callerWorkspaceId,
     resolutionProjectId,
-    secretInputs: params.secretInputs,
+    secretInputs,
   });
+}
+
+function validateSecretInputOverride(
+  secretInputs: Record<string, SecretInputSource>,
+  defaults: Record<string, string> | undefined,
+): Record<string, SecretInputSource> {
+  if (defaults !== undefined) {
+    for (const name of Object.keys(defaults)) {
+      if (!Object.hasOwn(secretInputs, name)) throw new SecretInputMissingError(name);
+    }
+  }
+  return secretInputs;
 }
 
 function optionalSecretInputs(secretInputs: Record<string, SecretInputReference> | undefined): {

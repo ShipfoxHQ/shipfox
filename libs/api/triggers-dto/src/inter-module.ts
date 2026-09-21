@@ -431,6 +431,7 @@ export const triggersInterModuleContract = defineInterModuleContract({
       errors: {
         'manual-trigger-not-found': z.object({definitionId: idSchema}),
         'secret-not-found': z.object({key: secretKeySchema}),
+        'secret-input-missing': z.object({key: secretKeySchema}),
         ...startRunErrors,
       },
     },

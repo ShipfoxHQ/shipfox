@@ -1,3 +1,4 @@
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
 import {advanceCronSchedule, claimDueCronSchedules, selectDbNow} from '#db/cron-schedules.js';
@@ -8,6 +9,7 @@ import type {WorkflowsModuleClient} from './workflows-client.js';
 
 export interface DrainDueCronSchedulesParams {
   readonly workflows: WorkflowsModuleClient;
+  readonly secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
   readonly batchSize: number;
   readonly jitterWindowSeconds: number;
   /**
@@ -71,6 +73,7 @@ export async function drainDueCronSchedules(
           });
           return await fireCronSubscription({
             workflows: params.workflows,
+            secrets: params.secrets,
             subscriptionId: schedule.subscriptionId,
             scheduledSlot,
           });

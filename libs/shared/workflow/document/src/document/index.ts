@@ -19,6 +19,7 @@ export {
 } from './step-enums.js';
 export {
   isValidWorkflowSessionKeyTemplateLiteralParts,
+  type SecretKey,
   triggerSourceConfigSchemas,
   WORKFLOW_DOCUMENT_ENV_MAX_ENTRIES,
   WORKFLOW_DOCUMENT_ENV_MAX_SERIALIZED_BYTES,
@@ -30,6 +31,8 @@ export {
   WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES,
   WORKFLOW_GATE_DEFAULT_MAX_ATTEMPTS,
   WORKFLOW_GATE_MAX_ATTEMPTS_MAX,
+  WORKFLOW_SECRET_KEY_PATTERN,
+  WORKFLOW_SECRET_KEY_PATTERN_SOURCE,
   WORKFLOW_SESSION_KEY_MAX_LENGTH,
   WORKFLOW_SESSION_KEY_PATTERN,
   WORKFLOW_SESSION_KEY_PATTERN_SOURCE,
@@ -52,6 +55,7 @@ export {
   workflowDocumentEnvSchema,
   workflowDocumentJobSchema,
   workflowDocumentSchema,
+  workflowDocumentSecretKeySchema,
   workflowDocumentSessionSchema,
   workflowDocumentStepIntegrationSchema,
   workflowDocumentStepIntegrationSelectionSchema,

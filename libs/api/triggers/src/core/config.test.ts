@@ -1,5 +1,10 @@
 import * as expression from '@shipfox/expression';
-import {evaluateStoredFilter, evaluateTriggerFilter, readConfigInputs} from './config.js';
+import {
+  evaluateStoredFilter,
+  evaluateTriggerFilter,
+  readConfigInputs,
+  readConfigSecretInputs,
+} from './config.js';
 import type {TriggerSubscription} from './entities/subscription.js';
 
 function subscriptionWithConfig(config: Record<string, unknown>): TriggerSubscription {
@@ -46,6 +51,23 @@ describe('readConfigInputs', () => {
     const inputs = readConfigInputs(subscriptionWithConfig({with: 'staging'}));
 
     expect(inputs).toBeUndefined();
+  });
+});
+
+describe('readConfigSecretInputs', () => {
+  test('returns the secret alias map when it is a plain string map', () => {
+    const secrets = readConfigSecretInputs(
+      subscriptionWithConfig({secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}}),
+    );
+
+    expect(secrets).toEqual({DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'});
+  });
+
+  test('returns undefined when the stored value is not a string map', () => {
+    expect(readConfigSecretInputs(subscriptionWithConfig({secrets: ['TOKEN']}))).toBeUndefined();
+    expect(
+      readConfigSecretInputs(subscriptionWithConfig({secrets: {DEPLOY_TOKEN: 42}})),
+    ).toBeUndefined();
   });
 });
 

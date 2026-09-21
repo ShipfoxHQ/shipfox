@@ -533,7 +533,9 @@ function renderWorkflowSchemaReference(schema, workflowSchemaMarkdown) {
       defaults: {scope: 'workflow', cancel_in_progress: 'false'},
     }),
     workflowComponent(workflowSchemaMarkdown, 'TriggerFields', object(trigger.properties), {
+      fields: ['source', 'event', 'with', 'secrets', 'filter', 'config'],
       required: strings(trigger.required),
+      types: {secrets: codeType('Record<SecretKey, SecretKey>')},
     }),
     workflowComponent(workflowSchemaMarkdown, 'JobFields', object(jobs.properties), {
       required: ['steps'],

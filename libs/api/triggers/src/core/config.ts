@@ -24,6 +24,18 @@ export function readConfigInputs(
   return value as Record<string, unknown>;
 }
 
+export function readConfigSecretInputs(
+  subscription: TriggerSubscription,
+): Record<string, string> | undefined {
+  const value = subscription.config.secrets;
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const entries = Object.entries(value);
+  if (entries.some(([, source]) => typeof source !== 'string')) return undefined;
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
 export type TriggerFilterEvaluation =
   | {kind: 'matched'}
   | {kind: 'filtered'}

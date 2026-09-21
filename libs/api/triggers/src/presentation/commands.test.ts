@@ -466,6 +466,7 @@ describe('trigger command presentation', () => {
     ).toEqual(
       [
         'manual-trigger-not-found',
+        'secret-input-missing',
         'secret-not-found',
         ...Object.keys(workflowsInterModuleContract.methods.startRunFromTrigger.errors),
       ].sort(),

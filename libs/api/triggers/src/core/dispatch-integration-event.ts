@@ -1,12 +1,18 @@
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {findMatchingSubscriptions} from '#db/subscriptions.js';
 import {
   eventOutcomeCount,
   eventReceivedCount,
   subscriptionTriggeredCount,
 } from '#metrics/instance.js';
-import {evaluateTriggerFilter, readConfigInputs} from './config.js';
+import {evaluateTriggerFilter, readConfigInputs, readConfigSecretInputs} from './config.js';
 import type {TriggerEventOrigin} from './entities/received-event.js';
-import {TriggerReferenceResolutionError} from './errors.js';
+import {
+  SecretInputMissingError,
+  SecretInputNotFoundError,
+  TriggerReferenceResolutionError,
+} from './errors.js';
+import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {routeEventToJobListeners} from './route-event-to-job-listeners.js';
 import {
@@ -17,6 +23,7 @@ import {
 
 export interface DispatchIntegrationEventParams {
   workflows: WorkflowsModuleClient;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
   eventRef: string;
   /** History origin; ordinary integration deliveries use the default. */
   origin?: Exclude<TriggerEventOrigin, 'cron'> | undefined;
@@ -181,6 +188,19 @@ async function dispatchMatchingSubscription(
 ): Promise<void> {
   const inputs = readConfigInputs(subscription);
   try {
+    const configuredSecretInputs = readConfigSecretInputs(subscription);
+    if (configuredSecretInputs !== undefined && params.secrets === undefined) {
+      throw new TypeError('A Secrets client is required for trigger secret defaults');
+    }
+    const secretInputs =
+      configuredSecretInputs === undefined
+        ? undefined
+        : await pinSecretInputs({
+            secrets: params.secrets as Pick<SecretsInterModuleClient, 'getSecret'>,
+            workspaceId: subscription.workspaceId,
+            resolutionProjectId: subscription.projectId,
+            secretInputs: configuredSecretInputs,
+          });
     const run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
@@ -194,6 +214,7 @@ async function dispatchMatchingSubscription(
         data: params.payload,
       },
       ...(inputs === undefined ? {} : {inputs}),
+      ...(secretInputs === undefined ? {} : {secretInputs}),
       idempotencyKey: `${subscription.id}:${params.eventRef}`,
     });
     await history.triggered(subscription, run);
@@ -205,7 +226,9 @@ async function dispatchMatchingSubscription(
   } catch (error) {
     await history.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
     // A thrown undefined value is still a transient failure and must drive the replay.
-    if (!isPermanentStartRunError(error) && !state.sawTransientError) {
+    const isPermanentTriggerError =
+      error instanceof SecretInputMissingError || error instanceof SecretInputNotFoundError;
+    if (!isPermanentStartRunError(error) && !isPermanentTriggerError && !state.sawTransientError) {
       state.sawTransientError = true;
       state.firstTransientError = error;
     }

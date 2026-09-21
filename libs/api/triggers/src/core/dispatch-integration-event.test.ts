@@ -8,6 +8,7 @@ import {jobListenerSubscriptionFactory, triggerSubscriptionFactory} from '#test/
 import type {DispatchIntegrationEventParams} from './dispatch-integration-event.js';
 
 const runWorkflow = vi.fn();
+const getSecret = vi.fn();
 const deliverEventToListener = vi.fn();
 const resolveWorkflowRunTriggerReference = vi.fn();
 
@@ -95,6 +96,7 @@ interface DispatchOverrides {
 function dispatch(overrides: DispatchOverrides = {}): Promise<void> {
   return dispatchIntegrationEvent({
     workflows,
+    secrets: {getSecret},
     eventRef: overrides.eventRef ?? crypto.randomUUID(),
     ...(overrides.origin === undefined ? {} : {origin: overrides.origin}),
     provider: overrides.provider ?? overrides.source ?? 'github',
@@ -129,6 +131,7 @@ describe('dispatchIntegrationEvent', () => {
     runWorkflow.mockReset();
     deliverEventToListener.mockReset();
     resolveWorkflowRunTriggerReference.mockReset();
+    getSecret.mockReset();
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
     deliverEventToListener.mockResolvedValue({buffered: true, skipped: false});
     resolveWorkflowRunTriggerReference.mockResolvedValue(null);
@@ -500,6 +503,36 @@ describe('dispatchIntegrationEvent', () => {
     await dispatch({workspaceId});
 
     expect(runWorkflow).toHaveBeenCalledWith(expect.objectContaining({inputs: {env: 'staging'}}));
+  });
+
+  test('pins trigger secret defaults in the definition project', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      projectId,
+      source: 'github',
+      event: 'push',
+      config: {secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: 'secret-value', projectId});
+
+    await dispatch({workspaceId});
+
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretInputs: {
+          DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId},
+        },
+      }),
+    );
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId,
+      projectId,
+      namespace: '',
+      key: 'PROD_DEPLOY_TOKEN',
+      store: 'local',
+    });
   });
 
   test('omits inputs when the subscription has no configured inputs', async () => {

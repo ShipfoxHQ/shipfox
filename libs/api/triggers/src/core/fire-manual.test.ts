@@ -124,6 +124,117 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(event.outcome).toBe('routed');
   });
 
+  test('pins authored trigger defaults in the definition project', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: 'secret-value', projectId: subscription.projectId});
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Manual run'});
+
+    await fireManualSubscription({
+      workflows,
+      secrets,
+      subscriptionId: subscription.id,
+      callerWorkspaceId: subscription.workspaceId,
+      userId: crypto.randomUUID(),
+    });
+
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretInputs: {
+          DEPLOY_TOKEN: {
+            store: 'local',
+            key: 'PROD_DEPLOY_TOKEN',
+            projectId: subscription.projectId,
+          },
+        },
+      }),
+    );
+  });
+
+  test.each([
+    ['full map', {DEPLOY_TOKEN: {key: 'OVERRIDE_TOKEN', projectId: null}}],
+    ['empty map', {}],
+  ])('applies the %s override as a whole', async (_label, secretInputs) => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {secrets: {DEPLOY_TOKEN: 'DEFAULT_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: 'secret-value', projectId: null});
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Manual run'});
+
+    const firing = fireManualSubscription({
+      workflows,
+      secrets,
+      subscriptionId: subscription.id,
+      callerWorkspaceId: subscription.workspaceId,
+      userId: crypto.randomUUID(),
+      secretInputs,
+    });
+
+    if (_label === 'empty map') {
+      await expect(firing).rejects.toMatchObject({
+        name: 'SecretInputMissingError',
+        key: 'DEPLOY_TOKEN',
+      });
+      expect(runWorkflow).not.toHaveBeenCalled();
+      return;
+    }
+    await firing;
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretInputs: {
+          DEPLOY_TOKEN: {store: 'local', key: 'OVERRIDE_TOKEN', projectId: null},
+        },
+      }),
+    );
+    expect(getSecret).toHaveBeenCalledWith(expect.objectContaining({key: 'OVERRIDE_TOKEN'}));
+  });
+
+  test('rejects a partial secret override by naming the missing trigger input', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {secrets: {DEPLOY_TOKEN: 'DEFAULT_TOKEN', API_TOKEN: 'DEFAULT_API_TOKEN'}},
+    });
+
+    await expect(
+      fireManualSubscription({
+        workflows,
+        secrets,
+        subscriptionId: subscription.id,
+        callerWorkspaceId: subscription.workspaceId,
+        userId: crypto.randomUUID(),
+        secretInputs: {DEPLOY_TOKEN: {key: 'OVERRIDE_TOKEN', projectId: null}},
+      }),
+    ).rejects.toMatchObject({name: 'SecretInputMissingError', key: 'API_TOKEN'});
+    expect(getSecret).not.toHaveBeenCalled();
+    expect(runWorkflow).not.toHaveBeenCalled();
+  });
+
+  test('rejects a trigger default whose source secret does not exist', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {secrets: {DEPLOY_TOKEN: 'MISSING_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: null, projectId: null});
+
+    await expect(
+      fireManualSubscription({
+        workflows,
+        secrets,
+        subscriptionId: subscription.id,
+        callerWorkspaceId: subscription.workspaceId,
+        userId: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({name: 'SecretInputNotFoundError', key: 'MISSING_TOKEN'});
+    expect(runWorkflow).not.toHaveBeenCalled();
+  });
+
   test('pins an own __proto__ secret input key', async () => {
     const projectId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();

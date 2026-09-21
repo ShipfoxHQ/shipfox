@@ -46,7 +46,13 @@ interface BaseParams {
   replayEventId?: string | undefined;
   triggers?: Record<
     string,
-    {source: string; event?: string; with?: Record<string, unknown>; filter?: string}
+    {
+      source: string;
+      event?: string;
+      with?: Record<string, unknown>;
+      secrets?: Record<string, string>;
+      filter?: string;
+    }
   >;
 }
 
@@ -75,7 +81,12 @@ function resolvedDefinition(triggers: BaseParams['triggers']) {
     model: {version: 3, model: {kind: 'workflow', name: 'Triage', triggers: [], jobs: []}},
     sourceSnapshot: {content: 'name: Triage\n', format: 'yaml'},
     triggers: triggers ?? {
-      on_demand: {source: 'manual', event: 'fire', with: {severity: 'high'}},
+      on_demand: {
+        source: 'manual',
+        event: 'fire',
+        with: {severity: 'high'},
+        secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+      },
     },
     warnings: [],
   };
@@ -239,6 +250,7 @@ describe('createDevRun', () => {
       },
     });
     expect(payload).not.toHaveProperty('idempotencyKey');
+    expect(payload).not.toHaveProperty('secretInputs');
 
     const [event] = await db()
       .select()

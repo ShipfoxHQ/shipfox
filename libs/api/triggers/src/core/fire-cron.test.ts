@@ -8,10 +8,12 @@ import {triggerSubscriptionFactory} from '#test/index.js';
 import {TriggerSubscriptionNotCronError} from './errors.js';
 
 const runWorkflow = vi.fn();
+const getSecret = vi.fn();
 
 const {fireCronSubscription} = await import('./fire-cron.js');
 
 const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
+const secrets = {getSecret};
 
 const SLOT = new Date('2026-07-05T02:00:00.000Z');
 
@@ -32,19 +34,25 @@ function decisionsForEvent(receivedEventId: string) {
 describe('fireCronSubscription', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+    getSecret.mockReset();
   });
 
   test('records a routed cron event and a triggered decision on success', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'cron',
       event: 'tick',
-      config: {with: {environment: 'staging'}},
+      config: {
+        with: {environment: 'staging'},
+        secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+      },
     });
+    getSecret.mockResolvedValue({value: 'secret-value', projectId: subscription.projectId});
     const run = {id: crypto.randomUUID(), name: 'Cron run'};
     runWorkflow.mockResolvedValue(run);
 
     const result = await fireCronSubscription({
       workflows,
+      secrets,
       subscriptionId: subscription.id,
       scheduledSlot: SLOT,
     });
@@ -58,6 +66,16 @@ describe('fireCronSubscription', () => {
       scheduleId: subscription.id,
     });
     expect(payload.inputs).toEqual({environment: 'staging'});
+    expect(payload.secretInputs).toEqual({
+      DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: subscription.projectId},
+    });
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId: subscription.workspaceId,
+      projectId: subscription.projectId,
+      namespace: '',
+      key: 'PROD_DEPLOY_TOKEN',
+      store: 'local',
+    });
     expect(payload.idempotencyKey).toBe(`${subscription.id}:${SLOT.toISOString()}`);
     const [event] = await eventsForWorkspace(subscription.workspaceId);
     if (!event) throw new Error('received event not found');

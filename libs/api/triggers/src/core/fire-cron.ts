@@ -1,7 +1,14 @@
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {cronFiredCount, cronFireLag} from '#metrics/instance.js';
-import {readConfigInputs} from './config.js';
-import {TriggerSubscriptionNotCronError, TriggerSubscriptionNotFoundError} from './errors.js';
+import {readConfigInputs, readConfigSecretInputs} from './config.js';
+import {
+  SecretInputMissingError,
+  SecretInputNotFoundError,
+  TriggerSubscriptionNotCronError,
+  TriggerSubscriptionNotFoundError,
+} from './errors.js';
+import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
   isPermanentStartRunError,
@@ -11,6 +18,7 @@ import {
 
 export interface FireCronSubscriptionParams {
   workflows: WorkflowsModuleClient;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
   subscriptionId: string;
   /**
    * The `next_fire_at` value the schedule held when it was claimed. Anchoring the
@@ -67,6 +75,19 @@ export async function fireCronSubscription(
   const inputs = readConfigInputs(subscription);
   let run: {id: string; name: string};
   try {
+    const configuredSecretInputs = readConfigSecretInputs(subscription);
+    if (configuredSecretInputs !== undefined && params.secrets === undefined) {
+      throw new TypeError('A Secrets client is required for trigger secret defaults');
+    }
+    const secretInputs =
+      configuredSecretInputs === undefined
+        ? undefined
+        : await pinSecretInputs({
+            secrets: params.secrets as Pick<SecretsInterModuleClient, 'getSecret'>,
+            workspaceId: subscription.workspaceId,
+            resolutionProjectId: subscription.projectId,
+            secretInputs: configuredSecretInputs,
+          });
     run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
@@ -78,12 +99,17 @@ export async function fireCronSubscription(
         scheduleId: subscription.id,
       },
       ...(inputs === undefined ? {} : {inputs}),
+      ...(secretInputs === undefined ? {} : {secretInputs}),
       idempotencyKey: eventRef,
     });
   } catch (error) {
     const failure = await beginTriggerHistory(historyBase);
     await failure.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
-    if (isPermanentStartRunError(error)) {
+    if (
+      isPermanentStartRunError(error) ||
+      error instanceof SecretInputMissingError ||
+      error instanceof SecretInputNotFoundError
+    ) {
       recordFire('errored', params.scheduledSlot);
       await failure.allErrored(1);
       return {outcome: 'errored'};

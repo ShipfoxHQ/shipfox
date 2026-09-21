@@ -5545,6 +5545,70 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
+  it('normalizes trigger secret defaults for every trigger source', () => {
+    const document: WorkflowDocument = {
+      name: 'trigger secrets',
+      triggers: {
+        dispatch: {
+          source: 'github',
+          event: 'workflow_dispatch',
+          secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+        },
+      },
+      jobs: {
+        build: {
+          steps: [{run: 'npm run build'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.triggers[0]?.secrets).toEqual({DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'});
+  });
+
+  it.each([
+    [
+      'invalid key',
+      {deploy_token: 'PROD_TOKEN'},
+      ['triggers', 'dispatch', 'secrets', 'deploy_token'],
+    ],
+    [
+      'invalid source',
+      {DEPLOY_TOKEN: '$' + '{{ event.secret }}'},
+      ['triggers', 'dispatch', 'secrets', 'DEPLOY_TOKEN'],
+    ],
+    [
+      'too many entries',
+      Object.fromEntries(
+        Array.from({length: 21}, (_, index) => [`TOKEN_${index}`, 'SOURCE_TOKEN']),
+      ),
+      ['triggers', 'dispatch', 'secrets'],
+    ],
+  ])('reports %s trigger secret definitions with the literal-name issue', (_label, secrets, path) => {
+    const document = {
+      name: 'invalid trigger secrets',
+      triggers: {
+        dispatch: {source: 'github', event: 'workflow_dispatch', secrets},
+      },
+      jobs: {build: {steps: [{run: 'npm run build'}]}},
+    } as unknown as WorkflowDocument;
+
+    const {model, diagnostics} = normalizeWithDiagnostics(document);
+
+    expect(model.triggers).toEqual([]);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'secret-input-name-not-literal',
+          path,
+          severity: 'error',
+          scope: 'trigger',
+        }),
+      ]),
+    );
+  });
+
   it('normalizes a valid cron trigger with the default timezone', () => {
     const document: WorkflowDocument = {
       name: 'nightly trigger',

@@ -16,6 +16,20 @@ export const WORKFLOW_INTERPOLATION_MARKER_PATTERN = /\$\{\{/;
 export const WORKFLOW_SESSION_KEY_MAX_LENGTH = 128;
 export const WORKFLOW_SESSION_KEY_PATTERN_SOURCE = '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$';
 export const WORKFLOW_SESSION_KEY_PATTERN = new RegExp(WORKFLOW_SESSION_KEY_PATTERN_SOURCE);
+export const WORKFLOW_SECRET_KEY_PATTERN_SOURCE = '^[A-Z_][A-Z0-9_]*$';
+export const WORKFLOW_SECRET_KEY_PATTERN = new RegExp(WORKFLOW_SECRET_KEY_PATTERN_SOURCE);
+export const workflowDocumentSecretKeySchema = z.string().regex(WORKFLOW_SECRET_KEY_PATTERN);
+export type SecretKey = z.infer<typeof workflowDocumentSecretKeySchema>;
+const workflowDocumentTriggerSecretsSchema = z
+  .record(workflowDocumentSecretKeySchema, workflowDocumentSecretKeySchema)
+  .superRefine((secrets, ctx) => {
+    if (Object.keys(secrets).length > 20) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Trigger secrets cannot contain more than 20 entries.',
+      });
+    }
+  });
 const workflowSessionKeyLiteralPartPattern = /^[A-Za-z0-9._-]*$/;
 const workflowSessionKeyLiteralPartStartPattern = /^[A-Za-z0-9]/;
 
@@ -477,6 +491,10 @@ const workflowDocumentTriggerBaseSchema = {
   with: z.record(z.string(), z.unknown()).optional().meta({
     description:
       'Provider-specific values used to match or configure the trigger. See the provider event catalog in [Integrations](/integrations).',
+  }),
+  secrets: workflowDocumentTriggerSecretsSchema.optional().meta({
+    description:
+      'Secret input aliases and source names. Both names must be literal secret keys, and a trigger allows up to 20 entries.',
   }),
   filter: z.string().min(1).optional().meta({
     description:

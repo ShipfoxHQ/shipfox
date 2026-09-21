@@ -8,6 +8,16 @@ export class SecretInputNotFoundError extends Error {
   }
 }
 
+export class SecretInputMissingError extends Error {
+  readonly key: string;
+
+  constructor(key: string) {
+    super(`Secret input was not supplied: ${key}`);
+    this.name = 'SecretInputMissingError';
+    this.key = key;
+  }
+}
+
 export class TriggerSubscriptionNotFoundError extends Error {
   readonly subscriptionId: string;
 
