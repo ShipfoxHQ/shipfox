@@ -1,11 +1,13 @@
 import {logger} from '@shipfox/node-opentelemetry';
-import ky, {TimeoutError} from 'ky';
+import ky, {HTTPError, TimeoutError} from 'ky';
 import {config} from '#config.js';
 import {NotionIntegrationProviderError} from '#core/errors.js';
 
 export const NOTION_API_VERSION = '2026-03-11';
 export const NOTION_API_TIMEOUT_MS = 10_000;
 
+const NOTION_OAUTH_TOKEN_PATH = '/v1/oauth/token';
+const NOTION_OAUTH_REVOKE_PATH = '/v1/oauth/revoke';
 const TRAILING_SLASHES_RE = /\/+$/;
 const TIMEOUT_NAME_RE = /timed?\s*out|timeout/i;
 
@@ -30,8 +32,56 @@ export interface NotionAgentToolsClient {
   request(input: NotionAgentToolRequest): Promise<NotionAgentToolResponse>;
 }
 
+export interface NotionAuthorization {
+  accessToken: string;
+  refreshToken?: string | undefined;
+  expiresAt?: Date | undefined;
+}
+
+export interface NotionApiClient {
+  refreshAccessToken(input: {refreshToken: string}): Promise<NotionAuthorization>;
+  revokeToken(input: {token: string}): Promise<void>;
+}
+
+interface NotionTokenResponse {
+  access_token?: unknown;
+  refresh_token?: unknown;
+  expires_in?: unknown;
+}
+
 export function createNotionAgentToolsClient(): NotionAgentToolsClient {
   return {request: requestNotionRest};
+}
+
+export function createNotionApiClient(): NotionApiClient {
+  return {
+    async refreshAccessToken(input) {
+      const body = await requestNotionOauth('refresh-access-token', () =>
+        ky
+          .post(notionApiUrl(NOTION_OAUTH_TOKEN_PATH), {
+            headers: basicAuthHeaders(),
+            json: {
+              grant_type: 'refresh_token',
+              refresh_token: input.refreshToken,
+            },
+            timeout: NOTION_API_TIMEOUT_MS,
+          })
+          .json<NotionTokenResponse>(),
+      );
+
+      return parseRefreshResponse(body);
+    },
+
+    async revokeToken(input) {
+      await requestNotionOauth('revoke-token', async () => {
+        await ky.post(notionApiUrl(NOTION_OAUTH_REVOKE_PATH), {
+          headers: basicAuthHeaders(),
+          json: {token: input.token},
+          timeout: NOTION_API_TIMEOUT_MS,
+        });
+      });
+    },
+  };
 }
 
 async function requestNotionRest(input: NotionAgentToolRequest): Promise<NotionAgentToolResponse> {
@@ -62,6 +112,43 @@ export function notionApiUrl(path: string): string {
   const base = config.NOTION_API_BASE_URL.replace(TRAILING_SLASHES_RE, '');
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${base}${normalizedPath}`;
+}
+
+function basicAuthHeaders(): Record<string, string> {
+  const credentials = `${config.NOTION_OAUTH_CLIENT_ID}:${config.NOTION_OAUTH_CLIENT_SECRET}`;
+  return {authorization: `Basic ${Buffer.from(credentials).toString('base64')}`};
+}
+
+function parseRefreshResponse(body: NotionTokenResponse): NotionAuthorization {
+  if (typeof body.access_token !== 'string' || body.access_token.length === 0) {
+    throw new NotionIntegrationProviderError(
+      'malformed-provider-response',
+      'Notion refresh response did not include an access token',
+    );
+  }
+  if (typeof body.refresh_token !== 'string' || body.refresh_token.length === 0) {
+    throw new NotionIntegrationProviderError(
+      'malformed-provider-response',
+      'Notion refresh response did not include a refresh token',
+    );
+  }
+
+  return {
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token,
+    expiresAt: parseExpiresAt(body.expires_in),
+  };
+}
+
+function parseExpiresAt(expiresIn: unknown): Date | undefined {
+  if (expiresIn === undefined) return undefined;
+  if (typeof expiresIn !== 'number' || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new NotionIntegrationProviderError(
+      'malformed-provider-response',
+      'Notion token response included a malformed expiry',
+    );
+  }
+  return new Date(Date.now() + expiresIn * 1000);
 }
 
 function notionQueryParams(
@@ -97,6 +184,24 @@ export function mapNotionError(operation: string, error: unknown): NotionIntegra
   return new NotionIntegrationProviderError('provider-unavailable', 'Notion request failed');
 }
 
+async function requestNotionOauth<T>(operation: string, request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    if (error instanceof NotionIntegrationProviderError) throw error;
+    if (error instanceof HTTPError) throw mapNotionHttpError(operation, error);
+    if (error instanceof TimeoutError) {
+      logger().warn({operation}, 'Notion API request timed out');
+      throw new NotionIntegrationProviderError('timeout', 'Notion request timed out');
+    }
+    logger().warn(
+      {operation, errName: error instanceof Error ? error.name : typeof error},
+      'Notion API request failed',
+    );
+    throw new NotionIntegrationProviderError('provider-unavailable', 'Notion request failed');
+  }
+}
+
 function mapNotionStatusError(
   operation: string,
   status: number,
@@ -125,6 +230,42 @@ function mapNotionStatusError(
     undefined,
     status,
   );
+}
+
+function mapNotionHttpError(operation: string, error: HTTPError): NotionIntegrationProviderError {
+  const {status, statusText} = error.response;
+  logger().warn({operation, status, statusText}, 'Notion API request rejected');
+  if (status === 429) {
+    return new NotionIntegrationProviderError(
+      'rate-limited',
+      'Notion request was rate limited',
+      retryAfterSeconds(error.response.headers),
+      status,
+    );
+  }
+  if (status >= 500) {
+    return new NotionIntegrationProviderError(
+      'provider-unavailable',
+      'Notion request failed',
+      undefined,
+      status,
+    );
+  }
+
+  const providerErrorCode = readProviderErrorCode(error);
+  return new NotionIntegrationProviderError(
+    'access-denied',
+    'Notion request was rejected',
+    undefined,
+    status,
+    providerErrorCode,
+  );
+}
+
+function readProviderErrorCode(error: HTTPError): string | undefined {
+  const body = error.data;
+  if (typeof body !== 'object' || body === null || !('error' in body)) return undefined;
+  return typeof body.error === 'string' ? body.error : undefined;
 }
 
 function retryAfterSeconds(headers: Headers): number | undefined {
