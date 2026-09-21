@@ -1,5 +1,5 @@
 import {isUniqueViolation} from '@shipfox/node-drizzle';
-import {pgClient} from '@shipfox/node-postgres';
+import {withPostgresSession} from '@shipfox/node-postgres';
 import {eq} from 'drizzle-orm';
 import {
   NotionConnectionAlreadyLinkedError,
@@ -55,31 +55,28 @@ export function tryWithNotionGrantLock<T>(
   return tryWithNotionGrantLockOnClient(connectionId, fn);
 }
 
-async function tryWithNotionGrantLockOnClient<T>(
+function tryWithNotionGrantLockOnClient<T>(
   connectionId: string,
   fn: () => Promise<T>,
 ): Promise<NotionGrantLockResult<T>> {
-  const client = await pgClient().connect();
-  let acquired = false;
-  try {
-    const lock = await client.query<{acquired: boolean}>(
-      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
-      [`notion-grant:${connectionId}`],
-    );
-    acquired = lock.rows[0]?.acquired === true;
-    if (!acquired) return {acquired: false};
-    return {acquired: true, value: await fn()};
-  } finally {
+  return withPostgresSession(async (client) => {
+    let acquired = false;
     try {
+      const lock = await client.query<{acquired: boolean}>(
+        'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+        [`notion-grant:${connectionId}`],
+      );
+      acquired = lock.rows[0]?.acquired === true;
+      if (!acquired) return {acquired: false};
+      return {acquired: true, value: await fn()};
+    } finally {
       if (acquired) {
         await client.query('SELECT pg_advisory_unlock(hashtext($1))', [
           `notion-grant:${connectionId}`,
         ]);
       }
-    } finally {
-      client.release();
     }
-  }
+  });
 }
 
 async function waitForNotionGrantLock<T>(

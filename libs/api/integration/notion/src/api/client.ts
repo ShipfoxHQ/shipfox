@@ -232,10 +232,7 @@ function mapNotionStatusError(
   );
 }
 
-function mapNotionHttpError(
-  operation: string,
-  error: HTTPError,
-): NotionIntegrationProviderError {
+function mapNotionHttpError(operation: string, error: HTTPError): NotionIntegrationProviderError {
   const {status, statusText} = error.response;
   logger().warn({operation, status, statusText}, 'Notion API request rejected');
   if (status === 429) {

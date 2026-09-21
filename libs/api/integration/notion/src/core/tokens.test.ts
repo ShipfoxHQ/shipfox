@@ -159,6 +159,8 @@ describe('Notion token store', () => {
     const error = new NotionIntegrationProviderError(
       'access-denied',
       'Notion rejected the refresh grant',
+      undefined,
+      undefined,
       'invalid_grant',
     );
     client.refreshAccessToken.mockRejectedValue(error);

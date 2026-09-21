@@ -12,8 +12,9 @@ export type {
   NotionAgentToolRequest,
   NotionAgentToolResponse,
   NotionAgentToolsClient,
+  NotionApiClient,
+  NotionAuthorization,
 } from '#api/client.js';
-export type {NotionApiClient, NotionAuthorization} from '#api/client.js';
 export {createNotionAgentToolsClient, createNotionApiClient} from '#api/client.js';
 export {config} from '#config.js';
 export type {
