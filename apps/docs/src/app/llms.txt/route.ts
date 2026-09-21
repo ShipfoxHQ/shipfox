@@ -1,9 +1,5 @@
 import {canonicalDocsUrl} from '@/lib/machine-readable';
-import {
-  PRODUCT_DEFINITION,
-  PRODUCT_SUPPORTING_COPY,
-  PRODUCT_TAGLINE,
-} from '@/lib/product-definition';
+import {PRODUCT_DESCRIPTION, PRODUCT_SUBTITLE} from '@/lib/product-definition';
 import {source} from '@/lib/source';
 
 export const revalidate = false;
@@ -92,7 +88,7 @@ export function GET() {
   const lines: string[] = [
     '# Shipfox Documentation',
     '',
-    `> ${PRODUCT_DEFINITION} ${PRODUCT_TAGLINE} ${PRODUCT_SUPPORTING_COPY}`,
+    `> ${PRODUCT_SUBTITLE} ${PRODUCT_DESCRIPTION}`,
     '',
   ];
 

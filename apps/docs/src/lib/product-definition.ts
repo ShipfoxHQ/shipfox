@@ -1,10 +1,9 @@
 export const PRODUCT_CATEGORY = 'AI software factory';
 
-export const PRODUCT_DEFINITION = `Shipfox is an ${PRODUCT_CATEGORY} for engineering teams.`;
+export const PRODUCT_HEADLINE = 'Your AI Software Factory';
 
-export const PRODUCT_HEADLINE = 'Your AI software factory';
+export const PRODUCT_SUBTITLE =
+  'Agentic coding makes engineers faster. Shipfox gives them a factory.';
 
-export const PRODUCT_TAGLINE = 'Ship more work. Manage less of it.';
-
-export const PRODUCT_SUPPORTING_COPY =
-  'Delegate recurring work across code, delivery, documentation, and operations. Shipfox keeps it moving with AI agents and brings your team in where human judgment matters.';
+export const PRODUCT_DESCRIPTION =
+  'A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request. You decide where you step in.';

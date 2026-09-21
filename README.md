@@ -1,5 +1,5 @@
 <div align="center">
-  <img width="1200" height="630" alt="shipfox-og" src="https://github.com/user-attachments/assets/4a977e17-c81d-4ab5-b815-7f4439b320ef" />
+  <img width="1200" height="630" alt="Shipfox: Your AI Software Factory" src="apps/docs/public/shipfox-og.jpg" />
 </div>
 
 <p align="center">
@@ -10,15 +10,14 @@
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 
-## Your AI software factory
+## Your AI Software Factory
 
-**Shipfox is an AI software factory for engineering teams.**
+**Agentic coding makes engineers faster. Shipfox gives them a factory.**
 
-**Ship more work. Manage less of it.**
+A ticket, an alert or a failed check starts a workflow in your repo. It runs
+like a CI pipeline and opens a pull request.
 
-Delegate recurring work across code, delivery, documentation, and operations.
-Shipfox keeps it moving with AI agents and brings your team in where human
-judgment matters.
+You decide where you step in.
 
 Workflows live as YAML in your repository and react to events across your stack.
 Shipfox handles orchestration, secure tool access, isolated execution, and

@@ -33,29 +33,27 @@ page. Split a page when its subject requires more than one reader mode.
 
 ### Product definition and workflows
 
-The canonical product category is **AI software factory**. Start every
-machine-facing Shipfox summary with this sentence:
-
-> Shipfox is an AI software factory for engineering teams.
-
-Keep the sentence unchanged across public metadata, structured data, and
-machine-readable summaries. Add surface-specific supporting detail after it.
+The canonical product category is **AI software factory**.
 
 Use this product headline on public overview surfaces:
 
-> Your AI software factory
+> Your AI Software Factory
 
-Use this primary tagline with the headline:
+Use this subtitle with the headline:
 
-> Ship more work. Manage less of it.
+> Agentic coding makes engineers faster. Shipfox gives them a factory.
 
-Use this supporting copy when the surface has room for the full pitch:
+Use this description in public metadata, machine-readable summaries, and
+surfaces with room for the full pitch:
 
-> Delegate recurring work across code, delivery, documentation, and operations. Shipfox keeps it moving with AI agents and brings your team in where human judgment matters.
+> A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request.
+>
+> You decide where you step in.
 
-Use **workflow** for the Shipfox concept. Use **pipeline** only when quoting or
-contrasting an external system, or when explaining that it is an informal
-synonym for workflow. Keep literal names from external systems unchanged.
+Use **workflow** for the Shipfox concept. Outside the canonical product
+description, use **pipeline** only when quoting or contrasting an external
+system, or when explaining that it is an informal synonym for workflow. Keep
+literal names from external systems unchanged.
 
 Use **integration connection** for the workspace resource created when an
 integration is connected. Do not use **connection** by itself for this resource,
