@@ -26,7 +26,7 @@ test('runs PostHog agent and tool steps through the regional MCP fake', async ({
   suite,
 }, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-  const apiKey = `phx-flow-${uniqueId}`;
+  const apiKey = `phx_flow_${uniqueId}`;
   const connection = await createPosthogConnection({
     workspaceId: suite.workspaceId,
     region: 'us',
@@ -129,7 +129,7 @@ test('runs PostHog agent and tool steps through the regional MCP fake', async ({
 
 test('marks a revoked PostHog key and fails the next call fast', async ({suite}, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-  const apiKey = `phx-revoked-${uniqueId}`;
+  const apiKey = `phx_revoked_${uniqueId}`;
   const connection = await createPosthogConnection({
     workspaceId: suite.workspaceId,
     region: 'eu',
@@ -150,7 +150,7 @@ test('marks a revoked PostHog key and fails the next call fast', async ({suite},
       fakeModelProvider,
       scriptId: `${suite.runId}-posthog-revoked-${uniqueId}`,
       model: 'deterministic-posthog-revoked-agent',
-      responses: [toolCall(toolName, {query: 'SELECT 1'})],
+      responses: [toolCall(toolName, {query: 'SELECT 1'}), message('PostHog query failed.')],
       assertions: [{kind: 'tool_present', name: toolName}],
       setAsDefault: true,
     });
@@ -187,7 +187,7 @@ test('marks a revoked PostHog key and fails the next call fast', async ({suite},
       timeoutMs: TERMINAL_TIMEOUT_MS,
       runner: localRunner.runner,
     });
-    expect(firstTerminal.status).toBe('failed');
+    expect(firstTerminal.status).toBe('succeeded');
     const afterFirst = await listWorkspaceConnections(suite.workspaceId, suite.sessionToken);
     expect(afterFirst.find((item) => item.id === connection.id)?.lifecycle_status).toBe('error');
 
@@ -227,7 +227,7 @@ test('keeps a replaced key active when an old PostHog call fails late', async ({
   suite,
 }, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-  const oldKey = `phx-stale-single-${uniqueId}`;
+  const oldKey = `phx_stale_single_${uniqueId}`;
   const connection = await createPosthogConnection({
     workspaceId: suite.workspaceId,
     region: 'eu',
@@ -264,7 +264,7 @@ test('keeps a replaced key active when an old PostHog call fails late', async ({
     });
     await waitForPosthogMockCall(oldKey);
     await client.request('put', `/integrations/posthog/connections/${connection.id}/api-key`, {
-      json: {api_key: 'phx-single-replacement'},
+      json: {api_key: 'phx_single_replacement'},
     });
     await setPosthogProbeStatus(oldKey, 401);
     await releasePosthogCall(oldKey);

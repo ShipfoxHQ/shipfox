@@ -1,4 +1,7 @@
-import {integrationConnectionDtoSchema} from '@shipfox/api-integration-core-dto';
+import {
+  integrationConnectionDtoSchema,
+  integrationConnectionLifecycleStatusSchema,
+} from '@shipfox/api-integration-core-dto';
 import {z} from 'zod';
 
 export const POSTHOG_PROVIDER = 'posthog';
@@ -57,6 +60,7 @@ export const createE2ePosthogConnectionBodySchema = z.object({
   project_id: z.string().min(1),
   project_name: z.string().min(1),
   organization_id: z.string().min(1),
+  lifecycle_status: integrationConnectionLifecycleStatusSchema.optional(),
 });
 export type CreateE2ePosthogConnectionBodyDto = z.infer<
   typeof createE2ePosthogConnectionBodySchema

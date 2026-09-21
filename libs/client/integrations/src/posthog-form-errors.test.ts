@@ -29,8 +29,8 @@ describe('PostHog form error mapping', () => {
     expect(
       posthogConnectErrorToFormError(
         apiError('already-connected', 409, {
-          status: 'already-connected',
-          connection_id: '11111111-1111-4111-8111-111111111111',
+          code: 'already-connected',
+          details: {connection_id: '11111111-1111-4111-8111-111111111111'},
         }),
       ),
     ).toEqual({

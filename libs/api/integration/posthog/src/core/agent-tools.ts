@@ -9,7 +9,6 @@ export type PosthogAgentToolRequiredScope = 'read';
 
 const posthogAgentToolSchemas = {
   'execute-sql': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       connectionId: {
         description:
@@ -37,7 +36,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'read-data-schema': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       query: {
         description: 'The data schema query to execute.',
@@ -182,7 +180,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'insights-list': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       created_by: {
         description:
@@ -285,7 +282,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'insight-get': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       filters_override: {
         anyOf: [
@@ -341,7 +337,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'insight-query': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       filters_override: {
         anyOf: [
@@ -398,7 +393,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'dashboards-get-all': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       exclude_generated: {
         description: 'Optional. Exclude dashboards that PostHog generated.',
@@ -430,7 +424,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'dashboard-get': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       filters_override: {
         anyOf: [
@@ -478,7 +471,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'dashboard-insights-run': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       filters_override: {
         anyOf: [
@@ -533,7 +525,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'query-error-tracking-issues-list': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       assignee: {
         anyOf: [
@@ -830,7 +821,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'query-error-tracking-issue': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       dateRange: {
         description:
@@ -884,7 +874,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'feature-flag-get-all': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       active: {
         enum: ['STALE', 'false', 'true'],
@@ -955,7 +944,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'feature-flag-get-definition': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       id: {
         description: 'A unique integer value identifying this feature flag.',
@@ -966,7 +954,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'experiment-list': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       archived: {
         description: 'Filter by archived state. Defaults to non-archived experiments only.',
@@ -1028,7 +1015,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'experiment-get': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       id: {
         description: 'A unique integer value identifying this experiment.',
@@ -1039,7 +1025,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'experiment-results-get': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       id: {
         description: 'The ID of the experiment to get comprehensive results for',
@@ -1055,7 +1040,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'surveys-get-all': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       archived: {
         type: 'boolean',
@@ -1100,7 +1084,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'survey-get': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       id: {
         description: 'A UUID string identifying this survey.',
@@ -1111,7 +1094,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'survey-stats': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       date_from: {
         description: 'Optional ISO timestamp for start date (e.g. 2024-01-01T00:00:00Z)',
@@ -1141,7 +1123,6 @@ const posthogAgentToolSchemas = {
     type: 'object',
   },
   'docs-search': {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
     properties: {
       query: {
         description:

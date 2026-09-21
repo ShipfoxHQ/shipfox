@@ -88,12 +88,12 @@ export async function main(argv) {
     });
     await waitForUrl(env.CLIENT_URL, {timeoutMs: options.readinessTimeoutMs});
 
-    const result = spawnSync('turbo', turboCommandArgs(options, env), {
+    const task = startCommand('turbo', turboCommandArgs(options, env), {
       env,
       stdio: 'inherit',
     });
-    if (result.error) throw result.error;
-    exitCode = result.status ?? 1;
+    servers.push({name: 'tests', child: task.child});
+    exitCode = await task.exitCode;
     if (exitCode !== 0) await collectE2eDiagnostics(logDir);
   } catch (error) {
     exitCode = exitCode === 0 ? 1 : exitCode;
@@ -559,6 +559,18 @@ async function startServer(params) {
 
   if (child.pid === undefined) throw new Error(`Failed to start ${params.name}`);
   return {name: params.name, child, logFile: params.logFile};
+}
+
+export function startCommand(command, args, options) {
+  const child = spawn(command, args, {
+    ...options,
+    detached: process.platform !== 'win32',
+  });
+  const exitCode = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code) => resolve(code ?? 1));
+  });
+  return {child, exitCode};
 }
 
 async function stopServers(servers) {

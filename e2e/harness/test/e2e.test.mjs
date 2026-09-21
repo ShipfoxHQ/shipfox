@@ -14,6 +14,7 @@ import {
   e2ePosthogMcpEndpoint,
   e2eTestVcsPort,
   parseArgs,
+  startCommand,
   turboCommandArgs,
 } from '../src/e2e.mjs';
 
@@ -322,6 +323,22 @@ describe('turboCommandArgs', () => {
       '--',
       '--grep=renewable',
     ]);
+  });
+});
+
+describe('startCommand', () => {
+  test('keeps the harness event loop available while a child runs', async () => {
+    let timerFired = false;
+    const task = startCommand(process.execPath, ['-e', 'setTimeout(() => {}, 25)'], {
+      env: process.env,
+      stdio: 'ignore',
+    });
+    setTimeout(() => {
+      timerFired = true;
+    }, 0);
+
+    assert.equal(await task.exitCode, 0);
+    assert.equal(timerFired, true);
   });
 });
 

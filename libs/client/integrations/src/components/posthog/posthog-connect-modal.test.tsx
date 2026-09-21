@@ -89,7 +89,7 @@ describe('PosthogConnectModal', () => {
     const fetchImpl = vi.fn(() =>
       Promise.resolve(
         jsonResponse(
-          {status: 'already-connected', connection_id: CONNECTION_ID, code: 'already-connected'},
+          {code: 'already-connected', details: {connection_id: CONNECTION_ID}},
           {status: 409, statusText: 'Conflict'},
         ),
       ),

@@ -1,4 +1,3 @@
-import {createApiClient} from '@shipfox/e2e-core';
 import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
 import {expect, test} from './test.js';
 
@@ -11,19 +10,19 @@ test.describe('PostHog connection', () => {
 
     await integrationsCatalogue.goto(workspaceSlug);
     await integrationsCatalogue.addButton('PostHog').click();
-    await integrationsCatalogue.posthogKeyField().fill('phx-single-project');
+    await integrationsCatalogue.posthogKeyField().fill('phx_single_project');
     await integrationsCatalogue.posthogConnectButton().click();
     await expect(integrationsCatalogue.installedProviderName('E2E Single project')).toBeVisible();
 
     await integrationsCatalogue.addButton('PostHog').click();
-    await integrationsCatalogue.posthogKeyField().fill('phx-multi-project');
+    await integrationsCatalogue.posthogKeyField().fill('phx_multi_project');
     await integrationsCatalogue.posthogConnectButton().click();
     await expect(integrationsCatalogue.posthogProject('E2E Analytics')).toBeVisible();
     await integrationsCatalogue.posthogProject('E2E Analytics').click();
     await expect(integrationsCatalogue.installedProviderName('E2E Analytics')).toBeVisible();
 
     await integrationsCatalogue.addButton('PostHog').click();
-    await integrationsCatalogue.posthogKeyField().fill('phx-single-project');
+    await integrationsCatalogue.posthogKeyField().fill('phx_single_project');
     await integrationsCatalogue.posthogConnectButton().click();
     await expect(integrationsCatalogue.posthogAlreadyConnected()).toBeVisible();
     await integrationsCatalogue.posthogReplaceButton().click();
@@ -39,20 +38,17 @@ test.describe('PostHog connection', () => {
     const connection = await createPosthogConnection({
       workspaceId: ready.workspaceId,
       region: 'us',
-      apiKey: 'phx-revoked-single',
+      apiKey: 'phx_revoked_single',
       projectId: 'e2e-single-project',
       projectName: 'E2E Revoked project',
       organizationId: 'e2e-organization',
-    });
-    const api = createApiClient({token: ready.sessionToken});
-    await api.request('patch', `/integration-connections/${connection.id}`, {
-      json: {lifecycle_status: 'error'},
+      lifecycleStatus: 'error',
     });
 
     await connectionDetails.goto(ready.workspaceSlug, connection.slug);
     await expect(connectionDetails.posthogError()).toBeVisible();
     await connectionDetails.posthogReplaceButton().click();
-    await connectionDetails.posthogKeyField().fill('phx-single-replacement');
+    await connectionDetails.posthogKeyField().fill('phx_single_replacement');
     await connectionDetails
       .posthogReplaceDialog()
       .getByRole('button', {name: 'Replace API key'})

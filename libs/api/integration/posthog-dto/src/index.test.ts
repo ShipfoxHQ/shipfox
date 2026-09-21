@@ -1,4 +1,5 @@
 import {
+  createE2ePosthogConnectionBodySchema,
   posthogConnectRequestSchema,
   posthogConnectResponseSchema,
   posthogExternalAccountId,
@@ -49,5 +50,19 @@ describe('PostHog DTOs', () => {
 
   it.each(['us', 'eu'] as const)('encodes %s project identity with its region', (region) => {
     expect(posthogExternalAccountId(region, 'project-1')).toBe(`${region}:project-1`);
+  });
+
+  it('accepts an error lifecycle status for E2E setup', () => {
+    expect(
+      createE2ePosthogConnectionBodySchema.parse({
+        workspace_id: '00000000-0000-4000-8000-000000000003',
+        region: 'us',
+        api_key: 'phx_secret',
+        project_id: 'project-1',
+        project_name: 'Analytics',
+        organization_id: 'organization-1',
+        lifecycle_status: 'error',
+      }),
+    ).toMatchObject({lifecycle_status: 'error'});
   });
 });

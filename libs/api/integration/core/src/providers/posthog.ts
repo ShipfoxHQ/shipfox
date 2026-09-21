@@ -86,6 +86,7 @@ async function loadPosthogModuleParts(
     projectId: string;
     projectName: string;
     organizationId: string;
+    lifecycleStatus?: CoreIntegrationConnection<'posthog'>['lifecycleStatus'] | undefined;
   }): Promise<CoreIntegrationConnection<'posthog'>> {
     return await retryConnectionSlugCollision(() =>
       db().transaction(async (tx) => {
@@ -109,7 +110,7 @@ async function loadPosthogModuleParts(
             externalAccountId,
             slug,
             displayName: input.projectName,
-            lifecycleStatus: 'active',
+            lifecycleStatus: input.lifecycleStatus ?? 'active',
             capabilities: credentialStore ? ['agent_tools'] : [],
           },
           {tx},
@@ -137,6 +138,7 @@ async function loadPosthogModuleParts(
     projectId: string;
     projectName: string;
     organizationId: string;
+    lifecycleStatus?: CoreIntegrationConnection<'posthog'>['lifecycleStatus'] | undefined;
   }): Promise<CoreIntegrationConnection<'posthog'>> {
     if (!credentialStore) throw new Error('PostHog credential storage is not configured');
     const connectionId = randomUUID();
