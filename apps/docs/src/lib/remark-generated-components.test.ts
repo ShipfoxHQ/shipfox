@@ -17,6 +17,13 @@ const fixtures = [
   {
     directory: ['content', 'docs', 'reference'],
     importStatement:
+      "import {ConcurrencyFields} from '../../generated/reference/workflow-schema.mdx';",
+    component: 'ConcurrencyFields',
+    fact: '| `group` |',
+  },
+  {
+    directory: ['content', 'docs', 'reference'],
+    importStatement:
       "import ContextAvailability from '../../generated/reference/context-availability.mdx';",
     component: 'ContextAvailability',
     fact: '| Workflow key | Available contexts |',

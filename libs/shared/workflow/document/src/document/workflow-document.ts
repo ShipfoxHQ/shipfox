@@ -455,7 +455,8 @@ const workflowDocumentStepOutputsFieldSchema = z
 export const workflowDocumentConcurrencySchema = z
   .strictObject({
     group: z.string().min(1).meta({
-      description: 'Required group interpolation template used to coordinate workflow runs.',
+      description:
+        'Required group interpolation template used to coordinate workflow runs. See [Contexts](/reference/contexts#context-availability) for available data.',
     }),
     scope: z.enum(['workflow', 'project']).optional().meta({
       description:

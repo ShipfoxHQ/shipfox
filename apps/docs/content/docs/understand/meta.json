@@ -11,6 +11,7 @@
     "integrations-connections-and-tools",
     "agents",
     "agent-sessions",
+    "workflow-concurrency-groups",
     "feedback-loops",
     "listening-jobs"
   ]

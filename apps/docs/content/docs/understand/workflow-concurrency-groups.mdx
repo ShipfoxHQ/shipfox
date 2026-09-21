@@ -1,0 +1,120 @@
+---
+title: "Workflow concurrency groups"
+sidebarTitle: "Concurrency Groups"
+description: "Learn how to prevent repeated events from creating a backlog of outdated workflow runs."
+---
+
+Sometimes the same work starts again before an earlier run finishes. A
+**workflow concurrency group** prevents those runs from piling up. Shipfox lets
+one run continue and keeps only the newest additional run waiting.
+
+## When to use a concurrency group
+
+Use a concurrency group when a new change can start the same workflow before
+its previous run finishes.
+
+Imagine that three commits reach one pull request in quick succession. Each
+commit starts a new run of the checks. Checks for the earlier commits no longer
+describe the current pull request, but they can still consume runners and delay
+the checks for the newest commit.
+
+Give all runs for that pull request the same group name, such as
+`pull-request-42`. Shipfox then handles them as related runs. A different pull
+request uses a different group name and runs independently.
+
+Do not use a concurrency group when every run must finish.
+
+## What happens when another run starts
+
+Shipfox keeps at most one active run and one waiting run in each group.
+
+| Runs already in the group | What Shipfox does with the new run |
+| --- | --- |
+| None | Starts it. |
+| One active run | Keeps it waiting. |
+| One active run and one waiting run | Cancels the waiting run and puts the new run in its place. |
+
+When the active run finishes, the waiting run starts. Because each new waiting
+run replaces the previous one, the group never builds a long queue.
+
+Choose whether the active run should finish:
+
+- `cancel_in_progress: false` lets it finish, then starts the waiting run.
+- `cancel_in_progress: true` asks it to stop, then starts the waiting run.
+
+## Choose which runs belong together
+
+`group` tells Shipfox which runs should wait for each other.
+
+This example creates a separate group for each pull request. Shipfox replaces
+`${{ event.pull_request.number }}` with the pull request number from the event:
+
+```yaml
+concurrency:
+  group: 'pull-request-${{ event.pull_request.number }}'
+  cancel_in_progress: true
+```
+
+For pull request 42, the expression creates the group name `pull-request-42`.
+Every run for that pull request joins the same group. Pull request 43 gets a
+separate group named `pull-request-43`, so runs for the two pull requests do not
+affect each other.
+
+The [workflow schema reference](/reference/workflow-schema#concurrency-fields)
+lists the exact fields, values, and defaults.
+
+## Complete workflow example
+
+Here is the concurrency group from above in a complete workflow. The workflow
+runs checks when a pull request opens, reopens, or receives new commits. Every
+run uses the pull request number as its group name.
+
+This complete workflow expects a GitHub integration connection named
+`github_acme`, a runner labeled `shipfox`, and a repository with a test script:
+
+```yaml title=".shipfox/workflows/pull-request-checks.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Pull request checks
+runner: shipfox
+
+concurrency:
+  group: 'pull-request-${{ event.pull_request.number }}'
+  cancel_in_progress: true
+
+triggers:
+  opened:
+    source: github_acme
+    event: pull_request.opened
+  reopened:
+    source: github_acme
+    event: pull_request.reopened
+  synchronized:
+    source: github_acme
+    event: pull_request.synchronize
+
+jobs:
+  checks:
+    steps:
+      - key: test
+        run: pnpm test
+```
+
+Runs started by any of these triggers join the same group when they belong to
+the same pull request.
+
+## Development runs stay separate
+
+Shipfox keeps development runs separate from regular runs. It also keeps each
+user's development runs separate. Testing a workflow does not make regular
+runs or another user's tests wait.
+
+## Reruns use the same group
+
+When you rerun a workflow, the rerun joins the same concurrency group as the
+original run. Shipfox treats it like a new run: it waits if a run is already
+active, and it replaces any run that was already waiting.
+
+The rerun uses the same group settings as the original run.
+
+For field details and advanced behavior, see the
+[workflow schema reference](/reference/workflow-schema#concurrency-fields).

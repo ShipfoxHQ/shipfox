@@ -9,7 +9,14 @@ const DESCRIPTION_PATTERN = /\n\nDescription: Test page description\n\n/;
 const pages = [
   {
     url: '/reference/workflow-schema',
-    body: ['## Top-level fields', '| `name` |', '## Agent step fields', '| `prompt` |'].join('\n'),
+    body: [
+      '## Top-level fields',
+      '| `name` |',
+      '## Concurrency fields',
+      '| `group` |',
+      '## Agent step fields',
+      '| `prompt` |',
+    ].join('\n'),
   },
   {
     url: '/reference/contexts',

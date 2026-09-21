@@ -14,8 +14,9 @@ can change the values marked configurable.
 | --- | --- | --- | --- |
 | Gate attempts per gating step | 5 (including the first execution) | No | New runs use five when no authored limit is set. Active and rerun executions with no persisted limit retain the legacy limit of three. When the cap is exhausted and the gate still fails, the step is marked failed and the job stops. See [Feedback loops](/understand/feedback-loops#loop-bounds). |
 | Job `execution_timeout` | 6 hours | Per job, in YAML | Wall-clock bound on one job execution, including gate retries. Authored values range from 1 second through 24 hours. See [Job fields](/reference/workflow-schema#job-fields). |
-| Run timeout | 30 days | No (not authorable) | Outer bound on a whole run, including its listening jobs. A listening job's `timeout` is capped by it. |
+| Run timeout | 30 days | No (not authorable) | Outer bound on a whole run, including its listening jobs. Time spent waiting for a concurrency group does not count toward this timeout. A listening job's `timeout` is capped by it. |
 | Manual triggers per workflow | 1 | No | See [Trigger fields](/reference/workflow-schema#trigger-fields). |
+| Concurrency with listening jobs | Not supported | No | A workflow cannot use `concurrency` when it has a listening job. See [Concurrency fields](/reference/workflow-schema#concurrency-fields). |
 
 ## Step outputs
 

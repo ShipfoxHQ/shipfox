@@ -7,6 +7,7 @@ const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const contentRoot = path.join(docsRoot, 'content', 'docs');
 const workflowSchemaPage = path.join(contentRoot, 'reference', 'workflow-schema.mdx');
 const requiredAnchors = new Set([
+  'concurrency-fields',
   'trigger-fields',
   'step-outputs',
   'job-fields',
