@@ -330,11 +330,16 @@ function notionParent(args: Record<string, unknown>): unknown {
 
 export function splitCommentText(text: string): string[] {
   if (text.length === 0) return [''];
-  const codePoints = Array.from(text);
   const chunks: string[] = [];
-  for (let offset = 0; offset < codePoints.length; offset += 2_000) {
-    chunks.push(codePoints.slice(offset, offset + 2_000).join(''));
+  let chunk = '';
+  for (const codePoint of text) {
+    if (chunk.length > 0 && chunk.length + codePoint.length > 2_000) {
+      chunks.push(chunk);
+      chunk = '';
+    }
+    chunk += codePoint;
   }
+  chunks.push(chunk);
   return chunks;
 }
 

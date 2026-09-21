@@ -44,15 +44,16 @@ function providerOptions(
 }
 
 describe('splitCommentText', () => {
-  it('keeps non-BMP characters intact at the 2,000-character boundary', () => {
+  it('keeps non-BMP characters intact while respecting the UTF-16 boundary', () => {
     const prefix = 'a'.repeat(1_999);
     const text = `${prefix}😀b`;
 
     const chunks = splitCommentText(text);
 
-    expect(chunks).toEqual([`${prefix}😀`, 'b']);
+    expect(chunks).toEqual([prefix, '😀b']);
     expect(chunks.join('')).toBe(text);
     for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(2_000);
       expect(() => encodeURIComponent(chunk)).not.toThrow();
     }
   });
