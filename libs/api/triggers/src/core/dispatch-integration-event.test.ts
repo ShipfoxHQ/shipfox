@@ -8,6 +8,7 @@ import {jobListenerSubscriptionFactory, triggerSubscriptionFactory} from '#test/
 import type {DispatchIntegrationEventParams} from './dispatch-integration-event.js';
 
 const runWorkflow = vi.fn();
+const getSecret = vi.fn();
 const deliverEventToListener = vi.fn();
 const resolveWorkflowRunTriggerReference = vi.fn();
 
@@ -95,6 +96,7 @@ interface DispatchOverrides {
 function dispatch(overrides: DispatchOverrides = {}): Promise<void> {
   return dispatchIntegrationEvent({
     workflows,
+    secrets: {getSecret},
     eventRef: overrides.eventRef ?? crypto.randomUUID(),
     ...(overrides.origin === undefined ? {} : {origin: overrides.origin}),
     provider: overrides.provider ?? overrides.source ?? 'github',
@@ -127,6 +129,7 @@ function decisionsForEvent(receivedEventId: string) {
 describe('dispatchIntegrationEvent', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+    getSecret.mockReset();
     deliverEventToListener.mockReset();
     resolveWorkflowRunTriggerReference.mockReset();
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
@@ -216,6 +219,60 @@ describe('dispatchIntegrationEvent', () => {
         },
       }),
     );
+  });
+
+  test('pins integration trigger secret defaults in the subscription project', async () => {
+    const workspaceId = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {secrets: {DEPLOY_TOKEN: 'PROJECT_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: 'secret', projectId: subscription.projectId});
+
+    await dispatch({workspaceId});
+
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId,
+      projectId: subscription.projectId,
+      namespace: '',
+      key: 'PROJECT_TOKEN',
+      store: 'local',
+    });
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretInputs: {
+          DEPLOY_TOKEN: {store: 'local', key: 'PROJECT_TOKEN', projectId: subscription.projectId},
+        },
+      }),
+    );
+  });
+
+  test('records a missing configured secret as a terminal integration error', async () => {
+    const workspaceId = crypto.randomUUID();
+    const eventRef = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {secrets: {DEPLOY_TOKEN: 'MISSING_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: null, projectId: null});
+
+    await dispatch({workspaceId, eventRef});
+
+    expect(runWorkflow).not.toHaveBeenCalled();
+    const event = await receivedEvent(eventRef);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const [decision] = await decisionsForEvent(event.id);
+    expect(decision).toMatchObject({
+      decision: 'dispatch-error',
+      reason: 'Secret input source not found: MISSING_TOKEN',
+      diagnostic: {version: 1, code: 'secret-not-found', key: 'MISSING_TOKEN'},
+    });
   });
 
   test('dispatches an arbitrary non-github source without any source-specific handling', async () => {

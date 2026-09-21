@@ -67,7 +67,8 @@ export type TriggerDecisionDiagnostic =
   | {
       version: 1;
       code: 'unexpected-workflow-start-failure' | 'unexpected-listener-delivery-failure';
-    };
+    }
+  | {version: 1; code: 'secret-not-found'; key: string};
 
 export interface TriggerEventProcessingDiagnostic {
   version: 1;

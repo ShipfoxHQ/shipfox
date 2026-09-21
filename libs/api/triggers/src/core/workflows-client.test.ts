@@ -8,6 +8,7 @@ import {
   defineInterModulePresentation,
 } from '@shipfox/inter-module';
 import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
+import {SecretInputNotFoundError} from './errors.js';
 import {
   isPermanentDeliverEventToJobListenerError,
   isPermanentStartRunError,
@@ -237,6 +238,11 @@ describe('WorkflowsModuleClient consumer parity', () => {
     expect(startRunDiagnostic(new Error('database host unavailable'))).toEqual({
       version: 1,
       code: 'unexpected-workflow-start-failure',
+    });
+    expect(startRunDiagnostic(new SecretInputNotFoundError('MISSING_TOKEN'))).toEqual({
+      version: 1,
+      code: 'secret-not-found',
+      key: 'MISSING_TOKEN',
     });
     expect(listenerDeliveryDiagnostic(new Error('socket closed'))).toEqual({
       version: 1,

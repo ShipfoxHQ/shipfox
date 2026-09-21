@@ -1,6 +1,7 @@
 import {AUTH_USER} from '@shipfox/api-auth-context';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
 import {createDevRunRoute} from './create-dev-run.js';
@@ -13,12 +14,13 @@ export function createTriggerRoutes(
   workflows: WorkflowsModuleClient,
   definitions: DefinitionsInterModuleClient,
   projects: ProjectsModuleClient,
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'>,
 ): RouteGroup[] {
   return [
     {
       prefix: '/workflow-definitions',
       auth: AUTH_USER,
-      routes: [createFireManualTriggerRoute(workflows)],
+      routes: [createFireManualTriggerRoute(workflows, secrets)],
     },
     {
       prefix: '/dev-runs',

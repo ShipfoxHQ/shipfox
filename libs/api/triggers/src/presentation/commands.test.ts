@@ -13,6 +13,7 @@ import {
   DevRunReplayEventMismatchError,
   DevRunTriggerFilteredError,
   ManualTriggerNotFoundError,
+  SecretInputMissingError,
   SecretInputNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
@@ -122,6 +123,25 @@ describe('trigger command presentation', () => {
     expect(error).toMatchObject({
       code: 'secret-not-found',
       details: {key: 'MISSING_TOKEN'},
+    });
+  });
+
+  test('maps an omitted declared secret input to a known command error', async () => {
+    mocks.fireManualTrigger.mockRejectedValue(new SecretInputMissingError('DEPLOY_TOKEN'));
+
+    const error = await rejection(
+      presentation().handlers.fireManualTrigger(
+        {workspaceId: WORKSPACE_ID, definitionId: DEFINITION_ID, userId: USER_ID},
+        context,
+      ),
+    );
+
+    expect(
+      isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, error),
+    ).toBe(true);
+    expect(error).toMatchObject({
+      code: 'secret-input-missing',
+      details: {key: 'DEPLOY_TOKEN'},
     });
   });
 
@@ -466,6 +486,7 @@ describe('trigger command presentation', () => {
     ).toEqual(
       [
         'manual-trigger-not-found',
+        'secret-input-missing',
         'secret-not-found',
         ...Object.keys(workflowsInterModuleContract.methods.startRunFromTrigger.errors),
       ].sort(),

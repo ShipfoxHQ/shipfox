@@ -61,6 +61,7 @@ async function upsertDefinitionTrigger(
 ): Promise<void> {
   const config: Record<string, unknown> = {};
   if (trigger.with !== undefined) config.with = trigger.with;
+  if (trigger.secrets !== undefined) config.secrets = trigger.secrets;
   if (trigger.filter !== undefined) config.filter = trigger.filter;
   const event = normalizeSubscriptionEvent({source: trigger.source, event: trigger.event});
   const [upserted] = await tx

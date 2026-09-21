@@ -2,7 +2,7 @@ export {
   type ComputeNextFireAtParams,
   computeNextFireAt,
 } from './compute-next-fire-at.js';
-export {readConfigInputs} from './config.js';
+export {readConfigInputs, readConfigSecretInputs} from './config.js';
 export {
   type CreateDevRunParams,
   checkDevRun,
@@ -31,6 +31,7 @@ export {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
   ManualTriggerNotFoundError,
+  SecretInputMissingError,
   SecretInputNotFoundError,
   TriggerSubscriptionNotCronError,
   TriggerSubscriptionNotFoundError,

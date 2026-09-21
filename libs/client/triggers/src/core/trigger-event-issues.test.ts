@@ -279,6 +279,26 @@ describe('getTriggerEventIssueCallout', () => {
     expect(JSON.stringify(callout)).not.toContain('billing-payment-method-required');
   });
 
+  test('identifies the missing secret for a failed workflow start', () => {
+    const callout = getTriggerEventIssueCallout(
+      event({
+        decisions: [
+          decision({
+            decision: 'dispatch-error',
+            reason: 'Secret input source not found: MISSING_TOKEN',
+            diagnostic: {version: 1, code: 'secret-not-found', key: 'MISSING_TOKEN'},
+          }),
+        ],
+      }),
+    );
+
+    expect(callout).toMatchObject({type: 'error', title: 'Secret is unavailable'});
+    expect(callout?.issues[0]?.description).toContainEqual({kind: 'code', value: 'MISSING_TOKEN'});
+    expect(callout?.issues[0]?.description.map((part) => part.value).join('')).toBe(
+      'MISSING_TOKEN could not be found for on_pr_opened. Check the trigger secret mapping and scope.',
+    );
+  });
+
   test('uses the event fallback when an error has no recorded decision', () => {
     const callout = getTriggerEventIssueCallout(
       event({outcome: 'errored', decisions: [], processingDiagnostic: null}),

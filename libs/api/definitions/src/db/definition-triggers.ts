@@ -9,6 +9,7 @@ export function definitionTriggersFor(model: WorkflowModel): Record<string, Trig
         ...(trigger.event === undefined ? {} : {event: trigger.event}),
       };
       if (trigger.inputs !== undefined) dto.with = trigger.inputs;
+      if (trigger.secrets !== undefined) dto.secrets = trigger.secrets;
       if (trigger.filter !== undefined) dto.filter = trigger.filter;
       if (trigger.config !== undefined) dto.config = trigger.config;
       return [trigger.key, dto];

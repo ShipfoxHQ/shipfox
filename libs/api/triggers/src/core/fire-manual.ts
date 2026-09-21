@@ -9,9 +9,11 @@ import {
   eventReceivedCount,
   subscriptionTriggeredCount,
 } from '#metrics/instance.js';
-import {readConfigInputs} from './config.js';
+import {readConfigInputs, readConfigSecretInputs} from './config.js';
+import type {TriggerSubscription} from './entities/subscription.js';
 import {
   ManualTriggerNotFoundError,
+  SecretInputMissingError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -119,7 +121,7 @@ export async function fireManualSubscription(
   const inputs = params.inputs ?? readConfigInputs(subscription);
   let run: {id: string; name: string};
   try {
-    const secretInputs = await resolveSecretInputs(params, subscription.projectId);
+    const secretInputs = await resolveSecretInputs(params, subscription);
     run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
@@ -160,9 +162,20 @@ export async function fireManualSubscription(
 
 async function resolveSecretInputs(
   params: FireManualSubscriptionParams,
-  resolutionProjectId: string | null,
+  subscription: TriggerSubscription,
 ): Promise<Record<string, SecretInputReference> | undefined> {
-  if (params.secretInputs === undefined) return undefined;
+  const defaults = readConfigSecretInputs(subscription);
+  const secretInputs = params.secretInputs ?? defaults;
+
+  if (params.secretInputs !== undefined && defaults !== undefined) {
+    for (const name of Object.keys(defaults)) {
+      if (!Object.hasOwn(params.secretInputs, name)) {
+        throw new SecretInputMissingError(name);
+      }
+    }
+  }
+  if (secretInputs === undefined) return undefined;
+  if (Object.keys(secretInputs).length === 0) return {};
   if (params.secrets === undefined) {
     throw new TypeError('A Secrets client is required when secret inputs are supplied');
   }
@@ -170,8 +183,8 @@ async function resolveSecretInputs(
   return await pinSecretInputs({
     secrets: params.secrets,
     workspaceId: params.callerWorkspaceId,
-    resolutionProjectId,
-    secretInputs: params.secretInputs,
+    resolutionProjectId: subscription.projectId,
+    secretInputs,
   });
 }
 

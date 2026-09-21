@@ -2804,6 +2804,9 @@ importers:
 
   libs/api/definitions-dto:
     dependencies:
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/expression':
         specifier: workspace:*
         version: link:../../shared/expression

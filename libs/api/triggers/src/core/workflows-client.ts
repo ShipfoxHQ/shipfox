@@ -4,6 +4,7 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 import {type InterModuleKnownErrorFor, isInterModuleKnownError} from '@shipfox/inter-module';
 import type {TriggerDecisionDiagnostic} from './entities/diagnostic.js';
+import {SecretInputNotFoundError} from './errors.js';
 
 export type {WorkflowsModuleClient};
 
@@ -38,6 +39,9 @@ export function isPermanentDeliverEventToJobListenerError(error: unknown): boole
 }
 
 export function startRunDiagnostic(error: unknown): TriggerDecisionDiagnostic {
+  if (error instanceof SecretInputNotFoundError) {
+    return {version: 1, code: 'secret-not-found', key: error.key};
+  }
   return isPermanentStartRunError(error)
     ? knownStartDiagnostic(error)
     : {version: 1, code: 'unexpected-workflow-start-failure'};

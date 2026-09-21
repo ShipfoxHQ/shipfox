@@ -83,6 +83,11 @@ export const triggerDecisionDiagnosticSchema = z.discriminatedUnion('code', [
   ].map((code) => z.strictObject({version: diagnosticVersionSchema, code: z.literal(code)})),
   z.strictObject({
     version: diagnosticVersionSchema,
+    code: z.literal('secret-not-found'),
+    key: secretKeySchema,
+  }),
+  z.strictObject({
+    version: diagnosticVersionSchema,
     code: z.literal('interpolation-unresolvable'),
     field: diagnosticFieldSchema,
     envKey: diagnosticFieldSchema.optional(),
@@ -430,6 +435,7 @@ export const triggersInterModuleContract = defineInterModuleContract({
       output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean()}),
       errors: {
         'manual-trigger-not-found': z.object({definitionId: idSchema}),
+        'secret-input-missing': z.object({key: secretKeySchema}),
         'secret-not-found': z.object({key: secretKeySchema}),
         ...startRunErrors,
       },
