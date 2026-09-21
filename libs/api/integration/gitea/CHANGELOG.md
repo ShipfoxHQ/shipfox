@@ -1,5 +1,13 @@
 # @shipfox/api-integration-gitea
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [0d3c668]
+  - @shipfox/api-integration-spi@4.3.2
+  - @shipfox/api-integration-gitea-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @shipfox/api-agent
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [c0c5653]
+- Updated dependencies [b734fcf]
+  - @shipfox/api-secrets-dto@30.0.0
+  - @shipfox/api-workflows-dto@30.0.0
+
 ## 29.1.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @shipfox/api-integration-posthog-dto
 
+## 30.0.0
+
+### Major Changes
+
+- c647dea: Removes the unused 200 already-connected schema and requires workspace IDs in PostHog connect requests.
+
+### Patch Changes
+
+- Updated dependencies [f05d344]
+  - @shipfox/api-integration-core-dto@30.0.0
+
 ## 29.1.0
 
 ### Minor Changes

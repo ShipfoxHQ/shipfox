@@ -1,5 +1,12 @@
 # @shipfox/api-integration-jira-dto
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [f05d344]
+  - @shipfox/api-integration-core-dto@30.0.0
+
 ## 27.2.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/expression
 
+## 2.11.0
+
+### Minor Changes
+
+- 92b30aa: Adds concurrency group expressions to the shared workflow context registry and keeps definition validation and generated reference documentation aligned.
+
 ## 2.10.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @shipfox/api-secrets
 
+## 30.0.0
+
+### Minor Changes
+
+- c0c5653: Adds exact-scope secret reads and matched project scope metadata.
+
+### Patch Changes
+
+- Updated dependencies [c0c5653]
+  - @shipfox/api-secrets-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

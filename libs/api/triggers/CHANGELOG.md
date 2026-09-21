@@ -1,5 +1,18 @@
 # @shipfox/api-triggers
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [f05d344]
+- Updated dependencies [b734fcf]
+- Updated dependencies [92b30aa]
+  - @shipfox/api-integration-core-dto@30.0.0
+  - @shipfox/api-workflows-dto@30.0.0
+  - @shipfox/expression@2.11.0
+  - @shipfox/api-triggers-dto@30.0.0
+  - @shipfox/api-definitions-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes
