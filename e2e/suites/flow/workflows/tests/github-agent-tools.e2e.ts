@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises';
 import type {DefinitionResponseDto} from '@shipfox/api-definitions-dto';
 import type {ProjectResponseDto} from '@shipfox/api-projects-dto';
 import {createApiClient} from '@shipfox/e2e-core';
@@ -6,8 +7,10 @@ import {stopLocalRunner} from '@shipfox/e2e-driver-runner-process';
 import {waitForStepLogsContaining} from '@shipfox/e2e-observe-logs';
 import type {WorkflowRunObservationSelection} from '@shipfox/e2e-observe-workflows';
 import {createAnthropicFakeModelProviderConfig} from '@shipfox/e2e-setup-agent';
+import {createSession, createUser} from '@shipfox/e2e-setup-auth';
 import {createGithubConnection} from '@shipfox/e2e-setup-integrations';
 import {createProject as createE2eProject} from '@shipfox/e2e-setup-projects';
+import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {
   attachLocalRunnerLog,
   collectStepLogAttachmentRequests,
@@ -28,7 +31,7 @@ import {waitForDefinitionSyncTerminal} from '#polling.js';
 import {startSuiteLocalRunner, waitForRunTerminalOrFailedRunner} from '#runner.js';
 import type {SuiteContext} from '#suite-context.js';
 import {fireManualAndAwaitRun} from '#triggers.js';
-import {renderWorkflowYaml, seedAndWaitForDefinition} from '#workflow-project.js';
+import {renderWorkflowYaml} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
 const CLAUDE_AGENT_MODEL = 'deterministic-github-tools-agent';
@@ -64,10 +67,8 @@ test.describe.configure({mode: 'serial'});
 
 for (const tokenCase of GITHUB_TOKEN_CASES) {
   test(`runs selected GitHub tools with a ${tokenCase.format} token`, async ({suite}, testInfo) => {
-    const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
-    const installationId = Number.parseInt(uniqueId.slice(0, 7), 16) + 1;
-    const githubApi = await startGithubApiMock({
-      installationId,
+    const uniqueId = shortId();
+    const fixture = await createGithubFixture(suite, uniqueId, {
       installationToken: tokenCase.token,
       checkRunCreateResponse: checkRunCreateResponse(),
       checkRunUpdateResponse: checkRunUpdateResponse(),
@@ -79,39 +80,14 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       fakeModelProvider = await startFakeOpenAiModelProvider({
         runId: `${suite.runId}-github-agent-tools-${uniqueId}`,
       });
-      const connection = await createGithubConnection({
-        workspaceId: suite.workspaceId,
-        installationId,
-        accountLogin: `e${uniqueId.slice(0, 5)}`,
-        displayName: `GitHub E2E ${uniqueId}`,
-        installerUserId: crypto.randomUUID(),
-        lifecycleStatus: 'disabled',
-      });
-      const project = await createE2eProject({
-        workspaceId: suite.workspaceId,
-        name: `GitHub E2E project ${uniqueId}`,
-        sourceConnectionId: connection.id,
-        sourceExternalRepositoryId: GITHUB_REPOSITORY_EXTERNAL_ID,
-        sourceRepositoryOwner: 'shipfox',
-        sourceRepositoryName: 'e2e',
-        sourceDefaultBranch: 'main',
-      });
-      await activateGithubConnection(suite, connection.id);
-      await waitForGithubDefinitionSync({
-        connectionId: connection.id,
-        githubApi,
-        projectId: project.id,
-        suite,
-      });
-      githubApi.calls.length = 0;
-      const issueReadTool = `mcp__shipfox_integration_tools__${connection.slug}__issue_read`;
-      const issueWriteTool = `mcp__shipfox_integration_tools__${connection.slug}__issue_write`;
-      const searchIssuesTool = `mcp__shipfox_integration_tools__${connection.slug}__search_issues`;
-      const reviewThreadTool = `mcp__shipfox_integration_tools__${connection.slug}__pull_request_review_thread_write`;
-      const addIssueCommentTool = `mcp__shipfox_integration_tools__${connection.slug}__add_issue_comment`;
-      const checkRunTool = `mcp__shipfox_integration_tools__${connection.slug}__check_run_write`;
+      const issueReadTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__issue_read`;
+      const issueWriteTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__issue_write`;
+      const searchIssuesTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__search_issues`;
+      const reviewThreadTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__pull_request_review_thread_write`;
+      const addIssueCommentTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__add_issue_comment`;
+      const checkRunTool = `mcp__shipfox_integration_tools__${fixture.connection.slug}__check_run_write`;
       const fakeAnthropic = await createAnthropicFakeModelProviderConfig({
-        workspaceId: suite.workspaceId,
+        workspaceId: fixture.suite.workspaceId,
         fakeModelProvider,
         scriptId,
         model: CLAUDE_AGENT_MODEL,
@@ -188,10 +164,11 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       });
 
       const terminal = await runGithubToolsWorkflow({
-        suite,
+        suite: fixture.suite,
         testInfo,
         uniqueId,
-        connectionSlug: connection.slug,
+        connectionSlug: fixture.connection.slug,
+        project: fixture.project,
         runnerEnv: fakeAnthropic.runnerEnv,
       });
 
@@ -209,12 +186,12 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
       expect(providerRequests.every((request) => request.assertion_failures.length === 0)).toBe(
         true,
       );
-      expect(githubAgentToolCalls(githubApi)).toEqual([
+      expect(githubAgentToolCalls(fixture.githubApi)).toEqual([
         {
           kind: 'mint-token',
           authorization: expect.stringMatching(BEARER_AUTHORIZATION),
           tokenFormatOverride: 'enabled',
-          installationId,
+          installationId: fixture.installationId,
           body: {},
         },
         {
@@ -268,7 +245,7 @@ for (const tokenCase of GITHUB_TOKEN_CASES) {
             `github-agent-tools-e2e: stopFakeOpenAiModelProvider failed: ${String(error)}\n`,
           );
         }) ?? Promise.resolve(),
-        githubApi.stop().catch((error: unknown) => {
+        fixture.githubApi.stop().catch((error: unknown) => {
           process.stderr.write(
             `github-agent-tools-e2e: stopGithubApiMock failed: ${String(error)}\n`,
           );
@@ -286,9 +263,10 @@ test('enforces selected GitHub authorization for deterministic tools', async ({
 
   try {
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-selected-tool',
       workflowYaml: deterministicToolWorkflow({
         connection: fixture.connection.slug,
@@ -336,7 +314,7 @@ test('runs a direct check-run lifecycle and maps the created id to the update', 
 
   try {
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
       project: fixture.project,
@@ -406,7 +384,7 @@ test('rejects an unknown direct check-run update as a provider failure', async (
 
   try {
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
       project: fixture.project,
@@ -461,7 +439,7 @@ test('reports a provider rejection when Checks write approval is missing', async
 
   try {
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
       project: fixture.project,
@@ -513,7 +491,7 @@ test('checks repository authorization before a direct check-run dispatch', async
   try {
     const result = await runGithubWorkflow({
       expectedFailureLogText: REPOSITORY_NOT_AUTHORIZED_MESSAGE,
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
       project: fixture.project,
@@ -545,9 +523,10 @@ test('denies a selected GitHub tool target outside Shipfox projects', async ({su
   try {
     const result = await runGithubWorkflow({
       expectedFailureLogText: REPOSITORY_NOT_AUTHORIZED_MESSAGE,
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-selected-tool-denied',
       workflowYaml: deterministicToolWorkflow({
         connection: fixture.connection.slug,
@@ -573,9 +552,10 @@ test('requires an explicit repository for selected GitHub search', async ({suite
   try {
     const result = await runGithubWorkflow({
       expectedFailureLogText: REPOSITORY_REQUIRED_MESSAGE,
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-search-repository-required',
       workflowYaml: deterministicToolWorkflow({
         connection: fixture.connection.slug,
@@ -600,9 +580,10 @@ test('rejects GitHub search qualifiers before provider dispatch', async ({suite}
   try {
     const result = await runGithubWorkflow({
       expectedFailureLogText: SEARCH_QUALIFIER_MESSAGE,
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-search-qualifier',
       workflowYaml: deterministicToolWorkflow({
         connection: fixture.connection.slug,
@@ -627,11 +608,12 @@ test('allows an all-mode GitHub tool target outside Shipfox projects', async ({
   const fixture = await createGithubFixture(suite, uniqueId);
 
   try {
-    await setRepositoryAccessMode(suite, fixture.connection.id, 'all');
+    await setRepositoryAccessMode(fixture.suite, fixture.connection.id, 'all');
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-all-tool',
       workflowYaml: deterministicToolWorkflow({
         connection: fixture.connection.slug,
@@ -670,7 +652,7 @@ test('mints a GitHub checkout token for a selected project repository by ID', as
 
   try {
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
       scenario: 'github-checkout-selected-id',
@@ -681,14 +663,13 @@ test('mints a GitHub checkout token for a selected project repository by ID', as
           {
             jobKey: 'checkout',
             includeDefaultExecution: true,
-            stepKeys: ['fail-after-checkout'],
           },
         ],
       },
     });
 
     expect(result.terminal.status).toBe('failed');
-    expect(result.failureLogs).not.toContain(fixture.installationToken);
+    expect(await readFile(result.runnerLogFile, 'utf8')).not.toContain(fixture.installationToken);
     expect(githubAgentToolCalls(fixture.githubApi)).toEqual([
       {
         kind: 'mint-token',
@@ -714,9 +695,10 @@ test('denies a selected GitHub checkout target outside Shipfox projects', async 
 
   try {
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-checkout-selected-denied',
       workflowYaml: checkoutWorkflow({
         connection: fixture.connection.slug,
@@ -749,11 +731,12 @@ test('mints a GitHub checkout token for an all-mode repository name', async ({su
   const fixture = await createGithubFixture(suite, uniqueId);
 
   try {
-    await setRepositoryAccessMode(suite, fixture.connection.id, 'all');
+    await setRepositoryAccessMode(fixture.suite, fixture.connection.id, 'all');
     const result = await runGithubWorkflow({
-      suite,
+      suite: fixture.suite,
       testInfo,
       uniqueId,
+      project: fixture.project,
       scenario: 'github-checkout-all-name',
       workflowYaml: checkoutWorkflow({
         connection: fixture.connection.slug,
@@ -792,23 +775,28 @@ test('mints a GitHub checkout token for an all-mode repository name', async ({su
 async function createGithubFixture(
   suite: SuiteContext,
   uniqueId: string,
-  mockOptions: Omit<GithubApiMockOptions, 'installationId' | 'installationToken'> = {},
+  mockOptions: Omit<GithubApiMockOptions, 'installationId'> = {},
 ): Promise<GithubFixture> {
   const installationId = Number.parseInt(uniqueId.slice(0, 7), 16) + 1;
-  const installationToken = `ghs_${uniqueId}.${'e'.repeat(36)}.${'f'.repeat(36)}`;
+  const installationToken =
+    mockOptions.installationToken ?? `ghs_${uniqueId}.${'e'.repeat(36)}.${'f'.repeat(36)}`;
   const githubApi = await startGithubApiMock({...mockOptions, installationId, installationToken});
 
   try {
+    const isolatedSuite = await createIsolatedGithubSuite(suite, uniqueId);
     const connection = await createGithubConnection({
-      workspaceId: suite.workspaceId,
+      workspaceId: isolatedSuite.workspaceId,
       installationId,
       accountLogin: `e${uniqueId.slice(0, 5)}`,
       displayName: `GitHub authorization ${uniqueId}`,
       installerUserId: crypto.randomUUID(),
       lifecycleStatus: 'disabled',
     });
+    // Connection availability resyncs every project in its workspace. Activate it
+    // before adding this fixture's only project to keep each test's work isolated.
+    await activateGithubConnection(isolatedSuite, connection.id);
     const project = await createE2eProject({
-      workspaceId: suite.workspaceId,
+      workspaceId: isolatedSuite.workspaceId,
       name: `GitHub authorization project ${uniqueId}`,
       sourceConnectionId: connection.id,
       sourceExternalRepositoryId: GITHUB_REPOSITORY_EXTERNAL_ID,
@@ -816,19 +804,39 @@ async function createGithubFixture(
       sourceRepositoryName: 'e2e',
       sourceDefaultBranch: 'main',
     });
-    await activateGithubConnection(suite, connection.id);
     await waitForGithubDefinitionSync({
       connectionId: connection.id,
       githubApi,
       projectId: project.id,
-      suite,
+      suite: isolatedSuite,
     });
     githubApi.calls.length = 0;
-    return {connection, githubApi, installationId, installationToken, project};
+    return {
+      connection,
+      githubApi,
+      installationId,
+      installationToken,
+      project,
+      suite: isolatedSuite,
+    };
   } catch (error) {
     await githubApi.stop();
     throw error;
   }
+}
+
+async function createIsolatedGithubSuite(
+  suite: SuiteContext,
+  uniqueId: string,
+): Promise<SuiteContext> {
+  const user = await createUser({name: `GitHub E2E user ${uniqueId}`});
+  const workspace = await createWorkspace({
+    userId: user.user.id,
+    userEmail: user.email,
+    name: `GitHub E2E workspace ${uniqueId}`,
+  });
+  const session = await createSession({user_id: user.user.id});
+  return {...suite, workspaceId: workspace.id, sessionToken: session.token};
 }
 
 interface GithubFixture {
@@ -837,6 +845,7 @@ interface GithubFixture {
   installationId: number;
   installationToken: string;
   project: ProjectResponseDto;
+  suite: SuiteContext;
 }
 
 async function waitForGithubDefinitionSync(params: {
@@ -855,7 +864,7 @@ async function waitForGithubDefinitionSync(params: {
     const message = error instanceof Error ? error.message : String(error);
     const providerCallKinds = params.githubApi.calls.map((call) => call.kind);
     throw new Error(
-      `GitHub definition sync readiness failed: connectionId=${params.connectionId}, projectId=${params.projectId}, expectedWorkflowIdPrefix=definition-sync:${params.projectId}:integration:, providerCallKinds=[${providerCallKinds.join(', ')}]; ${message}`,
+      `GitHub definition sync readiness failed: connectionId=${params.connectionId}, projectId=${params.projectId}, expectedWorkflowId=definition-sync:${params.projectId}:bind, providerCallKinds=[${providerCallKinds.join(', ')}]; ${message}`,
       {cause: error},
     );
   }
@@ -947,42 +956,29 @@ async function runGithubWorkflow(params: {
   uniqueId: string;
   scenario: string;
   workflowYaml: string;
-  project?: ProjectResponseDto | undefined;
+  project: ProjectResponseDto;
   replacements?: Record<string, string> | undefined;
   selection?: WorkflowRunObservationSelection | undefined;
 }): Promise<{
   terminal: Awaited<ReturnType<typeof waitForRunTerminalOrFailedRunner>>;
   failureLogs: string;
+  runnerLogFile: string;
 }> {
   const token = params.suite.sessionToken;
   const client = createApiClient({token});
   const runnerLabel = `e2e-${params.scenario}-${params.uniqueId}`;
   const repo = `${params.scenario}-${params.uniqueId}`;
-  const definition =
-    params.project === undefined
-      ? (
-          await seedAndWaitForDefinition({
-            suite: params.suite,
-            token,
-            name: params.scenario,
-            repo,
-            runnerLabel,
-            workflowYaml: params.workflowYaml,
-            configPath: `.shipfox/workflows/${params.scenario}.yml`,
-            replacements: params.replacements,
-          })
-        ).definition
-      : await createManualDefinition({
-          client,
-          project: params.project,
-          workflowYaml: renderWorkflowYaml({
-            suite: params.suite,
-            repo,
-            runnerLabel,
-            workflowYaml: params.workflowYaml,
-            replacements: params.replacements,
-          }),
-        });
+  const definition = await createManualDefinition({
+    client,
+    project: params.project,
+    workflowYaml: renderWorkflowYaml({
+      suite: params.suite,
+      repo,
+      runnerLabel,
+      workflowYaml: params.workflowYaml,
+      replacements: params.replacements,
+    }),
+  });
   const localRunner = await startSuiteLocalRunner({
     workspaceId: params.suite.workspaceId,
     userToken: token,
@@ -1018,7 +1014,7 @@ async function runGithubWorkflow(params: {
             testInfo: params.testInfo,
             token,
           });
-    return {terminal, failureLogs};
+    return {terminal, failureLogs, runnerLogFile: localRunner.logFile};
   } finally {
     await attachLocalRunnerLog(
       (attachment) =>
@@ -1211,6 +1207,7 @@ async function runGithubToolsWorkflow(params: {
   };
   uniqueId: string;
   connectionSlug: string;
+  project: ProjectResponseDto;
   runnerEnv: Record<string, string>;
 }) {
   const token = params.suite.sessionToken;
@@ -1218,14 +1215,15 @@ async function runGithubToolsWorkflow(params: {
   const scenario = 'github-agent-tools';
   const runnerLabel = `e2e-${scenario}-${params.uniqueId}`;
   const repo = `${scenario}-${params.uniqueId}`;
-  const {definition} = await seedAndWaitForDefinition({
-    suite: params.suite,
-    token,
-    name: scenario,
-    repo,
-    runnerLabel,
-    workflowYaml: githubToolsWorkflowYaml(params.connectionSlug),
-    configPath: `.shipfox/workflows/${scenario}.yml`,
+  const definition = await createManualDefinition({
+    client,
+    project: params.project,
+    workflowYaml: renderWorkflowYaml({
+      suite: params.suite,
+      repo,
+      runnerLabel,
+      workflowYaml: githubToolsWorkflowYaml(params.connectionSlug),
+    }),
   });
   const localRunner = await startSuiteLocalRunner({
     workspaceId: params.suite.workspaceId,
@@ -1291,6 +1289,7 @@ triggers:
     event: fire
 jobs:
   tools:
+    checkout: false
     steps:
       - key: github
         harness: claude
