@@ -1,4 +1,5 @@
 import {requireUserContext, requireWorkspaceResourceAccess} from '@shipfox/api-auth-context';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   fireManualTriggerBodySchema,
   fireManualTriggerResponseSchema,
@@ -9,7 +10,11 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {ManualTriggerNotFoundError} from '#core/errors.js';
+import {
+  ManualTriggerNotFoundError,
+  SecretInputMissingError,
+  SecretInputNotFoundError,
+} from '#core/errors.js';
 import {fireManualTrigger} from '#core/fire-manual.js';
 import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 import {mapStartRunError} from './map-start-run-error.js';
@@ -18,10 +23,14 @@ const startRunErrorDetailsSchema = z.union([
   z.object({definition_id: z.string()}),
   z.object({field: z.string(), source: z.string(), env_key: z.string().optional()}),
   z.object({labels: z.array(z.string())}),
+  z.object({key: z.string()}),
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
 ]);
 
-export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
+export function createFireManualTriggerRoute(
+  workflows: WorkflowsModuleClient,
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'>,
+) {
   return defineRoute({
     method: 'POST',
     path: '/:definitionId/fire-manual',
@@ -47,6 +56,18 @@ export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
     errorHandler: (error) => {
       if (error instanceof ManualTriggerNotFoundError) {
         throw new ClientError(error.message, 'manual-trigger-not-found', {status: 404});
+      }
+      if (error instanceof SecretInputNotFoundError) {
+        throw new ClientError(error.message, 'secret-not-found', {
+          status: 422,
+          details: {key: error.key},
+        });
+      }
+      if (error instanceof SecretInputMissingError) {
+        throw new ClientError(error.message, 'secret-input-missing', {
+          status: 422,
+          details: {key: error.key},
+        });
       }
       const clientError = mapStartRunError(
         error,
@@ -75,6 +96,7 @@ export function createFireManualTriggerRoute(workflows: WorkflowsModuleClient) {
 
       const run = await fireManualTrigger({
         workflows,
+        secrets,
         workspaceId: subscription.workspaceId,
         definitionId,
         userId: userContext.userId,

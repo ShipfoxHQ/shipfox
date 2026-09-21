@@ -1,7 +1,9 @@
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {getTriggerSubscriptionById} from '#db/subscriptions.js';
 import {cronFiredCount, cronFireLag} from '#metrics/instance.js';
-import {readConfigInputs} from './config.js';
+import {readConfigInputs, readConfigSecretInputs} from './config.js';
 import {TriggerSubscriptionNotCronError, TriggerSubscriptionNotFoundError} from './errors.js';
+import {pinSecretInputs} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
   isPermanentStartRunError,
@@ -11,6 +13,7 @@ import {
 
 export interface FireCronSubscriptionParams {
   workflows: WorkflowsModuleClient;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
   subscriptionId: string;
   /**
    * The `next_fire_at` value the schedule held when it was claimed. Anchoring the
@@ -67,6 +70,13 @@ export async function fireCronSubscription(
   const inputs = readConfigInputs(subscription);
   let run: {id: string; name: string};
   try {
+    const configuredSecretInputs = readConfigSecretInputs(subscription);
+    const secretInputs = await pinConfiguredSecretInputs({
+      secrets: params.secrets,
+      workspaceId: subscription.workspaceId,
+      projectId: subscription.projectId,
+      secretInputs: configuredSecretInputs,
+    });
     run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
@@ -78,6 +88,7 @@ export async function fireCronSubscription(
         scheduleId: subscription.id,
       },
       ...(inputs === undefined ? {} : {inputs}),
+      ...(secretInputs === undefined ? {} : {secretInputs}),
       idempotencyKey: eventRef,
     });
   } catch (error) {
@@ -99,6 +110,25 @@ export async function fireCronSubscription(
   recordFire('fired', params.scheduledSlot);
   await history.routed(1);
   return {outcome: 'fired', run};
+}
+
+async function pinConfiguredSecretInputs(params: {
+  secrets: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
+  workspaceId: string;
+  projectId: string;
+  secretInputs: Record<string, string> | undefined;
+}): Promise<Record<string, Awaited<ReturnType<typeof pinSecretInputs>>[string]> | undefined> {
+  if (params.secretInputs === undefined) return undefined;
+  if (Object.keys(params.secretInputs).length === 0) return {};
+  if (params.secrets === undefined) {
+    throw new TypeError('A Secrets client is required when trigger secret defaults are configured');
+  }
+  return await pinSecretInputs({
+    secrets: params.secrets,
+    workspaceId: params.workspaceId,
+    resolutionProjectId: params.projectId,
+    secretInputs: params.secretInputs,
+  });
 }
 
 function recordFire(outcome: 'fired' | 'errored', scheduledSlot: Date): void {

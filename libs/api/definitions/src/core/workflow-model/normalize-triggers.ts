@@ -15,6 +15,7 @@ import {issue} from './validation-issue.js';
 
 const manualTriggerSource = 'manual';
 const cronTriggerSource = 'cron';
+const SECRET_INPUT_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 type WorkflowDocumentTrigger = NonNullable<WorkflowDocument['triggers']>[string];
 
 interface NormalizeTriggersState {
@@ -152,6 +153,65 @@ function normalizeCronTrigger(
   ];
 }
 
+function validateTriggerSecrets(params: {
+  secrets: unknown;
+  path: readonly WorkflowModelValidationIssuePathSegment[];
+  issues: WorkflowModelValidationIssue[];
+}): void {
+  if (params.secrets === undefined) return;
+  if (
+    typeof params.secrets !== 'object' ||
+    params.secrets === null ||
+    Array.isArray(params.secrets)
+  ) {
+    params.issues.push(
+      issue({
+        code: 'secret-input-name-not-literal',
+        message: 'Trigger secrets must be an object of literal names.',
+        path: params.path,
+        scope: 'trigger',
+      }),
+    );
+    return;
+  }
+
+  const entries = Object.entries(params.secrets);
+  if (entries.length > 20) {
+    params.issues.push(
+      issue({
+        code: 'secret-input-name-not-literal',
+        message: 'Trigger secrets cannot contain more than 20 entries.',
+        path: params.path,
+        details: {maximum: 20},
+        scope: 'trigger',
+      }),
+    );
+  }
+
+  for (const [name, value] of entries) {
+    if (!SECRET_INPUT_NAME_PATTERN.test(name)) {
+      params.issues.push(
+        issue({
+          code: 'secret-input-name-not-literal',
+          message: `Trigger secret input name "${name}" must be a literal matching /^[A-Z_][A-Z0-9_]*$/.`,
+          path: [...params.path, name],
+          scope: 'trigger',
+        }),
+      );
+    }
+    if (typeof value !== 'string' || !SECRET_INPUT_NAME_PATTERN.test(value)) {
+      params.issues.push(
+        issue({
+          code: 'secret-input-name-not-literal',
+          message: `Trigger secret source name for "${name}" must be a literal matching /^[A-Z_][A-Z0-9_]*$/.`,
+          path: [...params.path, name],
+          scope: 'trigger',
+        }),
+      );
+    }
+  }
+}
+
 function validateTriggerFilter(params: {
   sourceKey: string;
   trigger: WorkflowDocumentTrigger;
@@ -190,6 +250,7 @@ export function normalizeTriggerEntry(
     readonly source: string;
     readonly event?: string | undefined;
     readonly with?: Readonly<Record<string, unknown>> | undefined;
+    readonly secrets?: Readonly<Record<string, string>> | undefined;
     readonly filter?: string | undefined;
   },
   options?: {
@@ -205,6 +266,11 @@ export function normalizeTriggerEntry(
   // subscription (NULL row) on the write path.
   const event = builtinEventForSource(trigger.source, trigger.event?.trim());
   if (options?.issues !== undefined && options.path !== undefined) {
+    validateTriggerSecrets({
+      secrets: trigger.secrets,
+      path: [...options.path, 'secrets'],
+      issues: options.issues,
+    });
     validateTriggerSourceEvent({
       source: trigger.source,
       event,
@@ -217,6 +283,7 @@ export function normalizeTriggerEntry(
     source: trigger.source,
     ...(event === undefined ? {} : {event}),
     ...(trigger.with === undefined ? {} : {inputs: trigger.with}),
+    ...(trigger.secrets === undefined ? {} : {secrets: trigger.secrets}),
     ...(trigger.filter === undefined ? {} : {filter: trigger.filter}),
   };
 }

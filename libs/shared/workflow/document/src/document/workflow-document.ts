@@ -478,6 +478,10 @@ const workflowDocumentTriggerBaseSchema = {
     description:
       'Provider-specific values used to match or configure the trigger. See the provider event catalog in [Integrations](/integrations).',
   }),
+  secrets: z.record(z.string(), z.string()).optional().meta({
+    description:
+      'Secret input aliases and source names. Names must be literal secret keys and are resolved in the workflow project.',
+  }),
   filter: z.string().min(1).optional().meta({
     description:
       'CEL condition that filters matching events. It is not supported for `manual` or `cron` triggers. See [Expressions](/reference/expressions) and [Contexts](/reference/contexts#context-availability).',

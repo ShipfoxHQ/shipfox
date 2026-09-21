@@ -8,6 +8,7 @@ import {jobListenerSubscriptionFactory, triggerSubscriptionFactory} from '#test/
 import type {DispatchIntegrationEventParams} from './dispatch-integration-event.js';
 
 const runWorkflow = vi.fn();
+const getSecret = vi.fn();
 const deliverEventToListener = vi.fn();
 const resolveWorkflowRunTriggerReference = vi.fn();
 
@@ -95,6 +96,7 @@ interface DispatchOverrides {
 function dispatch(overrides: DispatchOverrides = {}): Promise<void> {
   return dispatchIntegrationEvent({
     workflows,
+    secrets: {getSecret},
     eventRef: overrides.eventRef ?? crypto.randomUUID(),
     ...(overrides.origin === undefined ? {} : {origin: overrides.origin}),
     provider: overrides.provider ?? overrides.source ?? 'github',
@@ -127,6 +129,7 @@ function decisionsForEvent(receivedEventId: string) {
 describe('dispatchIntegrationEvent', () => {
   beforeEach(() => {
     runWorkflow.mockReset();
+    getSecret.mockReset();
     deliverEventToListener.mockReset();
     resolveWorkflowRunTriggerReference.mockReset();
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Build and test'});
@@ -213,6 +216,34 @@ describe('dispatchIntegrationEvent', () => {
           event: 'push',
           deliveryId,
           data: payload,
+        },
+      }),
+    );
+  });
+
+  test('pins integration trigger secret defaults in the subscription project', async () => {
+    const workspaceId = crypto.randomUUID();
+    const subscription = await triggerSubscriptionFactory.create({
+      workspaceId,
+      source: 'github',
+      event: 'push',
+      config: {secrets: {DEPLOY_TOKEN: 'PROJECT_TOKEN'}},
+    });
+    getSecret.mockResolvedValue({value: 'secret', projectId: subscription.projectId});
+
+    await dispatch({workspaceId});
+
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId,
+      projectId: subscription.projectId,
+      namespace: '',
+      key: 'PROJECT_TOKEN',
+      store: 'local',
+    });
+    expect(runWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretInputs: {
+          DEPLOY_TOKEN: {store: 'local', key: 'PROJECT_TOKEN', projectId: subscription.projectId},
         },
       }),
     );
