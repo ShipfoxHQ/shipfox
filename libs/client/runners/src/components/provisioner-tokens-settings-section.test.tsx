@@ -135,12 +135,10 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
     await user.click(within(createdHeader).getByRole('button', {name: UNSORTED_CREATED}));
     await user.click(within(createdHeader).getByRole('button', {name: ASCENDING_CREATED}));
 
-    const orderedNames = screen
-      .getAllByRole('row')
-      .slice(1)
-      .map((row) => {
-        return within(row).getByRole('button', {name: PROVISIONER_NAME}).textContent;
-      });
+    const table = screen.getByRole('table', {name: 'Provisioner tokens'});
+    const orderedNames = within(table)
+      .getAllByText(PROVISIONER_NAME)
+      .map((name) => name.textContent);
 
     expect(orderedNames).toEqual(tokens.map(({name}) => name).reverse());
   });
