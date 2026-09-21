@@ -3,4 +3,4 @@
 "@shipfox/api-workflows": minor
 ---
 
-Resolves pinned secret inputs during leased workflow step secret pulls.
+Workflow definitions can now reference `${{ secrets.inputs.X }}` for step secret bindings. The step secrets pull resolves inputs pinned on the workflow run.

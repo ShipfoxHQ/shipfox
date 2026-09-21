@@ -249,6 +249,8 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
 
     expect(res.statusCode).toBe(422);
     expect(res.json()).toMatchObject({code: 'secret-not-found'});
+    expect(logLines.join('\n')).toContain('DEPLOY_TOKEN');
+    expect(logLines.join('\n')).not.toContain('PINNED_TOKEN');
   });
 
   test('reports a missing input by its input name', async () => {
@@ -269,6 +271,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
 
     expect(res.statusCode).toBe(422);
     expect(res.json()).toMatchObject({code: 'secret-input-missing'});
+    expect(logLines.join('\n')).toContain('MISSING_INPUT');
   });
 
   test('resolves inputs alongside local secrets with separate values', async () => {
