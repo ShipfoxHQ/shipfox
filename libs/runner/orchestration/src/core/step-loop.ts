@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {isAbsolute, join, relative, sep} from 'node:path';
 import {promisify} from 'node:util';
@@ -71,6 +72,7 @@ const gunzipAsync = promisify(gunzip);
 
 const WHITESPACE_REGEX = /\s+/;
 const TRANSIENT_NEXT_STEP_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+const MASKED_ANNOTATION_CONTEXT_PREFIX = 'masked:v1:';
 export type RunnerAgentStepModule = typeof import('@shipfox/runner-agent/step');
 
 export function createRunnerAgentStepLoader(
@@ -1610,7 +1612,7 @@ function redactAnnotationBodies(
 ): StepResult['annotations'] {
   if (annotations === undefined) return undefined;
   return annotations.map((annotation) => {
-    const context = redactSecrets(annotation.context, secretVariants);
+    const context = redactAnnotationContext(annotation.context, secretVariants);
     if (annotation.op === 'remove') return {...annotation, context};
     return {
       ...annotation,
@@ -1618,6 +1620,12 @@ function redactAnnotationBodies(
       body: redactSecrets(annotation.body, secretVariants),
     };
   });
+}
+
+function redactAnnotationContext(context: string, secretVariants: string[]): string {
+  if (redactSecrets(context, secretVariants) === context) return context;
+  const digest = createHash('sha256').update(context).digest('base64url');
+  return `${MASKED_ANNOTATION_CONTEXT_PREFIX}${digest}`;
 }
 
 function redactOutputValues(
