@@ -48,6 +48,7 @@ export async function onSourceCommitPushed(
 
     await writeOutboxEvent(tx, projectsOutbox, {
       type: PROJECT_SOURCE_COMMIT_OBSERVED,
+      orderingKey: project.id,
       payload: {
         workspaceId: project.workspaceId,
         projectId: project.id,

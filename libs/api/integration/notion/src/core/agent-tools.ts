@@ -264,15 +264,18 @@ function objectSchema(
 }
 
 function pageOutputSchema(): AgentToolJsonSchema {
-  return objectSchema({
-    id: stringSchema('Notion page ID'),
-    url: stringSchema('Notion page URL'),
-    title: stringSchema('Page title'),
-    parent: dynamicObjectSchema,
-    properties: dynamicObjectSchema,
-    created_time: stringSchema('Creation timestamp'),
-    last_edited_time: stringSchema('Last edit timestamp'),
-  });
+  return {
+    ...objectSchema({
+      id: stringSchema('Notion page ID'),
+      url: stringSchema('Notion page URL'),
+      title: stringSchema('Page title'),
+      parent: dynamicObjectSchema,
+      properties: dynamicObjectSchema,
+      created_time: stringSchema('Creation timestamp'),
+      last_edited_time: stringSchema('Last edit timestamp'),
+    }),
+    additionalProperties: true,
+  };
 }
 
 function openObjectSchema(description: string): AgentToolJsonSchema {

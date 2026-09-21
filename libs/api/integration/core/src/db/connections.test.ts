@@ -575,6 +575,7 @@ describe('integration connection queries', () => {
     });
 
     const [event] = await connectionEvents(connection.id);
+    expect(event?.orderingKey).toBe(connection.id);
     expect(event?.payload).toEqual({
       provider: 'github',
       workspaceId,

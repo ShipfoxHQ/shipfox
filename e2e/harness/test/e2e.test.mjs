@@ -8,6 +8,7 @@ import {
   copySharedOllamaLog,
   defaultLogDir,
   e2eClickUpApiBaseUrl,
+  e2eNotionApiBaseUrl,
   e2eTestVcsPort,
   e2eEnv,
   parseArgs,
@@ -91,7 +92,7 @@ describe('e2eEnv', () => {
     assert.equal(env.INTEGRATIONS_ENABLE_SLACK_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_CLICKUP_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_ENABLE_NOTION_PROVIDER, 'true');
-    assert.equal(env.NOTION_API_BASE_URL, 'https://api.notion.com');
+    assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:55366/');
     assert.equal(env.NOTION_WEBHOOK_VERIFICATION_TOKEN, 'e2e-notion-verification-token');
     assert.equal(env.INTEGRATIONS_ENABLE_TEST_VCS_PROVIDER, 'true');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
@@ -128,6 +129,7 @@ describe('e2eEnv', () => {
       GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE: 'disabled',
       SLACK_API_BASE_URL: 'http://127.0.0.1:16122',
       CLICKUP_API_BASE_URL: 'http://127.0.0.1:16123',
+      NOTION_API_BASE_URL: 'http://127.0.0.1:16124',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -147,6 +149,7 @@ describe('e2eEnv', () => {
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'disabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
+    assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:16124');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -192,11 +195,28 @@ describe('e2eEnv', () => {
     );
   });
 
+  test('rejects an API port that cannot reserve the Notion API offset', () => {
+    assert.throws(
+      () => e2eEnv({API_URL: 'http://localhost:65521'}),
+      /Cannot derive a Notion API port/u,
+    );
+  });
+
   test('rejects an API port that cannot reserve the Test VCS offset', () => {
     assert.throws(
-      () => e2eEnv({API_URL: 'http://localhost:65522'}),
+      () =>
+        e2eEnv({
+          API_URL: 'http://localhost:65522',
+          NOTION_API_BASE_URL: 'http://127.0.0.1:1',
+        }),
       /Cannot derive a test VCS port/u,
     );
+  });
+});
+
+describe('e2eNotionApiBaseUrl', () => {
+  test('reserves the Notion API port after the API port', () => {
+    assert.equal(e2eNotionApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16116/');
   });
 });
 
