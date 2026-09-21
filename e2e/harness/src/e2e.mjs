@@ -88,7 +88,7 @@ export async function main(argv) {
     });
     await waitForUrl(env.CLIENT_URL, {timeoutMs: options.readinessTimeoutMs});
 
-    const task = startCommand('turbo', turboCommandArgs(options, env), {
+    const task = await startCommand('turbo', turboCommandArgs(options, env), {
       env,
       stdio: 'inherit',
     });
@@ -561,15 +561,26 @@ async function startServer(params) {
   return {name: params.name, child, logFile: params.logFile};
 }
 
-export function startCommand(command, args, options) {
+export async function startCommand(command, args, options) {
   const child = spawn(command, args, {
     ...options,
     detached: process.platform !== 'win32',
   });
-  const exitCode = new Promise((resolve, reject) => {
-    child.once('error', reject);
+  let resolveStarted;
+  let rejectStarted;
+  const started = new Promise((resolve, reject) => {
+    resolveStarted = resolve;
+    rejectStarted = reject;
+  });
+  const exitCode = new Promise((resolve) => {
+    child.once('spawn', resolveStarted);
+    child.once('error', (error) => {
+      rejectStarted(error);
+      resolve(1);
+    });
     child.once('exit', (code) => resolve(code ?? 1));
   });
+  await started;
   return {child, exitCode};
 }
 

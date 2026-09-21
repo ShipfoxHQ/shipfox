@@ -5,4 +5,4 @@
 "@shipfox/client-integrations": patch
 ---
 
-Fixes PostHog E2E execution, error recovery, and workflow tool schema validation.
+Adds PostHog project connections and read-only SQL agent tools, with reliable tool error recovery.

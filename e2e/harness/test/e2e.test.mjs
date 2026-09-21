@@ -329,7 +329,7 @@ describe('turboCommandArgs', () => {
 describe('startCommand', () => {
   test('keeps the harness event loop available while a child runs', async () => {
     let timerFired = false;
-    const task = startCommand(process.execPath, ['-e', 'setTimeout(() => {}, 25)'], {
+    const task = await startCommand(process.execPath, ['-e', 'setTimeout(() => {}, 25)'], {
       env: process.env,
       stdio: 'ignore',
     });
@@ -339,6 +339,16 @@ describe('startCommand', () => {
 
     assert.equal(await task.exitCode, 0);
     assert.equal(timerFired, true);
+  });
+
+  test('rejects when the child cannot spawn', async () => {
+    await assert.rejects(
+      startCommand('shipfox-command-that-does-not-exist', [], {
+        env: process.env,
+        stdio: 'ignore',
+      }),
+      /ENOENT/u,
+    );
   });
 });
 
