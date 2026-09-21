@@ -4,6 +4,7 @@ import {PosthogIntegrationProviderError} from '#core/errors.js';
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ERROR_BODY_BYTES = 8 * 1024;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
+const TRAILING_SLASH_RE = /\/$/u;
 
 const posthogApiBases: Record<PosthogRegion, string> = {
   us: 'https://us.posthog.com',
@@ -31,6 +32,8 @@ export interface PosthogApiClient {
 
 export interface CreatePosthogApiClientOptions {
   fetch?: typeof globalThis.fetch | undefined;
+  /** Override both regional API bases for a compatible proxy or an E2E fake. */
+  apiBaseUrl?: string | URL | undefined;
 }
 
 export function posthogApiBaseUrl(region: PosthogRegion): string {
@@ -44,11 +47,19 @@ export function posthogApiBase(region: PosthogRegion): string {
 export function createPosthogApiClient(
   options: CreatePosthogApiClientOptions = {},
 ): PosthogApiClient {
-  return new HttpPosthogApiClient(options.fetch ?? globalThis.fetch);
+  return new HttpPosthogApiClient(
+    options.fetch ?? globalThis.fetch,
+    options.apiBaseUrl === undefined
+      ? undefined
+      : String(options.apiBaseUrl).replace(TRAILING_SLASH_RE, ''),
+  );
 }
 
 class HttpPosthogApiClient implements PosthogApiClient {
-  constructor(private readonly fetchImplementation: typeof globalThis.fetch) {}
+  constructor(
+    private readonly fetchImplementation: typeof globalThis.fetch,
+    private readonly apiBaseUrl?: string,
+  ) {}
 
   async listProjects(input: {region: PosthogRegion; apiKey: string}): Promise<PosthogProject[]> {
     const response = await this.request(input, '/api/projects/');
@@ -97,7 +108,7 @@ class HttpPosthogApiClient implements PosthogApiClient {
     let response: Response;
     try {
       response = await this.fetchImplementation(
-        `${posthogApiBaseUrl(input.region)}/api/personal_api_keys/@current/`,
+        `${this.apiBase(input.region)}/api/personal_api_keys/@current/`,
         {
           headers: {authorization: `Bearer ${input.apiKey}`},
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -136,7 +147,7 @@ class HttpPosthogApiClient implements PosthogApiClient {
 
     let response: Response;
     try {
-      response = await this.fetchImplementation(`${posthogApiBaseUrl(input.region)}${path}`, init);
+      response = await this.fetchImplementation(`${this.apiBase(input.region)}${path}`, init);
     } catch (error) {
       if (isPosthogTimeoutError(error)) throw posthogTimeoutError();
       throw new PosthogIntegrationProviderError(
@@ -147,6 +158,10 @@ class HttpPosthogApiClient implements PosthogApiClient {
 
     if (response.ok) return response;
     throw await posthogHttpError(response);
+  }
+
+  private apiBase(region: PosthogRegion): string {
+    return this.apiBaseUrl ?? posthogApiBaseUrl(region);
   }
 }
 

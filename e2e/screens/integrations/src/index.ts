@@ -25,6 +25,39 @@ export class IntegrationsCatalogueScreen {
     return this.page.getByRole('link', {name: `Install ${name}`});
   }
 
+  addButton(name: string): Locator {
+    return this.page.getByRole('button', {name: `Add ${name}`});
+  }
+
+  posthogKeyField(): Locator {
+    return this.page.getByLabel('Personal API key');
+  }
+
+  posthogConnectButton(): Locator {
+    return this.page.getByRole('button', {name: 'Connect'});
+  }
+
+  posthogProject(name: string): Locator {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    return this.page.getByRole('radio', {name: new RegExp(escapedName, 'u')});
+  }
+
+  posthogReplaceButton(): Locator {
+    return this.page.getByRole('button', {name: 'Replace API key'});
+  }
+
+  posthogReplacementKeyField(): Locator {
+    return this.page.getByLabel('New personal API key');
+  }
+
+  posthogError(): Locator {
+    return this.page.getByRole('alert').filter({hasText: 'PostHog could not authenticate'});
+  }
+
+  posthogAlreadyConnected(): Locator {
+    return this.page.getByText('This project is already connected');
+  }
+
   emptyInstalledState(): Locator {
     return this.page.getByText('No integrations installed yet');
   }
@@ -167,6 +200,22 @@ export class ConnectionDetailsScreen {
 
   providerNotice(): Locator {
     return this.page.getByRole('link', {name: 'Change repositories on GitHub'});
+  }
+
+  posthogReplaceButton(): Locator {
+    return this.page.getByRole('button', {name: 'Replace API key'});
+  }
+
+  posthogKeyField(): Locator {
+    return this.page.getByLabel('New personal API key');
+  }
+
+  posthogReplaceDialog(): Locator {
+    return this.page.getByRole('dialog', {name: 'Replace PostHog API key'});
+  }
+
+  posthogError(): Locator {
+    return this.page.getByRole('alert').filter({hasText: 'PostHog could not authenticate'});
   }
 }
 

@@ -233,6 +233,7 @@ export interface CreatePosthogConnectionParams {
   projectId: string;
   projectName: string;
   organizationId: string;
+  lifecycleStatus?: CreateE2ePosthogConnectionBodyDto['lifecycle_status'] | undefined;
 }
 
 function posthogConnectionBody(
@@ -245,6 +246,7 @@ function posthogConnectionBody(
     project_id: params.projectId,
     project_name: params.projectName,
     organization_id: params.organizationId,
+    ...(params.lifecycleStatus === undefined ? {} : {lifecycle_status: params.lifecycleStatus}),
   };
 }
 

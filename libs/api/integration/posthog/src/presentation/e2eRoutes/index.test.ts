@@ -26,7 +26,7 @@ describe('PostHog E2E routes', () => {
   });
 
   it('creates a seeded connection and maps it to the response', async () => {
-    const seededConnection = connection();
+    const seededConnection = connection({lifecycleStatus: 'error'});
     const seedPosthogConnection = vi.fn(() => Promise.resolve(seededConnection));
     const app = await createApp({
       routes: [createPosthogE2eRoutes({seedPosthogConnection})],
@@ -43,6 +43,7 @@ describe('PostHog E2E routes', () => {
         project_id: 'posthog-project',
         project_name: seededConnection.displayName,
         organization_id: 'posthog-organization',
+        lifecycle_status: 'error',
       },
     });
 
@@ -66,6 +67,7 @@ describe('PostHog E2E routes', () => {
       projectId: 'posthog-project',
       projectName: seededConnection.displayName,
       organizationId: 'posthog-organization',
+      lifecycleStatus: 'error',
     });
   });
 });

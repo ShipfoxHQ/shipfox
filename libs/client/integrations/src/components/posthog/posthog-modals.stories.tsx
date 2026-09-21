@@ -126,7 +126,7 @@ function fetchForScenario(scenario: Scenario): typeof fetch {
       });
     } else if (scenario === 'already-connected') {
       response = jsonResponse(
-        {status: 'already-connected', connection_id: CONNECTION_ID, code: 'already-connected'},
+        {code: 'already-connected', details: {connection_id: CONNECTION_ID}},
         {status: 409},
       );
     } else {

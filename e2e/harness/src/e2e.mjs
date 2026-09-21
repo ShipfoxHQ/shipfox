@@ -5,6 +5,7 @@ import {closeSync, openSync} from 'node:fs';
 import {cp, mkdir, readdir, stat} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {startPosthogMock} from './posthog-mock.mjs';
 
 const defaultE2eAdminApiKey = 'e2e-admin-api-key';
 const defaultApiUrl = 'http://localhost:16101';
@@ -36,6 +37,7 @@ export async function main(argv) {
   const env = e2eEnv(process.env);
   const logDir = resolve(options.logDir ?? defaultLogDir(process.env));
   const servers = [];
+  let posthogMock;
   let exitCode = 0;
   let shuttingDown = false;
 
@@ -56,6 +58,12 @@ export async function main(argv) {
   await mkdir(logDir, {recursive: true});
 
   try {
+    if (
+      process.env.POSTHOG_API_BASE_URL === undefined &&
+      process.env.POSTHOG_MCP_ENDPOINT === undefined
+    ) {
+      posthogMock = await startPosthogMock(new URL(env.POSTHOG_API_BASE_URL));
+    }
     servers.push(
       await startServer({
         name: 'api',
@@ -80,12 +88,12 @@ export async function main(argv) {
     });
     await waitForUrl(env.CLIENT_URL, {timeoutMs: options.readinessTimeoutMs});
 
-    const result = spawnSync('turbo', turboCommandArgs(options, env), {
+    const task = await startCommand('turbo', turboCommandArgs(options, env), {
       env,
       stdio: 'inherit',
     });
-    if (result.error) throw result.error;
-    exitCode = result.status ?? 1;
+    servers.push({name: 'tests', child: task.child});
+    exitCode = await task.exitCode;
     if (exitCode !== 0) await collectE2eDiagnostics(logDir);
   } catch (error) {
     exitCode = exitCode === 0 ? 1 : exitCode;
@@ -99,6 +107,13 @@ export async function main(argv) {
     throw error;
   } finally {
     if (!options.keepOpen) await shutdown();
+    if (!options.keepOpen) {
+      await posthogMock?.stop().catch((error) => {
+        printError(
+          `Failed to stop PostHog E2E mock: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }
   }
 
   if (exitCode !== 0) process.exit(exitCode);
@@ -197,6 +212,14 @@ function valueOr(value, fallback) {
 }
 
 export function e2eEnv(sourceEnv) {
+  const hasPosthogApiBaseUrl = sourceEnv.POSTHOG_API_BASE_URL !== undefined;
+  const hasPosthogMcpEndpoint = sourceEnv.POSTHOG_MCP_ENDPOINT !== undefined;
+  if (hasPosthogApiBaseUrl !== hasPosthogMcpEndpoint) {
+    throw new Error(
+      'POSTHOG_API_BASE_URL and POSTHOG_MCP_ENDPOINT must be configured together for E2E runs.',
+    );
+  }
+
   const apiUrl = valueOr(sourceEnv.API_URL, valueOr(sourceEnv.SHIPFOX_API_URL, defaultApiUrl));
   const clientUrl = valueOr(
     sourceEnv.CLIENT_URL,
@@ -216,6 +239,12 @@ export function e2eEnv(sourceEnv) {
   const clickupApiBaseUrl = valueOr(sourceEnv.CLICKUP_API_BASE_URL, () => e2eClickUpApiBaseUrl(apiUrl));
   const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, () => e2eNotionApiBaseUrl(apiUrl));
   const testVcsPort = valueOr(sourceEnv.INTEGRATIONS_TEST_VCS_PORT, () => e2eTestVcsPort(apiUrl));
+  const posthogApiBaseUrl = valueOr(sourceEnv.POSTHOG_API_BASE_URL, () =>
+    e2ePosthogApiBaseUrl(apiUrl),
+  );
+  const posthogMcpEndpoint = valueOr(sourceEnv.POSTHOG_MCP_ENDPOINT, () =>
+    e2ePosthogMcpEndpoint(apiUrl),
+  );
   return {
     ...sourceEnv,
     API_URL: apiUrl,
@@ -279,6 +308,8 @@ export function e2eEnv(sourceEnv) {
       'e2e-github-install-state-secret',
     ),
     CLICKUP_API_BASE_URL: clickupApiBaseUrl,
+    POSTHOG_API_BASE_URL: posthogApiBaseUrl,
+    POSTHOG_MCP_ENDPOINT: posthogMcpEndpoint,
     CLICKUP_AUTH_BASE_URL: valueOr(sourceEnv.CLICKUP_AUTH_BASE_URL, 'https://app.clickup.com'),
     CLICKUP_OAUTH_CLIENT_ID: valueOr(sourceEnv.CLICKUP_OAUTH_CLIENT_ID, 'e2e-clickup-client-id'),
     CLICKUP_OAUTH_CLIENT_SECRET: valueOr(
@@ -409,6 +440,27 @@ export function e2eNotionApiBaseUrl(apiUrl) {
   return endpoint.toString();
 }
 
+export function e2ePosthogApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const posthogPort = apiPort + 16;
+  if (posthogPort > 65_535) {
+    throw new Error(`Cannot derive a PostHog mock port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(posthogPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+export function e2ePosthogMcpEndpoint(apiUrl) {
+  const endpoint = new URL(e2ePosthogApiBaseUrl(apiUrl));
+  endpoint.pathname = '/mcp';
+  return endpoint.toString();
+}
+
 export function e2eTestVcsPort(apiUrl) {
   const endpoint = new URL(apiUrl);
   const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
@@ -507,6 +559,29 @@ async function startServer(params) {
 
   if (child.pid === undefined) throw new Error(`Failed to start ${params.name}`);
   return {name: params.name, child, logFile: params.logFile};
+}
+
+export async function startCommand(command, args, options) {
+  const child = spawn(command, args, {
+    ...options,
+    detached: process.platform !== 'win32',
+  });
+  let resolveStarted;
+  let rejectStarted;
+  const started = new Promise((resolve, reject) => {
+    resolveStarted = resolve;
+    rejectStarted = reject;
+  });
+  const exitCode = new Promise((resolve) => {
+    child.once('spawn', resolveStarted);
+    child.once('error', (error) => {
+      rejectStarted(error);
+      resolve(1);
+    });
+    child.once('exit', (code) => resolve(code ?? 1));
+  });
+  await started;
+  return {child, exitCode};
 }
 
 async function stopServers(servers) {

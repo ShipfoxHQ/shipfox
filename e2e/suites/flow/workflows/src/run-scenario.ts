@@ -316,6 +316,7 @@ async function seedScenarioProject(params: {
       childDefinition: undefined,
       definition: undefined,
       project: seeded.project,
+      syncStartedAfter: seeded.syncStartedAfter,
       giteaIssue: seeded.giteaIssue,
     };
   }
@@ -358,10 +359,12 @@ async function evaluateRejectedScenario(params: {
   attach: RunScenarioParams['attach'];
   projectId: string;
   scenario: Extract<Scenario, {kind: 'reject'}>;
+  syncStartedAfter?: string | undefined;
   token: string;
 }): Promise<Mismatch[]> {
   const definitions = await waitForDefinitionSyncTerminal({
     projectId: params.projectId,
+    syncStartedAfter: params.syncStartedAfter,
     token: params.token,
     timeoutMs: 60_000,
   });
@@ -533,14 +536,15 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       uniqueId,
       webhookSlug,
     });
-    const {childDefinition, definition, project, giteaIssue} = await seedScenarioProject({
-      repo,
-      runnerLabel,
-      scenario,
-      suite,
-      token,
-      webhookSlug,
-    });
+    const {childDefinition, definition, project, syncStartedAfter, giteaIssue} =
+      await seedScenarioProject({
+        repo,
+        runnerLabel,
+        scenario,
+        suite,
+        token,
+        webhookSlug,
+      });
     await seedScenarioValues({projectId: project.id, scenario, workspaceId: suite.workspaceId});
 
     if (scenario.kind === 'reject') {
@@ -548,6 +552,7 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
         attach: params.attach,
         projectId: project.id,
         scenario,
+        syncStartedAfter,
         token,
       });
     }

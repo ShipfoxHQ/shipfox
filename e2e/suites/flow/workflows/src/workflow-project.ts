@@ -33,6 +33,7 @@ export interface SeededWorkflowProject {
   project: ProjectResponseDto;
   repo: string;
   renderedWorkflowYaml: string;
+  syncStartedAfter?: string | undefined;
   giteaIssue?: CreatedIssue;
 }
 
@@ -117,15 +118,6 @@ export async function seedWorkflowProject(params: {
       : [{path: params.configPath, content: renderedWorkflowYaml}]),
     ...(params.extraFiles ?? []).map((file) => ({path: file.path, content: file.content})),
   ];
-  if (files.length > 0) {
-    await commitFiles({
-      org: params.suite.org,
-      repo: params.repo,
-      message: `seed ${params.name}`,
-      files,
-    });
-  }
-
   const project = await createProject({
     workspaceId: params.suite.workspaceId,
     sessionToken: params.token,
@@ -134,10 +126,23 @@ export async function seedWorkflowProject(params: {
     externalRepositoryId: giteaExternalRepositoryId(params.suite.org, params.repo),
   });
 
+  // Bind the project before pushing fixture files so the push itself is an
+  // observable cause of definition sync. Committing first leaves the test
+  // dependent on eventual delivery of the project source-bound event.
+  const syncStartedAfter = files.length > 0 ? new Date().toISOString() : undefined;
+  if (files.length > 0) {
+    await commitFiles({
+      org: params.suite.org,
+      repo: params.repo,
+      message: `seed ${params.name}`,
+      files,
+    });
+  }
   return {
     project,
     repo: params.repo,
     renderedWorkflowYaml,
+    ...(syncStartedAfter === undefined ? {} : {syncStartedAfter}),
     ...(giteaIssue === undefined ? {} : {giteaIssue}),
   };
 }
@@ -147,6 +152,7 @@ export async function seedAndWaitForDefinition(params: Parameters<typeof seedWor
   const definition = await waitForDefinition({
     projectId: seeded.project.id,
     configPath: params.configPath,
+    syncStartedAfter: seeded.syncStartedAfter,
     token: params.token,
   });
   return {...seeded, definition};

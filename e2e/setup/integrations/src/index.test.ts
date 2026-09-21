@@ -78,6 +78,7 @@ describe('integrations E2E setup helper', () => {
       projectId: 'posthog-project',
       projectName: 'Analytics',
       organizationId: 'posthog-organization',
+      lifecycleStatus: 'error',
     });
 
     expect(requestJson).toHaveBeenCalledWith('post', '/__e2e/integrations/posthog-connections', {
@@ -88,6 +89,7 @@ describe('integrations E2E setup helper', () => {
         project_id: 'posthog-project',
         project_name: 'Analytics',
         organization_id: 'posthog-organization',
+        lifecycle_status: 'error',
       },
     });
   });

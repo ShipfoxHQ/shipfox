@@ -22,6 +22,7 @@
     "#notion-api.js": "./src/notion-api.ts",
     "#notion-events.js": "./src/notion-events.ts",
     "#polling.js": "./src/polling.ts",
+    "#posthog-api.js": "./src/posthog-api.ts",
     "#production-payloads.js": "./src/production-payloads.ts",
     "#renewable-credentials-workflows.js": "./src/renewable-credentials-workflows.ts",
     "#run-scenario.js": "./src/run-scenario.ts",

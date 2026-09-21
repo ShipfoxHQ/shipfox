@@ -6,7 +6,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Execute a read-only HogQL query against PostHog data.",
     "id": "execute-sql",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "connectionId": {
           "description": "Optional id of a data warehouse connection (e.g. Postgres, MySQL, Snowflake, Redshift). When set, the query runs live against that source instead of the ClickHouse catalog, and may only reference that source's tables. Discover connection ids with external-data-sources-connections-list, then list a connection's tables by running \`SELECT table_name FROM system.information_schema.tables\` with that connectionId set.",
@@ -40,7 +39,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Read the available PostHog event, entity, and property schema.",
     "id": "read-data-schema",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "description": "The data schema query to execute.",
@@ -215,7 +213,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "List saved insights in the current PostHog project.",
     "id": "insights-list",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "created_by": {
           "description": "JSON-encoded array of user IDs. Only returns insights whose \`created_by\` is in the list, e.g. \`[1,42]\`.",
@@ -310,7 +307,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve a saved insight definition by numeric id or short id.",
     "id": "insight-get",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "filters_override": {
           "anyOf": [
@@ -371,7 +367,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Run a saved insight and return its query results.",
     "id": "insight-query",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "filters_override": {
           "anyOf": [
@@ -437,7 +432,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "List dashboards in the current PostHog project.",
     "id": "dashboards-get-all",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "exclude_generated": {
           "description": "Optional. Exclude dashboards that PostHog generated.",
@@ -474,7 +468,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve a dashboard and its tiles by id.",
     "id": "dashboard-get",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "filters_override": {
           "anyOf": [
@@ -528,7 +521,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Run all insights on a dashboard and return their results.",
     "id": "dashboard-insights-run",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "filters_override": {
           "anyOf": [
@@ -595,7 +587,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "List and aggregate error tracking issues.",
     "id": "query-error-tracking-issues-list",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "assignee": {
           "anyOf": [
@@ -983,7 +974,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve details and impact for an error tracking issue.",
     "id": "query-error-tracking-issue",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "dateRange": {
           "description": "Date range for issue impact and latest-event metadata. Defaults to the last 7 days.",
@@ -1041,7 +1031,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "List feature flags in the current PostHog project.",
     "id": "feature-flag-get-all",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "active": {
           "enum": [
@@ -1135,7 +1124,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve a feature flag definition by id.",
     "id": "feature-flag-get-definition",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "description": "A unique integer value identifying this feature flag.",
@@ -1155,7 +1143,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "List experiments in the current PostHog project.",
     "id": "experiment-list",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "archived": {
           "description": "Filter by archived state. Defaults to non-archived experiments only.",
@@ -1225,7 +1212,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve an experiment by id.",
     "id": "experiment-get",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "description": "A unique integer value identifying this experiment.",
@@ -1245,7 +1231,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve comprehensive results for an experiment.",
     "id": "experiment-results-get",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "description": "The ID of the experiment to get comprehensive results for",
@@ -1270,7 +1255,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "List surveys in the current PostHog project.",
     "id": "surveys-get-all",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "archived": {
           "type": "boolean",
@@ -1335,7 +1319,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve a survey by id.",
     "id": "survey-get",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "description": "A UUID string identifying this survey.",
@@ -1355,7 +1338,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Retrieve response statistics for a survey.",
     "id": "survey-stats",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "date_from": {
           "description": "Optional ISO timestamp for start date (e.g. 2024-01-01T00:00:00Z)",
@@ -1391,7 +1373,6 @@ exports[`PostHog agent tool catalog > keeps the allow-list and selection catalog
     "description": "Search the PostHog documentation.",
     "id": "docs-search",
     "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "description": "Natural-language description of what to find in the PostHog documentation. Inkeep performs hybrid (semantic + full-text) RAG, so phrase the query the way a user would ask the question.",

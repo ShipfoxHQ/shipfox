@@ -1,4 +1,4 @@
-import {bool, createConfig, num, port} from '@shipfox/config';
+import {bool, createConfig, num, port, url} from '@shipfox/config';
 
 export const config = createConfig({
   INTEGRATIONS_ENABLE_CRON_PROVIDER: bool({
@@ -32,6 +32,14 @@ export const config = createConfig({
   INTEGRATIONS_ENABLE_POSTHOG_PROVIDER: bool({
     desc: 'Enables the PostHog integration provider so users can connect PostHog projects.',
     default: false,
+  }),
+  POSTHOG_API_BASE_URL: url({
+    desc: 'Optional PostHog API base URL override for a compatible proxy or E2E fake. Leave unset to route by region.',
+    default: undefined,
+  }),
+  POSTHOG_MCP_ENDPOINT: url({
+    desc: 'Optional PostHog MCP endpoint override for a compatible proxy or E2E fake. Leave unset to route by region.',
+    default: undefined,
   }),
   INTEGRATIONS_ENABLE_SENTRY_PROVIDER: bool({
     desc: 'Enables the Sentry integration provider so users can connect Sentry.',

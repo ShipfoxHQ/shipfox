@@ -9,13 +9,18 @@ import {
   defaultLogDir,
   e2eClickUpApiBaseUrl,
   e2eNotionApiBaseUrl,
-  e2eTestVcsPort,
   e2eEnv,
+  e2ePosthogApiBaseUrl,
+  e2ePosthogMcpEndpoint,
+  e2eTestVcsPort,
   parseArgs,
+  startCommand,
   turboCommandArgs,
 } from '../src/e2e.mjs';
 
 const unknownCommandPattern = /Unknown command/;
+const posthogOverridePairPattern =
+  /POSTHOG_API_BASE_URL and POSTHOG_MCP_ENDPOINT must be configured together/u;
 
 describe('parseArgs', () => {
   test('defaults to running all E2E tests', () => {
@@ -109,6 +114,8 @@ describe('e2eEnv', () => {
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'enabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55362/');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:55364/');
+    assert.equal(env.POSTHOG_API_BASE_URL, 'http://127.0.0.1:55367/');
+    assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:55367/mcp');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
@@ -130,6 +137,8 @@ describe('e2eEnv', () => {
       SLACK_API_BASE_URL: 'http://127.0.0.1:16122',
       CLICKUP_API_BASE_URL: 'http://127.0.0.1:16123',
       NOTION_API_BASE_URL: 'http://127.0.0.1:16124',
+      POSTHOG_API_BASE_URL: 'https://posthog-api.example.test',
+      POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -150,6 +159,8 @@ describe('e2eEnv', () => {
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:16124');
+    assert.equal(env.POSTHOG_API_BASE_URL, 'https://posthog-api.example.test');
+    assert.equal(env.POSTHOG_MCP_ENDPOINT, 'https://posthog-mcp.example.test/mcp');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -202,6 +213,20 @@ describe('e2eEnv', () => {
     );
   });
 
+  test('rejects a PostHog API override without an MCP override', () => {
+    assert.throws(
+      () => e2eEnv({POSTHOG_API_BASE_URL: 'https://posthog-api.example.test'}),
+      posthogOverridePairPattern,
+    );
+  });
+
+  test('rejects a PostHog MCP override without an API override', () => {
+    assert.throws(
+      () => e2eEnv({POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp'}),
+      posthogOverridePairPattern,
+    );
+  });
+
   test('rejects an API port that cannot reserve the Test VCS offset', () => {
     assert.throws(
       () =>
@@ -217,6 +242,13 @@ describe('e2eEnv', () => {
 describe('e2eNotionApiBaseUrl', () => {
   test('reserves the Notion API port after the API port', () => {
     assert.equal(e2eNotionApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16116/');
+  });
+});
+
+describe('PostHog mock endpoints', () => {
+  test('derives the REST and MCP endpoints from the API port', () => {
+    assert.equal(e2ePosthogApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16117/');
+    assert.equal(e2ePosthogMcpEndpoint('http://localhost:16101'), 'http://127.0.0.1:16117/mcp');
   });
 });
 
@@ -236,11 +268,7 @@ describe('turboCommandArgs', () => {
       {SHIPFOX_TURBO_CONCURRENCY: '2'},
     );
 
-    assert.deepEqual(args, [
-      'test:e2e',
-      '--filter=@shipfox/e2e-client-agent',
-      '--concurrency=2',
-    ]);
+    assert.deepEqual(args, ['test:e2e', '--filter=@shipfox/e2e-client-agent', '--concurrency=2']);
   });
 
   test('keeps turbo default concurrency without an environment override', () => {
@@ -298,6 +326,32 @@ describe('turboCommandArgs', () => {
   });
 });
 
+describe('startCommand', () => {
+  test('keeps the harness event loop available while a child runs', async () => {
+    let timerFired = false;
+    const task = await startCommand(process.execPath, ['-e', 'setTimeout(() => {}, 25)'], {
+      env: process.env,
+      stdio: 'ignore',
+    });
+    setTimeout(() => {
+      timerFired = true;
+    }, 0);
+
+    assert.equal(await task.exitCode, 0);
+    assert.equal(timerFired, true);
+  });
+
+  test('rejects when the child cannot spawn', async () => {
+    await assert.rejects(
+      startCommand('shipfox-command-that-does-not-exist', [], {
+        env: process.env,
+        stdio: 'ignore',
+      }),
+      /ENOENT/u,
+    );
+  });
+});
+
 describe('defaultLogDir', () => {
   test('uses GitHub runner temp when available', () => {
     assert.equal(defaultLogDir({RUNNER_TEMP: '/tmp/gha'}), '/tmp/gha/shipfox-e2e-logs');
@@ -352,7 +406,10 @@ describe('copyPlaywrightTestResults', () => {
 
       assert.equal(
         await readFile(
-          join(logDir, 'playwright-test-results/e2e/suites/api/auth/test-results/auth-flow/trace.zip'),
+          join(
+            logDir,
+            'playwright-test-results/e2e/suites/api/auth/test-results/auth-flow/trace.zip',
+          ),
           'utf8',
         ),
         'api trace',
@@ -379,10 +436,7 @@ describe('copyPlaywrightTestResults', () => {
       );
       await assert.rejects(
         readFile(
-          join(
-            logDir,
-            'playwright-test-results/e2e/setup/auth/test-results/helper-flow/trace.zip',
-          ),
+          join(logDir, 'playwright-test-results/e2e/setup/auth/test-results/helper-flow/trace.zip'),
           'utf8',
         ),
         {code: 'ENOENT'},

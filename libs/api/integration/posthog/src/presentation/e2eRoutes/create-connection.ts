@@ -14,6 +14,7 @@ export interface SeedPosthogConnectionInput {
   projectId: string;
   projectName: string;
   organizationId: string;
+  lifecycleStatus?: IntegrationConnection<'posthog'>['lifecycleStatus'] | undefined;
 }
 
 export interface CreateE2ePosthogConnectionRouteOptions {
@@ -41,6 +42,7 @@ export function createE2ePosthogConnectionRoute(options: CreateE2ePosthogConnect
         projectId: body.project_id,
         projectName: body.project_name,
         organizationId: body.organization_id,
+        ...(body.lifecycle_status === undefined ? {} : {lifecycleStatus: body.lifecycle_status}),
       });
       reply.code(201);
       return toIntegrationConnectionDto(connection);

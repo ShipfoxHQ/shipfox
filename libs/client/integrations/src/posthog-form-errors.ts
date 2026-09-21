@@ -82,7 +82,8 @@ export function posthogReplaceErrorToFormError(
 function alreadyConnectedConnectionId(error: unknown): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
   if (error.code !== 'already-connected' && error.status !== 409) return undefined;
-  const details = error.details;
+  if (!isRecord(error.details)) return undefined;
+  const details = error.details.details;
   if (!isRecord(details)) return undefined;
   const connectionId = details.connection_id;
   return typeof connectionId === 'string' && connectionId.length > 0 ? connectionId : undefined;
