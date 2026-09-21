@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {secretKeySchema} from './identifiers.js';
 
-export const secretStoreSchema = z.literal('local');
+export const secretStoreSchema = z.enum(['local', 'inputs']);
 export const SECRET_BINDING_TARGET_PATTERN_SOURCE = '^[A-Za-z_][A-Za-z0-9_]*$';
 export const SECRET_BINDING_TARGET_PATTERN = new RegExp(SECRET_BINDING_TARGET_PATTERN_SOURCE);
 

@@ -3,6 +3,7 @@ import {createCapturingLogger} from '@shipfox/node-log/test';
 import {agentThinkingSchema} from '@shipfox/workflow-document';
 import {eq} from 'drizzle-orm';
 import type {StepStatus} from '#core/entities/step.js';
+import type {SecretInputReference} from '#core/entities/workflow-run.js';
 import {db} from '#db/db.js';
 import {jobs} from '#db/schema/jobs.js';
 import {steps as stepsTable} from '#db/schema/steps.js';
@@ -139,6 +140,177 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
     expect(res.body).not.toContain('hostile-secret');
   });
 
+  test('resolves an input from its pinned project scope across child projects', async () => {
+    const sourceProjectId = crypto.randomUUID();
+    const {run, job, step} = await createRunningRunStep({
+      secretInputs: {
+        DEPLOY_TOKEN: {store: 'local', key: 'PROJECT_TOKEN', projectId: sourceProjectId},
+      },
+    });
+    await setRunSecretBindings(step.id, [
+      {
+        target: 'TOKEN',
+        segments: [{kind: 'secret', store: 'inputs', key: 'DEPLOY_TOKEN'}],
+      },
+    ]);
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: sourceProjectId,
+      values: {PROJECT_TOKEN: 'cross-project-secret'},
+    });
+    const token = await mintActiveLeaseToken({
+      renewableInference: false,
+      jobId: job.id,
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      secrets: [{store: 'inputs', key: 'DEPLOY_TOKEN', value: 'cross-project-secret'}],
+    });
+    expect(logLines.join('\n')).not.toContain('cross-project-secret');
+  });
+
+  test('uses the pinned workspace scope instead of a later project secret', async () => {
+    const {run, job, step} = await createRunningRunStep({
+      secretInputs: {
+        DEPLOY_TOKEN: {store: 'local', key: 'SHARED_TOKEN', projectId: null},
+      },
+    });
+    await setRunSecretBindings(step.id, [
+      {
+        target: 'TOKEN',
+        segments: [{kind: 'secret', store: 'inputs', key: 'DEPLOY_TOKEN'}],
+      },
+    ]);
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      values: {SHARED_TOKEN: 'workspace-secret'},
+    });
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+      values: {SHARED_TOKEN: 'later-project-secret'},
+    });
+    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().secrets).toEqual([
+      {store: 'inputs', key: 'DEPLOY_TOKEN', value: 'workspace-secret'},
+    ]);
+    expect(res.body).not.toContain('later-project-secret');
+  });
+
+  test('fails when the pinned project secret is deleted despite a workspace fallback', async () => {
+    const sourceProjectId = crypto.randomUUID();
+    const {run, job, step} = await createRunningRunStep({
+      secretInputs: {
+        DEPLOY_TOKEN: {store: 'local', key: 'PINNED_TOKEN', projectId: sourceProjectId},
+      },
+    });
+    await setRunSecretBindings(step.id, [
+      {
+        target: 'TOKEN',
+        segments: [{kind: 'secret', store: 'inputs', key: 'DEPLOY_TOKEN'}],
+      },
+    ]);
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      values: {PINNED_TOKEN: 'workspace-fallback'},
+    });
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: sourceProjectId,
+      values: {PINNED_TOKEN: 'project-secret'},
+    });
+    await secrets.deleteSecrets({
+      workspaceId: run.workspaceId,
+      projectId: sourceProjectId,
+      keys: ['PINNED_TOKEN'],
+    });
+    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({code: 'secret-not-found'});
+  });
+
+  test('reports a missing input by its input name', async () => {
+    const {job, step} = await createRunningRunStep();
+    await setRunSecretBindings(step.id, [
+      {
+        target: 'TOKEN',
+        segments: [{kind: 'secret', store: 'inputs', key: 'MISSING_INPUT'}],
+      },
+    ]);
+    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({code: 'secret-input-missing'});
+  });
+
+  test('resolves inputs alongside local secrets with separate values', async () => {
+    const {run, job, step} = await createRunningRunStep({
+      secretInputs: {
+        INPUT_TOKEN: {store: 'local', key: 'SOURCE_TOKEN', projectId: null},
+      },
+    });
+    await setRunSecretBindings(step.id, [
+      {
+        target: 'INPUT_TOKEN',
+        segments: [{kind: 'secret', store: 'inputs', key: 'INPUT_TOKEN'}],
+      },
+      {
+        target: 'LOCAL_TOKEN',
+        segments: [{kind: 'secret', store: 'local', key: 'LOCAL_TOKEN'}],
+      },
+    ]);
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      values: {SOURCE_TOKEN: 'input-value'},
+    });
+    await secrets.setSecrets({
+      workspaceId: run.workspaceId,
+      projectId: run.projectId,
+      values: {LOCAL_TOKEN: 'local-value'},
+    });
+    const token = await mintActiveLeaseToken({renewableInference: false, jobId: job.id});
+
+    const res = await app.inject({
+      method: 'GET',
+      url: stepSecretsUrl(step.id, step.currentAttempt),
+      headers: {authorization: `Bearer ${token}`},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().secrets).toEqual([
+      {store: 'inputs', key: 'INPUT_TOKEN', value: 'input-value'},
+      {store: 'local', key: 'LOCAL_TOKEN', value: 'local-value'},
+    ]);
+  });
+
   test('returns an empty response without resolving secrets when bindings are absent', async () => {
     const {job, step} = await createRunningRunStep();
     const token = await mintActiveLeaseToken({
@@ -227,6 +399,7 @@ describe('GET /runs/jobs/current/steps/:stepId/secrets', () => {
       projectId: run.projectId,
       definitionId: run.definitionId,
       triggerReference: null,
+      secretInputs: null,
       run: {origin: 'synced', devSource: null},
     });
   });
@@ -249,11 +422,14 @@ async function setRunSecretBindings(
 
 type TestStepInput = {prompt: string} | {run: string};
 
-async function createRunningRunStep(options: {status?: StepStatus} = {}) {
+async function createRunningRunStep(
+  options: {status?: StepStatus; secretInputs?: Record<string, SecretInputReference>} = {},
+) {
   return await createStep({
     steps: [{run: 'echo hello'}],
     targetType: 'run',
     status: options.status ?? 'running',
+    secretInputs: options.secretInputs,
   });
 }
 
@@ -269,6 +445,7 @@ async function createStep(params: {
   steps: readonly TestStepInput[];
   targetType: 'agent' | 'run';
   status: StepStatus;
+  secretInputs?: Record<string, SecretInputReference> | undefined;
 }) {
   const run = await createWorkflowRun({
     workspaceId: crypto.randomUUID(),
@@ -287,6 +464,7 @@ async function createStep(params: {
       subscriptionId: crypto.randomUUID(),
       userId: crypto.randomUUID(),
     },
+    secretInputs: params.secretInputs,
   });
   const [job] = await getJobsByWorkflowRunId(run.id);
   if (!job) throw new Error('createStep: run created no job');

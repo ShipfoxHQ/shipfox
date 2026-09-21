@@ -48,7 +48,7 @@ export function createGetStepSecretsRoute(
     handler: async (request, reply) => {
       const {stepId} = request.params;
       const {attempt} = request.query;
-      const {leasedJob, step, workspaceId, projectId} = await loadRunningLeasedStep({
+      const {leasedJob, step, workspaceId, projectId, secretInputs} = await loadRunningLeasedStep({
         runners,
         request,
         stepId,
@@ -63,6 +63,34 @@ export function createGetStepSecretsRoute(
       const references = distinctSecretReferences(secretBindings);
       const secrets = await Promise.all(
         references.map(async (reference): Promise<StepSecretDto> => {
+          if (reference.store === 'inputs') {
+            const source = secretInputs?.[reference.key];
+            if (!source) {
+              throw new ClientError(
+                `Secret input ${reference.key} was not supplied`,
+                'secret-input-missing',
+                {status: 422},
+              );
+            }
+
+            const {value} = await secretsClient.getSecret({
+              workspaceId,
+              projectId: source.projectId,
+              namespace: '',
+              key: source.key,
+              store: source.store,
+              exactScope: true,
+            });
+            if (value === null) {
+              throw new ClientError(
+                `Secret input ${reference.key} has no source`,
+                'secret-not-found',
+                {status: 422},
+              );
+            }
+            return {...reference, value};
+          }
+
           const {value} = await secretsClient.getSecret({
             workspaceId,
             projectId,
@@ -77,12 +105,29 @@ export function createGetStepSecretsRoute(
         }),
       );
 
+      const secretInputSources = references.flatMap((reference) => {
+        if (reference.store !== 'inputs') return [];
+        const source = secretInputs?.[reference.key];
+        return source === undefined ? [] : [{inputName: reference.key, sourceKey: source.key}];
+      });
       logger().info(
-        {jobId: leasedJob.jobId, workspaceId, stepId, keyCount: references.length},
+        {
+          jobId: leasedJob.jobId,
+          workspaceId,
+          stepId,
+          keyCount: references.length,
+          secretInputSources,
+        },
         'Resolved step secrets',
       );
       logger().debug(
-        {jobId: leasedJob.jobId, workspaceId, stepId, keys: references.map((ref) => ref.key)},
+        {
+          jobId: leasedJob.jobId,
+          workspaceId,
+          stepId,
+          keys: references.map((ref) => ref.key),
+          secretInputSources,
+        },
         'Resolved step secret keys',
       );
 
