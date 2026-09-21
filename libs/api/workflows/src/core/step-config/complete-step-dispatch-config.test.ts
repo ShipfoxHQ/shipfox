@@ -600,6 +600,64 @@ describe('completeStepDispatchConfig', () => {
     });
   });
 
+  it('rechecks secret destinations after merging a legacy whole-with plan', async () => {
+    const pending = step({
+      type: 'tool',
+      config: {
+        tool: {
+          provider: 'shipfox',
+          id: 'start_workflow_run',
+          input_schema: {type: 'object'},
+        },
+      },
+      authoredConfig: {
+        tool: {
+          provider: 'shipfox',
+          id: 'start_workflow_run',
+          input_schema: {type: 'object'},
+          with: {
+            workflow: template('event.workflow'),
+            secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+          },
+        },
+      },
+      configPlan: {
+        tool: {
+          with: plannedToolField(template('steps.build.outputs.input')).segments,
+        },
+      },
+    });
+
+    const act = () =>
+      completeStepDispatchConfig({
+        step: pending,
+        context: {
+          ...context,
+          values: {
+            ...context.values,
+            steps: {
+              build: {
+                outputs: {
+                  input: {
+                    workflow: 'other.yml',
+                    secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+                  },
+                },
+              },
+            },
+          },
+        },
+        resolveAgentDefaults,
+        definitionId: 'def-1',
+      });
+
+    await expect(act()).rejects.toThrow(
+      new ToolConfigInvalidError(
+        'Resolved secret input destination "workflow" differs from its authored value.',
+      ),
+    );
+  });
+
   it('injects the selected check-run method into the provider input', async () => {
     const pending = step({
       type: 'tool',

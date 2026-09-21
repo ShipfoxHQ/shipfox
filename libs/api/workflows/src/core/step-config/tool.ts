@@ -7,6 +7,7 @@ import type {
 } from '#core/agent-tools.js';
 import {materializeToolStep} from '#core/agent-tools.js';
 import type {StepConfigDispatchPlan} from '#core/entities/step.js';
+import {ToolConfigInvalidError} from '#core/errors.js';
 import {resolveStepFieldWithType} from './fields.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
@@ -48,6 +49,11 @@ export function resolveToolStepConfig(params: {
           context: params.context,
           definitionId: params.definitionId,
         });
+  assertSecretInputDestinations({
+    toolId: params.step.tool.id,
+    authoredWith: withValue,
+    resolvedWith: result.value,
+  });
   const outputs: Record<string, OutputTypeDeclaration> = {
     result: {
       type: 'json',
@@ -167,6 +173,50 @@ function resolveWithObject(params: ResolveWithParams): ResolveWithResult {
 function objectWithValue(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+export function assertSecretInputDestinations(params: {
+  toolId: string;
+  authoredWith: unknown;
+  resolvedWith: unknown;
+}): void {
+  if (params.toolId !== 'shipfox.start_workflow_run') return;
+  if (!isPlainRecord(params.resolvedWith) || !Object.hasOwn(params.resolvedWith, 'secrets')) {
+    return;
+  }
+  if (!isPlainRecord(params.authoredWith)) {
+    throw new ToolConfigInvalidError(
+      'Secret input destinations require an authored tool input mapping.',
+    );
+  }
+
+  for (const field of ['secrets', 'workflow', 'project_id'] as const) {
+    if (!sameToolInputValue(params.authoredWith[field], params.resolvedWith[field])) {
+      throw new ToolConfigInvalidError(
+        `Resolved secret input destination "${field}" differs from its authored value.`,
+      );
+    }
+  }
+}
+
+function sameToolInputValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => sameToolInputValue(value, right[index]));
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) return false;
+
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every(
+    (key) => Object.hasOwn(right, key) && sameToolInputValue(left[key], right[key]),
+  );
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isFieldTemplate(

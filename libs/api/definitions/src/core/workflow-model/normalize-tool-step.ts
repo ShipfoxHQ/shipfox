@@ -112,6 +112,7 @@ export function normalizeToolStep(params: {
     issues: params.issues,
   });
   const connectionIsInterpolated = validateToolConnection(params);
+  validateSecretInputToolWith(params);
   const catalogEntry = resolveToolCatalogEntry(params, tool, connectionIsInterpolated);
   const outputSchema = catalogEntry?.outputSchema;
 
@@ -373,6 +374,103 @@ function findToolEntry(params: {
   }
 
   return entry;
+}
+
+const SECRET_INPUT_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+
+function validateSecretInputToolWith(params: NormalizeToolStepParams): void {
+  if (params.step.tool !== 'shipfox.start_workflow_run') return;
+
+  const withValue = params.step.with as unknown;
+  const withPath = toolWithPath(params);
+  if (!isPlainRecord(withValue)) {
+    if (typeof withValue === 'string' && isInterpolated(withValue)) {
+      pushSecretInputDestinationIssue(params, withPath, 'with');
+    }
+    return;
+  }
+
+  if (!Object.hasOwn(withValue, 'secrets')) return;
+
+  const secretsPath = [...withPath, 'secrets'];
+  validateSecretInputNames(params, withValue.secrets, secretsPath);
+  validateSecretInputDestinations(params, withValue, withPath);
+}
+
+function validateSecretInputNames(
+  params: NormalizeToolStepParams,
+  secrets: unknown,
+  path: readonly WorkflowModelValidationIssuePathSegment[],
+): void {
+  if (!isPlainRecord(secrets)) {
+    pushSecretInputNameIssue(
+      params,
+      path,
+      'The secrets mapping must be an object of literal names.',
+    );
+    return;
+  }
+
+  const entries = Object.entries(secrets);
+  if (entries.length > 20) {
+    pushSecretInputNameIssue(
+      params,
+      path,
+      'The secrets mapping cannot contain more than 20 entries.',
+    );
+  }
+
+  for (const [name, value] of entries) {
+    if (!SECRET_INPUT_NAME_PATTERN.test(name)) {
+      pushSecretInputNameIssue(
+        params,
+        [...path, name],
+        `Secret input name "${name}" must be a literal matching /^[A-Z_][A-Z0-9_]*$/.`,
+      );
+    }
+    if (typeof value !== 'string' || !SECRET_INPUT_NAME_PATTERN.test(value)) {
+      pushSecretInputNameIssue(
+        params,
+        [...path, name],
+        `Secret source name for "${name}" must be a literal matching /^[A-Z_][A-Z0-9_]*$/.`,
+      );
+    }
+  }
+}
+
+function validateSecretInputDestinations(
+  params: NormalizeToolStepParams,
+  withValue: Readonly<Record<string, unknown>>,
+  withPath: readonly WorkflowModelValidationIssuePathSegment[],
+): void {
+  for (const field of ['workflow', 'project_id'] as const) {
+    if (!Object.hasOwn(withValue, field)) continue;
+    const value = withValue[field];
+    if (typeof value === 'string' && !isInterpolated(value)) continue;
+    pushSecretInputDestinationIssue(params, [...withPath, field], field);
+  }
+}
+
+function pushSecretInputNameIssue(
+  params: NormalizeToolStepParams,
+  path: readonly WorkflowModelValidationIssuePathSegment[],
+  message: string,
+): void {
+  params.issues.push(issue({code: 'secret-input-name-not-literal', message, path}));
+}
+
+function pushSecretInputDestinationIssue(
+  params: NormalizeToolStepParams,
+  path: readonly WorkflowModelValidationIssuePathSegment[],
+  field: string,
+): void {
+  params.issues.push(
+    issue({
+      code: 'secret-input-destination-not-literal',
+      message: `Secret input destination ${field} must be a literal value.`,
+      path,
+    }),
+  );
 }
 
 function normalizeWithTemplates(params: {
@@ -797,6 +895,13 @@ function rejectWithMethod(params: {
 
 function toolLabel(tool: {readonly id: string; readonly method?: string}): string {
   return tool.method === undefined ? tool.id : `${tool.id}.${tool.method}`;
+}
+
+function toolWithPath(params: {
+  sourceName: string;
+  stepIndex: number;
+}): readonly WorkflowModelValidationIssuePathSegment[] {
+  return ['jobs', params.sourceName, 'steps', params.stepIndex, 'with'];
 }
 
 function toolIdPath(params: {

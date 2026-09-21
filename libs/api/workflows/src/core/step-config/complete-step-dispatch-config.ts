@@ -12,6 +12,7 @@ import {AgentStepSessionClaimError, ToolConfigInvalidError} from '#core/errors.j
 import {completeAgentConfig, readAgentStepSessionIntent} from './agent.js';
 import {completeStepFieldWithTrace, completeStepFieldWithTypeAndTrace} from './fields.js';
 import {completeRunDispatchConfig} from './run.js';
+import {assertSecretInputDestinations} from './tool.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 export async function completeStepDispatchConfig(params: {
@@ -33,6 +34,7 @@ export async function completeStepDispatchConfig(params: {
         context: params.context,
         definitionId: params.definitionId,
         trace: [],
+        authoredWith: authoredToolWith(params.step),
       });
     }
     assertWorkingDirectoryIfPresent(params.step.config.working_directory);
@@ -52,6 +54,7 @@ export async function completeStepDispatchConfig(params: {
     definitionId: params.definitionId,
     context: params.context,
     trace,
+    authoredWith: authoredToolWith(params.step),
   });
   completeRunDispatchConfig({
     config,
@@ -113,6 +116,7 @@ function completeToolConfig(params: {
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
   readonly trace: PersistedEvaluationTraceEntry[];
+  readonly authoredWith: unknown;
 }): void {
   const toolPlan = params.plan.tool;
   const tool = params.config.tool;
@@ -122,7 +126,13 @@ function completeToolConfig(params: {
   }
   const toolConfig = {...tool} as Record<string, unknown>;
   const baseWith = toolConfig.with;
-  toolConfig.with = mergeToolWith(baseWith, toolPlan?.with, params, 'tool.with');
+  const mergedWith = mergeToolWith(baseWith, toolPlan?.with, params, 'tool.with');
+  toolConfig.with = mergedWith;
+  assertSecretInputDestinations({
+    toolId: dispatchToolId(toolConfig),
+    authoredWith: params.authoredWith,
+    resolvedWith: mergedWith,
+  });
   const method = toolConfig.method;
   const input = toolConfig.with ?? {};
   if (method !== undefined && (typeof input !== 'object' || Array.isArray(input))) {
@@ -151,6 +161,20 @@ function completeToolConfig(params: {
   if (!valid) throw new ToolConfigInvalidError(`Tool input is invalid: ${ajv.errorsText()}`);
   if (method !== undefined) toolConfig.with = inputWithMethod;
   params.config.tool = toolConfig;
+}
+
+function authoredToolWith(step: Step): unknown {
+  const source = step.authoredConfig ?? step.config;
+  const tool = source.tool;
+  if (tool === null || typeof tool !== 'object' || Array.isArray(tool)) return undefined;
+  return (tool as Record<string, unknown>).with;
+}
+
+function dispatchToolId(toolConfig: Record<string, unknown>): string {
+  if (toolConfig.provider === 'shipfox' && toolConfig.id === 'start_workflow_run') {
+    return 'shipfox.start_workflow_run';
+  }
+  return typeof toolConfig.id === 'string' ? toolConfig.id : '';
 }
 
 function mergeToolWith(
