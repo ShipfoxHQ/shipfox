@@ -9,6 +9,9 @@ import type {SuiteContext} from '#suite-context.js';
 import {seedProjectWithApiDefinition} from '#workflow-project.js';
 import {expect, test} from './fixtures.js';
 
+const MAX_TRIGGER_ATTEMPTS = 8;
+const RUN_LOOKUP_TIMEOUT_MS = 15_000;
+
 test('starts a run from a signed Notion delivery and calls the get_page tool step', async ({
   suite,
 }: {
@@ -167,22 +170,35 @@ async function triggerNotionDeliveryAndAwaitRun(params: {
   actorId: string;
   actorType?: 'person' | 'bot' | 'agent';
 }): Promise<string> {
-  const deliveryId = await postNotionDelivery({
-    deliveryId: params.deliveryId,
-    workspaceId: params.notionWorkspaceId,
-    botId: params.botId,
-    pageId: params.pageId,
-    actorId: params.actorId,
-    ...(params.actorType === undefined ? {} : {actorType: params.actorType}),
-  });
-  const run = await waitForRunByDeliveryId({
-    projectId: params.projectId,
-    deliveryId,
-    token: params.token,
-    timeoutMs: 15_000,
-    workspaceId: params.workspaceId,
-  });
-  return run.id;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_TRIGGER_ATTEMPTS; attempt += 1) {
+    const deliveryId = attempt === 1 ? params.deliveryId : `${params.deliveryId}-${attempt}`;
+    await postNotionDelivery({
+      deliveryId,
+      workspaceId: params.notionWorkspaceId,
+      botId: params.botId,
+      pageId: params.pageId,
+      actorId: params.actorId,
+      ...(params.actorType === undefined ? {} : {actorType: params.actorType}),
+    });
+
+    try {
+      const run = await waitForRunByDeliveryId({
+        projectId: params.projectId,
+        deliveryId,
+        token: params.token,
+        timeoutMs: RUN_LOOKUP_TIMEOUT_MS,
+        workspaceId: params.workspaceId,
+      });
+      return run.id;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`No run appeared after ${MAX_TRIGGER_ATTEMPTS} signed Notion deliveries.`);
 }
 
 function notionToolStepWorkflowYaml(connectionSlug: string, pageId: string): string {
