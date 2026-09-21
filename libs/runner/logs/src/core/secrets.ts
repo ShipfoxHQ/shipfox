@@ -15,7 +15,7 @@ export function buildSecretVariants(secrets: string[]): string[] {
     if (!secret.includes('\n')) continue;
 
     for (const line of secret.split(MULTILINE_SECRET_LINE_SEPARATOR)) {
-      if (line.length >= 8) addSecretForms(variants, line);
+      if ([...line].length >= 8) addSecretForms(variants, line);
     }
   }
   return [...variants].sort((a, b) => b.length - a.length);
