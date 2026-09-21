@@ -79,6 +79,7 @@ describe('bounded workflow run overview routes', () => {
           test: {needs: 'build', steps: [{run: 'echo test'}]},
         },
       }),
+      {secretInputs: {DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null}}},
     );
 
     const response = await app.inject({
@@ -101,6 +102,7 @@ describe('bounded workflow run overview routes', () => {
     expect(body.jobs.items[1].dependencies).toEqual(['build']);
     expect(body).not.toHaveProperty('trigger_payload');
     expect(body).not.toHaveProperty('inputs');
+    expect(body).not.toHaveProperty('secret_inputs');
     expect(body).not.toHaveProperty('source_snapshot');
     expect(body.jobs.items[0]).not.toHaveProperty('outputs');
     expect(body.jobs.items[0]).not.toHaveProperty('runner');
@@ -399,7 +401,7 @@ describe('bounded workflow run overview routes', () => {
     model = buildModel(),
     options: Pick<
       Parameters<typeof createWorkflowRun>[0],
-      'sourceSnapshot' | 'origin' | 'devSource' | 'parentRun'
+      'sourceSnapshot' | 'origin' | 'devSource' | 'parentRun' | 'secretInputs'
     > = {},
   ) {
     return createWorkflowRun({

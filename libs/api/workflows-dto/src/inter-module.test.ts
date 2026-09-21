@@ -322,7 +322,17 @@ describe('workflowsInterModuleContract', () => {
         data: {ref: 'refs/heads/main'},
       },
       triggerConnectionId: '00000000-0000-4000-8000-000000000005',
+      secretInputs: {
+        DEPLOY_TOKEN: {
+          store: 'local',
+          key: 'PROD_DEPLOY_TOKEN',
+          projectId: null,
+        },
+      },
       idempotencyKey: 'subscription-1:event-1',
+    });
+    expect(start.secretInputs).toEqual({
+      DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
     });
     const delivery = workflowsInterModuleContract.methods.deliverEventToJobListener.input.parse({
       jobId: '00000000-0000-4000-8000-000000000004',

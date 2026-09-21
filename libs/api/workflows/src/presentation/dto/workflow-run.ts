@@ -1,5 +1,6 @@
 import type {
   JobExecutionSummaryDto,
+  SecretInputReferenceDto,
   WorkflowRunAttemptDto,
   WorkflowRunAttemptIdentityDto,
   WorkflowRunConcurrencyDto,
@@ -55,6 +56,7 @@ export function toRunDto(
     trigger_payload: run.triggerPayload,
     trigger_reference: toTriggerReferenceDto(run.triggerReference),
     inputs: run.inputs,
+    secret_inputs: toSecretInputsDto(run.secretInputs),
     source_snapshot: run.sourceSnapshot,
     created_at: run.createdAt.toISOString(),
     updated_at: run.updatedAt.toISOString(),
@@ -118,6 +120,22 @@ function toRunListDto(run: WorkflowRunList, concurrency: WorkflowRunConcurrencyR
     finished_at: run.finishedAt?.toISOString() ?? null,
     concurrency: toRunConcurrencyDto(concurrency),
   };
+}
+
+function toSecretInputsDto(
+  secretInputs: WorkflowRun['secretInputs'],
+): Record<string, SecretInputReferenceDto> | null {
+  if (secretInputs === null) return null;
+  return Object.fromEntries(
+    Object.entries(secretInputs).map(([name, reference]) => [
+      name,
+      {
+        store: reference.store,
+        key: reference.key,
+        project_id: reference.projectId,
+      },
+    ]),
+  );
 }
 
 function toParentRunDto(parentRun: WorkflowRunParent | null | undefined) {

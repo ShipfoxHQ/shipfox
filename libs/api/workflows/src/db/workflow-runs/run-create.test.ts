@@ -2280,7 +2280,10 @@ describe('workflow run queries', () => {
       expect(jobSteps[1]?.config).toEqual({run: 'make build'});
     });
 
-    test('stores inputs when provided', async () => {
+    test('stores inputs and secret input references when provided', async () => {
+      const secretInputs = {
+        DEPLOY_TOKEN: {store: 'local' as const, key: 'PROD_DEPLOY_TOKEN', projectId: null},
+      };
       const run = await createWorkflowRun({
         workspaceId,
         projectId,
@@ -2293,9 +2296,17 @@ describe('workflow run queries', () => {
           userId: crypto.randomUUID(),
         },
         inputs: {env: 'staging', verbose: true},
+        secretInputs,
       });
 
       expect(run.inputs).toEqual({env: 'staging', verbose: true});
+      expect(run.secretInputs).toEqual(secretInputs);
+      await expect(
+        db()
+          .select({secretInputs: workflowRuns.secretInputs})
+          .from(workflowRuns)
+          .where(eq(workflowRuns.id, run.id)),
+      ).resolves.toEqual([{secretInputs}]);
     });
 
     test('stores the exact source snapshot when provided', async () => {

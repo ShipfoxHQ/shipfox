@@ -153,6 +153,8 @@ export {
   jobExecutionStatusSchema,
   type RerunWorkflowRunBodyDto,
   rerunWorkflowRunBodySchema,
+  type SecretInputReferenceDto,
+  secretInputReferenceDtoSchema,
   WORKFLOW_RUN_ATTEMPT_MAX,
   WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT,
   WORKFLOW_RUN_JOB_POSITION_MAX,

@@ -243,6 +243,7 @@ async function writeListenerActivatedEvent(
     run: toWorkflowRun(target.run),
     triggerPayload: target.run.triggerPayload,
     inputs: target.run.inputs,
+    secretInputs: target.run.secretInputs,
     vars: target.attempt.vars ?? undefined,
     plan: snapshotPlan,
     dependencyJobs,

@@ -14,6 +14,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import type {
+  SecretInputReference,
   TriggerPayload,
   WorkflowRun,
   WorkflowRunList,
@@ -68,6 +69,7 @@ export const workflowRuns = pgTable(
     triggerPayload: jsonb('trigger_payload').notNull().$type<TriggerPayload>(),
     triggerReference: jsonb('trigger_reference').$type<WorkflowRunTriggerReference>(),
     inputs: jsonb('inputs').$type<Record<string, unknown>>(),
+    secretInputs: jsonb('secret_inputs').$type<Record<string, SecretInputReference>>(),
     sourceSnapshot: jsonb('source_snapshot').$type<WorkflowSourceSnapshot>(),
     triggerIdempotencyKey: text('trigger_idempotency_key'),
     timeoutMs: bigint('timeout_ms', {mode: 'number'}).notNull().default(DEFAULT_RUN_TIMEOUT_MS),
@@ -157,6 +159,7 @@ export function toWorkflowRun(row: WorkflowRunDb): WorkflowRun {
     triggerPayload: row.triggerPayload as TriggerPayload,
     triggerReference: row.triggerReference ?? null,
     inputs: row.inputs ?? null,
+    secretInputs: row.secretInputs ?? null,
     sourceSnapshot: row.sourceSnapshot ?? null,
     triggerIdempotencyKey: row.triggerIdempotencyKey,
     timeoutMs: row.timeoutMs,

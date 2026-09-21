@@ -36,6 +36,7 @@ describe('materializeListenerExecution', () => {
           data: {action: 'opened'},
         },
         inputs: null,
+        secretInputs: null,
       },
       job: {id: crypto.randomUUID(), key: 'review'},
       sequence: 1,

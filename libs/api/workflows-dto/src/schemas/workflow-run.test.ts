@@ -32,6 +32,7 @@ const baseRun = {
   trigger_payload: {source: 'manual', event: 'fire'},
   trigger_reference: null,
   inputs: null,
+  secret_inputs: null,
   source_snapshot: null,
   created_at: '2026-06-16T00:00:00.000Z',
   updated_at: '2026-06-16T00:00:00.000Z',
