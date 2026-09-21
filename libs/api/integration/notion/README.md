@@ -1,15 +1,17 @@
 # Notion integration provider
 
-Notion provider persistence, scoped token storage, provider wiring, and E2E connection setup.
+Notion provider persistence, scoped token storage, REST read tools, provider wiring, and E2E connection setup.
 
 ## What it does
 
-- **`createNotionIntegrationProvider`** creates the flag-gated Notion provider without user-facing routes or adapters.
+- **`createNotionIntegrationProvider`** creates the flag-gated Notion provider and its optional `agent_tools` adapter.
+- **`NotionAgentToolsProvider`** exposes search, page, page-content, data-source, and comment read tools over the Notion REST API.
+- **`createNotionAgentToolsClient`** creates the version-pinned REST client used by the adapter.
 - **`createNotionTokenStore`** stores and reads Notion access and refresh tokens through scoped secrets.
 - **Installation persistence** stores one Notion workspace installation for each Shipfox connection.
 - **`createNotionE2eRoutes`** exposes the protected synthetic connection route used by E2E suites.
 
-OAuth, webhooks, token refresh, and tools build on this scaffold in later provider work.
+OAuth, webhooks, token refresh, and write tools build on this provider.
 
 ## Installation and setup
 
@@ -30,9 +32,18 @@ The application enables the provider through `INTEGRATIONS_ENABLE_NOTION_PROVIDE
 ```ts
 import {createNotionIntegrationProvider} from '@shipfox/api-integration-notion';
 
-const provider = createNotionIntegrationProvider();
+const provider = createNotionIntegrationProvider({
+  agentTools: {
+    notion: {
+      request: async () => ({status: 200, body: {}}),
+    },
+    tokenStore: {
+      getAccessToken: async () => 'access-token',
+    },
+  },
+});
 
-console.log(provider.displayName);
+console.log(provider.adapters?.agent_tools?.catalog().map((tool) => tool.id));
 ```
 
 The application supplies the cleanup functions and scoped secrets adapter during module composition.

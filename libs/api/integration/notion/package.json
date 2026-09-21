@@ -28,6 +28,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./agent-tools": {
+      "workspace-source": {
+        "types": "./src/core/agent-tools.ts",
+        "default": "./src/core/agent-tools.ts"
+      },
+      "default": {
+        "types": "./dist/core/agent-tools.d.ts",
+        "default": "./dist/core/agent-tools.js"
+      }
     }
   },
   "scripts": {
@@ -41,6 +51,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/api-integration-core-dto": "workspace:*",
     "@shipfox/api-integration-notion-dto": "workspace:*",
     "@shipfox/api-integration-spi": "workspace:*",
@@ -50,6 +61,7 @@
     "@shipfox/node-opentelemetry": "workspace:*",
     "@shipfox/node-postgres": "workspace:*",
     "drizzle-orm": "catalog:",
+    "ky": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
