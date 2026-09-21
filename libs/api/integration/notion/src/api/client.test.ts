@@ -41,6 +41,31 @@ describe('Notion REST client', () => {
     expect(requestBody).toEqual({query: 'Roadmap'});
   });
 
+  it('supports the Markdown write PATCH request shape', async () => {
+    const fetchMock = vi.fn<(input: Request | URL, init?: RequestInit) => Promise<Response>>(
+      async (input) => {
+        if (!(input instanceof Request)) throw new Error('Expected a Request');
+        expect(input.method).toBe('PATCH');
+        expect(input.url).toBe('https://api.notion.com/v1/pages/page-1/markdown');
+        expect(input.headers.get('Notion-Version')).toBe(NOTION_API_VERSION);
+        expect(await input.clone().json()).toEqual({markdown: '# Body', mode: 'replace'});
+        return response({ok: true}, 200);
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createNotionAgentToolsClient();
+
+    await expect(
+      client.request({
+        accessToken: 'notion-token',
+        method: 'PATCH',
+        path: '/v1/pages/page-1/markdown',
+        body: {markdown: '# Body', mode: 'replace'},
+        operation: 'update_page',
+      }),
+    ).resolves.toEqual({status: 200, body: {ok: true}});
+  });
+
   it('returns 401, 403, and object-not-found responses for the provider to map', async () => {
     const fetchMock = vi
       .fn<(input: Request | URL, init?: RequestInit) => Promise<Response>>()

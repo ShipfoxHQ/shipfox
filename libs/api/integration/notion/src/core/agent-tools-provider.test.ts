@@ -1,7 +1,9 @@
+import type {NotionAgentToolId} from '@shipfox/api-integration-notion-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {NotionAgentToolsClient} from '#api/client.js';
 import {notionAgentToolCatalog, notionAgentToolSelectionCatalog} from './agent-tools.js';
 import {NotionAgentToolsProvider} from './agent-tools-provider.js';
+import {NotionIntegrationProviderError} from './errors.js';
 
 function notionConnection(
   overrides: Partial<IntegrationConnection<'notion'>> = {},
@@ -22,7 +24,7 @@ function notionConnection(
   };
 }
 
-function catalogTool(id: 'get_page' | 'get_page_content') {
+function catalogTool(id: NotionAgentToolId) {
   const tool = notionAgentToolCatalog.find((candidate) => candidate.id === id);
   if (!tool) throw new Error(`Unknown test tool: ${id}`);
   return tool;
@@ -38,19 +40,21 @@ function providerOptions(
 }
 
 describe('NotionAgentToolsProvider', () => {
-  it('publishes five standalone read tools', () => {
+  it('publishes eight standalone tools with writes marked as sensitive', () => {
     const provider = new NotionAgentToolsProvider(providerOptions());
 
     expect(provider.catalog()).toBe(notionAgentToolCatalog);
     expect(provider.selectionCatalog()).toBe(notionAgentToolSelectionCatalog);
+    expect(notionAgentToolCatalog).toHaveLength(8);
     expect(notionAgentToolSelectionCatalog.selectors).toEqual(
       notionAgentToolCatalog.map((tool) => ({
         token: tool.id,
         kind: 'standalone',
-        sensitivity: 'read',
+        sensitivity: tool.sensitivity,
         sensitive: false,
       })),
     );
+    expect(notionAgentToolCatalog.filter((tool) => tool.sensitivity === 'write')).toHaveLength(3);
   });
 
   it('builds the five REST requests and preserves pagination results', async () => {
@@ -141,6 +145,147 @@ describe('NotionAgentToolsProvider', () => {
       operation: 'get_comments',
     });
     expect(comments.structuredContent).toMatchObject({next_cursor: 'next-page', has_more: true});
+  });
+
+  it('builds create, update, and comment write requests', async () => {
+    const options = providerOptions(async () => ({status: 200, body: {id: 'page-1'}}));
+    const provider = new NotionAgentToolsProvider(options);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: notionAgentToolCatalog,
+      scope: {},
+    });
+
+    await session.call({
+      toolId: 'create_page',
+      arguments: {
+        parent: {page_id: 'https://www.notion.so/Parent-2e6f8a3e0000400080005d2b7e9a1c11'},
+        properties: {Name: {title: [{text: {content: 'Child'}}]}},
+        markdown: '# Body',
+      },
+    });
+    await session.call({
+      toolId: 'update_page',
+      arguments: {
+        page_id: 'page-1',
+        properties: {Status: {status: {name: 'Done'}}},
+        markdown: 'More',
+        mode: 'append',
+      },
+    });
+    await session.call({
+      toolId: 'add_comment',
+      arguments: {page_id: 'page-1', text: 'a'.repeat(2_001)},
+    });
+
+    expect(options.notion.request).toHaveBeenNthCalledWith(1, {
+      accessToken: 'notion-token',
+      method: 'POST',
+      path: '/v1/pages',
+      body: {
+        parent: {page_id: '2e6f8a3e-0000-4000-8000-5d2b7e9a1c11'},
+        properties: {Name: {title: [{text: {content: 'Child'}}]}},
+        markdown: '# Body',
+      },
+      operation: 'create_page',
+    });
+    expect(options.notion.request).toHaveBeenNthCalledWith(2, {
+      accessToken: 'notion-token',
+      method: 'PATCH',
+      path: '/v1/pages/page-1',
+      body: {properties: {Status: {status: {name: 'Done'}}}},
+      operation: 'update_page',
+    });
+    expect(options.notion.request).toHaveBeenNthCalledWith(3, {
+      accessToken: 'notion-token',
+      method: 'PATCH',
+      path: '/v1/pages/page-1/markdown',
+      body: {markdown: 'More', mode: 'append'},
+      operation: 'update_page',
+    });
+    expect(options.notion.request).toHaveBeenNthCalledWith(4, {
+      accessToken: 'notion-token',
+      method: 'POST',
+      path: '/v1/comments',
+      body: {
+        parent: {page_id: 'page-1'},
+        rich_text: [
+          {type: 'text', text: {content: 'a'.repeat(2_000)}},
+          {type: 'text', text: {content: 'a'}},
+        ],
+      },
+      operation: 'add_comment',
+    });
+  });
+
+  it('validates write-specific arguments before making a request', async () => {
+    const options = providerOptions();
+    const provider = new NotionAgentToolsProvider(options);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: notionAgentToolCatalog,
+      scope: {},
+    });
+
+    const invalidUpdate = await session.call({
+      toolId: 'update_page',
+      arguments: {page_id: 'page-1'},
+    });
+    const invalidComment = await session.call({
+      toolId: 'add_comment',
+      arguments: {text: 'Reply without a parent'},
+    });
+
+    expect(invalidUpdate).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'invalid-request'},
+    });
+    expect(invalidComment).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'invalid-request'},
+    });
+    expect(options.notion.request).not.toHaveBeenCalled();
+  });
+
+  it('reports a partial update when content fails after properties', async () => {
+    const options = providerOptions();
+    options.notion.request
+      .mockResolvedValueOnce({status: 200, body: {id: 'page-1'}})
+      .mockRejectedValueOnce(
+        new NotionIntegrationProviderError(
+          'provider-unavailable',
+          'Notion request failed',
+          undefined,
+          503,
+        ),
+      );
+    const provider = new NotionAgentToolsProvider(options);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: notionAgentToolCatalog,
+      scope: {},
+    });
+
+    const result = await session.call({
+      toolId: 'update_page',
+      arguments: {
+        page_id: 'page-1',
+        properties: {Status: {status: {name: 'Done'}}},
+        markdown: 'Body',
+        mode: 'replace',
+      },
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {
+        code: 'provider-unavailable',
+        status: 503,
+        properties_updated: true,
+        content_updated: false,
+      },
+    });
+    expect(options.notion.request).toHaveBeenCalledTimes(2);
   });
 
   it('maps a page title and rejects invalid arguments before making a request', async () => {

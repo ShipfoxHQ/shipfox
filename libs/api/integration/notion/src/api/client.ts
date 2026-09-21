@@ -11,7 +11,7 @@ const NOTION_OAUTH_REVOKE_PATH = '/v1/oauth/revoke';
 const TRAILING_SLASHES_RE = /\/+$/;
 const TIMEOUT_NAME_RE = /timed?\s*out|timeout/i;
 
-export type NotionAgentToolHttpMethod = 'GET' | 'POST';
+export type NotionAgentToolHttpMethod = 'GET' | 'POST' | 'PATCH';
 export type NotionAgentToolQueryValue = string | number | boolean | undefined;
 
 export interface NotionAgentToolRequest {
