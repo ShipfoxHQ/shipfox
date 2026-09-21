@@ -1039,6 +1039,129 @@ describe('normalizeToolStep', () => {
     });
   });
 
+  it.each([
+    {
+      name: 'an interpolated secret input name',
+      with: {secrets: {['$' + '{{ inputs.child_name }}']: 'PROD_DEPLOY_TOKEN'}},
+      code: 'secret-input-name-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'secrets', '$' + '{{ inputs.child_name }}'],
+    },
+    {
+      name: 'an interpolated source secret name',
+      with: {secrets: {DEPLOY_TOKEN: '$' + '{{ inputs.source_name }}'}},
+      code: 'secret-input-name-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'secrets', 'DEPLOY_TOKEN'],
+    },
+    {
+      name: 'an expression supplying the secrets mapping',
+      with: {secrets: '$' + '{{ inputs.secrets }}'},
+      code: 'secret-input-name-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'secrets'],
+    },
+    {
+      name: 'a non-secret-key-shaped input name',
+      with: {secrets: {'deploy-token': 'PROD_DEPLOY_TOKEN'}},
+      code: 'secret-input-name-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'secrets', 'deploy-token'],
+    },
+    {
+      name: 'a non-secret-key-shaped source name',
+      with: {secrets: {DEPLOY_TOKEN: 'prod-deploy-token'}},
+      code: 'secret-input-name-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'secrets', 'DEPLOY_TOKEN'],
+    },
+    {
+      name: 'an interpolated workflow destination',
+      with: {
+        workflow: '$' + '{{ event.workflow }}',
+        secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+      },
+      code: 'secret-input-destination-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'workflow'],
+    },
+    {
+      name: 'an interpolated project destination',
+      with: {
+        workflow: 'deploy',
+        project_id: '$' + '{{ event.project_id }}',
+        secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
+      },
+      code: 'secret-input-destination-not-literal',
+      path: ['jobs', 'use', 'steps', 0, 'with', 'project_id'],
+    },
+  ])('rejects $name at definition sync with its issue path', ({with: withValue, code, path}) => {
+    const error = expectInvalid(
+      toolDocument(
+        toolStep({
+          tool: 'shipfox.start_workflow_run',
+          with: withValue,
+        }),
+      ),
+    );
+
+    expect(error.issues).toEqual([expect.objectContaining({code, path})]);
+  });
+
+  it('rejects more than 20 secret input mappings at definition sync', () => {
+    const error = expectInvalid(
+      toolDocument(
+        toolStep({
+          tool: 'shipfox.start_workflow_run',
+          with: {
+            workflow: 'deploy',
+            secrets: Object.fromEntries(
+              Array.from({length: 21}, (_, index) => [`SECRET_${index}`, 'SOURCE_SECRET']),
+            ),
+          },
+        }),
+      ),
+    );
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'secret-input-name-not-literal',
+        path: ['jobs', 'use', 'steps', 0, 'with', 'secrets'],
+      }),
+    ]);
+  });
+
+  it('rejects a single expression supplying the with mapping at definition sync', () => {
+    const error = expectInvalid(
+      toolDocument(
+        toolStep({
+          tool: 'shipfox.start_workflow_run',
+          with: ('$' + '{{ event.tool_with }}') as unknown as NonNullable<
+            WorkflowDocumentStep['with']
+          >,
+        }),
+      ),
+    );
+
+    expect(error.issues).toEqual([
+      expect.objectContaining({
+        code: 'secret-input-destination-not-literal',
+        path: ['jobs', 'use', 'steps', 0, 'with'],
+      }),
+    ]);
+  });
+
+  it('keeps interpolated destinations when a tool step has no secrets', () => {
+    const model = normalize(
+      toolDocument(
+        toolStep({
+          tool: 'shipfox.start_workflow_run',
+          with: {
+            workflow: '$' + '{{ event.workflow }}',
+            inputs: {environment: '$' + '{{ event.environment }}'},
+            idempotency_key: '$' + '{{ event.idempotency_key }}',
+          },
+        }),
+      ),
+    );
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({kind: 'tool'});
+  });
+
   it('walks nested with arrays and objects for interpolation templates', () => {
     const model = normalize(
       toolDocument(
