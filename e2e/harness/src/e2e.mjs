@@ -214,7 +214,7 @@ export function e2eEnv(sourceEnv) {
   );
   const slackApiBaseUrl = valueOr(sourceEnv.SLACK_API_BASE_URL, () => e2eSlackApiBaseUrl(apiUrl));
   const clickupApiBaseUrl = valueOr(sourceEnv.CLICKUP_API_BASE_URL, () => e2eClickUpApiBaseUrl(apiUrl));
-  const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, 'https://api.notion.com');
+  const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, () => e2eNotionApiBaseUrl(apiUrl));
   const testVcsPort = valueOr(sourceEnv.INTEGRATIONS_TEST_VCS_PORT, () => e2eTestVcsPort(apiUrl));
   return {
     ...sourceEnv,
@@ -388,6 +388,21 @@ export function e2eClickUpApiBaseUrl(apiUrl) {
   }
   endpoint.hostname = '127.0.0.1';
   endpoint.port = String(clickupApiPort);
+  endpoint.pathname = '/';
+  endpoint.search = '';
+  endpoint.hash = '';
+  return endpoint.toString();
+}
+
+export function e2eNotionApiBaseUrl(apiUrl) {
+  const endpoint = new URL(apiUrl);
+  const apiPort = Number(endpoint.port || (endpoint.protocol === 'https:' ? 443 : 80));
+  const notionApiPort = apiPort + 15;
+  if (notionApiPort > 65_535) {
+    throw new Error(`Cannot derive a Notion API port from API port ${apiPort}.`);
+  }
+  endpoint.hostname = '127.0.0.1';
+  endpoint.port = String(notionApiPort);
   endpoint.pathname = '/';
   endpoint.search = '';
   endpoint.hash = '';
