@@ -60,8 +60,11 @@ describe('PostHog transport', () => {
       }),
     });
 
-    const selected = await connectPosthog({region: 'eu', api_key: 'phx_key'});
-    const connected = await connectPosthog({
+    const selected = await connectPosthog('22222222-2222-4222-8222-222222222222', {
+      region: 'eu',
+      api_key: 'phx_key',
+    });
+    const connected = await connectPosthog('22222222-2222-4222-8222-222222222222', {
       region: 'eu',
       api_key: 'phx_key',
       project_id: 'project-1',
@@ -73,6 +76,7 @@ describe('PostHog transport', () => {
     });
     expect(connected.status).toBe('connected');
     expect(await requests[1]?.json()).toEqual({
+      workspace_id: '22222222-2222-4222-8222-222222222222',
       region: 'eu',
       api_key: 'phx_key',
       project_id: 'project-1',

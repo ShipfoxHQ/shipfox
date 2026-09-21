@@ -27,6 +27,7 @@ import {useConnectPosthogMutation} from '#hooks/api/integrations.js';
 import {posthogConnectErrorToFormError} from '#posthog-form-errors.js';
 
 const POSTHOG_SETUP_URL = 'https://www.shipfox.io/docs/integrations/posthog/setup';
+const posthogConnectInputSchema = posthogConnectBodySchema.omit({workspace_id: true});
 
 export interface PosthogConnectModalProps {
   workspaceId: string;
@@ -54,7 +55,7 @@ export function PosthogConnectModal({
       setFormError(undefined);
       setAlreadyConnectedId(undefined);
       try {
-        const body = posthogConnectBodySchema.parse({
+        const body = posthogConnectInputSchema.parse({
           region: value.region,
           api_key: value.apiKey.trim(),
           ...(value.projectId ? {project_id: value.projectId} : {}),
