@@ -38,7 +38,8 @@ export class IntegrationsCatalogueScreen {
   }
 
   posthogProject(name: string): Locator {
-    return this.page.getByRole('radio', {name: new RegExp(name, 'u')});
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    return this.page.getByRole('radio', {name: new RegExp(escapedName, 'u')});
   }
 
   posthogReplaceButton(): Locator {

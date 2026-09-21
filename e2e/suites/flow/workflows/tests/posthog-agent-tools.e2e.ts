@@ -7,6 +7,7 @@ import {attachLocalRunnerLog} from '#attachments.js';
 import {
   type PosthogMockCall,
   posthogMockCalls,
+  posthogMockMcpRequestCount,
   releasePosthogCall,
   setPosthogProbeStatus,
   waitForPosthogMockCall,
@@ -126,7 +127,7 @@ test('runs PostHog agent and tool steps through the regional MCP fake', async ({
   }
 });
 
-test('marks a revoked PostHog key and fails the next call fast', async ({suite}) => {
+test('marks a revoked PostHog key and fails the next call fast', async ({suite}, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const apiKey = `phx-revoked-${uniqueId}`;
   const connection = await createPosthogConnection({
@@ -190,7 +191,8 @@ test('marks a revoked PostHog key and fails the next call fast', async ({suite})
     const afterFirst = await listWorkspaceConnections(suite.workspaceId, suite.sessionToken);
     expect(afterFirst.find((item) => item.id === connection.id)?.lifecycle_status).toBe('error');
 
-    const callsBeforeSecondRun = await countPosthogCalls(apiKey);
+    const mcpRequestsBeforeSecondRun = await posthogMockMcpRequestCount(apiKey);
+    expect(mcpRequestsBeforeSecondRun).toBeGreaterThan(0);
     const secondRun = await fireManualAndAwaitRun({
       client,
       definitionId: project.definition.id,
@@ -204,14 +206,26 @@ test('marks a revoked PostHog key and fails the next call fast', async ({suite})
       runner: localRunner.runner,
     });
     expect(secondTerminal.status).toBe('failed');
-    expect(await countPosthogCalls(apiKey)).toBe(callsBeforeSecondRun);
+    expect(await posthogMockMcpRequestCount(apiKey)).toBe(mcpRequestsBeforeSecondRun);
   } finally {
-    if (localRunner) await stopLocalRunner(localRunner.runner).catch(() => undefined);
+    if (localRunner) {
+      await attachLocalRunnerLog(
+        (attachment) =>
+          testInfo.attach(attachment.name, {
+            body: attachment.body,
+            contentType: attachment.contentType,
+          }),
+        localRunner.logFile,
+      ).catch(() => undefined);
+      await stopLocalRunner(localRunner.runner).catch(() => undefined);
+    }
     await fakeModelProvider.stop().catch(() => undefined);
   }
 });
 
-test('keeps a replaced key active when an old PostHog call fails late', async ({suite}) => {
+test('keeps a replaced key active when an old PostHog call fails late', async ({
+  suite,
+}, testInfo) => {
   const uniqueId = crypto.randomUUID().replaceAll('-', '').slice(0, 10);
   const oldKey = `phx-stale-single-${uniqueId}`;
   const connection = await createPosthogConnection({
@@ -264,6 +278,14 @@ test('keeps a replaced key active when an old PostHog call fails late', async ({
     const connections = await listWorkspaceConnections(suite.workspaceId, suite.sessionToken);
     expect(connections.find((item) => item.id === connection.id)?.lifecycle_status).toBe('active');
   } finally {
+    await attachLocalRunnerLog(
+      (attachment) =>
+        testInfo.attach(attachment.name, {
+          body: attachment.body,
+          contentType: attachment.contentType,
+        }),
+      localRunner.logFile,
+    ).catch(() => undefined);
     await stopLocalRunner(localRunner.runner).catch(() => undefined);
   }
 });
@@ -280,11 +302,6 @@ async function waitForPosthogCalls(apiKey: string, expected: number) {
       return calls.length >= expected ? calls : null;
     },
   );
-}
-
-async function countPosthogCalls(apiKey: string): Promise<number> {
-  const calls = await waitForPosthogCalls(apiKey, 0);
-  return calls.length;
 }
 
 async function listWorkspaceConnections(workspaceId: string, token: string) {

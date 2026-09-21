@@ -15,10 +15,19 @@ const QUERY_PATH_RE = /^\/api\/projects\/([^/]+)\/query\/$/u;
 /** The E2E deployment's PostHog double serves both REST and MCP traffic. */
 export async function startPosthogMock(endpoint) {
   const calls = [];
+  const mcpRequestCounts = new Map();
   const states = new Map();
   const pending = new Map();
   const server = createServer((request, response) => {
-    void handleRequest({calls, states, pending, endpoint, request, response}).catch((error) => {
+    void handleRequest({
+      calls,
+      mcpRequestCounts,
+      states,
+      pending,
+      endpoint,
+      request,
+      response,
+    }).catch((error) => {
       process.stderr.write(`PostHog mock request failed: ${String(error)}\n`);
       if (!response.headersSent) sendJson(response, 500, {error: 'E2E PostHog mock failure'});
       else response.end();
@@ -48,10 +57,22 @@ export async function startPosthogMock(endpoint) {
   };
 }
 
-async function handleRequest({calls, states, pending, endpoint, request, response}) {
+async function handleRequest({
+  calls,
+  mcpRequestCounts,
+  states,
+  pending,
+  endpoint,
+  request,
+  response,
+}) {
   const url = new URL(request.url ?? '/', endpoint);
   if (url.pathname === '/__e2e/calls' && request.method === 'GET') {
     await handleCalls({calls, url, response});
+    return;
+  }
+  if (url.pathname === '/__e2e/mcp-request-count' && request.method === 'GET') {
+    handleMcpRequestCount({mcpRequestCounts, url, response});
     return;
   }
   if (url.pathname === '/__e2e/control' && request.method === 'POST') {
@@ -59,7 +80,7 @@ async function handleRequest({calls, states, pending, endpoint, request, respons
     return;
   }
   if (url.pathname === '/mcp') {
-    await handleMcp({calls, pending, request, response});
+    await handleMcp({calls, mcpRequestCounts, pending, request, response});
     return;
   }
   await handleRest({states, request, response, url});
@@ -68,6 +89,11 @@ async function handleRequest({calls, states, pending, endpoint, request, respons
 function handleCalls({calls, url, response}) {
   const apiKey = url.searchParams.get('api_key');
   sendJson(response, 200, apiKey ? calls.filter((call) => call.api_key === apiKey) : calls);
+}
+
+function handleMcpRequestCount({mcpRequestCounts, url, response}) {
+  const apiKey = url.searchParams.get('api_key');
+  sendJson(response, 200, {count: apiKey ? (mcpRequestCounts.get(apiKey) ?? 0) : 0});
 }
 
 async function handleControl({states, pending, request, response}) {
@@ -111,7 +137,9 @@ async function handleRest({states, request, response, url}) {
   response.writeHead(404).end();
 }
 
-async function handleMcp({calls, pending, request, response}) {
+async function handleMcp({calls, mcpRequestCounts, pending, request, response}) {
+  const apiKey = bearer(request);
+  mcpRequestCounts.set(apiKey, (mcpRequestCounts.get(apiKey) ?? 0) + 1);
   if (request.method === 'DELETE') {
     response.writeHead(200).end();
     return;
@@ -121,7 +149,6 @@ async function handleMcp({calls, pending, request, response}) {
     return;
   }
   const body = await readJsonBody(request);
-  const apiKey = bearer(request);
   const headers = {
     'x-posthog-mcp-mode': request.headers['x-posthog-mcp-mode'],
     'x-posthog-read-only': request.headers['x-posthog-read-only'],

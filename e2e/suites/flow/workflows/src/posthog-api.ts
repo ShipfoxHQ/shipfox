@@ -22,6 +22,16 @@ export async function posthogMockCalls(apiKey: string): Promise<PosthogMockCall[
   return (await response.json()) as PosthogMockCall[];
 }
 
+export async function posthogMockMcpRequestCount(apiKey: string): Promise<number> {
+  const response = await fetch(
+    posthogMockUrl(`/__e2e/mcp-request-count?api_key=${encodeURIComponent(apiKey)}`),
+  );
+  if (!response.ok)
+    throw new Error(`PostHog mock MCP request count failed with ${response.status}`);
+  const body = (await response.json()) as {count: number};
+  return body.count;
+}
+
 export async function waitForPosthogMockCall(apiKey: string): Promise<PosthogMockCall> {
   return await pollUntil(
     {
