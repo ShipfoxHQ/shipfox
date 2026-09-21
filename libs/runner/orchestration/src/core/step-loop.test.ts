@@ -1829,36 +1829,54 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('masks run step annotation bodies and contexts with the full secret set before publishing', async () => {
+  it('uses the same masked context when a later run step removes an annotation', async () => {
     const setup = buildSetupStep();
-    const run = buildRunStep();
+    const replaceRun = buildRunStep({
+      id: '00000000-0000-0000-0000-0000000000c1',
+      position: 1,
+    });
+    const removeRun = buildRunStep({
+      id: '00000000-0000-0000-0000-0000000000c2',
+      position: 2,
+    });
     requestNextStepMock
       .mockResolvedValueOnce(stepResponse(setup, 1))
-      .mockResolvedValueOnce(stepResponse(run, 1));
-    executeRunStepMock.mockResolvedValueOnce({
-      success: true,
-      error: null,
-      exit_code: 0,
-      annotations: [
-        {context: 'checkout-secret', style: 'default', op: 'replace', body: 'checkout-secret'},
-        {context: 'checkout-secret', style: 'default', op: 'remove'},
-      ],
-    });
-    reportStepMock
-      .mockResolvedValueOnce({ok: true, cancel: false})
-      .mockResolvedValueOnce({ok: true, cancel: true});
+      .mockResolvedValueOnce(stepResponse(replaceRun, 1))
+      .mockResolvedValueOnce(stepResponse(removeRun, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock
+      .mockResolvedValueOnce({
+        success: true,
+        error: null,
+        exit_code: 0,
+        annotations: [
+          {context: 'checkout-secret', style: 'default', op: 'replace', body: 'checkout-secret'},
+        ],
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        error: null,
+        exit_code: 0,
+        annotations: [{context: 'checkout-secret', style: 'default', op: 'remove'}],
+      });
     const ac = new AbortController();
 
     await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
 
-    expect(writeStepAnnotationsMock).toHaveBeenCalledWith(
+    expect(writeStepAnnotationsMock).toHaveBeenNthCalledWith(
+      1,
       leaseClient,
       expect.objectContaining({
-        stepId: run.id,
-        annotations: [
-          {context: '***', style: 'default', op: 'replace', body: '***'},
-          {context: 'checkout-secret', style: 'default', op: 'remove'},
-        ],
+        stepId: replaceRun.id,
+        annotations: [{context: '***', style: 'default', op: 'replace', body: '***'}],
+      }),
+    );
+    expect(writeStepAnnotationsMock).toHaveBeenNthCalledWith(
+      2,
+      leaseClient,
+      expect.objectContaining({
+        stepId: removeRun.id,
+        annotations: [{context: '***', style: 'default', op: 'remove'}],
       }),
     );
   });

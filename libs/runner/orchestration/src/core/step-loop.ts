@@ -1610,10 +1610,11 @@ function redactAnnotationBodies(
 ): StepResult['annotations'] {
   if (annotations === undefined) return undefined;
   return annotations.map((annotation) => {
-    if (annotation.op === 'remove') return annotation;
+    const context = redactSecrets(annotation.context, secretVariants);
+    if (annotation.op === 'remove') return {...annotation, context};
     return {
       ...annotation,
-      context: redactSecrets(annotation.context, secretVariants),
+      context,
       body: redactSecrets(annotation.body, secretVariants),
     };
   });
