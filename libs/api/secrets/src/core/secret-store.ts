@@ -57,12 +57,7 @@ export function createSecretStoreApi(params: {
       validateNamespace(namespace);
       validateSecretKeys([input.key]);
       const provider = params.resolveSecretStore(input.store);
-      const result = provider.getSecretWithScope
-        ? await provider.getSecretWithScope({...input, namespace})
-        : {
-            value: await provider.getSecret({...input, namespace}),
-            projectId: null,
-          };
+      const result = await provider.getSecretWithScope({...input, namespace});
       recordSecretsOperation({
         resource: 'secret',
         operation: 'get',

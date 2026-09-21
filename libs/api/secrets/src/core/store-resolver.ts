@@ -23,7 +23,7 @@ export interface GetSecretsByNamespaceParams {
 
 export interface SecretStoreProvider {
   getSecret(params: GetSecretParams): Promise<string | null>;
-  getSecretWithScope?(params: GetSecretParams): Promise<SecretWithScope>;
+  getSecretWithScope(params: GetSecretParams): Promise<SecretWithScope>;
   getSecretsByNamespace(params: GetSecretsByNamespaceParams): Promise<Record<string, string>>;
 }
 
