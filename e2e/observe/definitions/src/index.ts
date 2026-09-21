@@ -126,7 +126,15 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
         (lastResponse.sync?.started_at !== null &&
           lastResponse.sync?.started_at !== undefined &&
           lastResponse.sync.started_at >= options.syncStartedAfter);
-      if (observesRequestedSync && lastResponse.sync?.status === 'failed') {
+      // The source-bound sync can start after the pre-commit clock read while
+      // the fixture push is in flight. Its empty-repository result is not the
+      // push sync this caller initiated.
+      const isEmptyBindSync =
+        options.syncStartedAfter !== undefined &&
+        lastResponse.sync?.status === 'failed' &&
+        lastResponse.sync.last_error_code === 'no-workflow-files';
+      const observesTargetSync = observesRequestedSync && !isEmptyBindSync;
+      if (observesTargetSync && lastResponse.sync?.status === 'failed') {
         return {
           kind: 'sync-failed',
           error: new Error(
@@ -135,7 +143,7 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
         };
       }
 
-      const definition = observesRequestedSync
+      const definition = observesTargetSync
         ? lastResponse.definitions.find((candidate) => matchesDefinition(candidate, selector))
         : undefined;
       return definition ? {kind: 'definition', definition} : null;

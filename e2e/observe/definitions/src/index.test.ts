@@ -145,7 +145,7 @@ describe('waitForDefinition', () => {
     await expect(result).rejects.toThrow(DEFINITION_SYNC_FAILED_RE);
   });
 
-  test('ignores a failed sync that started before the requested sync', async () => {
+  test('ignores the empty bind sync while waiting for the seeded push', async () => {
     let calls = 0;
     const result = await waitForDefinition({
       configPath: '.shipfox/workflows/build.yml',
@@ -158,9 +158,9 @@ describe('waitForDefinition', () => {
                 sync: {
                   ref: 'main',
                   status: 'failed',
-                  last_sync_at: '2026-07-02T08:00:00.000Z',
-                  started_at: '2026-07-02T08:00:00.000Z',
-                  finished_at: '2026-07-02T08:00:01.000Z',
+                  last_sync_at: '2026-07-02T08:00:02.500Z',
+                  started_at: '2026-07-02T08:00:02.000Z',
+                  finished_at: '2026-07-02T08:00:02.500Z',
                   last_error_code: 'no-workflow-files',
                   last_error_message: 'No workflow files found',
                   diagnostics: [],

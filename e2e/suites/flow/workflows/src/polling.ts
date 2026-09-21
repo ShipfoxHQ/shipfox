@@ -88,7 +88,17 @@ export async function waitForDefinitionSyncTerminal(
       (lastResponse.sync?.started_at !== null &&
         lastResponse.sync?.started_at !== undefined &&
         lastResponse.sync.started_at >= options.syncStartedAfter);
-    if (observesRequestedSync && (status === 'failed' || status === 'succeeded')) {
+    // Project binding can start an empty-repository sync while the fixture
+    // commit is in flight. Wait for the subsequent push sync instead.
+    const isEmptyBindSync =
+      options.syncStartedAfter !== undefined &&
+      status === 'failed' &&
+      lastResponse.sync?.last_error_code === 'no-workflow-files';
+    if (
+      observesRequestedSync &&
+      !isEmptyBindSync &&
+      (status === 'failed' || status === 'succeeded')
+    ) {
       return lastResponse;
     }
 
