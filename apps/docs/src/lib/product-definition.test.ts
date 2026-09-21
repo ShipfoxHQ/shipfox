@@ -29,7 +29,7 @@ test('keeps crawler-facing docs surfaces on the canonical product positioning', 
   const description = homeSource.match(HOME_DESCRIPTION_PATTERN)?.[1];
   assert.ok(description);
   assert.equal(description, PRODUCT_DESCRIPTION);
-  assert.ok(homeSource.includes(`## ${PRODUCT_HEADLINE}`));
+  assert.ok(homeSource.includes(`title: "${PRODUCT_HEADLINE}"`));
   assert.ok(homeSource.includes(`**${PRODUCT_SUBTITLE}**`));
   assert.ok(normalizeWhitespace(homeSource).includes(PRODUCT_DESCRIPTION));
 
