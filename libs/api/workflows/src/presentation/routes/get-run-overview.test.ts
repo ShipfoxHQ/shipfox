@@ -94,6 +94,9 @@ describe('bounded workflow run overview routes', () => {
       id: run.id,
       name: 'Overview',
       project_id: projectId,
+      secret_inputs: {
+        DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', project_id: null},
+      },
       parent_run: null,
     });
     expect(body.attempt).toMatchObject({workflow_run_id: run.id, attempt: 1});
@@ -102,7 +105,6 @@ describe('bounded workflow run overview routes', () => {
     expect(body.jobs.items[1].dependencies).toEqual(['build']);
     expect(body).not.toHaveProperty('trigger_payload');
     expect(body).not.toHaveProperty('inputs');
-    expect(body).not.toHaveProperty('secret_inputs');
     expect(body).not.toHaveProperty('source_snapshot');
     expect(body.jobs.items[0]).not.toHaveProperty('outputs');
     expect(body.jobs.items[0]).not.toHaveProperty('runner');

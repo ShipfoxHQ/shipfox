@@ -78,7 +78,7 @@ export function RunContextPanel({
                             <Code as="span" variant="label">
                               {input.name}
                             </Code>
-                            <span>
+                            <span className="min-w-0 break-words">
                               from{' '}
                               <Code as="span" variant="label">
                                 {input.key}

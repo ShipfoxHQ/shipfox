@@ -188,6 +188,7 @@ const RUN_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_reference: null,
+    secret_inputs: null,
     created_at: '2026-06-26T11:55:00.000Z',
   },
   attempt: {

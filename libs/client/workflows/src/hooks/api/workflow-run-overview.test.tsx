@@ -75,6 +75,15 @@ describe('workflow run bounded overview API hooks', () => {
 
   test('fetches the lineage head and complete overview as separate bounded reads', async () => {
     const overview = workflowRunOverviewResponseDto({
+      run: {
+        secret_inputs: {
+          DEPLOY_TOKEN: {
+            store: 'local',
+            key: 'PROD_DEPLOY_TOKEN',
+            project_id: PROJECT_ID,
+          },
+        },
+      },
       attempt: {attempt: 2, status: 'running'},
       jobs: {
         kind: 'complete',
@@ -123,6 +132,9 @@ describe('workflow run bounded overview API hooks', () => {
       defaultExecution: {id: EXECUTION_ID, displayStatus: 'running'},
     });
     expect(job?.displayDuration).toEqual({state: 'live', fromIso: STARTED_AT, kind: 'run'});
+    expect(result.current.overview.data?.secretInputs).toEqual([
+      {name: 'DEPLOY_TOKEN', key: 'PROD_DEPLOY_TOKEN', projectId: PROJECT_ID},
+    ]);
   });
 
   test('resolves a related attempt UUID to its run label and navigable attempt number', async () => {
@@ -666,11 +678,12 @@ describe('workflow run bounded overview API hooks', () => {
 });
 
 function workflowRunOverviewResponseDto(
-  overrides: Omit<Partial<WorkflowRunOverviewResponseDto>, 'attempt'> & {
+  overrides: Omit<Partial<WorkflowRunOverviewResponseDto>, 'attempt' | 'run'> & {
     attempt?: Partial<WorkflowRunOverviewResponseDto['attempt']>;
+    run?: Partial<WorkflowRunOverviewResponseDto['run']>;
   } = {},
 ): WorkflowRunOverviewResponseDto {
-  const {attempt, ...restOverrides} = overrides;
+  const {attempt, run, ...restOverrides} = overrides;
   return {
     run: {
       id: RUN_ID,
@@ -685,8 +698,10 @@ function workflowRunOverviewResponseDto(
       trigger_source: 'manual',
       trigger_event: 'fire',
       trigger_reference: null,
+      secret_inputs: null,
       parent_run: null,
       created_at: CREATED_AT,
+      ...run,
     },
     has_started_job_execution: true,
     jobs: {

@@ -218,6 +218,7 @@ export function toWorkflowRunOverview(dto: WorkflowRunOverviewResponseDto): Work
       triggerEvent: dto.run.trigger_event,
     }),
     triggerReference: dto.run.trigger_reference,
+    secretInputs: toWorkflowRunSecretInputs(dto.run.secret_inputs),
     parentRun: toWorkflowRunParent(dto.run.parent_run),
     createdAt: dto.run.created_at,
     currentAttempt: attempt.attempt,
