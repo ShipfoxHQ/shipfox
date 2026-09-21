@@ -773,6 +773,9 @@ importers:
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../../libs/api/integration/sentry-dto
+      '@shipfox/api-integration-shipfox':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/shipfox
       '@shipfox/api-integration-slack':
         specifier: workspace:*
         version: link:../../libs/api/integration/slack

@@ -400,6 +400,16 @@ function removeFilter<Value>(values: readonly Value[], value: Value): Value[] {
 function ProviderIcon({icon}: {icon: CatalogIcon}) {
   if (icon === 'webhooks')
     return <Webhook aria-hidden="true" className="size-5 shrink-0 text-fd-muted-foreground" />;
+  if (icon === 'shipfox')
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 200 200"
+        className="size-5 shrink-0 fill-current text-fd-muted-foreground"
+      >
+        <path d="M35.4766 71.1779L87.8471 174.764C92.9421 184.842 107.058 184.842 112.153 174.764L164.523 71.1779L192.438 85.4265C200.787 89.6883 202.593 101.048 195.992 107.787L109.671 195.911C104.33 201.363 95.6704 201.363 90.3295 195.911L4.0079 107.787C-2.59278 101.048 -0.787007 89.6883 7.56226 85.4265L35.4766 71.1779ZM100 38.2425L171.913 1.53536C183.748 -4.50572 196.251 8.42284 190.182 20.4265L164.523 71.1779L100 38.2425ZM100 38.2425L28.0872 1.53536C16.2522 -4.50571 3.74943 8.42284 9.81817 20.4265L35.4766 71.1779L100 38.2425Z" />
+      </svg>
+    );
 
   const brandIcon = {
     clickup: siClickup,

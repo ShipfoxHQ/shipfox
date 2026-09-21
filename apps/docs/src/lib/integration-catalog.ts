@@ -4,6 +4,7 @@ export const INTEGRATION_CATALOG_CAPABILITIES = [
   'agent_tools',
 ] as const;
 export const INTEGRATION_CATALOG_CATEGORIES = [
+  'built-in',
   'source-control',
   'issue-tracking',
   'observability',
@@ -18,6 +19,7 @@ export const INTEGRATION_CATALOG_ICONS = [
   'slack',
   'jira',
   'clickup',
+  'shipfox',
 ] as const;
 
 export type CatalogCapability = (typeof INTEGRATION_CATALOG_CAPABILITIES)[number];
@@ -31,6 +33,7 @@ export const catalogCapabilityLabels: Record<CatalogCapability, string> = {
 };
 
 export const catalogCategoryLabels: Record<CatalogCategory, string> = {
+  'built-in': 'Built-in',
   'source-control': 'Source control',
   observability: 'Observability',
   custom: 'Webhook',
