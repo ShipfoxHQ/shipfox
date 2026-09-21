@@ -17,8 +17,12 @@ export const secretsInterModuleContract = defineInterModuleContract({
   module: 'secrets',
   methods: {
     getSecret: {
-      input: scopeSchema.extend({key: z.string(), store: z.string().optional()}),
-      output: z.object({value: z.string().nullable()}),
+      input: scopeSchema.extend({
+        key: z.string(),
+        store: z.string().optional(),
+        exactScope: z.boolean().optional(),
+      }),
+      output: z.object({value: z.string().nullable(), projectId: idSchema.nullable()}),
       errors: decryptionErrors,
     },
     getSecretsByNamespace: {

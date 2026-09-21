@@ -15,7 +15,7 @@ import {
 } from '#metrics/instance.js';
 import type {DekManager} from './dek-manager.js';
 import {fingerprintSecretValue} from './fingerprint.js';
-import type {SecretStoreProvider} from './store-resolver.js';
+import type {SecretStoreProvider, SecretWithScope} from './store-resolver.js';
 import {
   assertWorkspaceCap,
   validateNamespace,
@@ -41,43 +41,55 @@ export function createSecretStoreApi(params: {
   dekManager: DekManager;
   resolveSecretStore: (name?: string | undefined) => SecretStoreProvider;
 }) {
+  type GetSecretInput = StoreScope & {
+    workspaceId: string;
+    namespace?: string | undefined;
+    key: string;
+    store?: string;
+    exactScope?: boolean | undefined;
+  };
+
+  async function getSecretWithScope(input: GetSecretInput): Promise<SecretWithScope> {
+    const startedAt = Date.now();
+    const scope = operationScope(input);
+    try {
+      const namespace = input.namespace ?? '';
+      validateNamespace(namespace);
+      validateSecretKeys([input.key]);
+      const provider = params.resolveSecretStore(input.store);
+      const result = provider.getSecretWithScope
+        ? await provider.getSecretWithScope({...input, namespace})
+        : {
+            value: await provider.getSecret({...input, namespace}),
+            projectId: null,
+          };
+      recordSecretsOperation({
+        resource: 'secret',
+        operation: 'get',
+        surface: 'internal',
+        scope,
+        outcome: result.value === null ? 'not_found' : 'success',
+        durationMs: Date.now() - startedAt,
+      });
+      return result;
+    } catch (error) {
+      recordSecretsOperation({
+        resource: 'secret',
+        operation: 'get',
+        surface: 'internal',
+        scope,
+        outcome: classifySecretsOperationError(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
+    }
+  }
+
   return {
-    async getSecret(
-      input: StoreScope & {
-        workspaceId: string;
-        namespace?: string | undefined;
-        key: string;
-        store?: string;
-      },
-    ) {
-      const startedAt = Date.now();
-      const scope = operationScope(input);
-      try {
-        const namespace = input.namespace ?? '';
-        validateNamespace(namespace);
-        validateSecretKeys([input.key]);
-        const value = await params.resolveSecretStore(input.store).getSecret({...input, namespace});
-        recordSecretsOperation({
-          resource: 'secret',
-          operation: 'get',
-          surface: 'internal',
-          scope,
-          outcome: value === null ? 'not_found' : 'success',
-          durationMs: Date.now() - startedAt,
-        });
-        return value;
-      } catch (error) {
-        recordSecretsOperation({
-          resource: 'secret',
-          operation: 'get',
-          surface: 'internal',
-          scope,
-          outcome: classifySecretsOperationError(error),
-          durationMs: Date.now() - startedAt,
-        });
-        throw error;
-      }
+    async getSecret(input: GetSecretInput) {
+      return (await getSecretWithScope(input)).value;
     },
+    getSecretWithScope,
     async getSecretsByNamespace(
       input: StoreScope & {workspaceId: string; namespace?: string | undefined; store?: string},
     ) {

@@ -10,6 +10,7 @@ import {
   BUILTIN_LOCAL_STORE,
   createSecretStoreResolver,
   type SecretStoreProvider,
+  type SecretWithScope,
 } from './store-resolver.js';
 
 export * from './errors.js';
@@ -27,7 +28,7 @@ export {
   getVariablesByNamespace,
   setVariables,
 } from './variable-store.js';
-export {BUILTIN_LOCAL_STORE, type SecretStoreProvider};
+export {BUILTIN_LOCAL_STORE, type SecretStoreProvider, type SecretWithScope};
 
 let memoizedKeyProvider: KeyProvider | undefined;
 let memoizedDekManager: DekManager | undefined;
@@ -84,6 +85,12 @@ export function getSecret(
   ...args: Parameters<ReturnType<typeof createSecretStoreApi>['getSecret']>
 ) {
   return secretApi().getSecret(...args);
+}
+
+export function getSecretWithScope(
+  ...args: Parameters<ReturnType<typeof createSecretStoreApi>['getSecretWithScope']>
+) {
+  return secretApi().getSecretWithScope(...args);
 }
 
 export function getSecretsByNamespace(

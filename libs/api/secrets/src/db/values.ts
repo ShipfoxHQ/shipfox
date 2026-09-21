@@ -21,7 +21,12 @@ export interface SecretValueWrite {
 }
 
 export async function getSecretValueRowWithPrecedence(
-  params: StoreScope & {workspaceId: string; namespace: string; key: string},
+  params: StoreScope & {
+    workspaceId: string;
+    namespace: string;
+    key: string;
+    exactScope?: boolean | undefined;
+  },
   tx?: Tx,
 ): Promise<SecretValue | undefined> {
   const executor = tx ?? db();
@@ -29,15 +34,30 @@ export async function getSecretValueRowWithPrecedence(
     .select()
     .from(secretValues)
     .where(
-      lookupWithPrecedenceWhere(
-        {
-          workspaceId: secretValues.workspaceId,
-          projectId: secretValues.projectId,
-          namespace: secretValues.namespace,
-          key: secretValues.key,
-        },
-        params,
-      ),
+      params.exactScope
+        ? and(
+            eq(secretValues.workspaceId, params.workspaceId),
+            eq(secretValues.namespace, params.namespace),
+            eq(secretValues.key, params.key),
+            scopeExactWhere(
+              {
+                workspaceId: secretValues.workspaceId,
+                projectId: secretValues.projectId,
+                namespace: secretValues.namespace,
+                key: secretValues.key,
+              },
+              params,
+            ),
+          )
+        : lookupWithPrecedenceWhere(
+            {
+              workspaceId: secretValues.workspaceId,
+              projectId: secretValues.projectId,
+              namespace: secretValues.namespace,
+              key: secretValues.key,
+            },
+            params,
+          ),
     )
     .orderBy(sql`${secretValues.projectId} NULLS LAST`)
     .limit(1);

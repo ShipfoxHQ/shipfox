@@ -7,6 +7,12 @@ export interface GetSecretParams {
   projectId?: string | null | undefined;
   namespace: string;
   key: string;
+  exactScope?: boolean | undefined;
+}
+
+export interface SecretWithScope {
+  value: string | null;
+  projectId: string | null;
 }
 
 export interface GetSecretsByNamespaceParams {
@@ -17,6 +23,7 @@ export interface GetSecretsByNamespaceParams {
 
 export interface SecretStoreProvider {
   getSecret(params: GetSecretParams): Promise<string | null>;
+  getSecretWithScope?(params: GetSecretParams): Promise<SecretWithScope>;
   getSecretsByNamespace(params: GetSecretsByNamespaceParams): Promise<Record<string, string>>;
 }
 

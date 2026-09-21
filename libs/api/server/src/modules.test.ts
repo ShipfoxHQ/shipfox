@@ -205,7 +205,7 @@ describe('defaultModules', () => {
       ],
     });
     mocks.deleteSecrets.mockResolvedValue({deleted: 1});
-    mocks.getSecret.mockResolvedValue({value: 'secret'});
+    mocks.getSecret.mockResolvedValue({value: 'secret', projectId: null});
     mocks.getSecretsByNamespace.mockResolvedValue({values: {}});
     mocks.listMembershipsForTokenClaims.mockResolvedValue({memberships: []});
     mocks.recordInferenceSegments.mockResolvedValue({recorded: 0, duplicates: 0});
