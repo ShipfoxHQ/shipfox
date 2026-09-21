@@ -45,14 +45,6 @@ export const posthogConnectResponseSchema = z.discriminatedUnion('status', [
 ]);
 export type PosthogConnectResponseDto = z.infer<typeof posthogConnectResponseSchema>;
 
-export const posthogAlreadyConnectedResponseSchema = z.object({
-  status: z.literal('already-connected'),
-  connection_id: z.string().uuid(),
-});
-export type PosthogAlreadyConnectedResponseDto = z.infer<
-  typeof posthogAlreadyConnectedResponseSchema
->;
-
 export const posthogReplaceApiKeyRequestSchema = z.object({api_key: z.string().min(1)});
 export type PosthogReplaceApiKeyRequestDto = z.infer<typeof posthogReplaceApiKeyRequestSchema>;
 export const posthogReplaceApiKeyBodySchema = posthogReplaceApiKeyRequestSchema;

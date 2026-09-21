@@ -4,6 +4,7 @@ import type {PosthogApiClient} from '#api/client.js';
 import {
   getPosthogInstallationByConnectionId,
   type PosthogInstallation,
+  type PosthogVersionGuardResult,
   updatePosthogInstallationCredential,
   withPosthogCredentialVersion,
 } from '#db/installations.js';
@@ -57,35 +58,88 @@ export async function handlePosthogReplaceApiKey(
     projectId: installation.projectId,
   });
 
-  await params.credentials.setApiKey({
-    connectionId: connection.id,
-    workspaceId: connection.workspaceId,
-    apiKey: params.apiKey,
-  });
-
   const withCredentialVersion = params.withCredentialVersion ?? withPosthogCredentialVersion;
   const updateInstallationCredential =
     params.updateInstallationCredential ?? updatePosthogInstallationCredential;
-  const result = await withCredentialVersion({
-    connectionId: connection.id,
-    credentialVersion: installation.credentialVersion,
-    callback: async ({tx, installation: lockedInstallation}) => {
-      await updateInstallationCredential({
-        connectionId: connection.id,
-        keyHint: params.apiKey,
-        credentialVersion: lockedInstallation.credentialVersion + 1,
-        tx,
-      });
-      return await params.updateConnection({
-        id: connection.id,
-        lifecycleStatus: 'active',
-        tx,
+  const previousApiKey = await params.credentials.getApiKey(connection.id);
+  let secretWriteAttempted = false;
+  let result: PosthogVersionGuardResult<IntegrationConnection<'posthog'>>;
+  try {
+    result = await withCredentialVersion({
+      connectionId: connection.id,
+      credentialVersion: installation.credentialVersion,
+      callback: async ({tx, installation: lockedInstallation}) => {
+        secretWriteAttempted = true;
+        await params.credentials.setApiKey({
+          connectionId: connection.id,
+          workspaceId: connection.workspaceId,
+          apiKey: params.apiKey,
+        });
+        const updatedInstallation = await updateInstallationCredential({
+          connectionId: connection.id,
+          keyHint: params.apiKey,
+          credentialVersion: lockedInstallation.credentialVersion + 1,
+          tx,
+        });
+        if (!updatedInstallation) throw new PosthogInstallationNotFoundError(connection.id);
+
+        const updatedConnection = await params.updateConnection({
+          id: connection.id,
+          lifecycleStatus: 'active',
+          tx,
+        });
+        if (!updatedConnection) throw new PosthogConnectionNotFoundError(connection.id);
+        return updatedConnection;
+      },
+    });
+  } catch (error) {
+    if (secretWriteAttempted) {
+      try {
+        await restorePreviousApiKey({
+          connection,
+          credentialVersion: installation.credentialVersion,
+          previousApiKey,
+          credentials: params.credentials,
+          withCredentialVersion,
+        });
+      } catch (restoreError) {
+        throw new AggregateError(
+          [error, restoreError],
+          'PostHog API key replacement and restoration failed',
+        );
+      }
+    }
+    throw error;
+  }
+  if (!result.matched) throw new PosthogCredentialVersionMismatchError(connection.id);
+  return result.value;
+}
+
+async function restorePreviousApiKey(params: {
+  connection: IntegrationConnection<'posthog'>;
+  credentialVersion: number;
+  previousApiKey: string | null;
+  credentials: PosthogCredentialStore;
+  withCredentialVersion: typeof withPosthogCredentialVersion;
+}): Promise<void> {
+  await params.withCredentialVersion({
+    connectionId: params.connection.id,
+    credentialVersion: params.credentialVersion,
+    callback: async () => {
+      if (params.previousApiKey === null) {
+        await params.credentials.deleteApiKey({
+          connectionId: params.connection.id,
+          workspaceId: params.connection.workspaceId,
+        });
+        return;
+      }
+      await params.credentials.setApiKey({
+        connectionId: params.connection.id,
+        workspaceId: params.connection.workspaceId,
+        apiKey: params.previousApiKey,
       });
     },
   });
-  if (!result.matched) throw new PosthogCredentialVersionMismatchError(connection.id);
-  if (!result.value) throw new PosthogConnectionNotFoundError(connection.id);
-  return result.value;
 }
 
 export type PosthogReplaceRegion = PosthogRegion;

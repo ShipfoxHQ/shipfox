@@ -18,7 +18,6 @@ import {createPosthogConnectionRoutes} from '#presentation/routes/connections.js
 export type {PosthogProvider, PosthogRegion} from '@shipfox/api-integration-posthog-dto';
 export {
   type CreatePosthogApiClientOptions,
-  createPosthogApiClient,
   type PosthogApiClient,
   type PosthogCredentialProbeResult,
   type PosthogProject,

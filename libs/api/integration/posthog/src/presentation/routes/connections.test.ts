@@ -78,12 +78,13 @@ function api(projects: PosthogProject[]): PosthogApiClient {
   return {
     listProjects: vi.fn(() => Promise.resolve(projects)),
     validateQuery: vi.fn(() => Promise.resolve()),
-    probeCredential: vi.fn(() => Promise.resolve()),
+    probeCredential: vi.fn(() => Promise.resolve({status: 200})),
   };
 }
 
 interface CreateTestAppOptions {
   posthog?: PosthogApiClient;
+  credentials?: PosthogCredentialStore;
   existing?: IntegrationConnection<'posthog'>;
   connection?: IntegrationConnection<'posthog'>;
   getConnection?: (connectionId: string) => Promise<IntegrationConnection<'posthog'> | undefined>;
@@ -102,7 +103,7 @@ async function createTestApp(options: CreateTestAppOptions = {}) {
     routes: [
       createPosthogConnectionRoutes({
         posthog: options.posthog ?? api([project()]),
-        credentials: credentials(),
+        credentials: options.credentials ?? credentials(),
         getExistingConnection: async () => options.existing,
         createConnection: async () => currentConnection,
         getConnection: options.getConnection ?? (async () => currentConnection),
@@ -281,6 +282,46 @@ describe('PostHog connection routes', () => {
 
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({code: 'credential-version-conflict'});
+  });
+
+  it('restores the previous credential when the metadata transaction fails', async () => {
+    const currentConnection = connection({id: crypto.randomUUID(), lifecycleStatus: 'error'});
+    const currentInstallation = installation({connectionId: currentConnection.id});
+    await seedInstallation(currentInstallation);
+    const credentialStore: PosthogCredentialStore = {
+      getApiKey: vi.fn(() => Promise.resolve('phx_old_key')),
+      setApiKey: vi.fn(() => Promise.resolve()),
+      deleteApiKey: vi.fn(() => Promise.resolve(1)),
+    };
+    const app = await createTestApp({
+      connection: currentConnection,
+      credentials: credentialStore,
+      getInstallation: async () => currentInstallation,
+      updateConnection: vi.fn(() => Promise.reject(new Error('transaction failed'))),
+    });
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/integrations/posthog/connections/${currentConnection.id}/api-key`,
+      payload: {api_key: 'phx_new_key'},
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(credentialStore.setApiKey).toHaveBeenNthCalledWith(1, {
+      connectionId: currentConnection.id,
+      workspaceId,
+      apiKey: 'phx_new_key',
+    });
+    expect(credentialStore.setApiKey).toHaveBeenNthCalledWith(2, {
+      connectionId: currentConnection.id,
+      workspaceId,
+      apiKey: 'phx_old_key',
+    });
+    expect(await getPosthogInstallationByConnectionId(currentConnection.id)).toMatchObject({
+      credentialVersion: 1,
+      keyHint: 'old1',
+    });
+    expect(currentConnection.lifecycleStatus).toBe('error');
   });
 
   it('returns the updated connection DTO after replacing the API key', async () => {

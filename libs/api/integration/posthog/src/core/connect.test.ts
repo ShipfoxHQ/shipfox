@@ -27,7 +27,7 @@ function api(projects: PosthogProject[]): PosthogApiClient {
   return {
     listProjects: vi.fn(() => Promise.resolve(projects)),
     validateQuery: vi.fn(() => Promise.resolve()),
-    probeCredential: vi.fn(() => Promise.resolve()),
+    probeCredential: vi.fn(() => Promise.resolve({status: 200})),
   };
 }
 
@@ -163,6 +163,29 @@ describe('handlePosthogConnect', () => {
     ).rejects.toBe(error);
 
     expect(secretState.values.size).toBe(0);
+  });
+
+  it('returns the concurrent connection when creation loses the uniqueness race', async () => {
+    const secretState = credentials();
+    const existingConnection = connection();
+    const getExistingConnection = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(existingConnection);
+
+    const result = await handlePosthogConnect({
+      workspaceId: existingConnection.workspaceId,
+      region: 'eu',
+      apiKey: 'phx_secret',
+      posthog: api([project()]),
+      credentials: secretState.store,
+      getExistingConnection,
+      createConnection: vi.fn(() => Promise.reject(new Error('connection already exists'))),
+    });
+
+    expect(result).toEqual({status: 'already-connected', connectionId: existingConnection.id});
+    expect(secretState.values.size).toBe(0);
+    expect(getExistingConnection).toHaveBeenCalledTimes(2);
   });
 
   it('rejects a public project key before making provider calls', async () => {

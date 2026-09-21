@@ -92,6 +92,13 @@ export async function handlePosthogConnect(
     await params.credentials
       .deleteApiKey({connectionId, workspaceId: params.workspaceId})
       .catch(() => undefined);
+    const concurrentConnection = await params.getExistingConnection({
+      workspaceId: params.workspaceId,
+      externalAccountId,
+    });
+    if (concurrentConnection) {
+      return {status: 'already-connected', connectionId: concurrentConnection.id};
+    }
     throw error;
   }
 }

@@ -2,6 +2,7 @@ import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {PosthogApiClient} from '#api/client.js';
 import type {PosthogInstallation} from '#db/installations.js';
 import type {PosthogCredentialStore} from './credentials.js';
+import {PosthogCredentialVersionMismatchError} from './errors.js';
 import {handlePosthogReplaceApiKey} from './replace-key.js';
 
 const connection: IntegrationConnection<'posthog'> = {
@@ -35,7 +36,7 @@ function api(overrides: Partial<PosthogApiClient> = {}): PosthogApiClient {
       Promise.resolve([{id: 'project-1', name: 'Analytics', organizationId: 'organization-1'}]),
     ),
     validateQuery: vi.fn(() => Promise.resolve()),
-    probeCredential: vi.fn(() => Promise.resolve()),
+    probeCredential: vi.fn(() => Promise.resolve({status: 200})),
     ...overrides,
   };
 }
@@ -117,5 +118,106 @@ describe('handlePosthogReplaceApiKey', () => {
     ).rejects.toThrow('cannot access project');
 
     expect(credentialStore.setApiKey).not.toHaveBeenCalled();
+  });
+
+  it('does not write the secret when the credential version is stale', async () => {
+    const credentialStore = credentials();
+    const withCredentialVersion = vi.fn(() =>
+      Promise.resolve({matched: false as const, reason: 'version-mismatch' as const}),
+    );
+
+    await expect(
+      handlePosthogReplaceApiKey({
+        connectionId: connection.id,
+        apiKey: 'phx_new_key',
+        posthog: api(),
+        credentials: credentialStore,
+        getConnection: async () => connection,
+        getInstallation: async () => installation,
+        updateConnection: vi.fn(),
+        withCredentialVersion,
+      }),
+    ).rejects.toBeInstanceOf(PosthogCredentialVersionMismatchError);
+
+    expect(credentialStore.setApiKey).not.toHaveBeenCalled();
+  });
+
+  it('restores the previous secret when the metadata transaction fails', async () => {
+    const credentialStore = credentials();
+    const transactionError = new Error('transaction failed');
+    const withCredentialVersion = vi.fn(
+      async (params: {
+        callback: (input: {tx: unknown; installation: PosthogInstallation}) => Promise<unknown>;
+      }) => ({
+        matched: true as const,
+        value: await params.callback({tx: {}, installation}),
+      }),
+    );
+
+    await expect(
+      handlePosthogReplaceApiKey({
+        connectionId: connection.id,
+        apiKey: 'phx_new_key',
+        posthog: api(),
+        credentials: credentialStore,
+        getConnection: async () => connection,
+        getInstallation: async () => installation,
+        updateConnection: vi.fn(() => Promise.reject(transactionError)),
+        withCredentialVersion: withCredentialVersion as never,
+        updateInstallationCredential: vi.fn(() => Promise.resolve(installation)),
+      }),
+    ).rejects.toBe(transactionError);
+
+    expect(credentialStore.setApiKey).toHaveBeenNthCalledWith(1, {
+      connectionId: connection.id,
+      workspaceId: connection.workspaceId,
+      apiKey: 'phx_new_key',
+    });
+    expect(credentialStore.setApiKey).toHaveBeenNthCalledWith(2, {
+      connectionId: connection.id,
+      workspaceId: connection.workspaceId,
+      apiKey: 'phx_old',
+    });
+    expect(withCredentialVersion).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not restore over a newer successful replacement', async () => {
+    const credentialStore = credentials();
+    const transactionError = new Error('transaction failed');
+    const withCredentialVersion = vi
+      .fn()
+      .mockImplementationOnce(
+        async (params: {
+          callback: (input: {
+            tx: unknown;
+            installation: PosthogInstallation;
+          }) => Promise<IntegrationConnection<'posthog'> | undefined>;
+        }) => ({
+          matched: true as const,
+          value: await params.callback({tx: {}, installation}),
+        }),
+      )
+      .mockResolvedValueOnce({matched: false as const, reason: 'version-mismatch' as const});
+
+    await expect(
+      handlePosthogReplaceApiKey({
+        connectionId: connection.id,
+        apiKey: 'phx_new_key',
+        posthog: api(),
+        credentials: credentialStore,
+        getConnection: async () => connection,
+        getInstallation: async () => installation,
+        updateConnection: vi.fn(() => Promise.reject(transactionError)),
+        withCredentialVersion: withCredentialVersion as never,
+        updateInstallationCredential: vi.fn(() => Promise.resolve(installation)),
+      }),
+    ).rejects.toBe(transactionError);
+
+    expect(credentialStore.setApiKey).toHaveBeenCalledTimes(1);
+    expect(credentialStore.setApiKey).toHaveBeenCalledWith({
+      connectionId: connection.id,
+      workspaceId: connection.workspaceId,
+      apiKey: 'phx_new_key',
+    });
   });
 });
