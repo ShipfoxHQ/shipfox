@@ -178,7 +178,7 @@ const STREAM_LENGTH = 128;
 const SESSION_ID = '00000000-0000-0000-0000-0000000000e0';
 const REPOSITORY = 'https://github.com/acme/repo/';
 const OTHER_REPOSITORY = 'https://github.com/acme/other-repo/';
-const MASKED_ANNOTATION_CONTEXT_REGEX = /^masked:v1:[A-Za-z0-9_-]{43}$/;
+const MASKED_ANNOTATION_CONTEXT_REGEX = /^[A-Za-z0-9_-]{43}$/;
 
 // Ordered log of stream lifecycle events across all created streams, so tests can
 // assert "prior attempt drained before the next opens".
@@ -1830,7 +1830,7 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('uses the same masked context when a later run step removes an annotation', async () => {
+  it('uses the same masked context after its secret leaves the job registry', async () => {
     const setup = buildSetupStep();
     const replaceRun = buildRunStep({
       id: '00000000-0000-0000-0000-0000000000c1',
@@ -1860,9 +1860,14 @@ describe('runJobSteps', () => {
         exit_code: 0,
         annotations: [{context: 'checkout-secret', style: 'default', op: 'remove'}],
       });
+    const secrets = ['checkout-secret'];
+    writeStepAnnotationsMock.mockImplementationOnce(() => {
+      secrets.length = 0;
+      return Promise.resolve({status: 'written', annotationCount: 1, totalBodyBytes: 3});
+    });
     const ac = new AbortController();
 
-    await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
+    await runLoop({signal: ac.signal, secrets});
 
     const replaceContext = writeStepAnnotationsMock.mock.calls[0]?.[1].annotations[0].context;
     const removeContext = writeStepAnnotationsMock.mock.calls[1]?.[1].annotations[0].context;
@@ -1933,7 +1938,81 @@ describe('runJobSteps', () => {
 
     const context = writeStepAnnotationsMock.mock.calls[0]?.[1].annotations[0].context;
     expect(context).toMatch(MASKED_ANNOTATION_CONTEXT_REGEX);
+    expect(context).not.toContain('x');
     expect(context.length).toBeLessThanOrEqual(255);
+  });
+
+  it('does not copy a secret from the generated annotation context identifier', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValueOnce({
+      success: true,
+      error: null,
+      exit_code: 0,
+      annotations: [
+        {context: 'masked:v1:annotation', style: 'default', op: 'replace', body: 'safe'},
+      ],
+    });
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: ['masked:v1:']});
+
+    const context = writeStepAnnotationsMock.mock.calls[0]?.[1].annotations[0].context;
+    expect(context).toMatch(MASKED_ANNOTATION_CONTEXT_REGEX);
+    expect(context).not.toContain('masked:v1:');
+  });
+
+  it('keeps a clear annotation context distinct from an allocated masked context', async () => {
+    const setup = buildSetupStep();
+    const maskedRun = buildRunStep({
+      id: '00000000-0000-0000-0000-0000000000c1',
+      position: 1,
+    });
+    const clearRun = buildRunStep({
+      id: '00000000-0000-0000-0000-0000000000c2',
+      position: 2,
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(maskedRun, 1))
+      .mockResolvedValueOnce(stepResponse(clearRun, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    let maskedContext: string | undefined;
+    executeRunStepMock
+      .mockResolvedValueOnce({
+        success: true,
+        error: null,
+        exit_code: 0,
+        annotations: [
+          {context: 'checkout-secret', style: 'default', op: 'replace', body: 'masked'},
+        ],
+      })
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          success: true,
+          error: null,
+          exit_code: 0,
+          annotations: [
+            {context: maskedContext ?? '', style: 'default', op: 'replace', body: 'clear'},
+          ],
+        }),
+      );
+    writeStepAnnotationsMock.mockImplementationOnce((_client, input) => {
+      maskedContext = input.annotations[0].context;
+      return Promise.resolve({status: 'written', annotationCount: 1, totalBodyBytes: 6});
+    });
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
+
+    const clearContext = writeStepAnnotationsMock.mock.calls[1]?.[1].annotations[0].context;
+    expect(maskedContext).toMatch(MASKED_ANNOTATION_CONTEXT_REGEX);
+    expect(clearContext).toMatch(MASKED_ANNOTATION_CONTEXT_REGEX);
+    expect(clearContext).not.toBe(maskedContext);
   });
 
   it('drops run step outputs whose keys contain a secret and warns in the step log', async () => {
