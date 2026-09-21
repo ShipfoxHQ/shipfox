@@ -94,7 +94,7 @@ describe('seedProjectWithApiDefinition', () => {
         },
       ],
     });
-    expect(createProject.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(createProject.mock.invocationCallOrder[0]).toBeGreaterThan(
       commitFiles.mock.invocationCallOrder[0] as number,
     );
     expect(requestJson).toHaveBeenCalledWith('post', '/definitions', {

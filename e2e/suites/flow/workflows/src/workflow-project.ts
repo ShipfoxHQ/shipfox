@@ -117,17 +117,6 @@ export async function seedWorkflowProject(params: {
       : [{path: params.configPath, content: renderedWorkflowYaml}]),
     ...(params.extraFiles ?? []).map((file) => ({path: file.path, content: file.content})),
   ];
-  const project = await createProject({
-    workspaceId: params.suite.workspaceId,
-    sessionToken: params.token,
-    name: params.repo,
-    connectionId: params.suite.connectionId,
-    externalRepositoryId: giteaExternalRepositoryId(params.suite.org, params.repo),
-  });
-
-  // Bind the project before pushing fixture files so the push itself is an
-  // observable cause of definition sync. Committing first leaves the test
-  // dependent on eventual delivery of the project source-bound event.
   if (files.length > 0) {
     await commitFiles({
       org: params.suite.org,
@@ -136,6 +125,14 @@ export async function seedWorkflowProject(params: {
       files,
     });
   }
+
+  const project = await createProject({
+    workspaceId: params.suite.workspaceId,
+    sessionToken: params.token,
+    name: params.repo,
+    connectionId: params.suite.connectionId,
+    externalRepositoryId: giteaExternalRepositoryId(params.suite.org, params.repo),
+  });
 
   return {
     project,
