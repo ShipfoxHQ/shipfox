@@ -52,6 +52,7 @@ export type {
   WorkflowRunOverviewJobPage,
   WorkflowRunOverviewJobs,
   WorkflowRunOverviewLargeJobs,
+  WorkflowRunSecretInput,
   WorkflowRunSelectionResolution,
   WorkflowRunSource,
   WorkflowRunSourceUnavailableReason,

@@ -35,6 +35,9 @@ describe('bounded workflow run overview reads', () => {
         subscriptionId: crypto.randomUUID(),
         userId: crypto.randomUUID(),
       },
+      secretInputs: {
+        DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
+      },
     });
 
     const overview = await getWorkflowRunOverview({
@@ -44,6 +47,9 @@ describe('bounded workflow run overview reads', () => {
     });
 
     expect(overview?.jobs).toMatchObject({kind: 'complete', total: 2});
+    expect(overview?.run.secretInputs).toEqual({
+      DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
+    });
     if (overview?.jobs.kind !== 'complete') throw new Error('Expected complete overview');
     expect(overview.jobs.items).toHaveLength(2);
     expect(overview.jobs.statusCounts).toEqual([{status: 'pending', count: 2}]);

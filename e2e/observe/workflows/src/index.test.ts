@@ -106,6 +106,7 @@ function runHeader(): WorkflowRunOverviewHeaderDto {
     trigger_source: 'gitea_e2e',
     trigger_event: 'push',
     trigger_reference: null,
+    secret_inputs: null,
     parent_run: null,
     created_at: timestamp,
   };

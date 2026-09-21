@@ -167,6 +167,38 @@ const ATTEMPT_SUMMARY_ARGS = {
 
 export const Playground: Story = {};
 
+export const SecretInputs: Story = {
+  play: async ({canvasElement}) => {
+    await userEvent.click(within(canvasElement).getByRole('button', {name: 'Inspect run details'}));
+    await screen.findByText('Secret inputs');
+  },
+  args: {
+    workspaceSlug: 'acme',
+    projectSlug: 'web',
+    run: {
+      ...workflowRunOverview({status: 'succeeded'}),
+      secretInputs: [
+        {
+          name: 'DEPLOY_TOKEN',
+          key: 'PROD_DEPLOY_TOKEN',
+          projectId: '44444444-4444-4444-8444-444444444444',
+        },
+        {name: 'WORKSPACE_TOKEN', key: 'PROD_WORKSPACE_TOKEN', projectId: null},
+      ],
+    },
+  },
+};
+
+export const NoSecretInputs: Story = {
+  play: async ({canvasElement}) => {
+    await userEvent.click(within(canvasElement).getByRole('button', {name: 'Inspect run details'}));
+    await expect(screen.queryByText('Secret inputs')).not.toBeInTheDocument();
+  },
+  args: {
+    run: workflowRunOverview({status: 'succeeded'}),
+  },
+};
+
 export const StartedByAnotherRun: Story = {
   decorators: [withAttemptApi],
   args: {

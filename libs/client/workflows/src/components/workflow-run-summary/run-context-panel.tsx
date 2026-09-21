@@ -10,16 +10,23 @@ import {
   SheetTrigger,
 } from '@shipfox/react-ui/sheet';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
+import {Code} from '@shipfox/react-ui/typography';
 import {DetailsTabs} from '../details-tabs.js';
 import {WorkflowRunDurationLabel} from '../workflow-run-duration-label.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
 import type {WorkflowRunSummaryRun} from './workflow-run-summary.js';
 
+function secretInputSourceLabel(projectId: string | null, projectSlug: string | undefined): string {
+  return projectId ? `project ${projectSlug ?? 'unknown'}` : 'workspace';
+}
+
 export function RunContextPanel({
   run,
+  projectSlug,
   usage,
 }: {
   run: WorkflowRunSummaryRun;
+  projectSlug?: string | undefined;
   usage: RunUsage | undefined;
 }) {
   const hasStarted =
@@ -61,6 +68,29 @@ export function RunContextPanel({
                     {run.triggerDisplayLabel || '—'}
                   </dd>
                 </div>
+                {run.secretInputs && run.secretInputs.length > 0 ? (
+                  <div className="flex justify-between gap-inline py-row">
+                    <dt>Secret inputs</dt>
+                    <dd className="min-w-0 text-right">
+                      <ul className="flex flex-col gap-tight">
+                        {run.secretInputs.map((input) => (
+                          <li key={input.name} className="flex flex-wrap justify-end gap-inline">
+                            <Code as="span" variant="label">
+                              {input.name}
+                            </Code>
+                            <span className="min-w-0 break-words">
+                              from{' '}
+                              <Code as="span" variant="label">
+                                {input.key}
+                              </Code>{' '}
+                              ({secretInputSourceLabel(input.projectId, projectSlug)})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                ) : null}
                 {run.runAttempt.displayDuration ? (
                   <div className="flex justify-between gap-inline py-row">
                     <dt>Duration</dt>

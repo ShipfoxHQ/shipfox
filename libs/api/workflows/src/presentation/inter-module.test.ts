@@ -251,6 +251,8 @@ describe('Workflows inter-module presentation', () => {
         triggerEvent: run.triggerEvent,
         triggerReference: run.triggerReference,
         createdAt: run.createdAt,
+        secretInputs: run.secretInputs,
+        parentRun: null,
       },
       attempt: {
         id: attemptId,
