@@ -206,6 +206,7 @@ async function runJobStepIteration(
     leaseToken: params.leaseToken,
     secrets: params.secrets,
     ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
+    ...(params.registerSecrets ? {registerSecrets: params.registerSecrets} : {}),
     ...(params.replaceInferenceSecrets
       ? {replaceInferenceSecrets: params.replaceInferenceSecrets}
       : {}),
@@ -624,6 +625,7 @@ export async function executeStep(params: {
   leaseToken: LeaseTokenSource;
   secrets: string[];
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
+  registerSecrets?: (secrets: string[]) => void;
   replaceInferenceSecrets?: (secrets: string[]) => void;
   signal: AbortSignal;
   workspacePrepared: boolean;
@@ -828,8 +830,14 @@ function crashedStepExecution(params: {
   secretState: StepSecretState;
   secrets: string[];
 }): StepExecution {
+  const secretVariants = buildSecretVariants([
+    ...params.secretState.crashSecrets,
+    ...params.secretState.inferenceSecrets,
+    ...params.secretState.subscribedSecrets,
+    ...params.secrets,
+  ]);
   logger().error(
-    {err: params.error, jobId: params.jobId, stepId: params.step.id},
+    {err: redactError(params.error, secretVariants), jobId: params.jobId, stepId: params.step.id},
     `Step ${params.stepLabel} crashed before producing a result`,
   );
   const result: StepResult = {
@@ -837,12 +845,7 @@ function crashedStepExecution(params: {
     error: {
       message: redactSecrets(
         params.error instanceof Error ? params.error.message : String(params.error),
-        buildSecretVariants([
-          ...params.secretState.crashSecrets,
-          ...params.secretState.inferenceSecrets,
-          ...params.secretState.subscribedSecrets,
-          ...params.secrets,
-        ]),
+        secretVariants,
       ),
     },
     exit_code: null,
@@ -1332,6 +1335,79 @@ function createAgentSessionLogStream(
   }
 }
 
+function redactError(error: unknown, secretVariants: string[]): unknown {
+  if (!(error instanceof Error)) return redactSecrets(String(error), secretVariants);
+
+  const seen = new WeakMap<object, unknown>();
+
+  function redactValue(value: unknown): unknown {
+    if (typeof value === 'string') return redactSecrets(value, secretVariants);
+    if (value === null || typeof value !== 'object') return value;
+
+    const existing = seen.get(value);
+    if (existing !== undefined) return existing;
+    if (value instanceof Error) return redactErrorValue(value);
+    if (Array.isArray(value)) return redactArray(value);
+    return redactObject(value);
+  }
+
+  function redactErrorValue(value: Error): Error {
+    const redacted = new Error(redactSecrets(value.message, secretVariants));
+    seen.set(value, redacted);
+    redacted.name = redactSecrets(value.name, secretVariants);
+    if (value.stack !== undefined) redacted.stack = redactSecrets(value.stack, secretVariants);
+    redactCause(value, redacted);
+    redactMetadata(value, redacted);
+    return redacted;
+  }
+
+  function redactCause(source: Error, target: Error): void {
+    const sourceWithCause = source as Error & {cause?: unknown};
+    if (sourceWithCause.cause === undefined) return;
+
+    Object.defineProperty(target, 'cause', {
+      configurable: true,
+      enumerable: Object.prototype.propertyIsEnumerable.call(source, 'cause'),
+      value: redactValue(sourceWithCause.cause),
+      writable: true,
+    });
+  }
+
+  function redactMetadata(source: Error, target: Error): void {
+    const metadataKeys = new Set<string>(Object.getOwnPropertyNames(source));
+    for (const key in source) metadataKeys.add(key);
+    const sourceRecord = source as unknown as Record<string, unknown>;
+    for (const key of metadataKeys) {
+      if (key === 'cause' || key === 'message' || key === 'name' || key === 'stack') continue;
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      Object.defineProperty(target, redactSecrets(key, secretVariants), {
+        configurable: true,
+        enumerable: descriptor?.enumerable ?? true,
+        value: redactValue(sourceRecord[key]),
+        writable: true,
+      });
+    }
+  }
+
+  function redactArray(value: unknown[]): unknown[] {
+    const redacted: unknown[] = [];
+    seen.set(value, redacted);
+    for (const item of value) redacted.push(redactValue(item));
+    return redacted;
+  }
+
+  function redactObject(value: object): Record<string, unknown> {
+    const redacted: Record<string, unknown> = {};
+    seen.set(value, redacted);
+    for (const [key, item] of Object.entries(value)) {
+      redacted[redactSecrets(key, secretVariants)] = redactValue(item);
+    }
+    return redacted;
+  }
+
+  return redactValue(error);
+}
+
 async function executeRunStepBranch(params: {
   params: Parameters<typeof executeStep>[0];
   stepCwd: string;
@@ -1355,6 +1431,9 @@ async function executeRunStepBranch(params: {
       logOutcome: 'drained',
       preparedWorkspace: false,
     };
+  }
+  if (secretMaterial !== undefined) {
+    params.params.registerSecrets?.(secretMaterial.secretValues);
   }
   const runSecrets = [
     ...input.secrets,

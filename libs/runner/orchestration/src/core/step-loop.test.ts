@@ -905,15 +905,17 @@ describe('runJobSteps', () => {
       .mockResolvedValueOnce(stepResponse(run, 2))
       .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
     executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const registerSecrets = vi.fn();
     const ac = new AbortController();
 
-    await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
+    await runLoop({signal: ac.signal, secrets: ['checkout-secret'], registerSecrets});
 
     expect(requestStepSecretsMock).toHaveBeenCalledWith(leaseClient, {
       stepId: run.id,
       attempt: 2,
       signal: ac.signal,
     });
+    expect(registerSecrets).toHaveBeenCalledWith(['runtime-secret']);
     expect(events.indexOf('request-secrets')).toBeLessThan(events.indexOf(`create:${run.id}`));
     expect(createStepLogStreamMock).toHaveBeenCalledWith({
       logsDir: LOGS_DIR,
@@ -929,6 +931,61 @@ describe('runJobSteps', () => {
         secretValues: expect.arrayContaining(['checkout-secret', 'runtime-secret']),
       }),
     );
+  });
+
+  it('registers pulled secrets for later run and agent steps without losing them on the current stream', async () => {
+    const setup = buildSetupStep();
+    const firstRun = buildRunStep({
+      id: '00000000-0000-0000-0000-0000000000f1',
+      config: {
+        run: 'echo "$TOKEN"',
+        secret_bindings: [
+          {
+            target: 'TOKEN',
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
+    const secondRun = buildRunStep({id: '00000000-0000-0000-0000-0000000000f2'});
+    const agent = buildAgentStep({id: '00000000-0000-0000-0000-0000000000f3'});
+    const secret = 'pulled-job-secret';
+    const jobSecrets: string[] = [];
+    const subscribers = new Set<(secrets: string[]) => void>();
+    const subscribeSecrets = (subscriber: (secrets: string[]) => void) => {
+      subscribers.add(subscriber);
+      subscriber([...jobSecrets]);
+      return () => subscribers.delete(subscriber);
+    };
+    const registerSecrets = (additionalSecrets: string[]) => {
+      jobSecrets.push(...additionalSecrets.filter((value) => !jobSecrets.includes(value)));
+      for (const subscriber of subscribers) subscriber([...jobSecrets]);
+    };
+    requestStepSecretsMock.mockResolvedValueOnce({
+      secrets: [{store: 'local', key: 'API_TOKEN', value: secret}],
+    });
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(firstRun, 1))
+      .mockResolvedValueOnce(stepResponse(secondRun, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    executeRunStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    executeAgentStepMock.mockResolvedValue({success: true, error: null, exit_code: 0});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: jobSecrets, subscribeSecrets, registerSecrets});
+
+    expect(createStepLogStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({stepId: secondRun.id, secrets: [secret]}),
+    );
+    expect(createSessionLogStreamMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepId: agent.id,
+        secrets: [secret, 'sk-runtime-secret'],
+      }),
+    );
+    expect(streamFor(firstRun.id).setRotatingSecrets).toHaveBeenCalledWith([secret]);
   });
 
   it('fails the run step closed when a requested binding is absent from the response', async () => {
@@ -3145,7 +3202,8 @@ describe('runJobSteps', () => {
     expect(execution.result.outputs).toEqual({token: '***', credential: '***'});
   });
 
-  it('redacts secrets registered during a run from crash errors', async () => {
+  it('redacts secrets registered during a run from crash errors and runner logs', async () => {
+    const error = vi.spyOn(logger(), 'error').mockImplementation(() => undefined);
     const run = buildRunStep();
     const token = 'mid-step-crash-token';
     const credential = Buffer.from(`x-access-token:${token}`).toString('base64');
@@ -3155,7 +3213,15 @@ describe('runJobSteps', () => {
         opts: {subscribeSecrets?: (callback: (secrets: string[]) => void) => void},
       ) => {
         opts.subscribeSecrets?.(() => undefined);
-        throw new Error(`crashed with ${token} ${credential}`);
+        const cause = Object.assign(new Error(`caused by ${token} ${credential}`), {
+          reason: `cause reason ${token}`,
+        });
+        cause.stack = `Error: caused by ${token} ${credential}\\n    at ${token}`;
+        const crash = Object.assign(new Error(`crashed with ${token} ${credential}`, {cause}), {
+          reason: `crash reason ${token}`,
+        });
+        crash.stack = `Error: crashed with ${token} ${credential}\\n    at ${token}`;
+        throw crash;
       },
     );
     const ac = new AbortController();
@@ -3182,6 +3248,16 @@ describe('runJobSteps', () => {
     });
 
     expect(execution.result.error?.message).toBe('crashed with *** ***');
+    const loggedError = error.mock.calls.at(-1)?.[0] as {err?: Error} | undefined;
+    const redactedError = loggedError?.err as
+      | (Error & {cause?: Error & {reason?: string}; reason?: string})
+      | undefined;
+    expect(redactedError?.message).toBe('crashed with *** ***');
+    expect(redactedError?.stack).toBe('Error: crashed with *** ***\\n    at ***');
+    expect(redactedError?.reason).toBe('crash reason ***');
+    expect(redactedError?.cause?.message).toBe('caused by *** ***');
+    expect(redactedError?.cause?.stack).toBe('Error: caused by *** ***\\n    at ***');
+    expect(redactedError?.cause?.reason).toBe('cause reason ***');
   });
 
   it('redacts the current inference generations from step results', async () => {
