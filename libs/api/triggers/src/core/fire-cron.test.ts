@@ -82,7 +82,7 @@ describe('fireCronSubscription', () => {
     });
     const run = {id: crypto.randomUUID(), name: 'Cron run'};
     runWorkflow.mockResolvedValue(run);
-    getSecret.mockResolvedValue({value: 'secret', projectId: subscription.projectId});
+    getSecret.mockResolvedValue({value: 'secret', projectId: null});
 
     await fireCronSubscription({
       workflows,
@@ -101,7 +101,7 @@ describe('fireCronSubscription', () => {
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
         secretInputs: {
-          DEPLOY_TOKEN: {store: 'local', key: 'PROJECT_TOKEN', projectId: subscription.projectId},
+          DEPLOY_TOKEN: {store: 'local', key: 'PROJECT_TOKEN', projectId: null},
         },
       }),
     );

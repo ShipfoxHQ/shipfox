@@ -30,6 +30,7 @@ export function readConfigSecretInputs(
   const value = subscription.config.secrets;
   if (value === null || value === undefined) return undefined;
   if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+  if (!Object.values(value).every((entry) => typeof entry === 'string')) return undefined;
   return value as Record<string, string>;
 }
 

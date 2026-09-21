@@ -5613,6 +5613,30 @@ describe('normalizeWorkflowDocument', () => {
     );
   });
 
+  it('rejects trigger secret values over the canonical key length', () => {
+    const tooLongKey = 'A'.repeat(129);
+    const {diagnostics} = normalizeWithDiagnostics({
+      name: 'long secret input',
+      triggers: {
+        dispatch: {
+          source: 'github',
+          event: 'workflow_dispatch',
+          secrets: {DEPLOY_TOKEN: tooLongKey},
+        },
+      },
+      jobs: {build: {steps: [{run: 'npm run build'}]}},
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'secret-input-name-not-literal',
+          path: ['triggers', 'dispatch', 'secrets', 'DEPLOY_TOKEN'],
+        }),
+      ]),
+    );
+  });
+
   it('normalizes a valid cron trigger with the default timezone', () => {
     const document: WorkflowDocument = {
       name: 'nightly trigger',

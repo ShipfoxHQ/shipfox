@@ -108,7 +108,7 @@ describe('fireManualSubscription (trigger history)', () => {
     runWorkflow.mockResolvedValue(run);
     getSecret.mockImplementation(async ({key}: {key: string}) => ({
       value: key,
-      projectId: key === 'OVERRIDE_TOKEN' ? null : subscription.projectId,
+      projectId: key === 'OVERRIDE_TOKEN' ? subscription.projectId : null,
     }));
 
     await fireManualSubscription({
@@ -120,6 +120,17 @@ describe('fireManualSubscription (trigger history)', () => {
       ...(callerMap === undefined ? {} : {secretInputs: callerMap}),
     });
 
+    const expectedKey = callerMap === undefined ? 'PROJECT_TOKEN' : 'OVERRIDE_TOKEN';
+    const expectedRequestedProjectId = callerMap === undefined ? subscription.projectId : null;
+    const expectedResolvedProjectId = callerMap === undefined ? null : subscription.projectId;
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId: subscription.workspaceId,
+      projectId: expectedRequestedProjectId,
+      namespace: '',
+      key: expectedKey,
+      store: 'local',
+    });
+
     const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
     expect(payload.secretInputs).toEqual(
       Object.fromEntries(
@@ -128,14 +139,38 @@ describe('fireManualSubscription (trigger history)', () => {
           {
             store: 'local',
             key,
-            projectId: key === 'OVERRIDE_TOKEN' ? null : subscription.projectId,
+            projectId: expectedResolvedProjectId,
           },
         ]),
       ),
     );
   });
 
-  test('rejects an empty or partial manual secret override by declared name', async () => {
+  test('ignores a malformed persisted secret map without attempting to pin an object-valued source', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {secrets: {DEPLOY_TOKEN: {key: 'PROJECT_TOKEN', projectId: null}}},
+    });
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Manual run'});
+
+    await fireManualSubscription({
+      workflows,
+      secrets,
+      subscriptionId: subscription.id,
+      callerWorkspaceId: subscription.workspaceId,
+      userId: crypto.randomUUID(),
+    });
+
+    expect(getSecret).not.toHaveBeenCalled();
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('secretInputs');
+  });
+
+  test.each([
+    ['empty', {}],
+    ['partial', {OTHER_TOKEN: {key: 'OTHER_TOKEN', projectId: null}}],
+  ] as const)('rejects a %s manual secret override by declared name', async (_label, secretInputs) => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
       event: 'fire',
@@ -149,7 +184,7 @@ describe('fireManualSubscription (trigger history)', () => {
         subscriptionId: subscription.id,
         callerWorkspaceId: subscription.workspaceId,
         userId: crypto.randomUUID(),
-        secretInputs: {},
+        secretInputs,
       }),
     ).rejects.toMatchObject({code: 'secret-input-missing', key: 'DEPLOY_TOKEN'});
     expect(runWorkflow).not.toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {triggerSourceConfigSchemas, type WorkflowDocument} from '@shipfox/workflow-document';
 import type {IntegrationValidationContext} from '../entities/integration-context.js';
 import type {
@@ -15,7 +16,6 @@ import {issue} from './validation-issue.js';
 
 const manualTriggerSource = 'manual';
 const cronTriggerSource = 'cron';
-const SECRET_INPUT_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 type WorkflowDocumentTrigger = NonNullable<WorkflowDocument['triggers']>[string];
 
 interface NormalizeTriggersState {
@@ -189,7 +189,7 @@ function validateTriggerSecrets(params: {
   }
 
   for (const [name, value] of entries) {
-    if (!SECRET_INPUT_NAME_PATTERN.test(name)) {
+    if (!secretKeySchema.safeParse(name).success) {
       params.issues.push(
         issue({
           code: 'secret-input-name-not-literal',
@@ -199,7 +199,7 @@ function validateTriggerSecrets(params: {
         }),
       );
     }
-    if (typeof value !== 'string' || !SECRET_INPUT_NAME_PATTERN.test(value)) {
+    if (!secretKeySchema.safeParse(value).success) {
       params.issues.push(
         issue({
           code: 'secret-input-name-not-literal',
