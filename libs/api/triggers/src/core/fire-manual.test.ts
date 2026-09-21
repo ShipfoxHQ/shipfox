@@ -125,12 +125,13 @@ describe('fireManualSubscription (trigger history)', () => {
   });
 
   test('pins authored trigger defaults in the definition project', async () => {
+    const owningProjectId = crypto.randomUUID();
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
       event: 'fire',
       config: {secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}},
     });
-    getSecret.mockResolvedValue({value: 'secret-value', projectId: subscription.projectId});
+    getSecret.mockResolvedValue({value: 'secret-value', projectId: owningProjectId});
     runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Manual run'});
 
     await fireManualSubscription({
@@ -147,11 +148,38 @@ describe('fireManualSubscription (trigger history)', () => {
           DEPLOY_TOKEN: {
             store: 'local',
             key: 'PROD_DEPLOY_TOKEN',
-            projectId: subscription.projectId,
+            projectId: owningProjectId,
           },
         },
       }),
     );
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId: subscription.workspaceId,
+      projectId: subscription.projectId,
+      namespace: '',
+      key: 'PROD_DEPLOY_TOKEN',
+      store: 'local',
+    });
+  });
+
+  test('does not require a Secrets client for an authored empty secret map', async () => {
+    const subscription = await triggerSubscriptionFactory.create({
+      source: 'manual',
+      event: 'fire',
+      config: {secrets: {}},
+    });
+    runWorkflow.mockResolvedValue({id: crypto.randomUUID(), name: 'Manual run'});
+
+    await fireManualSubscription({
+      workflows,
+      subscriptionId: subscription.id,
+      callerWorkspaceId: subscription.workspaceId,
+      userId: crypto.randomUUID(),
+    });
+
+    const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).not.toHaveProperty('secretInputs');
+    expect(getSecret).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -181,6 +209,15 @@ describe('fireManualSubscription (trigger history)', () => {
         key: 'DEPLOY_TOKEN',
       });
       expect(runWorkflow).not.toHaveBeenCalled();
+      const [event] = await eventsForWorkspace(subscription.workspaceId);
+      if (!event) throw new Error('received event not found');
+      expect(event.outcome).toBe('errored');
+      expect(event.processedAt).toBeInstanceOf(Date);
+      const [decision] = await decisionsForEvent(event.id);
+      expect(decision).toMatchObject({
+        decision: 'dispatch-error',
+        reason: expect.stringContaining('DEPLOY_TOKEN'),
+      });
       return;
     }
     await firing;
@@ -233,6 +270,15 @@ describe('fireManualSubscription (trigger history)', () => {
       }),
     ).rejects.toMatchObject({name: 'SecretInputNotFoundError', key: 'MISSING_TOKEN'});
     expect(runWorkflow).not.toHaveBeenCalled();
+    const [event] = await eventsForWorkspace(subscription.workspaceId);
+    if (!event) throw new Error('received event not found');
+    expect(event.outcome).toBe('errored');
+    expect(event.processedAt).toBeInstanceOf(Date);
+    const [decision] = await decisionsForEvent(event.id);
+    expect(decision).toMatchObject({
+      decision: 'dispatch-error',
+      reason: expect.stringContaining('MISSING_TOKEN'),
+    });
   });
 
   test('pins an own __proto__ secret input key', async () => {

@@ -5545,7 +5545,7 @@ describe('normalizeWorkflowDocument', () => {
     ]);
   });
 
-  it('normalizes trigger secret defaults for every trigger source', () => {
+  it('normalizes trigger secret defaults', () => {
     const document: WorkflowDocument = {
       name: 'trigger secrets',
       triggers: {

@@ -14,6 +14,7 @@ import type {TriggerSubscription} from './entities/subscription.js';
 import {
   ManualTriggerNotFoundError,
   SecretInputMissingError,
+  SecretInputNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -146,7 +147,7 @@ export async function fireManualSubscription(
   } catch (error) {
     const failure = await beginTriggerHistory({...historyBase, eventRef: randomUUID()});
     await failure.dispatchErrored(subscription, toReason(error), startRunDiagnostic(error));
-    if (isPermanentStartRunError(error)) {
+    if (isPermanentManualFireError(error)) {
       eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'errored'});
       await failure.allErrored(1);
     } else {
@@ -211,6 +212,14 @@ function optionalSecretInputs(secretInputs: Record<string, SecretInputReference>
   secretInputs?: Record<string, SecretInputReference>;
 } {
   return secretInputs === undefined ? {} : {secretInputs};
+}
+
+function isPermanentManualFireError(error: unknown): boolean {
+  return (
+    isPermanentStartRunError(error) ||
+    error instanceof SecretInputMissingError ||
+    error instanceof SecretInputNotFoundError
+  );
 }
 
 function assertExactlyOneManualTriggerCaller(

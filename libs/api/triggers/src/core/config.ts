@@ -32,6 +32,7 @@ export function readConfigSecretInputs(
   if (typeof value !== 'object' || Array.isArray(value)) return undefined;
 
   const entries = Object.entries(value);
+  if (entries.length === 0) return undefined;
   if (entries.some(([, source]) => typeof source !== 'string')) return undefined;
   return Object.fromEntries(entries) as Record<string, string>;
 }

@@ -508,6 +508,7 @@ describe('dispatchIntegrationEvent', () => {
   test('pins trigger secret defaults in the definition project', async () => {
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
+    const owningProjectId = crypto.randomUUID();
     await triggerSubscriptionFactory.create({
       workspaceId,
       projectId,
@@ -515,14 +516,14 @@ describe('dispatchIntegrationEvent', () => {
       event: 'push',
       config: {secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'}},
     });
-    getSecret.mockResolvedValue({value: 'secret-value', projectId});
+    getSecret.mockResolvedValue({value: 'secret-value', projectId: owningProjectId});
 
     await dispatch({workspaceId});
 
     expect(runWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({
         secretInputs: {
-          DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId},
+          DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: owningProjectId},
         },
       }),
     );
