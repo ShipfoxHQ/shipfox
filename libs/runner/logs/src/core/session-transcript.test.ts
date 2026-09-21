@@ -41,6 +41,21 @@ describe('maskSessionTranscript', () => {
     expect(JSON.parse(masked)).toEqual({'***': {'nested-***': '***'}});
   });
 
+  it('masks escaped secrets in deeply nested valid records', () => {
+    const secret = 'deep"secret';
+    const depth = 4_000;
+    let record: unknown = secret;
+    for (let index = 0; index < depth; index += 1) record = {nested: record};
+
+    const masked = maskSessionTranscript({jsonl: JSON.stringify(record), secrets: [secret]});
+
+    let decoded: unknown = JSON.parse(masked);
+    for (let index = 0; index < depth; index += 1) {
+      decoded = (decoded as {nested: unknown}).nested;
+    }
+    expect(decoded).toBe('***');
+  });
+
   it('raw-masks an unparseable line without dropping it', () => {
     const secret = 'raw-secret-value';
     const input = `{"safe":"value"}\nnot valid JSON: ${secret}\n{"last":true}`;
