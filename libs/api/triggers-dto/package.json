@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@shipfox/api-definitions-dto": "workspace:*",
+    "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/regex": "workspace:*",

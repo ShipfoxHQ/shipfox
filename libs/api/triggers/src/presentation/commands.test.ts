@@ -13,6 +13,7 @@ import {
   DevRunReplayEventMismatchError,
   DevRunTriggerFilteredError,
   ManualTriggerNotFoundError,
+  SecretInputNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -67,6 +68,7 @@ function presentation() {
     projects: {
       requireProjectForWorkspace: mocks.requireProjectForWorkspace,
     } as unknown as ProjectsModuleClient,
+    secrets: {getSecret: vi.fn()},
     workflows: {} as WorkflowsModuleClient,
   });
 }
@@ -97,7 +99,30 @@ describe('trigger command presentation', () => {
     const result = await presentation().handlers.fireManualTrigger(input, context);
 
     expect(result).toEqual({id: PROJECT_ID, name: 'Manual run', deduplicated: true});
-    expect(mocks.fireManualTrigger).toHaveBeenCalledWith({...input, workflows: {}});
+    expect(mocks.fireManualTrigger).toHaveBeenCalledWith({
+      ...input,
+      secrets: {getSecret: expect.any(Function)},
+      workflows: {},
+    });
+  });
+
+  test('maps a missing secret input to a known command error', async () => {
+    mocks.fireManualTrigger.mockRejectedValue(new SecretInputNotFoundError('MISSING_TOKEN'));
+
+    const error = await rejection(
+      presentation().handlers.fireManualTrigger(
+        {workspaceId: WORKSPACE_ID, definitionId: DEFINITION_ID, userId: USER_ID},
+        context,
+      ),
+    );
+
+    expect(
+      isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, error),
+    ).toBe(true);
+    expect(error).toMatchObject({
+      code: 'secret-not-found',
+      details: {key: 'MISSING_TOKEN'},
+    });
   });
 
   test('requires exactly one manual trigger caller', () => {
@@ -441,6 +466,7 @@ describe('trigger command presentation', () => {
     ).toEqual(
       [
         'manual-trigger-not-found',
+        'secret-not-found',
         ...Object.keys(workflowsInterModuleContract.methods.startRunFromTrigger.errors),
       ].sort(),
     );

@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   getManualSubscriptionByDefinitionId,
   getTriggerSubscriptionById,
@@ -15,6 +16,11 @@ import {
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
 } from './errors.js';
+import {
+  pinSecretInputs,
+  type SecretInputReference,
+  type SecretInputSource,
+} from './pin-secret-inputs.js';
 import {beginTriggerHistory, toReason} from './record-trigger-history.js';
 import {
   isPermanentStartRunError,
@@ -24,21 +30,25 @@ import {
 
 export interface FireManualTriggerParams {
   workflows: WorkflowsModuleClient;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
   workspaceId: string;
   definitionId: string;
   userId?: string | undefined;
   parentRun?: {runId: string} | undefined;
   inputs?: Record<string, unknown> | undefined;
+  secretInputs?: Record<string, SecretInputSource> | undefined;
   idempotencyKey?: string | undefined;
 }
 
 export interface FireManualSubscriptionParams {
   workflows: WorkflowsModuleClient;
+  secrets?: Pick<SecretsInterModuleClient, 'getSecret'> | undefined;
   subscriptionId: string;
   callerWorkspaceId: string;
   userId?: string | undefined;
   parentRun?: {runId: string} | undefined;
   inputs?: Record<string, unknown> | undefined;
+  secretInputs?: Record<string, SecretInputSource> | undefined;
   idempotencyKey?: string | undefined;
 }
 
@@ -54,11 +64,13 @@ export async function fireManualTrigger(
 
   const run = await fireManualSubscription({
     workflows: params.workflows,
+    secrets: params.secrets,
     subscriptionId: subscription.id,
     callerWorkspaceId: params.workspaceId,
     userId: params.userId,
     parentRun: params.parentRun,
     inputs: params.inputs,
+    secretInputs: params.secretInputs,
     idempotencyKey: params.idempotencyKey,
   });
   return {...run, deduplicated: run.deduplicated === true};
@@ -105,6 +117,7 @@ export async function fireManualSubscription(
   eventReceivedCount.add(1, {origin, provider: 'manual'});
 
   const inputs = params.inputs ?? readConfigInputs(subscription);
+  const secretInputs = await resolveSecretInputs(params, subscription.projectId);
   let run: {id: string; name: string};
   try {
     run = await params.workflows.startRunFromTrigger({
@@ -120,6 +133,7 @@ export async function fireManualSubscription(
         ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
       },
       ...(inputs === undefined ? {} : {inputs}),
+      ...optionalSecretInputs(secretInputs),
       ...(params.parentRun === undefined ? {} : {parentRun: params.parentRun}),
       idempotencyKey: params.idempotencyKey ?? randomUUID(),
     });
@@ -142,6 +156,29 @@ export async function fireManualSubscription(
   eventOutcomeCount.add(1, {origin, provider: 'manual', outcome: 'routed'});
   await history.routed(1);
   return run;
+}
+
+async function resolveSecretInputs(
+  params: FireManualSubscriptionParams,
+  resolutionProjectId: string | null,
+): Promise<Record<string, SecretInputReference> | undefined> {
+  if (params.secretInputs === undefined) return undefined;
+  if (params.secrets === undefined) {
+    throw new TypeError('A Secrets client is required when secret inputs are supplied');
+  }
+
+  return await pinSecretInputs({
+    secrets: params.secrets,
+    workspaceId: params.callerWorkspaceId,
+    resolutionProjectId,
+    secretInputs: params.secretInputs,
+  });
+}
+
+function optionalSecretInputs(secretInputs: Record<string, SecretInputReference> | undefined): {
+  secretInputs?: Record<string, SecretInputReference>;
+} {
+  return secretInputs === undefined ? {} : {secretInputs};
 }
 
 function assertExactlyOneManualTriggerCaller(

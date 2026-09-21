@@ -6,6 +6,7 @@ import {
   type ProjectsModuleClient,
   projectsInterModuleContract,
 } from '@shipfox/api-projects-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import {
   type WorkflowsModuleClient,
@@ -36,6 +37,7 @@ import {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
   ManualTriggerNotFoundError,
+  SecretInputNotFoundError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
   TriggerWorkspaceMismatchError,
@@ -55,12 +57,17 @@ import {toPublicTriggerDecisionReason} from './dto/trigger-events.js';
 export function createTriggersInterModulePresentation(params: {
   definitions: DefinitionsInterModuleClient;
   projects: ProjectsModuleClient;
+  secrets: Pick<SecretsInterModuleClient, 'getSecret'>;
   workflows: WorkflowsModuleClient;
 }): InterModulePresentation<typeof triggersInterModuleContract> {
   return defineInterModulePresentation(triggersInterModuleContract, {
     fireManualTrigger: async (input) => {
       try {
-        return await fireManualTrigger({...input, workflows: params.workflows});
+        return await fireManualTrigger({
+          ...input,
+          secrets: params.secrets,
+          workflows: params.workflows,
+        });
       } catch (error) {
         throw toFireManualTriggerKnownError(error, input.definitionId);
       }
@@ -186,6 +193,10 @@ export function createTriggersInterModulePresentation(params: {
 
 function toFireManualTriggerKnownError(error: unknown, definitionId: string): unknown {
   const method = triggersInterModuleContract.methods.fireManualTrigger;
+  if (error instanceof SecretInputNotFoundError) {
+    return createInterModuleKnownError(method, 'secret-not-found', {key: error.key});
+  }
+
   if (
     error instanceof ManualTriggerNotFoundError ||
     error instanceof TriggerSubscriptionNotFoundError ||

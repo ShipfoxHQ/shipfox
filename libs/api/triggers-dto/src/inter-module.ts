@@ -2,6 +2,7 @@ import {
   definitionValidationErrorSchema,
   definitionValidationWarningSchema,
 } from '@shipfox/api-definitions-dto';
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {
   workflowDiagnosticFieldSchema,
   workflowExecutionPayloadFieldSchema,
@@ -268,6 +269,10 @@ const interpolationFieldSchema = z.enum([
   'checkout.ref',
   'checkout.path',
 ]);
+const secretInputSourceSchema = z.object({
+  key: secretKeySchema,
+  projectId: idSchema.nullable(),
+});
 const startRunErrors = {
   'workspace-not-found': z.object({workspaceId: idSchema}),
   'workspace-suspended': z.object({workspaceId: idSchema}),
@@ -410,6 +415,7 @@ export const triggersInterModuleContract = defineInterModuleContract({
           userId: idSchema.optional(),
           parentRun: z.object({runId: idSchema}).optional(),
           inputs: z.record(z.string(), z.unknown()).optional(),
+          secretInputs: z.record(secretKeySchema, secretInputSourceSchema).optional(),
           idempotencyKey: z.string().min(1).optional(),
         })
         .superRefine((value, ctx) => {
@@ -424,6 +430,7 @@ export const triggersInterModuleContract = defineInterModuleContract({
       output: z.object({id: idSchema, name: z.string(), deduplicated: z.boolean()}),
       errors: {
         'manual-trigger-not-found': z.object({definitionId: idSchema}),
+        'secret-not-found': z.object({key: secretKeySchema}),
         ...startRunErrors,
       },
     },
