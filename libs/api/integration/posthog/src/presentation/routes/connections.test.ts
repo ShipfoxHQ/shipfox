@@ -7,6 +7,7 @@ import type {PosthogCredentialStore} from '#core/credentials.js';
 import {
   createPosthogInstallation,
   deletePosthogInstallationByConnectionId,
+  getPosthogInstallationByConnectionId,
   type PosthogInstallation,
 } from '#db/installations.js';
 import {createPosthogConnectionRoutes} from './connections.js';
@@ -308,7 +309,13 @@ describe('PostHog connection routes', () => {
       lifecycle_status: 'active',
     });
     expect(updateConnection).toHaveBeenCalledWith(
-      expect.objectContaining({id: currentConnection.id, lifecycleStatus: 'active'}),
+      expect.objectContaining({
+        id: currentConnection.id,
+        lifecycleStatus: 'active',
+        tx: expect.anything(),
+      }),
     );
+    const persistedInstallation = await getPosthogInstallationByConnectionId(currentConnection.id);
+    expect(persistedInstallation).toMatchObject({credentialVersion: 2, keyHint: '_key'});
   });
 });
