@@ -1,3 +1,4 @@
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {z} from 'zod';
 
 export const triggerEventOriginSchema = z.enum([
@@ -133,6 +134,11 @@ export const triggerDecisionDiagnosticDtoSchema = z.discriminatedUnion('code', [
   z.strictObject({
     version: diagnosticVersionSchema,
     code: z.literal('unexpected-listener-delivery-failure'),
+  }),
+  z.strictObject({
+    version: diagnosticVersionSchema,
+    code: z.literal('secret-not-found'),
+    key: secretKeySchema,
   }),
 ]);
 export type TriggerDecisionDiagnosticDto = z.infer<typeof triggerDecisionDiagnosticDtoSchema>;

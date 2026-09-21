@@ -241,6 +241,11 @@ function diagnosticIssue(
       return issue(decision, 'Agent integrations could not be prepared', [
         text(`Shipfox could not prepare the agent integrations for ${targetName}.`),
       ]);
+    case 'secret-not-found':
+      return issue(decision, 'Secret is unavailable', [
+        code(diagnostic.key),
+        text(` could not be found for ${targetName}. Check the trigger secret mapping and scope.`),
+      ]);
     case 'interpolation-unresolvable':
       return issue(decision, 'Workflow value could not be resolved', [
         code(diagnostic.envKey ?? diagnostic.field),

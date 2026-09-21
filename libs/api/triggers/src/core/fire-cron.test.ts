@@ -162,6 +162,7 @@ describe('fireCronSubscription', () => {
     expect(decision).toMatchObject({
       decision: 'dispatch-error',
       reason: 'Secret input source not found: MISSING_TOKEN',
+      diagnostic: {version: 1, code: 'secret-not-found', key: 'MISSING_TOKEN'},
     });
   });
 
