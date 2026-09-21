@@ -81,6 +81,7 @@ describe('createProjectFromSource', () => {
       'projects.project.created',
       'projects.project.source_bound',
     ]);
+    expect(events.every((event) => event.orderingKey === project.id)).toBe(true);
     expect(events.map((event) => event.payload)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

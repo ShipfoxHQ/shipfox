@@ -418,6 +418,7 @@ async function writeConnectionAvailableEvent(
 ): Promise<void> {
   await writeOutboxEvent<IntegrationsEventMap>(executor, integrationsOutbox, {
     type: INTEGRATION_CONNECTION_AVAILABLE,
+    orderingKey: connection.id,
     payload: {
       provider: connection.provider,
       workspaceId: connection.workspaceId,

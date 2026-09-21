@@ -70,6 +70,7 @@ export async function publishIntegrationEventReceived(
 
   await writeOutboxEvent(params.tx, integrationsOutbox, {
     type: INTEGRATION_EVENT_RECEIVED,
+    orderingKey: params.event.connectionId,
     payload: params.event,
   });
 
@@ -114,6 +115,7 @@ async function publishSourceEvents(
   await writeOutboxEvents<IntegrationsEventMap>(params.tx, integrationsOutbox, [
     {
       type: INTEGRATION_EVENT_RECEIVED,
+      orderingKey: params.connectionId,
       payload: {
         provider: params.provider,
         source: params.source,
@@ -126,7 +128,7 @@ async function publishSourceEvents(
         payload: params.rawPayload,
       },
     },
-    ...params.typedEvents,
+    ...params.typedEvents.map((event) => ({...event, orderingKey: params.connectionId})),
   ]);
 
   return {published: true};
@@ -244,6 +246,7 @@ export async function publishSourceCommitPushed(
 ): Promise<void> {
   await writeOutboxEvent<IntegrationsEventMap>(db(), integrationsOutbox, {
     type: INTEGRATION_SOURCE_COMMIT_PUSHED,
+    orderingKey: params.connectionId,
     payload: {
       provider: params.provider,
       workspaceId: params.workspaceId,

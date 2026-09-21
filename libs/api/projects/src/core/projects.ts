@@ -83,6 +83,7 @@ export async function createProjectFromSource(
 
     await writeOutboxEvent<ProjectsEventMap>(tx, projectsOutbox, {
       type: PROJECT_CREATED,
+      orderingKey: project.id,
       payload: {
         actorId: params.actorId,
         workspaceId: project.workspaceId,
@@ -94,6 +95,7 @@ export async function createProjectFromSource(
     });
     await writeOutboxEvent<ProjectsEventMap>(tx, projectsOutbox, {
       type: PROJECT_SOURCE_BOUND,
+      orderingKey: project.id,
       payload: {
         actorId: params.actorId,
         workspaceId: project.workspaceId,
@@ -159,6 +161,7 @@ export function updateProjectDetails(params: UpdateProjectDetailsParams): Promis
 
     await writeOutboxEvent<ProjectsEventMap>(tx, projectsOutbox, {
       type: PROJECT_UPDATED,
+      orderingKey: update.project.id,
       payload: {
         actorId: params.actorId,
         workspaceId: update.project.workspaceId,

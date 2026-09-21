@@ -78,6 +78,7 @@ describe('onSourceCommitPushed', () => {
 
     const rows = await listCommitObservedEvents(externalRepositoryId);
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.orderingKey).toBe(project.id);
     expect(rows[0]?.payload).toMatchObject({
       workspaceId,
       projectId: project.id,
