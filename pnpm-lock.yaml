@@ -3677,6 +3677,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
+      '@shipfox/api-auth-context':
+        specifier: workspace:*
+        version: link:../../auth-context
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../core-dto
@@ -3686,9 +3689,15 @@ importers:
       '@shipfox/api-integration-spi':
         specifier: workspace:*
         version: link:../spi
+      '@shipfox/api-workspaces-dto':
+        specifier: workspace:*
+        version: link:../../workspaces-dto
       '@shipfox/config':
         specifier: workspace:*
         version: link:../../../shared/common/config
+      '@shipfox/inter-module':
+        specifier: workspace:*
+        version: link:../../../shared/common/inter-module
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle

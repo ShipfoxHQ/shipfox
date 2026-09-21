@@ -25,6 +25,30 @@ export class NotionIntegrationProviderError extends IntegrationProviderError {
   }
 }
 
+export class NotionInstallStateError extends Error {
+  constructor(message = 'Invalid Notion install state') {
+    super(message);
+    this.name = 'NotionInstallStateError';
+  }
+}
+
+export class NotionInstallStateActorMismatchError extends Error {
+  constructor() {
+    super('Notion install state was created by a different user');
+    this.name = 'NotionInstallStateActorMismatchError';
+  }
+}
+
+export class NotionOAuthCallbackError extends Error {
+  constructor(
+    public readonly providerError: string,
+    public readonly providerDescription?: string | undefined,
+  ) {
+    super(providerDescription ?? `Notion OAuth callback failed: ${providerError}`);
+    this.name = 'NotionOAuthCallbackError';
+  }
+}
+
 export class NotionTokenUnrefreshableError extends Error {
   constructor(public readonly connectionId: string) {
     super(`Notion token cannot be refreshed; reconnect is required: ${connectionId}`);

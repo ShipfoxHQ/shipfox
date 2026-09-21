@@ -46,6 +46,12 @@ export interface StoreNotionTokensParams {
   accessToken: string;
   refreshToken?: string | undefined;
   editedBy?: string | null | undefined;
+  lockAlreadyHeld?: boolean | undefined;
+}
+
+export interface NotionTokenPair {
+  accessToken: string;
+  refreshToken?: string | undefined;
 }
 
 export interface GetNotionAccessTokenParams {
@@ -59,6 +65,7 @@ export interface DeleteNotionTokensParams {
 
 export interface NotionTokenStore {
   storeTokens(params: StoreNotionTokensParams): Promise<void>;
+  getTokens(params: {connectionId: string}): Promise<NotionTokenPair>;
   getAccessToken(params: GetNotionAccessTokenParams): Promise<string>;
   deleteTokens(params: DeleteNotionTokensParams): Promise<number>;
 }
@@ -93,7 +100,7 @@ export function createNotionTokenStore(params: CreateNotionTokenStoreParams): No
 
   return {
     async storeTokens(input) {
-      await withNotionGrantLock(input.connectionId, async () => {
+      const store = async (): Promise<void> => {
         const workspaceId = await resolveWorkspaceId(input.connectionId);
         await params.secrets.setSecrets({
           workspaceId,
@@ -104,7 +111,23 @@ export function createNotionTokenStore(params: CreateNotionTokenStoreParams): No
           },
           editedBy: input.editedBy,
         });
+      };
+      if (input.lockAlreadyHeld) {
+        await store();
+      } else {
+        await withNotionGrantLock(input.connectionId, store);
+      }
+    },
+
+    async getTokens(input) {
+      const workspaceId = await resolveWorkspaceId(input.connectionId);
+      const accessToken = await readAccessToken(input.connectionId, workspaceId);
+      const refreshToken = await params.secrets.getSecret({
+        workspaceId,
+        namespace: notionSecretsNamespace(input.connectionId),
+        key: REFRESH_TOKEN_KEY,
       });
+      return {accessToken, refreshToken: refreshToken ?? undefined};
     },
 
     async getAccessToken(input) {

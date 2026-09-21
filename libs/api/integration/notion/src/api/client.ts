@@ -38,7 +38,14 @@ export interface NotionAuthorization {
   expiresAt?: Date | undefined;
 }
 
+export interface NotionOAuthAuthorization extends NotionAuthorization {
+  botId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
 export interface NotionApiClient {
+  exchangeAuthorizationCode(input: {code: string}): Promise<NotionOAuthAuthorization>;
   refreshAccessToken(input: {refreshToken: string}): Promise<NotionAuthorization>;
   revokeToken(input: {token: string}): Promise<void>;
 }
@@ -47,6 +54,9 @@ interface NotionTokenResponse {
   access_token?: unknown;
   refresh_token?: unknown;
   expires_in?: unknown;
+  bot_id?: unknown;
+  workspace_id?: unknown;
+  workspace_name?: unknown;
 }
 
 export function createNotionAgentToolsClient(): NotionAgentToolsClient {
@@ -55,6 +65,24 @@ export function createNotionAgentToolsClient(): NotionAgentToolsClient {
 
 export function createNotionApiClient(): NotionApiClient {
   return {
+    async exchangeAuthorizationCode(input) {
+      const body = await requestNotionOauth('exchange-authorization-code', () =>
+        ky
+          .post(notionApiUrl(NOTION_OAUTH_TOKEN_PATH), {
+            headers: basicAuthHeaders(),
+            json: {
+              grant_type: 'authorization_code',
+              code: input.code,
+              redirect_uri: config.NOTION_OAUTH_REDIRECT_URL,
+            },
+            timeout: NOTION_API_TIMEOUT_MS,
+          })
+          .json<NotionTokenResponse>(),
+      );
+
+      return parseAuthorizationResponse(body);
+    },
+
     async refreshAccessToken(input) {
       const body = await requestNotionOauth('refresh-access-token', () =>
         ky
@@ -117,6 +145,26 @@ export function notionApiUrl(path: string): string {
 function basicAuthHeaders(): Record<string, string> {
   const credentials = `${config.NOTION_OAUTH_CLIENT_ID}:${config.NOTION_OAUTH_CLIENT_SECRET}`;
   return {authorization: `Basic ${Buffer.from(credentials).toString('base64')}`};
+}
+
+function parseAuthorizationResponse(body: NotionTokenResponse): NotionOAuthAuthorization {
+  const authorization = parseRefreshResponse(body);
+  if (
+    typeof body.bot_id !== 'string' ||
+    typeof body.workspace_id !== 'string' ||
+    typeof body.workspace_name !== 'string'
+  ) {
+    throw new NotionIntegrationProviderError(
+      'malformed-provider-response',
+      'Notion authorization response did not include workspace identity',
+    );
+  }
+  return {
+    ...authorization,
+    botId: body.bot_id,
+    workspaceId: body.workspace_id,
+    workspaceName: body.workspace_name,
+  };
 }
 
 function parseRefreshResponse(body: NotionTokenResponse): NotionAuthorization {

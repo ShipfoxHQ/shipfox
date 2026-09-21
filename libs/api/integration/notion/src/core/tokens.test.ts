@@ -42,6 +42,7 @@ function createContext() {
     .mockResolvedValue({workspaceId});
   const secrets = createSecretsStore();
   const client = {
+    exchangeAuthorizationCode: vi.fn(),
     refreshAccessToken: vi.fn(),
     revokeToken: vi.fn(),
   };
@@ -199,8 +200,16 @@ describe('Notion token store', () => {
     const connectionId = crypto.randomUUID();
     const secrets = createSecretsStore();
     const resolveConnection = vi.fn().mockResolvedValue({workspaceId});
-    const firstClient = {refreshAccessToken: vi.fn(), revokeToken: vi.fn()};
-    const secondClient = {refreshAccessToken: vi.fn(), revokeToken: vi.fn()};
+    const firstClient = {
+      exchangeAuthorizationCode: vi.fn(),
+      refreshAccessToken: vi.fn(),
+      revokeToken: vi.fn(),
+    };
+    const secondClient = {
+      exchangeAuthorizationCode: vi.fn(),
+      refreshAccessToken: vi.fn(),
+      revokeToken: vi.fn(),
+    };
     const first = createNotionTokenStore({resolveConnection, secrets, client: firstClient});
     const second = createNotionTokenStore({resolveConnection, secrets, client: secondClient});
     await first.storeTokens({
