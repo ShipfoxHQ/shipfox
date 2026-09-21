@@ -7,6 +7,7 @@ import {isJobTerminal, type Job, type JobStatus, type JobStatusReason} from '#co
 import type {JobExecution} from '#core/entities/job-execution.js';
 import type {PersistedEvaluationTraceEntry} from '#core/entities/step.js';
 import type {
+  SecretInputReference,
   WorkflowRunOriginState,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
@@ -107,6 +108,8 @@ export interface JobScope {
   projectId: string;
   definitionId: string;
   triggerReference: WorkflowRunTriggerReference | null;
+  /** References captured when the run was created, used by the leased step secret pull. */
+  secretInputs?: Record<string, SecretInputReference> | null;
   /** The run's origin state, so checkout fallbacks can read the dev source. */
   run: WorkflowRunOriginState;
 }
@@ -118,6 +121,7 @@ export async function getJobScope(jobId: string): Promise<JobScope | undefined> 
       projectId: workflowRuns.projectId,
       definitionId: workflowRuns.definitionId,
       triggerReference: workflowRuns.triggerReference,
+      secretInputs: workflowRuns.secretInputs,
       origin: workflowRuns.origin,
       devSource: workflowRuns.devSource,
     })
@@ -133,6 +137,7 @@ export async function getJobScope(jobId: string): Promise<JobScope | undefined> 
     projectId: row.projectId,
     definitionId: row.definitionId,
     triggerReference: row.triggerReference,
+    secretInputs: row.secretInputs ?? null,
     run: toWorkflowRunOriginState(row),
   };
 }

@@ -4,6 +4,7 @@ import {ClientError} from '@shipfox/node-fastify';
 import type {CheckoutRenewalSubject} from '#core/entities/checkout-renewal-subject.js';
 import type {Step} from '#core/entities/step.js';
 import type {
+  SecretInputReference,
   WorkflowRunOriginState,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
@@ -19,6 +20,8 @@ export interface LoadedRunningLeasedStep {
   workspaceId: string;
   projectId: string;
   triggerReference: WorkflowRunTriggerReference | null;
+  /** References captured when the run was created, used by the leased step secret pull. */
+  secretInputs: Record<string, SecretInputReference> | null;
   /** The run's origin state, forwarded for checkout fallbacks. */
   run: WorkflowRunOriginState;
   /** The server-frozen subject for an initial replacement or persisted checkout renewal. */
@@ -97,6 +100,7 @@ export async function loadRunningLeasedStep(params: {
           workspaceId: scope.workspaceId,
           projectId: scope.projectId,
           triggerReference: scope.triggerReference,
+          secretInputs: scope.secretInputs ?? null,
           run: scope.run,
           checkoutRenewalSubject,
           renewableInference,
@@ -129,6 +133,7 @@ export async function loadRunningLeasedStep(params: {
     workspaceId: scope.workspaceId,
     projectId: scope.projectId,
     triggerReference: scope.triggerReference,
+    secretInputs: scope.secretInputs ?? null,
     run: scope.run,
     ...(checkoutRenewalSubject === null ? {} : {checkoutRenewalSubject}),
     renewableInference,

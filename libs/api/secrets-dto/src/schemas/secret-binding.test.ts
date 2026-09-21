@@ -13,9 +13,15 @@ describe('secret binding schema', () => {
       store: 'local',
       key: 'API_KEY',
     });
+    const secretInput = secretBindingSegmentSchema.safeParse({
+      kind: 'secret',
+      store: 'inputs',
+      key: 'DEPLOY_TOKEN',
+    });
 
     expect(literal.success).toBe(true);
     expect(secret.success).toBe(true);
+    expect(secretInput.success).toBe(true);
   });
 
   it('rejects unknown segment kinds', () => {
