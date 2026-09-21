@@ -453,6 +453,7 @@ export async function defaultModules(
       workflows: workflowsClient,
       definitions: definitionsClient,
       projects: projectsClient,
+      secrets: secretsClient,
       integrations: integrationsClient,
     }),
     dispatcherModule,

@@ -31,6 +31,7 @@ export {
   DevRunTriggerFilteredError,
   DevRunTriggerNotFoundError,
   ManualTriggerNotFoundError,
+  SecretInputNotFoundError,
   TriggerSubscriptionNotCronError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
@@ -47,6 +48,11 @@ export {
   fireManualSubscription,
   fireManualTrigger,
 } from './fire-manual.js';
+export {
+  pinSecretInputs,
+  type SecretInputReference,
+  type SecretInputSource,
+} from './pin-secret-inputs.js';
 export {
   type RouteEventToJobListenersParams,
   type RouteEventToJobListenersResult,

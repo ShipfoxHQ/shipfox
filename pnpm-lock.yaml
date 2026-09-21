@@ -4898,6 +4898,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/api-triggers-dto':
         specifier: workspace:*
         version: link:../triggers-dto
@@ -5007,6 +5010,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../definitions-dto
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto

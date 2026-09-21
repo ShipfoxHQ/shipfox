@@ -1,3 +1,13 @@
+export class SecretInputNotFoundError extends Error {
+  readonly key: string;
+
+  constructor(key: string) {
+    super(`Secret input source not found: ${key}`);
+    this.name = 'SecretInputNotFoundError';
+    this.key = key;
+  }
+}
+
 export class TriggerSubscriptionNotFoundError extends Error {
   readonly subscriptionId: string;
 

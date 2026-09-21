@@ -56,6 +56,7 @@ function presentation() {
   return createTriggersInterModulePresentation({
     definitions: {} as never,
     projects: {} as never,
+    secrets: {getSecret: vi.fn()},
     workflows: {} as never,
   });
 }

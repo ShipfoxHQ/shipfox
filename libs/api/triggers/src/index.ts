@@ -12,6 +12,7 @@ import {
 } from '@shipfox/api-integration-core-dto';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   WORKFLOWS_JOB_ACTIVATED,
   WORKFLOWS_JOB_TERMINATED,
@@ -57,6 +58,10 @@ export {
   fireManualSubscription,
   fireManualTrigger,
   ManualTriggerNotFoundError,
+  pinSecretInputs,
+  SecretInputNotFoundError,
+  type SecretInputReference,
+  type SecretInputSource,
   TriggerSubscriptionNotCronError,
   TriggerSubscriptionNotFoundError,
   TriggerSubscriptionNotManualError,
@@ -87,6 +92,7 @@ export interface CreateTriggersModuleOptions {
   workflows: WorkflowsModuleClient;
   definitions: DefinitionsInterModuleClient;
   projects: ProjectsModuleClient;
+  secrets: SecretsInterModuleClient;
   /** Enables the E2E synthetic dispatch route when supplied by the composition root. */
   integrations?: IntegrationsModuleClient | undefined;
 }
@@ -95,6 +101,7 @@ export function createTriggersModule({
   workflows,
   definitions,
   projects,
+  secrets,
   integrations,
 }: CreateTriggersModuleOptions): ShipfoxModule {
   return {
@@ -104,7 +111,12 @@ export function createTriggersModule({
     e2eRoutes: [createTriggersE2eRoutes({workflows, integrations})],
     metrics: registerTriggersServiceMetrics,
     interModulePresentations: [
-      createTriggersInterModulePresentation({definitions, projects, workflows}),
+      createTriggersInterModulePresentation({
+        definitions,
+        projects,
+        secrets,
+        workflows,
+      }),
     ],
     publishers: [{name: 'triggers', table: triggersOutbox, db}],
     subscribers: [
