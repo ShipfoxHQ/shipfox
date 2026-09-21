@@ -175,7 +175,7 @@ function objectWithValue(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function assertSecretInputDestinations(params: {
+export function assertSecretInputDestinations(params: {
   toolId: string;
   authoredWith: unknown;
   resolvedWith: unknown;

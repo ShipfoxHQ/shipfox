@@ -58,7 +58,7 @@ describe('resolveToolStepConfig', () => {
       kind: 'tool',
       tool: {id: 'shipfox.start_workflow_run'},
       with: {
-        workflow: 'deploy.yml',
+        workflow: template('event.workflow'),
         secrets: {DEPLOY_TOKEN: 'PROD_DEPLOY_TOKEN'},
       },
       templates: {
