@@ -1,13 +1,19 @@
 ---
-title: "Pass Output Between Jobs"
-sidebarTitle: "Pass Output Between Jobs"
-description: "Pass output from one job to another job in the same workflow."
+title: "Pass Values Between Jobs"
+sidebarTitle: "Pass Values Between Jobs"
+description: "Publish a value from a step and read it in a later job."
 ---
 
-Use a job output to pass output between jobs. The first job publishes a step
-output. A dependent job reads it.
+Use an output to send a small value from one job to a later job. Typical values
+are a version, a commit SHA, a URL, or a decision. Jobs don't share files, so an
+output is the way to move a value between them.
 
-## Pass output between jobs
+The example below sends a short text message. To send another value, keep the
+same structure and change the names, the type, and the command.
+
+## Publish a value and read it in a later job
+
+This is a complete workflow:
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -36,8 +42,33 @@ jobs:
         run: echo "$MESSAGE"
 ```
 
-The `prepare` job publishes the `message` step output. The `consume` job
-depends on `prepare` and reads the job output.
+To send any value between jobs, you need three things:
+
+1. **Create the value in a step.** Give the step a `key`. Declare the output
+   name and type under `outputs`. In the command, write `name=value` to the
+   file `$SHIPFOX_OUTPUT`.
+2. **Publish the value from the job.** Add an `outputs` map to the job. Give
+   the value a name and set it to the step output.
+3. **Read the value in a later job.** Add the first job to `needs` in the later
+   job. Read the value with `jobs.<job>.outputs.<name>`.
+
+In your own workflow, change the output names, the type, and the command that
+produces the value. Keep everything else.
+
+## Adapt it to your workflow
+
+| To... | Change this |
+| --- | --- |
+| Read the value in a later step of the same job | You don't need the job `outputs` map or `needs`. Read `steps.<key>.outputs.<name>` in the later step. |
+| Pass a number, a boolean, or structured data | Declare another output type. [Step outputs](/reference/workflow-schema#step-outputs) lists the types and their encoding. |
+| Read a nested field in a later job | Declare a `json` output. Set the job output to one expression and nothing else. Later jobs can then read nested fields. See [How outputs move results between jobs](/understand/data-and-templating#how-outputs-move-results-between-jobs). |
+| Run a later step only for some values | Read the output in the `if` condition of that step. |
+| Publish a value from an agent step | Declare the outputs on the agent step. See [Get typed agent outputs](/how-to/author-workflows/use-structured-agent-outputs). |
+| Pass a file or a build product | Outputs are for small values. Upload the file to your own storage and pass its URL or path as the output. |
+
+To use an output in a shell command, put it in `env` and read the environment
+variable, as the example does. The shell then treats the value as text and
+doesn't run it as part of the command.
 
 ## Verify the output
 
@@ -52,11 +83,13 @@ depends on `prepare` and reads the job output.
 
     **Compare the output**
 
-    Open `prepare` and confirm that its outputs include `message`. Open
-    `consume` and confirm that its log contains `Hello from the prepare job`.
+    Open the job that publishes the value. Confirm that its outputs include
+    the name you declared. Open the job that reads the value. Confirm that it
+    received the same value.
+
+    In the example, the `prepare` job lists `message`. The log of the `consume`
+    job contains `Hello from the prepare job`.
   </Step>
 </Steps>
 
-See [Step outputs](/reference/workflow-schema#step-outputs) for declaration
-types and encoding. See [Job outputs](/reference/limits#job-outputs) for size
-limits.
+See [Job outputs](/reference/limits#job-outputs) for size limits.

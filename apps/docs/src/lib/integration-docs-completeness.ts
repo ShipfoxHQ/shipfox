@@ -16,6 +16,7 @@ interface IntegrationCatalogFrontmatter {
 export interface IntegrationDocsDirectory {
   pages: readonly string[];
   metaPages?: readonly string[];
+  hasGuides?: boolean;
   pageBodies: Readonly<Record<string, string>>;
   overview?: {
     catalog?: IntegrationCatalogFrontmatter;
@@ -31,6 +32,7 @@ export interface IntegrationDocsCompletenessInput {
 }
 
 const canonicalPages = ['index', 'setup', 'events', 'tools'];
+const guidesDirectory = 'guides';
 const hardcodedCountPattern = /\b\d+\s+(?:events?|tools?)\b/iu;
 const lineBreakPattern = /\r?\n/u;
 const yamlCommentPattern = /\s+#/u;
@@ -104,6 +106,7 @@ function collectCatalogProviderIssues(
     issues.push(`${prefix}: remove or register unsupported page ${page}.mdx.`);
 
   const expectedMetaPages = canonicalPages.filter((page) => directory.pages.includes(page));
+  if (directory.hasGuides) expectedMetaPages.push(guidesDirectory);
   if (!sameStrings(directory.metaPages, expectedMetaPages))
     issues.push(
       `${prefix}: set meta.json pages to [${expectedMetaPages.join(', ')}] so it matches the existing pages in canonical order.`,

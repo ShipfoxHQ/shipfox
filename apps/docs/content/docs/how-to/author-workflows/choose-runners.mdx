@@ -1,7 +1,7 @@
 ---
-title: "Choose Runners for Shipfox Workflow Jobs"
+title: "Choose Runners for Workflow Jobs"
 sidebarTitle: "Choose Runners"
-description: "Match job labels with Shipfox runners and change the runner for selected jobs."
+description: "Match job labels with runners, change the runner for selected jobs, and resolve a job that stays pending."
 ---
 
 Runner labels describe where a job can run. A runner must have every label the
@@ -70,6 +70,24 @@ template.
   </Step>
 </Steps>
 
-If the job remains pending, use [Resolve pending
-jobs](/how-to/run-and-troubleshoot/pending-jobs). Runner registration and label
-configuration stay in the [Runner reference](/reference/runner).
+## Resolve a pending job
+
+A job can remain pending while it waits for dependencies or for a compatible
+runner. Use these checks after its dependencies have finished.
+
+Open the run, select the pending job, and note its runner labels. The job may
+inherit labels from the workflow or the Shipfox instance default.
+
+Check the runner process that should claim it:
+
+1. Confirm the runner is online and polling the same workspace.
+2. Confirm its configured labels include every label required by the job.
+3. Confirm the runner has capacity for another job.
+4. Check its log for registration, authentication, or polling errors.
+
+Start or repair a matching runner. The pending job is claimed automatically.
+You do not need to start another run. Confirm that the job leaves `pending`,
+starts an execution, and streams step logs from the matching runner.
+
+See [Start a runner](/operations/runners) for registration and the [Runner
+reference](/reference/runner) for label configuration.

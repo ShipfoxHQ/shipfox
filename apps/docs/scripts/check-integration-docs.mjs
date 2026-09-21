@@ -53,6 +53,7 @@ function readIntegrationDirectory(slug) {
 
   return {
     pages,
+    hasGuides: existsSync(path.join(directory, 'guides')),
     metaPages: existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, 'utf8')).pages : undefined,
     pageBodies,
     overview,

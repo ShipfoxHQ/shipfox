@@ -2,14 +2,14 @@
   "title": "Run and Troubleshoot",
   "pages": [
     "index",
+    "---Test before you push---",
     "validate-local-workflow-change",
     "test-local-workflow-change",
+    "---Diagnose a problem---",
     "inspect-runs-and-attempts",
     "inspect-logs",
     "agent-provider-failures",
-    "cancel-and-rerun",
-    "workflow-sync",
     "event-routing",
-    "pending-jobs"
+    "workflow-sync"
   ]
 }

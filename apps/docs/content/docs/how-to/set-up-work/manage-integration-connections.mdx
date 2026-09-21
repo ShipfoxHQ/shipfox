@@ -1,16 +1,21 @@
 ---
-title: "Find an Integration Connection Slug and Check Its Events"
-sidebarTitle: "Inspect an Integration Connection"
-description: "Copy an integration connection slug and check its recent events."
+title: "Inspect, Pause, or Delete an Integration Connection"
+sidebarTitle: "Manage Integration Connections"
+description: "Copy an integration connection slug, check its recent events, pause it, or delete it safely."
 ---
 
-Use this guide to find an integration connection slug and check an event. This is a read-only
-task. It does not change the integration connection.
+Use this guide to work with an existing integration connection:
+
+- Inspecting a connection changes nothing.
+- While a connection is paused, Shipfox drops its events. It doesn't replay
+  them later.
+- Deleting a connection can't be undone.
 
 ## Before you begin
 
-You need an existing integration connection and access to its settings. If you do not have
-one, connect one from the [integrations catalog](/integrations).
+You need an existing integration connection and permission to manage workspace
+integrations. If you do not have a connection, connect one from the
+[integrations catalog](/integrations).
 
 ## Copy the integration connection slug
 
@@ -35,3 +40,85 @@ Send one safe test event from the provider. Open the new event. Check that:
 
 Use [Troubleshoot event routing](/how-to/run-and-troubleshoot/event-routing) when
 delivery succeeds but no run appears.
+
+## Pause and resume an integration connection
+
+Pause a connection to stop its events for a short time. The integration
+connection stays in the workspace.
+
+<Steps>
+  <Step>
+
+    **Check which runs you will miss**
+
+    Find the workflows that use the integration connection slug. These
+    workflows won't start during the pause. Check that none of them handles
+    urgent work.
+  </Step>
+  <Step>
+
+    **Disable the integration connection**
+
+    Open the integration connection's menu and select **Disable integration**.
+    Send a safe test event. Check that it does not appear in
+    **Settings → Events** and that no workflow run starts from it.
+  </Step>
+  <Step>
+
+    **Enable and verify the integration connection**
+
+    Open the menu again and select **Enable integration**. Send a new test event
+    from the provider. Check that it appears in the event journal with a final
+    routing result.
+  </Step>
+</Steps>
+
+If the fresh event does not arrive, repeat the setup check on the provider's
+setup page in the [integrations catalog](/integrations).
+
+## Delete an integration connection
+
+Delete a connection only when no project should use its external account or
+installation. Set up a replacement first if its events, checkout, or tools must
+continue.
+
+<Steps>
+  <Step>
+
+    **Check every dependency**
+
+    Search `.shipfox/workflows/` in each project repository for the slug. Check
+    trigger `source` values, and tool step and agent `connection` values. Open
+    each project's settings and check whether this is its source integration
+    connection. Identify active runs whose listening jobs still expect events
+    from it.
+
+    Point workflow files and project settings to a replacement where needed,
+    then wait for every changed workflow to sync successfully. Do not delete the
+    connection while a project needs it for checkout or an active listener needs
+    its events.
+  </Step>
+  <Step>
+
+    **Delete the integration connection**
+
+    Open the integration connection's menu, select **Delete integration**, and
+    confirm the workspace and integration connection shown in the dialog.
+
+    The action cannot be undone. Shipfox stops receiving its new events. A
+    workflow that still uses the slug may fail to sync or run.
+  </Step>
+  <Step>
+
+    **Verify the removal**
+
+    Confirm that the integration connection no longer appears in integration
+    settings. If it was a custom webhook, confirm that every sender has retired
+    its old ingest URL. Check the affected projects for sync errors. Start one
+    workflow through the replacement and check that checkout, events, or tools
+    still work.
+  </Step>
+</Steps>
+
+Use [Fix workflow sync](/how-to/run-and-troubleshoot/workflow-sync) for a
+definition that still references the deleted integration connection.

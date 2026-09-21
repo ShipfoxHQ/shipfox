@@ -1,13 +1,20 @@
 ---
 title: "Add an Agent Step"
-sidebarTitle: "Agent Steps"
-description: "Add an agent step that reads project files and summarizes the repository."
+sidebarTitle: "Add an Agent Step"
+description: "Add a step that gives a prompt to an AI agent in your repository. The example summarizes the project without changing files."
 ---
 
-Use this guide to add an agent step to a project. The agent reads the code and
-describes what it finds. It does not change any files.
+Use an agent step for work that needs investigation or judgment. Use a `run`
+step when a fixed command is enough.
 
-## Add the workflow
+A step becomes an agent step when it has a `prompt`. The agent runs on the same
+runner as the other steps of the job. It works in the job's copy of the
+repository.
+
+The example below asks an agent to summarize a repository. To do other work,
+such as a review, a triage, or a fix, keep the same step and change the prompt.
+
+## Add the agent step
 
 Create `.shipfox/workflows/summarize-repository.yml`. This is a complete
 workflow. It uses the workspace's default harness, provider, and model:
@@ -30,27 +37,42 @@ jobs:
           Do not change any files.
 ```
 
+To reuse this step in your own workflow, change only the `prompt`. A good
+prompt has three parts:
+
+- **The task.** State what the agent must find, decide, or change.
+- **The shape of the answer.** Ask for a form you can check, such as three
+  sentences or one named command.
+- **The limits.** Say what the agent must not do, such as changing files.
+
 Commit and push the file to the project's default branch. Wait for **Summarize
 the repository** to appear in the project's **Workflows** tab.
+
+## Adapt the step to your task
+
+Start from the example and change one thing at a time:
+
+| To... | Change this |
+| --- | --- |
+| Tell the agent why the run started | Add event fields or earlier outputs to the prompt with `${{ }}` expressions. This text comes from outside the workflow, so read [Treat outside data as text](/understand/data-and-templating#treat-outside-data-as-text-not-as-instructions) first. |
+| Let the agent edit the checkout | Remove the line `Do not change any files` and name the files the agent may change. The changes exist only on the runner. To keep them, push them in a later step. See [Push commits from a job](/integrations/github/guides/push-repository-changes). |
+| Give the agent context from another system | Add integration tools to the step. See [Give agents GitHub tools](/integrations/github/guides/read-pull-request). |
+| Use the agent's answer in later steps | Declare typed outputs. See [Get typed agent outputs](/how-to/author-workflows/use-structured-agent-outputs). |
+| Use another harness, provider, or model for this step | Set the fields in [Agent step fields](/reference/workflow-schema#agent-step-fields). |
+| Check the agent's work | Add a test, a linter, or another automatic check after the agent step. See [Retry agent work until checks pass](/how-to/recipes/build-feedback-loop). |
 
 ## Verify the agent result
 
 Select **Run** and open the new run.
 
-1. Confirm that the `summarize` job starts on the expected runner.
+1. Confirm that the job starts on the expected runner.
 2. Open the agent step and follow its messages and tool activity.
-3. Check that the final response has three sentences.
-4. Check that it names a real entry point and a command from the project.
+3. Check that the final response has the shape the prompt asked for. In the
+   example, it has three sentences.
+4. Check the answer against the repository. In the example, it names a real
+   entry point and a real command.
 
 The result should match the code in the commit that started the run.
 
-If the step cannot resolve a model or provider, check [Configure agent
-defaults](/how-to/set-up-work/configure-model-providers). To override defaults,
-use the exact fields in [Agent step
-fields](/reference/workflow-schema#agent-step-fields).
-
-Use [Build a feedback
-loop](/how-to/author-workflows/build-feedback-loop) to check and retry agent
-work. Use [read-only integration
-tools](/how-to/author-workflows/use-integration-tools) to give the agent outside
-context.
+If the step cannot resolve a model or provider, check [Set the default agent
+model](/how-to/set-up-work/configure-model-providers).

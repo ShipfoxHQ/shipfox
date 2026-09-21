@@ -229,6 +229,30 @@ from its stated starting state to its promised result.
 - End with verification of the promised result.
 - Link expected failure states to focused recovery guides.
 - Split the page when it solves two independently searchable problems.
+- Keep the lifecycle of one settings object on one page. Creating, replacing,
+  pausing, and deleting a secret, provider, or integration connection are
+  sections of its `Manage` guide, not separate pages.
+
+### Examples in how-to guides
+
+A capability guide teaches a pattern through one example. The reader must be
+able to apply it to their own case without reverse-engineering the scenario.
+
+- Open with the capability and when to use it. Name the example in a separate
+  sentence. Then tell the reader what to keep and what to change for their own
+  case.
+- Write full sentences with an explicit subject, verb, and object. Do not
+  compress guidance into short parallel slogans. Many readers are not native
+  English speakers.
+- After the example, list the parts every use of the capability needs, in
+  general terms. Say which lines belong to the scenario only.
+- Add `## Adapt it to your workflow` with a `To... | Change this` table of three
+  to six common variations. Link each row to the guide or reference that owns
+  the detail. Do not catalog every option.
+- Write verification steps for any workflow first, then anchor them with
+  `In the example, ...`.
+
+Recipes and troubleshooting guides do not need this structure.
 
 ### How-to template
 
@@ -241,14 +265,48 @@ from its stated starting state to its promised result.
 4. Continue with action headings in their logical order. Use `Steps` for a
    linear sequence and ordinary headings or a decision table for branches.
 5. Add short decision guidance exactly where the reader must choose.
-6. `## Verify <result>`. Confirm observable Shipfox and external state.
-7. Optional: `## If <expected problem> occurs`, or link to a dedicated
+6. For a capability guide, `## Adapt it to your workflow`. See
+   [Examples in how-to guides](#examples-in-how-to-guides).
+7. `## Verify <result>`. Confirm observable Shipfox and external state.
+8. Optional: `## If <expected problem> occurs`, or link to a dedicated
    troubleshooting guide.
 
 Do not add a generic concepts section, full field table, broad product tour,
 unrelated next steps, or a teaching narrative. If the reader needs to learn the
 whole system, write a tutorial. If they need to understand why, link to
 Understand.
+
+### Where a how-to guide lives
+
+| The guide... | Put it in |
+| --- | --- |
+| Prepares a workspace, project, provider, or member | `how-to/set-up-work/` |
+| Changes a workflow file and works with any provider | `how-to/author-workflows/` |
+| Tests a change or diagnoses a visible problem | `how-to/run-and-troubleshoot/` |
+| Delivers a complete workflow for a recognizable outcome | `how-to/recipes/` |
+| Only makes sense with one provider | `integrations/<provider>/guides/` |
+
+### Order and group how-to pages
+
+The sidebar order comes from each directory's `meta.json`. Apply these rules in
+order:
+
+1. Group pages under `---Label---` separators named after the reader's goal.
+   Keep a group to about seven pages. Split the group or merge thin pages when
+   it grows past that.
+2. Inside a group, put a page after every page it lists under
+   `Before you begin`.
+3. Otherwise, order pages by their 90-day pageviews in PostHog, most viewed
+   first. Review the order each quarter.
+4. Place a new page by expected reach until it has data: every workspace, most
+   workflows, one feature, one provider, then cleanup.
+
+5. Put a guide that Shipfox Cloud users cannot follow in a last group named
+   `---Open source edition---`. Start the page with an
+   `Open source edition only` callout that links to the Shipfox Cloud
+   equivalent, and start its `description` with the same words.
+
+Keep the cards on the section's `index.mdx` in the same groups and order.
 
 ### Recipes are how-to guides
 
@@ -309,7 +367,8 @@ facts in the reference pages.
 | `setup.mdx` | `/integrations/<provider>/setup` | How-to | The provider is connectable. |
 | `events.mdx` | `/integrations/<provider>/events` | Reference | The provider stamps Shipfox event names into deliveries. |
 | `tools.mdx` | `/integrations/<provider>/tools` | Reference | Its registry-derived `capabilities[]` includes `agent_tools`. |
-| `meta.json` | None | None | Always. List only the pages that exist, in the order `index`, `setup`, `events`, `tools`. |
+| `guides/<task>.mdx` | `/integrations/<provider>/guides/<task>` | How-to | A task only makes sense with this provider. Add a `guides/index.mdx` and `guides/meta.json`. |
+| `meta.json` | None | None | Always. List only the pages that exist, in the order `index`, `setup`, `events`, `tools`, then `guides`. |
 
 Put these files in `content/docs/integrations/<provider>/`. Register the provider
 directory in `content/docs/integrations/meta.json`. The provider's `meta.json`
@@ -342,7 +401,7 @@ these provider-specific homes:
 | Raw pass-through webhook payload fields | The provider's upstream webhook reference | The provider owns and versions this schema. Link to it from `events.mdx`; do not reproduce it. |
 | Tool selectors, methods, sensitivity, sensitive status, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's `src/core/agent-tools.ts` catalog and its schemas. |
 | Trigger `source`, `event`, `filter`, and `with` fields, tool step fields, and the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
-| Inspecting, pausing, or deleting an integration connection | The matching `how-to/set-up-work/manage-*` guide | The connection lifecycle implementation. |
+| Inspecting, pausing, or deleting an integration connection | `how-to/set-up-work/manage-integration-connections` | The connection lifecycle implementation. |
 
 Shipfox owns the event name, emission condition, and any payload shape it
 normalizes. For a pass-through provider, Shipfox does not own or version the raw
@@ -700,5 +759,16 @@ contextual links.
   product surface.
 - `sidebarTitle`: stays short. For explanation pages, it must sell the capability
   when the subject name alone does not. For task pages, it names the result.
+  - A how-to `sidebarTitle` is an imperative verb and its object, in four words
+    or fewer, such as `Filter Trigger Events`. Do not use a noun-only label such
+    as `Agent Setup`.
+  - A troubleshooting `sidebarTitle` names the symptom the reader sees, such as
+    `Event Didn't Start a Run`, not the subsystem.
+  - A how-to `title` names the general capability, never the worked example.
+    Recipes are the exception because the scenario is their subject.
+  - Omit `Shipfox` from a title unless it is the object of the task. The HTML
+    title already appends the brand.
 - `description`: states the page's reader need and promised value in one or two
   sentences. It must not promise a result the body does not produce.
+  For a how-to guide, the first sentence states the capability and when to use
+  it. A second sentence may name the scenario and starts with `The example`.

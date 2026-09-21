@@ -1,6 +1,6 @@
 ---
-title: "Share an Agent Session Between Steps"
-sidebarTitle: "Share a Session"
+title: "Continue an Agent's Conversation in a Later Step"
+sidebarTitle: "Continue an Agent Session"
 description: "Let a later agent step continue an earlier agent's conversation across jobs and listening executions in one run."
 ---
 
@@ -66,7 +66,7 @@ A listening job runs its steps once per event batch. Each execution starts a
 new conversation unless the agent step names a session.
 
 This fragment extends the `triage` job from [Batch and bound pull request
-feedback](/how-to/author-workflows/bound-listening-job). Replace that job's
+feedback](/how-to/recipes/bound-listening-job). Replace that job's
 `steps` list with this one:
 
 ```yaml
