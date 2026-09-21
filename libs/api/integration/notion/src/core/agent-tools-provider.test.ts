@@ -1,7 +1,11 @@
 import type {NotionAgentToolId} from '@shipfox/api-integration-notion-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {NotionAgentToolsClient} from '#api/client.js';
-import {notionAgentToolCatalog, notionAgentToolSelectionCatalog} from './agent-tools.js';
+import {
+  notionAgentToolCatalog,
+  notionAgentToolSelectionCatalog,
+  splitCommentText,
+} from './agent-tools.js';
 import {NotionAgentToolsProvider} from './agent-tools-provider.js';
 import {NotionIntegrationProviderError} from './errors.js';
 
@@ -38,6 +42,21 @@ function providerOptions(
     tokenStore: {getAccessToken: vi.fn().mockResolvedValue('notion-token')},
   };
 }
+
+describe('splitCommentText', () => {
+  it('keeps non-BMP characters intact at the 2,000-character boundary', () => {
+    const prefix = 'a'.repeat(1_999);
+    const text = `${prefix}😀b`;
+
+    const chunks = splitCommentText(text);
+
+    expect(chunks).toEqual([`${prefix}😀`, 'b']);
+    expect(chunks.join('')).toBe(text);
+    for (const chunk of chunks) {
+      expect(() => encodeURIComponent(chunk)).not.toThrow();
+    }
+  });
+});
 
 describe('NotionAgentToolsProvider', () => {
   it('publishes eight standalone tools with writes marked as sensitive', () => {

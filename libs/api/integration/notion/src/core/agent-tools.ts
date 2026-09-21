@@ -330,9 +330,10 @@ function notionParent(args: Record<string, unknown>): unknown {
 
 export function splitCommentText(text: string): string[] {
   if (text.length === 0) return [''];
+  const codePoints = Array.from(text);
   const chunks: string[] = [];
-  for (let offset = 0; offset < text.length; offset += 2_000) {
-    chunks.push(text.slice(offset, offset + 2_000));
+  for (let offset = 0; offset < codePoints.length; offset += 2_000) {
+    chunks.push(codePoints.slice(offset, offset + 2_000).join(''));
   }
   return chunks;
 }
