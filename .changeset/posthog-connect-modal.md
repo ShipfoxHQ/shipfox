@@ -1,6 +1,6 @@
 ---
-"@shipfox/react-ui": patch
-"@shipfox/integration-icons": patch
+"@shipfox/react-ui": minor
+"@shipfox/integration-icons": minor
 "@shipfox/client-integrations": minor
 ---
 
