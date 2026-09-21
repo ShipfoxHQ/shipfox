@@ -44,6 +44,11 @@ import {
   linearCallbackResponseSchema,
 } from '@shipfox/api-integration-linear-dto';
 import type {
+  PosthogConnectBodyDto,
+  PosthogReplaceApiKeyBodyDto,
+} from '@shipfox/api-integration-posthog-dto';
+import {posthogConnectResponseSchema} from '@shipfox/api-integration-posthog-dto';
+import type {
   CreateSentryInstallBodyDto,
   SentryConnectBodyDto,
 } from '@shipfox/api-integration-sentry-dto';
@@ -78,6 +83,7 @@ import {
   type IntegrationProvider,
   isUsableConnection,
   type JiraSite,
+  type PosthogProject,
   type RepositoryAccess,
   type RepositoryAccessMode,
   type RepositoryPage,
@@ -244,6 +250,42 @@ export async function createGiteaConnection(
     },
   );
   return toIntegrationConnection(response);
+}
+
+export type PosthogConnectResult =
+  | {status: 'connected'; connection: IntegrationConnection}
+  | {status: 'select-project'; projects: PosthogProject[]};
+
+export async function connectPosthog(body: PosthogConnectBodyDto): Promise<PosthogConnectResult> {
+  const response = await checkedApiRequest(
+    posthogConnectResponseSchema,
+    '/integrations/posthog/connect',
+    {
+      method: 'POST',
+      body,
+    },
+  );
+  if (response.status === 'select-project') {
+    return {
+      status: response.status,
+      projects: response.projects.map(({id, name}) => ({id, name})),
+    };
+  }
+  return {status: response.status, connection: toIntegrationConnection(response.connection)};
+}
+
+export async function replacePosthogApiKey({
+  connectionId,
+  body,
+}: {
+  connectionId: string;
+  body: PosthogReplaceApiKeyBodyDto;
+}): Promise<void> {
+  await checkedApiRequest(
+    emptyResponseSchema,
+    `/integrations/posthog/connections/${encodeURIComponent(connectionId)}/api-key`,
+    {method: 'PUT', body},
+  );
 }
 
 export async function createClickUpInstall(
@@ -615,6 +657,42 @@ export function useCreateGiteaConnectionMutation() {
     onSuccess: async (connection) => {
       await queryClient.invalidateQueries({
         queryKey: integrationsQueryKeys.connectionsByWorkspace(connection.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
+}
+
+export function useConnectPosthogMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({body}: {workspaceId: string; body: PosthogConnectBodyDto}) =>
+      connectPosthog(body),
+    onSuccess: async (result, variables) => {
+      if (result.status !== 'connected') return;
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
+        refetchType: 'all',
+      });
+    },
+  });
+}
+
+export function useReplacePosthogApiKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workspaceId: _workspaceId,
+      connectionId,
+      body,
+    }: {
+      workspaceId: string;
+      connectionId: string;
+      body: PosthogReplaceApiKeyBodyDto;
+    }) => replacePosthogApiKey({connectionId, body}),
+    onSuccess: async (_result, variables) => {
+      await queryClient.invalidateQueries({
+        queryKey: integrationsQueryKeys.connectionsByWorkspace(variables.workspaceId),
         refetchType: 'all',
       });
     },

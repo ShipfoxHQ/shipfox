@@ -9,6 +9,7 @@ export * from './gitea-logo.js';
 export * from './info-tooltip-fill.js';
 export * from './jira-logo.js';
 export * from './linear-logo.js';
+export * from './posthog-logo.js';
 export * from './resize.js';
 export * from './sentry-logo.js';
 export * from './shipfox-logo.js';

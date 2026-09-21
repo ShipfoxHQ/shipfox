@@ -12,6 +12,7 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Header, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {type ReactNode, useEffect, useState} from 'react';
+import {PosthogReplaceApiKeyModal} from '#components/posthog/posthog-replace-api-key-modal.js';
 import type {IntegrationConnection, RepositoryAccess, RepositoryAccessMode} from '#core/models.js';
 import {
   useIntegrationConnectionRepositoryAccessQuery,
@@ -55,12 +56,20 @@ export function ConnectionDetailsPage({
   }
 
   return (
-    <ConnectionDetailsShell workspaceSlug={workspaceSlug} connectionName={connection.displayName}>
-      <RepositoryAccessSettings
-        key={connection.id}
-        connection={connection}
-        workspaceSlug={workspaceSlug}
-      />
+    <ConnectionDetailsShell
+      workspaceSlug={workspaceSlug}
+      connectionName={connection.displayName}
+      title={connection.provider === 'posthog' ? 'PostHog connection' : 'Repository access'}
+    >
+      {connection.provider === 'posthog' ? (
+        <PosthogConnectionSettings connection={connection} workspaceId={connection.workspaceId} />
+      ) : (
+        <RepositoryAccessSettings
+          key={connection.id}
+          connection={connection}
+          workspaceSlug={workspaceSlug}
+        />
+      )}
     </ConnectionDetailsShell>
   );
 }
@@ -68,10 +77,12 @@ export function ConnectionDetailsPage({
 function ConnectionDetailsShell({
   workspaceSlug,
   connectionName,
+  title = 'Repository access',
   children,
 }: {
   workspaceSlug: string;
   connectionName?: string;
+  title?: string;
   children: ReactNode;
 }) {
   return (
@@ -84,7 +95,7 @@ function ConnectionDetailsShell({
         Back to integrations
       </Link>
       <div className="flex min-w-0 flex-col gap-tight">
-        <Header variant="h1">Repository access</Header>
+        <Header variant="h1">{title}</Header>
         {connectionName ? (
           <Text size="sm" className="text-foreground-neutral-muted">
             {connectionName}
@@ -93,6 +104,55 @@ function ConnectionDetailsShell({
       </div>
       {children}
     </div>
+  );
+}
+
+export function PosthogConnectionSettings({
+  connection,
+  workspaceId,
+}: {
+  connection: IntegrationConnection;
+  workspaceId: string;
+}) {
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  const isError = connection.lifecycleStatus === 'error';
+
+  return (
+    <>
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>API key</PanelTitle>
+        </PanelHeader>
+        <PanelBody className="gap-group p-panel">
+          {isError ? (
+            <Callout role="alert" type="error">
+              <CalloutContent>
+                <CalloutTitle>PostHog could not authenticate</CalloutTitle>
+                <CalloutDescription>
+                  This connection is not available because its API key was rejected. Replace the key
+                  to restore the connection.
+                </CalloutDescription>
+              </CalloutContent>
+            </Callout>
+          ) : (
+            <Text size="sm" className="text-foreground-neutral-muted">
+              Replace the personal API key without changing this connection or its workflow slug.
+            </Text>
+          )}
+          <div className="flex items-center gap-group">
+            <Button type="button" onClick={() => setReplaceOpen(true)}>
+              Replace API key
+            </Button>
+          </div>
+        </PanelBody>
+      </Panel>
+      <PosthogReplaceApiKeyModal
+        workspaceId={workspaceId}
+        connection={connection}
+        open={replaceOpen}
+        onOpenChange={setReplaceOpen}
+      />
+    </>
   );
 }
 

@@ -679,6 +679,17 @@ describe('IntegrationGallery: available section', () => {
     expect(within(link).queryByRole('button')).not.toBeInTheDocument();
   });
 
+  test('opens the PostHog connect modal from the Add card', async () => {
+    renderGallery(
+      {},
+      {providers: [{provider: 'posthog', display_name: 'PostHog', capabilities: ['agent_tools']}]},
+    );
+
+    fireEvent.click(await screen.findByRole('button', {name: 'Add PostHog'}));
+
+    expect(await screen.findByLabelText('Personal API key')).toBeVisible();
+  });
+
   test('opens the webhook create modal from the Add card', async () => {
     renderGallery({}, {connections: []});
 

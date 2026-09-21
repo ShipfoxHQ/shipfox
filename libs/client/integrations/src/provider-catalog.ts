@@ -75,4 +75,9 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     displayName: 'Webhook',
     iconName: PROVIDER_ICONS.webhook,
   },
+  posthog: {
+    kind: 'modal-connect',
+    displayName: 'PostHog',
+    iconName: PROVIDER_ICONS.posthog,
+  },
 };

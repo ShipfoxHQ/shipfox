@@ -6,12 +6,14 @@ import {
   completeJiraSiteSelection,
   completeLinearCallback,
   completeSlackCallback,
+  connectPosthog,
   createClickUpInstall,
   createJiraInstall,
   createLinearInstall,
   createSlackInstall,
   listIntegrationConnectionRepositoryAccess,
   listSourceConnections,
+  replacePosthogApiKey,
   updateIntegrationConnectionRepositoryAccess,
 } from './integrations.js';
 
@@ -31,12 +33,74 @@ function connection(overrides: Partial<IntegrationConnectionDto> = {}): Integrat
   };
 }
 
-function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), {
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(body === undefined ? undefined : JSON.stringify(body), {
     status: 200,
     headers: {'content-type': 'application/json'},
+    ...init,
   });
 }
+
+describe('PostHog transport', () => {
+  test('maps project selection and connected responses', async () => {
+    const requests: Request[] = [];
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn((input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Promise.resolve(
+          jsonResponse({
+            status: requests.length === 1 ? 'select-project' : 'connected',
+            ...(requests.length === 1
+              ? {projects: [{id: 'project-1', name: 'Analytics'}]}
+              : {connection: connection({provider: 'posthog', capabilities: ['agent_tools']})}),
+          }),
+        );
+      }),
+    });
+
+    const selected = await connectPosthog({region: 'eu', api_key: 'phx_key'});
+    const connected = await connectPosthog({
+      region: 'eu',
+      api_key: 'phx_key',
+      project_id: 'project-1',
+    });
+
+    expect(selected).toEqual({
+      status: 'select-project',
+      projects: [{id: 'project-1', name: 'Analytics'}],
+    });
+    expect(connected.status).toBe('connected');
+    expect(await requests[1]?.json()).toEqual({
+      region: 'eu',
+      api_key: 'phx_key',
+      project_id: 'project-1',
+    });
+  });
+
+  test('replaces the key with an explicit connection URL', async () => {
+    const requests: Request[] = [];
+    configureApiClient({
+      baseUrl: 'https://api.example.test',
+      fetchImpl: vi.fn((input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(jsonResponse(undefined, {status: 204}));
+      }),
+    });
+
+    await replacePosthogApiKey({
+      connectionId: '11111111-1111-4111-8111-111111111111',
+      body: {api_key: 'phx_new'},
+    });
+
+    expect(requests[0]?.method).toBe('PUT');
+    expect(requests[0]?.url).toBe(
+      'https://api.example.test/integrations/posthog/connections/11111111-1111-4111-8111-111111111111/api-key',
+    );
+    expect(await requests[0]?.json()).toEqual({api_key: 'phx_new'});
+  });
+});
 
 describe('listSourceConnections', () => {
   test('requests the source_control capability and drops non-active connections', async () => {

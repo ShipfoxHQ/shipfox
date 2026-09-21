@@ -6,6 +6,7 @@ export const PROVIDER_ICONS = {
   github: 'github',
   sentry: 'sentry',
   linear: 'linear',
+  posthog: 'posthog',
   slack: 'slack',
   jira: 'jira',
   clickup: 'clickup',
