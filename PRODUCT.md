@@ -20,8 +20,9 @@ data density, unambiguous status, and no marketing fluff.
 Agentic coding makes engineers faster. Shipfox gives them a factory.
 
 A ticket, an alert or a failed check starts a workflow in your repo. It runs
-like a CI pipeline and opens a pull request. You review and merge, and spend
-your week on the work that needs you.
+like a CI pipeline and opens a pull request.
+
+You decide where you step in.
 
 Workflows plug into the tools that power an engineering team, such as ticketing,
 monitoring, chat, and source control, through one secured layer. The same
@@ -108,8 +109,8 @@ Constraints:
 - **Subtitle:** "Agentic coding makes engineers faster. Shipfox gives them a
   factory."
 - **Description:** "A ticket, an alert or a failed check starts a workflow in
-  your repo. It runs like a CI pipeline and opens a pull request. You review and
-  merge, and spend your week on the work that needs you."
+  your repo. It runs like a CI pipeline and opens a pull request. You decide
+  where you step in."
 - **Voice:** direct, technical, no marketing fluff. Written for engineers who read
   logs at 2am. See `WRITING.md` and `apps/docs/WRITING.md` for repository prose
   conventions; product docs terminology there is binding.

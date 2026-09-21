@@ -57,9 +57,10 @@ test('keeps crawler-facing docs surfaces on the canonical product positioning', 
 
 test('records the canonical product pitch in the docs writing guide', async () => {
   const writingGuide = await readFile(`${repositoryRoot}/apps/docs/WRITING.md`, 'utf8');
+  const normalizedWritingGuide = normalizeWhitespace(writingGuide.replace(/^> ?/gm, ''));
 
   assert.ok(writingGuide.includes(`canonical product category is **${PRODUCT_CATEGORY}**`));
   assert.ok(writingGuide.includes(`> ${PRODUCT_HEADLINE}`));
   assert.ok(writingGuide.includes(`> ${PRODUCT_SUBTITLE}`));
-  assert.ok(writingGuide.includes(`> ${PRODUCT_DESCRIPTION}`));
+  assert.ok(normalizedWritingGuide.includes(PRODUCT_DESCRIPTION));
 });

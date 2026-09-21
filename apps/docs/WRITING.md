@@ -46,7 +46,9 @@ Use this subtitle with the headline:
 Use this description in public metadata, machine-readable summaries, and
 surfaces with room for the full pitch:
 
-> A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request. You review and merge, and spend your week on the work that needs you.
+> A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request.
+>
+> You decide where you step in.
 
 Use **workflow** for the Shipfox concept. Outside the canonical product
 description, use **pipeline** only when quoting or contrasting an external
