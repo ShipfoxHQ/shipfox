@@ -10,7 +10,7 @@ import {
 } from '@shipfox/api-workflows-dto/inter-module';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {ManualTriggerNotFoundError} from '#core/errors.js';
+import {ManualTriggerNotFoundError, SecretInputNotFoundError} from '#core/errors.js';
 import {fireManualTrigger} from '#core/fire-manual.js';
 import {getManualSubscriptionByDefinitionId} from '#db/subscriptions.js';
 import {mapStartRunError} from './map-start-run-error.js';
@@ -18,6 +18,7 @@ import {mapStartRunError} from './map-start-run-error.js';
 const startRunErrorDetailsSchema = z.union([
   z.object({definition_id: z.string()}),
   z.object({field: z.string(), source: z.string(), env_key: z.string().optional()}),
+  z.object({key: z.string()}),
   z.object({labels: z.array(z.string())}),
   z.object({limit_bytes: z.number().int().positive(), measured_bytes: z.number().int().positive()}),
 ]);
@@ -51,6 +52,13 @@ export function createFireManualTriggerRoute(
     errorHandler: (error) => {
       if (error instanceof ManualTriggerNotFoundError) {
         throw new ClientError(error.message, 'manual-trigger-not-found', {status: 404});
+      }
+      if (error instanceof SecretInputNotFoundError) {
+        throw new ClientError('Secret not found', 'secret-not-found', {
+          status: 422,
+          details: {key: error.key},
+          cause: error,
+        });
       }
       const clientError = mapStartRunError(
         error,

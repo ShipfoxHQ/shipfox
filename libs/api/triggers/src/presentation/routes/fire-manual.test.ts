@@ -8,6 +8,7 @@ import {createInterModuleKnownError} from '@shipfox/inter-module';
 import type {FastifyInstance} from 'fastify';
 import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
+import {SecretInputNotFoundError} from '#core/errors.js';
 import {triggerSubscriptionFactory} from '#test/index.js';
 
 const fireManualTriggerMock = vi.hoisted(() => vi.fn());
@@ -123,6 +124,24 @@ describe('POST /:definitionId/fire-manual', () => {
     expect(res.json()).toMatchObject({
       code: 'source-snapshot-too-large',
       details: {limit_bytes: 1_000_000, measured_bytes: 1_000_001},
+    });
+  });
+
+  test('maps a missing default secret to 422', async () => {
+    const definitionId = crypto.randomUUID();
+    await triggerSubscriptionFactory.create({workspaceId, workflowDefinitionId: definitionId});
+    fireManualTriggerMock.mockRejectedValue(new SecretInputNotFoundError('MISSING_TOKEN'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/${definitionId}/fire-manual`,
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      code: 'secret-not-found',
+      details: {key: 'MISSING_TOKEN'},
     });
   });
 
