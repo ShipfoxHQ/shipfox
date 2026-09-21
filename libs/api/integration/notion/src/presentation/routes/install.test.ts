@@ -52,9 +52,10 @@ function connection(workspaceId: string): IntegrationConnection<'notion'> {
 }
 
 async function createTestApp() {
+  const notion = notionClient();
   const provider = createNotionIntegrationProvider({
     routes: {
-      notion: notionClient(),
+      notion,
       tokenStore: {
         storeTokens: vi.fn(async () => undefined),
         getTokens: vi.fn(async () => ({accessToken: 'old-token'})),
@@ -69,7 +70,7 @@ async function createTestApp() {
   });
   const app = await createApp({auth: [userAuth], routes: provider.routes, swagger: false});
   await app.ready();
-  return app;
+  return {app, notion};
 }
 
 describe('Notion OAuth routes', () => {
@@ -82,7 +83,7 @@ describe('Notion OAuth routes', () => {
   });
 
   it('returns a signed Notion authorization URL with owner=user', async () => {
-    const app = await createTestApp();
+    const {app} = await createTestApp();
     const workspaceId = crypto.randomUUID();
     memberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
 
@@ -106,7 +107,7 @@ describe('Notion OAuth routes', () => {
   });
 
   it('returns denied consent without exchanging a code', async () => {
-    const app = await createTestApp();
+    const {app, notion} = await createTestApp();
     const workspaceId = crypto.randomUUID();
     memberships = [{workspaceId, role: 'admin', workspaceStatus: 'active'}];
     const install = await app.inject({
@@ -125,5 +126,6 @@ describe('Notion OAuth routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({outcome: 'access_denied'});
+    expect(notion.exchangeAuthorizationCode).not.toHaveBeenCalled();
   });
 });

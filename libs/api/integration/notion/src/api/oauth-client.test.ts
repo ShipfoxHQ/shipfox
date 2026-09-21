@@ -46,6 +46,59 @@ describe('createNotionApiClient', () => {
     });
   });
 
+  it('revokes both issued tokens before rejecting malformed workspace identity', async () => {
+    mocks.post
+      .mockReturnValueOnce({
+        json: () =>
+          Promise.resolve({
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            bot_id: 'bot-id',
+            workspace_id: 'workspace-id',
+          }),
+      })
+      .mockResolvedValue(undefined);
+    const client = createNotionApiClient();
+
+    await expect(
+      client.exchangeAuthorizationCode({code: 'authorization-code'}),
+    ).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+    });
+
+    expect(mocks.post).toHaveBeenCalledTimes(3);
+    expect(mocks.post).toHaveBeenCalledWith('https://api.notion.com/v1/oauth/revoke', {
+      headers: {
+        authorization: `Basic ${Buffer.from('test-client-id:test-client-secret').toString('base64')}`,
+      },
+      json: {token: 'access-token'},
+      timeout: 10_000,
+    });
+    expect(mocks.post).toHaveBeenCalledWith('https://api.notion.com/v1/oauth/revoke', {
+      headers: {
+        authorization: `Basic ${Buffer.from('test-client-id:test-client-secret').toString('base64')}`,
+      },
+      json: {token: 'refresh-token'},
+      timeout: 10_000,
+    });
+  });
+
+  it.each([
+    null,
+    undefined,
+    [],
+    'not-an-object',
+  ])('rejects a non-object exchange response as malformed', async (body) => {
+    mocks.post.mockReturnValue({json: () => Promise.resolve(body)});
+    const client = createNotionApiClient();
+
+    await expect(
+      client.exchangeAuthorizationCode({code: 'authorization-code'}),
+    ).rejects.toMatchObject({
+      reason: 'malformed-provider-response',
+    });
+  });
+
   it('refreshes with HTTP Basic credentials and parses the rotated pair', async () => {
     mocks.post.mockReturnValue({
       json: () =>

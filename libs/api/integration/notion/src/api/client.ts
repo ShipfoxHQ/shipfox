@@ -80,7 +80,19 @@ export function createNotionApiClient(): NotionApiClient {
           .json<NotionTokenResponse>(),
       );
 
-      return parseAuthorizationResponse(body);
+      if (!isNotionTokenResponse(body)) {
+        throw new NotionIntegrationProviderError(
+          'malformed-provider-response',
+          'Notion authorization response was not an object',
+        );
+      }
+      const authorization = parseRefreshResponse(body);
+      try {
+        return parseAuthorizationResponse(body, authorization);
+      } catch (error) {
+        await bestEffortRevokeAuthorization(revokeNotionToken, authorization);
+        throw error;
+      }
     },
 
     async refreshAccessToken(input) {
@@ -101,13 +113,7 @@ export function createNotionApiClient(): NotionApiClient {
     },
 
     async revokeToken(input) {
-      await requestNotionOauth('revoke-token', async () => {
-        await ky.post(notionApiUrl(NOTION_OAUTH_REVOKE_PATH), {
-          headers: basicAuthHeaders(),
-          json: {token: input.token},
-          timeout: NOTION_API_TIMEOUT_MS,
-        });
-      });
+      await revokeNotionToken(input);
     },
   };
 }
@@ -147,8 +153,24 @@ function basicAuthHeaders(): Record<string, string> {
   return {authorization: `Basic ${Buffer.from(credentials).toString('base64')}`};
 }
 
-function parseAuthorizationResponse(body: NotionTokenResponse): NotionOAuthAuthorization {
-  const authorization = parseRefreshResponse(body);
+async function revokeNotionToken(input: {token: string}): Promise<void> {
+  await requestNotionOauth('revoke-token', async () => {
+    await ky.post(notionApiUrl(NOTION_OAUTH_REVOKE_PATH), {
+      headers: basicAuthHeaders(),
+      json: {token: input.token},
+      timeout: NOTION_API_TIMEOUT_MS,
+    });
+  });
+}
+
+function isNotionTokenResponse(body: unknown): body is NotionTokenResponse {
+  return typeof body === 'object' && body !== null && !Array.isArray(body);
+}
+
+function parseAuthorizationResponse(
+  body: NotionTokenResponse,
+  authorization: NotionAuthorization,
+): NotionOAuthAuthorization {
   if (
     typeof body.bot_id !== 'string' ||
     typeof body.workspace_id !== 'string' ||
@@ -167,7 +189,13 @@ function parseAuthorizationResponse(body: NotionTokenResponse): NotionOAuthAutho
   };
 }
 
-function parseRefreshResponse(body: NotionTokenResponse): NotionAuthorization {
+function parseRefreshResponse(body: unknown): NotionAuthorization {
+  if (!isNotionTokenResponse(body)) {
+    throw new NotionIntegrationProviderError(
+      'malformed-provider-response',
+      'Notion token response was not an object',
+    );
+  }
   if (typeof body.access_token !== 'string' || body.access_token.length === 0) {
     throw new NotionIntegrationProviderError(
       'malformed-provider-response',
@@ -186,6 +214,23 @@ function parseRefreshResponse(body: NotionTokenResponse): NotionAuthorization {
     refreshToken: body.refresh_token,
     expiresAt: parseExpiresAt(body.expires_in),
   };
+}
+
+async function bestEffortRevokeAuthorization(
+  revokeToken: (input: {token: string}) => Promise<void>,
+  authorization: Pick<NotionAuthorization, 'accessToken' | 'refreshToken'>,
+): Promise<void> {
+  await Promise.all(
+    [authorization.accessToken, authorization.refreshToken]
+      .filter((token): token is string => token !== undefined)
+      .map(async (token) => {
+        try {
+          await revokeToken({token});
+        } catch (error) {
+          logger().warn({err: error}, 'Notion OAuth token revocation failed');
+        }
+      }),
+  );
 }
 
 function parseExpiresAt(expiresIn: unknown): Date | undefined {

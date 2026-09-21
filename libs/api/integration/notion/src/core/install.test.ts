@@ -126,6 +126,37 @@ describe('Notion OAuth installation', () => {
     expect(params.connectNotionInstallation).not.toHaveBeenCalled();
   });
 
+  it('reconnects an existing installation and stores the replacement pair under the grant lock', async () => {
+    const existing = connection('00000000-0000-4000-8000-000000000001');
+    const previousInstallation = {
+      id: crypto.randomUUID(),
+      connectionId: existing.id,
+      notionWorkspaceId: 'notion-workspace',
+      workspaceName: 'Old Acme',
+      botId: 'old-bot-id',
+      authorizedByUserId: 'old-shipfox-user',
+      tokenExpiresAt: null,
+      status: 'installed' as const,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const {params, tokenStore} = callbackParams({
+      getExistingNotionConnection: vi.fn(async () => existing),
+      getNotionInstallationByConnectionId: vi.fn(async () => previousInstallation),
+    });
+
+    const result = await handleNotionCallback(params);
+
+    expect(result.reconnected).toBe(true);
+    expect(tokenStore.storeTokens).toHaveBeenCalledWith({
+      connectionId: result.connection.id,
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+      editedBy: 'shipfox-user',
+      lockAlreadyHeld: true,
+    });
+  });
+
   it('restores the previous pair and installation when reconnect storage fails', async () => {
     const existing = connection('00000000-0000-4000-8000-000000000001');
     const previousInstallation = {
