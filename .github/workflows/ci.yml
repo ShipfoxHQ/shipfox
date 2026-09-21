@@ -228,7 +228,7 @@ jobs:
     name: Static verification
     needs: [release-mode]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
     env:
       SHIPFOX_TURBO_CONCURRENCY: "4"
@@ -300,7 +300,7 @@ jobs:
     name: Verify external package contracts
     needs: [release-mode]
     if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
     env:
       SHIPFOX_TURBO_CONCURRENCY: "4"
@@ -339,7 +339,7 @@ jobs:
     name: Package publication preflight
     needs: [release-mode]
     if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
 
     steps:
@@ -361,7 +361,7 @@ jobs:
     name: Unit and story tests
     needs: [release-mode]
     if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
     env:
       CLOUDFLARE_PAGES_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -447,7 +447,7 @@ jobs:
     name: E2E tests (${{ matrix.suite }})
     needs: [release-mode]
     if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
     env:
       CLOUDFLARE_PAGES_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -549,7 +549,7 @@ jobs:
     name: Build image (${{ matrix.image }})
     needs: [release-mode]
     if: always() && github.ref != 'refs/heads/main' && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -629,7 +629,7 @@ jobs:
       (needs.external-package-contracts.result == 'success' || (needs.release-mode.outputs.mode == 'version-only-main' && needs.external-package-contracts.result == 'skipped')) &&
       (needs.tests.result == 'success' || needs.tests.result == 'skipped') &&
       (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
     # cache (the runner image's apt layer most of all); the cache makes later runs fast.
     timeout-minutes: 60
@@ -875,7 +875,7 @@ jobs:
       needs['plan-runner-image-candidate'].result == 'success' &&
       (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
       needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     concurrency:
       group: runner-image-candidate-${{ github.sha }}-${{ matrix.architecture }}
       cancel-in-progress: false
