@@ -55,6 +55,10 @@ import {
 import {linearEventCatalog} from '@shipfox/api-integration-linear-dto';
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {
+  shipfoxAgentToolCatalog,
+  shipfoxAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-shipfox/agent-tools';
+import {
   slackAgentToolCatalog,
   slackAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-slack/agent-tools';
@@ -103,6 +107,10 @@ const dtoCatalogBySlug = {
   },
   sentry: {
     eventCatalog: sentryEventCatalog,
+  },
+  shipfox: {
+    toolCatalog: shipfoxAgentToolCatalog,
+    toolSelectionCatalog: shipfoxAgentToolSelectionCatalog,
   },
   slack: {
     eventCatalog: slackEventCatalog,

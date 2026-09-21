@@ -7,6 +7,7 @@ import {
 interface RegisteredCatalogIntegrationProvider {
   slug: string;
   kind: 'catalog';
+  connectable: boolean;
   capabilities: readonly CatalogCapability[];
   category: CatalogCategory;
   displayPriority: number;
@@ -27,6 +28,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'github',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['source_control', 'events', 'agent_tools'],
     category: 'source-control',
     displayPriority: 1,
@@ -34,6 +36,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'linear',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['events', 'agent_tools'],
     category: 'issue-tracking',
     displayPriority: 1,
@@ -41,6 +44,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'jira',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['events', 'agent_tools'],
     category: 'issue-tracking',
     displayPriority: 2,
@@ -48,6 +52,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'clickup',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['events', 'agent_tools'],
     category: 'issue-tracking',
     displayPriority: 3,
@@ -55,6 +60,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'sentry',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['events'],
     category: 'observability',
     displayPriority: 1,
@@ -62,6 +68,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'slack',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['events', 'agent_tools'],
     category: 'messaging',
     displayPriority: 1,
@@ -69,8 +76,17 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
   {
     slug: 'webhooks',
     kind: 'catalog',
+    connectable: true,
     capabilities: ['events'],
     category: 'custom',
+    displayPriority: 1,
+  },
+  {
+    slug: 'shipfox',
+    kind: 'catalog',
+    connectable: false,
+    capabilities: ['agent_tools'],
+    category: 'built-in',
     displayPriority: 1,
   },
   {

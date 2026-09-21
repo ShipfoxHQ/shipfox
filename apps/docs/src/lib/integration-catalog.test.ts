@@ -107,6 +107,7 @@ describe('countFacetValues', () => {
       agent_tools: 1,
     });
     assert.deepEqual(counts.category, {
+      'built-in': 0,
       'source-control': 1,
       observability: 1,
       custom: 1,

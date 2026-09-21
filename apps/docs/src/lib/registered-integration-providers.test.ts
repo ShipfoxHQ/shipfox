@@ -6,6 +6,7 @@ import {
 } from '@/lib/registered-integration-providers';
 
 const expectedProviderOrder = [
+  'shipfox',
   'github',
   'linear',
   'jira',

@@ -1,0 +1,99 @@
+---
+title: "Start Another Workflow"
+sidebarTitle: "Start Another Workflow"
+description: "Start another workflow in the same project or a different one."
+---
+
+Use a Shipfox tool step when one workflow must start another workflow. The
+parent starts the child without waiting for its result.
+
+## Before you begin
+
+You need:
+
+- A synced target workflow with a `manual` trigger.
+- The target workflow's configuration path.
+- The target project ID when it differs from the parent project.
+- A runner that matches both workflows.
+
+## Prepare the target workflow
+
+Create `.shipfox/workflows/hello-world.yml` in the target project. This is the child
+workflow that the parent workflow will launch. Its step uses `echo`, so the
+example runs without any repository scripts:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Hello world
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  hello:
+    steps:
+      - env:
+          MESSAGE: "${{ inputs.message }}"
+        run: echo "$MESSAGE"
+```
+
+Commit and push the file to the target project's default branch. Wait for
+**Hello world** to sync.
+
+The `manual` trigger is required.
+
+## Start the target from a parent workflow
+
+Create `.shipfox/workflows/launch-hello-world.yml` in the same project. This is
+a complete workflow:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Launch hello world
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  launch:
+    steps:
+      - key: start_hello_world
+        tool: start_workflow_run
+        connection: shipfox
+        with:
+          workflow: .shipfox/workflows/hello-world.yml
+          inputs:
+            message: "Hello from parent run ${{ run.number }}"
+        outputs:
+          child_run_id: ${{ result.run_id }}
+```
+
+To start a workflow in another project, add `project_id` under `with` and set it
+to the target project ID.
+
+Commit and push the parent file. Wait for **Launch hello world** to sync.
+
+## Know what happens next
+
+The step starts the child workflow and returns its run ID. The parent workflow
+does not wait for the child to finish and cannot use the child's outputs.
+
+If Shipfox automatically retries the step after a temporary failure, it returns
+the same child run instead of starting a duplicate. If you manually rerun the
+step, it can start another child run.
+
+## Verify the child run
+
+1. Start **Launch hello world** from the parent project.
+2. Open the `start_hello_world` step and copy `child_run_id` from its outputs.
+3. Open the target project and find that run ID.
+4. Confirm that its input contains the expected `message`.
+5. Confirm that **Started by** links to the parent run.
+
+Shipfox limits a chain to five levels and 100 descendants per root run. See
+[workflow chaining limits](/reference/limits#workflow-chaining) for the error
+codes.

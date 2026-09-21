@@ -9,16 +9,12 @@ import GithubTools from '../../../generated/integrations/github/tools.mdx';
 This reference lists the shipped GitHub tool catalog. See the [GitHub
 overview](/integrations/github) for authentication and setup.
 
-## Selectors
+## Choose GitHub tools
 
-A tool step names one method as `family.method`, such as `issue_write.update`,
-in its `tool` field. A family name alone or `family.*` is rejected on a tool
-step, because a tool step calls exactly one operation.
+A tool step must choose one operation, such as `issue_write.update`.
 
-An agent step accepts a family, `family.method`, or `family.*` in its
-`integrations:` block. For the field contracts, see [Tool step
-fields](/reference/workflow-schema#tool-step-fields) and [Agent integration
-fields](/reference/workflow-schema#agent-integration-fields).
+An agent integration can select a whole family, such as `issue_write`, or one
+operation in that family.
 
 ## Tool catalog
 

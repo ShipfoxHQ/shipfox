@@ -1,0 +1,38 @@
+---
+title: "Shipfox integration"
+sidebarTitle: "Overview"
+description: "Start workflows and inspect workspace runs with the built-in Shipfox tool provider."
+catalog:
+  name: "Shipfox"
+  summary: "Start workflows and inspect runs with built-in Shipfox tools."
+  capabilities: ["agent_tools"]
+  categories: ["built-in"]
+  aliases: ["workflow chaining", "runs", "automation"]
+  icon: "shipfox"
+---
+
+The built-in Shipfox tool provider lets workflow steps start other workflows.
+It also lets agent steps inspect projects, workflow definitions, runs, logs, and
+annotations.
+
+## Authentication
+
+Shipfox tools use the identity of the calling workflow. They require no external
+account, credentials, or setup.
+
+Shipfox tools can only access data in the same workspace as the workflow.
+
+## Use Shipfox tools
+
+Set `connection: shipfox` in a tool step or agent integration.
+
+## Capabilities
+
+| Capability | Details |
+| --- | --- |
+| Tools | [View Shipfox tools](/integrations/shipfox/tools). |
+
+Use a deterministic tool step to [start another
+workflow](/how-to/author-workflows/start-another-workflow). Give an agent
+read-only tools to [inspect other
+runs](/how-to/author-workflows/inspect-other-runs).

@@ -1,0 +1,25 @@
+---
+title: "Shipfox tools"
+sidebarTitle: "Tools"
+description: "Look up Shipfox tools for starting workflows and inspecting workspace runs."
+---
+
+import ShipfoxTools from '../../../generated/integrations/shipfox/tools.mdx';
+
+This reference lists the built-in Shipfox tool catalog. See the [Shipfox
+overview](/integrations/shipfox) for its workspace access.
+
+Set `connection: shipfox` when using these tools.
+
+## Access and safety
+
+The six inspection tools are read-only. `start_workflow_run` is a write tool.
+An agent step must set `allow_write: true` before it can use that tool.
+
+Child runs are bounded by fixed [workflow chaining
+limits](/reference/limits#workflow-chaining). Limit failures return
+`run-depth-exceeded` or `run-tree-limit-exceeded`.
+
+## Tool catalog
+
+<ShipfoxTools />

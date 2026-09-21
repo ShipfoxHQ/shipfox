@@ -68,13 +68,27 @@ assert.throws(
   /has no setup page/,
 );
 assert.throws(
-  () => validateIntegrationCatalog([providers[1]], {sentry: ['events', 'agent_tools']}),
+  () =>
+    validateIntegrationCatalog([providers[1]], {
+      sentry: {capabilities: ['events', 'agent_tools'], connectable: true},
+    }),
   /has a agent_tools DTO catalog but omits that capability/,
 );
 assert.throws(
-  () => validateIntegrationCatalog(providers, {unknown: ['events']}),
+  () =>
+    validateIntegrationCatalog(providers, {
+      unknown: {capabilities: ['events'], connectable: true},
+    }),
   /Generated DTO catalog.*no matching provider page/,
 );
+
+const generatedShipfoxTools = readFileSync(
+  'content/generated/integrations/shipfox/tools.mdx',
+  'utf8',
+);
+assert.equal(generatedShipfoxTools.match(/^#### `/gmu)?.length, 7);
+assert.equal(generatedShipfoxTools.match(/^\*\*Sensitivity:\*\* read\.$/gmu)?.length, 6);
+assert.equal(generatedShipfoxTools.match(/^\*\*Sensitivity:\*\* write\.$/gmu)?.length, 1);
 
 const generatedGithubTools = readFileSync(
   'content/generated/integrations/github/tools.mdx',

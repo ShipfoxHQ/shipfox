@@ -13,6 +13,8 @@ const sentryCapabilitiesIssuePattern =
 const cronEventIssuePattern = /Built-in source "cron": mention event "tick"/;
 const linearMissingSetupIssuePattern =
   /Integration provider "linear": add setup\.mdx for the connectable provider\./;
+const shipfoxUnexpectedSetupIssuePattern =
+  /Integration provider "shipfox": remove setup\.mdx because the built-in provider needs no setup\./;
 const clickupPrimaryCategoryIssuePattern =
   /Integration provider "clickup": add the primary "issue-tracking" category/;
 
@@ -46,6 +48,7 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 11,
       toolCount: 6,
     },
+    shipfox: {capabilities: ['agent_tools'], eventCount: 0, toolCount: 7},
   },
   integrationDirectories: {
     github: directory(
@@ -108,6 +111,11 @@ const validInput: IntegrationDocsCompletenessInput = {
         aliases: ['tasks', 'project management', 'tickets'],
       },
     ),
+    shipfox: directory('shipfox', ['index', 'tools'], ['index', 'tools'], {
+      capabilities: ['agent_tools'],
+      categories: ['built-in'],
+      aliases: ['workflows'],
+    }),
   },
   builtInSourceDocs: {cron: 'source: cron\nThe event is `tick`.'},
 };
@@ -163,6 +171,24 @@ test('reports a missing setup page for a catalog provider', () => {
   const issues = collectIntegrationDocIssues(input);
 
   assert.match(issues.join('\n'), linearMissingSetupIssuePattern);
+});
+
+test('rejects a setup page for a built-in catalog provider', () => {
+  const input: IntegrationDocsCompletenessInput = {
+    ...validInput,
+    integrationDirectories: {
+      ...validInput.integrationDirectories,
+      shipfox: directory('shipfox', ['index', 'setup', 'tools'], ['index', 'setup', 'tools'], {
+        capabilities: ['agent_tools'],
+        categories: ['built-in'],
+        aliases: ['workflows'],
+      }),
+    },
+  };
+
+  const issues = collectIntegrationDocIssues(input);
+
+  assert.match(issues.join('\n'), shipfoxUnexpectedSetupIssuePattern);
 });
 
 test('reports catalog frontmatter that omits the registered primary category', () => {

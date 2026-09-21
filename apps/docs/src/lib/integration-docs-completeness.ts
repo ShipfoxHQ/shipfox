@@ -92,8 +92,11 @@ function collectCatalogProviderIssues(
   collectReferencePageIssues(directory, provider, generated, 'events', issues);
   collectReferencePageIssues(directory, provider, generated, 'tools', issues);
 
-  if (!directory.pages.includes('setup')) {
+  if (provider.connectable && !directory.pages.includes('setup')) {
     issues.push(`${prefix}: add setup.mdx for the connectable provider.`);
+  }
+  if (!provider.connectable && directory.pages.includes('setup')) {
+    issues.push(`${prefix}: remove setup.mdx because the built-in provider needs no setup.`);
   }
 
   const unexpectedPages = directory.pages.filter((page) => !canonicalPages.includes(page));

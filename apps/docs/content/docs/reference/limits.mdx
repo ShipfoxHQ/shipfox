@@ -50,6 +50,13 @@ serialized outputs object, including output keys and JSON syntax.
 | `env` entries per map | 128 | No | Applies to each of the workflow, job, and step `env` maps. See [Environment variables](/reference/workflow-schema#environment-variables). |
 | `env` serialized size | 32 KiB | No | The JSON-serialized size of one `env` map. |
 
+## Workflow chaining
+
+| Limit | Default | Configurable | Details |
+| --- | --- | --- | --- |
+| Child-run depth | 5 | No | A run at depth 5 cannot start another workflow. The `start_workflow_run` tool returns `run-depth-exceeded`. |
+| Descendant runs per root run | 100 | No | Shipfox rejects another child after the run tree reaches 100 descendants. The `start_workflow_run` tool returns `run-tree-limit-exceeded`. |
+
 ## Logs
 
 | Limit | Default | Configurable | Details |

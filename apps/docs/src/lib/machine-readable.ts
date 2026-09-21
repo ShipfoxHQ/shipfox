@@ -100,7 +100,7 @@ export function serializeIntegrationCatalog(providers: readonly CatalogProvider[
       `| Events | ${tableValue(events)} |`,
       `| Tools | ${tableValue(tools)} |`,
       `| Overview | ${tableValue(`[${provider.name}](${provider.overviewHref})`)} |`,
-      `| Setup | ${tableValue(provider.setupHref ? `[Connect ${provider.name}](${provider.setupHref})` : 'Not available')} |`,
+      `| Setup | ${tableValue(provider.setupHref ? `[Connect ${provider.name}](${provider.setupHref})` : 'Not required')} |`,
     ].join('\n');
   });
 
