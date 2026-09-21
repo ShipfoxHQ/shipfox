@@ -162,8 +162,9 @@ describe('Notion OAuth installation', () => {
       editedBy: 'shipfox-user',
       lockAlreadyHeld: true,
     });
+    expect(params.connectNotionInstallation).toHaveBeenCalledOnce();
     expect(tokenStore.storeTokens.mock.invocationCallOrder[0]).toBeLessThan(
-      params.connectNotionInstallation.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
+      params.connectNotionInstallation.mock.invocationCallOrder[0] ?? 0,
     );
   });
 
