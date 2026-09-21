@@ -9,6 +9,7 @@ import {WorkspaceManualRegistrationTokensSettingsSection} from './manual-registr
 
 const RUNNERS_TEST_WORKSPACE_ID = '11111111-1111-4111-8111-111111111111';
 const NAME_HEADER = /Name/;
+const TOKEN_NAME = /^Token \d+$/;
 const EXPIRES_HEADER = /Expires/;
 const CREATED_HEADER = /Created/;
 const UNSORTED_EXPIRES = /Expires, not sorted/;
@@ -109,7 +110,12 @@ describe('WorkspaceManualRegistrationTokensSettingsSection', () => {
     await user.click(within(createdHeader).getByRole('button', {name: UNSORTED_CREATED}));
     await user.click(within(createdHeader).getByRole('button', {name: ASCENDING_CREATED}));
 
-    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Token 50');
+    const table = screen.getByRole('table', {name: 'Manual registration tokens'});
+    const orderedNames = within(table)
+      .getAllByText(TOKEN_NAME)
+      .map((name) => name.textContent);
+
+    expect(orderedNames).toEqual(tokens.map(({name}) => name).reverse());
   });
 
   test('renders an empty usable-token state', async () => {
