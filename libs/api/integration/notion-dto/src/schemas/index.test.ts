@@ -5,6 +5,7 @@ import {
   NOTION_PROVIDER,
   notionAgentToolIdSchema,
   notionAgentToolIds,
+  notionCallbackOkResponseSchema,
   notionCallbackQuerySchema,
   notionCallbackResponseSchema,
   notionEventNameSchema,
@@ -144,6 +145,7 @@ describe('Notion install and callback DTOs', () => {
 
   it.each(['connected', 'reconnected'] as const)('accepts a %s callback outcome', (outcome) => {
     expect(notionCallbackResponseSchema.parse({outcome, connection})).toMatchObject({outcome});
+    expect(notionCallbackOkResponseSchema.parse({outcome, connection})).toMatchObject({outcome});
   });
 
   it.each([
@@ -153,6 +155,21 @@ describe('Notion install and callback DTOs', () => {
     'provider-unavailable',
   ] as const)('accepts the %s callback outcome', (outcome) => {
     expect(notionCallbackResponseSchema.parse({outcome})).toEqual({outcome});
+  });
+
+  it('limits HTTP 200 callback responses to reachable outcomes', () => {
+    expect(notionCallbackOkResponseSchema.parse({outcome: 'access_denied'})).toEqual({
+      outcome: 'access_denied',
+    });
+    expect(notionCallbackOkResponseSchema.safeParse({outcome: 'already-linked'}).success).toBe(
+      false,
+    );
+    expect(notionCallbackOkResponseSchema.safeParse({outcome: 'state-invalid'}).success).toBe(
+      false,
+    );
+    expect(
+      notionCallbackOkResponseSchema.safeParse({outcome: 'provider-unavailable'}).success,
+    ).toBe(false);
   });
 
   it('rejects a callback response without its required connection', () => {

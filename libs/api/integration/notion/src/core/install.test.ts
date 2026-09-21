@@ -36,7 +36,12 @@ function authorization(): NotionOAuthAuthorization {
 
 function callbackParams(overrides: Record<string, unknown> = {}) {
   const workspaceId = '00000000-0000-4000-8000-000000000001';
-  const state = signNotionInstallState({workspaceId, userId: 'shipfox-user'});
+  const stateNonce = 'state-nonce';
+  const state = signNotionInstallState({
+    workspaceId,
+    userId: 'shipfox-user',
+    nonce: stateNonce,
+  });
   const auth = authorization();
   const notion: NotionApiClient = {
     exchangeAuthorizationCode: vi.fn(async () => auth),
@@ -55,13 +60,14 @@ function callbackParams(overrides: Record<string, unknown> = {}) {
     tokenStore,
     code: 'code',
     state,
+    stateNonce,
     sessionUserId: 'shipfox-user',
     sessionMemberships: [],
     requireWorkspaceMembership: vi.fn(async () => undefined),
     getExistingNotionConnection: vi.fn(async () => undefined),
     getNotionInstallationByConnectionId: vi.fn(async () => undefined),
     connectNotionInstallation: vi.fn(async (input) => connection(input.workspaceId)),
-    restoreNotionInstallation: vi.fn(async () => undefined),
+    restoreNotionInstallation: vi.fn(async (installation) => installation),
     disconnectNotionInstallation: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -143,6 +149,7 @@ describe('Notion OAuth installation', () => {
     const {params, tokenStore} = callbackParams({
       getExistingNotionConnection: vi.fn(async () => existing),
       getNotionInstallationByConnectionId: vi.fn(async () => previousInstallation),
+      connectNotionInstallation: vi.fn(async () => existing),
     });
 
     const result = await handleNotionCallback(params);
@@ -155,9 +162,12 @@ describe('Notion OAuth installation', () => {
       editedBy: 'shipfox-user',
       lockAlreadyHeld: true,
     });
+    expect(tokenStore.storeTokens.mock.invocationCallOrder[0]).toBeLessThan(
+      params.connectNotionInstallation.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
+    );
   });
 
-  it('restores the previous pair and installation when reconnect storage fails', async () => {
+  it('restores the previous pair without changing connection metadata when reconnect storage fails', async () => {
     const existing = connection('00000000-0000-4000-8000-000000000001');
     const previousInstallation = {
       id: crypto.randomUUID(),
@@ -198,6 +208,7 @@ describe('Notion OAuth installation', () => {
       lockAlreadyHeld: true,
     });
     expect(params.restoreNotionInstallation).toHaveBeenCalledWith(previousInstallation);
+    expect(params.connectNotionInstallation).not.toHaveBeenCalled();
     expect(notion.revokeToken).toHaveBeenCalledWith({token: 'new-access-token'});
   });
 
@@ -207,6 +218,7 @@ describe('Notion OAuth installation', () => {
     await expect(
       handleNotionOAuthCallbackError({
         state,
+        stateNonce: 'state-nonce',
         error: 'access_denied',
         sessionUserId: 'shipfox-user',
         sessionMemberships: [],

@@ -51,6 +51,7 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
+    "@fastify/cookie": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "@shipfox/api-auth-context": "workspace:*",
     "@shipfox/api-integration-core-dto": "workspace:*",

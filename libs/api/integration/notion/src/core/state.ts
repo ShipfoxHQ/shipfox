@@ -7,6 +7,7 @@ export const NOTION_INSTALL_STATE_TTL_SECONDS = 30 * 60;
 interface NotionInstallStatePayload {
   workspaceId: string;
   userId: string;
+  nonce: string;
   expiresAt: number;
 }
 
@@ -18,12 +19,14 @@ export interface NotionInstallStateClaims {
 export function signNotionInstallState(params: {
   workspaceId: string;
   userId: string;
+  nonce: string;
   now?: Date | undefined;
 }): string {
   const now = params.now ?? new Date();
   const payload: NotionInstallStatePayload = {
     workspaceId: params.workspaceId,
     userId: params.userId,
+    nonce: params.nonce,
     expiresAt: Math.floor(now.getTime() / 1000) + NOTION_INSTALL_STATE_TTL_SECONDS,
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -32,8 +35,9 @@ export function signNotionInstallState(params: {
 
 export function verifyNotionInstallState(
   state: string,
-  now: Date = new Date(),
+  options: {nonce: string | undefined; now?: Date | undefined},
 ): NotionInstallStateClaims {
+  const now = options.now ?? new Date();
   const [encodedPayload, signature, extra] = state.split('.');
   if (!encodedPayload || !signature || extra !== undefined) {
     throw new NotionInstallStateError();
@@ -43,6 +47,9 @@ export function verifyNotionInstallState(
   }
 
   const payload = parsePayload(encodedPayload);
+  if (!options.nonce || !constantTimeEqual(payload.nonce, options.nonce)) {
+    throw new NotionInstallStateError('Notion install state is not bound to this browser session');
+  }
   if (payload.expiresAt < Math.floor(now.getTime() / 1000)) {
     throw new NotionInstallStateError('Expired Notion install state');
   }
@@ -69,6 +76,7 @@ function parsePayload(encodedPayload: string): NotionInstallStatePayload {
     if (
       typeof payload.workspaceId !== 'string' ||
       typeof payload.userId !== 'string' ||
+      typeof payload.nonce !== 'string' ||
       typeof payload.expiresAt !== 'number'
     ) {
       throw new Error('Invalid payload shape');

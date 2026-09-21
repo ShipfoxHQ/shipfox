@@ -3674,6 +3674,9 @@ importers:
 
   libs/api/integration/notion:
     dependencies:
+      '@fastify/cookie':
+        specifier: 'catalog:'
+        version: 11.0.2
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)

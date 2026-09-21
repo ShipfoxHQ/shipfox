@@ -1,10 +1,12 @@
+import {randomUUID} from 'node:crypto';
+import cookie from '@fastify/cookie';
 import {AUTH_USER, requireUserContext, requireWorkspaceAccess} from '@shipfox/api-auth-context';
 import {
   createNotionInstallBodySchema,
   createNotionInstallResponseSchema,
   type NotionCallbackQueryDto,
+  notionCallbackOkResponseSchema,
   notionCallbackQuerySchema,
-  notionCallbackResponseSchema,
 } from '@shipfox/api-integration-notion-dto';
 import type {IntegrationCapability, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {defineRoute, type RouteGroup} from '@shipfox/node-fastify';
@@ -15,10 +17,17 @@ import {
   handleNotionCallback,
   handleNotionOAuthCallbackError,
 } from '#core/install.js';
-import {signNotionInstallState} from '#core/state.js';
+import {
+  NOTION_INSTALL_STATE_TTL_SECONDS,
+  signNotionInstallState,
+  verifyNotionInstallState,
+} from '#core/state.js';
 import type {NotionTokenStore} from '#core/tokens.js';
 import {toIntegrationConnectionDto} from '#presentation/dto/integrations.js';
 import {notionRouteErrorHandler} from './errors.js';
+
+const NOTION_ROUTES_PREFIX = '/integrations/notion';
+const NOTION_INSTALL_STATE_COOKIE = 'shipfox_notion_install_state';
 
 export interface CreateNotionIntegrationRoutesOptions {
   notion: NotionApiClient;
@@ -54,17 +63,25 @@ export function createNotionIntegrationRoutes(
       body: createNotionInstallBodySchema,
       response: {200: createNotionInstallResponseSchema},
     },
-    handler: (request) => {
+    handler: (request, reply) => {
       const {workspace_id: workspaceId} = request.body;
       const actor = requireUserContext(request);
       requireWorkspaceAccess({request, workspaceId});
-      const state = signNotionInstallState({workspaceId, userId: actor.userId});
+      const nonce = randomUUID();
+      const state = signNotionInstallState({workspaceId, userId: actor.userId, nonce});
       const installUrl = new URL('https://api.notion.com/v1/oauth/authorize');
       installUrl.searchParams.set('client_id', config.NOTION_OAUTH_CLIENT_ID);
       installUrl.searchParams.set('response_type', 'code');
       installUrl.searchParams.set('owner', 'user');
       installUrl.searchParams.set('redirect_uri', config.NOTION_OAUTH_REDIRECT_URL);
       installUrl.searchParams.set('state', state);
+      reply.setCookie(NOTION_INSTALL_STATE_COOKIE, nonce, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: NOTION_ROUTES_PREFIX,
+        maxAge: NOTION_INSTALL_STATE_TTL_SECONDS,
+      });
       return {install_url: installUrl.toString()};
     },
   });
@@ -76,15 +93,24 @@ export function createNotionIntegrationRoutes(
     description: 'Handle the Notion OAuth callback.',
     schema: {
       querystring: notionCallbackQuerySchema,
-      response: {200: notionCallbackResponseSchema},
+      response: {200: notionCallbackOkResponseSchema},
     },
     errorHandler: notionRouteErrorHandler,
-    handler: async (request) => {
+    handler: async (request, reply) => {
       const actor = requireUserContext(request);
       const query = request.query;
+      const stateNonce = request.cookies[NOTION_INSTALL_STATE_COOKIE];
+      verifyNotionInstallState(query.state, {nonce: stateNonce});
+      reply.clearCookie(NOTION_INSTALL_STATE_COOKIE, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: NOTION_ROUTES_PREFIX,
+      });
       if (isNotionOAuthErrorCallback(query)) {
         return await handleNotionOAuthCallbackError({
           state: query.state,
+          stateNonce,
           error: query.error,
           errorDescription: query.error_description,
           sessionUserId: actor.userId,
@@ -97,6 +123,7 @@ export function createNotionIntegrationRoutes(
         tokenStore: options.tokenStore,
         code: query.code,
         state: query.state,
+        stateNonce,
         sessionUserId: actor.userId,
         sessionMemberships: actor.memberships,
         requireWorkspaceMembership: requireMembership,
@@ -115,7 +142,11 @@ export function createNotionIntegrationRoutes(
     },
   });
 
-  return {prefix: '/integrations/notion', routes: [installRoute, callbackApiRoute]};
+  return {
+    prefix: NOTION_ROUTES_PREFIX,
+    plugins: [cookie],
+    routes: [installRoute, callbackApiRoute],
+  };
 }
 
 function unavailableWorkspaceMembershipCheck(_input: {

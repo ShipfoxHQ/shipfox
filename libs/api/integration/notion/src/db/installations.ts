@@ -183,7 +183,7 @@ export async function restoreNotionInstallation(
     | 'status'
   >,
   options: {tx?: unknown} = {},
-): Promise<NotionInstallation | undefined> {
+): Promise<NotionInstallation> {
   const executor = (options.tx ?? db()) as NotionExecutor;
   const [row] = await executor
     .update(notionInstallations)
@@ -198,7 +198,13 @@ export async function restoreNotionInstallation(
     })
     .where(eq(notionInstallations.connectionId, installation.connectionId))
     .returning();
-  return row ? toNotionInstallation(row) : undefined;
+  if (!row) {
+    throw new NotionIntegrationProviderError(
+      'provider-unavailable',
+      `Notion installation not found during rollback: ${installation.connectionId}`,
+    );
+  }
+  return toNotionInstallation(row);
 }
 
 export async function updateNotionInstallationTokenExpiry(

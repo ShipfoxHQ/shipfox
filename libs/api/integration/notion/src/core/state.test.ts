@@ -6,10 +6,14 @@ describe('Notion install state', () => {
     const state = signNotionInstallState({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      nonce: 'nonce-1',
       now: new Date('2026-07-07T12:00:00.000Z'),
     });
 
-    const result = verifyNotionInstallState(state, new Date('2026-07-07T12:05:00.000Z'));
+    const result = verifyNotionInstallState(state, {
+      nonce: 'nonce-1',
+      now: new Date('2026-07-07T12:05:00.000Z'),
+    });
 
     expect(result).toEqual({workspaceId: 'workspace-1', userId: 'user-1'});
   });
@@ -18,6 +22,7 @@ describe('Notion install state', () => {
     const state = signNotionInstallState({
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      nonce: 'nonce-1',
       now: new Date('2026-07-07T12:00:00.000Z'),
     });
     const [encodedPayload, signature] = state.split('.');
@@ -27,11 +32,26 @@ describe('Notion install state', () => {
     expect(() =>
       verifyNotionInstallState(
         `${Buffer.from(JSON.stringify(payload)).toString('base64url')}.${signature}`,
-        new Date('2026-07-07T12:05:00.000Z'),
+        {nonce: 'nonce-1', now: new Date('2026-07-07T12:05:00.000Z')},
       ),
     ).toThrow(NotionInstallStateError);
-    expect(() => verifyNotionInstallState(state, new Date('2026-07-07T12:31:00.000Z'))).toThrow(
-      NotionInstallStateError,
-    );
+    expect(() =>
+      verifyNotionInstallState(state, {
+        nonce: 'nonce-1',
+        now: new Date('2026-07-07T12:31:00.000Z'),
+      }),
+    ).toThrow(NotionInstallStateError);
+  });
+
+  it('rejects state from another browser session', () => {
+    const state = signNotionInstallState({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      nonce: 'nonce-1',
+    });
+
+    const result = () => verifyNotionInstallState(state, {nonce: 'nonce-2'});
+
+    expect(result).toThrow(NotionInstallStateError);
   });
 });

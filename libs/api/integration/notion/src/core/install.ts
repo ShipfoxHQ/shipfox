@@ -41,6 +41,7 @@ export interface HandleNotionCallbackParams {
   };
   code: string;
   state: string;
+  stateNonce: string | undefined;
   sessionUserId: string;
   sessionMemberships: ReadonlyArray<UserContextMembership>;
   requireWorkspaceMembership(input: {
@@ -57,7 +58,7 @@ export interface HandleNotionCallbackParams {
   connectNotionInstallation(
     input: ConnectNotionInstallationInput,
   ): Promise<IntegrationConnection<'notion'>>;
-  restoreNotionInstallation(input: NotionInstallation): Promise<NotionInstallation | undefined>;
+  restoreNotionInstallation(input: NotionInstallation): Promise<NotionInstallation>;
   disconnectNotionInstallation(input: {connectionId: string}): Promise<void>;
 }
 
@@ -69,7 +70,7 @@ export interface NotionCallbackSuccess {
 export async function handleNotionCallback(
   params: HandleNotionCallbackParams,
 ): Promise<NotionCallbackSuccess> {
-  const claims = verifyNotionInstallState(params.state);
+  const claims = verifyNotionInstallState(params.state, {nonce: params.stateNonce});
   if (claims.userId !== params.sessionUserId) throw new NotionInstallStateActorMismatchError();
   await params.requireWorkspaceMembership({
     workspaceId: claims.workspaceId,
@@ -139,7 +140,7 @@ async function replaceNotionGrant(params: {
   connectNotionInstallation(
     input: ConnectNotionInstallationInput,
   ): Promise<IntegrationConnection<'notion'>>;
-  restoreNotionInstallation(input: NotionInstallation): Promise<NotionInstallation | undefined>;
+  restoreNotionInstallation(input: NotionInstallation): Promise<NotionInstallation>;
 }): Promise<IntegrationConnection<'notion'>> {
   return await withNotionGrantLock(params.existing.id, async () => {
     const previousInstallation = await params.getNotionInstallationByConnectionId(
@@ -156,6 +157,13 @@ async function replaceNotionGrant(params: {
     });
 
     try {
+      await params.tokenStore.storeTokens({
+        connectionId: params.existing.id,
+        accessToken: params.authorization.accessToken,
+        refreshToken: params.authorization.refreshToken,
+        editedBy: params.claims.userId,
+        lockAlreadyHeld: true,
+      });
       const connection = await params.connectNotionInstallation({
         workspaceId: params.claims.workspaceId,
         notionWorkspaceId: params.authorization.workspaceId,
@@ -167,20 +175,20 @@ async function replaceNotionGrant(params: {
         displayName: `Notion ${params.authorization.workspaceName}`,
         actorUserId: params.claims.userId,
       });
-      await params.tokenStore.storeTokens({
-        connectionId: connection.id,
-        accessToken: params.authorization.accessToken,
-        refreshToken: params.authorization.refreshToken,
-        editedBy: params.claims.userId,
-        lockAlreadyHeld: true,
-      });
       // Different-authorizer revoke behavior was not covered by the spike. Let the old grant expire.
       return connection;
     } catch (error) {
-      await restorePreviousGrant(params, previousInstallation, previousTokens, error);
+      const restored = await restorePreviousGrant(
+        params,
+        previousInstallation,
+        previousTokens,
+        error,
+      );
       throw new NotionIntegrationProviderError(
         'provider-unavailable',
-        'Notion grant replacement failed; the previous grant was restored',
+        restored
+          ? 'Notion grant replacement failed; the previous grant was restored'
+          : 'Notion grant replacement failed; the previous grant could not be fully restored',
       );
     }
   });
@@ -191,7 +199,8 @@ async function restorePreviousGrant(
   installation: NotionInstallation,
   tokens: {accessToken: string; refreshToken?: string | undefined},
   cause: unknown,
-): Promise<void> {
+): Promise<boolean> {
+  let restored = false;
   try {
     await params.tokenStore.storeTokens({
       connectionId: installation.connectionId,
@@ -200,6 +209,7 @@ async function restorePreviousGrant(
       lockAlreadyHeld: true,
     });
     await params.restoreNotionInstallation(installation);
+    restored = true;
   } catch (restoreError) {
     logger().warn(
       {err: restoreError, connectionId: installation.connectionId},
@@ -210,10 +220,12 @@ async function restorePreviousGrant(
     {err: cause, connectionId: installation.connectionId},
     'Notion grant replacement failed',
   );
+  return restored;
 }
 
 export async function handleNotionOAuthCallbackError(params: {
   state: string;
+  stateNonce: string | undefined;
   error: string;
   errorDescription?: string | undefined;
   sessionUserId: string;
@@ -224,7 +236,7 @@ export async function handleNotionOAuthCallbackError(params: {
     memberships: ReadonlyArray<UserContextMembership>;
   }): Promise<unknown>;
 }): Promise<{outcome: 'access_denied'}> {
-  const claims = verifyNotionInstallState(params.state);
+  const claims = verifyNotionInstallState(params.state, {nonce: params.stateNonce});
   if (claims.userId !== params.sessionUserId) throw new NotionInstallStateActorMismatchError();
   await params.requireWorkspaceMembership({
     workspaceId: claims.workspaceId,

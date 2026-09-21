@@ -2,6 +2,7 @@ import {
   deleteNotionInstallationByConnectionId,
   getNotionInstallationByConnectionId,
   getNotionInstallationByWorkspaceId,
+  restoreNotionInstallation,
   upsertNotionInstallation,
 } from './installations.js';
 
@@ -62,5 +63,14 @@ describe('Notion installations', () => {
     ).resolves.toBeUndefined();
 
     await expect(upsertNotionInstallation(initial)).resolves.toMatchObject(initial);
+  });
+
+  it('reports a rollback failure when the installation disappeared', async () => {
+    const installation = await upsertNotionInstallation(input());
+    await deleteNotionInstallationByConnectionId(installation.connectionId);
+
+    await expect(restoreNotionInstallation(installation)).rejects.toMatchObject({
+      reason: 'provider-unavailable',
+    });
   });
 });
