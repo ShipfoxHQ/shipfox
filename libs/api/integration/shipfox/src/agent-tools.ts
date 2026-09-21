@@ -23,6 +23,7 @@ import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import {logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
+import {SECRET_KEY_MAX_LENGTH, SECRET_KEY_PATTERN_SOURCE} from '@shipfox/api-secrets-dto';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import {triggersInterModuleContract} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -56,7 +57,7 @@ const WORKFLOW_RUN_STATUSES = [
   'failed',
   'cancelled',
 ] as const;
-const SECRET_INPUT_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/u;
+const SECRET_INPUT_NAME_PATTERN = new RegExp(SECRET_KEY_PATTERN_SOURCE, 'u');
 const MAX_SECRET_INPUTS = 20;
 
 const SHIPFOX_TOOL_RESULT_MAX_BYTES = 128 * 1024;
@@ -1519,10 +1520,14 @@ function validateSecretInputs(value: unknown): string | undefined {
   if (entries.length > MAX_SECRET_INPUTS)
     return `Parameter secrets must contain at most ${MAX_SECRET_INPUTS} entries`;
   for (const [name, source] of entries) {
-    if (!SECRET_INPUT_NAME_PATTERN.test(name))
-      return `Parameter secrets key ${name} must match /^[A-Z_][A-Z0-9_]*$/`;
-    if (typeof source !== 'string' || !SECRET_INPUT_NAME_PATTERN.test(source))
-      return `Parameter secrets.${name} must be a string matching /^[A-Z_][A-Z0-9_]*$/`;
+    if (name.length > SECRET_KEY_MAX_LENGTH || !SECRET_INPUT_NAME_PATTERN.test(name))
+      return `Parameter secrets key ${name} must contain at most ${SECRET_KEY_MAX_LENGTH} characters and match /${SECRET_KEY_PATTERN_SOURCE}/`;
+    if (
+      typeof source !== 'string' ||
+      source.length > SECRET_KEY_MAX_LENGTH ||
+      !SECRET_INPUT_NAME_PATTERN.test(source)
+    )
+      return `Parameter secrets.${name} must be a string containing at most ${SECRET_KEY_MAX_LENGTH} characters and matching /${SECRET_KEY_PATTERN_SOURCE}/`;
   }
   return undefined;
 }

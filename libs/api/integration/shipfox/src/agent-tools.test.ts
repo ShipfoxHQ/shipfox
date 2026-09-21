@@ -341,6 +341,8 @@ describe('Shipfox agent tools', () => {
   it.each([
     [{DEPLOY_TOKEN: 'invalid-name'}],
     [{invalid_name: 'PROD_TOKEN'}],
+    [{A: 'A'.repeat(129)}],
+    [{['A'.repeat(129)]: 'PROD_TOKEN'}],
     [Object.fromEntries(Array.from({length: 21}, (_, index) => [`TOKEN_${index}`, 'PROD_TOKEN']))],
   ])('validates secret names and map size', async (secrets) => {
     const {definitions, provider} = createProvider();
