@@ -20,18 +20,23 @@ const OPEN_LAYER_SELECTOR = [
 // Spread across the window in which Radix and its exit animations settle.
 const CHECKPOINTS_MS = [0, 120, 400, 1000];
 
-function releaseBodyPointerEvents(inheritedPointerEvents: string): void {
+interface PointerEventsSnapshot {
+  value: string;
+  hadOpenLayer: boolean;
+}
+
+function releaseBodyPointerEvents(inheritedPointerEvents: PointerEventsSnapshot): void {
   if (typeof document === 'undefined') return;
-  // The page was already locked before this surface opened, so the lock belongs
-  // to someone else and stays untouched.
-  if (inheritedPointerEvents === 'none') return;
+  // Preserve a page lock that had no observable layer owner. A lock inherited
+  // from an open layer is transitional and is stale once every layer closes.
+  if (inheritedPointerEvents.value === 'none' && !inheritedPointerEvents.hadOpenLayer) return;
   if (document.body.style.pointerEvents !== 'none') return;
   if (document.querySelector(OPEN_LAYER_SELECTOR) !== null) return;
 
   document.body.style.removeProperty('pointer-events');
 }
 
-function scheduleRelease(inheritedPointerEvents: string): void {
+function scheduleRelease(inheritedPointerEvents: PointerEventsSnapshot): void {
   if (typeof window === 'undefined') return;
 
   for (const delay of CHECKPOINTS_MS) {
@@ -47,13 +52,16 @@ function scheduleRelease(inheritedPointerEvents: string): void {
  * ones and should be called from the surface's `onOpenChange`.
  */
 export function useBodyPointerEventsRelease(open?: boolean): (nextOpen: boolean) => void {
-  const inheritedPointerEvents = useRef('');
+  const inheritedPointerEvents = useRef<PointerEventsSnapshot>({value: '', hadOpenLayer: false});
   const wasOpen = useRef(false);
 
   const trackOpenChange = useCallback((nextOpen: boolean) => {
     if (nextOpen) {
       if (!wasOpen.current && typeof document !== 'undefined') {
-        inheritedPointerEvents.current = document.body.style.pointerEvents;
+        inheritedPointerEvents.current = {
+          value: document.body.style.pointerEvents,
+          hadOpenLayer: document.querySelector(OPEN_LAYER_SELECTOR) !== null,
+        };
       }
       wasOpen.current = true;
       return;
