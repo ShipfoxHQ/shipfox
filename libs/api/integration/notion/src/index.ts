@@ -1,10 +1,18 @@
 import {NOTION_PROVIDER, notionEventCatalog} from '@shipfox/api-integration-notion-dto';
-import {createNotionAgentToolsClient, type NotionAgentToolsClient} from '#api/client.js';
+import {
+  createNotionAgentToolsClient,
+  createNotionApiClient,
+  type NotionAgentToolsClient,
+} from '#api/client.js';
 import {NotionAgentToolsProvider} from '#core/agent-tools-provider.js';
 import type {NotionTokenStore} from '#core/tokens.js';
 import {createNotionWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {migrationsPath} from '#db/migrations.js';
+import {
+  type CreateNotionIntegrationRoutesOptions,
+  createNotionIntegrationRoutes,
+} from '#presentation/routes/install.js';
 import type {CreateNotionWebhookRoutesOptions} from '#presentation/routes/webhooks.js';
 import {createNotionWebhookRoutes} from '#presentation/routes/webhooks.js';
 
@@ -17,6 +25,7 @@ export type {
   NotionAgentToolsClient,
   NotionApiClient,
   NotionAuthorization,
+  NotionOAuthAuthorization,
 } from '#api/client.js';
 export {createNotionAgentToolsClient, createNotionApiClient} from '#api/client.js';
 export {config} from '#config.js';
@@ -39,18 +48,31 @@ export {NotionAgentToolsProvider} from '#core/agent-tools-provider.js';
 export {prepareNotionTokenRevocation} from '#core/disconnect.js';
 export {
   NotionAccessTokenMissingError,
+  NotionConnectionAlreadyLinkedError,
   NotionConnectionNotFoundError,
+  NotionInstallationAlreadyLinkedError,
+  NotionInstallStateActorMismatchError,
+  NotionInstallStateError,
   NotionIntegrationProviderError,
+  NotionOAuthCallbackError,
   NotionTokenUnrefreshableError,
 } from '#core/errors.js';
-export type {ConnectNotionInstallationInput} from '#core/install.js';
+export type {ConnectNotionInstallationInput, HandleNotionCallbackParams} from '#core/install.js';
+export {handleNotionCallback, handleNotionOAuthCallbackError} from '#core/install.js';
 export {normalizeNotionId} from '#core/notion-id.js';
+export type {NotionInstallStateClaims} from '#core/state.js';
+export {
+  NOTION_INSTALL_STATE_TTL_SECONDS,
+  signNotionInstallState,
+  verifyNotionInstallState,
+} from '#core/state.js';
 export type {
   CreateNotionTokenStoreParams,
   DeleteNotionTokensParams,
   GetNotionAccessTokenParams,
   NotionConnectionResolverResult,
   NotionSecretsStore,
+  NotionTokenPair,
   NotionTokenStore,
   StoreNotionTokensParams,
 } from '#core/tokens.js';
@@ -70,6 +92,7 @@ export {
   getNotionInstallationByConnectionId,
   getNotionInstallationByWorkspaceId,
   markNotionInstallationRevoked,
+  restoreNotionInstallation,
   updateNotionInstallationTokenExpiry,
   upsertNotionInstallation,
   withNotionGrantLock,
@@ -82,6 +105,8 @@ export {
   type CreateNotionE2eRoutesOptions,
   createNotionE2eRoutes,
 } from '#presentation/e2eRoutes/index.js';
+export type {CreateNotionIntegrationRoutesOptions} from '#presentation/routes/install.js';
+export {createNotionIntegrationRoutes} from '#presentation/routes/install.js';
 export type {CreateNotionWebhookRoutesOptions} from '#presentation/routes/webhooks.js';
 export {createNotionWebhookRoutes} from '#presentation/routes/webhooks.js';
 export {closeDb, db, migrationsPath};
@@ -93,7 +118,9 @@ export interface CreateNotionIntegrationProviderOptions {
         notion?: NotionAgentToolsClient | undefined;
       }
     | undefined;
-  routes?: Partial<CreateNotionWebhookRoutesOptions> | undefined;
+  routes?:
+    | (Partial<CreateNotionIntegrationRoutesOptions> & Partial<CreateNotionWebhookRoutesOptions>)
+    | undefined;
   cleanup?: {
     deleteConnectionRemoteResources?: (connection: {
       id: string;
@@ -119,15 +146,27 @@ export function createNotionIntegrationProvider(
         }),
       }
     : {};
+  const oauthRoutesOptions =
+    options.routes && hasNotionIntegrationRoutesOptions(options.routes)
+      ? options.routes
+      : undefined;
   const webhookRoutesOptions =
     options.routes && hasNotionWebhookRoutesOptions(options.routes) ? options.routes : undefined;
   const webhookProcessor = webhookRoutesOptions
     ? (webhookRoutesOptions.processor ?? createNotionWebhookProcessor(webhookRoutesOptions))
     : undefined;
-  const routes =
-    webhookProcessor && webhookRoutesOptions
-      ? [createNotionWebhookRoutes({...webhookRoutesOptions, processor: webhookProcessor})]
-      : [];
+  const routes = oauthRoutesOptions
+    ? [
+        createNotionIntegrationRoutes({
+          ...oauthRoutesOptions,
+          notion: oauthRoutesOptions.notion ?? createNotionApiClient(),
+          connectionCapabilities: adapters.agent_tools ? ['agent_tools'] : [],
+        }),
+      ]
+    : [];
+  if (webhookProcessor && webhookRoutesOptions) {
+    routes.push(createNotionWebhookRoutes({...webhookRoutesOptions, processor: webhookProcessor}));
+  }
 
   return {
     provider: NOTION_PROVIDER,
@@ -140,6 +179,19 @@ export function createNotionIntegrationProvider(
       ? [{routeIds: ['notion'] as const, processor: webhookProcessor}]
       : undefined,
   };
+}
+
+function hasNotionIntegrationRoutesOptions(
+  routes: CreateNotionIntegrationProviderOptions['routes'],
+): routes is CreateNotionIntegrationRoutesOptions {
+  return (
+    routes?.tokenStore !== undefined &&
+    routes.getExistingNotionConnection !== undefined &&
+    routes.getNotionInstallationByConnectionId !== undefined &&
+    routes.connectNotionInstallation !== undefined &&
+    routes.restoreNotionInstallation !== undefined &&
+    routes.disconnectNotionInstallation !== undefined
+  );
 }
 
 function hasNotionWebhookRoutesOptions(

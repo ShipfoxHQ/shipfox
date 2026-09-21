@@ -49,7 +49,7 @@ import type {
 } from '@shipfox/api-integration-notion-dto';
 import {
   createNotionInstallResponseSchema,
-  notionCallbackResponseSchema,
+  notionCallbackOkResponseSchema,
 } from '@shipfox/api-integration-notion-dto';
 import type {
   PosthogConnectBodyDto,
@@ -423,36 +423,18 @@ export async function completeNotionCallback({
   token: string;
 }): Promise<IntegrationConnection> {
   const response = await checkedApiRequest(
-    notionCallbackResponseSchema,
+    notionCallbackOkResponseSchema,
     `/integrations/notion/callback/api?${serializeNotionCallbackQuery(query)}`,
     {headers: {authorization: `Bearer ${token}`}},
   );
-  if ('connection' in response) return toIntegrationConnection(response.connection);
-
-  const outcomeErrors = {
-    access_denied: {
+  if (response.outcome === 'access_denied') {
+    throw new ApiError({
       code: 'access-denied',
       message: 'Notion did not grant access.',
       status: 403,
-    },
-    'already-linked': {
-      code: 'notion-installation-already-linked',
-      message: 'This Notion workspace is already linked to another workspace.',
-      status: 409,
-    },
-    'state-invalid': {
-      code: 'invalid-notion-install-state',
-      message: 'The Notion install state is invalid or expired.',
-      status: 400,
-    },
-    'provider-unavailable': {
-      code: 'provider-unavailable',
-      message: 'Notion is temporarily unavailable.',
-      status: 503,
-    },
-  } as const;
-  const error = outcomeErrors[response.outcome];
-  throw new ApiError(error);
+    });
+  }
+  return toIntegrationConnection(response.connection);
 }
 
 export async function completeLinearCallback({

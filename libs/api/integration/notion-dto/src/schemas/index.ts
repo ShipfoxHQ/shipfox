@@ -155,6 +155,13 @@ const notionProviderUnavailableCallbackResponseSchema = z.object({
   outcome: z.literal('provider-unavailable'),
 });
 
+export const notionCallbackOkResponseSchema = z.discriminatedUnion('outcome', [
+  notionConnectedCallbackResponseSchema,
+  notionReconnectedCallbackResponseSchema,
+  notionAccessDeniedCallbackResponseSchema,
+]);
+export type NotionCallbackOkResponseDto = z.infer<typeof notionCallbackOkResponseSchema>;
+
 export const notionCallbackResponseSchema = z.discriminatedUnion('outcome', [
   notionConnectedCallbackResponseSchema,
   notionReconnectedCallbackResponseSchema,

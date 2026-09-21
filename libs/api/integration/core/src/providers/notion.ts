@@ -30,8 +30,10 @@ async function loadNotionModuleParts(
     createNotionIntegrationProvider,
     createNotionTokenStore,
     deleteNotionInstallationByConnectionId,
+    getNotionInstallationByConnectionId,
     getNotionInstallationByWorkspaceId,
     notionSecretsNamespace,
+    restoreNotionInstallation,
     prepareNotionTokenRevocation,
     withNotionGrantLock,
     db: notionDb,
@@ -77,6 +79,7 @@ async function loadNotionModuleParts(
             displayName: input.displayName,
             lifecycleStatus: input.lifecycleStatus ?? 'error',
             capabilities: providerCapabilities,
+            actorUserId: input.actorUserId,
           },
           {tx},
         );
@@ -153,6 +156,16 @@ async function loadNotionModuleParts(
       tokenStore,
     },
     routes: {
+      notion,
+      tokenStore,
+      getExistingNotionConnection,
+      getNotionInstallationByConnectionId,
+      connectNotionInstallation,
+      restoreNotionInstallation,
+      disconnectNotionInstallation,
+      ...(options.requireActiveWorkspaceMembership
+        ? {requireActiveWorkspaceMembership: options.requireActiveWorkspaceMembership}
+        : {}),
       coreDb: db,
       publishIntegrationEventReceived,
       recordDeliveryOnly,

@@ -171,6 +171,42 @@ export async function getNotionInstallationByWorkspaceId(
   return rows[0] ? toNotionInstallation(rows[0]) : undefined;
 }
 
+export async function restoreNotionInstallation(
+  installation: Pick<
+    NotionInstallation,
+    | 'connectionId'
+    | 'notionWorkspaceId'
+    | 'workspaceName'
+    | 'botId'
+    | 'authorizedByUserId'
+    | 'tokenExpiresAt'
+    | 'status'
+  >,
+  options: {tx?: unknown} = {},
+): Promise<NotionInstallation> {
+  const executor = (options.tx ?? db()) as NotionExecutor;
+  const [row] = await executor
+    .update(notionInstallations)
+    .set({
+      notionWorkspaceId: installation.notionWorkspaceId,
+      workspaceName: installation.workspaceName,
+      botId: installation.botId,
+      authorizedByUserId: installation.authorizedByUserId,
+      tokenExpiresAt: installation.tokenExpiresAt,
+      status: installation.status,
+      updatedAt: new Date(),
+    })
+    .where(eq(notionInstallations.connectionId, installation.connectionId))
+    .returning();
+  if (!row) {
+    throw new NotionIntegrationProviderError(
+      'provider-unavailable',
+      `Notion installation not found during rollback: ${installation.connectionId}`,
+    );
+  }
+  return toNotionInstallation(row);
+}
+
 export async function updateNotionInstallationTokenExpiry(
   params: {connectionId: string; tokenExpiresAt: Date | null},
   options: {tx?: unknown} = {},
