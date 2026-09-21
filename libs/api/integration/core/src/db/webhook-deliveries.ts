@@ -32,7 +32,9 @@ function providerDedupScope(provider: string): string {
 }
 
 function receivedEventDedupScope(event: IntegrationEventReceivedEvent): string {
-  if (event.provider === 'webhook') return connectionDedupScope(event.connectionId);
+  if (event.provider === 'webhook' || event.provider === 'notion') {
+    return connectionDedupScope(event.connectionId);
+  }
   return providerDedupScope(event.provider);
 }
 
@@ -257,16 +259,24 @@ export interface RecordDeliveryOnlyParams {
   tx: Executor;
   provider: string;
   deliveryId: string;
+  connectionId?: string | undefined;
 }
 
 export async function claimWebhookDelivery(
-  params: RecordDeliveryOnlyParams,
+  params: Pick<RecordDeliveryOnlyParams, 'tx' | 'provider' | 'deliveryId'>,
 ): Promise<{claimed: boolean}> {
+  return await claimDelivery(params);
+}
+
+async function claimDelivery(params: RecordDeliveryOnlyParams): Promise<{claimed: boolean}> {
   const inserted = await params.tx
     .insert(integrationsWebhookDeliveries)
     .values({
       provider: params.provider,
-      dedupScope: providerDedupScope(params.provider),
+      dedupScope:
+        params.connectionId === undefined
+          ? providerDedupScope(params.provider)
+          : connectionDedupScope(params.connectionId),
       deliveryId: params.deliveryId,
     })
     .onConflictDoNothing({
@@ -281,7 +291,7 @@ export async function claimWebhookDelivery(
 }
 
 export async function recordDeliveryOnly(params: RecordDeliveryOnlyParams): Promise<void> {
-  await claimWebhookDelivery(params);
+  await claimDelivery(params);
 }
 
 export interface PruneWebhookDeliveriesParams {

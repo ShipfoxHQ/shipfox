@@ -13,6 +13,7 @@ import {
   upsertIntegrationConnection,
 } from '#db/connections.js';
 import {db} from '#db/db.js';
+import {publishIntegrationEventReceived, recordDeliveryOnly} from '#db/webhook-deliveries.js';
 import {retryConnectionSlugCollision, slugifyConnectionSlug} from '#providers/connection-slug.js';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
@@ -138,6 +139,12 @@ async function loadNotionModuleParts(
     agentTools: {
       notion: createNotionAgentToolsClient(),
       tokenStore,
+    },
+    routes: {
+      coreDb: db,
+      publishIntegrationEventReceived,
+      recordDeliveryOnly,
+      getIntegrationConnectionById,
     },
     cleanup: {
       deleteConnectionRecords: async (connection, {tx}) => {

@@ -68,7 +68,7 @@ const notionWebhookEnvelopeFields = {
   subscription_id: z.string().min(1),
   integration_id: z.string().min(1),
   authors: z.array(notionWebhookActorSchema).min(1),
-  accessible_by: z.array(notionWebhookAccessibleByActorSchema).min(1).optional(),
+  accessible_by: z.array(notionWebhookAccessibleByActorSchema).optional(),
   attempt_number: z.number().int().min(1).max(8),
   entity: notionWebhookEntitySchema,
   data: z.record(z.string(), z.unknown()),
@@ -92,9 +92,11 @@ export type NotionWebhookEnvelopeDto = z.infer<typeof notionWebhookEnvelopeSchem
 export const notionEventPayloadSchema = notionWebhookEnvelopeSchema;
 export type NotionEventPayloadDto = NotionWebhookEnvelopeDto;
 
-export const notionWebhookVerificationSchema = z.object({
-  verification_token: z.string().min(1),
-});
+export const notionWebhookVerificationSchema = z
+  .object({
+    verification_token: z.string().min(1),
+  })
+  .strict();
 export type NotionWebhookVerificationDto = z.infer<typeof notionWebhookVerificationSchema>;
 export const notionWebhookHandshakeSchema = notionWebhookVerificationSchema;
 export type NotionWebhookHandshakeDto = NotionWebhookVerificationDto;

@@ -152,6 +152,35 @@ describe('integration webhook delivery persistence', () => {
     expect(await outboxFor(deliveryId)).toHaveLength(2);
   });
 
+  it('deduplicates Notion received events per connection', async () => {
+    const deliveryId = crypto.randomUUID();
+    const firstConnectionEvent = buildEvent({
+      provider: 'notion',
+      source: 'notion-acme',
+      event: 'page.created',
+      deliveryId,
+    });
+    const secondConnectionEvent = buildEvent({
+      provider: 'notion',
+      source: 'notion-other',
+      event: 'page.created',
+      deliveryId,
+    });
+
+    const first = await publishIntegrationEventReceived({tx: db(), event: firstConnectionEvent});
+    const second = await publishIntegrationEventReceived({tx: db(), event: secondConnectionEvent});
+    const duplicate = await publishIntegrationEventReceived({
+      tx: db(),
+      event: firstConnectionEvent,
+    });
+
+    expect(first.published).toBe(true);
+    expect(second.published).toBe(true);
+    expect(duplicate.published).toBe(false);
+    expect(await deliveriesFor('notion', deliveryId)).toHaveLength(2);
+    expect(await outboxFor(deliveryId)).toHaveLength(2);
+  });
+
   it('records a delivery without writing an outbox event', async () => {
     const deliveryId = crypto.randomUUID();
 
@@ -159,6 +188,28 @@ describe('integration webhook delivery persistence', () => {
 
     expect(await deliveriesFor('github', deliveryId)).toHaveLength(1);
     expect(await outboxFor(deliveryId)).toHaveLength(0);
+  });
+
+  it('records a connection-scoped delivery without suppressing another connection', async () => {
+    const deliveryId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    const discardedEvent = buildEvent({provider: 'notion', connectionId, deliveryId});
+    const otherConnectionEvent = buildEvent({provider: 'notion', deliveryId});
+
+    await recordDeliveryOnly({tx: db(), provider: 'notion', connectionId, deliveryId});
+    const discardedRetry = await publishIntegrationEventReceived({
+      tx: db(),
+      event: discardedEvent,
+    });
+    const otherConnection = await publishIntegrationEventReceived({
+      tx: db(),
+      event: otherConnectionEvent,
+    });
+
+    expect(discardedRetry.published).toBe(false);
+    expect(otherConnection.published).toBe(true);
+    expect(await deliveriesFor('notion', deliveryId)).toHaveLength(2);
+    expect(await outboxFor(deliveryId)).toHaveLength(1);
   });
 
   it('ignores a duplicate delivery record', async () => {
