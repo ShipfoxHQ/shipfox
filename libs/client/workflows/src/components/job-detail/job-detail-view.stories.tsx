@@ -309,8 +309,9 @@ export const TestJobCostTab: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(await body.findByRole('button', {name: 'Inspect job details'}));
     await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
-    await expect(body.getByText('Total cost')).toBeVisible();
-    await expect(body.getByText('Machine')).toBeVisible();
+    // The mobile inspector animates in, so the tab content is present before it is visible.
+    await waitFor(() => expect(body.getByText('Total cost')).toBeVisible());
+    await waitFor(() => expect(body.getByText('Machine')).toBeVisible());
   },
 };
 
