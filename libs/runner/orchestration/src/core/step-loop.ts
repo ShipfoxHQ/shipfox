@@ -1385,6 +1385,7 @@ async function executeRunStepBranch(params: {
       ...params.secretState.subscribedSecrets,
       ...input.secrets,
     ]),
+    stepStream,
   );
   writeRunFailureContext(stepStream, result);
   return {
@@ -1545,16 +1546,22 @@ function setupPreparationFailure(error: unknown, reason: StepErrorReasonDto): St
   };
 }
 
+const SECRET_OUTPUT_KEY_WARNING = 'Output omitted because its key contains a secret.';
+
 function maskAgentResult(result: StepResult, secretVariants: string[]): StepResult {
+  const {outputs: originalOutputs, ...resultWithoutOutputs} = result;
+  const outputs =
+    originalOutputs === undefined
+      ? originalOutputs
+      : redactOutputValues(originalOutputs, secretVariants);
+  const maskedOutputs = outputs === undefined || Object.keys(outputs).length === 0 ? {} : {outputs};
   if (result.success) {
     return {
-      ...result,
+      ...resultWithoutOutputs,
       ...(result.response === undefined
         ? {}
         : {response: redactSecrets(result.response, secretVariants)}),
-      ...(result.outputs === undefined
-        ? {}
-        : {outputs: redactOutputValues(result.outputs, secretVariants)}),
+      ...maskedOutputs,
     };
   }
 
@@ -1563,27 +1570,35 @@ function maskAgentResult(result: StepResult, secretVariants: string[]): StepResu
       ? result.error
       : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
   return {
-    ...result,
+    ...resultWithoutOutputs,
     ...(result.response === undefined
       ? {}
       : {response: redactSecrets(result.response, secretVariants)}),
+    ...maskedOutputs,
     error,
   };
 }
 
-function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepResult {
+function maskRunStepOutputs(
+  result: StepResult,
+  secretVariants: string[],
+  stepStream: StepLogStream | undefined,
+): StepResult {
+  const {outputs: originalOutputs, ...resultWithoutOutputs} = result;
   const outputs =
-    result.outputs === undefined
-      ? result.outputs
-      : redactOutputValues(result.outputs, secretVariants);
+    originalOutputs === undefined
+      ? originalOutputs
+      : redactOutputValues(originalOutputs, secretVariants, () => {
+          stepStream?.writeOutputLine(SECRET_OUTPUT_KEY_WARNING, 'stderr');
+        });
   const annotations = redactAnnotationBodies(result.annotations, secretVariants);
   const error =
     result.success || result.error === null || result.error === undefined
       ? result.error
       : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
   return {
-    ...result,
-    ...(outputs === undefined ? {} : {outputs}),
+    ...resultWithoutOutputs,
+    ...(outputs === undefined || Object.keys(outputs).length === 0 ? {} : {outputs}),
     ...(annotations === undefined ? {} : {annotations}),
     error,
   };
@@ -1596,17 +1611,28 @@ function redactAnnotationBodies(
   if (annotations === undefined) return undefined;
   return annotations.map((annotation) => {
     if (annotation.op === 'remove') return annotation;
-    return {...annotation, body: redactSecrets(annotation.body, secretVariants)};
+    return {
+      ...annotation,
+      context: redactSecrets(annotation.context, secretVariants),
+      body: redactSecrets(annotation.body, secretVariants),
+    };
   });
 }
 
 function redactOutputValues(
   outputs: Record<string, string>,
   secretVariants: string[],
+  onSecretOutputKey?: () => void,
 ): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(outputs).map(([key, value]) => [key, redactSecrets(value, secretVariants)]),
-  );
+  const redactedOutputs: Record<string, string> = {};
+  for (const [key, value] of Object.entries(outputs)) {
+    if (secretVariants.some((variant) => key.includes(variant))) {
+      onSecretOutputKey?.();
+      continue;
+    }
+    redactedOutputs[key] = redactSecrets(value, secretVariants);
+  }
+  return redactedOutputs;
 }
 
 function agentRuntimeConfigFailure(error: unknown): StepResult {

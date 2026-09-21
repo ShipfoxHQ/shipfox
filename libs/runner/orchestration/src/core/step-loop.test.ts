@@ -1829,7 +1829,7 @@ describe('runJobSteps', () => {
     );
   });
 
-  it('masks run step annotation bodies with the full secret set before publishing', async () => {
+  it('masks run step annotation bodies and contexts with the full secret set before publishing', async () => {
     const setup = buildSetupStep();
     const run = buildRunStep();
     requestNextStepMock
@@ -1840,8 +1840,8 @@ describe('runJobSteps', () => {
       error: null,
       exit_code: 0,
       annotations: [
-        {context: 'default', style: 'default', op: 'replace', body: 'checkout-secret'},
-        {context: 'old', style: 'default', op: 'remove'},
+        {context: 'checkout-secret', style: 'default', op: 'replace', body: 'checkout-secret'},
+        {context: 'checkout-secret', style: 'default', op: 'remove'},
       ],
     });
     reportStepMock
@@ -1856,10 +1856,45 @@ describe('runJobSteps', () => {
       expect.objectContaining({
         stepId: run.id,
         annotations: [
-          {context: 'default', style: 'default', op: 'replace', body: '***'},
-          {context: 'old', style: 'default', op: 'remove'},
+          {context: '***', style: 'default', op: 'replace', body: '***'},
+          {context: 'checkout-secret', style: 'default', op: 'remove'},
         ],
       }),
+    );
+  });
+
+  it('drops run step outputs whose keys contain a secret and warns in the step log', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep();
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1));
+    executeRunStepMock.mockResolvedValueOnce({
+      success: true,
+      error: null,
+      exit_code: 0,
+      outputs: {
+        safe: 'value',
+        'prefix-checkout-secret-suffix': 'value that must not be reported',
+      },
+    });
+    reportStepMock
+      .mockResolvedValueOnce({ok: true, cancel: false})
+      .mockResolvedValueOnce({ok: true, cancel: true});
+    const ac = new AbortController();
+
+    await runLoop({signal: ac.signal, secrets: ['checkout-secret']});
+
+    expect(reportStepMock).toHaveBeenCalledWith(
+      leaseClient,
+      expect.objectContaining({
+        stepId: run.id,
+        outputs: {safe: 'value'},
+      }),
+    );
+    expect(streamFor(run.id).writeOutputLine).toHaveBeenCalledWith(
+      'Output omitted because its key contains a secret.',
+      'stderr',
     );
   });
 
@@ -3184,7 +3219,7 @@ describe('runJobSteps', () => {
     expect(execution.result.error?.message).toBe('crashed with *** ***');
   });
 
-  it('redacts the current inference generations from step results', async () => {
+  it('drops inference generations used as output keys from step results', async () => {
     const run = buildRunStep();
     const retainedGenerations = [
       'inference-generation-current',
@@ -3225,7 +3260,6 @@ describe('runJobSteps', () => {
 
     expect(execution.result).toEqual({
       success: false,
-      outputs: Object.fromEntries(retainedGenerations.map((generation) => [generation, '***'])),
       error: {message: `provider returned ${retainedGenerations.map(() => '***').join(' ')}`},
       exit_code: null,
     });
