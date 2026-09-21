@@ -22,6 +22,8 @@ import {
 } from '#core/step-output.js';
 import type {StepResult} from '#core/step-result.js';
 
+const MULTILINE_SECRET_LINE_SEPARATOR = /\r?\n/;
+
 /**
  * Receives each captured output chunk with its origin pipe. The runner tees step
  * output to its own stdout/stderr for container observability and, separately,
@@ -521,9 +523,18 @@ class TeeRedactor {
 function buildSecretVariants(secrets: readonly string[]): string[] {
   const variants = new Set<string>();
   for (const secret of secrets) {
-    for (const form of secretWireForms(secret)) variants.add(form);
+    addSecretForms(variants, secret);
+    if (!secret.includes('\n')) continue;
+
+    for (const line of secret.split(MULTILINE_SECRET_LINE_SEPARATOR)) {
+      if ([...line].length >= 8) addSecretForms(variants, line);
+    }
   }
   return [...variants].sort((a, b) => b.length - a.length);
+}
+
+function addSecretForms(variants: Set<string>, secret: string): void {
+  for (const form of secretWireForms(secret)) variants.add(form);
 }
 
 function isSignalKillResult(code: number | null, signal: NodeJS.Signals): boolean {

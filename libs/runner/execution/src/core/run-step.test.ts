@@ -578,6 +578,25 @@ describe('executeRunStep', () => {
     expect(stderr).not.toContain(hex);
   });
 
+  it('redacts multiline secrets line by line from the runner stdout tee', async () => {
+    const lines = [
+      '-----BEGIN PRIVATE KEY-----',
+      'MIICeAIBADANBgkqhkiG9w0BAQEFAASCAmIwggJeAgEAAoGB',
+      'short',
+      '-----END PRIVATE KEY-----',
+    ];
+    const secret = lines.join('\n');
+    const script = `process.stdout.write(${JSON.stringify(`${secret}\n`)})`;
+    const step = buildStep({config: {run: `node -e ${JSON.stringify(script)}`}});
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true as never);
+
+    const result = await executeRunStep(step, {secretValues: [secret]});
+
+    const stdout = stdoutWrite.mock.calls.map((call) => String(call[0])).join('');
+    expect(result.success).toBe(true);
+    expect(stdout).toBe('***\n***\nshort\n***\n');
+  });
+
   it('redacts secrets registered while a run step is live, including Basic forms', async () => {
     const token = 'ghs-dynamic-token-for-redaction';
     const credential = Buffer.from(`x-access-token:${token}`).toString('base64');

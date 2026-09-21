@@ -5,6 +5,12 @@ const REPLACEMENT = '�';
 // An 18-byte (multiple-of-3) secret so its standalone base64 has no padding and the phase-0
 // wire form equals the full encoding: keeps the encoded-form assertions exact.
 const SECRET = 'sf_mrt_SECRET12345';
+const PEM_LINES = [
+  '-----BEGIN PRIVATE KEY-----',
+  'MIICeAIBADANBgkqhkiG9w0BAQEFAASCAmIwggJeAgEAAoGB',
+  'short',
+  '-----END PRIVATE KEY-----',
+];
 
 function outputText(events: TransformEvent[]): string {
   return events
@@ -92,6 +98,30 @@ describe('LogTransformer secret masking', () => {
     const transformer = new LogTransformer([SECRET]);
 
     const events = transformer.push(Buffer.from(`value=${form}\n`), 'stdout');
+
+    expect(outputText(events)).toBe('value=***\n');
+  });
+
+  it.each([
+    ['LF', '\n'],
+    ['CRLF', '\r\n'],
+  ])('masks each PEM line at least eight characters long (%s)', (_label, newline) => {
+    const secret = PEM_LINES.join(newline);
+    const transformer = new LogTransformer([secret]);
+
+    const events = transformer.push(Buffer.from(`${secret}${newline}`), 'stdout');
+
+    expect(outputText(events)).toBe(
+      `${PEM_LINES.map((line) => (line.length >= 8 ? '***' : line)).join(newline)}${newline}`,
+    );
+  });
+
+  it('masks the whole multiline secret in its base64 form', () => {
+    const secret = PEM_LINES.join('\n');
+    const encoded = Buffer.from(secret).toString('base64');
+    const transformer = new LogTransformer([secret]);
+
+    const events = transformer.push(Buffer.from(`value=${encoded}\n`), 'stdout');
 
     expect(outputText(events)).toBe('value=***\n');
   });
