@@ -1,5 +1,7 @@
 import {secretWireForms} from '@shipfox/redact';
 
+const MULTILINE_SECRET_LINE_SEPARATOR = /\r?\n/;
+
 /**
  * One deduped, longest-first variant set for registered-secret masking. Each secret fans out
  * to all its wire forms (base64/base64url/url/hex); longest-first so a secret that is a prefix
@@ -9,9 +11,18 @@ import {secretWireForms} from '@shipfox/redact';
 export function buildSecretVariants(secrets: string[]): string[] {
   const variants = new Set<string>();
   for (const secret of secrets) {
-    for (const form of secretWireForms(secret)) variants.add(form);
+    addSecretForms(variants, secret);
+    if (!secret.includes('\n')) continue;
+
+    for (const line of secret.split(MULTILINE_SECRET_LINE_SEPARATOR)) {
+      if (line.length >= 8) addSecretForms(variants, line);
+    }
   }
   return [...variants].sort((a, b) => b.length - a.length);
+}
+
+function addSecretForms(variants: Set<string>, secret: string): void {
+  for (const form of secretWireForms(secret)) variants.add(form);
 }
 
 export function mergeSecretVariants(existing: string[], secrets: string[]): string[] {
