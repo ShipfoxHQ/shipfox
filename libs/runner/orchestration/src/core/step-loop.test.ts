@@ -1873,10 +1873,11 @@ describe('runJobSteps', () => {
       success: true,
       error: null,
       exit_code: 0,
-      outputs: {
-        safe: 'value',
-        'prefix-checkout-secret-suffix': 'value that must not be reported',
-      },
+      outputs: Object.fromEntries([
+        ['safe', 'value'],
+        ['__proto__', 'value'],
+        ['prefix-checkout-secret-suffix', 'value that must not be reported'],
+      ]),
     });
     reportStepMock
       .mockResolvedValueOnce({ok: true, cancel: false})
@@ -1889,7 +1890,10 @@ describe('runJobSteps', () => {
       leaseClient,
       expect.objectContaining({
         stepId: run.id,
-        outputs: {safe: 'value'},
+        outputs: Object.fromEntries([
+          ['safe', 'value'],
+          ['__proto__', 'value'],
+        ]),
       }),
     );
     expect(streamFor(run.id).writeOutputLine).toHaveBeenCalledWith(

@@ -1624,7 +1624,7 @@ function redactOutputValues(
   secretVariants: string[],
   onSecretOutputKey?: () => void,
 ): Record<string, string> {
-  const redactedOutputs: Record<string, string> = {};
+  const redactedOutputs: Record<string, string> = Object.create(null);
   for (const [key, value] of Object.entries(outputs)) {
     if (secretVariants.some((variant) => key.includes(variant))) {
       onSecretOutputKey?.();
