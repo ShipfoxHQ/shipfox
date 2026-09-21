@@ -6,6 +6,7 @@ export {
   type SessionLogStream,
   type SessionLogStreamOptions,
 } from '#core/session-log-stream.js';
+export {maskSessionTranscript} from '#core/session-transcript.js';
 export {
   createStepLogStream,
   type StepLogGroupOptions,
