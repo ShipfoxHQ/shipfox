@@ -1,5 +1,17 @@
 # @shipfox/api-workflows-dto
 
+## 30.0.0
+
+### Minor Changes
+
+- b734fcf: Store secret input references on workflow runs and expose them on run detail responses.
+
+### Patch Changes
+
+- Updated dependencies [c0c5653]
+  - @shipfox/api-secrets-dto@30.0.0
+  - @shipfox/api-definitions-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

@@ -1,5 +1,36 @@
 # @shipfox/client-integrations
 
+## 49.0.0
+
+### Minor Changes
+
+- c44739e: Add Notion to the client integrations gallery with OAuth install and callback wiring.
+- c45dd5f: Adds PostHog connection setup, project selection, and API key replacement to integrations.
+
+### Patch Changes
+
+- Updated dependencies [c647dea]
+- Updated dependencies [d511ab2]
+- Updated dependencies [c44739e]
+- Updated dependencies [f05d344]
+- Updated dependencies [c45dd5f]
+  - @shipfox/api-integration-posthog-dto@30.0.0
+  - @shipfox/react-ui@3.1.0
+  - @shipfox/integration-icons@0.5.0
+  - @shipfox/api-integration-core-dto@30.0.0
+  - @shipfox/api-integration-notion-dto@30.0.0
+  - @shipfox/client-auth@49.0.0
+  - @shipfox/client-shell@49.0.0
+  - @shipfox/client-ui@49.0.0
+  - @shipfox/api-integration-clickup-dto@30.0.0
+  - @shipfox/api-integration-gitea-dto@30.0.0
+  - @shipfox/api-integration-github-dto@30.0.0
+  - @shipfox/api-integration-jira-dto@30.0.0
+  - @shipfox/api-integration-linear-dto@30.0.0
+  - @shipfox/api-integration-sentry-dto@30.0.0
+  - @shipfox/api-integration-slack-dto@30.0.0
+  - @shipfox/api-integration-webhook-dto@30.0.0
+
 ## 48.0.2
 
 ### Patch Changes

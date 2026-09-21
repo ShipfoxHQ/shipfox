@@ -1,5 +1,16 @@
 # @shipfox/react-ui
 
+## 3.1.0
+
+### Minor Changes
+
+- c44739e: Add Notion to the client integrations gallery with OAuth install and callback wiring.
+- c45dd5f: Adds PostHog connection setup, project selection, and API key replacement to integrations.
+
+### Patch Changes
+
+- d511ab2: Restores page interaction after closing a modal opened from another layered control.
+
 ## 3.0.0
 
 ### Major Changes

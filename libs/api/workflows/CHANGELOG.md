@@ -1,5 +1,25 @@
 # @shipfox/api-workflows
 
+## 30.0.0
+
+### Minor Changes
+
+- b734fcf: Store secret input references on workflow runs and expose them on run detail responses.
+
+### Patch Changes
+
+- ce729ec: Rejects interpolated secret input names and destinations before a workflow run starts.
+- f05d344: Adds the flag-gated Notion provider scaffold. The stored-request contract accepts the Notion webhook route. The seed contract requires UUID identifiers. Workflow failure annotations show the Notion provider name.
+- Updated dependencies [c0c5653]
+- Updated dependencies [f05d344]
+- Updated dependencies [b734fcf]
+- Updated dependencies [92b30aa]
+  - @shipfox/api-secrets-dto@30.0.0
+  - @shipfox/api-integration-core-dto@30.0.0
+  - @shipfox/api-workflows-dto@30.0.0
+  - @shipfox/expression@2.11.0
+  - @shipfox/api-definitions-dto@30.0.0
+
 ## 29.1.0
 
 ### Minor Changes

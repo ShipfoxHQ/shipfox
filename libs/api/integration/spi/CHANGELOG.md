@@ -1,5 +1,13 @@
 # @shipfox/api-integration-spi
 
+## 4.3.2
+
+### Patch Changes
+
+- 0d3c668: Add signed Notion webhook ingestion with one-time verification-token logging, connection-scoped replay protection, grant visibility checks, and event publication.
+- Updated dependencies [f05d344]
+  - @shipfox/api-integration-core-dto@30.0.0
+
 ## 4.3.1
 
 ### Patch Changes

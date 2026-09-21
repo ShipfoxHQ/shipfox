@@ -1,5 +1,12 @@
 # @shipfox/api-projects
 
+## 30.0.0
+
+### Patch Changes
+
+- Updated dependencies [f05d344]
+  - @shipfox/api-integration-core-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

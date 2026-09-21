@@ -1,5 +1,22 @@
 # @shipfox/api-definitions
 
+## 30.0.0
+
+### Minor Changes
+
+- ce729ec: Rejects interpolated secret input names and destinations before a workflow run starts.
+
+### Patch Changes
+
+- 92b30aa: Adds concurrency group expressions to the shared workflow context registry and keeps definition validation and generated reference documentation aligned.
+- Updated dependencies [c0c5653]
+- Updated dependencies [f05d344]
+- Updated dependencies [92b30aa]
+  - @shipfox/api-secrets-dto@30.0.0
+  - @shipfox/api-integration-core-dto@30.0.0
+  - @shipfox/expression@2.11.0
+  - @shipfox/api-definitions-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

@@ -1,5 +1,36 @@
 # @shipfox/api-integration-core
 
+## 30.0.0
+
+### Patch Changes
+
+- f05d344: Adds the flag-gated Notion provider scaffold. The stored-request contract accepts the Notion webhook route. The seed contract requires UUID identifiers. Workflow failure annotations show the Notion provider name.
+- 0d3c668: Add signed Notion webhook ingestion with one-time verification-token logging, connection-scoped replay protection, grant visibility checks, and event publication.
+- 5e2111a: Adds read-only PostHog MCP agent tools.
+- Updated dependencies [c647dea]
+- Updated dependencies [f05d344]
+- Updated dependencies [ad7aeaf]
+- Updated dependencies [22aa322]
+- Updated dependencies [0d3c668]
+- Updated dependencies [5e2111a]
+- Updated dependencies [b734fcf]
+  - @shipfox/api-integration-posthog@30.0.0
+  - @shipfox/api-integration-core-dto@30.0.0
+  - @shipfox/api-integration-notion@30.0.0
+  - @shipfox/api-integration-spi@4.3.2
+  - @shipfox/api-workflows-dto@30.0.0
+  - @shipfox/api-integration-github@30.0.0
+  - @shipfox/api-integration-clickup@30.0.0
+  - @shipfox/api-integration-gitea@30.0.0
+  - @shipfox/api-integration-jira@30.0.0
+  - @shipfox/api-integration-linear@30.0.0
+  - @shipfox/api-integration-sentry@30.0.0
+  - @shipfox/api-integration-shipfox@30.0.0
+  - @shipfox/api-integration-slack@30.0.0
+  - @shipfox/api-integration-webhook@30.0.0
+  - @shipfox/api-triggers-dto@30.0.0
+  - @shipfox/api-definitions-dto@30.0.0
+
 ## 29.1.0
 
 ### Patch Changes

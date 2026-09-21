@@ -1,5 +1,19 @@
 # @shipfox/integration-icons
 
+## 0.5.0
+
+### Minor Changes
+
+- c44739e: Add Notion to the client integrations gallery with OAuth install and callback wiring.
+- c45dd5f: Adds PostHog connection setup, project selection, and API key replacement to integrations.
+
+### Patch Changes
+
+- Updated dependencies [d511ab2]
+- Updated dependencies [c44739e]
+- Updated dependencies [c45dd5f]
+  - @shipfox/react-ui@3.1.0
+
 ## 0.4.4
 
 ### Patch Changes
