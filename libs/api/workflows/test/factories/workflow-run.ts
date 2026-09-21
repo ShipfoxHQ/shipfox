@@ -23,6 +23,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun, WorkflowRunTransie
         model: transientParams.model ?? workflowModel({name: run.name}),
         triggerPayload: run.triggerPayload,
         inputs: run.inputs ?? undefined,
+        secretInputs: run.secretInputs ?? undefined,
         sourceSnapshot: run.sourceSnapshot,
       });
     });
@@ -50,6 +51,7 @@ export const workflowRunFactory = Factory.define<WorkflowRun, WorkflowRunTransie
         userId: crypto.randomUUID(),
       },
       inputs: null,
+      secretInputs: null,
       sourceSnapshot: null,
       triggerIdempotencyKey: null,
       timeoutMs: 30 * 24 * 60 * 60 * 1000,

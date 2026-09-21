@@ -152,6 +152,7 @@ function workflowRun(params: {inputs?: Record<string, unknown> | null} = {}): Wo
     triggerEvent: triggerPayload.event,
     triggerPayload,
     inputs: params.inputs ?? null,
+    secretInputs: null,
     sourceSnapshot: null,
     triggerIdempotencyKey: null,
     timeoutMs: 60_000,

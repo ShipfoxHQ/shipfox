@@ -246,6 +246,7 @@ export function createWorkflowsInterModulePresentation(params: {
             triggerPayload: input.triggerPayload,
             triggerConnectionId: input.triggerConnectionId,
             inputs: input.inputs,
+            secretInputs: input.secretInputs,
             parentRun: input.parentRun,
             triggerIdempotencyKey: input.idempotencyKey,
             integrations: params.integrations,

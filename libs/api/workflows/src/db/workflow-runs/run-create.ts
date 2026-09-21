@@ -28,6 +28,7 @@ import {
   loadAgentToolMaterializationContext,
 } from '#core/agent-tools.js';
 import type {
+  SecretInputReference,
   TriggerPayload,
   WorkflowRun,
   WorkflowRunCreationResult,
@@ -90,6 +91,7 @@ export interface CreateWorkflowRunParams {
   triggerPayload: TriggerPayload;
   triggerConnectionId?: string | undefined;
   inputs?: Record<string, unknown> | undefined;
+  secretInputs?: Record<string, SecretInputReference> | undefined;
   parentRun?: {runId: string} | undefined;
   sourceSnapshot?: WorkflowSourceSnapshot | null | undefined;
   triggerIdempotencyKey?: string | undefined;
@@ -237,6 +239,7 @@ async function insertWorkflowRun(
       rootRunId: causation.rootRunId,
       depth: causation.depth,
       inputs: params.inputs ?? null,
+      secretInputs: params.secretInputs ?? null,
       sourceSnapshot: params.sourceSnapshot ?? null,
       triggerIdempotencyKey: params.triggerIdempotencyKey ?? null,
       origin: params.origin ?? 'synced',

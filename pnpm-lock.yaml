@@ -5314,6 +5314,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../definitions-dto
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module

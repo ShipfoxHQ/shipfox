@@ -72,6 +72,9 @@ describe('GET /api/workflows/runs', () => {
         userId: crypto.randomUUID(),
       },
       inputs: {environment: 'production'},
+      secretInputs: {
+        DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
+      },
       sourceSnapshot: {content: 'name: Test\n', format: 'yaml'},
     });
     await createWorkflowRun({
@@ -104,6 +107,7 @@ describe('GET /api/workflows/runs', () => {
     expect(runWithHeavyFields.trigger_source).toBe('manual');
     expect(runWithHeavyFields).not.toHaveProperty('trigger_payload');
     expect(runWithHeavyFields).not.toHaveProperty('inputs');
+    expect(runWithHeavyFields).not.toHaveProperty('secret_inputs');
     expect(runWithHeavyFields).not.toHaveProperty('source_snapshot');
     // The runs list carries run-level timing (null until the run starts).
     expect(runWithHeavyFields).toMatchObject({

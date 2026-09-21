@@ -73,6 +73,9 @@ describe('workflow run queries', () => {
           userId: crypto.randomUUID(),
         },
         inputs: {env: 'staging'},
+        secretInputs: {
+          DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
+        },
         sourceSnapshot: {content: 'name: Original\njobs: {}\n', format: 'yaml'},
       });
       const runJobs = await getJobsByWorkflowRunId(run.id);
@@ -126,6 +129,9 @@ describe('workflow run queries', () => {
         workflowName: 'Test Workflow',
         nameOverride: 'Run staging',
         inputs: {env: 'staging'},
+        secretInputs: {
+          DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
+        },
         sourceSnapshot: {content: 'name: Original\njobs: {}\n', format: 'yaml'},
       });
       const sourceAfter = await getWorkflowRunById(source.id);

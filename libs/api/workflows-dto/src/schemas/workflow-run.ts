@@ -1,3 +1,4 @@
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {z} from 'zod';
 import {type CursorPageDto, cursorPageSchema} from './cursor-page.js';
 import {jobStatusSchema} from './job.js';
@@ -176,6 +177,14 @@ export const workflowRunTriggerReferenceSchema = z.object({
 
 export type WorkflowRunTriggerReferenceDto = z.infer<typeof workflowRunTriggerReferenceSchema>;
 
+export const secretInputReferenceDtoSchema = z.object({
+  store: z.literal('local'),
+  key: secretKeySchema,
+  project_id: z.string().uuid().nullable(),
+});
+
+export type SecretInputReferenceDto = z.infer<typeof secretInputReferenceDtoSchema>;
+
 export const workflowRunDtoFields = {
   id: z.string().uuid(),
   project_id: z.string().uuid(),
@@ -195,6 +204,8 @@ export const workflowRunDtoFields = {
   trigger_payload: z.record(z.string(), z.unknown()),
   trigger_reference: workflowRunTriggerReferenceSchema.nullable(),
   inputs: z.record(z.string(), z.unknown()).nullable(),
+  // Optional during API/web rollout so older detail responses remain consumable.
+  secret_inputs: z.record(z.string(), secretInputReferenceDtoSchema).nullable().optional(),
   source_snapshot: workflowSourceSnapshotSchema.nullable(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -323,7 +334,7 @@ export type WorkflowRunJobDisplayStatusCountDto = z.infer<
 
 export const workflowRunListItemSchema = z
   .object(workflowRunDtoFields)
-  .omit({trigger_payload: true, inputs: true, source_snapshot: true})
+  .omit({trigger_payload: true, inputs: true, secret_inputs: true, source_snapshot: true})
   .extend({
     /** Up to `WORKFLOW_RUN_JOB_PREVIEW_LIMIT` jobs in graph order, not the whole set. */
     jobs: z.array(workflowRunJobSummaryDtoSchema).max(WORKFLOW_RUN_JOB_PREVIEW_LIMIT),

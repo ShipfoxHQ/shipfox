@@ -54,6 +54,7 @@
     "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/annotations-dto": "workspace:*",
     "@shipfox/api-definitions-dto": "workspace:*",
+    "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "zod": "catalog:"
   },

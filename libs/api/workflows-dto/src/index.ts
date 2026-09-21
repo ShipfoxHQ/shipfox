@@ -253,6 +253,8 @@ export {
   workflowStepAttemptSummariesResponseSchema,
 } from '#schemas/workflow-job-detail.js';
 export {
+  type SecretInputReferenceDto,
+  secretInputReferenceDtoSchema,
   WORKFLOW_RUN_JOB_PREVIEW_LIMIT,
   type WorkflowRunJobDisplayStatusCountDto,
   type WorkflowRunJobStatusCountDto,

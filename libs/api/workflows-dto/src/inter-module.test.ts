@@ -322,7 +322,17 @@ describe('workflowsInterModuleContract', () => {
         data: {ref: 'refs/heads/main'},
       },
       triggerConnectionId: '00000000-0000-4000-8000-000000000005',
+      secretInputs: {
+        DEPLOY_TOKEN: {
+          store: 'local',
+          key: 'PROD_DEPLOY_TOKEN',
+          projectId: null,
+        },
+      },
       idempotencyKey: 'subscription-1:event-1',
+    });
+    expect(start.secretInputs).toEqual({
+      DEPLOY_TOKEN: {store: 'local', key: 'PROD_DEPLOY_TOKEN', projectId: null},
     });
     const delivery = workflowsInterModuleContract.methods.deliverEventToJobListener.input.parse({
       jobId: '00000000-0000-4000-8000-000000000004',
@@ -365,6 +375,28 @@ describe('workflowsInterModuleContract', () => {
     expect(rejection.rejection?.reason).toBe('payload-too-large');
     expect(reference.triggerConnectionId).toBe('00000000-0000-4000-8000-000000000005');
     expect(delivery.triggerConnectionId).toBe('00000000-0000-4000-8000-000000000005');
+  });
+
+  test('rejects malformed secret input source keys', () => {
+    const result = workflowsInterModuleContract.methods.startRunFromTrigger.input.safeParse({
+      workspaceId: '00000000-0000-4000-8000-000000000001',
+      projectId: '00000000-0000-4000-8000-000000000002',
+      definitionId: '00000000-0000-4000-8000-000000000003',
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+      },
+      secretInputs: {
+        DEPLOY_TOKEN: {
+          store: 'local',
+          key: 'prod-deploy-token',
+          projectId: null,
+        },
+      },
+      idempotencyKey: 'subscription-1:event-1',
+    });
+
+    expect(result.success).toBe(false);
   });
 
   test('accepts the minimal Logs and agent-tools query payloads', () => {

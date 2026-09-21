@@ -7,6 +7,7 @@ import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-modu
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import {createAgentDefaultsResolver} from './agent-defaults.js';
 import type {
+  SecretInputReference,
   TriggerPayload,
   WorkflowRun,
   WorkflowRunCreationResult,
@@ -23,6 +24,7 @@ export interface RunWorkflowParams {
   triggerPayload: TriggerPayload;
   triggerConnectionId?: string | undefined;
   inputs?: Record<string, unknown> | undefined;
+  secretInputs?: Record<string, SecretInputReference> | undefined;
   parentRun?: {runId: string} | undefined;
   triggerIdempotencyKey?: string | undefined;
   integrations?: IntegrationsModuleClient | undefined;
@@ -57,6 +59,7 @@ export async function runWorkflow(
     triggerPayload: params.triggerPayload,
     triggerConnectionId: params.triggerConnectionId,
     inputs: params.inputs,
+    secretInputs: params.secretInputs,
     parentRun:
       params.parentRun ??
       ('parentRun' in params.triggerPayload ? params.triggerPayload.parentRun : undefined),

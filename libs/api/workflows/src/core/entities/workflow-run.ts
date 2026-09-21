@@ -57,6 +57,12 @@ export interface WorkflowRunTriggerReference {
   actor: string | null;
 }
 
+export interface SecretInputReference {
+  store: 'local';
+  key: string;
+  projectId: string | null;
+}
+
 export interface WorkflowSourceSnapshot {
   content: string;
   format: 'yaml';
@@ -111,6 +117,7 @@ export type WorkflowRun = WorkflowRunOriginState & {
   /** Provider-neutral trigger facts captured at run creation, when available. */
   triggerReference?: WorkflowRunTriggerReference | null | undefined;
   inputs: Record<string, unknown> | null;
+  secretInputs: Record<string, SecretInputReference> | null;
   sourceSnapshot: WorkflowSourceSnapshot | null;
   triggerIdempotencyKey: string | null;
   timeoutMs: number;
@@ -125,6 +132,7 @@ export type WorkflowRun = WorkflowRunOriginState & {
 export const WORKFLOW_RUN_LIST_OMITTED_FIELDS = [
   'triggerPayload',
   'inputs',
+  'secretInputs',
   'sourceSnapshot',
   'triggerIdempotencyKey',
   'timeoutMs',

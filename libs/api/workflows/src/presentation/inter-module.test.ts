@@ -125,6 +125,7 @@ function readTestRun(overrides: Partial<SyncedWorkflowRun> = {}): SyncedWorkflow
     triggerPayload: input.triggerPayload,
     triggerReference: null,
     inputs: null,
+    secretInputs: null,
     sourceSnapshot: null,
     triggerIdempotencyKey: null,
     timeoutMs: 3_600_000,

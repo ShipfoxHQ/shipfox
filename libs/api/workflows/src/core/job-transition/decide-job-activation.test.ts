@@ -134,6 +134,7 @@ function workflowRun(): WorkflowRun {
       userId: crypto.randomUUID(),
     },
     inputs: null,
+    secretInputs: null,
     sourceSnapshot: null,
     triggerIdempotencyKey: null,
     timeoutMs: 3_600_000,
