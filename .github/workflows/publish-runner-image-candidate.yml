@@ -93,7 +93,7 @@ jobs:
     name: Publish runner image candidate (${{ matrix.architecture }})
     needs: [plan]
     if: needs.plan.outputs.mode == 'build' || needs.plan.outputs.mode == 'reuse-current'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     concurrency:
       group: >-
         runner-image-candidate-${{ needs.plan.outputs.revision }}-${{ matrix.architecture }}
