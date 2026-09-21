@@ -18,6 +18,8 @@ import {
 } from '../src/e2e.mjs';
 
 const unknownCommandPattern = /Unknown command/;
+const posthogOverridePairPattern =
+  /POSTHOG_API_BASE_URL and POSTHOG_MCP_ENDPOINT must be configured together/u;
 
 describe('parseArgs', () => {
   test('defaults to running all E2E tests', () => {
@@ -134,6 +136,8 @@ describe('e2eEnv', () => {
       SLACK_API_BASE_URL: 'http://127.0.0.1:16122',
       CLICKUP_API_BASE_URL: 'http://127.0.0.1:16123',
       NOTION_API_BASE_URL: 'http://127.0.0.1:16124',
+      POSTHOG_API_BASE_URL: 'https://posthog-api.example.test',
+      POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp',
       SHIPFOX_API_URL: 'http://localhost:55351',
       GITEA_BASE_URL: 'http://localhost:55356',
       WEBHOOK_PUBLIC_URL: 'https://webhooks.example.test',
@@ -154,8 +158,8 @@ describe('e2eEnv', () => {
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:16124');
-    assert.equal(env.POSTHOG_API_BASE_URL, 'http://127.0.0.1:16117/');
-    assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:16117/mcp');
+    assert.equal(env.POSTHOG_API_BASE_URL, 'https://posthog-api.example.test');
+    assert.equal(env.POSTHOG_MCP_ENDPOINT, 'https://posthog-mcp.example.test/mcp');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -205,6 +209,20 @@ describe('e2eEnv', () => {
     assert.throws(
       () => e2eEnv({API_URL: 'http://localhost:65521'}),
       /Cannot derive a Notion API port/u,
+    );
+  });
+
+  test('rejects a PostHog API override without an MCP override', () => {
+    assert.throws(
+      () => e2eEnv({POSTHOG_API_BASE_URL: 'https://posthog-api.example.test'}),
+      posthogOverridePairPattern,
+    );
+  });
+
+  test('rejects a PostHog MCP override without an API override', () => {
+    assert.throws(
+      () => e2eEnv({POSTHOG_MCP_ENDPOINT: 'https://posthog-mcp.example.test/mcp'}),
+      posthogOverridePairPattern,
     );
   });
 

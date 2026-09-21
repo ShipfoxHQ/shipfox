@@ -212,6 +212,14 @@ function valueOr(value, fallback) {
 }
 
 export function e2eEnv(sourceEnv) {
+  const hasPosthogApiBaseUrl = sourceEnv.POSTHOG_API_BASE_URL !== undefined;
+  const hasPosthogMcpEndpoint = sourceEnv.POSTHOG_MCP_ENDPOINT !== undefined;
+  if (hasPosthogApiBaseUrl !== hasPosthogMcpEndpoint) {
+    throw new Error(
+      'POSTHOG_API_BASE_URL and POSTHOG_MCP_ENDPOINT must be configured together for E2E runs.',
+    );
+  }
+
   const apiUrl = valueOr(sourceEnv.API_URL, valueOr(sourceEnv.SHIPFOX_API_URL, defaultApiUrl));
   const clientUrl = valueOr(
     sourceEnv.CLIENT_URL,
