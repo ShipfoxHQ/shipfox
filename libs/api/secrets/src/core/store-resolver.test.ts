@@ -10,6 +10,7 @@ describe('secret store resolver', () => {
   it('resolves the local provider and rejects unknown stores', () => {
     const provider: SecretStoreProvider = {
       getSecret: async () => null,
+      getSecretWithScope: async () => ({value: null, projectId: null}),
       getSecretsByNamespace: async () => ({}),
     };
     const resolveSecretStore = createSecretStoreResolver(provider);

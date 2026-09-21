@@ -6,8 +6,8 @@ import {
 } from '@shipfox/inter-module';
 import {
   deleteSecrets,
-  getSecret,
   getSecretsByNamespace,
+  getSecretWithScope,
   getVariablesByNamespace,
   SecretDecryptionError,
   SecretValueTooLargeError,
@@ -22,7 +22,7 @@ export function createSecretsInterModulePresentation(): InterModulePresentation<
     getSecret: async (input) => {
       try {
         const {store, ...params} = input;
-        return {value: await getSecret({...params, ...(store === undefined ? {} : {store})})};
+        return await getSecretWithScope({...params, ...(store === undefined ? {} : {store})});
       } catch (error) {
         throw toGetKnownError('getSecret', error);
       }

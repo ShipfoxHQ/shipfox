@@ -12,6 +12,22 @@ describe('secretsInterModuleContract', () => {
     expect(input.values).toEqual({API_KEY: 'secret-value'});
   });
 
+  test('accepts exact-scope reads and returns the matched project scope', () => {
+    const input = secretsInterModuleContract.methods.getSecret.input.parse({
+      workspaceId: '00000000-0000-4000-8000-000000000001',
+      projectId: '00000000-0000-4000-8000-000000000002',
+      key: 'API_KEY',
+      exactScope: true,
+    });
+    const output = secretsInterModuleContract.methods.getSecret.output.parse({
+      value: 'secret-value',
+      projectId: '00000000-0000-4000-8000-000000000002',
+    });
+
+    expect(input.exactScope).toBe(true);
+    expect(output.projectId).toBe('00000000-0000-4000-8000-000000000002');
+  });
+
   test('defines stable known errors without secret values', () => {
     expect(
       secretsInterModuleContract.methods.getSecret.errors['secret-decryption-failed'].parse({}),

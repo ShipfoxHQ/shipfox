@@ -32,14 +32,33 @@ export function createTestSecretsClient(): SecretsInterModuleClient {
   };
 
   return {
-    getSecret: async (params) => ({
-      value:
-        values.get(keyId(normalize(params), params.key)) ??
-        (params.projectId
-          ? values.get(keyId(normalize({...params, projectId: null}), params.key))
-          : undefined) ??
-        null,
-    }),
+    getSecret: (params) => {
+      const projectValue = params.projectId
+        ? values.get(keyId(normalize(params), params.key))
+        : undefined;
+      const workspaceValue = values.get(keyId(normalize({...params, projectId: null}), params.key));
+      let value: string | undefined;
+      let projectMatch = false;
+
+      if (params.exactScope) {
+        if (params.projectId) {
+          value = projectValue;
+          projectMatch = projectValue !== undefined;
+        } else {
+          value = workspaceValue;
+        }
+      } else if (projectValue !== undefined) {
+        value = projectValue;
+        projectMatch = true;
+      } else {
+        value = workspaceValue;
+      }
+
+      return Promise.resolve({
+        value: value ?? null,
+        projectId: projectMatch ? (params.projectId ?? null) : null,
+      });
+    },
     getSecretsByNamespace: async (params) => ({values: entries(params)}),
     getVariablesByNamespace: async (params) => ({values: entries(params)}),
     setSecrets: async (params) => {

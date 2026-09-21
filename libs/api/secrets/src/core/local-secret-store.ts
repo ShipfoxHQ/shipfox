@@ -11,21 +11,43 @@ export interface LocalSecretStoreParams {
 }
 
 export function createLocalSecretStore(params: LocalSecretStoreParams) {
-  return {
-    async getSecret(input: StoreScope & {workspaceId: string; namespace: string; key: string}) {
-      const row = await getSecretValueRowWithPrecedence(input);
-      if (!row) return null;
+  async function getSecretWithScope(
+    input: StoreScope & {
+      workspaceId: string;
+      namespace: string;
+      key: string;
+      exactScope?: boolean | undefined;
+    },
+  ) {
+    const row = await getSecretValueRowWithPrecedence(input);
+    if (!row) return {value: null, projectId: null};
 
-      const dek = await params.dekManager.getPlaintextDek(input.workspaceId);
-      return decryptSecretValue({
+    const dek = await params.dekManager.getPlaintextDek(input.workspaceId);
+    return {
+      value: decryptSecretValue({
         dek,
         workspaceId: row.workspaceId,
         scope: {projectId: row.projectId},
         namespace: row.namespace,
         key: row.key,
         ciphertext: row.ciphertext,
-      });
+      }),
+      projectId: row.projectId,
+    };
+  }
+
+  return {
+    async getSecret(
+      input: StoreScope & {
+        workspaceId: string;
+        namespace: string;
+        key: string;
+        exactScope?: boolean | undefined;
+      },
+    ) {
+      return (await getSecretWithScope(input)).value;
     },
+    getSecretWithScope,
     async getSecretsByNamespace(input: StoreScope & {workspaceId: string; namespace: string}) {
       const rows = await listSecretValueRowsByNamespace(input);
       const dek =

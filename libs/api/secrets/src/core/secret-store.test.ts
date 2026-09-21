@@ -10,7 +10,14 @@ import {
   SecretValueTooLargeError,
   WorkspaceSecretCapExceededError,
 } from './errors.js';
-import {dekManager, deleteSecrets, getSecret, getSecretsByNamespace, setSecrets} from './index.js';
+import {
+  dekManager,
+  deleteSecrets,
+  getSecret,
+  getSecretsByNamespace,
+  getSecretWithScope,
+  setSecrets,
+} from './index.js';
 
 const V1_PREFIX_PATTERN = /^v1:/;
 const HMAC_FINGERPRINT_PATTERN = /^hmac-sha256:[A-Za-z0-9_-]{43}$/;
@@ -61,6 +68,47 @@ describe('secret store', () => {
     expect(projectValue).toBe('project-token');
     expect(workspaceValue).toBe('workspace-token');
     expect(inheritedValue).toBe('workspace-token');
+  });
+
+  it('returns the matched project scope for precedence lookups', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+
+    await setSecrets({workspaceId, values: {TOKEN: 'workspace-token'}});
+    await setSecrets({workspaceId, projectId, values: {TOKEN: 'project-token'}});
+
+    const projectResult = await getSecretWithScope({workspaceId, projectId, key: 'TOKEN'});
+    const workspaceResult = await getSecretWithScope({workspaceId, key: 'TOKEN'});
+    const missingResult = await getSecretWithScope({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      key: 'TOKEN',
+      exactScope: true,
+    });
+
+    expect(projectResult).toEqual({value: 'project-token', projectId});
+    expect(workspaceResult).toEqual({value: 'workspace-token', projectId: null});
+    expect(missingResult).toEqual({value: null, projectId: null});
+  });
+
+  it('limits exact-scope lookups to a project or the workspace', async () => {
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    const missingProjectId = crypto.randomUUID();
+
+    await setSecrets({workspaceId, values: {TOKEN: 'workspace-token'}});
+    await setSecrets({workspaceId, projectId, values: {TOKEN: 'project-token'}});
+
+    const missingProjectValue = await getSecret({
+      workspaceId,
+      projectId: missingProjectId,
+      key: 'TOKEN',
+      exactScope: true,
+    });
+    const exactWorkspaceValue = await getSecret({workspaceId, key: 'TOKEN', exactScope: true});
+
+    expect(missingProjectValue).toBeNull();
+    expect(exactWorkspaceValue).toBe('workspace-token');
   });
 
   it('normalizes an empty project id to workspace scope', async () => {

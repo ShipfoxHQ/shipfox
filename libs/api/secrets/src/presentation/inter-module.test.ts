@@ -13,18 +13,32 @@ describe('Secrets inter-module presentation', () => {
     transport.register(createSecretsInterModulePresentation());
     transport.seal();
 
+    await client.setSecrets({workspaceId, values: {TOKEN: 'workspace-value'}});
     await client.setSecrets({
       workspaceId,
       projectId,
       values: {TOKEN: 'project-value'},
     });
     const secret = await client.getSecret({workspaceId, projectId, key: 'TOKEN'});
+    const exactWorkspaceSecret = await client.getSecret({
+      workspaceId,
+      key: 'TOKEN',
+      exactScope: true,
+    });
+    const missingProjectSecret = await client.getSecret({
+      workspaceId,
+      projectId: crypto.randomUUID(),
+      key: 'TOKEN',
+      exactScope: true,
+    });
     await setVariables({workspaceId, projectId, values: {REGION: 'eu-west-3'}});
     const namespace = await client.getSecretsByNamespace({workspaceId, projectId});
     const variables = await client.getVariablesByNamespace({workspaceId, projectId});
     const deleted = await client.deleteSecrets({workspaceId, projectId, keys: ['TOKEN']});
 
-    expect(secret).toEqual({value: 'project-value'});
+    expect(secret).toEqual({value: 'project-value', projectId});
+    expect(exactWorkspaceSecret).toEqual({value: 'workspace-value', projectId: null});
+    expect(missingProjectSecret).toEqual({value: null, projectId: null});
     expect(namespace).toEqual({values: {TOKEN: 'project-value'}});
     expect(variables).toEqual({values: {REGION: 'eu-west-3'}});
     expect(deleted).toEqual({deleted: 1});

@@ -93,7 +93,7 @@ Startup checks each KEK as a canonical base64 value for a 32-byte key. It also r
 | Function | Result |
 | --- | --- |
 | `setSecrets({workspaceId, projectId?, namespace?, values, editedBy?})` | Encrypts and upserts a batch of secret values. |
-| `getSecret({workspaceId, projectId?, namespace?, key, store?})` | Returns one plaintext secret or `null`. Project scope wins over workspace scope. |
+| `getSecret({workspaceId, projectId?, namespace?, key, store?, exactScope?})` | Returns one plaintext secret or `null`. Project scope wins over workspace scope unless `exactScope` is `true`. |
 | `getSecretsByNamespace({workspaceId, projectId?, namespace?, store?})` | Returns plaintext secrets in a namespace. Project scope wins over workspace scope. |
 | `deleteSecrets({workspaceId, projectId?, namespace?, keys?})` | Deletes exact-scope secrets. Omitted `keys` deletes the scope namespace. Empty `keys` deletes nothing. |
 | `setVariables({workspaceId, projectId?, namespace?, values, editedBy?})` | Upserts plaintext variables with the same validation and cap rules as secrets. |
@@ -186,6 +186,8 @@ Deleting a workspace data key makes existing secrets unreadable. Reads fail clos
 ## Behavior notes
 
 - **Scope precedence:** project-scoped rows override workspace-scoped rows on reads and namespace lists.
+- **Exact scope:** `exactScope: true` limits `getSecret` to the requested project. Omit `projectId` to read workspace scope only.
+- **Inter-module source metadata:** the inter-module `getSecret` result includes `projectId`. It is the matched project scope, or `null` for workspace scope and missing rows.
 - **Exact deletes:** deletes target only the exact scope passed by the caller. Deleting a project secret does not delete the workspace fallback.
 - **Batch writes:** each write batch must target one scope. Mixed workspace and project rows are rejected by the persistence layer.
 - **Workspace cap:** cap checks count secrets and variables together. The check runs inside the write transaction. It uses a workspace advisory lock and counts only net-new keys.
