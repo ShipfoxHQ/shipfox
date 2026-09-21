@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {isAbsolute, join, relative, sep} from 'node:path';
 import {promisify} from 'node:util';
@@ -71,6 +72,7 @@ const gunzipAsync = promisify(gunzip);
 
 const WHITESPACE_REGEX = /\s+/;
 const TRANSIENT_NEXT_STEP_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+const MAX_ANNOTATION_CONTEXT_CANDIDATES = 10_000;
 export type RunnerAgentStepModule = typeof import('@shipfox/runner-agent/step');
 
 export function createRunnerAgentStepLoader(
@@ -137,6 +139,7 @@ export async function runJobSteps(params: {
     ambientGitConfigPath: undefined,
     ambientGitConfigSecrets: [],
     checkoutDestinations: new Map(),
+    annotationContexts: createAnnotationContextRegistry(),
     activeStream: undefined,
     checkoutRef: undefined,
   };
@@ -160,6 +163,7 @@ interface JobStepLoopState {
   ambientGitConfigPath: string | undefined;
   ambientGitConfigSecrets: string[];
   checkoutDestinations: TrackedCheckoutDestinations;
+  annotationContexts: AnnotationContextRegistry;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
 }
@@ -215,6 +219,7 @@ async function runJobStepIteration(
     checkoutDestinations: state.checkoutDestinations,
     ambientGitConfigPath: state.ambientGitConfigPath,
     ambientGitConfigSecrets: state.ambientGitConfigSecrets,
+    annotationContexts: state.annotationContexts,
     checkoutRef: state.checkoutRef,
     consumeCheckoutRef: () => {
       state.checkoutRef = undefined;
@@ -632,6 +637,7 @@ export async function executeStep(params: {
   checkoutDestinations?: CheckoutDestinations | undefined;
   ambientGitConfigPath?: string | undefined;
   ambientGitConfigSecrets?: string[] | undefined;
+  annotationContexts?: AnnotationContextRegistry | undefined;
   checkoutRef?: string | undefined;
   consumeCheckoutRef?: (() => void) | undefined;
   gitConfigPath: string;
@@ -1464,6 +1470,8 @@ async function executeRunStepBranch(params: {
       ...params.secretState.subscribedSecrets,
       ...input.secrets,
     ]),
+    stepStream,
+    input.annotationContexts ?? createAnnotationContextRegistry(),
   );
   writeRunFailureContext(stepStream, result);
   return {
@@ -1624,16 +1632,22 @@ function setupPreparationFailure(error: unknown, reason: StepErrorReasonDto): St
   };
 }
 
+const SECRET_OUTPUT_KEY_WARNING = 'Output omitted because its key contains a secret.';
+
 function maskAgentResult(result: StepResult, secretVariants: string[]): StepResult {
+  const {outputs: originalOutputs, ...resultWithoutOutputs} = result;
+  const outputs =
+    originalOutputs === undefined
+      ? originalOutputs
+      : redactOutputValues(originalOutputs, secretVariants);
+  const maskedOutputs = outputs === undefined || Object.keys(outputs).length === 0 ? {} : {outputs};
   if (result.success) {
     return {
-      ...result,
+      ...resultWithoutOutputs,
       ...(result.response === undefined
         ? {}
         : {response: redactSecrets(result.response, secretVariants)}),
-      ...(result.outputs === undefined
-        ? {}
-        : {outputs: redactOutputValues(result.outputs, secretVariants)}),
+      ...maskedOutputs,
     };
   }
 
@@ -1642,27 +1656,40 @@ function maskAgentResult(result: StepResult, secretVariants: string[]): StepResu
       ? result.error
       : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
   return {
-    ...result,
+    ...resultWithoutOutputs,
     ...(result.response === undefined
       ? {}
       : {response: redactSecrets(result.response, secretVariants)}),
+    ...maskedOutputs,
     error,
   };
 }
 
-function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepResult {
+function maskRunStepOutputs(
+  result: StepResult,
+  secretVariants: string[],
+  stepStream: StepLogStream | undefined,
+  annotationContexts: AnnotationContextRegistry,
+): StepResult {
+  const {outputs: originalOutputs, ...resultWithoutOutputs} = result;
   const outputs =
-    result.outputs === undefined
-      ? result.outputs
-      : redactOutputValues(result.outputs, secretVariants);
-  const annotations = redactAnnotationBodies(result.annotations, secretVariants);
+    originalOutputs === undefined
+      ? originalOutputs
+      : redactOutputValues(originalOutputs, secretVariants, () => {
+          stepStream?.writeOutputLine(SECRET_OUTPUT_KEY_WARNING, 'stderr');
+        });
+  const annotations = redactAnnotationBodies(
+    result.annotations,
+    secretVariants,
+    annotationContexts,
+  );
   const error =
     result.success || result.error === null || result.error === undefined
       ? result.error
       : {...result.error, message: redactSecrets(result.error.message, secretVariants)};
   return {
-    ...result,
-    ...(outputs === undefined ? {} : {outputs}),
+    ...resultWithoutOutputs,
+    ...(outputs === undefined || Object.keys(outputs).length === 0 ? {} : {outputs}),
     ...(annotations === undefined ? {} : {annotations}),
     error,
   };
@@ -1671,21 +1698,82 @@ function maskRunStepOutputs(result: StepResult, secretVariants: string[]): StepR
 function redactAnnotationBodies(
   annotations: StepResult['annotations'],
   secretVariants: string[],
+  annotationContexts: AnnotationContextRegistry,
 ): StepResult['annotations'] {
   if (annotations === undefined) return undefined;
   return annotations.map((annotation) => {
-    if (annotation.op === 'remove') return annotation;
-    return {...annotation, body: redactSecrets(annotation.body, secretVariants)};
+    const context = redactAnnotationContext(annotation.context, secretVariants, annotationContexts);
+    if (annotation.op === 'remove') return {...annotation, context};
+    return {
+      ...annotation,
+      context,
+      body: redactSecrets(annotation.body, secretVariants),
+    };
   });
+}
+
+interface AnnotationContextRegistry {
+  publishedByOriginal: Map<string, string>;
+  originalByPublished: Map<string, string>;
+}
+
+function createAnnotationContextRegistry(): AnnotationContextRegistry {
+  return {publishedByOriginal: new Map(), originalByPublished: new Map()};
+}
+
+function redactAnnotationContext(
+  context: string,
+  secretVariants: string[],
+  registry: AnnotationContextRegistry,
+): string {
+  const existing = registry.publishedByOriginal.get(context);
+  if (existing !== undefined) return existing;
+
+  const publishedOwner = registry.originalByPublished.get(context);
+  const needsOpaqueContext =
+    redactSecrets(context, secretVariants) !== context ||
+    (publishedOwner !== undefined && publishedOwner !== context);
+  const published = needsOpaqueContext
+    ? allocateAnnotationContext(context, secretVariants, registry)
+    : context;
+  registry.publishedByOriginal.set(context, published);
+  registry.originalByPublished.set(published, context);
+  return published;
+}
+
+function allocateAnnotationContext(
+  context: string,
+  secretVariants: string[],
+  registry: AnnotationContextRegistry,
+): string {
+  for (
+    let candidateNumber = 0;
+    candidateNumber < MAX_ANNOTATION_CONTEXT_CANDIDATES;
+    candidateNumber += 1
+  ) {
+    const hashInput = candidateNumber === 0 ? context : `${context}\0${candidateNumber}`;
+    const candidate = createHash('sha256').update(hashInput).digest('base64url');
+    if (redactSecrets(candidate, secretVariants) !== candidate) continue;
+    if (registry.originalByPublished.has(candidate)) continue;
+    return candidate;
+  }
+  throw new Error('Unable to allocate a safe annotation context identifier.');
 }
 
 function redactOutputValues(
   outputs: Record<string, string>,
   secretVariants: string[],
+  onSecretOutputKey?: () => void,
 ): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(outputs).map(([key, value]) => [key, redactSecrets(value, secretVariants)]),
-  );
+  const redactedOutputs: Record<string, string> = Object.create(null);
+  for (const [key, value] of Object.entries(outputs)) {
+    if (secretVariants.some((variant) => key.includes(variant))) {
+      onSecretOutputKey?.();
+      continue;
+    }
+    redactedOutputs[key] = redactSecrets(value, secretVariants);
+  }
+  return redactedOutputs;
 }
 
 function agentRuntimeConfigFailure(error: unknown): StepResult {
