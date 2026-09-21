@@ -16,6 +16,7 @@ import {
   notionAgentToolSelectionCatalog,
 } from './agent-tools.js';
 import {NotionIntegrationProviderError} from './errors.js';
+import {normalizeNotionId} from './notion-id.js';
 
 export type NotionIntegrationConnection = IntegrationConnection<'notion'>;
 export type NotionToolCall = Parameters<AgentToolSession<CallToolResult>['call']>[0];
@@ -26,7 +27,8 @@ export interface NotionAgentToolsProviderOptions {
 }
 
 export class NotionAgentToolsProvider
-  implements AgentToolsProvider<NotionIntegrationConnection, 'read', unknown, CallToolResult>
+  implements
+    AgentToolsProvider<NotionIntegrationConnection, 'read' | 'write', unknown, CallToolResult>
 {
   constructor(private readonly options: NotionAgentToolsProviderOptions) {}
 
@@ -39,7 +41,7 @@ export class NotionAgentToolsProvider
   }
 
   async openSession(
-    input: OpenAgentToolsSessionInput<NotionIntegrationConnection, 'read'>,
+    input: OpenAgentToolsSessionInput<NotionIntegrationConnection, 'read' | 'write', unknown>,
   ): Promise<AgentToolSession<CallToolResult>> {
     let accessToken = await this.options.tokenStore.getAccessToken({
       connectionId: input.connection.id,
@@ -70,7 +72,7 @@ export class NotionAgentToolsProvider
 
 async function executeNotionToolCall(params: {
   call: NotionToolCall;
-  tools: readonly AgentToolCatalogEntry<'read'>[];
+  tools: readonly AgentToolCatalogEntry<'read' | 'write'>[];
   accessToken: string;
   connectionId: string;
   notion: Pick<NotionAgentToolsClient, 'request'>;
@@ -88,27 +90,153 @@ async function executeNotionToolCall(params: {
   if (validationError) return notionToolError(validationError, 'invalid-request');
 
   try {
-    let response = await requestNotionTool(params, operation);
-    if (response.status === 401) {
-      let accessToken: string;
+    let accessToken = params.accessToken;
+    let refreshed = false;
+    const requestWithRefresh = async (requestOperation: NotionToolOperation) => {
+      let response = await requestNotionTool({...params, accessToken}, requestOperation);
+      if (response.status !== 401 || refreshed) return response;
+      refreshed = true;
       try {
         accessToken = await params.refreshAccessToken();
       } catch {
-        return notionToolError(
-          'Notion credentials are unavailable. Reconnect Notion and try again.',
+        throw new NotionIntegrationProviderError(
           'credentials-unavailable',
+          'Notion credentials are unavailable. Reconnect Notion and try again.',
+          undefined,
           401,
         );
       }
-      response = await requestNotionTool({...params, accessToken}, operation);
+      response = await requestNotionTool({...params, accessToken}, requestOperation);
+      return response;
+    };
+
+    if (params.call.toolId === 'update_page') {
+      return await executeNotionPageUpdate(params, requestWithRefresh);
     }
-    return mapNotionToolResponse(params.call.toolId, response);
+
+    return mapNotionToolResponse(params.call.toolId, await requestWithRefresh(operation));
   } catch (error) {
     if (error instanceof NotionIntegrationProviderError) {
       return notionToolError(error.message, error.reason, error.status, error.retryAfterSeconds);
     }
     throw error;
   }
+}
+
+type RequestNotionToolWithRefresh = (
+  operation: NotionToolOperation,
+) => Promise<NotionAgentToolResponse>;
+
+async function executeNotionPageUpdate(
+  params: {
+    call: NotionToolCall;
+    accessToken: string;
+    notion: Pick<NotionAgentToolsClient, 'request'>;
+  },
+  requestWithRefresh: RequestNotionToolWithRefresh,
+): Promise<CallToolResult> {
+  const args = params.call.arguments;
+  const propertiesResponse = await requestPageProperties(args, requestWithRefresh);
+  if (propertiesResponse !== undefined) {
+    const propertiesResult = mapNotionToolResponse('update_page', propertiesResponse);
+    if (propertiesResult.isError) return propertiesResult;
+  }
+
+  const contentStep = await requestPageContent(args, requestWithRefresh);
+  if (contentStep === undefined) {
+    return updateResult(propertiesResponse?.body, {
+      propertiesUpdated: propertiesResponse !== undefined,
+      contentUpdated: false,
+    });
+  }
+  if ('error' in contentStep) {
+    return withUpdateStatus(
+      notionToolError(
+        contentStep.error.message,
+        contentStep.error.reason,
+        contentStep.error.status,
+        contentStep.error.retryAfterSeconds,
+      ),
+      {propertiesUpdated: propertiesResponse !== undefined, contentUpdated: false},
+    );
+  }
+
+  const contentResult = mapNotionToolResponse('update_page', contentStep.response);
+  if (contentResult.isError) {
+    return propertiesResponse !== undefined
+      ? withUpdateStatus(contentResult, {propertiesUpdated: true, contentUpdated: false})
+      : contentResult;
+  }
+  return updateResult(contentStep.response.body, {
+    propertiesUpdated: propertiesResponse !== undefined,
+    contentUpdated: true,
+  });
+}
+
+async function requestPageProperties(
+  args: Record<string, unknown>,
+  requestWithRefresh: RequestNotionToolWithRefresh,
+): Promise<NotionAgentToolResponse | undefined> {
+  if (args.properties === undefined) return undefined;
+  const operation = NOTION_TOOL_OPERATIONS.update_page;
+  if (operation === undefined) throw new Error('Missing update_page operation');
+  return await requestWithRefresh(operation);
+}
+
+async function requestPageContent(
+  args: Record<string, unknown>,
+  requestWithRefresh: RequestNotionToolWithRefresh,
+): Promise<
+  {response: NotionAgentToolResponse} | {error: NotionIntegrationProviderError} | undefined
+> {
+  if (args.markdown === undefined) return undefined;
+  try {
+    return {
+      response: await requestWithRefresh({
+        method: 'PATCH',
+        path: (contentArgs) =>
+          `/v1/pages/${encodeURIComponent(normalizeNotionId(stringArgument(contentArgs, 'page_id')))}/markdown`,
+        body: (contentArgs) => ({
+          markdown: contentArgs.markdown,
+          mode: contentArgs.mode,
+        }),
+      }),
+    };
+  } catch (error) {
+    if (error instanceof NotionIntegrationProviderError) return {error};
+    throw error;
+  }
+}
+
+function updateResult(
+  body: unknown,
+  status: {propertiesUpdated: boolean; contentUpdated: boolean},
+): CallToolResult {
+  const structuredContent = {
+    ...(isRecord(body) ? body : {result: body}),
+    properties_updated: status.propertiesUpdated,
+    content_updated: status.contentUpdated,
+  };
+  return {
+    content: [{type: 'text', text: JSON.stringify(structuredContent)}],
+    structuredContent,
+  };
+}
+
+function withUpdateStatus(
+  result: CallToolResult,
+  status: {propertiesUpdated: boolean; contentUpdated: boolean},
+): CallToolResult {
+  const structuredContent = {
+    ...(isRecord(result.structuredContent) ? result.structuredContent : {}),
+    properties_updated: status.propertiesUpdated,
+    content_updated: status.contentUpdated,
+  };
+  return {
+    ...result,
+    content: [{type: 'text', text: JSON.stringify(structuredContent)}],
+    structuredContent,
+  };
 }
 
 async function requestNotionTool(
@@ -183,7 +311,7 @@ function notionPageTitle(page: Record<string, unknown>): string {
 }
 
 function validateNotionToolArguments(
-  tool: AgentToolCatalogEntry<'read'>,
+  tool: AgentToolCatalogEntry<'read' | 'write'>,
   args: Record<string, unknown>,
 ): string | undefined {
   const schema = tool.inputSchema;
@@ -202,7 +330,52 @@ function validateNotionToolArguments(
     const error = validateNotionArgument(name, value, property);
     if (error !== undefined) return error;
   }
-  return undefined;
+  return validateNotionToolSpecificArguments(tool.id, args);
+}
+
+function validateNotionToolSpecificArguments(
+  toolId: string,
+  args: Record<string, unknown>,
+): string | undefined {
+  switch (toolId) {
+    case 'create_page':
+      return validateCreatePageArguments(args);
+    case 'update_page':
+      return validateUpdatePageArguments(args);
+    case 'add_comment':
+      return validateAddCommentArguments(args);
+    default:
+      return undefined;
+  }
+}
+
+function validateCreatePageArguments(args: Record<string, unknown>): string | undefined {
+  const parent = args.parent;
+  if (!isRecord(parent)) return 'Parameter parent must be an object';
+  const parentKeys = ['page_id', 'data_source_id'].filter((key) => typeof parent[key] === 'string');
+  return parentKeys.length === 1
+    ? undefined
+    : 'Parameter parent must contain exactly one of page_id or data_source_id';
+}
+
+function validateUpdatePageArguments(args: Record<string, unknown>): string | undefined {
+  if (args.properties === undefined && args.markdown === undefined) {
+    return 'At least one of properties or markdown is required';
+  }
+  if (args.markdown !== undefined && args.mode === undefined) {
+    return 'Missing required parameter: mode';
+  }
+  return args.markdown === undefined && args.mode !== undefined
+    ? 'Parameter mode requires markdown'
+    : undefined;
+}
+
+function validateAddCommentArguments(args: Record<string, unknown>): string | undefined {
+  const hasPage = typeof args.page_id === 'string';
+  const hasDiscussion = typeof args.discussion_id === 'string';
+  return hasPage !== hasDiscussion
+    ? undefined
+    : 'Exactly one of page_id or discussion_id is required';
 }
 
 function validateNotionArgument(
@@ -291,6 +464,11 @@ function notionToolError(
 
 function isObjectNotFound(body: unknown): boolean {
   return isRecord(body) && body.code === 'object_not_found';
+}
+
+function stringArgument(args: Record<string, unknown>, name: string): string {
+  const value = args[name];
+  return typeof value === 'string' ? value : String(value ?? '');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

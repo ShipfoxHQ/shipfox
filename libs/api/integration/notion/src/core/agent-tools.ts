@@ -8,12 +8,13 @@ import type {
 import type {NotionAgentToolHttpMethod, NotionAgentToolQueryValue} from '#api/client.js';
 import {normalizeNotionId} from './notion-id.js';
 
-export type NotionAgentToolRequiredScope = 'read';
+export type NotionAgentToolRequiredScope = 'read' | 'write';
 export type NotionAgentToolCatalogEntry = AgentToolCatalogEntry<NotionAgentToolRequiredScope>;
 
 interface NotionAgentToolCatalogInput {
   id: NotionAgentToolId;
   description: string;
+  sensitivity?: NotionAgentToolRequiredScope;
   inputSchema: AgentToolJsonSchema;
   outputSchema: AgentToolJsonSchema;
 }
@@ -23,6 +24,12 @@ const dataSourceIdSchema = stringSchema('Notion data source URL or data source I
 const cursorSchema = stringSchema('Notion pagination cursor from the previous response');
 const pageSizeSchema = integerSchema('Number of results to return, from 1 to 100', 1, 100);
 const dynamicObjectSchema = openObjectSchema('Notion object with provider-defined fields');
+const pageParentSchema = openObjectSchema(
+  'Notion page or data source parent, with page_id or data_source_id',
+);
+const pagePropertiesSchema = openObjectSchema("Notion page properties in Notion's property shape");
+const commentTextSchema = stringSchema('Plain-text comment content');
+const markdownSchema = stringSchema('Markdown page content');
 
 export const notionAgentToolCatalog = [
   tool({
@@ -91,6 +98,52 @@ export const notionAgentToolCatalog = [
       has_more: booleanSchema('Whether another page is available'),
     }),
   }),
+  tool({
+    id: 'create_page',
+    description:
+      "Create a Notion page under a page or data source. Properties use Notion's shape and markdown is optional. Notion limits each rich text item to 2,000 characters, block arrays to 100 items, and each request to 500 KB.",
+    sensitivity: 'write',
+    inputSchema: objectSchema(
+      {
+        parent: pageParentSchema,
+        properties: pagePropertiesSchema,
+        markdown: markdownSchema,
+      },
+      ['parent', 'properties'],
+    ),
+    outputSchema: pageOutputSchema(),
+  }),
+  tool({
+    id: 'update_page',
+    description:
+      'Update a Notion page properties and/or its Markdown content. Properties are updated first when both are provided; content mode is append or replace. Notion limits each rich text item to 2,000 characters, block arrays to 100 items, and each request to 500 KB.',
+    sensitivity: 'write',
+    inputSchema: objectSchema(
+      {
+        page_id: pageIdSchema,
+        properties: pagePropertiesSchema,
+        markdown: markdownSchema,
+        mode: enumSchema(['append', 'replace'], 'Whether to append or replace Markdown content'),
+      },
+      ['page_id'],
+    ),
+    outputSchema: openObjectSchema('Update result and property/content completion flags'),
+  }),
+  tool({
+    id: 'add_comment',
+    description:
+      'Add plain text to a Notion page or reply to a discussion. Text over 2,000 characters is split into multiple rich text items. Notion limits block arrays to 100 items and each request to 500 KB.',
+    sensitivity: 'write',
+    inputSchema: objectSchema(
+      {
+        page_id: stringSchema('Notion page URL or page ID'),
+        discussion_id: stringSchema('Notion discussion ID for a reply'),
+        text: commentTextSchema,
+      },
+      ['text'],
+    ),
+    outputSchema: dynamicObjectSchema,
+  }),
 ] as const satisfies readonly NotionAgentToolCatalogEntry[];
 
 export const notionAgentToolSelectionCatalog: AgentToolSelectionCatalog = {
@@ -154,15 +207,45 @@ export const NOTION_TOOL_OPERATIONS: Partial<Record<NotionAgentToolId, NotionToo
       ...(args.cursor === undefined ? {} : {start_cursor: String(args.cursor)}),
     }),
   },
+  create_page: {
+    method: 'POST',
+    path: () => '/v1/pages',
+    body: (args) => ({
+      parent: notionParent(args),
+      properties: args.properties,
+      ...(args.markdown === undefined ? {} : {markdown: args.markdown}),
+    }),
+  },
+  update_page: {
+    method: 'PATCH',
+    path: (args) =>
+      `/v1/pages/${encodeURIComponent(normalizeNotionId(stringArgument(args, 'page_id')))}`,
+    body: (args) => ({properties: args.properties}),
+  },
+  add_comment: {
+    method: 'POST',
+    path: () => '/v1/comments',
+    body: (args) => ({
+      parent:
+        args.discussion_id === undefined
+          ? {page_id: normalizeNotionId(stringArgument(args, 'page_id'))}
+          : {discussion_id: stringArgument(args, 'discussion_id')},
+      rich_text: splitCommentText(stringArgument(args, 'text')).map((content) => ({
+        type: 'text',
+        text: {content},
+      })),
+    }),
+  },
 };
 
 function tool(input: NotionAgentToolCatalogInput): NotionAgentToolCatalogEntry {
+  const sensitivity = input.sensitivity ?? 'read';
   return {
     id: input.id,
     description: input.description,
-    sensitivity: 'read',
+    sensitivity,
     sensitive: false,
-    requiredScope: 'read',
+    requiredScope: sensitivity,
     inputSchema: input.inputSchema,
     outputSchema: input.outputSchema,
   };
@@ -234,4 +317,32 @@ function definedArguments(
 function stringArgument(args: Record<string, unknown>, name: string): string {
   const value = args[name];
   return typeof value === 'string' ? value : String(value ?? '');
+}
+
+function notionParent(args: Record<string, unknown>): unknown {
+  if (!isRecord(args.parent)) return args.parent;
+  const parent = {...args.parent};
+  for (const key of ['page_id', 'data_source_id']) {
+    if (typeof parent[key] === 'string') parent[key] = normalizeNotionId(parent[key]);
+  }
+  return parent;
+}
+
+export function splitCommentText(text: string): string[] {
+  if (text.length === 0) return [''];
+  const chunks: string[] = [];
+  let chunk = '';
+  for (const codePoint of text) {
+    if (chunk.length > 0 && chunk.length + codePoint.length > 2_000) {
+      chunks.push(chunk);
+      chunk = '';
+    }
+    chunk += codePoint;
+  }
+  chunks.push(chunk);
+  return chunks;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
