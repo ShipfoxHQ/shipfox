@@ -153,7 +153,8 @@ async function loadPosthogModuleParts(
     ? new PosthogAgentToolsProvider({
         credentialStore,
         getInstallationByConnectionId: getPosthogInstallationByConnectionId,
-        api: createPosthogApiClient(),
+        api: createPosthogApiClient({apiBaseUrl: config.POSTHOG_API_BASE_URL}),
+        endpoint: config.POSTHOG_MCP_ENDPOINT,
         markConnectionError: async ({connectionId, credentialVersion}) => {
           await withPosthogCredentialVersion({
             connectionId,
@@ -169,7 +170,7 @@ async function loadPosthogModuleParts(
       })
     : undefined;
 
-  const posthogApi = createPosthogApiClient();
+  const posthogApi = createPosthogApiClient({apiBaseUrl: config.POSTHOG_API_BASE_URL});
   const connectionRoutes = credentialStore
     ? createPosthogConnectionRoutes({
         posthog: posthogApi,

@@ -9,8 +9,10 @@ import {
   defaultLogDir,
   e2eClickUpApiBaseUrl,
   e2eNotionApiBaseUrl,
-  e2eTestVcsPort,
   e2eEnv,
+  e2ePosthogApiBaseUrl,
+  e2ePosthogMcpEndpoint,
+  e2eTestVcsPort,
   parseArgs,
   turboCommandArgs,
 } from '../src/e2e.mjs';
@@ -109,6 +111,8 @@ describe('e2eEnv', () => {
     assert.equal(env.GITHUB_INSTALLATION_TOKEN_FORMAT_OVERRIDE, 'enabled');
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:55362/');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:55364/');
+    assert.equal(env.POSTHOG_API_BASE_URL, 'http://127.0.0.1:55367/');
+    assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:55367/mcp');
     assert.match(env.GITHUB_APP_PRIVATE_KEY, /BEGIN PRIVATE KEY/u);
     assert.equal(env.LINEAR_MCP_ENDPOINT, 'http://127.0.0.1:55360/mcp');
     assert.equal(env.LINEAR_OAUTH_CLIENT_ID, 'e2e-linear-client-id');
@@ -150,6 +154,8 @@ describe('e2eEnv', () => {
     assert.equal(env.SLACK_API_BASE_URL, 'http://127.0.0.1:16122');
     assert.equal(env.CLICKUP_API_BASE_URL, 'http://127.0.0.1:16123');
     assert.equal(env.NOTION_API_BASE_URL, 'http://127.0.0.1:16124');
+    assert.equal(env.POSTHOG_API_BASE_URL, 'http://127.0.0.1:16117/');
+    assert.equal(env.POSTHOG_MCP_ENDPOINT, 'http://127.0.0.1:16117/mcp');
     assert.equal(env.INTEGRATIONS_TEST_VCS_CREDENTIAL_TTL_SECONDS, '600');
     assert.equal(env.INTEGRATIONS_TEST_VCS_PORT, '16115');
     assert.equal(env.WEBHOOK_PUBLIC_URL, 'https://webhooks.example.test');
@@ -220,6 +226,13 @@ describe('e2eNotionApiBaseUrl', () => {
   });
 });
 
+describe('PostHog mock endpoints', () => {
+  test('derives the REST and MCP endpoints from the API port', () => {
+    assert.equal(e2ePosthogApiBaseUrl('http://localhost:16101'), 'http://127.0.0.1:16117/');
+    assert.equal(e2ePosthogMcpEndpoint('http://localhost:16101'), 'http://127.0.0.1:16117/mcp');
+  });
+});
+
 describe('e2eTestVcsPort', () => {
   test('reserves the Test VCS port after the API port', () => {
     assert.equal(e2eTestVcsPort('http://localhost:16101'), 16115);
@@ -236,11 +249,7 @@ describe('turboCommandArgs', () => {
       {SHIPFOX_TURBO_CONCURRENCY: '2'},
     );
 
-    assert.deepEqual(args, [
-      'test:e2e',
-      '--filter=@shipfox/e2e-client-agent',
-      '--concurrency=2',
-    ]);
+    assert.deepEqual(args, ['test:e2e', '--filter=@shipfox/e2e-client-agent', '--concurrency=2']);
   });
 
   test('keeps turbo default concurrency without an environment override', () => {
@@ -352,7 +361,10 @@ describe('copyPlaywrightTestResults', () => {
 
       assert.equal(
         await readFile(
-          join(logDir, 'playwright-test-results/e2e/suites/api/auth/test-results/auth-flow/trace.zip'),
+          join(
+            logDir,
+            'playwright-test-results/e2e/suites/api/auth/test-results/auth-flow/trace.zip',
+          ),
           'utf8',
         ),
         'api trace',
@@ -379,10 +391,7 @@ describe('copyPlaywrightTestResults', () => {
       );
       await assert.rejects(
         readFile(
-          join(
-            logDir,
-            'playwright-test-results/e2e/setup/auth/test-results/helper-flow/trace.zip',
-          ),
+          join(logDir, 'playwright-test-results/e2e/setup/auth/test-results/helper-flow/trace.zip'),
           'utf8',
         ),
         {code: 'ENOENT'},

@@ -48,6 +48,33 @@ describe('PostHog API client', () => {
     );
   });
 
+  it('uses the E2E API base override for every region', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([{id: 'project-1', name: 'Analytics', organization_id: 'org-1'}]),
+          {
+            status: 200,
+            headers: {'content-type': 'application/json'},
+          },
+        ),
+      )
+      .mockResolvedValueOnce({
+        status: 200,
+        body: {cancel: vi.fn().mockResolvedValue(undefined)},
+      } as unknown as Response);
+    const client = createPosthogApiClient({apiBaseUrl: 'http://127.0.0.1:16116/'});
+
+    await client.listProjects({region: 'us', apiKey: 'phx_secret'});
+    await client.probeCredential({region: 'eu', apiKey: 'phx_secret'});
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:16116/api/projects/');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      'http://127.0.0.1:16116/api/personal_api_keys/@current/',
+    );
+  });
+
   it('sends the contract validation query to the selected project', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'));
 
