@@ -462,7 +462,6 @@ async function rematerializeRerunSteps(params: {
       run: params.params.sourceRun,
       triggerPayload: params.params.sourceRun.triggerPayload,
       inputs: params.params.sourceRun.inputs,
-      secretInputs: params.params.sourceRun.secretInputs,
       vars: params.params.sourceAttempt.vars ?? undefined,
     }),
     definitionId: params.params.sourceRun.definitionId,

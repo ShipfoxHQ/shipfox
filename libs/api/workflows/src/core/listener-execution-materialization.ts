@@ -42,7 +42,6 @@ export interface MaterializeListenerExecutionParams {
     | 'createdAt'
     | 'triggerPayload'
     | 'inputs'
-    | 'secretInputs'
   >;
   readonly job: Pick<Job, 'id' | 'key'> & Partial<Pick<Job, 'name'>>;
   readonly vars?: Record<string, string> | undefined;

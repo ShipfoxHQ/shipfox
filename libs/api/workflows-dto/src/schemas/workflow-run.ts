@@ -1,3 +1,4 @@
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {z} from 'zod';
 import {type CursorPageDto, cursorPageSchema} from './cursor-page.js';
 import {jobStatusSchema} from './job.js';
@@ -178,7 +179,7 @@ export type WorkflowRunTriggerReferenceDto = z.infer<typeof workflowRunTriggerRe
 
 export const secretInputReferenceDtoSchema = z.object({
   store: z.literal('local'),
-  key: z.string(),
+  key: secretKeySchema,
   project_id: z.string().uuid().nullable(),
 });
 

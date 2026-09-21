@@ -37,7 +37,6 @@ export interface AssembleJobsContextOptions {
 }
 
 export interface AssembleWorkflowRunContextParams {
-  readonly secretInputs?: Record<string, unknown> | null | undefined;
   readonly run: Pick<
     WorkflowRun,
     | 'id'
@@ -385,7 +384,6 @@ export function assembleListenerSnapshotContext(params: {
   readonly run: AssembleWorkflowRunContextParams['run'];
   readonly triggerPayload: TriggerPayload;
   readonly inputs?: Record<string, unknown> | null | undefined;
-  readonly secretInputs?: Record<string, unknown> | null | undefined;
   readonly vars?: Record<string, string> | undefined;
   readonly plan: ListenerSnapshotPlan;
   readonly dependencyJobs: readonly JobContextInput[];
@@ -409,7 +407,6 @@ function addListenerRunContext(
       run: params.run,
       triggerPayload: params.triggerPayload,
       inputs: params.inputs,
-      secretInputs: params.secretInputs,
       vars: params.vars,
     },
     {skipCelNativeRehydration: true},

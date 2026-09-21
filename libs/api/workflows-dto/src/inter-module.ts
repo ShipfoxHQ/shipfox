@@ -4,6 +4,7 @@ import {
   materializedAgentIntegrationSchema,
 } from '@shipfox/api-agent-dto';
 import {workflowModelSnapshotSchema} from '@shipfox/api-definitions-dto';
+import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
 import {stepAttemptDetailResponseSchema} from './schemas/step-attempt-detail.js';
@@ -56,7 +57,7 @@ import {
 const idSchema = z.string().uuid();
 const secretInputReferenceSchema = z.object({
   store: z.literal('local'),
-  key: z.string(),
+  key: secretKeySchema,
   projectId: idSchema.nullable(),
 });
 const admissionDeniedDetailsSchema = z.object({

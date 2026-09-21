@@ -1,4 +1,5 @@
 import {
+  secretInputReferenceDtoSchema,
   WORKFLOW_RUN_JOB_PREVIEW_LIMIT,
   workflowRunAttemptsPageSchema,
   workflowRunAttemptsQuerySchema,
@@ -183,6 +184,32 @@ describe('workflow run trigger reference schema', () => {
       ...baseRun,
       source_snapshot: null,
       trigger_reference: {repository: 'acme/api', ref: 'refs/heads/main', commit: null},
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('secret input reference schema', () => {
+  test('accepts a canonical secret key', () => {
+    const result = secretInputReferenceDtoSchema.parse({
+      store: 'local',
+      key: 'PROD_DEPLOY_TOKEN',
+      project_id: null,
+    });
+
+    expect(result.key).toBe('PROD_DEPLOY_TOKEN');
+  });
+
+  test.each([
+    '',
+    'prod-deploy-token',
+    'A'.repeat(129),
+  ])('rejects malformed secret key %j', (key) => {
+    const result = secretInputReferenceDtoSchema.safeParse({
+      store: 'local',
+      key,
+      project_id: null,
     });
 
     expect(result.success).toBe(false);
