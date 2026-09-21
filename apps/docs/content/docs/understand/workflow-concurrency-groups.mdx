@@ -37,7 +37,7 @@ Shipfox keeps at most one active run and one waiting run in each group.
 When the active run finishes, the waiting run starts. Because each new waiting
 run replaces the previous one, the group never builds a long queue.
 
-You can choose whether the active run should finish:
+Choose whether the active run should finish:
 
 - `cancel_in_progress: false` lets it finish, then starts the waiting run.
 - `cancel_in_progress: true` asks it to stop, then starts the waiting run.
