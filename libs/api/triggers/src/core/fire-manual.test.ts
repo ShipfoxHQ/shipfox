@@ -11,6 +11,7 @@ const runWorkflow = vi.fn();
 const getSecret = vi.fn();
 
 const {fireManualSubscription, fireManualTrigger} = await import('./fire-manual.js');
+const {pinSecretInputs} = await import('./pin-secret-inputs.js');
 
 const workflows = {startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args)} as never;
 const secrets = {getSecret};
@@ -123,6 +124,26 @@ describe('fireManualSubscription (trigger history)', () => {
     expect(event.outcome).toBe('routed');
   });
 
+  test('pins an own __proto__ secret input key', async () => {
+    const projectId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    getSecret.mockResolvedValue({value: 'project-secret-value', projectId});
+
+    const pinned = await pinSecretInputs({
+      secrets,
+      workspaceId,
+      resolutionProjectId: projectId,
+      secretInputs: {['__proto__']: 'PROJECT_TOKEN'},
+    });
+
+    expect(Object.hasOwn(pinned, '__proto__')).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(pinned, '__proto__')?.value).toEqual({
+      store: 'local',
+      key: 'PROJECT_TOKEN',
+      projectId,
+    });
+  });
+
   test('pins a project-scoped secret input without retaining its value', async () => {
     const subscription = await triggerSubscriptionFactory.create({
       source: 'manual',
@@ -174,6 +195,13 @@ describe('fireManualSubscription (trigger history)', () => {
       secretInputs: {DEPLOY_TOKEN: {key: 'WORKSPACE_TOKEN', projectId: subscription.projectId}},
     });
 
+    expect(getSecret).toHaveBeenCalledWith({
+      workspaceId: subscription.workspaceId,
+      projectId: subscription.projectId,
+      namespace: '',
+      key: 'WORKSPACE_TOKEN',
+      store: 'local',
+    });
     const [payload] = runWorkflow.mock.calls[0] as [Record<string, unknown>];
     expect(payload.secretInputs).toEqual({
       DEPLOY_TOKEN: {store: 'local', key: 'WORKSPACE_TOKEN', projectId: null},

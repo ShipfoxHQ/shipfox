@@ -32,7 +32,12 @@ export async function pinSecretInputs(params: {
     });
     if (result.value === null) throw new SecretInputNotFoundError(source.key);
 
-    pinned[name] = {store: 'local', key: source.key, projectId: result.projectId};
+    Object.defineProperty(pinned, name, {
+      value: {store: 'local', key: source.key, projectId: result.projectId},
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
   }
 
   return pinned;

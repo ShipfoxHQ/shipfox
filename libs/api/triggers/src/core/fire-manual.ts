@@ -117,9 +117,9 @@ export async function fireManualSubscription(
   eventReceivedCount.add(1, {origin, provider: 'manual'});
 
   const inputs = params.inputs ?? readConfigInputs(subscription);
-  const secretInputs = await resolveSecretInputs(params, subscription.projectId);
   let run: {id: string; name: string};
   try {
+    const secretInputs = await resolveSecretInputs(params, subscription.projectId);
     run = await params.workflows.startRunFromTrigger({
       workspaceId: subscription.workspaceId,
       projectId: subscription.projectId,
