@@ -289,6 +289,26 @@ export async function getIntegrationConnectionByWorkspaceId(params: {
 
 export type GetIntegrationConnectionByWorkspaceIdFn = typeof getIntegrationConnectionByWorkspaceId;
 
+export async function getIntegrationConnectionByWorkspaceExternalAccountId(params: {
+  workspaceId: string;
+  provider: IntegrationProviderKind;
+  externalAccountId: string;
+}): Promise<IntegrationConnection | undefined> {
+  const rows = await db()
+    .select()
+    .from(integrationConnections)
+    .where(
+      and(
+        eq(integrationConnections.workspaceId, params.workspaceId),
+        eq(integrationConnections.provider, params.provider),
+        eq(integrationConnections.externalAccountId, params.externalAccountId),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  return row ? toIntegrationConnection(row) : undefined;
+}
+
 export interface GetIntegrationConnectionBySlugParams {
   workspaceId: string;
   slug: string;

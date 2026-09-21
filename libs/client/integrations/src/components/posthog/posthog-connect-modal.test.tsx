@@ -77,6 +77,7 @@ describe('PosthogConnectModal', () => {
 
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(await requests[1]?.json()).toEqual({
+      workspace_id: WORKSPACE_ID,
       region: 'eu',
       api_key: 'phx_secret',
       project_id: 'project-1',

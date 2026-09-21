@@ -256,13 +256,18 @@ export type PosthogConnectResult =
   | {status: 'connected'; connection: IntegrationConnection}
   | {status: 'select-project'; projects: PosthogProject[]};
 
-export async function connectPosthog(body: PosthogConnectBodyDto): Promise<PosthogConnectResult> {
+type PosthogConnectInput = Omit<PosthogConnectBodyDto, 'workspace_id'>;
+
+export async function connectPosthog(
+  workspaceId: string,
+  input: PosthogConnectInput,
+): Promise<PosthogConnectResult> {
   const response = await checkedApiRequest(
     posthogConnectResponseSchema,
     '/integrations/posthog/connect',
     {
       method: 'POST',
-      body,
+      body: {...input, workspace_id: workspaceId},
     },
   );
   if (response.status === 'select-project') {
@@ -666,8 +671,8 @@ export function useCreateGiteaConnectionMutation() {
 export function useConnectPosthogMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({body}: {workspaceId: string; body: PosthogConnectBodyDto}) =>
-      connectPosthog(body),
+    mutationFn: ({workspaceId, body}: {workspaceId: string; body: PosthogConnectInput}) =>
+      connectPosthog(workspaceId, body),
     onSuccess: async (result, variables) => {
       if (result.status !== 'connected') return;
       await queryClient.invalidateQueries({

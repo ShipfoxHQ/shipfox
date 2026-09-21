@@ -9,11 +9,17 @@ describe('PostHog DTOs', () => {
   it('accepts both connect response states without exposing credentials', () => {
     expect(
       posthogConnectRequestSchema.parse({
+        workspace_id: '00000000-0000-4000-8000-000000000003',
         region: 'eu',
         api_key: 'phx_secret',
         project_id: 'project-1',
       }),
-    ).toEqual({region: 'eu', api_key: 'phx_secret', project_id: 'project-1'});
+    ).toEqual({
+      workspace_id: '00000000-0000-4000-8000-000000000003',
+      region: 'eu',
+      api_key: 'phx_secret',
+      project_id: 'project-1',
+    });
     const connectedResponse = {
       status: 'connected' as const,
       connection: {
