@@ -375,7 +375,8 @@ directory in `content/docs/integrations/meta.json`. The provider's `meta.json`
 groups its pages so the integrations sidebar can nest the pages under one
 provider entry instead of flattening every page into the top level.
 
-Provider pages use `integrations/<provider>/{index,setup,events,tools}.mdx`.
+Provider pages use `integrations/<provider>/{index,setup,events,tools}.mdx`
+and an optional `guides/` directory.
 The canonical `events.mdx` and `tools.mdx` pages import generated event and tool
 fragments.
 
@@ -759,9 +760,10 @@ contextual links.
   product surface.
 - `sidebarTitle`: stays short. For explanation pages, it must sell the capability
   when the subject name alone does not. For task pages, it names the result.
-  - A how-to `sidebarTitle` is an imperative verb and its object, in four words
-    or fewer, such as `Filter Trigger Events`. Do not use a noun-only label such
-    as `Agent Setup`.
+  - A how-to `sidebarTitle` is an imperative verb and its object, in about four
+    words, such as `Filter Trigger Events`. Do not use a noun-only label such
+    as `Agent Setup`. The fixed provider labels `Overview`, `Setup`, `Events`,
+    `Tools`, and `Guides` are exempt.
   - A troubleshooting `sidebarTitle` names the symptom the reader sees, such as
     `Event Didn't Start a Run`, not the subsystem.
   - A how-to `title` names the general capability, never the worked example.
@@ -771,4 +773,4 @@ contextual links.
 - `description`: states the page's reader need and promised value in one or two
   sentences. It must not promise a result the body does not produce.
   For a how-to guide, the first sentence states the capability and when to use
-  it. A second sentence may name the scenario and starts with `The example`.
+  it. A second sentence may name the scenario and start with `The example`.
