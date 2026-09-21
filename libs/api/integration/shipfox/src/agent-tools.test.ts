@@ -382,6 +382,28 @@ describe('Shipfox agent tools', () => {
     expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed secret input from agent callers before validation', async () => {
+    const {definitions, triggers, provider} = createProvider();
+    const session = await provider.openSession({
+      connection: {} as never,
+      tools: provider.catalog(),
+      scope: {},
+      caller: caller({callerKind: 'agent'}),
+    });
+
+    const result = await session.call({
+      toolId: 'start_workflow_run',
+      arguments: {workflow: 'child.yml', secrets: 'not-a-secret-map'},
+    });
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {code: 'secrets-not-allowed'},
+    });
+    expect(definitions.getDefinitionByConfigPath).not.toHaveBeenCalled();
+    expect(triggers.fireManualTrigger).not.toHaveBeenCalled();
+  });
+
   it.each([
     'definition-not-found',
     'manual-trigger-not-found',

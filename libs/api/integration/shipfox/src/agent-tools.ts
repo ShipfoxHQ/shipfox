@@ -767,8 +767,6 @@ export class ShipfoxAgentToolsProvider
     caller: NonNullable<ShipfoxSessionInput['caller']>,
     args: Record<string, unknown>,
   ) {
-    const validationError = validateStartWorkflowRunArguments(args);
-    if (validationError !== undefined) return toolError(validationError);
     if (caller.callerKind === undefined)
       return toolError('Shipfox tools require callerKind in workflow caller context');
     if (args.secrets !== undefined && caller.callerKind !== 'tool_step') {
@@ -777,6 +775,8 @@ export class ShipfoxAgentToolsProvider
         'secrets-not-allowed',
       );
     }
+    const validationError = validateStartWorkflowRunArguments(args);
+    if (validationError !== undefined) return toolError(validationError);
     const projectId = stringArgument(args, 'project_id') ?? caller.projectId;
     const workflow = stringArgument(args, 'workflow');
     if (workflow === undefined) throw new Error('Validated workflow argument is missing');
