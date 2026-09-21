@@ -1,7 +1,8 @@
 import {createHmac} from 'node:crypto';
 import {config} from '@shipfox/e2e-core';
 
-export const NOTION_TEST_VERIFICATION_TOKEN = 'e2e-notion-verification-token';
+export const NOTION_TEST_VERIFICATION_TOKEN =
+  process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN ?? 'e2e-notion-verification-token';
 
 export interface NotionAccessibleByActor {
   id: string;

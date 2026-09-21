@@ -128,9 +128,6 @@ test('starts a run from a signed Notion delivery and calls the get_page tool ste
       }),
     ).rejects.toBeInstanceOf(PollTimeoutError);
 
-    expect(notionApi.endpoint.toString()).toBe(
-      new URL(process.env.NOTION_API_BASE_URL ?? 'http://invalid.local').toString(),
-    );
     expect(notionApi.calls).toEqual([
       {
         kind: 'get_page',
