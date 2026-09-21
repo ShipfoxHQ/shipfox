@@ -875,7 +875,7 @@ jobs:
       needs['plan-runner-image-candidate'].result == 'success' &&
       (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
       needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current')
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04-arm
     concurrency:
       group: runner-image-candidate-${{ github.sha }}-${{ matrix.architecture }}
       cancel-in-progress: false
