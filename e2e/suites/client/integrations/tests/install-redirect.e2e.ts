@@ -5,6 +5,7 @@ const SENTRY_INSTALL_URL = 'https://sentry.io/sentry-apps/test-app/external-inst
 const GITHUB_INSTALL_URL = 'https://github.com/apps/test-app/installations/new';
 const LINEAR_INSTALL_URL = 'https://linear.app/oauth/authorize?state=test-state';
 const CLICKUP_INSTALL_URL = 'https://app.clickup.com/api?state=test-state';
+const NOTION_INSTALL_URL = 'https://api.notion.com/v1/oauth/authorize?state=test-state';
 const SENTRY_INSTALL_WORKSPACE_KEY = 'shipfox.sentry-install.workspace-id';
 const GITHUB_INSTALL_WORKSPACE_KEY = 'shipfox.github-install.workspace-id';
 
@@ -74,6 +75,22 @@ test('ClickUp install redirects to ClickUp', async ({page, auth, workspaces}) =>
     installEndpoint: '**/integrations/clickup/install',
     externalHost: 'https://app.clickup.com',
     expectedUrl: CLICKUP_INSTALL_URL,
+  });
+});
+
+test('Notion install redirects to Notion', async ({page, auth, workspaces}) => {
+  const user = await auth.createUser();
+  const workspace = await workspaces.create({
+    userId: user.user.id,
+    name: 'Notion Install Workspace',
+  });
+  await auth.loginAs(page, user);
+
+  await assertInstallRedirect(page, {
+    installPath: `/w/${workspace.slug}/integrations/notion`,
+    installEndpoint: '**/integrations/notion/install',
+    externalHost: 'https://api.notion.com',
+    expectedUrl: NOTION_INSTALL_URL,
   });
 });
 

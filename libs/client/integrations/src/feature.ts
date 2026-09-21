@@ -34,6 +34,11 @@ export const integrationsFeature = defineClientFeature({
       impl: '@shipfox/client-integrations/routes/clickup-callback',
     },
     {
+      path: '/integrations/notion/callback',
+      parent: 'root',
+      impl: '@shipfox/client-integrations/routes/notion-callback',
+    },
+    {
       path: '/integrations/sentry/callback',
       parent: 'root',
       impl: '@shipfox/client-integrations/routes/sentry-callback',
@@ -72,6 +77,11 @@ export const integrationsFeature = defineClientFeature({
       path: '/w/$workspaceSlug/integrations/clickup',
       parent: 'workspaceLayout',
       impl: '@shipfox/client-integrations/routes/clickup',
+    },
+    {
+      path: '/w/$workspaceSlug/integrations/notion',
+      parent: 'workspaceLayout',
+      impl: '@shipfox/client-integrations/routes/notion',
     },
     {
       path: '/w/$workspaceSlug/integrations/sentry',

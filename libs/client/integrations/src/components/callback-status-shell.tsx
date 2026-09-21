@@ -1,6 +1,6 @@
 import {FocusedFrame} from '@shipfox/client-shell/runtime';
 import {ButtonLink} from '@shipfox/react-ui/button';
-import {Callout} from '@shipfox/react-ui/callout';
+import {Callout, CalloutContent} from '@shipfox/react-ui/callout';
 import {Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useRef} from 'react';
@@ -13,6 +13,7 @@ export function CallbackStatusShell({
   switchAccount,
   workspaceSlug,
   installPath,
+  documentationUrl,
 }: {
   title: string;
   message: string;
@@ -24,7 +25,9 @@ export function CallbackStatusShell({
     | '/w/$workspaceSlug/integrations/linear'
     | '/w/$workspaceSlug/integrations/slack'
     | '/w/$workspaceSlug/integrations/jira'
-    | '/w/$workspaceSlug/integrations/clickup';
+    | '/w/$workspaceSlug/integrations/clickup'
+    | '/w/$workspaceSlug/integrations/notion';
+  documentationUrl?: string;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
@@ -51,7 +54,19 @@ export function CallbackStatusShell({
           {title}
         </h2>
         <Callout role={status === 'error' ? 'alert' : 'status'} type={status}>
-          <Text size="sm">{message}</Text>
+          <CalloutContent className="flex flex-col gap-inline">
+            <Text size="sm">{message}</Text>
+            {documentationUrl ? (
+              <a
+                className="text-foreground-highlight-interactive underline"
+                href={documentationUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Read the Notion setup guide
+              </a>
+            ) : null}
+          </CalloutContent>
         </Callout>
         <div className="flex flex-col gap-inline sm:flex-row sm:items-center">
           {switchAccount ? (

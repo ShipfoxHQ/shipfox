@@ -10,7 +10,8 @@ export type ProviderSetupPath =
   | '/w/$workspaceSlug/integrations/linear'
   | '/w/$workspaceSlug/integrations/slack'
   | '/w/$workspaceSlug/integrations/jira'
-  | '/w/$workspaceSlug/integrations/clickup';
+  | '/w/$workspaceSlug/integrations/clickup'
+  | '/w/$workspaceSlug/integrations/notion';
 
 interface RouteProviderCatalogEntry {
   kind: 'redirect-install' | 'direct-connect';
@@ -63,6 +64,12 @@ export const PROVIDER_CATALOG: Record<string, ProviderCatalogEntry> = {
     displayName: 'ClickUp',
     iconName: PROVIDER_ICONS.clickup,
     setupPath: '/w/$workspaceSlug/integrations/clickup',
+  },
+  notion: {
+    kind: 'redirect-install',
+    displayName: 'Notion',
+    iconName: PROVIDER_ICONS.notion,
+    setupPath: '/w/$workspaceSlug/integrations/notion',
   },
   gitea: {
     kind: 'direct-connect',

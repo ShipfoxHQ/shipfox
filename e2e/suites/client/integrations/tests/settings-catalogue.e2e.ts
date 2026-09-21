@@ -18,6 +18,7 @@ const CATALOGUE_PROVIDERS: ListIntegrationProvidersResponseDto = {
     {provider: 'sentry', display_name: 'Sentry', capabilities: []},
     {provider: 'linear', display_name: 'Linear', capabilities: ['agent_tools']},
     {provider: 'clickup', display_name: 'ClickUp', capabilities: ['agent_tools']},
+    {provider: 'notion', display_name: 'Notion', capabilities: ['agent_tools']},
     {provider: 'gitea', display_name: 'Gitea', capabilities: ['source_control', 'agent_tools']},
   ],
 };
@@ -50,6 +51,7 @@ test('settings catalogue lists available providers with an empty installed state
   await expect(integrationsCatalogue.installLink('Sentry')).toBeVisible();
   await expect(integrationsCatalogue.installLink('Linear')).toBeVisible();
   await expect(integrationsCatalogue.installLink('ClickUp')).toBeVisible();
+  await expect(integrationsCatalogue.installLink('Notion')).toBeVisible();
   await expect(integrationsCatalogue.installLink('Gitea')).toBeVisible();
   await expect(integrationsCatalogue.emptyInstalledState()).toBeVisible();
 

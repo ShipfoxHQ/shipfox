@@ -217,6 +217,30 @@ const clickupUsageEvents = [
   'taskCommentUpdated',
 ] as const;
 
+const notionUsageEvents = [
+  'page.created',
+  'page.content_updated',
+  'page.properties_updated',
+  'page.moved',
+  'page.deleted',
+  'page.undeleted',
+  'page.locked',
+  'page.unlocked',
+  'data_source.created',
+  'data_source.content_updated',
+  'data_source.moved',
+  'data_source.deleted',
+  'data_source.undeleted',
+  'data_source.schema_updated',
+  'database.created',
+  'database.moved',
+  'database.deleted',
+  'database.undeleted',
+  'comment.created',
+  'comment.updated',
+  'comment.deleted',
+] as const;
+
 export function usageEventsForConnection(
   connection: Pick<IntegrationConnection, 'provider' | 'capabilities'>,
 ): IntegrationUsageEvent[] {
@@ -234,6 +258,8 @@ export function usageEventsForConnection(
     return clickupUsageEvents.map((value) => ({value, label: value}));
   if (connection.provider === 'linear')
     return linearUsageEvents.map((value) => ({value, label: value}));
+  if (connection.provider === 'notion')
+    return notionUsageEvents.map((value) => ({value, label: value}));
   if (connection.capabilities.includes('source_control')) return [{value: 'push', label: 'push'}];
   return [{value: 'received', label: 'received'}];
 }
