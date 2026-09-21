@@ -3213,7 +3213,13 @@ describe('runJobSteps', () => {
         opts: {subscribeSecrets?: (callback: (secrets: string[]) => void) => void},
       ) => {
         opts.subscribeSecrets?.(() => undefined);
-        const crash = new Error(`crashed with ${token} ${credential}`);
+        const cause = Object.assign(new Error(`caused by ${token} ${credential}`), {
+          reason: `cause reason ${token}`,
+        });
+        cause.stack = `Error: caused by ${token} ${credential}\\n    at ${token}`;
+        const crash = Object.assign(new Error(`crashed with ${token} ${credential}`, {cause}), {
+          reason: `crash reason ${token}`,
+        });
         crash.stack = `Error: crashed with ${token} ${credential}\\n    at ${token}`;
         throw crash;
       },
@@ -3243,8 +3249,15 @@ describe('runJobSteps', () => {
 
     expect(execution.result.error?.message).toBe('crashed with *** ***');
     const loggedError = error.mock.calls.at(-1)?.[0] as {err?: Error} | undefined;
-    expect(loggedError?.err?.message).toBe('crashed with *** ***');
-    expect(loggedError?.err?.stack).toBe('Error: crashed with *** ***\\n    at ***');
+    const redactedError = loggedError?.err as
+      | (Error & {cause?: Error & {reason?: string}; reason?: string})
+      | undefined;
+    expect(redactedError?.message).toBe('crashed with *** ***');
+    expect(redactedError?.stack).toBe('Error: crashed with *** ***\\n    at ***');
+    expect(redactedError?.reason).toBe('crash reason ***');
+    expect(redactedError?.cause?.message).toBe('caused by *** ***');
+    expect(redactedError?.cause?.stack).toBe('Error: caused by *** ***\\n    at ***');
+    expect(redactedError?.cause?.reason).toBe('cause reason ***');
   });
 
   it('redacts the current inference generations from step results', async () => {

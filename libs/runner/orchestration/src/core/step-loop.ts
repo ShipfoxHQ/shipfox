@@ -1338,10 +1338,74 @@ function createAgentSessionLogStream(
 function redactError(error: unknown, secretVariants: string[]): unknown {
   if (!(error instanceof Error)) return redactSecrets(String(error), secretVariants);
 
-  const redacted = new Error(redactSecrets(error.message, secretVariants));
-  redacted.name = error.name;
-  if (error.stack !== undefined) redacted.stack = redactSecrets(error.stack, secretVariants);
-  return redacted;
+  const seen = new WeakMap<object, unknown>();
+
+  function redactValue(value: unknown): unknown {
+    if (typeof value === 'string') return redactSecrets(value, secretVariants);
+    if (value === null || typeof value !== 'object') return value;
+
+    const existing = seen.get(value);
+    if (existing !== undefined) return existing;
+    if (value instanceof Error) return redactErrorValue(value);
+    if (Array.isArray(value)) return redactArray(value);
+    return redactObject(value);
+  }
+
+  function redactErrorValue(value: Error): Error {
+    const redacted = new Error(redactSecrets(value.message, secretVariants));
+    seen.set(value, redacted);
+    redacted.name = redactSecrets(value.name, secretVariants);
+    if (value.stack !== undefined) redacted.stack = redactSecrets(value.stack, secretVariants);
+    redactCause(value, redacted);
+    redactMetadata(value, redacted);
+    return redacted;
+  }
+
+  function redactCause(source: Error, target: Error): void {
+    const sourceWithCause = source as Error & {cause?: unknown};
+    if (sourceWithCause.cause === undefined) return;
+
+    Object.defineProperty(target, 'cause', {
+      configurable: true,
+      enumerable: Object.prototype.propertyIsEnumerable.call(source, 'cause'),
+      value: redactValue(sourceWithCause.cause),
+      writable: true,
+    });
+  }
+
+  function redactMetadata(source: Error, target: Error): void {
+    const metadataKeys = new Set<string>(Object.getOwnPropertyNames(source));
+    for (const key in source) metadataKeys.add(key);
+    const sourceRecord = source as unknown as Record<string, unknown>;
+    for (const key of metadataKeys) {
+      if (key === 'cause' || key === 'message' || key === 'name' || key === 'stack') continue;
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      Object.defineProperty(target, redactSecrets(key, secretVariants), {
+        configurable: true,
+        enumerable: descriptor?.enumerable ?? true,
+        value: redactValue(sourceRecord[key]),
+        writable: true,
+      });
+    }
+  }
+
+  function redactArray(value: unknown[]): unknown[] {
+    const redacted: unknown[] = [];
+    seen.set(value, redacted);
+    for (const item of value) redacted.push(redactValue(item));
+    return redacted;
+  }
+
+  function redactObject(value: object): Record<string, unknown> {
+    const redacted: Record<string, unknown> = {};
+    seen.set(value, redacted);
+    for (const [key, item] of Object.entries(value)) {
+      redacted[redactSecrets(key, secretVariants)] = redactValue(item);
+    }
+    return redacted;
+  }
+
+  return redactValue(error);
 }
 
 async function executeRunStepBranch(params: {
