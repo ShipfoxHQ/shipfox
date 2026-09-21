@@ -90,6 +90,37 @@ describe('waitForRunObservationMatching', () => {
 });
 
 describe('waitForDefinitionSyncTerminal', () => {
+  test('ignores terminal syncs that started before the requested sync', async () => {
+    const projectId = '11111111-1111-4111-8111-111111111111';
+    let calls = 0;
+    const result = await waitForDefinitionSyncTerminal({
+      fetch: () => {
+        calls += 1;
+        return response({
+          definitions: [],
+          sync: {
+            ref: 'main',
+            status: 'failed',
+            last_sync_at: calls === 1 ? '2026-07-04T09:59:59.000Z' : '2026-07-04T10:00:02.000Z',
+            started_at: calls === 1 ? '2026-07-04T09:59:58.000Z' : '2026-07-04T10:00:01.000Z',
+            finished_at: calls === 1 ? '2026-07-04T09:59:59.000Z' : '2026-07-04T10:00:02.000Z',
+            last_error_code: 'no-workflow-files',
+            last_error_message: 'No workflow files found',
+            diagnostics: [],
+          },
+          next_cursor: null,
+        });
+      },
+      projectId,
+      syncStartedAfter: timestamp,
+      timeoutMs: 1_000,
+      token: 'user-token',
+    });
+
+    expect(result.sync?.started_at).toBe('2026-07-04T10:00:01.000Z');
+    expect(calls).toBe(2);
+  });
+
   test('reports the project and last response when sync never becomes observable', async () => {
     const projectId = '11111111-1111-4111-8111-111111111111';
     const result = waitForDefinitionSyncTerminal({

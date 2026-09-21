@@ -145,6 +145,52 @@ describe('waitForDefinition', () => {
     await expect(result).rejects.toThrow(DEFINITION_SYNC_FAILED_RE);
   });
 
+  test('ignores a failed sync that started before the requested sync', async () => {
+    let calls = 0;
+    const result = await waitForDefinition({
+      configPath: '.shipfox/workflows/build.yml',
+      fetch: () => {
+        calls += 1;
+        return response(
+          calls === 1
+            ? listResponse({
+                definitions: [definition()],
+                sync: {
+                  ref: 'main',
+                  status: 'failed',
+                  last_sync_at: '2026-07-02T08:00:00.000Z',
+                  started_at: '2026-07-02T08:00:00.000Z',
+                  finished_at: '2026-07-02T08:00:01.000Z',
+                  last_error_code: 'no-workflow-files',
+                  last_error_message: 'No workflow files found',
+                  diagnostics: [],
+                },
+              })
+            : listResponse({
+                definitions: [definition({fetched_at: '2026-07-02T08:00:03.000Z'})],
+                sync: {
+                  ref: 'main',
+                  status: 'succeeded',
+                  last_sync_at: '2026-07-02T08:00:03.000Z',
+                  started_at: '2026-07-02T08:00:02.000Z',
+                  finished_at: '2026-07-02T08:00:03.000Z',
+                  last_error_code: null,
+                  last_error_message: null,
+                  diagnostics: [],
+                },
+              }),
+        );
+      },
+      initialDelayMs: 1,
+      projectId,
+      syncStartedAfter: '2026-07-02T08:00:01.500Z',
+      token: 'user-token',
+    });
+
+    expect(result.fetched_at).toBe('2026-07-02T08:00:03.000Z');
+    expect(calls).toBe(2);
+  });
+
   test('times out with a bounded observation summary', async () => {
     const result = waitForDefinition({
       configPath: '.shipfox/workflows/missing.yml',

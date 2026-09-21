@@ -28,6 +28,7 @@ export type WaitForDefinitionOptions = DefinitionSelector & {
   maxDelayMs?: number | undefined;
   projectId: string;
   signal?: AbortSignal | undefined;
+  syncStartedAfter?: string | undefined;
   timeoutMs?: number | undefined;
   token: string;
 };
@@ -120,7 +121,12 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
         },
       );
 
-      if (lastResponse.sync?.status === 'failed') {
+      const observesRequestedSync =
+        options.syncStartedAfter === undefined ||
+        (lastResponse.sync?.started_at !== null &&
+          lastResponse.sync?.started_at !== undefined &&
+          lastResponse.sync.started_at >= options.syncStartedAfter);
+      if (observesRequestedSync && lastResponse.sync?.status === 'failed') {
         return {
           kind: 'sync-failed',
           error: new Error(
@@ -129,9 +135,9 @@ export async function waitForDefinition(options: WaitForDefinitionOptions): Prom
         };
       }
 
-      const definition = lastResponse.definitions.find((candidate) =>
-        matchesDefinition(candidate, selector),
-      );
+      const definition = observesRequestedSync
+        ? lastResponse.definitions.find((candidate) => matchesDefinition(candidate, selector))
+        : undefined;
       return definition ? {kind: 'definition', definition} : null;
     },
   );

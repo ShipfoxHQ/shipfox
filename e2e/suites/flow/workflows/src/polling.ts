@@ -62,8 +62,12 @@ export interface PollingOptions {
   token: string;
 }
 
+export interface DefinitionSyncPollingOptions extends PollingOptions {
+  syncStartedAfter?: string | undefined;
+}
+
 export async function waitForDefinitionSyncTerminal(
-  options: PollingOptions,
+  options: DefinitionSyncPollingOptions,
 ): Promise<DefinitionListResponseDto> {
   const client = createApiClient({fetch: options.fetch, token: options.token});
   const deadline = Date.now() + options.timeoutMs;
@@ -79,7 +83,14 @@ export async function waitForDefinitionSyncTerminal(
     );
 
     const status = lastResponse.sync?.status;
-    if (status === 'failed' || status === 'succeeded') return lastResponse;
+    const observesRequestedSync =
+      options.syncStartedAfter === undefined ||
+      (lastResponse.sync?.started_at !== null &&
+        lastResponse.sync?.started_at !== undefined &&
+        lastResponse.sync.started_at >= options.syncStartedAfter);
+    if (observesRequestedSync && (status === 'failed' || status === 'succeeded')) {
+      return lastResponse;
+    }
 
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) break;
