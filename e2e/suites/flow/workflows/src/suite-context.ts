@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
  */
 export interface SuiteContext {
   runId: string;
+  userId: string;
   workspaceId: string;
   sessionToken: string;
   org: string;

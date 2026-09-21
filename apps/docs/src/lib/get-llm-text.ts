@@ -57,7 +57,14 @@ function machineReadablePageUrl(pageUrl: string): string {
 function requiredFactsForPage(pageUrl: string): string[] {
   const path = pageUrl.replace(TRAILING_SLASH_PATTERN, '');
   if (path === '/reference/workflow-schema') {
-    return ['## Top-level fields', '| `name` |', '## Agent step fields', '| `prompt` |'];
+    return [
+      '## Top-level fields',
+      '| `name` |',
+      '## Concurrency fields',
+      '| `group` |',
+      '## Agent step fields',
+      '| `prompt` |',
+    ];
   }
   if (path === '/reference/contexts') {
     return [

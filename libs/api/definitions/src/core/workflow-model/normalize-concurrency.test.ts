@@ -268,6 +268,25 @@ describe('normalizeWorkflowConcurrency', () => {
     ]);
   });
 
+  it('rejects contexts that concurrency groups cannot use', () => {
+    let error: unknown;
+    try {
+      normalize(baseDocument(), {group: interpolation('run.id')});
+      expect.fail('Expected InvalidWorkflowModelError');
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(InvalidWorkflowModelError);
+    expect((error as InvalidWorkflowModelError).issues).toEqual([
+      expect.objectContaining({
+        code: 'invalid-concurrency-group',
+        path: ['concurrency', 'group'],
+        details: expect.objectContaining({unsupportedRoots: ['run']}),
+      }),
+    ]);
+  });
+
   it('rejects concurrency for listening jobs', () => {
     let error: unknown;
     try {

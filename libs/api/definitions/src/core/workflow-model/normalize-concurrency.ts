@@ -1,4 +1,4 @@
-import {analyzeContextPathAccess} from '@shipfox/expression';
+import {analyzeContextPathAccess, contextRootsForField} from '@shipfox/expression';
 import type {
   WorkflowFieldTemplate,
   WorkflowModelConcurrency,
@@ -8,7 +8,9 @@ import type {WorkflowModelValidationIssue} from './invalid-workflow-model-error.
 import {parseInterpolationField} from './parse-interpolation-field.js';
 import {issue} from './validation-issue.js';
 
-const concurrencyGroupRoots = new Set(['workflow', 'trigger', 'event', 'inputs', 'vars']);
+const concurrencyGroupRoots: ReadonlySet<string> = new Set(
+  contextRootsForField('workflow.concurrency.group'),
+);
 
 type DeclaredTrigger = {
   readonly source: string;

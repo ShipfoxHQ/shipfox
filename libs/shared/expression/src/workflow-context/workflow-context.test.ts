@@ -781,6 +781,7 @@ describe('workflow context registry', () => {
       expect(getWorkflowInterpolationFieldFailurePolicy('agent.session')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('job.runner')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('workflow.run_name')).toBe('degrade');
+      expect(getWorkflowInterpolationFieldFailurePolicy('workflow.concurrency.group')).toBe('fail');
       expect(getWorkflowInterpolationFieldFailurePolicy('job.execution_name')).toBe('degrade');
       expect(getWorkflowInterpolationFieldFailurePolicy('step.name')).toBe('degrade');
       expect(getWorkflowInterpolationFieldFailurePolicy('step.working_directory')).toBe('fail');
@@ -831,6 +832,13 @@ describe('workflow context registry', () => {
     });
 
     it('declares explicit roots for tool step fields', () => {
+      expect(contextRootsForField('workflow.concurrency.group')).toEqual([
+        'workflow',
+        'trigger',
+        'event',
+        'inputs',
+        'vars',
+      ]);
       expect(contextRootsForField('tool.with')).toEqual(
         workflowContextNames.filter((name) => name !== 'secrets'),
       );
@@ -841,6 +849,9 @@ describe('workflow context registry', () => {
       expect(getWorkflowInterpolationFieldMinimumFillTarget('tool.with')).toBeUndefined();
       expect(getWorkflowInterpolationFieldMinimumFillTarget('tool.outputs')).toBe('step-report');
       expect(getWorkflowInterpolationFieldMinimumFillTarget('run')).toBeUndefined();
+      expect(getWorkflowInterpolationFieldMinimumFillTarget('workflow.concurrency.group')).toBe(
+        'run-creation',
+      );
       expect(getWorkflowInterpolationFieldMinimumFillTarget('job.outputs')).toBe(
         'execution-resolution',
       );
@@ -1062,6 +1073,7 @@ describe('workflow interpolation field policies', () => {
       'job.runner',
       'job.outputs',
       'workflow.run_name',
+      'workflow.concurrency.group',
       'job.execution_name',
       'step.name',
       'step.working_directory',
@@ -1100,6 +1112,7 @@ describe('workflow interpolation field policies', () => {
     ['job.runner', ['server']],
     ['job.outputs', ['server']],
     ['workflow.run_name', ['server']],
+    ['workflow.concurrency.group', ['server']],
     ['job.execution_name', ['server']],
     ['step.name', ['server']],
     ['step.working_directory', ['server']],

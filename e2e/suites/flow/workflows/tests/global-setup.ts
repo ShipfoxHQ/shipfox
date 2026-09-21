@@ -111,6 +111,7 @@ export default async function globalSetup(): Promise<void> {
 
     writeSuiteContext({
       runId,
+      userId: user.user.id,
       workspaceId: workspace.id,
       sessionToken: session.token,
       org: org.org,

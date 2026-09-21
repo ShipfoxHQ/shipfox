@@ -499,6 +499,7 @@ export type WorkflowInterpolationField =
   | 'job.runner'
   | 'job.outputs'
   | 'workflow.run_name'
+  | 'workflow.concurrency.group'
   | 'job.execution_name'
   | 'step.name'
   | 'step.working_directory'
@@ -579,6 +580,12 @@ export const workflowInterpolationFieldPolicies: Readonly<
     failurePolicy: 'degrade',
     minimumFillTarget: 'run-creation',
     selfReference: {root: 'run', key: 'name'},
+  },
+  'workflow.concurrency.group': {
+    acceptedHosts: serverOnlyHosts,
+    failurePolicy: 'fail',
+    minimumFillTarget: 'run-creation',
+    roots: ['workflow', 'trigger', 'event', 'inputs', 'vars'],
   },
   'job.execution_name': {
     acceptedHosts: serverOnlyHosts,

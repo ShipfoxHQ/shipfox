@@ -494,6 +494,7 @@ function renderWorkflowSchemaArtifact() {
 
 function renderWorkflowSchemaReference(schema, workflowSchemaMarkdown) {
   const root = object(schema.properties);
+  const concurrency = object(root.concurrency);
   const jobs = object(object(root.jobs).additionalProperties);
   const steps = object(object(object(jobs.properties).steps).items);
   const listening = object(object(jobs.properties).listening);
@@ -515,15 +516,21 @@ function renderWorkflowSchemaReference(schema, workflowSchemaMarkdown) {
     workflowComponent(workflowSchemaMarkdown, 'TopLevelFields', root, {
       required: ['name', 'jobs'],
       nested: {
+        concurrency: '#concurrency-fields',
         env: '#environment-variables',
         triggers: '#trigger-fields',
         jobs: '#job-fields',
       },
       types: {
+        concurrency: namedType('Concurrency'),
         env: namedType('Environment'),
         triggers: recordType('Trigger'),
         jobs: recordType('Job'),
       },
+    }),
+    workflowComponent(workflowSchemaMarkdown, 'ConcurrencyFields', object(concurrency.properties), {
+      required: ['group'],
+      defaults: {scope: 'workflow', cancel_in_progress: 'false'},
     }),
     workflowComponent(workflowSchemaMarkdown, 'TriggerFields', object(trigger.properties), {
       required: strings(trigger.required),
