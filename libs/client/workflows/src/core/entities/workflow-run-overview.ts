@@ -16,6 +16,7 @@ import type {
   WorkflowRunDevSource,
   WorkflowRunOrigin,
   WorkflowRunParent,
+  WorkflowRunSecretInput,
   WorkflowRunStatus,
   WorkflowSourceSnapshot,
 } from './workflow-run.js';
@@ -69,6 +70,8 @@ export interface WorkflowRunOverviewHeader {
     commit: string | null;
     actor: string | null;
   } | null;
+  /** Present when this header came from a run detail response. */
+  secretInputs?: WorkflowRunSecretInput[] | undefined;
   parentRun: WorkflowRunParent | null;
   createdAt: string;
 }

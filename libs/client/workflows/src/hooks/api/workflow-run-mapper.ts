@@ -30,6 +30,7 @@ import {
   type WorkflowRunOverviewJobs,
   type WorkflowRunParent,
   type WorkflowRunRecord,
+  type WorkflowRunSecretInput,
   type WorkflowRunSelectionResolution,
   type WorkflowRunSource,
   workflowRunTriggerDisplayLabel,
@@ -68,7 +69,10 @@ type WorkflowRunBaseDto = Pick<
   | 'trigger_reference'
   | 'created_at'
   | 'updated_at'
-> & {parent_run?: WorkflowRunParentDto | null | undefined};
+> & {
+  parent_run?: WorkflowRunParentDto | null | undefined;
+  secret_inputs?: WorkflowRunResponseDto['secret_inputs'];
+};
 
 export function toWorkflowRun(dto: WorkflowRunBaseDto): WorkflowRun {
   return {
@@ -95,11 +99,25 @@ export function toWorkflowRun(dto: WorkflowRunBaseDto): WorkflowRun {
       triggerEvent: dto.trigger_event,
     }),
     triggerReference: dto.trigger_reference,
+    ...(dto.secret_inputs === undefined
+      ? {}
+      : {secretInputs: toWorkflowRunSecretInputs(dto.secret_inputs)}),
     parentRun: toWorkflowRunParent(dto.parent_run),
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     isTemporary: dto.id.startsWith('temp-'),
   };
+}
+
+export function toWorkflowRunSecretInputs(
+  secretInputs: WorkflowRunResponseDto['secret_inputs'],
+): WorkflowRunSecretInput[] {
+  if (!secretInputs) return [];
+  return Object.entries(secretInputs).map(([name, reference]) => ({
+    name,
+    key: reference.key,
+    projectId: reference.project_id,
+  }));
 }
 
 function toWorkflowRunParent(

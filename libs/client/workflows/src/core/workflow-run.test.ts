@@ -3,6 +3,7 @@ import {
   toWorkflowRunAttempt,
   toWorkflowRunListItem,
   toWorkflowRunListPage,
+  toWorkflowRunSecretInputs,
 } from '#hooks/api/workflow-run-mapper.js';
 import {
   workflowJob,
@@ -12,6 +13,7 @@ import {
   workflowRunJobSummaryDto,
   workflowRunListItem,
   workflowRunListResponseDto,
+  workflowRunResponseDto,
 } from '#test/fixtures/workflow-run.js';
 import {
   isWorkflowRunTerminal,
@@ -23,6 +25,8 @@ import {
   workflowRunTriggerDisplayLabel,
   workflowRunTriggerLabel,
 } from './workflow-run.js';
+
+const PROJECT_ID = '44444444-4444-4444-8444-444444444444';
 
 describe('workflow run model mapping', () => {
   test('maps a run DTO into the central camelCase model without detail fields', () => {
@@ -66,6 +70,33 @@ describe('workflow run model mapping', () => {
     expect(run).not.toHaveProperty('triggerPayload');
     expect(run).not.toHaveProperty('inputs');
     expect(run).not.toHaveProperty('sourceSnapshot');
+  });
+
+  test('maps secret input DTO entries to name-only detail rows', () => {
+    const dto = workflowRunResponseDto({
+      secret_inputs: {
+        DEPLOY_TOKEN: {
+          store: 'local',
+          key: 'PROD_DEPLOY_TOKEN',
+          project_id: PROJECT_ID,
+        },
+        WORKSPACE_TOKEN: {
+          store: 'local',
+          key: 'PROD_WORKSPACE_TOKEN',
+          project_id: null,
+        },
+      },
+    });
+
+    const rows = toWorkflowRunSecretInputs(dto.secret_inputs);
+    const run = toWorkflowRun(dto);
+
+    expect(rows).toEqual([
+      {name: 'DEPLOY_TOKEN', key: 'PROD_DEPLOY_TOKEN', projectId: PROJECT_ID},
+      {name: 'WORKSPACE_TOKEN', key: 'PROD_WORKSPACE_TOKEN', projectId: null},
+    ]);
+    expect(run.secretInputs).toEqual(rows);
+    expect(rows).not.toContainEqual(expect.objectContaining({value: expect.anything()}));
   });
 
   test('normalizes missing nullable fields and marks temporary optimistic runs', () => {
