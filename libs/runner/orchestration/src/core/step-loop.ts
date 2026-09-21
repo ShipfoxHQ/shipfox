@@ -206,6 +206,7 @@ async function runJobStepIteration(
     leaseToken: params.leaseToken,
     secrets: params.secrets,
     ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
+    ...(params.registerSecrets ? {registerSecrets: params.registerSecrets} : {}),
     ...(params.replaceInferenceSecrets
       ? {replaceInferenceSecrets: params.replaceInferenceSecrets}
       : {}),
@@ -624,6 +625,7 @@ export async function executeStep(params: {
   leaseToken: LeaseTokenSource;
   secrets: string[];
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
+  registerSecrets?: (secrets: string[]) => void;
   replaceInferenceSecrets?: (secrets: string[]) => void;
   signal: AbortSignal;
   workspacePrepared: boolean;
@@ -828,8 +830,14 @@ function crashedStepExecution(params: {
   secretState: StepSecretState;
   secrets: string[];
 }): StepExecution {
+  const secretVariants = buildSecretVariants([
+    ...params.secretState.crashSecrets,
+    ...params.secretState.inferenceSecrets,
+    ...params.secretState.subscribedSecrets,
+    ...params.secrets,
+  ]);
   logger().error(
-    {err: params.error, jobId: params.jobId, stepId: params.step.id},
+    {err: redactError(params.error, secretVariants), jobId: params.jobId, stepId: params.step.id},
     `Step ${params.stepLabel} crashed before producing a result`,
   );
   const result: StepResult = {
@@ -837,12 +845,7 @@ function crashedStepExecution(params: {
     error: {
       message: redactSecrets(
         params.error instanceof Error ? params.error.message : String(params.error),
-        buildSecretVariants([
-          ...params.secretState.crashSecrets,
-          ...params.secretState.inferenceSecrets,
-          ...params.secretState.subscribedSecrets,
-          ...params.secrets,
-        ]),
+        secretVariants,
       ),
     },
     exit_code: null,
@@ -1332,6 +1335,15 @@ function createAgentSessionLogStream(
   }
 }
 
+function redactError(error: unknown, secretVariants: string[]): unknown {
+  if (!(error instanceof Error)) return redactSecrets(String(error), secretVariants);
+
+  const redacted = new Error(redactSecrets(error.message, secretVariants));
+  redacted.name = error.name;
+  if (error.stack !== undefined) redacted.stack = redactSecrets(error.stack, secretVariants);
+  return redacted;
+}
+
 async function executeRunStepBranch(params: {
   params: Parameters<typeof executeStep>[0];
   stepCwd: string;
@@ -1355,6 +1367,9 @@ async function executeRunStepBranch(params: {
       logOutcome: 'drained',
       preparedWorkspace: false,
     };
+  }
+  if (secretMaterial !== undefined) {
+    params.params.registerSecrets?.(secretMaterial.secretValues);
   }
   const runSecrets = [
     ...input.secrets,
