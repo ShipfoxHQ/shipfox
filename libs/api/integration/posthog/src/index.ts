@@ -1,4 +1,5 @@
 import {POSTHOG_PROVIDER, posthogExternalAccountId} from '@shipfox/api-integration-posthog-dto';
+import type {AgentToolsProvider, IntegrationConnection} from '@shipfox/api-integration-spi';
 import {closeDb, db} from '#db/db.js';
 import {getPosthogInstallationByConnectionId} from '#db/installations.js';
 import {migrationsPath} from '#db/migrations.js';
@@ -12,6 +13,25 @@ import {
 } from '#presentation/e2eRoutes/index.js';
 
 export type {PosthogProvider, PosthogRegion} from '@shipfox/api-integration-posthog-dto';
+export {
+  type CreatePosthogApiClientOptions,
+  createPosthogApiClient,
+  type PosthogApiClient,
+  type PosthogCredentialProbeResult,
+  posthogApiBase,
+} from '#api/client.js';
+export {
+  type PosthogAgentToolId,
+  type PosthogAgentToolRequiredScope,
+  posthogAgentToolCatalog,
+  posthogAgentToolSelectionCatalog,
+} from '#core/agent-tools.js';
+export {
+  type CreatePosthogMcpClient,
+  type CreatePosthogMcpClientParams,
+  PosthogAgentToolsProvider,
+  type PosthogAgentToolsProviderOptions,
+} from '#core/agent-tools-provider.js';
 export type {
   PosthogConnectionResolver,
   PosthogCredentialStore,
@@ -23,6 +43,7 @@ export {
   POSTHOG_API_KEY_SECRET_NAME,
   posthogSecretsNamespace,
 } from '#core/credentials.js';
+export {PosthogApiKeyMissingError, PosthogIntegrationProviderError} from '#core/errors.js';
 export type {
   CreatePosthogInstallationParams,
   PosthogDatabaseExecutor,
@@ -50,6 +71,7 @@ export {
 
 export interface CreatePosthogIntegrationProviderOptions {
   getPosthogInstallationByConnectionId?: typeof getPosthogInstallationByConnectionId | undefined;
+  agentTools?: AgentToolsProvider<IntegrationConnection<'posthog'>> | undefined;
   cleanup?:
     | {
         deleteConnectionRecords?: (
@@ -69,6 +91,7 @@ export function createPosthogIntegrationProvider(
   return {
     provider: POSTHOG_PROVIDER,
     displayName: 'PostHog',
+    ...(options.agentTools ? {adapters: {agent_tools: options.agentTools}} : {}),
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
       if (!installation) return undefined;

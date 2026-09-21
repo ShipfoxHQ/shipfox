@@ -3766,6 +3766,9 @@ importers:
 
   libs/api/integration/posthog:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(zod@4.4.3)
       '@shipfox/api-integration-posthog-dto':
         specifier: workspace:*
         version: link:../posthog-dto

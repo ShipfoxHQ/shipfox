@@ -3,11 +3,13 @@ import {
   sanitizeAgentIntegrationConnectionSlug,
 } from '@shipfox/api-agent-dto';
 import {setLeasedJobContext} from '@shipfox/api-auth-context';
+import {posthogAgentToolCatalog} from '@shipfox/api-integration-posthog';
 import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
 import {createIntegrationProviderRegistry} from '#core/providers/registry.js';
 import {
   agentStepConfig,
+  agentToolsProvider,
   catalogTool,
   connection,
   leaseContext,
@@ -83,6 +85,46 @@ describe('resolveAuthorizedIntegrationTools', () => {
       enum: ['get', 'get_comments'],
     });
     expect(authorizedTool?.inputSchema.oneOf).toBeUndefined();
+  });
+
+  it('resolves a PostHog tool id for a tool-capable integration', async () => {
+    const request = {};
+    const lease = leaseContext();
+    const entry = posthogAgentToolCatalog.find((tool) => tool.id === 'execute-sql');
+    if (!entry) throw new Error('PostHog execute-sql tool is missing from the catalog');
+    const integration = materializedIntegration({
+      connectionId: 'connection-1',
+      connectionSlug: 'posthog_analytics',
+      provider: 'posthog',
+      tools: [materializedTool({id: entry.id, inputSchema: entry.inputSchema})],
+    });
+    setLeasedJobContext(request, lease);
+
+    const result = await resolveAuthorizedIntegrationTools({
+      request,
+      registry: createIntegrationProviderRegistry([
+        {
+          provider: 'posthog',
+          displayName: 'PostHog',
+          adapters: {agent_tools: agentToolsProvider([entry])},
+        },
+      ]),
+      getIntegrationConnectionById: async () =>
+        connection({
+          id: 'connection-1',
+          provider: 'posthog',
+          workspaceId: lease.workspaceId,
+          slug: integration.connectionSlug,
+        }),
+      loadLeasedAgentStep: async () => ({
+        workspaceId: lease.workspaceId,
+        step: {type: 'agent', config: agentStepConfig([integration])},
+      }),
+    });
+
+    expect(result.get('posthog_analytics__execute-sql')).toMatchObject({
+      tool: expect.objectContaining({id: 'execute-sql'}),
+    });
   });
 
   it('narrows a selected GitHub check-run family to its authorized method', async () => {
