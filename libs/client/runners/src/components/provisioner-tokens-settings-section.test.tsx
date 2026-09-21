@@ -105,7 +105,6 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
   });
 
   test('sorts every loaded token, including tokens beyond one page', async () => {
-    const user = userEvent.setup();
     const tokens = Array.from({length: 51}, (_, index) => {
       const date = new Date(Date.UTC(2026, 0, index + 1)).toISOString();
       return provisionerToken({
@@ -132,8 +131,8 @@ describe('WorkspaceProvisionerTokensSettingsSection', () => {
     const expiresHeader = screen.getByRole('columnheader', {name: EXPIRES_HEADER});
     expect(within(expiresHeader).getByRole('button', {name: UNSORTED_EXPIRES})).toBeVisible();
     const createdHeader = screen.getByRole('columnheader', {name: CREATED_HEADER});
-    await user.click(within(createdHeader).getByRole('button', {name: UNSORTED_CREATED}));
-    await user.click(within(createdHeader).getByRole('button', {name: ASCENDING_CREATED}));
+    fireEvent.click(within(createdHeader).getByRole('button', {name: UNSORTED_CREATED}));
+    fireEvent.click(within(createdHeader).getByRole('button', {name: ASCENDING_CREATED}));
 
     const table = screen.getByRole('table', {name: 'Provisioner tokens'});
     const orderedNames = within(table)
