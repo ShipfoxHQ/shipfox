@@ -1,7 +1,7 @@
-import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {gzipSync} from 'node:zlib';
+import {gunzipSync, gzipSync} from 'node:zlib';
 import type {AgentConfigIssueDto, NextStepResponseDto, StepDto} from '@shipfox/api-workflows-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {
@@ -124,6 +124,7 @@ vi.mock('@shipfox/runner-logs', async () => {
     createStepLogStream: (...args: unknown[]) => createStepLogStreamMock(...args),
     createSessionLogStream: (...args: unknown[]) => createSessionLogStreamMock(...args),
     buildSecretVariants: actual.buildSecretVariants,
+    maskSessionTranscript: actual.maskSessionTranscript,
   };
 });
 
@@ -2194,6 +2195,154 @@ describe('runJobSteps', () => {
     );
     expect(events.indexOf(`drain:${agent.id}`)).toBeLessThan(events.indexOf(`commit:${agent.id}`));
     expect(events.indexOf(`commit:${agent.id}`)).toBeLessThan(events.indexOf(`report:${agent.id}`));
+  });
+
+  it('masks every job secret seen before committing a session transcript', async () => {
+    const setup = buildSetupStep();
+    const run = buildRunStep({
+      config: {
+        run: 'cat secret.txt',
+        secret_bindings: [
+          {
+            target: 'TOKEN',
+            segments: [{kind: 'secret', store: 'local', key: 'API_TOKEN'}],
+          },
+        ],
+      },
+    });
+    const agent = buildAgentStep({
+      session: {id: SESSION_ID, key: 'main', mode: 'resume', segment: 0},
+    });
+    const transcriptDir = mkdtempSync(join(tmpdir(), 'shipfox-runner-session-'));
+    const transcriptFile = join(transcriptDir, 'session.jsonl');
+    const stepSecret = 'secret-written-to-disk';
+    const retiredInferenceCredential = 'retired-inference-credential';
+    const rotatedInferenceCredential = 'rotated-inference-credential';
+    const jobSecrets: string[] = [];
+    const subscribers = new Set<(secrets: string[]) => void>();
+    const publishSnapshot = (secrets: string[]) => {
+      jobSecrets.splice(0, jobSecrets.length, ...secrets);
+      for (const subscriber of subscribers) subscriber([...secrets]);
+    };
+    const subscribeSecrets = (subscriber: (secrets: string[]) => void) => {
+      subscribers.add(subscriber);
+      subscriber([...jobSecrets]);
+      return () => subscribers.delete(subscriber);
+    };
+    const registerSecrets = (secrets: string[]) => {
+      publishSnapshot([...new Set([...jobSecrets, ...secrets])]);
+    };
+    const replaceInferenceSecrets = (secrets: string[]) => {
+      publishSnapshot(secrets);
+    };
+
+    requestStepSecretsMock.mockResolvedValueOnce({
+      secrets: [{store: 'local', key: 'API_TOKEN', value: stepSecret}],
+    });
+    executeRunStepMock.mockResolvedValueOnce({success: true, error: null, exit_code: 0});
+    executeAgentStepMock.mockImplementationOnce(
+      (_step: StepDto, options: {onSessionEntry?: (line: string) => void}) => {
+        publishSnapshot([rotatedInferenceCredential]);
+        writeFileSync(
+          transcriptFile,
+          `{"type":"message","text":"${stepSecret} ${retiredInferenceCredential}"}\n`,
+        );
+        options.onSessionEntry?.('session entry');
+        return Promise.resolve({
+          success: true,
+          sessionFile: transcriptFile,
+          sessionId: 'native-session-1',
+          error: null,
+          exit_code: 0,
+        });
+      },
+    );
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(run, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+    requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      harness: 'pi',
+      provider_id: 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+      credentials: {api_key: retiredInferenceCredential},
+    });
+
+    try {
+      await runLoop({
+        signal: new AbortController().signal,
+        secrets: jobSecrets,
+        subscribeSecrets,
+        registerSecrets,
+        replaceInferenceSecrets,
+      });
+    } finally {
+      rmSync(transcriptDir, {recursive: true, force: true});
+    }
+
+    const committedTranscript = gunzipSync(
+      commitSessionTranscriptMock.mock.calls[0]?.[1].blob as Buffer,
+    ).toString('utf8');
+    expect(committedTranscript).toBe('{"type":"message","text":"*** ***"}\n');
+  });
+
+  it.each(['pi', 'claude'] as const)('resumes a masked %s session transcript', async (harness) => {
+    const setup = buildSetupStep();
+    const agent = buildAgentStep({
+      session: {id: SESSION_ID, key: 'main', mode: 'resume', segment: 2},
+    });
+    const transcriptDir = mkdtempSync(join(tmpdir(), 'shipfox-runner-session-'));
+    const transcriptFile = join(transcriptDir, 'sessions', `${SESSION_ID}.jsonl`);
+    const secret = 'resume-secret';
+    requestAgentRuntimeConfigMock.mockResolvedValueOnce({
+      harness,
+      provider_id: harness === 'claude' ? 'shipfox' : 'anthropic',
+      model: 'claude-opus-4-8',
+      thinking: 'high',
+      credentials: {api_key: 'runtime-secret'},
+    });
+    requestSessionTranscriptMock.mockResolvedValueOnce({
+      blob: gzipSync(Buffer.from('{"type":"message","text":"***"}\n')),
+      segment: 2,
+      harness,
+    });
+    executeAgentStepMock.mockImplementationOnce(
+      (_step: StepDto, options: {session?: {file?: string}}) => {
+        expect(options.session?.file).toBe(transcriptFile);
+        expect(readFileSync(transcriptFile, 'utf8')).not.toContain(secret);
+        writeFileSync(transcriptFile, `{"type":"message","text":"${secret}"}\n`);
+        return Promise.resolve({
+          success: true,
+          sessionFile: transcriptFile,
+          sessionId: `${harness}-session-1`,
+          error: null,
+          exit_code: 0,
+        });
+      },
+    );
+    requestNextStepMock
+      .mockResolvedValueOnce(stepResponse(setup, 1))
+      .mockResolvedValueOnce(stepResponse(agent, 1))
+      .mockResolvedValueOnce({kind: 'done', status: 'succeeded'});
+
+    try {
+      await runLoop({
+        agentStateDir: transcriptDir,
+        signal: new AbortController().signal,
+        secrets: [secret],
+      });
+    } finally {
+      rmSync(transcriptDir, {recursive: true, force: true});
+    }
+
+    expect(executeAgentStepMock).toHaveBeenCalledOnce();
+    expect(commitSessionTranscriptMock).toHaveBeenCalledOnce();
+    const committedTranscript = gunzipSync(
+      commitSessionTranscriptMock.mock.calls[0]?.[1].blob as Buffer,
+    ).toString('utf8');
+    expect(committedTranscript).toBe('{"type":"message","text":"***"}\n');
   });
 
   it('preserves the existing workspace when resuming without a checkout', async () => {

@@ -32,6 +32,7 @@ import {
   createStepLogStream,
   type LogDrainOutcome,
   type LogStreamLifecycle,
+  maskSessionTranscript,
   type SessionLogStream,
   type StepLogStream,
 } from '@shipfox/runner-logs';
@@ -139,6 +140,7 @@ export async function runJobSteps(params: {
     checkoutDestinations: new Map(),
     activeStream: undefined,
     checkoutRef: undefined,
+    transcriptSecrets: new Set(params.secrets),
   };
 
   try {
@@ -162,6 +164,13 @@ interface JobStepLoopState {
   checkoutDestinations: TrackedCheckoutDestinations;
   activeStream: LogStreamLifecycle | undefined;
   checkoutRef: string | undefined;
+  transcriptSecrets: Set<string>;
+}
+
+function rememberTranscriptSecrets(target: Set<string>, secrets: readonly string[]): void {
+  for (const secret of secrets) {
+    if (secret.length > 0) target.add(secret);
+  }
 }
 
 async function runJobStepIteration(
@@ -200,15 +209,39 @@ async function runJobStepIteration(
   const executeStepParams: Parameters<typeof executeStep>[0] = {
     step,
     attempt,
+    recordSecrets: (secrets) => rememberTranscriptSecrets(state.transcriptSecrets, secrets),
     cwd: params.cwd,
     agentStateDir: params.agentStateDir,
     leaseClient: params.leaseClient,
     leaseToken: params.leaseToken,
     secrets: params.secrets,
-    ...(params.subscribeSecrets ? {subscribeSecrets: params.subscribeSecrets} : {}),
-    ...(params.registerSecrets ? {registerSecrets: params.registerSecrets} : {}),
+    ...(params.subscribeSecrets
+      ? {
+          subscribeSecrets: (subscriber) => {
+            const subscribeSecrets = params.subscribeSecrets;
+            if (subscribeSecrets === undefined) return () => undefined;
+            return subscribeSecrets((secrets) => {
+              rememberTranscriptSecrets(state.transcriptSecrets, secrets);
+              subscriber(secrets);
+            });
+          },
+        }
+      : {}),
+    ...(params.registerSecrets
+      ? {
+          registerSecrets: (secrets) => {
+            rememberTranscriptSecrets(state.transcriptSecrets, secrets);
+            params.registerSecrets?.(secrets);
+          },
+        }
+      : {}),
     ...(params.replaceInferenceSecrets
-      ? {replaceInferenceSecrets: params.replaceInferenceSecrets}
+      ? {
+          replaceInferenceSecrets: (secrets) => {
+            rememberTranscriptSecrets(state.transcriptSecrets, secrets);
+            params.replaceInferenceSecrets?.(secrets);
+          },
+        }
       : {}),
     signal: params.signal,
     workspacePrepared: state.workspacePrepared,
@@ -338,6 +371,7 @@ async function finishStepExecution(
     step,
     attempt,
     signal: params.signal,
+    sessionSecrets: state.transcriptSecrets,
   });
   // Once the transcript commit has completed, reporting is the durable boundary:
   // an abort must not leave a committed attempt invisible to the API.
@@ -624,6 +658,7 @@ export async function executeStep(params: {
   leaseClient: KyInstance;
   leaseToken: LeaseTokenSource;
   secrets: string[];
+  recordSecrets?: (secrets: string[]) => void;
   subscribeSecrets?: (subscriber: (secrets: string[]) => void) => () => void;
   registerSecrets?: (secrets: string[]) => void;
   replaceInferenceSecrets?: (secrets: string[]) => void;
@@ -1034,6 +1069,7 @@ async function executeAgentStepBranch(params: {
     };
   }
   const runtimeSecretValues = Object.values(runtimeConfig.credentials);
+  params.params.recordSecrets?.([...input.secrets, ...runtimeSecretValues]);
   let inferenceCredentialSource: ReturnType<typeof createInferenceCredentialSource>;
   try {
     inferenceCredentialSource = createStepInferenceCredentialSource(input, runtimeConfigResponse);
@@ -1232,6 +1268,7 @@ async function settleAgentSessionCommit(params: {
   step: StepDto;
   attempt: number;
   signal: AbortSignal;
+  sessionSecrets: ReadonlySet<string>;
 }): Promise<{result: StepResult; committed: boolean}> {
   const {execution, leaseClient, step, attempt, signal} = params;
   const commit = execution.sessionCommit;
@@ -1248,7 +1285,11 @@ async function settleAgentSessionCommit(params: {
   }
 
   try {
-    const transcriptBlob = await gzipAsync(await readFile(execution.result.sessionFile));
+    const transcript = maskSessionTranscript({
+      jsonl: await readFile(execution.result.sessionFile, 'utf8'),
+      secrets: [...params.sessionSecrets],
+    });
+    const transcriptBlob = await gzipAsync(transcript);
     if (signal.aborted) return {result: execution.result, committed: false};
     const outcome = await commitSessionTranscript(leaseClient, {
       stepId: step.id,
@@ -1433,6 +1474,7 @@ async function executeRunStepBranch(params: {
     };
   }
   if (secretMaterial !== undefined) {
+    params.params.recordSecrets?.(secretMaterial.secretValues);
     params.params.registerSecrets?.(secretMaterial.secretValues);
   }
   const runSecrets = [
