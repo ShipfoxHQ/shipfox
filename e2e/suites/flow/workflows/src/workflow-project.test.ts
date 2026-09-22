@@ -31,7 +31,11 @@ describe('seedProjectWithApiDefinition', () => {
     createProject.mockResolvedValue({id: 'project-id'});
     waitForDefinitionSyncTerminal.mockResolvedValue({
       definitions: [],
-      sync: {status: 'failed', last_error_code: 'no-workflow-files'},
+      sync: {
+        status: 'failed',
+        finished_at: '2026-07-04T10:00:00.750Z',
+        last_error_code: 'no-workflow-files',
+      },
       next_cursor: null,
     });
     requestJson.mockResolvedValue({id: 'definition-id', diagnostics: []});
@@ -71,7 +75,7 @@ describe('seedProjectWithApiDefinition', () => {
   test('backs VCS definitions with the committed parent and child files', async () => {
     const {seedProjectWithApiDefinition} = await import('./workflow-project.js');
 
-    await seedProjectWithApiDefinition({
+    const seeded = await seedProjectWithApiDefinition({
       suite,
       token: 'token',
       name: 'child fixture',
@@ -114,6 +118,7 @@ describe('seedProjectWithApiDefinition', () => {
     expect(waitForDefinitionSyncTerminal.mock.invocationCallOrder[0]).toBeLessThan(
       commitFiles.mock.invocationCallOrder[0] as number,
     );
+    expect(seeded.syncStartedAfter).toBe('2026-07-04T10:00:00.750Z');
     expect(requestJson).toHaveBeenCalledWith('post', '/definitions', {
       json: {
         project_id: 'project-id',

@@ -130,16 +130,21 @@ export async function seedWorkflowProject(params: {
   // Let the empty-repository bind sync finish before the fixture push. This makes
   // the next sync unambiguously belong to the commit instead of relying on a grace
   // period for two overlapping syncs.
+  let syncStartedAfter: string | undefined;
   if (params.definitionDelivery !== 'api') {
-    await waitForDefinitionSyncTerminal({
+    const initialSync = await waitForDefinitionSyncTerminal({
       projectId: project.id,
       token: params.token,
       timeoutMs: 60_000,
     });
+    syncStartedAfter = initialSync.sync?.finished_at ?? undefined;
+    if (syncStartedAfter === undefined) {
+      throw new Error(`Initial definition sync did not finish: projectId=${project.id}`);
+    }
   }
 
-  const syncStartedAfter = files.length > 0 ? new Date().toISOString() : undefined;
   if (files.length > 0) {
+    syncStartedAfter ??= new Date().toISOString();
     await commitFiles({
       org: params.suite.org,
       repo: params.repo,
