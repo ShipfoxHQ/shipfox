@@ -2,6 +2,10 @@ import type {ComposedLayout, ComposedRoute} from '#compose/compose-routes.js';
 import type {NavTabEntry, RouteParentId, SettingsSectionEntry} from '#contract.js';
 import {routePathForParent} from '#runtime/anchor-paths.js';
 
+const identifierSeparator = /[^a-zA-Z0-9]+/u;
+const leadingDigit = /^\d/u;
+const extension = /\.[^.]+$/u;
+
 export interface GenerateAppModuleOptions {
   layouts?: readonly ComposedLayout[];
   routes: readonly ComposedRoute[];
@@ -55,11 +59,70 @@ function orderedLayouts(layouts: readonly ComposedLayout[]): ComposedLayout[] {
   return ordered;
 }
 
-function routeNames(routes: readonly ComposedRoute[], parent: RouteParentId): string {
+function identifier(value: string): string {
+  const words = value.split(identifierSeparator).filter(Boolean);
+  const name = words
+    .map((word, index) => {
+      if (index === 0) return `${word[0]?.toLowerCase()}${word.slice(1)}`;
+      return `${word[0]?.toUpperCase()}${word.slice(1)}`;
+    })
+    .join('');
+  if (!name) return 'unnamed';
+  return leadingDigit.test(name) ? `route${name[0]?.toUpperCase()}${name.slice(1)}` : name;
+}
+
+function routeImplementationName(impl: string): string {
+  const specifier = impl.split('?')[0] ?? impl;
+  const basename = specifier.split('/').at(-1) ?? specifier;
+  return identifier(basename.replace(extension, ''));
+}
+
+function routePathName(route: ComposedRoute, layoutPaths: ReadonlyMap<string, string>): string {
+  const parent = route.parent.endsWith('Layout')
+    ? route.parent.slice(0, -'Layout'.length)
+    : route.parent;
+  const path = routePathForParent(route.parent, route.path, layoutPaths);
+  return identifier(`${parent}/${path === '/' ? 'index' : path}`);
+}
+
+function routeIdentifiers(
+  routes: readonly ComposedRoute[],
+  layoutPaths: ReadonlyMap<string, string>,
+): ReadonlyMap<ComposedRoute, string> {
+  const implementationNames = routes.map((route) => routeImplementationName(route.impl));
+  const implementationNameCounts = new Map<string, number>();
+  for (const name of implementationNames) {
+    implementationNameCounts.set(name, (implementationNameCounts.get(name) ?? 0) + 1);
+  }
+
+  const pathQualifiedNames = routes.map((route, index) => {
+    const implementationName = implementationNames[index] ?? 'unnamed';
+    return implementationNameCounts.get(implementationName) === 1
+      ? implementationName
+      : routePathName(route, layoutPaths);
+  });
+  const pathQualifiedNameCounts = new Map<string, number>();
+  for (const name of pathQualifiedNames) {
+    pathQualifiedNameCounts.set(name, (pathQualifiedNameCounts.get(name) ?? 0) + 1);
+  }
+
+  return new Map(
+    routes.map((route, index) => {
+      const name = pathQualifiedNames[index] ?? 'unnamed';
+      const uniqueName = pathQualifiedNameCounts.get(name) === 1 ? name : `${name}${index}`;
+      return [route, `${uniqueName}Route`];
+    }),
+  );
+}
+
+function childRouteNames(
+  routes: readonly ComposedRoute[],
+  names: ReadonlyMap<ComposedRoute, string>,
+  parent: RouteParentId,
+): string {
   return routes
-    .map((route, index) => ({route, index}))
-    .filter(({route}) => route.parent === parent)
-    .map(({index}) => `route${index}`)
+    .filter((route) => route.parent === parent)
+    .map((route) => names.get(route))
     .join(', ');
 }
 
@@ -90,11 +153,12 @@ export function generateAppModule({
   const generatedLayouts = orderedLayouts(layouts);
   const layoutIndexes = new Map(generatedLayouts.map((layout, index) => [layout.id, index]));
   const layoutPaths = new Map(generatedLayouts.map((layout) => [layout.id, layout.path]));
+  const names = routeIdentifiers(routes, layoutPaths);
   const imports = [
     ...generatedLayouts.map(
       (layout, index) => `import * as layout${index}Module from ${literal(layout.impl)};`,
     ),
-    ...routes.map((route, index) => `import * as route${index}Module from ${literal(route.impl)};`),
+    ...routes.map((route) => `import * as ${names.get(route)}Module from ${literal(route.impl)};`),
   ].join('\n');
   const layoutDeclarations = generatedLayouts
     .map(
@@ -107,10 +171,10 @@ export function generateAppModule({
     .join('\n\n');
   const routeDeclarations = routes
     .map(
-      (route, index) => `const route${index} = createRoute({
+      (route) => `const ${names.get(route)} = createRoute({
   getParentRoute: () => ${parentExpression(route.parent, layoutIndexes)},
   path: ${literal(routePathForParent(route.parent, route.path, layoutPaths))},
-  ...routeOptions(route${index}Module.default, ${literal(route.impl)}, ${literal(route.path)}),
+  ...routeOptions(${names.get(route)}Module.default, ${literal(route.impl)}, ${literal(route.path)}),
 });`,
     )
     .join('\n\n');
@@ -118,7 +182,7 @@ export function generateAppModule({
     .map((layout, index) => ({layout, index}))
     .reverse()
     .map(({layout, index}) => {
-      const routeChildren = routeNames(routes, layout.id);
+      const routeChildren = childRouteNames(routes, names, layout.id);
       const children = [routeChildren, ...layoutTreeNames(generatedLayouts, layout.id)]
         .filter(Boolean)
         .join(',\n  ');
@@ -128,31 +192,31 @@ export function generateAppModule({
   const declarations = [layoutDeclarations, routeDeclarations, layoutTreeDeclarations]
     .filter(Boolean)
     .join('\n\n');
-  const rootRoutes = routeNames(routes, 'root');
+  const rootRoutes = childRouteNames(routes, names, 'root');
   const rootChildren = [rootRoutes, ...layoutTreeNames(generatedLayouts, 'root'), 'workspaceLayout']
     .filter(Boolean)
     .join(',\n  ');
   const projectChildren = [
-    routeNames(routes, 'projectLayout'),
+    childRouteNames(routes, names, 'projectLayout'),
     ...layoutTreeNames(generatedLayouts, 'projectLayout'),
     'projectSettings',
   ]
     .filter(Boolean)
     .join(',\n  ');
   const workspaceSettingsChildren = [
-    routeNames(routes, 'workspaceSettings'),
+    childRouteNames(routes, names, 'workspaceSettings'),
     ...layoutTreeNames(generatedLayouts, 'workspaceSettings'),
   ]
     .filter(Boolean)
     .join(',\n  ');
   const projectSettingsChildren = [
-    routeNames(routes, 'projectSettings'),
+    childRouteNames(routes, names, 'projectSettings'),
     ...layoutTreeNames(generatedLayouts, 'projectSettings'),
   ]
     .filter(Boolean)
     .join(',\n  ');
   const workspaceChildren = [
-    routeNames(routes, 'workspaceLayout'),
+    childRouteNames(routes, names, 'workspaceLayout'),
     ...layoutTreeNames(generatedLayouts, 'workspaceLayout'),
     'projectLayout',
     'workspaceSettings',

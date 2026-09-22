@@ -119,7 +119,7 @@ describe('shipfoxClientComposition', () => {
     await build(plugin, context);
 
     await expect(readFile(out, 'utf8')).resolves.toContain(
-      'import * as route0Module from "#test/search-route-impl.js";',
+      'import * as searchRouteImplRouteModule from "#test/search-route-impl.js";',
     );
     expect(context.watchedFiles).toContain(fixtureFeatures);
   });
@@ -171,7 +171,7 @@ describe('shipfoxClientComposition', () => {
     await build(plugin, context);
 
     await expect(readFile(out, 'utf8')).resolves.toContain(
-      'import * as route0Module from "#test/search-route-impl.js";',
+      'import * as searchRouteImplRouteModule from "#test/search-route-impl.js";',
     );
   });
 
@@ -204,7 +204,7 @@ describe('shipfoxClientComposition', () => {
       }),
     ).resolves.toBeDefined();
     await expect(readFile(output, 'utf8')).resolves.toContain(
-      'routeOptions(route0Module.default, "./not-route-impl.ts", "/projects")',
+      'routeOptions(notRouteImplRouteModule.default, "./not-route-impl.ts", "/projects")',
     );
   });
 
