@@ -1,7 +1,3 @@
-import {createFromSource} from 'fumadocs-core/search/server';
-import {source} from '@/lib/source';
+import {searchServer} from '@/lib/search-server';
 
-export const {GET} = createFromSource(source, {
-  // https://docs.orama.com/open-source/supported-languages
-  language: 'english',
-});
+export const {GET} = searchServer;

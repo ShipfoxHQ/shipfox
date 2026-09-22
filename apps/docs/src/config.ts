@@ -8,6 +8,8 @@ export type DocsConfig = {
   NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL: string | undefined;
   NEXT_PUBLIC_BASE_PATH: string;
   API_PUBLIC_URL: string;
+  OPENROUTER_API_KEY: string | undefined;
+  ASK_AI_MODEL: string;
 };
 
 export function loadConfig(update?: Partial<NodeJS.ProcessEnv>): DocsConfig {
@@ -42,6 +44,14 @@ export function loadConfig(update?: Partial<NodeJS.ProcessEnv>): DocsConfig {
       API_PUBLIC_URL: url({
         default: 'https://api.shipfox.io',
         desc: 'Public Shipfox API base URL used to load the product catalog. Set this to the staging API URL when previewing a staging catalog.',
+      }),
+      OPENROUTER_API_KEY: str({
+        default: undefined,
+        desc: 'OpenRouter API key used to answer questions in the Ask AI panel. Leave it unset to hide the panel and disable the chat route.',
+      }),
+      ASK_AI_MODEL: str({
+        default: 'z-ai/glm-5.3-flash',
+        desc: 'Model that answers Ask AI questions. Accepts any OpenRouter model ID that supports tool calling, such as deepseek/deepseek-v4.1-flash for another open-weight option or anthropic/claude-sonnet-5 to fall back to a first-party model.',
       }),
     },
     update,
