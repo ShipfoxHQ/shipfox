@@ -20,6 +20,7 @@ const WORD_SEPARATOR = /\s+/;
 
 export interface AgentSessionRowsProps {
   rows: readonly SessionViewRow[];
+  lineNumber: number;
   resolvedToolCallIds: ReadonlySet<string>;
   toolCallNames: ReadonlyMap<string, string>;
   indent: number;
@@ -28,6 +29,7 @@ export interface AgentSessionRowsProps {
 
 export function AgentSessionRows({
   rows,
+  lineNumber,
   resolvedToolCallIds,
   toolCallNames,
   indent,
@@ -38,6 +40,7 @@ export function AgentSessionRows({
       // biome-ignore lint/suspicious/noArrayIndexKey: session rows are immutable and never reordered, so the index is stable; content keys would balloon to megabyte strings and collide on repeated id-less tool calls.
       key={`${row.kind}-${index}`}
       row={row}
+      lineNumber={lineNumber + index}
       resolvedToolCallIds={resolvedToolCallIds}
       toolCallNames={toolCallNames}
       indent={indent}
@@ -48,12 +51,14 @@ export function AgentSessionRows({
 
 function AgentSessionRowView({
   row,
+  lineNumber,
   resolvedToolCallIds,
   toolCallNames,
   indent,
   forceOpen,
 }: {
   row: SessionViewRow;
+  lineNumber: number;
   resolvedToolCallIds: ReadonlySet<string>;
   toolCallNames: ReadonlyMap<string, string>;
   indent: number;
@@ -67,13 +72,21 @@ function AgentSessionRowView({
 
   switch (row.kind) {
     case 'message':
-      return <SessionMessageRow row={row} indent={indent} />;
+      return <SessionMessageRow row={row} lineNumber={lineNumber} indent={indent} />;
     case 'thinking':
-      return <SessionThinkingRow row={row} indent={indent} disclosure={disclosureProps} />;
+      return (
+        <SessionThinkingRow
+          row={row}
+          lineNumber={lineNumber}
+          indent={indent}
+          disclosure={disclosureProps}
+        />
+      );
     case 'tool-call':
       return (
         <SessionToolCallRow
           row={row}
+          lineNumber={lineNumber}
           indent={indent}
           disclosure={disclosureProps}
           resolvedToolCallIds={resolvedToolCallIds}
@@ -83,15 +96,23 @@ function AgentSessionRowView({
       return (
         <SessionToolResultRow
           row={row}
+          lineNumber={lineNumber}
           indent={indent}
           disclosure={disclosureProps}
           toolCallNames={toolCallNames}
         />
       );
     case 'lifecycle':
-      return <SessionLifecycleRow row={row} indent={indent} />;
+      return <SessionLifecycleRow row={row} lineNumber={lineNumber} indent={indent} />;
     case 'raw':
-      return <SessionRawRow row={row} indent={indent} disclosure={disclosureProps} />;
+      return (
+        <SessionRawRow
+          row={row}
+          lineNumber={lineNumber}
+          indent={indent}
+          disclosure={disclosureProps}
+        />
+      );
     default:
       return assertNever(row);
   }
@@ -101,14 +122,16 @@ type DisclosureState = {open: boolean; onOpenChange: (open: boolean) => void};
 
 function SessionMessageRow({
   row,
+  lineNumber,
   indent,
 }: {
   row: Extract<SessionViewRow, {kind: 'message'}>;
+  lineNumber: number;
   indent: number;
 }) {
   return (
     <LogRow
-      lineNumber={null}
+      lineNumber={lineNumber}
       timestamp={new Date(row.timestamp)}
       indent={indent}
       tone={row.terminalFailure ? 'error' : 'default'}
@@ -134,16 +157,19 @@ function SessionMessageRow({
 
 function SessionThinkingRow({
   row,
+  lineNumber,
   indent,
   disclosure,
 }: {
   row: Extract<SessionViewRow, {kind: 'thinking'}>;
+  lineNumber: number;
   indent: number;
   disclosure: DisclosureState;
 }) {
   return (
     <LogDisclosure indent={indent} {...disclosure}>
       <LogDisclosureTrigger
+        lineNumber={lineNumber}
         summary={wordSummary(row.text)}
         timestamp={new Date(row.timestamp)}
         className="text-foreground-contrast-secondary"
@@ -161,11 +187,13 @@ function SessionThinkingRow({
 
 function SessionToolCallRow({
   row,
+  lineNumber,
   indent,
   disclosure,
   resolvedToolCallIds,
 }: {
   row: Extract<SessionViewRow, {kind: 'tool-call'}>;
+  lineNumber: number;
   indent: number;
   disclosure: DisclosureState;
   resolvedToolCallIds: ReadonlySet<string>;
@@ -174,6 +202,7 @@ function SessionToolCallRow({
   return (
     <LogDisclosure indent={indent} {...disclosure}>
       <LogDisclosureTrigger
+        lineNumber={lineNumber}
         timestamp={new Date(row.timestamp)}
         summary={compactPreview(row.summary ?? row.input)}
         trailing={
@@ -216,11 +245,13 @@ function SessionToolCallRow({
 
 function SessionToolResultRow({
   row,
+  lineNumber,
   indent,
   disclosure,
   toolCallNames,
 }: {
   row: Extract<SessionViewRow, {kind: 'tool-result'}>;
+  lineNumber: number;
   indent: number;
   disclosure: DisclosureState;
   toolCallNames: ReadonlyMap<string, string>;
@@ -232,6 +263,7 @@ function SessionToolResultRow({
   return (
     <LogDisclosure indent={indent} {...disclosure}>
       <LogDisclosureTrigger
+        lineNumber={lineNumber}
         timestamp={new Date(row.timestamp)}
         summary={compactPreview(row.output)}
         trailing={
@@ -266,14 +298,16 @@ function SessionToolResultRow({
 
 function SessionLifecycleRow({
   row,
+  lineNumber,
   indent,
 }: {
   row: Extract<SessionViewRow, {kind: 'lifecycle'}>;
+  lineNumber: number;
   indent: number;
 }) {
   return (
     <LogRow
-      lineNumber={null}
+      lineNumber={lineNumber}
       timestamp={new Date(row.timestamp)}
       indent={indent}
       tone={row.tone}
@@ -320,16 +354,19 @@ function lifecycleIcon(tone: Extract<SessionViewRow, {kind: 'lifecycle'}>['tone'
 
 function SessionRawRow({
   row,
+  lineNumber,
   indent,
   disclosure,
 }: {
   row: Extract<SessionViewRow, {kind: 'raw'}>;
+  lineNumber: number;
   indent: number;
   disclosure: DisclosureState;
 }) {
   return (
     <LogDisclosure indent={indent} {...disclosure}>
       <LogDisclosureTrigger
+        lineNumber={lineNumber}
         timestamp={new Date(row.timestamp)}
         summary={compactPreview(row.raw)}
         className="text-foreground-contrast-primary"

@@ -67,6 +67,7 @@ export interface GroupLogNode extends LogNodeBase {
 
 export interface SessionLogNode extends LogNodeBase {
   kind: 'session';
+  lineNumber: number;
   record: AgentSessionLogRecord;
 }
 
@@ -159,7 +160,13 @@ function appendLogRecord(state: LogTreeBuildState, record: LogRecord): void {
       childrenOf(state).push({kind: 'marker', seq: state.seq++, record});
       return;
     case 'agent_session':
-      childrenOf(state).push({kind: 'session', seq: state.seq++, record});
+      state.lineNumber += 1;
+      childrenOf(state).push({
+        kind: 'session',
+        seq: state.seq++,
+        lineNumber: state.lineNumber,
+        record,
+      });
       return;
     default:
       assertNever(record);

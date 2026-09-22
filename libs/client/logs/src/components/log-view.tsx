@@ -312,6 +312,7 @@ function renderNodes(
           <AgentSessionRows
             key={node.seq}
             rows={[node.record.row]}
+            lineNumber={node.lineNumber}
             resolvedToolCallIds={resolvedToolCalls.ids}
             toolCallNames={resolvedToolCalls.names}
             indent={depth}

@@ -260,13 +260,18 @@ describe('buildLogTree', () => {
     expect(seqs).toEqual([0, 1, 2, 3]);
   });
 
-  test('emits agent_session nodes without consuming a line number', () => {
+  test('numbers agent session and output rows in stream order', () => {
     const records = [out('a'), agentSession(), out('b')];
 
     const tree = buildLogTree(records);
 
     expect(tree.nodes.map((node) => node.kind)).toEqual(['output', 'session', 'output']);
-    expect(tree.nodes.flatMap((n) => (n.kind === 'output' ? [n.lineNumber] : []))).toEqual([1, 2]);
+    expect(
+      tree.nodes.flatMap((node) =>
+        node.kind === 'output' || node.kind === 'session' ? [node.lineNumber] : [],
+      ),
+    ).toEqual([1, 2, 3]);
+    expect(tree.lineCount).toBe(2);
   });
 
   test('keeps stdout between a tool call and tool result in stream order', () => {
