@@ -104,6 +104,7 @@ describe('agent-access action tool schemas', () => {
   test('validates development-run results with provenance and warnings', () => {
     const realResult = {
       run_id: uuid,
+      run_url: `https://client.example.test/runs/${uuid}`,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
@@ -119,8 +120,15 @@ describe('agent-access action tool schemas', () => {
 
     expect(createDevRunResultSchema.safeParse(realResult).success).toBe(true);
     expect(createDevRunResultSchema.safeParse(dryRunResult).success).toBe(true);
+    expect(
+      createDevRunResultSchema.safeParse({...dryRunResult, run_url: realResult.run_url}).success,
+    ).toBe(false);
     expect(createDevRunResultJsonSchema.required).toEqual(['commit']);
     expect(createDevRunResultJsonSchema.properties.event_checked).toEqual({type: 'boolean'});
+    expect(createDevRunResultJsonSchema.properties.run_url).toEqual({
+      type: 'string',
+      format: 'uri',
+    });
     expect(createDevRunResultJsonSchema.properties.warnings).toMatchObject({maxItems: 100});
   });
 

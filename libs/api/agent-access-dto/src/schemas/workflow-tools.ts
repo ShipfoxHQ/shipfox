@@ -206,6 +206,7 @@ const workflowRunJobStatusCountSchema = z
 export const getWorkflowRunResultSchema = z
   .object({
     id: idSchema,
+    run_url: z.string().url().optional(),
     project_id: idSchema,
     definition_id: idSchema,
     number: z.number().int().positive(),
@@ -603,6 +604,7 @@ export const getWorkflowRunResultJsonSchema = {
   type: 'object',
   properties: {
     id: uuid,
+    run_url: {type: 'string', format: 'uri'},
     project_id: uuid,
     definition_id: uuid,
     number: {type: 'integer', minimum: 1},

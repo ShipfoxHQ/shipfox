@@ -69,6 +69,7 @@ export interface AgentAccessPagedToolsOptions {
   annotations: AnnotationsInterModuleClient;
   triggers: TriggersInterModuleClient;
   integrations?: IntegrationsModuleClient | undefined;
+  clientBaseUrl?: string | undefined;
 }
 
 export function createAgentAccessTools(
@@ -78,7 +79,9 @@ export function createAgentAccessTools(
     createListProjectsTool(options.projects, options.integrations),
     createListWorkflowDefinitionsTool(options.definitions),
     createListWorkflowRunsTool(options.projects, options.workflows),
-    ...createAgentAccessWorkflowTools(options.workflows),
+    ...createAgentAccessWorkflowTools(options.workflows, {
+      clientBaseUrl: options.clientBaseUrl,
+    }),
     createGetRunAnnotationsTool(options.workflows, options.annotations),
     createListTriggerEventsTool(options.triggers),
   ];

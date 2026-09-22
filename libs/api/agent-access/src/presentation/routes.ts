@@ -49,6 +49,7 @@ import {buildAgentAccessMcpServer} from './mcp-server.js';
 
 export interface CreateAgentAccessRoutesOptions {
   apiPublicUrl?: string | undefined;
+  clientBaseUrl?: string | undefined;
   protectedResourceMetadataUrl?: string | undefined;
   tools?: readonly AgentAccessTool[] | undefined;
   /** Appended to the resolved tools; duplicate names fail during route creation. */
@@ -189,8 +190,13 @@ function toolsFromProducerClients(
       annotations,
       triggers,
       integrations,
+      clientBaseUrl: options.clientBaseUrl,
     }),
-    ...createAgentAccessActionTools({workflows, triggers}),
+    ...createAgentAccessActionTools({
+      workflows,
+      triggers,
+      clientBaseUrl: options.clientBaseUrl,
+    }),
     ...createAgentAccessDiagnosticTools({triggers}),
     ...createAgentAccessWorkflowDiagnosticTools(workflows),
   ];

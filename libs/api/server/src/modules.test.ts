@@ -85,7 +85,11 @@ vi.mock('@shipfox/api-agent-access', () => ({
   createAgentAccessModule: mocks.createAgentAccessModule,
 }));
 vi.mock('@shipfox/api-auth/config', () => ({
-  config: {API_PUBLIC_URL: 'https://api.example.test', AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: '90m'},
+  config: {
+    API_PUBLIC_URL: 'https://api.example.test',
+    CLIENT_BASE_URL: 'https://client.example.test',
+    AUTH_JOB_LEASE_TOKEN_EXPIRES_IN: '90m',
+  },
 }));
 vi.mock('@shipfox/api-definitions', () => ({
   createDefinitionsModule: mocks.createDefinitionsModule,
@@ -444,6 +448,7 @@ describe('defaultModules', () => {
     expect(mocks.createAgentAccessModule).toHaveBeenCalledWith({
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
+      clientBaseUrl: 'https://client.example.test',
       auth: expect.any(Object),
       definitions: expect.any(Object),
       integrations: expect.any(Object),
@@ -483,6 +488,7 @@ describe('defaultModules', () => {
     expect(mocks.createAgentAccessModule).toHaveBeenCalledWith({
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
+      clientBaseUrl: 'https://client.example.test',
       auth: expect.any(Object),
       definitions: expect.any(Object),
       integrations: expect.any(Object),
