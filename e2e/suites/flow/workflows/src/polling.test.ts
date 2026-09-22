@@ -130,7 +130,7 @@ describe('waitForDefinitionSyncTerminal', () => {
         return response(body);
       },
       projectId,
-      syncStartedAfter: timestamp,
+      syncStartedAfter: '2026-07-04T10:00:00.750Z',
       timeoutMs: 1_000,
       token: 'user-token',
     });
@@ -162,7 +162,7 @@ describe('waitForDefinitionSyncTerminal', () => {
         return response(failedResponse);
       },
       projectId,
-      syncStartedAfter: timestamp,
+      syncStartedAfter: '2026-07-04T10:00:00.750Z',
       timeoutMs: 1_000,
       token: 'user-token',
     });
