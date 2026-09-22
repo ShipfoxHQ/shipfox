@@ -19,6 +19,7 @@ import {
 
 export interface ActivityActionRowProps {
   action: PairedAction;
+  indent: number;
   terminated: boolean;
   forceOpen?: boolean;
   presentation?: ActionPresentation | undefined;
@@ -26,6 +27,7 @@ export interface ActivityActionRowProps {
 
 export function ActivityActionRow({
   action,
+  indent,
   terminated,
   forceOpen = false,
   presentation,
@@ -38,7 +40,7 @@ export function ActivityActionRow({
   const resolvedPresentation = presentation ?? genericActionPresentation(action);
   const target = resolvedPresentation.target;
   return (
-    <LogDisclosure open={forceOpen || open} onOpenChange={setOpen}>
+    <LogDisclosure indent={indent} open={forceOpen || open} onOpenChange={setOpen}>
       <LogDisclosureTrigger
         lineNumber={action.lineNumber}
         timestamp={new Date(action.timestamp)}

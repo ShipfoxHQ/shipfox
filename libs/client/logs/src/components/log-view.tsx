@@ -341,7 +341,7 @@ function renderActivityNodes(
             key={node.seq}
             node={node}
             depth={depth}
-            terminated={tree.terminated}
+            terminated={terminated}
             defaultOpen={defaultGroupsOpen}
             forceOpen={forceOpen}
           >
@@ -363,6 +363,7 @@ function renderActivityNodes(
           <ActivityActionRow
             key={node.seq}
             action={node.action}
+            indent={depth}
             terminated={terminated}
             forceOpen={forceOpen}
             presentation={actionPresentation?.(node.action)}

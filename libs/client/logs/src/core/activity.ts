@@ -144,10 +144,12 @@ function finalizeAction(item: PairedSessionItem, terminated: boolean): void {
 
 export function genericActionPresentation(action: PairedAction): ActionPresentation {
   const name = action.request?.name ?? action.result?.toolName ?? 'unknown tool';
-  const target = action.request?.summary ?? action.request?.input ?? null;
+  const summary = action.request?.summary?.trim();
+  const input = action.request?.input?.trim();
+  const target = summary || input || null;
   return {
     label: humanizeActionLabel(name),
-    target: target?.trim() || null,
+    target,
     iconKind: action.request === null ? 'unknown' : 'tool',
     detailKind: 'code',
     readClassification: 'unknown',

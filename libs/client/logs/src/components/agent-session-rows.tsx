@@ -11,7 +11,7 @@ import {
 import {Markdown} from '@shipfox/react-ui/markdown';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {cn} from '@shipfox/react-ui/utils';
-import {Fragment, useEffect, useState} from 'react';
+import {Fragment, type ReactNode, useEffect, useState} from 'react';
 import type {SessionViewRow, SessionViewRowMeta} from '#core/log-model.js';
 
 const PREVIEW_CHAR_LIMIT = 1200;
@@ -506,35 +506,26 @@ function MetadataTrigger({meta}: {meta: readonly SessionViewRowMeta[]}) {
 }
 
 function MarkdownPreview({text}: {text: string}) {
-  const [expanded, setExpanded] = useState(false);
-  const truncated = text.length > PREVIEW_CHAR_LIMIT;
-  const visible = truncated && !expanded ? `${text.slice(0, PREVIEW_CHAR_LIMIT)}…` : text;
+  if (text.length <= PREVIEW_CHAR_LIMIT) {
+    return <Markdown className="text-foreground-contrast-primary">{text}</Markdown>;
+  }
 
   return (
-    <>
-      <Markdown className="text-foreground-contrast-primary">{visible}</Markdown>
-      {truncated ? (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          className="ms-inline inline-flex min-h-24 items-center rounded-4 px-tight font-display text-xs text-foreground-highlight-interactive focus-visible:shadow-focus-inset"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? 'show less' : 'show more'}
-        </button>
-      ) : null}
-    </>
+    <PreviewText
+      text={text}
+      expandedContent={<Markdown className="text-foreground-contrast-primary">{text}</Markdown>}
+    />
   );
 }
 
-function PreviewText({text}: {text: string}) {
+function PreviewText({text, expandedContent}: {text: string; expandedContent?: ReactNode}) {
   const [expanded, setExpanded] = useState(false);
   const truncated = text.length > PREVIEW_CHAR_LIMIT;
   const visible = truncated && !expanded ? `${text.slice(0, PREVIEW_CHAR_LIMIT)}…` : text;
 
   return (
     <>
-      {visible}
+      {expanded && expandedContent != null ? expandedContent : visible}
       {truncated ? (
         <button
           type="button"

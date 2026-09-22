@@ -408,7 +408,8 @@ describe('LogView', () => {
 
     expect(screen.getByText('Read File')).toBeInTheDocument();
     expect(screen.getByText('succeeded')).toBeInTheDocument();
-    expect(screen.queryByText('result edit_file')).not.toBeInTheDocument();
+    expect(screen.queryByText('tool read_file')).not.toBeInTheDocument();
+    expect(screen.queryByText('result read_file')).not.toBeInTheDocument();
   });
 
   test('shows no result instead of a spinner after a terminal attempt', () => {
