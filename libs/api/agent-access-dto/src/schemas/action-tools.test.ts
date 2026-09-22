@@ -147,6 +147,7 @@ describe('agent-access action tool schemas', () => {
       {run_id: uuid, dry_run: true, commit},
       {run_id: uuid, check_passed: true, commit},
       {run_id: uuid, dry_run: true, check_passed: true, commit},
+      {run_id: uuid, event_checked: true, commit},
       {dry_run: true, commit},
       {check_passed: true, commit},
     ];

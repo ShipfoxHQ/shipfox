@@ -173,7 +173,6 @@ export type CreateDevRunInputDto = z.infer<typeof createDevRunInputSchema>;
 const createDevRunResultShape = {
   ref: z.string().optional(),
   commit: z.string(),
-  event_checked: z.boolean().optional(),
   warnings: z.array(createDevRunWarningSchema).max(100).optional(),
 } as const;
 
@@ -188,6 +187,7 @@ export const createDevRunResultSchema = z.union([
     .object({
       dry_run: z.literal(true),
       check_passed: z.literal(true),
+      event_checked: z.boolean().optional(),
       ...createDevRunResultShape,
     })
     .strict(),
@@ -323,7 +323,13 @@ export const createDevRunResultJsonSchema = {
   oneOf: [
     {
       required: ['run_id'],
-      not: {anyOf: [{required: ['dry_run']}, {required: ['check_passed']}]},
+      not: {
+        anyOf: [
+          {required: ['dry_run']},
+          {required: ['check_passed']},
+          {required: ['event_checked']},
+        ],
+      },
     },
     {
       required: ['dry_run', 'check_passed'],
