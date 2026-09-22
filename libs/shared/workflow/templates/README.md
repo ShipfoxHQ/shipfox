@@ -6,6 +6,8 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every manifest role and composes the workflow.
+- **`modelTiers`** stores the ordered model preferences for each profile and step role.
+- **`resolveModel`** selects the first preferred model available in a workspace catalog.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
 
@@ -17,7 +19,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads template directories from `assets/`. It embeds each manifest, workflow, guide, and provider part into a generated TypeScript module. The API image therefore does not copy template files at runtime.
+The package build reads template directories and `model-tiers.yaml` from `assets/`. It embeds each manifest, workflow, guide, provider part, and model preference into a generated TypeScript module. The API image therefore does not copy template files at runtime.
 
 ## Usage
 
@@ -53,6 +55,10 @@ The following comments are preserved as authoring instructions:
 - `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template.
 
 The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or provider binding throws an error.
+
+### Model profiles
+
+`model-tiers.yaml` defines the `balanced`, `economy`, and `strongest` profiles. Each profile lists preferences for `mechanical`, `implementation`, and `review` steps. `resolveModel` checks those preferences in order against the model IDs available to a workspace and returns `null` when none match.
 
 ### Asset layout
 

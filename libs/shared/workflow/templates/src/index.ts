@@ -30,3 +30,13 @@ export {
   workflowTemplateOptionSchema,
   workflowTemplateRoleSchema,
 } from './manifest.js';
+export {
+  type ModelProfile,
+  type ModelTiers,
+  modelProfileSchema,
+  modelTiers,
+  modelTiersSchema,
+  resolveModel,
+  type WorkflowStepRole,
+  workflowStepRoleSchema,
+} from './model-tiers.js';
