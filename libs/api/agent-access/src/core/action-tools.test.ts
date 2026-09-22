@@ -260,6 +260,7 @@ describe('agent-access action tools', () => {
     vi.mocked(triggers.checkDevRun).mockResolvedValue({
       checkPassed: true,
       triggerKind: 'replay',
+      eventChecked: true,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [],
@@ -292,6 +293,50 @@ describe('agent-access action tools', () => {
       result: {
         dry_run: true,
         check_passed: true,
+        event_checked: true,
+        ref: 'main',
+        commit: 'a'.repeat(40),
+        warnings: [],
+      },
+    });
+  });
+
+  test('returns event_checked false for an event-trigger shape check', async () => {
+    const {triggers, tools} = clients();
+    vi.mocked(triggers.checkDevRun).mockResolvedValue({
+      checkPassed: true,
+      triggerKind: 'replay',
+      eventChecked: false,
+      ref: 'main',
+      commit: 'a'.repeat(40),
+      warnings: [],
+    });
+
+    const response = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        content: 'triggers: {}',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'on_pull_request',
+        dry_run: true,
+      },
+    });
+
+    expect(triggers.checkDevRun).toHaveBeenCalledWith({
+      workspaceId,
+      projectId,
+      content: 'triggers: {}',
+      configPath: '.shipfox/workflow.yml',
+      triggerKey: 'on_pull_request',
+      userId,
+    });
+    expect(response).toEqual({
+      ok: true,
+      result: {
+        dry_run: true,
+        check_passed: true,
+        event_checked: false,
         ref: 'main',
         commit: 'a'.repeat(40),
         warnings: [],

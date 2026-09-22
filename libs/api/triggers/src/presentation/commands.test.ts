@@ -233,7 +233,8 @@ describe('trigger command presentation', () => {
   test('delegates dry-run checks without starting a run', async () => {
     mocks.checkDevRun.mockResolvedValue({
       checkPassed: true,
-      triggerKind: 'manual',
+      triggerKind: 'replay',
+      eventChecked: false,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [],
@@ -251,7 +252,8 @@ describe('trigger command presentation', () => {
 
     expect(result).toEqual({
       checkPassed: true,
-      triggerKind: 'manual',
+      triggerKind: 'replay',
+      eventChecked: false,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [],

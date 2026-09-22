@@ -204,6 +204,7 @@ describe('buildAgentAccessMcpServer', () => {
     const checkDevRun = vi.fn().mockResolvedValue({
       checkPassed: true,
       triggerKind: 'replay',
+      eventChecked: true,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [],
@@ -245,6 +246,7 @@ describe('buildAgentAccessMcpServer', () => {
       result: {
         dry_run: true,
         check_passed: true,
+        event_checked: true,
         ref: 'main',
         commit: 'a'.repeat(40),
         warnings: [],

@@ -173,6 +173,7 @@ export type CreateDevRunInputDto = z.infer<typeof createDevRunInputSchema>;
 const createDevRunResultShape = {
   ref: z.string().optional(),
   commit: z.string(),
+  event_checked: z.boolean().optional(),
   warnings: z.array(createDevRunWarningSchema).max(100).optional(),
 } as const;
 
@@ -315,6 +316,7 @@ export const createDevRunResultJsonSchema = {
     check_passed: {const: true},
     ref: {type: 'string'},
     commit: {type: 'string'},
+    event_checked: {type: 'boolean'},
     warnings: {type: 'array', items: createDevRunWarningJsonSchema, maxItems: 100},
   },
   required: ['commit'],

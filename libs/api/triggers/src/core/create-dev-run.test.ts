@@ -144,6 +144,7 @@ describe('checkDevRun', () => {
     expect(result).toEqual({
       checkPassed: true,
       triggerKind: 'manual',
+      eventChecked: true,
       ref: params.ref,
       commit: COMMIT,
       warnings: [],
@@ -155,6 +156,91 @@ describe('checkDevRun', () => {
       outcome: 'dry-run',
       definition_source: 'ref',
     });
+  });
+
+  test('accepts an event trigger shape check without loading an event or evaluating its filter', async () => {
+    const params = buildParams({
+      triggerKey: 'on_push',
+      triggers: {
+        on_push: {
+          source: 'github',
+          event: 'push',
+          filter: 'event.ref == "refs/heads/main"',
+        },
+      },
+    });
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+
+    const result = await checkDevRun(params);
+
+    expect(result).toEqual({
+      checkPassed: true,
+      triggerKind: 'replay',
+      eventChecked: false,
+      ref: params.ref,
+      commit: COMMIT,
+      warnings: [],
+    });
+    expect(startDevRun).not.toHaveBeenCalled();
+    expect(await eventsForWorkspace(params.workspaceId)).toHaveLength(0);
+    expect(devRunsCount.add).toHaveBeenCalledWith(1, {
+      trigger_kind: 'replay',
+      outcome: 'dry-run',
+      definition_source: 'ref',
+    });
+  });
+
+  test('reports event checking after a replay event passes its filter', async () => {
+    const params = buildParams({
+      triggerKey: 'on_push',
+      triggers: {
+        on_push: {
+          source: 'github',
+          event: 'push',
+          filter: 'event.ref == "refs/heads/main"',
+        },
+      },
+    });
+    const sourceEvent = await receivedEventFactory.create({
+      workspaceId: params.workspaceId,
+      origin: 'integration',
+      provider: 'github',
+      source: 'github',
+      event: 'push',
+      deliveryId: 'delivery-check-passed',
+      connectionId: crypto.randomUUID(),
+      connectionName: 'Acme Production',
+      payload: {ref: 'refs/heads/main'},
+    });
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+
+    const result = await checkDevRun({...params, replayEventId: sourceEvent.id});
+
+    expect(result.eventChecked).toBe(true);
+    expect(result.triggerKind).toBe('replay');
+    expect(startDevRun).not.toHaveBeenCalled();
+  });
+
+  test('refuses a replay event that does not match the trigger during a dry run', async () => {
+    const params = buildParams({
+      triggerKey: 'on_push',
+      triggers: {on_push: {source: 'github', event: 'push'}},
+    });
+    const sourceEvent = await receivedEventFactory.create({
+      workspaceId: params.workspaceId,
+      origin: 'integration',
+      provider: 'github',
+      source: 'github',
+      event: 'pull_request',
+      deliveryId: 'delivery-check-mismatch',
+      payload: {action: 'opened'},
+    });
+    resolveDefinitionAtRef.mockResolvedValue(resolvedDefinition(params.triggers));
+
+    await expect(checkDevRun({...params, replayEventId: sourceEvent.id})).rejects.toThrow(
+      DevRunReplayEventMismatchError,
+    );
+    expect(startDevRun).not.toHaveBeenCalled();
   });
 
   test.each([

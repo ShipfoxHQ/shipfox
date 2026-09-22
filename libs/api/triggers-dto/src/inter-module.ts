@@ -404,6 +404,7 @@ const createDevRunInputSchema = z
 const devRunCheckOutputSchema = z.object({
   checkPassed: z.literal(true),
   triggerKind: z.enum(['manual', 'cron', 'replay']),
+  eventChecked: z.boolean().optional(),
   ref: z.string(),
   commit: z.string(),
   warnings: z.array(definitionValidationWarningSchema),

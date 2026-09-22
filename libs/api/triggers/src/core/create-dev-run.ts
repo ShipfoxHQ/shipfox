@@ -119,6 +119,10 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
     throw new DevRunTriggerFilteredError(built.reason);
   }
 
+  if (built.kind === 'shape-only') {
+    throw new Error('Shape-only trigger builds are only valid for dry-run checks');
+  }
+
   const run = await startDevRunAndRecordFailure(params, resolved, built, historyBase, resolvedRef);
 
   const history = await beginTriggerHistory({...historyBase, eventRef: run.id});
@@ -146,13 +150,16 @@ export async function createDevRun(params: CreateDevRunParams): Promise<DevRunRe
 export interface DevRunCheckResult {
   checkPassed: true;
   triggerKind: DevRunTriggerKind;
+  eventChecked: boolean;
   ref: string;
   commit: string;
   warnings: ResolvedDevRunDefinition['warnings'];
 }
 
 export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunCheckResult> {
-  const {resolved, built, definitionSource, resolvedRef} = await prepareDevRun(params);
+  const {resolved, built, definitionSource, resolvedRef} = await prepareDevRun(params, {
+    allowShapeOnly: true,
+  });
   recordDevRunMetric(built.triggerKind, 'dry-run', definitionSource);
 
   if (built.kind === 'filtered' || built.kind === 'filter-error') {
@@ -162,13 +169,17 @@ export async function checkDevRun(params: CreateDevRunParams): Promise<DevRunChe
   return {
     checkPassed: true,
     triggerKind: built.triggerKind,
+    eventChecked: built.eventChecked,
     ref: resolvedRef,
     commit: resolved.commit,
     warnings: resolved.warnings,
   };
 }
 
-async function prepareDevRun(params: CreateDevRunParams): Promise<DevRunPreparation> {
+async function prepareDevRun(
+  params: CreateDevRunParams,
+  options: {allowShapeOnly?: boolean} = {},
+): Promise<DevRunPreparation> {
   const resolved = await params.definitions.resolveDefinitionAtRef({
     projectId: params.projectId,
     ...(params.ref === undefined ? {} : {ref: params.ref}),
@@ -188,7 +199,7 @@ async function prepareDevRun(params: CreateDevRunParams): Promise<DevRunPreparat
 
   return {
     resolved,
-    built: await buildDevRunTrigger(trigger, params),
+    built: await buildDevRunTrigger(trigger, params, options),
     definitionSource,
     resolvedRef,
     triggerSource: trigger.source,
@@ -280,6 +291,7 @@ interface ReplaySource {
 interface DevRunTriggerBase {
   triggerKind: DevRunTriggerKind;
   event: string;
+  eventChecked: boolean;
   /** Replay-only: journal identity taken from the source event row. */
   replaySource?: ReplaySource | undefined;
 }
@@ -306,11 +318,20 @@ interface FilterErrorDevRunTrigger extends DevRunTriggerBase {
   >['diagnostic'];
 }
 
-type DevRunTriggerBuild = BuiltDevRunTrigger | FilteredDevRunTrigger | FilterErrorDevRunTrigger;
+interface ShapeOnlyDevRunTrigger extends DevRunTriggerBase {
+  kind: 'shape-only';
+}
+
+type DevRunTriggerBuild =
+  | BuiltDevRunTrigger
+  | FilteredDevRunTrigger
+  | FilterErrorDevRunTrigger
+  | ShapeOnlyDevRunTrigger;
 
 function buildDevRunTrigger(
   trigger: TriggerDto,
   params: Pick<CreateDevRunParams, 'inputs' | 'replayEventId' | 'userId' | 'workspaceId'>,
+  options: {allowShapeOnly?: boolean},
 ): DevRunTriggerBuild | Promise<DevRunTriggerBuild> {
   if (trigger.source === 'manual') {
     if (params.replayEventId !== undefined) {
@@ -320,6 +341,7 @@ function buildDevRunTrigger(
     return {
       kind: 'run',
       triggerKind: 'manual',
+      eventChecked: true,
       triggerPayload: {
         provider: 'manual',
         source: 'manual',
@@ -340,23 +362,40 @@ function buildDevRunTrigger(
     return {
       kind: 'run',
       triggerKind: 'cron',
+      eventChecked: true,
       triggerPayload: {provider: 'cron', source: 'cron', event: 'tick'},
       inputs: trigger.with,
       event: trigger.event ?? 'tick',
     };
   }
-  return buildReplayTrigger(trigger, params);
+  return buildReplayTrigger(trigger, params, options);
+}
+
+function buildMissingReplayEventTrigger(
+  trigger: TriggerDto,
+  options: {allowShapeOnly?: boolean},
+): ShapeOnlyDevRunTrigger {
+  if (options.allowShapeOnly) {
+    return {
+      kind: 'shape-only',
+      triggerKind: 'replay',
+      event: trigger.event ?? trigger.source,
+      eventChecked: false,
+    };
+  }
+  throw new DevRunReplayEventRequiredError(trigger.source);
 }
 
 async function buildReplayTrigger(
   trigger: TriggerDto,
   params: Pick<CreateDevRunParams, 'inputs' | 'replayEventId' | 'workspaceId'>,
+  options: {allowShapeOnly?: boolean},
 ): Promise<DevRunTriggerBuild> {
   if (params.inputs !== undefined) {
     throw new DevRunInputsNotAllowedError();
   }
   if (params.replayEventId === undefined) {
-    throw new DevRunReplayEventRequiredError(trigger.source);
+    return buildMissingReplayEventTrigger(trigger, options);
   }
 
   const sourceEvent = await getTriggerEventById(params.replayEventId);
@@ -411,6 +450,7 @@ async function buildReplayTrigger(
     return {
       kind: 'filtered',
       triggerKind: 'replay',
+      eventChecked: true,
       event: sourceEvent.event,
       replaySource,
       reason: 'Trigger filter evaluated to false',
@@ -420,6 +460,7 @@ async function buildReplayTrigger(
     return {
       kind: 'filter-error',
       triggerKind: 'replay',
+      eventChecked: true,
       event: sourceEvent.event,
       replaySource,
       reason: filterResult.reason,
@@ -430,6 +471,7 @@ async function buildReplayTrigger(
   return {
     kind: 'run',
     triggerKind: 'replay',
+    eventChecked: true,
     triggerPayload: {
       provider: sourceEvent.provider,
       source: sourceEvent.source,
