@@ -1,6 +1,7 @@
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type {Transport} from '@modelcontextprotocol/sdk/shared/transport.js';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import {
   AUTH_AGENT_ACCESS,
   InvalidOAuthPublicOriginError,
@@ -57,6 +58,7 @@ export interface CreateAgentAccessRoutesOptions {
   actionRateLimiter?: AgentAccessRateLimiter | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
   auth?: AuthInterModuleClient | undefined;
+  agent?: AgentInterModuleClient | undefined;
   isOriginAllowed?: ((origin: string | undefined) => boolean) | undefined;
   projects?: ProjectsModuleClient | undefined;
   definitions?: DefinitionsInterModuleClient | undefined;
