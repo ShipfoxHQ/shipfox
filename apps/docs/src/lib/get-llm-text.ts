@@ -72,11 +72,11 @@ function requiredFactsForPage(pageUrl: string): string[] {
   const path = pageUrl.replace(TRAILING_SLASH_PATTERN, '');
   if (path === '/reference/workflow-schema') {
     return [
-      '## Top-level fields',
+      '## Workflow',
       '| `name` |',
-      '## Concurrency fields',
+      '## `concurrency`',
       '| `group` |',
-      '## Agent step fields',
+      'agent step',
       '| `prompt` |',
     ];
   }

@@ -22,6 +22,8 @@ export const docs = defineDocs({
       status: z.string().optional(),
       // Generated tool reference document id, such as `integrations/jira/tools`.
       toolReference: z.string().optional(),
+      // A `full` page hides the table of contents by default. Set this to keep it.
+      tableOfContent: z.boolean().optional(),
       catalog: z
         .object({
           name: z.string(),

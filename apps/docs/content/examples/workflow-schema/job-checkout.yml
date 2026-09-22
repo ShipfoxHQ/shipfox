@@ -1,0 +1,10 @@
+name: Push a fix
+jobs:
+  fix:
+    checkout:
+      permissions:
+        contents: write
+      persist-credentials: true
+    steps:
+      - prompt: Fix the failing test and commit the change.
+      - run: git push origin HEAD

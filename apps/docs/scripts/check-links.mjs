@@ -1,7 +1,7 @@
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {GithubSlugger} from './lib/slug.mjs';
+import {anchorForHeading, GithubSlugger} from './lib/slug.mjs';
 
 const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const contentRoot = path.join(docsRoot, 'content', 'docs');
@@ -15,8 +15,11 @@ const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.m
 const routes = new Set(pages.map(routeFor));
 const generatedFragmentsByRoute = new Map([
   ['/reference/model-providers', ['reference/model-providers.mdx']],
-  ['/reference/workflow-schema', ['reference/workflow-schema.mdx']],
-  ['/reference/mcp-server', ['reference/mcp-server-limits.mdx']],
+  [
+    '/reference/workflow-schema',
+    ['reference/workflow-schema.mdx', 'reference/workflow-schema.json'],
+  ],
+  ['/reference/mcp-server', ['reference/mcp-server-tools.mdx', 'reference/mcp-server-limits.mdx']],
   ['/integrations/github/events', ['integrations/github/events.mdx']],
   ['/integrations/sentry/events', ['integrations/sentry/events.mdx']],
   ['/integrations/webhooks/events', ['integrations/webhooks/events.mdx']],
@@ -111,20 +114,10 @@ function anchorsFor(content) {
   for (const match of content.matchAll(headingPattern)) {
     const heading = match[1];
     if (!heading) continue;
-    anchors.add(slugger.slug(headingText(heading)));
+    anchors.add(anchorForHeading(heading, slugger));
   }
 
   return anchors;
-}
-
-function headingText(heading) {
-  return heading
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/<[^>]+>/g, '')
-    .replace(/(^|[^\p{Letter}\p{Number}])__([\s\S]+?)__($|[^\p{Letter}\p{Number}])/gu, '$1$2$3')
-    .replace(/(^|[^\p{Letter}\p{Number}])_([\s\S]+?)_($|[^\p{Letter}\p{Number}])/gu, '$1$2$3')
-    .replace(/[`*~]/g, '');
 }
 
 async function filesUnder(directory) {

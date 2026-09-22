@@ -1,0 +1,14 @@
+name: Summarize review comments
+jobs:
+  summarize:
+    listening:
+      on:
+        - source: github_acme
+          event: pull_request_review_comment.created
+      timeout: 8h
+      batch:
+        debounce: 30s
+        max_size: 5
+        max_wait: 2m
+    steps:
+      - prompt: Summarize the comments in this batch.

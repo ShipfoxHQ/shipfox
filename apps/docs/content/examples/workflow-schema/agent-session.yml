@@ -1,0 +1,12 @@
+name: Review
+jobs:
+  review:
+    steps:
+      - key: draft
+        prompt: Review the diff and note the main risks.
+        session: review
+      - key: summary
+        prompt: Summarize your findings for the author.
+        session:
+          key: review
+          mode: fork

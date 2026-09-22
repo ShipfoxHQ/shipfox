@@ -86,6 +86,81 @@ The old job's files and process environment don't move to the new attempt.
 Start a new run instead when the event, the inputs, or the workflow definition
 must change.
 
+## How runs and executions are named
+
+A workflow and a job each have a static name and a dynamic name. The static
+name is a literal label. The dynamic name is a template that Shipfox resolves
+when it creates the run or the execution.
+
+| Field | Names | Expressions |
+| --- | --- | --- |
+| `name` | Workflow definition | Not allowed |
+| `run_name` | Workflow run | Allowed |
+| `jobs.<job_id>.name` | Job | Not allowed |
+| `jobs.<job_id>.execution_name` | Job execution | Allowed |
+
+A job `name` is optional. Add one when the job key is not a useful label; the
+key is the fallback. An expression in a static name is a validation error:
+
+```text
+Workflow name must be literal. Move runtime interpolation to run_name.
+Job name must be literal. Move runtime interpolation to execution_name.
+```
+
+`run_name` resolves when Shipfox creates a workflow run. It can use trigger
+metadata, trigger event data, workflow inputs, referenced workflow variables,
+and stable run facts that already exist at creation time, such as
+`run.number`. It cannot use job, execution, step, or job-output values that do
+not exist yet.
+
+`execution_name` resolves when Shipfox creates a job execution. It can use run
+context, trigger data, inputs, referenced variables, stable job facts, the
+execution sequence, listener events, and prior executions. It cannot use the
+current execution name, future executions, step results, or job outputs that
+do not exist yet. A listening job resolves it separately for each execution,
+so the template can include the event batch or the execution sequence.
+
+Dynamic names affect display labels only. If a dynamic field is omitted or
+resolves to an empty value, Shipfox uses the static fallback: the workflow
+`name` for a run, and the job `name` or the job key for an execution. A
+runtime resolution failure also uses that fallback and records a diagnostic
+without changing execution status. A dynamic-name expression that uses
+unavailable context or invalid syntax is a definition validation error.
+
+A rerun keeps the original resolved run name. A rerun of a job execution keeps
+its resolved execution name.
+
+`run.number` is a display label for the current run. It starts at `1` for each
+workflow definition and increases for later runs of that definition. It is not
+a URL or API identifier; run routes use the run UUID.
+
+```yaml title=".shipfox/workflows/deploy.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Deploy
+jobs:
+  deploy:
+    execution_name: 'Deploy #${{ run.number }}'
+    steps:
+      - run: ./deploy.sh
+```
+
+```yaml title=".shipfox/workflows/pull-request-review.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Pull request review
+run_name: 'Review PR #${{ event.pull_request.number }}'
+
+jobs:
+  reviews:
+    name: Process review
+    execution_name: Review batch ${{ execution.index }}
+    listening:
+      on:
+        - source: github
+          event: pull_request_review
+    steps:
+      - prompt: Summarize ${{ execution.events[0].data.body }}
+```
+
 ## What cancellation keeps
 
 Cancellation stops the active attempt. Shipfox stops unfinished work and marks

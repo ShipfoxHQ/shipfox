@@ -99,18 +99,18 @@ describe('buildWorkflowJsonSchema', () => {
     const jobProperties = object(object(jobs.additionalProperties).properties);
 
     expect(rootProperties.name).toMatchObject({
-      description: 'Static literal human-readable workflow name.',
+      description: 'Names the workflow.',
       pattern: WORKFLOW_LITERAL_NAME_PATTERN.source,
     });
     expect(rootProperties.run_name).toMatchObject({
-      description: 'Dynamic name for each workflow run. Supports workflow expressions.',
+      description: 'Names each workflow run. Supports workflow expressions.',
     });
     expect(jobProperties.name).toMatchObject({
-      description: 'Static literal human-readable job name.',
+      description: 'Names the job.',
       pattern: WORKFLOW_LITERAL_NAME_PATTERN.source,
     });
     expect(jobProperties.execution_name).toMatchObject({
-      description: 'Dynamic name for each job execution. Supports workflow expressions.',
+      description: 'Sets the name of each job execution. Supports workflow expressions.',
     });
   });
 
@@ -191,7 +191,7 @@ describe('buildWorkflowJsonSchema', () => {
       additionalProperties: false,
       required: ['key'],
     });
-    expect(object(object(objectForm?.properties).key).description).toContain('interpolation');
+    expect(object(object(objectForm?.properties).key).description).toContain('expression');
     expect(object(object(objectForm?.properties).mode).enum).toEqual(['resume', 'fork']);
     expect(strings(runBranch?.required)).toEqual(['run']);
     expect(object(runBranch?.not).anyOf).toEqual(
@@ -214,7 +214,7 @@ describe('buildWorkflowJsonSchema', () => {
     expect(object(trigger.properties).event).toMatchObject({
       type: 'string',
       description:
-        'Event name that starts the workflow. Omit it to accept every event the source delivers. Sources that deliver one event, such as `manual`, `cron`, and custom webhooks, do not need it.',
+        'Selects the event that starts the workflow. Omit it to accept every event from the source.',
     });
   });
 

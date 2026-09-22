@@ -1,0 +1,12 @@
+name: Push docs changes
+jobs:
+  docs:
+    steps:
+      - checkout:
+          connection: github_acme
+          repository: acme/docs
+          path: docs
+          permissions:
+            contents: write
+          persist-credentials: true
+      - run: git -C docs push origin HEAD

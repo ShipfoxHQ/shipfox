@@ -1,0 +1,13 @@
+name: Publish outputs
+jobs:
+  build:
+    steps:
+      - key: version
+        run: printf 'sha=%s\ncount=3\n' "$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          sha: string
+          count: number
+          report:
+            type: json
+            schema:
+              type: object

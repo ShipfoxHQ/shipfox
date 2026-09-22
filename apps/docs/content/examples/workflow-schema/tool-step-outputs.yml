@@ -1,0 +1,14 @@
+name: Notify
+jobs:
+  notify:
+    steps:
+      - key: message
+        tool: send_message
+        connection: slack_acme
+        with:
+          channel_id: C0ABC12345
+          message: Run ${{ run.number }} started.
+        outputs:
+          ts: ${{ result.ts }}
+          channel: ${{ result.channel }}
+      - run: printf 'Posted %s\n' "${{ steps.message.outputs.ts }}"

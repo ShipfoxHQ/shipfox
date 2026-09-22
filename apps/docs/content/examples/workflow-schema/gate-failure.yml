@@ -1,0 +1,15 @@
+name: Fix until tests pass
+jobs:
+  fix:
+    steps:
+      - key: fix
+        prompt: |
+          Fix the failing test.
+          Feedback from the last attempt: ${{ step.restart.feedback }}
+      - key: test
+        run: pnpm test
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: fix
+            feedback: The tests still fail. Reproduce the failure first.

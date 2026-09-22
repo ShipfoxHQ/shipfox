@@ -1,0 +1,12 @@
+name: Fix until tests pass
+jobs:
+  fix:
+    steps:
+      - key: fix
+        prompt: Fix the failing test.
+      - key: test
+        run: pnpm test
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: fix

@@ -1,0 +1,10 @@
+name: Triage issues
+jobs:
+  triage:
+    steps:
+      - prompt: Label the issue and post a short triage comment.
+        integrations:
+          - connection: github_acme
+            include: [issue_read, issue_write]
+            exclude: [issue_write.delete]
+            allow_write: true
