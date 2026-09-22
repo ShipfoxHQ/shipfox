@@ -15,6 +15,11 @@ export {
   selectNextSetupStep,
 } from '#core/setup-checklist.js';
 export {
+  FIRST_WORKFLOW_PROMPT,
+  FirstWorkflowPanel,
+  type FirstWorkflowPanelProps,
+} from './components/first-workflow-panel.js';
+export {
   SetupChecklistBody,
   type SetupChecklistBodyProps,
   type WorkspaceReference,

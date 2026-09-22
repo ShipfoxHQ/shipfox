@@ -29,6 +29,9 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   above a page's own content, so it shows only the next step. A header toggle
   opens the full list, and that choice is remembered per device. The popover
   always carries the whole checklist.
+- **`FirstWorkflowPanel`**: an exported two-step panel that links to Shipfox MCP
+  settings, copies the fixed setup prompt, and links to the manual quickstart.
+  The activation flow mounts it separately.
 
 The derivations are pure functions. They test without React and decide what
 the checklist shows, while the hosts own query freshness, loading and failure
@@ -46,10 +49,11 @@ are `client-agent`, `client-integrations`, `client-projects`, `client-runners`,
 
 ## Usage
 
-```ts
+```tsx
 import {
   deriveIntegrationReadiness,
   deriveSetupChecklist,
+  FirstWorkflowPanel,
   selectNextSetupStep,
 } from '@shipfox/client-onboarding';
 
@@ -76,6 +80,9 @@ checklist.openCount; // 3
 checklist.complete; // false
 
 selectNextSetupStep(checklist)?.id; // 'tools'
+
+// Render inside the application's TanStack Router context when activating the flow.
+<FirstWorkflowPanel workspaceSlug="acme" />;
 ```
 
 The rendered hosts can be exported through the package feature entry point for
@@ -118,6 +125,9 @@ The caller maps its own query results to the derivation inputs:
 - The panel and indicator render nothing for an initially complete checklist;
   the mounted host that observes the final tracked row transition renders the
   completion state and owns its one-shot burst.
+- `FirstWorkflowPanel` captures `first_workflow_panel_opened` on mount and
+  `first_workflow_prompt_copied` after a successful copy. It is exported but not
+  mounted by this package until the activation flow is ready.
 - Dismissal is scoped to the workspace and device. A dismissed host does not
   subscribe to checklist queries until the flag is cleared.
 
