@@ -3,9 +3,9 @@
 // biome-ignore-all assist/source/organizeImports: generated imports follow route order.
 import {createRoute, createRouter} from '@tanstack/react-router';
 import {assertRouteImplFrame, buildAnchorSkeleton, parseAppSearch, stringifyAppSearch, type RouteImpl, type RouterContext} from '@shipfox/client-shell/runtime';
-import * as route0Module from "#test/search-route-impl.js";
-import * as route1Module from "#test/default-route-impl.js";
-import * as route2Module from "#test/named-route-impl.js";
+import * as searchRouteImplRouteModule from "#test/search-route-impl.js";
+import * as defaultRouteImplRouteModule from "#test/default-route-impl.js";
+import * as namedRouteImplRouteModule from "#test/named-route-impl.js";
 
 function routeOptions<T extends RouteImpl>(routeImpl: T, impl: string, path: string): T['options'] {
   assertRouteImplFrame(routeImpl, impl, path);
@@ -41,30 +41,30 @@ const skeleton = buildAnchorSkeleton({
   ],
 });
 
-const route0 = createRoute({
+const searchRouteImplRoute = createRoute({
   getParentRoute: () => skeleton.projectLayout,
   path: "/overview",
-  ...routeOptions(route0Module.default, "#test/search-route-impl.js", "/w/$workspaceSlug/p/$projectSlug/overview"),
+  ...routeOptions(searchRouteImplRouteModule.default, "#test/search-route-impl.js", "/w/$workspaceSlug/p/$projectSlug/overview"),
 });
 
-const route1 = createRoute({
+const defaultRouteImplRoute = createRoute({
   getParentRoute: () => skeleton.workspaceSettings,
   path: "/members",
-  ...routeOptions(route1Module.default, "#test/default-route-impl.js", "/w/$workspaceSlug/settings/members"),
+  ...routeOptions(defaultRouteImplRouteModule.default, "#test/default-route-impl.js", "/w/$workspaceSlug/settings/members"),
 });
 
-const route2 = createRoute({
+const namedRouteImplRoute = createRoute({
   getParentRoute: () => skeleton.workspaceLayout,
   path: "/insights",
-  ...routeOptions(route2Module.default, "#test/named-route-impl.js", "/w/$workspaceSlug/insights"),
+  ...routeOptions(namedRouteImplRouteModule.default, "#test/named-route-impl.js", "/w/$workspaceSlug/insights"),
 });
 
 const projectSettings = skeleton.projectSettings.addChildren([]);
-const projectLayout = skeleton.projectLayout.addChildren([route0,
+const projectLayout = skeleton.projectLayout.addChildren([searchRouteImplRoute,
   projectSettings]);
-const workspaceSettings = skeleton.workspaceSettings.addChildren([route1]);
+const workspaceSettings = skeleton.workspaceSettings.addChildren([defaultRouteImplRoute]);
 const workspaceLayout = skeleton.workspaceLayout.addChildren([
-  route2,
+  namedRouteImplRoute,
   projectLayout,
   workspaceSettings,
 ]);

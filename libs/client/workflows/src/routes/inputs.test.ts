@@ -12,6 +12,7 @@ import {
   workflowJobSearchParams,
   workflowRouteParams,
   workflowRunListSearchParams,
+  workflowRunPermalinkRouteParams,
   workflowRunSearchParams,
   workflowRunTab,
 } from './inputs.js';
@@ -332,6 +333,17 @@ describe('hasWorkflowRunFilters', () => {
 
     expect(countWorkflowRunFilters(search)).toBe(4);
     expect(countWorkflowRunFilters(search, {includeSearch: false})).toBe(3);
+  });
+});
+
+describe('workflowRunPermalinkRouteParams', () => {
+  test('requires the run id', () => {
+    expect(workflowRunPermalinkRouteParams({workflowRunId: 'run-1'})).toEqual({
+      workflowRunId: 'run-1',
+    });
+    expect(() => workflowRunPermalinkRouteParams({})).toThrow(
+      'Workflow run permalink is missing a run id.',
+    );
   });
 });
 

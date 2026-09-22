@@ -21,6 +21,11 @@ export const workflowsFeature = defineClientFeature({
   id: 'shipfox.workflows',
   routes: [
     {
+      path: '/runs/$workflowRunId',
+      parent: 'root',
+      impl: '@shipfox/client-workflows/routes/run-permalink',
+    },
+    {
       path: '/w/$workspaceSlug/p/$projectSlug/workflows',
       parent: 'projectLayout',
       impl: '@shipfox/client-workflows/routes/workflows',

@@ -126,7 +126,7 @@ export function useWorkflowRunLineageHeadQuery(input: WorkflowRunLineageHeadQuer
   return useQuery(workflowRunLineageHeadQueryOptions(input));
 }
 
-async function getWorkflowRunLineageHead(
+export async function getWorkflowRunLineageHead(
   workflowRunId: string,
   signal?: AbortSignal,
 ): Promise<WorkflowRunLineageHead> {
@@ -265,7 +265,7 @@ async function getWorkflowRunAttemptReference(
   }
 }
 
-async function getWorkflowRunOverview(
+export async function getWorkflowRunOverview(
   workflowRunId: string,
   runAttempt: number,
   signal?: AbortSignal,
