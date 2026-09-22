@@ -302,7 +302,7 @@ Understand.
 
 ### Order and group how-to pages
 
-The sidebar order comes from each directory's `meta.json`, which never lists
+The sidebar order comes from each directory's `meta.json`, which normally omits
 `index`. See [Section index pages](#section-index-pages). Apply these rules in
 order:
 
@@ -748,14 +748,17 @@ contextual links.
 
 ### Section index pages
 
-A directory's `index.mdx` is its section landing page. Never list `index` in
-the directory's `meta.json` `pages`: an unlisted index page becomes the section
+A directory's `index.mdx` is its section landing page. Leave `index` out of the
+directory's `meta.json` `pages`: an unlisted index page becomes the section
 title's own link, so the reader opens it by clicking the section name in the
 sidebar. Listing it instead repeats the section name as a child entry under
-itself.
+itself. An unlisted index page carries no `sidebarTitle`, because the section
+title in `meta.json` is its label.
 
-The sidebar label of a section comes from the `title` in its `meta.json`, so a
-section index page carries no `sidebarTitle`.
+List `index` only when the landing page needs a label that the section name
+does not carry, such as `understand/`, whose overview is `How Shipfox Works`.
+Give that page a `sidebarTitle`, and expect the section title to expand the
+section instead of opening the page.
 
 ## Frontmatter
 

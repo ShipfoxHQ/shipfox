@@ -1,6 +1,7 @@
 {
   "title": "Understand",
   "pages": [
+    "index",
     "workspaces-and-projects",
     "workflows-and-runs",
     "events-and-triggers",
