@@ -57,6 +57,21 @@ export async function listSecretManagementRows(
   };
 }
 
+export async function listVariableManagementKeys(
+  params: ManagementListParams,
+  tx?: Tx,
+): Promise<string[]> {
+  const executor = tx ?? db();
+  const rows = await executor
+    .select({key: secretVariables.key})
+    .from(secretVariables)
+    .where(and(...managementFilters(secretVariables, params)))
+    .orderBy(asc(secretVariables.key))
+    .limit(params.limit + 1);
+
+  return rows.slice(0, params.limit).map((row) => row.key);
+}
+
 export async function listVariableManagementRows(
   params: ManagementListParams,
   tx?: Tx,

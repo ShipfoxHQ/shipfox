@@ -1,5 +1,6 @@
 import {SECRETS_MAX_LIST_LIMIT} from '@shipfox/api-secrets-dto';
 import {config} from '#config.js';
+import {listVariableManagementKeys} from '#db/index.js';
 import {decodeBase64Key} from './crypto.js';
 import {DekManager} from './dek-manager.js';
 import {createLocalKeyProvider, type KeyProvider} from './key-provider.js';
@@ -136,8 +137,8 @@ export async function listVariableNames(input: {
   workspaceId: string;
   projectId?: string | null | undefined;
 }): Promise<{names: string[]}> {
-  const result = await listManagedVariables({...input, limit: SECRETS_MAX_LIST_LIMIT});
-  return {names: result.variables.map((variable) => variable.key)};
+  const names = await listVariableManagementKeys({...input, limit: SECRETS_MAX_LIST_LIMIT});
+  return {names};
 }
 
 export function getManagedVariable(

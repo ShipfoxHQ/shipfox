@@ -34,7 +34,8 @@ export function createTestSecretsClient(): SecretsInterModuleClient {
     const prefix = `${scopeId(normalize(input))}\0`;
     return [...values.keys()]
       .filter((id) => id.startsWith(prefix))
-      .map((id) => id.slice(prefix.length));
+      .map((id) => id.slice(prefix.length))
+      .sort();
   };
 
   return {
