@@ -13,6 +13,7 @@ import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/in
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {LogsModuleClient} from '@shipfox/api-logs-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {TriggersInterModuleClient} from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
@@ -34,6 +35,7 @@ import {
   AGENT_ACCESS_PROTECTED_RESOURCE_METADATA_PATH,
 } from '#constants.js';
 import {createAgentAccessActionTools} from '#core/action-tools.js';
+import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
 import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
@@ -70,6 +72,7 @@ export interface CreateAgentAccessRoutesOptions {
   triggers?: TriggersInterModuleClient | undefined;
   logs?: LogsModuleClient | undefined;
   integrations?: IntegrationsModuleClient | undefined;
+  secrets?: SecretsInterModuleClient | undefined;
   templates?: TemplateLoader | undefined;
 }
 
@@ -164,8 +167,17 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
 function toolsFromProducerClients(
   options: CreateAgentAccessRoutesOptions,
 ): readonly AgentAccessTool[] {
-  const {projects, definitions, workflows, annotations, triggers, logs, integrations, templates} =
-    options;
+  const {
+    projects,
+    definitions,
+    workflows,
+    annotations,
+    triggers,
+    logs,
+    integrations,
+    secrets,
+    templates,
+  } = options;
   if (
     projects === undefined &&
     definitions === undefined &&
@@ -174,6 +186,7 @@ function toolsFromProducerClients(
     triggers === undefined &&
     logs === undefined &&
     integrations === undefined &&
+    secrets === undefined &&
     templates === undefined
   ) {
     return [createAgentAccessFixtureTool()];
@@ -226,9 +239,19 @@ function toolsFromProducerClients(
     integrations === undefined
       ? withLogs
       : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
-  return templates === undefined || integrations === undefined
-    ? withIntegrations
-    : [...withIntegrations, ...createAgentAccessTemplateTools({projects, integrations, templates})];
+  const withTemplates =
+    templates === undefined || integrations === undefined
+      ? withIntegrations
+      : [
+          ...withIntegrations,
+          ...createAgentAccessTemplateTools({projects, integrations, templates}),
+        ];
+  return options.agent === undefined || secrets === undefined
+    ? withTemplates
+    : [
+        ...withTemplates,
+        ...createAgentAccessAuthoringContextTools({agent: options.agent, workflows, secrets}),
+      ];
 }
 
 function methodNotAllowed(_request: FastifyRequest, reply: FastifyReply) {

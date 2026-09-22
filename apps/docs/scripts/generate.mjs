@@ -16,6 +16,7 @@ import {
   AGENT_ACCESS_TOOL_CALL_LIMIT,
   AGENT_ACCESS_TOOL_CALL_WINDOW_MS,
   createAgentAccessActionTools,
+  createAgentAccessAuthoringContextTools,
   createAgentAccessDiagnosticTools,
   createAgentAccessIntegrationTools,
   createAgentAccessLogTools,
@@ -365,6 +366,7 @@ const mcpToolGroups = [
       'get_integration_connection_tools',
       'list_workflow_templates',
       'get_workflow_template',
+      'get_workflow_authoring_context',
     ],
   },
   {
@@ -426,6 +428,7 @@ function listMcpTools() {
     }),
     ...createAgentAccessIntegrationTools(stub),
     ...createAgentAccessTemplateTools({projects: stub, integrations: stub, templates: stub}),
+    ...createAgentAccessAuthoringContextTools({agent: stub, workflows: stub, secrets: stub}),
   ];
 }
 

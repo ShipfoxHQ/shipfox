@@ -14,6 +14,11 @@ export {
   createAgentAccessActionTools,
 } from '#core/action-tools.js';
 export {
+  AGENT_ACCESS_AUTHORING_CONTEXT_TOOL_NAME,
+  type AgentAccessAuthoringContextToolsOptions,
+  createAgentAccessAuthoringContextTools,
+} from '#core/authoring-context.js';
+export {
   type AgentAccessDiagnosticToolsOptions,
   createAgentAccessDiagnosticTools,
 } from '#core/diagnostic-tools.js';
