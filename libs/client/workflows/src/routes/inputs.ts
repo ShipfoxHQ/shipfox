@@ -238,6 +238,14 @@ export function countWorkflowRunFilters(
   ].filter(Boolean).length;
 }
 
+export function workflowRunPermalinkRouteParams(input: Record<string, unknown>): {
+  workflowRunId: string;
+} {
+  const workflowRunId = string(input.workflowRunId);
+  if (!workflowRunId) throw new Error('Workflow run permalink is missing a run id.');
+  return {workflowRunId};
+}
+
 export function workflowRouteParams(input: Record<string, unknown>): {
   workspaceSlug: string;
   projectSlug: string;
