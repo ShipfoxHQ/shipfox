@@ -57,12 +57,15 @@ function renderPermalink({
   auth,
   fetchImpl,
   path = `/runs/${RUN_ID}`,
+  queryClient: providedQueryClient,
 }: {
   auth: AuthState;
   fetchImpl?: typeof fetch;
   path?: string;
+  queryClient?: QueryClient;
 }) {
-  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+  const queryClient =
+    providedQueryClient ?? new QueryClient({defaultOptions: {queries: {retry: false}}});
   const router = createPermalinkRouter(path);
   const store = createStore();
   store.set(authStateAtom, auth);
@@ -87,22 +90,10 @@ function authenticatedAuth(workspaceId = WORKSPACE_ID): AuthState {
   };
 }
 
-function permalinkFetch() {
+function permalinkFetch({readProject}: {readProject?: () => Promise<Response>} = {}) {
   const overview = workflowRunOverviewResponseDto(
     workflowRunFixtureDto({id: RUN_ID, project_id: PROJECT_ID}),
   );
-  const project = {
-    id: PROJECT_ID,
-    workspace_id: WORKSPACE_ID,
-    name: 'Payments',
-    slug: 'payments',
-    source: {
-      connection_id: '44444444-4444-4444-8444-444444444444',
-      external_repository_id: 'shipfox/payments',
-    },
-    created_at: '2026-06-21T12:00:00.000Z',
-    updated_at: '2026-06-21T12:00:00.000Z',
-  };
   return vi.fn((input: RequestInfo | URL): Promise<Response> => {
     const pathname = new URL(input instanceof Request ? input.url : input.toString()).pathname;
     if (pathname.endsWith('/head')) {
@@ -116,9 +107,26 @@ function permalinkFetch() {
       );
     }
     if (pathname.endsWith('/overview')) return Promise.resolve(jsonResponse(overview));
-    if (pathname.endsWith(`/projects/${PROJECT_ID}`)) return Promise.resolve(jsonResponse(project));
+    if (pathname.endsWith(`/projects/${PROJECT_ID}`)) {
+      return readProject?.() ?? Promise.resolve(jsonResponse(projectResponse('payments')));
+    }
     return Promise.reject(new Error(`Unexpected request: ${pathname}`));
   });
+}
+
+function projectResponse(slug: string) {
+  return {
+    id: PROJECT_ID,
+    workspace_id: WORKSPACE_ID,
+    name: 'Payments',
+    slug,
+    source: {
+      connection_id: '44444444-4444-4444-8444-444444444444',
+      external_repository_id: 'shipfox/payments',
+    },
+    created_at: '2026-06-21T12:00:00.000Z',
+    updated_at: '2026-06-21T12:00:00.000Z',
+  };
 }
 
 describe('run permalink route', () => {
@@ -156,6 +164,51 @@ describe('run permalink route', () => {
 
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(`/w/acme/p/payments/runs/${RUN_ID}`),
+    );
+  });
+
+  test('revalidates a renamed project slug before redirecting', async () => {
+    let projectRequestCount = 0;
+    let resolveRenamedProject: ((response: Response) => void) | undefined;
+    const renamedProject = new Promise<Response>((resolve) => {
+      resolveRenamedProject = resolve;
+    });
+    const fetchImpl = permalinkFetch({
+      readProject: () => {
+        projectRequestCount += 1;
+        return projectRequestCount === 1
+          ? Promise.resolve(jsonResponse(projectResponse('payments')))
+          : renamedProject;
+      },
+    });
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    const firstRouter = renderPermalink({
+      auth: authenticatedAuth(),
+      fetchImpl,
+      queryClient,
+    });
+
+    await waitFor(() =>
+      expect(firstRouter.state.location.pathname).toBe(`/w/acme/p/payments/runs/${RUN_ID}`),
+    );
+
+    cleanup();
+    const secondRouter = renderPermalink({
+      auth: authenticatedAuth(),
+      fetchImpl,
+      queryClient,
+    });
+
+    await waitFor(() => expect(projectRequestCount).toBeGreaterThanOrEqual(2));
+    expect(secondRouter.state.location.pathname).toBe(`/runs/${RUN_ID}`);
+
+    if (!resolveRenamedProject) throw new Error('Expected a pending project response');
+    resolveRenamedProject(jsonResponse(projectResponse('renamed-payments')));
+
+    await waitFor(() =>
+      expect(secondRouter.state.location.pathname).toBe(
+        `/w/acme/p/renamed-payments/runs/${RUN_ID}`,
+      ),
     );
   });
 });

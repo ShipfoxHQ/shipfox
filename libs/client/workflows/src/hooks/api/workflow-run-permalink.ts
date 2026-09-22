@@ -57,6 +57,7 @@ export function workflowRunPermalinkQueryOptions({
     },
     retry: false,
     staleTime: Infinity,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 }

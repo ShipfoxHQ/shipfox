@@ -19,7 +19,7 @@ export function WorkflowRunPermalinkPage({workflowRunId}: {workflowRunId: string
     return <Navigate to="/auth/login" search={{redirect: `/runs/${workflowRunId}`}} replace />;
   }
 
-  if (query.isPending) return <FullPageLoader />;
+  if (query.isPending || query.isFetching) return <FullPageLoader />;
   if (query.isError) return <QueryLoadError query={query} subject="run" />;
 
   if (query.data.kind === 'not-found') {
