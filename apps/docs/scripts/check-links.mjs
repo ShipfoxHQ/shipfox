@@ -19,7 +19,7 @@ const generatedFragmentsByRoute = new Map([
     '/reference/workflow-schema',
     ['reference/workflow-schema.mdx', 'reference/workflow-schema.json'],
   ],
-  ['/reference/mcp-server', ['reference/mcp-server-tools.mdx', 'reference/mcp-server-limits.mdx']],
+  ['/reference/mcp-server', ['reference/mcp-server-limits.mdx']],
   ['/integrations/github/events', ['integrations/github/events.mdx']],
   ['/integrations/sentry/events', ['integrations/sentry/events.mdx']],
   ['/integrations/webhooks/events', ['integrations/webhooks/events.mdx']],
