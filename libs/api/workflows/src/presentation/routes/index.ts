@@ -27,6 +27,7 @@ import {listRunAnnotationsRoute} from './list-run-annotations.js';
 import {listRunAttemptsRoute} from './list-run-attempts.js';
 import {listRunJobExplanationsRoute} from './list-run-job-explanations.js';
 import {listRunJobsRoute} from './list-run-jobs.js';
+import {listRunnerCatalogNamesRoute} from './list-runner-catalog-names.js';
 import {listRunsRoute} from './list-runs.js';
 import {listStepAttemptsRoute} from './list-step-attempts.js';
 import {createNextStepRoute} from './next-step.js';
@@ -70,6 +71,11 @@ export function createLeaseTokenRouteGroup(params: LeaseTokenRouteClients): Rout
 
 export function createWorkflowRoutes(params: WorkflowRouteClients): RouteGroup[] {
   return [
+    {
+      prefix: '/workflows',
+      auth: AUTH_USER,
+      routes: [listRunnerCatalogNamesRoute],
+    },
     {
       prefix: '/workflows/runs',
       auth: AUTH_USER,

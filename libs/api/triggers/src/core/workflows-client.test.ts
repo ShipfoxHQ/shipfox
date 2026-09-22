@@ -76,6 +76,7 @@ const listenerErrorInput = {...listenerInput, jobId: '00000000-0000-4000-8000-00
 function localWorkflowsClient(): WorkflowsModuleClient {
   return createFakeInterModuleClients({
     workflows: defineInterModulePresentation(workflowsInterModuleContract, {
+      listRunnerCatalogNames: vi.fn(),
       startRunFromTrigger: ({definitionId}) => {
         if (definitionId.endsWith('0003')) return {id: definitionId, name: 'Build'};
         throw createInterModuleKnownError(

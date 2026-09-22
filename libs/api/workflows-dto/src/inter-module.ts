@@ -7,6 +7,7 @@ import {workflowModelSnapshotSchema} from '@shipfox/api-definitions-dto';
 import {secretKeySchema} from '@shipfox/api-secrets-dto';
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
+import {runnerCatalogNamesResponseSchema} from './schemas/runner-catalog.js';
 import {stepAttemptDetailResponseSchema} from './schemas/step-attempt-detail.js';
 import {
   WORKFLOW_EXECUTION_TRIGGER_EVENT_PAGE_LIMIT,
@@ -211,6 +212,11 @@ const workflowRunFiltersSchema = z
 export const workflowsInterModuleContract = defineInterModuleContract({
   module: 'workflows',
   methods: {
+    listRunnerCatalogNames: {
+      input: z.object({}),
+      output: runnerCatalogNamesResponseSchema,
+      errors: {},
+    },
     startRunFromTrigger: {
       input: z.object({
         workspaceId: idSchema,

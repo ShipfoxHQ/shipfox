@@ -35,6 +35,7 @@ import {
   encodeTimestampIdCursor,
   timestampIdCursorTimestamp,
 } from '@shipfox/node-drizzle';
+import type {RunnerCatalog} from '@shipfox/runner-labels';
 import {DEFAULT_HARNESS, harnessSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import type {Step} from '#core/entities/step.js';
@@ -61,6 +62,7 @@ import {
   AgentIntegrationMaterializationError,
   DefinitionNotFoundError,
   InterpolationUnresolvableError,
+  listRunnerCatalogNames,
   ProjectMismatchError,
   runDevWorkflow,
   runWorkflow,
@@ -166,6 +168,7 @@ export function createWorkflowsInterModulePresentation(params: {
   runners: RunnersInterModuleClient;
   integrations: IntegrationsModuleClient;
   projects: ProjectsModuleClient;
+  runnerCatalog?: RunnerCatalog;
   admission?: {policy: WorkflowAdmissionPolicy} | undefined;
 }): InterModulePresentation<typeof workflowsInterModuleContract> {
   /**
@@ -228,6 +231,7 @@ export function createWorkflowsInterModulePresentation(params: {
   }
 
   return defineInterModulePresentation(workflowsInterModuleContract, {
+    listRunnerCatalogNames: async () => listRunnerCatalogNames(params.runnerCatalog),
     startRunFromTrigger: async (input) => {
       const isChildRunStart = hasChildRunParent(input);
       try {

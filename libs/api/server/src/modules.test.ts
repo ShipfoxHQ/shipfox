@@ -305,6 +305,7 @@ describe('defaultModules', () => {
         {
           contract: workflowsInterModuleContract,
           handlers: {
+            listRunnerCatalogNames: vi.fn(),
             deliverEventToJobListener: vi.fn(),
             listWorkflowRuns: vi.fn(),
             getWorkflowRunOverview: vi.fn(),

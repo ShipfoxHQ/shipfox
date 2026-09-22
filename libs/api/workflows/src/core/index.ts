@@ -55,6 +55,7 @@ export {
 } from './job-transition/index.js';
 export type {RunDevWorkflowParams, RunWorkflowParams} from './run-workflow.js';
 export {runDevWorkflow, runWorkflow} from './run-workflow.js';
+export {listRunnerCatalogNames} from './runner-catalog.js';
 export {
   type MaterializedWorkflowJob,
   type MaterializedWorkflowStep,

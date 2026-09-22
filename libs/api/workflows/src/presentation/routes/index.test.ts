@@ -66,8 +66,8 @@ describe('workflow route auth', () => {
   });
 
   test('step routes use lease-token auth', () => {
-    expect(workflowRoutes[1]?.prefix).toBe('/runs/jobs/current');
-    expect(workflowRoutes[1]?.auth).toBe(AUTH_LEASED_JOB);
+    expect(workflowRoutes[2]?.prefix).toBe('/runs/jobs/current');
+    expect(workflowRoutes[2]?.auth).toBe(AUTH_LEASED_JOB);
   });
 
   test('step routes reject requests without a lease token', async () => {
