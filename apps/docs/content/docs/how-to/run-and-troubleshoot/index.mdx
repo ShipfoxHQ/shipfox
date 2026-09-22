@@ -1,5 +1,5 @@
 ---
-title: "Run and Troubleshoot Shipfox Workflows"
+title: "Run and Troubleshoot Workflows"
 sidebarTitle: "Run and Troubleshoot"
 description: "Inspect runs, compare attempts, and fix sync, event, log, or runner problems."
 ---
@@ -7,32 +7,36 @@ description: "Inspect runs, compare attempts, and fix sync, event, log, or runne
 Start with the task or visible problem. Each guide tells you which run, event,
 workflow, or runner access you need.
 
+## Test before you push
+
 <Cards>
-  <Card title="Validate a local workflow change" href="/how-to/run-and-troubleshoot/validate-local-workflow-change">
+  <Card title="Validate unpushed YAML" href="/how-to/run-and-troubleshoot/validate-local-workflow-change">
     Check unpushed YAML and trigger eligibility without starting a run.
   </Card>
-  <Card title="Test a local workflow change" href="/how-to/run-and-troubleshoot/test-local-workflow-change">
+  <Card title="Run unpushed YAML" href="/how-to/run-and-troubleshoot/test-local-workflow-change">
     Replay validated YAML against a retained event and inspect the result.
   </Card>
-  <Card title="Inspect a run" href="/how-to/run-and-troubleshoot/inspect-runs-and-attempts">
+</Cards>
+
+## Diagnose a problem
+
+<Cards>
+  <Card title="A run didn't complete" href="/how-to/run-and-troubleshoot/inspect-runs-and-attempts">
     Follow the job graph and compare executions or attempts.
   </Card>
-  <Card title="Inspect step logs" href="/how-to/run-and-troubleshoot/inspect-logs">
+  <Card title="Logs are missing" href="/how-to/run-and-troubleshoot/inspect-logs">
     Read command output, agent sessions, and truncated streams.
   </Card>
-  <Card title="Fix an agent failure" href="/how-to/run-and-troubleshoot/agent-provider-failures">
+  <Card title="An agent step fails" href="/how-to/run-and-troubleshoot/agent-provider-failures">
     Repair provider, model, tool, integration connection, or runtime errors.
   </Card>
-  <Card title="Cancel or re-run work" href="/how-to/run-and-troubleshoot/cancel-and-rerun">
-    Stop active work or create another attempt.
-  </Card>
-  <Card title="Fix workflow sync" href="/how-to/run-and-troubleshoot/workflow-sync">
-    Find why repository YAML did not produce a usable definition.
-  </Card>
-  <Card title="Fix event routing" href="/how-to/run-and-troubleshoot/event-routing">
+  <Card title="An event didn't start a run" href="/how-to/run-and-troubleshoot/event-routing">
     Find why a delivered event did not create a run.
   </Card>
-  <Card title="Resolve pending jobs" href="/how-to/run-and-troubleshoot/pending-jobs">
+  <Card title="A workflow didn't sync" href="/how-to/run-and-troubleshoot/workflow-sync">
+    Find why repository YAML did not produce a usable definition.
+  </Card>
+  <Card title="A job stays pending" href="/how-to/author-workflows/choose-runners#resolve-a-pending-job">
     Match a pending job with an online runner.
   </Card>
 </Cards>

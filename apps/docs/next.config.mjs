@@ -24,6 +24,35 @@ if (posthogUrl) {
 // directly from the generated deployment URL.
 const basePath = isVercelProduction ? '/docs' : '';
 
+// Old routes of pages that moved or merged. Keep an entry until inbound links
+// and search results have caught up.
+const movedPages = {
+  '/how-to/author-workflows/use-integration-tools': '/integrations/github/guides/read-pull-request',
+  '/how-to/author-workflows/post-pull-request-review':
+    '/integrations/github/guides/post-pull-request-review',
+  '/how-to/author-workflows/push-repository-changes':
+    '/integrations/github/guides/push-repository-changes',
+  '/how-to/set-up-work/manage-github-repository-access':
+    '/integrations/github/guides/manage-repository-access',
+  '/how-to/recipes/add-github-check-runs': '/integrations/github/guides/add-check-runs',
+  '/how-to/author-workflows/build-feedback-loop': '/how-to/recipes/build-feedback-loop',
+  '/how-to/author-workflows/bound-listening-job': '/how-to/recipes/bound-listening-job',
+  '/how-to/set-up-work/update-workspace-value': '/how-to/set-up-work/secrets-and-variables',
+  '/how-to/set-up-work/delete-workspace-value': '/how-to/set-up-work/secrets-and-variables',
+  '/how-to/set-up-work/add-custom-model-provider': '/how-to/set-up-work/manage-model-providers',
+  '/how-to/set-up-work/update-custom-model-provider': '/how-to/set-up-work/manage-model-providers',
+  '/how-to/set-up-work/rotate-model-provider-credentials':
+    '/how-to/set-up-work/manage-model-providers',
+  '/how-to/set-up-work/delete-model-provider': '/how-to/set-up-work/manage-model-providers',
+  '/how-to/set-up-work/disable-integration-connection':
+    '/how-to/set-up-work/manage-integration-connections',
+  '/how-to/set-up-work/delete-integration-connection':
+    '/how-to/set-up-work/manage-integration-connections',
+  '/how-to/run-and-troubleshoot/pending-jobs': '/how-to/author-workflows/choose-runners',
+  '/how-to/run-and-troubleshoot/cancel-and-rerun':
+    '/how-to/run-and-troubleshoot/inspect-runs-and-attempts',
+};
+
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
@@ -48,7 +77,11 @@ const config = {
     ];
   },
   redirects() {
-    const rules = [];
+    const rules = Object.entries(movedPages).map(([source, destination]) => ({
+      source,
+      destination,
+      permanent: true,
+    }));
     if (!basePath) {
       // In dev there is no basePath, so redirect /docs-prefixed URLs back to the
       // unprefixed route so production URLs copied into a local browser still work.

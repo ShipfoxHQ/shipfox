@@ -3,9 +3,10 @@
   "pages": [
     "index",
     "checks-on-push",
-    "add-github-check-runs",
-    "triage-sentry-issues",
     "parallel-ci-agent-review",
-    "event-to-verified-pull-request"
+    "triage-sentry-issues",
+    "event-to-verified-pull-request",
+    "build-feedback-loop",
+    "bound-listening-job"
   ]
 }

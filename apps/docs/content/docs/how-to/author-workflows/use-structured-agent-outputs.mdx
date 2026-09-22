@@ -1,14 +1,17 @@
 ---
-title: "Route Work with Structured Agent Outputs"
-sidebarTitle: "Agent Outputs"
-description: "Make an agent publish a typed decision, print its summary safely, and run a review step only when the decision requires it."
+title: "Get Typed Values from an Agent Step"
+sidebarTitle: "Get Typed Agent Outputs"
+description: "Make an agent publish typed outputs that later steps and conditions can read. The example runs a review step only when the agent decides it is needed."
 ---
 
-Use structured outputs when later workflow logic needs a value from an agent.
-This guide records a summary and a boolean review decision instead of parsing
-the agent's final response.
+Use typed outputs when a later step needs a value from an agent. Typical values
+are a decision, a label, a number, or a short summary. The workflow reads a
+named value with a known type. You don't need to parse the agent's text answer.
 
-## Add the workflow
+The example below asks an agent if a release needs human review. To ask another
+question, keep the same structure and change the prompt and the output names.
+
+## Declare the outputs and read them
 
 Create `.shipfox/workflows/classify-release-risk.yml`. This is a complete
 workflow:
@@ -43,22 +46,43 @@ jobs:
         run: echo "Human review required"
 ```
 
-The declared outputs give the agent two `set_output` tools. The summary is
-bound through `env` before shell use. The final step reads the boolean directly
-in its condition.
+To get any typed value from an agent, you need three things:
+
+1. **Declare the output.** Give the agent step a `key` and list each output name and
+   type under `outputs`. Shipfox gives the agent a `set_output` tool for each
+   declared output.
+2. **Ask for the output in the prompt.** Name each output in the prompt and say what value it must
+   hold. The agent learns what `needs_review` means only from the prompt.
+3. **Read the output in a later step.** Later steps read `steps.<key>.outputs.<name>`, the same way
+   they read the output of a `run` step.
 
 Commit and push the file to the project's default branch. Wait for **Classify
 release risk** to sync.
 
-## Verify the decision
+## Adapt it to your workflow
 
-Start the workflow and open the `assess` job.
+| To... | Change this |
+| --- | --- |
+| Run or skip a later step | Declare a `boolean` and read it in the step's `if`, as the example does. |
+| Choose between more than two paths | Declare a `string` and list the allowed answers in the prompt. Compare the value in the `if` condition of each later step. |
+| Return a list or an object, such as review findings | Declare a `json` output. Add a `schema` when later expressions need known fields. See [Step outputs](/reference/workflow-schema#step-outputs). |
+| Use the value in another job | Publish it as a job output. See [Pass values between jobs](/how-to/author-workflows/pass-outputs). |
+| Use the text in a shell command | Put it in `env` and read the environment variable, as the example does with `summary`. The shell then treats the agent's text as text and doesn't run it as part of the command. |
 
-1. Confirm that the agent sets both declared outputs.
-2. Confirm that the assessment line matches the `summary` output.
-3. If `needs_review` is true, confirm that the final step runs. If it is false,
-   confirm that Shipfox marks the final step skipped.
+Keep each output small and specific. Use one output for each decision. Small
+outputs are easier to check than one large answer.
 
-An agent step fails when it does not set a required output after its bounded
-re-prompts. See [Step outputs](/reference/workflow-schema#step-outputs) for the
+## Verify the outputs
+
+Start the workflow and open the job with the agent step.
+
+1. Confirm that the agent sets every declared output.
+2. Confirm that each later step received the value the agent set. In the
+   example, the assessment line matches the `summary` output.
+3. Confirm that each `if` condition gave the expected result. In the example,
+   the final step runs when `needs_review` is true. When it is false, Shipfox
+   marks the step as skipped.
+
+If the agent doesn't set a required output, Shipfox asks it again a limited
+number of times. If the output is still missing, the step fails. See [Step outputs](/reference/workflow-schema#step-outputs) for the
 exact behavior.

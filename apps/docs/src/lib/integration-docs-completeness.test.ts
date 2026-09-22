@@ -155,6 +155,32 @@ test('reports provider-named fixes for missing and stale documentation', () => {
   assert.match(issues.join('\n'), cronEventIssuePattern);
 });
 
+test('accepts a guides directory listed after the canonical pages', () => {
+  const input: IntegrationDocsCompletenessInput = {
+    ...validInput,
+    integrationDirectories: {
+      ...validInput.integrationDirectories,
+      linear: {
+        ...directory(
+          'linear',
+          ['index', 'setup', 'events', 'tools'],
+          ['index', 'setup', 'events', 'tools', 'guides'],
+          {
+            capabilities: ['events', 'agent_tools'],
+            categories: ['issue-tracking'],
+            aliases: ['issues'],
+          },
+        ),
+        hasGuides: true,
+      },
+    },
+  };
+
+  const issues = collectIntegrationDocIssues(input);
+
+  assert.deepEqual(issues, []);
+});
+
 test('reports a missing setup page for a catalog provider', () => {
   const input: IntegrationDocsCompletenessInput = {
     ...validInput,

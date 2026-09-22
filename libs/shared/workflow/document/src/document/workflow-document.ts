@@ -945,7 +945,7 @@ const workflowDocumentStepBaseSchema = z.strictObject({
   tool_surface: agentToolSurfaceSchema.optional(),
   integrations: z.array(workflowDocumentStepIntegrationSchema).min(1).optional().meta({
     description:
-      'Integration tools available to an agent step. It requires `prompt` and is not valid on a run step. See [integration tools](/how-to/author-workflows/use-integration-tools).',
+      'Integration tools available to an agent step. It requires `prompt` and is not valid on a run step. See [integrations and tools](/understand/integrations-connections-and-tools).',
   }),
   agent: z.unknown().optional().meta({
     description: 'Reserved keyword. It is rejected; use `prompt` to define an agent step.',

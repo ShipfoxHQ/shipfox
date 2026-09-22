@@ -1,0 +1,201 @@
+---
+title: "Add, Update, or Remove a Model Provider"
+sidebarTitle: "Manage Model Providers"
+description: "Open source edition only. Add a custom model endpoint, update it, replace a provider key, or remove an unused provider, and verify each change with an agent run."
+---
+
+<Callout title="Open source edition only" type="info">
+  This guide applies to a self-hosted Shipfox installation. Shipfox Cloud
+  provides managed models, so its workspaces have no model provider settings.
+  See [Shipfox Cloud agent models](/reference/cloud-models).
+</Callout>
+
+Use this guide to change the model providers saved in a workspace. A custom
+provider connects Shipfox to a model endpoint that is not in the built-in
+provider catalog. For built-in providers and default resolution, use [Configure
+a model provider](/how-to/set-up-work/configure-model-providers).
+
+## Before you begin
+
+You need access to workspace agent settings. Keep the old endpoint, key, or
+provider active until a verification run succeeds.
+
+Before you change or remove a provider, find the workflows that use it:
+
+1. Search the workflow files of every project for the provider ID.
+2. Check the workspace default provider. A step without a `provider` field uses
+   that default.
+3. Choose one of these workflows. You will run it to verify the change.
+
+## Add a custom provider
+
+You need the endpoint base URL, any required API key or headers, and the model
+IDs the endpoint serves. The endpoint must use one of the protocols shown by the
+setup form.
+
+<Steps>
+  <Step>
+
+    **Open the custom provider form**
+
+    Open **Settings → Agents** in the workspace. Select **Add custom provider**.
+  </Step>
+  <Step>
+
+    **Name the provider**
+
+    Enter a display name. Check the generated **Provider ID** because workflows
+    use that value in the `provider` field. The provider ID cannot change after
+    creation.
+  </Step>
+  <Step>
+
+    **Configure the endpoint**
+
+    Choose its protocol and enter the full base URL. Add an API key when the
+    endpoint requires one. Add any required headers and mark sensitive header
+    values as secret.
+  </Step>
+  <Step>
+
+    **Add the models**
+
+    Select **Fetch models**. Keep the models the endpoint returns. If discovery
+    is not available, select **Add model** and enter each model ID and label.
+    Choose a default model when agent steps may omit `model`.
+  </Step>
+  <Step>
+
+    **Test and save**
+
+    Select **Test & save**. Shipfox sends a live request to the endpoint before
+    it stores the configuration.
+  </Step>
+</Steps>
+
+If the endpoint test fails, check the base URL, protocol, authentication,
+headers, and model ID against the endpoint's own configuration. Do not continue
+until the live test succeeds.
+
+### Use the provider
+
+Add the provider ID and one of its model IDs to an agent step. Replace both
+example values with the values saved in the form. This is a complete workflow:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Review with a custom provider
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+jobs:
+  review:
+    steps:
+      - harness: pi
+        provider: acme-ai # Replace with your custom provider ID.
+        model: acme-code # Replace with a model ID from the provider.
+        prompt: Review the repository for correctness risks.
+```
+
+Commit and push the workflow to the project's default branch. Start it from the
+**Workflows** tab and open the agent step. The run shows the provider and model
+used for the request. A successful step confirms that Shipfox can use the saved
+endpoint, not only test it from settings.
+
+## Update a custom provider
+
+Update a custom provider when its endpoint, authentication, headers, models, or
+default model changes. The provider ID stays the same, so workflow references do
+not need a rename.
+
+<Steps>
+  <Step>
+
+    **Open the custom provider**
+
+    Open **Settings → Agents**. Open the custom provider's menu and select
+    **Edit**.
+  </Step>
+  <Step>
+
+    **Update the connection**
+
+    Change the endpoint, protocol, headers, or models. Enter a new API key when
+    it changed. Leave it blank to keep the stored key.
+  </Step>
+  <Step>
+
+    **Test and save**
+
+    Choose a valid default model, then select **Test & save**.
+  </Step>
+</Steps>
+
+If the base URL changes, enter the API key and every secret header value again.
+Don't leave them blank, because stored secrets are not reused for a new host.
+
+Run the workflow you chose. Open its agent step and confirm that it uses
+the custom provider, resolves an expected model, and returns a response. Retire
+the old endpoint or credential only after the run succeeds.
+
+## Replace a provider key
+
+Replace a provider key while the old one still works. Shipfox tests the new key
+before saving it.
+
+1. Open **Settings → Agents**.
+2. Open the configured provider's menu and select **Edit credentials**.
+3. Enter the new key and any other required values.
+4. Select **Test & save**.
+
+If the live test fails, Shipfox keeps the current setup. Fix the new key before
+trying again.
+
+Run the workflow you chose again. Confirm that its agent step resolves the
+same provider and model, returns a response, and finishes successfully. Then
+revoke the old key at the provider. Run the workflow again if revocation takes
+time.
+
+## Remove a provider
+
+Remove a provider only after no workflow or workspace default needs it. Removal
+also deletes its saved keys from the workspace. You need a working replacement
+that supports the harnesses and models used by your workflows.
+
+<Steps>
+  <Step>
+
+    **Move every dependency**
+
+    Update explicit `provider` and `model` fields to the replacement. If this is
+    the workspace default, set another configured provider as default. Steps
+    that omit `provider` now resolve through the new default.
+
+    Push workflow edits to each project's default branch and wait for successful
+    sync. Run one agent workflow and check that the replacement works.
+  </Step>
+  <Step>
+
+    **Delete the provider**
+
+    Open **Settings → Agents**. Open the old provider's menu, select **Delete**,
+    and confirm the provider shown in the dialog. Agent jobs cannot use that
+    provider until it is configured again.
+  </Step>
+  <Step>
+
+    **Verify the removal**
+
+    Check that the old provider is gone from **Configured providers**. Start the
+    affected workflows again and check their resolved provider and model.
+  </Step>
+</Steps>
+
+If a step still names the old provider, restore it for urgent work. Update the
+missed workflow or default before removing it again.
+
+Use [Fix agent failures](/how-to/run-and-troubleshoot/agent-provider-failures)
+when a settings test passes but a workflow run fails.

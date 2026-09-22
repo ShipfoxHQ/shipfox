@@ -1,0 +1,11 @@
+{
+  "title": "Guides",
+  "pages": [
+    "index",
+    "manage-repository-access",
+    "read-pull-request",
+    "post-pull-request-review",
+    "add-check-runs",
+    "push-repository-changes"
+  ]
+}

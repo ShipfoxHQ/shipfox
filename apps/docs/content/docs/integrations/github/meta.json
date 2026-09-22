@@ -1,4 +1,10 @@
 {
   "title": "GitHub",
-  "pages": ["index", "setup", "events", "tools"]
+  "pages": [
+    "index",
+    "setup",
+    "events",
+    "tools",
+    "guides"
+  ]
 }

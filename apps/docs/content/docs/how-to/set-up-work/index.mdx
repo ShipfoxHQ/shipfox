@@ -1,5 +1,5 @@
 ---
-title: "Set Up Work in Shipfox"
+title: "Set Up Work"
 sidebarTitle: "Set Up Work"
 description: "Connect other systems, create projects, set up agents, and manage workspace access."
 ---
@@ -7,70 +7,54 @@ description: "Connect other systems, create projects, set up agents, and manage 
 These guides get a workspace ready to run work. You do not need a model provider
 for every task. Each guide tells you which account and access it needs.
 
-## Connect external systems
-
-<Cards>
-  <Card title="Browse integrations" href="/integrations">
-    Find a provider in the catalog and connect it.
-  </Card>
-  <Card title="Inspect an integration connection" href="/how-to/set-up-work/manage-integration-connections">
-    Find its slug and confirm recent events.
-  </Card>
-  <Card title="Manage GitHub repository access" href="/how-to/set-up-work/manage-github-repository-access">
-    Change the GitHub repository list and Shipfox access mode.
-  </Card>
-  <Card title="Pause an integration connection" href="/how-to/set-up-work/disable-integration-connection">
-    Stop new events for a limited time, then resume them.
-  </Card>
-  <Card title="Delete an integration connection" href="/how-to/set-up-work/delete-integration-connection">
-    Check dependencies before permanent removal.
-  </Card>
-</Cards>
-
-## Prepare projects and agents
+## Connect projects and external systems
 
 <Cards>
   <Card title="Create a project" href="/how-to/set-up-work/create-project">
     Bind a connected repository to a Shipfox project.
   </Card>
-  <Card title="Configure agent defaults" href="/how-to/set-up-work/configure-model-providers">
+  <Card title="Browse integrations" href="/integrations">
+    Find a provider in the catalog and connect it.
+  </Card>
+  <Card title="Manage integration connections" href="/how-to/set-up-work/manage-integration-connections">
+    Find a slug, confirm recent events, pause a connection, or delete it safely.
+  </Card>
+</Cards>
+
+## Prepare agents
+
+<Cards>
+  <Card title="Set the default agent model" href="/how-to/set-up-work/configure-model-providers">
     Configure a harness and provider, then verify them with a run.
-  </Card>
-  <Card title="Add a custom model provider" href="/how-to/set-up-work/add-custom-model-provider">
-    Connect a model endpoint outside the built-in provider catalog.
-  </Card>
-  <Card title="Rotate provider credentials" href="/how-to/set-up-work/rotate-model-provider-credentials">
-    Replace a built-in provider key and verify a run.
-  </Card>
-  <Card title="Update a custom provider" href="/how-to/set-up-work/update-custom-model-provider">
-    Change an endpoint or model configuration without changing its ID.
-  </Card>
-  <Card title="Delete a model provider" href="/how-to/set-up-work/delete-model-provider">
-    Move workflows to a replacement before removing credentials.
   </Card>
 </Cards>
 
 ## Manage workspace values and access
 
 <Cards>
-  <Card title="Add secrets and variables" href="/how-to/set-up-work/secrets-and-variables">
-    Store configuration and bind it into run steps.
+  <Card title="Manage secrets and variables" href="/how-to/set-up-work/secrets-and-variables">
+    Store configuration, bind it into run steps, and replace or delete it.
   </Card>
-  <Card title="Replace a secret or variable" href="/how-to/set-up-work/update-workspace-value">
-    Update a shared value and verify affected workflows.
-  </Card>
-  <Card title="Delete a secret or variable" href="/how-to/set-up-work/delete-workspace-value">
-    Remove references before deleting an unused value.
-  </Card>
-  <Card title="Manage workspace members" href="/how-to/set-up-work/manage-workspace-members">
+  <Card title="Manage members" href="/how-to/set-up-work/manage-workspace-members">
     Invite people, revoke invitations, or remove members.
   </Card>
 </Cards>
 
-## Shipfox MCP server
+## Connect coding agents
 
 <Cards>
-  <Card title="Connect to the Shipfox MCP server" href="/how-to/set-up-work/connect-mcp-client">
+  <Card title="Connect a coding agent" href="/how-to/set-up-work/connect-mcp-client">
     Give Claude Code, Codex CLI, Cursor, or VS Code read access to one workspace.
+  </Card>
+</Cards>
+
+## Open source edition only
+
+These guides apply to a self-hosted Shipfox installation. Shipfox Cloud doesn't
+have these settings.
+
+<Cards>
+  <Card title="Manage model providers" href="/how-to/set-up-work/manage-model-providers">
+    Add a custom endpoint, update it, replace a key, or remove a provider.
   </Card>
 </Cards>
