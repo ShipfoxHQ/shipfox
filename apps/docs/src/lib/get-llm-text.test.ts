@@ -33,7 +33,7 @@ const pages = [
   },
   {
     url: '/integrations/github/events',
-    body: ['## Event catalog', '### `push`'].join('\n'),
+    body: ['## Event catalog', '#### `push`'].join('\n'),
   },
   {
     url: '/integrations/github/tools',

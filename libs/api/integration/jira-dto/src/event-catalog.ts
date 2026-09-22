@@ -1,44 +1,54 @@
-import type {IntegrationEventCatalog} from '@shipfox/api-integration-core-dto';
-import {jiraWebhookEventNames} from './schemas/index.js';
+import {
+  eventPayloadJsonSchema,
+  type IntegrationEventCatalog,
+} from '@shipfox/api-integration-core-dto';
+import {
+  jiraCommentEventPayloadSchema,
+  jiraCommentWebhookEventNames,
+  jiraIssueEventPayloadSchema,
+  jiraWebhookEventNames,
+} from './schemas/index.js';
 
-const eventDetails = {
-  'jira:issue_created': {
-    summary: 'A Jira issue is created.',
-    emittedWhen: 'Jira sends an issue-created webhook.',
-  },
-  'jira:issue_updated': {
-    summary: 'A Jira issue changes.',
-    emittedWhen: 'Jira sends an issue-updated webhook.',
-  },
-  'jira:issue_deleted': {
-    summary: 'A Jira issue is deleted.',
-    emittedWhen: 'Jira sends an issue-deleted webhook.',
-  },
-  comment_created: {
-    summary: 'A comment is added to a Jira issue.',
-    emittedWhen: 'Jira sends a comment-created webhook.',
-  },
-  comment_updated: {
-    summary: 'A comment on a Jira issue changes.',
-    emittedWhen: 'Jira sends a comment-updated webhook.',
-  },
-  comment_deleted: {
-    summary: 'A comment is deleted from a Jira issue.',
-    emittedWhen: 'Jira sends a comment-deleted webhook.',
-  },
-} as const satisfies Record<
-  (typeof jiraWebhookEventNames)[number],
-  {
-    summary: string;
-    emittedWhen: string;
-  }
->;
+const jiraWebhooksDocsUrl = 'https://developer.atlassian.com/cloud/jira/platform/webhooks/';
+
+const eventSummaries = {
+  'jira:issue_created': 'A Jira issue is created.',
+  'jira:issue_updated': 'A Jira issue changes.',
+  'jira:issue_deleted': 'A Jira issue is deleted.',
+  comment_created: 'A comment is added to a Jira issue.',
+  comment_updated: 'A comment on a Jira issue changes.',
+  comment_deleted: 'A comment is deleted from a Jira issue.',
+} as const satisfies Record<(typeof jiraWebhookEventNames)[number], string>;
+
+const commentEvents = new Set<string>(jiraCommentWebhookEventNames);
 
 export const jiraEventCatalog = {
   provider: 'Jira',
+  families: [
+    {
+      key: 'issue',
+      title: 'Issues',
+      summary:
+        'Changes to a Jira issue. Each event includes the issue with its current fields. Update events also list the changed fields.',
+      payloadKind: 'shipfox-normalized',
+      payloadSchema: eventPayloadJsonSchema(jiraIssueEventPayloadSchema),
+      payloadDocUrl: jiraWebhooksDocsUrl,
+      shipfoxFields: ['cloudId'],
+    },
+    {
+      key: 'comment',
+      title: 'Comments',
+      summary:
+        'Comments on a Jira issue. Each event includes the issue and the comment with its author and body.',
+      payloadKind: 'shipfox-normalized',
+      payloadSchema: eventPayloadJsonSchema(jiraCommentEventPayloadSchema),
+      payloadDocUrl: jiraWebhooksDocsUrl,
+      shipfoxFields: ['cloudId'],
+    },
+  ],
   events: jiraWebhookEventNames.map((name) => ({
     name,
-    ...eventDetails[name],
-    payloadKind: 'shipfox-normalized' as const,
+    family: commentEvents.has(name) ? 'comment' : 'issue',
+    summary: eventSummaries[name],
   })),
 } as const satisfies IntegrationEventCatalog;

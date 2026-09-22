@@ -8,7 +8,11 @@ import {
   type StoredWebhookRequest,
   type WebhookProcessingResult,
 } from '@shipfox/api-integration-spi';
-import {WEBHOOK_PROVIDER, WEBHOOK_RECEIVED_EVENT} from '@shipfox/api-integration-webhook-dto';
+import {
+  WEBHOOK_PROVIDER,
+  WEBHOOK_RECEIVED_EVENT,
+  type WebhookReceivedEventPayloadDto,
+} from '@shipfox/api-integration-webhook-dto';
 import {logger} from '@shipfox/node-opentelemetry';
 import {redactHeaders, WEBHOOK_ACCEPTED_CONTENT_TYPES} from '#constants.js';
 
@@ -81,7 +85,7 @@ async function processWebhookRequest(
           headers: redactHeaders(request.headers),
           query: parseWebhookQuery(request.raw_query_string),
           body: body.value,
-        },
+        } satisfies WebhookReceivedEventPayloadDto,
       },
     });
   });

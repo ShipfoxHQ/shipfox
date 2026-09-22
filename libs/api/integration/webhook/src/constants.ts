@@ -1,16 +1,13 @@
+import {WEBHOOK_FORWARDED_HEADERS} from '@shipfox/api-integration-webhook-dto';
+
+export {WEBHOOK_FORWARDED_HEADERS};
+
 export const WEBHOOK_INBOUND_BODY_LIMIT = 1 * 1024 * 1024;
 
 export const WEBHOOK_ACCEPTED_CONTENT_TYPES = [
   'application/json',
   'application/x-www-form-urlencoded',
   'text/plain',
-] as const;
-
-export const WEBHOOK_FORWARDED_HEADERS = [
-  'content-type',
-  'user-agent',
-  'x-delivery-id',
-  'x-request-id',
 ] as const;
 
 const forwardedHeaderSet = new Set<string>(WEBHOOK_FORWARDED_HEADERS);

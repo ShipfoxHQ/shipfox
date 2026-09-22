@@ -5,6 +5,7 @@ import {z} from 'zod';
 import {WEBHOOK_RESERVED_SLUGS} from './constants.js';
 
 export {
+  WEBHOOK_FORWARDED_HEADERS,
   WEBHOOK_PROVIDER,
   WEBHOOK_RECEIVED_EVENT,
   WEBHOOK_RESERVED_SLUGS,
@@ -54,3 +55,5 @@ export const listWebhookConnectionsResponseSchema = z.object({
 export type ListWebhookConnectionsResponseDto = z.infer<
   typeof listWebhookConnectionsResponseSchema
 >;
+
+export * from './event-payload.js';

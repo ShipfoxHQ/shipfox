@@ -6,17 +6,24 @@ const requirementLabel = {
   conditional: {text: 'Conditional', className: 'text-amber-700 dark:text-amber-400'},
 } as const;
 
-export function ParameterList({fields}: {fields: ToolReferenceField[]}) {
+export function ParameterList({
+  fields,
+  badges,
+}: {
+  fields: ToolReferenceField[];
+  /** Labels shown next to top-level fields, keyed by field name. */
+  badges?: Readonly<Record<string, string>>;
+}) {
   return (
     <div className="flex flex-col">
       {fields.map((field) => (
-        <ParameterRow field={field} key={field.path} />
+        <ParameterRow badge={badges?.[field.name]} field={field} key={field.path} />
       ))}
     </div>
   );
 }
 
-function ParameterRow({field}: {field: ToolReferenceField}) {
+function ParameterRow({field, badge}: {field: ToolReferenceField; badge?: string}) {
   const requirement =
     field.requirement === 'optional' ? undefined : requirementLabel[field.requirement];
   return (
@@ -29,6 +36,11 @@ function ParameterRow({field}: {field: ToolReferenceField}) {
             className={`text-[11px] font-medium uppercase tracking-wide ${requirement.className}`}
           >
             {requirement.text}
+          </span>
+        ) : null}
+        {badge ? (
+          <span className="inline-flex h-5 items-center rounded border border-fd-primary/20 bg-fd-primary/10 px-tight text-[11px] font-medium text-fd-primary">
+            {badge}
           </span>
         ) : null}
       </div>

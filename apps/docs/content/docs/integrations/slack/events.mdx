@@ -1,44 +1,17 @@
 ---
 title: "Slack events"
 sidebarTitle: "Events"
-description: "Look up the Slack event names Shipfox delivers and the event fields available to workflows."
+description: "See which Slack events can start a workflow and what each event contains."
+eventReference: "integrations/slack/events"
 ---
 
-import SlackEvents from '../../../generated/integrations/slack/events.mdx';
-
-This reference lists Slack events that Shipfox delivers to a Slack integration
-connection. See the [Slack overview](/integrations/slack) for authentication and
-setup.
-
-## Payload
-
-For Events API deliveries, Shipfox keeps the Slack event fields and adds
-`team_id`, `api_app_id`, `event_id`, and `event_time` from the event envelope.
-Slack owns the remaining provider fields.
-
-Shipfox delivers events authored by the installed bot. A workflow that writes
-back to Slack can trigger another run from its own change.
-
-For `slash_command`, Shipfox exposes the command, text, workspace, channel, user,
-response URL, and trigger ID. It omits Slack's deprecated verification token.
-
-Use Slack's provider references for the full [Events API payloads](https://docs.slack.dev/reference/events/)
-and [slash-command payload](https://docs.slack.dev/interactivity/implementing-slash-commands/).
-
-## Trigger fragment
-
-Replace `slack_acme` with the slug of your Slack integration connection:
-
-```yaml
-triggers:
-  on_mention:
-    source: slack_acme
-    event: app_mention
-```
-
-For trigger field rules, see the
-[workflow schema reference](/reference/workflow-schema#trigger-fields).
+<Callout>
+  Slack sends events for actions made by the installed bot. If your workflow
+  posts a message, that event can start the workflow again.
+</Callout>
 
 ## Event catalog
 
-<SlackEvents />
+Use your Slack integration connection slug instead of `slack_acme`.
+
+<EventReference />

@@ -450,14 +450,10 @@ describe('integrations inter-module presentation', () => {
             displayName: 'GitHub',
             eventCatalog: {
               provider: 'GitHub',
-              events: [
-                {
-                  name: 'push',
-                  summary: 'A push.',
-                  emittedWhen: 'GitHub sends a push webhook.',
-                  payloadKind: 'raw-provider',
-                },
+              families: [
+                {key: 'push', title: 'Push', summary: 'Pushes.', payloadKind: 'raw-provider'},
               ],
+              events: [{name: 'push', family: 'push', summary: 'A push.'}],
             },
           },
           {
@@ -465,13 +461,17 @@ describe('integrations inter-module presentation', () => {
             displayName: 'Webhook',
             eventCatalog: {
               provider: 'Custom webhook',
-              events: [
+              families: [
                 {
-                  name: 'received',
-                  summary: 'A webhook request is accepted.',
-                  emittedWhen: 'Shipfox accepts a request.',
+                  key: 'request',
+                  title: 'Requests',
+                  summary: 'Requests.',
                   payloadKind: 'shipfox-normalized',
+                  payloadSchema: {type: 'object'},
                 },
+              ],
+              events: [
+                {name: 'received', family: 'request', summary: 'A webhook request is accepted.'},
               ],
             },
           },
@@ -555,14 +555,10 @@ describe('integrations inter-module presentation', () => {
         displayName: 'GitHub',
         eventCatalog: {
           provider: 'github',
-          events: [
-            {
-              name: 'issues',
-              summary: 'An issue changed.',
-              emittedWhen: 'GitHub sends an issue event.',
-              payloadKind: 'raw-provider',
-            },
+          families: [
+            {key: 'issues', title: 'Issues', summary: 'Issues.', payloadKind: 'raw-provider'},
           ],
+          events: [{name: 'issues', family: 'issues', summary: 'An issue changed.'}],
         },
         connectionExternalUrl: async (connection) =>
           `https://github.com/${connection.externalAccountId}`,

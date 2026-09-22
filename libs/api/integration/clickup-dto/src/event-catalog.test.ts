@@ -1,3 +1,4 @@
+import {integrationEventCatalogIssues} from '@shipfox/api-integration-core-dto';
 import {clickupEventCatalog, clickupWebhookEventNames} from './index.js';
 
 describe('clickupEventCatalog', () => {
@@ -5,8 +6,20 @@ describe('clickupEventCatalog', () => {
     expect(clickupEventCatalog.events.map((event) => event.name)).toEqual([
       ...clickupWebhookEventNames,
     ]);
+  });
+
+  it('groups events by payload shape with a normalized schema per family', () => {
+    expect(integrationEventCatalogIssues(clickupEventCatalog)).toEqual([]);
+    expect(clickupEventCatalog.families.map((family) => family.key)).toEqual([
+      'task',
+      'task_deleted',
+      'comment',
+    ]);
     expect(
-      clickupEventCatalog.events.every((event) => event.payloadKind === 'shipfox-normalized'),
-    ).toBe(true);
+      clickupEventCatalog.events.filter((event) => event.family === 'comment').map((e) => e.name),
+    ).toEqual(['taskCommentPosted', 'taskCommentUpdated']);
+    expect(clickupEventCatalog.events.find((event) => event.name === 'taskDeleted')?.family).toBe(
+      'task_deleted',
+    );
   });
 });

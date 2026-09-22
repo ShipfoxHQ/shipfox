@@ -1,6 +1,6 @@
 import type {ToolReferenceExample, ToolReferenceField} from '@/lib/tool-reference/document';
 
-type JsonValue = string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
+export type JsonValue = string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
 
 const SAMPLE_UUID = '0192b3d4-6f1a-7c2e-8f4b-1a2b3c4d5e6f';
 const SAMPLE_DATE_TIME = '2026-01-15T09:30:00Z';
@@ -95,7 +95,9 @@ function sampleValue(field: ToolReferenceField): JsonValue {
   // Union types sample their first member.
   const type = field.type.split(' | ')[0] ?? field.type;
   if (type.startsWith('array')) {
-    return field.children ? [sampleObject(field.children, true)] : [`<${field.name}>`];
+    if (field.children) return [sampleObject(field.children, true)];
+    const itemType = type.startsWith('array of ') ? type.slice('array of '.length) : 'string';
+    return [sampleScalar(itemType, field)];
   }
   if (type.startsWith('object')) return field.children ? sampleObject(field.children, true) : {};
   return sampleScalar(type, field);
@@ -115,7 +117,10 @@ function sampleScalar(type: string, field: ToolReferenceField): JsonValue {
   return `<${field.name}>`;
 }
 
-function sampleObject(fields: ToolReferenceField[], includeOptional = false): JsonValue {
+export function sampleObject(
+  fields: ToolReferenceField[],
+  includeOptional = false,
+): Record<string, JsonValue> {
   const chosen = fields.filter((field) => includeOptional || field.requirement === 'required');
   return Object.fromEntries(chosen.map((field) => [field.name, sampleValue(field)]));
 }

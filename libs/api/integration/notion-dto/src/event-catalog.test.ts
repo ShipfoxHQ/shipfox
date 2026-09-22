@@ -1,3 +1,4 @@
+import {integrationEventCatalogIssues} from '@shipfox/api-integration-core-dto';
 import {notionEventCatalog, notionWebhookEventNames} from './index.js';
 
 describe('notionEventCatalog', () => {
@@ -7,12 +8,13 @@ describe('notionEventCatalog', () => {
     ]);
   });
 
-  it('describes every event as a raw provider payload with a Notion reference', () => {
+  it('describes every family as a raw provider payload with a Notion reference', () => {
+    expect(integrationEventCatalogIssues(notionEventCatalog)).toEqual([]);
     expect(
-      notionEventCatalog.events.every(
-        (event) =>
-          event.payloadKind === 'raw-provider' &&
-          event.payloadDocUrl ===
+      notionEventCatalog.families.every(
+        (family) =>
+          family.payloadKind === 'raw-provider' &&
+          family.payloadDocUrl ===
             'https://developers.notion.com/reference/webhooks-events-delivery',
       ),
     ).toBe(true);

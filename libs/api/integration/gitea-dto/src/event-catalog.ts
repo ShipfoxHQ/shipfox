@@ -1,24 +1,23 @@
 import type {IntegrationEventCatalog} from '@shipfox/api-integration-core-dto';
 import {giteaWebhookEventNames} from './schemas/index.js';
 
-const eventDetails = {
-  push: {
-    summary: 'A Gitea repository receives one or more commits.',
-    emittedWhen: 'Gitea sends a push webhook for the connected organization.',
-  },
-} as const satisfies Record<
-  (typeof giteaWebhookEventNames)[number],
-  {
-    summary: string;
-    emittedWhen: string;
-  }
->;
+const eventSummaries = {
+  push: 'A Gitea repository receives one or more commits.',
+} as const satisfies Record<(typeof giteaWebhookEventNames)[number], string>;
 
 export const giteaEventCatalog = {
   provider: 'Gitea',
+  families: [
+    {
+      key: 'push',
+      title: 'Push',
+      summary: 'Commits pushed to a branch or tag in the connected organization.',
+      payloadKind: 'raw-provider',
+    },
+  ],
   events: giteaWebhookEventNames.map((name) => ({
     name,
-    ...eventDetails[name],
-    payloadKind: 'raw-provider' as const,
+    family: 'push',
+    summary: eventSummaries[name],
   })),
 } as const satisfies IntegrationEventCatalog;

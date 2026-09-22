@@ -180,17 +180,13 @@ function collectReferencePageIssues(
     issues.push(`${prefix}: list ${page} in integrations/${provider.slug}/meta.json.`);
 
   const body = directory.pageBodies[page] ?? '';
-  if (page === 'tools') {
-    const documentId = `integrations/${provider.slug}/tools`;
-    if (!body.includes(`toolReference: "${documentId}"`) || !body.includes('<ToolReference />'))
-      issues.push(
-        `${prefix}: set toolReference to "${documentId}" and render <ToolReference /> in tools.mdx.`,
-      );
-    return;
-  }
-  const generatedPath = `generated/integrations/${provider.slug}/${page}.mdx`;
-  if (!body.includes(generatedPath))
-    issues.push(`${prefix}: import the generated ${page} fragment from ${generatedPath}.`);
+  const field = page === 'tools' ? 'toolReference' : 'eventReference';
+  const component = page === 'tools' ? 'ToolReference' : 'EventReference';
+  const documentId = `integrations/${provider.slug}/${page}`;
+  if (!body.includes(`${field}: "${documentId}"`) || !body.includes(`<${component} />`))
+    issues.push(
+      `${prefix}: set ${field} to "${documentId}" and render <${component} /> in ${page}.mdx.`,
+    );
 }
 
 function collectBuiltInSourceIssues(

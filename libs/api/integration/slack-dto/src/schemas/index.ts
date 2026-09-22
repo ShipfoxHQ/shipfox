@@ -74,20 +74,24 @@ export type SlackEventsRequestDto = z.infer<typeof slackEventsRequestSchema>;
 
 export const slackSlashCommandSchema = z.object({
   token: z.string().min(1),
-  command: z.string().min(1),
-  team_id: z.string().min(1),
-  channel_id: z.string().min(1),
-  user_id: z.string().min(1),
-  response_url: z.string().url(),
-  trigger_id: z.string().min(1),
-  text: z.string().default(''),
-  team_domain: z.string().min(1).optional(),
-  channel_name: z.string().min(1).optional(),
-  user_name: z.string().min(1).optional(),
-  api_app_id: z.string().min(1).optional(),
-  is_enterprise_install: z.string().min(1).optional(),
-  enterprise_id: z.string().min(1).optional(),
-  enterprise_name: z.string().min(1).optional(),
+  command: z.string().min(1).describe('The invoked command, including the leading slash.'),
+  team_id: z.string().min(1).describe('Slack workspace ID.'),
+  channel_id: z.string().min(1).describe('Channel where the command was invoked.'),
+  user_id: z.string().min(1).describe('User who invoked the command.'),
+  response_url: z.string().url().describe('URL for posting a delayed response.'),
+  trigger_id: z.string().min(1).describe('Short-lived ID for opening a modal.'),
+  text: z.string().default('').describe('Text entered after the command.'),
+  team_domain: z.string().min(1).optional().describe('Slack workspace domain.'),
+  channel_name: z.string().min(1).optional().describe('Channel name.'),
+  user_name: z.string().min(1).optional().describe('User name.'),
+  api_app_id: z.string().min(1).optional().describe('Slack app ID.'),
+  is_enterprise_install: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Whether the app is installed at the enterprise level.'),
+  enterprise_id: z.string().min(1).optional().describe('Enterprise Grid organization ID.'),
+  enterprise_name: z.string().min(1).optional().describe('Enterprise Grid organization name.'),
 });
 export type SlackSlashCommandDto = z.infer<typeof slackSlashCommandSchema>;
 
@@ -96,19 +100,19 @@ export type SlackSlashCommandPayloadDto = z.infer<typeof slackSlashCommandPayloa
 
 export const slackEventPayloadSchema = z
   .object({
-    type: z.enum(slackApiEventTypes),
-    team_id: z.string().min(1),
-    api_app_id: z.string().min(1),
-    event_id: z.string().min(1),
-    event_time: z.number().int(),
-    channel: z.string().min(1).optional(),
-    channel_type: z.string().min(1).optional(),
-    user: z.string().min(1).optional(),
-    ts: z.string().min(1).optional(),
-    thread_ts: z.string().min(1).optional(),
-    text: z.string().optional(),
-    bot_id: z.string().min(1).optional(),
-    reaction: z.string().min(1).optional(),
+    type: z.enum(slackApiEventTypes).describe('Slack event type.'),
+    team_id: z.string().min(1).describe('Slack workspace ID.'),
+    api_app_id: z.string().min(1).describe('Slack app ID.'),
+    event_id: z.string().min(1).describe('Unique Slack event ID.'),
+    event_time: z.number().int().describe('Event time in epoch seconds.'),
+    channel: z.string().min(1).optional().describe('Channel where the event happened.'),
+    channel_type: z.string().min(1).optional().describe('Channel type, such as channel.'),
+    user: z.string().min(1).optional().describe('User who triggered the event.'),
+    ts: z.string().min(1).optional().describe('Message timestamp, which identifies the message.'),
+    thread_ts: z.string().min(1).optional().describe('Parent message timestamp in a thread.'),
+    text: z.string().optional().describe('Message text.'),
+    bot_id: z.string().min(1).optional().describe('Bot that authored the message, when any.'),
+    reaction: z.string().min(1).optional().describe('Emoji name of the reaction.'),
   })
   .passthrough();
 export type SlackEventPayloadDto = z.infer<typeof slackEventPayloadSchema>;

@@ -308,7 +308,7 @@ function directory(
     pageBodies: {
       index: 'Integration overview.',
       setup: 'Set up the integration.',
-      events: `generated/integrations/${slug}/events.mdx`,
+      events: `eventReference: "integrations/${slug}/events"\n<EventReference />`,
       tools: `toolReference: "integrations/${slug}/tools"\n<ToolReference />`,
     },
     overview: {catalog, body: 'Integration overview.'},

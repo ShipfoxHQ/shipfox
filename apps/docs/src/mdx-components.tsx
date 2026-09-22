@@ -27,6 +27,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     IntegrationCatalog,
     ModelCatalog,
     ToolReference: ToolReferencePlaceholder,
+    EventReference: EventReferencePlaceholder,
     Callout,
     Steps,
     Step,
@@ -45,9 +46,13 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
   };
 }
 
-// The page route binds the real component to the page's generated document.
+// The page route binds the real components to the page's generated document.
 function ToolReferencePlaceholder(): never {
   throw new Error('ToolReference requires a `toolReference` id in the page frontmatter.');
+}
+
+function EventReferencePlaceholder(): never {
+  throw new Error('EventReference requires an `eventReference` id in the page frontmatter.');
 }
 
 function IntegrationCatalog() {

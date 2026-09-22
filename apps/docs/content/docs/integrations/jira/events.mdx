@@ -1,51 +1,17 @@
 ---
 title: "Jira events"
 sidebarTitle: "Events"
-description: "Look up the Jira event names Shipfox delivers and the payload fields exposed to workflows."
+description: "See which Jira events can start a workflow and what each event contains."
+eventReference: "integrations/jira/events"
 ---
 
-import JiraEvents from '../../../generated/integrations/jira/events.mdx';
-
-This reference lists Jira issue and comment events that Shipfox delivers to a
-Jira integration connection. See the [Jira overview](/integrations/jira) for
-authentication and setup.
-
-## Payload
-
-The `event` value contains the validated Jira webhook envelope plus `cloudId`,
-which identifies the connected Jira site. Jira-specific fields remain provider
-owned.
-
-| Field | Description |
-| --- | --- |
-| `webhookEvent` | The Jira webhook event name. |
-| `timestamp` | The event timestamp supplied by Jira. |
-| `issue` | The Jira issue object, including its ID, key, and fields. |
-| `user` | The Jira user associated with the event. |
-| `matchedWebhookIds` | Optional IDs of the Jira webhooks that matched the event. |
-| `cloudId` | The connected Jira site's cloud ID, added by Shipfox. |
-
-Issue events also include `issue_event_type_name` and may include `changelog`.
-Comment events include a `comment` object. See the
-[Jira webhook documentation](https://developer.atlassian.com/cloud/jira/platform/webhooks/)
-for provider-specific field details.
-
-Shipfox delivers events authored by the account that authorized the integration
-connection. A workflow that writes back to Jira can trigger another run from its own change.
-
-## Trigger fragment
-
-Replace `jira_acme` with the slug of your Jira integration connection:
-
-```yaml
-triggers:
-  on_jira:
-    source: jira_acme
-    event: jira:issue_updated
-```
-
-For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+<Callout>
+  Jira sends events for changes made by the connected account. If your workflow
+  changes an issue, that event can start the workflow again.
+</Callout>
 
 ## Event catalog
 
-<JiraEvents />
+Use your Jira integration connection slug instead of `jira_acme`.
+
+<EventReference />
