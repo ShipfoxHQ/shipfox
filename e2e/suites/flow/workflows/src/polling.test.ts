@@ -93,25 +93,25 @@ describe('waitForDefinitionSyncTerminal', () => {
   test('ignores the empty bind sync while waiting for the seeded push', async () => {
     const projectId = '11111111-1111-4111-8111-111111111111';
     const responses = [
-      {
+      ...Array.from({length: 5}, () => ({
         definitions: [],
         sync: {
           ref: 'main',
-          status: 'failed',
+          status: 'failed' as const,
           last_sync_at: '2026-07-04T10:00:00.750Z',
           started_at: '2026-07-04T10:00:00.500Z',
           finished_at: '2026-07-04T10:00:00.750Z',
-          last_error_code: 'no-workflow-files',
+          last_error_code: 'no-workflow-files' as const,
           last_error_message: 'No workflow files found',
           diagnostics: [],
         },
         next_cursor: null,
-      },
+      })),
       {
         definitions: [],
         sync: {
           ref: 'main',
-          status: 'succeeded',
+          status: 'succeeded' as const,
           last_sync_at: '2026-07-04T10:00:02.000Z',
           started_at: '2026-07-04T10:00:01.000Z',
           finished_at: '2026-07-04T10:00:02.000Z',
@@ -124,6 +124,7 @@ describe('waitForDefinitionSyncTerminal', () => {
     ];
     let calls = 0;
     const result = await waitForDefinitionSyncTerminal({
+      expectWorkflowFiles: true,
       fetch: () => {
         const body = responses[calls] as (typeof responses)[number];
         calls += 1;
@@ -131,12 +132,12 @@ describe('waitForDefinitionSyncTerminal', () => {
       },
       projectId,
       syncStartedAfter: timestamp,
-      timeoutMs: 1_000,
+      timeoutMs: 2_000,
       token: 'user-token',
     });
 
     expect(result.sync?.started_at).toBe('2026-07-04T10:00:01.000Z');
-    expect(calls).toBe(2);
+    expect(calls).toBe(6);
   });
 
   test('returns a persistent current no-workflow-files failure after a short grace period', async () => {

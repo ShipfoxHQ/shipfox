@@ -363,6 +363,7 @@ async function evaluateRejectedScenario(params: {
   token: string;
 }): Promise<Mismatch[]> {
   const definitions = await waitForDefinitionSyncTerminal({
+    expectWorkflowFiles: true,
     projectId: params.projectId,
     syncStartedAfter: params.syncStartedAfter,
     token: params.token,

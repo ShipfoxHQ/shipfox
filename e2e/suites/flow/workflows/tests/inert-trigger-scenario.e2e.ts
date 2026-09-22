@@ -54,6 +54,7 @@ test('a broken cron trigger is inert while the manual trigger keeps working', as
     });
 
     const sync = await waitForDefinitionSyncTerminal({
+      expectWorkflowFiles: true,
       projectId: seeded.project.id,
       syncStartedAfter: seeded.syncStartedAfter,
       token,

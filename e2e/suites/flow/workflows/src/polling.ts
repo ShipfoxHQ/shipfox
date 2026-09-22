@@ -65,6 +65,7 @@ export interface PollingOptions {
 
 export interface DefinitionSyncPollingOptions extends PollingOptions {
   syncStartedAfter?: string | undefined;
+  expectWorkflowFiles?: boolean | undefined;
 }
 
 type EmptyBindSyncTracker = {
@@ -74,6 +75,7 @@ type EmptyBindSyncTracker = {
 
 function shouldSuppressEmptyBindSync(params: {
   deadline: number;
+  expectWorkflowFiles: boolean;
   sync: DefinitionListResponseDto['sync'];
   syncStartedAfter: string | undefined;
   tracker: EmptyBindSyncTracker;
@@ -84,6 +86,7 @@ function shouldSuppressEmptyBindSync(params: {
     sync?.status === 'failed' &&
     sync.last_error_code === 'no-workflow-files';
   if (!isEmptyBindSync) return false;
+  if (params.expectWorkflowFiles) return true;
 
   if (params.tracker.startedAt === undefined) {
     params.tracker.startedAt = sync?.started_at ?? null;
@@ -127,6 +130,7 @@ export async function waitForDefinitionSyncTerminal(
         lastResponse.sync.started_at >= options.syncStartedAfter);
     const suppressEmptyBindSync = shouldSuppressEmptyBindSync({
       deadline,
+      expectWorkflowFiles: options.expectWorkflowFiles === true,
       sync: lastResponse.sync,
       syncStartedAfter: options.syncStartedAfter,
       tracker: emptyBindSyncTracker,
