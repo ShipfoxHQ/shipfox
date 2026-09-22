@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+# shipfox-template: fix-dependency-ci@1 source=github
+name: Fix failing dependency-bot CI
+runner: shipfox
+
+triggers:
+  # part:source.trigger
+
+jobs:
+  fix:
+    checkout: false
+    steps:
+      # part:source.checkout
+      # slot:setup_commands
+      # part:source.fix
+
+      - key: test
+        run: replace-with-test-command # slot:test_command
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: fix_failure
+            feedback: The test command still fails. Reproduce the failure and fix its cause.
+
+      # option:delivery_mode=push_fix begin
+      # part:source.push_fix
+      # option:delivery_mode=push_fix end
+
+      # option:delivery_mode=comment_only begin
+      # part:source.comment_only
+      # option:delivery_mode=comment_only end

@@ -60,7 +60,7 @@ export function composeTemplate(
   return composeWorkflow(template.workflow, selectedParts);
 }
 
-export type PartProviderBlocks = Readonly<Record<string, Readonly<Record<string, string>>>>;
+export type PartProviderBlocks = Readonly<Record<string, Readonly<Record<string, PartBlocks>>>>;
 
 export const composeWorkflowTemplate = composeTemplate;
 

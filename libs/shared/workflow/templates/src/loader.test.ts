@@ -2,11 +2,11 @@ import {readFileSync} from 'node:fs';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
-import type {PartProviderBlocks} from './composer.js';
+import type {PartBlocks} from './composer.js';
 import {composeTemplate} from './composer.js';
 import type {WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates, shippedTemplateLoader} from './loader.js';
-import {workflowTemplateManifestSchema} from './manifest.js';
+import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
 
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const setupGuide = {revision: 7, guide_markdown: '# Set up the fixture'};
@@ -25,10 +25,8 @@ const fixture: WorkflowTemplateAsset = {
   },
 };
 
-function parsePart(path: string): PartProviderBlocks[string][string] {
-  return parseYaml(
-    readFileSync(new URL(path, fixtureRoot), 'utf8'),
-  ) as PartProviderBlocks[string][string];
+function parsePart(path: string): PartBlocks {
+  return parseYaml(readFileSync(new URL(path, fixtureRoot), 'utf8')) as PartBlocks;
 }
 
 describe('workflow template loader', () => {
@@ -49,7 +47,20 @@ describe('workflow template loader', () => {
   });
 
   it('does not expose test fixtures through the shipped loader', () => {
-    expect(loadShippedTemplates()).toHaveLength(0);
+    expect(loadShippedTemplates().map((template) => template.manifest.id)).toEqual([
+      'fix-dependency-ci',
+    ]);
+  });
+
+  it('composes and parses every shipped role combination within the payload limit', () => {
+    for (const template of loadShippedTemplates()) {
+      for (const bindings of roleBindings(template.manifest.roles)) {
+        const composed = composeTemplate(template, bindings);
+
+        parseWorkflowDocument(parseYaml(composed));
+        expect(Buffer.byteLength(composed, 'utf8')).toBeLessThan(64 * 1024);
+      }
+    }
   });
 
   it('embeds the revisioned workflow setup playbook', () => {
@@ -81,3 +92,13 @@ describe('workflow template loader', () => {
     expect(loader.getSetupGuide()).toEqual(setupGuide);
   });
 });
+
+function roleBindings(roles: WorkflowTemplateManifest['roles']): Record<string, string>[] {
+  return Object.entries(roles).reduce<Record<string, string>[]>(
+    (bindings, [role, declaration]) =>
+      bindings.flatMap((binding) =>
+        declaration.providers.map((provider) => ({...binding, [role]: provider})),
+      ),
+    [{}],
+  );
+}
