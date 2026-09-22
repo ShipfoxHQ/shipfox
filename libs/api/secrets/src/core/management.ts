@@ -17,6 +17,7 @@ import {
   listExistingSecretManagementKeys,
   listExistingVariableManagementKeys,
   listSecretManagementRows,
+  listVariableManagementKeys,
   listVariableManagementRows,
   lockWorkspaceEntries,
   type SecretManagementRow,
@@ -101,6 +102,32 @@ export function createSecretsManagementApi(params: {dekManager: DekManager}) {
       const scope = operationScope(input);
       try {
         const result = await listVariableManagementRows(input);
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'list',
+          surface: 'management',
+          scope,
+          outcome: 'success',
+          durationMs: Date.now() - startedAt,
+        });
+        return result;
+      } catch (error) {
+        recordSecretsOperation({
+          resource: 'variable',
+          operation: 'list',
+          surface: 'management',
+          scope,
+          outcome: classifySecretsOperationError(error),
+          durationMs: Date.now() - startedAt,
+        });
+        throw error;
+      }
+    },
+    async listVariableNames(input: ManagementListParams) {
+      const startedAt = Date.now();
+      const scope = operationScope(input);
+      try {
+        const result = await listVariableManagementKeys(input);
         recordSecretsOperation({
           resource: 'variable',
           operation: 'list',

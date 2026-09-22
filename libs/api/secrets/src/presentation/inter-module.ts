@@ -9,6 +9,8 @@ import {
   getSecretsByNamespace,
   getSecretWithScope,
   getVariablesByNamespace,
+  listSecretNames,
+  listVariableNames,
   SecretDecryptionError,
   SecretValueTooLargeError,
   setSecrets,
@@ -40,6 +42,8 @@ export function createSecretsInterModulePresentation(): InterModulePresentation<
     getVariablesByNamespace: async (input) => ({
       values: await getVariablesByNamespace(input),
     }),
+    listSecretNames: async (input) => listSecretNames(input),
+    listVariableNames: async (input) => listVariableNames(input),
     setSecrets: async (input) => {
       try {
         await setSecrets(input);

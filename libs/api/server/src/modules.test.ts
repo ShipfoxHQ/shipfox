@@ -253,6 +253,8 @@ describe('defaultModules', () => {
           getSecret: mocks.getSecret,
           getSecretsByNamespace: mocks.getSecretsByNamespace,
           getVariablesByNamespace: vi.fn(),
+          listSecretNames: vi.fn(),
+          listVariableNames: vi.fn(),
           setSecrets: mocks.setSecrets,
         }),
       ],

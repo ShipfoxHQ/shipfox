@@ -30,6 +30,13 @@ export function createTestSecretsClient(): SecretsInterModuleClient {
     }
     return Object.fromEntries(selected);
   };
+  const names = (input: {workspaceId: string; projectId?: string | null | undefined}) => {
+    const prefix = `${scopeId(normalize(input))}\0`;
+    return [...values.keys()]
+      .filter((id) => id.startsWith(prefix))
+      .map((id) => id.slice(prefix.length))
+      .sort();
+  };
 
   return {
     getSecret: (params) => {
@@ -61,6 +68,8 @@ export function createTestSecretsClient(): SecretsInterModuleClient {
     },
     getSecretsByNamespace: async (params) => ({values: entries(params)}),
     getVariablesByNamespace: async (params) => ({values: entries(params)}),
+    listSecretNames: async (params) => ({names: names(params)}),
+    listVariableNames: async (params) => ({names: names(params)}),
     setSecrets: async (params) => {
       await Promise.resolve();
       for (const [key, value] of Object.entries(params.values))

@@ -24,6 +24,8 @@ export {
   KekVersionStrandedError,
   listManagedSecrets,
   listManagedVariables,
+  listSecretNames,
+  listVariableNames,
   NamespaceValidationError,
   resolveSecretStore,
   rotateWorkspaceDataKeys,

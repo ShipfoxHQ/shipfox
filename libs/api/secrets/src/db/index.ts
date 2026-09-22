@@ -18,6 +18,7 @@ export {
   listExistingSecretManagementKeys,
   listExistingVariableManagementKeys,
   listSecretManagementRows,
+  listVariableManagementKeys,
   listVariableManagementRows,
   type SecretManagementRow,
   type VariableManagementListRow,
