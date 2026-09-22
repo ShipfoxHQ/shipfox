@@ -1,0 +1,14 @@
+trigger: |
+  ticket:
+    source: github_fixture
+    event: issues.opened
+read_ticket: |
+  - key: read_ticket
+    prompt: Read the issue and summarize the requested change.
+    integrations:
+      - connection: github_fixture
+        include: [issue_read.get]
+write_back: |
+  - key: write_back
+    tool: issue_write.update
+    connection: github_fixture

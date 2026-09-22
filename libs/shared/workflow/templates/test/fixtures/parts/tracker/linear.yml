@@ -1,0 +1,14 @@
+trigger: |
+  ticket:
+    source: linear_fixture
+    event: issue.created
+read_ticket: |
+  - key: read_ticket
+    prompt: Read the ticket and summarize the requested change.
+    integrations:
+      - connection: linear_fixture
+        include: [issue_read.get]
+write_back: |
+  - key: write_back
+    tool: issue_write.update
+    connection: linear_fixture

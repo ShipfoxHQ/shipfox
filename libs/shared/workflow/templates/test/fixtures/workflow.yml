@@ -1,0 +1,19 @@
+# shipfox-template: fixture-ticket-to-pr@1 tracker=linear source=github
+name: Fixture ticket to pull request
+triggers:
+  # bind:tracker
+  # part:tracker.trigger
+jobs:
+  implement:
+    steps:
+      # part:tracker.read_ticket
+      # slot:setup_commands
+      # slot:test_command
+      - key: test
+        run: echo "$TEST_COMMAND"
+        gate:
+          success: step.exit_code == 0
+      # option:ticket_write_back=comment begin
+      # part:tracker.write_back
+      # option:ticket_write_back=comment end
+      # part:source.open_pr

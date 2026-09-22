@@ -1,0 +1,6 @@
+open_pr: |
+  - key: open_pr
+    prompt: Open a pull request with the completed change.
+    integrations:
+      - connection: github_fixture
+        include: [pull_request_write.create]
