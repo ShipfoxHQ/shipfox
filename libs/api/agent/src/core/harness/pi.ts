@@ -12,8 +12,8 @@ export function listPiProviderModels(providerId: string): AgentModelOptionDto[] 
     ...(model.cost.input >= 0 && model.cost.output >= 0
       ? {
           price: {
-            input: model.cost.input * 1_000_000,
-            output: model.cost.output * 1_000_000,
+            input: model.cost.input,
+            output: model.cost.output,
           },
         }
       : {}),

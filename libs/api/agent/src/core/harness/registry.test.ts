@@ -103,6 +103,23 @@ describe('harness registry', () => {
     );
   });
 
+  it('keeps Pi catalog prices in USD per million tokens', () => {
+    piAi.getModels.mockReturnValueOnce(
+      anthropicModels().map((model, index) =>
+        index === 0 ? {...model, cost: {...model.cost, input: 5, output: 25}} : model,
+      ),
+    );
+
+    const models = listHarnessProviderModels('pi', 'anthropic');
+
+    expect(models).toContainEqual(
+      expect.objectContaining({
+        id: 'claude-opus-4-8',
+        price: {input: 5, output: 25},
+      }),
+    );
+  });
+
   it('lists the Claude model line for Anthropic', () => {
     const models = listHarnessProviderModels('claude', 'anthropic');
 

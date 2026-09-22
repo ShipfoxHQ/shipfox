@@ -58,15 +58,52 @@ const agentWorkspaceModelsSchema = z
     default_model: agentWorkspaceModelSchema.nullable(),
     attribution: z.string().min(1).nullable(),
   })
-  .superRefine(({models, default_model: defaultModel}, ctx) => {
+  .superRefine(({models, default_model: defaultModel, attribution}, ctx) => {
+    const hasReferencedModel = models.some(({reference}) => reference !== null);
+    if ((attribution !== null) !== hasReferencedModel) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['attribution'],
+        message: hasReferencedModel
+          ? 'attribution is required when a model has a reference'
+          : 'attribution must be null when no model has a reference',
+      });
+    }
+
+    const markedDefaultModels = models.filter(({is_default: isDefault}) => isDefault);
+    if (defaultModel === null) {
+      if (markedDefaultModels.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['models'],
+          message: 'models must not mark a default when default_model is null',
+        });
+      }
+      return;
+    }
+
     if (
-      defaultModel !== null &&
       !models.some(({id, provider}) => id === defaultModel.id && provider === defaultModel.provider)
     ) {
       ctx.addIssue({
         code: 'custom',
         path: ['default_model'],
         message: 'default_model must be null or one of models',
+      });
+      return;
+    }
+
+    const markedDefaultModel = markedDefaultModels[0];
+    if (
+      !defaultModel.is_default ||
+      markedDefaultModels.length !== 1 ||
+      markedDefaultModel?.id !== defaultModel.id ||
+      markedDefaultModel?.provider !== defaultModel.provider
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['default_model'],
+        message: 'default_model must match the only model marked as default',
       });
     }
   });
