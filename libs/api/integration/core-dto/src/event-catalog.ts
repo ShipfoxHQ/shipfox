@@ -46,6 +46,9 @@ export function integrationEventCatalogIssues(catalog: IntegrationEventCatalog):
   const issues: string[] = [];
   const families = new Map(catalog.families.map((family) => [family.key, family]));
   if (families.size !== catalog.families.length) issues.push('Family keys must be unique.');
+  if (new Set(catalog.events.map((event) => event.name)).size !== catalog.events.length) {
+    issues.push('Event names must be unique.');
+  }
   for (const family of catalog.families) {
     if (catalog.events.every((event) => event.family !== family.key)) {
       issues.push(`Family "${family.key}" has no events.`);

@@ -30,6 +30,18 @@ describe('integrationEventCatalogIssues', () => {
     expect(integrationEventCatalogIssues(catalog)).toEqual([]);
   });
 
+  it('reports duplicate event names', () => {
+    expect(
+      integrationEventCatalogIssues({
+        ...catalog,
+        events: [
+          ...catalog.events,
+          {name: 'issue.created', family: 'push', summary: 'An issue is created.'},
+        ],
+      }),
+    ).toEqual(['Event names must be unique.']);
+  });
+
   it('reports undeclared families, empty families, and schema mismatches', () => {
     const issues = integrationEventCatalogIssues({
       ...catalog,

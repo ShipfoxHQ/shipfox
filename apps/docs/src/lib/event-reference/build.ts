@@ -113,7 +113,7 @@ function eventEntry(
 }
 
 function isOpenObject(schema: JsonSchema): boolean {
-  return schema.additionalProperties !== undefined && schema.additionalProperties !== false;
+  return schema.additionalProperties !== false;
 }
 
 // Zod serializes its safe-integer bounds and non-empty string guards as

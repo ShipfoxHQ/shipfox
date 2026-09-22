@@ -79,11 +79,7 @@ import {
   workflowContextDocs,
   workflowContextNames,
 } from '@shipfox/expression';
-import {
-  buildWorkflowJsonSchema,
-  parseWorkflowDocument,
-  thinkingLevelsForHarness,
-} from '@shipfox/workflow-document';
+import {buildWorkflowJsonSchema, parseWorkflowDocument} from '@shipfox/workflow-document';
 import {load} from 'js-yaml';
 import {buildEventReference} from '@/lib/event-reference/build';
 import {GENERATED_MANIFEST_FILE} from '@/lib/generated-artifacts';

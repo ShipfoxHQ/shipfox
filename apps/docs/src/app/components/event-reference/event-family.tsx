@@ -39,7 +39,14 @@ export function EventFamily({
       <EventFamilyBrowser
         events={family.events.map(({name, anchor, summary}) => ({name, anchor, summary}))}
         panels={family.events.map((event) => (
-          <CodePanel examples={event.examples} key={event.anchor} />
+          <div className="flex flex-col gap-y-inline" key={event.anchor}>
+            <CodePanel examples={event.examples} />
+            {event.payloadDocUrl && event.payloadDocUrl !== family.payloadDocUrl ? (
+              <Note>
+                <ProviderReference provider={document.provider} url={event.payloadDocUrl} />
+              </Note>
+            ) : null}
+          </div>
         ))}
       >
         <Block title="Payload">

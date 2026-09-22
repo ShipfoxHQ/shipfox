@@ -85,6 +85,28 @@ test('derives payload fields from the schema without Zod bound noise', () => {
   assert.equal(document.families[1]?.openPayload, false);
 });
 
+test('treats an object schema without additionalProperties as open', () => {
+  const document = buildEventReference({
+    id: 'integrations/example/events',
+    catalog: {
+      provider: 'Example',
+      families: [
+        {
+          key: 'item',
+          title: 'Items',
+          summary: 'Item changes.',
+          payloadKind: 'shipfox-normalized',
+          payloadSchema: {type: 'object', properties: {id: {type: 'string'}}},
+        },
+      ],
+      events: [{name: 'item.created', family: 'item', summary: 'An item is created.'}],
+    },
+    connection: 'example_acme',
+  });
+
+  assert.equal(document.families[0]?.openPayload, true);
+});
+
 test('renders a trigger per event and pins the sample payload discriminator', () => {
   const document = buildEventReference({
     id: 'integrations/jira/events',

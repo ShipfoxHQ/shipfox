@@ -53,7 +53,7 @@ export const jiraWebhookIssueSchema = z
         assignee: jiraWebhookUserSchema.nullable().optional().describe('Current assignee.'),
       })
       .passthrough()
-      .describe('Issue fields. Jira includes every field of the issue.'),
+      .describe('Current issue fields returned by Jira.'),
   })
   .passthrough();
 export type JiraWebhookIssueDto = z.infer<typeof jiraWebhookIssueSchema>;

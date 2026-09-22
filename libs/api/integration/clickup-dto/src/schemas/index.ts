@@ -38,18 +38,18 @@ export type ClickUpEventName = ClickUpWebhookEventName;
 
 export const clickupWebhookUserSchema = z
   .object({
-    id: z.union([z.string().min(1), z.number().int()]).describe('ClickUp user ID.'),
-    username: z.string().min(1).optional().describe('User name.'),
-    email: z.string().min(1).optional().describe('User email.'),
-    initials: z.string().min(1).optional().describe('User initials.'),
+    id: z.union([z.string().min(1), z.number().int()]),
+    username: z.string().min(1).optional(),
+    email: z.string().min(1).optional(),
+    initials: z.string().min(1).optional(),
   })
   .passthrough();
 export type ClickUpWebhookUserDto = z.infer<typeof clickupWebhookUserSchema>;
 
 export const clickupWebhookCommentSchema = z
   .object({
-    id: z.string().min(1).describe('Comment ID.'),
-    text_content: z.string().optional().describe('Comment text.'),
+    id: z.string().min(1),
+    text_content: z.string().optional(),
     comment: z.unknown().describe('Rich comment blocks as ClickUp sends them.'),
     user: clickupWebhookUserSchema.describe('Comment author.'),
     assignee: clickupWebhookUserSchema
@@ -67,16 +67,16 @@ export type ClickUpWebhookCommentDto = z.infer<typeof clickupWebhookCommentSchem
 
 export const clickupWebhookHistoryItemSchema = z
   .object({
-    id: z.string().min(1).describe('History item ID.'),
-    type: z.union([z.string().min(1), z.number().int()]).describe('History item type.'),
+    id: z.string().min(1),
+    type: z.union([z.string().min(1), z.number().int()]),
     date: z.string().min(1).describe('Change time in epoch milliseconds.'),
     field: z.string().min(1).describe('Changed field, such as status.'),
     parent_id: z.string().min(1).describe('ID of the List that contains the task.'),
-    data: z.unknown().describe('Field-specific change data.'),
-    source: z.unknown().describe('Origin of the change.'),
+    data: z.unknown(),
+    source: z.unknown(),
     user: clickupWebhookUserSchema.describe('User who made the change.'),
-    before: z.unknown().describe('Value before the change.'),
-    after: z.unknown().describe('Value after the change.'),
+    before: z.unknown().describe('State of the task field before the change.'),
+    after: z.unknown().describe('State of the task field after the change.'),
   })
   .passthrough();
 export type ClickUpWebhookHistoryItemDto = z.infer<typeof clickupWebhookHistoryItemSchema>;
@@ -89,9 +89,9 @@ export type ClickUpWebhookCommentHistoryItemDto = z.infer<
 >;
 
 const clickupWebhookBaseEnvelopeFields = {
-  event: z.string().min(1).describe('ClickUp event name.'),
+  event: z.string().min(1),
   webhook_id: z.string().min(1).describe('ClickUp webhook that delivered the event.'),
-  task_id: z.string().min(1).describe('Affected ClickUp task ID.'),
+  task_id: z.string().min(1),
 };
 
 export const clickupWebhookBaseEnvelopeSchema = z
@@ -105,7 +105,7 @@ export type ClickUpWebhookBaseEnvelopeDto = z.infer<typeof clickupWebhookBaseEnv
 export const clickupTaskWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
-    event: z.enum(clickupTaskWebhookEventNames).describe('ClickUp event name.'),
+    event: z.enum(clickupTaskWebhookEventNames),
     history_items: z
       .array(clickupWebhookHistoryItemSchema)
       .min(1)
@@ -117,7 +117,7 @@ export type ClickUpTaskWebhookEnvelopeDto = z.infer<typeof clickupTaskWebhookEnv
 export const clickupCommentWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
-    event: z.enum(clickupCommentWebhookEventNames).describe('ClickUp event name.'),
+    event: z.enum(clickupCommentWebhookEventNames),
     history_items: z
       .array(clickupWebhookCommentHistoryItemSchema)
       .min(1)
@@ -129,7 +129,7 @@ export type ClickUpCommentWebhookEnvelopeDto = z.infer<typeof clickupCommentWebh
 export const clickupTaskDeletedWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
-    event: z.literal('taskDeleted').describe('ClickUp event name.'),
+    event: z.literal('taskDeleted'),
   })
   .passthrough();
 export type ClickUpTaskDeletedWebhookEnvelopeDto = z.infer<

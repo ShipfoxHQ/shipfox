@@ -525,11 +525,12 @@ and workflow schema details on their reference pages.
 
 ### Provider events template (Reference)
 
-Use this page only for a provider that emits Shipfox-named events. Link back to
-the overview and to the workflow schema reference. The event catalog is
-generated from the provider's DTO event catalog: families, summaries, payload
-fields, sample payloads, and trigger fragments all come from that catalog, so
-the authored page carries only context the catalog cannot express.
+Use this page only for a provider that emits Shipfox-named events. The
+integration sidebar links it to the overview and related references. The event
+catalog is generated from the provider's DTO event catalog: families,
+summaries, payload fields, sample payloads, and trigger fragments all come from
+that catalog, so the authored page carries only provider-wide context the
+catalog cannot express.
 
 ````mdx
 ---
@@ -538,9 +539,6 @@ sidebarTitle: "Events"
 description: "<State the provider event surface this reference describes.>"
 eventReference: "integrations/<provider>/events"
 ---
-
-<State the event surface, link to the [<Provider> overview](/integrations/<provider>),
-and link to the [workflow schema reference](/reference/workflow-schema#trigger-fields).>
 
 <Callout>
   <State a provider-wide caveat the catalog cannot express, such as self-triggering.>
@@ -562,53 +560,32 @@ instead of copying it.
 
 ### Provider tools template (Reference)
 
-Use this page only when `capabilities[]` includes `agent_tools`. Link back to
-the overview and to the workflow schema reference.
+Use this page only when `capabilities[]` includes `agent_tools`. The integration
+sidebar links it to the overview and related references. The generated tool
+catalog owns selectors, access, permissions, inputs, outputs, and examples, so
+the authored page carries only provider-wide context the catalog cannot
+express.
 
 ```mdx
 ---
 title: "<Provider> tools"
 sidebarTitle: "Tools"
 description: "<State the provider tools this reference describes.>"
+toolReference: "integrations/<provider>/tools"
 ---
 
-<State the tool surface and link to the [<Provider> overview](/integrations/<provider>).>
-
-## Selectors
-
-<State which tokens a tool step accepts in `tool` (a standalone id or
-`family.method`) and which selectors an agent step accepts in `integrations:`
-(`family`, `family.method`, `family.*`, or a standalone selector).> For the
-contracts, see [Tool step fields](/reference/workflow-schema#tool-step-fields)
-and [Agent integration fields](/reference/workflow-schema#agent-integration-fields).
+<Callout>
+  <State a provider-wide caveat the catalog cannot express.>
+</Callout>
 
 ## Tool catalog
 
-<State the least-access and write opt-in model, with a link to [Integration
-connections and tools](/understand/integrations-connections-and-tools).>
-
-| Selector token | Sensitivity | Sensitive | Required provider scope |
-| --- | --- | --- | --- |
-| `<family>` | Read | No | `<scope>` |
-
-<Accordions type="single">
-  <Accordion title="<family>">
-    **Methods:** `<family.method>`
-
-    **Inputs:** <List the Shipfox-owned input fields.>
-
-    **Outputs:** <List the Shipfox-owned output fields.>
-  </Accordion>
-</Accordions>
+<ToolReference />
 ```
 
-Keep the table compact and scannable. Group it by the provider's tool category
-when that makes a large catalog easier to scan. Wrap the tool accordions in one
-`<Accordions>` and use one `<Accordion>` per tool or tool family for methods,
-inputs, and outputs. The provider's `src/core/agent-tools.ts` catalog owns these
-schemas, so reproduce them here rather than linking to an upstream schema.
-`sensitivity` describes read or write behavior. `sensitive` states whether the
-tool needs sensitive handling; it is not a separate approval policy.
+Put provider-specific access caveats in the page. Keep selector, permission,
+input, output, and sensitivity facts in the provider's
+`src/core/agent-tools.ts` catalog.
 
 ### New provider checklist
 
