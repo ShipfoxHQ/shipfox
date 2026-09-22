@@ -1,5 +1,16 @@
 # @shipfox/api-logs
 
+## 31.0.0
+
+### Patch Changes
+
+- Updated dependencies [17d86bf]
+- Updated dependencies [bab2786]
+- Updated dependencies [bcd9232]
+- Updated dependencies [bd03ee1]
+  - @shipfox/workflow-document@3.9.0
+  - @shipfox/api-workflows-dto@31.0.0
+
 ## 30.0.0
 
 ### Patch Changes

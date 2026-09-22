@@ -1,5 +1,29 @@
 # @shipfox/api-definitions
 
+## 31.0.0
+
+### Minor Changes
+
+- bcd9232: Adds reference-based secret defaults to workflow triggers and pins them when runs start.
+
+### Patch Changes
+
+- Updated dependencies [17d86bf]
+- Updated dependencies [da1114b]
+- Updated dependencies [792fc53]
+- Updated dependencies [3633ccc]
+- Updated dependencies [07ca907]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+- Updated dependencies [bcd9232]
+- Updated dependencies [bd03ee1]
+  - @shipfox/workflow-document@3.9.0
+  - @shipfox/api-integration-core-dto@31.0.0
+  - @shipfox/api-agent-dto@31.0.0
+  - @shipfox/expression@2.11.1
+  - @shipfox/api-secrets-dto@31.0.0
+  - @shipfox/api-definitions-dto@31.0.0
+
 ## 30.0.0
 
 ### Minor Changes

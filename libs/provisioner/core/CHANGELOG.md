@@ -1,5 +1,12 @@
 # @shipfox/provisioner-core
 
+## 1.2.24
+
+### Patch Changes
+
+- Updated dependencies [07ca907]
+  - @shipfox/expression@2.11.1
+
 ## 1.2.23
 
 ### Patch Changes

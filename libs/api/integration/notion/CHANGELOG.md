@@ -1,5 +1,20 @@
 # @shipfox/api-integration-notion
 
+## 31.0.0
+
+### Minor Changes
+
+- e9a13b2: Adds Notion OAuth installation and lock-serialized grant replacement with signed state and failure compensation.
+- 752b77a: Add Notion page creation, page updates, and comments as write-capable agent tools.
+
+### Patch Changes
+
+- Updated dependencies [da1114b]
+- Updated dependencies [e9a13b2]
+  - @shipfox/api-integration-core-dto@31.0.0
+  - @shipfox/api-integration-notion-dto@31.0.0
+  - @shipfox/api-integration-spi@4.3.3
+
 ## 30.0.0
 
 ### Minor Changes

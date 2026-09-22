@@ -1,5 +1,34 @@
 # @shipfox/client-workflows
 
+## 50.0.0
+
+### Minor Changes
+
+- d9e58d2: Shows absolute timestamps in job logs by default. Click a timestamp to switch formats, or hide timestamps from log settings.
+- 22ef7e3: Adds a client permalink route that redirects the root-level /runs/:workflowRunId URL to the workflow run detail page.
+
+### Patch Changes
+
+- 62b9f1a: Keep expanded step headers visible while scrolling logs so steps remain easy to collapse.
+- Updated dependencies [d9e58d2]
+- Updated dependencies [a47a893]
+- Updated dependencies [22ef7e3]
+- Updated dependencies [9b671f9]
+- Updated dependencies [bcd9232]
+- Updated dependencies [bab2786]
+- Updated dependencies [bcd9232]
+- Updated dependencies [85f3d47]
+- Updated dependencies [6ac3480]
+  - @shipfox/client-logs@50.0.0
+  - @shipfox/client-shell@50.0.0
+  - @shipfox/api-triggers-dto@31.0.0
+  - @shipfox/client-triggers@50.0.0
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-definitions-dto@31.0.0
+  - @shipfox/client-integrations@50.0.0
+  - @shipfox/client-projects@50.0.0
+  - @shipfox/client-usage@50.0.0
+
 ## 49.0.0
 
 ### Patch Changes

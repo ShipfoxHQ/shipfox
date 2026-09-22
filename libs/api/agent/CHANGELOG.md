@@ -1,5 +1,27 @@
 # @shipfox/api-agent
 
+## 31.0.0
+
+### Minor Changes
+
+- 792fc53: Adds model reference data, pricing, harness settings, and attribution to workspace model reads.
+- 3633ccc: Add a shared read of configured workspace models and the workspace default model, returning {models, default_model}.
+
+### Patch Changes
+
+- Updated dependencies [17d86bf]
+- Updated dependencies [792fc53]
+- Updated dependencies [3633ccc]
+- Updated dependencies [bab2786]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+- Updated dependencies [bcd9232]
+- Updated dependencies [bd03ee1]
+  - @shipfox/workflow-document@3.9.0
+  - @shipfox/api-agent-dto@31.0.0
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-secrets-dto@31.0.0
+
 ## 30.0.0
 
 ### Patch Changes

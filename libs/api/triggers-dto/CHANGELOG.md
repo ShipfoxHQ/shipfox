@@ -1,5 +1,23 @@
 # @shipfox/api-triggers-dto
 
+## 31.0.0
+
+### Minor Changes
+
+- 9b671f9: Manual trigger firing accepts optional `secretInputs`, pins each secret to its resolved project scope, and fails with `secret-not-found` naming the missing key.
+- bcd9232: Adds a specific trigger diagnostic for missing configured secrets.
+- 85f3d47: Adds shape-only event-trigger checks and reports whether a replay event was checked.
+
+### Patch Changes
+
+- Updated dependencies [bab2786]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+- Updated dependencies [bcd9232]
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-secrets-dto@31.0.0
+  - @shipfox/api-definitions-dto@31.0.0
+
 ## 30.0.0
 
 ### Patch Changes

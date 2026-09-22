@@ -1,5 +1,15 @@
 # @shipfox/client-agent
 
+## 50.0.0
+
+### Patch Changes
+
+- Updated dependencies [22ef7e3]
+- Updated dependencies [792fc53]
+- Updated dependencies [3633ccc]
+  - @shipfox/client-shell@50.0.0
+  - @shipfox/api-agent-dto@31.0.0
+
 ## 49.0.0
 
 ### Patch Changes

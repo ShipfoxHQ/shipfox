@@ -1,5 +1,11 @@
 # @shipfox/provisioner-ec2-provider
 
+## 1.1.17
+
+### Patch Changes
+
+- @shipfox/provisioner-core@1.2.24
+
 ## 1.1.16
 
 ### Patch Changes

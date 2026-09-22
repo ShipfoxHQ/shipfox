@@ -1,5 +1,16 @@
 # @shipfox/api-agent-access-dto
 
+## 31.0.0
+
+### Minor Changes
+
+- 2954fac: Adds workspace-bound tools for discovering and composing first-party workflow templates.
+- 792fc53: Adds model reference data, pricing, harness settings, and attribution to workspace model reads.
+- 0f2bf90: Adds model profiles and workspace-resolved model selections to workflow template results.
+- 0ab7a16: Adds optional run permalinks to the MCP run-tool result schemas.
+- 85f3d47: Adds shape-only event-trigger checks and reports whether a replay event was checked.
+- 14f786a: Add the `get_workflow_authoring_context` tool for reading workspace workflow-authoring facts.
+
 ## 29.0.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @shipfox/api-integration-posthog
 
+## 31.0.0
+
+### Patch Changes
+
+- 6ac3480: Adds PostHog project connections and read-only SQL agent tools, with reliable tool error recovery.
+- Updated dependencies [6ac3480]
+  - @shipfox/api-integration-posthog-dto@31.0.0
+  - @shipfox/api-integration-spi@4.3.3
+
 ## 30.0.0
 
 ### Minor Changes

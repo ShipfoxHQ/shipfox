@@ -1,5 +1,40 @@
 # @shipfox/api-integration-core
 
+## 31.0.0
+
+### Patch Changes
+
+- 6ac3480: Adds PostHog project connections and read-only SQL agent tools, with reliable tool error recovery.
+- Updated dependencies [da1114b]
+- Updated dependencies [9b671f9]
+- Updated dependencies [bcd9232]
+- Updated dependencies [792fc53]
+- Updated dependencies [e9a13b2]
+- Updated dependencies [752b77a]
+- Updated dependencies [3633ccc]
+- Updated dependencies [bab2786]
+- Updated dependencies [bcd9232]
+- Updated dependencies [85f3d47]
+- Updated dependencies [6ac3480]
+- Updated dependencies [8db3f51]
+  - @shipfox/api-integration-core-dto@31.0.0
+  - @shipfox/api-triggers-dto@31.0.0
+  - @shipfox/api-agent-dto@31.0.0
+  - @shipfox/api-integration-notion@31.0.0
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-definitions-dto@31.0.0
+  - @shipfox/api-integration-posthog@31.0.0
+  - @shipfox/api-integration-shipfox@31.0.0
+  - @shipfox/api-integration-spi@4.3.3
+  - @shipfox/api-integration-github@31.0.0
+  - @shipfox/api-integration-jira@31.0.0
+  - @shipfox/api-integration-linear@31.0.0
+  - @shipfox/api-integration-clickup@31.0.0
+  - @shipfox/api-integration-slack@31.0.0
+  - @shipfox/api-integration-sentry@31.0.0
+  - @shipfox/api-integration-webhook@31.0.0
+  - @shipfox/api-integration-gitea@31.0.0
+
 ## 30.0.0
 
 ### Patch Changes

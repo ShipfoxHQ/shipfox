@@ -1,5 +1,35 @@
 # @shipfox/api-triggers
 
+## 31.0.0
+
+### Minor Changes
+
+- 9b671f9: Manual trigger firing accepts optional `secretInputs`, pins each secret to its resolved project scope, and fails with `secret-not-found` naming the missing key.
+- bcd9232: Adds reference-based secret defaults to workflow triggers and pins them when runs start.
+- 85f3d47: Adds shape-only event-trigger checks and reports whether a replay event was checked.
+
+### Patch Changes
+
+- bcd9232: Adds a specific trigger diagnostic for missing configured secrets.
+- Updated dependencies [17d86bf]
+- Updated dependencies [da1114b]
+- Updated dependencies [9b671f9]
+- Updated dependencies [bcd9232]
+- Updated dependencies [07ca907]
+- Updated dependencies [bab2786]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+- Updated dependencies [bcd9232]
+- Updated dependencies [85f3d47]
+- Updated dependencies [bd03ee1]
+  - @shipfox/workflow-document@3.9.0
+  - @shipfox/api-integration-core-dto@31.0.0
+  - @shipfox/api-triggers-dto@31.0.0
+  - @shipfox/expression@2.11.1
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-secrets-dto@31.0.0
+  - @shipfox/api-definitions-dto@31.0.0
+
 ## 30.0.0
 
 ### Patch Changes
