@@ -10,6 +10,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`resolveModel`** selects the first preferred model available in a workspace catalog.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
+- **`getSetupGuide`** returns the versioned, first-party workflow setup playbook.
 
 The package does not evaluate expressions or implement conditionals and loops. It keeps template comments in the composed YAML so the coding agent can use binding, slot, and option instructions.
 
@@ -19,7 +20,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads template directories and `model-tiers.yaml` from `assets/`. It embeds each manifest, workflow, guide, provider part, and model preference into a generated TypeScript module. The API image therefore does not copy template files at runtime.
+The package build reads `assets/playbook.md`, `assets/model-tiers.yaml`, and template directories from `assets/`. It embeds the playbook, manifests, workflows, guides, provider parts, and model preferences into a generated TypeScript module. The API image therefore does not copy template files at runtime.
 
 ## Usage
 
@@ -65,6 +66,7 @@ The composer only substitutes `part:` markers. It does not evaluate expressions,
 A shipped asset uses this layout:
 
 ```text
+assets/playbook.md
 assets/<template-id>/
   template.yaml
   workflow.yml

@@ -13,8 +13,10 @@ export {
   loadShippedTemplates,
   shippedTemplateLoader,
   type TemplateLoader,
+  type WorkflowSetupGuide,
   type WorkflowTemplate,
   type WorkflowTemplateAsset,
+  workflowSetupGuideSchema,
 } from './loader.js';
 export {
   manifestSchema,

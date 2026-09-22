@@ -364,6 +364,7 @@ const mcpToolGroups = [
       'list_workflow_runs',
       'list_integration_connections',
       'get_integration_connection_tools',
+      'get_workflow_setup_guide',
       'list_workflow_templates',
       'get_workflow_template',
       'get_workflow_authoring_context',
