@@ -1,5 +1,13 @@
 # @shipfox/api-integration-slack
 
+## 31.0.0
+
+### Patch Changes
+
+- Updated dependencies [da1114b]
+  - @shipfox/api-integration-slack-dto@31.0.0
+  - @shipfox/api-integration-spi@4.3.3
+
 ## 30.0.0
 
 ### Patch Changes

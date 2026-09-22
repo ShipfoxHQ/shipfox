@@ -1,5 +1,15 @@
 # @shipfox/client-secrets
 
+## 50.0.0
+
+### Patch Changes
+
+- Updated dependencies [22ef7e3]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+  - @shipfox/client-shell@50.0.0
+  - @shipfox/api-secrets-dto@31.0.0
+
 ## 49.0.0
 
 ### Patch Changes

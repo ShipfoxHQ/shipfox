@@ -1,5 +1,15 @@
 # @shipfox/client-logs
 
+## 50.0.0
+
+### Minor Changes
+
+- d9e58d2: Shows absolute timestamps in job logs by default. Click a timestamp to switch formats, or hide timestamps from log settings.
+
+### Patch Changes
+
+- a47a893: Shows line numbers for agent session rows when the log gutter is enabled.
+
 ## 49.0.0
 
 ### Patch Changes

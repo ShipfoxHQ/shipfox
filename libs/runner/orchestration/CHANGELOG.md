@@ -1,5 +1,20 @@
 # @shipfox/runner-orchestration
 
+## 0.1.61
+
+### Patch Changes
+
+- Updated dependencies [bab2786]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-secrets-dto@31.0.0
+  - @shipfox/runner-agent@0.2.46
+  - @shipfox/runner-protocol@0.2.52
+  - @shipfox/runner-execution@0.1.59
+  - @shipfox/runner-workspace@0.0.54
+  - @shipfox/runner-logs@0.1.58
+
 ## 0.1.60
 
 ### Patch Changes

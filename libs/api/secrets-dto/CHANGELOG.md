@@ -1,5 +1,12 @@
 # @shipfox/api-secrets-dto
 
+## 31.0.0
+
+### Minor Changes
+
+- c5c7fa3: Workflow definitions can now reference `${{ secrets.inputs.X }}` for step secret bindings. The step secrets pull resolves inputs pinned on the workflow run.
+- 9e170c7: Expose secret and variable names through the secrets contract and API.
+
 ## 30.0.0
 
 ### Minor Changes

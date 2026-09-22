@@ -1,5 +1,22 @@
 # @shipfox/client-onboarding
 
+## 50.0.0
+
+### Minor Changes
+
+- 1997f6a: Adds the exported first-workflow onboarding panel with MCP setup guidance that reflects the workspace's agent grants, prompt copying, and client analytics.
+
+### Patch Changes
+
+- Updated dependencies [22ef7e3]
+- Updated dependencies [6ac3480]
+  - @shipfox/client-shell@50.0.0
+  - @shipfox/client-integrations@50.0.0
+  - @shipfox/client-agent@50.0.0
+  - @shipfox/client-projects@50.0.0
+  - @shipfox/client-runners@50.0.0
+  - @shipfox/client-workspace-settings@50.0.0
+
 ## 49.0.0
 
 ### Patch Changes

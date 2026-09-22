@@ -1,5 +1,15 @@
 # @shipfox/expression
 
+## 2.11.1
+
+### Patch Changes
+
+- 07ca907: The `vars` and `secrets` context notes link to the secrets and variables guide.
+- Updated dependencies [17d86bf]
+- Updated dependencies [bcd9232]
+- Updated dependencies [bd03ee1]
+  - @shipfox/workflow-document@3.9.0
+
 ## 2.11.0
 
 ### Minor Changes

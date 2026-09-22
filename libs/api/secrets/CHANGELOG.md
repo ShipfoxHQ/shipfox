@@ -1,5 +1,17 @@
 # @shipfox/api-secrets
 
+## 31.0.0
+
+### Minor Changes
+
+- 9e170c7: Expose secret and variable names through the secrets contract and API.
+
+### Patch Changes
+
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+  - @shipfox/api-secrets-dto@31.0.0
+
 ## 30.0.0
 
 ### Minor Changes

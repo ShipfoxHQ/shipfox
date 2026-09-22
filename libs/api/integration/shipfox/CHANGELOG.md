@@ -1,5 +1,26 @@
 # @shipfox/api-integration-shipfox
 
+## 31.0.0
+
+### Minor Changes
+
+- 8db3f51: Adds reference-based secret inputs to `start_workflow_run` for tool steps.
+
+### Patch Changes
+
+- Updated dependencies [9b671f9]
+- Updated dependencies [bcd9232]
+- Updated dependencies [bab2786]
+- Updated dependencies [c5c7fa3]
+- Updated dependencies [9e170c7]
+- Updated dependencies [bcd9232]
+- Updated dependencies [85f3d47]
+  - @shipfox/api-triggers-dto@31.0.0
+  - @shipfox/api-workflows-dto@31.0.0
+  - @shipfox/api-secrets-dto@31.0.0
+  - @shipfox/api-definitions-dto@31.0.0
+  - @shipfox/api-integration-spi@4.3.3
+
 ## 30.0.0
 
 ### Patch Changes

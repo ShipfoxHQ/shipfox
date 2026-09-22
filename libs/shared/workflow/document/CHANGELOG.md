@@ -1,5 +1,16 @@
 # @shipfox/workflow-document
 
+## 3.9.0
+
+### Minor Changes
+
+- bcd9232: Adds reference-based secret defaults to workflow triggers and pins them when runs start.
+
+### Patch Changes
+
+- 17d86bf: The `integrations` step field description links to the integrations concept page.
+- bd03ee1: The workflow schema now describes environment scope and workflow fields more clearly.
+
 ## 3.8.0
 
 ### Minor Changes

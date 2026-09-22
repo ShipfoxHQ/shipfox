@@ -1,5 +1,18 @@
 # @shipfox/client-triggers
 
+## 50.0.0
+
+### Patch Changes
+
+- bcd9232: Adds a specific trigger diagnostic for missing configured secrets.
+- Updated dependencies [22ef7e3]
+- Updated dependencies [9b671f9]
+- Updated dependencies [bcd9232]
+- Updated dependencies [85f3d47]
+  - @shipfox/client-shell@50.0.0
+  - @shipfox/api-triggers-dto@31.0.0
+  - @shipfox/client-projects@50.0.0
+
 ## 49.0.0
 
 ### Patch Changes
