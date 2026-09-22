@@ -33,6 +33,7 @@ export interface AgentAccessToolCallAuditRecord {
   outcome: AgentAccessToolCallOutcome;
   errorCode: string;
   context: AgentAccessContext;
+  target?: Record<string, unknown> | undefined;
   action?: AgentAccessActionAudit | undefined;
 }
 
@@ -68,6 +69,7 @@ function auditLogContext(record: AgentAccessToolCallAuditRecord): Record<string,
     credentialKind: credential.kind,
     credentialId: credential.grantId,
     clientId: credential.clientId,
+    ...(record.target === undefined ? {} : {target: record.target}),
     ...(record.action === undefined ? {} : {action: record.action}),
   };
 }

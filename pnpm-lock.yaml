@@ -2272,6 +2272,9 @@ importers:
       '@shipfox/node-opentelemetry':
         specifier: workspace:*
         version: link:../../shared/node/opentelemetry
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../shared/workflow/templates
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
@@ -4864,6 +4867,9 @@ importers:
       '@shipfox/node-postgres':
         specifier: workspace:*
         version: link:../../shared/node/postgres
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../shared/workflow/templates
     devDependencies:
       '@shipfox/api-auth-context':
         specifier: workspace:*

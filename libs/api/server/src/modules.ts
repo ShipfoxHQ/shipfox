@@ -51,6 +51,7 @@ import {
   registerInterModulePresentations,
 } from '@shipfox/node-module/inter-module';
 import {logger} from '@shipfox/node-opentelemetry';
+import {shippedTemplateLoader} from '@shipfox/workflow-templates';
 
 export interface DefaultModulesOptions {
   webhookDeliverySource?: WebhookDeliverySource | undefined;
@@ -416,6 +417,7 @@ export async function defaultModules(
       triggers: triggersClient,
       workflows: workflowsClient,
       integrations: integrationsClient,
+      templates: shippedTemplateLoader,
       ...(options.agentAccess ?? {}),
     }),
     createWorkspacesModule({auth: authClient, projects: projectsClient, runners: runnersClient}),

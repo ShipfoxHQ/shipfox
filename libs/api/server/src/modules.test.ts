@@ -449,6 +449,7 @@ describe('defaultModules', () => {
       integrations: expect.any(Object),
       logs: expect.any(Object),
       projects: expect.any(Object),
+      templates: expect.any(Object),
       triggers: expect.any(Object),
       workflows: expect.any(Object),
     });
@@ -488,6 +489,7 @@ describe('defaultModules', () => {
       integrations: expect.any(Object),
       logs: expect.any(Object),
       projects: expect.any(Object),
+      templates: expect.any(Object),
       triggers: expect.any(Object),
       workflows: expect.any(Object),
       additionalTools,
