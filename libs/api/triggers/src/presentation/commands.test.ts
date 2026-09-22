@@ -244,7 +244,7 @@ describe('trigger command presentation', () => {
       projectId: PROJECT_ID,
       ref: 'main',
       configPath: '.shipfox/workflows/main.yml',
-      triggerKey: 'on_demand',
+      triggerKey: 'on_push',
       userId: USER_ID,
     };
 
