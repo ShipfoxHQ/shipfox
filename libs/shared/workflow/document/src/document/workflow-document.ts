@@ -683,7 +683,8 @@ const workflowDocumentJobCheckoutSchema = z
     z.literal(false),
   ])
   .meta({
-    description: 'Configures repository permissions and saved credentials for this job.',
+    description:
+      'Configures repository permissions and saved credentials for this job. Set to `false` to skip checkout.',
   });
 
 export const workflowDocumentStepIntegrationSelectionSchema = z.array(z.string().min(1)).min(1);

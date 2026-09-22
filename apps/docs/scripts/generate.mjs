@@ -169,7 +169,7 @@ const regions = [
       file: 'content/generated/reference/workflow-schema.llm.json',
     },
   },
-  {file: WORKFLOW_SCHEMA_DOCUMENT_FILE, render: renderWorkflowSchemaData},
+  {file: WORKFLOW_SCHEMA_DOCUMENT_FILE, document: true, render: renderWorkflowSchemaData},
   {file: 'content/generated/reference/context-roots.mdx', render: renderContextRoots},
   {
     file: 'content/generated/reference/context-availability.mdx',

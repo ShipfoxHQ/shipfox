@@ -5,7 +5,7 @@ jobs:
       - key: fix
         prompt: |
           Fix the failing test.
-          Feedback from the last attempt: ${{ step.restart.feedback }}
+          Feedback: ${{ step.is_retry ? step.restart.feedback : "No previous feedback." }}
       - key: test
         run: pnpm test
         gate:

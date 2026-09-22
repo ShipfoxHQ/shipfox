@@ -11,4 +11,6 @@ jobs:
         outputs:
           ts: ${{ result.ts }}
           channel: ${{ result.channel }}
-      - run: printf 'Posted %s\n' "${{ steps.message.outputs.ts }}"
+      - env:
+          MESSAGE_TS: ${{ steps.message.outputs.ts }}
+        run: printf 'Posted %s\n' "$MESSAGE_TS"

@@ -14,10 +14,9 @@ const GENERATED_COMPONENT_IMPORT =
  * are the heading anchors that other pages link to.
  *
  * Every section lists its fields explicitly, in the order a person writes
- * them: what the block is, when it runs, where it runs, what it does, what
- * it produces. Required fields lead their group. The schema declaration
- * order is not used, and `assertFieldCoverage` fails generation when the
- * schema has a field that no section lists.
+ * them: what the block is, when it runs, where it runs, what it does, and what
+ * it produces. The schema declaration order is not used. `assertFieldCoverage`
+ * fails generation when the schema has a field that no section lists.
  */
 export const WORKFLOW_SCHEMA_SECTIONS = [
   {

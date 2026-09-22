@@ -76,7 +76,7 @@ function requiredFactsForPage(pageUrl: string): string[] {
       '| `name` |',
       '## `concurrency`',
       '| `group` |',
-      'agent step',
+      '### `steps[*]` agent step',
       '| `prompt` |',
     ];
   }

@@ -5,7 +5,7 @@ triggers:
     event: pull_request.ready_for_review
     filter: event.pull_request.base.ref == "main"
     secrets:
-      REVIEW_TOKEN: review_token
+      REVIEW_TOKEN: REVIEW_TOKEN
   nightly:
     source: cron
     with:

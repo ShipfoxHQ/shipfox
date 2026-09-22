@@ -351,9 +351,9 @@ facts.
 - Mirror the structure and naming of the shipped product.
 - Use standard tables and repeated field shapes consistently.
 - List fields in the order a person writes them, not in schema or alphabetical
-  order: what the block is, when it runs, where it runs, what it does, what it
-  produces. Required fields lead their group. Examples use the same order as
-  the field list they sit beside.
+  order. Start with what the block is, then when and where it runs, what it
+  does, and what it produces. Examples follow the same order as their field
+  lists.
 - Include types, accepted values, defaults, limits, constraints, failure
   behavior, and security warnings where the product defines them.
 - Use short examples to illustrate facts, not to lead the reader through a task.
