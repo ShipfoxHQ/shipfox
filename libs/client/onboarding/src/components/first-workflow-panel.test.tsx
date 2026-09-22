@@ -31,7 +31,9 @@ function grant(workspaceId: string, clientName: string) {
   };
 }
 
-function renderPanel(analytics: ClientAnalytics, grants: ReturnType<typeof grant>[] = []) {
+type GrantFixture = ReturnType<typeof grant>[] | 'pending';
+
+function renderPanel(analytics: ClientAnalytics, grants: GrantFixture = []) {
   const rootRoute = createRootRoute({component: Outlet});
   const panelRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -48,7 +50,13 @@ function renderPanel(analytics: ClientAnalytics, grants: ReturnType<typeof grant
     history: createMemoryHistory({initialEntries: [`/w/${WORKSPACE_SLUG}`]}),
   });
   const queryClient = new QueryClient();
-  queryClient.setQueryData(agentGrantsQueryOptions().queryKey, grants);
+  if (grants === 'pending') {
+    queryClient.setQueryDefaults(agentGrantsQueryOptions().queryKey, {
+      queryFn: () => new Promise<ReturnType<typeof grant>[]>(() => undefined),
+    });
+  } else {
+    queryClient.setQueryData(agentGrantsQueryOptions().queryKey, grants);
+  }
 
   return render(
     <ClientAnalyticsProvider analytics={analytics}>
@@ -91,6 +99,16 @@ describe('FirstWorkflowPanel', () => {
 
     expect(await screen.findByText('Connected: Claude Code')).toBeVisible();
     expect(screen.queryByRole('link', {name: 'Connect MCP server'})).not.toBeInTheDocument();
+  });
+
+  test('offers neither branch of the MCP step until the grant query resolves', async () => {
+    renderPanel({capture: vi.fn()}, 'pending');
+
+    expect(
+      await screen.findByRole('heading', {name: '1. Connect the Shipfox MCP server'}),
+    ).toBeVisible();
+    expect(screen.queryByRole('link', {name: 'Connect MCP server'})).not.toBeInTheDocument();
+    expect(screen.queryByText(CONNECTED_RE)).not.toBeInTheDocument();
   });
 
   test('keeps the connect link when only another workspace has a grant', async () => {

@@ -7,7 +7,7 @@ import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
-import {useWorkspaceAgentGrant} from '#hooks/api/agent-grants.js';
+import {useWorkspaceAgentGrant, type WorkspaceAgentGrant} from '#hooks/api/agent-grants.js';
 import type {WorkspaceReference} from './setup-checklist-types.js';
 
 export const FIRST_WORKFLOW_PROMPT =
@@ -19,7 +19,7 @@ export interface FirstWorkflowPanelProps {
 
 export function FirstWorkflowPanel({workspace}: FirstWorkflowPanelProps) {
   const analytics = useClientAnalytics();
-  const connectedGrant = useWorkspaceAgentGrant(workspace.id);
+  const {grant: connectedGrant, isPending: grantPending} = useWorkspaceAgentGrant(workspace.id);
   const titleId = useId();
   const panelOpened = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -71,22 +71,8 @@ export function FirstWorkflowPanel({workspace}: FirstWorkflowPanelProps) {
               <Text as="h3" size="sm" bold>
                 1. Connect the Shipfox MCP server
               </Text>
-              {connectedGrant ? (
-                <ConnectedGrant clientName={connectedGrant.clientName} />
-              ) : (
-                <>
-                  <Text size="sm" className="text-foreground-neutral-muted">
-                    Connect your coding agent so it can read your workspace and guide the setup.
-                  </Text>
-                  <Button asChild size="sm" variant="secondary">
-                    <Link
-                      to="/w/$workspaceSlug/settings/agent-access"
-                      params={{workspaceSlug: workspace.slug}}
-                    >
-                      Connect MCP server
-                    </Link>
-                  </Button>
-                </>
+              {grantPending ? null : (
+                <McpConnectionStep grant={connectedGrant} workspaceSlug={workspace.slug} />
               )}
             </div>
           </PanelRow>
@@ -121,6 +107,34 @@ export function FirstWorkflowPanel({workspace}: FirstWorkflowPanelProps) {
         </PanelBody>
       </section>
     </Panel>
+  );
+}
+
+/**
+ * Rendered only once the grant query has resolved, because an absent grant and
+ * an unloaded one look the same and this step would otherwise ask a connected
+ * user to connect again.
+ */
+function McpConnectionStep({
+  grant,
+  workspaceSlug,
+}: {
+  grant: WorkspaceAgentGrant | undefined;
+  workspaceSlug: string;
+}) {
+  if (grant) return <ConnectedGrant clientName={grant.clientName} />;
+
+  return (
+    <>
+      <Text size="sm" className="text-foreground-neutral-muted">
+        Connect your coding agent so it can read your workspace and guide the setup.
+      </Text>
+      <Button asChild size="sm" variant="secondary">
+        <Link to="/w/$workspaceSlug/settings/agent-access" params={{workspaceSlug}}>
+          Connect MCP server
+        </Link>
+      </Button>
+    </>
   );
 }
 
