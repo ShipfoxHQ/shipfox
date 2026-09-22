@@ -1,0 +1,25 @@
+id: fixture-ticket-to-pr
+revision: 1
+added_at: 2026-10-01
+title: Fixture ticket to pull request
+summary: A small template used to test composition.
+roles:
+  tracker:
+    providers: [linear, github]
+  source:
+    from: project
+    providers: [github]
+options:
+  - id: ticket_write_back
+    question: How should the workflow update the ticket?
+    choices:
+      - id: comment
+        label: Add a comment
+        default: true
+        tradeoff: Keeps the ticket history together.
+      - id: none
+        label: Do not update the ticket
+    applies_to: [linear, github]
+slots: [setup_commands, test_command]
+secrets: [TRACKER_TOKEN]
+variables: [TEST_COMMAND]

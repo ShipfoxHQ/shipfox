@@ -66,7 +66,7 @@ const architecturePackages = {
       'libs/shared/common/runner-labels',
     ],
     expression: ['libs/shared/expression'],
-    workflow: ['libs/shared/workflow/document'],
+    workflow: ['libs/shared/workflow/document', 'libs/shared/workflow/templates'],
   },
   'shared-infrastructure': {
     api: ['libs/api/auth-context', 'libs/api/dispatcher', 'libs/api/email-challenges'],
