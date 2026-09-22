@@ -279,6 +279,10 @@ html {
   padding: var(--pad-panel);
 }
 
+@utility pb-inline {
+  padding-bottom: var(--space-inline);
+}
+
 @utility pb-panel {
   padding-bottom: var(--pad-panel);
 }

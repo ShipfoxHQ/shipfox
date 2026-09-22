@@ -20,6 +20,8 @@ export const docs = defineDocs({
     schema: frontmatterSchema.extend({
       sidebarTitle: z.string().optional(),
       status: z.string().optional(),
+      // Generated tool reference document id, such as `integrations/jira/tools`.
+      toolReference: z.string().optional(),
       catalog: z
         .object({
           name: z.string(),
@@ -33,7 +35,7 @@ export const docs = defineDocs({
     }),
     postprocess: {
       includeProcessedMarkdown: {
-        mdxAsPlaceholder: ['IntegrationCatalog'],
+        mdxAsPlaceholder: ['IntegrationCatalog', 'ToolReference'],
         stringify: stringifyMachineReadableComponent,
       },
     },

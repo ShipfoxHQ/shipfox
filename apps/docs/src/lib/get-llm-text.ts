@@ -26,9 +26,13 @@ export async function getLLMText(page: InferPageType<typeof source>) {
   const modelCatalog = processed.includes('ModelCatalog')
     ? await (await import('@/lib/model-catalog-source')).getModelCatalog()
     : undefined;
+  const toolReference = processed.includes('ToolReference')
+    ? (await import('@/lib/tool-reference-source')).getToolReferenceDocument(toolReferenceId(page))
+    : undefined;
   const body = serializeMachineReadableMarkdown(processed, {
     integrationCatalog,
     modelCatalog,
+    toolReference,
     pageUrl: page.url,
     requiredFacts: requiredFactsForPage(page.url),
     sourcePath: page.path,
@@ -47,6 +51,16 @@ export async function getLLMText(page: InferPageType<typeof source>) {
     sourcePath: page.path,
   });
   return markdown;
+}
+
+function toolReferenceId(page: InferPageType<typeof source>): string {
+  const id = (page.data as {toolReference?: unknown}).toolReference;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(
+      `Documentation page "${page.url}" renders ToolReference without a toolReference frontmatter id.`,
+    );
+  }
+  return id;
 }
 
 function machineReadablePageUrl(pageUrl: string): string {

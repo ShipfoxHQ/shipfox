@@ -7,6 +7,7 @@ import {
 } from './integration-catalog';
 import {inlineCode, tableValue} from './markdown';
 import {type ModelCatalog, serializeModelCatalog} from './model-catalog';
+import type {ToolReferenceDocument} from './tool-reference/document';
 
 const INTERNAL_DOC_HOSTS = new Set([
   'localhost',
@@ -43,6 +44,7 @@ interface FenceMarker {
 export interface MachineReadableMarkdownOptions {
   integrationCatalog?: readonly CatalogProvider[];
   modelCatalog?: ModelCatalog;
+  toolReference?: ToolReferenceDocument;
   pageUrl?: string;
   requiredFacts?: readonly string[];
   sourcePath?: string;
@@ -251,10 +253,33 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
   }
 };
 
-function replacePlaceholders(
-  markdown: string,
-  options: Pick<MachineReadableMarkdownOptions, 'integrationCatalog' | 'modelCatalog'>,
-): string {
+type PlaceholderOptions = Pick<
+  MachineReadableMarkdownOptions,
+  'integrationCatalog' | 'modelCatalog' | 'toolReference'
+>;
+
+const placeholderSerializers: Record<string, (options: PlaceholderOptions) => string> = {
+  IntegrationCatalog: (options) => {
+    if (!options.integrationCatalog) {
+      throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
+    }
+    return serializeIntegrationCatalog(options.integrationCatalog);
+  },
+  ModelCatalog: (options) => {
+    if (!options.modelCatalog) {
+      throw new Error('Model catalog data is unavailable for machine-readable Markdown.');
+    }
+    return serializeModelCatalog(options.modelCatalog);
+  },
+  ToolReference: (options) => {
+    if (!options.toolReference) {
+      throw new Error('Tool reference data is unavailable for machine-readable Markdown.');
+    }
+    return options.toolReference.markdown;
+  },
+};
+
+function replacePlaceholders(markdown: string, options: PlaceholderOptions): string {
   return markdown.replace(/\0([\s\S]*?)\0/g, (_match, value: string) => {
     let placeholder: unknown;
     try {
@@ -267,23 +292,13 @@ function replacePlaceholders(
       throw new Error('Machine-readable Markdown contains an invalid component placeholder.');
     }
 
-    if (placeholder.name === 'IntegrationCatalog') {
-      if (!options.integrationCatalog) {
-        throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
-      }
-      return serializeIntegrationCatalog(options.integrationCatalog);
+    const serialize = placeholderSerializers[placeholder.name];
+    if (!serialize) {
+      throw new Error(
+        `Machine-readable Markdown contains an unresolved component placeholder: ${placeholder.name}`,
+      );
     }
-
-    if (placeholder.name === 'ModelCatalog') {
-      if (!options.modelCatalog) {
-        throw new Error('Model catalog data is unavailable for machine-readable Markdown.');
-      }
-      return serializeModelCatalog(options.modelCatalog);
-    }
-
-    throw new Error(
-      `Machine-readable Markdown contains an unresolved component placeholder: ${placeholder.name}`,
-    );
+    return serialize(options);
   });
 }
 

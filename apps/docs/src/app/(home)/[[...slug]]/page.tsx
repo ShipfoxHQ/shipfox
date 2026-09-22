@@ -3,8 +3,10 @@ import {DocsBody, DocsDescription, DocsPage, DocsTitle} from 'fumadocs-ui/page';
 import type {Metadata} from 'next';
 import {notFound} from 'next/navigation';
 import {PageFeedback} from '@/app/components/page-feedback';
+import {ToolReference, toolReferenceToc} from '@/app/components/tool-reference/tool-reference';
 import {buildPageMetadata} from '@/lib/page-metadata';
 import {source} from '@/lib/source';
+import {getToolReferenceDocument} from '@/lib/tool-reference-source';
 import {getMDXComponents} from '@/mdx-components';
 
 export default async function Page(props: {params: Promise<{slug?: string[]}>}) {
@@ -13,15 +15,31 @@ export default async function Page(props: {params: Promise<{slug?: string[]}>}) 
   if (!page) notFound();
 
   const MDXContent = page.data.body;
+  // Tool reference pages render their catalog from a generated document, so
+  // the page supplies the catalog's TOC entries and keeps the TOC on the wider
+  // layout that Fumadocs would otherwise drop for full-width pages.
+  const toolReference = page.data.toolReference
+    ? getToolReferenceDocument(page.data.toolReference)
+    : undefined;
+  const toc = toolReference
+    ? [...page.data.toc, ...toolReferenceToc(toolReference)]
+    : page.data.toc;
 
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={toc}
+      full={page.data.full || Boolean(toolReference)}
+      tableOfContent={toolReference ? {enabled: true} : undefined}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
         <MDXContent
           components={getMDXComponents({
             a: createRelativeLink(source, page),
+            ...(toolReference
+              ? {ToolReference: () => <ToolReference document={toolReference} />}
+              : {}),
           })}
         />
         <PageFeedback pageUrl={page.url} filePath={page.path} />

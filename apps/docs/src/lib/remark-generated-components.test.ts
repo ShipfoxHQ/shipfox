@@ -42,10 +42,10 @@ const fixtures = [
     fact: '### `push`',
   },
   {
-    directory: ['content', 'docs', 'integrations', 'github'],
-    importStatement: "import GithubTools from '../../../generated/integrations/github/tools.mdx';",
-    component: 'GithubTools',
-    fact: '### issues',
+    directory: ['content', 'docs', 'reference'],
+    importStatement: "import McpToolLimits from '../../generated/reference/mcp-server-limits.mdx';",
+    component: 'McpToolLimits',
+    fact: '| Limit | Value |',
   },
 ] as const;
 

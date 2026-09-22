@@ -2,10 +2,10 @@
 title: "Shipfox MCP server"
 sidebarTitle: "Shipfox MCP server"
 description: "Look up the Shipfox MCP server endpoint, access rules, limits, and tools."
+toolReference: "reference/mcp-server-tools"
 ---
 
 import McpToolLimits from '../../generated/reference/mcp-server-limits.mdx';
-import McpTools from '../../generated/reference/mcp-server-tools.mdx';
 
 This reference covers the endpoint, access rules, limits, and tools available
 through the Shipfox MCP server. See [Connect to the Shipfox MCP
@@ -62,8 +62,9 @@ tool ID or event.
 List tools accept an opaque `cursor` and return `next_cursor`, which is `null`
 on the last page. Pass the value back unchanged.
 
-In the tables below, **Required** applies within each object. A path such as
-`runs[].id` refers to every item in the `runs` array. **Conditional** means the
-field depends on another field or result shape. Length limits use UTF-8 bytes.
+**Required** applies within each object. Expand an array or object field to
+see the fields of its items. **Conditional** means the field depends on another
+field or result shape. Length limits use UTF-8 bytes. The example arguments and
+results are derived from the schemas and use placeholder values.
 
-<McpTools />
+<ToolReference />

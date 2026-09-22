@@ -26,6 +26,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     DocsVideo,
     IntegrationCatalog,
     ModelCatalog,
+    ToolReference: ToolReferencePlaceholder,
     Callout,
     Steps,
     Step,
@@ -42,6 +43,11 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     ),
     ...components,
   };
+}
+
+// The page route binds the real component to the page's generated document.
+function ToolReferencePlaceholder(): never {
+  throw new Error('ToolReference requires a `toolReference` id in the page frontmatter.');
 }
 
 function IntegrationCatalog() {

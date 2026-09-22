@@ -309,7 +309,7 @@ function directory(
       index: 'Integration overview.',
       setup: 'Set up the integration.',
       events: `generated/integrations/${slug}/events.mdx`,
-      tools: `generated/integrations/${slug}/tools.mdx`,
+      tools: `toolReference: "integrations/${slug}/tools"\n<ToolReference />`,
     },
     overview: {catalog, body: 'Integration overview.'},
   };
