@@ -2,4 +2,4 @@
 "@shipfox/client-shell": patch
 ---
 
-Names generated client routes after their implementations so route trees stay readable and stable when routes are inserted.
+Derives generated client route identifiers from route implementations and qualifies duplicates by route path, so generated names stay stable when routes are added.
