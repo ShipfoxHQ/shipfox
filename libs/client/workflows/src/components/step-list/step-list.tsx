@@ -453,6 +453,7 @@ function StepRow({
         className={cn(
           'group flex min-w-0 items-center gap-inline bg-background-neutral-base pr-[8px] transition-colors hover:bg-background-neutral-hover active:bg-background-neutral-pressed',
           selected && 'bg-background-neutral-hover',
+          selected && hasExpandedContent && 'sticky top-0 z-10',
           !hasExpandedContent && ['border-b border-border-neutral-base', isLast && 'border-b-0'],
         )}
       >

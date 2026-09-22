@@ -312,7 +312,7 @@ export function JobDetailView({
             }
             className="flex w-full flex-col"
           >
-            <section className="min-w-0 overflow-hidden">
+            <section className="min-w-0 overflow-clip">
               <JobDetailHeader
                 job={job}
                 selectedJobExecution={selectedJobExecution}
@@ -337,7 +337,7 @@ export function JobDetailView({
                   ) : undefined
                 }
               />
-              <Panel data-job-log-panel className="min-w-0">
+              <Panel data-job-log-panel className="min-w-0 overflow-clip">
                 <JobLogPanelHeader
                   stepLabel={expandedLogSelection?.stepLabel}
                   attempt={expandedLogSelection?.attemptOrdinal}
