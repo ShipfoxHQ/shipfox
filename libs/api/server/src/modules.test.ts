@@ -262,6 +262,7 @@ describe('defaultModules', () => {
           handlers: {
             getValidationCatalog: vi.fn(),
             getValidationCatalogV2: vi.fn(),
+            getWorkspaceModels: vi.fn(),
             resolveAgentConfig: vi.fn(),
             resolveRuntimeCredentials: vi.fn(),
             claimSession: vi.fn(),
