@@ -92,7 +92,11 @@ Nothing protects a prompt or a job setting this way. An event can contain
 instructions for an agent. It can also choose the runner a job uses. Keep event
 data out of any choice you wouldn't let a stranger make.
 
-[Secrets and variables](/reference/secrets-variables) describes storage,
-masking, and binding. [Integrations, integration connections, and
+A secret follows the same rule. Only a run step's command or `env` can bind one,
+so no prompt, model field, or predicate can read it. Shipfox never resolves the
+value on the server. The runner pulls it before the step starts and masks it
+in logs, outputs, and error messages. Masking is a safety net, not a
+guarantee, so a step that transforms and prints a secret can still leak it.
+[Integrations, integration connections, and
 tools](/understand/integrations-connections-and-tools) explains the external
 credential boundary.

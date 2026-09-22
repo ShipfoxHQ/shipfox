@@ -300,23 +300,23 @@ Understand.
 | Delivers a complete workflow for a recognizable outcome | `how-to/recipes/` |
 | Only makes sense with one provider | `integrations/<provider>/guides/` |
 
-### Order and group how-to pages
+### Order and group pages in a section
 
 The sidebar order comes from each directory's `meta.json`, which normally omits
-`index`. See [Section index pages](#section-index-pages). Apply these rules in
-order:
+`index`. See [Section index pages](#section-index-pages). These rules apply to
+every section, including `reference/`. Apply them in order:
 
 1. Group pages under `---Label---` separators named after the reader's goal.
    Keep a group to about seven pages. Split the group or merge thin pages when
-   it grows past that.
+   it grows past that. A section with one reader goal needs no separator
+   before its first group.
 2. Inside a group, put a page after every page it lists under
    `Before you begin`.
 3. Otherwise, order pages by their 90-day pageviews in PostHog, most viewed
    first. Review the order each quarter.
 4. Place a new page by expected reach until it has data: every workspace, most
    workflows, one feature, one provider, then cleanup.
-
-5. Put a guide that Shipfox Cloud users cannot follow in a last group named
+5. Put a page that Shipfox Cloud users cannot use in a last group named
    `---Open source edition---`. Start the page with an
    `Open source edition only` callout that links to the Shipfox Cloud
    equivalent, and start its `description` with the same words.

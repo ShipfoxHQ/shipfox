@@ -35,7 +35,8 @@ if: ${{ trigger.event == "push" }}
 ```
 
 `vars` and `secrets` accept a literal key only. `vars["API_URL"]` is valid and a
-computed key such as `vars[inputs.name]` is not.
+computed key such as `vars[inputs.name]` is not. `secrets.local.KEY` is the
+explicit form of `secrets.KEY`; `local` names the built-in secret store.
 
 ## Run identifiers
 

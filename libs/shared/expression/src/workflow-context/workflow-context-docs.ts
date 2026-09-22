@@ -193,13 +193,13 @@ export const workflowContextDocs = [
     root: 'vars',
     summary: 'Workspace and project variables.',
     shapeNote:
-      'The keys are the variable names the workspace defines. See [Secrets and variables](/reference/secrets-variables).',
+      'The keys are the variable names the workspace defines. See [Manage secrets and variables](/how-to/set-up-work/secrets-and-variables).',
   },
   {
     root: 'secrets',
     summary: 'Workspace and project secrets.',
     shapeNote:
-      'The keys are the secret names the workspace defines. See [Secrets and variables](/reference/secrets-variables).',
+      'The keys are the secret names the workspace defines. See [Manage secrets and variables](/how-to/set-up-work/secrets-and-variables).',
   },
   {
     root: 'result',

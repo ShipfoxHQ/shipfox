@@ -1,7 +1,7 @@
 ---
 title: "Limits and Defaults Reference"
 sidebarTitle: "Limits"
-description: "Look up Shipfox gate attempt caps, job timeouts, log budgets and retention, output grouping caps, environment-map limits, and agent session caps."
+description: "Look up Shipfox gate attempt caps, job timeouts, log budgets and retention, output grouping caps, environment-map limits, workspace secret and variable caps, and agent session caps."
 ---
 
 This page is the canonical home for shared operational limits. Other pages
@@ -50,6 +50,12 @@ serialized outputs object, including output keys and JSON syntax.
 | --- | --- | --- | --- |
 | `env` entries per map | 128 | No | Applies to each of the workflow, job, and step `env` maps. See [Environment variables](/reference/workflow-schema#environment-variables). |
 | `env` serialized size | 32 KiB | No | The JSON-serialized size of one `env` map. |
+
+## Workspace settings
+
+| Limit | Default | Configurable | Details |
+| --- | --- | --- | --- |
+| Secrets and variables per workspace | 10,000 | Self-host: `SECRETS_MAX_PER_WORKSPACE` | One cap counts secrets and variables together. See [Manage secrets and variables](/how-to/set-up-work/secrets-and-variables). |
 
 ## Workflow chaining
 
