@@ -13,7 +13,7 @@
   "trailingSlash": false,
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "headers": [{ "key": "CDN-Cache-Control", "value": "max-age=60" }]
     }
   ]

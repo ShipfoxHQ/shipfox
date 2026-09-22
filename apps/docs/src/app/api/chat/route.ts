@@ -2,6 +2,7 @@ import {createOpenRouter} from '@openrouter/ai-sdk-provider';
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
+  type ProviderMetadata,
   stepCountIs,
   streamText,
   tool,
@@ -10,48 +11,58 @@ import {
 import {z} from 'zod';
 import {config} from '@/config';
 import type {AskAiMessage} from '@/lib/ask-ai-core';
-import {searchDocumentation} from '@/lib/ask-ai-retrieval';
+import {documentationCatalog, readDocumentationPage} from '@/lib/ask-ai-retrieval';
 
-// An answer streams across several retrieval steps, which outlives the default
-// serverless function timeout.
-export const maxDuration = 60;
+// An answer streams across a few retrieval steps and a long reference page can
+// take a while to prefill, which outlives the default serverless timeout.
+export const maxDuration = 300;
 
-const MAX_STEPS = 5;
+const MAX_STEPS = 4;
 
-// An open-weight model is served by many providers at prices that differ several
-// fold, so routing decides what the model ID actually buys. Declared low
-// precision is excluded because it degrades tool-call formatting, which every
-// answer depends on. `unknown` has to stay eligible: first-party models report it
-// on every endpoint, so dropping it would leave a Claude fallback unroutable.
-// `require_parameters` keeps the request away from a provider that ignores tools.
+// An open-weight model is served by many providers at prices and quality that
+// differ several fold, so routing decides what the model ID actually buys.
+// Declared low precision is excluded because it degrades tool-call formatting,
+// which every answer depends on. `unknown` has to stay eligible: first-party
+// models report it on every endpoint, so dropping it would leave a Claude
+// fallback unroutable. `require_parameters` keeps the request away from a
+// provider that ignores tools. Deliberately unsorted: ordering by latency
+// selects for whichever endpoint answers fastest right now, which is the one
+// most likely to be serving a degraded variant.
 const PROVIDER_ROUTING = {
   quantizations: ['fp8', 'fp16', 'bf16', 'fp32', 'unknown'],
   require_parameters: true,
-  sort: 'latency',
 };
 
 const INSTRUCTIONS = [
   'You answer questions about Shipfox, a platform that runs AI agent workflows on CI runners.',
-  'Call the `search` tool before answering anything about the product. It returns whole documentation pages as Markdown.',
-  'The index matches keywords, not sentences. Search for two or three terms, and search again with different terms when the pages you get back miss the question.',
-  'Answer only from the pages you retrieved. When they do not cover the question, say so and point to the closest page.',
-  'Cite every page you used as a Markdown link to its `url`.',
+  'The catalog below lists every documentation page with its path and what it covers.',
+  'Pick the pages that cover the question and read them with the `read_page` tool before answering anything about the product. It returns a whole page as Markdown.',
+  'Answer only from the pages you read. When they do not cover the question, say so and point to the closest page.',
+  'Cite every page you used as a Markdown link to its catalog path, such as [Choose runners](/how-to/author-workflows/choose-runners).',
   'Keep answers short. Prefer a workflow YAML example over prose when the question is about authoring a workflow.',
-  'Never invent a field name, step type, context variable, or CLI flag that the retrieved pages do not show.',
+  'Never invent a field name, step type, context variable, or CLI flag that the pages you read do not show.',
+  '',
+  '# Page catalog',
+  '',
 ].join('\n');
 
-const searchTool = tool({
+const readPageTool = tool({
   description:
-    'Search the Shipfox documentation. Returns whole pages as Markdown, best match first.',
+    'Read one Shipfox documentation page whole, as Markdown. Takes a path from the page catalog, such as "/integrations/linear/tools".',
   inputSchema: z.object({
-    query: z
-      .string()
-      .describe('Two or three keywords, such as "runner labels" or "cron schedule trigger".'),
+    url: z.string().describe('A page path from the catalog, starting with "/".'),
   }),
-  execute: ({query}) => searchDocumentation(query),
+  execute: ({url}) => readDocumentationPage(url),
 });
 
+const askAiTools = {read_page: readPageTool};
+
 const chatRequestSchema = z.object({messages: z.array(z.unknown()).default([])});
+
+function openRouterProvider(metadata: ProviderMetadata | undefined): string | undefined {
+  const provider = metadata?.openrouter?.provider;
+  return typeof provider === 'string' && provider.length > 0 ? provider : undefined;
+}
 
 export async function POST(request: Request) {
   const apiKey = config.OPENROUTER_API_KEY;
@@ -59,9 +70,15 @@ export async function POST(request: Request) {
 
   const {messages} = chatRequestSchema.parse(await request.json());
   const openrouter = createOpenRouter({apiKey});
+
+  // Collected across steps so the finish chunk can report which endpoint served
+  // the answer and how much of the step budget it took.
+  let servingProvider: string | undefined;
+  let steps = 0;
+
   const result = streamText({
     model: openrouter.chat(config.ASK_AI_MODEL, {provider: PROVIDER_ROUTING}),
-    instructions: INSTRUCTIONS,
+    instructions: `${INSTRUCTIONS}${documentationCatalog()}`,
     // `convertToModelMessages` validates the parts of every message it converts.
     messages: await convertToModelMessages<AskAiMessage>(messages as AskAiMessage[], {
       convertDataPart(part) {
@@ -69,9 +86,24 @@ export async function POST(request: Request) {
           return {type: 'text', text: `[The reader is on ${part.data.location}]`};
       },
     }),
-    tools: {search: searchTool},
+    tools: askAiTools,
     stopWhen: stepCountIs(MAX_STEPS),
+    // Without this the run can spend its last step on a tool call and end with
+    // no text at all, which reaches the reader as a silent non-answer.
+    prepareStep: ({stepNumber}) => (stepNumber >= MAX_STEPS - 1 ? {toolChoice: 'none'} : undefined),
+    onStepEnd: ({providerMetadata}) => {
+      steps += 1;
+      servingProvider = openRouterProvider(providerMetadata) ?? servingProvider;
+    },
   });
 
-  return createUIMessageStreamResponse({stream: toUIMessageStream({stream: result.stream})});
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream<typeof askAiTools, AskAiMessage>({
+      stream: result.stream,
+      messageMetadata: ({part}) =>
+        part.type === 'finish'
+          ? {finish_reason: part.finishReason, provider: servingProvider, steps}
+          : undefined,
+    }),
+  });
 }

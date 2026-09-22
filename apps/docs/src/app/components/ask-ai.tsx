@@ -5,7 +5,7 @@ import {DefaultChatTransport} from 'ai';
 import clsx from 'clsx';
 import {DynamicCodeBlock} from 'fumadocs-ui/components/dynamic-codeblock';
 import {buttonVariants} from 'fumadocs-ui/components/ui/button';
-import {Loader2, MessageCircleIcon, RotateCcw, SearchIcon, SendIcon, XIcon} from 'lucide-react';
+import {FileTextIcon, Loader2, MessageCircleIcon, RotateCcw, SendIcon, XIcon} from 'lucide-react';
 import {
   type ComponentProps,
   createContext,
@@ -26,7 +26,12 @@ import {
   askAiFailureReason,
   askAiQuestionProperties,
 } from '@/lib/ask-ai-analytics';
-import {type AskAiMessage, codeLanguage, resolveCitationLink} from '@/lib/ask-ai-core';
+import {
+  type AskAiMessage,
+  askAiAnswerMetadataSchema,
+  codeLanguage,
+  resolveCitationLink,
+} from '@/lib/ask-ai-core';
 import {captureDocsEvent} from '@/lib/docs-analytics';
 import {sanitizeTrackedUrl} from '@/lib/docs-analytics-core';
 import {basePath} from '@/url';
@@ -64,6 +69,7 @@ export function AskAi({model}: {model: string}) {
   const chat = useChat<AskAiMessage>({
     id: 'ask-ai',
     transport: chatTransport,
+    messageMetadataSchema: askAiAnswerMetadataSchema,
     onFinish: ({message}) => {
       if (message.role !== 'assistant') return;
       captureDocsEvent(
@@ -163,8 +169,9 @@ function AskAiHeader() {
 }
 
 function AskAiConversation() {
-  const {messages, error} = useAskAi().chat;
+  const {messages, error, status} = useAskAi().chat;
   const containerRef = useRef<HTMLDivElement>(null);
+  const isAnswering = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
     const container = containerRef.current;
@@ -184,8 +191,12 @@ function AskAiConversation() {
       ref={containerRef}
       className="fd-scroll-container flex flex-1 flex-col gap-group overflow-y-auto overscroll-contain px-row py-row"
     >
-      {messages.map((message) => (
-        <MessageView key={message.id} message={message} />
+      {messages.map((message, index) => (
+        <MessageView
+          key={message.id}
+          message={message}
+          settled={!isAnswering || index < messages.length - 1}
+        />
       ))}
       {error ? (
         <div className="rounded-lg border bg-fd-secondary p-tight text-sm text-fd-secondary-foreground">
@@ -199,7 +210,9 @@ function AskAiConversation() {
 
 const ROLE_LABEL = {user: 'You', assistant: 'Shipfox docs', system: 'System'} as const;
 
-function MessageView({message}: {message: AskAiMessage}) {
+function MessageView({message, settled}: {message: AskAiMessage; settled: boolean}) {
+  const hasText = message.parts.some((part) => part.type === 'text' && part.text.length > 0);
+
   return (
     <div className="flex flex-col gap-inline">
       <p
@@ -210,32 +223,47 @@ function MessageView({message}: {message: AskAiMessage}) {
       >
         {ROLE_LABEL[message.role]}
       </p>
-      {/* Parts stay in order so a search step reads above the text it produced. */}
+      {/* Parts stay in order so a retrieval step reads above the text it produced. */}
       {message.parts.map((part, index) => {
-        if (part.type === 'tool-search') return <SearchStep key={part.toolCallId} part={part} />;
+        if (part.type === 'tool-read_page') return <ReadStep key={part.toolCallId} part={part} />;
         if (part.type !== 'text') return null;
         return <AnswerMarkdown key={`text-${index}`} text={part.text} />;
       })}
+      {message.role === 'assistant' && settled && !hasText ? <NoAnswerNotice /> : null}
     </div>
   );
 }
 
-type SearchPart = Extract<AskAiMessage['parts'][number], {type: 'tool-search'}>;
+/**
+ * A turn can end having only read pages, which would otherwise render as a
+ * silent list of steps and read as a hang.
+ */
+function NoAnswerNotice() {
+  return (
+    <div className="rounded-lg border bg-fd-secondary p-tight text-sm text-fd-secondary-foreground">
+      <p>
+        I could not put an answer together from these pages. Try rewording the question, or retry.
+      </p>
+    </div>
+  );
+}
 
-function SearchStep({part}: {part: SearchPart}) {
+type ReadPart = Extract<AskAiMessage['parts'][number], {type: 'tool-read_page'}>;
+
+function ReadStep({part}: {part: ReadPart}) {
   return (
     <div className="flex items-center gap-inline rounded-lg border bg-fd-secondary p-tight text-xs text-fd-muted-foreground">
-      <SearchIcon className="size-4 shrink-0" />
-      <SearchStepLabel part={part} />
+      <FileTextIcon className="size-4 shrink-0" />
+      <ReadStepLabel part={part} />
     </div>
   );
 }
 
-function SearchStepLabel({part}: {part: SearchPart}) {
+function ReadStepLabel({part}: {part: ReadPart}) {
   if (part.state === 'output-error' || part.state === 'output-denied')
-    return <p className="text-fd-primary">{part.errorText ?? 'The search failed.'}</p>;
-  if (part.state !== 'output-available') return <p>Searching the docs…</p>;
-  return <p>{`Read ${part.output.length} ${part.output.length === 1 ? 'page' : 'pages'}`}</p>;
+    return <p className="text-fd-primary">{part.errorText ?? 'That page could not be read.'}</p>;
+  if (part.state !== 'output-available') return <p>Reading the docs…</p>;
+  return <p>{`Read ${part.output.title}`}</p>;
 }
 
 function AskAiComposer() {
