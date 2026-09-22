@@ -105,7 +105,11 @@ function collectCatalogProviderIssues(
   for (const page of unexpectedPages)
     issues.push(`${prefix}: remove or register unsupported page ${page}.mdx.`);
 
-  const expectedMetaPages = canonicalPages.filter((page) => directory.pages.includes(page));
+  // `index` stays out of meta.json: an unlisted index page becomes the folder's
+  // own sidebar link, instead of repeating the provider name as a child entry.
+  const expectedMetaPages = canonicalPages.filter(
+    (page) => page !== 'index' && directory.pages.includes(page),
+  );
   if (directory.hasGuides) expectedMetaPages.push(guidesDirectory);
   if (!sameStrings(directory.metaPages, expectedMetaPages))
     issues.push(

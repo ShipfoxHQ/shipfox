@@ -1,7 +1,6 @@
 {
   "title": "Guides",
   "pages": [
-    "index",
     "manage-repository-access",
     "read-pull-request",
     "post-pull-request-review",

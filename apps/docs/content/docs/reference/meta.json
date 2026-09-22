@@ -1,7 +1,6 @@
 {
   "title": "Reference",
   "pages": [
-    "index",
     "workflow-schema",
     "cloud-models",
     "runner-labels",

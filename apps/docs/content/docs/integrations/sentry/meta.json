@@ -1,4 +1,4 @@
 {
   "title": "Sentry",
-  "pages": ["index", "setup", "events"]
+  "pages": ["setup", "events"]
 }

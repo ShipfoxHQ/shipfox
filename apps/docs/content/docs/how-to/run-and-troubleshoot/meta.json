@@ -1,7 +1,6 @@
 {
   "title": "Run and Troubleshoot",
   "pages": [
-    "index",
     "---Test before you push---",
     "validate-local-workflow-change",
     "test-local-workflow-change",

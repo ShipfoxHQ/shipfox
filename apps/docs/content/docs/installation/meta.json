@@ -1,4 +1,4 @@
 {
   "title": "Installation",
-  "pages": ["index", "local", "self-hosting", "runner-provisioner"]
+  "pages": ["local", "self-hosting", "runner-provisioner"]
 }

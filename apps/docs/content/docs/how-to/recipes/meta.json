@@ -1,7 +1,6 @@
 {
   "title": "Recipes",
   "pages": [
-    "index",
     "checks-on-push",
     "parallel-ci-agent-review",
     "triage-sentry-issues",

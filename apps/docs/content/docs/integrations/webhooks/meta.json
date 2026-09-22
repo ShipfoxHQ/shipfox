@@ -1,4 +1,4 @@
 {
   "title": "Custom webhook",
-  "pages": ["index", "setup", "events"]
+  "pages": ["setup", "events"]
 }
