@@ -1,7 +1,6 @@
 {
   "title": "Author Workflows",
   "pages": [
-    "index",
     "---Start runs---",
     "run-manually",
     "schedule-workflows",

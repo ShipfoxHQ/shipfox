@@ -302,7 +302,8 @@ Understand.
 
 ### Order and group how-to pages
 
-The sidebar order comes from each directory's `meta.json`. Apply these rules in
+The sidebar order comes from each directory's `meta.json`, which never lists
+`index`. See [Section index pages](#section-index-pages). Apply these rules in
 order:
 
 1. Group pages under `---Label---` separators named after the reader's goal.
@@ -386,7 +387,7 @@ facts in the reference pages.
 | `events.mdx` | `/integrations/<provider>/events` | Reference | The provider stamps Shipfox event names into deliveries. |
 | `tools.mdx` | `/integrations/<provider>/tools` | Reference | Its registry-derived `capabilities[]` includes `agent_tools`. |
 | `guides/<task>.mdx` | `/integrations/<provider>/guides/<task>` | How-to | A task only makes sense with this provider. Add a `guides/index.mdx` and `guides/meta.json`. |
-| `meta.json` | None | None | Always. List only the pages that exist, in the order `index`, `setup`, `events`, `tools`, then `guides`. |
+| `meta.json` | None | None | Always. List only the pages that exist, in the order `setup`, `events`, `tools`, then `guides`. Never list `index`; see [Section index pages](#section-index-pages). |
 
 Put these files in `content/docs/integrations/<provider>/`. Register the provider
 directory in `content/docs/integrations/meta.json`. The provider's `meta.json`
@@ -438,7 +439,6 @@ hub for all provider pages.
 ````mdx
 ---
 title: "<Provider> integration"
-sidebarTitle: "Overview"
 description: "<State what the provider connects and how workflows use it.>"
 ---
 
@@ -599,8 +599,8 @@ input, output, and sensitivity facts in the provider's
    Otherwise, omit Events from the overview capability table.
 5. Write `tools.mdx` only when `capabilities[]` includes `agent_tools`.
    Otherwise, omit Tools from the overview capability table.
-6. Add the provider `meta.json`, list only the existing pages in order, and
-   register the provider directory in `integrations/meta.json`.
+6. Add the provider `meta.json`, list only the existing pages in order without
+   `index`, and register the provider directory in `integrations/meta.json`.
 7. Register the provider for generation: add it to
    `src/lib/registered-integration-providers.ts`, map its DTO catalogs in
    `scripts/generate.mjs`, add its icon to `src/lib/integration-catalog.ts`
@@ -746,6 +746,17 @@ contextual links.
   (`scripts/generate.mjs` regions, checked by `turbo test`).
 - Put expert or debugging detail in `Accordions`, not inline.
 
+### Section index pages
+
+A directory's `index.mdx` is its section landing page. Never list `index` in
+the directory's `meta.json` `pages`: an unlisted index page becomes the section
+title's own link, so the reader opens it by clicking the section name in the
+sidebar. Listing it instead repeats the section name as a child entry under
+itself.
+
+The sidebar label of a section comes from the `title` in its `meta.json`, so a
+section index page carries no `sidebarTitle`.
+
 ## Frontmatter
 
 - `title`: becomes the H1. Tutorial and how-to titles name the concrete project
@@ -755,8 +766,8 @@ contextual links.
   when the subject name alone does not. For task pages, it names the result.
   - A how-to `sidebarTitle` is an imperative verb and its object, in about four
     words, such as `Filter Trigger Events`. Do not use a noun-only label such
-    as `Agent Setup`. The fixed provider labels `Overview`, `Setup`, `Events`,
-    `Tools`, and `Guides` are exempt.
+    as `Agent Setup`. The fixed provider labels `Setup`, `Events`, and `Tools`
+    are exempt.
   - A troubleshooting `sidebarTitle` names the symptom the reader sees, such as
     `Event Didn't Start a Run`, not the subsystem.
   - A how-to `title` names the general capability, never the worked example.

@@ -1,7 +1,6 @@
 {
   "title": "Set Up Work",
   "pages": [
-    "index",
     "create-project",
     "manage-integration-connections",
     "configure-model-providers",

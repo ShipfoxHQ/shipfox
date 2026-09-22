@@ -54,19 +54,19 @@ const validInput: IntegrationDocsCompletenessInput = {
     github: directory(
       'github',
       ['index', 'setup', 'events', 'tools'],
-      ['index', 'setup', 'events', 'tools'],
+      ['setup', 'events', 'tools'],
       {
         capabilities: ['source_control', 'events', 'agent_tools'],
         categories: ['source-control'],
         aliases: ['git'],
       },
     ),
-    sentry: directory('sentry', ['index', 'setup', 'events'], ['index', 'setup', 'events'], {
+    sentry: directory('sentry', ['index', 'setup', 'events'], ['setup', 'events'], {
       capabilities: ['events'],
       categories: ['observability'],
       aliases: ['errors'],
     }),
-    webhooks: directory('webhooks', ['index', 'setup', 'events'], ['index', 'setup', 'events'], {
+    webhooks: directory('webhooks', ['index', 'setup', 'events'], ['setup', 'events'], {
       capabilities: ['events'],
       categories: ['custom'],
       aliases: ['hooks'],
@@ -74,44 +74,34 @@ const validInput: IntegrationDocsCompletenessInput = {
     linear: directory(
       'linear',
       ['index', 'setup', 'events', 'tools'],
-      ['index', 'setup', 'events', 'tools'],
+      ['setup', 'events', 'tools'],
       {
         capabilities: ['events', 'agent_tools'],
         categories: ['issue-tracking'],
         aliases: ['issues'],
       },
     ),
-    slack: directory(
-      'slack',
-      ['index', 'setup', 'events', 'tools'],
-      ['index', 'setup', 'events', 'tools'],
-      {
-        capabilities: ['events', 'agent_tools'],
-        categories: ['messaging'],
-        aliases: ['chat'],
-      },
-    ),
-    jira: directory(
-      'jira',
-      ['index', 'setup', 'events', 'tools'],
-      ['index', 'setup', 'events', 'tools'],
-      {
-        capabilities: ['events', 'agent_tools'],
-        categories: ['issue-tracking'],
-        aliases: ['issues', 'tickets'],
-      },
-    ),
+    slack: directory('slack', ['index', 'setup', 'events', 'tools'], ['setup', 'events', 'tools'], {
+      capabilities: ['events', 'agent_tools'],
+      categories: ['messaging'],
+      aliases: ['chat'],
+    }),
+    jira: directory('jira', ['index', 'setup', 'events', 'tools'], ['setup', 'events', 'tools'], {
+      capabilities: ['events', 'agent_tools'],
+      categories: ['issue-tracking'],
+      aliases: ['issues', 'tickets'],
+    }),
     clickup: directory(
       'clickup',
       ['index', 'setup', 'events', 'tools'],
-      ['index', 'setup', 'events', 'tools'],
+      ['setup', 'events', 'tools'],
       {
         capabilities: ['events', 'agent_tools'],
         categories: ['issue-tracking'],
         aliases: ['tasks', 'project management', 'tickets'],
       },
     ),
-    shipfox: directory('shipfox', ['index', 'tools'], ['index', 'tools'], {
+    shipfox: directory('shipfox', ['index', 'tools'], ['tools'], {
       capabilities: ['agent_tools'],
       categories: ['built-in'],
       aliases: ['workflows'],
@@ -164,7 +154,7 @@ test('accepts a guides directory listed after the canonical pages', () => {
         ...directory(
           'linear',
           ['index', 'setup', 'events', 'tools'],
-          ['index', 'setup', 'events', 'tools', 'guides'],
+          ['setup', 'events', 'tools', 'guides'],
           {
             capabilities: ['events', 'agent_tools'],
             categories: ['issue-tracking'],
@@ -186,7 +176,7 @@ test('reports a missing setup page for a catalog provider', () => {
     ...validInput,
     integrationDirectories: {
       ...validInput.integrationDirectories,
-      linear: directory('linear', ['index', 'events', 'tools'], ['index', 'events', 'tools'], {
+      linear: directory('linear', ['index', 'events', 'tools'], ['events', 'tools'], {
         capabilities: ['events', 'agent_tools'],
         categories: ['issue-tracking'],
         aliases: ['issues'],
@@ -204,7 +194,7 @@ test('rejects a setup page for a built-in catalog provider', () => {
     ...validInput,
     integrationDirectories: {
       ...validInput.integrationDirectories,
-      shipfox: directory('shipfox', ['index', 'setup', 'tools'], ['index', 'setup', 'tools'], {
+      shipfox: directory('shipfox', ['index', 'setup', 'tools'], ['setup', 'tools'], {
         capabilities: ['agent_tools'],
         categories: ['built-in'],
         aliases: ['workflows'],
@@ -266,7 +256,7 @@ test('reports only the built-in-source diagnostic for its integration directory'
     ...validInput,
     integrationDirectories: {
       ...validInput.integrationDirectories,
-      cron: directory('cron', ['index'], ['index'], {
+      cron: directory('cron', ['index'], [], {
         capabilities: [],
         categories: ['custom'],
         aliases: ['schedule'],
