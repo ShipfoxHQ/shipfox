@@ -5,7 +5,7 @@ import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/reac
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 
 export const FIRST_WORKFLOW_PROMPT =
   'Set up a Shipfox workflow for this repository. Use the Shipfox MCP server: call `get_workflow_setup_guide` and follow it.';
@@ -18,15 +18,25 @@ export interface FirstWorkflowPanelProps {
 
 export function FirstWorkflowPanel({workspaceSlug}: FirstWorkflowPanelProps) {
   const analytics = useClientAnalytics();
+  const titleId = useId();
   const panelOpened = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [copied, setCopied] = useState(false);
   const {copy} = useCopyToClipboard({
     text: FIRST_WORKFLOW_PROMPT,
     onCopy: () => {
       setCopied(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
       analytics.capture('first_workflow_prompt_copied');
     },
   });
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (panelOpened.current) return;
@@ -44,9 +54,9 @@ export function FirstWorkflowPanel({workspaceSlug}: FirstWorkflowPanelProps) {
 
   return (
     <Panel asChild>
-      <section aria-labelledby="first-workflow-panel-title">
+      <section aria-labelledby={titleId}>
         <PanelHeader variant="plain" className="flex-col items-start gap-inline">
-          <PanelTitle id="first-workflow-panel-title" variant="h2">
+          <PanelTitle id={titleId} variant="h2">
             Create your first workflow
           </PanelTitle>
           <Text size="sm" className="text-foreground-neutral-muted">
