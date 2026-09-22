@@ -14,10 +14,8 @@
 
 **Agentic coding makes engineers faster. Shipfox gives them a factory.**
 
-A ticket, an alert or a failed check starts a workflow in your repo. It runs
-like a CI pipeline and opens a pull request.
-
-You decide where you step in.
+Shipfox is a platform for automating engineering work with AI agents. Turn
+tickets, alerts, and failed checks into work ready for review.
 
 Workflows live as YAML in your repository and react to events across your stack.
 Shipfox handles orchestration, secure tool access, isolated execution, and

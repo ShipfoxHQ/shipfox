@@ -19,10 +19,8 @@ data density, unambiguous status, and no marketing fluff.
 
 Agentic coding makes engineers faster. Shipfox gives them a factory.
 
-A ticket, an alert or a failed check starts a workflow in your repo. It runs
-like a CI pipeline and opens a pull request.
-
-You decide where you step in.
+Shipfox is a platform for automating engineering work with AI agents. Turn
+tickets, alerts, and failed checks into work ready for review.
 
 Workflows plug into the tools that power an engineering team, such as ticketing,
 monitoring, chat, and source control, through one secured layer. The same
@@ -108,9 +106,8 @@ Constraints:
 - **Headline:** "Your AI Software Factory."
 - **Subtitle:** "Agentic coding makes engineers faster. Shipfox gives them a
   factory."
-- **Description:** "A ticket, an alert or a failed check starts a workflow in
-  your repo. It runs like a CI pipeline and opens a pull request. You decide
-  where you step in."
+- **Description:** "Shipfox is a platform for automating engineering work with
+  AI agents. Turn tickets, alerts, and failed checks into work ready for review."
 - **Voice:** direct, technical, no marketing fluff. Written for engineers who read
   logs at 2am. See `WRITING.md` and `apps/docs/WRITING.md` for repository prose
   conventions; product docs terminology there is binding.
