@@ -186,6 +186,47 @@ describe('secrets management routes', () => {
     expect(res.json().secrets[0].key).toBe('API_TOKEN');
   });
 
+  it('returns names only with exact project scope', async () => {
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/secrets/WORKSPACE_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+      payload: {value: 'workspace-secret'},
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/secrets/PROJECT_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+      payload: {project_id: projectId, value: 'project-secret'},
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/variables/REGION`,
+      headers: {authorization: 'Bearer user'},
+      payload: {project_id: projectId, value: 'eu-west-3'},
+    });
+
+    const secrets = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/secrets/names?project_id=${projectId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const variables = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/variables/names?project_id=${projectId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(secrets.statusCode).toBe(200);
+    expect(variables.statusCode).toBe(200);
+    expect(secrets.json()).toEqual({names: ['PROJECT_TOKEN']});
+    expect(variables.json()).toEqual({names: ['REGION']});
+    expect(secrets.json()).not.toHaveProperty('value');
+    expect(variables.json()).not.toHaveProperty('value');
+    expect(secrets.body).not.toContain('project-secret');
+    expect(variables.body).not.toContain('eu-west-3');
+  });
+
   it('uses exact project scope for management lists', async () => {
     await app.inject({
       method: 'PUT',

@@ -34,6 +34,8 @@ describe('Secrets inter-module presentation', () => {
     await setVariables({workspaceId, projectId, values: {REGION: 'eu-west-3'}});
     const namespace = await client.getSecretsByNamespace({workspaceId, projectId});
     const variables = await client.getVariablesByNamespace({workspaceId, projectId});
+    const secretNames = await client.listSecretNames({workspaceId, projectId});
+    const variableNames = await client.listVariableNames({workspaceId, projectId});
     const deleted = await client.deleteSecrets({workspaceId, projectId, keys: ['TOKEN']});
 
     expect(secret).toEqual({value: 'project-value', projectId});
@@ -41,6 +43,10 @@ describe('Secrets inter-module presentation', () => {
     expect(missingProjectSecret).toEqual({value: null, projectId: null});
     expect(namespace).toEqual({values: {TOKEN: 'project-value'}});
     expect(variables).toEqual({values: {REGION: 'eu-west-3'}});
+    expect(secretNames).toEqual({names: ['TOKEN']});
+    expect(variableNames).toEqual({names: ['REGION']});
+    expect(secretNames).not.toHaveProperty('value');
+    expect(variableNames).not.toHaveProperty('value');
     expect(deleted).toEqual({deleted: 1});
   });
 });

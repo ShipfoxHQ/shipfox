@@ -1,5 +1,6 @@
 import {defineInterModuleContract, type InterModuleClient} from '@shipfox/inter-module';
 import {z} from 'zod';
+import {secretNamesResponseSchema, variableNamesResponseSchema} from './schemas/management.js';
 
 const idSchema = z.string().uuid();
 const scopeSchema = z.object({
@@ -33,6 +34,14 @@ export const secretsInterModuleContract = defineInterModuleContract({
     getVariablesByNamespace: {
       input: scopeSchema,
       output: z.object({values: z.record(z.string(), z.string())}),
+    },
+    listSecretNames: {
+      input: z.object({workspaceId: idSchema, projectId: idSchema.optional()}),
+      output: secretNamesResponseSchema,
+    },
+    listVariableNames: {
+      input: z.object({workspaceId: idSchema, projectId: idSchema.optional()}),
+      output: variableNamesResponseSchema,
     },
     setSecrets: {
       input: scopeSchema.extend({

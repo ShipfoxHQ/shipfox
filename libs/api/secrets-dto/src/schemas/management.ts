@@ -49,6 +49,14 @@ export type ListSecretsQueryDto = z.infer<typeof listSecretsQuerySchema>;
 export const listVariablesQuerySchema = listSecretsQuerySchema;
 export type ListVariablesQueryDto = z.infer<typeof listVariablesQuerySchema>;
 
+export const secretNamesResponseSchema = z.object({
+  names: z.array(secretKeySchema),
+});
+export type SecretNamesResponseDto = z.infer<typeof secretNamesResponseSchema>;
+
+export const variableNamesResponseSchema = secretNamesResponseSchema;
+export type VariableNamesResponseDto = z.infer<typeof variableNamesResponseSchema>;
+
 export const secretScopeQuerySchema = z.object({
   project_id: optionalProjectIdSchema,
 });

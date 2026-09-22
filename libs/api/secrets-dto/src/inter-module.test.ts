@@ -28,6 +28,22 @@ describe('secretsInterModuleContract', () => {
     expect(output.projectId).toBe('00000000-0000-4000-8000-000000000002');
   });
 
+  test('defines names-only reads without value fields', () => {
+    const secretNames = secretsInterModuleContract.methods.listSecretNames.output.parse({
+      names: ['API_KEY'],
+      value: 'secret-value',
+    });
+    const variableNames = secretsInterModuleContract.methods.listVariableNames.output.parse({
+      names: ['REGION'],
+      value: 'secret-value',
+    });
+
+    expect(secretNames).toEqual({names: ['API_KEY']});
+    expect(variableNames).toEqual({names: ['REGION']});
+    expect(secretNames).not.toHaveProperty('value');
+    expect(variableNames).not.toHaveProperty('value');
+  });
+
   test('defines stable known errors without secret values', () => {
     expect(
       secretsInterModuleContract.methods.getSecret.errors['secret-decryption-failed'].parse({}),

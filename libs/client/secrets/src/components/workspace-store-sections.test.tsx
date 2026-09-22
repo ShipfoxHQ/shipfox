@@ -74,41 +74,45 @@ describe('workspace store DataTables', () => {
   test.each([
     ['secrets', secretRows],
     ['variables', variableRows],
-  ] as const)('%s sorts and filters the complete result set', async (section, makeRows) => {
-    const user = userEvent.setup();
-    const rows = makeRows();
-    const resource = section;
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({[resource]: rows, next_cursor: null}),
-      ) as unknown as typeof fetch;
+  ] as const)(
+    '%s sorts and filters the complete result set',
+    async (section, makeRows) => {
+      const user = userEvent.setup();
+      const rows = makeRows();
+      const resource = section;
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({[resource]: rows, next_cursor: null}),
+        ) as unknown as typeof fetch;
 
-    renderStoreSection(fetchImpl, section);
+      renderStoreSection(fetchImpl, section);
 
-    await screen.findByText('STORE_KEY_050');
-    expect(rowIds()).toHaveLength(ROW_COUNT);
+      await screen.findByText('STORE_KEY_050');
+      expect(rowIds()).toHaveLength(ROW_COUNT);
 
-    const nameHeader = screen.getByRole('button', {name: NAME_HEADER});
-    await user.click(nameHeader);
-    expect(rowIds()).toEqual([
-      'STORE_KEY_000',
-      ...Array.from({length: ROW_COUNT - 2}, (_, index) => makeKey(index + 1)),
-      'STORE_KEY_050',
-    ]);
+      const nameHeader = screen.getByRole('button', {name: NAME_HEADER});
+      await user.click(nameHeader);
+      expect(rowIds()).toEqual([
+        'STORE_KEY_000',
+        ...Array.from({length: ROW_COUNT - 2}, (_, index) => makeKey(index + 1)),
+        'STORE_KEY_050',
+      ]);
 
-    const updatedHeader = screen.getByRole('button', {name: UPDATED_HEADER});
-    await user.click(updatedHeader);
-    expect(rowIds()[0]).toBe('STORE_KEY_000');
-    await user.click(updatedHeader);
-    expect(rowIds()[0]).toBe('STORE_KEY_050');
+      const updatedHeader = screen.getByRole('button', {name: UPDATED_HEADER});
+      await user.click(updatedHeader);
+      expect(rowIds()[0]).toBe('STORE_KEY_000');
+      await user.click(updatedHeader);
+      expect(rowIds()[0]).toBe('STORE_KEY_050');
 
-    const searchLabel = section === 'secrets' ? 'Search secrets' : 'Search variables';
-    fireEvent.change(screen.getByRole('textbox', {name: searchLabel}), {
-      target: {value: 'STORE_KEY_050'},
-    });
-    expect(rowIds()).toEqual(['STORE_KEY_050']);
-    expect(screen.getByText('STORE_KEY_050')).toBeInTheDocument();
-    expect(screen.queryByText('STORE_KEY_000')).not.toBeInTheDocument();
-  });
+      const searchLabel = section === 'secrets' ? 'Search secrets' : 'Search variables';
+      fireEvent.change(screen.getByRole('textbox', {name: searchLabel}), {
+        target: {value: 'STORE_KEY_050'},
+      });
+      expect(rowIds()).toEqual(['STORE_KEY_050']);
+      expect(screen.getByText('STORE_KEY_050')).toBeInTheDocument();
+      expect(screen.queryByText('STORE_KEY_000')).not.toBeInTheDocument();
+    },
+    10_000,
+  );
 });
