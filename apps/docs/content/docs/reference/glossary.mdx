@@ -104,7 +104,9 @@ A workflow step that executes a shell command using the `run` field. Has access 
 A sensitive value stored write-only in workspace settings and bound into a run
 step's command or env with `${{ secrets.KEY }}`. The value resolves on the runner
 at execution time and is masked in logs; it never appears in prompts or
-predicates. See [Secrets and variables](/reference/secrets-variables).
+predicates. See [Manage secrets and
+variables](/how-to/set-up-work/secrets-and-variables) and [Context
+availability](/reference/contexts#context-availability).
 
 ## Workflow step
 
@@ -131,8 +133,8 @@ Defines when a workflow run starts. Configured in the `triggers:` section of a w
 
 A readable configuration value stored in workspace settings and injected into
 workflows with `${{ vars.KEY }}`, resolved when the run is created. Use variables
-for non-sensitive config; use secrets for credentials. See
-[Secrets and variables](/reference/secrets-variables).
+for non-sensitive config; use secrets for credentials. See [Manage secrets and
+variables](/how-to/set-up-work/secrets-and-variables).
 
 ## Workflow
 

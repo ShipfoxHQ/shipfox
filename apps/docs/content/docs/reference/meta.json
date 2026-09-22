@@ -2,16 +2,15 @@
   "title": "Reference",
   "pages": [
     "workflow-schema",
-    "cloud-models",
-    "runner-labels",
     "contexts",
     "expressions",
-    "secrets-variables",
-    "model-providers",
-    "mcp-server",
+    "runner-labels",
+    "cloud-models",
     "limits",
+    "mcp-server",
     "glossary",
-    "---Operations---",
+    "---Open source edition---",
+    "model-providers",
     "runner",
     "runner-provisioner"
   ]
