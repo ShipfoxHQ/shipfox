@@ -203,6 +203,12 @@ describe('secrets management routes', () => {
       method: 'PUT',
       url: `/workspaces/${workspaceId}/variables/REGION`,
       headers: {authorization: 'Bearer user'},
+      payload: {value: 'workspace-region'},
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/variables/REGION`,
+      headers: {authorization: 'Bearer user'},
       payload: {project_id: projectId, value: 'eu-west-3'},
     });
 

@@ -61,8 +61,24 @@ export function createTestSecretsClient(): SecretsInterModuleClient {
     },
     getSecretsByNamespace: async (params) => ({values: entries(params)}),
     getVariablesByNamespace: async (params) => ({values: entries(params)}),
-    listSecretNames: async (params) => ({names: Object.keys(entries(params))}),
-    listVariableNames: async (params) => ({names: Object.keys(entries(params))}),
+    listSecretNames: (params) => {
+      const normalized = normalize(params);
+      const prefix = `${scopeId(normalized)}\0`;
+      return Promise.resolve({
+        names: [...values.keys()]
+          .filter((id) => id.startsWith(prefix))
+          .map((id) => id.slice(prefix.length)),
+      });
+    },
+    listVariableNames: (params) => {
+      const normalized = normalize(params);
+      const prefix = `${scopeId(normalized)}\0`;
+      return Promise.resolve({
+        names: [...values.keys()]
+          .filter((id) => id.startsWith(prefix))
+          .map((id) => id.slice(prefix.length)),
+      });
+    },
     setSecrets: async (params) => {
       await Promise.resolve();
       for (const [key, value] of Object.entries(params.values))
