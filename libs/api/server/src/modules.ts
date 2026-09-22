@@ -419,6 +419,7 @@ export async function defaultModules(
       triggers: triggersClient,
       workflows: workflowsClient,
       integrations: integrationsClient,
+      secrets: secretsClient,
       templates: shippedTemplateLoader,
       ...(options.agentAccess ?? {}),
     }),

@@ -2278,6 +2278,9 @@ importers:
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
+      '@shipfox/api-secrets-dto':
+        specifier: workspace:*
+        version: link:../secrets-dto
       '@shipfox/api-triggers-dto':
         specifier: workspace:*
         version: link:../triggers-dto

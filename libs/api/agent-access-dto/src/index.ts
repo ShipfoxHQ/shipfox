@@ -27,6 +27,14 @@ export {
   rerunWorkflowRunResultSchema,
 } from './schemas/action-tools.js';
 export {
+  type GetWorkflowAuthoringContextInputDto,
+  type GetWorkflowAuthoringContextResultDto,
+  getWorkflowAuthoringContextInputJsonSchema,
+  getWorkflowAuthoringContextInputSchema,
+  getWorkflowAuthoringContextResultJsonSchema,
+  getWorkflowAuthoringContextResultSchema,
+} from './schemas/authoring-context.js';
+export {
   AGENT_ACCESS_FACET_MAX_ITEMS,
   AGENT_ACCESS_FACET_VALUE_MAX_BYTES,
   AGENT_ACCESS_SERIALIZED_JSON_MAX_BYTES,
