@@ -2,4 +2,4 @@
 '@shipfox/workflow-templates': minor
 ---
 
-Add the workflow template manifest, composer, embedded asset loader, and fixture coverage.
+Adds the workflow template manifest, part composer, and template loader for composing first-party workflow templates from embedded assets.

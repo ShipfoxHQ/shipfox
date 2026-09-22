@@ -1,6 +1,7 @@
 import {readdir, readFile, writeFile} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {parse as parseYaml} from 'yaml';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsRoot = join(packageRoot, 'assets');
@@ -24,9 +25,8 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
     })) {
       if (!providerEntry.isFile() || !providerEntry.name.endsWith('.yml')) continue;
       const provider = providerEntry.name.slice(0, -4);
-      roleParts[provider] = await readFile(
-        join(templateRoot, 'parts', roleEntry.name, providerEntry.name),
-        'utf8',
+      roleParts[provider] = parseYaml(
+        await readFile(join(templateRoot, 'parts', roleEntry.name, providerEntry.name), 'utf8'),
       );
     }
     parts[roleEntry.name] = roleParts;
