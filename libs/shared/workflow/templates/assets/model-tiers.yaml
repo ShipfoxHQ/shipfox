@@ -2,6 +2,7 @@ balanced:
   mechanical:
     - claude-haiku-4-5
     - gpt-oss-120b
+    - openai/gpt-oss-120b
     - gemini-3.1-pro-preview
   implementation:
     - claude-sonnet-5
@@ -14,15 +15,18 @@ balanced:
 economy:
   mechanical:
     - gpt-oss-120b
+    - openai/gpt-oss-120b
     - claude-haiku-4-5
     - gemini-3.1-pro-preview
   implementation:
     - claude-haiku-4-5
     - gpt-oss-120b
+    - openai/gpt-oss-120b
     - gemini-3.1-pro-preview
   review:
     - claude-haiku-4-5
     - gpt-oss-120b
+    - openai/gpt-oss-120b
     - gemini-3.1-pro-preview
 strongest:
   mechanical:
