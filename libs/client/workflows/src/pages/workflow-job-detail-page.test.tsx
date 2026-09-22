@@ -227,10 +227,6 @@ describe('WorkflowJobDetailPage', () => {
 
     expect(await screen.findByText('+0.000')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', {name: 'Log settings'}));
-    expect(screen.getByRole('menuitemradio', {name: 'Relative timestamps'})).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
     expect(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'})).toHaveAttribute(
       'aria-checked',
       'true',
@@ -244,10 +240,7 @@ describe('WorkflowJobDetailPage', () => {
       'aria-checked',
       'false',
     );
-    expect(screen.getByRole('menuitemradio', {name: 'Relative timestamps'})).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'}));
 

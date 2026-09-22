@@ -11,8 +11,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@shipfox/react-ui/dropdown-menu';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
@@ -352,8 +350,6 @@ export function JobDetailView({
                   onSearchChange={setLogSearch}
                   onRefresh={refreshLogs}
                   refreshing={logIsFetching}
-                  timestamps={logTimestamps}
-                  onTimestampsChange={setLogTimestamps}
                   showTimestamps={showLogTimestamps}
                   onShowTimestampsChange={setShowLogTimestamps}
                   showLineNumbers={showLineNumbers}
@@ -878,8 +874,6 @@ function JobLogPanelHeader({
   onSearchChange,
   onRefresh,
   refreshing,
-  timestamps,
-  onTimestampsChange,
   showTimestamps,
   onShowTimestampsChange,
   showLineNumbers,
@@ -896,8 +890,6 @@ function JobLogPanelHeader({
   onSearchChange: (value: string) => void;
   onRefresh: () => void;
   refreshing: boolean;
-  timestamps: VisibleLogTimestampMode;
-  onTimestampsChange: (value: VisibleLogTimestampMode) => void;
   showTimestamps: boolean;
   onShowTimestampsChange: (value: boolean) => void;
   showLineNumbers: boolean;
@@ -971,19 +963,6 @@ function JobLogPanelHeader({
               >
                 Timestamps
               </DropdownMenuCheckboxItem>
-              <DropdownMenuRadioGroup
-                value={timestamps}
-                onValueChange={(value) => {
-                  if (value === 'rel' || value === 'abs') onTimestampsChange(value);
-                }}
-              >
-                <DropdownMenuRadioItem value="rel" disabled={!showTimestamps}>
-                  Relative timestamps
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="abs" disabled={!showTimestamps}>
-                  Absolute timestamps
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
               <DropdownMenuCheckboxItem
                 checked={showLineNumbers}
                 onCheckedChange={onShowLineNumbersChange}
