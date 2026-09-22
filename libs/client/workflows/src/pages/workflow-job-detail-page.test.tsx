@@ -4,6 +4,7 @@ import {act, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {workflowJobQueryKeys} from '#hooks/api/workflow-job-detail.js';
 import type {WorkflowJobSearch, WorkflowRunsSearch} from '#routes/inputs.js';
+import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {
   runAttemptsResponseDto,
   workflowJobDetailResponseDto,
@@ -43,6 +44,7 @@ const EXECUTION_1_PATTERN = /Execution #1: release/u;
 const RELEASE_LINK_PATTERN = /release/;
 const ANNOTATION_LINK_PATTERN = /annotation/;
 const ANNOTATIONS_LINK_PATTERN = /Annotations/;
+const ABSOLUTE_TIMESTAMP_PATTERN = /^\d{2}:\d{2}:\d{2}$/u;
 const JOB_DETAIL_PATH_RE = /^\/workflows\/runs\/jobs\/([^/]+)$/u;
 
 describe('WorkflowJobDetailPage', () => {
@@ -221,6 +223,7 @@ describe('WorkflowJobDetailPage', () => {
       `?jobExecution=${EXECUTION_ID}&step=${STEP_ID}&stepAttempt=${ATTEMPT_ID}&runAttempt=1`,
     );
 
+    expect(await screen.findByText('+0.000')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', {name: 'Log settings'}));
     expect(screen.getByRole('menuitemradio', {name: 'Relative timestamps'})).toHaveAttribute(
       'aria-checked',
@@ -229,11 +232,7 @@ describe('WorkflowJobDetailPage', () => {
 
     await user.click(screen.getByRole('menuitemradio', {name: 'Absolute timestamps'}));
 
-    await user.click(screen.getByRole('button', {name: 'Log settings'}));
-    expect(screen.getByRole('menuitemradio', {name: 'Absolute timestamps'})).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
+    expect(await screen.findByText(ABSOLUTE_TIMESTAMP_PATTERN)).toBeInTheDocument();
   });
 
   test('loads execution history only when the switcher opens', async () => {
@@ -636,14 +635,7 @@ function jobDetailFetch(input: RequestInfo | URL) {
 
   if (url.pathname.includes('/logs')) {
     return Promise.resolve(
-      jsonResponse({
-        mode: 'inline',
-        ndjson: `${JSON.stringify({v: 1, ts: 1782043200000, type: 'output', stream: 'stdout', data: 'tests passed\\n'})}\\n`,
-        next_cursor: 0,
-        has_more: false,
-        state: 'closed',
-        truncated: false,
-      }),
+      jsonResponse(inlineLogBody(outputLine('tests passed\n', 1782043200000), 0)),
     );
   }
 
