@@ -87,7 +87,8 @@ export function LogView({
     [recordTree, truncated],
   );
   const deferredSearch = useDeferredValue(search);
-  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const searchQuery = deferredSearch.trim();
+  const normalizedSearch = searchQuery.toLowerCase();
   const searchIndex = useMemo(() => buildLogSearchIndex(tree.nodes), [tree.nodes]);
   const activityTerminated = tree.terminated || isTerminalAttemptStatus(attemptStatus);
   const activityNodes = useMemo(
@@ -111,13 +112,7 @@ export function LogView({
   const noOutputState =
     normalizedSearch || hasIncompleteTerminal ? null : getNoOutputState(tree, emptyState);
   const anchorRecordCount = records.length;
-  let searchStatus: string | null = null;
-  if (normalizedSearch) {
-    searchStatus =
-      visibleNodes.length === 0
-        ? `No log lines match “${deferredSearch.trim()}”.`
-        : `Log search updated for “${deferredSearch.trim()}”.`;
-  }
+  const searchStatus = getSearchStatus(searchQuery, visibleNodes.length > 0);
   const renderedNodes = useMemo(
     () =>
       view === 'activity'
@@ -191,13 +186,18 @@ export function LogView({
       >
         {noOutputState ? <NoOutputRow state={noOutputState} /> : null}
         {normalizedSearch && visibleNodes.length === 0 ? (
-          <NoSearchMatchesRow query={deferredSearch.trim()} />
+          <NoSearchMatchesRow query={searchQuery} />
         ) : null}
         {renderedNodes}
         {hasIncompleteTerminal && !normalizedSearch ? <IncompleteLogRow /> : null}
       </LogRows>
     </>
   );
+}
+
+function getSearchStatus(query: string, hasMatches: boolean): string | null {
+  if (!query) return null;
+  return hasMatches ? `Log search updated for “${query}”.` : `No log lines match “${query}”.`;
 }
 
 function IncompleteLogRow() {
