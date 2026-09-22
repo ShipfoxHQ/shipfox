@@ -295,9 +295,13 @@ export async function renewDispatchClaim(
   if (!config) return undefined;
 
   const table = sql.raw(quoteIdentifier(getTableName(config.table)));
+  // The timestamp is also the claim token; ensure a same-millisecond renewal changes it.
   const result = await config.db().execute<{claimExpiresAt: Date | string}>(sql`
     UPDATE ${table}
-    SET next_dispatch_at = ${claimExpiresAtSql()}
+    SET next_dispatch_at = GREATEST(
+      next_dispatch_at + interval '1 millisecond',
+      ${claimExpiresAtSql()}
+    )
     WHERE id = ${claim.id}
       AND next_dispatch_at = ${claim.claimExpiresAt}
       AND dispatched_at IS NULL
