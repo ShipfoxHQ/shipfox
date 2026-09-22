@@ -223,7 +223,6 @@ function initializeClaudeSession(
     !context.hasInit || sessionId === undefined || sessionId !== context.sessionId;
   if (isNewSession) {
     context.pendingToolRows.length = 0;
-    context.toolCallRows.clear();
   }
   context.hasInit = true;
   context.sessionId = sessionId ?? null;
@@ -285,35 +284,11 @@ export function rateLimitRow(
   );
 }
 
-export function toolUseSummary(
-  message: Record<string, unknown>,
-  context: ClaudeParseContext,
-): boolean {
-  const summary = stringField(message, 'summary');
-  if (summary === undefined) return false;
-
-  const precedingToolUseIds = stringList(field(message, 'preceding_tool_use_ids'));
-  const toolUseId = stringField(message, 'tool_use_id');
-  let candidateIds = precedingToolUseIds;
-  if (candidateIds.length === 0 && toolUseId !== undefined) candidateIds = [toolUseId];
-
-  for (const id of [...candidateIds].reverse()) {
-    const row = context.toolCallRows.get(id);
-    if (row === undefined) continue;
-
-    row.summary = row.summary === undefined ? summary : `${row.summary}\n\n${summary}`;
-    return true;
-  }
-
-  return false;
-}
-
 export function flushPendingToolRows(context: ClaudeParseContext): readonly SessionViewRow[] {
   if (context.pendingToolRows.length === 0) return [];
 
   const rows = context.pendingToolRows;
   context.pendingToolRows = [];
-  context.toolCallRows.clear();
   return rows;
 }
 
@@ -334,15 +309,12 @@ function stringList(value: unknown): string[] {
 export function assistantRows(
   timestamp: number,
   message: Record<string, unknown>,
-  context: ClaudeParseContext,
 ): readonly SessionViewRow[] {
   const sdkMessage = asLooseObject(message.message) ?? message;
   const state: ClaudeAssistantRowState = {
-    context,
     rows: [],
     textParts: [],
     thinkingParts: [],
-    queueRows: context.toolCallRows.size > 0,
   };
 
   for (const block of contentBlocks(sdkMessage)) {
@@ -352,23 +324,20 @@ export function assistantRows(
   flushClaudeAssistantText(timestamp, state);
   flushClaudeAssistantThinking(timestamp, state);
 
-  if (state.rows.length > 0 || state.queueRows) return state.rows;
+  if (state.rows.length > 0) return state.rows;
 
   const text = stringField(sdkMessage, 'content') ?? stringField(message, 'result');
   return [messageRow(timestamp, 'assistant', 'assistant', text ?? toJson(message), false)];
 }
 
 interface ClaudeAssistantRowState {
-  readonly context: ClaudeParseContext;
   readonly rows: SessionViewRow[];
   readonly textParts: string[];
   readonly thinkingParts: string[];
-  queueRows: boolean;
 }
 
 function pushClaudeAssistantRow(row: SessionViewRow, state: ClaudeAssistantRowState): void {
-  if (state.queueRows) state.context.pendingToolRows.push(row);
-  else state.rows.push(row);
+  state.rows.push(row);
 }
 
 function flushClaudeAssistantText(timestamp: number, state: ClaudeAssistantRowState): void {
@@ -414,27 +383,17 @@ function appendClaudeToolCall(
 ): void {
   flushClaudeAssistantText(timestamp, state);
   flushClaudeAssistantThinking(timestamp, state);
-  const row = toolCallRow(timestamp, block);
-  if (row.id === null) {
-    pushClaudeAssistantRow(row, state);
-    return;
-  }
-  state.queueRows = true;
-  state.context.pendingToolRows.push(row);
-  state.context.toolCallRows.set(row.id, row);
+  pushClaudeAssistantRow(toolCallRow(timestamp, block), state);
 }
 
 export function userRows(
   timestamp: number,
   message: Record<string, unknown>,
-  context: ClaudeParseContext,
 ): readonly SessionViewRow[] {
   const sdkMessage = asLooseObject(message.message) ?? message;
   const role = isPlatformMessage(sdkMessage) ? 'platform' : 'user';
   const rows: SessionViewRow[] = [];
   const textParts: string[] = [];
-  const hadPendingToolCall = context.toolCallRows.size > 0;
-  let matchedToolResult = false;
   const pushText = () => {
     if (textParts.length === 0) return;
     rows.push(messageRow(timestamp, role, role, textParts.join('\n\n'), false));
@@ -442,9 +401,7 @@ export function userRows(
   };
 
   for (const block of contentBlocks(sdkMessage)) {
-    matchedToolResult =
-      appendClaudeUserBlock(timestamp, block, context, rows, textParts, pushText) ||
-      matchedToolResult;
+    appendClaudeUserBlock(timestamp, block, rows, textParts, pushText);
   }
 
   pushText();
@@ -454,40 +411,24 @@ export function userRows(
     rows.push(messageRow(timestamp, role, role, content ?? toJson(message), false));
   }
 
-  if (hadPendingToolCall) return resolvePendingClaudeUserRows(context, rows, matchedToolResult);
   return rows;
 }
 
 function appendClaudeUserBlock(
   timestamp: number,
   block: Record<string, unknown>,
-  context: ClaudeParseContext,
   rows: SessionViewRow[],
   textParts: string[],
   pushText: () => void,
-): boolean {
+): void {
   const type = stringField(block, 'type');
   if (type !== 'tool_result' && type !== 'tool-result') {
     const text = blockText(block);
     if (text) textParts.push(text);
-    return false;
+    return;
   }
   pushText();
-  const row = toolResultRow(timestamp, block);
-  rows.push(row);
-  return row.toolCallId !== null && context.toolCallRows.has(row.toolCallId);
-}
-
-function resolvePendingClaudeUserRows(
-  context: ClaudeParseContext,
-  rows: readonly SessionViewRow[],
-  matchedToolResult: boolean,
-): readonly SessionViewRow[] {
-  if (matchedToolResult) {
-    context.pendingToolRows.push(...rows);
-    return [];
-  }
-  return [...flushPendingToolRows(context), ...rows];
+  rows.push(toolResultRow(timestamp, block));
 }
 
 export function resultRow(

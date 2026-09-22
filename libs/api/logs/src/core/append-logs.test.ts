@@ -4,6 +4,8 @@ import {defineInterModulePresentation} from '@shipfox/inter-module';
 import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
 import {appendLogs} from '#core/append-logs.js';
 import {LeaseStreamMismatchError, MalformedLogChunkError, OffsetGapError} from '#core/errors.js';
+import {db} from '#db/db.js';
+import {getOrCreateAttemptStream, setClaudeParseContext} from '#db/streams.js';
 import {jobAccountingFactory} from '#test/factories/job-accounting.js';
 import {
   endLine,
@@ -481,7 +483,7 @@ describe('appendLogs', () => {
       });
     });
 
-    it('folds a tool-use summary across append requests before storing the row', async () => {
+    it('emits tool calls across append requests and ignores tool-use summaries', async () => {
       const ctx = newCtx();
       await allowLargeLogBudget(ctx);
       const workflows = createFakeInterModuleClients({
@@ -526,12 +528,22 @@ describe('appendLogs', () => {
               role: 'assistant',
               content: [
                 {type: 'tool_use', id: 'tool-1', name: 'Read', input: {file_path: 'src/a.ts'}},
+                {type: 'text', text: 'I will use the file contents next.'},
               ],
             },
           }),
         ),
       );
       const second = ndjsonBody(
+        sessionLine(
+          JSON.stringify({
+            type: 'user',
+            message: {
+              role: 'user',
+              content: [{type: 'tool_result', tool_use_id: 'tool-1', content: 'file contents'}],
+            },
+          }),
+        ),
         sessionLine(
           JSON.stringify({
             type: 'tool_use_summary',
@@ -543,6 +555,17 @@ describe('appendLogs', () => {
       );
 
       await appendLogs({...ctx, attempt: 1, offset: 0, body: first}, workflows);
+      const firstStream = await findStream({...ctx, attempt: 1});
+      expect(recordsFromChunks(await listChunks(firstStream?.id as string))).toEqual([
+        expect.objectContaining({
+          type: 'agent_session',
+          row: expect.objectContaining({kind: 'tool-call'}),
+        }),
+        expect.objectContaining({
+          type: 'agent_session',
+          row: expect.objectContaining({kind: 'message'}),
+        }),
+      ]);
       await appendLogs({...ctx, attempt: 1, offset: first.length, body: second}, workflows);
 
       const stream = await findStream({...ctx, attempt: 1});
@@ -557,10 +580,68 @@ describe('appendLogs', () => {
           id: 'tool-1',
           name: 'Read',
           input: '{\n  "file_path": "src/a.ts"\n}',
-          summary: 'Read the source file.',
         },
+        expect.objectContaining({
+          kind: 'message',
+          text: 'I will use the file contents next.',
+        }),
+        expect.objectContaining({
+          kind: 'tool-result',
+          toolCallId: 'tool-1',
+          output: 'file contents',
+        }),
       ]);
       expect(stream?.claudePendingToolRows).toEqual([]);
+    });
+
+    it('drains persisted pending tool rows before newer records and clears them', async () => {
+      const ctx = newCtx();
+      await allowLargeLogBudget(ctx);
+      const stream = await db().transaction((tx) =>
+        getOrCreateAttemptStream(tx, {
+          ...ctx,
+          attempt: 1,
+        }),
+      );
+      await db().transaction((tx) =>
+        setClaudeParseContext(tx, {
+          streamId: stream.id,
+          hasInit: true,
+          sessionId: 'session-1',
+          turn: 1,
+          pendingResult: null,
+          pendingToolRows: [
+            {
+              kind: 'tool-call',
+              timestamp: 1,
+              id: 'old-tool',
+              name: 'Read',
+              input: '{\n  "file_path": "old.ts"\n}',
+              summary: 'Read the old file.',
+            },
+          ],
+        }),
+      );
+
+      const body = ndjsonBody(outputLine('new output\\n'));
+      await appendLogs({...ctx, attempt: 1, offset: 0, body});
+
+      const updatedStream = await findStream({...ctx, attempt: 1});
+      const rows = recordsFromChunks(await listChunks(stream.id)).map((record) =>
+        record.type === 'agent_session' ? record.row : record,
+      );
+      expect(rows).toEqual([
+        {
+          kind: 'tool-call',
+          timestamp: 1,
+          id: 'old-tool',
+          name: 'Read',
+          input: '{\n  "file_path": "old.ts"\n}',
+          summary: 'Read the old file.',
+        },
+        expect.objectContaining({type: 'output', data: 'new output\\n'}),
+      ]);
+      expect(updatedStream?.claudePendingToolRows).toEqual([]);
     });
 
     it('does not duplicate parsed rows on a retried append', async () => {
