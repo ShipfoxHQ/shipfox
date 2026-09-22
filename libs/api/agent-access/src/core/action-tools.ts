@@ -27,12 +27,14 @@ import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-mod
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {agentAccessError, agentAccessSuccess} from './envelope.js';
 import {truncateAgentAccessUtf8} from './response.js';
+import {buildRunUrl} from './run-url.js';
 import {invalidRequest, optionalField, parseInput} from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
 
 export interface AgentAccessActionToolsOptions {
   workflows: WorkflowsModuleClient;
   triggers: TriggersInterModuleClient;
+  clientBaseUrl?: string | undefined;
 }
 
 const AGENT_ACCESS_ERROR_DETAILS_RESERVE_BYTES = 128;
@@ -46,9 +48,9 @@ export function createAgentAccessActionTools(
 ): readonly AgentAccessTool[] {
   return [
     createCancelWorkflowRunTool(options.workflows),
-    createRerunWorkflowRunTool(options.workflows),
-    createFireManualTriggerTool(options.triggers),
-    createDevRunTool(options.triggers),
+    createRerunWorkflowRunTool(options.workflows, options.clientBaseUrl),
+    createFireManualTriggerTool(options.triggers, options.clientBaseUrl),
+    createDevRunTool(options.triggers, options.clientBaseUrl),
   ];
 }
 
@@ -94,11 +96,14 @@ function createCancelWorkflowRunTool(workflows: WorkflowsModuleClient): AgentAcc
   };
 }
 
-function createRerunWorkflowRunTool(workflows: WorkflowsModuleClient): AgentAccessTool {
+function createRerunWorkflowRunTool(
+  workflows: WorkflowsModuleClient,
+  clientBaseUrl: string | undefined,
+): AgentAccessTool {
   return {
     name: 'rerun_workflow_run',
     description:
-      'Rerun a terminal workflow run. expected_attempt is required and identifies the source attempt; mode is required and must be all or failed. If a retry after success returns attempt-mismatch with details.current_attempt, the rerun already happened. Do not retry based only on run-not-terminal because the new attempt can finish before the retry.',
+      'Rerun a terminal workflow run. expected_attempt is required and identifies the source attempt; mode is required and must be all or failed. If a retry after success returns attempt-mismatch with details.current_attempt, the rerun already happened. Do not retry based only on run-not-terminal because the new attempt can finish before the retry. When configured, run_url is a link for the user to follow the run.',
     inputSchema: rerunWorkflowRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(rerunWorkflowRunResultJsonSchema),
     validateInput: (input) => rerunWorkflowRunInputSchema.safeParse(input).success,
@@ -121,10 +126,12 @@ function createRerunWorkflowRunTool(workflows: WorkflowsModuleClient): AgentAcce
           mode: input.mode,
           actorUserId: context.userId,
         });
+        const runUrl = buildRunUrl(clientBaseUrl, result.id);
         return agentAccessSuccess({
           run_id: result.id,
           workflow_run_attempt: result.attempt,
           status: result.status,
+          ...(runUrl === undefined ? {} : {run_url: runUrl}),
         });
       } catch (error) {
         if (isInterModuleKnownError(workflowsInterModuleContract.methods.rerunWorkflowRun, error)) {
@@ -136,11 +143,14 @@ function createRerunWorkflowRunTool(workflows: WorkflowsModuleClient): AgentAcce
   };
 }
 
-function createFireManualTriggerTool(triggers: TriggersInterModuleClient): AgentAccessTool {
+function createFireManualTriggerTool(
+  triggers: TriggersInterModuleClient,
+  clientBaseUrl: string | undefined,
+): AgentAccessTool {
   return {
     name: 'fire_manual_trigger',
     description:
-      'Start a workflow from its manual trigger. Supply idempotency_key whenever this call may be retried. The gateway fingerprints the grant, key, definition, and canonical inputs: the same key and request returns the existing run with deduplicated true, while a different definition or inputs starts a new run. A retry without a key can start a second run.',
+      'Start a workflow from its manual trigger. Supply idempotency_key whenever this call may be retried. The gateway fingerprints the grant, key, definition, and canonical inputs: the same key and request returns the existing run with deduplicated true, while a different definition or inputs starts a new run. A retry without a key can start a second run. When configured, run_url is a link for the user to follow the run.',
     inputSchema: fireManualTriggerInputJsonSchema,
     outputSchema: agentAccessOutputSchema(fireManualTriggerResultJsonSchema),
     validateInput: (input) => fireManualTriggerInputSchema.safeParse(input).success,
@@ -168,10 +178,12 @@ function createFireManualTriggerTool(triggers: TriggersInterModuleClient): Agent
             inputs: input.inputs,
           }),
         });
+        const runUrl = buildRunUrl(clientBaseUrl, result.id);
         return agentAccessSuccess({
           run_id: result.id,
           name: result.name,
           deduplicated: result.deduplicated,
+          ...(runUrl === undefined ? {} : {run_url: runUrl}),
         });
       } catch (error) {
         if (isInterModuleKnownError(triggersInterModuleContract.methods.fireManualTrigger, error)) {
@@ -183,11 +195,14 @@ function createFireManualTriggerTool(triggers: TriggersInterModuleClient): Agent
   };
 }
 
-function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool {
+function createDevRunTool(
+  triggers: TriggersInterModuleClient,
+  clientBaseUrl: string | undefined,
+): AgentAccessTool {
   return {
     name: 'create_dev_run',
     description:
-      'Validate and run a workflow in three steps. 1. Shape check: call create_dev_run with content, dry_run: true, and no replay_event_id. This resolves and validates the definition and trigger key without loading an event; event_checked is false for an event trigger and true for manual or cron triggers. 2. Event check: for an event trigger, call list_trigger_events with replayable=true, read a candidate with get_trigger_event, then call create_dev_run with content, replay_event_id, and dry_run: true. A successful replay check returns check_passed true and event_checked true. If create_dev_run returns trigger-filtered or replay-event-mismatch, the candidate does not match; read/select the next candidate event and repeat. This confirms the event matches and the filter passes. 3. Real run: for an event trigger, call create_dev_run with content and replay_event_id without dry_run; for a manual or cron trigger, call it with content and no replay_event_id. The run can still fail admission, creation, or execution, so read it with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
+      'Validate and run a workflow in three steps. 1. Shape check: call create_dev_run with content, dry_run: true, and no replay_event_id. This resolves and validates the definition and trigger key without loading an event; event_checked is false for an event trigger and true for manual or cron triggers. 2. Event check: for an event trigger, call list_trigger_events with replayable=true, read a candidate with get_trigger_event, then call create_dev_run with content, replay_event_id, and dry_run: true. A successful replay check returns check_passed true and event_checked true. If create_dev_run returns trigger-filtered or replay-event-mismatch, the candidate does not match; read/select the next candidate event and repeat. This confirms the event matches and the filter passes. 3. Real run: for an event trigger, call create_dev_run with content and replay_event_id without dry_run; for a manual or cron trigger, call it with content and no replay_event_id. The real-run result includes run_url when configured; give that link to the user to follow the run. The run can still fail admission, creation, or execution, so read it with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
     inputSchema: createDevRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(createDevRunResultJsonSchema),
     validateInput: (input) => createDevRunInputSchema.safeParse(input).success,
@@ -201,7 +216,7 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
     execute: ({context, arguments: rawInput}) => {
       const input = parseInput(createDevRunInputSchema, rawInput);
       if (!input) return invalidRequest();
-      return executeDevRun(input, context.workspaceId, context.userId, triggers);
+      return executeDevRun(input, context.workspaceId, context.userId, triggers, clientBaseUrl);
     },
   };
 }
@@ -242,6 +257,7 @@ async function executeDevRun(
   workspaceId: string,
   userId: string,
   triggers: TriggersInterModuleClient,
+  clientBaseUrl: string | undefined,
 ) {
   const request: CreateDevRunRequest = {
     workspaceId,
@@ -258,7 +274,7 @@ async function executeDevRun(
 
   try {
     if (input.dry_run) return await executeDryRun(triggers, request);
-    return await executeRealDevRun(triggers, request);
+    return await executeRealDevRun(triggers, request, clientBaseUrl);
   } catch (error) {
     const method = input.dry_run
       ? triggersInterModuleContract.methods.checkDevRun
@@ -285,10 +301,13 @@ async function executeDryRun(triggers: TriggersInterModuleClient, request: Creat
 async function executeRealDevRun(
   triggers: TriggersInterModuleClient,
   request: CreateDevRunRequest,
+  clientBaseUrl: string | undefined,
 ) {
   const result = await triggers.createDevRun(request);
+  const runUrl = buildRunUrl(clientBaseUrl, result.id);
   return agentAccessSuccess({
     run_id: result.id,
+    ...(runUrl === undefined ? {} : {run_url: runUrl}),
     ...(result.ref === undefined ? {} : {ref: result.ref}),
     commit: result.commit,
     ...(result.warnings === undefined ? {} : {warnings: mapDevRunWarnings(result.warnings)}),

@@ -92,6 +92,20 @@ describe('bounded workflow agent-access tools', () => {
     });
     expect(result).not.toHaveProperty('jobs');
     expect(result).not.toHaveProperty('trigger_payload');
+    expect(result).not.toHaveProperty('run_url');
+  });
+
+  test('returns a run URL without duplicating a trailing slash', async () => {
+    const mocks = clients('https://client.example.test/');
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(overview());
+
+    const response = await tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId},
+    });
+    const result = expectSuccess<GetWorkflowRunResultDto>(response);
+
+    expect(result.run_url).toBe(`https://client.example.test/runs/${runId}`);
   });
 
   test('passes an explicit run attempt through to the bounded overview', async () => {
@@ -437,7 +451,7 @@ describe('bounded workflow agent-access tools', () => {
   });
 });
 
-function clients() {
+function clients(clientBaseUrl?: string) {
   const {workflows, handlers: workflowHandlers} = createTestWorkflowsClient();
   return {
     projects: {
@@ -449,6 +463,7 @@ function clients() {
     workflowHandlers,
     annotations: {listAnnotationsForRunAttempt: vi.fn()},
     triggers: {listTriggerEvents: vi.fn()},
+    clientBaseUrl,
   } as unknown as Parameters<typeof createAgentAccessTools>[0] & {
     workflowHandlers: typeof workflowHandlers;
   };

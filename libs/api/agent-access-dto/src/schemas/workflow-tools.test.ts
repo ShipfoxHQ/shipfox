@@ -62,6 +62,12 @@ describe('workflow agent-access schemas', () => {
 
   test('accepts waiting for run and attempt results', () => {
     const result = runResult();
+    const withRunUrl = {...result, run_url: `https://client.example.test/runs/${runId}`};
+    expect(getWorkflowRunResultSchema.safeParse(withRunUrl).success).toBe(true);
+    expect(getWorkflowRunResultJsonSchema.properties.run_url).toEqual({
+      type: 'string',
+      format: 'uri',
+    });
     const waiting = {
       ...result,
       status: 'waiting' as const,

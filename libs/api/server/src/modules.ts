@@ -410,6 +410,7 @@ export async function defaultModules(
       agent: agentClient,
       annotations: annotationsClient,
       apiPublicUrl: authConfig.API_PUBLIC_URL,
+      clientBaseUrl: authConfig.CLIENT_BASE_URL,
       auth: authClient,
       definitions: definitionsClient,
       logs: logsClient,

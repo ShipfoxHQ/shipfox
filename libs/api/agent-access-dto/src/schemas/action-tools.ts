@@ -110,6 +110,7 @@ export const rerunWorkflowRunResultSchema = z
     run_id: uuidSchema,
     workflow_run_attempt: workflowRunAttemptSchema,
     status: workflowRunStatusSchema,
+    run_url: z.string().url().optional(),
   })
   .strict();
 
@@ -130,6 +131,7 @@ export const fireManualTriggerResultSchema = z
     run_id: uuidSchema,
     name: z.string(),
     deduplicated: z.boolean(),
+    run_url: z.string().url().optional(),
   })
   .strict();
 
@@ -180,6 +182,7 @@ export const createDevRunResultSchema = z.union([
   z
     .object({
       run_id: uuidSchema,
+      run_url: z.string().url().optional(),
       ...createDevRunResultShape,
     })
     .strict(),
@@ -243,6 +246,7 @@ export const rerunWorkflowRunResultJsonSchema = {
     run_id: uuidJsonSchema,
     workflow_run_attempt: attemptJsonSchema,
     status: statusJsonSchema,
+    run_url: {type: 'string', format: 'uri'},
   },
   required: ['run_id', 'workflow_run_attempt', 'status'],
   additionalProperties: false,
@@ -269,6 +273,7 @@ export const fireManualTriggerResultJsonSchema = {
     run_id: uuidJsonSchema,
     name: {type: 'string'},
     deduplicated: {type: 'boolean'},
+    run_url: {type: 'string', format: 'uri'},
   },
   required: ['run_id', 'name', 'deduplicated'],
   additionalProperties: false,
@@ -312,6 +317,7 @@ export const createDevRunResultJsonSchema = {
   type: 'object',
   properties: {
     run_id: uuidJsonSchema,
+    run_url: {type: 'string', format: 'uri'},
     dry_run: {const: true},
     check_passed: {const: true},
     ref: {type: 'string'},
@@ -333,7 +339,7 @@ export const createDevRunResultJsonSchema = {
     },
     {
       required: ['dry_run', 'check_passed'],
-      not: {required: ['run_id']},
+      not: {anyOf: [{required: ['run_id']}, {required: ['run_url']}]},
     },
   ],
   additionalProperties: false,

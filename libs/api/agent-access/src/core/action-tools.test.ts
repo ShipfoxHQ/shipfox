@@ -23,7 +23,7 @@ const context: AgentAccessContext = {
   credential: {kind: 'oauth_grant', grantId: uuid(6), clientId: 'client'},
 };
 
-function clients() {
+function clients(clientBaseUrl?: string) {
   const workflows = {
     cancelWorkflowRun: vi.fn(),
     rerunWorkflowRun: vi.fn(),
@@ -33,7 +33,11 @@ function clients() {
     createDevRun: vi.fn(),
     checkDevRun: vi.fn(),
   } as unknown as TriggersInterModuleClient;
-  return {workflows, triggers, tools: createAgentAccessActionTools({workflows, triggers})};
+  return {
+    workflows,
+    triggers,
+    tools: createAgentAccessActionTools({workflows, triggers, clientBaseUrl}),
+  };
 }
 
 function tool(tools: ReturnType<typeof clients>['tools'], name: string) {
@@ -62,6 +66,75 @@ describe('agent-access action tools', () => {
       {readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true},
       {readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true},
     ]);
+  });
+
+  test('returns run URLs for action tools without duplicating a trailing slash', async () => {
+    const {workflows, triggers, tools} = clients('https://client.example.test/');
+    vi.mocked(workflows.rerunWorkflowRun).mockResolvedValue({
+      id: runId,
+      attempt: 2,
+      status: 'running',
+    });
+    vi.mocked(triggers.fireManualTrigger).mockResolvedValue({
+      id: runId,
+      name: 'Build',
+      deduplicated: false,
+    });
+    vi.mocked(triggers.createDevRun).mockResolvedValue({
+      id: runId,
+      commit: 'a'.repeat(40),
+    });
+
+    const rerun = await tool(tools, 'rerun_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, expected_attempt: 1, mode: 'failed'},
+    });
+    const manual = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+    const devRun = await tool(tools, 'create_dev_run').execute({
+      context,
+      arguments: {
+        project_id: projectId,
+        content: 'triggers: {}',
+        config_path: '.shipfox/workflow.yml',
+        trigger: 'manual',
+      },
+    });
+
+    const runUrl = `https://client.example.test/runs/${runId}`;
+    expect(rerun).toMatchObject({ok: true, result: {run_url: runUrl}});
+    expect(manual).toMatchObject({ok: true, result: {run_url: runUrl}});
+    expect(devRun).toMatchObject({ok: true, result: {run_url: runUrl}});
+  });
+
+  test('omits run URLs when the client base URL is not configured', async () => {
+    const {workflows, triggers, tools} = clients();
+    vi.mocked(workflows.rerunWorkflowRun).mockResolvedValue({
+      id: runId,
+      attempt: 2,
+      status: 'running',
+    });
+    vi.mocked(triggers.fireManualTrigger).mockResolvedValue({
+      id: runId,
+      name: 'Build',
+      deduplicated: false,
+    });
+
+    const rerun = await tool(tools, 'rerun_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, expected_attempt: 1, mode: 'failed'},
+    });
+    const manual = await tool(tools, 'fire_manual_trigger').execute({
+      context,
+      arguments: {definition_id: definitionId},
+    });
+
+    expect(rerun).toMatchObject({ok: true, result: {run_id: runId}});
+    expect(manual).toMatchObject({ok: true, result: {run_id: runId}});
+    expect(rerun).not.toHaveProperty('result.run_url');
+    expect(manual).not.toHaveProperty('result.run_url');
   });
 
   test('passes expected attempts and maps retry identity details', async () => {
