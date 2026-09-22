@@ -1,20 +1,35 @@
 import type {UIMessage} from 'ai';
-import type {SortedResult} from 'fumadocs-core/search';
+import {z} from 'zod';
+import type {CatalogSection} from '@/lib/page-catalog';
 
 // Framework-free half of Ask AI, kept separate from `ask-ai-retrieval.ts` so the
 // chat panel and the unit tests do not pull in the content source.
 
 const LANGUAGE_CLASS_PREFIX = 'language-';
-const MAX_PAGES = 4;
-const MAX_PAGE_CHARACTERS = 8_000;
-const TRUNCATION_NOTICE = '\n\n[Page truncated. Open the page URL above for the rest.]';
+const DOCS_PATH_PREFIX = '/docs';
+const ABSOLUTE_URL_PATTERN = /^https?:\/\//i;
+const QUERY_OR_FRAGMENT_PATTERN = /[?#]/;
 
-/** One documentation page returned by the Ask AI retrieval tool. */
-export interface DocumentationPageExcerpt {
+/** One whole documentation page, as the `read_page` tool returns it. */
+export interface DocumentationPage {
   title: string;
   url: string;
   content: string;
 }
+
+/**
+ * What the turn reported about itself. `finish_reason` separates an answer the
+ * model chose to end from one the step budget cut short, and `provider` names
+ * the OpenRouter endpoint that served it, which is the only way to attribute a
+ * bad answer to a bad endpoint.
+ */
+export const askAiAnswerMetadataSchema = z.object({
+  finish_reason: z.string().optional(),
+  provider: z.string().optional(),
+  steps: z.number().optional(),
+});
+
+export type AskAiAnswerMetadata = z.infer<typeof askAiAnswerMetadataSchema>;
 
 /**
  * Wire contract between the Ask AI panel and its route handler. The `client`
@@ -22,34 +37,53 @@ export interface DocumentationPageExcerpt {
  * set this up" can be answered against the page in front of them.
  */
 export type AskAiMessage = UIMessage<
-  never,
+  AskAiAnswerMetadata,
   {client: {location: string}},
-  {search: {input: {query: string}; output: DocumentationPageExcerpt[]}}
+  {read_page: {input: {url: string}; output: DocumentationPage}}
 >;
 
 /**
- * The search index is section-level, so one page appears once per matching
- * heading. Ask AI answers from whole pages, so collapse the hits into a ranked
- * list of page URLs.
+ * The instructions carry the whole page catalog, so the model chooses a page
+ * from a title and a description rather than guessing keywords against an index
+ * that matches words rather than sentences. Paths stay relative so a citation
+ * the model copies from here resolves as in-app navigation.
  */
-export function rankMatchedPageUrls(
-  results: readonly SortedResult[],
-  limit: number = MAX_PAGES,
-): string[] {
-  const urls: string[] = [];
-  for (const result of results) {
-    const [pageUrl] = result.url.split('#');
-    if (urls.includes(pageUrl)) continue;
-    urls.push(pageUrl);
-    if (urls.length === limit) break;
+export function renderPageCatalog(sections: readonly CatalogSection[]): string {
+  const lines: string[] = [];
+  for (const section of sections) {
+    lines.push(`## ${section.label}`, '');
+    for (const page of section.pages) {
+      lines.push(`- [${page.title}](${page.url}): ${page.description}`);
+    }
+    lines.push('');
   }
-  return urls;
+  return lines.join('\n').trimEnd();
 }
 
-/** Caps one page so a four-page answer cannot fill the model context. */
-export function truncatePage(markdown: string): string {
-  if (markdown.length <= MAX_PAGE_CHARACTERS) return markdown;
-  return `${markdown.slice(0, MAX_PAGE_CHARACTERS)}${TRUNCATION_NOTICE}`;
+/**
+ * Reduces a page reference to the path the content source uses. The catalog
+ * lists relative paths, but page bodies link to canonical absolute URLs under
+ * `/docs`, so the model sees both forms and may hand back either.
+ */
+export function normalizePagePath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return trimmed;
+
+  let path = trimmed;
+  if (ABSOLUTE_URL_PATTERN.test(path)) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  path = path.split(QUERY_OR_FRAGMENT_PATTERN)[0] ?? path;
+  if (!path.startsWith('/')) path = `/${path}`;
+  if (path === DOCS_PATH_PREFIX) return '/';
+  if (path.startsWith(`${DOCS_PATH_PREFIX}/`)) path = path.slice(DOCS_PATH_PREFIX.length);
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+  return path;
 }
 
 /** A link the model wrote in an answer, resolved against the deployed path prefix. */
@@ -59,8 +93,8 @@ export interface CitationLink {
 }
 
 /**
- * The retrieval tool hands the model page paths, so a cited page needs the same
- * path prefix the router applies to in-app navigation.
+ * The catalog hands the model page paths, so a cited page needs the same path
+ * prefix the router applies to in-app navigation.
  */
 export function resolveCitationLink(href: string | undefined, prefix: string): CitationLink {
   if (href?.startsWith('/')) return {href: `${prefix}${href}`, external: false};

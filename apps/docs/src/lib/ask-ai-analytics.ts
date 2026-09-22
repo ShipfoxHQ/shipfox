@@ -9,12 +9,16 @@ export interface AskAiQuestionProperties {
 
 export interface AskAiAnswerProperties extends AskAiQuestionProperties {
   model: string;
-  search_count: number;
-  pages_returned: number;
-  zero_result_searches: number;
+  pages_read: number;
+  failed_reads: number;
   answer_length: number;
   has_answer: boolean;
+  finish_reason: string;
+  steps: number;
+  provider: string;
 }
+
+const UNREPORTED = 'unknown';
 
 export function askAiQuestionProperties(question: string): AskAiQuestionProperties {
   const tracked = normalizeTrackedQuery({
@@ -29,9 +33,11 @@ export function askAiQuestionProperties(question: string): AskAiQuestionProperti
 }
 
 /**
- * Retrieval quality is the part of an answer worth watching: a search that
- * returns no page means the reader's wording missed the keyword index, which is
- * the failure this feature is most prone to.
+ * Two things are worth watching about an answer. `has_answer` catches a turn
+ * that produced only tool calls, which reads as a hang. `provider` and
+ * `finish_reason` say which OpenRouter endpoint served it and whether it chose
+ * to stop, so a run of bad answers can be traced to an endpoint rather than
+ * guessed at.
  */
 export function askAiAnswerProperties({
   question,
@@ -42,9 +48,8 @@ export function askAiAnswerProperties({
   answer: AskAiMessage;
   model: string;
 }): AskAiAnswerProperties {
-  let searchCount = 0;
-  let pagesReturned = 0;
-  let zeroResultSearches = 0;
+  let pagesRead = 0;
+  let failedReads = 0;
   let answerLength = 0;
 
   for (const part of answer.parts) {
@@ -52,21 +57,21 @@ export function askAiAnswerProperties({
       answerLength += part.text.length;
       continue;
     }
-    if (part.type !== 'tool-search') continue;
-    searchCount += 1;
-    if (part.state !== 'output-available') continue;
-    pagesReturned += part.output.length;
-    if (part.output.length === 0) zeroResultSearches += 1;
+    if (part.type !== 'tool-read_page') continue;
+    if (part.state === 'output-available') pagesRead += 1;
+    if (part.state === 'output-error') failedReads += 1;
   }
 
   return {
     ...askAiQuestionProperties(question),
     model,
-    search_count: searchCount,
-    pages_returned: pagesReturned,
-    zero_result_searches: zeroResultSearches,
+    pages_read: pagesRead,
+    failed_reads: failedReads,
     answer_length: answerLength,
     has_answer: answerLength > 0,
+    finish_reason: answer.metadata?.finish_reason ?? UNREPORTED,
+    steps: answer.metadata?.steps ?? 0,
+    provider: answer.metadata?.provider ?? UNREPORTED,
   };
 }
 

@@ -54,24 +54,28 @@ retrieval call. Changing it needs no code change and no redeploy of the route.
 `deepseek/deepseek-v4.1-flash` is the other open-weight candidate, and
 `anthropic/claude-sonnet-5` falls back to a first-party model.
 
-Retrieval makes this workload input-heavy: roughly 9000 input tokens and 500
-output tokens per answer, so the input price dominates. Across the plausible
-models that spans a tenth of a cent to two cents per answer. That makes the
-choice one of answer quality rather than cost. Measure a model on real questions
-and keep whichever holds up.
+Retrieval makes this workload input-heavy, so the input price dominates. The
+catalog is a fixed ~4700 tokens per request, and the pages the model reads add
+roughly 2000 to 20000 more, so a question costs a fraction of a cent to a few
+cents. That makes the choice one of answer quality rather than cost. Measure a
+model on real questions and keep whichever holds up.
 
 One model ID is not one product. An open-weight model reaches OpenRouter through
 many providers, whose prices differ several fold and whose quantization differs
 too. `PROVIDER_ROUTING` in the route handler holds the routing rules that decide
-which of them may serve a request.
+which of them may serve a request. It deliberately does not sort by latency:
+that picks whichever endpoint answers fastest at the moment, which is the one
+most likely to be serving a degraded variant. When answers go bad in a run,
+read `provider` on `docs_ask_ai_answered` before blaming the model ID.
 
 Five PostHog events cover the panel: `docs_ask_ai_question_asked`,
 `docs_ask_ai_answered`, `docs_ask_ai_citation_clicked`, `docs_ask_ai_failed`, and
-`docs_ask_ai_retried`. The ones worth watching are `zero_result_searches`, which
-counts retrieval calls that matched no page, and `docs_ask_ai_citation_clicked`,
-which is the closest proxy for an answer being useful. Spend, latency, and token
-counts are not captured here, because the OpenRouter dashboard already reports
-them per request.
+`docs_ask_ai_retried`. The ones worth watching are `has_answer`, which is false
+when a turn ended having only read pages, `provider` and `finish_reason`, which
+together attribute a bad answer to the endpoint that served it, and
+`docs_ask_ai_citation_clicked`, which is the closest proxy for an answer being
+useful. Spend, latency, and token counts are not captured here, because the
+OpenRouter dashboard already reports them per request.
 
 These events carry the question text. It goes through the same redaction as the
 catalog search box. Redaction replaces the whole value rather
@@ -86,10 +90,18 @@ is one line of it. To route through Vercel AI Gateway instead, replace
 `createOpenRouter` with `@ai-sdk/gateway`; to call a provider directly, use that
 provider's AI SDK package. The panel and the retrieval tool do not change.
 
-The `search` tool queries the same index as the search dialog, then returns the
-matching pages as Markdown from `getLLMText`, so the model reads what
-`llms-full.txt` publishes. `src/lib/ask-ai-core.ts` owns the page limit and the
-per-page character cap.
+The instructions carry the whole page catalog: every page, its path, and its
+description, built by `src/lib/page-catalog.ts` and shared with `llms.txt`. The
+model picks pages from that list and reads them with the `read_page` tool, which
+returns a page whole as Markdown from `getLLMText`, so it reads what
+`llms-full.txt` publishes.
+
+Two constraints hold this together, and both are load-bearing. Pages are never
+truncated: the pages Ask AI most needs are generated reference catalogs whose
+useful part sits well past any sane cap, so a length limit reliably hides the
+exact fact the question was about. And `prepareStep` drops tools on the final
+step, so a run cannot spend its whole budget on retrieval and end with no text,
+which reaches the reader as a silent hang rather than an error.
 
 ## Explore
 
