@@ -82,18 +82,12 @@ assert.throws(
   /Generated DTO catalog.*no matching provider page/,
 );
 
-const generatedShipfoxTools = readFileSync(
-  'content/generated/integrations/shipfox/tools.mdx',
-  'utf8',
-);
-assert.equal(generatedShipfoxTools.match(/^#### `/gmu)?.length, 7);
-assert.equal(generatedShipfoxTools.match(/^\*\*Sensitivity:\*\* read\.$/gmu)?.length, 6);
-assert.equal(generatedShipfoxTools.match(/^\*\*Sensitivity:\*\* write\.$/gmu)?.length, 1);
+const shipfoxTools = readToolReference('shipfox').groups.flatMap((group) => group.tools);
+assert.equal(shipfoxTools.length, 7);
+assert.equal(shipfoxTools.filter((tool) => tool.access === 'read').length, 6);
+assert.equal(shipfoxTools.filter((tool) => tool.access === 'write').length, 1);
 
-const generatedGithubTools = readFileSync(
-  'content/generated/integrations/github/tools.mdx',
-  'utf8',
-);
+const generatedGithubTools = readToolReference('github').markdown;
 const classifiedGithubOperations = githubAgentToolCatalog.reduce(
   (count, tool) =>
     count +
@@ -119,4 +113,8 @@ const indirectTargetNotes = new Set(
 indirectTargetNotes.delete(undefined);
 for (const note of indirectTargetNotes) {
   assert.ok(generatedGithubTools.includes(`**Indirect target:** ${note}`));
+}
+
+function readToolReference(slug) {
+  return JSON.parse(readFileSync(`content/generated/integrations/${slug}/tools.json`, 'utf8'));
 }

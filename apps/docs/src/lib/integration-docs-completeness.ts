@@ -179,8 +179,17 @@ function collectReferencePageIssues(
   if (!directory.metaPages?.includes(page))
     issues.push(`${prefix}: list ${page} in integrations/${provider.slug}/meta.json.`);
 
+  const body = directory.pageBodies[page] ?? '';
+  if (page === 'tools') {
+    const documentId = `integrations/${provider.slug}/tools`;
+    if (!body.includes(`toolReference: "${documentId}"`) || !body.includes('<ToolReference />'))
+      issues.push(
+        `${prefix}: set toolReference to "${documentId}" and render <ToolReference /> in tools.mdx.`,
+      );
+    return;
+  }
   const generatedPath = `generated/integrations/${provider.slug}/${page}.mdx`;
-  if (!directory.pageBodies[page]?.includes(generatedPath))
+  if (!body.includes(generatedPath))
     issues.push(`${prefix}: import the generated ${page} fragment from ${generatedPath}.`);
 }
 

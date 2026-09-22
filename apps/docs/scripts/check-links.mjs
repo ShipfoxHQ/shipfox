@@ -10,14 +10,14 @@ const internalLinkPattern = /(?:\]\(|href=["'])((?:\/|#)[^)"'\s]+)(?:\)|["'])/g;
 const mdxExtensionPattern = /\.mdx$/;
 const headingPattern = /^#{1,6}\s+(.+?)\s*#*\s*$/gm;
 const trailingSlashPattern = /\/$/;
+const toolReferencePattern = /^toolReference:\s*["']?([^"'\s]+)["']?\s*$/m;
 const pages = (await filesUnder(contentRoot)).filter((file) => file.endsWith('.mdx'));
 const routes = new Set(pages.map(routeFor));
 const generatedFragmentsByRoute = new Map([
   ['/reference/model-providers', ['reference/model-providers.mdx']],
   ['/reference/workflow-schema', ['reference/workflow-schema.mdx']],
-  ['/reference/mcp-server', ['reference/mcp-server-tools.mdx', 'reference/mcp-server-limits.mdx']],
+  ['/reference/mcp-server', ['reference/mcp-server-limits.mdx']],
   ['/integrations/github/events', ['integrations/github/events.mdx']],
-  ['/integrations/github/tools', ['integrations/github/tools.mdx']],
   ['/integrations/sentry/events', ['integrations/sentry/events.mdx']],
   ['/integrations/webhooks/events', ['integrations/webhooks/events.mdx']],
 ]);
@@ -70,7 +70,16 @@ async function contentFor(file) {
   const generated = await Promise.all(
     fragments.map(async (fragment) => await readFile(path.join(generatedRoot, fragment), 'utf8')),
   );
-  return [content, ...generated].join('\n');
+  return [content, ...generated, await toolReferenceMarkdown(content)].join('\n');
+}
+
+// Tool reference pages render a generated document; its markdown carries the
+// tool anchors that other pages may link to.
+async function toolReferenceMarkdown(content) {
+  const id = content.match(toolReferencePattern)?.[1];
+  if (!id) return '';
+  const document = JSON.parse(await readFile(path.join(generatedRoot, `${id}.json`), 'utf8'));
+  return document.markdown;
 }
 
 if (violations.length > 0) {

@@ -75,12 +75,12 @@ import {buildWorkflowJsonSchema, thinkingLevelsForHarness} from '@shipfox/workfl
 import {GENERATED_MANIFEST_FILE} from '@/lib/generated-artifacts';
 import {inlineCode, tableValue} from '@/lib/markdown';
 import {registeredIntegrationProviders} from '@/lib/registered-integration-providers';
+import {buildIntegrationToolReference, buildMcpToolReference} from '@/lib/tool-reference/build';
 import {
   contextFieldRows,
   contextRootShape,
   WORKFLOW_FIELD_YAML_KEYS,
 } from './lib/context-reference.mjs';
-import {slugForHeading} from './lib/slug.mjs';
 
 const docsRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const markdownLinkPattern = /^\[([^\]]+)\]\(([^)]*)\)$/;
@@ -138,8 +138,9 @@ const regions = [
     ...(provider.toolCatalog
       ? [
           {
-            file: `content/generated/integrations/${provider.slug}/tools.mdx`,
-            render: () => renderToolCatalog(provider.toolCatalog, provider.toolSelectionCatalog),
+            file: `content/generated/integrations/${provider.slug}/tools.json`,
+            document: true,
+            render: () => renderIntegrationToolReference(provider),
           },
         ]
       : []),
@@ -159,7 +160,11 @@ const regions = [
     render: renderContextAvailability,
   },
   {file: 'content/generated/reference/context-properties.mdx', render: renderContextProperties},
-  {file: 'content/generated/reference/mcp-server-tools.mdx', render: renderMcpToolCatalog},
+  {
+    file: 'content/generated/reference/mcp-server-tools.json',
+    document: true,
+    render: renderMcpToolReference,
+  },
   {file: 'content/generated/reference/mcp-server-limits.mdx', render: renderMcpToolLimits},
 ];
 
@@ -274,196 +279,37 @@ function renderEventCatalog(catalog) {
   return lines.join('\n').trimEnd();
 }
 
-const UNCATEGORIZED_TOOL_CATEGORY = 'tools';
-
-function renderToolMethod(tool, method) {
-  return [
-    '',
-    `##### \`${tool.id}.${method.id}\``,
-    '',
-    method.description,
-    '',
-    `**Sensitivity:** ${method.sensitivity}.`,
-    '',
-    `**Sensitive:** ${method.sensitive ? 'Yes.' : 'No.'}`,
-    '',
-    `**Required permissions:** ${formatScope(method.requiredScope)}`,
-    ...alternativeScopeLines(method),
-    ...repositoryClassificationLines(tool.inputSchema, method),
-    '',
-    methodRequirements(tool.inputSchema, method.id),
-  ];
-}
-
-function alternativeScopeLines(method) {
-  const alternatives = Array.isArray(method.alternativeScopes) ? method.alternativeScopes : [];
-  if (alternatives.length === 0) return [];
-  return ['', `**Accepted instead:** ${alternatives.map(formatScope).join('; ')}`];
-}
-
-function renderTool(tool, selectionCatalog) {
-  const lines = [
-    `#### \`${tool.id}\``,
-    '',
-    tool.description,
-    '',
-    `**Sensitivity:** ${tool.sensitivity}.`,
-    '',
-    `**Sensitive:** ${tool.sensitive ? 'Yes.' : 'No.'}`,
-    '',
-    `**Required permissions:** ${formatScope(tool.requiredScope)}`,
-    ...repositoryClassificationLines(tool.inputSchema, tool),
-    '',
-    `**Selector tokens:** ${formatSelectors(tool.id, selectionCatalog)}`,
-    '',
-    '##### Input',
-    '',
-    ...renderFields(tool.inputSchema),
-  ];
-  for (const method of tool.methods ?? []) lines.push(...renderToolMethod(tool, method));
-  if (tool.outputSchema) lines.push('', '##### Output', '', ...renderFields(tool.outputSchema));
-  lines.push('');
-  return lines;
-}
-
-function renderToolCatalog(catalog, selectionCatalog) {
-  const lines = [];
-  const categoryOf = (tool) => tool.category ?? UNCATEGORIZED_TOOL_CATEGORY;
-  const categories = [...new Set(catalog.map(categoryOf))];
-  for (const category of categories) {
-    lines.push(`### ${category.replaceAll('_', ' ')}`, '');
-    for (const tool of catalog.filter((candidate) => categoryOf(candidate) === category)) {
-      lines.push(...renderTool(tool, selectionCatalog));
-    }
-  }
-  return lines.join('\n').trimEnd();
-}
-
-const repositoryCoordinateSamples = {
-  owner: 'example-owner',
-  repo: 'example-repository',
-  base_owner: 'example-base-owner',
-  base_repo: 'example-base-repository',
-  head_owner: 'example-head-owner',
-  head_repo: 'example-head-repository',
-  repository_owner: 'example-owner',
-  repository_name: 'example-repository',
-  repository: 'example-owner/example-repository',
-};
-
-function repositoryClassificationLines(inputSchema, catalogEntry) {
-  if (typeof catalogEntry.repositoryScope !== 'function') return [];
-
-  const directScope = catalogEntry.repositoryScope(repositoryArguments(inputSchema));
-  const connectionScope = catalogEntry.repositoryScope({});
-  const classification = formatRepositoryClassification(directScope, connectionScope);
-  const indirectTargetNote =
-    catalogEntry.indirectTargetNote ??
-    directScope.indirectTargetNote ??
-    connectionScope.indirectTargetNote;
-
-  return [
-    '',
-    `**Repository classification:** ${classification}`,
-    ...(indirectTargetNote ? ['', `**Indirect target:** ${indirectTargetNote}`] : []),
-  ];
-}
-
-function repositoryArguments(inputSchema) {
-  const properties = object(inputSchema.properties);
-  return Object.fromEntries(
-    Object.entries(repositoryCoordinateSamples).filter(([name]) => name in properties),
-  );
-}
-
-function formatRepositoryClassification(directScope, connectionScope) {
-  if (directScope.kind === 'connection') return 'Integration connection.';
-  if (connectionScope.kind !== 'connection' || !connectionScope.requiresExplicitRepository) {
-    return 'Declared targets.';
-  }
-  return 'Declared targets with `owner` and `repo`. Selected mode requires both. Without them, all mode uses the integration connection.';
-}
-
-function unwrapNullableProperty(property) {
-  const branches = objects(property.anyOf);
-  const nullBranch = branches.find((branch) => branch.type === 'null');
-  const valueBranch = branches.find((branch) => branch !== nullBranch);
-  if (branches.length !== 2 || !nullBranch || !valueBranch) return property;
-  return {...valueBranch, type: `${valueBranch.type ?? 'value'} | null`};
-}
-
-function escapeTableCell(value) {
-  return value.replaceAll('|', '\\|');
-}
-
-function renderFields(schema) {
-  const properties = object(schema.properties);
-  const required = new Set(strings(schema.required));
-  const conditional = new Set(
-    [...objects(schema.oneOf), ...objects(schema.anyOf)].flatMap((option) =>
-      strings(option.required),
-    ),
-  );
-  const rows = Object.entries(properties).map(([name, value]) => {
-    const property = unwrapNullableProperty(object(value));
-    let requirement = 'Optional';
-    if (required.has(name)) requirement = 'Required';
-    else if (conditional.has(name)) requirement = 'Conditional';
-    const propertyType = Array.isArray(property.type)
-      ? property.type.join(' | ')
-      : (property.type ?? 'value');
-    const type =
-      strings(property.enum).length > 0
-        ? `${propertyType}: ${strings(property.enum)
-            .map((item) => `\`${item}\``)
-            .join(', ')}`
-        : propertyType;
-    return `| \`${name}\` | ${escapeTableCell(type)} | ${requirement} | ${escapeTableCell(property.description ?? '')} |`;
+// Tool reference documents feed the ToolReference component, the page TOC, and
+// the machine-readable text. Examples use a sample connection slug per provider.
+function renderIntegrationToolReference(provider) {
+  const document = buildIntegrationToolReference({
+    id: `integrations/${provider.slug}/tools`,
+    catalog: provider.toolCatalog,
+    selectors: provider.toolSelectionCatalog.selectors,
+    connection: provider.slug === 'shipfox' ? 'shipfox' : `${provider.slug}_acme`,
   });
-  if (rows.length === 0) return ['This schema accepts an object with provider-defined fields.'];
-  const alternatives = objects(schema.anyOf)
-    .map((option) => strings(option.required))
-    .filter((requiredFields) => requiredFields.length > 0);
-  return [
-    '| Field | Type | Required | Description |',
-    '|---|---|---|---|',
-    ...rows,
-    ...(alternatives.length > 0
-      ? [
-          '',
-          `At least one of these input combinations is required: ${alternatives.map((fields) => fields.map((field) => `\`${field}\``).join(' and ')).join('; ')}.`,
-        ]
-      : []),
-  ];
+  return JSON.stringify(document, null, 2);
 }
 
-function methodRequirements(schema, methodId) {
-  const option = objects(schema.oneOf).find(
-    (candidate) => object(object(candidate.properties).method).const === methodId,
-  );
-  const required = option ? strings(option.required) : [];
-  return required.length > 0
-    ? `**Required input for this method:** ${required.map((field) => `\`${field}\``).join(', ')}.`
-    : 'This method has no additional required input.';
-}
-
-function formatScope(scope) {
-  if (Array.isArray(scope) && scope.length > 0)
-    return scope
-      .map((entry) => `\`${object(entry).permission}:${object(entry).access}\``)
-      .join(', ');
-  if (typeof scope === 'string' && scope.length > 0) return `\`${scope}\``;
-  return 'None.';
-}
-
-function formatSelectors(toolId, selectionCatalog) {
-  return selectionCatalog.selectors
-    .filter((selector) => selector.token === toolId || selector.token.startsWith(`${toolId}.`))
-    .map((selector) => {
-      const target = selector.token.endsWith('.*') ? toolId : selector.token;
-      return `[\`${selector.token}\`](#${slugForHeading(target)})`;
-    })
-    .join(', ');
+function renderMcpToolReference() {
+  const tools = new Map(listMcpTools().map((tool) => [tool.name, tool]));
+  const grouped = new Set(mcpToolGroups.flatMap((group) => group.tools));
+  const ungrouped = [...tools.keys()].filter((name) => !grouped.has(name));
+  if (ungrouped.length > 0) {
+    throw new Error(`MCP tools missing from the documentation groups: ${ungrouped.join(', ')}`);
+  }
+  const document = buildMcpToolReference({
+    id: 'reference/mcp-server-tools',
+    groups: mcpToolGroups.map((group) => ({
+      title: group.title,
+      tools: group.tools.map((name) => {
+        const tool = tools.get(name);
+        if (!tool) throw new Error(`MCP tool ${name} is documented but not registered.`);
+        return tool;
+      }),
+    })),
+  });
+  return JSON.stringify(document, null, 2);
 }
 
 function object(value) {
@@ -915,229 +761,8 @@ function listMcpTools() {
   ];
 }
 
-function renderMcpToolCatalog() {
-  const tools = new Map(listMcpTools().map((tool) => [tool.name, tool]));
-  const grouped = new Set(mcpToolGroups.flatMap((group) => group.tools));
-  const ungrouped = [...tools.keys()].filter((name) => !grouped.has(name));
-  if (ungrouped.length > 0) {
-    throw new Error(`MCP tools missing from the documentation groups: ${ungrouped.join(', ')}`);
-  }
-
-  const lines = [];
-  for (const group of mcpToolGroups) {
-    lines.push(`### ${group.title}`, '');
-    for (const name of group.tools) {
-      const tool = tools.get(name);
-      if (!tool) throw new Error(`MCP tool ${name} is documented but not registered.`);
-      lines.push(...renderMcpTool(tool));
-    }
-  }
-  return lines.join('\n').trimEnd();
-}
-
-function renderMcpTool(tool) {
-  const result = object(object(tool.outputSchema.properties).result);
-  return [
-    `#### \`${tool.name}\``,
-    '',
-    tool.description,
-    '',
-    '##### Input',
-    '',
-    ...renderMcpSchema(tool.inputSchema, 'This tool takes no input.'),
-    '',
-    '##### Result',
-    '',
-    ...renderMcpSchema(result, 'This tool returns an empty result.'),
-    '',
-  ];
-}
-
-function renderMcpSchema(schema, emptyText) {
-  const variants = objects(schema.oneOf);
-  if (variants.length > 0 && Object.keys(object(schema.properties)).length === 0) {
-    const lines = ['Exactly one of these shapes applies.'];
-    for (const variant of variants) {
-      const label = strings(variant.required).map(inlineCode).join(', ');
-      lines.push('', `**Shape requiring ${label}:**`, '', ...renderMcpFieldTable(variant));
-    }
-    return lines;
-  }
-  const rows = dedupeMcpRows(mcpFieldRows(schema, ''));
-  if (rows.length === 0) return [emptyText];
-  return renderMcpFieldTable(schema);
-}
-
-function renderMcpFieldTable(schema) {
-  const rows = dedupeMcpRows(mcpFieldRows(schema, ''));
-  return [
-    '| Field | Type | Required | Constraints |',
-    '|---|---|---|---|',
-    ...rows.map(
-      (row) =>
-        `| ${inlineCode(row.path)} | ${tableValue(row.type)} | ${row.requirement} | ${tableValue(row.constraints)} |`,
-    ),
-  ];
-}
-
-function mcpFieldRows(schema, prefix) {
-  const properties = object(schema.properties);
-  const required = new Set(strings(schema.required));
-  const conditional = new Set(
-    [...objects(schema.oneOf), ...objects(schema.anyOf)].flatMap((option) =>
-      strings(option.required),
-    ),
-  );
-  return Object.entries(properties).flatMap(([name, raw]) => {
-    let requirement = 'Optional';
-    if (required.has(name)) requirement = 'Required';
-    else if (conditional.has(name)) requirement = 'Conditional';
-    return mcpValueRows(`${prefix}${name}`, object(raw), requirement);
-  });
-}
-
-function mcpValueRows(path, property, requirement) {
-  const {schema, nullable} = unwrapMcpNullable(property);
-  const rows = [
-    {
-      path,
-      type: mcpTypeText(schema, nullable),
-      requirement,
-      constraints: mcpConstraints(schema),
-    },
-  ];
-  const nested = mcpNestedShapes(schema);
-  for (const shape of nested.shapes) {
-    for (const row of mcpFieldRows(shape.schema, `${path}${nested.suffix}`)) {
-      rows.push(shape.conditional ? {...row, requirement: 'Conditional'} : row);
-    }
-  }
-  return rows;
-}
-
-function mcpNestedShapes(schema) {
-  if (schema.type === 'array') {
-    return {suffix: '[].', shapes: mcpObjectShapes(unwrapMcpNullable(object(schema.items)).schema)};
-  }
-  return {suffix: '.', shapes: mcpObjectShapes(schema)};
-}
-
-function mcpObjectShapes(schema) {
-  if (Object.keys(object(schema.properties)).length > 0) return [{schema, conditional: false}];
-  return mcpUnionOptions(schema)
-    .filter((option) => Object.keys(object(option.properties)).length > 0)
-    .map((option) => ({schema: option, conditional: true}));
-}
-
-function mcpUnionOptions(schema) {
-  const options = objects(schema.anyOf).length > 0 ? objects(schema.anyOf) : objects(schema.oneOf);
-  return options.map((option) => unwrapMcpNullable(option).schema);
-}
-
-function dedupeMcpRows(rows) {
-  const byPath = new Map();
-  for (const row of rows) {
-    const existing = byPath.get(row.path);
-    if (!existing) {
-      byPath.set(row.path, {...row});
-      continue;
-    }
-    existing.type = mergeUnique(existing.type, row.type, ' | ');
-    existing.constraints = mergeUnique(existing.constraints, row.constraints, ' ');
-    if (existing.requirement !== row.requirement) existing.requirement = 'Conditional';
-  }
-  return [...byPath.values()];
-}
-
-function mergeUnique(left, right, separator) {
-  if (!right || left === right) return left;
-  if (!left) return right;
-  return left.split(separator).includes(right) ? left : `${left}${separator}${right}`;
-}
-
-function unwrapMcpNullable(property) {
-  const branches = objects(property.anyOf);
-  const nullBranch = branches.find((branch) => branch.type === 'null');
-  const valueBranch = branches.find((branch) => branch !== nullBranch);
-  if (branches.length !== 2 || !nullBranch || !valueBranch)
-    return {schema: property, nullable: false};
-  return {schema: valueBranch, nullable: true};
-}
-
-function mcpTypeText(schema, nullable) {
-  const base = mcpBaseTypeText(schema);
-  return nullable ? `${base} | null` : base;
-}
-
-function mcpBaseTypeText(schema) {
-  if ('const' in schema) return `constant ${inlineCode(JSON.stringify(schema.const))}`;
-  const enumValues = Array.isArray(schema.enum) ? schema.enum : [];
-  if (enumValues.length > 0) {
-    return `${schema.type ?? 'value'}: ${enumValues.map((value) => inlineCode(String(value))).join(', ')}`;
-  }
-  const options = mcpUnionOptions(schema);
-  if (options.length > 0) return mcpUnionTypeText(options);
-  if (schema.type === 'array') {
-    return `array of ${mcpBaseTypeText(unwrapMcpNullable(object(schema.items)).schema)}`;
-  }
-  if (schema.type === 'string') return mcpStringTypeText(schema);
-  if (typeof schema.type === 'string') return schema.type;
-  if (Array.isArray(schema.type)) return schema.type.join(' | ');
-  return 'any JSON value';
-}
-
-function mcpUnionTypeText(options) {
-  if (options.every((option) => Object.keys(object(option.properties)).length > 0)) {
-    return `object (one of ${options.length} shapes)`;
-  }
-  return options.map(mcpBaseTypeText).join(' | ');
-}
-
-function mcpStringTypeText(schema) {
-  if (typeof schema.format === 'string') return `string (${schema.format})`;
-  if (schema.contentMediaType === 'application/json') return 'string (serialized JSON)';
-  return 'string';
-}
-
-function mcpConstraints(schema) {
-  const parts = [];
-  if (typeof schema.minimum === 'number') parts.push(`Minimum ${formatNumber(schema.minimum)}.`);
-  if (typeof schema.maximum === 'number') parts.push(`Maximum ${formatNumber(schema.maximum)}.`);
-  if (typeof schema.minLength === 'number')
-    parts.push(`Minimum length ${formatNumber(schema.minLength)}.`);
-  if (typeof schema.maxLength === 'number')
-    parts.push(`Maximum length ${formatNumber(schema.maxLength)}.`);
-  parts.push(...mcpItemCountConstraints(schema));
-  if (schema.default !== undefined)
-    parts.push(`Default ${inlineCode(JSON.stringify(schema.default))}.`);
-  if (schema.type === 'array') {
-    const itemConstraints = mcpConstraints(unwrapMcpNullable(object(schema.items)).schema);
-    if (itemConstraints) parts.push(`Each item: ${lowercaseFirst(itemConstraints)}`);
-  }
-  return parts.join(' ');
-}
-
-function mcpItemCountConstraints(schema) {
-  const {minItems, maxItems} = schema;
-  const hasMin = typeof minItems === 'number';
-  const hasMax = typeof maxItems === 'number';
-  if (hasMin && hasMax && minItems === maxItems) return [`Exactly ${formatItemCount(minItems)}.`];
-  return [
-    ...(hasMin ? [`Minimum ${formatItemCount(minItems)}.`] : []),
-    ...(hasMax ? [`Maximum ${formatItemCount(maxItems)}.`] : []),
-  ];
-}
-
-function formatItemCount(count) {
-  return `${formatNumber(count)} ${count === 1 ? 'item' : 'items'}`;
-}
-
 function formatNumber(value) {
   return value.toLocaleString('en-US');
-}
-
-function lowercaseFirst(value) {
-  return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
 function renderMcpToolLimits() {
@@ -1224,12 +849,14 @@ writeGeneratedFile(
   join(docsRoot, GENERATED_MANIFEST_FILE),
   `${JSON.stringify(
     Object.fromEntries(
-      regions.map((region) => [
-        region.file,
-        region.machineReadable
-          ? {format: region.machineReadable.format, file: region.machineReadable.file}
-          : {format: 'markdown'},
-      ]),
+      regions
+        .filter((region) => !region.document)
+        .map((region) => [
+          region.file,
+          region.machineReadable
+            ? {format: region.machineReadable.format, file: region.machineReadable.file}
+            : {format: 'markdown'},
+        ]),
     ),
     null,
     2,

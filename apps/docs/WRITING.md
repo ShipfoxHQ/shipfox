@@ -391,8 +391,9 @@ provider entry instead of flattening every page into the top level.
 
 Provider pages use `integrations/<provider>/{index,setup,events,tools}.mdx`
 and an optional `guides/` directory.
-The canonical `events.mdx` and `tools.mdx` pages import generated event and tool
-fragments.
+The canonical `events.mdx` page imports a generated event fragment. The
+canonical `tools.mdx` page names its generated tool reference document in the
+`toolReference` frontmatter field and renders it with `<ToolReference />`.
 
 ### Capabilities
 
@@ -632,12 +633,14 @@ tool needs sensitive handling; it is not a separate approval policy.
 
 ### Authored and generated reference
 
-Keep setup prose authored. The events `## Event names` table and tools
-`## Tool catalog` table are candidates for Git-ignored MDX fragments generated
-from provider catalogs. The tracked `events.mdx` and `tools.mdx` pages import
-those fragments, keeping their navigation and authored context in the canonical
-page. Docs development, build, and test commands must generate the fragments
-before they read, build, or check those pages. Do not use inline markers.
+Keep setup prose authored. The events `## Event names` table is a Git-ignored
+MDX fragment generated from the provider catalog, and the tracked `events.mdx`
+page imports it. The tools `## Tool catalog` is a Git-ignored JSON document
+generated from the provider catalog. The tracked `tools.mdx` page names it in
+the `toolReference` frontmatter field and places `<ToolReference />` where the
+catalog renders, keeping navigation and authored context in the canonical page.
+Docs development, build, and test commands must generate these artifacts before
+they read, build, or check those pages. Do not use inline markers.
 
 ## Schema fields: document only shipped surface
 
