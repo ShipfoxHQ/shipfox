@@ -5,6 +5,42 @@ import {idSchema, utf8CappedString} from './primitives.js';
 const identifierSchema = z.string().min(1);
 const textSchema = utf8CappedString(128 * 1024);
 const providerBindingSchema = z.record(identifierSchema, z.array(identifierSchema));
+const resolvedModelSchema = z
+  .object({
+    model: identifierSchema.nullable(),
+    reason: z.literal('no-compatible-model').optional(),
+  })
+  .strict()
+  .superRefine(({model, reason}, context) => {
+    if (model === null && reason !== 'no-compatible-model') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message: 'A missing model must include the no-compatible-model reason',
+      });
+    }
+    if (model !== null && reason !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message: 'A resolved model must not include a reason',
+      });
+    }
+  });
+const resolvedModelProfileSchema = z
+  .object({
+    mechanical: resolvedModelSchema,
+    implementation: resolvedModelSchema,
+    review: resolvedModelSchema,
+  })
+  .strict();
+const resolvedModelsSchema = z
+  .object({
+    balanced: resolvedModelProfileSchema,
+    economy: resolvedModelProfileSchema,
+    strongest: resolvedModelProfileSchema,
+  })
+  .strict();
 
 export const listWorkflowTemplatesInputSchema = z.object({}).strict();
 export type ListWorkflowTemplatesInputDto = z.output<typeof listWorkflowTemplatesInputSchema>;
@@ -70,6 +106,7 @@ export const getWorkflowTemplateResultSchema = z
     workflow_yaml: textSchema,
     guide_markdown: textSchema,
     suggested_bindings: providerBindingSchema,
+    resolved_models: resolvedModelsSchema,
   })
   .strict();
 export type GetWorkflowTemplateResultDto = z.infer<typeof getWorkflowTemplateResultSchema>;
@@ -105,6 +142,39 @@ const optionChoice = {
     tradeoff: {type: 'string', minLength: 1},
   },
   required: ['id'],
+  additionalProperties: false,
+} as const;
+const resolvedModel = {
+  type: 'object',
+  properties: {
+    model: {anyOf: [identifier, {type: 'null'}]},
+    reason: {type: 'string', enum: ['no-compatible-model']},
+  },
+  required: ['model'],
+  additionalProperties: false,
+  if: {properties: {model: {type: 'null'}}, required: ['model']},
+  // biome-ignore lint/suspicious/noThenProperty: JSON Schema uses "then" for a conditional branch.
+  then: {required: ['reason']},
+  else: {not: {required: ['reason']}},
+} as const;
+const resolvedModelProfile = {
+  type: 'object',
+  properties: {
+    mechanical: resolvedModel,
+    implementation: resolvedModel,
+    review: resolvedModel,
+  },
+  required: ['mechanical', 'implementation', 'review'],
+  additionalProperties: false,
+} as const;
+const resolvedModels = {
+  type: 'object',
+  properties: {
+    balanced: resolvedModelProfile,
+    economy: resolvedModelProfile,
+    strongest: resolvedModelProfile,
+  },
+  required: ['balanced', 'economy', 'strongest'],
   additionalProperties: false,
 } as const;
 const option = {
@@ -184,6 +254,7 @@ export const getWorkflowTemplateResultJsonSchema = {
       type: 'object',
       additionalProperties: {type: 'array', items: identifier},
     },
+    resolved_models: resolvedModels,
   },
   required: [
     'template_id',
@@ -192,6 +263,7 @@ export const getWorkflowTemplateResultJsonSchema = {
     'workflow_yaml',
     'guide_markdown',
     'suggested_bindings',
+    'resolved_models',
   ],
   additionalProperties: false,
 } as const satisfies AgentAccessObjectSchema;

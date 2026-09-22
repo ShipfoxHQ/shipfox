@@ -427,7 +427,12 @@ function listMcpTools() {
       workflows: stub,
     }),
     ...createAgentAccessIntegrationTools(stub),
-    ...createAgentAccessTemplateTools({projects: stub, integrations: stub, templates: stub}),
+    ...createAgentAccessTemplateTools({
+      agent: stub,
+      projects: stub,
+      integrations: stub,
+      templates: stub,
+    }),
     ...createAgentAccessAuthoringContextTools({agent: stub, workflows: stub, secrets: stub}),
   ];
 }

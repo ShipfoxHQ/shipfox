@@ -240,11 +240,16 @@ function toolsFromProducerClients(
       ? withLogs
       : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
   const withTemplates =
-    templates === undefined || integrations === undefined
+    templates === undefined || integrations === undefined || options.agent === undefined
       ? withIntegrations
       : [
           ...withIntegrations,
-          ...createAgentAccessTemplateTools({projects, integrations, templates}),
+          ...createAgentAccessTemplateTools({
+            agent: options.agent,
+            projects,
+            integrations,
+            templates,
+          }),
         ];
   return options.agent === undefined || secrets === undefined
     ? withTemplates

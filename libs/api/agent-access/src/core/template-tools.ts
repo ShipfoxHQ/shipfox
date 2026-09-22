@@ -11,6 +11,7 @@ import {
   listWorkflowTemplatesResultJsonSchema,
   listWorkflowTemplatesResultSchema,
 } from '@shipfox/api-agent-access-dto';
+import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import {
@@ -18,14 +19,18 @@ import {
   projectsInterModuleContract,
 } from '@shipfox/api-projects-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
-import type {
-  TemplateLoader,
-  WorkflowTemplate,
-  WorkflowTemplateManifest,
+import {
+  type ModelProfile,
+  resolveModel,
+  type TemplateLoader,
+  type WorkflowStepRole,
+  type WorkflowTemplate,
+  type WorkflowTemplateManifest,
 } from '@shipfox/workflow-templates';
 import {agentAccessSuccess} from './envelope.js';
 import {invalidRequest, notFound, parseInput} from './tool-utils.js';
 import type {AgentAccessTool} from './tools.js';
+import {getWorkspaceModels} from './workspace-models.js';
 
 export const AGENT_ACCESS_TEMPLATE_TOOL_NAMES = [
   'list_workflow_templates',
@@ -33,6 +38,7 @@ export const AGENT_ACCESS_TEMPLATE_TOOL_NAMES = [
 ] as const;
 
 export interface AgentAccessTemplateToolsOptions {
+  agent: AgentInterModuleClient;
   projects: ProjectsModuleClient;
   integrations: IntegrationsModuleClient;
   templates: TemplateLoader;
@@ -108,6 +114,9 @@ function createGetWorkflowTemplateTool(options: AgentAccessTemplateToolsOptions)
         suggested_bindings: suggestedBindings(template.manifest, resolution.bindings, connections, {
           [resolution.sourceRole]: resolution.sourceConnection.slug,
         }),
+        resolved_models: resolveTemplateModels(
+          await getWorkspaceModels(options.agent, context.workspaceId),
+        ),
       });
     },
   };
@@ -162,9 +171,7 @@ function openRoleBindings(
   const roles = new Set(Object.keys(manifest.roles));
   for (const [key, provider] of Object.entries(input)) {
     if (key === 'template_id' || key === 'project_id') continue;
-    const role = Object.prototype.hasOwnProperty.call(manifest.roles, key)
-      ? manifest.roles[key]
-      : undefined;
+    const role = Object.hasOwn(manifest.roles, key) ? manifest.roles[key] : undefined;
     if (role === undefined || role.from === 'project') return null;
     if (!role.providers.includes(provider)) return null;
     bindings[key] = provider;
@@ -254,4 +261,25 @@ function suggestedBindings(
 
 function connectionSlugs(connections: readonly WorkspaceConnection[], provider: string): string[] {
   return connections.filter((connection) => connection.provider === provider).map(({slug}) => slug);
+}
+
+const modelProfiles: readonly ModelProfile[] = ['balanced', 'economy', 'strongest'];
+const workflowStepRoles: readonly WorkflowStepRole[] = ['mechanical', 'implementation', 'review'];
+
+function resolveTemplateModels(workspaceModels: Awaited<ReturnType<typeof getWorkspaceModels>>) {
+  const availableModelIds = workspaceModels.models.map(({id}) => id);
+  return Object.fromEntries(
+    modelProfiles.map((profile) => [
+      profile,
+      Object.fromEntries(
+        workflowStepRoles.map((role) => {
+          const model =
+            resolveModel(profile, role, availableModelIds) ??
+            workspaceModels.default_model?.id ??
+            null;
+          return [role, model === null ? {model, reason: 'no-compatible-model' as const} : {model}];
+        }),
+      ),
+    ]),
+  );
 }
