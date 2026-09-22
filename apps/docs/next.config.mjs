@@ -37,6 +37,7 @@ const movedPages = {
   '/how-to/recipes/add-github-check-runs': '/integrations/github/guides/add-check-runs',
   '/how-to/author-workflows/build-feedback-loop': '/how-to/recipes/build-feedback-loop',
   '/how-to/author-workflows/bound-listening-job': '/how-to/recipes/bound-listening-job',
+  '/reference/secrets-variables': '/how-to/set-up-work/secrets-and-variables',
   '/how-to/set-up-work/update-workspace-value': '/how-to/set-up-work/secrets-and-variables',
   '/how-to/set-up-work/delete-workspace-value': '/how-to/set-up-work/secrets-and-variables',
   '/how-to/set-up-work/add-custom-model-provider': '/how-to/set-up-work/manage-model-providers',
