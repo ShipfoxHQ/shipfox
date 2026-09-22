@@ -152,6 +152,10 @@ const resolvedModel = {
   },
   required: ['model'],
   additionalProperties: false,
+  if: {properties: {model: {type: 'null'}}, required: ['model']},
+  // biome-ignore lint/suspicious/noThenProperty: JSON Schema uses "then" for a conditional branch.
+  then: {required: ['reason']},
+  else: {not: {required: ['reason']}},
 } as const;
 const resolvedModelProfile = {
   type: 'object',

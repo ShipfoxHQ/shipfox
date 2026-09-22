@@ -34,14 +34,35 @@ describe('workflow template result schemas', () => {
   });
 
   test('requires a reason when a model cannot be resolved', () => {
-    expect(
-      getWorkflowTemplateResultSchema.safeParse({
-        ...result,
-        resolved_models: {
-          ...resolvedModels,
-          balanced: {...resolvedModels.balanced, mechanical: {model: null}},
+    const invalidResult = {
+      ...result,
+      resolved_models: {
+        ...resolvedModels,
+        balanced: {...resolvedModels.balanced, mechanical: {model: null}},
+      },
+    };
+    const ajv = new Ajv({strict: true, strictRequired: false});
+    addFormats(ajv);
+
+    expect(getWorkflowTemplateResultSchema.safeParse(invalidResult).success).toBe(false);
+    expect(ajv.compile(getWorkflowTemplateResultJsonSchema)(invalidResult)).toBe(false);
+  });
+
+  test('forbids a reason when a model is resolved', () => {
+    const invalidResult = {
+      ...result,
+      resolved_models: {
+        ...resolvedModels,
+        balanced: {
+          ...resolvedModels.balanced,
+          mechanical: {model: 'claude-sonnet-5', reason: 'no-compatible-model'},
         },
-      }).success,
-    ).toBe(false);
+      },
+    };
+    const ajv = new Ajv({strict: true, strictRequired: false});
+    addFormats(ajv);
+
+    expect(getWorkflowTemplateResultSchema.safeParse(invalidResult).success).toBe(false);
+    expect(ajv.compile(getWorkflowTemplateResultJsonSchema)(invalidResult)).toBe(false);
   });
 });
