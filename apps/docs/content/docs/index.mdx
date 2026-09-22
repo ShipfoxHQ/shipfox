@@ -1,103 +1,77 @@
 ---
-title: "Shipfox · Your AI Software Factory"
-sidebarTitle: "Home"
-description: "A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request. You decide where you step in."
+title: "Your AI Software Factory"
+sidebarTitle: "Introduction"
+description: "Shipfox is a platform for automating engineering work with AI agents. Turn tickets, alerts, and failed checks into work ready for review."
 ---
-
-## Your AI Software Factory
 
 **Agentic coding makes engineers faster. Shipfox gives them a factory.**
 
-A ticket, an alert or a failed check starts a workflow in your repo. It runs
-like a CI pipeline and opens a pull request.
+Shipfox is built for engineering teams that already code with AI and want to
+delegate work. This ranges from pull request reviews to complex feature
+delivery workflows.
 
-You decide where you step in.
+You define **workflows** in your repository, combining AI agents with
+shell commands. Shipfox orchestrates and runs those workflows, connects them
+securely to your tools, and provides full visibility into every run.
 
-You describe what each agent does. Shipfox handles everything around it:
-orchestration, secure access to your tools, execution next to your code,
-monitoring, and central control.
+[Get started with Shipfox](https://app.shipfox.io). Onboarding in Shipfox
+guides the setup. For a closer look at the product, read
+[How Shipfox works](/understand).
 
-Agents live in your repository as [YAML](/reference/workflow-schema). Copy this
-workflow into your repository, push it, then start it from the dashboard:
+## Example workflow: from a ticket to a pull request
 
-```yaml title=".shipfox/workflows/hello.yaml"
-# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Hello world
-runner: shipfox
+You choose the engineering work to delegate.
+Turning a ticket into a pull request is one example:
 
-triggers:
-  on_demand:
-    source: manual # fires when you select Run in the dashboard
+1. A ticket labeled for automation starts the work.
+2. An agent reads the ticket and changes the code.
+3. The agent runs tests. If they fail, it tries to fix the problem.
+4. After the checks pass, the workflow opens a pull request.
+5. You review the change and decide whether to merge it.
 
-jobs:
-  hello:
-    steps:
-      - run: echo "Hello from Shipfox"
-      - prompt: Reply with a one-sentence hello.
-```
+A workflow can also respond to later review comments and continue the work.
+You define this behavior, including when automation stops and you step in.
 
-Shipfox picks up every file in `.shipfox/workflows/`. Swap the manual trigger
-for a push, a new ticket, or an alert when you want the agent to start on its
-own.
+## How it works
 
-Your first agent runs in minutes with Shipfox cloud.
+### Define your workflow
 
-<Cards>
-  <Card title="Get started" href="/getting-started">
-    Connect a repository and run your first workflow in minutes.
-  </Card>
-  <Card title="Browse integrations" href="/integrations">
-    Connect source control, monitoring, tickets, chat, and other tools.
-  </Card>
-</Cards>
+Choose what starts the workflow, give your agents instructions, and add
+commands. Save it as a YAML file in your repository.
 
-## Agents that stay under control
+### Shipfox runs it
 
-You decide how much freedom each agent gets. Workflows combine [agent steps](/understand/agents), where a model decides what to do, with [shell steps](/how-to/author-workflows/run-shell-commands) that run your exact commands. You set the structure. The model works inside it.
+Your tools trigger the workflow. Shipfox checks out your code and runs your
+agents and commands.
 
-## Loops that run until the result is correct
+### Monitor every run
 
-A [feedback loop](/understand/feedback-loops) repeats an agent until your condition is met. The agent keeps working until the output is right, without a person in the loop.
+Track progress, inspect agent actions, and monitor costs as workflows run.
+Review messages, tool calls, and logs to understand what happened.
 
-## Secure by design
+## More work to delegate
 
-Agents run next to your code in [ephemeral runners](/understand/runners-and-execution-environments). Each runner starts in isolation and stops at the end of the job. No data stays between two runs. Each agent reaches only the [tools that you allow](/understand/integrations-connections-and-tools).
+The same approach fits other recurring engineering work:
 
-## Open source and self-hostable
+- **Dependency maintenance:** assess an update and investigate failing checks
+  before you review it.
+- **Alert investigation:** examine an error and prepare a diagnosis or a tested
+  fix for review.
+- **Pull request review:** inspect changes against your guidelines and
+  respond to later feedback.
 
-The whole platform is open source under the MIT license. Read it on [GitHub](https://github.com/ShipfoxHQ/shipfox), or [run Shipfox on your own infrastructure](/installation) so that your code and your credentials never leave it.
+[What teams automate](/what-teams-automate) explains where these workflows
+fit and where people participate.
 
-## One place to control everything
+## You set the boundaries
 
-You monitor and manage every agent from one place. Every [run](/understand/workflows-and-runs) streams its jobs, steps, agent messages, tool calls, tokens, and cost while it happens.
+Choose what your agents do and which tools they can use. Decide when they
+work on their own and when they need your review.
 
-## What teams build with Shipfox
-
-Teams use Shipfox for work such as:
-
-- **Triage monitoring errors.** A new error starts an agent that produces a fix
-  and opens a pull request.
-- **Turn tickets into code.** An assigned ticket starts an agent that opens a
-  pull request and responds to review comments.
-- **Fix failing CI.** A failing check starts an agent that produces a fix and
-  makes the check pass again.
-- **Review pull requests.** Each new pull request gets an agent review based on
-  the team's guidelines, with follow-up on later changes.
-- **Keep documentation in sync.** An agent runs daily to identify gaps in your
-  documentation and opens pull requests to keep it up to date.
-- **Answer product questions.** An agent tagged in a Slack or Teams conversation
-  reads your code and gives precise answers to product questions.
-
-## Where to go next
+Review the work in your own tools. [See how Shipfox works](/understand).
 
 <Cards>
-  <Card title="Get started" href="/getting-started">
-    Connect a repository and run your first workflow in minutes.
-  </Card>
-  <Card title="Understand Shipfox" href="/understand">
-    Learn how events, jobs, agents, runners, and feedback loops work together.
-  </Card>
-  <Card title="Browse integrations" href="/integrations">
-    See which tools can start workflows and which operations agents can use.
+  <Card title="Get started with Shipfox" href="https://app.shipfox.io">
+    Complete onboarding in Shipfox and start building workflows.
   </Card>
 </Cards>

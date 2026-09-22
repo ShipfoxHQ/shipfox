@@ -43,17 +43,19 @@ Use this subtitle with the headline:
 
 > Agentic coding makes engineers faster. Shipfox gives them a factory.
 
-Use this description in public metadata, machine-readable summaries, and
-surfaces with room for the full pitch:
+Use this description in public metadata and machine-readable summaries:
 
-> A ticket, an alert or a failed check starts a workflow in your repo. It runs like a CI pipeline and opens a pull request.
->
-> You decide where you step in.
+> Shipfox is a platform for automating engineering work with AI agents. Turn tickets, alerts, and failed checks into work ready for review.
 
-Use **workflow** for the Shipfox concept. Outside the canonical product
-description, use **pipeline** only when quoting or contrasting an external
-system, or when explaining that it is an informal synonym for workflow. Keep
-literal names from external systems unchanged.
+On overview pages, follow the headline with a literal product definition and
+one concrete example before introducing technical concepts. Describe who the
+product serves, what work is delegated, and where people review the result.
+Address the reader as "you" when describing their work, choices, and tools.
+Keep setup instructions and YAML examples in tutorials and how-to guides.
+
+Use **workflow** for the Shipfox concept. Use **pipeline** only when quoting or
+contrasting an external system, or when explaining that it is an informal
+synonym for workflow. Keep literal names from external systems unchanged.
 
 Use **integration connection** for the workspace resource created when an
 integration is connected. Do not use **connection** by itself for this resource,
@@ -96,6 +98,18 @@ Write one sentence that names the reader need before drafting:
 If the sentence needs two types, split the page. A tutorial may link to an
 explanation, a how-to may link to reference, and reference may link to a how-to.
 The linked page carries the other reader need.
+
+### Cloud onboarding is the default entry point
+
+Product docs assume Shipfox Cloud unless the page explicitly covers
+self-hosting. Primary getting-started calls to action link to
+[Shipfox Cloud](https://app.shipfox.io), where onboarding guides setup.
+
+Tutorials and how-to guides require completed onboarding in Shipfox. Use
+"Shipfox" in prerequisite copy and link to `https://app.shipfox.io`. Add only
+requirements specific to the task. Keep workspace, repository, and default
+agent setup in the app. Keep self-hosting instructions
+in `installation/`, outside the default getting-started path.
 
 ### Prerequisites belong to the page
 

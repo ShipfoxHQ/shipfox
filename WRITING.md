@@ -56,7 +56,8 @@ negative word.
   Temporal, CEL) as they are.
 - Cut filler: "you can", "please", "you may try", "simply", "just".
 - No marketing adjectives: "powerful", "seamless", "robust", "battle-tested".
-- Say "you" only when instructing. Everything else reads as description.
+- Use "you" when instructing or addressing readers in product introductions.
+  Use descriptive language for reference material and system behavior.
 - The house glossary needs no first-use expansion: API, DTO, ADR, CEL, MIT,
   YAML, MDX, JWT, SDK, CLI, HTTP, URL, UI, SQL, OAuth, MCP, E2E, and CI.
 - In product documentation, define every acronym outside the house glossary on

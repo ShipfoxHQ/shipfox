@@ -1,0 +1,43 @@
+---
+title: "What teams automate"
+sidebarTitle: "What Teams Automate"
+description: "See common examples of what teams build with Shipfox."
+---
+
+## Turn tickets into pull requests
+
+1. You label a ticket to start the workflow.
+2. An agent reads the ticket and changes the code.
+3. It runs tests and tries to fix any failures.
+4. When the tests pass, it opens a pull request.
+5. You review the change and decide whether to merge it.
+
+The workflow can also respond to your review comments.
+[Build a pull request feedback agent](/tutorials/respond-to-pull-request-feedback).
+
+## Fix failing dependency updates
+
+1. A dependency update opens a pull request.
+2. An agent reads the changes and checks for problems.
+3. If tests fail, it investigates the cause and tries to fix it.
+4. It runs the tests again and explains what it changed or could not fix.
+5. You review the update and decide whether to merge it.
+
+[Learn how workflows retry failed checks](/understand/feedback-loops).
+
+## Investigate errors and propose fixes
+
+1. Your monitoring tool reports an error.
+2. An agent reads the error and searches your code for the cause.
+3. It explains what it found. If the workflow includes a fix, it changes the code and runs tests.
+4. When the tests pass, it opens a pull request.
+5. You review its findings or the proposed fix.
+
+[Investigate Sentry errors](/how-to/recipes/triage-sentry-issues), or
+[turn them into pull requests](/how-to/recipes/event-to-verified-pull-request).
+
+<Cards>
+  <Card title="Get started with Shipfox" href="https://app.shipfox.io">
+    Complete onboarding in Shipfox and start building workflows.
+  </Card>
+</Cards>
