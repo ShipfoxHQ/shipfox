@@ -1,6 +1,7 @@
 import type {AgentThinking} from '@shipfox/workflow-document';
 import {z} from 'zod';
 import {type CustomAgentModelDto, customAgentModelSchema} from './custom-model-provider.js';
+import {modelPriceSchema} from './model-reference.js';
 import {managedModelCompatSchema, managedModelThinkingLevelMapSchema} from './pi-model.js';
 
 export {
@@ -43,6 +44,7 @@ export const managedModelMetadataSchema = customAgentModelSchema
   })
   .extend({
     claudeModelId: z.string().min(1).max(128).optional(),
+    price: modelPriceSchema.optional(),
     thinkingLevelMap: managedModelThinkingLevelMapSchema.optional(),
     thinking_level_map: managedModelThinkingLevelMapSchema.optional(),
     compat: managedModelCompatSchema.optional(),
@@ -74,6 +76,7 @@ export function toCustomAgentModelDto(
 ): CustomAgentModelDto {
   const {
     claudeModelId: _claudeModelId,
+    price: _price,
     thinkingLevelMap,
     thinking_level_map,
     ...metadata

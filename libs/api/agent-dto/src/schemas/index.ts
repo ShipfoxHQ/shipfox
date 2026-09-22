@@ -157,6 +157,13 @@ export {
   UNSUPPORTED_MODEL_PROVIDER_IDS,
 } from './model-provider-id.js';
 export {
+  MODEL_REFERENCE_ATTRIBUTION,
+  type ModelPrice,
+  type ModelReference,
+  modelPriceSchema,
+  modelReferenceSchema,
+} from './model-reference.js';
+export {
   type AgentRuntimeCredentialsResponseDto,
   agentRuntimeCredentialsResponseSchema,
   type ClaudeRuntimeConfigDto,

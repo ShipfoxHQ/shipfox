@@ -2,7 +2,10 @@ import {
   getWorkflowAuthoringContextInputJsonSchema,
   getWorkflowAuthoringContextResultSchema,
 } from '@shipfox/api-agent-access-dto';
-import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {
+  AgentInterModuleClient,
+  AgentWorkspaceModel,
+} from '@shipfox/api-agent-dto/inter-module';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -27,8 +30,13 @@ describe('get_workflow_authoring_context', () => {
   test('returns models, runners, and names without secret values', async () => {
     const clients = createClients({
       models: {
-        models: [{id: 'claude-opus', provider: 'anthropic'}],
-        default_model: {id: 'claude-opus', provider: 'anthropic'},
+        models: [workspaceModel({id: 'claude-opus', provider: 'anthropic', is_default: true})],
+        default_model: workspaceModel({
+          id: 'claude-opus',
+          provider: 'anthropic',
+          is_default: true,
+        }),
+        attribution: null,
       },
       runners: ['default'],
       secretNames: ['LINEAR_API_KEY'],
@@ -40,8 +48,13 @@ describe('get_workflow_authoring_context', () => {
     expect(response).toEqual({
       ok: true,
       result: {
-        models: [{id: 'claude-opus', provider: 'anthropic'}],
-        default_model: {id: 'claude-opus', provider: 'anthropic'},
+        models: [workspaceModel({id: 'claude-opus', provider: 'anthropic', is_default: true})],
+        default_model: workspaceModel({
+          id: 'claude-opus',
+          provider: 'anthropic',
+          is_default: true,
+        }),
+        attribution: null,
         model_provider_configured: true,
         runners: ['default'],
         secret_names: ['LINEAR_API_KEY'],
@@ -64,7 +77,7 @@ describe('get_workflow_authoring_context', () => {
 
   test('succeeds with an unconfigured model provider', async () => {
     const clients = createClients({
-      models: {models: [], default_model: null},
+      models: {models: [], default_model: null, attribution: null},
     });
 
     const response = await tool(clients).execute({context, arguments: {}});
@@ -75,6 +88,7 @@ describe('get_workflow_authoring_context', () => {
         result: expect.objectContaining({
           models: [],
           default_model: null,
+          attribution: null,
           model_provider_configured: false,
         }),
       }),
@@ -102,8 +116,9 @@ function tool(clients: ReturnType<typeof createClients>) {
 function createClients(overrides: Partial<AuthoringContextFixtures> = {}) {
   const fixtures = {
     models: {
-      models: [{id: 'gpt-5', provider: 'openai'}],
-      default_model: {id: 'gpt-5', provider: 'openai'},
+      models: [workspaceModel({id: 'gpt-5', provider: 'openai', is_default: true})],
+      default_model: workspaceModel({id: 'gpt-5', provider: 'openai', is_default: true}),
+      attribution: null,
     },
     runners: ['linux'],
     secretNames: ['API_TOKEN'],
@@ -124,10 +139,24 @@ function createClients(overrides: Partial<AuthoringContextFixtures> = {}) {
   return {agent, workflows, secrets};
 }
 
+function workspaceModel(
+  overrides: Partial<AgentWorkspaceModel> & Pick<AgentWorkspaceModel, 'id' | 'provider'>,
+): AgentWorkspaceModel {
+  return {
+    harness: 'pi',
+    thinking: 'medium',
+    is_default: false,
+    price: null,
+    reference: null,
+    ...overrides,
+  };
+}
+
 type AuthoringContextFixtures = {
   models: {
-    models: readonly {id: string; provider: string}[];
-    default_model: {id: string; provider: string} | null;
+    models: readonly AgentWorkspaceModel[];
+    default_model: AgentWorkspaceModel | null;
+    attribution: string | null;
   };
   runners: readonly string[];
   secretNames: readonly string[];

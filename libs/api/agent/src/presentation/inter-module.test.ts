@@ -105,7 +105,7 @@ describe('agent inter-module presentation', () => {
       {signal: new AbortController().signal},
     );
 
-    expect(result).toEqual({models: [], default_model: null});
+    expect(result).toEqual({models: [], default_model: null, attribution: null});
   });
 
   test('preserves managed provider policy details for runtime credentials', async () => {

@@ -6,7 +6,9 @@ import {
   agentThinkingSchema,
   harnessSchema,
   managedProviderJobIdentitySchema,
+  modelPriceSchema,
   modelProviderRefSchema,
+  modelReferenceSchema,
   RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
 } from '#schemas/index.js';
 
@@ -43,12 +45,18 @@ export type AgentValidationCatalogV2 = z.infer<typeof agentValidationCatalogV2Sc
 const agentWorkspaceModelSchema = z.object({
   id: z.string().min(1),
   provider: modelProviderRefSchema,
+  harness: harnessSchema,
+  thinking: agentThinkingSchema,
+  is_default: z.boolean(),
+  price: modelPriceSchema.nullable(),
+  reference: modelReferenceSchema.nullable(),
 });
 
 const agentWorkspaceModelsSchema = z
   .object({
     models: z.array(agentWorkspaceModelSchema),
     default_model: agentWorkspaceModelSchema.nullable(),
+    attribution: z.string().min(1).nullable(),
   })
   .superRefine(({models, default_model: defaultModel}, ctx) => {
     if (

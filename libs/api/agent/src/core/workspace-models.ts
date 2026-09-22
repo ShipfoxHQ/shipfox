@@ -1,6 +1,10 @@
 import {
+  type AgentModelOptionDto,
   DEFAULT_HARNESS,
   type ManagedModelProvider,
+  MODEL_REFERENCE_ATTRIBUTION,
+  type ModelPrice,
+  type ModelReference,
   type WorkspaceProvidersPolicy,
 } from '@shipfox/api-agent-dto';
 import type {
@@ -17,9 +21,17 @@ import {
   UnsupportedModelProviderError,
   WorkspaceProvidersDisabledError,
 } from './errors.js';
+import {listHarnessProviderModels} from './harness/index.js';
 import {resolveAgentConfig} from './resolve-agent-config.js';
 import {getAgentValidationCatalogV2} from './validation-catalog.js';
 import {workspaceAgentResolutionContext} from './workspace-agent-context.js';
+
+interface WorkspaceModelCandidate {
+  readonly id: string;
+  readonly provider: string;
+  readonly price: ModelPrice | null;
+  readonly reference: ModelReference | null;
+}
 
 export async function getWorkspaceModels(
   workspaceId: string,
@@ -32,16 +44,50 @@ export async function getWorkspaceModels(
     workspaceProviders,
     snapshot.defaultHarnessId ?? DEFAULT_HARNESS,
   );
-  const models = configuredModels(
+  const candidates = configuredModels(
     catalog,
     snapshot.providerConfigs,
     managedProvider,
     workspaceProviders,
   );
-  if (models.length === 0) return {models, default_model: null};
+  if (candidates.length === 0) return emptyWorkspaceModels();
 
-  const defaultModel = resolveDefaultModel(models, snapshot, managedProvider, workspaceProviders);
-  return {models, default_model: defaultModel};
+  const resolutionContext = workspaceAgentResolutionContext(
+    snapshot,
+    managedProvider,
+    workspaceProviders,
+  );
+  const defaultModel = resolveDefaultModel(candidates, resolutionContext);
+  const models = candidates.map((candidate) => {
+    const resolved = resolveAgentConfig(candidate, resolutionContext);
+    const isDefault =
+      defaultModel !== null &&
+      candidate.id === defaultModel.id &&
+      candidate.provider === defaultModel.provider;
+    return {
+      ...candidate,
+      harness: resolved.harness,
+      thinking: resolved.thinking,
+      is_default: isDefault,
+    } satisfies AgentWorkspaceModel;
+  });
+
+  return {
+    models,
+    default_model:
+      defaultModel === null
+        ? null
+        : (models.find(
+            ({id, provider}) => id === defaultModel.id && provider === defaultModel.provider,
+          ) ?? null),
+    attribution: models.some(({reference}) => reference !== null)
+      ? MODEL_REFERENCE_ATTRIBUTION
+      : null,
+  };
+}
+
+function emptyWorkspaceModels(): AgentWorkspaceModels {
+  return {models: [], default_model: null, attribution: null};
 }
 
 function configuredModels(
@@ -49,7 +95,7 @@ function configuredModels(
   providerConfigs: readonly ModelProviderConfig[],
   managedProvider: ManagedModelProvider | undefined,
   workspaceProviders: WorkspaceProvidersPolicy | undefined,
-): AgentWorkspaceModel[] {
+): WorkspaceModelCandidate[] {
   const harness = catalog.harnesses.find(({id}) => id === catalog.default_harness_id);
   if (harness?.model_ids_by_provider === undefined) return [];
 
@@ -68,10 +114,28 @@ function configuredModels(
   );
 
   const catalogModels = Object.entries(harness.model_ids_by_provider).flatMap(
-    ([provider, modelIds]) =>
-      configuredProviderIds.has(provider) && supportedProviderIds.has(provider)
-        ? modelIds.map((id) => ({id, provider}))
-        : [],
+    ([provider, modelIds]) => {
+      if (!configuredProviderIds.has(provider) || !supportedProviderIds.has(provider)) return [];
+
+      if (managedProvider?.id === provider) {
+        const managedModels = new Map(managedProvider.models.map((model) => [model.id, model]));
+        return modelIds.flatMap((id) => {
+          const model = managedModels.get(id);
+          return model === undefined ? [] : [modelCandidate(provider, model)];
+        });
+      }
+
+      const modelsById = new Map(
+        listHarnessProviderModels(catalog.default_harness_id, provider).map((model) => [
+          model.id,
+          model,
+        ]),
+      );
+      return modelIds.flatMap((id) => {
+        const model = modelsById.get(id);
+        return model === undefined ? [] : [modelCandidate(provider, model)];
+      });
+    },
   );
   if (workspaceProviders === 'disabled' || catalog.default_harness_id !== 'pi') {
     return catalogModels;
@@ -79,23 +143,32 @@ function configuredModels(
 
   const customModels = providerConfigs.flatMap((providerConfig) =>
     providerConfig.kind === 'custom'
-      ? (providerConfig.models ?? []).map(({id}) => ({id, provider: providerConfig.providerId}))
+      ? (providerConfig.models ?? []).map((model) =>
+          modelCandidate(providerConfig.providerId, model),
+        )
       : [],
   );
   return [...catalogModels, ...customModels];
 }
 
+function modelCandidate(
+  provider: string,
+  model: Pick<AgentModelOptionDto, 'id' | 'price' | 'reference'>,
+): WorkspaceModelCandidate {
+  return {
+    id: model.id,
+    provider,
+    price: model.price ?? null,
+    reference: model.reference ?? null,
+  };
+}
+
 function resolveDefaultModel(
-  models: readonly AgentWorkspaceModel[],
-  snapshot: Awaited<ReturnType<typeof getAgentWorkspaceDefaultsSnapshot>>,
-  managedProvider: ManagedModelProvider | undefined,
-  workspaceProviders: WorkspaceProvidersPolicy | undefined,
-): AgentWorkspaceModel | null {
+  models: readonly WorkspaceModelCandidate[],
+  resolutionContext: Parameters<typeof resolveAgentConfig>[1],
+): WorkspaceModelCandidate | null {
   try {
-    const resolved = resolveAgentConfig(
-      {},
-      workspaceAgentResolutionContext(snapshot, managedProvider, workspaceProviders),
-    );
+    const resolved = resolveAgentConfig({}, resolutionContext);
     return (
       models.find(({id, provider}) => id === resolved.model && provider === resolved.provider) ??
       null

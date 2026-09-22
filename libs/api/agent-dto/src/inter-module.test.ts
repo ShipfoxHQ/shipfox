@@ -3,6 +3,18 @@ import {agentInterModuleContract, agentSessionDescriptorSchema} from './inter-mo
 
 const UUID = '00000000-0000-4000-8000-000000000001';
 
+function workspaceModel() {
+  return {
+    id: 'claude-opus-4-8',
+    provider: 'anthropic',
+    harness: 'claude' as const,
+    thinking: 'high' as const,
+    is_default: true,
+    price: null,
+    reference: null,
+  };
+}
+
 describe('agentInterModuleContract', () => {
   test('preserves the original validation catalog contract', () => {
     const input = agentInterModuleContract.methods.getValidationCatalog.input.parse({});
@@ -36,28 +48,32 @@ describe('agentInterModuleContract', () => {
       workspaceId: UUID,
     });
     const output = agentInterModuleContract.methods.getWorkspaceModels.output.parse({
-      models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
-      default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+      models: [workspaceModel()],
+      default_model: workspaceModel(),
+      attribution: null,
     });
 
     expect(input).toEqual({workspaceId: UUID});
     expect(output).toEqual({
-      models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
-      default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+      models: [workspaceModel()],
+      default_model: workspaceModel(),
+      attribution: null,
     });
     expect(
       agentInterModuleContract.methods.getWorkspaceModels.output.parse({
         models: [],
         default_model: null,
+        attribution: null,
       }),
-    ).toEqual({models: [], default_model: null});
+    ).toEqual({models: [], default_model: null, attribution: null});
   });
 
   test('rejects a workspace default model that is absent from models', () => {
     expect(() =>
       agentInterModuleContract.methods.getWorkspaceModels.output.parse({
         models: [],
-        default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+        default_model: workspaceModel(),
+        attribution: null,
       }),
     ).toThrow('default_model must be null or one of models');
   });

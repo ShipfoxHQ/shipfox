@@ -46,8 +46,27 @@ export const agentTestClient: AgentInterModuleClient = {
   },
   getWorkspaceModels() {
     return Promise.resolve({
-      models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
-      default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+      models: [
+        {
+          id: 'claude-opus-4-8',
+          provider: 'anthropic',
+          harness: 'pi',
+          thinking: 'xhigh',
+          is_default: true,
+          price: null,
+          reference: null,
+        },
+      ],
+      default_model: {
+        id: 'claude-opus-4-8',
+        provider: 'anthropic',
+        harness: 'pi',
+        thinking: 'xhigh',
+        is_default: true,
+        price: null,
+        reference: null,
+      },
+      attribution: null,
     });
   },
   resolveAgentConfig({config}) {

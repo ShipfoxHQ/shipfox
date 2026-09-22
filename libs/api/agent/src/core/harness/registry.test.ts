@@ -95,8 +95,12 @@ describe('harness registry', () => {
     const models = listHarnessProviderModels('pi', 'anthropic');
 
     expect(piAi.getModels).toHaveBeenCalledWith('anthropic');
-    expect(models).toContainEqual({id: 'claude-opus-4-8', label: 'Claude Opus 4.8'});
-    expect(models).toContainEqual({id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (latest)'});
+    expect(models).toContainEqual(
+      expect.objectContaining({id: 'claude-opus-4-8', label: 'Claude Opus 4.8'}),
+    );
+    expect(models).toContainEqual(
+      expect.objectContaining({id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (latest)'}),
+    );
   });
 
   it('lists the Claude model line for Anthropic', () => {

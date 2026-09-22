@@ -19,6 +19,12 @@ import {
   type SupportedModelProviderId,
   UNSUPPORTED_MODEL_PROVIDER_IDS,
 } from './model-provider-id.js';
+import {
+  type ModelPrice,
+  type ModelReference,
+  modelPriceSchema,
+  modelReferenceSchema,
+} from './model-reference.js';
 
 export type {AgentThinking, Harness} from '@shipfox/workflow-document';
 export {
@@ -37,9 +43,12 @@ export const agentModelOptionSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   api: managedModelApiSchema.optional(),
+  price: modelPriceSchema.optional(),
+  reference: modelReferenceSchema.optional(),
 });
 
 export type AgentModelOptionDto = z.infer<typeof agentModelOptionSchema>;
+export type {ModelPrice, ModelReference};
 
 /**
  * Static Claude model options for the built-in `anthropic` provider. This is

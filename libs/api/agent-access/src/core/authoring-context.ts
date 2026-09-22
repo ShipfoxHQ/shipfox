@@ -56,6 +56,7 @@ function createGetWorkflowAuthoringContextTool(
         agentAccessSuccess({
           models: models.models,
           default_model: models.default_model,
+          attribution: models.attribution,
           model_provider_configured: models.models.length > 0,
           runners: runners.names,
           secret_names: secrets.names,
