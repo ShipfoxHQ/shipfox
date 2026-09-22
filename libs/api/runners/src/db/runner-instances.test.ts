@@ -2141,22 +2141,31 @@ describe('reportRunnerInstances', () => {
   });
 
   it('honors durable authorization for an installation-scoped runner', async () => {
+    const reportedAt = new Date('2025-01-01T00:00:00.000Z');
+    const authorizedAt = new Date('2025-01-01T00:01:00.000Z');
     const runner = await providerRunnerFactory.create({
       workspaceId: null,
       provisionerId,
       providerRunnerId: 'installation-authorized-runner',
       state: 'terminated',
+      reportedAt,
     });
     await db()
       .update(providerRunners)
-      .set({terminationAuthorizedAt: new Date(), terminationReason: 'terminal-state'})
+      .set({terminationAuthorizedAt: authorizedAt, terminationReason: 'terminal-state'})
       .where(eq(providerRunners.id, runner.id));
 
     const result = await reportRunnerInstances({
       scope: 'installation',
       workspaceId: null,
       provisionerId,
-      events: [event({providerRunnerId: 'installation-authorized-runner', state: 'terminated'})],
+      events: [
+        event({
+          providerRunnerId: 'installation-authorized-runner',
+          state: 'terminated',
+          reportedAt: new Date('2025-01-01T00:02:00.000Z'),
+        }),
+      ],
     });
 
     expect(result.terminateIntentsHonored).toEqual([
