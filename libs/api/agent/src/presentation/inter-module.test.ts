@@ -96,7 +96,7 @@ describe('agent inter-module presentation', () => {
     expect(catalog.default_harness_id).toBe('claude');
   });
 
-  test('returns the configured workspace model result', async () => {
+  test('returns an empty model result for a workspace without configured providers', async () => {
     const workspaceId = crypto.randomUUID();
     const presentation = createAgentInterModulePresentation({secrets: agentTestSecretsClient});
 

@@ -45,6 +45,21 @@ describe('agentInterModuleContract', () => {
       models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
       default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
     });
+    expect(
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [],
+        default_model: null,
+      }),
+    ).toEqual({models: [], default_model: null});
+  });
+
+  test('rejects a workspace default model that is absent from models', () => {
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [],
+        default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+      }),
+    ).toThrow('default_model must be null or one of models');
   });
 
   test('carries job identity in the runtime credentials context', () => {
