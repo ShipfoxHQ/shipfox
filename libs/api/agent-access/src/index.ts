@@ -46,6 +46,11 @@ export {
   truncateAgentAccessUtf8,
 } from '#core/response.js';
 export {
+  AGENT_ACCESS_TEMPLATE_TOOL_NAMES,
+  type AgentAccessTemplateToolsOptions,
+  createAgentAccessTemplateTools,
+} from '#core/template-tools.js';
+export {
   type AgentAccessTool,
   type AgentAccessToolCall,
   type AgentAccessToolMap,

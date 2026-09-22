@@ -138,6 +138,20 @@ export {
   listWorkflowRunsResultSchema,
 } from './schemas/paged-tools.js';
 export {
+  type GetWorkflowTemplateInputDto,
+  type GetWorkflowTemplateResultDto,
+  getWorkflowTemplateInputJsonSchema,
+  getWorkflowTemplateInputSchema,
+  getWorkflowTemplateResultJsonSchema,
+  getWorkflowTemplateResultSchema,
+  type ListWorkflowTemplatesInputDto,
+  type ListWorkflowTemplatesResultDto,
+  listWorkflowTemplatesInputJsonSchema,
+  listWorkflowTemplatesInputSchema,
+  listWorkflowTemplatesResultJsonSchema,
+  listWorkflowTemplatesResultSchema,
+} from './schemas/template-tools.js';
+export {
   AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
   AGENT_ACCESS_WORKFLOW_SOURCE_MAX_BYTES,
   type AgentAccessOversizedFieldDto,

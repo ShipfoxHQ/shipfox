@@ -113,12 +113,14 @@ interface HandleAgentAccessToolCallParams {
   recordCall: AgentAccessToolCallRecorder;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: keep rate limiting and dispatch ordering together.
 async function handleAgentAccessToolCall(
   params: HandleAgentAccessToolCallParams,
 ): Promise<CallToolResult> {
   const tool = params.tools.get(params.name);
   const rateLimit = params.rateLimiter.consume(params.context.credential);
   if (!rateLimit.allowed) {
+    const target = templateAuditTarget(isRecord(params.arguments) ? params.arguments : {});
     const action =
       tool !== undefined && isActionTool(tool)
         ? createActionAudit(tool, isRecord(params.arguments) ? params.arguments : {})
@@ -128,6 +130,7 @@ async function handleAgentAccessToolCall(
       outcome: 'rate-limited',
       errorCode: 'rate-limited',
       context: params.context,
+      ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
     });
     return toolResult(
@@ -164,6 +167,7 @@ async function executeAgentAccessTool(params: {
   recordCall: AgentAccessToolCallRecorder;
 }): Promise<CallToolResult> {
   let action = isActionTool(params.tool) ? createActionAudit(params.tool, params.input) : undefined;
+  const target = templateAuditTarget(params.input);
   try {
     if (params.tool.validateInput?.(params.input) === false) {
       recordToolCall(params.recordCall, {
@@ -171,6 +175,7 @@ async function executeAgentAccessTool(params: {
         outcome: 'invalid-request',
         errorCode: 'invalid-request',
         context: params.context,
+        ...(target === undefined ? {} : {target}),
         ...(action === undefined ? {} : {action}),
       });
       return toolResult(agentAccessError('invalid-request'), true);
@@ -191,6 +196,7 @@ async function executeAgentAccessTool(params: {
           outcome: authorization.outcome ?? 'rate-limited',
           errorCode: authorization.errorCode ?? 'rate-limited',
           context: params.context,
+          ...(target === undefined ? {} : {target}),
           action,
         });
         return authorization.response;
@@ -205,6 +211,7 @@ async function executeAgentAccessTool(params: {
         outcome: 'exception',
         errorCode: 'invalid-tool-response',
         context: params.context,
+        ...(target === undefined ? {} : {target}),
         ...(action === undefined ? {} : {action}),
       });
       return toolResult(agentAccessError('invalid-tool-response'), true);
@@ -219,6 +226,7 @@ async function executeAgentAccessTool(params: {
       outcome,
       errorCode: boundedEnvelope.ok ? 'none' : (boundedEnvelope.error?.code ?? 'unknown'),
       context: params.context,
+      ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
     });
     return result;
@@ -228,6 +236,7 @@ async function executeAgentAccessTool(params: {
       outcome: 'exception',
       errorCode: 'unknown',
       context: params.context,
+      ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
     });
     logger().error({err: error, tool: params.tool.name}, 'Agent-access tool execution failed');
@@ -428,6 +437,16 @@ function completeActionAudit(
     ...(typeof result.run_id === 'string' ? {result_run_id: result.run_id} : {}),
     ...(resultAttempt === undefined ? {} : {result_attempt: resultAttempt}),
   };
+}
+
+function templateAuditTarget(input: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (typeof input.template_id !== 'string') return undefined;
+  const providers = Object.fromEntries(
+    Object.entries(input).filter(
+      ([key, value]) => key !== 'template_id' && key !== 'project_id' && typeof value === 'string',
+    ),
+  );
+  return {template_id: input.template_id, providers};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

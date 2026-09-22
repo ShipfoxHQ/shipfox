@@ -89,6 +89,7 @@
     "@shipfox/api-workflows-dto": "workspace:*",
     "@shipfox/api-workspaces-dto": "workspace:*",
     "@shipfox/api-workspaces": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
     "@shipfox/config": "workspace:*",
     "@shipfox/node-error-monitoring": "workspace:*",
     "@shipfox/node-fastify": "workspace:*",

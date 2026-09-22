@@ -27,6 +27,7 @@ import {
   type RoutePreHandler,
 } from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
+import type {TemplateLoader} from '@shipfox/workflow-templates';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
   AGENT_ACCESS_MCP_PATH,
@@ -38,6 +39,7 @@ import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';
+import {createAgentAccessTemplateTools} from '#core/template-tools.js';
 import {
   type AgentAccessTool,
   createAgentAccessFixtureTool,
@@ -68,6 +70,7 @@ export interface CreateAgentAccessRoutesOptions {
   triggers?: TriggersInterModuleClient | undefined;
   logs?: LogsModuleClient | undefined;
   integrations?: IntegrationsModuleClient | undefined;
+  templates?: TemplateLoader | undefined;
 }
 
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
@@ -161,7 +164,8 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
 function toolsFromProducerClients(
   options: CreateAgentAccessRoutesOptions,
 ): readonly AgentAccessTool[] {
-  const {projects, definitions, workflows, annotations, triggers, logs, integrations} = options;
+  const {projects, definitions, workflows, annotations, triggers, logs, integrations, templates} =
+    options;
   if (
     projects === undefined &&
     definitions === undefined &&
@@ -169,7 +173,8 @@ function toolsFromProducerClients(
     annotations === undefined &&
     triggers === undefined &&
     logs === undefined &&
-    integrations === undefined
+    integrations === undefined &&
+    templates === undefined
   ) {
     return [createAgentAccessFixtureTool()];
   }
@@ -217,9 +222,13 @@ function toolsFromProducerClients(
             workflows,
           }),
         ];
-  return integrations === undefined
-    ? withLogs
-    : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
+  const withIntegrations =
+    integrations === undefined
+      ? withLogs
+      : [...withLogs, ...createAgentAccessIntegrationTools(integrations)];
+  return templates === undefined || integrations === undefined
+    ? withIntegrations
+    : [...withIntegrations, ...createAgentAccessTemplateTools({projects, integrations, templates})];
 }
 
 function methodNotAllowed(_request: FastifyRequest, reply: FastifyReply) {

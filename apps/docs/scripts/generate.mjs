@@ -19,6 +19,7 @@ import {
   createAgentAccessDiagnosticTools,
   createAgentAccessIntegrationTools,
   createAgentAccessLogTools,
+  createAgentAccessTemplateTools,
   createAgentAccessTools,
   createAgentAccessWorkflowDiagnosticTools,
 } from '@shipfox/api-agent-access';
@@ -362,6 +363,8 @@ const mcpToolGroups = [
       'list_workflow_runs',
       'list_integration_connections',
       'get_integration_connection_tools',
+      'list_workflow_templates',
+      'get_workflow_template',
     ],
   },
   {
@@ -422,6 +425,7 @@ function listMcpTools() {
       workflows: stub,
     }),
     ...createAgentAccessIntegrationTools(stub),
+    ...createAgentAccessTemplateTools({projects: stub, integrations: stub, templates: stub}),
   ];
 }
 
