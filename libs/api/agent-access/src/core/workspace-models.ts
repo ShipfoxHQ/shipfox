@@ -7,6 +7,7 @@ export type AgentAccessWorkspaceModel = AgentWorkspaceModel;
 export interface AgentAccessWorkspaceModels {
   readonly models: readonly AgentAccessWorkspaceModel[];
   readonly default_model: AgentAccessWorkspaceModel | null;
+  readonly attribution: string | null;
 }
 
 /**

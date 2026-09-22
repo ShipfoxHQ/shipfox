@@ -95,8 +95,29 @@ describe('harness registry', () => {
     const models = listHarnessProviderModels('pi', 'anthropic');
 
     expect(piAi.getModels).toHaveBeenCalledWith('anthropic');
-    expect(models).toContainEqual({id: 'claude-opus-4-8', label: 'Claude Opus 4.8'});
-    expect(models).toContainEqual({id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (latest)'});
+    expect(models).toContainEqual(
+      expect.objectContaining({id: 'claude-opus-4-8', label: 'Claude Opus 4.8'}),
+    );
+    expect(models).toContainEqual(
+      expect.objectContaining({id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (latest)'}),
+    );
+  });
+
+  it('keeps Pi catalog prices in USD per million tokens', () => {
+    piAi.getModels.mockReturnValueOnce(
+      anthropicModels().map((model, index) =>
+        index === 0 ? {...model, cost: {...model.cost, input: 5, output: 25}} : model,
+      ),
+    );
+
+    const models = listHarnessProviderModels('pi', 'anthropic');
+
+    expect(models).toContainEqual(
+      expect.objectContaining({
+        id: 'claude-opus-4-8',
+        price: {input: 5, output: 25},
+      }),
+    );
   });
 
   it('lists the Claude model line for Anthropic', () => {

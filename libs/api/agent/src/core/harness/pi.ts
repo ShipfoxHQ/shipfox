@@ -9,6 +9,14 @@ export function listPiProviderModels(providerId: string): AgentModelOptionDto[] 
   return getModels(providerId as Parameters<typeof getModels>[0]).map((model) => ({
     id: model.id,
     label: model.name,
+    ...(model.cost.input >= 0 && model.cost.output >= 0
+      ? {
+          price: {
+            input: model.cost.input,
+            output: model.cost.output,
+          },
+        }
+      : {}),
   }));
 }
 

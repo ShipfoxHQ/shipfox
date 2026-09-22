@@ -2,6 +2,31 @@ import {RUNNER_CAPABILITY_REQUIRED_ERROR_CODE} from './index.js';
 import {agentInterModuleContract, agentSessionDescriptorSchema} from './inter-module.js';
 
 const UUID = '00000000-0000-4000-8000-000000000001';
+const ATTRIBUTION = 'Intelligence Index by Artificial Analysis';
+
+function workspaceModel() {
+  return {
+    id: 'claude-opus-4-8',
+    provider: 'anthropic',
+    harness: 'claude' as const,
+    thinking: 'high' as const,
+    is_default: true,
+    price: null,
+    reference: null,
+  };
+}
+
+function scoredWorkspaceModel() {
+  return {
+    ...workspaceModel(),
+    price: {input: 5, output: 25},
+    reference: {
+      intelligence_index: 80,
+      cost_per_task_usd: 0.1,
+      scale: 'aa-v1-swe-bench',
+    },
+  };
+}
 
 describe('agentInterModuleContract', () => {
   test('preserves the original validation catalog contract', () => {
@@ -36,30 +61,122 @@ describe('agentInterModuleContract', () => {
       workspaceId: UUID,
     });
     const output = agentInterModuleContract.methods.getWorkspaceModels.output.parse({
-      models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
-      default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+      models: [workspaceModel()],
+      default_model: workspaceModel(),
+      attribution: null,
     });
 
     expect(input).toEqual({workspaceId: UUID});
     expect(output).toEqual({
-      models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
-      default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+      models: [workspaceModel()],
+      default_model: workspaceModel(),
+      attribution: null,
     });
     expect(
       agentInterModuleContract.methods.getWorkspaceModels.output.parse({
         models: [],
         default_model: null,
+        attribution: null,
       }),
-    ).toEqual({models: [], default_model: null});
+    ).toEqual({models: [], default_model: null, attribution: null});
+  });
+
+  test('carries a scored workspace model through the output contract', () => {
+    const model = scoredWorkspaceModel();
+    const output = agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+      models: [model],
+      default_model: model,
+      attribution: ATTRIBUTION,
+    });
+
+    expect(output).toEqual({
+      models: [model],
+      default_model: model,
+      attribution: ATTRIBUTION,
+    });
+  });
+
+  test('rejects a scored workspace model without attribution', () => {
+    const model = scoredWorkspaceModel();
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [model],
+        default_model: model,
+        attribution: null,
+      }),
+    ).toThrow('attribution is required when a model has a reference');
+  });
+
+  test('rejects attribution when no workspace model has a reference', () => {
+    const model = workspaceModel();
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [model],
+        default_model: model,
+        attribution: ATTRIBUTION,
+      }),
+    ).toThrow('attribution must be null when no model has a reference');
   });
 
   test('rejects a workspace default model that is absent from models', () => {
     expect(() =>
       agentInterModuleContract.methods.getWorkspaceModels.output.parse({
         models: [],
-        default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+        default_model: workspaceModel(),
+        attribution: null,
       }),
     ).toThrow('default_model must be null or one of models');
+  });
+
+  test('rejects a default model without its matching is_default marker', () => {
+    const defaultModel = workspaceModel();
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [{...defaultModel, is_default: false}],
+        default_model: defaultModel,
+        attribution: null,
+      }),
+    ).toThrow('default_model must match the only model marked as default');
+  });
+
+  test('rejects a marked model when default_model is null', () => {
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [workspaceModel()],
+        default_model: null,
+        attribution: null,
+      }),
+    ).toThrow('models must not mark a default when default_model is null');
+  });
+
+  test('rejects a marked non-default model', () => {
+    const defaultModel = workspaceModel();
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [
+          {...defaultModel, is_default: false},
+          {...defaultModel, id: 'another-model'},
+        ],
+        default_model: defaultModel,
+        attribution: null,
+      }),
+    ).toThrow('default_model must match the only model marked as default');
+  });
+
+  test('rejects multiple marked default models', () => {
+    const defaultModel = workspaceModel();
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [defaultModel, {...defaultModel, id: 'another-model'}],
+        default_model: defaultModel,
+        attribution: null,
+      }),
+    ).toThrow('default_model must match the only model marked as default');
   });
 
   test('carries job identity in the runtime credentials context', () => {

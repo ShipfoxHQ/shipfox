@@ -83,7 +83,13 @@ function toManagedProviderCatalogEntry(
       default_model: managedProvider.defaultModel,
       credential_fields: [],
       unsupported_reason: null,
-      models: managedProvider.models.map(({id, label, api}) => ({id, label, api})),
+      models: managedProvider.models.map(({id, label, api, price, reference}) => ({
+        id,
+        label,
+        api,
+        ...(price === undefined ? {} : {price}),
+        ...(reference === undefined ? {} : {reference}),
+      })),
     }),
   );
 }
