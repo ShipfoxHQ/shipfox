@@ -17,5 +17,3 @@ export function createListRunnerCatalogNamesRoute(catalog: RunnerCatalog = runne
     handler: () => listRunnerCatalogNames(catalog),
   });
 }
-
-export const listRunnerCatalogNamesRoute = createListRunnerCatalogNamesRoute();

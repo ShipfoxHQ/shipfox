@@ -42,11 +42,28 @@ describe('workflow route auth', () => {
     integrations: {} as never,
     projects: projectsTestClient,
     runners: runnersTestClient,
+    runnerCatalog: {hosted: ['linux']},
     secrets: createTestSecretsClient(),
     workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
   });
   test('uses user auth', () => {
     expect(workflowRoutes[0]?.auth).toBe(AUTH_USER);
+  });
+
+  test('uses the supplied runner catalog', async () => {
+    const app = await createApp({
+      auth: [fakeUserAuth, fakeLeaseTokenAuthMethod],
+      routes: workflowRoutes,
+      swagger: false,
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/workflows/runner-catalog',
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({names: ['hosted']});
   });
 
   test('rejects API-key-only requests', async () => {

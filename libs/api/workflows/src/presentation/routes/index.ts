@@ -8,6 +8,7 @@ import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-modu
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import type {RouteGroup} from '@shipfox/node-fastify';
+import type {RunnerCatalog} from '@shipfox/runner-labels';
 import type {WorkflowAdmissionPolicy} from '#core/workspace-admission.js';
 import {createAgentRuntimeConfigRoute} from './agent-runtime-config.js';
 import {cancelRunRoute} from './cancel-run.js';
@@ -27,7 +28,7 @@ import {listRunAnnotationsRoute} from './list-run-annotations.js';
 import {listRunAttemptsRoute} from './list-run-attempts.js';
 import {listRunJobExplanationsRoute} from './list-run-job-explanations.js';
 import {listRunJobsRoute} from './list-run-jobs.js';
-import {listRunnerCatalogNamesRoute} from './list-runner-catalog-names.js';
+import {createListRunnerCatalogNamesRoute} from './list-runner-catalog-names.js';
 import {listRunsRoute} from './list-runs.js';
 import {listStepAttemptsRoute} from './list-step-attempts.js';
 import {createNextStepRoute} from './next-step.js';
@@ -42,6 +43,7 @@ type WorkflowRouteClients = {
   toolStepExecutor?: {nudge(): void};
   projects: ProjectsModuleClient;
   runners: RunnersInterModuleClient;
+  runnerCatalog?: RunnerCatalog;
   secrets: SecretsInterModuleClient;
   workspaces: WorkspacesInterModuleClient;
   admission?: {policy: WorkflowAdmissionPolicy} | undefined;
@@ -74,7 +76,7 @@ export function createWorkflowRoutes(params: WorkflowRouteClients): RouteGroup[]
     {
       prefix: '/workflows',
       auth: AUTH_USER,
-      routes: [listRunnerCatalogNamesRoute],
+      routes: [createListRunnerCatalogNamesRoute(params.runnerCatalog)],
     },
     {
       prefix: '/workflows/runs',
