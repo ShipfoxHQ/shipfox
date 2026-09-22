@@ -187,6 +187,7 @@ export const createDevRunResultSchema = z.union([
     .object({
       dry_run: z.literal(true),
       check_passed: z.literal(true),
+      event_checked: z.boolean().optional(),
       ...createDevRunResultShape,
     })
     .strict(),
@@ -315,13 +316,20 @@ export const createDevRunResultJsonSchema = {
     check_passed: {const: true},
     ref: {type: 'string'},
     commit: {type: 'string'},
+    event_checked: {type: 'boolean'},
     warnings: {type: 'array', items: createDevRunWarningJsonSchema, maxItems: 100},
   },
   required: ['commit'],
   oneOf: [
     {
       required: ['run_id'],
-      not: {anyOf: [{required: ['dry_run']}, {required: ['check_passed']}]},
+      not: {
+        anyOf: [
+          {required: ['dry_run']},
+          {required: ['check_passed']},
+          {required: ['event_checked']},
+        ],
+      },
     },
     {
       required: ['dry_run', 'check_passed'],

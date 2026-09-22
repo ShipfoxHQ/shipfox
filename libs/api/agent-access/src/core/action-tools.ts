@@ -187,7 +187,7 @@ function createDevRunTool(triggers: TriggersInterModuleClient): AgentAccessTool 
   return {
     name: 'create_dev_run',
     description:
-      'Iterate on a workflow against a real past event: call list_trigger_events with replayable=true, read one payload with get_trigger_event, then call create_dev_run with content, replay_event_id, and dry_run: true until check_passed is true. A passing check means the definition resolved and validated, the trigger exists, the event matches, and the filter passed; it does not cover admission, run creation, or execution, so call create_dev_run again for a real run and it can still fail. Read the run with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
+      'Validate and run a workflow in three steps. 1. Shape check: call create_dev_run with content, dry_run: true, and no replay_event_id. This resolves and validates the definition and trigger key without loading an event; event_checked is false for an event trigger and true for manual or cron triggers. 2. Event check: for an event trigger, call list_trigger_events with replayable=true, read a candidate with get_trigger_event, then call create_dev_run with content, replay_event_id, and dry_run: true. A successful replay check returns check_passed true and event_checked true. If create_dev_run returns trigger-filtered or replay-event-mismatch, the candidate does not match; read/select the next candidate event and repeat. This confirms the event matches and the filter passes. 3. Real run: for an event trigger, call create_dev_run with content and replay_event_id without dry_run; for a manual or cron trigger, call it with content and no replay_event_id. The run can still fail admission, creation, or execution, so read it with get_workflow_run and its logs, fix the YAML, and repeat. Only the YAML is uploaded; scripts and other working-tree changes are not. Use rerun_workflow_run to repeat an unchanged file. config_path is required. Dev runs have no idempotency key; after tool-failed or a transport timeout, list workflow runs for the project with origin dev before retrying.',
     inputSchema: createDevRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(createDevRunResultJsonSchema),
     validateInput: (input) => createDevRunInputSchema.safeParse(input).success,
@@ -277,6 +277,7 @@ async function executeDryRun(triggers: TriggersInterModuleClient, request: Creat
     check_passed: result.checkPassed,
     ...(result.ref === undefined ? {} : {ref: result.ref}),
     commit: result.commit,
+    ...(result.eventChecked === undefined ? {} : {event_checked: result.eventChecked}),
     ...(result.warnings === undefined ? {} : {warnings: mapDevRunWarnings(result.warnings)}),
   });
 }

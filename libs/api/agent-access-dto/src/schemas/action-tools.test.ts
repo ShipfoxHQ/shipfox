@@ -111,6 +111,7 @@ describe('agent-access action tool schemas', () => {
     const dryRunResult = {
       dry_run: true,
       check_passed: true,
+      event_checked: false,
       ref: 'main',
       commit: 'a'.repeat(40),
       warnings: [],
@@ -119,6 +120,7 @@ describe('agent-access action tool schemas', () => {
     expect(createDevRunResultSchema.safeParse(realResult).success).toBe(true);
     expect(createDevRunResultSchema.safeParse(dryRunResult).success).toBe(true);
     expect(createDevRunResultJsonSchema.required).toEqual(['commit']);
+    expect(createDevRunResultJsonSchema.properties.event_checked).toEqual({type: 'boolean'});
     expect(createDevRunResultJsonSchema.properties.warnings).toMatchObject({maxItems: 100});
   });
 
@@ -134,6 +136,7 @@ describe('agent-access action tool schemas', () => {
       {
         dry_run: true,
         check_passed: true,
+        event_checked: true,
         ref: 'main',
         commit,
         warnings: [],
@@ -144,6 +147,7 @@ describe('agent-access action tool schemas', () => {
       {run_id: uuid, dry_run: true, commit},
       {run_id: uuid, check_passed: true, commit},
       {run_id: uuid, dry_run: true, check_passed: true, commit},
+      {run_id: uuid, event_checked: true, commit},
       {dry_run: true, commit},
       {check_passed: true, commit},
     ];
