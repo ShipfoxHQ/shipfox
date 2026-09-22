@@ -96,6 +96,18 @@ describe('agent inter-module presentation', () => {
     expect(catalog.default_harness_id).toBe('claude');
   });
 
+  test('returns the configured workspace model result', async () => {
+    const workspaceId = crypto.randomUUID();
+    const presentation = createAgentInterModulePresentation({secrets: agentTestSecretsClient});
+
+    const result = await presentation.handlers.getWorkspaceModels(
+      {workspaceId},
+      {signal: new AbortController().signal},
+    );
+
+    expect(result).toEqual({models: [], default_model: null});
+  });
+
   test('preserves managed provider policy details for runtime credentials', async () => {
     const managedProvider: ManagedModelProvider = {
       id: 'shipfox',
