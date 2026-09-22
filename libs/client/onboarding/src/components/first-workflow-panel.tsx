@@ -1,23 +1,37 @@
+import {agentGrantsQueryOptions} from '@shipfox/client-agent';
 import {useClientAnalytics} from '@shipfox/client-shell/runtime';
 import {Button} from '@shipfox/react-ui/button';
 import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
+import {Icon} from '@shipfox/react-ui/icon';
 import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/react-ui/panel';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
+import {useQuery} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
+import type {WorkspaceReference} from './setup-checklist-types.js';
 
 export const FIRST_WORKFLOW_PROMPT =
   'Set up a Shipfox workflow for this repository. Use the Shipfox MCP server: call `get_workflow_setup_guide` and follow it.';
 
 const GETTING_STARTED_URL = 'https://www.shipfox.io/docs/getting-started';
+const GRANTS_STALE_TIME_MS = 5 * 60 * 1000;
 
 export interface FirstWorkflowPanelProps {
-  workspaceSlug: string;
+  workspace: WorkspaceReference;
 }
 
-export function FirstWorkflowPanel({workspaceSlug}: FirstWorkflowPanelProps) {
+export function FirstWorkflowPanel({workspace}: FirstWorkflowPanelProps) {
   const analytics = useClientAnalytics();
+  // Grants are per user across workspaces, so the panel keeps only this
+  // workspace's, like the agent-access settings page does.
+  const grantsQuery = useQuery({
+    ...agentGrantsQueryOptions(),
+    staleTime: GRANTS_STALE_TIME_MS,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const connectedGrant = grantsQuery.data?.find((grant) => grant.workspaceId === workspace.id);
   const titleId = useId();
   const panelOpened = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -69,14 +83,23 @@ export function FirstWorkflowPanel({workspaceSlug}: FirstWorkflowPanelProps) {
               <Text as="h3" size="sm" bold>
                 1. Connect the Shipfox MCP server
               </Text>
-              <Text size="sm" className="text-foreground-neutral-muted">
-                Connect your coding agent so it can read your workspace and guide the setup.
-              </Text>
-              <Button asChild size="sm" variant="secondary">
-                <Link to="/w/$workspaceSlug/settings/agent-access" params={{workspaceSlug}}>
-                  Connect MCP server
-                </Link>
-              </Button>
+              {connectedGrant ? (
+                <ConnectedGrant clientName={connectedGrant.clientName} />
+              ) : (
+                <>
+                  <Text size="sm" className="text-foreground-neutral-muted">
+                    Connect your coding agent so it can read your workspace and guide the setup.
+                  </Text>
+                  <Button asChild size="sm" variant="secondary">
+                    <Link
+                      to="/w/$workspaceSlug/settings/agent-access"
+                      params={{workspaceSlug: workspace.slug}}
+                    >
+                      Connect MCP server
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </PanelRow>
           <PanelRow className="items-start">
@@ -113,5 +136,18 @@ export function FirstWorkflowPanel({workspaceSlug}: FirstWorkflowPanelProps) {
         </PanelBody>
       </section>
     </Panel>
+  );
+}
+
+function ConnectedGrant({clientName}: {clientName: string}) {
+  return (
+    <Text size="sm" className="flex items-center gap-tight text-foreground-neutral-muted">
+      <Icon
+        name="checkCircleSolid"
+        className="size-16 text-foreground-highlight-interactive"
+        aria-hidden="true"
+      />
+      Connected: {clientName}
+    </Text>
   );
 }

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import {agentGrantsQueryOptions} from '@shipfox/client-agent';
 import {type ClientAnalytics, ClientAnalyticsProvider} from '@shipfox/client-shell/runtime';
 import {afterEach, describe, expect, test, vi} from '@shipfox/vitest/vi';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
@@ -13,15 +14,29 @@ import {
 } from '@tanstack/react-router';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {FIRST_WORKFLOW_PROMPT, FirstWorkflowPanel} from './first-workflow-panel.js';
+import type {WorkspaceReference} from './setup-checklist-types.js';
 
-const WORKSPACE_SLUG = 'acme';
+const WORKSPACE: WorkspaceReference = {id: 'test-workspace', slug: 'acme'};
+const WORKSPACE_SLUG = WORKSPACE.slug;
+const CONNECTED_RE = /^Connected:/u;
+const now = new Date().toISOString();
 
-function renderPanel(analytics: ClientAnalytics) {
+function grant(workspaceId: string, clientName: string) {
+  return {
+    id: `${workspaceId}-${clientName}`,
+    clientName,
+    workspaceId,
+    createdAt: now,
+    lastRefreshedAt: null,
+  };
+}
+
+function renderPanel(analytics: ClientAnalytics, grants: ReturnType<typeof grant>[] = []) {
   const rootRoute = createRootRoute({component: Outlet});
   const panelRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/w/$workspaceSlug',
-    component: () => <FirstWorkflowPanel workspaceSlug={WORKSPACE_SLUG} />,
+    component: () => <FirstWorkflowPanel workspace={WORKSPACE} />,
   });
   const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -33,6 +48,7 @@ function renderPanel(analytics: ClientAnalytics) {
     history: createMemoryHistory({initialEntries: [`/w/${WORKSPACE_SLUG}`]}),
   });
   const queryClient = new QueryClient();
+  queryClient.setQueryData(agentGrantsQueryOptions().queryKey, grants);
 
   return render(
     <ClientAnalyticsProvider analytics={analytics}>
@@ -69,6 +85,23 @@ describe('FirstWorkflowPanel', () => {
     await waitFor(() =>
       expect(capture).toHaveBeenCalledWith('first_workflow_panel_opened', undefined),
     );
+  });
+
+  test('marks the MCP step as connected when this workspace has a grant', async () => {
+    renderPanel({capture: vi.fn()}, [
+      grant('other-workspace', 'Codex'),
+      grant(WORKSPACE.id, 'Claude Code'),
+    ]);
+
+    expect(await screen.findByText('Connected: Claude Code')).toBeVisible();
+    expect(screen.queryByRole('link', {name: 'Connect MCP server'})).not.toBeInTheDocument();
+  });
+
+  test('keeps the connect link when only another workspace has a grant', async () => {
+    renderPanel({capture: vi.fn()}, [grant('other-workspace', 'Codex')]);
+
+    expect(await screen.findByRole('link', {name: 'Connect MCP server'})).toBeVisible();
+    expect(screen.queryByText(CONNECTED_RE)).not.toBeInTheDocument();
   });
 
   test('copies the fixed prompt and reports the copy event', async () => {

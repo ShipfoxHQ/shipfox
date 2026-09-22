@@ -1,4 +1,6 @@
+import {agentGrantsQueryOptions} from '@shipfox/client-agent';
 import type {Meta, StoryObj} from '@storybook/react';
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -10,6 +12,9 @@ import {
 import {useMemo} from 'react';
 import {expect, userEvent, within} from 'storybook/test';
 import {FirstWorkflowPanel} from './first-workflow-panel.js';
+import type {WorkspaceReference} from './setup-checklist-types.js';
+
+const WORKSPACE: WorkspaceReference = {id: 'story-workspace', slug: 'acme'};
 
 const meta = {
   title: 'Client onboarding/First workflow panel',
@@ -23,6 +28,10 @@ export const Default: Story = {
   render: () => <PanelStory />,
 };
 
+export const Connected: Story = {
+  render: () => <PanelStory connectedClientName="Claude Code" />,
+};
+
 export const PromptCopied: Story = {
   render: () => <PanelStory />,
   play: async ({canvasElement}) => {
@@ -32,13 +41,33 @@ export const PromptCopied: Story = {
   },
 };
 
-function PanelStory() {
+function PanelStory({connectedClientName}: {connectedClientName?: string}) {
+  const queryClient = useMemo(() => {
+    const client = new QueryClient({
+      defaultOptions: {queries: {retry: false, staleTime: Infinity}},
+    });
+    client.setQueryData(
+      agentGrantsQueryOptions().queryKey,
+      connectedClientName
+        ? [
+            {
+              id: 'grant-1',
+              clientName: connectedClientName,
+              workspaceId: WORKSPACE.id,
+              createdAt: new Date().toISOString(),
+              lastRefreshedAt: null,
+            },
+          ]
+        : [],
+    );
+    return client;
+  }, [connectedClientName]);
   const router = useMemo(() => {
     const rootRoute = createRootRoute({component: Outlet});
     const panelRoute = createRoute({
       getParentRoute: () => rootRoute,
       path: '/w/$workspaceSlug',
-      component: () => <FirstWorkflowPanel workspaceSlug="acme" />,
+      component: () => <FirstWorkflowPanel workspace={WORKSPACE} />,
     });
     const settingsRoute = createRoute({
       getParentRoute: () => rootRoute,
@@ -55,7 +84,9 @@ function PanelStory() {
   return (
     <main className="min-h-screen bg-background-subtle-base p-frame">
       <div className="mx-auto w-full max-w-[640px]">
-        <RouterProvider router={router} />
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
       </div>
     </main>
   );

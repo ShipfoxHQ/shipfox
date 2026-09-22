@@ -31,7 +31,9 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   always carries the whole checklist.
 - **`FirstWorkflowPanel`**: an exported two-step panel that links to Shipfox MCP
   settings, copies the fixed setup prompt, and links to the manual quickstart.
-  The activation flow mounts it separately.
+  It reads the signed-in user's agent grants and shows the MCP step as
+  connected when one belongs to the workspace. The activation flow mounts it
+  separately.
 
 The derivations are pure functions. They test without React and decide what
 the checklist shows, while the hosts own query freshness, loading and failure
@@ -81,8 +83,9 @@ checklist.complete; // false
 
 selectNextSetupStep(checklist)?.id; // 'tools'
 
-// Render inside the application's TanStack Router context when activating the flow.
-<FirstWorkflowPanel workspaceSlug="acme" />;
+// Render inside the application's TanStack Router and React Query contexts
+// when activating the flow.
+<FirstWorkflowPanel workspace={{id: 'workspace-id', slug: 'acme'}} />;
 ```
 
 The rendered hosts can be exported through the package feature entry point for
