@@ -17,6 +17,7 @@ import {
   encodeNumberIdCursor,
   encodeTimestampIdCursor,
 } from '@shipfox/node-drizzle';
+import {createInMemoryInterModuleTransport} from '@shipfox/node-module/inter-module';
 import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/testing';
 import type {WorkflowRun} from '#core/entities/workflow-run.js';
 import {
@@ -155,6 +156,30 @@ function readTestConcurrency() {
 }
 
 describe('Workflows inter-module presentation', () => {
+  it('returns runner catalog names through the inter-module transport', async () => {
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: {} as never,
+      integrations: {} as never,
+      projects: {} as never,
+      runners: {} as never,
+      runnerCatalog: {
+        hosted: ['linux'],
+        'self-hosted': ['self-hosted'],
+      },
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(workflowsInterModuleContract);
+    transport.register(presentation);
+    transport.seal();
+
+    await expect(client.listRunnerCatalogNames({})).resolves.toEqual({
+      names: ['hosted', 'self-hosted'],
+    });
+  });
+
   beforeEach(() => {
     mocks.getJobScope.mockReset();
     mocks.getLatestRunAttempt.mockReset();

@@ -8,6 +8,7 @@ import {createFakeInterModuleClients} from '@shipfox/node-module/inter-module/te
 export function createTestWorkflowsClient(): WorkflowsModuleClient {
   return createFakeInterModuleClients({
     workflows: defineInterModulePresentation(workflowsInterModuleContract, {
+      listRunnerCatalogNames: vi.fn(),
       startRunFromTrigger: vi.fn(),
       startDevRun: vi.fn(),
       cancelWorkflowRun: vi.fn(),

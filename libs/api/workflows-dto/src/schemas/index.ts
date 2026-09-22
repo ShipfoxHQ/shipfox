@@ -60,6 +60,10 @@ export {
 } from './job-listening.js';
 export {type LogOutcomeDto, logOutcomeSchema} from './log-outcome.js';
 export {
+  type RunnerCatalogNamesResponseDto,
+  runnerCatalogNamesResponseSchema,
+} from './runner-catalog.js';
+export {
   type AgentConfigIssueDto,
   type AgentStepSessionDescriptorDto,
   type AgentStepSessionIntentDto,

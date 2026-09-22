@@ -23,6 +23,7 @@ vi.mock('#db/event-history.js', () => ({
 const {dispatchIntegrationEvent} = await import('./dispatch-integration-event.js');
 
 const workflows = {
+  listRunnerCatalogNames: vi.fn(),
   startRunFromTrigger: (...args: unknown[]) => runWorkflow(...args),
   startDevRun: vi.fn(),
   cancelWorkflowRun: vi.fn(),

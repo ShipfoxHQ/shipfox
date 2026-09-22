@@ -11,6 +11,20 @@ import {
 import {workflowsInterModuleContract} from './inter-module.js';
 
 describe('workflowsInterModuleContract', () => {
+  test('defines the runner catalog names read contract', () => {
+    expect(workflowsInterModuleContract.methods.listRunnerCatalogNames.input.parse({})).toEqual({});
+    expect(
+      workflowsInterModuleContract.methods.listRunnerCatalogNames.output.parse({
+        names: ['hosted', 'self-hosted'],
+      }),
+    ).toEqual({names: ['hosted', 'self-hosted']});
+    expect(
+      workflowsInterModuleContract.methods.listRunnerCatalogNames.output.safeParse({
+        names: ['hosted', 42],
+      }).success,
+    ).toBe(false);
+  });
+
   test('defines workspace-scoped cancel and rerun command contracts', () => {
     const workspaceId = '00000000-0000-4000-8000-000000000001';
     const workflowRunId = '00000000-0000-4000-8000-000000000002';
