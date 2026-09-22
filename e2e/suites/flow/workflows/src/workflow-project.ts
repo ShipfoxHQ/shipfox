@@ -4,6 +4,7 @@ import {createApiClient} from '@shipfox/e2e-core';
 import {type CreatedIssue, commitFiles, createIssue, createRepo} from '@shipfox/e2e-driver-gitea';
 import {waitForDefinition} from '@shipfox/e2e-observe-definitions';
 import {createProject, giteaExternalRepositoryId} from './create-project.js';
+import {waitForDefinitionSyncTerminal} from './polling.js';
 import type {SuiteContext} from './suite-context.js';
 
 const GITEA_SOURCE_PLACEHOLDER = '__GITEA_SOURCE__';
@@ -126,9 +127,17 @@ export async function seedWorkflowProject(params: {
     externalRepositoryId: giteaExternalRepositoryId(params.suite.org, params.repo),
   });
 
-  // Bind the project before pushing fixture files so the push itself is an
-  // observable cause of definition sync. Committing first leaves the test
-  // dependent on eventual delivery of the project source-bound event.
+  // Let the empty-repository bind sync finish before the fixture push. This makes
+  // the next sync unambiguously belong to the commit instead of relying on a grace
+  // period for two overlapping syncs.
+  if (params.definitionDelivery !== 'api') {
+    await waitForDefinitionSyncTerminal({
+      projectId: project.id,
+      token: params.token,
+      timeoutMs: 60_000,
+    });
+  }
+
   const syncStartedAfter = files.length > 0 ? new Date().toISOString() : undefined;
   if (files.length > 0) {
     await commitFiles({

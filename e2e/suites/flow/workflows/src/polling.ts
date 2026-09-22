@@ -10,7 +10,6 @@ import {
 
 const OBSERVATION_ATTEMPT_TIMEOUT_MS = 500;
 const NO_OBSERVATION_DIAGNOSTIC = 'no bounded workflow observation observed';
-const EMPTY_BIND_SYNC_GRACE_MS = 1_000;
 
 function isRetryableObservationError(error: unknown): boolean {
   if (error instanceof E2eApiError) return error.status === 404;
@@ -67,48 +66,12 @@ export interface DefinitionSyncPollingOptions extends PollingOptions {
   syncStartedAfter?: string | undefined;
 }
 
-type EmptyBindSyncTracker = {
-  graceDeadline: number | undefined;
-  startedAt: string | null | undefined;
-};
-
-function shouldSuppressEmptyBindSync(params: {
-  deadline: number;
-  sync: DefinitionListResponseDto['sync'];
-  syncStartedAfter: string | undefined;
-  tracker: EmptyBindSyncTracker;
-}): boolean {
-  const sync = params.sync;
-  const isEmptyBindSync =
-    params.syncStartedAfter !== undefined &&
-    sync?.status === 'failed' &&
-    sync.last_error_code === 'no-workflow-files';
-  if (!isEmptyBindSync) return false;
-
-  if (params.tracker.startedAt === undefined) {
-    params.tracker.startedAt = sync?.started_at ?? null;
-    params.tracker.graceDeadline = Math.min(params.deadline, Date.now() + EMPTY_BIND_SYNC_GRACE_MS);
-  }
-
-  const trackedStartedAt = params.tracker.startedAt;
-  const hasNewerSync =
-    trackedStartedAt !== undefined &&
-    sync?.started_at !== null &&
-    sync?.started_at !== undefined &&
-    (trackedStartedAt === null || sync.started_at > trackedStartedAt);
-  return !hasNewerSync && Date.now() < (params.tracker.graceDeadline ?? 0);
-}
-
 export async function waitForDefinitionSyncTerminal(
   options: DefinitionSyncPollingOptions,
 ): Promise<DefinitionListResponseDto> {
   const client = createApiClient({fetch: options.fetch, token: options.token});
   const deadline = Date.now() + options.timeoutMs;
   let lastResponse: DefinitionListResponseDto | null = null;
-  const emptyBindSyncTracker: EmptyBindSyncTracker = {
-    graceDeadline: undefined,
-    startedAt: undefined,
-  };
 
   while (Date.now() <= deadline) {
     options.signal?.throwIfAborted();
@@ -125,17 +88,7 @@ export async function waitForDefinitionSyncTerminal(
       (lastResponse.sync?.started_at !== null &&
         lastResponse.sync?.started_at !== undefined &&
         lastResponse.sync.started_at >= options.syncStartedAfter);
-    const suppressEmptyBindSync = shouldSuppressEmptyBindSync({
-      deadline,
-      sync: lastResponse.sync,
-      syncStartedAfter: options.syncStartedAfter,
-      tracker: emptyBindSyncTracker,
-    });
-    if (
-      observesRequestedSync &&
-      !suppressEmptyBindSync &&
-      (status === 'failed' || status === 'succeeded')
-    ) {
+    if (observesRequestedSync && (status === 'failed' || status === 'succeeded')) {
       return lastResponse;
     }
 

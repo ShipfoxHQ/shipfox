@@ -7,6 +7,7 @@ const commitFiles = vi.fn();
 const createIssue = vi.fn();
 const createRepo = vi.fn();
 const createProject = vi.fn();
+const waitForDefinitionSyncTerminal = vi.fn();
 
 const suite = {
   workspaceId: 'workspace-id',
@@ -26,7 +27,13 @@ describe('seedProjectWithApiDefinition', () => {
     createIssue.mockReset();
     createRepo.mockReset();
     createProject.mockReset();
+    waitForDefinitionSyncTerminal.mockReset();
     createProject.mockResolvedValue({id: 'project-id'});
+    waitForDefinitionSyncTerminal.mockResolvedValue({
+      definitions: [],
+      sync: {status: 'failed', last_error_code: 'no-workflow-files'},
+      next_cursor: null,
+    });
     requestJson.mockResolvedValue({id: 'definition-id', diagnostics: []});
     vi.doMock('@shipfox/e2e-core', () => ({createApiClient}));
     vi.doMock('@shipfox/e2e-driver-gitea', () => ({commitFiles, createIssue, createRepo}));
@@ -34,6 +41,7 @@ describe('seedProjectWithApiDefinition', () => {
       createProject,
       giteaExternalRepositoryId: (org: string, repo: string) => `gitea:${org}/${repo}`,
     }));
+    vi.doMock('./polling.js', () => ({waitForDefinitionSyncTerminal}));
   });
 
   test('keeps API-only definitions manual by default', async () => {
@@ -50,6 +58,7 @@ describe('seedProjectWithApiDefinition', () => {
     });
 
     expect(commitFiles).not.toHaveBeenCalled();
+    expect(waitForDefinitionSyncTerminal).not.toHaveBeenCalled();
     expect(requestJson).toHaveBeenCalledWith('post', '/definitions', {
       json: {
         project_id: 'project-id',
@@ -95,6 +104,14 @@ describe('seedProjectWithApiDefinition', () => {
       ],
     });
     expect(createProject.mock.invocationCallOrder[0]).toBeLessThan(
+      waitForDefinitionSyncTerminal.mock.invocationCallOrder[0] as number,
+    );
+    expect(waitForDefinitionSyncTerminal).toHaveBeenCalledWith({
+      projectId: 'project-id',
+      token: 'token',
+      timeoutMs: 60_000,
+    });
+    expect(waitForDefinitionSyncTerminal.mock.invocationCallOrder[0]).toBeLessThan(
       commitFiles.mock.invocationCallOrder[0] as number,
     );
     expect(requestJson).toHaveBeenCalledWith('post', '/definitions', {

@@ -90,7 +90,7 @@ describe('waitForRunObservationMatching', () => {
 });
 
 describe('waitForDefinitionSyncTerminal', () => {
-  test('ignores the empty bind sync while waiting for the seeded push', async () => {
+  test('ignores a terminal sync that started before the seeded push', async () => {
     const projectId = '11111111-1111-4111-8111-111111111111';
     const responses = [
       {
@@ -99,7 +99,7 @@ describe('waitForDefinitionSyncTerminal', () => {
           ref: 'main',
           status: 'failed',
           last_sync_at: '2026-07-04T10:00:00.750Z',
-          started_at: '2026-07-04T10:00:00.500Z',
+          started_at: '2026-07-04T09:59:59.500Z',
           finished_at: '2026-07-04T10:00:00.750Z',
           last_error_code: 'no-workflow-files',
           last_error_message: 'No workflow files found',
@@ -139,7 +139,7 @@ describe('waitForDefinitionSyncTerminal', () => {
     expect(calls).toBe(2);
   });
 
-  test('returns a persistent current no-workflow-files failure after a short grace period', async () => {
+  test('returns a no-workflow-files failure from the requested sync', async () => {
     const projectId = '11111111-1111-4111-8111-111111111111';
     const failedResponse = {
       definitions: [],
@@ -163,7 +163,7 @@ describe('waitForDefinitionSyncTerminal', () => {
       },
       projectId,
       syncStartedAfter: timestamp,
-      timeoutMs: 2_000,
+      timeoutMs: 1_000,
       token: 'user-token',
     });
 
@@ -172,7 +172,7 @@ describe('waitForDefinitionSyncTerminal', () => {
       last_error_code: 'no-workflow-files',
       last_error_message: 'No workflow files found',
     });
-    expect(calls).toBeGreaterThan(1);
+    expect(calls).toBe(1);
   });
 
   test('reports the project and last response when sync never becomes observable', async () => {
