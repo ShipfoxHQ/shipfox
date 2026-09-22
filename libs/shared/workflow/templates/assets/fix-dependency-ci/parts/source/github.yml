@@ -2,6 +2,7 @@ trigger: |
   on_dependency_ci_failure:
     source: github_source # bind:source
     event: workflow_run.completed
+    # option:bot_identity
     filter: >-
       event.workflow_run.conclusion == "failure" &&
       event.workflow_run.pull_requests.size() > 0 &&

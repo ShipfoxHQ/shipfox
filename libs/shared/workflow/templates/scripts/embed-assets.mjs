@@ -24,12 +24,14 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
   const guidePath = join(templateRoot, 'GUIDE.md');
   const parts = {};
 
-  for (const roleEntry of await readdir(join(templateRoot, 'parts'), {withFileTypes: true})) {
+  const roleEntries = await readdir(join(templateRoot, 'parts'), {withFileTypes: true});
+  for (const roleEntry of roleEntries.sort(byName)) {
     if (!roleEntry.isDirectory()) continue;
     const roleParts = {};
-    for (const providerEntry of await readdir(join(templateRoot, 'parts', roleEntry.name), {
+    const providerEntries = await readdir(join(templateRoot, 'parts', roleEntry.name), {
       withFileTypes: true,
-    })) {
+    });
+    for (const providerEntry of providerEntries.sort(byName)) {
       if (!providerEntry.isFile() || !providerEntry.name.endsWith('.yml')) continue;
       const provider = providerEntry.name.slice(0, -4);
       const partPath = join(templateRoot, 'parts', roleEntry.name, providerEntry.name);
@@ -76,3 +78,7 @@ export const embeddedModelTiers =
   '${modelTiersLiteral}';
 `;
 await writeFile(outputPath, generated);
+
+function byName(left, right) {
+  return left.name.localeCompare(right.name);
+}

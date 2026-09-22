@@ -33,7 +33,16 @@ Replace `replace-with-resolved-implementation-model` with the implementation mod
 
 ## Fill the command slots
 
-Replace `# slot:setup_commands` with any install or setup steps the repository needs. Keep those steps before `fix_failure` so the agent can reproduce the CI failure.
+Replace `# slot:setup_commands` with one or more YAML step entries. Keep them before `fix_failure` so the agent can reproduce the CI failure.
+
+For example:
+
+```yaml
+      - key: install_dependencies
+        run: npm ci
+```
+
+Keep the same indentation under `steps:`. A bare command is not a valid step.
 
 Replace `replace-with-test-command` with the command that proves the fix. Use the closest local equivalent of the failed GitHub Actions check.
 
