@@ -70,6 +70,7 @@ describe('runWorkflow', () => {
   const agent: AgentInterModuleClient = {
     getValidationCatalog: vi.fn().mockResolvedValue(agentValidationCatalog),
     getValidationCatalogV2: vi.fn().mockResolvedValue(agentValidationCatalogV2),
+    getWorkspaceModels: vi.fn(),
     resolveAgentConfig: mockResolveAgentConfig,
     resolveRuntimeCredentials: vi.fn(),
     claimSession: vi.fn(),
@@ -268,6 +269,7 @@ describe('runDevWorkflow', () => {
   const agent: AgentInterModuleClient = {
     getValidationCatalog: vi.fn().mockResolvedValue(agentValidationCatalog),
     getValidationCatalogV2: vi.fn().mockResolvedValue(agentValidationCatalogV2),
+    getWorkspaceModels: vi.fn(),
     resolveAgentConfig: mockResolveAgentConfig,
     resolveRuntimeCredentials: vi.fn(),
     claimSession: vi.fn(),

@@ -40,6 +40,32 @@ const agentValidationCatalogV2Schema = agentValidationCatalogFieldsSchema.extend
 export type AgentValidationCatalog = z.infer<typeof agentValidationCatalogSchema>;
 export type AgentValidationCatalogV2 = z.infer<typeof agentValidationCatalogV2Schema>;
 
+const agentWorkspaceModelSchema = z.object({
+  id: z.string().min(1),
+  provider: modelProviderRefSchema,
+});
+
+const agentWorkspaceModelsSchema = z
+  .object({
+    models: z.array(agentWorkspaceModelSchema),
+    default_model: agentWorkspaceModelSchema.nullable(),
+  })
+  .superRefine(({models, default_model: defaultModel}, ctx) => {
+    if (
+      defaultModel !== null &&
+      !models.some(({id, provider}) => id === defaultModel.id && provider === defaultModel.provider)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['default_model'],
+        message: 'default_model must be null or one of models',
+      });
+    }
+  });
+
+export type AgentWorkspaceModel = z.infer<typeof agentWorkspaceModelSchema>;
+export type AgentWorkspaceModels = z.infer<typeof agentWorkspaceModelsSchema>;
+
 const agentConfigInputSchema = z.object({
   harness: harnessSchema.optional(),
   provider: modelProviderRefSchema.optional(),
@@ -69,6 +95,11 @@ export const agentInterModuleContract = defineInterModuleContract({
     getValidationCatalogV2: {
       input: z.object({workspaceId: z.string().uuid().nullable()}),
       output: agentValidationCatalogV2Schema,
+      errors: {},
+    },
+    getWorkspaceModels: {
+      input: z.object({workspaceId: z.string().uuid()}),
+      output: agentWorkspaceModelsSchema,
       errors: {},
     },
     resolveAgentConfig: {

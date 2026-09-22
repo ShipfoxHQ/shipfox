@@ -44,6 +44,12 @@ export const agentTestClient: AgentInterModuleClient = {
   getValidationCatalogV2() {
     return Promise.resolve(agentValidationCatalogV2);
   },
+  getWorkspaceModels() {
+    return Promise.resolve({
+      models: [{id: 'claude-opus-4-8', provider: 'anthropic'}],
+      default_model: {id: 'claude-opus-4-8', provider: 'anthropic'},
+    });
+  },
   resolveAgentConfig({config}) {
     return Promise.resolve(resolveTestAgentDefaults(config));
   },

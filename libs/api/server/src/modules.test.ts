@@ -262,6 +262,7 @@ describe('defaultModules', () => {
           handlers: {
             getValidationCatalog: vi.fn(),
             getValidationCatalogV2: vi.fn(),
+            getWorkspaceModels: vi.fn(),
             resolveAgentConfig: vi.fn(),
             resolveRuntimeCredentials: vi.fn(),
             claimSession: vi.fn(),
@@ -442,6 +443,7 @@ describe('defaultModules', () => {
     await defaultModules();
 
     expect(mocks.createAgentAccessModule).toHaveBeenCalledWith({
+      agent: expect.any(Object),
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
       auth: expect.any(Object),
@@ -481,6 +483,7 @@ describe('defaultModules', () => {
     await defaultModules({agentAccess: {additionalTools}});
 
     expect(mocks.createAgentAccessModule).toHaveBeenCalledWith({
+      agent: expect.any(Object),
       annotations: expect.any(Object),
       apiPublicUrl: 'https://api.example.test',
       auth: expect.any(Object),

@@ -33,6 +33,7 @@ import {
   createWorkspaceAgentDefaultsResolver,
   getWorkspaceAgentValidationCatalog,
 } from '#core/workspace-agent-defaults-resolver.js';
+import {getWorkspaceModels} from '#core/workspace-models.js';
 import {carryOverSessions, releaseSession} from '#db/index.js';
 
 export function createAgentInterModulePresentation(params: {
@@ -51,6 +52,8 @@ export function createAgentInterModulePresentation(params: {
             params.managedProvider,
             params.workspaceProviders,
           ),
+    getWorkspaceModels: async ({workspaceId}) =>
+      await getWorkspaceModels(workspaceId, params.managedProvider, params.workspaceProviders),
     resolveAgentConfig: async ({workspaceId, config}) => {
       try {
         const resolve =
