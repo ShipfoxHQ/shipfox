@@ -6,8 +6,13 @@ import {cn, formatDuration} from '@shipfox/react-ui/utils';
 import {type ReactNode, useEffect, useState} from 'react';
 import type {GroupLogNode} from '#core/log-tree.js';
 
+type LogGroupNodeLike = Pick<
+  GroupLogNode,
+  'record' | 'closed' | 'endTs' | 'hasError' | 'lineCount'
+>;
+
 export interface LogGroupProps {
-  node: GroupLogNode;
+  node: LogGroupNodeLike;
   depth: number;
   terminated: boolean;
   children: ReactNode;
@@ -44,7 +49,7 @@ export function LogGroup({
   );
 }
 
-function GroupStatus({node, terminated}: {node: GroupLogNode; terminated: boolean}): ReactNode {
+function GroupStatus({node, terminated}: {node: LogGroupNodeLike; terminated: boolean}): ReactNode {
   if (node.closed && node.endTs != null) {
     return (
       <span className="font-code tabular-nums">{formatDuration(node.endTs - node.record.ts)}</span>

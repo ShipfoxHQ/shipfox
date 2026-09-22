@@ -1,3 +1,4 @@
+import type {ActivityNode} from './activity.js';
 import type {SessionViewRow} from './log-model.js';
 import {assertNever, type LogNode, stripTrailingNewline} from './log-tree.js';
 
@@ -22,6 +23,15 @@ export function filterLogNodes(
   return filterLogNodesInternal(nodes, normalizedQuery, index);
 }
 
+export function filterActivityNodes(
+  nodes: readonly ActivityNode[],
+  query: string,
+  index: LogSearchIndex,
+): ActivityNode[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  return filterActivityNodesInternal(nodes, normalizedQuery, index);
+}
+
 function filterLogNodesInternal(
   nodes: readonly LogNode[],
   query: string,
@@ -38,10 +48,41 @@ function filterLogNodesInternal(
       {
         ...node,
         children,
-        lineCount: matches ? node.lineCount : countOutputLines(children),
+        lineCount: matches ? node.lineCount : countOutputLogLines(children),
       },
     ];
   });
+}
+
+function filterActivityNodesInternal(
+  nodes: readonly ActivityNode[],
+  query: string,
+  index: LogSearchIndex,
+): ActivityNode[] {
+  return nodes.flatMap((node): ActivityNode[] => {
+    const matches = activityNodeMatches(node, query, index);
+    if (node.kind !== 'group') return matches ? [node] : [];
+
+    const children = matches
+      ? node.children
+      : filterActivityNodesInternal(node.children, query, index);
+    if (!matches && children.length === 0) return [];
+
+    return [
+      {
+        ...node,
+        children,
+        lineCount: matches ? node.lineCount : countActivityLines(children),
+      },
+    ];
+  });
+}
+
+function activityNodeMatches(node: ActivityNode, query: string, index: LogSearchIndex): boolean {
+  if (node.kind !== 'action') {
+    return index.textBySeq.get(node.seq)?.includes(query) ?? false;
+  }
+  return node.action.sourceSeqs.some((seq) => index.textBySeq.get(seq)?.includes(query) ?? false);
 }
 
 function indexNodes(nodes: readonly LogNode[], textBySeq: Map<number, string>): void {
@@ -118,7 +159,15 @@ function stripAnsi(value: string): string {
   return value.replace(ANSI_SGR_SEQUENCE, '');
 }
 
-function countOutputLines(nodes: readonly LogNode[]): number {
+function countOutputLogLines(nodes: readonly LogNode[]): number {
+  return nodes.reduce((count, node) => {
+    if (node.kind === 'output') return count + 1;
+    if (node.kind === 'group') return count + node.lineCount;
+    return count;
+  }, 0);
+}
+
+function countActivityLines(nodes: readonly ActivityNode[]): number {
   return nodes.reduce((count, node) => {
     if (node.kind === 'output') return count + 1;
     if (node.kind === 'group') return count + node.lineCount;

@@ -19,6 +19,7 @@ import type {LogTimestampMode} from '@shipfox/react-ui/log';
 import {Panel, PanelActions, PanelBody, PanelHeader} from '@shipfox/react-ui/panel';
 import {SearchInline} from '@shipfox/react-ui/search';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
+import {Tabs, TabsList, TabsTrigger} from '@shipfox/react-ui/tabs';
 import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
 import {Text} from '@shipfox/react-ui/typography';
 import {Link} from '@tanstack/react-router';
@@ -146,6 +147,7 @@ export function JobDetailView({
   const [showLogTimestamps, setShowLogTimestamps] = useState(true);
   const [wrapLogs, setWrapLogs] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [logView, setLogView] = useState<'activity' | 'raw'>('activity');
   const [expandedLogAttemptIds, setExpandedLogAttemptIds] = useState<readonly string[]>([]);
   const [logRefreshTokens, setLogRefreshTokens] = useState<Record<string, number>>({});
   const [logFetchingByAttemptId, setLogFetchingByAttemptId] = useState<Record<string, boolean>>({});
@@ -354,6 +356,8 @@ export function JobDetailView({
                   onShowTimestampsChange={setShowLogTimestamps}
                   showLineNumbers={showLineNumbers}
                   onShowLineNumbersChange={setShowLineNumbers}
+                  view={logView}
+                  onViewChange={setLogView}
                   wrap={wrapLogs}
                   onWrapChange={setWrapLogs}
                   disabled={!selectedLogAttempt}
@@ -397,6 +401,7 @@ export function JobDetailView({
                             onTimestampsClick={() =>
                               setLogTimestamps((current) => (current === 'rel' ? 'abs' : 'rel'))
                             }
+                            view={logView}
                             wrap={wrapLogs}
                             showLineNumbers={showLineNumbers}
                             attemptId={context.attemptId}
@@ -795,6 +800,7 @@ export function ExpandedStep({
   search,
   timestamps,
   onTimestampsClick,
+  view = 'activity',
   wrap,
   showLineNumbers,
   attemptId,
@@ -810,6 +816,7 @@ export function ExpandedStep({
   search: string;
   timestamps: LogTimestampMode;
   onTimestampsClick: () => void;
+  view?: 'activity' | 'raw';
   wrap: boolean;
   showLineNumbers: boolean;
   attemptId: string;
@@ -856,6 +863,7 @@ export function ExpandedStep({
         search={search}
         timestamps={timestamps}
         onTimestampsClick={onTimestampsClick}
+        view={view}
         wrap={wrap}
         showLineNumbers={showLineNumbers}
         attemptId={attemptId}
@@ -878,6 +886,8 @@ function JobLogPanelHeader({
   onShowTimestampsChange,
   showLineNumbers,
   onShowLineNumbersChange,
+  view,
+  onViewChange,
   wrap,
   onWrapChange,
   disabled,
@@ -894,6 +904,8 @@ function JobLogPanelHeader({
   onShowTimestampsChange: (value: boolean) => void;
   showLineNumbers: boolean;
   onShowLineNumbersChange: (value: boolean) => void;
+  view: 'activity' | 'raw';
+  onViewChange: (value: 'activity' | 'raw') => void;
   wrap: boolean;
   onWrapChange: (value: boolean) => void;
   disabled: boolean;
@@ -925,6 +937,16 @@ function JobLogPanelHeader({
       </div>
       {diagnostic ? null : (
         <PanelActions className="min-w-0 flex-wrap justify-end">
+          <Tabs value={view} onValueChange={onViewChange} className="flex-none">
+            <TabsList aria-label="Log view">
+              <TabsTrigger value="activity" disabled={disabled}>
+                Activity
+              </TabsTrigger>
+              <TabsTrigger value="raw" disabled={disabled}>
+                Raw log
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <SearchInline
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}

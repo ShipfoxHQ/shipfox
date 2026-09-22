@@ -11,8 +11,13 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import {
+  type ActionPresentationLookup,
+  type ActivityNode,
+  buildActivityNodes,
+} from '#core/activity.js';
 import type {LogRecord} from '#core/log-model.js';
-import {buildLogSearchIndex, filterLogNodes} from '#core/log-search.js';
+import {buildLogSearchIndex, filterActivityNodes, filterLogNodes} from '#core/log-search.js';
 import {
   assertNever,
   buildLogTree,
@@ -20,6 +25,7 @@ import {
   type LogTree,
   type MarkerLogRecord,
 } from '#core/log-tree.js';
+import {ActivityActionRow} from './activity-action-row.js';
 import {AgentSessionRows} from './agent-session-rows.js';
 import {LogGroup} from './log-group.js';
 import {OutputLogRow} from './output-log-row.js';
@@ -43,6 +49,9 @@ export interface LogViewProps {
   defaultGroupsOpen?: boolean;
   anchorToFailure?: boolean;
   search?: string;
+  view?: 'activity' | 'raw';
+  attemptStatus?: string | undefined;
+  actionPresentation?: ActionPresentationLookup | undefined;
   ariaLive?: 'off' | 'polite' | 'assertive';
   className?: string | undefined;
   onScroll?: UIEventHandler<HTMLDivElement> | undefined;
@@ -64,6 +73,9 @@ export function LogView({
   defaultGroupsOpen = false,
   anchorToFailure = false,
   search = '',
+  view = 'raw',
+  attemptStatus,
+  actionPresentation,
   ariaLive = 'polite',
   className,
   onScroll,
@@ -77,10 +89,22 @@ export function LogView({
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
   const searchIndex = useMemo(() => buildLogSearchIndex(tree.nodes), [tree.nodes]);
+  const activityTerminated = tree.terminated || isTerminalAttemptStatus(attemptStatus);
+  const activityNodes = useMemo(
+    () => buildActivityNodes(tree.nodes, activityTerminated),
+    [activityTerminated, tree.nodes],
+  );
   const visibleNodes = useMemo(
     () =>
       normalizedSearch ? filterLogNodes(tree.nodes, normalizedSearch, searchIndex) : tree.nodes,
     [normalizedSearch, searchIndex, tree.nodes],
+  );
+  const visibleActivityNodes = useMemo(
+    () =>
+      normalizedSearch
+        ? filterActivityNodes(activityNodes, normalizedSearch, searchIndex)
+        : activityNodes,
+    [activityNodes, normalizedSearch, searchIndex],
   );
   const resolvedToolCalls = useMemo(() => collectResolvedToolCalls(tree.nodes), [tree.nodes]);
   const hasIncompleteTerminal = truncated && !recordTree.terminated;
@@ -94,6 +118,38 @@ export function LogView({
         ? `No log lines match “${deferredSearch.trim()}”.`
         : `Log search updated for “${deferredSearch.trim()}”.`;
   }
+  const renderedNodes = useMemo(
+    () =>
+      view === 'activity'
+        ? renderActivityNodes(
+            visibleActivityNodes,
+            0,
+            tree,
+            defaultGroupsOpen,
+            Boolean(normalizedSearch),
+            activityTerminated,
+            actionPresentation,
+          )
+        : renderNodes(
+            visibleNodes,
+            0,
+            tree,
+            defaultGroupsOpen,
+            Boolean(normalizedSearch),
+            resolvedToolCalls,
+          ),
+    [
+      actionPresentation,
+      activityTerminated,
+      defaultGroupsOpen,
+      normalizedSearch,
+      resolvedToolCalls,
+      tree,
+      view,
+      visibleActivityNodes,
+      visibleNodes,
+    ],
+  );
 
   useEffect(() => {
     if (!anchorToFailure) return;
@@ -137,14 +193,7 @@ export function LogView({
         {normalizedSearch && visibleNodes.length === 0 ? (
           <NoSearchMatchesRow query={deferredSearch.trim()} />
         ) : null}
-        {renderNodes(
-          visibleNodes,
-          0,
-          tree,
-          defaultGroupsOpen,
-          Boolean(normalizedSearch),
-          resolvedToolCalls,
-        )}
+        {renderedNodes}
         {hasIncompleteTerminal && !normalizedSearch ? <IncompleteLogRow /> : null}
       </LogRows>
     </>
@@ -266,6 +315,77 @@ function NoSearchMatchesRow({query}: {query: string}) {
   );
 }
 
+function renderActivityNodes(
+  nodes: readonly ActivityNode[],
+  depth: number,
+  tree: LogTree,
+  defaultGroupsOpen: boolean,
+  forceOpen: boolean,
+  terminated: boolean,
+  actionPresentation: ActionPresentationLookup | undefined,
+): ReactNode[] {
+  return nodes.map((node): ReactNode => {
+    switch (node.kind) {
+      case 'output':
+        return (
+          <OutputLogRow
+            key={node.seq}
+            record={node.record}
+            lineNumber={node.lineNumber}
+            indent={depth}
+          />
+        );
+      case 'group':
+        return (
+          <LogGroup
+            key={node.seq}
+            node={node}
+            depth={depth}
+            terminated={tree.terminated}
+            defaultOpen={defaultGroupsOpen}
+            forceOpen={forceOpen}
+          >
+            {renderActivityNodes(
+              node.children,
+              depth + 1,
+              tree,
+              defaultGroupsOpen,
+              forceOpen,
+              terminated,
+              actionPresentation,
+            )}
+          </LogGroup>
+        );
+      case 'marker':
+        return <MarkerRow key={node.seq} record={node.record} tree={tree} />;
+      case 'action':
+        return (
+          <ActivityActionRow
+            key={node.seq}
+            action={node.action}
+            terminated={terminated}
+            forceOpen={forceOpen}
+            presentation={actionPresentation?.(node.action)}
+          />
+        );
+      case 'session':
+        return (
+          <AgentSessionRows
+            key={node.seq}
+            rows={[node.record.row]}
+            lineNumber={node.lineNumber}
+            resolvedToolCallIds={new Set()}
+            toolCallNames={new Map()}
+            indent={depth}
+            forceOpen={forceOpen}
+          />
+        );
+      default:
+        return assertNever(node);
+    }
+  });
+}
+
 function renderNodes(
   nodes: readonly LogNode[],
   depth: number,
@@ -379,6 +499,10 @@ function cancelScheduledFrame(frame: number) {
     return;
   }
   window.clearTimeout(frame);
+}
+
+function isTerminalAttemptStatus(status: string | undefined): boolean {
+  return status === 'succeeded' || status === 'failed' || status === 'cancelled';
 }
 
 function MarkerRow({record, tree}: {record: MarkerLogRecord; tree: LogTree}): ReactNode {

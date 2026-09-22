@@ -385,6 +385,76 @@ describe('LogView', () => {
     expect(screen.queryByText('result (unmatched)')).not.toBeInTheDocument();
   });
 
+  test('renders paired Activity actions and result-only search matches', () => {
+    const records = [
+      agentSession({
+        kind: 'tool-call',
+        timestamp: ts,
+        id: 'call-1',
+        name: 'read_file',
+        input: '{"path":"README.md"}',
+      }),
+      agentSession({
+        kind: 'tool-result',
+        timestamp: ts + 25,
+        toolCallId: 'call-1',
+        toolName: 'tool',
+        output: 'README result',
+        isError: false,
+      }),
+    ];
+
+    render(<LogView view="activity" search="README result" records={records} />);
+
+    expect(screen.getByText('Read File')).toBeInTheDocument();
+    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    expect(screen.queryByText('result edit_file')).not.toBeInTheDocument();
+  });
+
+  test('shows no result instead of a spinner after a terminal attempt', () => {
+    render(
+      <LogView
+        view="activity"
+        attemptStatus="failed"
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'call-1',
+            name: 'run_command',
+            input: 'pnpm test',
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('no result')).toBeInTheDocument();
+    expect(screen.queryByText('running')).not.toBeInTheDocument();
+  });
+
+  test('renders message Markdown and hides empty thinking', () => {
+    render(
+      <LogView
+        view="activity"
+        records={[
+          agentSession({
+            kind: 'message',
+            timestamp: ts,
+            role: 'assistant',
+            label: 'assistant',
+            meta: [],
+            text: '**done**',
+            terminalFailure: false,
+          }),
+          agentSession({kind: 'thinking', timestamp: ts + 1, text: '   '}),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('done').tagName).toBe('STRONG');
+    expect(screen.queryByRole('button', {name: THINKING_BUTTON_NAME})).not.toBeInTheDocument();
+  });
+
   test('renders unknown session entries without crashing', () => {
     render(
       <LogView
