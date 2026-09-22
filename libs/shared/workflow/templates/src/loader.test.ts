@@ -50,4 +50,20 @@ describe('workflow template loader', () => {
   it('does not expose test fixtures through the shipped loader', () => {
     expect(loadShippedTemplates()).toHaveLength(0);
   });
+
+  it('keeps setup command insertion inside job steps', () => {
+    const loader = createTemplateLoader([fixture]);
+    const template = loader.get('fixture-ticket-to-pr');
+    if (template === undefined) throw new Error('Fixture template was not loaded');
+    const composed = composeTemplate(template, {tracker: 'linear', source: 'github'});
+    const setupSlot = '      # slot:setup_commands';
+
+    expect(composed).toContain(setupSlot);
+    const withSetupCommand = composed.replace(
+      setupSlot,
+      '      - key: setup\n        run: pnpm install',
+    );
+
+    parseWorkflowDocument(parseYaml(withSetupCommand));
+  });
 });

@@ -21,16 +21,39 @@ export const workflowTemplateOptionChoiceSchema = z.object({
   tradeoff: z.string().min(1).optional(),
 });
 
-export const workflowTemplateOptionSchema = z.object({
-  id: identifierSchema,
-  question: z.string().min(1).optional(),
-  choices: z.array(workflowTemplateOptionChoiceSchema).min(1),
-  default: identifierSchema.optional(),
-  defaults: z.array(identifierSchema).optional(),
-  tradeoff: z.string().min(1).optional(),
-  tradeoffs: z.record(identifierSchema, z.string().min(1)).optional(),
-  applies_to: z.array(identifierSchema).optional(),
-});
+export const workflowTemplateOptionSchema = z
+  .object({
+    id: identifierSchema,
+    question: z.string().min(1).optional(),
+    choices: z.array(workflowTemplateOptionChoiceSchema).min(1),
+    tradeoff: z.string().min(1).optional(),
+    tradeoffs: z.record(identifierSchema, z.string().min(1)).optional(),
+    applies_to: z.array(identifierSchema).optional(),
+  })
+  .superRefine((option, context) => {
+    const choiceIds = new Set<string>();
+    let defaultCount = 0;
+
+    option.choices.forEach((choice, index) => {
+      if (choiceIds.has(choice.id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['choices', index, 'id'],
+          message: 'Choice ids must be unique within an option',
+        });
+      }
+      choiceIds.add(choice.id);
+      if (choice.default === true) defaultCount += 1;
+    });
+
+    if (defaultCount > 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['choices'],
+        message: 'An option may declare at most one default choice',
+      });
+    }
+  });
 
 export const workflowTemplateManifestSchema = z.object({
   id: identifierSchema,

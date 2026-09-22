@@ -1,5 +1,28 @@
 import {describe, expect, it} from '@shipfox/vitest/vi';
-import {workflowTemplateManifestSchema} from './manifest.js';
+import {workflowTemplateManifestSchema, workflowTemplateOptionSchema} from './manifest.js';
+
+describe('workflowTemplateOptionSchema', () => {
+  it('rejects duplicate choice ids', () => {
+    const result = workflowTemplateOptionSchema.safeParse({
+      id: 'mode',
+      choices: [{id: 'fast'}, {id: 'fast'}],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects multiple default choices', () => {
+    const result = workflowTemplateOptionSchema.safeParse({
+      id: 'mode',
+      choices: [
+        {id: 'fast', default: true},
+        {id: 'safe', default: true},
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
 
 describe('workflowTemplateManifestSchema', () => {
   it('accepts project-bound roles and declared option metadata', () => {
