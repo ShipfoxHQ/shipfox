@@ -1,5 +1,6 @@
 import type {LLMsOptions} from 'fumadocs-core/mdx-plugins';
 import {canonicalDocsOrigin} from './canonical-docs-origin';
+import type {EventReferenceDocument} from './event-reference/document';
 import {
   type CatalogProvider,
   catalogCapabilityLabels,
@@ -45,6 +46,7 @@ export interface MachineReadableMarkdownOptions {
   integrationCatalog?: readonly CatalogProvider[];
   modelCatalog?: ModelCatalog;
   toolReference?: ToolReferenceDocument;
+  eventReference?: EventReferenceDocument;
   pageUrl?: string;
   requiredFacts?: readonly string[];
   sourcePath?: string;
@@ -255,7 +257,7 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
 
 type PlaceholderOptions = Pick<
   MachineReadableMarkdownOptions,
-  'integrationCatalog' | 'modelCatalog' | 'toolReference'
+  'integrationCatalog' | 'modelCatalog' | 'toolReference' | 'eventReference'
 >;
 
 const placeholderSerializers: Record<string, (options: PlaceholderOptions) => string> = {
@@ -276,6 +278,12 @@ const placeholderSerializers: Record<string, (options: PlaceholderOptions) => st
       throw new Error('Tool reference data is unavailable for machine-readable Markdown.');
     }
     return options.toolReference.markdown;
+  },
+  EventReference: (options) => {
+    if (!options.eventReference) {
+      throw new Error('Event reference data is unavailable for machine-readable Markdown.');
+    }
+    return options.eventReference.markdown;
   },
 };
 

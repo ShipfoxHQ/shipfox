@@ -1,7 +1,9 @@
 import {
+  eventPayloadJsonSchema,
   type IntegrationEventCatalog,
   SENTRY_ISSUE_ACTIONS,
 } from '@shipfox/api-integration-core-dto';
+import {sentryIssueEventPayloadSchema} from './schemas/index.js';
 
 const sentryIssueWebhookDocsUrl =
   'https://docs.sentry.io/organization/integrations/integration-platform/webhooks/issues/';
@@ -16,14 +18,20 @@ const sentryIssueActionSummaries = {
 
 export const sentryEventCatalog = {
   provider: 'Sentry',
+  families: [
+    {
+      key: 'issue',
+      title: 'Issues',
+      summary: 'Changes to a Sentry issue. Your workflow receives the issue fields listed below.',
+      payloadKind: 'shipfox-normalized',
+      payloadSchema: eventPayloadJsonSchema(sentryIssueEventPayloadSchema),
+      payloadDocUrl: sentryIssueWebhookDocsUrl,
+      notes: ['When Sentry sends the `ignored` action, Shipfox reports it as `issue.archived`.'],
+    },
+  ],
   events: SENTRY_ISSUE_ACTIONS.map((action) => ({
     name: `issue.${action}`,
+    family: 'issue',
     summary: sentryIssueActionSummaries[action],
-    emittedWhen:
-      action === 'archived'
-        ? 'Sentry sends an issue webhook with the archived or ignored action.'
-        : `Sentry sends an issue webhook with the ${action} action.`,
-    payloadKind: 'shipfox-normalized',
-    payloadDocUrl: sentryIssueWebhookDocsUrl,
   })),
 } as const satisfies IntegrationEventCatalog;

@@ -1,76 +1,22 @@
 ---
 title: "ClickUp events"
 sidebarTitle: "Events"
-description: "Look up the ClickUp task and comment events Shipfox delivers and the payload fields available to workflows."
+description: "See which ClickUp events can start a workflow and what each event contains."
+eventReference: "integrations/clickup/events"
 ---
 
-import ClickUpEvents from '../../../generated/integrations/clickup/events.mdx';
+## Access and repeated runs
 
-This reference lists ClickUp task and comment events that Shipfox delivers to a
-ClickUp integration connection. See the [ClickUp overview](/integrations/clickup)
-for authentication and access boundaries.
+ClickUp sends events only for items the connected account can see. Give the
+service account access to every Space, Folder, and List you want to watch.
 
-## Payload
-
-ClickUp webhook payloads are thin. They identify the task and describe its
-change, but they do not contain the complete current task.
-
-Shipfox validates the ClickUp webhook envelope and adds `team_id` for the
-configured ClickUp workspace. The `event` value exposes these fields:
-
-| Field | Description |
-| --- | --- |
-| `event` | The ClickUp event name. |
-| `webhook_id` | The ClickUp webhook that delivered the event. |
-| `task_id` | The affected ClickUp task ID. |
-| `history_items` | Change records supplied by ClickUp, when the event includes them. |
-| `team_id` | The configured ClickUp workspace ID, added by Shipfox. |
-
-Each history item can include its ID, type, date, field, parent List ID, source,
-actor, and before and after values. Comment events also include the ClickUp
-comment object.
-
-See ClickUp's [webhook reference](https://developer.clickup.com/docs/webhooks)
-and [task webhook payloads](https://developer.clickup.com/docs/webhooktaskpayloads)
-for provider-owned field details.
-
-## Control access and prevent repeated runs
-
-Shipfox receives events only for ClickUp items the connected account can
-access. Give the service account access to every Space, Folder, and List your
-workflows should monitor.
-
-ClickUp sends a new event when Shipfox updates a task. If that event matches the
-workflow's trigger, the workflow runs again and may repeat the update. To prevent
-repeated runs, add a [trigger filter](/reference/workflow-schema#trigger-fields)
-that ignores changes made by the Shipfox service account or matches only fields
-the workflow does not update.
-
-## Paired deliveries
-
-One ClickUp action can produce more than one delivered event:
-
-- `taskCreated` is also delivered as `taskStatusUpdated`.
-- `taskStatusUpdated`, `taskAssigneeUpdated`, `taskPriorityUpdated`,
-  `taskDueDateUpdated`, and `taskTagUpdated` are also delivered as
-  `taskUpdated`.
-
-A source-only trigger can therefore start more than one run for one user
-action. Match the specific event name when the workflow needs one change type.
-
-## Trigger fragment
-
-Replace `clickup_acme` with the slug of your ClickUp integration connection:
-
-```yaml
-triggers:
-  on_clickup_comment:
-    source: clickup_acme
-    event: taskCommentPosted
-```
-
-For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+When a workflow changes a task, ClickUp sends another event. That event can
+start the workflow again. Add a
+[trigger filter](/reference/workflow-schema#trigger-fields) that ignores changes
+from the service account. Match only fields that the workflow does not change.
 
 ## Event catalog
 
-<ClickUpEvents />
+Use your ClickUp integration connection slug instead of `clickup_acme`.
+
+<EventReference />

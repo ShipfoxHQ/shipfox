@@ -58,3 +58,24 @@ export const sentryInstallationWebhookSchema = z.object({
   }),
 });
 export type SentryInstallationWebhookDto = z.infer<typeof sentryInstallationWebhookSchema>;
+
+const nullableString = (description: string) => z.string().nullable().describe(description);
+
+// The normalized `event` value a workflow receives. Kept in lockstep with the
+// SentryIssuePayload contract in core-dto through a compile-time check in the tests.
+export const sentryIssueEventPayloadSchema = z.object({
+  action: sentryIssueActionSchema.describe('Sentry issue action.'),
+  issueId: z.string().describe('Sentry issue ID.'),
+  shortId: nullableString('Short Sentry issue ID.'),
+  title: z.string().describe('Issue title. Shipfox uses "Sentry issue" when Sentry omits it.'),
+  culprit: nullableString('Sentry issue culprit.'),
+  level: nullableString('Sentry issue level.'),
+  status: nullableString('Sentry issue status.'),
+  platform: nullableString('Sentry issue platform.'),
+  webUrl: nullableString('Sentry issue page URL.'),
+  issueUrl: nullableString('Sentry issue API URL.'),
+  projectUrl: nullableString('Sentry project URL.'),
+  firstSeenAt: nullableString('Time Sentry first observed the issue.'),
+  lastSeenAt: nullableString('Time Sentry last observed the issue.'),
+});
+export type SentryIssueEventPayloadDto = z.infer<typeof sentryIssueEventPayloadSchema>;

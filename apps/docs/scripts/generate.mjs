@@ -81,6 +81,7 @@ import {
 } from '@shipfox/expression';
 import {buildWorkflowJsonSchema, parseWorkflowDocument} from '@shipfox/workflow-document';
 import {load} from 'js-yaml';
+import {buildEventReference} from '@/lib/event-reference/build';
 import {GENERATED_MANIFEST_FILE} from '@/lib/generated-artifacts';
 import {tableValue} from '@/lib/markdown';
 import {registeredIntegrationProviders} from '@/lib/registered-integration-providers';
@@ -145,8 +146,9 @@ const regions = [
     ...(provider.eventCatalog
       ? [
           {
-            file: `content/generated/integrations/${provider.slug}/events.mdx`,
-            render: () => renderEventCatalog(provider.eventCatalog),
+            file: `content/generated/integrations/${provider.slug}/events.json`,
+            document: true,
+            render: () => renderIntegrationEventReference(provider),
           },
         ]
       : []),
@@ -269,30 +271,21 @@ function renderModelProvidersTable() {
   ].join('\n');
 }
 
-function renderEventCatalog(catalog) {
-  const lines = [];
-  if (catalog.passthrough) {
-    lines.push(
-      `Shipfox forwards additional raw ${catalog.provider} webhook events. See [the complete ${catalog.provider} event reference](${catalog.upstreamEventsDocUrl}) for the upstream catalog.`,
-      '',
-    );
-  }
-  for (const event of catalog.events) {
-    lines.push(
-      `### \`${event.name}\``,
-      '',
-      event.summary,
-      '',
-      `**Emitted when:** ${event.emittedWhen}`,
-      '',
-      `**Payload:** ${event.payloadKind === 'raw-provider' ? 'Raw provider payload.' : 'Shipfox-normalized payload.'}`,
-      ...(event.payloadDocUrl
-        ? ['', `[Provider payload documentation](${event.payloadDocUrl})`]
-        : []),
-      '',
-    );
-  }
-  return lines.join('\n').trimEnd();
+// Event reference documents feed the EventReference component, the page TOC,
+// and the machine-readable text. Trigger fragments use a sample connection slug;
+// the custom webhook subscribes to its source without naming an event.
+const eventReferenceSamples = {
+  webhooks: {connection: 'deploy_hook', trigger: {key: 'on_webhook', omitEvent: true}},
+};
+
+function renderIntegrationEventReference(provider) {
+  const sample = eventReferenceSamples[provider.slug] ?? {connection: `${provider.slug}_acme`};
+  const document = buildEventReference({
+    id: `integrations/${provider.slug}/events`,
+    catalog: provider.eventCatalog,
+    ...sample,
+  });
+  return JSON.stringify(document, null, 2);
 }
 
 // Tool reference documents feed the ToolReference component, the page TOC, and

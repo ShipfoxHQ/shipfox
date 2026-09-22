@@ -35,13 +35,6 @@ const fixtures = [
     fact: '| Provider | `provider` ID |',
   },
   {
-    directory: ['content', 'docs', 'integrations', 'github'],
-    importStatement:
-      "import GithubEvents from '../../../generated/integrations/github/events.mdx';",
-    component: 'GithubEvents',
-    fact: '### `push`',
-  },
-  {
     directory: ['content', 'docs', 'reference'],
     importStatement: "import McpToolLimits from '../../generated/reference/mcp-server-limits.mdx';",
     component: 'McpToolLimits',

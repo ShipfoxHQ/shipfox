@@ -1,6 +1,7 @@
 import type {ReactNode} from 'react';
 import {AccessBadge, Chip, SensitiveChip} from '@/app/components/tool-reference/access-badge';
 import {CodePanel} from '@/app/components/tool-reference/code-panel';
+import {InlineCodeList} from '@/app/components/tool-reference/inline-code-list';
 import {ParameterList} from '@/app/components/tool-reference/parameter-list';
 import type {
   ToolReferenceDocument,
@@ -203,7 +204,7 @@ export function emptyOutputText(kind: ToolReferenceDocument['kind']): string {
     : 'This tool returns an empty result.';
 }
 
-function Block({title, children}: {title: string; children: ReactNode}) {
+export function Block({title, children}: {title: string; children: ReactNode}) {
   return (
     <div className="flex flex-col gap-y-inline">
       <h4 className="border-fd-border border-b pb-inline text-xs font-medium uppercase tracking-wider text-fd-muted-foreground">
@@ -214,23 +215,6 @@ function Block({title, children}: {title: string; children: ReactNode}) {
   );
 }
 
-function Note({children}: {children: ReactNode}) {
+export function Note({children}: {children: ReactNode}) {
   return <p className="text-sm text-fd-muted-foreground">{children}</p>;
-}
-
-// Renders a short generated phrase whose code spans use Markdown backticks.
-function InlineCodeList({markdown}: {markdown: string}) {
-  return (
-    <>
-      {markdown.split('`').map((part, index) =>
-        index % 2 === 1 ? (
-          <code className="font-mono text-fd-foreground" key={index}>
-            {part}
-          </code>
-        ) : (
-          <span key={index}>{part}</span>
-        ),
-      )}
-    </>
-  );
 }

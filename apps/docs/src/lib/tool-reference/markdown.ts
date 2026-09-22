@@ -133,7 +133,7 @@ function formatPermissions(permissions: string[]): string {
   return permissions.length > 0 ? permissions.map(inlineCode).join(', ') : 'None.';
 }
 
-function fieldTable(fields: ToolReferenceField[]): string[] {
+export function fieldTable(fields: ToolReferenceField[]): string[] {
   return [
     '| Field | Type | Required | Description |',
     '|---|---|---|---|',

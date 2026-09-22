@@ -50,11 +50,17 @@ export const clickupWebhookCommentSchema = z
   .object({
     id: z.string().min(1),
     text_content: z.string().optional(),
-    comment: z.unknown(),
-    user: clickupWebhookUserSchema,
-    assignee: clickupWebhookUserSchema.nullable().optional(),
-    assigned_by: clickupWebhookUserSchema.nullable().optional(),
-    date: z.string().min(1),
+    comment: z.unknown().describe('Rich comment blocks as ClickUp sends them.'),
+    user: clickupWebhookUserSchema.describe('Comment author.'),
+    assignee: clickupWebhookUserSchema
+      .nullable()
+      .optional()
+      .describe('User the comment is assigned to.'),
+    assigned_by: clickupWebhookUserSchema
+      .nullable()
+      .optional()
+      .describe('User who assigned the comment.'),
+    date: z.string().min(1).describe('Comment time in epoch milliseconds.'),
   })
   .passthrough();
 export type ClickUpWebhookCommentDto = z.infer<typeof clickupWebhookCommentSchema>;
@@ -63,20 +69,20 @@ export const clickupWebhookHistoryItemSchema = z
   .object({
     id: z.string().min(1),
     type: z.union([z.string().min(1), z.number().int()]),
-    date: z.string().min(1),
-    field: z.string().min(1),
-    parent_id: z.string().min(1),
+    date: z.string().min(1).describe('Change time in epoch milliseconds.'),
+    field: z.string().min(1).describe('Changed field, such as status.'),
+    parent_id: z.string().min(1).describe('ID of the List that contains the task.'),
     data: z.unknown(),
     source: z.unknown(),
-    user: clickupWebhookUserSchema,
-    before: z.unknown(),
-    after: z.unknown(),
+    user: clickupWebhookUserSchema.describe('User who made the change.'),
+    before: z.unknown().describe('State of the task field before the change.'),
+    after: z.unknown().describe('State of the task field after the change.'),
   })
   .passthrough();
 export type ClickUpWebhookHistoryItemDto = z.infer<typeof clickupWebhookHistoryItemSchema>;
 
 export const clickupWebhookCommentHistoryItemSchema = clickupWebhookHistoryItemSchema
-  .extend({comment: clickupWebhookCommentSchema})
+  .extend({comment: clickupWebhookCommentSchema.describe('The posted or updated comment.')})
   .passthrough();
 export type ClickUpWebhookCommentHistoryItemDto = z.infer<
   typeof clickupWebhookCommentHistoryItemSchema
@@ -84,7 +90,7 @@ export type ClickUpWebhookCommentHistoryItemDto = z.infer<
 
 const clickupWebhookBaseEnvelopeFields = {
   event: z.string().min(1),
-  webhook_id: z.string().min(1),
+  webhook_id: z.string().min(1).describe('ClickUp webhook that delivered the event.'),
   task_id: z.string().min(1),
 };
 
@@ -100,7 +106,10 @@ export const clickupTaskWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
     event: z.enum(clickupTaskWebhookEventNames),
-    history_items: z.array(clickupWebhookHistoryItemSchema).min(1),
+    history_items: z
+      .array(clickupWebhookHistoryItemSchema)
+      .min(1)
+      .describe('Change records supplied by ClickUp.'),
   })
   .passthrough();
 export type ClickUpTaskWebhookEnvelopeDto = z.infer<typeof clickupTaskWebhookEnvelopeSchema>;
@@ -109,7 +118,10 @@ export const clickupCommentWebhookEnvelopeSchema = z
   .object({
     ...clickupWebhookBaseEnvelopeFields,
     event: z.enum(clickupCommentWebhookEventNames),
-    history_items: z.array(clickupWebhookCommentHistoryItemSchema).min(1),
+    history_items: z
+      .array(clickupWebhookCommentHistoryItemSchema)
+      .min(1)
+      .describe('Change records supplied by ClickUp, each carrying the comment.'),
   })
   .passthrough();
 export type ClickUpCommentWebhookEnvelopeDto = z.infer<typeof clickupCommentWebhookEnvelopeSchema>;
@@ -131,7 +143,10 @@ export const clickupWebhookEnvelopeSchema = z.discriminatedUnion('event', [
 ]);
 export type ClickUpWebhookEnvelopeDto = z.infer<typeof clickupWebhookEnvelopeSchema>;
 
-const clickupTeamIdSchema = z.string().min(1);
+const clickupTeamIdSchema = z
+  .string()
+  .min(1)
+  .describe('ID of the configured ClickUp workspace, added by Shipfox.');
 
 export const clickupTaskEventPayloadSchema = clickupTaskWebhookEnvelopeSchema
   .extend({team_id: clickupTeamIdSchema})

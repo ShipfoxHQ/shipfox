@@ -1,3 +1,4 @@
+import {integrationEventCatalogIssues} from '@shipfox/api-integration-core-dto';
 import {linearEventCatalog, linearWebhookEventNames} from './index.js';
 
 describe('linearEventCatalog', () => {
@@ -16,5 +17,9 @@ describe('linearEventCatalog', () => {
       'agentSession.created',
     ])
       expect(names).toContain(name);
+  });
+
+  it('declares a family for every event', () => {
+    expect(integrationEventCatalogIssues(linearEventCatalog)).toEqual([]);
   });
 });

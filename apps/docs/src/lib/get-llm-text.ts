@@ -27,12 +27,20 @@ export async function getLLMText(page: InferPageType<typeof source>) {
     ? await (await import('@/lib/model-catalog-source')).getModelCatalog()
     : undefined;
   const toolReference = processed.includes('ToolReference')
-    ? (await import('@/lib/tool-reference-source')).getToolReferenceDocument(toolReferenceId(page))
+    ? (await import('@/lib/tool-reference-source')).getToolReferenceDocument(
+        referenceId(page, 'toolReference'),
+      )
+    : undefined;
+  const eventReference = processed.includes('EventReference')
+    ? (await import('@/lib/event-reference-source')).getEventReferenceDocument(
+        referenceId(page, 'eventReference'),
+      )
     : undefined;
   const body = serializeMachineReadableMarkdown(processed, {
     integrationCatalog,
     modelCatalog,
     toolReference,
+    eventReference,
     pageUrl: page.url,
     requiredFacts: requiredFactsForPage(page.url),
     sourcePath: page.path,
@@ -53,11 +61,15 @@ export async function getLLMText(page: InferPageType<typeof source>) {
   return markdown;
 }
 
-function toolReferenceId(page: InferPageType<typeof source>): string {
-  const id = (page.data as {toolReference?: unknown}).toolReference;
+function referenceId(
+  page: InferPageType<typeof source>,
+  field: 'toolReference' | 'eventReference',
+): string {
+  const id = (page.data as Partial<Record<typeof field, unknown>>)[field];
   if (typeof id !== 'string' || id.length === 0) {
+    const component = field === 'toolReference' ? 'ToolReference' : 'EventReference';
     throw new Error(
-      `Documentation page "${page.url}" renders ToolReference without a toolReference frontmatter id.`,
+      `Documentation page "${page.url}" renders ${component} without a ${field} frontmatter id.`,
     );
   }
   return id;
@@ -99,7 +111,7 @@ function requiredFactsForPage(pageUrl: string): string[] {
   }
   if (path === '/integrations') return ['## Integration catalog', '### GitHub'];
   if (INTEGRATION_EVENTS_PAGE_PATTERN.test(path)) {
-    return ['## Event catalog', '### `'];
+    return ['## Event catalog', '#### `'];
   }
   if (INTEGRATION_TOOLS_PAGE_PATTERN.test(path)) {
     return ['## Tool catalog', '##### Input'];

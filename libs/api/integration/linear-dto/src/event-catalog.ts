@@ -22,40 +22,50 @@ const dataEventSummaryByAction = {
   remove: 'is removed.',
 } as const satisfies Record<(typeof linearWebhookActions)[number], string>;
 
-const agentSessionDetails = {
-  'agentSession.created': {
-    summary: 'A Linear agent session is created.',
-    emittedWhen: 'Linear creates an agent session after a user mentions or delegates to the app.',
-  },
-  'agentSession.prompted': {
-    summary: 'A user adds a prompt to a Linear agent session.',
-    emittedWhen: 'Linear sends an AgentSessionEvent webhook with the prompted action.',
-  },
-} as const satisfies Record<
-  (typeof linearAgentSessionWebhookEventNames)[number],
-  {
-    summary: string;
-    emittedWhen: string;
-  }
->;
+const agentSessionSummaries = {
+  'agentSession.created': 'A Linear agent session is created.',
+  'agentSession.prompted': 'A user adds a prompt to a Linear agent session.',
+} as const satisfies Record<(typeof linearAgentSessionWebhookEventNames)[number], string>;
+
+const familyTitles = {
+  Issue: 'Issues',
+  Comment: 'Comments',
+  IssueLabel: 'Issue labels',
+  Project: 'Projects',
+  Cycle: 'Cycles',
+} as const satisfies Record<(typeof linearWebhookResourceTypes)[number], string>;
 
 export const linearEventCatalog = {
   provider: 'Linear',
+  families: [
+    ...linearWebhookResourceTypes.map((type) => ({
+      key: type,
+      title: familyTitles[type],
+      summary: `Changes to a Linear ${resourceLabels[type]}. The event includes the type, the action, and the ${resourceLabels[type]} itself under data.`,
+      payloadKind: 'raw-provider' as const,
+      payloadDocUrl: linearWebhookDocsUrl,
+    })),
+    {
+      key: 'agentSession',
+      title: 'Agent sessions',
+      summary:
+        'Requests from Linear to the connected agent. The event includes the session and the prompt.',
+      payloadKind: 'raw-provider' as const,
+      payloadDocUrl: linearAgentInteractionDocsUrl,
+    },
+  ],
   events: [
     ...linearWebhookResourceTypes.flatMap((type) =>
       linearWebhookActions.map((action) => ({
         name: `${type}.${action}`,
+        family: type,
         summary: dataEventSummary(resourceLabels[type], action),
-        emittedWhen: `Linear sends a webhook for ${type} with the ${action} action.`,
-        payloadKind: 'raw-provider' as const,
-        payloadDocUrl: linearWebhookDocsUrl,
       })),
     ),
     ...linearAgentSessionWebhookEventNames.map((name) => ({
       name,
-      ...agentSessionDetails[name],
-      payloadKind: 'raw-provider' as const,
-      payloadDocUrl: linearAgentInteractionDocsUrl,
+      family: 'agentSession',
+      summary: agentSessionSummaries[name],
     })),
   ],
 } as const satisfies IntegrationEventCatalog;

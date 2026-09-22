@@ -395,9 +395,11 @@ provider entry instead of flattening every page into the top level.
 
 Provider pages use `integrations/<provider>/{index,setup,events,tools}.mdx`
 and an optional `guides/` directory.
-The canonical `events.mdx` page imports a generated event fragment. The
-canonical `tools.mdx` page names its generated tool reference document in the
-`toolReference` frontmatter field and renders it with `<ToolReference />`.
+The canonical `events.mdx` page names its generated event reference document
+in the `eventReference` frontmatter field and renders it with
+`<EventReference />`. The canonical `tools.mdx` page names its generated tool
+reference document in the `toolReference` frontmatter field and renders it with
+`<ToolReference />`.
 
 ### Capabilities
 
@@ -417,13 +419,13 @@ these provider-specific homes:
 | Fact | Canonical page | Source of truth |
 | --- | --- | --- |
 | Purpose, authentication method, required access, integration connection slug pattern, and capability summary | Provider overview (`index.mdx`) | Provider registry capabilities and provider `src/config.ts`. |
-| Shipfox event names, emission conditions, and fields Shipfox normalizes or exposes on `event` | Provider events page (`events.mdx`) | `libs/api/integration/core-dto/src/events.ts`, each provider's `src/core/webhook.ts`, and its webhook DTO schemas. |
+| Shipfox event names, event families, and fields Shipfox normalizes or exposes on `event` | Provider events page (`events.mdx`) | Each provider's DTO event catalog (`src/event-catalog.ts`) and the payload schemas it serializes. |
 | Raw pass-through webhook payload fields | The provider's upstream webhook reference | The provider owns and versions this schema. Link to it from `events.mdx`; do not reproduce it. |
 | Tool selectors, methods, sensitivity, sensitive status, required provider permissions, scope, inputs, and outputs | Provider tools page (`tools.mdx`) | The provider's `src/core/agent-tools.ts` catalog and its schemas. |
 | Trigger `source`, `event`, `filter`, and `with` fields, tool step fields, and the agent `integrations:` block | [Workflow schema reference](/reference/workflow-schema) | The workflow schema. Link to it instead of restating the contract. |
 | Inspecting, pausing, or deleting an integration connection | `how-to/set-up-work/manage-integration-connections` | The connection lifecycle implementation. |
 
-Shipfox owns the event name, emission condition, and any payload shape it
+Shipfox owns the event name, its family, and any payload shape it
 normalizes. For a pass-through provider, Shipfox does not own or version the raw
 body handed to a run as `event`. An upstream link prevents a copied schema from
 drifting or implying false ownership.
@@ -523,97 +525,67 @@ and workflow schema details on their reference pages.
 
 ### Provider events template (Reference)
 
-Use this page only for a provider that emits Shipfox-named events. Link back to
-the overview and to the workflow schema reference.
+Use this page only for a provider that emits Shipfox-named events. The
+integration sidebar links it to the overview and related references. The event
+catalog is generated from the provider's DTO event catalog: families,
+summaries, payload fields, sample payloads, and trigger fragments all come from
+that catalog, so the authored page carries only provider-wide context the
+catalog cannot express.
 
 ````mdx
 ---
 title: "<Provider> events"
 sidebarTitle: "Events"
 description: "<State the provider event surface this reference describes.>"
+eventReference: "integrations/<provider>/events"
 ---
 
-<State the event surface and link to the [<Provider> overview](/integrations/<provider>).>
+<Callout>
+  <State a provider-wide caveat the catalog cannot express, such as self-triggering.>
+</Callout>
 
-## Event names
+## Event catalog
 
-| Shipfox event name | Emitted when | Upstream reference |
-| --- | --- | --- |
-| `<event-name>` | <State the exact emission condition.> | <Link to the provider reference when it owns the raw payload.> |
+Use your <Provider> integration connection slug instead of `<provider>_acme`.
 
-## Payload
-
-<State whether Shipfox normalizes the payload or passes it through. List the
-fields Shipfox exposes on `event`. For a pass-through payload, link to the
-provider-owned schema instead of copying it.>
-
-## Trigger fragment
-
-Replace `<provider>_acme` with the integration connection slug:
-
-```yaml
-triggers:
-  on_provider_event:
-    source: <provider>_acme
-    event: <event-name>
-```
-
-For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+<EventReference />
 ````
 
-The event-name table records exact Shipfox names and their emission conditions.
-The payload section distinguishes Shipfox-owned normalized fields from a raw
-provider payload, which remains provider-owned.
+Put emission caveats, paired deliveries, and payload field descriptions in the
+provider's DTO event catalog and payload schemas, not in the page. A family note
+in the catalog renders as a callout under the family heading. Field descriptions
+come from `.describe()` calls on the payload schema. A pass-through provider
+declares no payload schema, and the page links to the provider-owned reference
+instead of copying it.
 
 ### Provider tools template (Reference)
 
-Use this page only when `capabilities[]` includes `agent_tools`. Link back to
-the overview and to the workflow schema reference.
+Use this page only when `capabilities[]` includes `agent_tools`. The integration
+sidebar links it to the overview and related references. The generated tool
+catalog owns selectors, access, permissions, inputs, outputs, and examples, so
+the authored page carries only provider-wide context the catalog cannot
+express.
 
 ```mdx
 ---
 title: "<Provider> tools"
 sidebarTitle: "Tools"
 description: "<State the provider tools this reference describes.>"
+toolReference: "integrations/<provider>/tools"
 ---
 
-<State the tool surface and link to the [<Provider> overview](/integrations/<provider>).>
-
-## Selectors
-
-<State which tokens a tool step accepts in `tool` (a standalone id or
-`family.method`) and which selectors an agent step accepts in `integrations:`
-(`family`, `family.method`, `family.*`, or a standalone selector).> For the
-contracts, see [Tool step fields](/reference/workflow-schema#tool-step-fields)
-and [Agent integration fields](/reference/workflow-schema#agent-integration-fields).
+<Callout>
+  <State a provider-wide caveat the catalog cannot express.>
+</Callout>
 
 ## Tool catalog
 
-<State the least-access and write opt-in model, with a link to [Integration
-connections and tools](/understand/integrations-connections-and-tools).>
-
-| Selector token | Sensitivity | Sensitive | Required provider scope |
-| --- | --- | --- | --- |
-| `<family>` | Read | No | `<scope>` |
-
-<Accordions type="single">
-  <Accordion title="<family>">
-    **Methods:** `<family.method>`
-
-    **Inputs:** <List the Shipfox-owned input fields.>
-
-    **Outputs:** <List the Shipfox-owned output fields.>
-  </Accordion>
-</Accordions>
+<ToolReference />
 ```
 
-Keep the table compact and scannable. Group it by the provider's tool category
-when that makes a large catalog easier to scan. Wrap the tool accordions in one
-`<Accordions>` and use one `<Accordion>` per tool or tool family for methods,
-inputs, and outputs. The provider's `src/core/agent-tools.ts` catalog owns these
-schemas, so reproduce them here rather than linking to an upstream schema.
-`sensitivity` describes read or write behavior. `sensitive` states whether the
-tool needs sensitive handling; it is not a separate approval policy.
+Put provider-specific access caveats in the page. Keep selector, permission,
+input, output, and sensitivity facts in the provider's
+`src/core/agent-tools.ts` catalog.
 
 ### New provider checklist
 
@@ -637,14 +609,14 @@ tool needs sensitive handling; it is not a separate approval policy.
 
 ### Authored and generated reference
 
-Keep setup prose authored. The events `## Event names` table is a Git-ignored
-MDX fragment generated from the provider catalog, and the tracked `events.mdx`
-page imports it. The tools `## Tool catalog` is a Git-ignored JSON document
-generated from the provider catalog. The tracked `tools.mdx` page names it in
-the `toolReference` frontmatter field and places `<ToolReference />` where the
-catalog renders, keeping navigation and authored context in the canonical page.
-Docs development, build, and test commands must generate these artifacts before
-they read, build, or check those pages. Do not use inline markers.
+Keep setup prose authored. The events `## Event catalog` and the tools
+`## Tool catalog` are Git-ignored JSON documents generated from the provider
+catalogs. The tracked `events.mdx` and `tools.mdx` pages name them in the
+`eventReference` and `toolReference` frontmatter fields and place
+`<EventReference />` or `<ToolReference />` where the catalog renders, keeping
+navigation and authored context in the canonical page. Docs development, build,
+and test commands must generate these artifacts before they read, build, or
+check those pages. Do not use inline markers.
 
 ## Schema fields: document only shipped surface
 

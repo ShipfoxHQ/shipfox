@@ -98,39 +98,69 @@ const workflowRunActions = [
   ['requested', 'A workflow run was triggered.'],
 ] as const satisfies readonly GithubWebhookActionDetail[];
 
-function githubActionEvents(
-  family: string,
+type GithubEventFamily = readonly [
+  key: string,
+  title: string,
+  summary: string,
   actions: readonly GithubWebhookActionDetail[],
-): IntegrationEventCatalog['events'] {
-  return actions.map(([action, summary]) => ({
-    name: `${family}.${action}`,
-    summary,
-    emittedWhen: `GitHub sends a ${family} webhook with the ${action} action.`,
-    payloadKind: 'raw-provider',
-    payloadDocUrl: githubWebhookPayloadDocsUrl,
-  }));
+];
+
+// The upstream reference anchors each webhook family by its GitHub event name.
+const families = [
+  ['push', 'Push', 'Changes to a branch or tag.', []],
+  ['pull_request', 'Pull requests', 'Changes to a pull request.', pullRequestActions],
+  [
+    'pull_request_review',
+    'Pull request reviews',
+    'Reviews on a pull request.',
+    pullRequestReviewActions,
+  ],
+  [
+    'pull_request_review_comment',
+    'Pull request review comments',
+    'Comments on a pull request diff.',
+    pullRequestReviewCommentActions,
+  ],
+  [
+    'pull_request_review_thread',
+    'Pull request review threads',
+    'Review threads that are resolved or marked unresolved.',
+    pullRequestReviewThreadActions,
+  ],
+  [
+    'issue_comment',
+    'Issue comments',
+    'Comments on an issue or on the conversation tab of a pull request.',
+    issueCommentActions,
+  ],
+  ['issues', 'Issues', 'Changes to an issue.', issueActions],
+  ['release', 'Releases', 'Changes to a release.', releaseActions],
+  ['workflow_job', 'Workflow jobs', 'Progress of a GitHub Actions job.', workflowJobActions],
+  ['workflow_run', 'Workflow runs', 'Progress of a GitHub Actions run.', workflowRunActions],
+] as const satisfies readonly GithubEventFamily[];
+
+function githubFamilyEvents([
+  key,
+  ,
+  ,
+  actions,
+]: GithubEventFamily): IntegrationEventCatalog['events'] {
+  if (actions.length === 0) return [{name: key, family: key, summary: pushSummary}];
+  return actions.map(([action, summary]) => ({name: `${key}.${action}`, family: key, summary}));
 }
+
+const pushSummary = 'A branch or tag changes.';
 
 export const githubEventCatalog = {
   provider: 'GitHub',
   passthrough: true,
   upstreamEventsDocUrl: githubWebhookPayloadDocsUrl,
-  events: [
-    {
-      name: 'push',
-      summary: 'A Git reference receives one or more commits.',
-      emittedWhen: 'GitHub sends a push webhook to the connected GitHub App.',
-      payloadKind: 'raw-provider',
-      payloadDocUrl: githubWebhookPayloadDocsUrl,
-    },
-    ...githubActionEvents('pull_request', pullRequestActions),
-    ...githubActionEvents('pull_request_review', pullRequestReviewActions),
-    ...githubActionEvents('pull_request_review_comment', pullRequestReviewCommentActions),
-    ...githubActionEvents('pull_request_review_thread', pullRequestReviewThreadActions),
-    ...githubActionEvents('issue_comment', issueCommentActions),
-    ...githubActionEvents('issues', issueActions),
-    ...githubActionEvents('release', releaseActions),
-    ...githubActionEvents('workflow_job', workflowJobActions),
-    ...githubActionEvents('workflow_run', workflowRunActions),
-  ],
+  families: families.map(([key, title, summary]) => ({
+    key,
+    title,
+    summary,
+    payloadKind: 'raw-provider' as const,
+    payloadDocUrl: `${githubWebhookPayloadDocsUrl}#${key}`,
+  })),
+  events: families.flatMap(githubFamilyEvents),
 } as const satisfies IntegrationEventCatalog;

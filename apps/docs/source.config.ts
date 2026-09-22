@@ -20,8 +20,9 @@ export const docs = defineDocs({
     schema: frontmatterSchema.extend({
       sidebarTitle: z.string().optional(),
       status: z.string().optional(),
-      // Generated tool reference document id, such as `integrations/jira/tools`.
+      // Generated reference document ids, such as `integrations/jira/tools`.
       toolReference: z.string().optional(),
+      eventReference: z.string().optional(),
       // A `full` page hides the table of contents by default. Set this to keep it.
       tableOfContent: z.boolean().optional(),
       catalog: z
@@ -37,7 +38,7 @@ export const docs = defineDocs({
     }),
     postprocess: {
       includeProcessedMarkdown: {
-        mdxAsPlaceholder: ['IntegrationCatalog', 'ToolReference'],
+        mdxAsPlaceholder: ['IntegrationCatalog', 'ToolReference', 'EventReference'],
         stringify: stringifyMachineReadableComponent,
       },
     },
