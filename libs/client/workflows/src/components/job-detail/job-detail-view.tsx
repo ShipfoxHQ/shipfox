@@ -144,7 +144,8 @@ export function JobDetailView({
   const pageScrollRef = useRef<HTMLDivElement>(null);
   const landingSelectionRef = useRef<FrozenLandingSelection | undefined>(undefined);
   const [logSearch, setLogSearch] = useState('');
-  const [logTimestamps, setLogTimestamps] = useState<VisibleLogTimestampMode>('rel');
+  const [logTimestamps, setLogTimestamps] = useState<VisibleLogTimestampMode>('abs');
+  const [showLogTimestamps, setShowLogTimestamps] = useState(true);
   const [wrapLogs, setWrapLogs] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [expandedLogAttemptIds, setExpandedLogAttemptIds] = useState<readonly string[]>([]);
@@ -353,6 +354,8 @@ export function JobDetailView({
                   refreshing={logIsFetching}
                   timestamps={logTimestamps}
                   onTimestampsChange={setLogTimestamps}
+                  showTimestamps={showLogTimestamps}
+                  onShowTimestampsChange={setShowLogTimestamps}
                   showLineNumbers={showLineNumbers}
                   onShowLineNumbersChange={setShowLineNumbers}
                   wrap={wrapLogs}
@@ -394,7 +397,7 @@ export function JobDetailView({
                             context={context}
                             pageScrollRef={pageScrollRef}
                             search={logSearch}
-                            timestamps={logTimestamps}
+                            timestamps={showLogTimestamps ? logTimestamps : 'off'}
                             onTimestampsClick={() =>
                               setLogTimestamps((current) => (current === 'rel' ? 'abs' : 'rel'))
                             }
@@ -809,7 +812,7 @@ export function ExpandedStep({
   context: StepExpandedContext;
   pageScrollRef: RefObject<HTMLDivElement | null>;
   search: string;
-  timestamps: VisibleLogTimestampMode;
+  timestamps: LogTimestampMode;
   onTimestampsClick: () => void;
   wrap: boolean;
   showLineNumbers: boolean;
@@ -877,6 +880,8 @@ function JobLogPanelHeader({
   refreshing,
   timestamps,
   onTimestampsChange,
+  showTimestamps,
+  onShowTimestampsChange,
   showLineNumbers,
   onShowLineNumbersChange,
   wrap,
@@ -893,6 +898,8 @@ function JobLogPanelHeader({
   refreshing: boolean;
   timestamps: VisibleLogTimestampMode;
   onTimestampsChange: (value: VisibleLogTimestampMode) => void;
+  showTimestamps: boolean;
+  onShowTimestampsChange: (value: boolean) => void;
   showLineNumbers: boolean;
   onShowLineNumbersChange: (value: boolean) => void;
   wrap: boolean;
@@ -958,14 +965,24 @@ function JobLogPanelHeader({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" size="sm">
               <DropdownMenuLabel>Log display</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={showTimestamps}
+                onCheckedChange={onShowTimestampsChange}
+              >
+                Timestamps
+              </DropdownMenuCheckboxItem>
               <DropdownMenuRadioGroup
                 value={timestamps}
                 onValueChange={(value) => {
                   if (value === 'rel' || value === 'abs') onTimestampsChange(value);
                 }}
               >
-                <DropdownMenuRadioItem value="rel">Relative timestamps</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="abs">Absolute timestamps</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="rel" disabled={!showTimestamps}>
+                  Relative timestamps
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="abs" disabled={!showTimestamps}>
+                  Absolute timestamps
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
               <DropdownMenuCheckboxItem
                 checked={showLineNumbers}

@@ -3,4 +3,4 @@
 "@shipfox/client-workflows": minor
 ---
 
-Shows relative timestamps in job logs and adds controls to switch between relative and absolute time.
+Shows absolute timestamps in job logs by default and adds controls to switch formats or hide timestamps.

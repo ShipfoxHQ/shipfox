@@ -215,7 +215,7 @@ describe('WorkflowJobDetailPage', () => {
     expect(screen.getAllByText('1m 10s')).not.toHaveLength(0);
   });
 
-  test('switches log timestamps from relative to absolute time', async () => {
+  test('shows absolute timestamps by default and controls their display', async () => {
     const user = userEvent.setup();
     configureApiClient({fetchImpl: vi.fn(jobDetailFetch)});
 
@@ -223,16 +223,35 @@ describe('WorkflowJobDetailPage', () => {
       `?jobExecution=${EXECUTION_ID}&step=${STEP_ID}&stepAttempt=${ATTEMPT_ID}&runAttempt=1`,
     );
 
+    await user.click(await screen.findByText(ABSOLUTE_TIMESTAMP_PATTERN));
+
     expect(await screen.findByText('+0.000')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', {name: 'Log settings'}));
     expect(screen.getByRole('menuitemradio', {name: 'Relative timestamps'})).toHaveAttribute(
       'aria-checked',
       'true',
     );
+    expect(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'})).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
 
-    await user.click(screen.getByRole('menuitemradio', {name: 'Absolute timestamps'}));
+    await user.click(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'}));
 
-    expect(await screen.findByText(ABSOLUTE_TIMESTAMP_PATTERN)).toBeInTheDocument();
+    expect(screen.queryByText('+0.000')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', {name: 'Log settings'}));
+    expect(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'})).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    expect(screen.getByRole('menuitemradio', {name: 'Relative timestamps'})).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+
+    await user.click(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'}));
+
+    expect(await screen.findByText('+0.000')).toBeInTheDocument();
   });
 
   test('loads execution history only when the switcher opens', async () => {
