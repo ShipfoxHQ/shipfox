@@ -6,6 +6,7 @@ import {
 } from '@shipfox/client-logs';
 import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
+import type {LogTimestampMode} from '@shipfox/react-ui/log';
 import {Text} from '@shipfox/react-ui/typography';
 import {type RefObject, useEffect, useRef} from 'react';
 import {JobExecutionTimeText} from './job-execution-time-text.js';
@@ -25,6 +26,8 @@ export interface StepAttemptLogPanelProps {
   pageScrollRef: RefObject<HTMLElement | null>;
   surfaceClassName?: string | undefined;
   search?: string | undefined;
+  timestamps?: LogTimestampMode | undefined;
+  onTimestampsClick?: (() => void) | undefined;
   wrap?: boolean | undefined;
   showLineNumbers?: boolean | undefined;
   attemptId?: string | undefined;
@@ -42,6 +45,8 @@ export function StepAttemptLogPanel({
   pageScrollRef,
   surfaceClassName = defaultLogSurfaceClasses,
   search = '',
+  timestamps = 'off',
+  onTimestampsClick,
   wrap = false,
   showLineNumbers = true,
   attemptId,
@@ -113,6 +118,7 @@ export function StepAttemptLogPanel({
       <StepLogsLoadingSurface
         label="Loading logs"
         className={surfaceClassName}
+        timestamps={timestamps}
         wrap={wrap}
         showLineNumbers={showLineNumbers}
       />
@@ -127,6 +133,7 @@ export function StepAttemptLogPanel({
       <StepLogsLoadingSurface
         label="Waiting for logs"
         className={surfaceClassName}
+        timestamps={timestamps}
         wrap={wrap}
         showLineNumbers={showLineNumbers}
       />
@@ -163,6 +170,8 @@ export function StepAttemptLogPanel({
       <LogView
         records={records}
         search={search}
+        timestamps={timestamps}
+        onTimestampsClick={onTimestampsClick}
         wrap={wrap}
         showLineNumbers={showLineNumbers}
         emptyState={query.data?.complete ? 'complete' : 'pending'}
@@ -182,17 +191,24 @@ function shouldRetryMissingStream(attemptStatus: string): boolean {
 function StepLogsLoadingSurface({
   label,
   className,
+  timestamps,
   wrap,
   showLineNumbers,
 }: {
   label: string;
   className: string;
+  timestamps: LogTimestampMode;
   wrap: boolean;
   showLineNumbers: boolean;
 }) {
   return (
     <div role="status" aria-label={label}>
-      <LogViewSkeleton className={className} wrap={wrap} showLineNumbers={showLineNumbers} />
+      <LogViewSkeleton
+        className={className}
+        timestamps={timestamps}
+        wrap={wrap}
+        showLineNumbers={showLineNumbers}
+      />
     </div>
   );
 }

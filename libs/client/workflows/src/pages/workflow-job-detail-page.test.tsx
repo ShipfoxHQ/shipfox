@@ -213,6 +213,29 @@ describe('WorkflowJobDetailPage', () => {
     expect(screen.getAllByText('1m 10s')).not.toHaveLength(0);
   });
 
+  test('switches log timestamps from relative to absolute time', async () => {
+    const user = userEvent.setup();
+    configureApiClient({fetchImpl: vi.fn(jobDetailFetch)});
+
+    renderJobPath(
+      `?jobExecution=${EXECUTION_ID}&step=${STEP_ID}&stepAttempt=${ATTEMPT_ID}&runAttempt=1`,
+    );
+
+    await user.click(await screen.findByRole('button', {name: 'Log settings'}));
+    expect(screen.getByRole('menuitemradio', {name: 'Relative timestamps'})).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+
+    await user.click(screen.getByRole('menuitemradio', {name: 'Absolute timestamps'}));
+
+    await user.click(screen.getByRole('button', {name: 'Log settings'}));
+    expect(screen.getByRole('menuitemradio', {name: 'Absolute timestamps'})).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
   test('loads execution history only when the switcher opens', async () => {
     const user = userEvent.setup();
     const historyRequests: URL[] = [];

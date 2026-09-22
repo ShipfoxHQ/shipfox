@@ -101,6 +101,21 @@ describe('LogView', () => {
     expect(screen.queryByText('No output yet')).toBeNull();
   });
 
+  test('renders timestamps and forwards the timestamp shortcut', () => {
+    const onTimestampsClick = vi.fn();
+    render(
+      <LogView
+        records={[output('hello\n')]}
+        timestamps="rel"
+        onTimestampsClick={onTimestampsClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('+0.000'));
+
+    expect(onTimestampsClick).toHaveBeenCalledOnce();
+  });
+
   test('ends open groups and explains a truncated stream without a terminal marker', () => {
     render(
       <LogView truncated records={[groupStart('build', 'Build'), output('partial output\n')]} />,
