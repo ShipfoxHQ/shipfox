@@ -10,7 +10,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`resolveModel`** selects the first preferred model available in a workspace catalog.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
-- **`getSetupGuide`** returns the versioned, first-party workflow setup playbook.
+- **`getSetupGuide`** returns the versioned, first-party [workflow setup playbook](assets/playbook.md).
 
 The package does not evaluate expressions or implement conditionals and loops. It keeps template comments in the composed YAML so the coding agent can use binding, slot, and option instructions.
 
