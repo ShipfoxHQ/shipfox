@@ -137,6 +137,7 @@ describe('agent-access action tool schemas', () => {
     const validResults = [
       {
         run_id: uuid,
+        run_url: `https://client.example.test/runs/${uuid}`,
         ref: 'main',
         commit,
         warnings: [{code: 'unknown-trigger-source', message: 'Unknown source'}],
@@ -155,6 +156,12 @@ describe('agent-access action tool schemas', () => {
       {run_id: uuid, dry_run: true, commit},
       {run_id: uuid, check_passed: true, commit},
       {run_id: uuid, dry_run: true, check_passed: true, commit},
+      {
+        dry_run: true,
+        check_passed: true,
+        run_url: `https://client.example.test/runs/${uuid}`,
+        commit,
+      },
       {run_id: uuid, event_checked: true, commit},
       {dry_run: true, commit},
       {check_passed: true, commit},
