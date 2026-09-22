@@ -248,6 +248,32 @@ describe('LogView', () => {
     expect(screen.getByText('The stack trace points at validation.')).toBeDefined();
   });
 
+  test('restores agent session line numbers when the gutter is re-enabled', () => {
+    const records = [
+      agentSession({
+        kind: 'message',
+        timestamp: ts,
+        role: 'assistant',
+        label: 'assistant',
+        meta: [],
+        text: 'I will inspect the failure.',
+        terminalFailure: false,
+      }),
+    ];
+    const {container, rerender} = render(<LogView records={records} />);
+    const gutter = () => container.querySelector('[data-slot="log-row-gutter"]');
+
+    expect(gutter()).toHaveTextContent('1');
+
+    rerender(<LogView records={records} showLineNumbers={false} />);
+
+    expect(gutter()).toBeNull();
+
+    rerender(<LogView records={records} showLineNumbers />);
+
+    expect(gutter()).toHaveTextContent('1');
+  });
+
   test('renders tool calls with awaiting state until a result appears later in the stream', () => {
     render(
       <LogView
