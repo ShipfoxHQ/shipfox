@@ -1,6 +1,8 @@
 import {DocsLayout} from 'fumadocs-ui/layouts/docs';
 import type {ReactNode} from 'react';
+import {AskAi} from '@/app/components/ask-ai';
 import {baseOptions, ShipfoxDashboardButton} from '@/app/layout.config';
+import {config} from '@/config';
 import {source} from '@/lib/source';
 
 // Per-page metadata (title, description, and OG/Twitter images) is generated in
@@ -13,6 +15,8 @@ export default function Layout({children}: {children: ReactNode}) {
       {...baseOptions}
       sidebar={{footer: <ShipfoxDashboardButton />}}
     >
+      {/* The chat route needs a model key, so a deployment without one ships no trigger. */}
+      {config.OPENROUTER_API_KEY ? <AskAi model={config.ASK_AI_MODEL} /> : null}
       {/* @ts-ignore: fuma-docs and monorepo react versions seem to be incompatible */}
       {children}
     </DocsLayout>

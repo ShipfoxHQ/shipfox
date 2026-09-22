@@ -34,6 +34,63 @@ The docs record every production session. In the PostHog project, keep session
 recording at 100% with no URL or event trigger, and keep request and response
 bodies, headers, and console logs disabled. Inputs are masked by the client SDK.
 
+## Ask AI
+
+Ask AI answers questions from these pages. It reads two variables:
+
+```text
+OPENROUTER_API_KEY=<OpenRouter API key>
+ASK_AI_MODEL=z-ai/glm-5.3-flash
+```
+
+`OPENROUTER_API_KEY` is a secret and never reaches the browser. Set it in
+`apps/docs/.env.local` for local work, and in the Vercel project for the
+environments that should answer questions. A deployment without the key renders
+no Ask AI trigger, and `POST /api/chat` returns 503.
+
+`ASK_AI_MODEL` accepts any [OpenRouter model ID](https://openrouter.ai/models).
+The model must support tool calling, because every answer starts with a
+retrieval call. Changing it needs no code change and no redeploy of the route.
+`deepseek/deepseek-v4.1-flash` is the other open-weight candidate, and
+`anthropic/claude-sonnet-5` falls back to a first-party model.
+
+Retrieval makes this workload input-heavy: roughly 9000 input tokens and 500
+output tokens per answer, so the input price dominates. Across the plausible
+models that spans a tenth of a cent to two cents per answer. That makes the
+choice one of answer quality rather than cost. Measure a model on real questions
+and keep whichever holds up.
+
+One model ID is not one product. An open-weight model reaches OpenRouter through
+many providers, whose prices differ several fold and whose quantization differs
+too. `PROVIDER_ROUTING` in the route handler holds the routing rules that decide
+which of them may serve a request.
+
+Five PostHog events cover the panel: `docs_ask_ai_question_asked`,
+`docs_ask_ai_answered`, `docs_ask_ai_citation_clicked`, `docs_ask_ai_failed`, and
+`docs_ask_ai_retried`. The ones worth watching are `zero_result_searches`, which
+counts retrieval calls that matched no page, and `docs_ask_ai_citation_clicked`,
+which is the closest proxy for an answer being useful. Spend, latency, and token
+counts are not captured here, because the OpenRouter dashboard already reports
+them per request.
+
+These events carry the question text. It goes through the same redaction as the
+catalog search box. Redaction replaces the whole value rather
+than trimming it. It fires on an email address, a URL, a credential assignment,
+or a long unbroken token. The cap for a question is 240
+characters, above the catalog cap because a question is a sentence. Session
+recordings mask the input, so the question reaches PostHog only through these
+events.
+
+`src/app/api/chat/route.ts` is a plain Vercel AI SDK route handler, so OpenRouter
+is one line of it. To route through Vercel AI Gateway instead, replace
+`createOpenRouter` with `@ai-sdk/gateway`; to call a provider directly, use that
+provider's AI SDK package. The panel and the retrieval tool do not change.
+
+The `search` tool queries the same index as the search dialog, then returns the
+matching pages as Markdown from `getLLMText`, so the model reads what
+`llms-full.txt` publishes. `src/lib/ask-ai-core.ts` owns the page limit and the
+per-page character cap.
+
 ## Explore
 
 The project includes:
@@ -46,6 +103,7 @@ The project includes:
 | `app/(home)`              | The route group for your landing page and other pages. |
 | `app/docs`                | The documentation layout and pages.                    |
 | `app/api/search/route.ts` | The Route Handler for search.                          |
+| `app/api/chat/route.ts`   | The Route Handler for Ask AI.                          |
 
 ### Fumadocs MDX
 

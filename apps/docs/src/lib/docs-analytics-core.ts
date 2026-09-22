@@ -1,5 +1,11 @@
 import type {CaptureResult} from 'posthog-js';
 
+// A catalog search is a few keywords, so a short cap loses nothing. An Ask AI
+// question is a sentence, and cutting it at 100 characters would leave the
+// captured text too fragmentary to tell what readers could not find.
+const CATALOG_QUERY_MAX_LENGTH = 100;
+export const ASK_AI_QUESTION_MAX_LENGTH = 240;
+
 const EMAIL_REGEX = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/i;
 const URL_SCHEME_REGEX = /\b[a-z][a-z\d+.-]*:\/\//i;
 const CREDENTIAL_ASSIGNMENT_REGEX =
@@ -15,7 +21,7 @@ const URL_PROPERTY_NAMES = [
   '$session_entry_url',
 ] as const;
 
-export interface CatalogQuery {
+export interface TrackedQuery {
   query: string;
   queryLength: number;
   queryRedacted: boolean;
@@ -42,16 +48,31 @@ export function buildDocsEventProperties<Properties extends object>(
   };
 }
 
-export function normalizeCatalogQuery(value: string): CatalogQuery {
+/**
+ * Free text a reader typed, reduced to something safe to store. A value that
+ * looks like it carries a secret is dropped rather than truncated, because a
+ * prefix of a credential is still a credential.
+ */
+export function normalizeTrackedQuery({
+  value,
+  maxLength,
+}: {
+  value: string;
+  maxLength: number;
+}): TrackedQuery {
   const normalized = value.trim().toLocaleLowerCase().replaceAll(/\s+/g, ' ');
   const queryRedacted = containsSensitiveQueryValue(normalized);
 
   return {
-    query: queryRedacted ? '[redacted]' : normalized.slice(0, 100),
+    query: queryRedacted ? '[redacted]' : normalized.slice(0, maxLength),
     queryLength: normalized.length,
     queryRedacted,
     dedupeKey: normalized,
   };
+}
+
+export function normalizeCatalogQuery(value: string): TrackedQuery {
+  return normalizeTrackedQuery({value, maxLength: CATALOG_QUERY_MAX_LENGTH});
 }
 
 export function nextCatalogSearchState(

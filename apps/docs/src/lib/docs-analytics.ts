@@ -1,6 +1,7 @@
 'use client';
 
 import posthog from 'posthog-js';
+import type {AskAiAnswerProperties, AskAiQuestionProperties} from '@/lib/ask-ai-analytics';
 import {buildDocsEventProperties} from '@/lib/docs-analytics-core';
 import type {CatalogCapability, CatalogCategory} from '@/lib/integration-catalog';
 import {basePath} from '@/url';
@@ -32,6 +33,13 @@ interface DocsAnalyticsEvents {
   docs_cta_clicked: {destination_path: string; label?: string};
   docs_outbound_link_clicked: {destination_origin: string; destination_path: string};
   docs_edit_on_github_clicked: {page: string; file_path: string};
+  docs_ask_ai_question_asked: AskAiQuestionProperties;
+  docs_ask_ai_answered: AskAiAnswerProperties;
+  docs_ask_ai_citation_clicked: {destination_path: string; external: boolean};
+  docs_ask_ai_failed: AskAiQuestionProperties & {
+    reason: 'not_configured' | 'aborted' | 'provider_error';
+  };
+  docs_ask_ai_retried: {model: string};
 }
 
 export function captureDocsEvent<Event extends keyof DocsAnalyticsEvents>(
