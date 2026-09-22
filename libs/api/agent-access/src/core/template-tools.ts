@@ -162,7 +162,9 @@ function openRoleBindings(
   const roles = new Set(Object.keys(manifest.roles));
   for (const [key, provider] of Object.entries(input)) {
     if (key === 'template_id' || key === 'project_id') continue;
-    const role = manifest.roles[key];
+    const role = Object.prototype.hasOwnProperty.call(manifest.roles, key)
+      ? manifest.roles[key]
+      : undefined;
     if (role === undefined || role.from === 'project') return null;
     if (!role.providers.includes(provider)) return null;
     bindings[key] = provider;
@@ -179,13 +181,28 @@ async function listActiveConnections(
   integrations: IntegrationsModuleClient,
   workspaceId: string,
 ): Promise<readonly WorkspaceConnection[]> {
-  const page = await integrations.listConnectionsByWorkspace({workspaceId, limit: 100});
-  return page.connections.filter((connection) => connection.lifecycleStatus === 'active');
+  const connections: WorkspaceConnection[] = [];
+  let cursor: WorkspaceConnectionCursor | undefined;
+
+  while (true) {
+    const page = await integrations.listConnectionsByWorkspace({
+      workspaceId,
+      limit: 100,
+      ...(cursor === undefined ? {} : {cursor}),
+    });
+    connections.push(...page.connections);
+    if (page.nextCursor === null) break;
+    cursor = page.nextCursor;
+  }
+
+  return connections.filter((connection) => connection.lifecycleStatus === 'active');
 }
 
-type WorkspaceConnection = Awaited<
+type WorkspaceConnectionPage = Awaited<
   ReturnType<IntegrationsModuleClient['listConnectionsByWorkspace']>
->['connections'][number];
+>;
+type WorkspaceConnection = WorkspaceConnectionPage['connections'][number];
+type WorkspaceConnectionCursor = NonNullable<WorkspaceConnectionPage['nextCursor']>;
 
 function toListTemplateResult(
   template: WorkflowTemplate,

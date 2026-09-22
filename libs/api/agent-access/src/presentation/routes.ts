@@ -170,7 +170,8 @@ function toolsFromProducerClients(
     annotations === undefined &&
     triggers === undefined &&
     logs === undefined &&
-    integrations === undefined
+    integrations === undefined &&
+    templates === undefined
   ) {
     return [createAgentAccessFixtureTool()];
   }

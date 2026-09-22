@@ -120,6 +120,7 @@ async function handleAgentAccessToolCall(
   const tool = params.tools.get(params.name);
   const rateLimit = params.rateLimiter.consume(params.context.credential);
   if (!rateLimit.allowed) {
+    const target = templateAuditTarget(isRecord(params.arguments) ? params.arguments : {});
     const action =
       tool !== undefined && isActionTool(tool)
         ? createActionAudit(tool, isRecord(params.arguments) ? params.arguments : {})
@@ -129,7 +130,7 @@ async function handleAgentAccessToolCall(
       outcome: 'rate-limited',
       errorCode: 'rate-limited',
       context: params.context,
-      ...templateAuditTarget(isRecord(params.arguments) ? params.arguments : {}),
+      ...(target === undefined ? {} : {target}),
       ...(action === undefined ? {} : {action}),
     });
     return toolResult(
@@ -438,16 +439,14 @@ function completeActionAudit(
   };
 }
 
-function templateAuditTarget(
-  input: Record<string, unknown>,
-): {target: Record<string, unknown>} | Record<string, never> {
-  if (typeof input.template_id !== 'string') return {};
+function templateAuditTarget(input: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (typeof input.template_id !== 'string') return undefined;
   const providers = Object.fromEntries(
     Object.entries(input).filter(
       ([key, value]) => key !== 'template_id' && key !== 'project_id' && typeof value === 'string',
     ),
   );
-  return {target: {template_id: input.template_id, providers}};
+  return {template_id: input.template_id, providers};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
