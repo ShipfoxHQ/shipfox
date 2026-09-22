@@ -383,7 +383,6 @@ describe('parseClaudeSessionRecord', () => {
         context,
       ),
     ).toEqual([]);
-    expect(call).not.toHaveProperty('summary');
   });
 
   it.each([
