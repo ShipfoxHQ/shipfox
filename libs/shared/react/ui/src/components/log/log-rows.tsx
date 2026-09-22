@@ -1,6 +1,6 @@
 'use client';
 
-import type {ComponentProps} from 'react';
+import type {ComponentProps, KeyboardEvent} from 'react';
 import {cn} from '#utils/cn.js';
 import type {LogTimestampMode} from './format-timestamp.js';
 import {LogRowsContextProvider} from './log-context.js';
@@ -13,7 +13,7 @@ export interface LogRowsProps extends ComponentProps<'div'> {
   indentStep?: number;
   /** Baseline for relative timestamps; without one, relative mode falls back to absolute time. */
   timestampOrigin?: Date;
-  /** Adds a pointer shortcut to each timestamp cell, commonly used to switch rel/abs for all rows. */
+  /** Adds pointer and keyboard shortcuts to switch rel/abs for all rows. */
   onTimestampsClick?: () => void;
 }
 
@@ -31,8 +31,25 @@ export function LogRows({
   indentStep = 16,
   timestampOrigin,
   onTimestampsClick,
+  onKeyDown,
+  tabIndex,
+  'aria-description': ariaDescription,
   ...props
 }: LogRowsProps) {
+  const canToggleTimestamps = onTimestampsClick !== undefined && timestamps !== 'off';
+  const timestampToggleDescription =
+    timestamps === 'abs'
+      ? 'Press Enter or Space to show relative timestamps.'
+      : 'Press Enter or Space to show absolute timestamps.';
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || event.currentTarget !== event.target) return;
+    if (!canToggleTimestamps || (event.key !== 'Enter' && event.key !== ' ')) return;
+
+    event.preventDefault();
+    onTimestampsClick();
+  };
+
   return (
     <LogRowsContextProvider
       value={{timestamps, wrap, showLineNumbers, indentStep, timestampOrigin, onTimestampsClick}}
@@ -41,11 +58,17 @@ export function LogRows({
         data-slot="log-rows"
         role="log"
         aria-live="polite"
+        aria-description={
+          ariaDescription ?? (canToggleTimestamps ? timestampToggleDescription : undefined)
+        }
+        aria-keyshortcuts={canToggleTimestamps ? 'Enter Space' : undefined}
+        tabIndex={tabIndex ?? (canToggleTimestamps ? 0 : undefined)}
+        onKeyDown={handleKeyDown}
         className={cn(
           'overflow-y-auto rounded-12 border border-border-contrast-bottom shadow-button-neutral',
           'bg-background-contrast-subtle',
           'py-8 font-code text-xs leading-20 text-foreground-contrast-primary',
-          'scrollbar',
+          'scrollbar outline-none focus-visible:shadow-focus-inset',
           className,
         )}
         {...props}

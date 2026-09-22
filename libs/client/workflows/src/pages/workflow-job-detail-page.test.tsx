@@ -245,6 +245,12 @@ describe('WorkflowJobDetailPage', () => {
     await user.click(screen.getByRole('menuitemcheckbox', {name: 'Timestamps'}));
 
     expect(await screen.findByText('+0.000')).toBeInTheDocument();
+    const log = screen.getByRole('log');
+    expect(log).toHaveAttribute('aria-keyshortcuts', 'Enter Space');
+    log.focus();
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText(ABSOLUTE_TIMESTAMP_PATTERN)).toBeInTheDocument();
   });
 
   test('loads execution history only when the switcher opens', async () => {
