@@ -7,7 +7,9 @@ import {batchVariablesRoute} from './batch-variables.js';
 import {deleteSecretRoute} from './delete-secret.js';
 import {deleteVariableRoute} from './delete-variable.js';
 import {getVariableRoute} from './get-variable.js';
+import {listSecretNamesRoute} from './list-secret-names.js';
 import {listSecretsRoute} from './list-secrets.js';
+import {listVariableNamesRoute} from './list-variable-names.js';
 import {listVariablesRoute} from './list-variables.js';
 import {putSecretRoute} from './put-secret.js';
 import {putVariableRoute} from './put-variable.js';
@@ -19,10 +21,12 @@ export function createSecretsRoutes(projects: ProjectsModuleClient): RouteGroup[
       prefix: '/workspaces/:workspaceId',
       auth: AUTH_USER,
       routes: [
+        listSecretNamesRoute(access),
         listSecretsRoute(access),
         putSecretRoute(access),
         batchSecretsRoute(access),
         deleteSecretRoute(access),
+        listVariableNamesRoute(access),
         listVariablesRoute(access),
         getVariableRoute(access),
         putVariableRoute(access),

@@ -60,11 +60,21 @@ export const listSecretsResponseSchema = z.object({
 });
 export type ListSecretsResponseDto = z.infer<typeof listSecretsResponseSchema>;
 
+export const secretNamesResponseSchema = z.object({
+  names: z.array(secretKeySchema),
+});
+export type SecretNamesResponseDto = z.infer<typeof secretNamesResponseSchema>;
+
 export const listVariablesResponseSchema = z.object({
   variables: z.array(variableListItemDtoSchema),
   next_cursor: cursorSchema.nullable(),
 });
 export type ListVariablesResponseDto = z.infer<typeof listVariablesResponseSchema>;
+
+export const variableNamesResponseSchema = z.object({
+  names: z.array(secretKeySchema),
+});
+export type VariableNamesResponseDto = z.infer<typeof variableNamesResponseSchema>;
 
 export const getVariableResponseSchema = z.object({
   variable: variableDtoSchema,

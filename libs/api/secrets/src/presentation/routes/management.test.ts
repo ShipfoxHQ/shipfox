@@ -268,6 +268,53 @@ describe('secrets management routes', () => {
     expect(full.json().variable.value).toBe('first line\nsecond line');
   });
 
+  it('lists names without values and preserves project scoping', async () => {
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/secrets/WORKSPACE_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+      payload: {value: 'workspace-secret'},
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/secrets/PROJECT_TOKEN`,
+      headers: {authorization: 'Bearer user'},
+      payload: {project_id: projectId, value: 'project-secret'},
+    });
+    await app.inject({
+      method: 'PUT',
+      url: `/workspaces/${workspaceId}/variables/PROJECT_REGION`,
+      headers: {authorization: 'Bearer user'},
+      payload: {project_id: projectId, value: 'project-region'},
+    });
+
+    const secrets = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/secrets/names`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const projectSecrets = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/secrets/names?project_id=${projectId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+    const variables = await app.inject({
+      method: 'GET',
+      url: `/workspaces/${workspaceId}/variables/names?project_id=${projectId}`,
+      headers: {authorization: 'Bearer user'},
+    });
+
+    expect(secrets.statusCode).toBe(200);
+    expect(secrets.json()).toEqual({names: ['WORKSPACE_TOKEN']});
+    expect(projectSecrets.statusCode).toBe(200);
+    expect(projectSecrets.json()).toEqual({names: ['PROJECT_TOKEN']});
+    expect(variables.statusCode).toBe(200);
+    expect(variables.json()).toEqual({names: ['PROJECT_REGION']});
+    expect(secrets.body).not.toContain('workspace-secret');
+    expect(projectSecrets.body).not.toContain('project-secret');
+    expect(variables.body).not.toContain('project-region');
+  });
+
   it('supports paginated secret lists', async () => {
     await app.inject({
       method: 'POST',
