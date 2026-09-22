@@ -51,10 +51,13 @@ connection stays in the workspace.
 
     **Check which runs you will miss**
 
-    Find the workflows that use the integration connection slug. A workflow
-    that uses the slug as a trigger `source` won't start during the pause. A
-    workflow that uses it for checkout or for a tool can start, but that step
-    fails. Check that none of these workflows handles urgent work.
+    Search your workflow files for the integration connection slug. The pause
+    affects each workflow you find:
+
+    - If the slug is a trigger `source`, the workflow doesn't start.
+    - If the slug is used for checkout or for a tool, that step fails.
+
+    Pause the connection only if none of these workflows handles urgent work.
   </Step>
   <Step>
 
