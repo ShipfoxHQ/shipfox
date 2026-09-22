@@ -25,9 +25,19 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
     })) {
       if (!providerEntry.isFile() || !providerEntry.name.endsWith('.yml')) continue;
       const provider = providerEntry.name.slice(0, -4);
-      roleParts[provider] = parseYaml(
-        await readFile(join(templateRoot, 'parts', roleEntry.name, providerEntry.name), 'utf8'),
-      );
+      const partPath = join(templateRoot, 'parts', roleEntry.name, providerEntry.name);
+      const parsedPart = parseYaml(await readFile(partPath, 'utf8'));
+      if (
+        parsedPart === null ||
+        typeof parsedPart !== 'object' ||
+        Array.isArray(parsedPart) ||
+        Object.values(parsedPart).some((value) => typeof value !== 'string')
+      ) {
+        throw new Error(
+          `Invalid provider part file ${partPath}: expected a YAML map of string blocks.`,
+        );
+      }
+      roleParts[provider] = parsedPart;
     }
     parts[roleEntry.name] = roleParts;
   }
