@@ -31,6 +31,11 @@ const NON_RETRYABLE_STRUCTURED_CODES = new Set([
   'aborted',
 ]);
 
+const MANAGED_PROVIDER_STREAM_INTERRUPTION_MESSAGES = new Set([
+  'Stream error occurred',
+  'unknown: An error occurred',
+]);
+
 type ProviderStreamFunction = (
   model: Model<Api>,
   context: Context,
@@ -50,7 +55,7 @@ export function isManagedProviderStreamInterruption(
 ): boolean {
   if (provider !== 'shipfox' || stopReason !== 'error' || errorMessage === undefined) return false;
   if (hasNonRetryableStructuredError(errorMessage)) return false;
-  return errorMessage.trim() === 'Stream error occurred';
+  return MANAGED_PROVIDER_STREAM_INTERRUPTION_MESSAGES.has(errorMessage.trim());
 }
 
 export function wrapManagedProviderStream(

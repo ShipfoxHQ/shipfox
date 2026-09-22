@@ -40,10 +40,14 @@ function assistantMessage(errorMessage: string): AssistantMessage {
 }
 
 describe('managed provider stream recovery', () => {
-  it('requires the managed provider, error stop reason, and exact trimmed message', () => {
-    expect(
-      isManagedProviderStreamInterruption('shipfox', 'error', '  Stream error occurred\n'),
-    ).toBe(true);
+  it.each([
+    'Stream error occurred',
+    'unknown: An error occurred',
+  ])('recognizes the exact managed provider interruption %s', (message) => {
+    expect(isManagedProviderStreamInterruption('shipfox', 'error', `  ${message}\n`)).toBe(true);
+  });
+
+  it('requires the managed provider, error stop reason, and an exact known message', () => {
     expect(isManagedProviderStreamInterruption('openai', 'error', 'Stream error occurred')).toBe(
       false,
     );
@@ -65,7 +69,10 @@ describe('managed provider stream recovery', () => {
     ).toBe(false);
   });
 
-  it('normalizes only the matching final error event', async () => {
+  it.each([
+    'Stream error occurred',
+    'unknown: An error occurred',
+  ])('normalizes the matching final error event %s', async (message) => {
     const source = createAssistantMessageEventStream();
     const stream = wrapManagedProviderStream(() => source)(model, context);
     const events: unknown[] = [];
@@ -77,7 +84,7 @@ describe('managed provider stream recovery', () => {
     source.push({
       type: 'error',
       reason: 'error',
-      error: assistantMessage('  Stream error occurred  '),
+      error: assistantMessage(`  ${message}  `),
     });
     await consuming;
 
@@ -91,10 +98,13 @@ describe('managed provider stream recovery', () => {
     ]);
   });
 
-  it('normalizes an exact interruption thrown by the source stream', async () => {
+  it.each([
+    'Stream error occurred',
+    'unknown: An error occurred',
+  ])('normalizes an exact interruption thrown by the source stream %s', async (message) => {
     const source = {
       [Symbol.asyncIterator]: () => ({
-        next: () => Promise.reject(new Error('  Stream error occurred  ')),
+        next: () => Promise.reject(new Error(`  ${message}  `)),
       }),
     };
     const stream = wrapManagedProviderStream(
