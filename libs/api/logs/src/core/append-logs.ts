@@ -188,13 +188,12 @@ function buildStoredBody(
     isStreamFinal,
     pendingResult: initialClaudePendingResult ?? null,
   };
+  appendPendingClaudeToolRows(state);
   appendPendingClaudeResult(records, state);
 
   for (const [index, record] of records.entries()) {
     appendStoredRecord(record, index, state);
   }
-
-  appendPendingClaudeToolRows(state);
 
   const body = Buffer.from(
     state.storedRecords.map((record) => `${JSON.stringify(record)}\n`).join(''),
@@ -276,7 +275,7 @@ function appendParsedSessionRow(row: SessionViewRow, state: StoredBodyBuildState
 
 function appendPendingClaudeToolRows(state: StoredBodyBuildState): void {
   const claude = state.parseContext?.claude;
-  if (!state.isStreamFinal || claude === undefined) return;
+  if (claude === undefined) return;
   for (const row of flushPendingToolRows(claude)) {
     state.storedRecords.push(storedAgentSessionRow(row));
   }

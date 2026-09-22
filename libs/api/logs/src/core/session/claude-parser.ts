@@ -1,14 +1,12 @@
-import type {SessionViewRow, SessionViewToolCallRow} from '@shipfox/api-logs-dto';
+import type {SessionViewRow} from '@shipfox/api-logs-dto';
 import {z} from 'zod';
 import {
   assistantRows,
   authStatusRow,
-  flushPendingToolRows,
   PURE_PROGRESS_CLAUDE_SYSTEM_SUBTYPES,
   rateLimitRow,
   resultRow,
   systemRow,
-  toolUseSummary,
   userRows,
 } from './claude/rows.js';
 import {stringField} from './object.js';
@@ -26,7 +24,6 @@ export interface ClaudeParseContext {
   sessionId: string | null;
   turn: number;
   pendingToolRows: SessionViewRow[];
-  toolCallRows: Map<string, SessionViewToolCallRow>;
 }
 
 export function createClaudeParseContext(
@@ -37,13 +34,7 @@ export function createClaudeParseContext(
     turn: 0,
   },
 ): ClaudeParseContext {
-  const rows = [...pendingToolRows];
-  const toolCallRows = new Map<string, SessionViewToolCallRow>();
-  for (const row of rows) {
-    if (row.kind === 'tool-call' && row.id !== null) toolCallRows.set(row.id, row);
-  }
-
-  return {...state, pendingToolRows: rows, toolCallRows};
+  return {...state, pendingToolRows: [...pendingToolRows]};
 }
 
 export function claudeInitSessionId(record: AgentSessionRecord): string | undefined {
@@ -77,12 +68,12 @@ export function parseClaudeSessionRecord(
   try {
     json = JSON.parse(record.data);
   } catch {
-    return [...flushPendingToolRows(context), rawRecordRow(record, 'Malformed session entry')];
+    return [rawRecordRow(record, 'Malformed session entry')];
   }
 
   const parsed = claudeMessageSchema.safeParse(json);
   if (!parsed.success) {
-    return [...flushPendingToolRows(context), rawRecordRow(record, 'Unsupported Claude message')];
+    return [rawRecordRow(record, 'Unsupported Claude message')];
   }
 
   const message = parsed.data;
@@ -96,43 +87,28 @@ export function parseClaudeSessionRecord(
 
   switch (message.type) {
     case 'system':
-      if (stringField(message, 'subtype') === 'init') {
-        return [...flushPendingToolRows(context), systemRow(record.ts, message, context)];
-      }
-      return deferRow(context, systemRow(record.ts, message, context));
+      return [systemRow(record.ts, message, context)];
     case 'init':
-      return [...flushPendingToolRows(context), systemRow(record.ts, message, context)];
+      return [systemRow(record.ts, message, context)];
     case 'tool_progress':
     case 'prompt_suggestion':
       // These messages describe an already-emitted tool call or an interactive client state.
       // They have no standalone row representation and must not look like parser failures.
       return [];
     case 'tool_use_summary':
-      return toolUseSummary(message, context) ? flushPendingToolRows(context) : [];
+      // Summaries are companion events for calls that are already in the stream.
+      return [];
     case 'auth_status':
-      return deferRow(context, authStatusRow(record.ts, message));
+      return [authStatusRow(record.ts, message)];
     case 'rate_limit_event':
-      return deferRow(context, rateLimitRow(record.ts, message));
+      return [rateLimitRow(record.ts, message)];
     case 'assistant':
-      return [...flushPendingToolRows(context), ...assistantRows(record.ts, message, context)];
+      return assistantRows(record.ts, message);
     case 'user':
-      return userRows(record.ts, message, context);
+      return userRows(record.ts, message);
     case 'result':
-      return [
-        ...flushPendingToolRows(context),
-        resultRow(record.ts, message, context.turn, isFinalResult),
-      ];
+      return [resultRow(record.ts, message, context.turn, isFinalResult)];
     default:
-      return [
-        ...flushPendingToolRows(context),
-        rawRecordRow(record, `Unknown Claude message: ${message.type}`),
-      ];
+      return [rawRecordRow(record, `Unknown Claude message: ${message.type}`)];
   }
-}
-
-function deferRow(context: ClaudeParseContext, row: SessionViewRow): readonly SessionViewRow[] {
-  if (context.toolCallRows.size === 0) return [row];
-
-  context.pendingToolRows.push(row);
-  return [];
 }

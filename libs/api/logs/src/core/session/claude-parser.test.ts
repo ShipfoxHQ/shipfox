@@ -348,54 +348,16 @@ describe('parseClaudeSessionRecord', () => {
     expect(rows).toEqual([]);
   });
 
-  it('folds a tool-use summary into the last matching tool-call row', () => {
+  it('emits tool calls immediately and ignores following summaries', () => {
     const context = createClaudeParseContext();
-    expect(
-      parseClaudeSessionRecord(
-        record({
-          type: 'assistant',
-          message: {
-            role: 'assistant',
-            content: [
-              {type: 'tool_use', id: 'tool-1', name: 'Read', input: {file_path: 'src/a.ts'}},
-              {type: 'tool_use', id: 'tool-2', name: 'Read', input: {file_path: 'src/b.ts'}},
-            ],
-          },
-        }),
-        context,
-      ),
-    ).toEqual([]);
+    const call = {
+      kind: 'tool-call',
+      timestamp: 1,
+      id: 'tool-1',
+      name: 'Read',
+      input: '{\n  "file_path": "src/a.ts"\n}',
+    };
 
-    expect(
-      parseClaudeSessionRecord(
-        record({
-          type: 'tool_use_summary',
-          summary: 'Read both source files.',
-          preceding_tool_use_ids: ['tool-1', 'tool-2'],
-        }),
-        context,
-      ),
-    ).toEqual([
-      {
-        kind: 'tool-call',
-        timestamp: 1,
-        id: 'tool-1',
-        name: 'Read',
-        input: '{\n  "file_path": "src/a.ts"\n}',
-      },
-      {
-        kind: 'tool-call',
-        timestamp: 1,
-        id: 'tool-2',
-        name: 'Read',
-        input: '{\n  "file_path": "src/b.ts"\n}',
-        summary: 'Read both source files.',
-      },
-    ]);
-  });
-
-  it('supports the legacy single tool-use id summary shape', () => {
-    const context = createClaudeParseContext();
     expect(
       parseClaudeSessionRecord(
         record({
@@ -409,7 +371,7 @@ describe('parseClaudeSessionRecord', () => {
         }),
         context,
       ),
-    ).toEqual([]);
+    ).toEqual([call]);
 
     expect(
       parseClaudeSessionRecord(
@@ -420,7 +382,8 @@ describe('parseClaudeSessionRecord', () => {
         }),
         context,
       ),
-    ).toEqual([expect.objectContaining({summary: 'Read the source file.'})]);
+    ).toEqual([]);
+    expect(call).not.toHaveProperty('summary');
   });
 
   it.each([
@@ -681,8 +644,6 @@ describe('parseClaudeSessionRecord', () => {
         text: 'Before the tool.',
         terminalFailure: false,
       },
-    ]);
-    expect(flushPendingToolRows(context)).toEqual([
       {
         kind: 'tool-call',
         timestamp: 1,
@@ -700,6 +661,7 @@ describe('parseClaudeSessionRecord', () => {
         terminalFailure: false,
       },
     ]);
+    expect(flushPendingToolRows(context)).toEqual([]);
   });
 
   it('keeps mixed user tool-result and text rows in order', () => {
@@ -717,7 +679,15 @@ describe('parseClaudeSessionRecord', () => {
         }),
         context,
       ),
-    ).toEqual([]);
+    ).toEqual([
+      {
+        kind: 'tool-call',
+        timestamp: 1,
+        id: 'tool-1',
+        name: 'Read',
+        input: '{\n  "file_path": "src/a.ts"\n}',
+      },
+    ]);
 
     expect(
       parseClaudeSessionRecord(
@@ -733,15 +703,7 @@ describe('parseClaudeSessionRecord', () => {
         }),
         context,
       ),
-    ).toEqual([]);
-    expect(flushPendingToolRows(context)).toEqual([
-      {
-        kind: 'tool-call',
-        timestamp: 1,
-        id: 'tool-1',
-        name: 'Read',
-        input: '{\n  "file_path": "src/a.ts"\n}',
-      },
+    ).toEqual([
       {
         kind: 'tool-result',
         timestamp: 1,
@@ -760,9 +722,10 @@ describe('parseClaudeSessionRecord', () => {
         terminalFailure: false,
       },
     ]);
+    expect(flushPendingToolRows(context)).toEqual([]);
   });
 
-  it('keeps lifecycle rows behind a pending tool call until its summary arrives', () => {
+  it('emits following lifecycle rows without waiting for a summary', () => {
     const context = createClaudeParseContext();
     expect(
       parseClaudeSessionRecord(
@@ -777,33 +740,14 @@ describe('parseClaudeSessionRecord', () => {
         }),
         context,
       ),
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({kind: 'tool-call', id: 'tool-1'})]);
 
     expect(
       parseClaudeSessionRecord(
         record({type: 'auth_status', isAuthenticating: true, output: []}),
         context,
       ),
-    ).toEqual([]);
-
-    expect(
-      parseClaudeSessionRecord(
-        record({
-          type: 'tool_use_summary',
-          preceding_tool_use_ids: ['tool-1'],
-          summary: 'Read the source file.',
-        }),
-        context,
-      ),
     ).toEqual([
-      {
-        kind: 'tool-call',
-        timestamp: 1,
-        id: 'tool-1',
-        name: 'Read',
-        input: '{\n  "file_path": "src/a.ts"\n}',
-        summary: 'Read the source file.',
-      },
       {
         kind: 'lifecycle',
         timestamp: 1,
@@ -814,6 +758,17 @@ describe('parseClaudeSessionRecord', () => {
         terminalFailure: false,
       },
     ]);
+
+    expect(
+      parseClaudeSessionRecord(
+        record({
+          type: 'tool_use_summary',
+          preceding_tool_use_ids: ['tool-1'],
+          summary: 'Read the source file.',
+        }),
+        context,
+      ),
+    ).toEqual([]);
   });
 
   it('maps user tool results to tool-result rows', () => {
