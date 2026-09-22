@@ -60,6 +60,8 @@ function renderExpandedStep({
         context={context}
         pageScrollRef={createRef<HTMLDivElement>()}
         search=""
+        timestamps="rel"
+        onTimestampsClick={() => undefined}
         wrap={false}
         showLineNumbers
         attemptId={context.attemptId}

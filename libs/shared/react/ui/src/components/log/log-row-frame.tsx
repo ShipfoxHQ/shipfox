@@ -77,7 +77,7 @@ export function LogRowFrame({
         {showTime &&
           (onTimestampsClick ? (
             // biome-ignore lint/a11y/noStaticElementInteractions: kept a span (not a button) so the timestamp stays part of a multi-line text selection; switching format is a pointer convenience.
-            // biome-ignore lint/a11y/useKeyWithClickEvents: the accessible way to switch timestamp format is a toolbar control, not this inline cell.
+            // biome-ignore lint/a11y/useKeyWithClickEvents: the focused log surface provides the keyboard shortcut without adding one tab stop per row.
             <span
               data-slot="log-row-time"
               onClick={() => {

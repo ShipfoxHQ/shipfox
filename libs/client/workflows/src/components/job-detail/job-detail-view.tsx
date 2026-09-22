@@ -15,6 +15,7 @@ import {
 } from '@shipfox/react-ui/dropdown-menu';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
+import type {LogTimestampMode} from '@shipfox/react-ui/log';
 import {Panel, PanelActions, PanelBody, PanelHeader} from '@shipfox/react-ui/panel';
 import {SearchInline} from '@shipfox/react-ui/search';
 import {Skeleton} from '@shipfox/react-ui/skeleton';
@@ -96,6 +97,7 @@ import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 import {StepInspectorSheet} from './step-troubleshooting.js';
 
 type InspectorState = {key: string; attemptId: string | null};
+type VisibleLogTimestampMode = Exclude<LogTimestampMode, 'off'>;
 type JobDetailQuery = ReturnType<typeof useWorkflowJobDetailQuery>;
 interface JobDetailData {
   id: string;
@@ -140,6 +142,8 @@ export function JobDetailView({
   const pageScrollRef = useRef<HTMLDivElement>(null);
   const landingSelectionRef = useRef<FrozenLandingSelection | undefined>(undefined);
   const [logSearch, setLogSearch] = useState('');
+  const [logTimestamps, setLogTimestamps] = useState<VisibleLogTimestampMode>('abs');
+  const [showLogTimestamps, setShowLogTimestamps] = useState(true);
   const [wrapLogs, setWrapLogs] = useState(false);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [expandedLogAttemptIds, setExpandedLogAttemptIds] = useState<readonly string[]>([]);
@@ -346,6 +350,8 @@ export function JobDetailView({
                   onSearchChange={setLogSearch}
                   onRefresh={refreshLogs}
                   refreshing={logIsFetching}
+                  showTimestamps={showLogTimestamps}
+                  onShowTimestampsChange={setShowLogTimestamps}
                   showLineNumbers={showLineNumbers}
                   onShowLineNumbersChange={setShowLineNumbers}
                   wrap={wrapLogs}
@@ -387,6 +393,10 @@ export function JobDetailView({
                             context={context}
                             pageScrollRef={pageScrollRef}
                             search={logSearch}
+                            timestamps={showLogTimestamps ? logTimestamps : 'off'}
+                            onTimestampsClick={() =>
+                              setLogTimestamps((current) => (current === 'rel' ? 'abs' : 'rel'))
+                            }
                             wrap={wrapLogs}
                             showLineNumbers={showLineNumbers}
                             attemptId={context.attemptId}
@@ -783,6 +793,8 @@ export function ExpandedStep({
   context,
   pageScrollRef,
   search,
+  timestamps,
+  onTimestampsClick,
   wrap,
   showLineNumbers,
   attemptId,
@@ -796,6 +808,8 @@ export function ExpandedStep({
   context: StepExpandedContext;
   pageScrollRef: RefObject<HTMLDivElement | null>;
   search: string;
+  timestamps: LogTimestampMode;
+  onTimestampsClick: () => void;
   wrap: boolean;
   showLineNumbers: boolean;
   attemptId: string;
@@ -840,6 +854,8 @@ export function ExpandedStep({
         attemptStartedAt={context.attemptStartedAt}
         pageScrollRef={pageScrollRef}
         search={search}
+        timestamps={timestamps}
+        onTimestampsClick={onTimestampsClick}
         wrap={wrap}
         showLineNumbers={showLineNumbers}
         attemptId={attemptId}
@@ -858,6 +874,8 @@ function JobLogPanelHeader({
   onSearchChange,
   onRefresh,
   refreshing,
+  showTimestamps,
+  onShowTimestampsChange,
   showLineNumbers,
   onShowLineNumbersChange,
   wrap,
@@ -872,6 +890,8 @@ function JobLogPanelHeader({
   onSearchChange: (value: string) => void;
   onRefresh: () => void;
   refreshing: boolean;
+  showTimestamps: boolean;
+  onShowTimestampsChange: (value: boolean) => void;
   showLineNumbers: boolean;
   onShowLineNumbersChange: (value: boolean) => void;
   wrap: boolean;
@@ -937,6 +957,12 @@ function JobLogPanelHeader({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" size="sm">
               <DropdownMenuLabel>Log display</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={showTimestamps}
+                onCheckedChange={onShowTimestampsChange}
+              >
+                Timestamps
+              </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={showLineNumbers}
                 onCheckedChange={onShowLineNumbersChange}

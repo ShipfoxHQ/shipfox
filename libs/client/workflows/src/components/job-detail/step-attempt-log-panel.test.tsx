@@ -201,15 +201,16 @@ describe('StepAttemptLogPanel', () => {
     expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument();
   });
 
-  test('renders loaded logs inline', async () => {
+  test('renders loaded logs inline with relative timestamps', async () => {
     configureApiClient({
       baseUrl: 'https://api.example.test',
       fetchImpl: vi.fn(async () => jsonResponse(inlineLogBody(outputLine('hello\n'), 1))),
     });
 
-    renderPanel({attemptStatus: 'succeeded'});
+    renderPanel({attemptStatus: 'succeeded', timestamps: 'rel'});
 
     expect(await screen.findByText('hello')).toBeInTheDocument();
+    expect(screen.getByText('+0.000')).toBeInTheDocument();
     expect(screen.getByRole('log')).toHaveAttribute('aria-live', 'off');
   });
 

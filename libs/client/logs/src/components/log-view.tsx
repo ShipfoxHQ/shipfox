@@ -35,6 +35,7 @@ import {
 export interface LogViewProps {
   records: readonly LogRecord[];
   timestamps?: LogTimestampMode;
+  onTimestampsClick?: (() => void) | undefined;
   wrap?: boolean;
   showLineNumbers?: boolean;
   emptyState?: 'complete' | 'pending';
@@ -55,6 +56,7 @@ export interface LogViewSkeletonProps
 export function LogView({
   records,
   timestamps = 'off',
+  onTimestampsClick,
   wrap = false,
   showLineNumbers = true,
   emptyState = 'complete',
@@ -128,6 +130,7 @@ export function LogView({
         aria-live={normalizedSearch ? 'off' : ariaLive}
         className={className}
         onScroll={onScroll}
+        {...(onTimestampsClick ? {onTimestampsClick} : {})}
         {...(tree.originTs != null ? {timestampOrigin: new Date(tree.originTs)} : {})}
       >
         {noOutputState ? <NoOutputRow state={noOutputState} /> : null}
