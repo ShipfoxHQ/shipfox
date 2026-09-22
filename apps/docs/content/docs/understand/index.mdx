@@ -1,107 +1,100 @@
 ---
 title: "How Shipfox works"
 sidebarTitle: "How Shipfox Works"
-description: "See how an event becomes visible work and how that work can repeat or wait."
+description: "Learn how workflows combine AI agents, tools, and checks to automate work for your engineering team."
 ---
 
-A **workflow** describes engineering work that Shipfox runs for a team. It
-combines agent instructions, commands, and checks in a YAML file stored in the
-repository. Shipfox orchestrates that work and records each run.
+Shipfox automates work for your engineering team with AI agents. You define
+the work, give agents access to the tools they need, and review the results.
 
-Consider a workflow that investigates a new error and proposes a fix. The
-example below follows the work from the alert to human review.
+Your team might use Shipfox to build features, review code, investigate
+problems, or update documentation. Each task can follow its own instructions
+and checks.
 
-## An event starts the work
+A **[workflow](/understand/workflows-and-runs)** brings those instructions
+together. It describes what starts the work, which tasks to perform, and how
+to check the results.
 
-A monitoring tool reports a new error. A **trigger** in the workflow matches
-that event and starts a **run**, the record of this particular investigation.
+## Choose what starts the work
 
-The run uses a snapshot of the workflow. Later edits to the workflow do not
-change work already in progress. [Events and triggers](/understand/events-and-triggers)
-explain how a team chooses which signals start work.
+A workflow can respond to activity in your tools, such as a new ticket or a
+code update. Shipfox receives that activity as an **event**. A **trigger**
+defines which events start your workflow.
 
-## Agents and commands work on the code
+When an event matches a trigger, Shipfox starts a **run**. A run is one use
+of your workflow. It includes the status and results of each step, so you
+can see what finished, what failed, and what the work produced.
 
-A **job** groups the steps for the investigation. A **runner** checks out the
-repository and executes those steps in order. Each job has its own checkout;
-steps within that job share it.
+[Events and triggers](/understand/events-and-triggers) explains how you choose
+what starts the work.
 
-An agent step investigates the error and proposes a change. A command step
-runs the tests that the team chose. Agents handle work that needs judgment;
-commands perform explicit operations, such as running a test suite.
+## Combine agents, commands, and tools
 
-[Jobs and steps](/understand/jobs-and-steps) explain how to divide work.
-[Agent access](/understand/integrations-connections-and-tools) explains how a
-workflow grants tools to each agent step.
+A workflow groups tasks into **[jobs and steps](/understand/jobs-and-steps)**.
+A job contains steps that Shipfox runs in order.
 
-## Checks decide whether work continues
+Agent steps use AI to interpret instructions and make decisions. They can
+read code, make changes, or investigate a question. Command steps perform
+specific actions, such as running tests or building your project.
 
-If the tests fail, a **feedback loop** can return the failure evidence to the
-agent for another attempt. The loop stops when the check passes or the attempt
-limit runs out. Passing tests establish what those tests cover, rather than
-guaranteeing that the whole change is correct.
+You choose which tools each agent can use, such as your issue tracker or
+code hosting service.
+[Agent access](/understand/integrations-connections-and-tools) explains how you
+give agents access to those tools.
 
-In this example, the workflow opens a pull request only after the tests pass.
-An engineer reviews the change and decides whether to merge it.
+## Check the results
 
-## Later feedback can continue the work
+You define checks that decide whether the work can continue. For a code
+change, these might include tests or formatting checks.
 
-A **listening job** keeps a run open for related events, such as review
-comments on its pull request. That lets a workflow respond to feedback after
-the initial result is ready.
+If a check fails, a **[feedback loop](/understand/feedback-loops)** can send the
+failure details back to the agent. The agent uses those details to try again.
+The loop stops when the check passes or the agent reaches the attempt limit
+you set.
 
-Feedback loops and listening jobs solve different problems. A failed check
-means the current work needs another attempt. A review comment supplies new
-input. Each needs its own stopping rules.
+You also choose how the workflow shares its results. It might propose code
+changes for review, add findings to a ticket, or send a message to your team.
 
-## The dashboard records what happened
+## Continue the work when new feedback arrives
 
-The run view shows the jobs, steps, agent messages, tool calls, and cost.
-Failures remain visible alongside the evidence needed to investigate them.
-The team can compare the intended workflow with the work that actually ran.
+Some tasks need more than one round of work. A
+**[listening job](/understand/listening-jobs)** lets a workflow wait for related
+events and respond to them.
 
-## Explore the concepts
+For example, an agent can respond to a review comment or use new information
+added to a ticket. You choose which events it responds to and how long it
+waits.
 
-The pages below explain individual parts of the model. They are optional
-reading; completed onboarding in Shipfox is enough to start the
-[first workflow tutorial](/getting-started).
+## Follow the work
 
-### Workflow structure
+Each run includes the agent's messages, the tools it used, and the cost of
+the work. If a step fails, its error details help you understand what went
+wrong.
 
-1. [Workspaces and projects](/understand/workspaces-and-projects) explains what
-   a team shares and what stays tied to one repository.
-2. [Workflows and runs](/understand/workflows-and-runs) separates the stored
-   definition from each recorded use and its attempts.
-3. [Events and triggers](/understand/events-and-triggers) explains why signals
-   and run-creation policy remain separate.
-4. [Jobs and steps](/understand/jobs-and-steps) explains how to choose a work
-   boundary and what that boundary isolates.
-5. [Runners and execution
-   environments](/understand/runners-and-execution-environments) explains how
-   hosted and self-managed capacity place each job.
-6. [Context and templating](/understand/data-and-templating) explains when data
-   becomes available and how results move forward.
-7. [Integrations, integration connections, and
-   tools](/understand/integrations-connections-and-tools) explains how events,
-   checkout access, and external tools cross workspace boundaries.
+Access this information through the dashboard, the API, or MCP tools.
 
-### Agents and ongoing work
+## Learn more when you need it
 
-These pages build on the core path.
+After you complete setup in Shipfox, start the
+[first workflow tutorial](/getting-started). You don't need to read every
+concept page first.
 
-- [Agents](/understand/agents) helps choose between a fixed command and work
-  that needs judgment.
-- [Agent sessions](/understand/agent-sessions) explains how a later agent step
-  continues an earlier agent's conversation without sharing its files.
+These pages explain more about how to organize your work:
+
+- [Workspaces and projects](/understand/workspaces-and-projects) explains how
+  you organize your team and code repositories.
+- [Runners and execution environments](/understand/runners-and-execution-environments)
+  explains where your jobs run.
+- [Context and templating](/understand/data-and-templating) explains how steps
+  use information from events and earlier results.
+- [Agents](/understand/agents) explains when to use an AI agent or a command.
+- [Agent sessions](/understand/agent-sessions) explains how an agent continues
+  an earlier conversation.
 - [Workflow concurrency groups](/understand/workflow-concurrency-groups)
-  explains how related runs share one active slot and one latest waiting slot.
-- [Feedback loops](/understand/feedback-loops) explains why an independent
-  check, not agent confidence, should decide whether work repeats.
-- [Listening jobs](/understand/listening-jobs) explains how later events
-  continue the same run without becoming retries or new runs.
+  explains how you control which runs can work at the same time.
 
 <Cards>
   <Card title="Get started with Shipfox" href="https://app.shipfox.io">
-    Complete onboarding in Shipfox to start running workflows.
+    Set up Shipfox to start running workflows.
   </Card>
 </Cards>
