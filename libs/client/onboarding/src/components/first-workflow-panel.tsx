@@ -1,4 +1,3 @@
-import {agentGrantsQueryOptions} from '@shipfox/client-agent';
 import {useClientAnalytics} from '@shipfox/client-shell/runtime';
 import {Button} from '@shipfox/react-ui/button';
 import {useCopyToClipboard} from '@shipfox/react-ui/hooks';
@@ -6,16 +5,15 @@ import {Icon} from '@shipfox/react-ui/icon';
 import {Panel, PanelBody, PanelHeader, PanelRow, PanelTitle} from '@shipfox/react-ui/panel';
 import {toast} from '@shipfox/react-ui/toast';
 import {Code, Text} from '@shipfox/react-ui/typography';
-import {useQuery} from '@tanstack/react-query';
 import {Link} from '@tanstack/react-router';
 import {useEffect, useId, useRef, useState} from 'react';
+import {useWorkspaceAgentGrant} from '#hooks/api/agent-grants.js';
 import type {WorkspaceReference} from './setup-checklist-types.js';
 
 export const FIRST_WORKFLOW_PROMPT =
   'Set up a Shipfox workflow for this repository. Use the Shipfox MCP server: call `get_workflow_setup_guide` and follow it.';
 
 const GETTING_STARTED_URL = 'https://www.shipfox.io/docs/getting-started';
-const GRANTS_STALE_TIME_MS = 5 * 60 * 1000;
 
 export interface FirstWorkflowPanelProps {
   workspace: WorkspaceReference;
@@ -23,15 +21,7 @@ export interface FirstWorkflowPanelProps {
 
 export function FirstWorkflowPanel({workspace}: FirstWorkflowPanelProps) {
   const analytics = useClientAnalytics();
-  // Grants are per user across workspaces, so the panel keeps only this
-  // workspace's, like the agent-access settings page does.
-  const grantsQuery = useQuery({
-    ...agentGrantsQueryOptions(),
-    staleTime: GRANTS_STALE_TIME_MS,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-  const connectedGrant = grantsQuery.data?.find((grant) => grant.workspaceId === workspace.id);
+  const connectedGrant = useWorkspaceAgentGrant(workspace.id);
   const titleId = useId();
   const panelOpened = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
