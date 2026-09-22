@@ -1,0 +1,13 @@
+name: Deploy
+concurrency:
+  group: deploy-${{ event.ref }}
+  scope: project
+  cancel_in_progress: true
+triggers:
+  push:
+    source: github_acme
+    event: push
+jobs:
+  deploy:
+    steps:
+      - run: ./deploy.sh

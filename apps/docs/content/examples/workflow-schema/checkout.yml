@@ -1,0 +1,15 @@
+name: Check out a second repository
+jobs:
+  docs:
+    steps:
+      - checkout:
+          connection: github_acme
+          repository: acme/docs
+          ref: main
+          path: docs
+          fetch-depth: 1
+          force: true
+          permissions:
+            contents: read
+          persist-credentials: false
+      - run: ls docs

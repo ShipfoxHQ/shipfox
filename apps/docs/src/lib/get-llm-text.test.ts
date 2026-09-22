@@ -10,11 +10,11 @@ const pages = [
   {
     url: '/reference/workflow-schema',
     body: [
-      '## Top-level fields',
+      '## Workflow',
       '| `name` |',
-      '## Concurrency fields',
+      '## `concurrency`',
       '| `group` |',
-      '## Agent step fields',
+      '### `steps[*]` agent step',
       '| `prompt` |',
     ].join('\n'),
   },
@@ -65,7 +65,7 @@ test('reports the source page when description or generated facts are missing', 
   await assert.rejects(getLLMText(testPage('/reference/contexts', '## Available contexts', '')), {
     message: 'Documentation page "/reference/contexts" is missing a description.',
   });
-  await assert.rejects(getLLMText(testPage('/reference/workflow-schema', '## Top-level fields')), {
+  await assert.rejects(getLLMText(testPage('/reference/workflow-schema', '## Workflow')), {
     message:
       'Machine-readable Markdown for /reference/workflow-schema is missing generated fact: | `name` |',
   });

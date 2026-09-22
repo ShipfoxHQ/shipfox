@@ -29,7 +29,9 @@ export default async function Page(props: {params: Promise<{slug?: string[]}>}) 
     <DocsPage
       toc={toc}
       full={page.data.full || Boolean(toolReference)}
-      tableOfContent={toolReference ? {enabled: true} : undefined}
+      tableOfContent={
+        toolReference ? {enabled: true} : {enabled: page.data.tableOfContent ?? !page.data.full}
+      }
     >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>

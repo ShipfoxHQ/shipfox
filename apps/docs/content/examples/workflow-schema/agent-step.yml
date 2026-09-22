@@ -1,0 +1,14 @@
+name: Review
+jobs:
+  review:
+    steps:
+      - key: review
+        prompt: Review the change and report the main risks.
+        harness: claude
+        provider: anthropic
+        model: claude-sonnet-5
+        thinking: high
+        tools: [read_file]
+        integrations:
+          - include: [pull_request_read]
+        session: review

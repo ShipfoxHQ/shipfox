@@ -1,0 +1,10 @@
+name: Test
+jobs:
+  test:
+    steps:
+      - key: unit
+        name: Unit tests
+        if: ${{ event.pull_request.draft == false }}
+        run: pnpm test
+        gate:
+          success: step.exit_code == 0

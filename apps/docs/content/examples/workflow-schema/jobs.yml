@@ -1,0 +1,23 @@
+name: Build and release
+jobs:
+  build:
+    name: Build
+    runner: shipfox
+    execution_timeout: 30m
+    env:
+      NODE_ENV: production
+    steps:
+      - key: pkg
+        run: printf 'version=%s\n' "$(cat VERSION)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          version: string
+    outputs:
+      version: ${{ steps.pkg.outputs.version }}
+  release:
+    execution_name: Release ${{ jobs.build.outputs.version }}
+    needs: build
+    if: ${{ event.ref == "refs/heads/main" }}
+    steps:
+      - key: publish
+        run: ./publish.sh "${{ jobs.build.outputs.version }}"
+    success: ${{ steps.publish.status == "succeeded" }}

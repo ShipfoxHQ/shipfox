@@ -1,0 +1,9 @@
+name: Compare branches
+jobs:
+  compare:
+    steps:
+      - key: base
+        checkout:
+          ref: main
+          path: base
+      - run: diff -rq base . || true

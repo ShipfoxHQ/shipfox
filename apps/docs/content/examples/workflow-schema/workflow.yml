@@ -1,0 +1,15 @@
+name: Deploy
+run_name: Deploy ${{ event.ref }}
+triggers:
+  push:
+    source: github_acme
+    event: push
+concurrency:
+  group: deploy-${{ event.ref }}
+runner: shipfox
+env:
+  NODE_ENV: production
+jobs:
+  deploy:
+    steps:
+      - run: ./deploy.sh

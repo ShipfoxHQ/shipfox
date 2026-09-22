@@ -2,6 +2,8 @@
 title: "Workflow YAML reference"
 sidebarTitle: "Workflow Schema"
 description: "Define when Shipfox runs and what each workflow does."
+full: true
+tableOfContent: true
 ---
 
 import {
@@ -20,6 +22,7 @@ import {
   ListeningBatchFields,
   ListeningFields,
   RunStepFields,
+  StepFields,
   StepOutputs,
   ToolStepFields,
   ToolStepOutputs,
@@ -27,306 +30,103 @@ import {
   TriggerFields,
 } from '../../generated/reference/workflow-schema.mdx';
 
-Look up supported fields, accepted values, and nested blocks while writing a
-workflow.
+Each section lists the fields for one part of a workflow YAML file and
+highlights that part in an example.
 
 <Callout title="Enable editor autocomplete" type="info">
   Add `# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json`
   as the first line of a workflow file.
 </Callout>
 
-## Top-level fields
+## Workflow [#top-level-fields]
 
 <TopLevelFields />
 
-## Concurrency fields
-
-<ConcurrencyFields />
-
-See [Workflow concurrency groups](/understand/workflow-concurrency-groups) for
-an introduction and a complete example.
-
-## Workflow and job names
-
-Workflow and job names use separate static and dynamic fields.
-
-| Field | Names | Expressions | Required |
-| --- | --- | --- | --- |
-| `name` | Workflow definition | Not allowed | Yes |
-| `run_name` | Workflow run | Allowed | No |
-| `jobs.<job_key>.name` | Job | Not allowed | No |
-| `jobs.<job_key>.execution_name` | Job execution | Allowed | No |
-
-### Static names
-
-Workflow `name` and job `name` values are literal labels. A job `name` is
-optional. Add one when the job key is not a useful label. The job key is the
-fallback when no job name is set.
-
-Interpolation in a static name is invalid. Use the matching dynamic field:
-
-```text
-Workflow name must be literal. Move runtime interpolation to run_name.
-Job name must be literal. Move runtime interpolation to execution_name.
-```
-
-### Dynamic run names
-
-`run_name` resolves when Shipfox creates a workflow run. It can use trigger
-metadata, trigger event data, workflow inputs, referenced workflow variables,
-and stable run facts that already exist at creation time.
-
-The allocated `run.number` is one of those run facts. It is a positive,
-sequential number scoped to the workflow definition. Use it in a dynamic field
-when the field can read the `run` context.
-
-It cannot use job, execution, step, or job-output values that do not exist when
-the run is created. A rerun keeps the original resolved run name.
-
-### Dynamic execution names
-
-`execution_name` resolves when Shipfox creates a job execution. It can use run
-context, trigger data, inputs, referenced variables, stable job facts, the
-execution sequence, listener events, and prior executions.
-
-It cannot use the current execution name, future executions, step results, or
-job outputs that do not exist at execution creation.
-
-Listening jobs resolve `execution_name` separately for each execution. The
-template can therefore include the event batch or execution sequence.
-
-### Fallbacks and reruns
-
-Dynamic names are optional and affect display labels only. If a dynamic field
-is omitted or resolves to an empty value, Shipfox uses the matching static
-fallback. A runtime resolution failure also uses that fallback and records a
-diagnostic without changing execution status.
-
-| Dynamic field | Static fallback |
-| --- | --- |
-| `run_name` | Workflow `name` |
-| `execution_name` | Job `name`, or the job key |
-
-Dynamic-name expressions that use unavailable context or invalid syntax are
-definition validation errors. Rerunning a workflow keeps its resolved run
-name. Rerunning a job execution keeps its resolved execution name.
-
-### Run number
-
-`run.number` is a display label for the current run. It starts at `1` for each
-workflow definition and increases for later runs of that definition. It is not
-a URL or API identifier. Run routes continue to use the run UUID.
-
-For example, a job execution can include the number in its display name:
-
-```yaml title=".shipfox/workflows/deploy.yml"
-# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Deploy
-jobs:
-  deploy:
-    execution_name: 'Deploy #${{ run.number }}'
-    steps:
-      - run: ./deploy.sh
-```
-
-```yaml title=".shipfox/workflows/pull-request-review.yml"
-# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-name: Pull request review
-run_name: 'Review PR #${{ event.pull_request.number }}'
-
-jobs:
-  reviews:
-    name: Process review
-    execution_name: Review batch ${{ execution.index }}
-    listening:
-      on:
-        - source: github
-          event: pull_request_review
-    steps:
-      - prompt: Summarize ${{ execution.events[0].data.body }}
-```
-
-## Trigger fields
+## `triggers.<trigger_id>` [#trigger-fields]
 
 <TriggerFields />
 
-## Job fields
+## `concurrency` [#concurrency-fields]
+
+<ConcurrencyFields />
+
+## `env` [#environment-variables]
+
+<EnvironmentVariables />
+
+## `jobs.<job_id>` [#job-fields]
 
 <JobFields />
 
-Job `outputs` values are templates. A value that contains exactly one expression
-preserves its inferred non-string type, including dynamic values, arrays, and
-objects. An expression without an inferred type resolves to a string. Mixed
-literal and expression templates also resolve to strings. A downstream job must
-declare a direct `needs` edge before it reads the output.
-
-### Job checkout fields
-
-The job-level `checkout` block supports repository permissions and credential
-persistence. `checkout: false` is accepted by the document schema but is not
-supported by the workflow model yet.
+### `jobs.<job_id>.checkout` [#job-checkout-fields]
 
 <JobCheckoutFields />
 
-## Checkout fields
-
-These fields apply to an explicit checkout step.
-
-<CheckoutFields />
-
-### Checkout permissions fields
-
-These permissions apply to both job-level checkout and explicit checkout steps.
-
-<CheckoutPermissionsFields />
-
-## Step fields
-
-Each step is either a run step, an agent step, a checkout step, or a tool step.
-The schema rejects unknown fields and invalid field combinations.
-
-### Run step fields
-
-<RunStepFields />
-
-A `${{ }}` value in `run` reaches the command as a quoted shell variable, so the
-shell reads it as text and not as part of the command.
-
-<Callout title="Keep run data out of code positions" type="warn">
-  Some programs read their argument as code again, which puts an interpolated
-  value back in a code position: `eval`, `sh -c`, `bash -c`, `source`, `let`,
-  `declare -i`, shell arithmetic, `awk`, `jq`, `sed`, and `xargs sh -c`. A value
-  that reaches one of them runs on the runner with the job's credentials and
-  workspace. Event payloads, trigger inputs, and step outputs come from outside
-  the workflow, so pass them as arguments to a fixed program instead:
-  `deploy "$TARGET"` rather than `eval "deploy $TARGET"`. A workflow sync warns
-  when it finds one of these positions.
-</Callout>
-
-### Tool step fields
-
-A tool step calls one integration tool with inputs from the workflow. Shipfox
-makes the call on its API through the integration connection. The step has no
-working tree, so `run`, `prompt`, `checkout`, `env`, and `working_directory`
-are rejected on it.
-
-<ToolStepFields />
-
-The `tool` value is a literal integration tool id. A tool id can name a
-standalone tool or one method in a tool family with `family.method`. A family
-name alone or `family.*` is rejected. Each provider's tools page lists the ids;
-see the [GitHub tools](/integrations/github/tools) page for family methods.
-
-The optional `connection` value is the slug of an integration connection. Omit
-it to use the source integration connection of the project. A tool from
-another provider needs an explicit `connection`.
-
-The `with` block contains JSON-compatible tool inputs. String values can use
-workflow expressions over every server-evaluated context listed for
-`jobs.<job_id>.steps[*].with` in [Context
-availability](/reference/contexts#context-availability). `secrets` and
-`runner` are rejected. A leaf that is exactly one expression keeps the
-expression's type. Sync checks required inputs and literal values against the
-tool's input schema.
-
-A write tool needs no `allow_write` flag on a tool step. Naming the tool is the
-choice. Tool outputs use a mapping from output names to one expression over
-`result` or `vars`.
-
-Mappings are checked against the provider catalog's `outputSchema`. A closed
-object whose properties are all required keeps typed field access. Open objects,
-optional properties, and unknown schema shapes resolve to `map` or `dyn`. A
-mapped value from such a shape is declared as schema-less JSON. It can retain a
-number, boolean, object, or list at runtime. A tool without an `outputSchema`
-keeps its reserved `result` root open.
-
-Tool-step authoring requires a validation API deployment that supports these
-fields. Deploy the editor schema and validation API together. Rolling back the
-validation API after tool-step definitions are saved makes those definitions
-fail validation until support is restored.
-
-### Tool step outputs
-
-<ToolStepOutputs />
-
-Every tool step exposes `result`, the provider response, as a `json` output.
-Later steps read it as `steps.<key>.outputs.result`. A gate on a tool step
-reads `step.status` and `step.outputs`; `step.exit_code` does not exist on a
-tool step. See [Call an integration
-tool](/how-to/author-workflows/call-integration-tool) for a complete example.
-
-### Checkout step fields
-
-<CheckoutStepFields />
-
-### Agent step fields
-
-<AgentStepFields />
-
-## Agent integration fields
-
-<AgentIntegrationFields />
-
-## Agent session fields
-
-`session` names an agent conversation that later agent steps in the same run
-continue. A string names the session and resumes it. An object adds the mode.
-
-<AgentSessionFields />
-
-A key contains only letters, digits, dots, underscores, and hyphens, starts
-with a letter or digit, and is at most 128 characters. It can contain `${{ }}`
-expressions, resolved at step dispatch. A session is scoped to one run attempt.
-A rerun of failed jobs carries named sessions into the new attempt. A rerun of
-all jobs starts sessions fresh. A carried session remains pinned to the harness
-that created it. When a step targets an existing session, omitting `harness`
-inherits the pinned harness, whether the step resumes or forks; an explicit
-harness on a sharing step must resolve to the same harness.
-
-Sync rejects two parallel `resume` steps on one literal key
-(`agent-session-parallel-resume`) and steps that share a key with different
-`harness` values (`agent-session-harness-mismatch`). At run time a step fails
-with `agent_session_key_invalid`, `agent_session_held`,
-`agent_session_harness_mismatch`, or `agent_session_unavailable`. See
-[Limits](/reference/limits#agent-sessions) for the size cap and retention, and
-[Agent sessions](/understand/agent-sessions) for the model.
-
-## Gate fields
-
-<GateFields />
-
-A gate must define `success`, `on_failure`, or both.
-
-### Gate failure fields
-
-<GateFailureFields />
-
-## Step outputs
-
-<StepOutputs />
-
-Run, agent, and checkout steps use output declarations. A declaration can be its
-type directly (for example, `sha: string`) or an object with required `type`.
-Only `json` declarations can include `schema`. A schema-less `json` declaration
-is dynamic: typed expressions can use its value, but its exact fields are not
-known until runtime.
-
-Tool steps use output mappings instead. Each mapping value must be exactly one
-`${{ }}` expression over the tool `result` or workflow `vars`.
-
-## Listening fields
+### `jobs.<job_id>.listening` [#listening-fields]
 
 <ListeningFields />
 
-### Listening batch fields
+#### `jobs.<job_id>.listening.batch` [#listening-batch-fields]
 
 <ListeningBatchFields />
 
-A batch must set at least one of `debounce`, `max_size`, or `max_wait`.
+### `jobs.<job_id>.steps[*]` [#step-fields]
 
-## Environment variables
+<StepFields />
 
-<EnvironmentVariables />
+#### `steps[*].gate` [#gate-fields]
+
+<GateFields />
+
+#### `steps[*].gate.on_failure` [#gate-failure-fields]
+
+<GateFailureFields />
+
+#### `steps[*].outputs` [#step-outputs]
+
+<StepOutputs />
+
+### `steps[*]` run step [#run-step-fields]
+
+Accepts the shared step fields plus:
+
+<RunStepFields />
+
+### `steps[*]` agent step [#agent-step-fields]
+
+Accepts the shared step fields plus:
+
+<AgentStepFields />
+
+#### `steps[*].integrations[*]` [#agent-integration-fields]
+
+<AgentIntegrationFields />
+
+#### `steps[*].session` [#agent-session-fields]
+
+<AgentSessionFields />
+
+### `steps[*]` tool step [#tool-step-fields]
+
+<ToolStepFields />
+
+#### `steps[*].outputs` tool step [#tool-step-outputs]
+
+<ToolStepOutputs />
+
+### `steps[*]` checkout step [#checkout-step-fields]
+
+Accepts the shared step fields plus:
+
+<CheckoutStepFields />
+
+#### `steps[*].checkout` [#checkout-fields]
+
+<CheckoutFields />
+
+#### `steps[*].checkout.permissions` [#checkout-permissions-fields]
+
+<CheckoutPermissionsFields />
 
 ## Related pages
 

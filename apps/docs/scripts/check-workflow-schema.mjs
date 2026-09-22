@@ -1,25 +1,33 @@
 import {readdir, readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {GithubSlugger} from './lib/slug.mjs';
+import {anchorForHeading, GithubSlugger} from './lib/slug.mjs';
 
 const docsRoot = fileURLToPath(new URL('..', import.meta.url));
 const contentRoot = path.join(docsRoot, 'content', 'docs');
 const workflowSchemaPage = path.join(contentRoot, 'reference', 'workflow-schema.mdx');
 const requiredAnchors = new Set([
+  'top-level-fields',
   'concurrency-fields',
   'trigger-fields',
-  'step-outputs',
   'job-fields',
+  'job-checkout-fields',
+  'listening-fields',
+  'listening-batch-fields',
+  'step-fields',
+  'run-step-fields',
   'agent-step-fields',
   'agent-integration-fields',
-  'listening-fields',
-  'gate-fields',
-  'run-step-fields',
+  'agent-session-fields',
   'tool-step-fields',
+  'checkout-step-fields',
+  'checkout-fields',
+  'checkout-permissions-fields',
+  'gate-fields',
+  'gate-failure-fields',
+  'step-outputs',
   'tool-step-outputs',
   'environment-variables',
-  'checkout-fields',
 ]);
 const schemaHeader =
   '# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json';
@@ -68,7 +76,7 @@ function anchorsFor(content) {
   const anchors = new Set();
   const slugger = new GithubSlugger();
   for (const match of content.matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
-    if (match[1]) anchors.add(slugger.slug(match[1]));
+    if (match[1]) anchors.add(anchorForHeading(match[1], slugger));
   }
   return anchors;
 }

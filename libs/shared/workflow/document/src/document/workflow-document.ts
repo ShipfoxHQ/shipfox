@@ -33,16 +33,15 @@ export const agentThinkingFieldSchema = z
   ])
   .meta({
     description:
-      'Reasoning effort for an agent step. Supported values depend on the resolved harness. Accepts a $' +
-      '{{ }} interpolation. When omitted, Shipfox uses the provider default, or `xhigh` when none is configured.',
+      'Sets how much reasoning the agent uses. Available values depend on the harness. Supports workflow expressions. See [Model providers](/reference/model-providers).',
   });
 
 const workflowNameSchema = literalNameSchema(
   'Workflow name must be literal. Move runtime interpolation to run_name.',
-).meta({description: 'Static literal human-readable workflow name.'});
+).meta({description: 'Names the workflow.'});
 const jobNameSchema = literalNameSchema(
   'Job name must be literal. Move runtime interpolation to execution_name.',
-).meta({description: 'Static literal human-readable job name.'});
+).meta({description: 'Names the job.'});
 
 function literalNameSchema(message: string) {
   return z.string().min(1).regex(WORKFLOW_LITERAL_NAME_PATTERN, {message});
@@ -127,11 +126,7 @@ export const workflowDocumentToolStepWithSchema = z
   .transform((withValue) => withValue as Record<string, WorkflowDocumentJsonValue>)
   .meta({
     description:
-      'Tool inputs as a JSON tree. The map allows up to ' +
-      WORKFLOW_DOCUMENT_TOOL_WITH_MAX_SERIALIZED_BYTES +
-      ' serialized bytes and ' +
-      WORKFLOW_DOCUMENT_TOOL_WITH_MAX_DEPTH +
-      ' nesting levels for a tool step.',
+      'Provides input values to the tool. The tool defines the accepted fields. String values support workflow expressions. See [Context availability](/reference/contexts#context-availability).',
   });
 
 type WorkflowDocumentToolWithValidationTask =
@@ -456,39 +451,40 @@ export const workflowDocumentConcurrencySchema = z
   .strictObject({
     group: z.string().min(1).meta({
       description:
-        'Required group interpolation template used to coordinate workflow runs. See [Contexts](/reference/contexts#context-availability) for available data.',
+        'Names the group. Runs with the same group name wait for each other. Supports workflow expressions. See [Contexts](/reference/contexts#context-availability).',
     }),
     scope: z.enum(['workflow', 'project']).optional().meta({
       description:
-        'Concurrency scope. Defaults to `workflow`; use `project` to coordinate workflows in one project.',
+        'Chooses whether the group applies to this workflow or every workflow in the project.',
     }),
     cancel_in_progress: z.boolean().optional().meta({
-      description:
-        'Cancel the current holder when a newer run waits for the group. Defaults to `false`.',
+      description: 'Set to `true` to stop the active run when a newer run joins the group.',
     }),
   })
-  .meta({description: 'Latest-wins concurrency policy for workflow runs.'});
+  .meta({
+    description:
+      'Limits each group to one active run and the newest waiting run. See [Workflow concurrency groups](/understand/workflow-concurrency-groups).',
+  });
 
 const workflowDocumentTriggerBaseSchema = {
   source: z.string().min(1).meta({
     description:
-      'Integration connection slug or built-in trigger source. See [Integrations](/integrations) for provider sources.',
+      'Selects the slug of an integration connection or a built-in source that starts the workflow. See [Integrations](/integrations) for provider sources.',
   }),
   with: z.record(z.string(), z.unknown()).optional().meta({
     description:
-      'Provider-specific values used to match or configure the trigger. See the provider event catalog in [Integrations](/integrations).',
+      "Provides values that match or configure the trigger. See each provider's event catalog in [Integrations](/integrations).",
   }),
   secrets: z.record(z.string(), z.string()).optional().meta({
-    description:
-      'Secret input aliases and source names. Names must be literal secret keys and are resolved in the workflow project.',
+    description: 'Maps trigger input names to secret names in the Shipfox project.',
   }),
   filter: z.string().min(1).optional().meta({
     description:
-      'CEL condition that filters matching events. It is not supported for `manual` or `cron` triggers. See [Expressions](/reference/expressions) and [Contexts](/reference/contexts#context-availability).',
+      'Starts the workflow only when an event matches this condition. The condition can use `event` and `trigger`. `manual` and `cron` triggers do not use this field. See [Expressions](/reference/expressions) and [Contexts](/reference/contexts#context-availability).',
   }),
   config: z.record(z.string(), z.unknown()).optional().meta({
     description:
-      'Source-specific configuration. It is supported only for top-level triggers with a known built-in source. See [Schedule workflows](/how-to/author-workflows/schedule-workflows).',
+      'Configures a built-in trigger source, such as `cron`. See [Schedule workflows](/how-to/author-workflows/schedule-workflows).',
   }),
 } satisfies z.ZodRawShape;
 
@@ -510,7 +506,7 @@ export const workflowDocumentTriggerSchema = z
     ...workflowDocumentTriggerBaseSchema,
     event: z.string().min(1).optional().meta({
       description:
-        'Event name that starts the workflow. Omit it to accept every event the source delivers. Sources that deliver one event, such as `manual`, `cron`, and custom webhooks, do not need it.',
+        'Selects the event that starts the workflow. Omit it to accept every event from the source.',
     }),
   })
   .superRefine((trigger, ctx) => {
@@ -540,30 +536,27 @@ export const workflowDocumentTriggerSchema = z
 const workflowDocumentListeningSchema = z
   .strictObject({
     on: z.array(workflowDocumentTriggerSchema).min(1).meta({
-      description: 'Events that start listening. Listening triggers cannot use `config`.',
+      description: 'Selects the events to listen for.',
     }),
     until: z.array(workflowDocumentTriggerSchema).min(1).optional().meta({
-      description:
-        'Events that resolve listening. Listening jobs need this, `timeout`, or `max_executions`; these triggers cannot use `config`.',
+      description: 'Stops listening when one of these events arrives.',
     }),
     timeout: z.string().min(1).optional().meta({
-      description:
-        'Maximum duration to listen before resolving. A listening job needs this, `until`, or `max_executions`.',
+      description: 'Stops listening after this duration.',
     }),
     max_executions: z.number().int().positive().optional().meta({
-      description:
-        'Maximum number of matching events before resolving. A listening job needs this, `until`, or `timeout`.',
+      description: 'Stops listening after this many job executions.',
     }),
     batch: z
       .strictObject({
         debounce: z.string().min(1).optional().meta({
-          description: 'Quiet period to wait for more matching events before processing a batch.',
+          description: 'Waits for this quiet period before processing a batch.',
         }),
         max_size: z.number().int().positive().optional().meta({
-          description: 'Maximum number of matching events in one batch.',
+          description: 'Limits each batch to this number of events.',
         }),
         max_wait: z.string().min(1).optional().meta({
-          description: 'Maximum time to wait before processing a partial batch.',
+          description: 'Processes a partial batch after this duration.',
         }),
       })
       .refine(
@@ -576,10 +569,11 @@ const workflowDocumentListeningSchema = z
       .optional()
       .meta({
         description:
-          'Optional batching policy. Set at least one of `debounce`, `max_size`, or `max_wait`.',
+          'Groups matching events before the job processes them. Set `debounce`, `max_size`, or `max_wait`.',
       }),
     on_resolve: z.enum(['finish', 'cancel']).optional().meta({
-      description: 'How the job resolves when its listening condition is met.',
+      description:
+        'Chooses what Shipfox does when listening ends. `finish` lets the current execution finish. `cancel` stops it.',
     }),
   })
   .superRefine((listening, ctx) => {
@@ -600,22 +594,21 @@ const workflowDocumentStepGateSchema = z
   .strictObject({
     success: z.string().min(1).optional().meta({
       description:
-        'CEL expression that must evaluate to true for the step to succeed. See [gate outcomes](/understand/feedback-loops#gate-outcomes).',
+        'Marks the step as successful when the condition returns `true`. See [Gate outcomes](/understand/feedback-loops#gate-outcomes).',
     }),
     on_failure: z
       .strictObject({
         restart_from: z.string().min(1).meta({
-          description:
-            'Key of an earlier step in the same job to restart from after a failed gate.',
+          description: 'Selects the earlier step where the job restarts after the gate fails.',
         }),
         feedback: z.string().min(1).optional().meta({
-          description: 'Feedback supplied when the gate fails before restarting.',
+          description: 'Provides text that the repeated step can read after the gate fails.',
         }),
       })
       .optional()
       .meta({
         description:
-          'Restart behavior when the success gate fails. See [feedback loops](/understand/feedback-loops).',
+          'Restarts the job from an earlier step when the gate fails. See [Feedback loops](/understand/feedback-loops).',
       }),
   })
   .refine((value) => value.success !== undefined || value.on_failure !== undefined, {
@@ -625,42 +618,44 @@ const workflowDocumentStepGateSchema = z
 const workflowDocumentCheckoutPermissionsSchema = z
   .strictObject({
     contents: z.enum(['read', 'write']).optional().meta({
-      description: 'Repository contents permission granted to checkout.',
+      description: 'Sets read or write access to the repository contents.',
     }),
   })
   .optional()
   .meta({
-    description: 'Repository permissions used during checkout.',
+    description: 'Sets the repository permissions for this checkout.',
   });
 
 const workflowDocumentPersistCredentialsSchema = z.boolean().optional().meta({
-  description: 'Whether checkout credentials remain available to later run steps.',
+  description: 'Keeps checkout credentials available to later run steps.',
 });
 
 export const workflowDocumentCheckoutSchema = z
   .strictObject({
     project: z.string().min(1).optional().meta({
-      description: 'Shipfox project id to check out. Exclusive with connection and repository.',
+      description:
+        'Checks out the repository from this Shipfox project. Do not use it with `connection` or `repository`.',
     }),
     connection: z.string().min(1).optional().meta({
-      description: 'Integration connection slug to use for checkout.',
+      description:
+        'Selects the integration connection that can access the repository. Use it with `repository`.',
     }),
     repository: z.string().min(1).optional().meta({
-      description: 'Repository to check out, as owner/name or a bare name.',
+      description: 'Names the repository to check out. Use `owner/name` or a bare repository name.',
     }),
     ref: z.string().min(1).optional().meta({
-      description: 'Repository ref to check out.',
+      description: 'Selects the branch, tag, or commit to check out.',
     }),
     'fetch-depth': z.number().int().min(0).optional().meta({
-      description: 'Number of commits to fetch. Use 0 for full history.',
+      description: 'Sets how many commits to fetch. Use `0` for the full history.',
     }),
     path: z.string().min(1).optional().meta({
-      description: 'Relative path under the job workspace where this repository is checked out.',
+      description: 'Sets the destination folder under the job workspace.',
     }),
     permissions: workflowDocumentCheckoutPermissionsSchema,
     'persist-credentials': workflowDocumentPersistCredentialsSchema,
     force: z.boolean().optional().meta({
-      description: 'Whether checkout may replace an occupied destination.',
+      description: 'Allows checkout to replace existing content at the destination.',
     }),
   })
   .superRefine((checkout, ctx) => {
@@ -689,23 +684,25 @@ const workflowDocumentJobCheckoutSchema = z
   ])
   .meta({
     description:
-      'Checkout settings for repository content and credentials, or false to skip checkout.',
+      'Configures repository permissions and saved credentials for this job. Set to `false` to skip checkout.',
   });
 
 export const workflowDocumentStepIntegrationSelectionSchema = z.array(z.string().min(1)).min(1);
 
 export const workflowDocumentStepIntegrationSchema = z.strictObject({
   connection: z.string().min(1).optional().meta({
-    description: 'Integration connection slug to use for these tools.',
+    description: 'Selects an integration connection by its slug.',
   }),
   include: workflowDocumentStepIntegrationSelectionSchema.meta({
-    description: 'Tool selectors to make available to the agent.',
+    description:
+      "Selects tools for the agent. See [Integrations](/integrations) for each provider's selectors.",
   }),
   exclude: workflowDocumentStepIntegrationSelectionSchema.optional().meta({
-    description: 'Tool selectors to remove from the included tools.',
+    description: 'Removes tools from the `include` selection.',
   }),
   allow_write: z.boolean().optional().meta({
-    description: 'Allows write-capable integration tools. Omit or set false for read-only access.',
+    description:
+      'Set to `true` to let the agent use tools that can change external data. Otherwise, the agent receives read-only tools.',
   }),
 });
 
@@ -742,17 +739,17 @@ export const workflowDocumentSessionSchema = z
     workflowSessionKeyTemplateSchema,
     z.strictObject({
       key: workflowSessionKeySchema.meta({
-        description: 'Session key, or a $' + '{{ }} interpolation that resolves to one.',
+        description: 'Names the session. Supports a $' + '{{ }} expression.',
       }),
       mode: z.enum(['resume', 'fork']).optional().meta({
         description:
-          'Session mode. `resume` continues the session and writes back; `fork` reads a snapshot and never writes. Defaults to `resume`.',
+          'Chooses how to continue the session. `resume` continues and updates it. `fork` reads a snapshot without updating it.',
       }),
     }),
   ])
   .meta({
     description:
-      'Named agent session continued across steps of one workflow run. A string names the session and resumes it; an object adds the mode.',
+      'Continues an agent conversation across steps in one workflow run. See [Agent sessions](/understand/agent-sessions).',
   });
 
 export function isValidWorkflowSessionKeyTemplateLiteralParts(source: string): boolean {
@@ -902,73 +899,70 @@ const workflowDocumentStepBaseSchema = z.strictObject({
     .string()
     .min(1)
     .optional()
-    .meta({description: 'Stable step key for dependencies and outputs.'}),
-  if: z
-    .string()
-    .min(1)
-    .optional()
-    .meta({
-      description:
-        'CEL condition wrapped in exactly one $' +
-        '{{ }} interpolation. See [conditionals](/reference/expressions#syntax).',
-    }),
-  name: z.string().min(1).optional().meta({description: 'Human-readable step name.'}),
+    .meta({description: 'Gives the step an identifier that other fields can use.'}),
+  if: z.string().min(1).optional().meta({
+    description:
+      'Runs this step only when the condition is true. See [Conditionals](/reference/expressions#syntax).',
+  }),
+  name: z.string().min(1).optional().meta({description: 'Sets the name shown for the step.'}),
   working_directory: z.string().min(1).optional().meta({
-    description: 'Working directory for the step, relative to the job workspace.',
+    description:
+      'Sets the folder where the command runs. The path is relative to the job workspace.',
   }),
   run: z.string().min(1).optional().meta({
-    description: 'Shell command for a run step. Do not combine it with agent-only fields.',
+    description:
+      'Runs a shell command. Pass workflow values as command arguments, such as `deploy "$TARGET"`. Do not send them to commands such as `eval` or `sh -c`.',
   }),
   checkout: workflowDocumentCheckoutSchema.optional().meta({
-    description: 'Repository checkout settings for this step.',
+    description: 'Checks out a repository for this step.',
   }),
   model: z.string().min(1).optional().meta({
-    description: 'Model ID for an agent step. It requires `prompt` and is not valid on a run step.',
+    description: 'Selects the model that the agent uses.',
   }),
   prompt: z.string().min(1).optional().meta({
-    description: 'Prompt for an agent step. It is required when any agent-only field is set.',
+    description: 'Gives the agent its instructions.',
   }),
   harness: harnessSchema.optional().meta({
     description:
-      'Agent harness. When omitted, Shipfox uses the workspace default harness, or `pi` when none is configured.',
+      'Selects the agent runtime. Shipfox uses the workspace default harness, or `pi` if no default exists. See [Agent harness](/reference/glossary#agent-harness).',
   }),
   thinking: agentThinkingFieldSchema.optional(),
   session: workflowDocumentSessionSchema.optional(),
   provider: z.string().min(1).optional().meta({
     description:
-      'Model provider ID for an agent step. It requires `prompt` and is not valid on a run step.',
+      'Selects the model provider for this step. See [Model providers](/reference/model-providers).',
   }),
   tools: z.array(z.string().min(1)).min(1).optional().meta({
-    description:
-      'Built-in tool IDs for an agent step. It requires `prompt` and is not valid on a run step.',
+    description: 'Gives the agent the listed built-in tools.',
   }),
   tool_surface: agentToolSurfaceSchema.optional(),
   integrations: z.array(workflowDocumentStepIntegrationSchema).min(1).optional().meta({
     description:
-      'Integration tools available to an agent step. It requires `prompt` and is not valid on a run step. See [integrations and tools](/understand/integrations-connections-and-tools).',
+      'Adds tools from integration connections to this agent step. See [integrations and tools](/understand/integrations-connections-and-tools).',
   }),
   agent: z.unknown().optional().meta({
     description: 'Reserved keyword. It is rejected; use `prompt` to define an agent step.',
   }),
   tool: literalNameSchema('Tool id must be literal. Interpolation is rejected.').optional().meta({
-    description: 'Literal integration tool id for a tool step.',
+    description:
+      'Calls an integration tool by its id. Use a standalone tool or a family method such as `family.method`. See [Call an integration tool](/how-to/author-workflows/call-integration-tool) for an example.',
   }),
   connection: literalNameSchema('Connection slug must be literal. Interpolation is rejected.')
     .optional()
     .meta({
-      description: 'Literal integration connection slug for a tool step.',
+      description:
+        'Selects an integration connection by its slug. If omitted, Shipfox uses the source integration connection of the project.',
     }),
   with: workflowDocumentToolStepWithSchema.optional(),
   gate: workflowDocumentStepGateSchema.optional().meta({
-    description: 'Success gate and optional restart behavior after the step runs.',
+    description:
+      'Checks the step result and can restart earlier steps. Set `success`, `on_failure`, or both. See [Feedback loops](/understand/feedback-loops).',
   }),
   env: workflowDocumentEnvSchema.optional().meta({
-    description: 'Environment variables for a run step. They are not valid on an agent step.',
+    description: 'Sets environment variables for this run step.',
   }),
   outputs: workflowDocumentStepOutputsFieldSchema.optional().meta({
-    description:
-      'Named output declarations produced by this step, or on a tool step a mapping of output keys to exactly one $' +
-      '{{ }} expression over `result`.',
+    description: 'Defines values that later steps can use.',
   }),
 });
 
@@ -1185,69 +1179,63 @@ const workflowDocumentJobOutputsSchema = nonEmptyRecordSchema(z.string().min(1))
 
 export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional().meta({
-    description: 'Job key or keys that must complete before this job starts.',
+    description: 'Lists the jobs that must finish before this job starts.',
   }),
-  if: z
-    .string()
-    .min(1)
-    .optional()
-    .meta({
-      description:
-        'CEL condition wrapped in exactly one $' +
-        '{{ }} interpolation. See [conditionals](/reference/expressions#syntax).',
-    }),
+  if: z.string().min(1).optional().meta({
+    description:
+      'Runs this job only when the condition is true. See [Conditionals](/reference/expressions#syntax).',
+  }),
   runner: stringOrStringArraySchema.optional().meta({
     description:
-      'Runner label or ordered fallback labels for this job. See [runners and execution environments](/understand/runners-and-execution-environments).',
+      'Selects the runner for this job. List labels in fallback order. See [Runners and execution environments](/understand/runners-and-execution-environments).',
   }),
   success: z.string().min(1).optional().meta({
     description:
-      'CEL expression that determines whether the job succeeds. See [Expressions](/reference/expressions#functions-and-macros) and [Contexts](/reference/contexts#context-availability).',
+      'Marks the job as successful when the condition returns `true`. See [Expressions](/reference/expressions#functions-and-macros) and [Contexts](/reference/contexts#context-availability).',
   }),
   outputs: workflowDocumentJobOutputsSchema.optional().meta({
-    description: `Named job outputs mapped from step values. A mapping with exactly one expression preserves an inferred non-string source type. Each job allows up to ${WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES} declarations.`,
+    description:
+      "Creates named outputs from values produced by this job's steps. A later job must list this job in `needs` before it can use them.",
   }),
   execution_timeout: z.string().min(1).optional().meta({
-    description: 'Maximum duration for one job execution.',
+    description: 'Stops one job execution after this duration.',
   }),
   checkout: workflowDocumentJobCheckoutSchema.optional(),
   listening: workflowDocumentListeningSchema.optional().meta({
     description:
-      'Event-listening configuration for this job. See [listening jobs](/understand/listening-jobs).',
+      'Keeps the job open for matching events. Set `until`, `timeout`, or `max_executions` to end it. See [Listening jobs](/understand/listening-jobs).',
   }),
   name: jobNameSchema.optional(),
   execution_name: z.string().min(1).optional().meta({
-    description: 'Dynamic name for each job execution. Supports workflow expressions.',
+    description: 'Sets the name of each job execution. Supports workflow expressions.',
   }),
   env: workflowDocumentEnvSchema.optional().meta({
-    description:
-      'Environment variables for run steps in this job. They do not apply to agent steps. See [secrets and variables](/reference/secrets-variables).',
+    description: 'Sets environment variables for every run step in this job.',
   }),
   steps: z.array(workflowDocumentStepSchema).min(1).meta({
-    description: 'Ordered run, agent, checkout, or tool steps. Each job needs at least one step.',
+    description: 'Lists the steps that this job runs in order.',
   }),
 });
 
 export const workflowDocumentSchema = z.strictObject({
   name: workflowNameSchema,
   run_name: z.string().min(1).optional().meta({
-    description: 'Dynamic name for each workflow run. Supports workflow expressions.',
+    description: 'Names each workflow run. Supports workflow expressions.',
   }),
   runner: stringOrStringArraySchema.optional().meta({
     description:
-      'Default runner label or ordered fallback labels for run jobs. See [runners and execution environments](/understand/runners-and-execution-environments).',
+      'Selects the default runner for jobs in this workflow. List labels in fallback order. See [Runners and execution environments](/understand/runners-and-execution-environments).',
   }),
   env: workflowDocumentEnvSchema.optional().meta({
-    description:
-      'Workflow-level environment variables for run steps. They do not apply to agent steps. See [secrets and variables](/reference/secrets-variables).',
+    description: 'Sets environment variables for run steps in every job.',
   }),
   concurrency: workflowDocumentConcurrencySchema.optional(),
   triggers: nonEmptyRecordSchema(workflowDocumentTriggerSchema).optional().meta({
     description:
-      'Named events that start workflow runs. A workflow can have at most one `manual` trigger.',
+      'Defines the events that start the workflow. Add no more than one `manual` trigger.',
   }),
   jobs: nonEmptyRecordSchema(workflowDocumentJobSchema).meta({
-    description: 'Named jobs that make up the workflow. At least one job is required.',
+    description: 'Defines the jobs that the workflow runs. Add at least one job.',
   }),
 });
 

@@ -1,0 +1,11 @@
+name: Build
+jobs:
+  build:
+    steps:
+      - key: compile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+        working_directory: apps/api
+        env:
+          NODE_ENV: production

@@ -1,0 +1,15 @@
+name: Answer review comments
+jobs:
+  answer:
+    listening:
+      on:
+        - source: github_acme
+          event: pull_request_review_comment.created
+      until:
+        - source: github_acme
+          event: pull_request.closed
+      timeout: 8h
+      max_executions: 10
+      on_resolve: finish
+    steps:
+      - prompt: Answer the review comment in the step log.
