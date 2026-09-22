@@ -93,7 +93,7 @@ describe('waitForDefinitionSyncTerminal', () => {
   test('ignores the empty bind sync while waiting for the seeded push', async () => {
     const projectId = '11111111-1111-4111-8111-111111111111';
     const responses = [
-      ...Array.from({length: 5}, () => ({
+      ...Array.from({length: 3}, () => ({
         definitions: [],
         sync: {
           ref: 'main',
@@ -137,7 +137,7 @@ describe('waitForDefinitionSyncTerminal', () => {
     });
 
     expect(result.sync?.started_at).toBe('2026-07-04T10:00:01.000Z');
-    expect(calls).toBe(6);
+    expect(calls).toBe(4);
   });
 
   test('returns a persistent current no-workflow-files failure after a short grace period', async () => {
@@ -158,6 +158,7 @@ describe('waitForDefinitionSyncTerminal', () => {
     };
     let calls = 0;
     const result = await waitForDefinitionSyncTerminal({
+      expectWorkflowFiles: true,
       fetch: () => {
         calls += 1;
         return response(failedResponse);
