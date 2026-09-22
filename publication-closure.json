@@ -140,6 +140,7 @@
     "@shipfox/redact",
     "@shipfox/regex",
     "@shipfox/runner-labels",
-    "@shipfox/workflow-document"
+    "@shipfox/workflow-document",
+    "@shipfox/workflow-templates"
   ]
 }
