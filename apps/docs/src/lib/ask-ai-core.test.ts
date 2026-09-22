@@ -58,6 +58,17 @@ test('resolves the docs root to the index page', () => {
   assert.equal(normalizePagePath('/docs'), '/');
 });
 
+test('reduces a canonical URL that also carries a fragment or a trailing slash', () => {
+  assert.equal(
+    normalizePagePath('https://www.shipfox.io/docs/reference/contexts#event'),
+    '/reference/contexts',
+  );
+  assert.equal(
+    normalizePagePath('https://www.shipfox.io/docs/reference/contexts/'),
+    '/reference/contexts',
+  );
+});
+
 test('drops an anchor, a query, and a trailing slash', () => {
   assert.equal(normalizePagePath('/reference/contexts#event'), '/reference/contexts');
   assert.equal(normalizePagePath('/reference/contexts?utm=1'), '/reference/contexts');

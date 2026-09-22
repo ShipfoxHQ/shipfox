@@ -260,7 +260,7 @@ function ReadStep({part}: {part: ReadPart}) {
 }
 
 function ReadStepLabel({part}: {part: ReadPart}) {
-  if (part.state === 'output-error' || part.state === 'output-denied')
+  if (part.state === 'output-error')
     return <p className="text-fd-primary">{part.errorText ?? 'That page could not be read.'}</p>;
   if (part.state !== 'output-available') return <p>Reading the docs…</p>;
   return <p>{`Read ${part.output.title}`}</p>;
