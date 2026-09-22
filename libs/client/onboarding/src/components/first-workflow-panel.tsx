@@ -13,8 +13,6 @@ import type {WorkspaceReference} from './setup-checklist-types.js';
 export const FIRST_WORKFLOW_PROMPT =
   'Set up a Shipfox workflow for this repository. Use the Shipfox MCP server: call `get_workflow_setup_guide` and follow it.';
 
-const GETTING_STARTED_URL = 'https://www.shipfox.io/docs/getting-started';
-
 export interface FirstWorkflowPanelProps {
   workspace: WorkspaceReference;
 }
@@ -120,9 +118,6 @@ export function FirstWorkflowPanel({workspace}: FirstWorkflowPanelProps) {
               </div>
             </div>
           </PanelRow>
-          <div className="flex justify-end border-t border-border-neutral-base px-row py-row">
-            <a href={GETTING_STARTED_URL}>Use the manual quickstart</a>
-          </div>
         </PanelBody>
       </section>
     </Panel>

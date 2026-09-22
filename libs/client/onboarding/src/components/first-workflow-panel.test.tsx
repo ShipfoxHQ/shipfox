@@ -66,7 +66,7 @@ afterEach(() => {
 });
 
 describe('FirstWorkflowPanel', () => {
-  test('renders the MCP setup step and the manual quickstart', async () => {
+  test('renders the MCP setup step and the prompt', async () => {
     const capture = vi.fn();
     renderPanel({capture});
 
@@ -77,10 +77,6 @@ describe('FirstWorkflowPanel', () => {
     expect(screen.getByRole('link', {name: 'Connect MCP server'})).toHaveAttribute(
       'href',
       `/w/${WORKSPACE_SLUG}/settings/agent-access`,
-    );
-    expect(screen.getByRole('link', {name: 'Use the manual quickstart'})).toHaveAttribute(
-      'href',
-      'https://www.shipfox.io/docs/getting-started',
     );
     await waitFor(() =>
       expect(capture).toHaveBeenCalledWith('first_workflow_panel_opened', undefined),

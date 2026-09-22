@@ -30,10 +30,9 @@ post-activation Get-started checklist, and its panel and top-bar hosts.
   opens the full list, and that choice is remembered per device. The popover
   always carries the whole checklist.
 - **`FirstWorkflowPanel`**: an exported two-step panel that links to Shipfox MCP
-  settings, copies the fixed setup prompt, and links to the manual quickstart.
-  It reads the signed-in user's agent grants and shows the MCP step as
-  connected when one belongs to the workspace. The activation flow mounts it
-  separately.
+  settings and copies the fixed setup prompt. It reads the signed-in user's
+  agent grants and shows the MCP step as connected when one belongs to the
+  workspace. The activation flow mounts it separately.
 
 The derivations are pure functions. They test without React and decide what
 the checklist shows, while the hosts own query freshness, loading and failure
