@@ -12,6 +12,8 @@ const ESC = String.fromCharCode(27);
 const READ_FILE_BUTTON_NAME = /Read File/;
 const LARGE_READ_BUTTON_NAME = /Read File.*src\/large.ts/;
 const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
+const GROUPED_NATIVE_BUTTON_NAME = /Read File, 2 reads/;
+const GROUPED_INTEGRATION_BUTTON_NAME = /Linear · Get Issue, 2 reads/;
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
 const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
 
@@ -217,6 +219,60 @@ const pairedActivityRecords: LogRecord[] = [
     },
     2,
   ),
+];
+
+const groupedReadTools: IntegrationActionTool[] = [
+  {
+    provider: 'linear',
+    connectionId: 'tickets-main',
+    connectionSlug: 'tickets-main',
+    toolId: 'get_issue',
+    sensitivity: 'read',
+  },
+];
+
+const groupedReadRecords: LogRecord[] = [
+  ...nativeToolRecords([
+    {name: 'read_file', input: {path: 'src/main.ts'}, output: 'export const main = true;'},
+    {name: 'read_file', input: {path: 'src/helper.ts'}, output: 'export const helper = true;'},
+    {name: 'Read', input: {file_path: 'src/view.tsx'}, output: 'export function View() {}'},
+    {name: 'Read', input: {file_path: 'src/panel.tsx'}, output: 'export function Panel() {}'},
+  ]),
+  session(
+    {
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      text: 'Checking the related issues.',
+      meta: [],
+      terminalFailure: false,
+    },
+    10,
+  ),
+  ...['ENG-2311', 'ENG-2312'].flatMap((issue, index): LogRecord[] => [
+    session(
+      {
+        kind: 'tool-call',
+        timestamp: 0,
+        id: `issue-${index}`,
+        name: 'mcp__shipfox_integration_tools__tickets_main__get_issue',
+        input: JSON.stringify({id: issue}),
+      },
+      11 + index * 2,
+    ),
+    session(
+      {
+        kind: 'tool-result',
+        timestamp: 0,
+        toolCallId: `issue-${index}`,
+        toolName: 'get_issue',
+        output: JSON.stringify({identifier: issue, title: 'Completed prerequisite'}),
+        isError: false,
+      },
+      12 + index * 2,
+    ),
+  ]),
 ];
 
 function nativeToolRecords(
@@ -847,6 +903,39 @@ export const PairedActivityAndMarkdown: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', {name: READ_FILE_BUTTON_NAME}));
   },
+};
+
+export const GroupedNativeAndIntegrationReads: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={[...groupedReadRecords, {v: 1, ts: at(16), type: 'end', totalBytes: 0}]}
+        actionPresentation={createIntegrationActionPresentationLookup(groupedReadTools)}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    const nativeGroups = await canvas.findAllByRole('button', {name: GROUPED_NATIVE_BUTTON_NAME});
+    if (nativeGroups[0]) await userEvent.click(nativeGroups[0]);
+    await userEvent.click(
+      await canvas.findByRole('button', {name: GROUPED_INTEGRATION_BUTTON_NAME}),
+    );
+  },
+};
+
+export const SearchedReadGroup: Story = {
+  args: {search: 'ENG-2312'},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={groupedReadRecords}
+        actionPresentation={createIntegrationActionPresentationLookup(groupedReadTools)}
+      />
+    </div>
+  ),
 };
 
 export const NativePiTools: Story = {

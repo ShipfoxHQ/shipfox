@@ -26,6 +26,7 @@ export interface ActivityActionRowProps {
   terminated: boolean;
   forceOpen?: boolean;
   presentation?: ActionPresentation | undefined;
+  hideIcon?: boolean;
 }
 
 export function ActivityActionRow({
@@ -34,6 +35,7 @@ export function ActivityActionRow({
   terminated,
   forceOpen = false,
   presentation,
+  hideIcon = false,
 }: ActivityActionRowProps) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -82,21 +84,8 @@ export function ActivityActionRow({
         )}
       >
         <span className="inline-flex min-w-0 items-center gap-inline">
-          {resolvedPresentation.integration ? (
-            <IntegrationIcon
-              source={resolvedPresentation.integration.provider}
-              className="size-14 flex-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <ActionIcon kind={resolvedPresentation.iconKind} />
-          )}
-          <span className="truncate">
-            {resolvedPresentation.integration
-              ? `${providerLabel(resolvedPresentation.integration.provider)} · `
-              : ''}
-            {resolvedPresentation.label}
-          </span>
+          {hideIcon ? null : <ActionIdentityIcon presentation={resolvedPresentation} />}
+          <span className="truncate">{actionDisplayLabel(resolvedPresentation)}</span>
         </span>
       </LogDisclosureTrigger>
       <LogDisclosureContent className="border-l-0 pb-row">
@@ -287,6 +276,12 @@ function StructuredEntry({label, item, depth}: {label: string; item: unknown; de
   );
 }
 
+export function actionDisplayLabel(presentation: ActionPresentation): string {
+  return presentation.integration
+    ? `${providerLabel(presentation.integration.provider)} · ${presentation.label}`
+    : presentation.label;
+}
+
 function providerLabel(provider: string): string {
   const labels: Record<string, string> = {
     github: 'GitHub',
@@ -299,6 +294,19 @@ function providerLabel(provider: string): string {
     labels[provider] ??
     provider.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
   );
+}
+
+export function ActionIdentityIcon({presentation}: {presentation: ActionPresentation}) {
+  if (presentation.integration) {
+    return (
+      <IntegrationIcon
+        source={presentation.integration.provider}
+        className="size-14 flex-none"
+        aria-hidden="true"
+      />
+    );
+  }
+  return <ActionIcon kind={presentation.iconKind} />;
 }
 
 function ActionIcon({kind}: {kind: ActionPresentation['iconKind']}) {

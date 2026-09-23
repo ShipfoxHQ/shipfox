@@ -1,4 +1,5 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {createRef} from 'react';
 import {createIntegrationActionPresentationLookup} from '#core/integration-action.js';
 import type {LogRecord} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
@@ -11,6 +12,11 @@ const EDIT_FILE_BUTTON_NAME = /Edit File/;
 const READ_FILE_BUTTON_NAME = /Read File/;
 const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
 const CLICKUP_BUTTON_NAME = /ClickUp · Read/;
+const TWO_READS_BUTTON_NAME = /Read File, 2 reads/;
+const ONE_READ_BUTTON_NAME = /Read File.*one.ts/;
+const TWO_READ_BUTTON_NAME = /Read File.*two.ts/;
+const THREE_READ_BUTTON_NAME = /Read File.*three.ts/;
+const ONE_OF_TWO_READS_BUTTON_NAME = /1 of 2 reads/;
 
 const output = (data: string): LogRecord => ({
   v: 1,
@@ -42,7 +48,150 @@ const agentSession = (row: AgentSessionRow, offsetMs = 0): LogRecord => ({
   row,
 });
 
+function readRecords(id: string, path: string, offsetMs: number, completed = true): LogRecord[] {
+  const records = [
+    agentSession(
+      {
+        kind: 'tool-call',
+        timestamp: ts + offsetMs,
+        id,
+        name: 'Read',
+        input: JSON.stringify({file_path: path}),
+      },
+      offsetMs,
+    ),
+  ];
+  if (completed)
+    records.push(
+      agentSession(
+        {
+          kind: 'tool-result',
+          timestamp: ts + offsetMs + 1,
+          toolCallId: id,
+          toolName: 'Read',
+          output: `${path} result`,
+          isError: false,
+        },
+        offsetMs + 1,
+      ),
+    );
+  return records;
+}
+
 describe('LogView', () => {
+  test('keeps an opened read group and focused action stable when live reads arrive', () => {
+    const twoReads = [...readRecords('one', 'one.ts', 0), ...readRecords('two', 'two.ts', 10)];
+    const {rerender} = render(<LogView records={twoReads} />);
+    const group = screen.getByRole('button', {name: TWO_READS_BUTTON_NAME});
+    fireEvent.click(group);
+    const first = screen.getByRole('button', {name: ONE_READ_BUTTON_NAME});
+    act(() => first.focus());
+
+    rerender(<LogView records={[...twoReads, ...readRecords('three', 'three.ts', 20)]} />);
+
+    expect(group).toHaveAttribute('aria-expanded', 'true');
+    expect(group).toHaveTextContent('3 reads');
+    expect(document.activeElement).toBe(first);
+    expect(screen.getByRole('button', {name: THREE_READ_BUTTON_NAME})).toBeInTheDocument();
+  });
+
+  test('keeps a focused singleton visible when a second read completes', () => {
+    const firstRead = readRecords('one', 'one.ts', 0);
+    const secondCall = readRecords('two', 'two.ts', 10, false);
+    const {rerender} = render(<LogView records={[...firstRead, ...secondCall]} />);
+    const first = screen.getByRole('button', {name: ONE_READ_BUTTON_NAME});
+    act(() => first.focus());
+
+    rerender(<LogView records={[...firstRead, ...readRecords('two', 'two.ts', 10)]} />);
+
+    expect(screen.getByRole('button', {name: TWO_READS_BUTTON_NAME})).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(document.activeElement).toBe(first);
+  });
+
+  test('search opens a grouped read whose result alone matches', () => {
+    render(
+      <LogView
+        search="two.ts result"
+        records={[...readRecords('one', 'one.ts', 0), ...readRecords('two', 'two.ts', 10)]}
+      />,
+    );
+
+    const group = screen.getByRole('button', {name: ONE_OF_TWO_READS_BUTTON_NAME});
+    expect(group).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', {name: TWO_READ_BUTTON_NAME})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: ONE_READ_BUTTON_NAME})).not.toBeInTheDocument();
+  });
+
+  test('keeps the same history row in view when grouping shortens earlier content', () => {
+    const scrollContainerRef = createRef<HTMLDivElement>();
+    let messageTop = 100;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      let top = -100;
+      if (this.dataset.activityAnchor === '3') top = messageTop;
+      else if (this.dataset.activityAnchor === undefined) top = 0;
+      return {
+        top,
+        bottom: top + (this.dataset.activityAnchor === undefined ? 200 : 20),
+        left: 0,
+        right: 200,
+        width: 200,
+        height: 20,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      };
+    });
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return [this.getBoundingClientRect()] as unknown as DOMRectList;
+    });
+    const first = readRecords('one', 'one.ts', 0);
+    const pending = readRecords('two', 'two.ts', 10, false);
+    const message = agentSession(
+      {
+        kind: 'message',
+        timestamp: ts + 20,
+        role: 'assistant',
+        label: 'assistant',
+        text: 'Inspecting history',
+        meta: [],
+        terminalFailure: false,
+      },
+      20,
+    );
+    const {rerender} = render(
+      <div ref={scrollContainerRef}>
+        <LogView
+          records={[...first, ...pending, message]}
+          scrollContainerRef={scrollContainerRef}
+        />
+      </div>,
+    );
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) throw new Error('missing scroll container');
+    Object.defineProperty(scrollContainer, 'scrollHeight', {configurable: true, value: 1000});
+    Object.defineProperty(scrollContainer, 'clientHeight', {configurable: true, value: 200});
+    scrollContainer.scrollTop = 300;
+    fireEvent.scroll(scrollContainer);
+
+    messageTop = 60;
+    rerender(
+      <div ref={scrollContainerRef}>
+        <LogView
+          records={[...first, ...pending, message, ...readRecords('two', 'two.ts', 10).slice(1)]}
+          scrollContainerRef={scrollContainerRef}
+        />
+      </div>,
+    );
+
+    expect(scrollContainer.scrollTop).toBe(260);
+  });
   test('shows resolved integration identity and structured recorded output', () => {
     render(
       <LogView

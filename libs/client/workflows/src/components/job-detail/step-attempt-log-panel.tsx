@@ -200,6 +200,7 @@ export function StepAttemptLogPanel({
         anchorToFailure={anchorToFailure}
         ariaLive={!search.trim() && attemptStatus === 'running' ? 'polite' : 'off'}
         className={surfaceClassName}
+        scrollContainerRef={pageScrollRef}
       />
     </div>
   );

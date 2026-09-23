@@ -6,7 +6,7 @@ import type {
   OutputLogNode,
   SessionLogNode,
 } from './log-tree.js';
-import {nativeShellExitCode} from './native-tools.js';
+import {nativeActionPresentation, nativeShellExitCode} from './native-tools.js';
 
 export type ActivityState = 'running' | 'succeeded' | 'failed' | 'no-result';
 export type ActionIconKind =
@@ -80,11 +80,19 @@ export interface ActivityGroupNode extends Omit<GroupLogNode, 'children'> {
   children: ActivityNode[];
 }
 
+export interface ActivityReadGroupNode {
+  kind: 'read-group';
+  seq: number;
+  children: ActivityActionNode[];
+  totalCount: number;
+}
+
 export type ActivityNode =
   | OutputLogNode
   | MarkerLogNode
   | SessionLogNode
   | ActivityActionNode
+  | ActivityReadGroupNode
   | ActivityGroupNode;
 
 /** Pair tool rows by the request's source sequence, not by a display label or array index. */
@@ -201,6 +209,64 @@ export function buildActivityNodes(nodes: readonly LogNode[], terminated = false
   }
 
   return replaceSessionNodes(nodes, actionsBySeq, consumedResultSeqs);
+}
+
+/** Group only consecutive, classified, completed reads within the same log-tree level. */
+export function groupActivityReads(
+  nodes: readonly ActivityNode[],
+  presentation?: ActionPresentationLookup,
+): ActivityNode[] {
+  const grouped: ActivityNode[] = [];
+  let run: ActivityReadGroupNode | null = null;
+  let runKey: string | null = null;
+
+  for (const node of nodes) {
+    if (node.kind === 'group') {
+      grouped.push({...node, children: groupActivityReads(node.children, presentation)});
+      run = null;
+      runKey = null;
+      continue;
+    }
+    if (node.kind !== 'action') {
+      grouped.push(node);
+      run = null;
+      runKey = null;
+      continue;
+    }
+    const key = readGroupKey(node.action, presentation);
+    if (key === null) {
+      grouped.push(node);
+      run = null;
+      runKey = null;
+      continue;
+    }
+    if (run !== null && key === runKey) {
+      run.children.push(node);
+      run.totalCount += 1;
+      continue;
+    }
+    run = {
+      kind: 'read-group',
+      seq: node.seq,
+      children: [node],
+      totalCount: 1,
+    };
+    grouped.push(run);
+    runKey = key;
+  }
+  return grouped;
+}
+
+function readGroupKey(
+  action: PairedAction,
+  presentation?: ActionPresentationLookup,
+): string | null {
+  if (action.state !== 'succeeded' || action.request === null || action.result === null)
+    return null;
+  const details = presentation?.(action) ?? nativeActionPresentation(action);
+  if (details?.readClassification !== 'read') return null;
+  const connection = details.integration?.connectionId ?? null;
+  return JSON.stringify([action.request.name, connection]);
 }
 
 function collectSessionRows(
