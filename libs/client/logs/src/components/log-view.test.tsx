@@ -430,9 +430,7 @@ describe('LogView', () => {
     );
 
     expect(screen.getByText('Tool')).toBeInTheDocument();
-    const statusLabel = screen.getByText('succeeded');
-    expect(statusLabel).toHaveClass('sr-only');
-    expect(statusLabel.parentElement?.querySelector('svg')).not.toBeNull();
+    expect(screen.getByText('succeeded')).toHaveClass('sr-only');
 
     fireEvent.click(screen.getByRole('button', {name: TOOL_BUTTON_NAME}));
 

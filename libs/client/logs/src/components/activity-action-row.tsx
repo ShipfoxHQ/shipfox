@@ -315,12 +315,8 @@ function ActionStatus({
       )}
     >
       <span className={completed ? 'sr-only' : undefined}>{completed ? state : 'no result'}</span>
-      {completed ? (
-        <Icon
-          name={state === 'failed' ? 'closeCircleFill' : 'checkboxCircleFill'}
-          className="size-14"
-          aria-hidden="true"
-        />
+      {state === 'failed' ? (
+        <Icon name="closeCircleFill" className="size-14" aria-hidden="true" />
       ) : null}
       {detail ? <span className="font-code">{detail}</span> : null}
       {detail && durationMs !== null ? (
