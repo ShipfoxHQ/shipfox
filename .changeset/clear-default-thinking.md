@@ -6,4 +6,4 @@
 '@shipfox/workflow-templates': minor
 ---
 
-Supports explicit provider defaults in measured references and workflow bindings.
+Adds a `default` thinking option that requests the provider default without applying workspace or deployment overrides.

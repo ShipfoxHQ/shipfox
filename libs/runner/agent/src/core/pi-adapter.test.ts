@@ -353,9 +353,7 @@ describe('piHarnessAdapter', () => {
       invocation({provider: 'openai', model: 'gpt-5.5-pro', thinking: 'default'}),
     );
 
-    expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({thinkingLevel: 'default'}),
-    );
+    expect(createAgentSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('thinkingLevel');
 
     const runtime = (await modelRuntimeCreateMock.mock.results[0]?.value) as {
       streamSimple: (

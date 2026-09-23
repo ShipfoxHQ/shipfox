@@ -273,7 +273,7 @@ async function createPiSession(params: {
     const created = await createAgentSessionFromServices({
       services: params.services,
       model: params.model,
-      thinkingLevel: params.thinking as PiThinkingLevel,
+      ...(params.thinking === 'default' ? {} : {thinkingLevel: params.thinking as PiThinkingLevel}),
       ...toolSelectionOption(params.tools, [
         ...params.customTools.map((tool) => tool.name),
         ...(params.mcpConfig === undefined
