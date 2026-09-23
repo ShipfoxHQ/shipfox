@@ -261,19 +261,22 @@ export const Statuses: Story = {
             status,
             name: `${status}-pipeline`,
           })}
+          onOpenInspector={noop}
         />
       ))}
     </div>
   ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
-    const buttons = canvas.getAllByRole('button', {name: 'Inspect run details'});
+    const buttons = canvas.getAllByRole('button', {name: 'Inspect workflow'});
     const headings = canvas.getAllByRole('heading', {level: 1});
     for (const [index, button] of buttons.entries()) {
       const buttonBounds = button.getBoundingClientRect();
       const headingBounds = headings[index]?.getBoundingClientRect();
-      await expect(buttonBounds.height).toBe(24);
-      await expect(buttonBounds.top).toBe(headingBounds?.top);
+      await expect(buttonBounds.height).toBe(28);
+      await expect(buttonBounds.top + buttonBounds.height / 2).toBe(
+        headingBounds ? headingBounds.top + headingBounds.height / 2 : undefined,
+      );
     }
   },
 };

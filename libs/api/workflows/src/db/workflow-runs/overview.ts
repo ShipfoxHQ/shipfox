@@ -16,6 +16,7 @@ import {
 } from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
 import type {
+  SecretInputReference,
   WorkflowRunOriginState,
   WorkflowRunParent,
   WorkflowRunStatus,
@@ -42,6 +43,7 @@ export type WorkflowRunOverviewRun = WorkflowRunOriginState & {
   triggerSource: string;
   triggerEvent: string;
   triggerReference: WorkflowRunTriggerReference | null;
+  secretInputs: Record<string, SecretInputReference> | null;
   parentRun: WorkflowRunParent | null;
   createdAt: Date;
 };
@@ -413,6 +415,7 @@ async function loadOverviewTarget(
       triggerSource: workflowRuns.triggerSource,
       triggerEvent: workflowRuns.triggerEvent,
       triggerReference: workflowRuns.triggerReference,
+      secretInputs: workflowRuns.secretInputs,
       parentRunId: parentRun.id,
       parentRunNumber: parentRun.number,
       parentRunName: parentRun.name,
@@ -466,6 +469,7 @@ async function loadOverviewTarget(
       triggerSource: row.triggerSource,
       triggerEvent: row.triggerEvent,
       triggerReference: row.triggerReference ?? null,
+      secretInputs: row.secretInputs ?? null,
       parentRun:
         row.parentRunId && row.parentRunNumber !== null && row.parentRunProjectId
           ? {

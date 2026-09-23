@@ -91,7 +91,7 @@ describe('WorkflowRunView', () => {
   test('explains a waiting run at workflow level and links to the holder', async () => {
     const fetchImpl = configureConcurrencyRunFetch('waiting');
 
-    renderView();
+    const {router} = renderView();
 
     const waitingNotice = await screen.findByRole('status');
     expect(within(waitingNotice).getByText(WAITING_EXPLANATION_PATTERN)).toBeVisible();
@@ -107,9 +107,46 @@ describe('WorkflowRunView', () => {
       await within(waitingNotice).findByRole('link', {name: 'Release run #42, attempt 3'}),
     ).toHaveAttribute('href', expect.stringContaining(`/runs/${RELATED_RUN_ID}`));
 
-    await userEvent.click(screen.getByRole('button', {name: 'Inspect run details'}));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Waiting')).toBeVisible();
+    const trigger = screen.getByRole('button', {name: 'Inspect workflow'});
+    const historyLength = router.history.length;
+    await userEvent.click(trigger);
+    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    expect(within(inspector).getByText('Waiting')).toBeVisible();
+    expect(router.state.location.search).toMatchObject({inspector: 'run'});
+    expect(router.history.length).toBe(historyLength + 1);
+
+    await userEvent.click(within(inspector).getByRole('button', {name: 'Close inspector'}));
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
+    expect(router.history.length).toBe(historyLength + 2);
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  test('returns focus to the Inspect workflow button when dismissing a direct link', async () => {
+    configureRunFetch();
+    const {router} = renderView(
+      {selection: {runAttempt: 1}},
+      `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}?runAttempt=1&inspector=run`,
+    );
+
+    await screen.findByRole('heading', {name: 'deploy-web', level: 2});
+    const inspector = screen.getByRole('complementary', {name: 'Workflow inspector'});
+    await userEvent.click(within(inspector).getByRole('button', {name: 'Close inspector'}));
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
+    await waitFor(() =>
+      expect(screen.getByRole('button', {name: 'Inspect workflow'})).toHaveFocus(),
+    );
+  });
+
+  test('explains an execution scope direct link without a selected job', async () => {
+    configureRunFetch();
+    renderView(
+      {selection: {runAttempt: 1}},
+      `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}?runAttempt=1&inspector=execution`,
+    );
+
+    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    expect(within(inspector).getByText('No execution is selected.')).toBeVisible();
+    expect(within(inspector).queryByText('Loading execution…')).not.toBeInTheDocument();
   });
 
   test('presents a queue-priority cancellation as an annotation below the graph', async () => {
@@ -232,6 +269,8 @@ describe('WorkflowRunView', () => {
     configureRunFetch();
 
     const {router} = renderView();
+    await user.click(await screen.findByRole('button', {name: 'Inspect workflow'}));
+    expect(router.state.location.search).toMatchObject({inspector: 'run'});
     await user.click(await screen.findByRole('button', {name: 'deploy, Running'}));
 
     await waitFor(() =>
@@ -239,6 +278,7 @@ describe('WorkflowRunView', () => {
         `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}/jobs/${DEPLOY_JOB_ID}`,
       ),
     );
+    expect(router.state.location.search).not.toHaveProperty('inspector');
   });
 
   test('keeps run Annotations and Source in the workspace navigation', async () => {
@@ -568,8 +608,11 @@ describe('WorkflowRunView', () => {
   });
 });
 
-function renderView(props: Partial<Parameters<typeof WorkflowRunView>[0]> = {}) {
-  return renderProjectPage(`/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}`, () => (
+function renderView(
+  props: Partial<Parameters<typeof WorkflowRunView>[0]> = {},
+  path = `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}`,
+) {
+  return renderProjectPage(path, () => (
     <WorkflowRunView
       projectId={PROJECT_ID}
       workspaceSlug={PROJECT_TEST_WSLUG}

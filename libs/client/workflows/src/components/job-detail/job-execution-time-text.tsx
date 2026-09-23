@@ -11,3 +11,9 @@ export function JobExecutionTimeText({time}: {time: JobExecutionTime}) {
 export function formatJobExecutionTime(time: JobExecutionTime): string {
   return formatJobExecutionTimeLabel(time);
 }
+
+export function describeJobExecutionTime(time: JobExecutionTime, kind: 'queue' | 'run'): string {
+  const duration = formatJobExecutionTime(time);
+  if (kind === 'queue') return `${time.state === 'live' ? 'Queueing' : 'Queued'} for ${duration}`;
+  return `${time.state === 'live' ? 'Running' : 'Ran'} for ${duration}`;
+}

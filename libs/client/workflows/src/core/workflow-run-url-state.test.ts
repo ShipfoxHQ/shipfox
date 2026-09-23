@@ -1,4 +1,5 @@
 import {
+  withoutWorkflowRunScopedSearch,
   workflowJobSelectionFromRunSelection,
   workflowRunSelectionFromResolution,
   workflowRunSelectionMatches,
@@ -46,5 +47,19 @@ describe('workflow run selection URL transforms', () => {
     expect(
       workflowRunSelectionMatches(canonical, {...canonical, jobExecutionId: 'other-execution'}),
     ).toBe(false);
+  });
+
+  test('clears selection and inspector state when moving to another run', () => {
+    expect(
+      withoutWorkflowRunScopedSearch({
+        tab: 'summary',
+        inspector: 'execution',
+        job: 'job-id',
+        jobExecution: 'execution-id',
+        step: 'step-id',
+        stepAttempt: 'attempt-id',
+        runAttempt: '2',
+      }),
+    ).toEqual({tab: 'summary'});
   });
 });

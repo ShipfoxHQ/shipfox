@@ -231,6 +231,11 @@ function executionAccessibleLabel(execution: JobExecutionOption): string {
 function TitleExecutionSummary({execution}: {execution: JobExecutionOption}) {
   return (
     <span className="flex min-w-0 items-center gap-inline">
+      <Icon
+        name="historyLine"
+        className="size-12 shrink-0 text-foreground-neutral-muted"
+        aria-hidden="true"
+      />
       <Text as="span" size="sm" bold className="shrink-0 text-foreground-neutral-base">
         #{execution.sequence}
       </Text>

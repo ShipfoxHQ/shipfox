@@ -9,6 +9,7 @@ import {Badge, type BadgeVariant} from '@shipfox/react-ui/badge';
 import {Dot} from '@shipfox/react-ui/dot';
 import {EmptyState} from '@shipfox/react-ui/empty-state';
 import {Icon} from '@shipfox/react-ui/icon';
+import {InspectorTrigger} from '@shipfox/react-ui/inspector';
 import {TimeTickerProvider, useTimeTick} from '@shipfox/react-ui/time-ticker';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {Code, Text} from '@shipfox/react-ui/typography';
@@ -290,6 +291,7 @@ function StepListContent({
                         ? () => onInspectorOpenChange(entry.id)
                         : undefined
                     }
+                    inspecting={inspectorOpenAttemptId === entry.id}
                     expandedContent={
                       selected
                         ? renderExpandedStep?.({
@@ -377,6 +379,7 @@ function StepRow({
   isLast,
   onSelect,
   onInspect,
+  inspecting,
   expandedContent,
   stepFooter,
 }: {
@@ -386,6 +389,7 @@ function StepRow({
   isLast: boolean;
   onSelect: () => void;
   onInspect?: (() => void) | undefined;
+  inspecting: boolean;
   expandedContent: ReactNode;
   stepFooter: ReactNode;
 }) {
@@ -459,19 +463,14 @@ function StepRow({
       >
         <div className="min-w-0 flex-1">{triggerNode}</div>
         {onInspect ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Inspect ${entry.step.label}, attempt ${entry.attemptOrdinal}`}
-                onClick={onInspect}
-                className="flex size-28 shrink-0 items-center justify-center rounded-4 bg-transparent text-foreground-neutral-muted outline-none transition-colors hover:bg-transparent hover:text-foreground-neutral-base active:bg-transparent focus-visible:shadow-button-neutral-focus"
-              >
-                <Icon name="informationLine" size={14} aria-hidden="true" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Inspect step details</TooltipContent>
-          </Tooltip>
+          <InspectorTrigger
+            open={inspecting}
+            size="xs"
+            aria-label={`Inspect step ${entry.step.label}, attempt ${entry.attemptOrdinal}`}
+            onClick={onInspect}
+          >
+            Inspect step
+          </InspectorTrigger>
         ) : null}
       </div>
       {selected && expandedContent ? (

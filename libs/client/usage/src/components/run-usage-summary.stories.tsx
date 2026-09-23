@@ -186,8 +186,7 @@ export const TestSkuDrillDown: Story = {
   ...CostBreakdown,
   play: async ({canvasElement}) => {
     const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(body.getByText('Model usage'));
-    await userEvent.click(body.getByText('claude-sonnet-4'));
+    await userEvent.click(body.getByText('Pricing and request details'));
     await expect(body.getByText('Output tokens')).toBeVisible();
     await expect(body.getByText('500 tokens · $300.00 / 1M tokens')).toBeVisible();
   },

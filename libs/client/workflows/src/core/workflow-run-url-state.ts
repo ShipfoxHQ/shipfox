@@ -91,6 +91,14 @@ export function withoutWorkflowRunSelectionSearch<TSearch extends WorkflowRunSea
   return nextSearch as TSearch;
 }
 
+export function withoutWorkflowRunScopedSearch<TSearch extends WorkflowRunSearch>(
+  search: TSearch,
+): TSearch {
+  const nextSearch: WorkflowRunSearch = withoutWorkflowRunSelectionSearch(search);
+  delete nextSearch.inspector;
+  return nextSearch as TSearch;
+}
+
 function stringSearchParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }

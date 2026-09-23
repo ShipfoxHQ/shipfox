@@ -29,6 +29,10 @@ export const WORKFLOW_RUN_TABS = ['summary', 'jobs', 'annotations', 'source'] as
 
 export type WorkflowRunTab = (typeof WORKFLOW_RUN_TABS)[number];
 
+export const WORKFLOW_INSPECTOR_SCOPES = ['run', 'execution'] as const;
+
+export type WorkflowInspectorScope = (typeof WORKFLOW_INSPECTOR_SCOPES)[number];
+
 /**
  * The `severity` parameter's vocabulary is the display severity set, not a second list: a URL
  * that could name a severity the list cannot rank would be a filter with no matching rows.
@@ -52,14 +56,18 @@ export interface WorkflowRunsSearch extends WorkflowRunSelectionInput {
   before?: string;
   tab?: WorkflowRunTab;
   severity?: WorkflowRunAnnotationSeverity;
+  inspector?: WorkflowInspectorScope;
 }
 
-export type WorkflowJobSearch = Omit<WorkflowRunSelectionInput, 'jobId'>;
+export type WorkflowJobSearch = Omit<WorkflowRunSelectionInput, 'jobId'> & {
+  inspector?: WorkflowInspectorScope;
+};
 
 const STATUS_VALUES = new Set<string>(WORKFLOW_RUN_LIST_STATUSES);
 const ORIGIN_VALUES = new Set<string>(WORKFLOW_RUN_LIST_ORIGINS);
 const TAB_VALUES = new Set<string>(WORKFLOW_RUN_TABS);
 const ANNOTATION_SEVERITY_VALUES = new Set<string>(WORKFLOW_RUN_ANNOTATION_SEVERITIES);
+const INSPECTOR_VALUES = new Set<string>(WORKFLOW_INSPECTOR_SCOPES);
 const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 
 /**
@@ -84,6 +92,7 @@ export function validateWorkflowRunsSearch(input: Record<string, unknown>): Work
     input.severity,
     ANNOTATION_SEVERITY_VALUES,
   );
+  const inspector = enumSearchValue<WorkflowInspectorScope>(input.inspector, INSPECTOR_VALUES);
 
   return {
     ...(search ? {search} : {}),
@@ -97,6 +106,7 @@ export function validateWorkflowRunsSearch(input: Record<string, unknown>): Work
     ...(before ? {before} : {}),
     ...(tab ? {tab} : {}),
     ...(severity ? {severity} : {}),
+    ...(inspector ? {inspector} : {}),
     ...workflowSelectionFromSearch(input, true),
   };
 }
@@ -113,7 +123,8 @@ function enumSearchValue<T extends string>(
 /** Reads the job-detail query string without allowing a job id to leak back into URL state. */
 export function validateWorkflowJobSearch(input: Record<string, unknown>): WorkflowJobSearch {
   const {jobId: _jobId, ...selection} = workflowSelectionFromSearch(input, false);
-  return selection;
+  const inspector = enumSearchValue<WorkflowInspectorScope>(input.inspector, INSPECTOR_VALUES);
+  return {...selection, ...(inspector ? {inspector} : {})};
 }
 
 /**
@@ -138,12 +149,16 @@ export function workflowRunSearchParams(
     ...(search.before ? {before: search.before} : {}),
     ...(search.tab && search.tab !== 'summary' ? {tab: search.tab} : {}),
     ...(search.severity ? {severity: search.severity} : {}),
+    ...(search.inspector ? {inspector: search.inspector} : {}),
     ...workflowSelectionSearchParams(selection, true),
   };
 }
 
 export function workflowJobSearchParams(selection: WorkflowJobSearch) {
-  return workflowSelectionSearchParams(selection, false);
+  return {
+    ...workflowSelectionSearchParams(selection, false),
+    ...(selection.inspector ? {inspector: selection.inspector} : {}),
+  };
 }
 
 /** Resolves the run-level surface. Removed Jobs-tab and selection-only URLs fall back to Summary. */
@@ -156,7 +171,7 @@ export function workflowRunTab(
 
 /** Serializes only list filters when leaving a run detail page for the run list. */
 export function workflowRunListSearchParams(search: WorkflowRunsSearch) {
-  const {tab: _tab, severity: _severity, ...listSearch} = search;
+  const {tab: _tab, severity: _severity, inspector: _inspector, ...listSearch} = search;
   return workflowRunSearchParams(listSearch, {});
 }
 

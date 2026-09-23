@@ -152,6 +152,36 @@ describe('RunWorkspaceNav', () => {
     expect(summary.querySelector('[data-run-workspace-active-bar]')).not.toBeNull();
   });
 
+  test('closes execution inspection when selecting another job or run section', async () => {
+    const run = workflowRunOverview({
+      id: RUN_ID,
+      jobs: [
+        workflowJobDto({id: CURRENT_JOB_ID, name: 'build', position: 0}),
+        workflowJobDto({id: 'job-deploy', name: 'deploy', position: 1}),
+      ],
+    });
+
+    renderWithRouter(
+      <RunWorkspaceNav
+        workspaceSlug="acme"
+        projectSlug="project"
+        run={run}
+        activeSection="summary"
+        currentJobId={CURRENT_JOB_ID}
+        jobSearch={{runAttempt: 2, inspector: 'execution'}}
+      />,
+    );
+
+    for (const link of [
+      await screen.findByRole('link', {name: 'Summary'}),
+      screen.getByRole('link', {name: DEPLOY_LINK_PATTERN}),
+      screen.getByRole('link', {name: 'Annotations'}),
+      screen.getByRole('link', {name: 'Source'}),
+    ]) {
+      expect(link.getAttribute('href')).not.toContain('inspector=');
+    }
+  });
+
   test('falls back to the first job when the current job id is stale', async () => {
     const run = workflowRunOverview({
       id: RUN_ID,

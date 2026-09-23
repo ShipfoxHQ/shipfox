@@ -1,5 +1,5 @@
 import {usagePricingReferenceKey} from '@shipfox/client-shell/runtime';
-import {useMemo} from 'react';
+import {type ReactNode, useMemo} from 'react';
 import {
   groupUsageByModel,
   type JobExecutionUsage,
@@ -13,15 +13,19 @@ import {UsageBreakdown} from './usage-details.js';
 export interface JobUsageCellsProps {
   usage: JobExecutionUsage | undefined;
   className?: string | undefined;
+  prefix?: ReactNode;
 }
 
-export function JobUsageCells({usage, className}: JobUsageCellsProps) {
+export function JobUsageCells({usage, className, prefix}: JobUsageCellsProps) {
   const {cost} = useJobCost(usage);
   if (!usage || !cost) return null;
   return (
-    <span data-usage-job-cells className={`inline-flex items-center ${className ?? ''}`}>
-      <UsageCostText cost={cost} />
-    </span>
+    <>
+      {prefix}
+      <span data-usage-job-cells className={`inline-flex items-center ${className ?? ''}`}>
+        <UsageCostText cost={cost} />
+      </span>
+    </>
   );
 }
 

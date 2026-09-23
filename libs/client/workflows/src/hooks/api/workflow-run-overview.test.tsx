@@ -685,6 +685,7 @@ function workflowRunOverviewResponseDto(
       trigger_source: 'manual',
       trigger_event: 'fire',
       trigger_reference: null,
+      secret_inputs: null,
       parent_run: null,
       created_at: CREATED_AT,
     },

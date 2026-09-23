@@ -12,6 +12,7 @@ import {
 } from '@shipfox/react-ui/dropdown-menu';
 import {useIsTextTruncated} from '@shipfox/react-ui/hooks';
 import {Icon} from '@shipfox/react-ui/icon';
+import {InspectorTrigger} from '@shipfox/react-ui/inspector';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
 import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
@@ -33,7 +34,6 @@ import {
 } from '#core/workflow-run.js';
 import {WorkflowRunDurationLabel} from '../workflow-run-duration-label.js';
 import {getWorkflowStatusVisual} from '../workflow-status/status-visuals.js';
-import {RunContextPanel} from './run-context-panel.js';
 import {WorkflowRunAttemptSwitcher} from './workflow-run-attempt-switcher.js';
 
 const STATUS_BADGE_LABEL_WIDTH_CH = Math.max(
@@ -56,6 +56,8 @@ export interface WorkflowRunSummaryProps {
   onRerun?: ((mode: WorkflowRunRerunMode) => void) | undefined;
   latestAttempt?: number | undefined;
   usage?: RunUsage | undefined;
+  inspectorOpen?: boolean | undefined;
+  onOpenInspector?: ((trigger: HTMLButtonElement) => void) | undefined;
 }
 
 export function WorkflowRunSummary({
@@ -68,6 +70,8 @@ export function WorkflowRunSummary({
   onRerun,
   latestAttempt,
   usage,
+  inspectorOpen = false,
+  onOpenInspector,
 }: WorkflowRunSummaryProps) {
   const headingId = useId();
   const status = getWorkflowStatusVisual(run.runAttempt.status);
@@ -143,7 +147,15 @@ export function WorkflowRunSummary({
               rerunPending={rerunPending}
               onRerun={onRerun}
             />
-            <RunContextPanel run={run} usage={usage} />
+            {onOpenInspector ? (
+              <InspectorTrigger
+                open={inspectorOpen}
+                data-workflow-inspector-trigger="run"
+                onClick={(event) => onOpenInspector(event.currentTarget)}
+              >
+                Inspect workflow
+              </InspectorTrigger>
+            ) : null}
           </div>
 
           <div className="col-span-2 row-start-2 flex min-w-0 flex-nowrap items-center gap-cluster overflow-hidden text-foreground-neutral-subtle max-[480px]:col-span-1 max-[480px]:row-start-auto max-[480px]:flex-wrap max-[480px]:overflow-visible">

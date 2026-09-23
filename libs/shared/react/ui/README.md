@@ -4,7 +4,7 @@ Shared React component library for Shipfox apps. It provides design tokens, Tail
 
 ## What it does
 
-- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
+- **Components**: Accordion, Alert, Avatar, Badge, Button, Calendar, Callout, Checkbox, CodeBlock, Collapsible, Combobox, Command, DataTable, DatePicker, DateRangePicker, Dot, DropdownMenu, EmptyState, FormField, Icon, Input, Inspector (`Inspector`, `InspectorHeader`, `InspectorTabs`, `InspectorSection`, `PropertyList`, and related parts), Kbd, Label, LoadErrorState, Loader, Log, Logo, Markdown, Modal, Panel, Popover, RadioGroup, RelativeTime, ScrollArea, Search, Select, Sheet, ShinyText, Skeleton, Switch, Table, Tabs, Textarea, ThemeProvider, Toast, Tooltip, and Typography.
 - **Theme helpers**: `ThemeProvider`, `useTheme()`, and `useResolvedTheme()`.
 - **Hooks**: `useCopyToClipboard`, `useIsTextTruncated`, `useShikiHighlight`, `useShikiStyleInjection`, plus the theme hooks above.
 - **Utilities**: `cn()` for class name merging, `copyTextToClipboard`, `formatBytes`, `formatDate`/`formatTimestamp`, `formatDuration`/`humanDuration`, `formatRelative`, `debounce`, and avatar helpers (`getInitial`, `getPlaceholderImageUrl`).

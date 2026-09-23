@@ -94,6 +94,7 @@ export type {
   WorkflowRunParent,
   WorkflowRunRecord,
   WorkflowRunRerunMode,
+  WorkflowRunSecretInput,
   WorkflowRunStatus,
   WorkflowRunTriggerReference,
   WorkflowSourceSnapshot,

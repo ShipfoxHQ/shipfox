@@ -289,6 +289,10 @@
   --background-switch-off-hover: var(--color-neutral-300);
   --background-field-component-hover: var(--color-neutral-50);
   --background-subtle-base: var(--color-neutral-50);
+  /* Inspector surfaces: each part resolves to one surface-ladder role. */
+  --background-inspector-base: var(--background-neutral-base);
+  --background-inspector-band: var(--background-subtle-base);
+  --background-inspector-value: var(--background-contrast-base);
   --background-neutral-disabled: var(--color-neutral-100);
   --background-field-hover: var(--color-neutral-100);
   --background-switch-off: var(--color-neutral-200);
@@ -548,6 +552,10 @@
   --background-switch-off-hover: var(--color-neutral-600);
   --background-field-component-hover: var(--color-neutral-800);
   --background-subtle-base: var(--color-neutral-950);
+  /* Inspector surfaces: each part resolves to one surface-ladder role. */
+  --background-inspector-base: var(--background-neutral-base);
+  --background-inspector-band: var(--background-subtle-base);
+  --background-inspector-value: var(--background-contrast-base);
   --background-neutral-disabled: var(--color-neutral-800);
   --background-field-hover: var(--color-alpha-white-8);
   --background-switch-off: var(--color-neutral-700);
@@ -903,6 +911,9 @@
   --color-background-switch-off-hover: var(--background-switch-off-hover);
   --color-background-field-component-hover: var(--background-field-component-hover);
   --color-background-subtle-base: var(--background-subtle-base);
+  --color-background-inspector-base: var(--background-inspector-base);
+  --color-background-inspector-band: var(--background-inspector-band);
+  --color-background-inspector-value: var(--background-inspector-value);
   --color-background-neutral-disabled: var(--background-neutral-disabled);
   --color-background-field-hover: var(--background-field-hover);
   --color-background-switch-off: var(--background-switch-off);
@@ -1217,6 +1228,10 @@
 
 @utility pt-panel-compact {
   padding-top: var(--pad-panel-compact);
+}
+
+@utility px-panel-compact {
+  padding-inline: var(--pad-panel-compact);
 }
 
 @utility px-tight {

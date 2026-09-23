@@ -1,4 +1,5 @@
 import {ApiError} from '@shipfox/client-api';
+import {useRouteSearch} from '@shipfox/client-shell/runtime';
 import {QueryLoadError} from '@shipfox/client-ui';
 import {type RunUsage, useRunUsageQuery} from '@shipfox/client-usage';
 import {Button} from '@shipfox/react-ui/button';
@@ -16,7 +17,15 @@ import {
 import {toast} from '@shipfox/react-ui/toast';
 import {Text} from '@shipfox/react-ui/typography';
 import {useNavigate} from '@tanstack/react-router';
-import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react';
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   buildRunAnnotationList,
   type RunAnnotationEntry,
@@ -26,6 +35,7 @@ import {
 import {
   isWorkflowRunTerminal,
   type StepSourceLocation,
+  type WorkflowJobExecutionDetail,
   type WorkflowRunOverview,
   type WorkflowRunOverviewJob,
   type WorkflowRunRerunMode,
@@ -53,6 +63,7 @@ import {
   useWorkflowRunListItem,
 } from '#hooks/api/workflow-runs.js';
 import {
+  validateWorkflowRunsSearch,
   type WorkflowJobSearch,
   type WorkflowRunsSearch,
   type WorkflowRunTab,
@@ -61,6 +72,12 @@ import {
 } from '#routes/inputs.js';
 import {JobGraph} from '../job-graph/index.js';
 import type {JobGraphSelectionSource} from '../job-graph/types.js';
+import {
+  type WorkflowExecutionInspectorSelection,
+  WorkflowInspector,
+  WorkflowInspectorOpenProvider,
+  type WorkflowInspectorSelectionRead,
+} from '../workflow-inspector/index.js';
 import {WorkflowRunSummary} from '../workflow-run-summary/index.js';
 import {
   type DerivedRunAnnotation,
@@ -102,6 +119,8 @@ export interface WorkflowRunViewProps {
   activeJob?: WorkflowRunOverviewJob | undefined;
   jobSearch?: WorkflowJobSearch | undefined;
   jobContent?: ReactNode | undefined;
+  activeExecution?: WorkflowJobExecutionDetail | undefined;
+  inspectorSelectionRead?: WorkflowInspectorSelectionRead | undefined;
 }
 
 /**
@@ -121,6 +140,8 @@ export function WorkflowRunView({
   activeJob,
   jobSearch,
   jobContent,
+  activeExecution,
+  inspectorSelectionRead,
 }: WorkflowRunViewProps) {
   const activeSection = runWorkspaceSection(tab);
   const routeAttempt = selection?.runAttempt ?? runAttempt;
@@ -203,6 +224,38 @@ export function WorkflowRunView({
   });
 
   const navigate = useNavigate();
+  const routeSearch = useRouteSearch(validateWorkflowRunsSearch);
+  const inspectorScope = routeSearch.inspector;
+  const inspectorTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const inspectorHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const openInspector = useCallback(
+    (scope: 'run' | 'execution', trigger: HTMLButtonElement) => {
+      inspectorTriggerRef.current = trigger;
+      void navigate({
+        search: ((previous: Record<string, unknown>) => ({...previous, inspector: scope})) as never,
+      });
+    },
+    [navigate],
+  );
+  const closeInspector = useCallback(() => {
+    const trigger = inspectorTriggerRef.current;
+    void navigate({
+      search: ((previous: Record<string, unknown>) => {
+        const next = {...previous};
+        delete next.inspector;
+        return next;
+      }) as never,
+    }).then(() => {
+      requestAnimationFrame(() => {
+        const target = trigger?.isConnected
+          ? trigger
+          : document.querySelector<HTMLButtonElement>(
+              `[data-workflow-inspector-trigger="${inspectorScope}"]`,
+            );
+        if (target?.isConnected) target.focus({preventScroll: true});
+      });
+    });
+  }, [inspectorScope, navigate]);
   usePinWorkflowRunAttempt({
     headQuery,
     navigate,
@@ -226,31 +279,39 @@ export function WorkflowRunView({
 
   return (
     <RelativeTimeProvider>
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <RunViewContent
-          workspaceId={workspaceId}
-          workspaceSlug={workspaceSlug}
-          projectSlug={projectSlug}
-          headQuery={headQuery}
-          overviewQuery={overviewQuery}
-          overview={overview}
-          sourceQuery={sourceQuery}
-          listRun={listRun}
-          annotations={annotationsQuery}
-          jobExplanations={jobExplanationsQuery}
-          annotationSummaryQuery={annotationSummaryQuery}
-          rerunMutation={rerunMutation}
-          runAttempt={overviewAttempt}
-          selection={selection}
-          tab={tab}
-          activeJobId={activeJobId}
-          activeJob={activeJob}
-          jobSearch={jobSearch}
-          jobContent={jobContent}
-          selectionQuery={selectionQuery}
-          selectionResolutionEnabled={hasWorkflowRunSelection}
-        />
-      </div>
+      <WorkflowInspectorOpenProvider onOpen={openInspector} scope={inspectorScope}>
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <RunViewContent
+            workspaceId={workspaceId}
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+            headQuery={headQuery}
+            overviewQuery={overviewQuery}
+            overview={overview}
+            sourceQuery={sourceQuery}
+            listRun={listRun}
+            annotations={annotationsQuery}
+            jobExplanations={jobExplanationsQuery}
+            annotationSummaryQuery={annotationSummaryQuery}
+            rerunMutation={rerunMutation}
+            runAttempt={overviewAttempt}
+            selection={selection}
+            tab={tab}
+            activeJobId={activeJobId}
+            activeJob={activeJob}
+            jobSearch={jobSearch}
+            jobContent={jobContent}
+            activeExecution={activeExecution}
+            inspectorSelectionRead={inspectorSelectionRead}
+            inspectorScope={inspectorScope}
+            inspectorHeadingRef={inspectorHeadingRef}
+            onOpenInspector={openInspector}
+            onCloseInspector={closeInspector}
+            selectionQuery={selectionQuery}
+            selectionResolutionEnabled={hasWorkflowRunSelection}
+          />
+        </div>
+      </WorkflowInspectorOpenProvider>
     </RelativeTimeProvider>
   );
 }
@@ -490,9 +551,10 @@ function useCanonicalizeWorkflowRunSelection({
           workflowRunId,
           jobId: canonicalSelection.jobId,
         },
-        search: workflowJobSearchParams(
-          workflowJobSelectionFromRunSelection(canonicalSelection),
-        ) as never,
+        search: workflowJobSearchParams({
+          ...workflowJobSelectionFromRunSelection(canonicalSelection),
+          ...(selection?.inspector ? {inspector: selection.inspector} : {}),
+        }) as never,
         replace: true,
       });
       return;
@@ -561,6 +623,12 @@ function RunViewContent({
   activeJob,
   jobSearch,
   jobContent,
+  activeExecution,
+  inspectorSelectionRead,
+  inspectorScope,
+  inspectorHeadingRef,
+  onOpenInspector,
+  onCloseInspector,
   selectionResolutionEnabled,
 }: {
   workspaceId: string | undefined;
@@ -583,6 +651,12 @@ function RunViewContent({
   activeJob: WorkflowRunOverviewJob | undefined;
   jobSearch: WorkflowJobSearch | undefined;
   jobContent: ReactNode | undefined;
+  activeExecution: WorkflowJobExecutionDetail | undefined;
+  inspectorSelectionRead: WorkflowInspectorSelectionRead | undefined;
+  inspectorScope: 'run' | 'execution' | undefined;
+  inspectorHeadingRef: RefObject<HTMLHeadingElement | null>;
+  onOpenInspector: (scope: 'run' | 'execution', trigger: HTMLButtonElement) => void;
+  onCloseInspector: () => void;
   selectionResolutionEnabled: boolean;
 }) {
   const navigate = useNavigate();
@@ -608,8 +682,11 @@ function RunViewContent({
       await navigate({
         to: '/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId',
         params: {workspaceSlug, projectSlug, workflowRunId: run.id},
-        search: ((previous: Record<string, unknown>) =>
-          withoutWorkflowRunSelectionSearch(previous)) as never,
+        search: ((previous: Record<string, unknown>) => {
+          const next = withoutWorkflowRunSelectionSearch(previous);
+          delete next.inspector;
+          return next;
+        }) as never,
       });
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : 'Could not start re-run');
@@ -629,6 +706,7 @@ function RunViewContent({
   function selectAnnotationJob(jobId: string | undefined) {
     if (!shellRun || !workspaceSlug || !projectSlug) return;
     const nextSearch: WorkflowRunsSearch = {...selection, tab: 'annotations'};
+    delete nextSearch.inspector;
     if (jobId) nextSearch.jobId = jobId;
     else delete nextSearch.jobId;
     delete nextSearch.jobExecutionId;
@@ -694,6 +772,12 @@ function RunViewContent({
       selection={selection}
       selectedJobId={selectedJobId}
       jobContent={jobContent}
+      activeExecution={activeExecution}
+      inspectorSelectionRead={inspectorSelectionRead}
+      inspectorScope={inspectorScope}
+      inspectorHeadingRef={inspectorHeadingRef}
+      onOpenInspector={onOpenInspector}
+      onCloseInspector={onCloseInspector}
       highlightedLineRange={highlightedLineRange}
       selectionQuery={selectionQuery}
       selectionResolutionEnabled={selectionResolutionEnabled}
@@ -742,6 +826,12 @@ function RunViewLayout({
   selection,
   selectedJobId,
   jobContent,
+  activeExecution,
+  inspectorSelectionRead,
+  inspectorScope,
+  inspectorHeadingRef,
+  onOpenInspector,
+  onCloseInspector,
   highlightedLineRange,
   selectionQuery,
   selectionResolutionEnabled,
@@ -772,6 +862,12 @@ function RunViewLayout({
   selection: WorkflowRunsSearch | undefined;
   selectedJobId: string | undefined;
   jobContent: ReactNode | undefined;
+  activeExecution: WorkflowJobExecutionDetail | undefined;
+  inspectorSelectionRead: WorkflowInspectorSelectionRead | undefined;
+  inspectorScope: 'run' | 'execution' | undefined;
+  inspectorHeadingRef: RefObject<HTMLHeadingElement | null>;
+  onOpenInspector: (scope: 'run' | 'execution', trigger: HTMLButtonElement) => void;
+  onCloseInspector: () => void;
   highlightedLineRange: StepSourceLocation | null;
   selectionQuery: ReturnType<typeof useWorkflowRunSelectionQuery>;
   selectionResolutionEnabled: boolean;
@@ -796,93 +892,117 @@ function RunViewLayout({
       ? headQuery.data.latestAttempt
       : undefined;
   const boundaryQuery = overviewQuery.isEnabled ? overviewQuery : headQuery;
+  const inspectorExecution = workflowInspectorExecution(activeJob, activeExecution);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {shellRun ? (
-        <WorkflowRunSummary
-          workspaceSlug={workspaceSlug}
-          projectSlug={projectSlug}
-          run={shellRun}
-          cancelling={cancelling}
-          onCancel={onCancel}
-          rerunPending={rerunPending}
-          onRerun={onRerun}
-          latestAttempt={headQuery.data?.latestAttempt ?? shellRun.latestAttempt}
-          usage={usageQuery.data}
-        />
-      ) : (
-        <WorkflowRunSkeleton />
-      )}
-      {shellRun ? (
-        <WorkflowRunWaitingNotice
-          run={shellRun}
-          workspaceSlug={workspaceSlug}
-          projectSlug={projectSlug}
-        />
-      ) : null}
-      {!activeJobId && newerAttempt && workspaceSlug && projectSlug && shellRun ? (
-        <WorkflowRunNewerAttemptBanner
-          workspaceSlug={workspaceSlug}
-          projectSlug={projectSlug}
-          runId={shellRun.id}
-          currentAttempt={shellRun.runAttempt.attempt}
-          latestAttempt={newerAttempt}
-        />
-      ) : null}
-      {overview && overviewQuery.isError ? <WorkflowRunStaleError query={overviewQuery} /> : null}
-      <div
-        data-run-workspace-layout
-        className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border-neutral-base"
-      >
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {shellRun ? (
+          <WorkflowRunSummary
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+            run={shellRun}
+            cancelling={cancelling}
+            onCancel={onCancel}
+            rerunPending={rerunPending}
+            onRerun={onRerun}
+            latestAttempt={headQuery.data?.latestAttempt ?? shellRun.latestAttempt}
+            usage={usageQuery.data}
+            inspectorOpen={inspectorScope === 'run'}
+            onOpenInspector={(trigger) => onOpenInspector('run', trigger)}
+          />
+        ) : (
+          <WorkflowRunSkeleton />
+        )}
+        {shellRun ? (
+          <WorkflowRunWaitingNotice
+            run={shellRun}
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+          />
+        ) : null}
+        {!activeJobId && newerAttempt && workspaceSlug && projectSlug && shellRun ? (
+          <WorkflowRunNewerAttemptBanner
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+            runId={shellRun.id}
+            currentAttempt={shellRun.runAttempt.attempt}
+            latestAttempt={newerAttempt}
+          />
+        ) : null}
+        {overview && overviewQuery.isError ? <WorkflowRunStaleError query={overviewQuery} /> : null}
         <div
-          data-run-workspace-frame
-          className="flex min-h-0 min-w-0 w-full flex-1 flex-col min-[768px]:flex-row"
+          data-run-workspace-layout
+          className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border-neutral-base"
         >
-          {shellRun && workspaceSlug && projectSlug ? (
-            <RunWorkspaceNav
-              workspaceSlug={workspaceSlug}
-              projectSlug={projectSlug}
-              run={shellRun}
-              activeSection={activeSection}
-              currentJobId={activeJobId}
-              activeJob={activeJob}
-              jobSearch={jobSearch}
-              annotationSummary={annotationSummary}
-            />
-          ) : (
-            <RunWorkspaceNavSkeleton />
-          )}
-          <div data-run-workspace-content className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <RunWorkspaceContent
-              boundaryQuery={boundaryQuery}
-              overviewQuery={overviewQuery}
-              overview={overview}
-              sourceQuery={sourceQuery}
-              shellRun={shellRun}
-              jobContent={jobContent}
-              activeSection={activeSection}
-              annotations={annotations}
-              jobExplanations={jobExplanations}
-              annotationSummary={annotationSummary}
-              usage={usageQuery.data}
-              workspaceSlug={workspaceSlug}
-              projectSlug={projectSlug}
-              selection={selection}
-              selectionQuery={selectionQuery}
-              selectionResolutionEnabled={selectionResolutionEnabled}
-              selectedJobId={selectedJobId}
-              onSelectGraphJob={onSelectGraphJob}
-              onSelectAnnotationJob={onSelectAnnotationJob}
-              onClearAnnotationFilters={onClearAnnotationFilters}
-              onClearSelection={onClearSelection}
-              highlightedLineRange={highlightedLineRange}
-            />
+          <div
+            data-run-workspace-frame
+            className="flex min-h-0 min-w-0 w-full flex-1 flex-col min-[768px]:flex-row"
+          >
+            {shellRun && workspaceSlug && projectSlug ? (
+              <RunWorkspaceNav
+                workspaceSlug={workspaceSlug}
+                projectSlug={projectSlug}
+                run={shellRun}
+                activeSection={activeSection}
+                currentJobId={activeJobId}
+                activeJob={activeJob}
+                jobSearch={jobSearch}
+                annotationSummary={annotationSummary}
+              />
+            ) : (
+              <RunWorkspaceNavSkeleton />
+            )}
+            <div data-run-workspace-content className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <RunWorkspaceContent
+                boundaryQuery={boundaryQuery}
+                overviewQuery={overviewQuery}
+                overview={overview}
+                sourceQuery={sourceQuery}
+                shellRun={shellRun}
+                jobContent={jobContent}
+                activeSection={activeSection}
+                annotations={annotations}
+                jobExplanations={jobExplanations}
+                annotationSummary={annotationSummary}
+                usage={usageQuery.data}
+                workspaceSlug={workspaceSlug}
+                projectSlug={projectSlug}
+                selection={selection}
+                selectionQuery={selectionQuery}
+                selectionResolutionEnabled={selectionResolutionEnabled}
+                selectedJobId={selectedJobId}
+                onSelectGraphJob={onSelectGraphJob}
+                onSelectAnnotationJob={onSelectAnnotationJob}
+                onClearAnnotationFilters={onClearAnnotationFilters}
+                onClearSelection={onClearSelection}
+                highlightedLineRange={highlightedLineRange}
+              />
+            </div>
           </div>
         </div>
       </div>
+      <WorkflowInspector
+        scope={inspectorScope}
+        run={overview}
+        projectSlug={projectSlug}
+        workspaceId={workspaceId}
+        runUsage={usageQuery.data}
+        executionSelection={inspectorExecution}
+        selectionRead={inspectorSelectionRead}
+        headingRef={inspectorHeadingRef}
+        onClose={onCloseInspector}
+      />
     </div>
   );
+}
+
+function workflowInspectorExecution(
+  job: WorkflowRunOverviewJob | undefined,
+  execution: WorkflowJobExecutionDetail | undefined,
+): WorkflowExecutionInspectorSelection | undefined {
+  if (!job || !execution) return undefined;
+  return {job, execution};
 }
 
 function RunWorkspaceContent({

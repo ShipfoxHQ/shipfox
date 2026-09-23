@@ -115,8 +115,14 @@ describe('StepList', () => {
     render(<InspectableStepList />);
 
     const deploy = screen.getByRole('button', {name: 'deploy, Succeeded, attempt 1'});
-    await user.click(screen.getByRole('button', {name: 'Inspect deploy, attempt 1'}));
+    const inspect = screen.getByRole('button', {name: 'Inspect step deploy, attempt 1'});
+    expect(inspect).toHaveAttribute('aria-pressed', 'false');
+    await user.click(inspect);
 
+    expect(screen.getByRole('button', {name: 'Inspect step deploy, attempt 1'})).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(deploy).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText(`logs for ${attempt.id}`)).not.toBeInTheDocument();
     expect(screen.getByText(`inspector for ${attempt.id}`)).toBeInTheDocument();
@@ -373,7 +379,7 @@ describe('StepList', () => {
     expect(screen.queryByText(`inspector open ${firstAttempt.id}`)).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole('button', {name: `Inspect build, attempt ${firstAttempt.attempt}`}),
+      screen.getByRole('button', {name: `Inspect step build, attempt ${firstAttempt.attempt}`}),
     );
     expect(screen.getByText(`inspector open ${firstAttempt.id}`)).toBeInTheDocument();
 

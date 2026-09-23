@@ -81,6 +81,9 @@ export function WorkflowJobDetailPage({
     },
     [navigate],
   );
+  let inspectorSelectionStatus: 'pending' | 'ready' | 'error' = 'ready';
+  if (jobQuery.isError) inspectorSelectionStatus = 'error';
+  else if (jobQuery.isPending) inspectorSelectionStatus = 'pending';
   return (
     <div
       data-workflow-page-root="job-detail"
@@ -95,6 +98,11 @@ export function WorkflowJobDetailPage({
         runAttempt={search.runAttempt}
         activeJobId={jobId}
         activeJob={jobQuery.data?.job}
+        activeExecution={jobQuery.data?.selectedExecution ?? undefined}
+        inspectorSelectionRead={{
+          status: inspectorSelectionStatus,
+          onRetry: () => void jobQuery.refetch(),
+        }}
         jobSearch={search}
         jobContent={
           <JobDetailView

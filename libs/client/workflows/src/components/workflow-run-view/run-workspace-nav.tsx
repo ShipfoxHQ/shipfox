@@ -298,7 +298,10 @@ function RunSectionLink({
       params={{workspaceSlug, projectSlug, workflowRunId: runId}}
       search={
         workflowRunSearchParams(
-          {runAttempt, ...(section === 'summary' ? {} : {tab: section})},
+          {
+            runAttempt,
+            ...(section === 'summary' ? {} : {tab: section}),
+          },
           {runAttempt},
         ) as never
       }

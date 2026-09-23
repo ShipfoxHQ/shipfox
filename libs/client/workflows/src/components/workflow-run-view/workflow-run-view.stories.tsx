@@ -188,6 +188,7 @@ const RUN_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
     trigger_source: 'manual',
     trigger_event: 'fire',
     trigger_reference: null,
+    secret_inputs: null,
     created_at: '2026-06-26T11:55:00.000Z',
   },
   attempt: {
@@ -674,12 +675,12 @@ export const TestRunCostTab: Story = {
   ...Usage,
   play: async ({canvasElement}) => {
     const body = within(canvasElement.ownerDocument.body);
-    const trigger = await body.findByRole('button', {name: 'Inspect run details'});
+    const trigger = await body.findByRole('button', {name: 'Inspect workflow'});
     trigger.focus();
     await userEvent.keyboard('{Enter}');
     await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
     await expect(body.getByText('Machine')).toBeVisible();
-    await userEvent.keyboard('{Escape}');
+    await userEvent.click(body.getByRole('button', {name: 'Close inspector'}));
     await waitFor(() => expect(trigger).toHaveFocus());
   },
 };
