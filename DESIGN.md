@@ -434,7 +434,7 @@ values apply below an ancestor with `data-density="compact"`.
 | --- | --- |
 | Gaps | `gap-tight` 4 / 2, `gap-inline` 8 / 4, `gap-cluster` 12 / 8, `gap-group` 16 / 12, `gap-section` 24 / 16, `gap-region` 32 / 24 |
 | Axis gaps | `gap-x-*` and `gap-y-*` in the same six roles and the same values, for a grid whose column and row rhythm differ |
-| Padding | `p-menu-surface` 4 / 2, `p-tight` and `px-tight` 8 / 4, `px-row` and `ps-row` 16 / 12, `py-row` 12 / 8, `p-panel-compact` and `pt-panel-compact` 16 / 12, `p-panel` and `pb-panel` 24 / 16, `px-frame` 24 / 16, `py-frame` 32 / 24 |
+| Padding | `p-menu-surface` 4 / 2, `p-tight` and `px-tight` 8 / 4, `px-row` and `ps-row` 16 / 12, `py-row` 12 / 8, `p-panel-compact`, `pt-panel-compact`, and `px-panel-compact` 16 / 12, `p-panel` and `pb-panel` 24 / 16, `px-frame` 24 / 16, `py-frame` 32 / 24 |
 | Margins | `ms-inline` and `mb-inline` 8 / 4, `my-region` 32 / 24, `mt-page` 48 / 32, `-mt-inline`, `-mr-inline`, and `-mx-inline` -8 / -4 |
 
 Use a parent `gap-*` role before adding a child margin, and reach for `gap-x-*`
@@ -639,6 +639,111 @@ composes `PanelHeader`, `PanelTitle`, `PanelActions`, `PanelBody`, `PanelRow`,
 Never tint a panel or a row background to match a status. Never hand-roll the
 panel class string: a bordered surface that is not a `Panel` drifts from it
 within one release.
+
+### Inspectors
+
+An inspector keeps supporting data beside the workspace it explains. Build every
+inspector from `@shipfox/react-ui/inspector`. The library owns the design: the
+host, the header, the tabs, and the sections. The product owns the data: which
+tabs exist, what each row says, and the open scope in URL state.
+
+#### Anatomy
+
+| Part | Component | Role |
+| --- | --- | --- |
+| Host | `Inspector` | Docks as a fixed-width `aside` at `lg` and wider, and opens as a `Sheet` below. `presentation="sheet"` forces the sheet for an inspector opened from a list. |
+| Header | `InspectorHeader` | Status pill, title, description, and badges, with the close control. The title is the focus target. |
+| Facts | `InspectorFacts`, `InspectorFact`, `InspectorFactSeparator` | One wrapping line of icon-and-value facts under the title. |
+| Tabs | `InspectorTabs` | Scope-specific tabs with item counts. Each tab body scrolls on its own. |
+| Body | `InspectorBody` | The scrolling body of an inspector without tabs. |
+| Notice | `InspectorNotice` | A tab-level line for loading, a failed refresh, or nothing recorded. |
+| Section | `InspectorSection` | A band over one body block. See [Inspector content](#inspector-content). |
+
+**Inspector surfaces have their own tokens.** Each one resolves to a role on
+[the surface ladder](#the-surface-ladder), so the inspector follows the ladder
+without painting the page canvas.
+
+| Surface | Token | Resolves to |
+| --- | --- | --- |
+| Host and rows | `background-inspector-base` | Panel |
+| Section band | `background-inspector-band` | Canvas |
+| Code value | `background-inspector-value` | Code |
+
+#### Behavior
+
+- A docked inspector keeps the workspace visible, with no backdrop or focus
+  trap. A sheet is modal. Mount only the host for the active breakpoint.
+- Show compact facts for run triggers, claimed runners, and timing. Put precise
+  source details in the fact tooltip. Show queue and run time as human-readable
+  durations, including in tooltips. Runner labels are self-explanatory and need
+  no tooltip. Keep secret input facts in the run's Inputs tab.
+- Put total cost in the facts for runs and executions, as on the run page. The
+  dollar sign is enough context; use no icon or tooltip. Show machine and model
+  allocations in the Cost tab. Keep model token totals visible, with one
+  disclosure for pricing rates and request statistics.
+- Move focus to the inspector heading when it opens. On explicit dismissal,
+  return focus to the connected entry button, or a connected details button for
+  a direct link. Navigation to another job, execution, attempt, run, or section
+  closes the inspector without restoring focus to the old trigger.
+- Keep the open scope in URL state so browser Back and Forward restore it. Omit
+  the scope from destination links in the original navigation action. Keep tab
+  selection local unless a deep link needs it.
+
+#### Inspector content
+
+**A tab is a stack of full-width sections.** The inspector is already one
+surface, so a section is never a bordered card: that would be a panel inside a
+panel. Each section is an `InspectorSection` from `@shipfox/react-ui/inspector`:
+a header band followed by one body block.
+
+- **Header band:** `background-inspector-band` with a hairline above and below,
+  edge to edge, with no radius. Put the title on the left, plus a count when the body lists
+  items. The right side holds at most one thing: an outcome chip, a type chip,
+  a total, or one action.
+- **Body:** one block from the table below. Property rows pad themselves; wrap
+  any other block in `InspectorSectionBody`. Never stack two block types under
+  one band; open a second section.
+- **Disclosure:** pass `defaultOpen` to make the band a toggle. A collapsed
+  section keeps its band, and its body may hold one section per item.
+- **Tab level:** only a notice that covers the whole tab, such as a failed
+  refresh, sits above the first section. Everything else belongs to a section.
+- **Tab labels:** pass a `count` when the tab lists items, such as `Results 2`.
+
+| Block | Use for | Build with |
+| --- | --- | --- |
+| Property rows | Named values: outputs, inputs, event metadata, evaluated expressions | `PropertyList` and `PropertyRow`, or `JsonPropertyList` for one row per key of a JSON object |
+| Fact grid | Two to four headline figures, such as a cost split | `PanelGrid` and `PanelCell` |
+| Table | Three or more items that share three or more attributes | `Table` |
+| Value surface | JSON or multi-line text as the value of a row | `PropertyCode`, flush in the row, with no header or border of its own |
+| Notice | Data that exists but cannot display, such as an oversized value | `Callout` inside the section it describes |
+| Empty | Nothing recorded yet | `InspectorSectionEmpty` inside the section |
+
+**A property row stacks its key above its value.** Stacking keeps long keys
+and values readable at inspector width. A row that lays its key beside the
+value splits identifiers mid-token.
+
+- **Key:** `xs`, muted. Use `font-code` when the key is an identifier the user
+  wrote, such as `inputs.environment` or an output name. Use `font-display` for
+  a label the product chose, such as `Received`.
+- **Value:** `xs`, `font-code`, base color. A type or source chip sits at the
+  right end of the key line, never beside the value.
+- **Actions:** copy is an icon button revealed on row hover and on focus. Never
+  write a `Copy` label in a row.
+- **Disclosure:** `PropertyDisclosureRow` shows a summary, such as a field
+  count, and opens the value behind a leading chevron. Never use the native
+  `details` marker.
+
+**The body has three text levels: section title, key, and value.** Section
+titles are `xs` medium in the band. Nothing in a body is larger than a value,
+so no block can outshout the band that names it.
+
+**The outcome goes in the band.** When a section explains a decision, such as a
+job condition or an execution name, the result chip sits in the band. The body
+holds the expression and the values it read.
+
+**An empty or failed section keeps its band.** Render `InspectorSectionEmpty` or the
+`Callout` in the body of the section it describes. A section never shows both,
+and a notice never floats between sections.
 
 ### The three interactive surface roles
 

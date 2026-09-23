@@ -134,7 +134,12 @@ function SeverityLink({
     <Link
       to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
       params={{workspaceSlug, projectSlug, workflowRunId}}
-      search={workflowRunSearchParams({...search, tab: 'annotations', severity}, search) as never}
+      search={
+        workflowRunSearchParams(
+          {...withoutInspector(search), tab: 'annotations', severity},
+          search,
+        ) as never
+      }
       className="inline-flex items-center gap-tight rounded-4 outline-none hover:underline focus-visible:shadow-border-interactive-with-active"
     >
       {content}
@@ -143,8 +148,14 @@ function SeverityLink({
 }
 
 function withoutSeverity(search: WorkflowRunsSearch): WorkflowRunsSearch {
-  const next = {...search};
+  const next = withoutInspector(search);
   delete next.severity;
+  return next;
+}
+
+function withoutInspector(search: WorkflowRunsSearch): WorkflowRunsSearch {
+  const next = {...search};
+  delete next.inspector;
   return next;
 }
 

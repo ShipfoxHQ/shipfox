@@ -2,6 +2,8 @@ import {render, screen} from '@testing-library/react';
 import {workflowJob, workflowJobExecutionDto} from '#test/fixtures/workflow-run.js';
 import {JobDetailHeader} from './job-detail-header.js';
 
+const RUNNING_DURATION_NAME = /Running for 2m 14s/;
+
 describe('JobDetailHeader', () => {
   test('labels a live run duration as running', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-06-26T12:00:00.000Z'));
@@ -29,6 +31,6 @@ describe('JobDetailHeader', () => {
       />,
     );
 
-    expect(screen.getByText('running', {exact: true})).toBeInTheDocument();
+    expect(screen.getByRole('img', {name: RUNNING_DURATION_NAME})).toBeInTheDocument();
   });
 });

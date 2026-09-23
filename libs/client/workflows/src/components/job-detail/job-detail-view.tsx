@@ -3,7 +3,7 @@
 
 import {ApiError} from '@shipfox/client-api';
 import {QueryLoadError} from '@shipfox/client-ui';
-import {JobUsageBreakdown, useJobExecutionUsageQuery} from '@shipfox/client-usage';
+import {useJobExecutionUsageQuery} from '@shipfox/client-usage';
 import {Badge} from '@shipfox/react-ui/badge';
 import {Button, IconButton} from '@shipfox/react-ui/button';
 import {
@@ -71,11 +71,11 @@ import {
   type StepListModel,
   type StepModel,
 } from '../step-list/step-list-model.js';
+import {useOpenWorkflowInspector} from '../workflow-inspector/index.js';
 import {
   WorkflowRunNotFound,
   WorkflowRunStaleError,
 } from '../workflow-run-view/workflow-run-states.js';
-import {JobContextPanel} from './job-context-panel.js';
 import {JobDetailHeader} from './job-detail-header.js';
 import {
   CarriedOverStepPanel,
@@ -139,6 +139,7 @@ export function JobDetailView({
   onSelectionChange,
 }: JobDetailViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const openWorkflowInspector = useOpenWorkflowInspector();
   const pageScrollRef = useRef<HTMLDivElement>(null);
   const landingSelectionRef = useRef<FrozenLandingSelection | undefined>(undefined);
   const [logSearch, setLogSearch] = useState('');
@@ -242,8 +243,10 @@ export function JobDetailView({
     succeededSummary,
   } = detailState;
   function selectExecution(jobExecutionId: string) {
+    const nextSearch = {...search};
+    delete nextSearch.inspector;
     onSelectionChange({
-      ...search,
+      ...nextSearch,
       jobExecutionId,
       stepId: undefined,
       stepAttemptId: undefined,
@@ -330,15 +333,11 @@ export function JobDetailView({
                 executionCountVisible={detailData.executionCountVisible}
                 executionDisplayStatus={detailData.executionDisplayStatus}
                 usage={usageQuery.data}
-                jobContext={
-                  selectedJobExecution ? (
-                    <JobContextPanel
-                      cost={<JobUsageBreakdown usage={usageQuery.data} />}
-                      job={job}
-                      execution={selectedJobExecution}
-                      selectedExecution={selectedJobResources.selectedDetailExecution}
-                    />
-                  ) : undefined
+                inspectorOpen={search.inspector === 'execution'}
+                onOpenInspector={
+                  openWorkflowInspector
+                    ? (trigger) => openWorkflowInspector('execution', trigger)
+                    : undefined
                 }
               />
               <Panel data-job-log-panel className="min-w-0 overflow-clip">

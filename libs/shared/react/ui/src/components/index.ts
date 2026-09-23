@@ -18,6 +18,7 @@ export * from './empty-state/index.js';
 export * from './form-field/index.js';
 export * from './icon/index.js';
 export * from './input/index.js';
+export * from './inspector/index.js';
 export * from './kbd/index.js';
 export * from './label/index.js';
 export * from './load-error-state/index.js';

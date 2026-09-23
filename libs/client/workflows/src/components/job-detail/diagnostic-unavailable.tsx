@@ -1,24 +1,4 @@
-import {Text} from '@shipfox/react-ui/typography';
 import type {WorkflowDiagnosticField} from '#core/workflow-run.js';
-
-export function DiagnosticUnavailableField({
-  field,
-  storedBytes,
-}: {
-  field: WorkflowDiagnosticField;
-  storedBytes: number;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-tight rounded-6 border border-tag-warning-border bg-tag-warning-bg p-panel-compact">
-      <Text size="xs" bold className="text-foreground-neutral-base">
-        {diagnosticFieldLabel(field)} unavailable
-      </Text>
-      <Text size="xs" className="text-tag-warning-text">
-        The stored value is too large to display ({storedBytes.toLocaleString()} bytes).
-      </Text>
-    </div>
-  );
-}
 
 export function DiagnosticUnavailableAnnouncement({count}: {count: number}) {
   return (

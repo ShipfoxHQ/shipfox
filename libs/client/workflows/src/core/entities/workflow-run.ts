@@ -112,6 +112,13 @@ export interface WorkflowRunTriggerReference {
   actor: string | null;
 }
 
+/** A secret input alias and its pinned source. Secret values never enter the client model. */
+export interface WorkflowRunSecretInput {
+  name: string;
+  key: string;
+  projectId: string | null;
+}
+
 /** One glyph in a run row's job status strip: enough to draw and label it, nothing more. */
 export interface WorkflowRunJobSummary {
   id: string;
@@ -161,6 +168,8 @@ export interface WorkflowRun {
   triggerDisplayLabel: string;
   triggerLabel: string;
   triggerReference: WorkflowRunTriggerReference | null;
+  /** Present on detail responses and omitted from run-list rows. */
+  secretInputs?: WorkflowRunSecretInput[] | undefined;
   parentRun?: WorkflowRunParent | null;
   createdAt: string;
   updatedAt: string;

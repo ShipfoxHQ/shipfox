@@ -3,6 +3,7 @@ import {Text} from '@shipfox/react-ui/typography';
 import {cn} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import type {WorkflowRunParent} from '#core/workflow-run.js';
+import {withoutWorkflowRunScopedSearch} from '#core/workflow-run-url-state.js';
 
 export function WorkflowRunParentLabel({
   parentRun,
@@ -25,6 +26,7 @@ export function WorkflowRunParentLabel({
       <Link
         to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
         params={{workspaceSlug, projectSlug, workflowRunId: parentRun.id}}
+        search={withoutWorkflowRunScopedSearch as never}
         className={cn(className, 'pointer-events-auto')}
       >
         <Text as="span" size="xs">
@@ -67,6 +69,7 @@ function CrossProjectParentRunLink({
         projectSlug: resolvedProjectSlug,
         workflowRunId: parentRun.id,
       }}
+      search={withoutWorkflowRunScopedSearch as never}
       className={cn(className, 'pointer-events-auto')}
     >
       <Text as="span" size="xs">

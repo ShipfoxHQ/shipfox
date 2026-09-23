@@ -261,6 +261,7 @@ export function toRunOverviewDto(
       trigger_source: overview.run.triggerSource,
       trigger_event: overview.run.triggerEvent,
       trigger_reference: toTriggerReferenceDto(overview.run.triggerReference),
+      secret_inputs: toSecretInputsDto(overview.run.secretInputs),
       parent_run: toParentRunDto(overview.run.parentRun),
       created_at: overview.run.createdAt.toISOString(),
     },

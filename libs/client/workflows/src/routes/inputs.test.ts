@@ -36,6 +36,7 @@ describe('validateWorkflowRunsSearch', () => {
         severity: 'critical',
         after: 'yesterday',
         before: '2026-13-01',
+        inspector: 'unknown',
       }),
     ).toEqual({});
   });
@@ -89,11 +90,12 @@ describe('the job detail URL contract', () => {
       stepId: 'step-1',
       stepAttemptId: 'attempt-2',
       runAttempt: 3,
+      inspector: 'execution',
     };
     const query = stringifyAppSearch(workflowJobSearchParams(search));
 
     expect(query).toBe(
-      '?jobExecution=execution-1&step=step-1&stepAttempt=attempt-2&runAttempt=%223%22',
+      '?jobExecution=execution-1&step=step-1&stepAttempt=attempt-2&runAttempt=%223%22&inspector=execution',
     );
     expect(validateWorkflowJobSearch(parseAppSearch(query))).toEqual(search);
   });
@@ -135,6 +137,18 @@ describe('the job detail URL contract', () => {
     expect(validateWorkflowRunsSearch({tab: 'unknown', severity: 'critical'})).toEqual({});
     expect(workflowRunTab({})).toBe('summary');
     expect(workflowRunTab({tab: 'source'})).toBe('source');
+  });
+
+  test('parses, serializes, and drops inspector values', () => {
+    expect(validateWorkflowRunsSearch({inspector: 'run'})).toEqual({inspector: 'run'});
+    expect(validateWorkflowJobSearch({inspector: 'execution'})).toEqual({
+      inspector: 'execution',
+    });
+    expect(validateWorkflowRunsSearch({inspector: 'details'})).toEqual({});
+    expect(validateWorkflowJobSearch({inspector: 'details'})).toEqual({});
+    expect(stringifyAppSearch(workflowRunSearchParams({inspector: 'run'}, {}))).toBe(
+      '?inspector=run',
+    );
   });
 
   test.each([
@@ -180,6 +194,7 @@ describe('the run list URL contract', () => {
       before: '2026-05-31',
       tab: 'annotations',
       severity: 'warning',
+      inspector: 'run',
     };
 
     expect(roundTrip(search)).toEqual(search);
@@ -232,6 +247,7 @@ describe('the run list URL contract', () => {
         status: ['running'],
         tab: 'jobs',
         severity: 'error',
+        inspector: 'run',
         jobId: 'job-1',
       }),
     ).toEqual({search: 'deploy', workflow: WORKFLOW_ID, status: ['running']});

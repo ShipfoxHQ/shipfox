@@ -9,7 +9,7 @@ export function UsageCostText({cost}: {cost: UsagePricingCost | undefined}) {
     <Code
       as="span"
       variant="label"
-      className="text-current whitespace-nowrap"
+      className="whitespace-nowrap text-foreground-neutral-subtle"
       data-usage-cost-state={cost?.state}
     >
       {formatted}

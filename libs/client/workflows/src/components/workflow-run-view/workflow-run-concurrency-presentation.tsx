@@ -11,7 +11,7 @@ import type {
   WorkflowRunConcurrency,
   WorkflowRunStatus,
 } from '#core/workflow-run.js';
-import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
+import {withoutWorkflowRunScopedSearch} from '#core/workflow-run-url-state.js';
 import {useWorkflowRunAttemptReferenceQueries} from '#hooks/api/workflow-run-overview.js';
 
 interface WorkflowRunConcurrencyPresentationProps {
@@ -200,7 +200,7 @@ function WorkflowRunReferenceLink({
       params={{workspaceSlug, projectSlug, workflowRunId: reference.workflowRunId}}
       search={
         ((previous: Record<string, unknown>) => ({
-          ...withoutWorkflowRunSelectionSearch(previous),
+          ...withoutWorkflowRunScopedSearch(previous),
           runAttempt: reference.attempt,
         })) as never
       }

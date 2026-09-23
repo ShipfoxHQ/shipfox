@@ -304,11 +304,11 @@ describe('StepInspectorSheet', () => {
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
     const unavailable = await screen.findByRole('region', {name: 'Unavailable diagnostics'});
-    expect(unavailable).toHaveTextContent('Resolved configuration unavailable');
-    expect(unavailable).toHaveTextContent('Step output unavailable');
-    expect(unavailable).toHaveTextContent('Evaluation unavailable');
-    expect(unavailable).toHaveTextContent('Listener filter snapshot unavailable');
-    expect(unavailable).toHaveTextContent('300,000 bytes');
+    expect(unavailable).toHaveTextContent('Resolved configuration');
+    expect(unavailable).toHaveTextContent('Step output');
+    expect(unavailable).toHaveTextContent('Evaluation');
+    expect(unavailable).toHaveTextContent('Listener filter snapshot');
+    expect(unavailable).toHaveTextContent('Too large to display (300,000 bytes)');
   });
 
   it('shows the session descriptor without transcript data', async () => {
@@ -336,7 +336,10 @@ describe('StepInspectorSheet', () => {
     await renderPanel();
     await user.click(screen.getByRole('button', {name: INSPECTOR_TRIGGER_NAME}));
 
-    expect(await screen.findByText('Session main · resume · segment 2 loaded')).toBeInTheDocument();
+    const session = await screen.findByRole('region', {name: 'Agent session'});
+    expect(session).toHaveTextContent('resume');
+    expect(within(session).getByText('main')).toBeInTheDocument();
+    expect(within(session).getByText('Segment 2 loaded')).toBeInTheDocument();
   });
 
   it('hides an absent session descriptor while preserving the inspector', async () => {
@@ -385,8 +388,11 @@ describe('StepInspectorSheet', () => {
 
     expect(await screen.findByText('Details unavailable')).toBeInTheDocument();
     await user.click(screen.getByRole('button', {name: 'Retry'}));
-    expect(await screen.findByRole('region', {name: 'Inputs'})).toBeInTheDocument();
-    expect(screen.getByText('Resolved configuration')).toBeInTheDocument();
+    const inputs = await screen.findByRole('region', {name: 'Inputs'});
+    expect(within(inputs).getByText('Resolved')).toBeInTheDocument();
+    expect(
+      within(inputs).getByRole('button', {name: 'Authored configuration'}),
+    ).toBeInTheDocument();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 

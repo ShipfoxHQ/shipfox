@@ -143,13 +143,15 @@ describe('Usage components', () => {
     await screen.findByText('$0.90');
 
     rerender(<Usage details />);
-    await waitFor(() => expect(screen.getAllByText('$0.90')).toHaveLength(2));
+    expect(await screen.findByText('Machine')).toBeVisible();
+    expect(screen.getAllByText('$0.90')).toHaveLength(1);
     expect(resolveCosts).toHaveBeenCalledTimes(1);
     expect(estimate).toHaveBeenCalledTimes(1);
 
     rerender(<Usage details={false} mounted={false} />);
     rerender(<Usage details />);
-    await waitFor(() => expect(screen.getAllByText('$0.90')).toHaveLength(2));
+    expect(await screen.findByText('Machine')).toBeVisible();
+    expect(screen.getAllByText('$0.90')).toHaveLength(1);
     expect(resolveCosts).toHaveBeenCalledTimes(2);
     expect(estimate).toHaveBeenCalledTimes(2);
   });
@@ -285,8 +287,8 @@ describe('Usage components', () => {
 
   test('keeps recorded model quantities available without per-model unavailable prices', () => {
     render(<JobUsageBreakdown usage={jobUsage} />);
-    fireEvent.click(screen.getByText('Model usage'));
-    fireEvent.click(screen.getByText(segment.model));
+    expect(screen.getByText(segment.model, {selector: 'dt span'})).toBeVisible();
+    fireEvent.click(screen.getByText('Pricing and request details'));
     expect(screen.getByText('Input tokens')).toBeVisible();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
   });
@@ -357,9 +359,8 @@ describe('Usage components', () => {
     await screen.findByText('$0.20');
     const dialog = document.body;
     expect(within(dialog).getByText('$0.20')).toBeVisible();
-    expect(within(dialog).getByText(segment.model)).not.toBeVisible();
-    fireEvent.click(within(dialog).getByText('Model usage'));
-    fireEvent.click(within(dialog).getByText(segment.model));
+    expect(within(dialog).getByText(segment.model, {selector: 'dt span'})).toBeVisible();
+    fireEvent.click(within(dialog).getByText('Pricing and request details'));
 
     expect(within(dialog).getByText('Output tokens')).toBeVisible();
     expect(within(dialog).getByText('500 tokens · $2.00 / 1K tokens')).toBeVisible();
@@ -370,6 +371,7 @@ describe('Usage components', () => {
   test('does not assign a total-only price to machine or model usage', async () => {
     render(
       <ClientUsagePricingProvider usagePricing={pricing}>
+        <RunUsageSummary runId={RUN_ID} usage={runUsage} />
         <RunUsageBreakdown runId={RUN_ID} usage={runUsage} />
       </ClientUsagePricingProvider>,
     );

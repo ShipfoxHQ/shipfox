@@ -1,10 +1,10 @@
-import type {JobExecutionUsage} from '@shipfox/client-usage';
-import {JobUsageCells} from '@shipfox/client-usage';
+import {MetadataSeparator} from '@shipfox/client-ui';
+import {type JobExecutionUsage, JobUsageCells} from '@shipfox/client-usage';
 import {Icon} from '@shipfox/react-ui/icon';
-import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
-import {Code, Text} from '@shipfox/react-ui/typography';
-import {formatTimestamp} from '@shipfox/react-ui/utils';
-import type {ReactNode} from 'react';
+import {useTimeTick} from '@shipfox/react-ui/time-ticker';
+import {Code} from '@shipfox/react-ui/typography';
+import {cn} from '@shipfox/react-ui/utils';
+import {Fragment, type ReactNode} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
 import type {RunAnnotationSummary} from '#core/run-annotation.js';
@@ -17,9 +17,10 @@ import {
   type JobExecution,
   type JobExecutionDisplayStatus,
 } from '#core/workflow-run.js';
+import {WorkflowMetadataItem} from '../workflow-metadata-item.js';
 import {RunAnnotationCountChip} from '../workflow-run-tabs/index.js';
 import {JobExecutionSwitcher} from './job-execution-switcher.js';
-import {JobExecutionTimeText} from './job-execution-time-text.js';
+import {describeJobExecutionTime, formatJobExecutionTime} from './job-execution-time-text.js';
 
 export interface JobDetailHeaderProps {
   job: Job;
@@ -31,39 +32,25 @@ export interface JobDetailHeaderProps {
   runAttempt?: number | undefined;
   /** Counts for this job only. Renders a link into the run's Annotations section, never a body. */
   annotationSummary?: RunAnnotationSummary | undefined;
-  jobContext?: ReactNode;
   /** The compact selected-job response carries this count without materializing history. */
   executionCount?: BoundedExecutionCount | undefined;
   executionCountVisible?: boolean | undefined;
   executionDisplayStatus?: JobExecutionDisplayStatus | undefined;
   usage?: JobExecutionUsage | undefined;
+  inspectorOpen?: boolean | undefined;
+  onOpenInspector?: ((trigger: HTMLButtonElement) => void) | undefined;
 }
 
-export function JobDetailHeader({
-  job,
-  selectedJobExecution,
-  onSelectedJobExecutionChange,
-  workspaceSlug,
-  projectSlug,
-  workflowRunId,
-  runAttempt,
-  annotationSummary,
-  jobContext,
-  executionCount,
-  executionCountVisible,
-  executionDisplayStatus,
-  usage,
-}: JobDetailHeaderProps) {
+export function JobDetailHeader(props: JobDetailHeaderProps) {
+  const {
+    job,
+    selectedJobExecution,
+    executionDisplayStatus,
+    inspectorOpen = false,
+    onOpenInspector,
+  } = props;
   const selectedStatus = selectedExecutionStatus(job, selectedJobExecution, executionDisplayStatus);
   const jobStatus = getWorkflowStatusVisual(selectedStatus);
-  const showExecutionSwitcher = Boolean(
-    selectedJobExecution && (executionCountVisible ?? job.executionCountVisible),
-  );
-  const showDuration = Boolean(
-    (selectedJobExecution?.queueTime && selectedJobExecution.queuedAt) ||
-      (selectedJobExecution?.runTime && selectedJobExecution.startedAt),
-  );
-  const showMetadata = showExecutionSwitcher || showDuration || Boolean(annotationSummary?.total);
 
   return (
     <header className="px-row py-row">
@@ -86,40 +73,122 @@ export function JobDetailHeader({
             >
               {job.displayName}
             </Code>
-            <JobUsageCells className="text-foreground-neutral-muted" usage={usage} />
           </div>
 
-          {showMetadata ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-muted">
-              {selectedJobExecution && showExecutionSwitcher ? (
-                <JobExecutionSwitcher
-                  job={job}
-                  selectedJobExecution={selectedJobExecution.id}
-                  onSelectedJobExecutionChange={onSelectedJobExecutionChange}
-                  executionCount={executionCount}
-                  variant="title"
-                />
-              ) : null}
-              {selectedJobExecution ? (
-                <>
-                  <JobDurationMeta execution={selectedJobExecution} kind="queue" />
-                  <JobDurationMeta execution={selectedJobExecution} kind="run" />
-                </>
-              ) : null}
-              <RunAnnotationCountChip
-                summary={annotationSummary}
-                workspaceSlug={workspaceSlug}
-                projectSlug={projectSlug}
-                workflowRunId={workflowRunId}
-                runAttempt={runAttempt}
-                jobId={job.id}
-              />
-            </div>
-          ) : null}
+          <JobHeaderMetadata {...props} />
         </div>
-        {jobContext}
+        <div className="flex shrink-0 items-center gap-inline">
+          <ExecutionInspectorButton
+            visible={Boolean(selectedJobExecution && onOpenInspector)}
+            open={inspectorOpen}
+            onOpen={onOpenInspector}
+          />
+        </div>
       </div>
     </header>
+  );
+}
+
+function JobHeaderMetadata({
+  job,
+  selectedJobExecution,
+  onSelectedJobExecutionChange,
+  workspaceSlug,
+  projectSlug,
+  workflowRunId,
+  runAttempt,
+  annotationSummary,
+  executionCount,
+  executionCountVisible,
+  usage,
+}: JobDetailHeaderProps) {
+  const items: {key: string; content: ReactNode}[] = [];
+  if (selectedJobExecution && (executionCountVisible ?? job.executionCountVisible)) {
+    items.push({
+      key: 'execution',
+      content: (
+        <JobExecutionSwitcher
+          job={job}
+          selectedJobExecution={selectedJobExecution.id}
+          onSelectedJobExecutionChange={onSelectedJobExecutionChange}
+          executionCount={executionCount}
+          variant="title"
+        />
+      ),
+    });
+  }
+  if (selectedJobExecution?.queueTime && selectedJobExecution.queuedAt) {
+    items.push({
+      key: 'queue',
+      content: <JobDurationMeta execution={selectedJobExecution} kind="queue" />,
+    });
+  }
+  if (selectedJobExecution?.runTime && selectedJobExecution.startedAt) {
+    items.push({
+      key: 'run',
+      content: <JobDurationMeta execution={selectedJobExecution} kind="run" />,
+    });
+  }
+  if (annotationSummary?.total) {
+    items.push({
+      key: 'annotations',
+      content: (
+        <RunAnnotationCountChip
+          summary={annotationSummary}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+          workflowRunId={workflowRunId}
+          runAttempt={runAttempt}
+          jobId={job.id}
+        />
+      ),
+    });
+  }
+  if (items.length === 0 && !usage) return null;
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-inline text-foreground-neutral-muted [&:empty]:hidden">
+      {items.map(({key, content}, index) => (
+        <Fragment key={key}>
+          {index > 0 ? <MetadataSeparator /> : null}
+          {content}
+        </Fragment>
+      ))}
+      <JobUsageCells
+        className="text-foreground-neutral-muted"
+        usage={usage}
+        prefix={items.length > 0 ? <MetadataSeparator /> : null}
+      />
+    </div>
+  );
+}
+
+function ExecutionInspectorButton({
+  visible,
+  open,
+  onOpen,
+}: {
+  visible: boolean;
+  open: boolean;
+  onOpen: ((trigger: HTMLButtonElement) => void) | undefined;
+}) {
+  if (!visible || !onOpen) return null;
+  return (
+    <button
+      type="button"
+      aria-pressed={open}
+      data-workflow-inspector-trigger="execution"
+      onClick={(event) => onOpen(event.currentTarget)}
+      className={cn(
+        'inline-flex h-28 items-center gap-tight rounded-6 px-tight text-xs font-medium outline-none transition-colors focus-visible:shadow-button-neutral-focus',
+        open
+          ? 'bg-background-button-neutral-default text-foreground-neutral-base shadow-button-neutral'
+          : 'text-foreground-neutral-muted hover:bg-background-button-transparent-hover hover:text-foreground-neutral-base',
+      )}
+    >
+      <Icon name="sideBarLine" className="size-14" aria-hidden="true" />
+      Execution details
+    </button>
   );
 }
 
@@ -137,41 +206,18 @@ function selectedExecutionStatus(
 }
 
 function JobDurationMeta({execution, kind}: {execution: JobExecution; kind: 'queue' | 'run'}) {
+  useTimeTick();
   const time = kind === 'queue' ? execution.queueTime : execution.runTime;
   const from = kind === 'queue' ? execution.queuedAt : execution.startedAt;
   if (!time || !from) return null;
 
-  const to = kind === 'queue' ? execution.startedAt : execution.finishedAt;
-  const live = time.state === 'live';
-  let label = 'ran';
-  let tooltipLabel = 'Ran';
-  if (kind === 'queue') {
-    label = 'queued';
-    tooltipLabel = 'Queued';
-  } else if (live) {
-    label = 'running';
-    tooltipLabel = 'Running';
-  }
-  const tooltip = `${tooltipLabel} ${formatTimestamp(from)}${to ? ` – ${formatTimestamp(to)}` : ' – now'}`;
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex items-center gap-tight whitespace-nowrap font-code text-xs leading-20 tabular-nums">
-          <Icon
-            name={kind === 'queue' ? 'hourglassLine' : 'timerLine'}
-            size={12}
-            aria-hidden="true"
-          />
-          <span>{label} </span>
-          <JobExecutionTimeText time={time} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>
-        <Text as="span" size="xs">
-          {tooltip}
-        </Text>
-      </TooltipContent>
-    </Tooltip>
+    <WorkflowMetadataItem
+      icon={<Icon name={kind === 'queue' ? 'hourglassLine' : 'timerLine'} size={12} />}
+      description={describeJobExecutionTime(time, kind)}
+      className="whitespace-nowrap font-code leading-20 tabular-nums"
+    >
+      {formatJobExecutionTime(time)}
+    </WorkflowMetadataItem>
   );
 }

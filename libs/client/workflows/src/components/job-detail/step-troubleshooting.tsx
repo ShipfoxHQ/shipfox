@@ -7,24 +7,29 @@ import {
   CalloutDescription,
   CalloutTitle,
 } from '@shipfox/react-ui/callout';
-import {Panel, PanelBody, PanelRow} from '@shipfox/react-ui/panel';
 import {
-  Sheet,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@shipfox/react-ui/sheet';
-import {Skeleton} from '@shipfox/react-ui/skeleton';
+  Inspector,
+  InspectorBody,
+  InspectorHeader,
+  InspectorNotice,
+  InspectorSection,
+  InspectorSectionBody,
+  InspectorSectionEmpty,
+  JsonPropertyList,
+  JsonPropertyValue,
+  PropertyCode,
+  PropertyDisclosureRow,
+  PropertyList,
+  PropertyRow,
+  serializeJsonValue,
+} from '@shipfox/react-ui/inspector';
 import {TimeTickerProvider, useTimeTick} from '@shipfox/react-ui/time-ticker';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
-import {Code, Text} from '@shipfox/react-ui/typography';
-import {cn, formatDuration} from '@shipfox/react-ui/utils';
+import {Code} from '@shipfox/react-ui/typography';
+import {formatDuration} from '@shipfox/react-ui/utils';
 import {Link} from '@tanstack/react-router';
 import {Fragment, type ReactNode} from 'react';
 import type {
-  EvaluationTraceEntry,
   JobStatusReason,
   Step,
   StepAttempt,
@@ -36,14 +41,11 @@ import type {
 import {presentStepAttemptDiagnostics} from '#core/workflow-run.js';
 import {useStepAttemptDetailQuery} from '#hooks/api/step-attempt-detail.js';
 import {workflowRunSearchParams} from '#routes/inputs.js';
+import {EvaluationTraceList} from '../evaluation-trace-list.js';
 import {humanizeStatus, type StepListEntryModel} from '../step-list/step-list-model.js';
 import {AgentConfigFailureCallout} from './agent-config-failure-callout.js';
-import {
-  DiagnosticUnavailableAnnouncement,
-  DiagnosticUnavailableField,
-} from './diagnostic-unavailable.js';
+import {DiagnosticUnavailableAnnouncement, diagnosticFieldLabel} from './diagnostic-unavailable.js';
 import {toSelectedAttemptError} from './job-empty-states.js';
-import {JsonCode, type JsonCodeEntry, JsonCodeTabs} from './json-code.js';
 
 export interface StepInspectorSheetProps {
   entry: StepListEntryModel;
@@ -79,40 +81,46 @@ export function StepInspectorSheet({
   });
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-[560px]">
-        <SheetHeader>
-          <SheetTitle>{entry.step.label}</SheetTitle>
-          <div className="flex min-w-0 flex-wrap items-center gap-inline">
-            <SheetDescription>
-              Attempt #{entry.attemptOrdinal} · {humanizeStatus(entry.statusVisual.kind)}
-            </SheetDescription>
-            {entry.step.toolConfig?.sensitivity === 'write' ? (
-              <Badge variant="warning" size="2xs" radius="rounded">
-                Write tool
-              </Badge>
-            ) : null}
-          </div>
-        </SheetHeader>
-        <SheetBody className="gap-section">
-          <StepInspector
-            step={entry.step}
-            attempt={entry}
-            error={error}
-            jobStatusReason={jobStatusReason}
-            showFailure={entry.statusVisual.kind === 'failed' || entry.error !== null}
-            query={inspectorQuery}
-            workspaceSlug={workspaceSlug}
-            projectSlug={projectSlug}
-            workflowRunId={workflowRunId}
-            runAttempt={runAttempt}
-            jobId={jobId}
-            annotationCount={annotationCount}
-            onViewLogs={onViewLogs}
-          />
-        </SheetBody>
-      </SheetContent>
-    </Sheet>
+    <Inspector
+      label={entry.step.label}
+      open={open}
+      onClose={() => onOpenChange(false)}
+      presentation="sheet"
+    >
+      <InspectorHeader
+        title={entry.step.label}
+        description={`Attempt #${entry.attemptOrdinal}`}
+        status={
+          <Badge variant={entry.statusVisual.badge} size="xs">
+            {entry.statusVisual.label}
+          </Badge>
+        }
+        badges={
+          entry.step.toolConfig?.sensitivity === 'write' ? (
+            <Badge variant="warning" size="2xs" radius="rounded">
+              Write tool
+            </Badge>
+          ) : null
+        }
+      />
+      <InspectorBody>
+        <StepInspector
+          step={entry.step}
+          attempt={entry}
+          error={error}
+          jobStatusReason={jobStatusReason}
+          showFailure={entry.statusVisual.kind === 'failed' || entry.error !== null}
+          query={inspectorQuery}
+          workspaceSlug={workspaceSlug}
+          projectSlug={projectSlug}
+          workflowRunId={workflowRunId}
+          runAttempt={runAttempt}
+          jobId={jobId}
+          annotationCount={annotationCount}
+          onViewLogs={onViewLogs}
+        />
+      </InspectorBody>
+    </Inspector>
   );
 }
 
@@ -263,19 +271,21 @@ function StepInspector({
   const hasAnnotations = annotationCount !== undefined && annotationCount > 0;
 
   return (
-    <div className="flex min-w-0 flex-col gap-section">
+    <>
       {showFailure ? (
-        <StepFailureCallout
-          step={step}
-          attempt={attempt}
-          error={error}
-          jobStatusReason={jobStatusReason}
-          workspaceSlug={workspaceSlug}
-          projectSlug={projectSlug}
-          workflowRunId={workflowRunId}
-          runAttempt={runAttempt}
-          onViewLogs={onViewLogs}
-        />
+        <InspectorNotice>
+          <StepFailureCallout
+            step={step}
+            attempt={attempt}
+            error={error}
+            jobStatusReason={jobStatusReason}
+            workspaceSlug={workspaceSlug}
+            projectSlug={projectSlug}
+            workflowRunId={workflowRunId}
+            runAttempt={runAttempt}
+            onViewLogs={onViewLogs}
+          />
+        </InspectorNotice>
       ) : null}
       <InspectorQueryContent
         query={query}
@@ -286,19 +296,25 @@ function StepInspector({
         hasAnnotations={hasAnnotations}
       />
       {hasAnnotations ? (
-        <Link
-          to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
-          params={{workspaceSlug, projectSlug, workflowRunId}}
-          search={workflowRunSearchParams({tab: 'annotations'}, {jobId, runAttempt}) as never}
-          className="inline-flex w-fit rounded-4 text-xs text-foreground-highlight-interactive underline-offset-2 hover:underline focus-visible:shadow-button-neutral-focus"
-        >
-          View {annotationCount} annotation{annotationCount === 1 ? '' : 's'}
-        </Link>
+        <InspectorSection
+          title="Annotations"
+          count={annotationCount}
+          aside={
+            <Link
+              to="/w/$workspaceSlug/p/$projectSlug/runs/$workflowRunId"
+              params={{workspaceSlug, projectSlug, workflowRunId}}
+              search={workflowRunSearchParams({tab: 'annotations'}, {jobId, runAttempt}) as never}
+              className="rounded-4 text-xs text-foreground-highlight-interactive underline-offset-2 hover:underline focus-visible:shadow-button-neutral-focus"
+            >
+              View {annotationCount} annotation{annotationCount === 1 ? '' : 's'}
+            </Link>
+          }
+        />
       ) : null}
       {!query.isPending && !query.isError && !detail && !showFailure && !hasAnnotations ? (
         <EmptyInspector />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -317,39 +333,45 @@ function InspectorQueryContent({
   showFailure: boolean;
   hasAnnotations: boolean;
 }) {
-  if (query.isPending) return <InspectorLoading />;
+  if (query.isPending) {
+    return (
+      <InspectorNotice role="status" aria-label="Loading troubleshooting details">
+        Loading troubleshooting details…
+      </InspectorNotice>
+    );
+  }
   if (query.isError && detail === undefined) {
     return (
-      <Callout
-        role="alert"
-        type="warning"
-        variant="secondary"
-        className="rounded-8 border border-tag-warning-border p-panel-compact shadow-none"
-      >
-        <CalloutContent>
-          <CalloutTitle>Details unavailable</CalloutTitle>
-          <CalloutDescription className="flex items-center justify-between gap-inline">
-            <span>We could not load the resolved configuration for this attempt.</span>
-            <Button
-              type="button"
-              size="2xs"
-              variant="secondary"
-              isLoading={query.isFetching}
-              onClick={() => void query.refetch()}
-            >
-              Retry
-            </Button>
-          </CalloutDescription>
-        </CalloutContent>
-      </Callout>
+      <InspectorNotice>
+        <Callout role="alert" type="warning" variant="secondary">
+          <CalloutContent>
+            <CalloutTitle>Details unavailable</CalloutTitle>
+            <CalloutDescription className="flex items-center justify-between gap-inline">
+              <span>We could not load the resolved configuration for this attempt.</span>
+              <RetryButton query={query} />
+            </CalloutDescription>
+          </CalloutContent>
+        </Callout>
+      </InspectorNotice>
     );
   }
   if (!detail) {
     return showFailure || hasAnnotations ? null : <EmptyInspector />;
   }
   return (
-    <div className="flex min-w-0 flex-col gap-group">
-      {query.isError ? <InspectorStaleError query={query} /> : null}
+    <>
+      {query.isError ? (
+        <InspectorNotice>
+          <Callout role="status" aria-live="polite" type="warning" variant="secondary">
+            <CalloutContent>
+              <CalloutDescription className="flex items-center justify-between gap-inline">
+                <span>Could not refresh troubleshooting details.</span>
+                <RetryButton query={query} />
+              </CalloutDescription>
+            </CalloutContent>
+          </Callout>
+        </InspectorNotice>
+      ) : null}
       <InspectorDetailContent
         detail={detail}
         step={step}
@@ -357,32 +379,21 @@ function InspectorQueryContent({
         showFailure={showFailure}
         hasAnnotations={hasAnnotations}
       />
-    </div>
+    </>
   );
 }
 
-function InspectorStaleError({query}: {query: ReturnType<typeof useStepAttemptDetailQuery>}) {
+function RetryButton({query}: {query: ReturnType<typeof useStepAttemptDetailQuery>}) {
   return (
-    <Callout
-      role="status"
-      aria-live="polite"
-      type="warning"
+    <Button
+      type="button"
+      size="2xs"
       variant="secondary"
-      className="rounded-8 border border-tag-warning-border p-panel-compact shadow-none"
+      isLoading={query.isFetching}
+      onClick={() => void query.refetch()}
     >
-      <CalloutContent className="flex items-center justify-between gap-inline">
-        <Text size="xs">Could not refresh troubleshooting details.</Text>
-        <Button
-          type="button"
-          size="2xs"
-          variant="secondary"
-          isLoading={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          Retry
-        </Button>
-      </CalloutContent>
-    </Callout>
+      Retry
+    </Button>
   );
 }
 
@@ -399,47 +410,38 @@ function InspectorDetailContent({
   showFailure: boolean;
   hasAnnotations: boolean;
 }) {
-  const trace = detail.evaluationTrace ?? null;
+  const trace = detail.evaluationTrace ?? [];
   const resolvedConfig = detail.config ?? null;
   const presentedAttempt = presentStepAttemptDiagnostics(attempt, detail);
   const unavailableFields = detail.oversizedFields ?? [];
   const isToolStep = step.type === 'tool';
   const hasInputValues = inspectorHasInputValues(detail.authoredConfig, resolvedConfig);
   const hasOutputValues = inspectorHasOutputValues(presentedAttempt);
-  const hasTraceValues = Boolean(trace?.length);
-  const hasAttemptDiagnostics = hasVisibleAttemptDiagnostics(detail);
   const hasDetails =
     hasInputValues ||
     hasOutputValues ||
-    hasTraceValues ||
+    trace.length > 0 ||
     unavailableFields.length > 0 ||
-    hasAttemptDiagnostics;
+    hasVisibleAttemptDiagnostics(detail);
   return (
-    <div className="flex min-w-0 flex-col gap-group">
-      {detail.session ? <SessionChip session={detail.session} /> : null}
+    <>
+      {detail.session ? <SessionSection session={detail.session} /> : null}
       {isToolStep ? (
         <ToolStepDetails detail={detail} attempt={presentedAttempt} showFailure={showFailure} />
       ) : null}
       {!isToolStep && hasInputValues ? (
-        <InspectorSection title="Inputs">
-          <ConfigCode authoredConfig={detail.authoredConfig} resolvedConfig={resolvedConfig} />
-        </InspectorSection>
+        <ConfigSection authoredConfig={detail.authoredConfig} resolvedConfig={resolvedConfig} />
       ) : null}
       {!isToolStep && hasOutputValues ? <InspectorOutputs attempt={presentedAttempt} /> : null}
-      {hasTraceValues ? (
-        <InspectorSection title="Evaluation">
-          <EvaluationTrace trace={trace ?? []} />
+      {trace.length > 0 ? (
+        <InspectorSection title="Evaluation" count={trace.length}>
+          <EvaluationTraceList trace={trace} />
         </InspectorSection>
       ) : null}
       <UnavailableDiagnosticsSection fields={unavailableFields} />
       <AttemptDiagnostics detail={detail} />
-      <InspectorEmptyState
-        isToolStep={isToolStep}
-        hasDetails={hasDetails}
-        showFailure={showFailure}
-        hasAnnotations={hasAnnotations}
-      />
-    </div>
+      {isToolStep || hasDetails || showFailure || hasAnnotations ? null : <EmptyInspector />}
+    </>
   );
 }
 
@@ -461,14 +463,22 @@ function UnavailableDiagnosticsSection({
 }) {
   if (fields.length === 0) return null;
   return (
-    <InspectorSection title="Unavailable diagnostics">
-      {fields.map((field) => (
-        <DiagnosticUnavailableField
-          key={`${field.field}-${field.storedBytes}`}
-          field={field.field}
-          storedBytes={field.storedBytes}
-        />
-      ))}
+    <InspectorSection title="Unavailable diagnostics" count={fields.length}>
+      <PropertyList>
+        {fields.map((field) => (
+          <PropertyRow
+            key={`${field.field}-${field.storedBytes}`}
+            label={diagnosticFieldLabel(field.field)}
+            meta={
+              <Badge size="2xs" variant="warning">
+                Unavailable
+              </Badge>
+            }
+          >
+            Too large to display ({field.storedBytes.toLocaleString()} bytes)
+          </PropertyRow>
+        ))}
+      </PropertyList>
       <DiagnosticUnavailableAnnouncement count={fields.length} />
     </InspectorSection>
   );
@@ -479,22 +489,31 @@ function AttemptDiagnostics({detail}: {detail: StepAttemptDetail}) {
 
   return (
     <InspectorSection title="Attempt diagnostics">
-      {hasDiagnosticObject(detail.error) ? (
-        <JsonCode title="failure.json" value={detail.error} />
-      ) : null}
-      {hasVisibleGateResult(detail.gateResult) ? (
-        <JsonCode title="gate-result.json" value={detail.gateResult} />
-      ) : null}
-      {detail.restartFeedback ? (
-        <div className="flex min-w-0 flex-col gap-tight">
-          <Text size="xs" className="text-foreground-neutral-muted">
-            Restart feedback
-          </Text>
-          <Text size="xs" className="whitespace-pre-wrap text-foreground-neutral-base">
-            {detail.restartFeedback}
-          </Text>
-        </div>
-      ) : null}
+      <PropertyList>
+        {hasDiagnosticObject(detail.error) ? (
+          <PropertyRow
+            label="Failure"
+            copyValue={serializeJsonValue(detail.error)}
+            copyLabel="Copy failure"
+          >
+            <JsonPropertyValue value={detail.error} />
+          </PropertyRow>
+        ) : null}
+        {hasVisibleGateResult(detail.gateResult) ? (
+          <PropertyRow
+            label="Gate result"
+            copyValue={serializeJsonValue(detail.gateResult)}
+            copyLabel="Copy gate result"
+          >
+            <JsonPropertyValue value={detail.gateResult} />
+          </PropertyRow>
+        ) : null}
+        {detail.restartFeedback ? (
+          <PropertyRow label="Restart feedback">
+            <span className="whitespace-pre-wrap font-display">{detail.restartFeedback}</span>
+          </PropertyRow>
+        ) : null}
+      </PropertyList>
     </InspectorSection>
   );
 }
@@ -520,21 +539,6 @@ function hasVisibleAttemptDiagnostics(detail: StepAttemptDetail): boolean {
   );
 }
 
-function InspectorEmptyState({
-  isToolStep,
-  hasDetails,
-  showFailure,
-  hasAnnotations,
-}: {
-  isToolStep: boolean;
-  hasDetails: boolean;
-  showFailure: boolean;
-  hasAnnotations: boolean;
-}) {
-  if (isToolStep || hasDetails || showFailure || hasAnnotations) return null;
-  return <EmptyInspector />;
-}
-
 function ToolStepDetails({
   detail,
   attempt,
@@ -546,62 +550,86 @@ function ToolStepDetails({
 }) {
   const result = toolResult(attempt);
   const mappedOutputs = toolMappedOutputs(attempt);
+  const toolArguments = detail.toolArguments ?? {};
   return (
     <>
-      {countConfigValues(detail.authoredConfig) > 0 ? (
+      {detail.authoredConfig && countConfigValues(detail.authoredConfig) > 0 ? (
         <InspectorSection title="Authored configuration">
-          <ConfigCode authoredConfig={detail.authoredConfig} resolvedConfig={null} />
+          <JsonPropertyList value={detail.authoredConfig} />
         </InspectorSection>
       ) : null}
-      <InspectorSection title="Arguments">
-        <JsonCode
-          title="arguments.json"
-          value={detail.toolArguments ?? {}}
-          emptyMessage="No arguments were passed to this tool."
-        />
+      <InspectorSection
+        title="Arguments"
+        count={
+          isJsonObject(toolArguments) ? Object.keys(toolArguments).length || undefined : undefined
+        }
+      >
+        {isJsonObject(toolArguments) && Object.keys(toolArguments).length === 0 ? (
+          <InspectorSectionEmpty>No arguments were passed to this tool.</InspectorSectionEmpty>
+        ) : (
+          <JsonValueBlock value={toolArguments} copyLabel={(name) => `Copy argument ${name}`} />
+        )}
       </InspectorSection>
       {!showFailure && result.present ? (
         <InspectorSection title="Result">
-          <JsonCode title="result.json" value={result.value} />
+          <JsonValueBlock value={result.value} />
         </InspectorSection>
       ) : null}
-      <InspectorSection title="Invocations">
+      <InspectorSection title="Invocations" count={attempt.invocations.length || undefined}>
         <ToolInvocationList attempt={attempt} />
       </InspectorSection>
       {mappedOutputs ? (
-        <InspectorSection title="Outputs">
-          <JsonCode value={mappedOutputs} />
+        <InspectorSection title="Outputs" count={Object.keys(mappedOutputs).length}>
+          <JsonPropertyList value={mappedOutputs} copyLabel={(name) => `Copy output ${name}`} />
         </InspectorSection>
       ) : null}
-      {attempt.response !== null ? <InspectorResponse response={attempt.response} /> : null}
+      {attempt.response !== null ? <ResponseSection response={attempt.response} /> : null}
     </>
   );
+}
+
+/** An object renders as property rows; any other JSON value as one flush code value. */
+function JsonValueBlock({
+  value,
+  copyLabel,
+}: {
+  value: unknown;
+  copyLabel?: ((name: string) => string) | undefined;
+}) {
+  if (isJsonObject(value) && Object.keys(value).length > 0) {
+    return <JsonPropertyList value={value} copyLabel={copyLabel} />;
+  }
+  return (
+    <InspectorSectionBody>
+      <JsonPropertyValue value={value} />
+    </InspectorSectionBody>
+  );
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function ToolInvocationList({attempt}: {attempt: StepAttempt}) {
   const {invocations} = attempt;
   if (invocations.length === 0) {
     return (
-      <Text size="xs" className="text-foreground-neutral-muted">
+      <InspectorSectionEmpty>
         No provider calls were recorded for this attempt.
-      </Text>
+      </InspectorSectionEmpty>
     );
   }
 
   return (
-    <Panel>
-      <PanelBody asChild>
-        <ol>
-          {invocations.map((invocation) => (
-            <ToolInvocationRow
-              key={invocation.callIndex}
-              invocation={invocation}
-              attemptActive={attempt.status === 'running'}
-            />
-          ))}
-        </ol>
-      </PanelBody>
-    </Panel>
+    <PropertyList>
+      {invocations.map((invocation) => (
+        <ToolInvocationRow
+          key={invocation.callIndex}
+          invocation={invocation}
+          attemptActive={attempt.status === 'running'}
+        />
+      ))}
+    </PropertyList>
   );
 }
 
@@ -614,36 +642,36 @@ function ToolInvocationRow({
 }) {
   const visual = invocationVisual(invocation, attemptActive);
   return (
-    <PanelRow asChild className="hover:bg-background-neutral-base">
-      <li>
-        <div className="flex min-w-0 items-center gap-inline">
-          <Code as="span" variant="label" className="shrink-0 text-foreground-neutral-base">
-            Call {invocation.callIndex + 1}
-          </Code>
-          <Badge variant={visual.badge} size="2xs" radius="rounded">
-            {visual.label}
-          </Badge>
-          {invocation.errorCode ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Code
-                  as="span"
-                  variant="label"
-                  tabIndex={0}
-                  className="truncate rounded-4 text-foreground-neutral-muted focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
-                >
-                  {invocation.errorCode}
-                </Code>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span className="block max-w-320 break-all">{invocation.errorCode}</span>
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
-        </div>
+    <PropertyRow
+      label={`Call ${invocation.callIndex + 1}`}
+      labelFont="code"
+      meta={
+        <Badge variant={visual.badge} size="2xs" radius="rounded">
+          {visual.label}
+        </Badge>
+      }
+    >
+      <span className="flex min-w-0 flex-wrap items-center gap-x-inline gap-y-tight">
         <InvocationTiming invocation={invocation} attemptActive={attemptActive} />
-      </li>
-    </PanelRow>
+        {invocation.errorCode ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Code
+                as="span"
+                variant="label"
+                tabIndex={0}
+                className="truncate rounded-4 text-foreground-neutral-muted focus-visible:shadow-border-interactive-with-active focus-visible:outline-none"
+              >
+                {invocation.errorCode}
+              </Code>
+            </TooltipTrigger>
+            <TooltipContent>
+              <span className="block max-w-320 break-all">{invocation.errorCode}</span>
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
+      </span>
+    </PropertyRow>
   );
 }
 
@@ -662,22 +690,14 @@ function InvocationTiming({
     );
   }
   if (invocation.durationMs === undefined) return null;
-  return (
-    <Code as="span" variant="label" className="shrink-0 text-foreground-neutral-muted">
-      {formatDuration(invocation.durationMs)}
-    </Code>
-  );
+  return <span className="shrink-0">{formatDuration(invocation.durationMs)}</span>;
 }
 
 function RetryCountdown({dueAt}: {dueAt: string}) {
   useTimeTick();
   const remainingMs = Date.parse(dueAt) - Date.now();
   const label = retryCountdownLabel(remainingMs);
-  return (
-    <Code as="span" variant="label" className="shrink-0 tabular-nums text-foreground-neutral-muted">
-      Retry in {label}
-    </Code>
-  );
+  return <span className="shrink-0 tabular-nums">Retry in {label}</span>;
 }
 
 function retryCountdownLabel(remainingMs: number): string {
@@ -721,171 +741,90 @@ function toolMappedOutputs(attempt: StepAttempt): Record<string, unknown> | null
 }
 
 function InspectorOutputs({attempt}: {attempt: StepAttempt}) {
+  const outputs = attempt.outputs ?? attempt.output;
   return (
-    <InspectorSection title="Outputs">
-      {attempt.outputs !== null || attempt.output !== null ? (
-        <JsonCode
-          value={attempt.outputs ?? attempt.output ?? {}}
-          emptyMessage="No outputs declared; the `outputs:` mapping is empty."
-        />
+    <>
+      {outputs !== null ? (
+        <InspectorSection title="Outputs" count={Object.keys(outputs).length || undefined}>
+          {Object.keys(outputs).length > 0 ? (
+            <JsonPropertyList value={outputs} copyLabel={(name) => `Copy output ${name}`} />
+          ) : (
+            <InspectorSectionEmpty>
+              No outputs declared; the `outputs:` mapping is empty.
+            </InspectorSectionEmpty>
+          )}
+        </InspectorSection>
       ) : null}
-      {attempt.response !== null ? <InspectorResponse response={attempt.response} /> : null}
+      {attempt.response !== null ? <ResponseSection response={attempt.response} /> : null}
+    </>
+  );
+}
+
+function ResponseSection({response}: {response: string}) {
+  return (
+    <InspectorSection title="Response">
+      <InspectorSectionBody>
+        <PropertyCode className="mt-0 whitespace-pre-wrap">{response}</PropertyCode>
+      </InspectorSectionBody>
     </InspectorSection>
   );
 }
 
-function InspectorResponse({response}: {response: string}) {
+function SessionSection({session}: {session: NonNullable<StepAttemptDetail['session']>}) {
   return (
-    <div className="flex min-w-0 flex-col gap-tight">
-      <Text size="xs" className="text-foreground-neutral-muted">
-        Response
-      </Text>
-      <pre className="max-h-160 min-w-0 overflow-auto rounded-6 border border-border-neutral-base bg-background-neutral-subtle p-tight font-code text-xs leading-18 text-foreground-neutral-muted scrollbar">
-        {response}
-      </pre>
-    </div>
-  );
-}
-
-function SessionChip({session}: {session: NonNullable<StepAttemptDetail['session']>}) {
-  return (
-    <Badge
-      variant="feature"
-      size="2xs"
-      radius="rounded"
-      role="group"
-      aria-label={`Agent session ${session.key}, ${session.mode} mode, ${session.segment === 0 ? 'no prior session loaded' : `segment ${session.segment} loaded`}`}
-      className="w-fit max-w-full font-code"
+    <InspectorSection
+      title="Agent session"
+      aside={
+        <Badge variant="feature" size="2xs">
+          {session.mode}
+        </Badge>
+      }
     >
-      <span className="block min-w-0 truncate">
-        Session {session.key} · {session.mode} ·{' '}
-        {session.segment === 0 ? 'no prior session loaded' : `segment ${session.segment} loaded`}
-      </span>
-    </Badge>
+      <PropertyList>
+        <PropertyRow label="Key" copyValue={session.key} copyLabel="Copy session key">
+          {session.key}
+        </PropertyRow>
+        <PropertyRow label="Prior session">
+          {session.segment === 0 ? 'None loaded' : `Segment ${session.segment} loaded`}
+        </PropertyRow>
+      </PropertyList>
+    </InspectorSection>
   );
 }
 
-function InspectorSection({title, children}: {title: string; children: ReactNode}) {
-  return (
-    <section className="flex min-w-0 flex-col gap-inline" aria-label={title}>
-      <Text size="xs" bold className="text-foreground-neutral-base">
-        {title}
-      </Text>
-      {children}
-    </section>
-  );
-}
-
-function ConfigCode({
+/** Resolved values lead; the authored source opens behind a disclosure. */
+function ConfigSection({
   authoredConfig,
   resolvedConfig,
 }: {
   authoredConfig: Record<string, unknown> | null;
   resolvedConfig: Record<string, unknown> | null;
 }) {
-  const entries: JsonCodeEntry[] = [
-    ...(authoredConfig
-      ? [
-          {
-            filename: 'authored.json',
-            label: 'Authored configuration',
-            value: authoredConfig,
-          },
-        ]
-      : []),
-    ...(resolvedConfig
-      ? [
-          {
-            filename: 'resolved.json',
-            label: 'Resolved configuration',
-            value: resolvedConfig,
-          },
-        ]
-      : []),
-  ];
-
-  if (entries.length === 0) return null;
-  return <JsonCodeTabs entries={entries} />;
-}
-
-export function EvaluationTrace({trace}: {trace: readonly EvaluationTraceEntry[]}) {
-  const keyCounts = new Map<string, number>();
-
+  const primary = resolvedConfig ?? authoredConfig ?? {};
+  const authoredCount = countConfigValues(authoredConfig);
   return (
-    <dl className="flex min-w-0 flex-col divide-y divide-border-neutral-base rounded-6 border border-border-neutral-base">
-      {trace.map((entry) => (
-        <EvaluationTraceRow entry={entry} key={evaluationTraceKey(entry, keyCounts)} />
-      ))}
-    </dl>
-  );
-}
-
-function evaluationTraceKey(entry: EvaluationTraceEntry, keyCounts: Map<string, number>): string {
-  const keyBase =
-    'dropped' in entry
-      ? `limit-${entry.dropped}`
-      : `evaluation-${entry.field}-${entry.expression}-${entry.evaluatedAt}-${entry.fillTarget}`;
-  const occurrence = keyCounts.get(keyBase) ?? 0;
-  keyCounts.set(keyBase, occurrence + 1);
-  return `${keyBase}-${occurrence}`;
-}
-
-function EvaluationTraceRow({entry}: {entry: EvaluationTraceEntry}) {
-  if ('dropped' in entry) {
-    return (
-      <div className="px-row py-row text-xs text-foreground-neutral-muted">
-        {entry.dropped} more evaluation{entry.dropped === 1 ? '' : 's'} not recorded
-      </div>
-    );
-  }
-  const empty = entry.value === undefined || entry.value === '';
-  return (
-    <div
-      className={cn(
-        'grid min-w-0 grid-cols-1 gap-inline px-row py-row min-[768px]:grid-cols-[160px_minmax(0,1fr)]',
-        entry.degraded && 'border-l border-tag-error-icon',
-      )}
+    <InspectorSection
+      title="Inputs"
+      aside={<Badge size="2xs">{resolvedConfig ? 'Resolved' : 'Authored'}</Badge>}
     >
-      <dt
-        className="flex min-w-0 flex-col gap-tight font-code text-xs text-foreground-neutral-muted"
-        title={entry.field}
-      >
-        <span className="block truncate">{entry.field}</span>
-        <span className="block break-all text-foreground-neutral-subtle">{entry.expression}</span>
-      </dt>
-      <dd className="flex min-w-0 flex-col gap-tight text-xs text-foreground-neutral-base">
-        {entry.degraded ? <span className="sr-only">Degraded evaluation</span> : null}
-        <div className="break-words font-code">
-          {empty ? <span className="text-tag-error-text">(empty)</span> : entry.value}
-        </div>
-        <div className="flex min-w-0 flex-wrap gap-x-inline gap-y-tight text-foreground-neutral-muted">
-          {entry.degraded ? <span className="text-tag-error-text">degraded</span> : null}
-          {entry.truncated || entry.exprTruncated ? <span>truncated</span> : null}
-        </div>
-      </dd>
-    </div>
-  );
-}
-
-function InspectorLoading() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading troubleshooting details"
-      className="flex flex-col gap-inline"
-    >
-      <Skeleton className="h-16 w-120" />
-      <Skeleton className="h-120 w-full" />
-    </div>
+      <JsonPropertyList value={primary} copyLabel={(name) => `Copy input ${name}`}>
+        {resolvedConfig && authoredConfig && authoredCount > 0 ? (
+          <PropertyDisclosureRow
+            label="Authored configuration"
+            summary={`${authoredCount} value${authoredCount === 1 ? '' : 's'}`}
+            copyValue={serializeJsonValue(authoredConfig)}
+            copyLabel="Copy authored configuration"
+          >
+            <PropertyCode>{serializeJsonValue(authoredConfig)}</PropertyCode>
+          </PropertyDisclosureRow>
+        ) : null}
+      </JsonPropertyList>
+    </InspectorSection>
   );
 }
 
 function EmptyInspector() {
-  return (
-    <Text size="xs" className="text-foreground-neutral-muted">
-      No additional troubleshooting details were recorded.
-    </Text>
-  );
+  return <InspectorNotice>No additional troubleshooting details were recorded.</InspectorNotice>;
 }
 
 function selectedStepError(

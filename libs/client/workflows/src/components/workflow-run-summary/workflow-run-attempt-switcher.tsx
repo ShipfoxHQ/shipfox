@@ -15,7 +15,7 @@ import type {
   WorkflowRunListItem,
   WorkflowRunOverview,
 } from '#core/workflow-run.js';
-import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
+import {withoutWorkflowRunScopedSearch} from '#core/workflow-run-url-state.js';
 import {useWorkflowRunAttemptsQuery} from '#hooks/api/workflow-runs.js';
 import {WorkflowStatusIcon} from '../workflow-status/workflow-status-icon.js';
 
@@ -185,7 +185,7 @@ function AttemptItem({
           ((previous: Record<string, unknown>) => {
             if (current) return previous;
             return {
-              ...withoutWorkflowRunSelectionSearch(previous),
+              ...withoutWorkflowRunScopedSearch(previous),
               runAttempt: attempt.attempt,
             };
           }) as never

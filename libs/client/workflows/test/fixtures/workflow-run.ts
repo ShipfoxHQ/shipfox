@@ -342,6 +342,7 @@ export function workflowRunOverviewResponseDto(
       trigger_source: detail.trigger_source,
       trigger_event: detail.trigger_event,
       trigger_reference: detail.trigger_reference,
+      secret_inputs: detail.secret_inputs ?? null,
       parent_run: detail.parent_run ?? null,
       created_at: detail.created_at,
     },

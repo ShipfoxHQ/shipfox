@@ -23,7 +23,7 @@ import {
   workflowRunBranchLabel,
   workflowRunCommitLabel,
 } from '#core/workflow-run.js';
-import {withoutWorkflowRunSelectionSearch} from '#core/workflow-run-url-state.js';
+import {withoutWorkflowRunScopedSearch} from '#core/workflow-run-url-state.js';
 import {JOB_STATUS_STRIP_WIDTH, JobStatusStrip, jobStatusSummary} from './job-status-strip.js';
 
 export function WorkflowRunRowList({
@@ -153,7 +153,7 @@ export function WorkflowRunRow({
       params={{workspaceSlug, projectSlug, workflowRunId: run.id}}
       search={
         ((previous: Record<string, unknown>) => ({
-          ...withoutWorkflowRunSelectionSearch(previous),
+          ...withoutWorkflowRunScopedSearch(previous),
           runAttempt: run.currentAttempt,
         })) as never
       }
