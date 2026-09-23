@@ -1,8 +1,10 @@
 import {createPosthogConnection} from '@shipfox/e2e-setup-integrations';
 import {expect, test} from './test.js';
 
+const MISSING_SCOPES_RE = /This key is missing required read scopes/u;
+
 test.describe('PostHog connection', () => {
-  test('connects one project, picks a project, and offers replacement for an existing project', async ({
+  test('connects a scoped project, picks a project, and offers replacement for an existing project', async ({
     integrationsCatalogue,
     createReadyWorkspace,
   }) => {
@@ -10,7 +12,7 @@ test.describe('PostHog connection', () => {
 
     await integrationsCatalogue.goto(workspaceSlug);
     await integrationsCatalogue.addButton('PostHog').click();
-    await integrationsCatalogue.posthogKeyField().fill('phx_single_project');
+    await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_project');
     await integrationsCatalogue.posthogConnectButton().click();
     await expect(integrationsCatalogue.installedProviderName('E2E Single project')).toBeVisible();
 
@@ -22,11 +24,28 @@ test.describe('PostHog connection', () => {
     await expect(integrationsCatalogue.installedProviderName('E2E Analytics')).toBeVisible();
 
     await integrationsCatalogue.addButton('PostHog').click();
-    await integrationsCatalogue.posthogKeyField().fill('phx_single_project');
+    await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_project');
     await integrationsCatalogue.posthogConnectButton().click();
     await expect(integrationsCatalogue.posthogAlreadyConnected()).toBeVisible();
     await integrationsCatalogue.posthogReplaceButton().click();
     await expect(integrationsCatalogue.posthogReplacementKeyField()).toBeVisible();
+  });
+
+  test('explains missing read scopes on the key field', async ({
+    integrationsCatalogue,
+    createReadyWorkspace,
+  }) => {
+    const {workspaceSlug} = await createReadyWorkspace({name: 'PostHog permissions E2E'});
+
+    await integrationsCatalogue.goto(workspaceSlug);
+    await integrationsCatalogue.addButton('PostHog').click();
+    await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_missing-scope');
+    await integrationsCatalogue.posthogConnectButton().click();
+
+    await expect(integrationsCatalogue.posthogKeyField()).toHaveAttribute('aria-invalid', 'true');
+    await expect(integrationsCatalogue.posthogKeyField()).toHaveAccessibleDescription(
+      MISSING_SCOPES_RE,
+    );
   });
 
   test('replaces the key for an error connection using the signed-in session', async ({
@@ -39,7 +58,7 @@ test.describe('PostHog connection', () => {
       workspaceId: ready.workspaceId,
       region: 'us',
       apiKey: 'phx_revoked_single',
-      projectId: 'e2e-single-project',
+      projectId: '101',
       projectName: 'E2E Revoked project',
       organizationId: 'e2e-organization',
       lifecycleStatus: 'error',
@@ -48,7 +67,7 @@ test.describe('PostHog connection', () => {
     await connectionDetails.goto(ready.workspaceSlug, connection.slug);
     await expect(connectionDetails.posthogError()).toBeVisible();
     await connectionDetails.posthogReplaceButton().click();
-    await connectionDetails.posthogKeyField().fill('phx_single_replacement');
+    await connectionDetails.posthogKeyField().fill('phx_scoped_single_replacement');
     await connectionDetails
       .posthogReplaceDialog()
       .getByRole('button', {name: 'Replace API key'})

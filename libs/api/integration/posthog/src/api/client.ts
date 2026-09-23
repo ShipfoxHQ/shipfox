@@ -1,10 +1,16 @@
 import type {PosthogRegion} from '@shipfox/api-integration-posthog-dto';
-import {PosthogIntegrationProviderError} from '#core/errors.js';
+import {z} from 'zod';
+import {PosthogIntegrationProviderError, PosthogMissingScopesError} from '#core/errors.js';
+import {posthogRequiredScopes} from '#core/required-scopes.js';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ERROR_BODY_BYTES = 8 * 1024;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 const TRAILING_SLASH_RE = /\/$/u;
+const credentialSchema = z.object({
+  scopes: z.array(z.string()).nullable(),
+  scoped_teams: z.array(z.number().int().positive().safe()).nullable(),
+});
 
 const posthogApiBases: Record<PosthogRegion, string> = {
   us: 'https://us.posthog.com',
@@ -23,6 +29,11 @@ export interface PosthogCredentialProbeResult {
 
 export interface PosthogApiClient {
   listProjects(input: {region: PosthogRegion; apiKey: string}): Promise<PosthogProject[]>;
+  getProject(input: {
+    region: PosthogRegion;
+    apiKey: string;
+    projectId: string;
+  }): Promise<PosthogProject | undefined>;
   validateQuery(input: {region: PosthogRegion; apiKey: string; projectId: string}): Promise<void>;
   probeCredential(input: {
     region: PosthogRegion;
@@ -62,6 +73,15 @@ class HttpPosthogApiClient implements PosthogApiClient {
   ) {}
 
   async listProjects(input: {region: PosthogRegion; apiKey: string}): Promise<PosthogProject[]> {
+    const scopedTeams = await this.readCredential(input);
+    if (scopedTeams.length > 0) {
+      const projects: PosthogProject[] = [];
+      for (const projectId of scopedTeams) {
+        const project = await this.fetchProject({...input, projectId: String(projectId)});
+        if (project) projects.push(project);
+      }
+      return projects;
+    }
     const response = await this.request(input, '/api/projects/');
     const payload = await parseJson(response);
     let projects: unknown[] | undefined;
@@ -78,6 +98,61 @@ class HttpPosthogApiClient implements PosthogApiClient {
     }
 
     return projects.map(toPosthogProject);
+  }
+
+  async getProject(input: {
+    region: PosthogRegion;
+    apiKey: string;
+    projectId: string;
+  }): Promise<PosthogProject | undefined> {
+    const scopedTeams = await this.readCredential(input);
+    if (scopedTeams.length > 0 && !scopedTeams.some((id) => String(id) === input.projectId)) {
+      return undefined;
+    }
+    return this.fetchProject(input);
+  }
+
+  private async readCredential(input: {region: PosthogRegion; apiKey: string}): Promise<number[]> {
+    const response = await this.request(input, '/api/personal_api_keys/@current/');
+    const parsed = credentialSchema.safeParse(await parseJson(response));
+    if (!parsed.success) {
+      throw new PosthogIntegrationProviderError(
+        'malformed-provider-response',
+        'PostHog returned invalid credential scopes',
+      );
+    }
+    const scopes = parsed.data.scopes ?? [];
+    const missingScopes = posthogRequiredScopes.filter(
+      (scope) =>
+        !scopes.includes('*') &&
+        !scopes.includes(scope) &&
+        !scopes.includes(scope.replace(':read', ':write')),
+    );
+    if (missingScopes.length > 0) throw new PosthogMissingScopesError(missingScopes);
+    return [...new Set(parsed.data.scoped_teams ?? [])];
+  }
+
+  private async fetchProject(input: {
+    region: PosthogRegion;
+    apiKey: string;
+    projectId: string;
+  }): Promise<PosthogProject | undefined> {
+    let response: Response;
+    try {
+      response = await this.request(input, `/api/projects/${encodeURIComponent(input.projectId)}/`);
+    } catch (error) {
+      if (error instanceof PosthogIntegrationProviderError && error.status === 404)
+        return undefined;
+      throw error;
+    }
+    const project = toPosthogProject(await parseJson(response));
+    if (project.id !== input.projectId) {
+      throw new PosthogIntegrationProviderError(
+        'malformed-provider-response',
+        'PostHog returned a different project than requested',
+      );
+    }
+    return project;
   }
 
   async validateQuery(input: {
@@ -315,6 +390,8 @@ function toPosthogProject(value: unknown): PosthogProject {
   let organizationId = '';
   if (typeof value.organization_id === 'string') {
     organizationId = value.organization_id;
+  } else if (typeof value.organization === 'string') {
+    organizationId = value.organization;
   } else if (organization && typeof organization.id === 'string') {
     organizationId = organization.id;
   }

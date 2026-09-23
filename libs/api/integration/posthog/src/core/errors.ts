@@ -2,6 +2,13 @@ import {IntegrationProviderError} from '@shipfox/api-integration-spi';
 
 export class PosthogIntegrationProviderError extends IntegrationProviderError {}
 
+export class PosthogMissingScopesError extends Error {
+  constructor(public readonly missingScopes: readonly string[]) {
+    super('The PostHog API key is missing required read scopes.');
+    this.name = 'PosthogMissingScopesError';
+  }
+}
+
 export class PosthogApiKeyMissingError extends Error {
   constructor(connectionId: string) {
     super(`PostHog API key is missing for connection: ${connectionId}`);

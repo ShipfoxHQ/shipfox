@@ -26,6 +26,9 @@ function connection(): IntegrationConnection<'posthog'> {
 function api(projects: PosthogProject[]): PosthogApiClient {
   return {
     listProjects: vi.fn(() => Promise.resolve(projects)),
+    getProject: vi.fn(({projectId}) =>
+      Promise.resolve(projects.find((project) => project.id === projectId)),
+    ),
     validateQuery: vi.fn(() => Promise.resolve()),
     probeCredential: vi.fn(() => Promise.resolve({status: 200})),
   };

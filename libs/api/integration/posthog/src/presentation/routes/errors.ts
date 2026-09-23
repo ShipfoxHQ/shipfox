@@ -7,6 +7,7 @@ import {
   PosthogCredentialVersionMismatchError,
   PosthogInstallationNotFoundError,
   PosthogIntegrationProviderError,
+  PosthogMissingScopesError,
   PosthogNoProjectAccessError,
   PosthogProjectMismatchError,
   PosthogProjectNotAccessibleError,
@@ -21,6 +22,12 @@ function providerStatus(reason: IntegrationProviderErrorReason, status?: number)
 }
 
 export function posthogRouteErrorHandler(error: unknown): never {
+  if (error instanceof PosthogMissingScopesError) {
+    throw new ClientError(error.message, 'missing-required-scopes', {
+      status: 403,
+      details: {missing_scopes: error.missingScopes},
+    });
+  }
   if (error instanceof PosthogAlreadyConnectedError) {
     throw new ClientError('PostHog project is already connected', 'already-connected', {
       status: 409,

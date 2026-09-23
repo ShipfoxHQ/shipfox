@@ -1,6 +1,23 @@
 import {PosthogIntegrationProviderError} from '#core/errors.js';
 import {createPosthogApiClient} from './client.js';
 
+const requiredScopes = [
+  'dashboard:read',
+  'error_tracking:read',
+  'event_definition:read',
+  'experiment:read',
+  'feature_flag:read',
+  'insight:read',
+  'project:read',
+  'property_definition:read',
+  'query:read',
+  'survey:read',
+];
+
+function credentialResponse(scopedTeams: number[] | null = [], scopes: string[] = requiredScopes) {
+  return Response.json({scopes, scoped_teams: scopedTeams});
+}
+
 describe('PostHog API client', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -29,14 +46,17 @@ describe('PostHog API client', () => {
     ['us', 'https://us.posthog.com'],
     ['eu', 'https://eu.posthog.com'],
   ] as const)('uses the %s API base', async (region, baseUrl) => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          results: [{id: 'project-1', name: 'Analytics', organization_id: 'org-1'}],
-        }),
-        {status: 200, headers: {'content-type': 'application/json'}},
-      ),
-    );
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(credentialResponse())
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: [{id: 'project-1', name: 'Analytics', organization_id: 'org-1'}],
+          }),
+          {status: 200, headers: {'content-type': 'application/json'}},
+        ),
+      );
 
     await createPosthogApiClient().listProjects({region, apiKey: 'phx_secret'});
 
@@ -51,6 +71,7 @@ describe('PostHog API client', () => {
   it('uses the E2E API base override for every region', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(credentialResponse())
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify([{id: 'project-1', name: 'Analytics', organization_id: 'org-1'}]),
@@ -69,10 +90,158 @@ describe('PostHog API client', () => {
     await client.listProjects({region: 'us', apiKey: 'phx_secret'});
     await client.probeCredential({region: 'eu', apiKey: 'phx_secret'});
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:16116/api/projects/');
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://127.0.0.1:16116/api/projects/');
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
       'http://127.0.0.1:16116/api/personal_api_keys/@current/',
     );
+  });
+
+  it.each([
+    {scopedTeams: [101]},
+    {scopedTeams: [101, 202]},
+  ])('resolves scoped projects without listing globally: $scopedTeams', async ({scopedTeams}) => {
+    const fetch = vi.fn((url: string | URL | Request) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/api/personal_api_keys/@current/')
+        return Promise.resolve(credentialResponse(scopedTeams));
+      if (path === '/api/projects/')
+        return Promise.resolve(
+          Response.json({detail: 'Scoped projects require project-based endpoints'}, {status: 403}),
+        );
+      const id = Number(path.split('/')[3]);
+      return Promise.resolve(Response.json({id, name: `Project ${id}`, organization: 'org-1'}));
+    });
+    const projects = await createPosthogApiClient({fetch}).listProjects({
+      region: 'eu',
+      apiKey: 'phx_scoped',
+    });
+
+    expect(projects).toEqual(
+      scopedTeams.map((id) => ({id: String(id), name: `Project ${id}`, organizationId: 'org-1'})),
+    );
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://eu.posthog.com/api/personal_api_keys/@current/',
+      ...scopedTeams.map((id) => `https://eu.posthog.com/api/projects/${id}/`),
+    ]);
+  });
+
+  it('accepts null project scoping and a paginated list response', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(credentialResponse(null))
+      .mockResolvedValueOnce(
+        Response.json({
+          results: [{id: 101, name: 'Analytics', organization: 'org-1'}],
+          next: null,
+        }),
+      );
+    await expect(
+      createPosthogApiClient({fetch}).listProjects({region: 'us', apiKey: 'phx_key'}),
+    ).resolves.toEqual([{id: '101', name: 'Analytics', organizationId: 'org-1'}]);
+  });
+
+  it('checks the stored project directly for a scoped replacement', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(credentialResponse([101, 202]))
+      .mockResolvedValueOnce(
+        Response.json({
+          id: 202,
+          name: 'Product',
+          organization: 'org-1',
+        }),
+      );
+    await expect(
+      createPosthogApiClient({fetch}).getProject({
+        region: 'eu',
+        apiKey: 'phx_key',
+        projectId: '202',
+      }),
+    ).resolves.toMatchObject({id: '202'});
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1]?.[0]).toBe('https://eu.posthog.com/api/projects/202/');
+  });
+
+  it('rejects a replacement scoped to another project before fetching it', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(credentialResponse([101]));
+    await expect(
+      createPosthogApiClient({fetch}).getProject({
+        region: 'eu',
+        apiKey: 'phx_key',
+        projectId: '202',
+      }),
+    ).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each(
+    requiredScopes,
+  )('rejects a credential missing %s before discovering projects', async (missingScope) => {
+    const fetch = vi.fn().mockResolvedValueOnce(
+      credentialResponse(
+        [101],
+        requiredScopes.filter((scope) => scope !== missingScope),
+      ),
+    );
+    await expect(
+      createPosthogApiClient({fetch}).listProjects({region: 'eu', apiKey: 'phx_key'}),
+    ).rejects.toMatchObject({
+      name: 'PosthogMissingScopesError',
+      missingScopes: [missingScope],
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    {scopes: ['*']},
+    {scopes: requiredScopes.map((scope) => scope.replace(':read', ':write'))},
+  ])('accepts grants that include the required reads: $scopes', async ({scopes}) => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(credentialResponse([], scopes))
+      .mockResolvedValueOnce(Response.json([]));
+    await expect(
+      createPosthogApiClient({fetch}).listProjects({region: 'eu', apiKey: 'phx_key'}),
+    ).resolves.toEqual([]);
+  });
+
+  it.each([
+    {},
+    {scopes: requiredScopes},
+    {scopes: requiredScopes, scoped_teams: ['101']},
+    {scopes: 'query:read', scoped_teams: []},
+  ])('rejects malformed credential metadata without falling back to global discovery: %j', async (payload) => {
+    const fetch = vi.fn().mockResolvedValueOnce(Response.json(payload));
+    await expect(
+      createPosthogApiClient({fetch}).listProjects({region: 'eu', apiKey: 'phx_key'}),
+    ).rejects.toMatchObject({reason: 'malformed-provider-response'});
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a project response with a different identity', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(credentialResponse([101]))
+      .mockResolvedValueOnce(
+        Response.json({id: 202, name: 'Wrong project', organization: 'org-1'}),
+      );
+    await expect(
+      createPosthogApiClient({fetch}).listProjects({region: 'eu', apiKey: 'phx_key'}),
+    ).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+
+  it('treats a deleted project as inaccessible', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(credentialResponse([101]))
+      .mockResolvedValueOnce(Response.json({detail: 'Not found'}, {status: 404}));
+    await expect(
+      createPosthogApiClient({fetch}).getProject({
+        region: 'eu',
+        apiKey: 'phx_key',
+        projectId: '101',
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it('sends the contract validation query to the selected project', async () => {

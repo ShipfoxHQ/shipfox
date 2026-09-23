@@ -4,6 +4,7 @@ import {type AuthMethod, closeApp, createApp} from '@shipfox/node-fastify';
 import type {FastifyRequest} from 'fastify';
 import type {PosthogApiClient, PosthogProject} from '#api/client.js';
 import type {PosthogCredentialStore} from '#core/credentials.js';
+import {PosthogIntegrationProviderError, PosthogMissingScopesError} from '#core/errors.js';
 import {
   createPosthogInstallation,
   deletePosthogInstallationByConnectionId,
@@ -77,6 +78,9 @@ function credentials(): PosthogCredentialStore {
 function api(projects: PosthogProject[]): PosthogApiClient {
   return {
     listProjects: vi.fn(() => Promise.resolve(projects)),
+    getProject: vi.fn(({projectId}) =>
+      Promise.resolve(projects.find((project) => project.id === projectId)),
+    ),
     validateQuery: vi.fn(() => Promise.resolve()),
     probeCredential: vi.fn(() => Promise.resolve({status: 200})),
   };
@@ -208,6 +212,44 @@ describe('PostHog connection routes', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({code: 'invalid-api-key-prefix'});
+  });
+
+  it.each([
+    {reason: 'access-denied', status: 403},
+    {reason: 'credentials-unavailable', status: 401},
+    {reason: 'rate-limited', status: 429},
+    {reason: 'malformed-provider-response', status: 422},
+  ] as const)('returns the stable $reason code without provider text', async ({reason, status}) => {
+    const posthog = api([]);
+    vi.mocked(posthog.listProjects).mockRejectedValue(
+      new PosthogIntegrationProviderError(reason, 'private provider detail'),
+    );
+    const app = await createTestApp({posthog});
+    const response = await app.inject({
+      method: 'POST',
+      url: '/integrations/posthog/connect',
+      payload: {workspace_id: workspaceId, region: 'eu', api_key: 'phx_key'},
+    });
+    expect(response.statusCode).toBe(status);
+    expect(response.json()).toEqual({code: reason, details: {}});
+  });
+
+  it('returns the missing read scopes without provider text', async () => {
+    const posthog = api([]);
+    vi.mocked(posthog.listProjects).mockRejectedValue(
+      new PosthogMissingScopesError(['insight:read']),
+    );
+    const app = await createTestApp({posthog});
+    const response = await app.inject({
+      method: 'POST',
+      url: '/integrations/posthog/connect',
+      payload: {workspace_id: workspaceId, region: 'eu', api_key: 'phx_key'},
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      code: 'missing-required-scopes',
+      details: {missing_scopes: ['insight:read']},
+    });
   });
 
   it('returns 404 when replacing a missing connection', async () => {
