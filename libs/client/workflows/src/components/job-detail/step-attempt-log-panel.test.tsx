@@ -3,11 +3,13 @@ import {type StepLogSnapshot, stepLogsQueryKeys} from '@shipfox/client-logs';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {createRef} from 'react';
+import {stepAttemptDetailQueryKeys} from '#hooks/api/step-attempt-detail.js';
 import {inlineLogBody, outputLine} from '#test/fixtures/logs.js';
 import {StepAttemptLogPanel} from './step-attempt-log-panel.js';
 
 const STEP_ID = '99999999-9999-4999-8999-999999999999';
 const WAITING_FOR_OUTPUT_PATTERN = /Waiting for output ·/;
+const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
 type TestLogRecord = StepLogSnapshot['records'][number];
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -79,6 +81,58 @@ function renderPanel(
 }
 
 describe('StepAttemptLogPanel', () => {
+  test('uses cached attempt detail to identify integration actions', async () => {
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
+    queryClient.setQueryData(
+      stepLogsQueryKeys.detail(STEP_ID, 1),
+      snapshot([
+        {
+          v: 1,
+          ts: 1,
+          type: 'agent_session',
+          row: {
+            kind: 'tool-call',
+            timestamp: 1,
+            id: 'tool-1',
+            name: 'mcp__shipfox_integration_tools__tickets_main__list_teams',
+            input: '{"workspace":"shipfox"}',
+          },
+        },
+        {
+          v: 1,
+          ts: 2,
+          type: 'agent_session',
+          row: {
+            kind: 'tool-result',
+            timestamp: 2,
+            toolCallId: 'tool-1',
+            toolName: 'list_teams',
+            output: '[{"name":"Engineering"}]',
+            isError: false,
+          },
+        },
+      ]),
+    );
+    queryClient.setQueryData(stepAttemptDetailQueryKeys.detail(STEP_ID, 1), {
+      config: {
+        integrations: [
+          {
+            provider: 'linear',
+            connectionId: 'connection-1',
+            connectionSlug: 'tickets-main',
+            tools: [{id: 'list_teams', sensitivity: 'read', sensitive: true}],
+          },
+        ],
+      },
+    });
+    configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: vi.fn()});
+
+    renderPanel({attemptStatus: 'succeeded'}, {queryClient});
+
+    fireEvent.click(await screen.findByRole('button', {name: INTEGRATION_BUTTON_NAME}));
+    expect(screen.getByText('Engineering')).toBeInTheDocument();
+  });
+
   afterEach(() => {
     cleanup();
     vi.useRealTimers();

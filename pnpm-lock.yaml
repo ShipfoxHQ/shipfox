@@ -6197,6 +6197,9 @@ importers:
       '@shipfox/client-api':
         specifier: workspace:*
         version: link:../api
+      '@shipfox/integration-icons':
+        specifier: workspace:*
+        version: link:../../shared/react/integration-icons
       '@shipfox/react-ui':
         specifier: workspace:*
         version: link:../../shared/react/ui

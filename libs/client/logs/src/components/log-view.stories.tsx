@@ -1,12 +1,17 @@
 import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import {userEvent, within} from 'storybook/test';
+import {
+  createIntegrationActionPresentationLookup,
+  type IntegrationActionTool,
+} from '#core/integration-action.js';
 import type {LogRecord, SessionViewRow} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
 const READ_FILE_BUTTON_NAME = /Read File/;
 const LARGE_READ_BUTTON_NAME = /Read File.*src\/large.ts/;
+const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
 const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
 
@@ -77,6 +82,106 @@ const toolResultResolutionRecords: LogRecord[] = [
     2,
   ),
 ];
+
+interface IntegrationProviderExample {
+  provider: string;
+  toolId: string;
+  input: Record<string, unknown>;
+  output: unknown;
+  methods?: IntegrationActionTool['methods'];
+}
+
+const integrationProviderExamples: readonly IntegrationProviderExample[] = [
+  {
+    provider: 'github',
+    toolId: 'issue_read',
+    methods: [{id: 'get', sensitivity: 'read'}],
+    input: {method: 'get', owner: 'shipfox', repo: 'platform', issue_number: 42},
+    output: {number: 42, title: 'Improve activity logs', state: 'open'},
+  },
+  {
+    provider: 'gitea',
+    toolId: 'get_issue',
+    input: {repo: 'platform', index: 7},
+    output: {number: 7, title: 'Review deployment', state: 'open'},
+  },
+  {
+    provider: 'linear',
+    toolId: 'get_issue',
+    input: {id: 'ENG-2312'},
+    output: {identifier: 'ENG-2312', title: 'Add integration identity and presentation'},
+  },
+  {
+    provider: 'jira',
+    toolId: 'get_issue',
+    input: {idOrKey: 'OPS-42'},
+    output: {key: 'OPS-42', fields: {summary: 'Review production alerts'}},
+  },
+  {
+    provider: 'clickup',
+    toolId: 'get_task',
+    input: {task_id: '86abc'},
+    output: {id: '86abc', name: 'Prepare release notes', status: 'in progress'},
+  },
+  {
+    provider: 'notion',
+    toolId: 'search',
+    input: {query: 'Launch notes'},
+    output: {results: [{title: 'Launch notes', object: 'page'}], has_more: false},
+  },
+  {
+    provider: 'slack',
+    toolId: 'read_channel',
+    input: {channel_id: 'C123'},
+    output: {messages: [{user: 'U123', text: 'Release is ready'}], has_more: false},
+  },
+  {
+    provider: 'posthog',
+    toolId: 'insights-list',
+    input: {},
+    output: {results: [{name: 'Weekly active users'}]},
+  },
+];
+
+const integrationProviderTools: IntegrationActionTool[] = integrationProviderExamples.map(
+  ({provider, toolId, methods}) => ({
+    provider,
+    connectionId: `${provider}-connection`,
+    connectionSlug: `${provider}-main`,
+    toolId,
+    sensitivity: 'read',
+    methods,
+  }),
+);
+
+const integrationProviderRecords: LogRecord[] = integrationProviderExamples.flatMap(
+  ({provider, toolId, input, output}, index) => {
+    const id = `${provider}-tool`;
+    return [
+      session(
+        {
+          kind: 'tool-call',
+          timestamp: 0,
+          id,
+          name: `mcp__shipfox_integration_tools__${provider}_main__${toolId}`,
+          input: JSON.stringify(input),
+        },
+        index * 2,
+      ),
+      session(
+        {
+          kind: 'tool-result',
+          timestamp: 0,
+          toolCallId: id,
+          toolName: toolId,
+          output: JSON.stringify(output),
+          isError: false,
+        },
+        index * 2 + 1,
+      ),
+    ];
+  },
+);
 
 const pairedActivityRecords: LogRecord[] = [
   session(
@@ -213,7 +318,7 @@ const nativeEdgeRecords = [
     {
       name: 'Read',
       input: {file_path: 'src/large.ts'},
-      output: 'export const value = 1;\n'.repeat(350),
+      output: `export const value = 1;\nexport const payload = "${'x'.repeat(5_100)}";`,
     },
   ]),
   {v: 1, ts: at(15), type: 'end', totalBytes: 18_000} as LogRecord,
@@ -806,6 +911,84 @@ export const ClaudeToolResultResolution: Story = {
       <LogView {...args} records={toolResultResolutionRecords} />
     </div>
   ),
+};
+
+export const ResolvedIntegrationAction: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={toolResultResolutionRecords}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'linear',
+            connectionId: 'connection-1',
+            connectionSlug: 'linear-shipfox',
+            toolId: 'list_teams',
+            sensitivity: 'read',
+          },
+        ])}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: INTEGRATION_BUTTON_NAME}));
+  },
+};
+
+export const IntegrationProviderActions: Story = {
+  args: {showLineNumbers: true},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'GitHub, Gitea, Linear, and Jira actions with expanded results. Sentry and Webhook receive events but do not expose agent tools.',
+      },
+    },
+  },
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={integrationProviderRecords.slice(0, 8)}
+        actionPresentation={createIntegrationActionPresentationLookup(integrationProviderTools)}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    for (const button of canvas.getAllByRole('button')) {
+      if (button.hasAttribute('aria-expanded')) await userEvent.click(button);
+    }
+  },
+};
+
+export const IntegrationProviderActionsMore: Story = {
+  args: {showLineNumbers: true},
+  parameters: {
+    docs: {
+      description: {
+        story: 'ClickUp, Notion, Slack, and PostHog actions with expanded results.',
+      },
+    },
+  },
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={integrationProviderRecords.slice(8)}
+        actionPresentation={createIntegrationActionPresentationLookup(integrationProviderTools)}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    for (const button of canvas.getAllByRole('button')) {
+      if (button.hasAttribute('aria-expanded')) await userEvent.click(button);
+    }
+  },
 };
 
 export const FailedAgentSession: Story = {

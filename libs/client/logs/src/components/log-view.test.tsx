@@ -1,4 +1,5 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {createIntegrationActionPresentationLookup} from '#core/integration-action.js';
 import type {LogRecord} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
@@ -8,6 +9,8 @@ const TOOL_BUTTON_NAME = /Tool/;
 const RUN_COMMAND_BUTTON_NAME = /Run Command/;
 const EDIT_FILE_BUTTON_NAME = /Edit File/;
 const READ_FILE_BUTTON_NAME = /Read File/;
+const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
+const CLICKUP_BUTTON_NAME = /ClickUp · Read/;
 
 const output = (data: string): LogRecord => ({
   v: 1,
@@ -40,6 +43,140 @@ const agentSession = (row: AgentSessionRow, offsetMs = 0): LogRecord => ({
 });
 
 describe('LogView', () => {
+  test('shows resolved integration identity and structured recorded output', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'a',
+            name: 'mcp__shipfox_integration_tools__tickets_main__list_teams',
+            input: '{"workspace":"shipfox"}',
+          }),
+          agentSession(
+            {
+              kind: 'tool-result',
+              timestamp: ts + 1,
+              toolCallId: 'a',
+              toolName: 'tool',
+              output: '[{"name":"Engineering"}]',
+              isError: false,
+            },
+            1,
+          ),
+        ]}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'linear',
+            connectionId: 'id',
+            connectionSlug: 'tickets-main',
+            toolId: 'list_teams',
+            sensitivity: 'read',
+          },
+        ])}
+      />,
+    );
+    const preview = screen.getByRole('button', {name: INTEGRATION_BUTTON_NAME});
+    expect(screen.getByText('succeeded')).toHaveClass('sr-only');
+    const count = screen.getByText('1 item');
+    expect(count.parentElement).toHaveClass('gap-inline');
+    expect(count.nextElementSibling).toHaveClass('border-l');
+    expect(count.nextElementSibling?.nextElementSibling).toHaveTextContent('1ms');
+    fireEvent.click(preview);
+    const result = screen.getByText('Engineering');
+    expect(result.closest('.bg-background-contrast-base')).toBeInTheDocument();
+    expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
+    expect(screen.queryByText('{"workspace":"shipfox"}')).not.toBeInTheDocument();
+  });
+
+  test('shows nested objects and arrays as labeled groups', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'grouped',
+            name: 'example_main__read',
+            input: '{}',
+          }),
+          agentSession(
+            {
+              kind: 'tool-result',
+              timestamp: ts + 1,
+              toolCallId: 'grouped',
+              toolName: 'read',
+              output: '{"fields":{"summary":"Review"},"results":[{"title":"Launch"}]}',
+              isError: false,
+            },
+            1,
+          ),
+        ]}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'example',
+            connectionId: 'id',
+            connectionSlug: 'example-main',
+            toolId: 'read',
+            sensitivity: 'read',
+          },
+        ])}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Example · Read'));
+
+    expect(screen.getByText('fields').nextElementSibling).toContainElement(
+      screen.getByText('summary'),
+    );
+    expect(screen.getByText('results · 1 item').nextElementSibling).toContainElement(
+      screen.getByText('Item 1'),
+    );
+    expect(screen.getByText('Item 1').nextElementSibling).toContainElement(
+      screen.getByText('title'),
+    );
+  });
+
+  test('keeps deeply nested integration output viewable', () => {
+    const nested = `${'['.repeat(12_000)}0${']'.repeat(12_000)}`;
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'nested',
+            name: 'customer_primary__read',
+            input: '{}',
+          }),
+          agentSession(
+            {
+              kind: 'tool-result',
+              timestamp: ts + 1,
+              toolCallId: 'nested',
+              toolName: 'tool',
+              output: nested,
+              isError: false,
+            },
+            1,
+          ),
+        ]}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'clickup',
+            connectionId: 'id',
+            connectionSlug: 'customer-primary',
+            toolId: 'read',
+            sensitivity: 'read',
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', {name: CLICKUP_BUTTON_NAME}));
+    expect(screen.getByText('[Nested value omitted]')).toBeInTheDocument();
+  });
+
   let scrollIntoViewDescriptor: PropertyDescriptor | undefined;
   let scrollIntoViewWasStubbed = false;
 
@@ -341,9 +478,7 @@ describe('LogView', () => {
     );
 
     expect(screen.getByText('Tool')).toBeInTheDocument();
-    const statusLabel = screen.getByText('succeeded');
-    expect(statusLabel).toHaveClass('sr-only');
-    expect(statusLabel.parentElement?.querySelector('svg')).not.toBeNull();
+    expect(screen.getByText('succeeded')).toHaveClass('sr-only');
 
     fireEvent.click(screen.getByRole('button', {name: TOOL_BUTTON_NAME}));
 

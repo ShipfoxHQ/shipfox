@@ -15,6 +15,10 @@ export {
   pairSessionRows,
   type SessionRowSource,
 } from '#core/activity.js';
+export {
+  createIntegrationActionPresentationLookup,
+  type IntegrationActionTool,
+} from '#core/integration-action.js';
 export type {
   LogRecord,
   LogSource,
