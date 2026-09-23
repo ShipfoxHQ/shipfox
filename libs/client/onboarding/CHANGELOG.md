@@ -1,5 +1,12 @@
 # @shipfox/client-onboarding
 
+## 52.0.0
+
+### Patch Changes
+
+- @shipfox/client-agent@52.0.0
+- @shipfox/client-projects@52.0.0
+
 ## 51.0.0
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @shipfox/workflow-templates
 
+## 0.4.0
+
+### Minor Changes
+
+- e13617c: Adds the dependency-bot CI template and corrects provider part types for embedded templates.
+- 751ae3a: Adds model placeholders and optional tested references to workflow template manifests.
+
 ## 0.3.0
 
 ### Minor Changes

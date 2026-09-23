@@ -1,5 +1,12 @@
 # @shipfox/client-logs
 
+## 52.0.0
+
+### Minor Changes
+
+- cdb635f: Groups consecutive successful agent reads while preserving search results, open groups, focus, and scroll position.
+- fd261c8: Presents set_output, web search and fetch, and Pi proxied integration calls as readable Activity actions, and exports the shared output tool names.
+
 ## 51.0.0
 
 ### Minor Changes

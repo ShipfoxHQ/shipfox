@@ -1,5 +1,19 @@
 # @shipfox/client-workflows
 
+## 52.0.0
+
+### Patch Changes
+
+- cdb635f: Groups consecutive successful agent reads while preserving search results, open groups, focus, and scroll position.
+- c0435b9: Open the workflow and job inspectors as modal sheets that close on outside click, matching the step inspector.
+- Updated dependencies [cdb635f]
+- Updated dependencies [fd261c8]
+  - @shipfox/client-logs@52.0.0
+  - @shipfox/api-workflows-dto@32.1.0
+  - @shipfox/api-triggers-dto@32.1.0
+  - @shipfox/client-projects@52.0.0
+  - @shipfox/client-triggers@52.0.0
+
 ## 51.0.0
 
 ### Minor Changes
