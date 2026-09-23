@@ -93,6 +93,7 @@
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
     "@shipfox/workflow-templates": "workspace:*",
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",

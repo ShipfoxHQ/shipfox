@@ -29,18 +29,6 @@ options:
       - id: comment_only
         label: Comment only
         tradeoff: Leaves the branch unchanged and posts the proposed fix on the pull request.
-  - id: model_profile
-    question: Which model profile should fix the failure?
-    choices:
-      - id: balanced
-        label: Balanced
-        default: true
-      - id: economy
-        label: Economy
-        tradeoff: Costs less but may need more attempts on complex failures.
-      - id: strongest
-        label: Strongest
-        tradeoff: Uses the most capable available model at a higher cost.
 slots: [setup_commands, test_command]
 secrets: []
 variables: []

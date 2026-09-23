@@ -27,9 +27,9 @@ Keep one marked delivery block:
 
 For comment-only mode, also remove the marked checkout `permissions` block. This prevents the job from receiving Git write access.
 
-### Model profile
+## Choose a model
 
-Replace `replace-with-resolved-implementation-model` with the implementation model from the selected profile.
+Replace `replace-me` with a model available in the workspace.
 
 ## Fill the command slots
 

@@ -3248,6 +3248,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../../shared/workflow/document
       '@shipfox/workflow-templates':
         specifier: workspace:*
         version: link:../../../shared/workflow/templates
