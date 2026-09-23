@@ -53,9 +53,12 @@ fields](/reference/workflow-schema#agent-integration-fields).
 
 ## Failures
 
-PostHog tool failures keep PostHog's own message. A missing-scope failure names
-the missing PostHog scope. A rate-limit failure includes PostHog's retry delay
-after PostHog finishes its own retries.
+When PostHog returns a tool error, Shipfox keeps its message. The message can
+name a missing scope or include a retry delay.
+
+If PostHog rejects the request before returning a tool result, Shipfox shows a
+shorter message. Permission failures identify a required permission. Rate
+limits ask you to try again later.
 
 Replace a rejected or revoked key from the integration connection's **API key**
 panel. See [Replace an API key](/integrations/posthog/setup#replace-an-api-key).

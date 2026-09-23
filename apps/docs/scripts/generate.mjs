@@ -311,7 +311,7 @@ function renderIntegrationToolReference(provider) {
 }
 
 function generatedDocumentReplacer(_key, value) {
-  return typeof value === 'string' ? value.replaceAll('\u2014', ':') : value;
+  return typeof value === 'string' ? value.replaceAll(/[ \t]*\u2014[ \t]*/g, ': ') : value;
 }
 
 function renderMcpToolReference() {
