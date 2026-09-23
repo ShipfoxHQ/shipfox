@@ -66,6 +66,42 @@ describe('get_workflow_authoring_context', () => {
     expect(JSON.stringify(response)).not.toContain('secret-value');
   });
 
+  test('returns measured references for supported thinking levels', async () => {
+    const measuredModel = workspaceModel({
+      id: 'gpt-5',
+      provider: 'openai',
+      is_default: true,
+      references: [
+        {thinking: 'low', intelligence_index: 70, cost_per_task_usd: 0.04, scale: 'aa-v1'},
+        {thinking: 'high', intelligence_index: 82, cost_per_task_usd: 0.1, scale: 'aa-v1'},
+      ],
+    });
+    const clients = createClients({
+      models: {
+        models: [measuredModel],
+        default_model: measuredModel,
+        attribution: 'Intelligence Index by Artificial Analysis',
+      },
+    });
+
+    const response = await tool(clients).execute({context, arguments: {}});
+
+    expect(response).toMatchObject({
+      ok: true,
+      result: {
+        models: [
+          expect.objectContaining({
+            supported_thinking: expect.arrayContaining(['low', 'high']),
+            references: measuredModel.references,
+          }),
+        ],
+        attribution: 'Intelligence Index by Artificial Analysis',
+      },
+    });
+    if (!response.ok) throw new Error('Expected a successful response');
+    expect(getWorkflowAuthoringContextResultSchema.safeParse(response.result).success).toBe(true);
+  });
+
   test('scopes secret and variable names to the requested project', async () => {
     const clients = createClients();
 
@@ -145,9 +181,10 @@ function workspaceModel(
   return {
     harness: 'pi',
     thinking: 'medium',
+    supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
     is_default: false,
     price: null,
-    reference: null,
+    references: [],
     ...overrides,
   };
 }

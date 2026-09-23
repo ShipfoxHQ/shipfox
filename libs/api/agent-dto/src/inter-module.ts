@@ -8,8 +8,9 @@ import {
   managedProviderJobIdentitySchema,
   modelPriceSchema,
   modelProviderRefSchema,
-  modelReferenceSchema,
+  modelReferencesSchema,
   RUNNER_CAPABILITY_REQUIRED_ERROR_CODE,
+  thinkingLevelsForHarness,
 } from '#schemas/index.js';
 
 const agentValidationCatalogFieldsSchema = z.object({
@@ -42,15 +43,48 @@ const agentValidationCatalogV2Schema = agentValidationCatalogFieldsSchema.extend
 export type AgentValidationCatalog = z.infer<typeof agentValidationCatalogSchema>;
 export type AgentValidationCatalogV2 = z.infer<typeof agentValidationCatalogV2Schema>;
 
-const agentWorkspaceModelSchema = z.object({
-  id: z.string().min(1),
-  provider: modelProviderRefSchema,
-  harness: harnessSchema,
-  thinking: agentThinkingSchema,
-  is_default: z.boolean(),
-  price: modelPriceSchema.nullable(),
-  reference: modelReferenceSchema.nullable(),
-});
+const agentWorkspaceModelSchema = z
+  .object({
+    id: z.string().min(1),
+    provider: modelProviderRefSchema,
+    harness: harnessSchema,
+    thinking: agentThinkingSchema,
+    supported_thinking: z.array(agentThinkingSchema),
+    is_default: z.boolean(),
+    price: modelPriceSchema.nullable(),
+    references: modelReferencesSchema,
+  })
+  .superRefine(({harness, supported_thinking: supportedThinking, references}, ctx) => {
+    const supportedLevels = new Set(supportedThinking);
+    const harnessLevels = new Set(thinkingLevelsForHarness(harness));
+
+    for (const [index, level] of supportedThinking.entries()) {
+      if (!harnessLevels.has(level)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['supported_thinking', index],
+          message: 'supported_thinking must contain levels supported by the model harness',
+        });
+      }
+      if (supportedThinking.indexOf(level) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['supported_thinking', index],
+          message: 'supported_thinking must not contain duplicate levels',
+        });
+      }
+    }
+
+    for (const [index, reference] of references.entries()) {
+      if (!supportedLevels.has(reference.thinking) || !harnessLevels.has(reference.thinking)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['references', index, 'thinking'],
+          message: 'reference thinking must be supported by the model and harness',
+        });
+      }
+    }
+  });
 
 const agentWorkspaceModelsSchema = z
   .object({
@@ -59,14 +93,14 @@ const agentWorkspaceModelsSchema = z
     attribution: z.string().min(1).nullable(),
   })
   .superRefine(({models, default_model: defaultModel, attribution}, ctx) => {
-    const hasReferencedModel = models.some(({reference}) => reference !== null);
+    const hasReferencedModel = models.some(({references}) => references.length > 0);
     if ((attribution !== null) !== hasReferencedModel) {
       ctx.addIssue({
         code: 'custom',
         path: ['attribution'],
         message: hasReferencedModel
-          ? 'attribution is required when a model has a reference'
-          : 'attribution must be null when no model has a reference',
+          ? 'attribution is required when a model has references'
+          : 'attribution must be null when no model has references',
       });
     }
 

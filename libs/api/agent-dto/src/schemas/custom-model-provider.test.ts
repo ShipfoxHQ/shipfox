@@ -14,32 +14,21 @@ import {
 import {MODEL_PROVIDER_IDS} from './model-provider-id.js';
 
 describe('custom model provider schemas', () => {
-  it('accepts a complete model reference', () => {
-    expect(
-      customAgentModelSchema.parse({
-        id: 'llama-3.1',
-        label: 'Llama 3.1',
-        reference: {
+  it('keeps operator-configured custom models unscored', () => {
+    const parsed = customAgentModelSchema.parse({
+      id: 'llama-3.1',
+      label: 'Llama 3.1',
+      references: [
+        {
+          thinking: 'medium',
           intelligence_index: 70,
           cost_per_task_usd: 0.04,
           scale: 'aa-v1-swe-bench',
         },
-      }).reference,
-    ).toEqual({
-      intelligence_index: 70,
-      cost_per_task_usd: 0.04,
-      scale: 'aa-v1-swe-bench',
+      ],
     });
-  });
 
-  it('requires every field when a model reference is present', () => {
-    expect(() =>
-      customAgentModelSchema.parse({
-        id: 'llama-3.1',
-        label: 'Llama 3.1',
-        reference: {intelligence_index: 70},
-      }),
-    ).toThrow();
+    expect(parsed).not.toHaveProperty('references');
   });
 
   describe.each(MODEL_PROVIDER_IDS)('modelProviderRefSchema "%s"', (providerId) => {

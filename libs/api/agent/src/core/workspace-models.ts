@@ -1,7 +1,10 @@
 import {
   type AgentModelOptionDto,
+  type AgentThinking,
   DEFAULT_HARNESS,
+  type Harness,
   type ManagedModelProvider,
+  type ManagedModelThinkingLevelMap,
   MODEL_REFERENCE_ATTRIBUTION,
   type ModelPrice,
   type ModelReference,
@@ -23,6 +26,7 @@ import {
 } from './errors.js';
 import {listHarnessProviderModels} from './harness/index.js';
 import {resolveAgentConfig} from './resolve-agent-config.js';
+import {supportedThinkingForModel} from './supported-thinking.js';
 import {getAgentValidationCatalogV2} from './validation-catalog.js';
 import {workspaceAgentResolutionContext} from './workspace-agent-context.js';
 
@@ -30,8 +34,16 @@ interface WorkspaceModelCandidate {
   readonly id: string;
   readonly provider: string;
   readonly price: ModelPrice | null;
-  readonly reference: ModelReference | null;
+  readonly supportedThinking: readonly AgentThinking[];
+  readonly references: readonly ModelReference[];
 }
+
+type WorkspaceModelOption = Pick<AgentModelOptionDto, 'id' | 'price' | 'references'> & {
+  readonly supported_thinking?: readonly AgentThinking[] | undefined;
+  readonly reasoning?: boolean | undefined;
+  readonly thinkingLevelMap?: ManagedModelThinkingLevelMap | undefined;
+  readonly thinking_level_map?: ManagedModelThinkingLevelMap | undefined;
+};
 
 export async function getWorkspaceModels(
   workspaceId: string,
@@ -65,10 +77,14 @@ export async function getWorkspaceModels(
       candidate.id === defaultModel.id &&
       candidate.provider === defaultModel.provider;
     return {
-      ...candidate,
+      id: candidate.id,
+      provider: candidate.provider,
       harness: resolved.harness,
       thinking: resolved.thinking,
+      supported_thinking: [...candidate.supportedThinking],
+      references: [...candidate.references],
       is_default: isDefault,
+      price: candidate.price,
     } satisfies AgentWorkspaceModel;
   });
 
@@ -80,7 +96,7 @@ export async function getWorkspaceModels(
         : (models.find(
             ({id, provider}) => id === defaultModel.id && provider === defaultModel.provider,
           ) ?? null),
-    attribution: models.some(({reference}) => reference !== null)
+    attribution: models.some(({references}) => references.length > 0)
       ? MODEL_REFERENCE_ATTRIBUTION
       : null,
   };
@@ -121,7 +137,9 @@ function configuredModels(
         const managedModels = new Map(managedProvider.models.map((model) => [model.id, model]));
         return modelIds.flatMap((id) => {
           const model = managedModels.get(id);
-          return model === undefined ? [] : [modelCandidate(provider, model)];
+          return model === undefined
+            ? []
+            : [modelCandidate(provider, catalog.default_harness_id, model)];
         });
       }
 
@@ -133,7 +151,9 @@ function configuredModels(
       );
       return modelIds.flatMap((id) => {
         const model = modelsById.get(id);
-        return model === undefined ? [] : [modelCandidate(provider, model)];
+        return model === undefined
+          ? []
+          : [modelCandidate(provider, catalog.default_harness_id, model)];
       });
     },
   );
@@ -144,7 +164,7 @@ function configuredModels(
   const customModels = providerConfigs.flatMap((providerConfig) =>
     providerConfig.kind === 'custom'
       ? (providerConfig.models ?? []).map((model) =>
-          modelCandidate(providerConfig.providerId, model),
+          modelCandidate(providerConfig.providerId, catalog.default_harness_id, model),
         )
       : [],
   );
@@ -153,13 +173,19 @@ function configuredModels(
 
 function modelCandidate(
   provider: string,
-  model: Pick<AgentModelOptionDto, 'id' | 'price' | 'reference'>,
+  harness: Harness,
+  model: WorkspaceModelOption,
 ): WorkspaceModelCandidate {
+  const supportedThinking = model.supported_thinking ?? supportedThinkingForModel(harness, model);
+
   return {
     id: model.id,
     provider,
     price: model.price ?? null,
-    reference: model.reference ?? null,
+    supportedThinking,
+    references: (model.references ?? []).filter(({thinking}) =>
+      supportedThinking.includes(thinking),
+    ),
   };
 }
 

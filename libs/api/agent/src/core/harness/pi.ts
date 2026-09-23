@@ -1,14 +1,19 @@
 import {getModels} from '@earendil-works/pi-ai/compat';
-import {type AgentModelOptionDto, PI_HARNESS} from '@shipfox/api-agent-dto';
+import {PI_HARNESS} from '@shipfox/api-agent-dto';
 import {probeModelProviderCredentials} from '../model-provider-validation.js';
-import type {HarnessProviderCatalog} from './registry.js';
+import {supportedThinkingForModel} from '../supported-thinking.js';
+import type {HarnessModelOptionDto, HarnessProviderCatalog} from './registry.js';
 
 export {PI_HARNESS};
 
-export function listPiProviderModels(providerId: string): AgentModelOptionDto[] {
+export function listPiProviderModels(providerId: string): HarnessModelOptionDto[] {
   return getModels(providerId as Parameters<typeof getModels>[0]).map((model) => ({
     id: model.id,
     label: model.name,
+    supported_thinking: supportedThinkingForModel('pi', {
+      reasoning: model.reasoning,
+      thinkingLevelMap: model.thinkingLevelMap,
+    }),
     ...(model.cost.input >= 0 && model.cost.output >= 0
       ? {
           price: {
