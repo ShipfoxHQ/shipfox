@@ -81,7 +81,7 @@ export function ActivityActionRow({
         )}
       >
         <span className="inline-flex min-w-0 items-center gap-inline">
-          <ActionIcon kind={resolvedPresentation.iconKind} state={action.state} />
+          <ActionIcon kind={resolvedPresentation.iconKind} />
           <span className="truncate">{resolvedPresentation.label}</span>
         </span>
       </LogDisclosureTrigger>
@@ -178,7 +178,7 @@ function ActionDetail({
   );
 }
 
-function ActionIcon({kind, state}: {kind: ActionPresentation['iconKind']; state: ActivityState}) {
+function ActionIcon({kind}: {kind: ActionPresentation['iconKind']}) {
   const icons: Record<ActionPresentation['iconKind'], IconName> = {
     tool: 'terminalBoxLine',
     unknown: 'questionLine',
@@ -189,16 +189,10 @@ function ActionIcon({kind, state}: {kind: ActionPresentation['iconKind']; state:
     search: 'searchLine',
     list: 'folderLine',
   };
-  let icon = icons[kind];
-  if (kind === 'tool' || kind === 'unknown') {
-    if (state === 'failed') icon = 'closeCircleLine';
-    if (state === 'succeeded') icon = 'checkCircleLine';
-    if (state === 'no-result') icon = 'errorWarningLine';
-  }
   return (
     <Icon
-      name={icon}
-      className={cn('size-14 flex-none', actionStateClass(state))}
+      name={icons[kind]}
+      className="size-14 flex-none text-foreground-contrast-secondary"
       aria-hidden="true"
     />
   );
