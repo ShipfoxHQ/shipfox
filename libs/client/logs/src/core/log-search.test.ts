@@ -1,6 +1,7 @@
+import {type ActivityGroupNode, type ActivityNode, buildActivityNodes} from './activity.js';
 import type {LogRecord} from './log-model.js';
-import {buildLogSearchIndex, filterLogNodes} from './log-search.js';
-import {buildLogTree, type GroupLogNode, type LogNode} from './log-tree.js';
+import {buildLogSearchIndex, filterActivityNodes} from './log-search.js';
+import {buildLogTree} from './log-tree.js';
 
 const output = (data: string): LogRecord => ({
   v: 1,
@@ -30,12 +31,12 @@ const groupEnd = (groupId: string): LogRecord => ({
   groupId,
 });
 
-const asGroup = (node: LogNode | undefined): GroupLogNode => {
+const asGroup = (node: ActivityNode | undefined): ActivityGroupNode => {
   if (node?.kind !== 'group') throw new Error(`expected group, got ${node?.kind}`);
   return node;
 };
 
-describe('filterLogNodes', () => {
+describe('filterActivityNodes', () => {
   test('keeps matching group ancestors and counts only visible output lines', () => {
     const tree = buildLogTree([
       groupStart('build', 'Build'),
@@ -44,7 +45,11 @@ describe('filterLogNodes', () => {
       groupEnd('build'),
     ]);
 
-    const filtered = filterLogNodes(tree.nodes, 'success', buildLogSearchIndex(tree.nodes));
+    const filtered = filterActivityNodes(
+      buildActivityNodes(tree.nodes),
+      'success',
+      buildLogSearchIndex(tree.nodes),
+    );
     const group = asGroup(filtered[0]);
 
     expect(group.children).toHaveLength(1);
@@ -60,7 +65,11 @@ describe('filterLogNodes', () => {
       groupEnd('build'),
     ]);
 
-    const filtered = filterLogNodes(tree.nodes, 'build', buildLogSearchIndex(tree.nodes));
+    const filtered = filterActivityNodes(
+      buildActivityNodes(tree.nodes),
+      'build',
+      buildLogSearchIndex(tree.nodes),
+    );
     const group = asGroup(filtered[0]);
 
     expect(group.children).toHaveLength(2);
@@ -90,9 +99,10 @@ describe('filterLogNodes', () => {
     const tree = buildLogTree(records);
     const index = buildLogSearchIndex(tree.nodes);
 
-    expect(filterLogNodes(tree.nodes, '  SUCCESS  ', index)).toHaveLength(1);
-    expect(filterLogNodes(tree.nodes, 'output missing', index)).toHaveLength(1);
-    expect(filterLogNodes(tree.nodes, 'execution timed out', index)).toHaveLength(1);
-    expect(filterLogNodes(tree.nodes, 'error', index)).toHaveLength(0);
+    const nodes = buildActivityNodes(tree.nodes);
+    expect(filterActivityNodes(nodes, '  SUCCESS  ', index)).toHaveLength(1);
+    expect(filterActivityNodes(nodes, 'output missing', index)).toHaveLength(1);
+    expect(filterActivityNodes(nodes, 'execution timed out', index)).toHaveLength(1);
+    expect(filterActivityNodes(nodes, 'error', index)).toHaveLength(0);
   });
 });

@@ -4,6 +4,7 @@ import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ts = new Date('2026-06-23T10:00:00.000Z').getTime();
 const THINKING_BUTTON_NAME = /thinking/i;
+const TOOL_BUTTON_NAME = /Tool/;
 
 const output = (data: string): LogRecord => ({
   v: 1,
@@ -289,7 +290,7 @@ describe('LogView', () => {
     expect(gutter()).toHaveTextContent('1');
   });
 
-  test('renders tool calls with awaiting state until a result appears later in the stream', () => {
+  test('shows a completed action at its request position when the result arrives later', () => {
     render(
       <LogView
         records={[
@@ -313,13 +314,13 @@ describe('LogView', () => {
       />,
     );
 
-    expect(screen.getByText('tool edit_file')).toBeDefined();
+    expect(screen.getByText('Edit File')).toBeInTheDocument();
     expect(screen.getByText('stdout between call and result')).toBeDefined();
-    expect(screen.getByText('result edit_file')).toBeDefined();
-    expect(screen.queryByText('awaiting result')).toBeNull();
+    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    expect(screen.queryByText('result edit_file')).not.toBeInTheDocument();
   });
 
-  test('marks a tool result without a matching tool call as unmatched', () => {
+  test('keeps a result without a matching request as a standalone action', () => {
     render(
       <LogView
         records={[
@@ -335,10 +336,15 @@ describe('LogView', () => {
       />,
     );
 
-    expect(screen.getByText('result (unmatched)')).toBeDefined();
+    expect(screen.getByText('Tool')).toBeInTheDocument();
+    expect(screen.getByText('succeeded')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: TOOL_BUTTON_NAME}));
+
+    expect(screen.getByText('result arrived without its call')).toBeInTheDocument();
   });
 
-  test('shows the awaiting-result state for a tool call with no matching result', () => {
+  test('shows a running action when a tool call has no result yet', () => {
     render(
       <LogView
         records={[
@@ -353,8 +359,8 @@ describe('LogView', () => {
       />,
     );
 
-    expect(screen.getByText('tool edit_file')).toBeDefined();
-    expect(screen.getByText('awaiting result')).toBeDefined();
+    expect(screen.getByText('Edit File')).toBeInTheDocument();
+    expect(screen.getByText('running')).toBeInTheDocument();
   });
 
   test('keeps tool relationships when search matches only one side', () => {
@@ -377,12 +383,14 @@ describe('LogView', () => {
     ];
 
     const {unmount} = render(<LogView search="{}" records={records} />);
-    expect(screen.queryByText('awaiting result')).not.toBeInTheDocument();
+    expect(screen.getByText('Edit File')).toBeInTheDocument();
+    expect(screen.getByText('succeeded')).toBeInTheDocument();
 
     unmount();
     render(<LogView search="patched" records={records} />);
-    expect(screen.getByText('result edit_file')).toBeInTheDocument();
-    expect(screen.queryByText('result (unmatched)')).not.toBeInTheDocument();
+    expect(screen.getByText('Edit File')).toBeInTheDocument();
+    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    expect(screen.queryByText('result edit_file')).not.toBeInTheDocument();
   });
 
   test('renders paired Activity actions and result-only search matches', () => {
@@ -404,7 +412,7 @@ describe('LogView', () => {
       }),
     ];
 
-    render(<LogView view="activity" search="README result" records={records} />);
+    render(<LogView search="README result" records={records} />);
 
     expect(screen.getByText('Read File')).toBeInTheDocument();
     expect(screen.getByText('succeeded')).toBeInTheDocument();
@@ -415,7 +423,6 @@ describe('LogView', () => {
   test('shows no result instead of a spinner after a terminal attempt', () => {
     render(
       <LogView
-        view="activity"
         attemptStatus="failed"
         records={[
           agentSession({
@@ -436,7 +443,6 @@ describe('LogView', () => {
   test('renders message Markdown and hides empty thinking', () => {
     render(
       <LogView
-        view="activity"
         records={[
           agentSession({
             kind: 'message',

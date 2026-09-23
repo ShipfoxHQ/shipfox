@@ -14,15 +14,6 @@ export function buildLogSearchIndex(nodes: readonly LogNode[]): LogSearchIndex {
   return {textBySeq};
 }
 
-export function filterLogNodes(
-  nodes: readonly LogNode[],
-  query: string,
-  index: LogSearchIndex,
-): LogNode[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  return filterLogNodesInternal(nodes, normalizedQuery, index);
-}
-
 export function filterActivityNodes(
   nodes: readonly ActivityNode[],
   query: string,
@@ -30,28 +21,6 @@ export function filterActivityNodes(
 ): ActivityNode[] {
   const normalizedQuery = query.trim().toLowerCase();
   return filterActivityNodesInternal(nodes, normalizedQuery, index);
-}
-
-function filterLogNodesInternal(
-  nodes: readonly LogNode[],
-  query: string,
-  index: LogSearchIndex,
-): LogNode[] {
-  return nodes.flatMap((node): LogNode[] => {
-    const matches = index.textBySeq.get(node.seq)?.includes(query) ?? false;
-    if (node.kind !== 'group') return matches ? [node] : [];
-
-    const children = matches ? node.children : filterLogNodesInternal(node.children, query, index);
-    if (!matches && children.length === 0) return [];
-
-    return [
-      {
-        ...node,
-        children,
-        lineCount: matches ? node.lineCount : countOutputLogLines(children),
-      },
-    ];
-  });
 }
 
 function filterActivityNodesInternal(
@@ -157,14 +126,6 @@ function sessionRowText(row: SessionViewRow): string {
 
 function stripAnsi(value: string): string {
   return value.replace(ANSI_SGR_SEQUENCE, '');
-}
-
-function countOutputLogLines(nodes: readonly LogNode[]): number {
-  return nodes.reduce((count, node) => {
-    if (node.kind === 'output') return count + 1;
-    if (node.kind === 'group') return count + node.lineCount;
-    return count;
-  }, 0);
 }
 
 function countActivityLines(nodes: readonly ActivityNode[]): number {

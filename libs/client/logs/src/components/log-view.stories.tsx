@@ -1,9 +1,11 @@
 import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
+import {userEvent, within} from 'storybook/test';
 import type {LogRecord, SessionViewRow} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
+const READ_FILE_BUTTON_NAME = /Read File/;
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
 const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
 
@@ -622,27 +624,18 @@ export const UnifiedAgentSession: Story = {
 
 export const PairedActivityAndMarkdown: Story = {
   render: (args) => (
-    <div className="flex max-w-6xl flex-col gap-section">
+    <div className="flex max-w-3xl flex-col gap-section">
       <Text size="sm" className="text-foreground-neutral-muted">
-        Both views use the same three stored entries. Activity combines the tool request and result
-        into one action. Assistant messages render Markdown in both views.
+        The Read File action combines a tool request and its result. The assistant message keeps its
+        Markdown formatting.
       </Text>
-      <div className="grid gap-section lg:grid-cols-2">
-        <section className="flex min-w-0 flex-col gap-inline" aria-label="Activity view">
-          <Text as="h2" size="sm">
-            Activity (job detail default)
-          </Text>
-          <LogView {...args} records={pairedActivityRecords} view="activity" />
-        </section>
-        <section className="flex min-w-0 flex-col gap-inline" aria-label="Raw log view">
-          <Text as="h2" size="sm">
-            Raw log
-          </Text>
-          <LogView {...args} records={pairedActivityRecords} view="raw" />
-        </section>
-      </div>
+      <LogView {...args} records={pairedActivityRecords} />
     </div>
   ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: READ_FILE_BUTTON_NAME}));
+  },
 };
 
 export const ProviderRecoveryStates: Story = {

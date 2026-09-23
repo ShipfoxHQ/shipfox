@@ -30,7 +30,6 @@ export interface StepAttemptLogPanelProps {
   onTimestampsClick?: (() => void) | undefined;
   wrap?: boolean | undefined;
   showLineNumbers?: boolean | undefined;
-  view?: 'activity' | 'raw' | undefined;
   attemptId?: string | undefined;
   refreshToken?: number | undefined;
   onFetchingChange?: ((attemptId: string, isFetching: boolean) => void) | undefined;
@@ -50,7 +49,6 @@ export function StepAttemptLogPanel({
   onTimestampsClick,
   wrap = false,
   showLineNumbers = true,
-  view = 'activity',
   attemptId,
   refreshToken = 0,
   onFetchingChange,
@@ -174,7 +172,6 @@ export function StepAttemptLogPanel({
         search={search}
         timestamps={timestamps}
         onTimestampsClick={onTimestampsClick}
-        view={view}
         attemptStatus={attemptStatus}
         wrap={wrap}
         showLineNumbers={showLineNumbers}

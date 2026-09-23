@@ -156,7 +156,7 @@ export function genericActionPresentation(action: PairedAction): ActionPresentat
   };
 }
 
-/** Build Activity nodes from the same tree as Raw log while replacing request/result pairs. */
+/** Build Activity nodes from the stored log tree while replacing request/result pairs. */
 export function buildActivityNodes(nodes: readonly LogNode[], terminated = false): ActivityNode[] {
   const sessionRows = collectSessionRows(nodes);
   const pairedItems = pairSessionRows(sessionRows, terminated);
