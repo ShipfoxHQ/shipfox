@@ -232,7 +232,7 @@ test('keeps a replaced key active when an old PostHog call fails late', async ({
     workspaceId: suite.workspaceId,
     region: 'eu',
     apiKey: oldKey,
-    projectId: 'e2e-single-project',
+    projectId: '101',
     projectName: `Stale PostHog ${uniqueId}`,
     organizationId: `organization-${uniqueId}`,
   });
