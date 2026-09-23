@@ -1,0 +1,64 @@
+id: ticket-to-pr
+revision: 1
+added_at: 2026-09-23
+title: Ticket to pull request
+summary: An agent implements a Linear ticket, checks the change, and opens a GitHub pull request.
+roles:
+  tracker:
+    providers: [linear]
+  source:
+    from: project
+    providers: [github]
+options:
+  - id: trigger_style
+    question: What should start the workflow?
+    applies_to: [linear]
+    choices:
+      - id: agent_session
+        label: Assign or mention the Shipfox agent
+        default: true
+      - id: label
+        label: Add a Linear label
+        tradeoff: Works without agent seats, but needs a label ID and event filter.
+  - id: feedback_loop
+    question: Should the agent respond to review comments and CI failures?
+    choices:
+      - id: on
+        label: Respond to feedback
+        default: true
+        tradeoff: Each review comment or failed check starts another execution.
+      - id: off
+        label: Stop after opening the PR
+        tradeoff: A person handles later feedback.
+  - id: pr_mode
+    question: How should the pull request open?
+    choices:
+      - id: draft
+        label: Draft
+        default: true
+      - id: ready
+        label: Ready for review
+  - id: ticket_write_back
+    question: What should the workflow write to Linear?
+    choices:
+      - id: comment
+        label: Comment with the pull request
+        default: true
+      - id: comment_and_transition
+        label: Comment and change status
+        tradeoff: Requires the destination Linear status to be chosen.
+      - id: none
+        label: Do not write to Linear
+models:
+  ticket:
+    reference: {model: gpt-5.6-luna, thinking: max}
+    note: Reads the ticket and its comments in the shared implementation conversation.
+  fix:
+    reference: {model: gpt-5.6-luna, thinking: max}
+    note: Implements the change and repairs failed tests or CI.
+  review:
+    reference: {model: gpt-5.6-luna, thinking: max}
+    note: Handles PR review comments in a follow-up conversation.
+slots: [setup_commands, test_command]
+secrets: []
+variables: []

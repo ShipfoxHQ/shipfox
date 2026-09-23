@@ -83,6 +83,32 @@ Each part file is a YAML map from part name to a literal text block. The source 
 
 Shipped templates keep an adaptation guide beside their workflow. The [dependency-bot CI guide](assets/fix-dependency-ci/GUIDE.md) describes that template's prerequisites, choices, and customization slots.
 
+### Ticket to PR part contract
+
+The [ticket to PR template](assets/ticket-to-pr/workflow.yml) composes one tracker part and one source part. Later tracker providers must supply these blocks:
+
+| Block | Required contract |
+| --- | --- |
+| `tracker.trigger` | Starts from that tracker's ticket event and filters unrelated updates. |
+| `tracker.read_ticket` | Adds a `ticket` agent step with `summary` and `identifier` string outputs. |
+| `tracker.write_back` | Adds a `write_back` step that comments with the opened PR URL. |
+| `tracker.transition` | Adds an optional `transition_ticket` step for the chosen ticket status. |
+
+The source part supplies these blocks:
+
+| Block | Required contract |
+| --- | --- |
+| `source.checkout` | Grants repository write access for ordered push steps. |
+| `source.push` | Creates a branch and outputs `branch`, `base`, `repository`, `owner`, and `repo`. |
+| `source.open_pr` | Creates the PR and outputs `pr_number` and `pr_url`. |
+| `source.review_listener` and `source.ci_listener` | Match only the opened PR and stop on close, timeout, or execution cap. |
+| `source.checkout_pr_branch` and `source.push_feedback` | Check out and update the PR branch. |
+| `source.repair_ci` and `source.reply_to_review` | Read failed CI logs or reply to a review comment. |
+
+The `implement` job publishes PR identity and branch outputs. Each listener uses those outputs to match one PR and check out its branch.
+
+Keep provider tool IDs, event names, payload paths, and connection bindings inside parts. The base workflow owns job order, test gates, options, and the agent prompts. Every provider combination and structural option passes the API catalog conformance test before it ships.
+
 ## Development
 
 ```sh
