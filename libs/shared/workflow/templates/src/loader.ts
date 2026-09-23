@@ -1,6 +1,7 @@
 import {parse as parseYaml} from 'yaml';
+import {z} from 'zod';
 import {composeTemplate, type PartProviderBlocks, type TemplateRoleBindings} from './composer.js';
-import {embeddedWorkflowTemplateAssets} from './generated/assets.js';
+import {embeddedWorkflowSetupGuide, embeddedWorkflowTemplateAssets} from './generated/assets.js';
 import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
 
 export interface EmbeddedWorkflowTemplateAsset {
@@ -24,16 +25,30 @@ export interface WorkflowTemplate {
   parts: PartProviderBlocks;
 }
 
+export const workflowSetupGuideSchema = z
+  .object({
+    revision: z.number().int().positive(),
+    guide_markdown: z.string().min(1),
+  })
+  .strict();
+
+export type WorkflowSetupGuide = z.infer<typeof workflowSetupGuideSchema>;
+
 export interface TemplateLoader {
   list(): readonly WorkflowTemplate[];
   get(id: string): WorkflowTemplate | undefined;
   compose(id: string, bindings: TemplateRoleBindings): string | undefined;
+  getSetupGuide(): WorkflowSetupGuide;
 }
 
 /** Creates an injectable loader. Production uses only the generated asset module. */
-export function createTemplateLoader(assets: readonly WorkflowTemplateAsset[]): TemplateLoader {
+export function createTemplateLoader(
+  assets: readonly WorkflowTemplateAsset[],
+  setupGuide: WorkflowSetupGuide,
+): TemplateLoader {
   const templates = assets.map(normalizeTemplate);
   const byId = new Map(templates.map((template) => [template.manifest.id, template]));
+  const normalizedSetupGuide = workflowSetupGuideSchema.parse(setupGuide);
 
   return {
     list: () => templates,
@@ -42,6 +57,7 @@ export function createTemplateLoader(assets: readonly WorkflowTemplateAsset[]): 
       const template = byId.get(id);
       return template === undefined ? undefined : composeTemplate(template, bindings);
     },
+    getSetupGuide: () => normalizedSetupGuide,
   };
 }
 
@@ -58,7 +74,10 @@ export function getShippedTemplate(id: string): WorkflowTemplate | undefined {
   return shippedTemplateLoader.get(id);
 }
 
-export const shippedTemplateLoader = createTemplateLoader(embeddedWorkflowTemplateAssets);
+export const shippedTemplateLoader = createTemplateLoader(
+  embeddedWorkflowTemplateAssets,
+  embeddedWorkflowSetupGuide,
+);
 
 function normalizeTemplate(asset: WorkflowTemplateAsset): WorkflowTemplate {
   const manifest =

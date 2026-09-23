@@ -23,6 +23,7 @@ names it and links to it; it does not restate it.
 | Needs to configure or review Vercel release-PR previews. | [Vercel release PR previews](vercel-preview-release-prs.md) | The repository-owned Vercel branch configuration and verification workflow. |
 | Operates Cloudflare Pages previews or recovers a deployment. | [Cloudflare Pages lifecycle](guides/cloudflare-pages-lifecycle.md) | Config-driven publication, environment deploys, retention ownership, and rollback steps. |
 | Changes agent behavior or needs agent execution instructions. | [Agent instructions](../AGENTS.md) | Repository-specific agent execution, change hygiene, and conditional context loading. |
+| Sets up a workflow through Agent Access. | [Workflow setup playbook](../libs/shared/workflow/templates/assets/playbook.md) | Project matching, template choices, prerequisite checks, development runs, and delivery safety. |
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |
 | Changes client analytics context or subject ownership. | [ADR 0018](adr/0018-client-analytics-subject-context.md) | The analytics subject contract, privacy boundary, and supported capture timing. |
