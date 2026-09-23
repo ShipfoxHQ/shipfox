@@ -1,5 +1,11 @@
 # @shipfox/workflow-templates
 
+## 0.3.0
+
+### Minor Changes
+
+- 68f10d5: Adds a versioned first-party workflow setup guide and its read-only MCP tool.
+
 ## 0.2.0
 
 ### Minor Changes

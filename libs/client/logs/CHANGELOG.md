@@ -1,5 +1,19 @@
 # @shipfox/client-logs
 
+## 51.0.0
+
+### Minor Changes
+
+- 567d868: Shows integration logos, readable tool labels, targets, and recorded results in agent activity.
+- f88faea: Show native Pi and Claude file operations, commands, and searches as readable actions.
+- 3064afa: Adds the paired Activity view with generic action rows and Activity or Raw log selection.
+
+### Patch Changes
+
+- Updated dependencies [212c6b6]
+  - @shipfox/react-ui@3.2.0
+  - @shipfox/integration-icons@0.5.1
+
 ## 50.0.0
 
 ### Minor Changes

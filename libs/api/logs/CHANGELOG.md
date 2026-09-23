@@ -1,5 +1,13 @@
 # @shipfox/api-logs
 
+## 32.0.0
+
+### Patch Changes
+
+- dc6fe65: Emits Claude tool calls and assistant text without waiting for tool summaries.
+- Updated dependencies [212c6b6]
+  - @shipfox/api-workflows-dto@32.0.0
+
 ## 31.0.0
 
 ### Patch Changes

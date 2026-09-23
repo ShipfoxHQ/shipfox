@@ -1,5 +1,16 @@
 # @shipfox/api-workflows-dto
 
+## 32.0.0
+
+### Minor Changes
+
+- 212c6b6: Adds a shared tabbed inspector for workflow runs and job executions with compact summary facts and a simplified usage breakdown. The run overview DTO gains `secret_inputs`, which lists each secret input's name and source key but never its value. Adds `@shipfox/react-ui/inspector`: the inspector host, header, facts, tabs, and full-width sections with property rows, plus the `background-inspector-*` surface tokens.
+
+### Patch Changes
+
+- Updated dependencies [e87d5a9]
+  - @shipfox/api-agent-dto@32.0.0
+
 ## 31.0.0
 
 ### Minor Changes

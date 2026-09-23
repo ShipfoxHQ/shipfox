@@ -1,5 +1,11 @@
 # @shipfox/api-agent-access-dto
 
+## 32.0.0
+
+### Major Changes
+
+- e87d5a9: Replaces singular model reference values with measured variants per supported thinking level in workspace model reads.
+
 ## 31.0.0
 
 ### Minor Changes
