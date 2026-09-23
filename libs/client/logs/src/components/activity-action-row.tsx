@@ -100,7 +100,11 @@ function PresentedDetails({detail}: {detail: NonNullable<ActionPresentation['det
   return detail ? (
     <PresentedActionDetail detail={detail} />
   ) : (
-    <LogContent className="text-foreground-contrast-secondary">No recorded result yet.</LogContent>
+    <div className={detailSurfaceClassName}>
+      <LogContent className="text-foreground-contrast-secondary">
+        No recorded result yet.
+      </LogContent>
+    </div>
   );
 }
 
@@ -127,6 +131,8 @@ function GenericDetails({
 }
 
 const DETAIL_PREVIEW_LENGTH = 5000;
+const detailSurfaceClassName =
+  'min-w-0 rounded-6 border border-border-contrast-bottom bg-background-contrast-base px-12 py-8';
 
 function PresentedActionDetail({detail}: {detail: NonNullable<ActionPresentation['detail']>}) {
   const [showFull, setShowFull] = useState(false);
@@ -163,10 +169,8 @@ function ActionDetail({
   kind: ActionPresentation['detailKind'];
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-tight">
-      <span className="font-display text-xs font-medium text-foreground-contrast-secondary">
-        {label}
-      </span>
+    <div className={detailSurfaceClassName}>
+      <span className="sr-only">{label}</span>
       {kind === 'markdown' ? (
         <Markdown className="text-foreground-contrast-primary">{value}</Markdown>
       ) : (

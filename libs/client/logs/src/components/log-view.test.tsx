@@ -345,6 +345,7 @@ describe('LogView', () => {
     fireEvent.click(screen.getByRole('button', {name: TOOL_BUTTON_NAME}));
 
     expect(screen.getByText('result arrived without its call')).toBeInTheDocument();
+    expect(screen.getByText('Result')).toHaveClass('sr-only');
   });
 
   test('shows a running action when a tool call has no result yet', () => {
@@ -451,7 +452,9 @@ describe('LogView', () => {
     expect(screen.getByText('failed')).toBeInTheDocument();
     expect(screen.getByText('exit 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: RUN_COMMAND_BUTTON_NAME}));
-    expect(screen.getByText('FAIL tests')).toBeInTheDocument();
+    const output = screen.getByText('FAIL tests');
+    expect(output.parentElement).toHaveClass('bg-background-contrast-base');
+    expect(screen.getByText('Output')).toHaveClass('sr-only');
     expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
     expect(screen.queryByText('{"command":"pnpm test"}')).not.toBeInTheDocument();
   });
