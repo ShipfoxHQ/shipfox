@@ -40,6 +40,13 @@ export const materializedAgentIntegrationSchema = z.strictObject({
 });
 
 export const AGENT_INTEGRATION_MCP_SERVER_NAME = 'shipfox_integration_tools';
+export const AGENT_OUTPUT_MCP_SERVER_NAME = 'shipfox_outputs';
+export const AGENT_OUTPUT_TOOL_NAME = 'set_output';
+/** Every exposed name of the step output tool: Pi calls it directly, Claude through its MCP server. */
+export const AGENT_OUTPUT_TOOL_NAMES: readonly string[] = [
+  AGENT_OUTPUT_TOOL_NAME,
+  `mcp__${AGENT_OUTPUT_MCP_SERVER_NAME}__${AGENT_OUTPUT_TOOL_NAME}`,
+];
 export const AGENT_INTEGRATION_MCP_ENDPOINT = '/runs/jobs/current/integration-tools/mcp';
 export const AGENT_INTEGRATION_MCP_TRANSPORT = 'http';
 export const AGENT_INTEGRATION_MCP_AUTH = 'lease_token';

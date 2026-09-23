@@ -346,6 +346,37 @@ const nativeClaudeRecords = nativeToolRecords([
   {name: 'LS', input: {path: 'src'}, output: 'app.ts\nnew.ts'},
 ]);
 
+const shipfoxToolRecords = nativeToolRecords([
+  {name: 'web_search', input: {query: 'slack channel info api'}, output: 'Synthesized answer'},
+  {name: 'WebFetch', input: {url: 'https://api.slack.com/methods'}, output: 'Fetched 12 KB'},
+  {
+    name: 'mcp',
+    input: {search: 'slack channel'},
+    output: 'slack_shipfox__read_channel_info',
+  },
+  {
+    name: 'mcp',
+    input: {tool: 'slack_shipfox__read_channel_info', args: '{"channel_id":"C0BKY1J7C79"}'},
+    output: '{"channel":{"id":"C0BKY1J7C79","name":"test-slack-integration"}}',
+  },
+  {
+    name: 'set_output',
+    input: {key: 'channel_id', value: 'C0BKY1J7C79'},
+    output: 'Output "channel_id" set.',
+  },
+  {
+    name: 'mcp__shipfox_outputs__set_output',
+    input: {key: 'channel_name', value: 'test-slack-integration'},
+    output: 'Output "channel_name" set.',
+  },
+  {
+    name: 'set_output',
+    input: {key: 'count', value: 'many'},
+    output:
+      'Output "count" must be a number\n\nRetry set_output using this exact contract:\n\n- key: "count"',
+  },
+]);
+
 const nativeEdgeRecords = [
   ...nativeToolRecords([
     {name: 'read', input: {}, output: 'Missing path', isError: true},
@@ -950,6 +981,26 @@ export const NativeClaudeTools: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={nativeClaudeRecords} />
+    </div>
+  ),
+};
+
+export const ShipfoxAndProxiedTools: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={shipfoxToolRecords}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'slack',
+            connectionId: 'slack-connection',
+            connectionSlug: 'slack-shipfox',
+            toolId: 'read_channel_info',
+            sensitivity: 'read',
+          },
+        ])}
+      />
     </div>
   ),
 };

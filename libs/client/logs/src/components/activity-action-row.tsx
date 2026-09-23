@@ -15,10 +15,9 @@ import {useEffect, useMemo, useState} from 'react';
 import {
   type ActionPresentation,
   type ActivityState,
-  genericActionPresentation,
   type PairedAction,
+  resolveActionPresentation,
 } from '#core/activity.js';
-import {nativePresentationFromPayload} from '#core/native-tools.js';
 
 export interface ActivityActionRowProps {
   action: PairedAction;
@@ -44,18 +43,10 @@ export function ActivityActionRow({
     if (forceOpen) setOpen(true);
   }, [forceOpen]);
 
-  const requestName = action.request?.name;
-  const requestInput = action.request?.input;
-  const resultOutput = action.result?.output;
-  const nativePresentation = useMemo(
-    () =>
-      requestName && requestInput
-        ? nativePresentationFromPayload(requestName, requestInput, resultOutput)
-        : undefined,
-    [requestName, requestInput, resultOutput],
+  const resolvedPresentation = useMemo(
+    () => presentation ?? resolveActionPresentation(action),
+    [presentation, action],
   );
-  const resolvedPresentation =
-    presentation ?? nativePresentation ?? genericActionPresentation(action);
   const target = resolvedPresentation.target;
   const hasPresentedDetail = resolvedPresentation.detail !== undefined;
   return (
@@ -328,6 +319,8 @@ function ActionIcon({kind}: {kind: ActionPresentation['iconKind']}) {
     shell: 'terminalBoxLine',
     search: 'searchLine',
     list: 'folderLine',
+    web: 'globalLine',
+    output: 'exportLine',
     integration: 'componentLine',
   };
   return (

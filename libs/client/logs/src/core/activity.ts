@@ -7,6 +7,8 @@ import type {
   SessionLogNode,
 } from './log-tree.js';
 import {nativeActionPresentation, nativeShellExitCode} from './native-tools.js';
+import {piMcpProxySearchPresentation, unwrapPiMcpProxyAction} from './pi-mcp-proxy.js';
+import {shipfoxActionPresentation, shipfoxOutputRejected} from './shipfox-tools.js';
 
 export type ActivityState = 'running' | 'succeeded' | 'failed' | 'no-result';
 export type ActionIconKind =
@@ -18,6 +20,8 @@ export type ActionIconKind =
   | 'shell'
   | 'search'
   | 'list'
+  | 'web'
+  | 'output'
   | 'integration';
 export type ActionDetailKind = 'code' | 'markdown' | 'structured';
 export type ActionReadClassification = 'read' | 'write' | 'unknown';
@@ -162,8 +166,11 @@ function appendToolResult(state: PairingState, source: SessionRowSource): void {
   action.resultSeq = source.seq;
   action.sourceSeqs = [action.requestSeq ?? action.key, source.seq];
   const exitCode = nativeShellExitCode(action.request.name, source.row.output);
+  const rejected = shipfoxOutputRejected(action.request.name, source.row.output);
   action.state =
-    source.row.isError || (exitCode !== null && exitCode !== 0) ? 'failed' : 'succeeded';
+    source.row.isError || rejected || (exitCode !== null && exitCode !== 0)
+      ? 'failed'
+      : 'succeeded';
   action.durationMs = validDuration(action.request.timestamp, source.row.timestamp);
 }
 
@@ -171,6 +178,28 @@ function finalizeAction(item: PairedSessionItem, terminated: boolean): void {
   if (item.kind === 'action' && item.action.result === null) {
     item.action.state = terminated ? 'no-result' : 'running';
   }
+}
+
+/**
+ * The single resolution order for every Activity surface: unwrap Pi proxy calls, then the
+ * attempt's integration lookup, Shipfox-owned tools, native tools, and finally the generic form.
+ */
+export function resolveActionPresentation(
+  action: PairedAction,
+  lookup?: ActionPresentationLookup,
+): ActionPresentation {
+  const subject = actionSubject(action);
+  return (
+    lookup?.(subject) ??
+    shipfoxActionPresentation(subject) ??
+    nativeActionPresentation(subject) ??
+    piMcpProxySearchPresentation(action) ??
+    genericActionPresentation(subject)
+  );
+}
+
+function actionSubject(action: PairedAction): PairedAction {
+  return unwrapPiMcpProxyAction(action) ?? action;
 }
 
 export function genericActionPresentation(action: PairedAction): ActionPresentation {
@@ -263,11 +292,11 @@ function readGroupKey(
 ): string | null {
   if (action.state !== 'succeeded' || action.request === null || action.result === null)
     return null;
-  const details = presentation?.(action) ?? nativeActionPresentation(action);
-  if (details?.readClassification !== 'read') return null;
+  const details = resolveActionPresentation(action, presentation);
+  if (details.readClassification !== 'read') return null;
   const connection = details.integration?.connectionId ?? null;
   const method = details.integration?.methodId ?? null;
-  return JSON.stringify([action.request.name, connection, method]);
+  return JSON.stringify([actionSubject(action).request?.name ?? null, connection, method]);
 }
 
 function collectSessionRows(

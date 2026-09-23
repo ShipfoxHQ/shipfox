@@ -56,6 +56,26 @@ describe('nativeActionPresentation', () => {
     ['ls', {path: 'src'}, 'List Files', 'src', 'read'],
     ['LS', {path: 'src'}, 'List Files', 'src', 'read'],
     ['LS', {directory: 'src'}, 'List Files', 'src', 'read'],
+    ['web_search', {query: 'shipfox runners'}, 'Search Web', 'shipfox runners', 'read'],
+    ['web_search', {queries: ['first', 'second']}, 'Search Web', 'first', 'read'],
+    ['WebSearch', {query: 'shipfox runners'}, 'Search Web', 'shipfox runners', 'read'],
+    ['fetch_content', {url: 'https://shipfox.io'}, 'Fetch Page', 'https://shipfox.io', 'read'],
+    [
+      'fetch_content',
+      {urls: ['https://a.io', 'https://b.io']},
+      'Fetch Page',
+      'https://a.io',
+      'read',
+    ],
+    [
+      'WebFetch',
+      {url: 'https://shipfox.io', prompt: 'x'},
+      'Fetch Page',
+      'https://shipfox.io',
+      'read',
+    ],
+    ['get_search_content', {responseId: 'r1', query: 'shipfox'}, 'Fetch Page', 'shipfox', 'read'],
+    ['get_search_content', {responseId: 'r1'}, 'Fetch Page', 'r1', 'read'],
   ] as const)('%s uses the recorded target and effect', (name, input, label, target, effect) => {
     expect(nativeActionPresentation(action(name, input))).toMatchObject({
       label,

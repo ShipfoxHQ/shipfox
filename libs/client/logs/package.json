@@ -55,6 +55,7 @@
   "devDependencies": {
     "@argos-ci/cli": "catalog:",
     "@argos-ci/storybook": "catalog:",
+    "@shipfox/api-agent-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/client-test-setup": "workspace:*",
     "@shipfox/swc": "workspace:*",

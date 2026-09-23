@@ -6237,6 +6237,9 @@ importers:
       '@argos-ci/storybook':
         specifier: 'catalog:'
         version: 6.0.7
+      '@shipfox/api-agent-dto':
+        specifier: workspace:*
+        version: link:../../api/agent-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../tools/biome

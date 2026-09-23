@@ -13,6 +13,7 @@ export {
   type PairedAction,
   type PairedSessionItem,
   pairSessionRows,
+  resolveActionPresentation,
   type SessionRowSource,
 } from '#core/activity.js';
 export {
@@ -38,6 +39,7 @@ export {
   type SessionLogNode,
 } from '#core/log-tree.js';
 export {nativeActionPresentation} from '#core/native-tools.js';
+export {shipfoxActionPresentation} from '#core/shipfox-tools.js';
 export * from './components/index.js';
 export {
   isMissingStepLogStreamError,

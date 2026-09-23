@@ -6,9 +6,8 @@ import {useEffect, useId, useState} from 'react';
 import {
   type ActionPresentationLookup,
   type ActivityReadGroupNode,
-  genericActionPresentation,
+  resolveActionPresentation,
 } from '#core/activity.js';
-import {nativeActionPresentation} from '#core/native-tools.js';
 import {ActionIdentityIcon, ActivityActionRow, actionDisplayLabel} from './activity-action-row.js';
 
 export function ActivityReadGroup({
@@ -36,10 +35,7 @@ export function ActivityReadGroup({
   }, [grouped, containsFocus]);
   const first = node.children[0];
   if (!first) return null;
-  const presentation =
-    actionPresentation?.(first.action) ??
-    nativeActionPresentation(first.action) ??
-    genericActionPresentation(first.action);
+  const presentation = resolveActionPresentation(first.action, actionPresentation);
   const count = node.children.length;
   const countLabel = `${count} ${count === 1 ? 'read' : 'reads'}`;
   const displayedCount =
@@ -76,7 +72,7 @@ export function ActivityReadGroup({
               indent={grouped ? indent + 1 : indent}
               terminated={terminated}
               forceOpen={forceOpen}
-              presentation={actionPresentation?.(child.action)}
+              presentation={resolveActionPresentation(child.action, actionPresentation)}
               hideIcon={grouped}
               onOpenChange={grouped ? undefined : setOpen}
             />
