@@ -30,6 +30,7 @@ function filterActivityNodesInternal(
 ): ActivityNode[] {
   return nodes.flatMap((node): ActivityNode[] => {
     const matches = activityNodeMatches(node, query, index);
+    if (node.kind === 'read-group') return filterReadGroup(node, query, index);
     if (node.kind !== 'group') return matches ? [node] : [];
 
     const children = matches
@@ -45,6 +46,15 @@ function filterActivityNodesInternal(
       },
     ];
   });
+}
+
+function filterReadGroup(
+  node: Extract<ActivityNode, {kind: 'read-group'}>,
+  query: string,
+  index: LogSearchIndex,
+): ActivityNode[] {
+  const children = node.children.filter((child) => activityNodeMatches(child, query, index));
+  return children.length > 0 ? [{...node, children}] : [];
 }
 
 function activityNodeMatches(node: ActivityNode, query: string, index: LogSearchIndex): boolean {

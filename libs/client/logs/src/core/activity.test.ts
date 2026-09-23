@@ -1,4 +1,5 @@
-import {buildActivityNodes, pairSessionRows} from './activity.js';
+import {buildActivityNodes, groupActivityReads, pairSessionRows} from './activity.js';
+import {createIntegrationActionPresentationLookup} from './integration-action.js';
 import type {LogRecord, SessionViewRow} from './log-model.js';
 import {buildLogSearchIndex, filterActivityNodes} from './log-search.js';
 import {buildLogTree} from './log-tree.js';
@@ -104,5 +105,164 @@ describe('Activity search', () => {
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.kind).toBe('action');
+  });
+});
+
+function recordedAction(
+  id: string,
+  name: string,
+  input: string,
+  output: string | null = 'read result',
+  isError = false,
+): LogRecord[] {
+  const rows: LogRecord[] = [
+    {v: 1, ts: 10, type: 'agent_session', row: {kind: 'tool-call', timestamp: 10, id, name, input}},
+  ];
+  if (output !== null) {
+    rows.push({
+      v: 1,
+      ts: 11,
+      type: 'agent_session',
+      row: {kind: 'tool-result', timestamp: 11, toolCallId: id, toolName: name, output, isError},
+    });
+  }
+  return rows;
+}
+
+describe('groupActivityReads', () => {
+  test('groups Pi and Claude reads but stops at messages, output, writes, and gaps', () => {
+    const records: LogRecord[] = [
+      ...recordedAction('pi-1', 'read', '{"path":"one.ts"}'),
+      ...recordedAction('pi-2', 'read', '{"path":"two.ts"}'),
+      {
+        v: 1,
+        ts: 12,
+        type: 'agent_session',
+        row: {
+          kind: 'message',
+          timestamp: 12,
+          role: 'assistant',
+          label: 'assistant',
+          text: 'Next',
+          meta: [],
+          terminalFailure: false,
+        },
+      },
+      ...recordedAction('claude-1', 'Read', '{"file_path":"one.ts"}'),
+      ...recordedAction('claude-2', 'Read', '{"file_path":"two.ts"}'),
+      {v: 1, ts: 13, type: 'output', stream: 'stdout', data: 'build output'},
+      ...recordedAction('write', 'Write', '{"file_path":"out.ts","content":"x"}'),
+      ...recordedAction('claude-3', 'Read', '{"file_path":"three.ts"}'),
+      {v: 1, ts: 14, type: 'gap', droppedBytes: 10},
+      ...recordedAction('claude-4', 'Read', '{"file_path":"four.ts"}'),
+    ];
+
+    const nodes = groupActivityReads(buildActivityNodes(buildLogTree(records).nodes, true));
+
+    expect(nodes.map((node) => node.kind)).toEqual([
+      'read-group',
+      'session',
+      'read-group',
+      'output',
+      'action',
+      'read-group',
+      'marker',
+      'read-group',
+    ]);
+    expect(nodes[0]).toMatchObject({kind: 'read-group', totalCount: 2});
+    expect(nodes[2]).toMatchObject({kind: 'read-group', totalCount: 2});
+    expect(nodes[5]).toMatchObject({kind: 'read-group', totalCount: 1});
+  });
+
+  test('keeps failed, running, and unclassified actions outside read groups', () => {
+    const records: LogRecord[] = [
+      ...recordedAction('first', 'Read', '{"file_path":"one.ts"}'),
+      ...recordedAction('failed', 'Read', '{"file_path":"two.ts"}', 'failure', true),
+      ...recordedAction('running', 'Read', '{"file_path":"three.ts"}', null),
+      ...recordedAction('unknown', 'future_tool', '{}'),
+      ...recordedAction('last', 'Read', '{"file_path":"four.ts"}'),
+    ];
+
+    const nodes = groupActivityReads(buildActivityNodes(buildLogTree(records).nodes));
+
+    expect(nodes.map((node) => node.kind)).toEqual([
+      'read-group',
+      'action',
+      'action',
+      'action',
+      'read-group',
+    ]);
+    expect(nodes[2]).toMatchObject({kind: 'action', action: {state: 'running'}});
+  });
+
+  test('requires the same exact integration tool and connection', () => {
+    const records: LogRecord[] = [
+      ...recordedAction('one', 'tickets__get_issue', '{"connection":"main"}'),
+      ...recordedAction('two', 'tickets__get_issue', '{"connection":"main"}'),
+      ...recordedAction('three', 'tickets__get_issue', '{"connection":"other"}'),
+      ...recordedAction('four', 'tickets__list_issues', '{"connection":"other"}'),
+    ];
+    const nodes = groupActivityReads(buildActivityNodes(buildLogTree(records).nodes), (action) => ({
+      label: 'Get issue',
+      target: null,
+      iconKind: 'integration',
+      detailKind: 'structured',
+      readClassification: 'read',
+      integration: {
+        provider: 'linear',
+        connectionId: action.request?.input.includes('other') ? 'other' : 'main',
+        connectionSlug: 'tickets',
+        toolId: 'get_issue',
+        methodId: null,
+      },
+    }));
+
+    expect(nodes.map((node) => (node.kind === 'read-group' ? node.totalCount : 0))).toEqual([
+      2, 1, 1,
+    ]);
+  });
+
+  test('separates read methods with different integration labels', () => {
+    const records: LogRecord[] = [
+      ...recordedAction('get', 'code__issues', '{"method":"get"}'),
+      ...recordedAction('list-1', 'code__issues', '{"method":"list"}'),
+      ...recordedAction('list-2', 'code__issues', '{"method":"list"}'),
+    ];
+    const presentation = createIntegrationActionPresentationLookup([
+      {
+        provider: 'github',
+        connectionId: 'code-connection',
+        connectionSlug: 'code',
+        toolId: 'issues',
+        sensitivity: 'read',
+        methods: [
+          {id: 'get', sensitivity: 'read'},
+          {id: 'list', sensitivity: 'read'},
+        ],
+      },
+    ]);
+
+    const nodes = groupActivityReads(buildActivityNodes(buildLogTree(records).nodes), presentation);
+
+    expect(nodes.map((node) => (node.kind === 'read-group' ? node.totalCount : 0))).toEqual([1, 2]);
+  });
+
+  test('search exposes a result match inside its original group', () => {
+    const records = [
+      ...recordedAction('one', 'Read', '{"file_path":"one.ts"}', 'ordinary'),
+      ...recordedAction('two', 'Read', '{"file_path":"two.ts"}', 'needle'),
+    ];
+    const tree = buildLogTree(records);
+    const groups = groupActivityReads(buildActivityNodes(tree.nodes));
+
+    const filtered = filterActivityNodes(groups, 'needle', buildLogSearchIndex(tree.nodes));
+
+    expect(filtered).toMatchObject([
+      {
+        kind: 'read-group',
+        totalCount: 2,
+        children: [{kind: 'action', action: {request: {input: '{"file_path":"two.ts"}'}}}],
+      },
+    ]);
   });
 });

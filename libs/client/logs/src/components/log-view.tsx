@@ -5,21 +5,26 @@ import {LogContent, LogRow, LogRows, type LogTimestampMode} from '@shipfox/react
 import {Skeleton} from '@shipfox/react-ui/skeleton';
 import {
   type ReactNode,
+  type RefObject,
   type UIEventHandler,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
   type ActionPresentationLookup,
   type ActivityNode,
   buildActivityNodes,
+  groupActivityReads,
 } from '#core/activity.js';
 import type {LogRecord} from '#core/log-model.js';
 import {buildLogSearchIndex, filterActivityNodes} from '#core/log-search.js';
 import {assertNever, buildLogTree, type LogTree, type MarkerLogRecord} from '#core/log-tree.js';
 import {ActivityActionRow} from './activity-action-row.js';
+import {ActivityReadGroup} from './activity-read-group.js';
 import {AgentSessionRows} from './agent-session-rows.js';
 import {LogGroup} from './log-group.js';
 import {OutputLogRow} from './output-log-row.js';
@@ -48,6 +53,7 @@ export interface LogViewProps {
   ariaLive?: 'off' | 'polite' | 'assertive';
   className?: string | undefined;
   onScroll?: UIEventHandler<HTMLDivElement> | undefined;
+  scrollContainerRef?: RefObject<HTMLElement | null> | undefined;
 }
 
 export interface LogViewSkeletonProps
@@ -71,8 +77,11 @@ export function LogView({
   ariaLive = 'polite',
   className,
   onScroll,
+  scrollContainerRef,
 }: LogViewProps) {
   const rowsRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<{seq: string; top: number; atTail: boolean} | null>(null);
+  const [focusedActionSeq, setFocusedActionSeq] = useState<number | null>(null);
   const recordTree = useMemo(() => buildLogTree(records), [records]);
   const tree = useMemo(
     () => (truncated && !recordTree.terminated ? {...recordTree, terminated: true} : recordTree),
@@ -87,12 +96,16 @@ export function LogView({
     () => buildActivityNodes(tree.nodes, activityTerminated),
     [activityTerminated, tree.nodes],
   );
+  const groupedActivityNodes = useMemo(
+    () => groupActivityReads(activityNodes, actionPresentation),
+    [activityNodes, actionPresentation],
+  );
   const visibleActivityNodes = useMemo(
     () =>
       normalizedSearch
-        ? filterActivityNodes(activityNodes, normalizedSearch, searchIndex)
-        : activityNodes,
-    [activityNodes, normalizedSearch, searchIndex],
+        ? filterActivityNodes(groupedActivityNodes, normalizedSearch, searchIndex)
+        : groupedActivityNodes,
+    [groupedActivityNodes, normalizedSearch, searchIndex],
   );
   const hasIncompleteTerminal = truncated && !recordTree.terminated;
   const noOutputState =
@@ -109,16 +122,54 @@ export function LogView({
         Boolean(normalizedSearch),
         activityTerminated,
         actionPresentation,
+        focusedActionSeq,
       ),
     [
       actionPresentation,
       activityTerminated,
       defaultGroupsOpen,
+      focusedActionSeq,
       normalizedSearch,
       tree,
       visibleActivityNodes,
     ],
   );
+
+  useLayoutEffect(() => {
+    const rows = rowsRef.current;
+    const scrollElement = scrollContainerRef?.current ?? rows;
+    if (!rows || !scrollElement) return;
+    if (visibleActivityNodes.length === 0) {
+      anchorRef.current = null;
+      return;
+    }
+    const previous = anchorRef.current;
+    if (previous && !previous.atTail) {
+      const anchor = Array.from(rows.querySelectorAll<HTMLElement>('[data-activity-anchor]')).find(
+        (element) =>
+          element.dataset.activityAnchor === previous.seq && element.getClientRects().length > 0,
+      );
+      if (anchor) scrollElement.scrollTop += anchor.getBoundingClientRect().top - previous.top;
+    }
+    if (focusedActionSeq !== null && !rows.contains(document.activeElement)) {
+      const action = rows.querySelector<HTMLElement>(
+        `[data-activity-action="${focusedActionSeq}"] button`,
+      );
+      action?.focus({preventScroll: true});
+    }
+    anchorRef.current = currentActivityAnchor(rows, scrollElement);
+  }, [focusedActionSeq, scrollContainerRef, visibleActivityNodes]);
+
+  useEffect(() => {
+    const rows = rowsRef.current;
+    const scrollElement = scrollContainerRef?.current ?? rows;
+    if (!rows || !scrollElement) return;
+    const capture = () => {
+      anchorRef.current = currentActivityAnchor(rows, scrollElement);
+    };
+    scrollElement.addEventListener('scroll', capture, {passive: true});
+    return () => scrollElement.removeEventListener('scroll', capture);
+  }, [scrollContainerRef]);
 
   useEffect(() => {
     if (!anchorToFailure) return;
@@ -155,6 +206,16 @@ export function LogView({
         aria-live={normalizedSearch ? 'off' : ariaLive}
         className={className}
         onScroll={onScroll}
+        onFocusCapture={(event) => {
+          const action = (event.target as HTMLElement).closest<HTMLElement>(
+            '[data-activity-action]',
+          );
+          setFocusedActionSeq(action ? Number(action.dataset.activityAction) : null);
+        }}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+            setFocusedActionSeq(null);
+        }}
         {...(onTimestampsClick ? {onTimestampsClick} : {})}
         {...(tree.originTs != null ? {timestampOrigin: new Date(tree.originTs)} : {})}
       >
@@ -297,68 +358,106 @@ function renderActivityNodes(
   forceOpen: boolean,
   terminated: boolean,
   actionPresentation: ActionPresentationLookup | undefined,
+  focusedActionSeq: number | null,
 ): ReactNode[] {
   return nodes.map((node): ReactNode => {
     switch (node.kind) {
       case 'output':
         return (
-          <OutputLogRow
-            key={node.seq}
-            record={node.record}
-            lineNumber={node.lineNumber}
-            indent={depth}
-          />
+          <div key={node.seq} data-activity-anchor={node.seq}>
+            <OutputLogRow record={node.record} lineNumber={node.lineNumber} indent={depth} />
+          </div>
         );
       case 'group':
         return (
-          <LogGroup
-            key={node.seq}
-            node={node}
-            depth={depth}
-            terminated={terminated}
-            defaultOpen={defaultGroupsOpen}
-            forceOpen={forceOpen}
-          >
-            {renderActivityNodes(
-              node.children,
-              depth + 1,
-              tree,
-              defaultGroupsOpen,
-              forceOpen,
-              terminated,
-              actionPresentation,
-            )}
-          </LogGroup>
+          <div key={node.seq} data-activity-anchor={node.seq}>
+            <LogGroup
+              node={node}
+              depth={depth}
+              terminated={terminated}
+              defaultOpen={defaultGroupsOpen}
+              forceOpen={forceOpen}
+            >
+              {renderActivityNodes(
+                node.children,
+                depth + 1,
+                tree,
+                defaultGroupsOpen,
+                forceOpen,
+                terminated,
+                actionPresentation,
+                focusedActionSeq,
+              )}
+            </LogGroup>
+          </div>
         );
       case 'marker':
-        return <MarkerRow key={node.seq} record={node.record} tree={tree} />;
+        return (
+          <div key={node.seq} data-activity-anchor={node.seq}>
+            <MarkerRow record={node.record} tree={tree} />
+          </div>
+        );
       case 'action':
         return (
-          <ActivityActionRow
+          <div key={node.seq} data-activity-anchor={node.seq} data-activity-action={node.seq}>
+            <ActivityActionRow
+              action={node.action}
+              indent={depth}
+              terminated={terminated}
+              forceOpen={forceOpen}
+              presentation={actionPresentation?.(node.action)}
+            />
+          </div>
+        );
+      case 'read-group':
+        return (
+          <ActivityReadGroup
             key={node.seq}
-            action={node.action}
+            node={node}
             indent={depth}
             terminated={terminated}
             forceOpen={forceOpen}
-            presentation={actionPresentation?.(node.action)}
+            focusedActionSeq={focusedActionSeq}
+            actionPresentation={actionPresentation}
           />
         );
       case 'session':
         return (
-          <AgentSessionRows
-            key={node.seq}
-            rows={[node.record.row]}
-            lineNumber={node.lineNumber}
-            resolvedToolCallIds={new Set()}
-            toolCallNames={new Map()}
-            indent={depth}
-            forceOpen={forceOpen}
-          />
+          <div key={node.seq} data-activity-anchor={node.seq}>
+            <AgentSessionRows
+              rows={[node.record.row]}
+              lineNumber={node.lineNumber}
+              resolvedToolCallIds={new Set()}
+              toolCallNames={new Map()}
+              indent={depth}
+              forceOpen={forceOpen}
+            />
+          </div>
         );
       default:
         return assertNever(node);
     }
   });
+}
+
+function currentActivityAnchor(rows: HTMLElement, scrollElement: HTMLElement) {
+  const viewport = scrollElement.getBoundingClientRect();
+  const visible = Array.from(rows.querySelectorAll<HTMLElement>('[data-activity-anchor]')).filter(
+    (element) => {
+      if (element.getClientRects().length === 0) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > viewport.top && rect.top < viewport.bottom;
+    },
+  );
+  const anchor =
+    visible.find((element) => element.getBoundingClientRect().top >= viewport.top) ??
+    visible.at(-1);
+  if (!anchor?.dataset.activityAnchor) return null;
+  return {
+    seq: anchor.dataset.activityAnchor,
+    top: anchor.getBoundingClientRect().top,
+    atTail: scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <= 24,
+  };
 }
 
 function scheduleAnimationFrame(callback: FrameRequestCallback): number {
