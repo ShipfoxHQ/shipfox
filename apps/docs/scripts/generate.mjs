@@ -64,6 +64,11 @@ import {
 } from '@shipfox/api-integration-linear/agent-tools';
 import {linearEventCatalog} from '@shipfox/api-integration-linear-dto';
 import {
+  notionAgentToolCatalog,
+  notionAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-notion/agent-tools';
+import {notionEventCatalog} from '@shipfox/api-integration-notion-dto';
+import {
   posthogAgentToolCatalog,
   posthogAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-posthog/agent-tools';
@@ -126,6 +131,11 @@ const dtoCatalogBySlug = {
     eventCatalog: linearEventCatalog,
     toolCatalog: linearAgentToolCatalog,
     toolSelectionCatalog: linearAgentToolSelectionCatalog,
+  },
+  notion: {
+    eventCatalog: notionEventCatalog,
+    toolCatalog: notionAgentToolCatalog,
+    toolSelectionCatalog: notionAgentToolSelectionCatalog,
   },
   posthog: {
     toolCatalog: posthogAgentToolCatalog,

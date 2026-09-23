@@ -11,6 +11,7 @@ const expectedProviderOrder = [
   'linear',
   'jira',
   'clickup',
+  'notion',
   'sentry',
   'posthog',
   'slack',

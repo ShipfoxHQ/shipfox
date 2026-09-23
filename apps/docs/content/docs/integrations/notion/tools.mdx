@@ -1,0 +1,40 @@
+---
+title: "Notion tools"
+sidebarTitle: "Tools"
+description: "Look up the eight Notion tools, selectors, access boundaries, inputs, and outputs available to workflows."
+toolReference: "integrations/notion/tools"
+---
+
+This reference lists the eight shipped Notion tools. See the [Notion
+overview](/integrations/notion) for authentication and access boundaries.
+
+## Permissions
+
+Notion tools can access only pages shared with the integration connection.
+Sharing a parent page also shares its child pages.
+
+Read tools need read access to the target page. Write tools need the matching
+Notion content or comment capability. Agent steps must also set `allow_write:
+true`. A tool step opts into a write by naming that tool directly.
+
+For tool step and agent integration fields, see the [workflow schema
+reference](/reference/workflow-schema#tool-step-fields).
+
+## Read a page from an event
+
+Notion events contain IDs instead of current page values. Add this fragment
+under an existing job's `steps` list to fetch the current page:
+
+```yaml
+- key: page
+  tool: get_page
+  connection: notion_acme # Replace with your Notion integration connection slug.
+  with:
+    page_id: ${{ event.entity.id }}
+```
+
+The `get_page` result becomes available as `steps.page.outputs.result`.
+
+## Tool catalog
+
+<ToolReference />

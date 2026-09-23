@@ -1,0 +1,45 @@
+---
+title: "Notion integration"
+description: "Connect a Notion workspace to receive page, data source, database, and comment events and call Notion tools from workflows."
+catalog:
+  name: "Notion"
+  summary: "Connect a Notion workspace, receive content events, and call page, data source, and comment tools from workflows."
+  capabilities: ["events", "agent_tools"]
+  categories: ["issue-tracking"]
+  aliases: ["docs", "wiki", "knowledge base", "project management"]
+  icon: "notion"
+---
+
+## Authentication
+
+The Notion account that completes OAuth chooses which pages to share with
+Shipfox. Notion creates a Shipfox bot that accesses those pages.
+
+Use a dedicated Notion service member for OAuth instead of a personal account.
+Give the service member access only to pages that workflows need.
+
+## Integration connection identity
+
+The slug of a Notion integration connection defaults to `notion_<workspace>`,
+where `<workspace>` is the normalized Notion workspace name. For example,
+`notion_acme`. Shipfox makes the slug unique within the Shipfox workspace.
+
+Use the slug as `source` for Notion events:
+
+```yaml
+triggers:
+  on_notion_page:
+    source: notion_acme # Replace with your Notion integration connection slug.
+    event: page.properties_updated
+```
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Capabilities
+
+| Capability | Details |
+| --- | --- |
+| Events | [View Notion events](/integrations/notion/events). |
+| Tools | [View Notion tools](/integrations/notion/tools). |
+
+[Connect Notion](/integrations/notion/setup) to create an integration connection.

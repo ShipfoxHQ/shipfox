@@ -1,0 +1,78 @@
+---
+title: "Connect Notion to a Shipfox workspace"
+sidebarTitle: "Setup"
+description: "Authorize selected Notion pages with a dedicated service member, then verify the integration connection."
+---
+
+Connect Notion when a workflow needs Notion events or tools. See the [Notion
+overview](/integrations/notion) for its capabilities and access boundary.
+
+## Before you begin
+
+Create a dedicated Notion member for Shipfox. This guide calls that account the
+**service member**.
+
+Sign in as the service member when you connect Notion. The service member
+chooses which pages to share. Notion creates a Shipfox bot that reads and
+changes those pages.
+
+A dedicated account keeps the integration connection working if an employee
+leaves or loses access.
+
+Before you start:
+
+- Confirm that your Shipfox role can manage integrations.
+- Sign in to Notion as the service member.
+- Give the service member access to the pages and teamspaces that workflows need.
+
+On Notion Enterprise, ask a workspace owner to approve **Shipfox** if the
+workspace restricts integrations.
+
+If you cannot use a service member, a Notion owner can connect instead. Invite
+the owner to the Shipfox workspace before you start.
+
+## Authorize Notion
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    Open **Settings → Integrations** in the Shipfox workspace. Select
+    **Notion**, then start the integration connection.
+  </Step>
+  <Step>
+
+    **Sign in with the dedicated service member**
+
+    Sign in to Notion with the service member. If Notion blocks the connection,
+    ask a Notion owner to approve **Shipfox**.
+  </Step>
+  <Step>
+
+    **Choose the pages Shipfox can access**
+
+    Select the pages and teamspaces that workflows need. Child pages inherit
+    access from a selected parent page.
+
+    Repeating OAuth setup replaces the previous page selection. Select every
+    page that existing workflows still need.
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    Open the new integration connection's menu. Select **Use this integration**.
+    Copy the slug from the event or tool example. Workflows use the slug as
+    `source` or `connection`.
+  </Step>
+</Steps>
+
+## Verify the integration connection
+
+Open **Settings → Integrations**. Check that the Notion integration connection
+is active and advertises Events and Agent tools.
+
+In Notion, open one selected page and confirm that **Shipfox** appears in its
+connections. Create a safe page or comment, then confirm that its event appears
+under **Settings → Events** in Shipfox.

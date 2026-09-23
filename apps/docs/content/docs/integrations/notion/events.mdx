@@ -1,0 +1,84 @@
+---
+title: "Notion events"
+sidebarTitle: "Events"
+description: "Look up the Notion event names Shipfox delivers and use thin event payloads safely in workflows."
+eventReference: "integrations/notion/events"
+---
+
+This reference lists page, data source, database, and comment events delivered
+to a Notion integration connection. See the [Notion overview](/integrations/notion)
+for authentication and access boundaries.
+
+## Payload
+
+Shipfox passes through the raw Notion webhook payload. The payload identifies
+the changed object but does not contain its current page properties or content.
+
+See Notion's [webhook events reference](https://developers.notion.com/reference/webhooks-events-delivery)
+for provider-owned field details.
+
+Notion aggregates page, data source, and database edits. An event can arrive up
+to about a minute after the changes and can list several authors.
+
+Shipfox receives events only for pages, data sources, databases, and comments
+it can access.
+
+## Check a page's current status
+
+The `page.properties_updated` event tells you which property changed. It does
+not include the new value. Use `get_page` to read the page before checking its
+status.
+
+Copy this workflow. Replace the uppercase placeholder IDs.
+
+```yaml title=".shipfox/workflows/check-notion-status.yml"
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Check Notion status
+runner: shipfox
+
+triggers:
+  on_spec_changed:
+    source: notion_acme # Replace with your Notion integration connection slug.
+    event: page.properties_updated
+    filter: >
+      event.data.parent.id == "YOUR_DATA_SOURCE_ID" &&
+      event.data.updated_properties.exists(
+        property_id,
+        property_id == "YOUR_STATUS_PROPERTY_ID"
+      ) &&
+      event.authors.exists(author, author.type == "person")
+
+jobs:
+  implement:
+    steps:
+      - key: page
+        tool: get_page
+        connection: notion_acme # Replace with your Notion integration connection slug.
+        with:
+          page_id: ${{ event.entity.id }}
+        outputs:
+          status: ${{ result.properties.Status.status.name }}
+      - if: '${{ steps.page.outputs.status == "Ready for dev" }}'
+        env:
+          NOTION_PAGE_ID: ${{ event.entity.id }}
+          NOTION_STATUS: ${{ steps.page.outputs.status }}
+        run: |
+          printf 'Notion page %s has status %s\n' "$NOTION_PAGE_ID" "$NOTION_STATUS"
+```
+
+The author filter accepts only events that include a person. This reduces
+repeat runs caused by changes from the Shipfox bot. Notion may combine a
+person's change and a bot's change, so each Notion write must still be safe to
+run again.
+
+Every matching event starts a run. The command runs only when the page's
+current status is **Ready for dev**. This does not detect a change from one
+status to another because Notion does not send the previous value.
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Event catalog
+
+Use your Notion integration connection slug instead of `notion_acme`.
+
+<EventReference />
