@@ -12,6 +12,7 @@ import {
 } from '@shipfox/react-ui/dropdown-menu';
 import {useIsTextTruncated} from '@shipfox/react-ui/hooks';
 import {Icon} from '@shipfox/react-ui/icon';
+import {InspectorTrigger} from '@shipfox/react-ui/inspector';
 import {RelativeTime} from '@shipfox/react-ui/relative-time';
 import {TimeTickerProvider} from '@shipfox/react-ui/time-ticker';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
@@ -147,17 +148,13 @@ export function WorkflowRunSummary({
               onRerun={onRerun}
             />
             {onOpenInspector ? (
-              <Button
-                type="button"
-                variant={inspectorOpen ? 'secondary' : 'transparentMuted'}
-                size="sm"
-                aria-pressed={inspectorOpen}
+              <InspectorTrigger
+                open={inspectorOpen}
                 data-workflow-inspector-trigger="run"
                 onClick={(event) => onOpenInspector(event.currentTarget)}
               >
-                <Icon name="sideBarLine" className="size-14" aria-hidden="true" />
-                Run details
-              </Button>
+                Inspect workflow
+              </InspectorTrigger>
             ) : null}
           </div>
 

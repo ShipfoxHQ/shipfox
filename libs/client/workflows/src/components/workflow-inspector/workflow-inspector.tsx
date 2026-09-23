@@ -166,7 +166,7 @@ function inspectorHeaderCopy(
   selectionRead: WorkflowInspectorSelectionRead | undefined,
 ): {title: string; description: string} {
   if (scope === 'run') {
-    if (!run) return {title: 'Run details', description: 'Loading run details'};
+    if (!run) return {title: 'Workflow', description: 'Loading workflow run'};
     return {
       title: run.name,
       description: `Run ${run.number ?? run.id} · Attempt ${run.runAttempt.attempt}`,
@@ -174,9 +174,9 @@ function inspectorHeaderCopy(
   }
   if (!selection) {
     let description = 'No execution selected';
-    if (selectionRead?.status === 'pending') description = 'Loading execution details';
+    if (selectionRead?.status === 'pending') description = 'Loading job execution';
     else if (selectionRead?.status === 'error') description = 'Could not load execution';
-    return {title: 'Execution details', description};
+    return {title: 'Job', description};
   }
   return {
     title: selection.job.displayName,

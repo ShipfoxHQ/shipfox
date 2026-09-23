@@ -279,7 +279,7 @@ export function WorkflowRunView({
 
   return (
     <RelativeTimeProvider>
-      <WorkflowInspectorOpenProvider onOpen={openInspector}>
+      <WorkflowInspectorOpenProvider onOpen={openInspector} scope={inspectorScope}>
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <RunViewContent
             workspaceId={workspaceId}

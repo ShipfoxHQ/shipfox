@@ -6,5 +6,6 @@ export {
 export {
   type OpenWorkflowInspector,
   useOpenWorkflowInspector,
+  useOpenWorkflowInspectorScope,
   WorkflowInspectorOpenProvider,
 } from './workflow-inspector-context.js';

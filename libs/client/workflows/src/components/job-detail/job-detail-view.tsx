@@ -71,7 +71,10 @@ import {
   type StepListModel,
   type StepModel,
 } from '../step-list/step-list-model.js';
-import {useOpenWorkflowInspector} from '../workflow-inspector/index.js';
+import {
+  useOpenWorkflowInspector,
+  useOpenWorkflowInspectorScope,
+} from '../workflow-inspector/index.js';
 import {
   WorkflowRunNotFound,
   WorkflowRunStaleError,
@@ -140,6 +143,7 @@ export function JobDetailView({
 }: JobDetailViewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const openWorkflowInspector = useOpenWorkflowInspector();
+  const openInspectorScope = useOpenWorkflowInspectorScope();
   const pageScrollRef = useRef<HTMLDivElement>(null);
   const landingSelectionRef = useRef<FrozenLandingSelection | undefined>(undefined);
   const [logSearch, setLogSearch] = useState('');
@@ -333,7 +337,7 @@ export function JobDetailView({
                 executionCountVisible={detailData.executionCountVisible}
                 executionDisplayStatus={detailData.executionDisplayStatus}
                 usage={usageQuery.data}
-                inspectorOpen={search.inspector === 'execution'}
+                inspectorOpen={openInspectorScope === 'execution'}
                 onOpenInspector={
                   openWorkflowInspector
                     ? (trigger) => openWorkflowInspector('execution', trigger)

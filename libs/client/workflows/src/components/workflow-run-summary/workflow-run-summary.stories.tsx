@@ -268,7 +268,7 @@ export const Statuses: Story = {
   ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
-    const buttons = canvas.getAllByRole('button', {name: 'Run details'});
+    const buttons = canvas.getAllByRole('button', {name: 'Inspect workflow'});
     const headings = canvas.getAllByRole('heading', {level: 1});
     for (const [index, button] of buttons.entries()) {
       const buttonBounds = button.getBoundingClientRect();

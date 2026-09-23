@@ -651,6 +651,7 @@ tabs exist, what each row says, and the open scope in URL state.
 
 | Part | Component | Role |
 | --- | --- | --- |
+| Trigger | `InspectorTrigger` | The entry button. It names the resource, such as `Inspect workflow`, `Inspect job`, or `Inspect step`, and stays pressed while its inspector is open. |
 | Host | `Inspector` | Docks as a fixed-width `aside` at `lg` and wider, and opens as a `Sheet` below. `presentation="sheet"` forces the sheet for an inspector opened from a list. |
 | Header | `InspectorHeader` | Status pill, title, description, and badges, with the close control. The title is the focus target. |
 | Facts | `InspectorFacts`, `InspectorFact`, `InspectorFactSeparator` | One wrapping line of icon-and-value facts under the title. |

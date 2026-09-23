@@ -675,7 +675,7 @@ export const TestRunCostTab: Story = {
   ...Usage,
   play: async ({canvasElement}) => {
     const body = within(canvasElement.ownerDocument.body);
-    const trigger = await body.findByRole('button', {name: 'Run details'});
+    const trigger = await body.findByRole('button', {name: 'Inspect workflow'});
     trigger.focus();
     await userEvent.keyboard('{Enter}');
     await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));

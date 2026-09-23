@@ -107,7 +107,7 @@ describe('WorkflowRunView', () => {
       await within(waitingNotice).findByRole('link', {name: 'Release run #42, attempt 3'}),
     ).toHaveAttribute('href', expect.stringContaining(`/runs/${RELATED_RUN_ID}`));
 
-    const trigger = screen.getByRole('button', {name: 'Run details'});
+    const trigger = screen.getByRole('button', {name: 'Inspect workflow'});
     const historyLength = router.history.length;
     await userEvent.click(trigger);
     const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
@@ -132,7 +132,9 @@ describe('WorkflowRunView', () => {
     const inspector = screen.getByRole('complementary', {name: 'Workflow inspector'});
     await userEvent.click(within(inspector).getByRole('button', {name: 'Close inspector'}));
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
-    await waitFor(() => expect(screen.getByRole('button', {name: 'Run details'})).toHaveFocus());
+    await waitFor(() =>
+      expect(screen.getByRole('button', {name: 'Inspect workflow'})).toHaveFocus(),
+    );
   });
 
   test('explains an execution scope direct link without a selected job', async () => {
@@ -267,7 +269,7 @@ describe('WorkflowRunView', () => {
     configureRunFetch();
 
     const {router} = renderView();
-    await user.click(await screen.findByRole('button', {name: 'Run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect workflow'}));
     expect(router.state.location.search).toMatchObject({inspector: 'run'});
     await user.click(await screen.findByRole('button', {name: 'deploy, Running'}));
 

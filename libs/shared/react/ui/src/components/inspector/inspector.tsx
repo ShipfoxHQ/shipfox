@@ -98,6 +98,41 @@ export function Inspector({
   );
 }
 
+export interface InspectorTriggerProps extends Omit<ComponentProps<'button'>, 'children'> {
+  /** Whether the inspector this button opens is showing. */
+  open: boolean;
+  /** The verb and the resource, such as `Inspect job`. */
+  children: ReactNode;
+  size?: 'xs' | 'sm' | undefined;
+}
+
+/**
+ * The entry button for an inspector. It names the resource it inspects and
+ * stays pressed while that inspector is open.
+ */
+export function InspectorTrigger({
+  open,
+  children,
+  size = 'sm',
+  className,
+  ...props
+}: InspectorTriggerProps) {
+  return (
+    <Button
+      type="button"
+      variant={open ? 'secondary' : 'transparentMuted'}
+      size={size}
+      aria-pressed={open}
+      data-slot="inspector-trigger"
+      className={cn('shrink-0', className)}
+      {...props}
+    >
+      <Icon name="sideBarLine" className="size-14" aria-hidden="true" />
+      {children}
+    </Button>
+  );
+}
+
 export interface InspectorHeaderProps {
   title: ReactNode;
   description?: ReactNode;

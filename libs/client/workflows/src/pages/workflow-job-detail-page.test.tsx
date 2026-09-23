@@ -74,10 +74,16 @@ describe('WorkflowJobDetailPage', () => {
     const user = userEvent.setup();
     const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
 
-    const trigger = await screen.findByRole('button', {name: 'Execution details'});
+    const trigger = await screen.findByRole('button', {name: 'Inspect job'});
+    expect(trigger).toHaveAttribute('aria-pressed', 'false');
     await user.click(trigger);
     expect(await screen.findByRole('complementary', {name: 'Workflow inspector'})).toBeVisible();
     expect(router.state.location.search).toMatchObject({inspector: 'execution'});
+    expect(trigger).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', {name: 'Inspect workflow'})).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     const historyLength = router.history.length;
 
     await user.click(screen.getByRole('link', {name: 'Summary'}));
@@ -102,7 +108,7 @@ describe('WorkflowJobDetailPage', () => {
     const user = userEvent.setup();
     const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
 
-    await user.click(await screen.findByRole('button', {name: 'Execution details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect job'}));
     const navigation = screen.getByRole('navigation', {name: 'Run workspace'});
     await user.click(within(navigation).getByRole('link', {name: LINT_LINK_PATTERN}));
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
@@ -114,7 +120,7 @@ describe('WorkflowJobDetailPage', () => {
     const user = userEvent.setup();
     const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
 
-    await user.click(await screen.findByRole('button', {name: 'Execution details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect job'}));
     await user.click(screen.getByRole('button', {name: SWITCH_EXECUTION_PATTERN}));
     await user.click(await screen.findByRole('menuitem', {name: EXECUTION_1_PATTERN}));
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
@@ -126,7 +132,7 @@ describe('WorkflowJobDetailPage', () => {
     const user = userEvent.setup();
     const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
 
-    await user.click(await screen.findByRole('button', {name: 'Execution details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect job'}));
     const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
     await user.click(within(inspector).getByRole('tab', {name: 'Inputs'}));
     expect(router.state.location.search).toMatchObject({inspector: 'execution'});
@@ -141,7 +147,7 @@ describe('WorkflowJobDetailPage', () => {
     const user = userEvent.setup();
     const {router} = renderJobPath('?runAttempt=1');
 
-    await user.click(await screen.findByRole('button', {name: 'Run details'}));
+    await user.click(await screen.findByRole('button', {name: 'Inspect workflow'}));
     await user.click(screen.getByRole('button', {name: SWITCH_ATTEMPT_PATTERN}));
     await user.click(await screen.findByRole('menuitem', {name: ATTEMPT_2_PATTERN}));
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));

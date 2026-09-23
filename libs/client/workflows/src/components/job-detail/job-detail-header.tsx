@@ -1,9 +1,9 @@
 import {MetadataSeparator} from '@shipfox/client-ui';
 import {type JobExecutionUsage, JobUsageCells} from '@shipfox/client-usage';
 import {Icon} from '@shipfox/react-ui/icon';
+import {InspectorTrigger} from '@shipfox/react-ui/inspector';
 import {useTimeTick} from '@shipfox/react-ui/time-ticker';
 import {Code} from '@shipfox/react-ui/typography';
-import {cn} from '@shipfox/react-ui/utils';
 import {Fragment, type ReactNode} from 'react';
 import {getWorkflowStatusVisual} from '#components/workflow-status/status-visuals.js';
 import {WorkflowStatusIcon} from '#components/workflow-status/workflow-status-icon.js';
@@ -174,21 +174,13 @@ function ExecutionInspectorButton({
 }) {
   if (!visible || !onOpen) return null;
   return (
-    <button
-      type="button"
-      aria-pressed={open}
+    <InspectorTrigger
+      open={open}
       data-workflow-inspector-trigger="execution"
       onClick={(event) => onOpen(event.currentTarget)}
-      className={cn(
-        'inline-flex h-28 items-center gap-tight rounded-6 px-tight text-xs font-medium outline-none transition-colors focus-visible:shadow-button-neutral-focus',
-        open
-          ? 'bg-background-button-neutral-default text-foreground-neutral-base shadow-button-neutral'
-          : 'text-foreground-neutral-muted hover:bg-background-button-transparent-hover hover:text-foreground-neutral-base',
-      )}
     >
-      <Icon name="sideBarLine" className="size-14" aria-hidden="true" />
-      Execution details
-    </button>
+      Inspect job
+    </InspectorTrigger>
   );
 }
 

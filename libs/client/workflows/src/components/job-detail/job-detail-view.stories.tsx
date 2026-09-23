@@ -64,7 +64,7 @@ const PROJECT_SLUG = 'platform';
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const WORKSPACE_ID = '88888888-8888-4888-8888-888888888888';
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
-const INSPECTOR_TRIGGER_NAME = /Inspect Run tests/;
+const INSPECTOR_TRIGGER_NAME = /Inspect step Run tests/;
 const EXECUTION_COST_TEXT = /\$1\.96/;
 const LOG_RECORDS: StepLogSnapshot['records'] = [
   {
@@ -308,7 +308,7 @@ export const TestJobCostTab: Story = {
   ...Usage,
   play: async ({canvasElement}) => {
     const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await body.findByRole('button', {name: 'Execution details'}));
+    await userEvent.click(await body.findByRole('button', {name: 'Inspect job'}));
     await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
     // The mobile inspector animates in, so the tab content is present before it is visible.
     await waitFor(() => expect(body.getAllByText(EXECUTION_COST_TEXT).length).toBeGreaterThan(0));
@@ -338,7 +338,7 @@ export const TestInvocationLogNavigation: Story = {
     });
 
     await userEvent.click(
-      canvas.getByRole('button', {name: 'Inspect Post release notice, attempt 1'}),
+      canvas.getByRole('button', {name: 'Inspect step Post release notice, attempt 1'}),
     );
     await documentBody.findByText('Tool access was denied');
     await userEvent.click(documentBody.getByRole('button', {name: 'View invocation log'}));
