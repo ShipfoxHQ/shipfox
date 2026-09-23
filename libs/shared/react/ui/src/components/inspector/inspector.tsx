@@ -119,13 +119,13 @@ export function InspectorTrigger({
 }: InspectorTriggerProps) {
   return (
     <Button
+      {...props}
       type="button"
       variant={open ? 'secondary' : 'transparentMuted'}
       size={size}
       aria-pressed={open}
       data-slot="inspector-trigger"
       className={cn('shrink-0', className)}
-      {...props}
     >
       <Icon name="sideBarLine" className="size-14" aria-hidden="true" />
       {children}

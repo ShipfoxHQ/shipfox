@@ -121,7 +121,7 @@ describe('WorkflowRunView', () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  test('returns focus to the run details button when dismissing a direct link', async () => {
+  test('returns focus to the Inspect workflow button when dismissing a direct link', async () => {
     configureRunFetch();
     const {router} = renderView(
       {selection: {runAttempt: 1}},
