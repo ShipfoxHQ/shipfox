@@ -99,7 +99,7 @@ export function ActivityActionRow({
           </span>
         </span>
       </LogDisclosureTrigger>
-      <LogDisclosureContent>
+      <LogDisclosureContent className="border-l-0">
         {hasPresentedDetail ? (
           <PresentedDetails detail={resolvedPresentation.detail ?? null} />
         ) : (
