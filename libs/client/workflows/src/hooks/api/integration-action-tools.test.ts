@@ -54,7 +54,15 @@ test('accepts MCP server configuration and missing configuration', () => {
         },
       ],
     }),
-  ).toHaveLength(1);
+  ).toEqual([
+    {
+      provider: 'github',
+      connectionId: 'id',
+      connectionSlug: 'code',
+      toolId: 'read',
+      sensitivity: 'read',
+    },
+  ]);
   expect(toIntegrationActionTools(null)).toEqual([]);
   expect(toIntegrationActionTools({integrations: [{provider: 'github', tools: []}]})).toEqual([]);
 });

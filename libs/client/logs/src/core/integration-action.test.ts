@@ -89,6 +89,24 @@ test('uses the selected method sensitivity, not the family sensitivity or sensit
   expect(lookup(action('code__issues', 'invalid json'))?.readClassification).toBe('unknown');
 });
 
+test.each([
+  ['Jira issue key', {idOrKey: 'ENG-2312'}, 'ENG-2312'],
+  ['ClickUp task ID', {task_id: 'abc123'}, 'abc123'],
+  ['Slack channel ID', {channel_id: 'C123'}, 'C123'],
+  ['Gitea repository and index', {repo: 'shipfox/platform', index: 42}, 'shipfox/platform#42'],
+])('uses the %s as the preview target', (_name, input, target) => {
+  const lookup = createIntegrationActionPresentationLookup([
+    {
+      provider: 'example',
+      connectionId: 'id',
+      connectionSlug: 'customer-primary',
+      toolId: 'read',
+      sensitivity: 'read',
+    },
+  ]);
+  expect(lookup(action('customer_primary__read', JSON.stringify(input)))?.target).toBe(target);
+});
+
 test('leaves absent and colliding identities unresolved', () => {
   const tool: IntegrationActionTool = {
     provider: 'linear',

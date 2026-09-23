@@ -96,17 +96,37 @@ function stringValue(value: unknown): string | null {
 
 function primaryIdentifier(value: Record<string, unknown> | null): string | null {
   if (!value) return null;
-  for (const key of ['identifier', 'issue_key', 'key', 'path', 'title', 'name', 'query']) {
+  for (const key of ['identifier', 'issue_key', 'idOrKey', 'task_id', 'channel_id', 'key']) {
     const text = stringValue(value[key]);
     if (text) return text;
   }
-  const number = value.issue_number ?? value.pull_number ?? value.pr_number ?? value.number;
-  if (typeof number === 'number' || typeof number === 'string') {
-    const owner = stringValue(value.owner);
-    const repo = stringValue(value.repo);
-    return owner && repo ? `${owner}/${repo}#${number}` : `#${number}`;
+  const numberedTarget = repositoryNumberTarget(value);
+  if (numberedTarget) return numberedTarget;
+  for (const key of [
+    'path',
+    'title',
+    'name',
+    'query',
+    'repository',
+    'repo',
+    'list_id',
+    'project_id',
+    'id',
+  ]) {
+    const text = stringValue(value[key]);
+    if (text) return text;
   }
   return null;
+}
+
+function repositoryNumberTarget(value: Record<string, unknown>): string | null {
+  const number =
+    value.issue_number ?? value.pull_number ?? value.pr_number ?? value.index ?? value.number;
+  if (typeof number !== 'number' && !stringValue(number)) return null;
+  const owner = stringValue(value.owner);
+  const repo = stringValue(value.repo) ?? stringValue(value.repository);
+  const repository = owner && repo ? `${owner}/${repo}` : repo;
+  return repository ? `${repository}#${number}` : `#${number}`;
 }
 
 function humanize(value: string): string {

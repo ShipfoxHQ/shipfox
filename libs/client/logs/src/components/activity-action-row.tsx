@@ -213,7 +213,12 @@ function StructuredResult({value}: {value: string}) {
 function StructuredValue({value, depth}: {value: unknown; depth: number}) {
   const [showAll, setShowAll] = useState(false);
   if (value === null || typeof value !== 'object' || depth >= 3) {
-    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    let text: string;
+    try {
+      text = typeof value === 'string' ? value : JSON.stringify(value);
+    } catch {
+      text = '[Nested value omitted]';
+    }
     return <LogContent className="whitespace-pre-wrap break-words">{text}</LogContent>;
   }
   const entries = Array.isArray(value)
@@ -251,6 +256,7 @@ function providerLabel(provider: string): string {
     github: 'GitHub',
     gitlab: 'GitLab',
     gitea: 'Gitea',
+    clickup: 'ClickUp',
     posthog: 'PostHog',
   };
   return (

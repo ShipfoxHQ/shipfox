@@ -10,6 +10,7 @@ const RUN_COMMAND_BUTTON_NAME = /Run Command/;
 const EDIT_FILE_BUTTON_NAME = /Edit File/;
 const READ_FILE_BUTTON_NAME = /Read File/;
 const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
+const CLICKUP_BUTTON_NAME = /ClickUp · Read/;
 
 const output = (data: string): LogRecord => ({
   v: 1,
@@ -87,6 +88,45 @@ describe('LogView', () => {
     expect(result.closest('.bg-background-contrast-base')).toBeInTheDocument();
     expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
     expect(screen.queryByText('{"workspace":"shipfox"}')).not.toBeInTheDocument();
+  });
+
+  test('keeps deeply nested integration output viewable', () => {
+    const nested = `${'['.repeat(12_000)}0${']'.repeat(12_000)}`;
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'nested',
+            name: 'customer_primary__read',
+            input: '{}',
+          }),
+          agentSession(
+            {
+              kind: 'tool-result',
+              timestamp: ts + 1,
+              toolCallId: 'nested',
+              toolName: 'tool',
+              output: nested,
+              isError: false,
+            },
+            1,
+          ),
+        ]}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'clickup',
+            connectionId: 'id',
+            connectionSlug: 'customer-primary',
+            toolId: 'read',
+            sensitivity: 'read',
+          },
+        ])}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', {name: CLICKUP_BUTTON_NAME}));
+    expect(screen.getByText('[Nested value omitted]')).toBeInTheDocument();
   });
 
   let scrollIntoViewDescriptor: PropertyDescriptor | undefined;
