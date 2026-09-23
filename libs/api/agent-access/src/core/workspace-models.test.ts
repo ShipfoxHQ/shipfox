@@ -13,9 +13,10 @@ describe('getWorkspaceModels', () => {
       provider: 'anthropic',
       harness: 'claude',
       thinking: 'high',
+      supported_thinking: ['low', 'medium', 'high', 'xhigh', 'max'],
       is_default: true,
       price: null,
-      reference: null,
+      references: [],
     };
     const result = {
       models: [model],

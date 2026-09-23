@@ -10,9 +10,10 @@ function workspaceModel() {
     provider: 'anthropic',
     harness: 'claude' as const,
     thinking: 'high' as const,
+    supported_thinking: ['low', 'medium', 'high', 'xhigh', 'max'] as const,
     is_default: true,
     price: null,
-    reference: null,
+    references: [],
   };
 }
 
@@ -20,11 +21,14 @@ function scoredWorkspaceModel() {
   return {
     ...workspaceModel(),
     price: {input: 5, output: 25},
-    reference: {
-      intelligence_index: 80,
-      cost_per_task_usd: 0.1,
-      scale: 'aa-v1-swe-bench',
-    },
+    references: [
+      {
+        thinking: 'high' as const,
+        intelligence_index: 80,
+        cost_per_task_usd: 0.1,
+        scale: 'aa-v1-swe-bench',
+      },
+    ],
   };
 }
 
@@ -105,7 +109,7 @@ describe('agentInterModuleContract', () => {
         default_model: model,
         attribution: null,
       }),
-    ).toThrow('attribution is required when a model has a reference');
+    ).toThrow('attribution is required when a model has references');
   });
 
   test('rejects attribution when no workspace model has a reference', () => {
@@ -117,7 +121,53 @@ describe('agentInterModuleContract', () => {
         default_model: model,
         attribution: ATTRIBUTION,
       }),
-    ).toThrow('attribution must be null when no model has a reference');
+    ).toThrow('attribution must be null when no model has references');
+  });
+
+  test('preserves supported thinking levels and measured values at each level', () => {
+    const model = {
+      ...workspaceModel(),
+      supported_thinking: ['low', 'medium', 'high'] as const,
+      references: [
+        {thinking: 'low' as const, intelligence_index: 70, cost_per_task_usd: 0.04, scale: 'aa-v1'},
+        {thinking: 'high' as const, intelligence_index: 80, cost_per_task_usd: 0.1, scale: 'aa-v1'},
+      ],
+    };
+
+    expect(
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [model],
+        default_model: model,
+        attribution: ATTRIBUTION,
+      }).models[0],
+    ).toEqual(model);
+  });
+
+  test('rejects measured values for unsupported and duplicate thinking levels', () => {
+    const model = scoredWorkspaceModel();
+    const highReference = model.references[0];
+    if (highReference === undefined) throw new Error('Expected a high reference fixture');
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [{...model, supported_thinking: ['low']}],
+        default_model: null,
+        attribution: ATTRIBUTION,
+      }),
+    ).toThrow('reference thinking must be supported by the model and harness');
+
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [
+          {
+            ...workspaceModel(),
+            references: [highReference, {...highReference, intelligence_index: 81}],
+          },
+        ],
+        default_model: null,
+        attribution: ATTRIBUTION,
+      }),
+    ).toThrow('Each thinking level can have only one measured reference.');
   });
 
   test('rejects a workspace default model that is absent from models', () => {

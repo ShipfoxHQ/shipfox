@@ -160,8 +160,10 @@ export {
   MODEL_REFERENCE_ATTRIBUTION,
   type ModelPrice,
   type ModelReference,
+  type ModelReferences,
   modelPriceSchema,
   modelReferenceSchema,
+  modelReferencesSchema,
 } from './model-reference.js';
 export {
   type AgentRuntimeCredentialsResponseDto,

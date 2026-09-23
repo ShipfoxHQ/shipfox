@@ -370,8 +370,31 @@ function agentClient(
   models: readonly {id: string; provider: string}[],
   defaultModel: {id: string; provider: string} | null = models[0] ?? null,
 ) {
+  const workspaceModels = models.map((model) => ({
+    ...model,
+    harness: 'pi' as const,
+    thinking: 'medium' as const,
+    supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const,
+    is_default:
+      defaultModel !== null &&
+      model.id === defaultModel.id &&
+      model.provider === defaultModel.provider,
+    price: null,
+    references: [],
+  }));
+  const workspaceDefaultModel =
+    defaultModel === null
+      ? null
+      : (workspaceModels.find(
+          ({id, provider}) => id === defaultModel.id && provider === defaultModel.provider,
+        ) ?? null);
+
   return {
-    getWorkspaceModels: vi.fn().mockResolvedValue({models, default_model: defaultModel}),
+    getWorkspaceModels: vi.fn().mockResolvedValue({
+      models: workspaceModels,
+      default_model: workspaceDefaultModel,
+      attribution: null,
+    }),
   } as unknown as AgentInterModuleClient;
 }
 

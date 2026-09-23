@@ -1,11 +1,17 @@
-import type {ManagedModelProvider, ModelReference} from '@shipfox/api-agent-dto';
+import type {AgentThinking, ManagedModelProvider, ModelReference} from '@shipfox/api-agent-dto';
 import {setDefaultHarness, upsertModelProviderConfig} from '#db/index.js';
 import {getWorkspaceModels} from './workspace-models.js';
 
 const scale = 'aa-v1-swe-bench';
 
-function reference(intelligenceIndex: number, costPerTaskUsd: number, referenceScale = scale) {
+function reference(
+  thinking: AgentThinking,
+  intelligenceIndex: number,
+  costPerTaskUsd: number,
+  referenceScale = scale,
+) {
   return {
+    thinking,
     intelligence_index: intelligenceIndex,
     cost_per_task_usd: costPerTaskUsd,
     scale: referenceScale,
@@ -53,14 +59,15 @@ describe('getWorkspaceModels', () => {
       harness: 'pi',
       thinking: 'medium',
       is_default: true,
-      reference: null,
+      supported_thinking: expect.arrayContaining(['medium', 'high', 'xhigh']),
+      references: [],
     });
     expect(model?.price).toEqual({input: expect.any(Number), output: expect.any(Number)});
     expect(result.attribution).toBeNull();
     expect(result.default_model).toEqual(model);
   });
 
-  test('returns custom provider models with references and no price', async () => {
+  test('returns custom provider models without measured references', async () => {
     const workspaceId = crypto.randomUUID();
     await upsertModelProviderConfig({
       workspaceId,
@@ -70,7 +77,7 @@ describe('getWorkspaceModels', () => {
       api: 'openai-responses',
       baseUrl: 'http://127.0.0.1:11434/v1',
       headers: [],
-      models: [{id: 'llama-3.1', label: 'Llama 3.1', reference: reference(70, 0.04)}],
+      models: [{id: 'llama-3.1', label: 'Llama 3.1'}],
       defaultModel: null,
       defaultThinking: 'low',
       setAsDefault: true,
@@ -84,12 +91,13 @@ describe('getWorkspaceModels', () => {
         provider: 'local-vllm',
         harness: 'pi',
         thinking: 'low',
+        supported_thinking: ['off'],
         is_default: true,
         price: null,
-        reference: reference(70, 0.04),
+        references: [],
       },
     ]);
-    expect(result.attribution).toBeTypeOf('string');
+    expect(result.attribution).toBeNull();
   });
 
   test('returns scored managed models and marks the workspace default', async () => {
@@ -100,14 +108,16 @@ describe('getWorkspaceModels', () => {
         label: 'Managed strong',
         api: 'openai-responses',
         price: {input: 2, output: 8},
-        reference: reference(90, 0.12),
+        reasoning: true,
+        references: [reference('low', 90, 0.12), reference('high', 85, 0.14)],
       },
       {
         id: 'managed-small',
         label: 'Managed small',
         api: 'openai-responses',
         price: {input: 0.5, output: 2},
-        reference: reference(60, 0.02),
+        reasoning: true,
+        references: [reference('high', 60, 0.02)],
       },
     ]);
 
@@ -119,18 +129,20 @@ describe('getWorkspaceModels', () => {
         provider: 'shipfox',
         harness: 'pi',
         thinking: 'xhigh',
+        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
         is_default: true,
         price: {input: 2, output: 8},
-        reference: reference(90, 0.12),
+        references: [reference('low', 90, 0.12), reference('high', 85, 0.14)],
       },
       {
         id: 'managed-small',
         provider: 'shipfox',
         harness: 'pi',
         thinking: 'xhigh',
+        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
         is_default: false,
         price: {input: 0.5, output: 2},
-        reference: reference(60, 0.02),
+        references: [reference('high', 60, 0.02)],
       },
     ]);
     expect(result.default_model).toEqual(result.models[0]);
@@ -144,16 +156,17 @@ describe('getWorkspaceModels', () => {
         id: 'managed-scored',
         label: 'Managed scored',
         api: 'openai-responses',
-        reference: reference(80, 0.1),
+        reasoning: true,
+        references: [reference('medium', 80, 0.1)],
       },
       {id: 'managed-unscored', label: 'Managed unscored', api: 'openai-responses'},
     ]);
 
     const result = await getWorkspaceModels(workspaceId, provider);
 
-    expect(result.models.map(({reference: modelReference}) => modelReference)).toEqual([
-      reference(80, 0.1),
-      null,
+    expect(result.models.map(({references}) => references)).toEqual([
+      [reference('medium', 80, 0.1)],
+      [],
     ]);
     expect(result.attribution).toBeTypeOf('string');
   });
@@ -165,23 +178,44 @@ describe('getWorkspaceModels', () => {
         id: 'managed-v1',
         label: 'Managed v1',
         api: 'openai-responses',
-        reference: reference(80, 0.1, 'aa-v1-swe-bench'),
+        reasoning: true,
+        references: [reference('low', 80, 0.1, 'aa-v1-swe-bench')],
       },
       {
         id: 'managed-v2',
         label: 'Managed v2',
         api: 'openai-responses',
-        reference: reference(82, 0.08, 'aa-v2-repo-task'),
+        reasoning: true,
+        references: [reference('low', 82, 0.08, 'aa-v2-repo-task')],
       },
     ]);
 
     const result = await getWorkspaceModels(workspaceId, provider);
 
-    expect(result.models.map(({reference: modelReference}) => modelReference?.scale)).toEqual([
+    expect(result.models.map(({references}) => references[0]?.scale)).toEqual([
       'aa-v1-swe-bench',
       'aa-v2-repo-task',
     ]);
     expect(result.attribution).toBeTypeOf('string');
+  });
+
+  test('omits measured levels that the model explicitly does not support', async () => {
+    const workspaceId = crypto.randomUUID();
+    const provider = createManagedProvider([
+      {
+        id: 'managed-limited',
+        label: 'Managed limited',
+        api: 'openai-responses',
+        reasoning: true,
+        thinkingLevelMap: {high: null},
+        references: [reference('low', 70, 0.04), reference('high', 75, 0.05)],
+      },
+    ]);
+
+    const result = await getWorkspaceModels(workspaceId, provider);
+
+    expect(result.models[0]?.supported_thinking).not.toContain('high');
+    expect(result.models[0]?.references).toEqual([reference('low', 70, 0.04)]);
   });
 
   test('returns configured custom provider models for the pi harness', async () => {
@@ -209,9 +243,10 @@ describe('getWorkspaceModels', () => {
           provider: 'local-vllm',
           harness: 'pi',
           thinking: 'low',
+          supported_thinking: ['off'],
           is_default: true,
           price: null,
-          reference: null,
+          references: [],
         },
       ],
       default_model: expect.objectContaining({id: 'llama-3.1'}),
@@ -270,7 +305,8 @@ describe('getWorkspaceModels', () => {
         id: 'managed-model',
         provider: 'shipfox',
         is_default: true,
-        reference: null,
+        supported_thinking: ['off'],
+        references: [],
       }),
     ]);
     expect(result.default_model).toEqual(result.models[0]);

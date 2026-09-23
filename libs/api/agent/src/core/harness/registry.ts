@@ -1,5 +1,6 @@
 import type {
   AgentModelOptionDto,
+  AgentThinking,
   Harness,
   HarnessDescriptor,
   HarnessToolDeploymentConfig,
@@ -37,13 +38,17 @@ export {
 };
 
 export interface HarnessProviderCatalog {
-  listModels(providerId: string): AgentModelOptionDto[];
+  listModels(providerId: string): HarnessModelOptionDto[];
   validateCredentials(params: {
     providerId: string;
     model: string;
     credentials: Record<string, string>;
     signal?: AbortSignal | undefined;
   }): Promise<void>;
+}
+
+export interface HarnessModelOptionDto extends AgentModelOptionDto {
+  readonly supported_thinking?: readonly AgentThinking[] | undefined;
 }
 
 export interface ProbeHarnessProviderCredentialsParams {
@@ -64,7 +69,7 @@ const supportedModelProviderIds = new Set<string>(SUPPORTED_MODEL_PROVIDER_IDS);
 export function listHarnessProviderModels(
   harness: Harness,
   providerId: string,
-): AgentModelOptionDto[] {
+): HarnessModelOptionDto[] {
   const descriptor = getHarnessDescriptor(harness);
   assertHarnessSupportsProvider(descriptor, providerId);
   return CATALOGS[harness].listModels(providerId);

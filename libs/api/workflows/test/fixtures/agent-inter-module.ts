@@ -52,9 +52,10 @@ export const agentTestClient: AgentInterModuleClient = {
           provider: 'anthropic',
           harness: 'pi',
           thinking: 'xhigh',
+          supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
           is_default: true,
           price: null,
-          reference: null,
+          references: [],
         },
       ],
       default_model: {
@@ -62,9 +63,10 @@ export const agentTestClient: AgentInterModuleClient = {
         provider: 'anthropic',
         harness: 'pi',
         thinking: 'xhigh',
+        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
         is_default: true,
         price: null,
-        reference: null,
+        references: [],
       },
       attribution: null,
     });

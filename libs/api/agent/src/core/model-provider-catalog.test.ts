@@ -6,7 +6,21 @@ describe('buildModelProviderCatalog', () => {
     const managedProvider = {
       id: 'shipfox-managed',
       label: 'Shipfox Managed',
-      models: [{id: 'managed-claude', label: 'Managed Claude', api: 'anthropic-messages' as const}],
+      models: [
+        {
+          id: 'managed-claude',
+          label: 'Managed Claude',
+          api: 'anthropic-messages' as const,
+          references: [
+            {
+              thinking: 'high' as const,
+              intelligence_index: 80,
+              cost_per_task_usd: 0.1,
+              scale: 'aa-v1-swe-bench',
+            },
+          ],
+        },
+      ],
       defaultModel: 'managed-claude',
       resolveCredentials: async () => ({
         api: 'anthropic-messages' as const,
@@ -25,6 +39,14 @@ describe('buildModelProviderCatalog', () => {
       expect(Object.isFrozen(managedEntry.models)).toBe(true);
       expect(Object.isFrozen(managedEntry.models[0])).toBe(true);
       expect(managedEntry.models[0]?.api).toBe('anthropic-messages');
+      expect(managedEntry.models[0]?.references).toEqual([
+        {
+          thinking: 'high',
+          intelligence_index: 80,
+          cost_per_task_usd: 0.1,
+          scale: 'aa-v1-swe-bench',
+        },
+      ]);
     }
   });
 });
