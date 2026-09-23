@@ -109,6 +109,8 @@ If the user cannot produce an event, stop with this explicit result: shape valid
 
 ## 8. Check the event
 
+Skip this step for manual and cron triggers.
+
 Call `create_dev_run` with the same `content`, the chosen `replay_event_id`, and `dry_run: true`.
 
 This checks the trigger and filter without executing jobs. On `trigger-filtered`, choose another event or correct a wrong filter.
@@ -119,9 +121,13 @@ Never loosen a correct filter only to make the check pass.
 
 Before the run, state its expected effects. Name the ticket or event and every possible write, including branches, pull requests, comments, or transitions.
 
-Tell the user that the run uses runner time and model inference. The user already chose the event, so the stated effects are allowed.
+Tell the user that the run uses runner time and model inference. The user already chose the event or trigger, so the stated effects are allowed.
 
-Call `create_dev_run` with `content` and `replay_event_id`, without `dry_run: true`. Give the returned `run_url` to the user.
+For event triggers, call `create_dev_run` with `content` and `replay_event_id`, without `dry_run: true`.
+
+For manual and cron triggers, call `create_dev_run` with `content` and no `replay_event_id`.
+
+Give the returned `run_url` to the user.
 
 Follow the run with `get_workflow_run`, `list_workflow_run_jobs`, and `get_step_logs`.
 
