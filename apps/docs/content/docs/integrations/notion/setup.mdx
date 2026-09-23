@@ -9,26 +9,27 @@ overview](/integrations/notion) for its capabilities and access boundary.
 
 ## Before you begin
 
-Use a **dedicated Notion service member** to authorize Shipfox. This is the
-recommended setup for every Notion workspace. Give the member full access only
-to the pages and teamspaces that workflows need.
+Create a dedicated Notion member for Shipfox. This guide calls that account the
+**service member**.
 
-Shipfox acts as a bot, not as the person who authorizes it. The authorizing
-member only decides which pages the bot can see. Only that member can share
-more pages with the integration connection later.
+Sign in as the service member when you connect Notion. The service member
+chooses which pages to share. Notion creates a Shipfox bot that reads and
+changes those pages.
 
-A dedicated member keeps page sharing with one known account. It also avoids
-depending on an employee account when that person leaves or loses access.
+A dedicated account keeps the integration connection working if an employee
+leaves or loses access.
 
-You need access to integration settings in the Shipfox workspace. You also
-need access to the dedicated member's Notion account.
+Before you start, make sure:
 
-On Notion Enterprise, a workspace can restrict integrations to an approved
-list. A Notion owner must approve **Shipfox** before the service member connects
-it.
+- You can manage integrations in the Shipfox workspace.
+- You can sign in to Notion as the service member.
+- The service member can access the pages and teamspaces that workflows need.
 
-If the service member is unavailable, invite the Notion owner to Shipfox as a
-member. The owner can then connect Notion from the Shipfox workspace.
+On Notion Enterprise, ask a workspace owner to approve **Shipfox** if the
+workspace restricts integrations.
+
+If you cannot use a service member, a Notion owner can connect instead. Invite
+the owner to the Shipfox workspace before you start.
 
 ## Authorize Notion
 
@@ -54,8 +55,8 @@ member. The owner can then connect Notion from the Shipfox workspace.
     Select the pages and teamspaces that workflows need. Child pages inherit
     access from a selected parent page.
 
-    Connecting an already connected Notion workspace replaces the pages
-    available to existing workflows.
+    Repeating OAuth setup replaces the previous page selection. Select every
+    page that existing workflows still need.
   </Step>
   <Step>
 
@@ -66,9 +67,6 @@ member. The owner can then connect Notion from the Shipfox workspace.
     `source` or `connection`.
   </Step>
 </Steps>
-
-To add pages later, the authorizing member shares them with **Shipfox** from
-Notion's page menu. The workspace does not need to be connected again.
 
 ## Verify the integration connection
 

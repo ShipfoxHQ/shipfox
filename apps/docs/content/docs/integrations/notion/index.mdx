@@ -12,11 +12,11 @@ catalog:
 
 ## Authentication
 
-Shipfox connects to Notion through OAuth and acts as the installed Shipfox bot.
-The person who authorizes Shipfox chooses which pages the bot can access.
+The Notion account that completes OAuth chooses which pages to share with
+Shipfox. Notion creates a Shipfox bot that accesses those pages.
 
-Use a dedicated Notion service member to authorize Shipfox. Give that member
-full access only to the pages and teamspaces that workflows need.
+Use a dedicated Notion service member for OAuth instead of a personal account.
+Give the service member access only to pages that workflows need.
 
 ## Integration connection identity
 
@@ -24,16 +24,12 @@ The slug of a Notion integration connection defaults to `notion_<workspace>`,
 where `<workspace>` is the normalized Notion workspace name. For example,
 `notion_acme`. Shipfox makes the slug unique within the Shipfox workspace.
 
-One Notion workspace can have one Shipfox integration connection. Connecting
-the same Notion workspace again replaces the pages available to existing
-workflows.
-
 Use the slug as `source` for Notion events:
 
 ```yaml
 triggers:
   on_notion_page:
-    source: notion_acme
+    source: notion_acme # Replace with your Notion integration connection slug.
     event: page.properties_updated
 ```
 
