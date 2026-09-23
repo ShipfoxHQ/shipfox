@@ -10,7 +10,7 @@ import {
 import {Markdown} from '@shipfox/react-ui/markdown';
 import {Code} from '@shipfox/react-ui/typography';
 import {cn, formatDuration} from '@shipfox/react-ui/utils';
-import {useEffect, useId, useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {
   type ActionPresentation,
   type ActivityState,
@@ -87,7 +87,7 @@ export function ActivityActionRow({
       </LogDisclosureTrigger>
       <LogDisclosureContent>
         {hasPresentedDetail ? (
-          <PresentedDetails action={action} detail={resolvedPresentation.detail ?? null} />
+          <PresentedDetails detail={resolvedPresentation.detail ?? null} />
         ) : (
           <GenericDetails action={action} kind={resolvedPresentation.detailKind} />
         )}
@@ -96,46 +96,11 @@ export function ActivityActionRow({
   );
 }
 
-function PresentedDetails({
-  action,
-  detail,
-}: {
-  action: PairedAction;
-  detail: NonNullable<ActionPresentation['detail']> | null;
-}) {
-  const [technicalOpen, setTechnicalOpen] = useState(false);
-  const technicalId = useId();
-  return (
-    <div className="flex min-w-0 flex-col gap-inline">
-      {detail ? (
-        <PresentedActionDetail detail={detail} />
-      ) : (
-        <LogContent className="text-foreground-contrast-secondary">
-          No recorded result yet.
-        </LogContent>
-      )}
-      <button
-        type="button"
-        aria-expanded={technicalOpen}
-        aria-controls={technicalId}
-        className="w-fit cursor-pointer text-foreground-contrast-secondary underline"
-        onClick={() => setTechnicalOpen((value) => !value)}
-      >
-        Technical details
-      </button>
-      <div id={technicalId} hidden={!technicalOpen}>
-        {technicalOpen ? (
-          <div className="flex min-w-0 flex-col gap-inline">
-            {action.request ? (
-              <ActionDetail label="Input" value={action.request.input} kind="code" />
-            ) : null}
-            {action.result ? (
-              <ActionDetail label="Recorded output" value={action.result.output} kind="code" />
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
+function PresentedDetails({detail}: {detail: NonNullable<ActionPresentation['detail']> | null}) {
+  return detail ? (
+    <PresentedActionDetail detail={detail} />
+  ) : (
+    <LogContent className="text-foreground-contrast-secondary">No recorded result yet.</LogContent>
   );
 }
 

@@ -423,7 +423,7 @@ describe('LogView', () => {
     expect(screen.queryByText('result read_file')).not.toBeInTheDocument();
   });
 
-  test('renders native command output and exit status without losing recorded details', () => {
+  test('renders native command output and exit status without raw payloads', () => {
     render(
       <LogView
         records={[
@@ -452,11 +452,11 @@ describe('LogView', () => {
     expect(screen.getByText('exit 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: RUN_COMMAND_BUTTON_NAME}));
     expect(screen.getByText('FAIL tests')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Technical details'));
-    expect(screen.getByText('{"command":"pnpm test"}')).toBeInTheDocument();
+    expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
+    expect(screen.queryByText('{"command":"pnpm test"}')).not.toBeInTheDocument();
   });
 
-  test('shows only a native edit path until technical details are opened', () => {
+  test('shows only a native edit path and status', () => {
     render(
       <LogView
         records={[
@@ -481,6 +481,7 @@ describe('LogView', () => {
 
     fireEvent.click(screen.getByRole('button', {name: EDIT_FILE_BUTTON_NAME}));
     expect(screen.getAllByText('src/a.ts')).toHaveLength(2);
+    expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
     expect(screen.queryByText('Edited src/a.ts')).not.toBeInTheDocument();
     expect(screen.queryByText('before')).not.toBeInTheDocument();
   });
