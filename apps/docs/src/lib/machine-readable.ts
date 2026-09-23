@@ -9,6 +9,7 @@ import {
 } from './integration-catalog';
 import {inlineCode, tableValue} from './markdown';
 import {type ModelCatalog, serializeModelCatalog} from './model-catalog';
+import {serializeSolutionsComparison} from './solutions-comparison';
 import type {ToolReferenceDocument} from './tool-reference/document';
 
 const INTERNAL_DOC_HOSTS = new Set([
@@ -217,6 +218,8 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
   switch (node.name) {
     case 'EditionsComparison':
       return `\0${JSON.stringify({name: 'EditionsComparison', children: '', attributes: {}})}\0`;
+    case 'ComparisonTable':
+      return `\0${JSON.stringify({name: 'ComparisonTable', children: '', attributes: {}})}\0`;
     case 'ModelCatalog':
       return `\0${JSON.stringify({name: 'ModelCatalog', children: '', attributes: {}})}\0`;
     case 'Callout':
@@ -264,6 +267,12 @@ type PlaceholderOptions = Pick<
 >;
 
 const placeholderSerializers: Record<string, (options: PlaceholderOptions) => string> = {
+  ComparisonTable: (options) => {
+    if (!options.integrationCatalog) {
+      throw new Error('ComparisonTable requires an integration catalog.');
+    }
+    return serializeSolutionsComparison(options.integrationCatalog);
+  },
   EditionsComparison: () => serializeEditionsComparison(),
   IntegrationCatalog: (options) => {
     if (!options.integrationCatalog) {

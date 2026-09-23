@@ -39,6 +39,7 @@ export const docs = defineDocs({
     postprocess: {
       includeProcessedMarkdown: {
         mdxAsPlaceholder: [
+          'ComparisonTable',
           'EditionsComparison',
           'IntegrationCatalog',
           'ToolReference',
