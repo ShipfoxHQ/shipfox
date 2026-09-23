@@ -90,7 +90,7 @@ export function WorkflowInspector({scope, ...props}: WorkflowInspectorProps) {
 
   const key = `${scope}:${props.executionSelection?.execution.id ?? props.run?.id ?? 'loading'}`;
   return (
-    <Inspector label="Workflow inspector" onClose={props.onClose}>
+    <Inspector label="Workflow inspector" onClose={props.onClose} presentation="sheet">
       <TimeTickerProvider intervalMs={1000} reducedMotionIntervalMs={10_000}>
         <WorkflowInspectorContent key={key} scope={scope} {...props} />
       </TimeTickerProvider>

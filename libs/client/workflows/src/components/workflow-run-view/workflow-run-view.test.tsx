@@ -110,7 +110,7 @@ describe('WorkflowRunView', () => {
     const trigger = screen.getByRole('button', {name: 'Inspect workflow'});
     const historyLength = router.history.length;
     await userEvent.click(trigger);
-    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    const inspector = await screen.findByRole('dialog');
     expect(within(inspector).getByText('Waiting')).toBeVisible();
     expect(router.state.location.search).toMatchObject({inspector: 'run'});
     expect(router.history.length).toBe(historyLength + 1);
@@ -129,7 +129,7 @@ describe('WorkflowRunView', () => {
     );
 
     await screen.findByRole('heading', {name: 'deploy-web', level: 2});
-    const inspector = screen.getByRole('complementary', {name: 'Workflow inspector'});
+    const inspector = screen.getByRole('dialog');
     await userEvent.click(within(inspector).getByRole('button', {name: 'Close inspector'}));
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
     await waitFor(() =>
@@ -144,7 +144,7 @@ describe('WorkflowRunView', () => {
       `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}?runAttempt=1&inspector=execution`,
     );
 
-    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    const inspector = await screen.findByRole('dialog');
     expect(within(inspector).getByText('No execution is selected.')).toBeVisible();
     expect(within(inspector).queryByText('Loading execution…')).not.toBeInTheDocument();
   });
@@ -269,8 +269,6 @@ describe('WorkflowRunView', () => {
     configureRunFetch();
 
     const {router} = renderView();
-    await user.click(await screen.findByRole('button', {name: 'Inspect workflow'}));
-    expect(router.state.location.search).toMatchObject({inspector: 'run'});
     await user.click(await screen.findByRole('button', {name: 'deploy, Running'}));
 
     await waitFor(() =>
@@ -278,7 +276,6 @@ describe('WorkflowRunView', () => {
         `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}/jobs/${DEPLOY_JOB_ID}`,
       ),
     );
-    expect(router.state.location.search).not.toHaveProperty('inspector');
   });
 
   test('keeps run Annotations and Source in the workspace navigation', async () => {

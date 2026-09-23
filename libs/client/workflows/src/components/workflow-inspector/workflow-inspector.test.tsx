@@ -22,19 +22,11 @@ const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const ARTIFACT_URL_PATTERN = /https:\/\/example\.test\/artifact/;
 const EVENT_PAYLOAD_PATTERN = /Payload of github push/;
 const EVENT_DATA_PATTERN = /"branch": "main"/;
-const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia');
 
 describe('WorkflowInspector', () => {
-  beforeEach(() => setDesktopViewport(true));
-
   afterEach(() => {
     resetApiClient();
     vi.restoreAllMocks();
-    if (matchMediaDescriptor) {
-      Object.defineProperty(window, 'matchMedia', matchMediaDescriptor);
-    } else {
-      Reflect.deleteProperty(window, 'matchMedia');
-    }
   });
 
   test('shows run inputs and whole-run cost without exposing secret values', async () => {
@@ -172,14 +164,15 @@ describe('WorkflowInspector', () => {
     expect(screen.getByText('https://example.test/artifact')).toBeVisible();
   });
 
-  test('uses the sheet host below the large breakpoint', async () => {
-    setDesktopViewport(false);
+  test('opens as a modal sheet that closes on outside dismissal', async () => {
     const run = workflowRunOverview({id: RUN_ID});
+    const onClose = vi.fn();
 
-    renderInspector({scope: 'run', run});
+    renderInspector({scope: 'run', run, onClose});
 
     expect(await screen.findByRole('dialog', {name: run.name})).toBeVisible();
-    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });
 
@@ -404,22 +397,6 @@ function jobExecutionUsageResponse() {
     },
     inference_segments: [],
   };
-}
-
-function setDesktopViewport(matches: boolean) {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    value: vi.fn().mockImplementation((media: string) => ({
-      matches,
-      media,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
-  });
 }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
