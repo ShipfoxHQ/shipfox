@@ -1,5 +1,26 @@
 # @shipfox/api-agent-access
 
+## 32.0.0
+
+### Major Changes
+
+- e87d5a9: Replaces singular model reference values with measured variants per supported thinking level in workspace model reads.
+
+### Minor Changes
+
+- 68f10d5: Adds a versioned first-party workflow setup guide and its read-only MCP tool.
+
+### Patch Changes
+
+- Updated dependencies [e87d5a9]
+- Updated dependencies [212c6b6]
+- Updated dependencies [68f10d5]
+  - @shipfox/api-agent-dto@32.0.0
+  - @shipfox/api-agent-access-dto@32.0.0
+  - @shipfox/api-workflows-dto@32.0.0
+  - @shipfox/workflow-templates@0.3.0
+  - @shipfox/api-triggers-dto@32.0.0
+
 ## 31.0.0
 
 ### Minor Changes

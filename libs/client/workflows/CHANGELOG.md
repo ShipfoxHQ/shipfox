@@ -1,5 +1,30 @@
 # @shipfox/client-workflows
 
+## 51.0.0
+
+### Minor Changes
+
+- 3064afa: Adds the paired Activity view with generic action rows and Activity or Raw log selection.
+- 212c6b6: Adds a shared tabbed inspector for workflow runs and job executions with compact summary facts and a simplified usage breakdown. The run overview DTO gains `secret_inputs`, which lists each secret input's name and source key but never its value. Adds `@shipfox/react-ui/inspector`: the inspector host, header, facts, tabs, and full-width sections with property rows, plus the `background-inspector-*` surface tokens.
+
+### Patch Changes
+
+- 567d868: Shows integration logos, readable tool labels, targets, and recorded results in agent activity.
+- Updated dependencies [567d868]
+- Updated dependencies [f88faea]
+- Updated dependencies [3064afa]
+- Updated dependencies [212c6b6]
+  - @shipfox/client-logs@51.0.0
+  - @shipfox/api-workflows-dto@32.0.0
+  - @shipfox/client-usage@51.0.0
+  - @shipfox/react-ui@3.2.0
+  - @shipfox/api-triggers-dto@32.0.0
+  - @shipfox/client-integrations@51.0.0
+  - @shipfox/client-projects@51.0.0
+  - @shipfox/client-shell@51.0.0
+  - @shipfox/client-triggers@51.0.0
+  - @shipfox/client-ui@51.0.0
+
 ## 50.0.0
 
 ### Minor Changes
