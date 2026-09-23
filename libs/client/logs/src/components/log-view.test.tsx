@@ -454,9 +454,10 @@ describe('LogView', () => {
     expect(screen.getByText('pnpm test')).toBeInTheDocument();
     expect(screen.getByText('failed')).toHaveClass('sr-only');
     const exitCode = screen.getByText('exit 1');
-    expect(exitCode).toHaveClass('bg-background-contrast-base');
+    expect(exitCode).not.toHaveClass('bg-background-contrast-base');
     expect(exitCode.parentElement).toHaveClass('gap-inline', 'text-tag-error-icon');
-    expect(screen.getByText('1ms')).not.toHaveClass('bg-background-contrast-base');
+    expect(exitCode.nextElementSibling).toHaveClass('border-l');
+    expect(exitCode.nextElementSibling?.nextElementSibling).toHaveTextContent('1ms');
     fireEvent.click(screen.getByRole('button', {name: RUN_COMMAND_BUTTON_NAME}));
     const output = screen.getByText('FAIL tests');
     expect(output.parentElement).toHaveClass('bg-background-contrast-base');

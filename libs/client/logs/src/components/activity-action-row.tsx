@@ -238,10 +238,9 @@ function ActionStatus({
           aria-hidden="true"
         />
       ) : null}
-      {detail ? (
-        <span className="rounded-4 border border-border-contrast-bottom bg-background-contrast-base px-tight font-code">
-          {detail}
-        </span>
+      {detail ? <span className="font-code">{detail}</span> : null}
+      {detail && durationMs !== null ? (
+        <span aria-hidden="true" className="h-12 border-l border-border-contrast-base" />
       ) : null}
       {durationMs !== null ? <span className="font-code">{formatDuration(durationMs)}</span> : null}
     </span>
