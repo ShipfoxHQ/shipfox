@@ -41,9 +41,6 @@ const BACK_TO_SUMMARY_PATTERN = /Back to run summary/;
 const RUN_MOVED_ON_PATTERN = /Run moved on to/;
 const LINT_LINK_PATTERN = /lint/;
 const EXECUTION_1_PATTERN = /Execution #1: release/u;
-const SWITCH_EXECUTION_PATTERN = /Switch job execution/u;
-const SWITCH_ATTEMPT_PATTERN = /Switch attempt/u;
-const ATTEMPT_2_PATTERN = /Attempt 2/u;
 const RELEASE_LINK_PATTERN = /release/;
 const ANNOTATION_LINK_PATTERN = /annotation/;
 const ANNOTATIONS_LINK_PATTERN = /Annotations/;
@@ -69,7 +66,7 @@ describe('WorkflowJobDetailPage', () => {
     expect(pageRoot).not.toHaveClass('bg-background-subtle-base');
   });
 
-  test('closes execution inspection on Summary in one entry and restores it with history', async () => {
+  test('dismisses execution inspection in one entry and restores it with history', async () => {
     configureApiClient({fetchImpl: vi.fn(jobDetailFetch)});
     const user = userEvent.setup();
     const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
@@ -77,81 +74,35 @@ describe('WorkflowJobDetailPage', () => {
     const trigger = await screen.findByRole('button', {name: 'Inspect job'});
     expect(trigger).toHaveAttribute('aria-pressed', 'false');
     await user.click(trigger);
-    expect(await screen.findByRole('complementary', {name: 'Workflow inspector'})).toBeVisible();
+    expect(await screen.findByRole('dialog')).toBeVisible();
     expect(router.state.location.search).toMatchObject({inspector: 'execution'});
-    expect(trigger).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', {name: 'Inspect workflow'})).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
     const historyLength = router.history.length;
 
-    await user.click(screen.getByRole('link', {name: 'Summary'}));
+    await user.keyboard('{Escape}');
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
     expect(router.history.length).toBe(historyLength + 1);
-    expect(
-      screen.queryByRole('complementary', {name: 'Workflow inspector'}),
-    ).not.toBeInTheDocument();
-    expect(trigger).not.toHaveFocus();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
 
     await act(async () => router.history.back());
     await waitFor(() =>
       expect(router.state.location.search).toMatchObject({inspector: 'execution'}),
     );
-    expect(await screen.findByRole('complementary', {name: 'Workflow inspector'})).toBeVisible();
+    expect(await screen.findByRole('dialog')).toBeVisible();
     await act(async () => router.history.forward());
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
   });
 
-  test('closes execution inspection when selecting a different job', async () => {
+  test('keeps execution inspection while changing tabs', async () => {
     configureApiClient({fetchImpl: vi.fn(jobDetailFetch)});
     const user = userEvent.setup();
     const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
 
     await user.click(await screen.findByRole('button', {name: 'Inspect job'}));
-    const navigation = screen.getByRole('navigation', {name: 'Run workspace'});
-    await user.click(within(navigation).getByRole('link', {name: LINT_LINK_PATTERN}));
-    await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
-    expect(router.state.location.pathname).toContain(`/jobs/${SIBLING_JOB_ID}`);
-  });
-
-  test('closes execution inspection when choosing a different execution', async () => {
-    configureApiClient({fetchImpl: vi.fn(jobDetailFetch)});
-    const user = userEvent.setup();
-    const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
-
-    await user.click(await screen.findByRole('button', {name: 'Inspect job'}));
-    await user.click(screen.getByRole('button', {name: SWITCH_EXECUTION_PATTERN}));
-    await user.click(await screen.findByRole('menuitem', {name: EXECUTION_1_PATTERN}));
-    await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
-    expect(router.state.location.search).toMatchObject({jobExecution: PREVIOUS_EXECUTION_ID});
-  });
-
-  test('keeps execution inspection while changing tabs and opening a step', async () => {
-    configureApiClient({fetchImpl: vi.fn(jobDetailFetch)});
-    const user = userEvent.setup();
-    const {router} = renderJobPath(`?jobExecution=${EXECUTION_ID}&runAttempt=1`);
-
-    await user.click(await screen.findByRole('button', {name: 'Inspect job'}));
-    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    const inspector = await screen.findByRole('dialog');
     await user.click(within(inspector).getByRole('tab', {name: 'Inputs'}));
     expect(router.state.location.search).toMatchObject({inspector: 'execution'});
-
-    await user.click(screen.getByRole('button', {name: 'tests, Succeeded, attempt 2'}));
-    expect(router.state.location.search).toMatchObject({inspector: 'execution'});
-    expect(screen.getByRole('complementary', {name: 'Workflow inspector'})).toBeVisible();
-  });
-
-  test('closes inspection when switching run attempts', async () => {
-    configureApiClient({fetchImpl: vi.fn(newerAttemptJobDetailFetch)});
-    const user = userEvent.setup();
-    const {router} = renderJobPath('?runAttempt=1');
-
-    await user.click(await screen.findByRole('button', {name: 'Inspect workflow'}));
-    await user.click(screen.getByRole('button', {name: SWITCH_ATTEMPT_PATTERN}));
-    await user.click(await screen.findByRole('menuitem', {name: ATTEMPT_2_PATTERN}));
-    await waitFor(() => expect(router.state.location.search).not.toHaveProperty('inspector'));
-    expect(router.state.location.search).toMatchObject({runAttempt: 2});
+    expect(inspector).toBeVisible();
   });
 
   test('shows an empty execution inspector for a direct link with no selected execution', async () => {
@@ -171,7 +122,7 @@ describe('WorkflowJobDetailPage', () => {
     });
 
     renderJobPath('?runAttempt=1&inspector=execution');
-    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    const inspector = await screen.findByRole('dialog');
     expect(await within(inspector).findByText('No execution is selected.')).toBeVisible();
   });
 
@@ -186,7 +137,7 @@ describe('WorkflowJobDetailPage', () => {
     configureApiClient({fetchImpl});
 
     renderJobPath('?runAttempt=1&inspector=execution');
-    const inspector = await screen.findByRole('complementary', {name: 'Workflow inspector'});
+    const inspector = await screen.findByRole('dialog');
     expect(await within(inspector).findByText('Could not load this execution.')).toBeVisible();
     await userEvent.click(within(inspector).getByRole('button', {name: 'Retry'}));
     await waitFor(() =>
