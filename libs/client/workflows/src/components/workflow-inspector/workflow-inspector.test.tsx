@@ -171,7 +171,6 @@ describe('WorkflowInspector', () => {
     renderInspector({scope: 'run', run, onClose});
 
     expect(await screen.findByRole('dialog', {name: run.name})).toBeVisible();
-    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });

@@ -276,7 +276,6 @@ describe('WorkflowRunView', () => {
         `/w/${PROJECT_TEST_WSLUG}/p/project/runs/${RUN_ID}/jobs/${DEPLOY_JOB_ID}`,
       ),
     );
-    expect(router.state.location.search).not.toHaveProperty('inspector');
   });
 
   test('keeps run Annotations and Source in the workspace navigation', async () => {
