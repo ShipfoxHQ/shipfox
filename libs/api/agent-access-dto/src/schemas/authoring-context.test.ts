@@ -40,6 +40,31 @@ describe('workflow authoring context result schemas', () => {
     ).toBe(true);
   });
 
+  test('keeps provider-default references distinct from off', () => {
+    const defaultReference = {...reference, thinking: 'default'};
+    const providerDefault = {
+      ...model,
+      harness: 'pi',
+      thinking: 'default',
+      supported_thinking: ['off', 'default'],
+      references: [{...reference, thinking: 'off'}, defaultReference],
+    };
+    const providerDefaultResult = {
+      ...result,
+      models: [providerDefault],
+      default_model: providerDefault,
+    };
+
+    expect(getWorkflowAuthoringContextResultSchema.safeParse(providerDefaultResult).success).toBe(
+      true,
+    );
+    expect(
+      new Ajv({strict: true, strictRequired: false}).compile(
+        getWorkflowAuthoringContextResultJsonSchema,
+      )(providerDefaultResult),
+    ).toBe(true);
+  });
+
   test('rejects measured values for unsupported thinking levels', () => {
     const unsupported = {
       ...result,
@@ -48,6 +73,21 @@ describe('workflow authoring context result schemas', () => {
           ...model,
           supported_thinking: ['off', 'low'],
           references: [{...reference, thinking: 'high'}],
+        },
+      ],
+    };
+
+    expect(getWorkflowAuthoringContextResultSchema.safeParse(unsupported).success).toBe(false);
+  });
+
+  test('rejects provider-default references when the model does not support default', () => {
+    const unsupported = {
+      ...result,
+      models: [
+        {
+          ...model,
+          supported_thinking: ['off', 'low'],
+          references: [{...reference, thinking: 'default'}],
         },
       ],
     };

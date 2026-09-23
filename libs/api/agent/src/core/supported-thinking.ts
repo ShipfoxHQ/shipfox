@@ -24,5 +24,7 @@ export function supportedThinkingForModel(
       : harnessLevels.filter((level) => level === 'off');
   const thinkingLevelMap = capabilities.thinkingLevelMap ?? capabilities.thinking_level_map;
 
-  return modelLevels.filter((level) => thinkingLevelMap?.[level] !== null);
+  return modelLevels.filter((level) =>
+    level === 'default' ? capabilities.reasoning === true : thinkingLevelMap?.[level] !== null,
+  );
 }

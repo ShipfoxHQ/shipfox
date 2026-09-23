@@ -341,6 +341,34 @@ describe('materializeWorkflowModel', () => {
     });
   });
 
+  it('preserves explicit provider-default thinking in the materialized agent binding', async () => {
+    const model = workflowModel({
+      jobs: {
+        fix: {
+          steps: [
+            {
+              harness: 'pi',
+              model: 'gpt-5.5-pro',
+              provider: 'openai',
+              thinking: 'default',
+              prompt: 'Fix the failing tests.',
+            },
+          ],
+        },
+      },
+    });
+
+    const rows = await materializeWorkflowModel({model});
+
+    expect(rows[0]?.steps[1]?.config).toEqual({
+      harness: 'pi',
+      model: 'gpt-5.5-pro',
+      provider: 'openai',
+      thinking: 'default',
+      prompt: 'Fix the failing tests.',
+    });
+  });
+
   it('materializes prompt-only agent steps with catalog defaults before runner execution', async () => {
     const model = workflowModel({
       jobs: {

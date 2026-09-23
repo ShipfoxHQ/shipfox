@@ -21,13 +21,21 @@ export const piAgentThinkingSchema = z.enum([
   'high',
   'xhigh',
   'max',
+  'default',
 ]);
-export const claudeAgentThinkingSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
+export const claudeAgentThinkingSchema = z.enum([
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'default',
+]);
 export const agentThinkingSchema = z
-  .enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+  .enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'])
   .meta({
     description:
-      'Reasoning effort for an agent step. Supported values depend on the resolved harness. When omitted, Shipfox uses the provider default, or `xhigh` when none is configured.',
+      'Agent reasoning level. `default` requests the provider default without workspace or deployment overrides. Omitting this field uses configured defaults or `xhigh`.',
   });
 
 export type AgentThinking = z.infer<typeof agentThinkingSchema>;

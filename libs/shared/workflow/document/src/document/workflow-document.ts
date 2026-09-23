@@ -33,7 +33,7 @@ export const agentThinkingFieldSchema = z
   ])
   .meta({
     description:
-      'Sets how much reasoning the agent uses. Available values depend on the harness. Supports workflow expressions. See [Model providers](/reference/model-providers).',
+      'Sets agent reasoning. `default` requests the provider default without workspace or deployment overrides. Omitting this field uses configured defaults or `xhigh`. Available values depend on the harness. Supports workflow expressions. See [Model providers](/reference/model-providers).',
   });
 
 const workflowNameSchema = literalNameSchema(

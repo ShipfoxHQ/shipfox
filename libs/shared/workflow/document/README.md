@@ -179,7 +179,9 @@ parseWorkflowDocument({
   fields from multiple kinds, or neither kind, is rejected. `model`, `harness`,
   `thinking`, `provider`, `tools`, and `integrations` are valid only on an agent
   step. `thinking` is validated against a fixed set (`off`, `minimal`, `low`,
-  `medium`, `high`, `xhigh`, `max`). Provider, model, tool, integration
+  `medium`, `high`, `xhigh`, `max`, `default`). `default` requests the provider's
+  default thinking without workspace or deployment overrides. When omitted,
+  `thinking` uses configured defaults or `xhigh`. Provider, model, tool, integration
   connection, and integration catalog checks belong to the model layer, not
   this parser. The `agent` key is reserved for a future step kind and is
   rejected today. Tool steps accept literal `tool` and `connection` names,

@@ -126,6 +126,7 @@ describe('buildWorkflowJsonSchema', () => {
       'high',
       'xhigh',
       'max',
+      'default',
     ]);
     expect(thinkingValuesFor(conditionals, 'claude')).toEqual([
       'low',
@@ -133,6 +134,7 @@ describe('buildWorkflowJsonSchema', () => {
       'high',
       'xhigh',
       'max',
+      'default',
     ]);
     expect(conditionals).not.toContainEqual(
       expect.objectContaining({if: {not: {required: ['harness']}}}),

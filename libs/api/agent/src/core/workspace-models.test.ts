@@ -129,7 +129,7 @@ describe('getWorkspaceModels', () => {
         provider: 'shipfox',
         harness: 'pi',
         thinking: 'xhigh',
-        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'],
         is_default: true,
         price: {input: 2, output: 8},
         references: [reference('low', 90, 0.12), reference('high', 85, 0.14)],
@@ -139,7 +139,7 @@ describe('getWorkspaceModels', () => {
         provider: 'shipfox',
         harness: 'pi',
         thinking: 'xhigh',
-        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+        supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'],
         is_default: false,
         price: {input: 0.5, output: 2},
         references: [reference('high', 60, 0.02)],
@@ -216,6 +216,54 @@ describe('getWorkspaceModels', () => {
 
     expect(result.models[0]?.supported_thinking).not.toContain('high');
     expect(result.models[0]?.references).toEqual([reference('low', 70, 0.04)]);
+  });
+
+  test('omits provider-default references for models without reasoning support', async () => {
+    const workspaceId = crypto.randomUUID();
+    const provider = createManagedProvider([
+      {
+        id: 'managed-no-reasoning',
+        label: 'Managed without reasoning',
+        api: 'openai-responses',
+        reasoning: false,
+        references: [reference('default', 65, 0.06)],
+      },
+    ]);
+
+    const result = await getWorkspaceModels(workspaceId, provider);
+
+    expect(result.models[0]?.supported_thinking).not.toContain('default');
+    expect(result.models[0]?.references).toEqual([]);
+  });
+
+  test('returns provider-default references separately from off', async () => {
+    const workspaceId = crypto.randomUUID();
+    const provider = createManagedProvider([
+      {
+        id: 'managed-default',
+        label: 'Managed default',
+        api: 'openai-responses',
+        reasoning: true,
+        references: [reference('off', 60, 0.04), reference('default', 80, 0.1)],
+      },
+    ]);
+
+    const result = await getWorkspaceModels(workspaceId, provider);
+
+    expect(result.models[0]?.supported_thinking).toEqual([
+      'off',
+      'minimal',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+      'default',
+    ]);
+    expect(result.models[0]?.references).toEqual([
+      reference('off', 60, 0.04),
+      reference('default', 80, 0.1),
+    ]);
   });
 
   test('returns configured custom provider models for the pi harness', async () => {

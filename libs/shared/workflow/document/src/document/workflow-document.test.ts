@@ -1246,6 +1246,10 @@ describe('workflowDocumentSchema', () => {
     ['inline agent step', {model: 'claude-opus-4-8', prompt: 'Fix the failing tests.'}],
     ['agent step with harness', {harness: 'claude', model: 'claude-opus-4-8', prompt: 'Fix it.'}],
     ['agent step with thinking', {model: 'claude-opus-4-8', prompt: 'Fix it.', thinking: 'low'}],
+    [
+      'agent step with provider-default thinking',
+      {model: 'claude-opus-4-8', prompt: 'Fix it.', thinking: 'default'},
+    ],
     ['agent step with session', {model: 'claude-opus-4-8', prompt: 'Fix it.', session: 'main'}],
     ['agent step with session object', {prompt: 'Fix it.', session: {key: 'main'}}],
     ['agent step with fork session', {prompt: 'Fix it.', session: {key: 'main', mode: 'fork'}}],

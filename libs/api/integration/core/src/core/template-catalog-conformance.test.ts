@@ -323,8 +323,10 @@ function createBuiltInModelThinking(): ReadonlyMap<string, ReadonlySet<AgentThin
 
   for (const provider of SUPPORTED_MODEL_PROVIDER_IDS) {
     for (const model of getModels(provider as Parameters<typeof getModels>[0])) {
-      const supported = piLevels.filter(
-        (level) => (model.reasoning || level === 'off') && model.thinkingLevelMap?.[level] !== null,
+      const supported = piLevels.filter((level) =>
+        level === 'default'
+          ? model.reasoning === true
+          : (model.reasoning || level === 'off') && model.thinkingLevelMap?.[level] !== null,
       );
       addModelThinking(catalog, model.id, supported);
     }
