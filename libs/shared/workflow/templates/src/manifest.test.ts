@@ -41,6 +41,13 @@ describe('workflowTemplateManifestSchema', () => {
           applies_to: ['source'],
         },
       ],
+      models: {
+        fix: {
+          reference: {model: 'claude-sonnet-5', thinking: 'high'},
+          note: 'Repairs the failed check.',
+        },
+        review: {},
+      },
       slots: ['setup_commands'],
       secrets: ['TOKEN'],
       variables: ['COMMAND'],
@@ -51,5 +58,28 @@ describe('workflowTemplateManifestSchema', () => {
 
     expect(sourceRole.from).toBe('project');
     expect(manifest.options[0]?.choices[0]?.default).toBe(true);
+    expect(manifest.models.fix?.reference).toEqual({model: 'claude-sonnet-5', thinking: 'high'});
+    expect(manifest.models.review).toEqual({});
+  });
+
+  it('rejects invalid model placeholder names and thinking levels', () => {
+    const base = {
+      id: 'fixture',
+      revision: 1,
+      added_at: '2026-10-01',
+      title: 'Fixture',
+      summary: 'A fixture template.',
+      roles: {source: {providers: ['github']}},
+    };
+
+    expect(
+      workflowTemplateManifestSchema.safeParse({...base, models: {'Bad Key': {}}}).success,
+    ).toBe(false);
+    expect(
+      workflowTemplateManifestSchema.safeParse({
+        ...base,
+        models: {fix: {reference: {model: 'claude-sonnet-5', thinking: 'turbo'}}},
+      }).success,
+    ).toBe(false);
   });
 });

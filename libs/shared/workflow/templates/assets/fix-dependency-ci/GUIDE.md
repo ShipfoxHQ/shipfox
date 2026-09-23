@@ -29,7 +29,11 @@ For comment-only mode, also remove the marked checkout `permissions` block. This
 
 ## Choose a model
 
-Replace `replace-me` with a model available in the workspace.
+The `# model:fix` marker identifies the repair step. Choose a model and thinking level available in the workspace, then confirm both with the user.
+
+Replace `replace-me` with the chosen model. Set `thinking:` on the same `fix_failure` step to the chosen level.
+
+The manifest has no tested reference for this step, so it does not support a scored suggestion yet.
 
 ## Fill the command slots
 

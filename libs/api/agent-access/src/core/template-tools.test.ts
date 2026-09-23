@@ -36,6 +36,7 @@ const asset: WorkflowTemplateAsset = {
       source: {from: 'project', providers: ['github']},
     },
     options: [{id: 'mode', choices: [{id: 'safe', default: true}]}],
+    models: {},
     slots: [],
     secrets: [],
     variables: [],

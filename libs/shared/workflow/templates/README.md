@@ -3,7 +3,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 
 ## What it does
 
-- **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, slots, secrets, and variables.
+- **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, model placeholders, slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every manifest role and composes the workflow.
 - **`modelTiers`** stores the ordered model preferences for each profile and step role.
@@ -52,10 +52,15 @@ The following comments are preserved as authoring instructions:
 
 - `# bind:<role>` identifies a connection binding.
 - `# slot:<name>` identifies a value the agent fills from the manifest slot.
+- `# model:<key>` identifies a model value on an agent step's `model:` line. Each key needs a `models` entry in the manifest.
 - `# option:X=Y begin` and `# option:X=Y end` surround an optional block.
 - `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template.
 
 The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or provider binding throws an error.
+
+Each `models` entry needs a matching marker in `workflow.yml` or a provider part. The entry can include a `note` for the user.
+
+An optional `reference: {model, thinking}` records the exact setting the template author tested. The catalog conformance test checks the model and its supported thinking levels. Leave `reference` out until the author tests the step with that setting.
 
 ### Model profiles
 

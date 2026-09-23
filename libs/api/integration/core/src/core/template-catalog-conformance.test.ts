@@ -1,3 +1,10 @@
+import {getModels} from '@earendil-works/pi-ai/compat';
+import {
+  type AgentThinking,
+  agentThinkingByHarness,
+  CLAUDE_MODEL_LINE,
+  SUPPORTED_MODEL_PROVIDER_IDS,
+} from '@shipfox/api-agent-dto';
 import {clickupAgentToolSelectionCatalog} from '@shipfox/api-integration-clickup';
 import {clickupEventCatalog} from '@shipfox/api-integration-clickup-dto';
 import {githubAgentToolSelectionCatalog} from '@shipfox/api-integration-github';
@@ -66,6 +73,9 @@ interface StructuralOptionBlock extends StructuralOptionMarker {
 
 const structuralOptionMarkerPattern =
   /^\s*#\s*option:([a-z0-9_-]+)=([a-z0-9_-]+)\s+(begin|end)\s*$/;
+const modelLinePattern = /^\s*model\s*:/;
+const modelMarkerPattern = /^\s*model\s*:\s*[^#\r\n]+\s+#\s*model:([a-z0-9_-]+)\s*$/;
+const builtInModelThinking = createBuiltInModelThinking();
 
 const providerCatalogs: Readonly<Record<string, ProviderCatalog>> = {
   clickup: catalog(clickupEventCatalog.events, clickupAgentToolSelectionCatalog.selectors),
@@ -123,6 +133,87 @@ describe('workflow template catalog conformance', () => {
       ]),
     );
   });
+
+  it('requires matching model markers on model lines in provider parts', () => {
+    const template = loadShippedTemplates()[0];
+    if (template === undefined) throw new Error('Shipped template was not loaded');
+    const fix = template.parts.source?.github?.fix;
+    if (fix === undefined) throw new Error('Fix part was not loaded');
+
+    const missingMarker = {
+      ...template,
+      parts: {
+        source: {github: {...template.parts.source?.github, fix: fix.replace('# model:fix', '')}},
+      },
+    };
+    const unknownMarker = {
+      ...template,
+      parts: {
+        source: {
+          github: {
+            ...template.parts.source?.github,
+            fix: fix.replace('# model:fix', '# model:unknown'),
+          },
+        },
+      },
+    };
+
+    expect(modelPlaceholderIssues(missingMarker)).toEqual(
+      expect.arrayContaining([
+        'fix-dependency-ci/source/github/fix: model line has no # model:<key> marker',
+        'fix-dependency-ci: models.fix has no # model:fix marker',
+      ]),
+    );
+    expect(modelPlaceholderIssues(unknownMarker)).toContain(
+      'fix-dependency-ci/source/github/fix: # model:unknown has no manifest entry',
+    );
+
+    const baseModel = {
+      ...template,
+      workflow: `${template.workflow}\nmodel: replace-me # model:fix\n`,
+    };
+    expect(modelPlaceholderIssues(baseModel)).toEqual([]);
+  });
+
+  it('rejects unknown reference models and unsupported thinking levels', () => {
+    const template = loadShippedTemplates()[0];
+    if (template === undefined) throw new Error('Shipped template was not loaded');
+    const models = new Map<string, ReadonlySet<AgentThinking>>([
+      ['known-model', new Set<AgentThinking>(['off'])],
+    ]);
+
+    const unknownModel = {
+      ...template,
+      manifest: {
+        ...template.manifest,
+        models: {fix: {reference: {model: 'missing-model', thinking: 'off' as const}}},
+      },
+    };
+    const unsupportedThinking = {
+      ...template,
+      manifest: {
+        ...template.manifest,
+        models: {fix: {reference: {model: 'known-model', thinking: 'high' as const}}},
+      },
+    };
+
+    expect(modelPlaceholderIssues(unknownModel, models)).toContain(
+      'fix-dependency-ci: models.fix references unknown built-in model missing-model',
+    );
+    expect(modelPlaceholderIssues(unsupportedThinking, models)).toContain(
+      'fix-dependency-ci: models.fix references unsupported thinking high for known-model',
+    );
+    expect(modelPlaceholderIssues(template, models)).toEqual([]);
+    expect(
+      modelPlaceholderIssues({
+        ...template,
+        manifest: {
+          ...template.manifest,
+          models: {fix: {reference: {model: 'claude-sonnet-5', thinking: 'high'}}},
+        },
+      }),
+    ).toEqual([]);
+  });
 });
 
 function templateConformance(template: WorkflowTemplate): ConformanceResult {
@@ -144,6 +235,7 @@ function templateConformance(template: WorkflowTemplate): ConformanceResult {
   return {
     issues: [
       ...issues,
+      ...modelPlaceholderIssues(template),
       ...partResults.flatMap((result) => result.issues),
       ...variantsResult.issues,
     ],
@@ -152,6 +244,106 @@ function templateConformance(template: WorkflowTemplate): ConformanceResult {
       partResults.reduce((total, result) => total + result.referenceCount, 0),
     variantCount: variantsResult.variantCount,
   };
+}
+
+function modelPlaceholderIssues(
+  template: WorkflowTemplate,
+  catalog: ReadonlyMap<string, ReadonlySet<AgentThinking>> = builtInModelThinking,
+): string[] {
+  const {manifest} = template;
+  const markers = new Set<string>();
+  const issues = modelMarkerIssues(
+    template.workflow,
+    `${manifest.id}/workflow.yml`,
+    manifest,
+    markers,
+  );
+
+  for (const [role, providers] of Object.entries(template.parts)) {
+    for (const [provider, blocks] of Object.entries(providers)) {
+      for (const [part, block] of Object.entries(blocks)) {
+        issues.push(
+          ...modelMarkerIssues(
+            block,
+            `${manifest.id}/${role}/${provider}/${part}`,
+            manifest,
+            markers,
+          ),
+        );
+      }
+    }
+  }
+
+  for (const [key, {reference}] of Object.entries(manifest.models)) {
+    if (!markers.has(key))
+      issues.push(`${manifest.id}: models.${key} has no # model:${key} marker`);
+    if (reference === undefined) continue;
+    const supportedThinking = catalog.get(reference.model);
+    if (supportedThinking === undefined) {
+      issues.push(
+        `${manifest.id}: models.${key} references unknown built-in model ${reference.model}`,
+      );
+    } else if (!supportedThinking.has(reference.thinking)) {
+      issues.push(
+        `${manifest.id}: models.${key} references unsupported thinking ${reference.thinking} for ${reference.model}`,
+      );
+    }
+  }
+  return issues;
+}
+
+function modelMarkerIssues(
+  source: string,
+  prefix: string,
+  manifest: WorkflowTemplateManifest,
+  markers: Set<string>,
+): string[] {
+  const issues: string[] = [];
+  for (const line of source.split('\n')) {
+    const marker = modelMarkerPattern.exec(line);
+    if (marker !== null) {
+      const key = marker[1];
+      if (key === undefined) continue;
+      markers.add(key);
+      if (manifest.models[key] === undefined) {
+        issues.push(`${prefix}: # model:${key} has no manifest entry`);
+      }
+    } else if (modelLinePattern.test(line)) {
+      issues.push(`${prefix}: model line has no # model:<key> marker`);
+    } else if (line.includes('# model:')) {
+      issues.push(`${prefix}: # model:<key> must be on a model line`);
+    }
+  }
+  return issues;
+}
+
+function createBuiltInModelThinking(): ReadonlyMap<string, ReadonlySet<AgentThinking>> {
+  const catalog = new Map<string, Set<AgentThinking>>();
+  const piLevels = agentThinkingByHarness.pi.options;
+
+  for (const provider of SUPPORTED_MODEL_PROVIDER_IDS) {
+    for (const model of getModels(provider as Parameters<typeof getModels>[0])) {
+      const supported = piLevels.filter(
+        (level) => (model.reasoning || level === 'off') && model.thinkingLevelMap?.[level] !== null,
+      );
+      addModelThinking(catalog, model.id, supported);
+    }
+  }
+
+  for (const model of CLAUDE_MODEL_LINE) {
+    addModelThinking(catalog, model.id, agentThinkingByHarness.claude.options);
+  }
+  return catalog;
+}
+
+function addModelThinking(
+  catalog: Map<string, Set<AgentThinking>>,
+  modelId: string,
+  supported: readonly AgentThinking[],
+): void {
+  const levels = catalog.get(modelId) ?? new Set<AgentThinking>();
+  for (const level of supported) levels.add(level);
+  catalog.set(modelId, levels);
 }
 
 function providerPartsConformance(
