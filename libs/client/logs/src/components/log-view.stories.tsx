@@ -1,3 +1,4 @@
+import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import type {LogRecord, SessionViewRow} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
@@ -69,6 +70,42 @@ const toolResultResolutionRecords: LogRecord[] = [
       toolName: 'tool',
       output: 'The matching call was not included in this stream.',
       isError: true,
+    },
+    2,
+  ),
+];
+
+const pairedActivityRecords: LogRecord[] = [
+  session(
+    {
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [],
+      text: '**Plan**\n\n- Read `src/login-form.tsx`.\n- Check the error handling.',
+      terminalFailure: false,
+    },
+    0,
+  ),
+  session(
+    {
+      kind: 'tool-call',
+      timestamp: 0,
+      id: 'read-login-form',
+      name: 'read_file',
+      input: '{"path":"src/login-form.tsx"}',
+    },
+    1,
+  ),
+  session(
+    {
+      kind: 'tool-result',
+      timestamp: 0,
+      toolCallId: 'read-login-form',
+      toolName: 'read_file',
+      output: 'export function LoginForm() { /* ... */ }',
+      isError: false,
     },
     2,
   ),
@@ -579,6 +616,31 @@ export const UnifiedAgentSession: Story = {
   render: (args) => (
     <div className="max-w-3xl">
       <LogView {...args} records={unifiedAgentRecords} />
+    </div>
+  ),
+};
+
+export const PairedActivityAndMarkdown: Story = {
+  render: (args) => (
+    <div className="flex max-w-6xl flex-col gap-section">
+      <Text size="sm" className="text-foreground-neutral-muted">
+        Both views use the same three stored entries. Activity combines the tool request and result
+        into one action. Assistant messages render Markdown in both views.
+      </Text>
+      <div className="grid gap-section lg:grid-cols-2">
+        <section className="flex min-w-0 flex-col gap-inline" aria-label="Activity view">
+          <Text as="h2" size="sm">
+            Activity (job detail default)
+          </Text>
+          <LogView {...args} records={pairedActivityRecords} view="activity" />
+        </section>
+        <section className="flex min-w-0 flex-col gap-inline" aria-label="Raw log view">
+          <Text as="h2" size="sm">
+            Raw log
+          </Text>
+          <LogView {...args} records={pairedActivityRecords} view="raw" />
+        </section>
+      </div>
     </div>
   ),
 };
