@@ -1,4 +1,5 @@
 import {
+  createIntegrationActionPresentationLookup,
   isMissingStepLogStreamError,
   LogView,
   LogViewSkeleton,
@@ -8,7 +9,9 @@ import {Button} from '@shipfox/react-ui/button';
 import {Callout} from '@shipfox/react-ui/callout';
 import type {LogTimestampMode} from '@shipfox/react-ui/log';
 import {Text} from '@shipfox/react-ui/typography';
-import {type RefObject, useEffect, useRef} from 'react';
+import {type RefObject, useEffect, useMemo, useRef} from 'react';
+import {toIntegrationActionTools} from '#hooks/api/integration-action-tools.js';
+import {useStepAttemptDetailQuery} from '#hooks/api/step-attempt-detail.js';
 import {JobExecutionTimeText} from './job-execution-time-text.js';
 
 const TAIL_FOLLOW_THRESHOLD_PX = 24;
@@ -66,6 +69,22 @@ export function StepAttemptLogPanel({
     initialErrorRetryDelayMs,
   });
   const records = query.data?.records ?? [];
+  const hasIntegrationCalls = records.some(
+    (record) =>
+      record.type === 'agent_session' &&
+      record.row.kind === 'tool-call' &&
+      (record.row.name.startsWith('mcp__shipfox_integration_tools__') ||
+        (!record.row.name.startsWith('mcp__') && record.row.name.includes('__'))),
+  );
+  const detailQuery = useStepAttemptDetailQuery(stepId, attempt, {enabled: hasIntegrationCalls});
+  const integrationTools = useMemo(
+    () => toIntegrationActionTools(detailQuery.data?.config),
+    [detailQuery.data?.config],
+  );
+  const actionPresentation = useMemo(
+    () => createIntegrationActionPresentationLookup(integrationTools),
+    [integrationTools],
+  );
   const recordCount = records.length;
   const anchorToFailure = attemptStatus === 'failed';
   const missingActiveStream =
@@ -169,6 +188,7 @@ export function StepAttemptLogPanel({
       ) : null}
       <LogView
         records={records}
+        actionPresentation={actionPresentation}
         search={search}
         timestamps={timestamps}
         onTimestampsClick={onTimestampsClick}

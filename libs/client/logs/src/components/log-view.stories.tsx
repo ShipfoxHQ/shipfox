@@ -1,12 +1,14 @@
 import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
 import {userEvent, within} from 'storybook/test';
+import {createIntegrationActionPresentationLookup} from '#core/integration-action.js';
 import type {LogRecord, SessionViewRow} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
 const READ_FILE_BUTTON_NAME = /Read File/;
 const LARGE_READ_BUTTON_NAME = /Read File.*src\/large.ts/;
+const INTEGRATION_BUTTON_NAME = /Linear · List Teams/;
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
 const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
 
@@ -806,6 +808,31 @@ export const ClaudeToolResultResolution: Story = {
       <LogView {...args} records={toolResultResolutionRecords} />
     </div>
   ),
+};
+
+export const ResolvedIntegrationAction: Story = {
+  args: {showLineNumbers: true},
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={toolResultResolutionRecords}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'linear',
+            connectionId: 'connection-1',
+            connectionSlug: 'linear-shipfox',
+            toolId: 'list_teams',
+            sensitivity: 'read',
+          },
+        ])}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: INTEGRATION_BUTTON_NAME}));
+  },
 };
 
 export const FailedAgentSession: Story = {

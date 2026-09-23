@@ -1,5 +1,6 @@
 'use client';
 
+import {IntegrationIcon} from '@shipfox/integration-icons';
 import {Icon, type IconName} from '@shipfox/react-ui/icon';
 import {
   LogContent,
@@ -81,8 +82,21 @@ export function ActivityActionRow({
         )}
       >
         <span className="inline-flex min-w-0 items-center gap-inline">
-          <ActionIcon kind={resolvedPresentation.iconKind} />
-          <span className="truncate">{resolvedPresentation.label}</span>
+          {resolvedPresentation.integration ? (
+            <IntegrationIcon
+              source={resolvedPresentation.integration.provider}
+              className="size-14 flex-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <ActionIcon kind={resolvedPresentation.iconKind} />
+          )}
+          <span className="truncate">
+            {resolvedPresentation.integration
+              ? `${providerLabel(resolvedPresentation.integration.provider)} · `
+              : ''}
+            {resolvedPresentation.label}
+          </span>
         </span>
       </LogDisclosureTrigger>
       <LogDisclosureContent>
@@ -136,7 +150,7 @@ const detailSurfaceClassName =
 
 function PresentedActionDetail({detail}: {detail: NonNullable<ActionPresentation['detail']>}) {
   const [showFull, setShowFull] = useState(false);
-  const long = detail.value.length > DETAIL_PREVIEW_LENGTH;
+  const long = detail.kind !== 'structured' && detail.value.length > DETAIL_PREVIEW_LENGTH;
   return (
     <div className="min-w-0">
       <ActionDetail
@@ -168,17 +182,80 @@ function ActionDetail({
   value: string;
   kind: ActionPresentation['detailKind'];
 }) {
+  let content = (
+    <LogContent variant="code" className="text-foreground-contrast-primary">
+      {value}
+    </LogContent>
+  );
+  if (kind === 'markdown') {
+    content = <Markdown className="text-foreground-contrast-primary">{value}</Markdown>;
+  } else if (kind === 'structured') {
+    content = <StructuredResult value={value} />;
+  }
   return (
     <div className={detailSurfaceClassName}>
       <span className="sr-only">{label}</span>
-      {kind === 'markdown' ? (
-        <Markdown className="text-foreground-contrast-primary">{value}</Markdown>
-      ) : (
-        <LogContent variant="code" className="text-foreground-contrast-primary">
-          {value}
-        </LogContent>
-      )}
+      {content}
     </div>
+  );
+}
+
+function StructuredResult({value}: {value: string}) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return <LogContent className="whitespace-pre-wrap break-words">{value}</LogContent>;
+  }
+  return <StructuredValue value={parsed} depth={0} />;
+}
+
+function StructuredValue({value, depth}: {value: unknown; depth: number}) {
+  const [showAll, setShowAll] = useState(false);
+  if (value === null || typeof value !== 'object' || depth >= 3) {
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    return <LogContent className="whitespace-pre-wrap break-words">{text}</LogContent>;
+  }
+  const entries = Array.isArray(value)
+    ? value.map((item, index) => [String(index + 1), item] as const)
+    : Object.entries(value);
+  if (entries.length === 0) {
+    return <LogContent>{Array.isArray(value) ? '[]' : '{}'}</LogContent>;
+  }
+  return (
+    <div className="flex min-w-0 flex-col gap-tight">
+      {entries.slice(0, showAll ? undefined : 30).map(([key, item]) => (
+        <div
+          key={key}
+          className="min-w-0 border-b border-border-contrast-base pb-tight last:border-0"
+        >
+          <span className="font-display text-xs text-foreground-contrast-secondary">{key}</span>
+          <StructuredValue value={item} depth={depth + 1} />
+        </div>
+      ))}
+      {entries.length > 30 && !showAll ? (
+        <button
+          type="button"
+          className="w-fit cursor-pointer text-foreground-contrast-secondary underline"
+          onClick={() => setShowAll(true)}
+        >
+          Show all {entries.length} items
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function providerLabel(provider: string): string {
+  const labels: Record<string, string> = {
+    github: 'GitHub',
+    gitlab: 'GitLab',
+    gitea: 'Gitea',
+    posthog: 'PostHog',
+  };
+  return (
+    labels[provider] ??
+    provider.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
   );
 }
 
@@ -192,6 +269,7 @@ function ActionIcon({kind}: {kind: ActionPresentation['iconKind']}) {
     shell: 'terminalBoxLine',
     search: 'searchLine',
     list: 'folderLine',
+    integration: 'componentLine',
   };
   return (
     <Icon
@@ -231,7 +309,7 @@ function ActionStatus({
       )}
     >
       <span className={completed ? 'sr-only' : undefined}>{completed ? state : 'no result'}</span>
-      {completed && durationMs === null && !detail ? (
+      {completed ? (
         <Icon
           name={state === 'failed' ? 'closeCircleFill' : 'checkboxCircleFill'}
           className="size-14"

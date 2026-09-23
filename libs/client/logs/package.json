@@ -43,6 +43,7 @@
   "dependencies": {
     "@shipfox/api-logs-dto": "workspace:*",
     "@shipfox/client-api": "workspace:*",
+    "@shipfox/integration-icons": "workspace:*",
     "@shipfox/react-ui": "workspace:*",
     "@swc/helpers": "catalog:"
   },

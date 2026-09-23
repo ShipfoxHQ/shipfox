@@ -17,8 +17,9 @@ export type ActionIconKind =
   | 'write'
   | 'shell'
   | 'search'
-  | 'list';
-export type ActionDetailKind = 'code' | 'markdown';
+  | 'list'
+  | 'integration';
+export type ActionDetailKind = 'code' | 'markdown' | 'structured';
 export type ActionReadClassification = 'read' | 'write' | 'unknown';
 
 /**
@@ -33,6 +34,15 @@ export interface ActionPresentation {
   readClassification?: ActionReadClassification | undefined;
   statusDetail?: string | undefined;
   detail?: {label: string; value: string; kind: ActionDetailKind} | null;
+  integration?:
+    | {
+        provider: string;
+        connectionId: string;
+        connectionSlug: string;
+        toolId: string;
+        methodId: string | null;
+      }
+    | undefined;
 }
 
 export interface PairedAction {
@@ -161,9 +171,14 @@ export function genericActionPresentation(action: PairedAction): ActionPresentat
   const input = action.request?.input?.trim();
   const target = summary || input || null;
   return {
-    label: humanizeActionLabel(name),
+    label: humanizeActionLabel(
+      (name.startsWith('mcp__shipfox_integration_tools__')
+        ? name.slice('mcp__shipfox_integration_tools__'.length)
+        : name
+      ).replace('__', ' · '),
+    ),
     target,
-    iconKind: action.request === null ? 'unknown' : 'tool',
+    iconKind: action.request === null || name.includes('__') ? 'unknown' : 'tool',
     detailKind: 'code',
     readClassification: 'unknown',
   };
