@@ -752,6 +752,15 @@ async function preparePiModelRuntime(invocation: HarnessInvocation): Promise<{
     );
   }
   const model = resolveModel(modelRuntime, invocation.provider, invocation.model);
+  if (invocation.thinking === 'default') {
+    const streamSimple = modelRuntime.streamSimple.bind(modelRuntime);
+    modelRuntime.streamSimple = (requestModel, context, options) => {
+      // Pi derives `reasoning` from the session level, so remove it for provider defaults.
+      const providerOptions = options === undefined ? undefined : {...options};
+      if (providerOptions !== undefined) delete providerOptions.reasoning;
+      return streamSimple(requestModel, context, providerOptions);
+    };
+  }
   if (!modelRuntime.hasConfiguredAuth(model.provider)) {
     throw new AgentConfigError(
       `No credentials configured for provider "${invocation.provider}". ` +

@@ -143,6 +143,35 @@ describe('agentInterModuleContract', () => {
     ).toEqual(model);
   });
 
+  test('accepts distinct off and provider-default references for one model', () => {
+    const model = {
+      id: 'gpt-5.5-pro',
+      provider: 'openai',
+      harness: 'pi' as const,
+      thinking: 'medium' as const,
+      supported_thinking: ['off', 'default'] as const,
+      is_default: true,
+      price: null,
+      references: [
+        {thinking: 'off' as const, intelligence_index: 60, cost_per_task_usd: 0.04, scale: 'aa-v1'},
+        {
+          thinking: 'default' as const,
+          intelligence_index: 80,
+          cost_per_task_usd: 0.1,
+          scale: 'aa-v1',
+        },
+      ],
+    };
+
+    expect(
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [model],
+        default_model: model,
+        attribution: ATTRIBUTION,
+      }).models[0],
+    ).toEqual(model);
+  });
+
   test('rejects measured values for unsupported and duplicate thinking levels', () => {
     const model = scoredWorkspaceModel();
     const highReference = model.references[0];
@@ -151,6 +180,26 @@ describe('agentInterModuleContract', () => {
     expect(() =>
       agentInterModuleContract.methods.getWorkspaceModels.output.parse({
         models: [{...model, supported_thinking: ['low']}],
+        default_model: null,
+        attribution: ATTRIBUTION,
+      }),
+    ).toThrow('reference thinking must be supported by the model and harness');
+
+    const defaultReference = {
+      thinking: 'default' as const,
+      intelligence_index: 80,
+      cost_per_task_usd: 0.1,
+      scale: 'aa-v1',
+    };
+    expect(() =>
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [
+          {
+            ...workspaceModel(),
+            supported_thinking: ['low'] as const,
+            references: [defaultReference],
+          },
+        ],
         default_model: null,
         attribution: ATTRIBUTION,
       }),
@@ -245,7 +294,7 @@ describe('agentInterModuleContract', () => {
       harness: 'pi' as const,
       provider: 'shipfox' as const,
       model: 'managed-model',
-      thinking: 'high' as const,
+      thinking: 'default' as const,
       renewableInference: true,
     };
 

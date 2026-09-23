@@ -340,6 +340,21 @@ describe('resolveAgentConfig', () => {
     expect(fallback.thinking).toBe('xhigh');
   });
 
+  test('keeps explicit provider-default thinking isolated from workspace and instance overrides', () => {
+    const resolved = resolveAgentConfig(
+      {provider: 'openai', thinking: 'default'},
+      {
+        workspaceProviderConfigs: new Map([
+          ['openai' as const, {defaultModel: 'gpt-5.5-pro', defaultThinking: 'high' as const}],
+        ]),
+        instanceDefaultProvider: 'openai',
+        instanceDefaultThinking: 'max',
+      },
+    );
+
+    expect(resolved.thinking).toBe('default');
+  });
+
   test('throws for unsupported providers and unavailable models', () => {
     expect(() => resolveAgentConfig({provider: 'amazon-bedrock'})).toThrow(
       UnsupportedModelProviderError,
@@ -433,9 +448,11 @@ describe('resolveAgentConfig', () => {
   test('validates thinking against the selected harness', () => {
     const claudeOff = () => resolveAgentConfig({harness: 'claude', thinking: 'off'});
     const piMax = resolveAgentConfig({harness: 'pi', thinking: 'max'});
+    const claudeDefault = resolveAgentConfig({harness: 'claude', thinking: 'default'});
 
     expect(claudeOff).toThrow(UnsupportedHarnessThinkingError);
     expect(piMax.thinking).toBe('max');
+    expect(claudeDefault.thinking).toBe('default');
   });
 
   test('ignores stale provider thinking defaults outside the selected harness', () => {

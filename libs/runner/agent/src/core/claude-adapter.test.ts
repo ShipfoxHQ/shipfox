@@ -950,6 +950,15 @@ describe('claudeHarnessAdapter', () => {
     });
   });
 
+  it('omits named thinking and effort options for explicit provider-default requests', async () => {
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    await claudeHarnessAdapter.run(invocation({model: 'claude-opus-4-8', thinking: 'default'}));
+
+    expect(lastQueryOptions()).not.toHaveProperty('thinking');
+    expect(lastQueryOptions()).not.toHaveProperty('effort');
+  });
+
   it('uses the override model for the thinking capability lookup when it differs from the invocation model', async () => {
     configMock.AGENT_CLAUDE_ANTHROPIC_BASE_URL = 'http://127.0.0.1:11434';
     configMock.AGENT_CLAUDE_ANTHROPIC_MODEL = 'claude-haiku-4-5';
@@ -993,7 +1002,7 @@ describe('claudeHarnessAdapter', () => {
     await expect(result).rejects.toEqual(
       new AgentConfigError(
         'Harness "claude" does not support thinking level "off". ' +
-          'Supported levels: low, medium, high, xhigh, max.',
+          'Supported levels: low, medium, high, xhigh, max, default.',
         'step_config_invalid',
       ),
     );

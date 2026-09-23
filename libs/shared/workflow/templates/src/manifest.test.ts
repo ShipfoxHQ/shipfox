@@ -43,7 +43,7 @@ describe('workflowTemplateManifestSchema', () => {
       ],
       models: {
         fix: {
-          reference: {model: 'claude-sonnet-5', thinking: 'high'},
+          reference: {model: 'claude-sonnet-5', thinking: 'default'},
           note: 'Repairs the failed check.',
         },
         review: {},
@@ -58,7 +58,7 @@ describe('workflowTemplateManifestSchema', () => {
 
     expect(sourceRole.from).toBe('project');
     expect(manifest.options[0]?.choices[0]?.default).toBe(true);
-    expect(manifest.models.fix?.reference).toEqual({model: 'claude-sonnet-5', thinking: 'high'});
+    expect(manifest.models.fix?.reference).toEqual({model: 'claude-sonnet-5', thinking: 'default'});
     expect(manifest.models.review).toEqual({});
   });
 

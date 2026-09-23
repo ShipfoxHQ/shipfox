@@ -123,7 +123,7 @@ fields](/reference/workflow-schema#tool-step-fields).
 
 ## Thinking level
 
-Controls reasoning depth for agent steps. Set with the `thinking` field on an agent step. Higher levels cause the model to spend more tokens on internal reasoning before producing a response, which can improve quality for complex tasks. The accepted values depend on the step's harness, and the default is `xhigh`; see [Agent step fields](/reference/workflow-schema#agent-step-fields).
+Controls reasoning for agent steps. Set the `thinking` field on an agent step. Higher levels spend more tokens on internal reasoning before a response. They can improve quality for complex tasks. Accepted values depend on the harness. Omitting the field uses configured defaults or `xhigh`. Set `default` to use the provider default without workspace or deployment overrides. See [Agent step fields](/reference/workflow-schema#agent-step-fields).
 
 ## Workflow trigger
 

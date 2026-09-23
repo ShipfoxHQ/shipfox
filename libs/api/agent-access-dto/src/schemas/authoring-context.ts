@@ -4,7 +4,16 @@ import {idSchema} from './primitives.js';
 
 const identifierSchema = z.string().min(1);
 const harnessSchema = z.enum(['pi', 'claude']);
-const thinkingSchema = z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+const thinkingSchema = z.enum([
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'default',
+]);
 const modelReferenceSchema = z
   .object({
     thinking: thinkingSchema.describe('Thinking level used for these measured values.'),
@@ -39,7 +48,7 @@ const modelSchema = z
     provider: identifierSchema,
     harness: harnessSchema,
     thinking: thinkingSchema.describe(
-      'Current workspace default thinking level, separate from benchmark effort.',
+      'Current resolved thinking setting, separate from benchmark effort.',
     ),
     supported_thinking: z
       .array(thinkingSchema)
@@ -54,8 +63,8 @@ const modelSchema = z
   .superRefine(({harness, supported_thinking: supportedThinking, references}, ctx) => {
     const harnessLevels =
       harness === 'pi'
-        ? new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
-        : new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+        ? new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'])
+        : new Set(['low', 'medium', 'high', 'xhigh', 'max', 'default']);
     const supportedLevels = new Set(supportedThinking);
 
     for (const [index, level] of supportedThinking.entries()) {
@@ -123,7 +132,7 @@ export type GetWorkflowAuthoringContextResultDto = z.infer<
 const identifier = {type: 'string', minLength: 1} as const;
 const thinking = {
   type: 'string',
-  enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+  enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'],
 } as const;
 const uuid = {type: 'string', format: 'uuid'} as const;
 const modelReference = {
@@ -148,7 +157,7 @@ const model = {
     harness: {type: 'string', enum: ['pi', 'claude']},
     thinking: {
       ...thinking,
-      description: 'Current workspace default thinking level, separate from benchmark effort.',
+      description: 'Current resolved thinking setting, separate from benchmark effort.',
     },
     supported_thinking: {
       type: 'array',

@@ -20,6 +20,7 @@ const {
   getAllMock,
   hasConfiguredAuthMock,
   registerProviderMock,
+  streamSimpleMock,
   modelRuntimeCreateMock,
   defineToolMock,
   promptMock,
@@ -44,6 +45,7 @@ const {
   getAllMock: vi.fn(),
   hasConfiguredAuthMock: vi.fn(),
   registerProviderMock: vi.fn(),
+  streamSimpleMock: vi.fn(),
   defineToolMock: vi.fn((tool) => tool),
   promptMock: vi.fn(),
   abortMock: vi.fn(),
@@ -262,6 +264,7 @@ describe('piHarnessAdapter', () => {
     getAllMock.mockReset();
     hasConfiguredAuthMock.mockReset();
     registerProviderMock.mockReset();
+    streamSimpleMock.mockReset();
     defineToolMock.mockClear();
     promptMock.mockReset();
     abortMock.mockReset();
@@ -286,6 +289,7 @@ describe('piHarnessAdapter', () => {
       getModels: getAllMock,
       hasConfiguredAuth: hasConfiguredAuthMock,
       registerProvider: registerProviderMock,
+      streamSimple: streamSimpleMock,
     });
     promptMock.mockResolvedValue(undefined);
     getLastAssistantTextMock.mockReturnValue(undefined);
@@ -342,6 +346,30 @@ describe('piHarnessAdapter', () => {
     );
     expect(promptMock).toHaveBeenCalledWith(expect.stringContaining('Fix it.'));
     expect(result).toEqual({response: ''});
+  });
+
+  it('omits Pi reasoning options for explicit provider-default requests', async () => {
+    await piHarnessAdapter.run(
+      invocation({provider: 'openai', model: 'gpt-5.5-pro', thinking: 'default'}),
+    );
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({thinkingLevel: 'default'}),
+    );
+
+    const runtime = (await modelRuntimeCreateMock.mock.results[0]?.value) as {
+      streamSimple: (
+        model: unknown,
+        context: unknown,
+        options?: {reasoning?: string; timeoutMs?: number},
+      ) => unknown;
+    };
+    const model = {provider: 'openai', id: 'gpt-5.5-pro'};
+    const context = {messages: []};
+
+    runtime.streamSimple(model, context, {reasoning: 'high', timeoutMs: 5_000});
+
+    expect(streamSimpleMock).toHaveBeenCalledWith(model, context, {timeoutMs: 5_000});
   });
 
   it('reports one attempt when no managed retry event is observed', async () => {

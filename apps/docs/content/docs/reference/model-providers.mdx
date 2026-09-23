@@ -64,8 +64,10 @@ thinking level in this order:
   provider, else `anthropic`.
 - **Model**: the step's `model`, else the configured default model for the resolved
   provider, else that provider's catalog default (the table above).
-- **Thinking**: the step's `thinking`, else the provider's configured default, else
-  `xhigh`.
+- **Thinking**: the step's `thinking`, else the provider's configured default,
+  else `xhigh`. Set `thinking: default` to bypass workspace and deployment
+  thinking settings and let the selected model use its provider default. Set
+  `thinking: off` to disable reasoning where the harness supports it.
 
 So an agent step with a `prompt` alone runs on the workspace default harness,
 provider, and model. Naming a `provider` but no `model` uses that provider's

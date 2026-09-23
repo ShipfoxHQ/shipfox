@@ -2427,12 +2427,12 @@ describe('normalizeWorkflowDocument', () => {
     expect(error.issues).toContainEqual({
       code: 'harness-thinking-incompatible',
       message:
-        'Harness "claude" does not support thinking: off. Supported levels: low, medium, high, xhigh, max.',
+        'Harness "claude" does not support thinking: off. Supported levels: low, medium, high, xhigh, max, default.',
       path: ['jobs', 'fix', 'steps', 0, 'thinking'],
       details: {
         harness: 'claude',
         thinking: 'off',
-        supportedLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        supportedLevels: ['low', 'medium', 'high', 'xhigh', 'max', 'default'],
       },
       severity: 'error',
       scope: 'definition',
@@ -2455,6 +2455,25 @@ describe('normalizeWorkflowDocument', () => {
       kind: 'agent',
       harness: 'pi',
       thinking: 'max',
+    });
+  });
+
+  it('accepts explicit provider-default thinking for Claude', () => {
+    const document: WorkflowDocument = {
+      name: 'agent build',
+      jobs: {
+        fix: {
+          steps: [{harness: 'claude', prompt: 'Fix it.', thinking: 'default'}],
+        },
+      },
+    };
+
+    const model = normalizeWorkflowDocument(document);
+
+    expect(model.jobs[0]?.steps[0]).toMatchObject({
+      kind: 'agent',
+      harness: 'claude',
+      thinking: 'default',
     });
   });
 
