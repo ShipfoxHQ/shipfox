@@ -189,7 +189,7 @@ test('derives step examples from the schema', () => {
     [
       '- key: get_issue',
       '  tool: get_issue',
-      '  connection: test_acme',
+      '  connection: test_acme # Replace with the slug of your integration connection.',
       '  with:',
       '    idOrKey: ENG-123',
     ].join('\n'),
@@ -199,7 +199,7 @@ test('derives step examples from the schema', () => {
     [
       '- prompt: Describe the task for the agent.',
       '  integrations:',
-      '    - connection: test_acme',
+      '    - connection: test_acme # Replace with the slug of your integration connection.',
       '      include: [get_issue]',
     ].join('\n'),
   );
@@ -208,7 +208,7 @@ test('derives step examples from the schema', () => {
     [
       '- key: issue_read',
       '  tool: issue_read.get',
-      '  connection: test_acme',
+      '  connection: test_acme # Replace with the slug of your integration connection.',
       '  with:',
       '    owner: <owner>',
       '    repo: <repo>',
@@ -229,6 +229,20 @@ test('adds allow_write to agent step examples for write tools', () => {
     connection: 'test_acme',
   });
   assert.match(document.groups[0]?.tools[0]?.examples[1]?.code ?? '', ALLOW_WRITE_PATTERN);
+});
+
+test('keeps a fixed integration connection slug unannotated', () => {
+  const document = buildIntegrationToolReference({
+    id: 'integrations/test/tools',
+    catalog,
+    selectors,
+    connection: 'shipfox',
+    replaceConnection: false,
+  });
+
+  const examples = document.groups[0]?.tools[0]?.examples ?? [];
+  assert.ok(examples[0]?.code.split('\n').includes('  connection: shipfox'));
+  assert.ok(examples[1]?.code.split('\n').includes('    - connection: shipfox'));
 });
 
 test('serializes the machine-readable markdown with the catalog headings', () => {

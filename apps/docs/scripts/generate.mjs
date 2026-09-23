@@ -306,6 +306,7 @@ function renderIntegrationToolReference(provider) {
     catalog: provider.toolCatalog,
     selectors: provider.toolSelectionCatalog.selectors,
     connection: provider.slug === 'shipfox' ? 'shipfox' : `${provider.slug}_acme`,
+    replaceConnection: provider.slug !== 'shipfox',
   });
   return JSON.stringify(document, generatedDocumentReplacer, 2);
 }

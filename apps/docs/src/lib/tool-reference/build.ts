@@ -52,6 +52,8 @@ export interface IntegrationToolReferenceInput {
   selectors: readonly {token: string}[];
   /** Slug of the integration connection used in examples. */
   connection: string;
+  /** Whether readers must replace the example integration connection slug. */
+  replaceConnection?: boolean;
 }
 
 export interface McpToolLike {
@@ -135,6 +137,7 @@ function integrationTool(
     examples: integrationExamples({
       toolId: entry.id,
       connection: input.connection,
+      replaceConnection: input.replaceConnection ?? true,
       access: entry.sensitivity,
       input: fields,
       ...(firstMethod

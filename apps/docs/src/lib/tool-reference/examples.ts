@@ -12,6 +12,7 @@ const LEADING_LIST_INDENT_PATTERN = /^\n {2}/u;
 export interface IntegrationExampleInput {
   toolId: string;
   connection: string;
+  replaceConnection: boolean;
   access: 'read' | 'write';
   input: ToolReferenceField[];
   /** Fields required by the method a tool step selects, for method families. */
@@ -65,7 +66,7 @@ function toolStepYaml(input: IntegrationExampleInput): string {
   const lines = [
     `- key: ${input.toolId}`,
     `  tool: ${stepTool}`,
-    `  connection: ${input.connection}`,
+    `  connection: ${exampleConnection(input)}`,
   ];
   if (Object.keys(withBlock).length > 0) lines.push(`  with:${yaml(withBlock, 4)}`);
   const firstOutput = input.output?.[0];
@@ -79,11 +80,18 @@ function agentStepYaml(input: IntegrationExampleInput): string {
   const lines = [
     '- prompt: Describe the task for the agent.',
     '  integrations:',
-    `    - connection: ${input.connection}`,
+    `    - connection: ${exampleConnection(input)}`,
     `      include: [${input.toolId}]`,
   ];
   if (input.access === 'write') lines.push('      allow_write: true');
   return lines.join('\n');
+}
+
+function exampleConnection(input: IntegrationExampleInput): string {
+  const replacement = input.replaceConnection
+    ? ' # Replace with the slug of your integration connection.'
+    : '';
+  return `${input.connection}${replacement}`;
 }
 
 // Placeholders follow the schema: a "such as" hint in the description wins,
