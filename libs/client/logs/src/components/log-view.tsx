@@ -19,6 +19,7 @@ import {
   type ActivityNode,
   buildActivityNodes,
   groupActivityReads,
+  resolveActionPresentation,
 } from '#core/activity.js';
 import type {LogRecord} from '#core/log-model.js';
 import {buildLogSearchIndex, filterActivityNodes} from '#core/log-search.js';
@@ -405,7 +406,7 @@ function renderActivityNodes(
               indent={depth}
               terminated={terminated}
               forceOpen={forceOpen}
-              presentation={actionPresentation?.(node.action)}
+              presentation={resolveActionPresentation(node.action, actionPresentation)}
             />
           </div>
         );

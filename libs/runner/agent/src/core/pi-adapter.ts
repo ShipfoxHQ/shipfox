@@ -22,6 +22,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import type {CallToolResult, ListToolsResult} from '@modelcontextprotocol/sdk/types.js';
 import {
+  AGENT_OUTPUT_TOOL_NAME,
   agentIntegrationMcpToolName,
   type CustomAgentModelDto,
   type CustomModelProviderRuntimeConfigDto,
@@ -77,7 +78,7 @@ import {recordPiProviderRetryOutcome} from '#metrics/instance.js';
 const KEYLESS_CUSTOM_PROVIDER_API_KEY = 'shipfox-keyless-custom-provider-placeholder';
 const SECRET_HEADER_CREDENTIAL_PREFIX = 'header:';
 const PI_MCP_TOOL_NAME = 'mcp';
-const PI_OUTPUT_TOOL_NAME = 'set_output';
+const PI_OUTPUT_TOOL_NAME = AGENT_OUTPUT_TOOL_NAME;
 const PI_BUILTIN_TOOL_NAMES = new Set([
   'read',
   'bash',
@@ -1519,7 +1520,8 @@ function installPiCompletionHooks(params: Parameters<typeof runPiSession>[0]): v
   const previousAfterToolCall = agent.afterToolCall;
   agent.afterToolCall = async (context, signal) => {
     const rejectedOutput =
-      context.toolCall.name === 'set_output' && isRejectedOutputDetails(context.result.details);
+      context.toolCall.name === PI_OUTPUT_TOOL_NAME &&
+      isRejectedOutputDetails(context.result.details);
     const previousResult = await previousAfterToolCall?.(context, signal);
     const isError = context.isError || previousResult?.isError === true;
     if (!isError && !rejectedOutput) {

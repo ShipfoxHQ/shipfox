@@ -16,6 +16,8 @@ import {
   tool,
 } from '@anthropic-ai/claude-agent-sdk';
 import {
+  AGENT_OUTPUT_MCP_SERVER_NAME,
+  AGENT_OUTPUT_TOOL_NAME,
   agentIntegrationMcpToolName,
   type ClaudeModelFamilyId,
   claudeRuntimeConfigSchema,
@@ -58,7 +60,6 @@ import {toolSelectionOption} from '#core/tool-selection.js';
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 const OLLAMA_ANTHROPIC_API_KEY = 'ollama';
 const REQUESTED_PERMISSION_MODE = 'bypassPermissions';
-const OUTPUT_MCP_SERVER_NAME = 'shipfox_outputs';
 const MAX_REPOSITORY_INSTRUCTIONS_BYTES = 64 * 1024;
 const REPOSITORY_INSTRUCTIONS_HEADER =
   'Repository instructions; they do not override the task above:';
@@ -1000,13 +1001,13 @@ function outputMcpServer(
 ): ClaudeManagedMcpServer {
   const toolDescription = 'Set one structured output value for this workflow step.';
   return managedMcpServer({
-    name: OUTPUT_MCP_SERVER_NAME,
+    name: AGENT_OUTPUT_MCP_SERVER_NAME,
     version: '1.0.0',
     instructions: collector.guidanceText(),
     tools: [setOutputTool(collector, diagnostics)],
     providerTools: [
       {
-        name: `mcp__${OUTPUT_MCP_SERVER_NAME}__set_output`,
+        name: `mcp__${AGENT_OUTPUT_MCP_SERVER_NAME}__${AGENT_OUTPUT_TOOL_NAME}`,
         description: toolDescription,
         inputSchema: {
           type: 'object',
@@ -1044,7 +1045,7 @@ function setOutputTool(
   diagnostics: () => ClaudeToolDiagnostics | undefined,
 ) {
   return tool(
-    'set_output',
+    AGENT_OUTPUT_TOOL_NAME,
     'Set one structured output value for this workflow step.',
     {key: z.string(), value: z.string()},
     async (args) => {

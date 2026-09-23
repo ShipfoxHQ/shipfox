@@ -1,6 +1,14 @@
 import type {ActionPresentation, PairedAction} from './activity.js';
 
-type NativeFamily = 'read' | 'edit' | 'write' | 'shell' | 'search' | 'list';
+type NativeFamily =
+  | 'read'
+  | 'edit'
+  | 'write'
+  | 'shell'
+  | 'search'
+  | 'list'
+  | 'web-search'
+  | 'web-fetch';
 
 const nativeTools: Readonly<Record<string, NativeFamily>> = {
   read: 'read',
@@ -23,6 +31,11 @@ const nativeTools: Readonly<Record<string, NativeFamily>> = {
   ls: 'list',
   LS: 'list',
   list_files: 'list',
+  web_search: 'web-search',
+  WebSearch: 'web-search',
+  fetch_content: 'web-fetch',
+  WebFetch: 'web-fetch',
+  get_search_content: 'web-fetch',
 };
 
 const labels: Record<NativeFamily, string> = {
@@ -32,6 +45,8 @@ const labels: Record<NativeFamily, string> = {
   shell: 'Run Command',
   search: 'Search Files',
   list: 'List Files',
+  'web-search': 'Search Web',
+  'web-fetch': 'Fetch Page',
 };
 
 const iconKinds: Record<NativeFamily, ActionPresentation['iconKind']> = {
@@ -41,6 +56,8 @@ const iconKinds: Record<NativeFamily, ActionPresentation['iconKind']> = {
   shell: 'shell',
   search: 'search',
   list: 'list',
+  'web-search': 'web',
+  'web-fetch': 'web',
 };
 
 const EXIT_CODE_PREFIX = /^Exit code: (-?\d+)\n(?:Output:\s*\n?)?/i;
@@ -52,7 +69,7 @@ export function nativeActionPresentation(action: PairedAction): ActionPresentati
   return nativePresentationFromPayload(request.name, request.input, action.result?.output);
 }
 
-export function nativePresentationFromPayload(
+function nativePresentationFromPayload(
   name: string,
   inputText: string,
   output?: string,
@@ -78,9 +95,9 @@ export function nativePresentationFromPayload(
 }
 
 function nativeReadClassification(family: NativeFamily): ActionPresentation['readClassification'] {
-  if (family === 'read' || family === 'search' || family === 'list') return 'read';
+  if (family === 'edit' || family === 'write') return 'write';
   if (family === 'shell') return 'unknown';
-  return 'write';
+  return 'read';
 }
 
 function nativeStatusDetail(
@@ -122,6 +139,7 @@ export function nativeShellExitCode(name: string, output: string): number | null
 function nativeTarget(family: NativeFamily, input: Record<string, unknown>): string | null {
   if (family === 'shell') return stringField(input, 'command') ?? stringField(input, 'cmd');
   if (family === 'search') return stringField(input, 'pattern') ?? stringField(input, 'query');
+  if (family === 'web-search' || family === 'web-fetch') return webTarget(family, input);
   const path =
     family === 'list' ? (stringField(input, 'directory') ?? filePath(input)) : filePath(input);
   if (!path) return null;
@@ -134,8 +152,28 @@ function nativeTarget(family: NativeFamily, input: Record<string, unknown>): str
   return path;
 }
 
+function webTarget(
+  family: 'web-search' | 'web-fetch',
+  input: Record<string, unknown>,
+): string | null {
+  if (family === 'web-search') return stringField(input, 'query') ?? firstString(input, 'queries');
+  return (
+    stringField(input, 'url') ??
+    firstString(input, 'urls') ??
+    stringField(input, 'query') ??
+    stringField(input, 'responseId')
+  );
+}
+
 function filePath(input: Record<string, unknown>): string | null {
   return stringField(input, 'file_path') ?? stringField(input, 'path');
+}
+
+function firstString(input: Record<string, unknown>, key: string): string | null {
+  const value = input[key];
+  if (!Array.isArray(value)) return null;
+  const first = value.find((item) => typeof item === 'string' && item.trim());
+  return typeof first === 'string' ? first.trim() : null;
 }
 
 function stringField(input: Record<string, unknown>, key: string): string | null {
