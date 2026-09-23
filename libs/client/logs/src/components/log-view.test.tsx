@@ -111,6 +111,31 @@ describe('LogView', () => {
     expect(document.activeElement).toBe(first);
   });
 
+  test('keeps an opened singleton visible after focus moves away and another read completes', () => {
+    const firstRead = readRecords('one', 'one.ts', 0);
+    const secondCall = readRecords('two', 'two.ts', 10, false);
+    const renderLog = (records: LogRecord[]) => (
+      <>
+        <button type="button">Outside log</button>
+        <LogView records={records} />
+      </>
+    );
+    const {rerender} = render(renderLog([...firstRead, ...secondCall]));
+    fireEvent.click(screen.getByRole('button', {name: ONE_READ_BUTTON_NAME}));
+    act(() => screen.getByRole('button', {name: 'Outside log'}).focus());
+
+    rerender(renderLog([...firstRead, ...readRecords('two', 'two.ts', 10)]));
+
+    expect(screen.getByRole('button', {name: TWO_READS_BUTTON_NAME})).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('button', {name: ONE_READ_BUTTON_NAME})).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+
   test('search opens a grouped read whose result alone matches', () => {
     render(
       <LogView

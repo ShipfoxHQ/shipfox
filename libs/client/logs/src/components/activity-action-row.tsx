@@ -27,6 +27,7 @@ export interface ActivityActionRowProps {
   forceOpen?: boolean;
   presentation?: ActionPresentation | undefined;
   hideIcon?: boolean;
+  onOpenChange?: ((open: boolean) => void) | undefined;
 }
 
 export function ActivityActionRow({
@@ -36,6 +37,7 @@ export function ActivityActionRow({
   forceOpen = false,
   presentation,
   hideIcon = false,
+  onOpenChange,
 }: ActivityActionRowProps) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -57,7 +59,14 @@ export function ActivityActionRow({
   const target = resolvedPresentation.target;
   const hasPresentedDetail = resolvedPresentation.detail !== undefined;
   return (
-    <LogDisclosure indent={indent} open={forceOpen || open} onOpenChange={setOpen}>
+    <LogDisclosure
+      indent={indent}
+      open={forceOpen || open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        onOpenChange?.(nextOpen);
+      }}
+    >
       <LogDisclosureTrigger
         lineNumber={action.lineNumber}
         timestamp={new Date(action.timestamp)}

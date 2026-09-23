@@ -78,6 +78,7 @@ export function ActivityReadGroup({
               forceOpen={forceOpen}
               presentation={actionPresentation?.(child.action)}
               hideIcon={grouped}
+              onOpenChange={grouped ? undefined : setOpen}
             />
           </div>
         ))}

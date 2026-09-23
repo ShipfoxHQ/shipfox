@@ -1,4 +1,5 @@
 import {buildActivityNodes, groupActivityReads, pairSessionRows} from './activity.js';
+import {createIntegrationActionPresentationLookup} from './integration-action.js';
 import type {LogRecord, SessionViewRow} from './log-model.js';
 import {buildLogSearchIndex, filterActivityNodes} from './log-search.js';
 import {buildLogTree} from './log-tree.js';
@@ -219,6 +220,31 @@ describe('groupActivityReads', () => {
     expect(nodes.map((node) => (node.kind === 'read-group' ? node.totalCount : 0))).toEqual([
       2, 1, 1,
     ]);
+  });
+
+  test('separates read methods with different integration labels', () => {
+    const records: LogRecord[] = [
+      ...recordedAction('get', 'code__issues', '{"method":"get"}'),
+      ...recordedAction('list-1', 'code__issues', '{"method":"list"}'),
+      ...recordedAction('list-2', 'code__issues', '{"method":"list"}'),
+    ];
+    const presentation = createIntegrationActionPresentationLookup([
+      {
+        provider: 'github',
+        connectionId: 'code-connection',
+        connectionSlug: 'code',
+        toolId: 'issues',
+        sensitivity: 'read',
+        methods: [
+          {id: 'get', sensitivity: 'read'},
+          {id: 'list', sensitivity: 'read'},
+        ],
+      },
+    ]);
+
+    const nodes = groupActivityReads(buildActivityNodes(buildLogTree(records).nodes), presentation);
+
+    expect(nodes.map((node) => (node.kind === 'read-group' ? node.totalCount : 0))).toEqual([1, 2]);
   });
 
   test('search exposes a result match inside its original group', () => {

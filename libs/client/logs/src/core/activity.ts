@@ -266,7 +266,8 @@ function readGroupKey(
   const details = presentation?.(action) ?? nativeActionPresentation(action);
   if (details?.readClassification !== 'read') return null;
   const connection = details.integration?.connectionId ?? null;
-  return JSON.stringify([action.request.name, connection]);
+  const method = details.integration?.methodId ?? null;
+  return JSON.stringify([action.request.name, connection, method]);
 }
 
 function collectSessionRows(
