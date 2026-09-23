@@ -371,7 +371,7 @@ function PropertyCopyButton({value, label}: {value: string; label: string}) {
         'opacity-0 focus-visible:opacity-100 group-hover/property:opacity-100 [@media(hover:none)]:opacity-100',
         copied && 'opacity-100',
       )}
-      onClick={() => void copy()}
+      onClick={() => void copy().catch(() => undefined)}
     />
   );
 }

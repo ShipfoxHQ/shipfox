@@ -32,6 +32,9 @@ export function EvaluationTraceList({trace}: {trace: readonly EvaluationTraceEnt
 }
 
 export function EvaluationValue({entry}: {entry: EvaluationTraceValueEntry}) {
+  if (entry.reference) {
+    return <span className="text-foreground-neutral-muted">(secret reference)</span>;
+  }
   if (entry.value === undefined || entry.value === '') {
     return <span className="text-tag-error-text">(empty)</span>;
   }

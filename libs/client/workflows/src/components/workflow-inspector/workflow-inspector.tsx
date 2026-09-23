@@ -291,7 +291,7 @@ function InspectorDurationFact({
 function RunTriggerFacts({run}: {run: WorkflowRunOverview}) {
   const reference = run.triggerReference;
   const trigger = run.triggerDisplayLabel || run.triggerSource || 'Unknown trigger';
-  const triggerReference = {triggerReference: reference, devSource: null};
+  const triggerReference = {triggerReference: reference, devSource: run.devSource};
   const branch = workflowRunBranchLabel(triggerReference);
   const commit = workflowRunCommitLabel(triggerReference);
   const facts: {key: string; icon: ReactNode; description: string; value: string}[] = [
@@ -874,7 +874,9 @@ function executionTime(
   kind: 'queue' | 'run',
 ): JobExecutionTime | undefined {
   const from = kind === 'queue' ? execution.queuedAt : execution.startedAt;
-  const to = kind === 'queue' ? execution.startedAt : execution.finishedAt;
+  // An execution that finishes before it starts stopped queueing when it finished.
+  const to =
+    kind === 'queue' ? (execution.startedAt ?? execution.finishedAt) : execution.finishedAt;
   if (!from) return undefined;
   return to ? {state: 'fixed', elapsed: elapsedDuration(from, to)} : {state: 'live', fromIso: from};
 }
