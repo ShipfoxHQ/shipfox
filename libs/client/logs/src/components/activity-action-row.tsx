@@ -222,25 +222,24 @@ function ActionStatus({
     );
   }
 
-  const label = actionStatusLabel(state);
+  const completed = state === 'succeeded' || state === 'failed';
   return (
-    <span className={cn('inline-flex items-center gap-tight', actionStateClass(state))}>
-      <span>{label}</span>
+    <span
+      className={cn(
+        'inline-flex items-center gap-tight',
+        state === 'failed' ? 'text-tag-error-icon' : 'text-foreground-contrast-secondary',
+      )}
+    >
+      <span className={completed ? 'sr-only' : undefined}>{completed ? state : 'no result'}</span>
+      {completed && durationMs === null && !detail ? (
+        <Icon
+          name={state === 'failed' ? 'closeCircleFill' : 'checkboxCircleFill'}
+          className="size-14"
+          aria-hidden="true"
+        />
+      ) : null}
       {detail ? <span className="font-code">{detail}</span> : null}
       {durationMs !== null ? <span className="font-code">{formatDuration(durationMs)}</span> : null}
     </span>
   );
-}
-
-function actionStatusLabel(state: ActivityState): string {
-  if (state === 'succeeded') return 'succeeded';
-  if (state === 'failed') return 'failed';
-  return 'no result';
-}
-
-function actionStateClass(state: ActivityState): string {
-  if (state === 'failed') return 'text-tag-error-icon';
-  if (state === 'succeeded') return 'text-tag-success-icon';
-  if (state === 'no-result') return 'text-tag-warning-icon';
-  return 'text-tag-blue-icon';
 }

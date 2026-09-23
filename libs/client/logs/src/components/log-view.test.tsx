@@ -319,7 +319,8 @@ describe('LogView', () => {
 
     expect(screen.getByText('Edit File')).toBeInTheDocument();
     expect(screen.getByText('stdout between call and result')).toBeDefined();
-    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    expect(screen.getByText('succeeded')).toHaveClass('sr-only');
+    expect(screen.getByText('1ms').parentElement).toHaveClass('text-foreground-contrast-secondary');
     expect(screen.queryByText('result edit_file')).not.toBeInTheDocument();
   });
 
@@ -340,7 +341,9 @@ describe('LogView', () => {
     );
 
     expect(screen.getByText('Tool')).toBeInTheDocument();
-    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    const statusLabel = screen.getByText('succeeded');
+    expect(statusLabel).toHaveClass('sr-only');
+    expect(statusLabel.parentElement?.querySelector('svg')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: TOOL_BUTTON_NAME}));
 
@@ -449,8 +452,8 @@ describe('LogView', () => {
 
     expect(screen.getByText('Run Command')).toBeInTheDocument();
     expect(screen.getByText('pnpm test')).toBeInTheDocument();
-    expect(screen.getByText('failed')).toBeInTheDocument();
-    expect(screen.getByText('exit 1')).toBeInTheDocument();
+    expect(screen.getByText('failed')).toHaveClass('sr-only');
+    expect(screen.getByText('exit 1').parentElement).toHaveClass('text-tag-error-icon');
     fireEvent.click(screen.getByRole('button', {name: RUN_COMMAND_BUTTON_NAME}));
     const output = screen.getByText('FAIL tests');
     expect(output.parentElement).toHaveClass('bg-background-contrast-base');
@@ -537,6 +540,9 @@ describe('LogView', () => {
     );
 
     expect(screen.getByText('no result')).toBeInTheDocument();
+    expect(screen.getByText('no result').parentElement).toHaveClass(
+      'text-foreground-contrast-secondary',
+    );
     expect(screen.queryByText('running')).not.toBeInTheDocument();
   });
 
