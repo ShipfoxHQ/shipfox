@@ -44,11 +44,12 @@ export async function handlePosthogReplaceApiKey(
   const installation = await getInstallation(params.connectionId);
   if (!installation) throw new PosthogInstallationNotFoundError(params.connectionId);
 
-  const projects = await params.posthog.listProjects({
+  const project = await params.posthog.getProject({
     region: installation.region,
     apiKey: params.apiKey,
+    projectId: installation.projectId,
   });
-  if (!projects.some((project) => project.id === installation.projectId)) {
+  if (!project || project.id !== installation.projectId) {
     throw new PosthogProjectMismatchError(installation.projectId);
   }
 

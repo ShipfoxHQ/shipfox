@@ -2,7 +2,11 @@ import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {PosthogApiClient} from '#api/client.js';
 import type {PosthogInstallation} from '#db/installations.js';
 import type {PosthogCredentialStore} from './credentials.js';
-import {PosthogCredentialVersionMismatchError} from './errors.js';
+import {
+  PosthogCredentialVersionMismatchError,
+  PosthogIntegrationProviderError,
+  PosthogMissingScopesError,
+} from './errors.js';
 import {handlePosthogReplaceApiKey} from './replace-key.js';
 
 const connection: IntegrationConnection<'posthog'> = {
@@ -34,6 +38,9 @@ function api(overrides: Partial<PosthogApiClient> = {}): PosthogApiClient {
   return {
     listProjects: vi.fn(() =>
       Promise.resolve([{id: 'project-1', name: 'Analytics', organizationId: 'organization-1'}]),
+    ),
+    getProject: vi.fn(() =>
+      Promise.resolve({id: 'project-1', name: 'Analytics', organizationId: 'organization-1'}),
     ),
     validateQuery: vi.fn(() => Promise.resolve()),
     probeCredential: vi.fn(() => Promise.resolve({status: 200})),
@@ -86,6 +93,12 @@ describe('handlePosthogReplaceApiKey', () => {
       slug: connection.slug,
       lifecycleStatus: 'active',
     });
+    expect(posthog.listProjects).not.toHaveBeenCalled();
+    expect(posthog.getProject).toHaveBeenCalledWith({
+      region: 'eu',
+      apiKey: 'phx_new_key',
+      projectId: 'project-1',
+    });
     expect(credentialStore.setApiKey).toHaveBeenCalledWith({
       connectionId: connection.id,
       workspaceId: connection.workspaceId,
@@ -102,7 +115,7 @@ describe('handlePosthogReplaceApiKey', () => {
   it('does not write the secret when the project is missing', async () => {
     const credentialStore = credentials();
     const posthog = api({
-      listProjects: vi.fn(() => Promise.resolve([])),
+      getProject: vi.fn(() => Promise.resolve(undefined)),
     });
 
     await expect(
@@ -118,6 +131,32 @@ describe('handlePosthogReplaceApiKey', () => {
     ).rejects.toThrow('cannot access project');
 
     expect(credentialStore.setApiKey).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    new PosthogMissingScopesError(['insight:read']),
+    new PosthogIntegrationProviderError('access-denied', 'Query permission denied'),
+  ])('preserves the previous key when validation fails: %s', async (error) => {
+    const credentialStore = credentials();
+    const posthog = api();
+    if (error instanceof PosthogMissingScopesError)
+      vi.mocked(posthog.getProject).mockRejectedValue(error);
+    else vi.mocked(posthog.validateQuery).mockRejectedValue(error);
+    const updateConnection = vi.fn();
+    await expect(
+      handlePosthogReplaceApiKey({
+        connectionId: connection.id,
+        apiKey: 'phx_new_key',
+        posthog,
+        credentials: credentialStore,
+        getConnection: async () => connection,
+        getInstallation: async () => installation,
+        updateConnection,
+      }),
+    ).rejects.toBe(error);
+    expect(credentialStore.setApiKey).not.toHaveBeenCalled();
+    expect(credentialStore.deleteApiKey).not.toHaveBeenCalled();
+    expect(updateConnection).not.toHaveBeenCalled();
   });
 
   it('does not write the secret when the credential version is stale', async () => {

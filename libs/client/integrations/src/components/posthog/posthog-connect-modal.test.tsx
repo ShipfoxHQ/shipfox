@@ -106,6 +106,23 @@ describe('PosthogConnectModal', () => {
     expect(onOpenReplaceApiKey).toHaveBeenCalledWith(CONNECTION_ID);
   });
 
+  test('shows the API permission error on the key field', async () => {
+    renderModal(
+      vi.fn(() =>
+        Promise.resolve(jsonResponse({code: 'access-denied', details: {}}, {status: 403})),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText('Personal API key'), {target: {value: 'phx_scoped'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Connect'}));
+
+    expect(
+      await screen.findByText(
+        'PostHog denied access. Check the key permissions and the service user’s project access.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Personal API key')).toHaveAttribute('aria-invalid', 'true');
+  });
+
   test('clears the key when the modal closes', async () => {
     function ControlledModal() {
       const [open, setOpen] = useState(true);

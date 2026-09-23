@@ -10,6 +10,19 @@ const MULTI_PROJECTS = [
   {id: 'e2e-project-a', name: 'E2E Analytics', organization_id: 'e2e-organization'},
   {id: 'e2e-project-b', name: 'E2E Product', organization_id: 'e2e-organization'},
 ];
+const PROJECT_PATH_RE = /^\/api\/projects\/([^/]+)\/$/u;
+const REQUIRED_SCOPES = [
+  'dashboard:read',
+  'error_tracking:read',
+  'event_definition:read',
+  'experiment:read',
+  'feature_flag:read',
+  'insight:read',
+  'project:read',
+  'property_definition:read',
+  'query:read',
+  'survey:read',
+];
 const QUERY_PATH_RE = /^\/api\/projects\/([^/]+)\/query\/$/u;
 
 /** The E2E deployment's PostHog double serves both REST and MCP traffic. */
@@ -113,9 +126,21 @@ async function handleControl({states, pending, request, response}) {
 
 async function handleRest({states, request, response, url}) {
   if (url.pathname === '/api/projects/' && request.method === 'GET') {
+    handleProjectList(request, response);
+    return;
+  }
+  const projectMatch = PROJECT_PATH_RE.exec(url.pathname);
+  if (projectMatch && request.method === 'GET') {
     const apiKey = bearer(request);
     const projects = apiKey.includes('multi') ? MULTI_PROJECTS : [projectForKey(apiKey)];
-    sendJson(response, 200, projects);
+    const project = projects.find(
+      (candidate) => candidate.id === decodeURIComponent(projectMatch[1]),
+    );
+    sendJson(
+      response,
+      project ? 200 : 403,
+      project ?? {detail: 'API key cannot access this project.'},
+    );
     return;
   }
   if (QUERY_PATH_RE.test(url.pathname) && request.method === 'POST') {
@@ -128,13 +153,31 @@ async function handleRest({states, request, response, url}) {
     return;
   }
   if (url.pathname === '/api/personal_api_keys/@current/' && request.method === 'GET') {
-    const apiKey = bearer(request);
-    const state = states.get(apiKey);
-    const status = state?.probeStatus ?? (apiKey.includes('revoked') ? 401 : 200);
-    response.writeHead(status, {'content-type': 'application/json'}).end(JSON.stringify({status}));
+    handleCredential({states, request, response});
     return;
   }
   response.writeHead(404).end();
+}
+
+function handleProjectList(request, response) {
+  const apiKey = bearer(request);
+  if (apiKey.includes('scoped')) {
+    sendJson(response, 403, {
+      detail: 'API keys with scoped projects are only supported on project-based endpoints.',
+    });
+    return;
+  }
+  const projects = apiKey.includes('multi') ? MULTI_PROJECTS : [projectForKey(apiKey)];
+  sendJson(response, 200, projects);
+}
+
+function handleCredential({states, request, response}) {
+  const apiKey = bearer(request);
+  const status = states.get(apiKey)?.probeStatus ?? (apiKey.includes('revoked') ? 401 : 200);
+  sendJson(response, status, {
+    scopes: apiKey.includes('missing-scope') ? ['project:read', 'query:read'] : REQUIRED_SCOPES,
+    scoped_teams: apiKey.includes('scoped') ? [Number(projectForKey(apiKey).id)] : null,
+  });
 }
 
 async function handleMcp({calls, mcpRequestCounts, pending, request, response}) {
@@ -214,7 +257,7 @@ function sendMcpInitialize(response, id, protocolVersion) {
 function projectForKey(apiKey) {
   if (apiKey.includes('single'))
     return {
-      id: 'e2e-single-project',
+      id: '101',
       name: 'E2E Single project',
       organization_id: 'e2e-organization',
     };
