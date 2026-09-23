@@ -4,7 +4,16 @@ import {loader} from 'fumadocs-core/source';
 import {statusBadgesPlugin} from 'fumadocs-core/source/status-badges';
 import {icons} from 'lucide-react';
 import {createElement} from 'react';
-import {siClickup, siGithub, siJira, siLinear, siPosthog, siSentry, siSlack} from 'simple-icons';
+import {
+  siClickup,
+  siGithub,
+  siJira,
+  siLinear,
+  siNotion,
+  siPosthog,
+  siSentry,
+  siSlack,
+} from 'simple-icons';
 import {
   isRegisteredCatalogIntegrationProvider,
   sortRegisteredIntegrationProviders,
@@ -17,6 +26,7 @@ const simpleIcons = {
   posthog: siPosthog,
   sentry: siSentry,
   linear: siLinear,
+  notion: siNotion,
   slack: siSlack,
 };
 

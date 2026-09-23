@@ -58,6 +58,14 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     displayPriority: 3,
   },
   {
+    slug: 'notion',
+    kind: 'catalog',
+    connectable: true,
+    capabilities: ['events', 'agent_tools'],
+    category: 'issue-tracking',
+    displayPriority: 4,
+  },
+  {
     slug: 'sentry',
     kind: 'catalog',
     connectable: true,

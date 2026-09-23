@@ -3,7 +3,16 @@
 import {ArrowRight, Search, Webhook, X} from 'lucide-react';
 import Link from 'next/link';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {siClickup, siGithub, siJira, siLinear, siPosthog, siSentry, siSlack} from 'simple-icons';
+import {
+  siClickup,
+  siGithub,
+  siJira,
+  siLinear,
+  siNotion,
+  siPosthog,
+  siSentry,
+  siSlack,
+} from 'simple-icons';
 import {captureDocsEvent} from '@/lib/docs-analytics';
 import {nextCatalogSearchState, normalizeCatalogQuery} from '@/lib/docs-analytics-core';
 import {
@@ -415,6 +424,7 @@ function ProviderIcon({icon}: {icon: CatalogIcon}) {
     clickup: siClickup,
     github: siGithub,
     jira: siJira,
+    notion: siNotion,
     posthog: siPosthog,
     sentry: siSentry,
     linear: siLinear,

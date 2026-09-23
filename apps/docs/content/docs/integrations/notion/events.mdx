@@ -1,0 +1,93 @@
+---
+title: "Notion events"
+sidebarTitle: "Events"
+description: "Look up the Notion event names Shipfox delivers and use thin event payloads safely in workflows."
+eventReference: "integrations/notion/events"
+---
+
+This reference lists page, data source, database, and comment events delivered
+to a Notion integration connection. See the [Notion overview](/integrations/notion)
+for authentication and access boundaries.
+
+## Payload
+
+Shipfox passes through the raw Notion webhook payload. The payload identifies
+the changed object but does not contain its current page properties or content.
+
+See Notion's [webhook events reference](https://developers.notion.com/reference/webhooks-events-delivery)
+for provider-owned field details.
+
+Notion aggregates page, data source, and database edits. An event can arrive up
+to about a minute after the changes and can list several authors.
+
+Shipfox delivers events only for pages available to the current integration
+connection. Events for pages outside its grant are not delivered.
+
+## Prevent repeated runs
+
+Shipfox delivers events authored by the installed bot. A workflow that writes
+back to Notion can trigger another run from its own change.
+
+This filter drops events that list no person as an author:
+
+```yaml
+filter: 'event.authors.exists(a, a.type == "person")'
+```
+
+This is a **bot-only filter, not a loop guarantee**. Notion can aggregate a
+person's edit and the bot's edit into one event, which passes the filter.
+
+Make every Notion write converge on a fixed result. For example, set a property
+to one fixed value or replace a marked section. Don't append the same comment
+or content on every matching run.
+
+## Check current state after a property change
+
+Notion property events identify changed property IDs but omit their values.
+Filter on the parent data source and property ID before fetching the page.
+
+Add this trigger under an existing workflow's `triggers` map. Replace the data
+source ID and `%3AfWq` with the ID of the status property:
+
+```yaml
+triggers:
+  on_spec_changed:
+    source: notion_acme
+    event: page.properties_updated
+    filter: >
+      event.data.parent.id == "2f1c8a3e-0000-4000-8000-5d2b7e9a1c11" &&
+      event.data.updated_properties.exists(p, p == "%3AfWq") &&
+      event.authors.exists(a, a.type == "person")
+```
+
+Add these steps under the job that handles the event. The `get_page` result
+contains the current property values:
+
+```yaml
+- key: page
+  tool: get_page
+  connection: notion_acme
+  with:
+    page_id: ${{ event.entity.id }}
+  outputs:
+    status: ${{ result.properties.Status.status.name }}
+- if: '${{ steps.page.outputs.status == "Ready for dev" }}'
+  run: ./scripts/implement-spec.sh
+  env:
+    NOTION_PAGE_ID: ${{ event.entity.id }}
+```
+
+This pattern is a state check after a change, not a once-per-transition trigger.
+Notion does not send before and after property values. Every matching status
+change starts a run, and that run may exit at the `if` gate.
+
+For once-per-page behavior, record a marker in Notion and gate on the marker
+being empty. Set the marker to one fixed value so repeated writes converge.
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
+
+## Event catalog
+
+Use your Notion integration connection slug instead of `notion_acme`.
+
+<EventReference />

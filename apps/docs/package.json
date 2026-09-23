@@ -57,6 +57,8 @@
     "@shipfox/api-integration-jira-dto": "workspace:*",
     "@shipfox/api-integration-linear": "workspace:*",
     "@shipfox/api-integration-linear-dto": "workspace:*",
+    "@shipfox/api-integration-notion": "workspace:*",
+    "@shipfox/api-integration-notion-dto": "workspace:*",
     "@shipfox/api-integration-posthog": "workspace:*",
     "@shipfox/api-integration-sentry-dto": "workspace:*",
     "@shipfox/api-integration-shipfox": "workspace:*",

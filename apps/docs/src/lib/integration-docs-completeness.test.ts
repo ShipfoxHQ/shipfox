@@ -48,6 +48,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 11,
       toolCount: 6,
     },
+    notion: {
+      capabilities: ['events', 'agent_tools'],
+      eventCount: 21,
+      toolCount: 8,
+    },
     posthog: {
       capabilities: ['agent_tools'],
       eventCount: 0,
@@ -104,6 +109,16 @@ const validInput: IntegrationDocsCompletenessInput = {
         capabilities: ['events', 'agent_tools'],
         categories: ['issue-tracking'],
         aliases: ['tasks', 'project management', 'tickets'],
+      },
+    ),
+    notion: directory(
+      'notion',
+      ['index', 'setup', 'events', 'tools'],
+      ['setup', 'events', 'tools'],
+      {
+        capabilities: ['events', 'agent_tools'],
+        categories: ['issue-tracking'],
+        aliases: ['docs', 'wiki', 'knowledge base', 'project management'],
       },
     ),
     posthog: directory('posthog', ['index', 'setup', 'tools'], ['setup', 'tools'], {
