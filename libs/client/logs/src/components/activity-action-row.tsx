@@ -8,14 +8,16 @@ import {
   LogDisclosureTrigger,
 } from '@shipfox/react-ui/log';
 import {Markdown} from '@shipfox/react-ui/markdown';
+import {Code} from '@shipfox/react-ui/typography';
 import {cn, formatDuration} from '@shipfox/react-ui/utils';
-import {useEffect, useState} from 'react';
+import {useEffect, useId, useMemo, useState} from 'react';
 import {
   type ActionPresentation,
   type ActivityState,
   genericActionPresentation,
   type PairedAction,
 } from '#core/activity.js';
+import {nativePresentationFromPayload} from '#core/native-tools.js';
 
 export interface ActivityActionRowProps {
   action: PairedAction;
@@ -37,19 +39,40 @@ export function ActivityActionRow({
     if (forceOpen) setOpen(true);
   }, [forceOpen]);
 
-  const resolvedPresentation = presentation ?? genericActionPresentation(action);
+  const requestName = action.request?.name;
+  const requestInput = action.request?.input;
+  const resultOutput = action.result?.output;
+  const nativePresentation = useMemo(
+    () =>
+      requestName && requestInput
+        ? nativePresentationFromPayload(requestName, requestInput, resultOutput)
+        : undefined,
+    [requestName, requestInput, resultOutput],
+  );
+  const resolvedPresentation =
+    presentation ?? nativePresentation ?? genericActionPresentation(action);
   const target = resolvedPresentation.target;
+  const hasPresentedDetail = resolvedPresentation.detail !== undefined;
   return (
     <LogDisclosure indent={indent} open={forceOpen || open} onOpenChange={setOpen}>
       <LogDisclosureTrigger
         lineNumber={action.lineNumber}
         timestamp={new Date(action.timestamp)}
-        summary={target ?? 'recorded action'}
+        summary={
+          hasPresentedDetail && target ? (
+            <Code as="span" className="truncate">
+              {target}
+            </Code>
+          ) : (
+            (target ?? 'recorded action')
+          )
+        }
         trailing={
           <ActionStatus
             state={action.state}
             durationMs={action.durationMs}
             terminated={terminated}
+            detail={resolvedPresentation.statusDetail}
           />
         }
         className={cn(
@@ -63,29 +86,105 @@ export function ActivityActionRow({
         </span>
       </LogDisclosureTrigger>
       <LogDisclosureContent>
-        <div className="flex min-w-0 flex-col gap-inline">
-          {action.request ? (
-            <ActionDetail
-              label="Request"
-              value={action.request.input}
-              kind={resolvedPresentation.detailKind}
-            />
-          ) : null}
-          {action.result ? (
-            <ActionDetail
-              label="Result"
-              value={action.result.output}
-              kind={resolvedPresentation.detailKind}
-            />
-          ) : null}
-          {action.request === null && action.result === null ? (
-            <LogContent className="text-foreground-contrast-secondary">
-              No recorded details.
-            </LogContent>
-          ) : null}
-        </div>
+        {hasPresentedDetail ? (
+          <PresentedDetails action={action} detail={resolvedPresentation.detail ?? null} />
+        ) : (
+          <GenericDetails action={action} kind={resolvedPresentation.detailKind} />
+        )}
       </LogDisclosureContent>
     </LogDisclosure>
+  );
+}
+
+function PresentedDetails({
+  action,
+  detail,
+}: {
+  action: PairedAction;
+  detail: NonNullable<ActionPresentation['detail']> | null;
+}) {
+  const [technicalOpen, setTechnicalOpen] = useState(false);
+  const technicalId = useId();
+  return (
+    <div className="flex min-w-0 flex-col gap-inline">
+      {detail ? (
+        <PresentedActionDetail detail={detail} />
+      ) : (
+        <LogContent className="text-foreground-contrast-secondary">
+          No recorded result yet.
+        </LogContent>
+      )}
+      <button
+        type="button"
+        aria-expanded={technicalOpen}
+        aria-controls={technicalId}
+        className="w-fit cursor-pointer text-foreground-contrast-secondary underline"
+        onClick={() => setTechnicalOpen((value) => !value)}
+      >
+        Technical details
+      </button>
+      <div id={technicalId} hidden={!technicalOpen}>
+        {technicalOpen ? (
+          <div className="flex min-w-0 flex-col gap-inline">
+            {action.request ? (
+              <ActionDetail label="Input" value={action.request.input} kind="code" />
+            ) : null}
+            {action.result ? (
+              <ActionDetail label="Recorded output" value={action.result.output} kind="code" />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function GenericDetails({
+  action,
+  kind,
+}: {
+  action: PairedAction;
+  kind: ActionPresentation['detailKind'];
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-inline">
+      {action.request ? (
+        <ActionDetail label="Request" value={action.request.input} kind={kind} />
+      ) : null}
+      {action.result ? (
+        <ActionDetail label="Result" value={action.result.output} kind={kind} />
+      ) : null}
+      {action.request === null && action.result === null ? (
+        <LogContent className="text-foreground-contrast-secondary">No recorded details.</LogContent>
+      ) : null}
+    </div>
+  );
+}
+
+const DETAIL_PREVIEW_LENGTH = 5000;
+
+function PresentedActionDetail({detail}: {detail: NonNullable<ActionPresentation['detail']>}) {
+  const [showFull, setShowFull] = useState(false);
+  const long = detail.value.length > DETAIL_PREVIEW_LENGTH;
+  return (
+    <div className="min-w-0">
+      <ActionDetail
+        label={detail.label}
+        value={
+          long && !showFull ? `${detail.value.slice(0, DETAIL_PREVIEW_LENGTH)}…` : detail.value
+        }
+        kind={detail.kind}
+      />
+      {long && !showFull ? (
+        <button
+          type="button"
+          className="mt-tight cursor-pointer text-foreground-contrast-secondary underline"
+          onClick={() => setShowFull(true)}
+        >
+          Show full result
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -115,10 +214,22 @@ function ActionDetail({
 }
 
 function ActionIcon({kind, state}: {kind: ActionPresentation['iconKind']; state: ActivityState}) {
-  let icon: IconName = kind === 'unknown' ? 'questionLine' : 'terminalBoxLine';
-  if (state === 'failed') icon = 'closeCircleLine';
-  if (state === 'succeeded') icon = 'checkCircleLine';
-  if (state === 'no-result') icon = 'errorWarningLine';
+  const icons: Record<ActionPresentation['iconKind'], IconName> = {
+    tool: 'terminalBoxLine',
+    unknown: 'questionLine',
+    file: 'fileTextLine',
+    edit: 'editLine',
+    write: 'fileAddLine',
+    shell: 'terminalBoxLine',
+    search: 'searchLine',
+    list: 'folderLine',
+  };
+  let icon = icons[kind];
+  if (kind === 'tool' || kind === 'unknown') {
+    if (state === 'failed') icon = 'closeCircleLine';
+    if (state === 'succeeded') icon = 'checkCircleLine';
+    if (state === 'no-result') icon = 'errorWarningLine';
+  }
   return (
     <Icon
       name={icon}
@@ -132,10 +243,12 @@ function ActionStatus({
   state,
   durationMs,
   terminated,
+  detail,
 }: {
   state: ActivityState;
   durationMs: number | null;
   terminated: boolean;
+  detail?: string | undefined;
 }) {
   if (state === 'running' && !terminated) {
     return (
@@ -150,6 +263,7 @@ function ActionStatus({
   return (
     <span className={cn('inline-flex items-center gap-tight', actionStateClass(state))}>
       <span>{label}</span>
+      {detail ? <span className="font-code">{detail}</span> : null}
       {durationMs !== null ? <span className="font-code">{formatDuration(durationMs)}</span> : null}
     </span>
   );
