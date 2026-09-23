@@ -49,6 +49,7 @@ describe('workflow template loader', () => {
   it('does not expose test fixtures through the shipped loader', () => {
     expect(loadShippedTemplates().map((template) => template.manifest.id)).toEqual([
       'fix-dependency-ci',
+      'ticket-to-pr',
     ]);
   });
 
