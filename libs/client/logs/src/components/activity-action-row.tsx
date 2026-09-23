@@ -99,7 +99,7 @@ export function ActivityActionRow({
           </span>
         </span>
       </LogDisclosureTrigger>
-      <LogDisclosureContent className="border-l-0">
+      <LogDisclosureContent className="border-l-0 pb-row">
         {hasPresentedDetail ? (
           <PresentedDetails detail={resolvedPresentation.detail ?? null} />
         ) : (
@@ -228,15 +228,14 @@ function StructuredValue({value, depth}: {value: unknown; depth: number}) {
     return <LogContent>{Array.isArray(value) ? '[]' : '{}'}</LogContent>;
   }
   return (
-    <div className="flex min-w-0 flex-col gap-tight">
+    <div className={cn('flex min-w-0 flex-col', depth > 0 && 'gap-inline')}>
       {entries.slice(0, showAll ? undefined : 30).map(([key, item]) => (
-        <div
+        <StructuredEntry
           key={key}
-          className="min-w-0 border-b border-border-contrast-base pb-tight last:border-0"
-        >
-          <span className="font-display text-xs text-foreground-contrast-secondary">{key}</span>
-          <StructuredValue value={item} depth={depth + 1} />
-        </div>
+          label={structuredEntryLabel(key, value)}
+          item={item}
+          depth={depth}
+        />
       ))}
       {entries.length > 30 && !showAll ? (
         <button
@@ -244,9 +243,46 @@ function StructuredValue({value, depth}: {value: unknown; depth: number}) {
           className="w-fit cursor-pointer text-foreground-contrast-secondary underline"
           onClick={() => setShowAll(true)}
         >
-          Show all {entries.length} items
+          Show all {entries.length} {collectionLabel(value)}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function structuredEntryLabel(key: string, collection: unknown): string {
+  return Array.isArray(collection) ? `Item ${key}` : key;
+}
+
+function collectionLabel(value: unknown): string {
+  return Array.isArray(value) ? 'items' : 'fields';
+}
+
+function StructuredEntry({label, item, depth}: {label: string; item: unknown; depth: number}) {
+  const isGroup = item !== null && typeof item === 'object' && depth < 2;
+  const heading =
+    isGroup && Array.isArray(item)
+      ? `${label} · ${item.length} ${item.length === 1 ? 'item' : 'items'}`
+      : label;
+  return (
+    <div
+      className={cn(
+        'min-w-0',
+        depth === 0 &&
+          'border-b border-border-contrast-base pb-8 pt-6 first:pt-0 last:border-0 last:pb-0',
+      )}
+    >
+      <span
+        className={cn(
+          'font-display text-xs text-foreground-contrast-secondary',
+          isGroup && 'font-medium text-foreground-contrast-primary',
+        )}
+      >
+        {heading}
+      </span>
+      <div className={isGroup ? 'min-w-0 pl-12 pt-tight' : undefined}>
+        <StructuredValue value={item} depth={depth + 1} />
+      </div>
     </div>
   );
 }

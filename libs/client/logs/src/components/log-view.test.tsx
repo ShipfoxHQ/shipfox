@@ -90,6 +90,54 @@ describe('LogView', () => {
     expect(screen.queryByText('{"workspace":"shipfox"}')).not.toBeInTheDocument();
   });
 
+  test('shows nested objects and arrays as labeled groups', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'grouped',
+            name: 'example_main__read',
+            input: '{}',
+          }),
+          agentSession(
+            {
+              kind: 'tool-result',
+              timestamp: ts + 1,
+              toolCallId: 'grouped',
+              toolName: 'read',
+              output: '{"fields":{"summary":"Review"},"results":[{"title":"Launch"}]}',
+              isError: false,
+            },
+            1,
+          ),
+        ]}
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'example',
+            connectionId: 'id',
+            connectionSlug: 'example-main',
+            toolId: 'read',
+            sensitivity: 'read',
+          },
+        ])}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Example · Read'));
+
+    expect(screen.getByText('fields').nextElementSibling).toContainElement(
+      screen.getByText('summary'),
+    );
+    expect(screen.getByText('results · 1 item').nextElementSibling).toContainElement(
+      screen.getByText('Item 1'),
+    );
+    expect(screen.getByText('Item 1').nextElementSibling).toContainElement(
+      screen.getByText('title'),
+    );
+  });
+
   test('keeps deeply nested integration output viewable', () => {
     const nested = `${'['.repeat(12_000)}0${']'.repeat(12_000)}`;
     render(
