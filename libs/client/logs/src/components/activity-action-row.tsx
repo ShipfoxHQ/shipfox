@@ -226,7 +226,7 @@ function ActionStatus({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-tight',
+        'inline-flex items-center gap-inline',
         state === 'failed' ? 'text-tag-error-icon' : 'text-foreground-contrast-secondary',
       )}
     >
@@ -238,7 +238,11 @@ function ActionStatus({
           aria-hidden="true"
         />
       ) : null}
-      {detail ? <span className="font-code">{detail}</span> : null}
+      {detail ? (
+        <span className="rounded-4 border border-border-contrast-bottom bg-background-contrast-base px-tight font-code">
+          {detail}
+        </span>
+      ) : null}
       {durationMs !== null ? <span className="font-code">{formatDuration(durationMs)}</span> : null}
     </span>
   );
