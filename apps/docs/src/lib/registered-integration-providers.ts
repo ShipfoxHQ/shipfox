@@ -66,6 +66,14 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     displayPriority: 1,
   },
   {
+    slug: 'posthog',
+    kind: 'catalog',
+    connectable: true,
+    capabilities: ['agent_tools'],
+    category: 'observability',
+    displayPriority: 2,
+  },
+  {
     slug: 'slack',
     kind: 'catalog',
     connectable: true,

@@ -63,6 +63,10 @@ import {
   linearAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-linear/agent-tools';
 import {linearEventCatalog} from '@shipfox/api-integration-linear-dto';
+import {
+  posthogAgentToolCatalog,
+  posthogAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-posthog/agent-tools';
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {
   shipfoxAgentToolCatalog,
@@ -122,6 +126,10 @@ const dtoCatalogBySlug = {
     eventCatalog: linearEventCatalog,
     toolCatalog: linearAgentToolCatalog,
     toolSelectionCatalog: linearAgentToolSelectionCatalog,
+  },
+  posthog: {
+    toolCatalog: posthogAgentToolCatalog,
+    toolSelectionCatalog: posthogAgentToolSelectionCatalog,
   },
   sentry: {
     eventCatalog: sentryEventCatalog,
@@ -298,8 +306,13 @@ function renderIntegrationToolReference(provider) {
     catalog: provider.toolCatalog,
     selectors: provider.toolSelectionCatalog.selectors,
     connection: provider.slug === 'shipfox' ? 'shipfox' : `${provider.slug}_acme`,
+    replaceConnection: provider.slug !== 'shipfox',
   });
-  return JSON.stringify(document, null, 2);
+  return JSON.stringify(document, generatedDocumentReplacer, 2);
+}
+
+function generatedDocumentReplacer(_key, value) {
+  return typeof value === 'string' ? value.replaceAll(/[ \t]*\u2014[ \t]*/g, ': ') : value;
 }
 
 function renderMcpToolReference() {

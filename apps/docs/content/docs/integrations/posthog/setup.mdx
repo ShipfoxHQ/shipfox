@@ -1,0 +1,129 @@
+---
+title: "Connect PostHog to a Shipfox workspace"
+sidebarTitle: "Setup"
+description: "Create a project-scoped personal API key, connect its PostHog project, and verify read-only tool access."
+---
+
+Connect PostHog when a workflow needs read-only access to one cloud project.
+See the [PostHog overview](/integrations/posthog) for the supported regions and
+access boundary.
+
+## Before you begin
+
+You need access to integration settings in the Shipfox workspace. You also need
+a PostHog US Cloud or EU Cloud user with access to the target project.
+
+Use a dedicated PostHog service user. PostHog binds the key to this user, so
+deactivating or deleting the user breaks the integration connection.
+
+## Create the personal API key
+
+<Steps>
+  <Step>
+
+    **Open the personal API key settings**
+
+    Sign in to PostHog as the dedicated service user. Open **Personal API
+    keys** in account settings.
+
+    PostHog's [personal API key guide](https://posthog.com/docs/api/personal-api-keys)
+    shows the current location of this page.
+  </Step>
+  <Step>
+
+    **Create a project-scoped key**
+
+    Select **Create a personal API key**. Give the key a label that identifies
+    Shipfox, then limit its access to exactly one PostHog project.
+
+    An organization security setting can block personal keys for non-admin
+    users. Ask a PostHog organization admin to review that setting if creation
+    is unavailable.
+  </Step>
+  <Step>
+
+    **Grant the minimum scopes**
+
+    Grant only these ten read scopes:
+
+    ```text
+    dashboard:read
+    error_tracking:read
+    event_definition:read
+    experiment:read
+    feature_flag:read
+    insight:read
+    project:read
+    property_definition:read
+    query:read
+    survey:read
+    ```
+
+    The recommended project-scoped key does not need `organization:read`.
+  </Step>
+  <Step>
+
+    **Copy the key**
+
+    Copy the `phx_` value when PostHog displays it. PostHog does not show the
+    complete value again after you leave the page.
+  </Step>
+</Steps>
+
+## Connect the PostHog project
+
+<Steps>
+  <Step>
+
+    **Start the integration connection**
+
+    Open **Settings → Integrations** in the Shipfox workspace. Select
+    **PostHog**.
+  </Step>
+  <Step>
+
+    **Choose the cloud region**
+
+    Select **US Cloud** or **EU Cloud**. Choose the region that contains the
+    target PostHog project.
+  </Step>
+  <Step>
+
+    **Enter the personal API key**
+
+    Paste the `phx_` value, then select **Connect**. Shipfox checks the key's
+    project access and confirms that it can run queries.
+  </Step>
+  <Step>
+
+    **Choose a project when prompted**
+
+    A key with access to several projects opens a project picker. Select the
+    one project for this integration connection.
+  </Step>
+  <Step>
+
+    **Record the integration connection slug**
+
+    Open the new integration connection's menu. Select **Use this
+    integration**, then copy the slug. Workflows use it as `connection`.
+  </Step>
+</Steps>
+
+## Verify the integration connection
+
+Open **Settings → Integrations**. Check that the PostHog integration connection
+is active and advertises Agent tools.
+
+Run either probe on the [PostHog tools page](/integrations/posthog/tools).
+Confirm that the result contains `shipfox_probe` with the value `1`.
+
+## Replace an API key
+
+Create another key for the same PostHog project with the ten required scopes.
+Open the PostHog integration connection, then select **Replace API key** in the
+**API key** panel.
+
+Paste the new key and select **Replace API key**. Shipfox checks the project and
+query access before replacing the old key. The integration connection and its
+workflow slug stay the same.

@@ -48,6 +48,11 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 11,
       toolCount: 6,
     },
+    posthog: {
+      capabilities: ['agent_tools'],
+      eventCount: 0,
+      toolCount: 19,
+    },
     shipfox: {capabilities: ['agent_tools'], eventCount: 0, toolCount: 7},
   },
   integrationDirectories: {
@@ -101,6 +106,11 @@ const validInput: IntegrationDocsCompletenessInput = {
         aliases: ['tasks', 'project management', 'tickets'],
       },
     ),
+    posthog: directory('posthog', ['index', 'setup', 'tools'], ['setup', 'tools'], {
+      capabilities: ['agent_tools'],
+      categories: ['observability'],
+      aliases: ['analytics', 'product analytics', 'feature flags', 'experiments'],
+    }),
     shipfox: directory('shipfox', ['index', 'tools'], ['tools'], {
       capabilities: ['agent_tools'],
       categories: ['built-in'],
