@@ -1,5 +1,12 @@
 # @shipfox/client-integrations
 
+## 52.0.1
+
+### Patch Changes
+
+- c021e83: Fixes PostHog setup and key replacement for project-scoped personal API keys.
+  Checks required read scopes and shows actionable errors for integration connection failures.
+
 ## 51.0.0
 
 ### Patch Changes

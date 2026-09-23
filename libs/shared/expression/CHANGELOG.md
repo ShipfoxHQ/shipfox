@@ -1,5 +1,12 @@
 # @shipfox/expression
 
+## 2.11.2
+
+### Patch Changes
+
+- Updated dependencies [3494bf1]
+  - @shipfox/workflow-document@3.10.0
+
 ## 2.11.1
 
 ### Patch Changes

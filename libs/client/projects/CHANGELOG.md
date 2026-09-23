@@ -1,5 +1,14 @@
 # @shipfox/client-projects
 
+## 52.0.1
+
+### Patch Changes
+
+- Updated dependencies [c021e83]
+  - @shipfox/client-integrations@52.0.1
+  - @shipfox/api-definitions-dto@32.2.0
+  - @shipfox/client-agent@52.0.1
+
 ## 52.0.0
 
 ### Patch Changes
