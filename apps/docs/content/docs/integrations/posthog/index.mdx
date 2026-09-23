@@ -1,0 +1,48 @@
+---
+title: "PostHog integration"
+sidebarTitle: "Overview"
+description: "Connect one PostHog project and let workflows read its product analytics through PostHog tools."
+catalog:
+  name: "PostHog"
+  summary: "Read product analytics, insights, dashboards, errors, feature flags, experiments, and surveys from one PostHog project."
+  capabilities: ["agent_tools"]
+  categories: ["observability"]
+  aliases: ["analytics", "product analytics", "feature flags", "experiments"]
+  icon: "posthog"
+---
+
+The PostHog integration lets workflows inspect product data and configuration.
+It supports PostHog US Cloud and EU Cloud. Self-hosted PostHog is not supported.
+
+Every PostHog tool is read-only. Shipfox also asks PostHog's hosted tool server
+to advertise only read-only tools.
+
+## Authentication
+
+Shipfox authenticates with a PostHog personal API key. The key must begin with
+`phx_` and have access to the selected PostHog project.
+
+PostHog binds each personal API key to the user who created it. The integration
+connection stops working if PostHog deactivates or deletes that user.
+
+Use a dedicated PostHog service user for a stable integration connection. Grant
+its key only the project and read scopes listed in the [setup guide](/integrations/posthog/setup).
+
+## Integration connection identity
+
+One PostHog integration connection represents one PostHog project. Shipfox
+names the integration connection after that project.
+
+The slug of a PostHog integration connection defaults to `posthog_<project>`,
+where `<project>` is the normalized project name. For example,
+`posthog_product_analytics`. Shipfox makes the slug unique within the workspace.
+
+Use the slug as `connection` in an agent integration or tool step.
+
+## Capabilities
+
+| Capability | Details |
+| --- | --- |
+| Tools | [View PostHog tools and examples](/integrations/posthog/tools). |
+
+[Connect PostHog](/integrations/posthog/setup) to create an integration connection.

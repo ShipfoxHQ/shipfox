@@ -12,6 +12,7 @@ const expectedProviderOrder = [
   'jira',
   'clickup',
   'sentry',
+  'posthog',
   'slack',
   'webhooks',
 ];

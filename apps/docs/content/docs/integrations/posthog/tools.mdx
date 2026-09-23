@@ -1,0 +1,68 @@
+---
+title: "PostHog tools"
+sidebarTitle: "Tools"
+description: "Look up PostHog's read-only tools, selectors, inputs, and examples for agent steps and tool steps."
+toolReference: "integrations/posthog/tools"
+---
+
+This reference lists the shipped PostHog tool catalog. See the [PostHog
+overview](/integrations/posthog) for authentication and project boundaries.
+
+## Select tools
+
+Each PostHog tool has a standalone selector such as `execute-sql`. Use the same
+selector in a tool step's `tool` field or an agent integration's `include` list.
+
+Replace `posthog_product_analytics` in these examples with the slug of your
+PostHog integration connection.
+
+## Use an agent step
+
+Add this fragment under an existing job's `steps` list. The agent can call only
+`execute-sql` through this integration connection:
+
+```yaml
+- key: verify_posthog_with_agent
+  prompt: |
+    Call execute-sql with the query `SELECT 1 AS shipfox_probe`.
+    Report the returned shipfox_probe value.
+  integrations:
+    - connection: posthog_product_analytics
+      include: [execute-sql]
+```
+
+## Use a tool step
+
+Add this fragment under an existing job's `steps` list. The step calls
+`execute-sql` directly:
+
+```yaml
+- key: verify_posthog_with_tool
+  tool: execute-sql
+  connection: posthog_product_analytics
+  with:
+    query: SELECT 1 AS shipfox_probe
+```
+
+The complete response is available as
+`steps.verify_posthog_with_tool.outputs.result`.
+
+For the field contracts, see [Tool step
+fields](/reference/workflow-schema#tool-step-fields) and [Agent integration
+fields](/reference/workflow-schema#agent-integration-fields).
+
+## Failures
+
+PostHog tool failures keep PostHog's own message. A missing-scope failure names
+the missing PostHog scope. A rate-limit failure includes PostHog's retry delay
+after PostHog finishes its own retries.
+
+Replace a rejected or revoked key from the integration connection's **API key**
+panel. See [Replace an API key](/integrations/posthog/setup#replace-an-api-key).
+
+## Tool catalog
+
+All tools require the read access configured in the [personal API key
+recipe](/integrations/posthog/setup#create-the-personal-api-key).
+
+<ToolReference />

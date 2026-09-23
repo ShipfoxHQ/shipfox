@@ -19,6 +19,7 @@ export const INTEGRATION_CATALOG_ICONS = [
   'slack',
   'jira',
   'clickup',
+  'posthog',
   'shipfox',
 ] as const;
 
