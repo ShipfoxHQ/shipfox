@@ -318,7 +318,7 @@ const nativeEdgeRecords = [
     {
       name: 'Read',
       input: {file_path: 'src/large.ts'},
-      output: 'export const value = 1;\n'.repeat(350),
+      output: `export const value = 1;\nexport const payload = "${'x'.repeat(5_100)}";`,
     },
   ]),
   {v: 1, ts: at(15), type: 'end', totalBytes: 18_000} as LogRecord,
@@ -944,7 +944,7 @@ export const IntegrationProviderActions: Story = {
     docs: {
       description: {
         story:
-          'One recorded action for each integration with agent tools. Sentry and Webhook receive events but do not expose agent tools.',
+          'GitHub, Gitea, Linear, and Jira actions with expanded results. Sentry and Webhook receive events but do not expose agent tools.',
       },
     },
   },
@@ -952,7 +952,33 @@ export const IntegrationProviderActions: Story = {
     <div className="max-w-3xl">
       <LogView
         {...args}
-        records={integrationProviderRecords}
+        records={integrationProviderRecords.slice(0, 8)}
+        actionPresentation={createIntegrationActionPresentationLookup(integrationProviderTools)}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    for (const button of canvas.getAllByRole('button')) {
+      if (button.hasAttribute('aria-expanded')) await userEvent.click(button);
+    }
+  },
+};
+
+export const IntegrationProviderActionsMore: Story = {
+  args: {showLineNumbers: true},
+  parameters: {
+    docs: {
+      description: {
+        story: 'ClickUp, Notion, Slack, and PostHog actions with expanded results.',
+      },
+    },
+  },
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView
+        {...args}
+        records={integrationProviderRecords.slice(8)}
         actionPresentation={createIntegrationActionPresentationLookup(integrationProviderTools)}
       />
     </div>
