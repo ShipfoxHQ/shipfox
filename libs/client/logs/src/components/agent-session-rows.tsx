@@ -8,15 +8,17 @@ import {
   LogDisclosureTrigger,
   LogRow,
 } from '@shipfox/react-ui/log';
+import {Markdown} from '@shipfox/react-ui/markdown';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@shipfox/react-ui/tooltip';
 import {cn} from '@shipfox/react-ui/utils';
-import {Fragment, useEffect, useState} from 'react';
+import {Fragment, type ReactNode, useEffect, useState} from 'react';
 import type {SessionViewRow, SessionViewRowMeta} from '#core/log-model.js';
 
 const PREVIEW_CHAR_LIMIT = 1200;
 const WORD_SUMMARY_CHAR_LIMIT = 5000;
 const WHITESPACE = /\s+/g;
 const WORD_SEPARATOR = /\s+/;
+const ROUTINE_SETUP_LABEL = /^(session started|turn \d+ started)$/i;
 
 export interface AgentSessionRowsProps {
   rows: readonly SessionViewRow[];
@@ -103,7 +105,14 @@ function AgentSessionRowView({
         />
       );
     case 'lifecycle':
-      return <SessionLifecycleRow row={row} lineNumber={lineNumber} indent={indent} />;
+      return (
+        <SessionLifecycleRow
+          row={row}
+          lineNumber={lineNumber}
+          indent={indent}
+          disclosure={disclosureProps}
+        />
+      );
     case 'raw':
       return (
         <SessionRawRow
@@ -137,20 +146,18 @@ function SessionMessageRow({
       tone={row.terminalFailure ? 'error' : 'default'}
       data-log-terminal-failure={row.terminalFailure ? 'true' : undefined}
     >
-      <LogContent className="text-foreground-contrast-primary">
-        <span className="flex min-w-0 items-start gap-inline">
-          <MessageIcon role={row.role} terminalFailure={row.terminalFailure} />
-          <span className="flex min-w-0 flex-1 flex-col gap-tight">
-            <span className="flex min-w-0 items-center gap-inline">
-              <MessageRoleLabel label={row.label} terminalFailure={row.terminalFailure} />
-              <RowMetadata meta={row.meta} className="ml-auto flex-none" />
-            </span>
-            <span className="block min-w-0">
-              <PreviewText text={row.text} />
-            </span>
-          </span>
-        </span>
-      </LogContent>
+      <div className="flex min-w-0 items-start gap-inline text-foreground-contrast-primary">
+        <MessageIcon role={row.role} terminalFailure={row.terminalFailure} />
+        <div className="flex min-w-0 flex-1 flex-col gap-tight">
+          <div className="flex min-w-0 items-center gap-inline">
+            <MessageRoleLabel label={row.label} terminalFailure={row.terminalFailure} />
+            <RowMetadata meta={row.meta} className="ml-auto flex-none" />
+          </div>
+          <div className="block min-w-0">
+            <MarkdownPreview text={row.text} />
+          </div>
+        </div>
+      </div>
     </LogRow>
   );
 }
@@ -166,6 +173,8 @@ function SessionThinkingRow({
   indent: number;
   disclosure: DisclosureState;
 }) {
+  if (!row.text.trim()) return null;
+
   return (
     <LogDisclosure indent={indent} {...disclosure}>
       <LogDisclosureTrigger
@@ -300,11 +309,33 @@ function SessionLifecycleRow({
   row,
   lineNumber,
   indent,
+  disclosure,
 }: {
   row: Extract<SessionViewRow, {kind: 'lifecycle'}>;
   lineNumber: number;
   indent: number;
+  disclosure: DisclosureState;
 }) {
+  if (isRoutineSetup(row.label)) {
+    return (
+      <LogDisclosure indent={indent} {...disclosure}>
+        <LogDisclosureTrigger
+          lineNumber={lineNumber}
+          timestamp={new Date(row.timestamp)}
+          summary="setup"
+          className="text-foreground-contrast-secondary"
+        >
+          {row.label}
+        </LogDisclosureTrigger>
+        <LogDisclosureContent className="text-foreground-contrast-secondary">
+          <LogContent className="text-foreground-contrast-secondary">
+            {row.detail ?? row.meta.map((meta) => `${meta.label}: ${meta.value}`).join(' · ')}
+          </LogContent>
+        </LogDisclosureContent>
+      </LogDisclosure>
+    );
+  }
+
   return (
     <LogRow
       lineNumber={lineNumber}
@@ -343,6 +374,10 @@ function SessionLifecycleRow({
       </LogContent>
     </LogRow>
   );
+}
+
+function isRoutineSetup(label: string): boolean {
+  return ROUTINE_SETUP_LABEL.test(label.trim());
 }
 
 function lifecycleIcon(tone: Extract<SessionViewRow, {kind: 'lifecycle'}>['tone']): IconName {
@@ -470,14 +505,27 @@ function MetadataTrigger({meta}: {meta: readonly SessionViewRowMeta[]}) {
   );
 }
 
-function PreviewText({text}: {text: string}) {
+function MarkdownPreview({text}: {text: string}) {
+  if (text.length <= PREVIEW_CHAR_LIMIT) {
+    return <Markdown className="text-foreground-contrast-primary">{text}</Markdown>;
+  }
+
+  return (
+    <PreviewText
+      text={text}
+      expandedContent={<Markdown className="text-foreground-contrast-primary">{text}</Markdown>}
+    />
+  );
+}
+
+function PreviewText({text, expandedContent}: {text: string; expandedContent?: ReactNode}) {
   const [expanded, setExpanded] = useState(false);
   const truncated = text.length > PREVIEW_CHAR_LIMIT;
   const visible = truncated && !expanded ? `${text.slice(0, PREVIEW_CHAR_LIMIT)}…` : text;
 
   return (
     <>
-      {visible}
+      {expanded && expandedContent != null ? expandedContent : visible}
       {truncated ? (
         <button
           type="button"

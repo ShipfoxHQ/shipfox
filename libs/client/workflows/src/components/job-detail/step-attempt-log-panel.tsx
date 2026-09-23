@@ -172,6 +172,7 @@ export function StepAttemptLogPanel({
         search={search}
         timestamps={timestamps}
         onTimestampsClick={onTimestampsClick}
+        attemptStatus={attemptStatus}
         wrap={wrap}
         showLineNumbers={showLineNumbers}
         emptyState={query.data?.complete ? 'complete' : 'pending'}

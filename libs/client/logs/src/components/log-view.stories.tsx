@@ -1,8 +1,11 @@
+import {Text} from '@shipfox/react-ui/typography';
 import type {Meta, StoryObj} from '@storybook/react';
+import {userEvent, within} from 'storybook/test';
 import type {LogRecord, SessionViewRow} from '#core/log-model.js';
 import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
+const READ_FILE_BUTTON_NAME = /Read File/;
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
 const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
 
@@ -69,6 +72,42 @@ const toolResultResolutionRecords: LogRecord[] = [
       toolName: 'tool',
       output: 'The matching call was not included in this stream.',
       isError: true,
+    },
+    2,
+  ),
+];
+
+const pairedActivityRecords: LogRecord[] = [
+  session(
+    {
+      kind: 'message',
+      timestamp: 0,
+      role: 'assistant',
+      label: 'assistant',
+      meta: [],
+      text: '**Plan**\n\n- Read `src/login-form.tsx`.\n- Check the error handling.',
+      terminalFailure: false,
+    },
+    0,
+  ),
+  session(
+    {
+      kind: 'tool-call',
+      timestamp: 0,
+      id: 'read-login-form',
+      name: 'read_file',
+      input: '{"path":"src/login-form.tsx"}',
+    },
+    1,
+  ),
+  session(
+    {
+      kind: 'tool-result',
+      timestamp: 0,
+      toolCallId: 'read-login-form',
+      toolName: 'read_file',
+      output: 'export function LoginForm() { /* ... */ }',
+      isError: false,
     },
     2,
   ),
@@ -581,6 +620,22 @@ export const UnifiedAgentSession: Story = {
       <LogView {...args} records={unifiedAgentRecords} />
     </div>
   ),
+};
+
+export const PairedActivityAndMarkdown: Story = {
+  render: (args) => (
+    <div className="flex max-w-3xl flex-col gap-section">
+      <Text size="sm" className="text-foreground-neutral-muted">
+        The Read File action combines a tool request and its result. The assistant message keeps its
+        Markdown formatting.
+      </Text>
+      <LogView {...args} records={pairedActivityRecords} />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: READ_FILE_BUTTON_NAME}));
+  },
 };
 
 export const ProviderRecoveryStates: Story = {
