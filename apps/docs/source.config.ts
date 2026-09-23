@@ -38,7 +38,12 @@ export const docs = defineDocs({
     }),
     postprocess: {
       includeProcessedMarkdown: {
-        mdxAsPlaceholder: ['IntegrationCatalog', 'ToolReference', 'EventReference'],
+        mdxAsPlaceholder: [
+          'EditionsComparison',
+          'IntegrationCatalog',
+          'ToolReference',
+          'EventReference',
+        ],
         stringify: stringifyMachineReadableComponent,
       },
     },

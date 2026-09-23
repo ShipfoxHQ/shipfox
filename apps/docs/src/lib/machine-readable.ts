@@ -1,5 +1,6 @@
 import type {LLMsOptions} from 'fumadocs-core/mdx-plugins';
 import {canonicalDocsOrigin} from './canonical-docs-origin';
+import {serializeEditionsComparison} from './editions';
 import type {EventReferenceDocument} from './event-reference/document';
 import {
   type CatalogProvider,
@@ -214,6 +215,8 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
   if (!isMdxElement(node)) return undefined;
 
   switch (node.name) {
+    case 'EditionsComparison':
+      return `\0${JSON.stringify({name: 'EditionsComparison', children: '', attributes: {}})}\0`;
     case 'ModelCatalog':
       return `\0${JSON.stringify({name: 'ModelCatalog', children: '', attributes: {}})}\0`;
     case 'Callout':
@@ -261,6 +264,7 @@ type PlaceholderOptions = Pick<
 >;
 
 const placeholderSerializers: Record<string, (options: PlaceholderOptions) => string> = {
+  EditionsComparison: () => serializeEditionsComparison(),
   IntegrationCatalog: (options) => {
     if (!options.integrationCatalog) {
       throw new Error('Integration catalog data is unavailable for machine-readable Markdown.');
