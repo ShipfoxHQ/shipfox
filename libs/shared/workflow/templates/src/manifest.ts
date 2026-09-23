@@ -1,3 +1,4 @@
+import {agentThinkingSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 
 const identifierSchema = z
@@ -55,6 +56,11 @@ export const workflowTemplateOptionSchema = z
     }
   });
 
+export const workflowTemplateModelSchema = z.object({
+  reference: z.object({model: z.string().min(1), thinking: agentThinkingSchema}).optional(),
+  note: z.string().min(1).optional(),
+});
+
 export const workflowTemplateManifestSchema = z.object({
   id: identifierSchema,
   revision: z.number().int().positive(),
@@ -65,6 +71,7 @@ export const workflowTemplateManifestSchema = z.object({
     .record(identifierSchema, workflowTemplateRoleSchema)
     .refine((roles) => Object.keys(roles).length > 0, 'A template must declare at least one role'),
   options: z.array(workflowTemplateOptionSchema).default([]),
+  models: z.record(identifierSchema, workflowTemplateModelSchema).default({}),
   slots: z.array(identifierSchema).default([]),
   secrets: z.array(environmentNameSchema).default([]),
   variables: z.array(environmentNameSchema).default([]),
@@ -73,6 +80,7 @@ export const workflowTemplateManifestSchema = z.object({
 export type WorkflowTemplateRole = z.infer<typeof workflowTemplateRoleSchema>;
 export type WorkflowTemplateOptionChoice = z.infer<typeof workflowTemplateOptionChoiceSchema>;
 export type WorkflowTemplateOption = z.infer<typeof workflowTemplateOptionSchema>;
+export type WorkflowTemplateModel = z.infer<typeof workflowTemplateModelSchema>;
 export type WorkflowTemplateManifest = z.infer<typeof workflowTemplateManifestSchema>;
 
 export const templateManifestSchema = workflowTemplateManifestSchema;

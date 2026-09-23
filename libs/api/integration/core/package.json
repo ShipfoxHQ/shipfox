@@ -83,6 +83,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:",
     "@shipfox/api-integration-clickup-dto": "workspace:*",
     "@shipfox/api-integration-github-dto": "workspace:*",
     "@shipfox/api-integration-jira-dto": "workspace:*",
