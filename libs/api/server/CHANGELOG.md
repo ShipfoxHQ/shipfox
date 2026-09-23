@@ -1,5 +1,27 @@
 # @shipfox/api-server
 
+## 32.2.0
+
+### Patch Changes
+
+- Updated dependencies [d593e1b]
+- Updated dependencies [3494bf1]
+  - @shipfox/workflow-templates@0.5.0
+  - @shipfox/api-agent-dto@32.2.0
+  - @shipfox/api-agent@32.2.0
+  - @shipfox/api-agent-access@32.2.0
+  - @shipfox/api-integration-core@32.2.0
+  - @shipfox/api-definitions@32.2.0
+  - @shipfox/api-definitions-dto@32.2.0
+  - @shipfox/api-logs@32.2.0
+  - @shipfox/api-triggers@32.2.0
+  - @shipfox/api-workflows@32.2.0
+  - @shipfox/api-workflows-dto@32.2.0
+  - @shipfox/api-dispatcher@29.0.0
+  - @shipfox/api-triggers-dto@32.2.0
+  - @shipfox/api-runners@32.2.0
+  - @shipfox/api-usage@32.2.0
+
 ## 32.1.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/api-agent-access-dto
 
+## 32.2.0
+
+### Minor Changes
+
+- 3494bf1: Adds a `default` thinking option that requests the provider default without applying workspace or deployment overrides.
+
 ## 32.0.0
 
 ### Major Changes

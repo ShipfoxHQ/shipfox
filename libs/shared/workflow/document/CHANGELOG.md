@@ -1,5 +1,11 @@
 # @shipfox/workflow-document
 
+## 3.10.0
+
+### Minor Changes
+
+- 3494bf1: Adds a `default` thinking option that requests the provider default without applying workspace or deployment overrides.
+
 ## 3.9.0
 
 ### Minor Changes

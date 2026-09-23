@@ -1,5 +1,17 @@
 # @shipfox/workflow-templates
 
+## 0.5.0
+
+### Minor Changes
+
+- d593e1b: Adds a Linear ticket to pull request template with GitHub feedback handling.
+- 3494bf1: Adds a `default` thinking option that requests the provider default without applying workspace or deployment overrides.
+
+### Patch Changes
+
+- Updated dependencies [3494bf1]
+  - @shipfox/workflow-document@3.10.0
+
 ## 0.4.0
 
 ### Minor Changes

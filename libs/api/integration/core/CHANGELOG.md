@@ -1,5 +1,18 @@
 # @shipfox/api-integration-core
 
+## 32.2.0
+
+### Patch Changes
+
+- Updated dependencies [3494bf1]
+- Updated dependencies [c021e83]
+  - @shipfox/api-agent-dto@32.2.0
+  - @shipfox/api-integration-posthog@32.2.0
+  - @shipfox/api-definitions-dto@32.2.0
+  - @shipfox/api-workflows-dto@32.2.0
+  - @shipfox/api-integration-shipfox@32.2.0
+  - @shipfox/api-triggers-dto@32.2.0
+
 ## 32.1.0
 
 ### Patch Changes

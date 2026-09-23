@@ -1,5 +1,15 @@
 # @shipfox/api-definitions
 
+## 32.2.0
+
+### Patch Changes
+
+- Updated dependencies [3494bf1]
+  - @shipfox/workflow-document@3.10.0
+  - @shipfox/api-agent-dto@32.2.0
+  - @shipfox/api-definitions-dto@32.2.0
+  - @shipfox/expression@2.11.2
+
 ## 32.1.0
 
 ### Patch Changes
