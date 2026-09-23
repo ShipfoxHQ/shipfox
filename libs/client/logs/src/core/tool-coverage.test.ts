@@ -27,12 +27,17 @@ const representativeInputs: Record<string, unknown> = {
   WebSearch: {query: 'shipfox'},
   set_output: {key: 'summary', value: 'done'},
   mcp__shipfox_outputs__set_output: {key: 'summary', value: 'done'},
+  mcp: {search: 'shipfox'},
 };
+
+/** Pi's discovery surface adds the proxy meta-tool outside both catalogs. */
+const PI_MCP_PROXY_TOOL_NAME = 'mcp';
 
 const emittedToolNames = [
   ...new Set([
     ...listHarnessDescriptors().flatMap((harness) => harness.tools.map((tool) => tool.name)),
     ...AGENT_OUTPUT_TOOL_NAMES,
+    PI_MCP_PROXY_TOOL_NAME,
   ]),
 ];
 

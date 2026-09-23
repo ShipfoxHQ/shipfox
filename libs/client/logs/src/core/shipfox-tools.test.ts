@@ -61,15 +61,16 @@ describe('shipfoxActionPresentation', () => {
     expect(shipfoxActionPresentation(rejected)?.statusDetail).toBe('rejected');
   });
 
-  test('keeps a Claude rejection failed through the error flag', () => {
+  test('keeps a Claude rejection failed through the error flag alone', () => {
     const rejected = action(
       'mcp__shipfox_outputs__set_output',
       {key: 'count', value: 'many'},
-      REJECTION,
+      'Output "count" must be a number',
       true,
     );
 
     expect(rejected.state).toBe('failed');
+    expect(shipfoxActionPresentation(rejected)?.statusDetail).toBeUndefined();
   });
 
   test('falls back when the input lacks a key or the name is not a Shipfox tool', () => {
