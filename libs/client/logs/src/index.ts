@@ -33,6 +33,7 @@ export {
   type OutputLogNode,
   type SessionLogNode,
 } from '#core/log-tree.js';
+export {nativeActionPresentation} from '#core/native-tools.js';
 export * from './components/index.js';
 export {
   isMissingStepLogStreamError,

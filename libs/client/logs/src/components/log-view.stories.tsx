@@ -6,6 +6,7 @@ import {LogView, LogViewSkeleton} from './log-view.js';
 
 const ESC = String.fromCharCode(27);
 const READ_FILE_BUTTON_NAME = /Read File/;
+const LARGE_READ_BUTTON_NAME = /Read File.*src\/large.ts/;
 const origin = new Date('2026-06-23T10:00:00.000Z').getTime();
 const at = (offsetSeconds: number) => origin + offsetSeconds * 1000;
 
@@ -111,6 +112,111 @@ const pairedActivityRecords: LogRecord[] = [
     },
     2,
   ),
+];
+
+function nativeToolRecords(
+  tools: readonly {
+    name: string;
+    input: Record<string, unknown>;
+    output: string;
+    isError?: boolean;
+  }[],
+): LogRecord[] {
+  return tools.flatMap((tool, index) => {
+    const offset = index * 2;
+    const id = `native-${index}`;
+    return [
+      session(
+        {kind: 'tool-call', timestamp: 0, id, name: tool.name, input: JSON.stringify(tool.input)},
+        offset,
+      ),
+      session(
+        {
+          kind: 'tool-result',
+          timestamp: 0,
+          toolCallId: id,
+          toolName: tool.name,
+          output: tool.output,
+          isError: tool.isError ?? false,
+        },
+        offset + 1,
+      ),
+    ];
+  });
+}
+
+const nativePiRecords = nativeToolRecords([
+  {
+    name: 'read',
+    input: {path: 'src/app.ts', offset: 12, limit: 8},
+    output: 'export function App() {}',
+  },
+  {
+    name: 'edit',
+    input: {path: 'src/app.ts', oldText: 'old', newText: 'new'},
+    output: 'Updated src/app.ts',
+  },
+  {name: 'write', input: {path: 'src/new.ts', content: 'export {}'}, output: 'Wrote src/new.ts'},
+  {
+    name: 'bash',
+    input: {command: 'pnpm test'},
+    output: '{"stdout":"17 tests passed","exitCode":0}',
+  },
+  {name: 'grep', input: {pattern: 'TODO', path: 'src'}, output: '{"matches":["src/app.ts:12"]}'},
+  {name: 'find', input: {pattern: '*.test.ts', path: 'src'}, output: 'src/app.test.ts'},
+  {name: 'ls', input: {path: 'src'}, output: '{"files":["app.ts","new.ts"]}'},
+]);
+
+const nativeClaudeRecords = nativeToolRecords([
+  {name: 'Read', input: {file_path: 'src/app.ts'}, output: 'export function App() {}'},
+  {
+    name: 'Edit',
+    input: {file_path: 'src/app.ts', old_string: 'old', new_string: 'new'},
+    output: 'Edited src/app.ts',
+  },
+  {
+    name: 'Write',
+    input: {file_path: 'src/new.ts', content: 'export {}'},
+    output: 'Wrote src/new.ts',
+  },
+  {name: 'Bash', input: {command: 'pnpm test'}, output: 'Exit code: 0\nOutput:\n17 tests passed'},
+  {name: 'Grep', input: {pattern: 'TODO', path: 'src'}, output: 'src/app.ts:12:TODO'},
+  {name: 'Glob', input: {pattern: '*.test.ts', path: 'src'}, output: 'src/app.test.ts'},
+  {name: 'LS', input: {path: 'src'}, output: 'app.ts\nnew.ts'},
+]);
+
+const nativeEdgeRecords = [
+  ...nativeToolRecords([
+    {name: 'read', input: {}, output: 'Missing path', isError: true},
+    {
+      name: 'bash',
+      input: {command: 'pnpm test'},
+      output: '{"stderr":"FAIL pi.test.ts","exitCode":1}',
+    },
+    {
+      name: 'read',
+      input: {path: 'src/pi-large.ts'},
+      output: 'export const pi = true;\n'.repeat(350),
+    },
+    {name: 'Read', input: {}, output: 'Missing file path', isError: true},
+    {
+      name: 'Bash',
+      input: {command: 'pnpm test'},
+      output: 'Exit code: 1\nOutput:\nFAIL app.test.ts',
+    },
+    {
+      name: 'Edit',
+      input: {file_path: 'src/app.ts', old_string: 'before', new_string: 'after'},
+      output: 'Could not find source text',
+      isError: true,
+    },
+    {
+      name: 'Read',
+      input: {file_path: 'src/large.ts'},
+      output: 'export const value = 1;\n'.repeat(350),
+    },
+  ]),
+  {v: 1, ts: at(15), type: 'end', totalBytes: 18_000} as LogRecord,
 ];
 
 const showcaseRecords: LogRecord[] = [
@@ -635,6 +741,34 @@ export const PairedActivityAndMarkdown: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', {name: READ_FILE_BUTTON_NAME}));
+  },
+};
+
+export const NativePiTools: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={nativePiRecords} />
+    </div>
+  ),
+};
+
+export const NativeClaudeTools: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={nativeClaudeRecords} />
+    </div>
+  ),
+};
+
+export const NativeMissingFailuresAndLargeResult: Story = {
+  render: (args) => (
+    <div className="max-w-3xl">
+      <LogView {...args} records={nativeEdgeRecords} />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', {name: LARGE_READ_BUTTON_NAME}));
   },
 };
 

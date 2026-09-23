@@ -6,9 +6,18 @@ import type {
   OutputLogNode,
   SessionLogNode,
 } from './log-tree.js';
+import {nativeShellExitCode} from './native-tools.js';
 
 export type ActivityState = 'running' | 'succeeded' | 'failed' | 'no-result';
-export type ActionIconKind = 'tool' | 'unknown';
+export type ActionIconKind =
+  | 'tool'
+  | 'unknown'
+  | 'file'
+  | 'edit'
+  | 'write'
+  | 'shell'
+  | 'search'
+  | 'list';
 export type ActionDetailKind = 'code' | 'markdown';
 export type ActionReadClassification = 'read' | 'write' | 'unknown';
 
@@ -22,6 +31,8 @@ export interface ActionPresentation {
   iconKind: ActionIconKind;
   detailKind: ActionDetailKind;
   readClassification?: ActionReadClassification | undefined;
+  statusDetail?: string | undefined;
+  detail?: {label: string; value: string; kind: ActionDetailKind} | null;
 }
 
 export interface PairedAction {
@@ -132,7 +143,9 @@ function appendToolResult(state: PairingState, source: SessionRowSource): void {
   action.result = source.row;
   action.resultSeq = source.seq;
   action.sourceSeqs = [action.requestSeq ?? action.key, source.seq];
-  action.state = source.row.isError ? 'failed' : 'succeeded';
+  const exitCode = nativeShellExitCode(action.request.name, source.row.output);
+  action.state =
+    source.row.isError || (exitCode !== null && exitCode !== 0) ? 'failed' : 'succeeded';
   action.durationMs = validDuration(action.request.timestamp, source.row.timestamp);
 }
 

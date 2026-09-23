@@ -5,6 +5,9 @@ import {LogView, LogViewSkeleton} from './log-view.js';
 const ts = new Date('2026-06-23T10:00:00.000Z').getTime();
 const THINKING_BUTTON_NAME = /thinking/i;
 const TOOL_BUTTON_NAME = /Tool/;
+const RUN_COMMAND_BUTTON_NAME = /Run Command/;
+const EDIT_FILE_BUTTON_NAME = /Edit File/;
+const READ_FILE_BUTTON_NAME = /Read File/;
 
 const output = (data: string): LogRecord => ({
   v: 1,
@@ -316,7 +319,8 @@ describe('LogView', () => {
 
     expect(screen.getByText('Edit File')).toBeInTheDocument();
     expect(screen.getByText('stdout between call and result')).toBeDefined();
-    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    expect(screen.getByText('succeeded')).toHaveClass('sr-only');
+    expect(screen.getByText('1ms').parentElement).toHaveClass('text-foreground-contrast-secondary');
     expect(screen.queryByText('result edit_file')).not.toBeInTheDocument();
   });
 
@@ -337,11 +341,14 @@ describe('LogView', () => {
     );
 
     expect(screen.getByText('Tool')).toBeInTheDocument();
-    expect(screen.getByText('succeeded')).toBeInTheDocument();
+    const statusLabel = screen.getByText('succeeded');
+    expect(statusLabel).toHaveClass('sr-only');
+    expect(statusLabel.parentElement?.querySelector('svg')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: TOOL_BUTTON_NAME}));
 
     expect(screen.getByText('result arrived without its call')).toBeInTheDocument();
+    expect(screen.getByText('Result')).toHaveClass('sr-only');
   });
 
   test('shows a running action when a tool call has no result yet', () => {
@@ -420,6 +427,106 @@ describe('LogView', () => {
     expect(screen.queryByText('result read_file')).not.toBeInTheDocument();
   });
 
+  test('renders native command output and exit status without raw payloads', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'shell',
+            name: 'Bash',
+            input: '{"command":"pnpm test"}',
+          }),
+          agentSession({
+            kind: 'tool-result',
+            timestamp: ts + 1,
+            toolCallId: 'shell',
+            toolName: 'tool',
+            output: 'Exit code: 1\nOutput:\nFAIL tests',
+            isError: false,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Run Command')).toBeInTheDocument();
+    expect(screen.getByText('pnpm test')).toBeInTheDocument();
+    expect(screen.getByText('failed')).toHaveClass('sr-only');
+    const exitCode = screen.getByText('exit 1');
+    expect(exitCode).not.toHaveClass('bg-background-contrast-base');
+    expect(exitCode.parentElement).toHaveClass('gap-inline', 'text-tag-error-icon');
+    expect(exitCode.nextElementSibling).toHaveClass('border-l');
+    expect(exitCode.nextElementSibling?.nextElementSibling).toHaveTextContent('1ms');
+    fireEvent.click(screen.getByRole('button', {name: RUN_COMMAND_BUTTON_NAME}));
+    const output = screen.getByText('FAIL tests');
+    expect(output.parentElement).toHaveClass('bg-background-contrast-base');
+    expect(screen.getByText('Output')).toHaveClass('sr-only');
+    expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
+    expect(screen.queryByText('{"command":"pnpm test"}')).not.toBeInTheDocument();
+  });
+
+  test('shows only a native edit path and status', () => {
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'edit',
+            name: 'Edit',
+            input: '{"file_path":"src/a.ts","old_string":"before","new_string":"after"}',
+          }),
+          agentSession({
+            kind: 'tool-result',
+            timestamp: ts + 1,
+            toolCallId: 'edit',
+            toolName: 'tool',
+            output: 'Edited src/a.ts',
+            isError: false,
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: EDIT_FILE_BUTTON_NAME}));
+    expect(screen.getAllByText('src/a.ts')).toHaveLength(2);
+    expect(screen.queryByText('Technical details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edited src/a.ts')).not.toBeInTheDocument();
+    expect(screen.queryByText('before')).not.toBeInTheDocument();
+  });
+
+  test('keeps a large native result bounded until requested', () => {
+    const result = 'A'.repeat(6000);
+    render(
+      <LogView
+        records={[
+          agentSession({
+            kind: 'tool-call',
+            timestamp: ts,
+            id: 'read',
+            name: 'Read',
+            input: '{"file_path":"src/a.ts"}',
+          }),
+          agentSession({
+            kind: 'tool-result',
+            timestamp: ts + 1,
+            toolCallId: 'read',
+            toolName: 'tool',
+            output: result,
+            isError: false,
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: READ_FILE_BUTTON_NAME}));
+    expect(screen.getByRole('button', {name: 'Show full result'})).toBeInTheDocument();
+    expect(screen.queryByText(result)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Show full result'}));
+    expect(screen.getByText(result)).toBeInTheDocument();
+  });
+
   test('shows no result instead of a spinner after a terminal attempt', () => {
     render(
       <LogView
@@ -437,6 +544,9 @@ describe('LogView', () => {
     );
 
     expect(screen.getByText('no result')).toBeInTheDocument();
+    expect(screen.getByText('no result').parentElement).toHaveClass(
+      'text-foreground-contrast-secondary',
+    );
     expect(screen.queryByText('running')).not.toBeInTheDocument();
   });
 
