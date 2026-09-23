@@ -20,9 +20,10 @@ export async function getLLMText(page: InferPageType<typeof source>) {
     throw new Error(`Documentation page "${source}" is missing a description.`);
   }
 
-  const integrationCatalog = processed.includes('IntegrationCatalog')
-    ? (await import('@/lib/integration-catalog-source')).getIntegrationCatalog()
-    : undefined;
+  const integrationCatalog =
+    processed.includes('IntegrationCatalog') || processed.includes('ComparisonTable')
+      ? (await import('@/lib/integration-catalog-source')).getIntegrationCatalog()
+      : undefined;
   const modelCatalog = processed.includes('ModelCatalog')
     ? await (await import('@/lib/model-catalog-source')).getModelCatalog()
     : undefined;
