@@ -1,0 +1,34 @@
+id: fix-dependency-ci
+revision: 1
+added_at: 2026-09-22
+title: Fix failing dependency-bot CI
+summary: An agent reads a dependency update's failed GitHub Actions logs, fixes the branch, and reports or pushes the result.
+roles:
+  source:
+    from: project
+    providers: [github]
+options:
+  - id: bot_identity
+    question: Which dependency bot opens update pull requests?
+    choices:
+      - id: dependabot
+        label: Dependabot
+        default: true
+      - id: renovate
+        label: Renovate
+      - id: custom
+        label: Custom bot login
+        tradeoff: Requires the exact GitHub login used by the bot.
+  - id: delivery_mode
+    question: What should the workflow do after the fix passes?
+    choices:
+      - id: push_fix
+        label: Push the fix
+        default: true
+        tradeoff: Updates the dependency bot's pull request branch.
+      - id: comment_only
+        label: Comment only
+        tradeoff: Leaves the branch unchanged and posts the proposed fix on the pull request.
+slots: [setup_commands, test_command]
+secrets: []
+variables: []

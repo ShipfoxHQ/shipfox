@@ -83,12 +83,18 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@shipfox/api-integration-clickup-dto": "workspace:*",
+    "@shipfox/api-integration-github-dto": "workspace:*",
+    "@shipfox/api-integration-jira-dto": "workspace:*",
+    "@shipfox/api-integration-linear-dto": "workspace:*",
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
     "@shipfox/vitest": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",
     "@temporalio/testing": "catalog:",
@@ -97,6 +103,7 @@
     "drizzle-kit": "catalog:",
     "fastify": "catalog:",
     "fastify-type-provider-zod": "catalog:",
-    "fishery": "catalog:"
+    "fishery": "catalog:",
+    "yaml": "catalog:"
   }
 }

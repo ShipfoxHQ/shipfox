@@ -76,6 +76,8 @@ assets/<template-id>/
 
 Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project.
 
+Shipped templates keep an adaptation guide beside their workflow. The [dependency-bot CI guide](assets/fix-dependency-ci/GUIDE.md) describes that template's prerequisites, choices, and customization slots.
+
 ## Development
 
 ```sh
