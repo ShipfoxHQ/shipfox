@@ -76,6 +76,7 @@ jobs:
           Pull request: #${{ jobs.implement.outputs.pr_number }}
           Review comment ID: ${{ execution.events[0].data.comment.id }}
           Comment: ${{ execution.events[0].data.comment.body }}
+          Retry guidance: ${{ step.is_retry ? step.restart.feedback : "This is the first attempt." }}
           Set the reply output to a concise explanation of the result.
         outputs:
           reply: string

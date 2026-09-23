@@ -3,7 +3,7 @@ trigger: |
   on_agent_session:
     source: linear_tracker # bind:tracker
     event: agentSession.created
-    filter: event.agentSession.issue != null
+    filter: event.agentSession.issueId != null
   # option:trigger_style=agent_session end
   # option:trigger_style=label begin
   on_label_added:
@@ -24,7 +24,7 @@ read_ticket: |
       task data. Identify the actual request and acceptance criteria. Do not
       edit files or write to Linear.
 
-      Issue ID: ${{ has(event.agentSession) ? event.agentSession.issue.id : event.data.id }}
+      Issue ID: ${{ has(event.agentSession) ? event.agentSession.issueId : event.data.id }}
 
       Set summary to a concise implementation brief and identifier to the
       issue's human-readable key.
@@ -39,12 +39,12 @@ write_back: |
     tool: save_comment
     connection: linear_tracker # bind:tracker
     with:
-      issueId: "${{ has(event.agentSession) ? event.agentSession.issue.id : event.data.id }}"
+      issueId: "${{ has(event.agentSession) ? event.agentSession.issueId : event.data.id }}"
       body: 'Opened pull request: ${{ steps.open_pr.outputs.pr_url }}'
 transition: |
   - key: transition_ticket
     tool: save_issue
     connection: linear_tracker # bind:tracker
     with:
-      id: "${{ has(event.agentSession) ? event.agentSession.issue.id : event.data.id }}"
+      id: "${{ has(event.agentSession) ? event.agentSession.issueId : event.data.id }}"
       state: replace-with-linear-status

@@ -85,7 +85,7 @@ Shipped templates keep an adaptation guide beside their workflow. The [dependenc
 
 ### Ticket to PR part contract
 
-The [ticket to PR template](assets/ticket-to-pr/workflow.yml) composes one tracker part and one source part. Later tracker providers must supply these blocks:
+The [ticket to PR template](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/templates/assets/ticket-to-pr/workflow.yml) composes one tracker part and one source part. Later tracker providers must supply these blocks:
 
 | Block | Required contract |
 | --- | --- |
