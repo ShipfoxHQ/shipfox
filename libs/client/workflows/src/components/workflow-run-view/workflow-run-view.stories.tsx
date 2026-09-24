@@ -679,7 +679,7 @@ export const TestRunCostTab: Story = {
     trigger.focus();
     await userEvent.keyboard('{Enter}');
     await userEvent.click(await body.findByRole('tab', {name: 'Cost'}));
-    await expect(body.getByText('Machine')).toBeVisible();
+    await waitFor(() => expect(body.getByText('Machine')).toBeVisible());
     await userEvent.click(body.getByRole('button', {name: 'Close inspector'}));
     await waitFor(() => expect(trigger).toHaveFocus());
   },
