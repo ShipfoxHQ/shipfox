@@ -141,6 +141,31 @@ export function createSentryReadClient(params: CreateSentryReadClientParams) {
   }
 
   return {
+    async sourceUrl(
+      connectionId: string,
+      resource: 'projects' | 'issues',
+      issueId?: string,
+    ): Promise<string> {
+      const [connection, installation] = await Promise.all([
+        params.resolveConnection(connectionId),
+        getInstallation(connectionId),
+      ]);
+      if (
+        !connection ||
+        !installation ||
+        installation.status !== 'installed' ||
+        !installation.orgSlug
+      ) {
+        throw new SentryIntegrationProviderError(
+          'credentials-unavailable',
+          'Sentry connection is unavailable',
+        );
+      }
+      const organization = `https://sentry.io/organizations/${encodeURIComponent(installation.orgSlug)}`;
+      return issueId === undefined
+        ? `${organization}/${resource}/`
+        : `${organization}/issues/${encodeURIComponent(issueId)}/`;
+    },
     listProjects(input: {connectionId: string; query?: string; limit?: number; cursor?: string}) {
       return withAuthorization(input.connectionId, ({orgSlug, token}) =>
         api.listProjects({...input, orgSlug, token}),

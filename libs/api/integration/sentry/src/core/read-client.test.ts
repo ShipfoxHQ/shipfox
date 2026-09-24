@@ -67,6 +67,19 @@ function setup() {
 }
 
 describe('createSentryReadClient', () => {
+  it('builds source links from the installed connection identity', async () => {
+    const {createClient, installation} = setup();
+    installation.orgSlug = 'acme/team';
+    const client = createClient();
+
+    await expect(client.sourceUrl(connectionId, 'projects')).resolves.toBe(
+      'https://sentry.io/organizations/acme%2Fteam/projects/',
+    );
+    await expect(client.sourceUrl(connectionId, 'issues', '42/other')).resolves.toBe(
+      'https://sentry.io/organizations/acme%2Fteam/issues/42%2Fother/',
+    );
+  });
+
   it('reuses a shared token until its expiry margin', async () => {
     const {api, values, createClient} = setup();
     const namespace = sentrySecretsNamespace(connectionId);
