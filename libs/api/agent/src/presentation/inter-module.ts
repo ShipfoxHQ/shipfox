@@ -189,7 +189,11 @@ function toClaimSessionKnownError(error: unknown): unknown {
     return createInterModuleKnownError(method, 'session-key-invalid', {});
   }
   if (error instanceof AgentSessionHeldError) {
-    return createInterModuleKnownError(method, 'session-held', {});
+    return createInterModuleKnownError(method, 'session-held', {
+      ...(error.scopeMismatch || error.heldByStepAttempt === null
+        ? {}
+        : {holder: {sessionId: error.sessionId, stepAttemptId: error.heldByStepAttempt}}),
+    });
   }
   if (error instanceof AgentSessionHarnessMismatchError) {
     return createInterModuleKnownError(method, 'session-harness-mismatch', {});

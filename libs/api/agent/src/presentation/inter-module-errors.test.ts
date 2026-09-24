@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {agentInterModuleContract} from '@shipfox/api-agent-dto/inter-module';
 import {isInterModuleKnownError} from '@shipfox/inter-module';
-import {AgentSessionLockUnavailableError} from '#core/errors.js';
+import {AgentSessionHeldError, AgentSessionLockUnavailableError} from '#core/errors.js';
 import {agentTestSecretsClient} from '#test/fixtures/secrets-client.js';
 
 const claimStepSessionMock = vi.hoisted(() => vi.fn());
@@ -73,4 +73,31 @@ describe('agent inter-module claimSession error mapping', () => {
       false,
     );
   });
+});
+
+test.each([
+  false,
+  true,
+])('maps holder context without leaking a mismatched scope (%s)', async (scopeMismatch) => {
+  const holder = {sessionId: crypto.randomUUID(), stepAttemptId: crypto.randomUUID()};
+  claimStepSessionMock.mockRejectedValue(
+    new AgentSessionHeldError({
+      sessionId: holder.sessionId,
+      heldByStepAttempt: holder.stepAttemptId,
+      workflowRunAttemptId: crypto.randomUUID(),
+      key: 'main',
+      scopeMismatch,
+    }),
+  );
+  const presentation = createAgentInterModulePresentation({
+    secrets: agentTestSecretsClient,
+    workspaceProviders: 'enabled',
+  });
+
+  const error = await Promise.resolve(
+    presentation.handlers.claimSession(newClaimInput(), {signal}),
+  ).catch((error: unknown) => error);
+
+  expect(error).toMatchObject({code: 'session-held', details: scopeMismatch ? {} : {holder}});
+  if (scopeMismatch) expect(error).not.toHaveProperty('details.holder');
 });

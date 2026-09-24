@@ -145,9 +145,9 @@ jobs](/understand/listening-jobs) explains the correlation requirement.
 ## Concurrency
 
 Only one step can resume a session at a time, and there is no queue. A second
-step that tries to resume the same key while another step holds it fails.
+step that tries to resume the same key while another running step holds it fails.
 
-Most of a workflow is already ordered, so most steps can never conflict:
+Ordered steps share sessions without competing for the same claim:
 
 - Steps in one job run in order.
 - Executions of one listening job run one after another.
@@ -157,6 +157,9 @@ The only conflict is two jobs with no `needs` path between them that both
 resume the same key. When both steps use the same literal key, sync rejects the
 workflow with `agent-session-parallel-resume`. Any other conflict fails the
 second step at run time with `agent_session_held`.
+
+If a completed attempt still holds a claim, Shipfox releases it before the next
+step resumes the session. A running attempt keeps its exclusive claim.
 
 To let parallel jobs share a session, give one of them `mode: fork`. A fork
 reads a copy and never writes, so it can run in parallel with a resuming step.

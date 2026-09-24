@@ -206,8 +206,8 @@ async function lockClaimableSession(
  * with a non-blocking `FOR UPDATE SKIP LOCKED` row lock. First use creates the session (empty head,
  * harness pinned to the caller's resolved harness). An unclaimed session, or
  * one already claimed by the same attempt, is granted; a session claimed by
- * another live attempt fails fast with `AgentSessionHeldError` — no waiting,
- * no queue. A re-claim with a different harness fails with
+ * another attempt fails fast with `AgentSessionHeldError`, without waiting
+ * or queuing. A re-claim with a different harness fails with
  * `AgentSessionHarnessMismatchError`. The create path uses `ON CONFLICT DO
  * NOTHING` so two concurrent first claims serialize on the unique index instead
  * of racing on the insert. A transaction advisory lock identifies another

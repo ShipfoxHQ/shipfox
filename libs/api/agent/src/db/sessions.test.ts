@@ -902,3 +902,18 @@ describe('commitSessionHead', () => {
     expect(row?.headCommittedByAttempt).toBe(ctx.stepAttemptId);
   });
 });
+
+it('keeps a newer claim through delayed and duplicate releases', async () => {
+  const ctx = newCtx();
+  const old = await claimSession({...ctx, harness: 'pi'});
+  await releaseSession({sessionId: old.id, stepAttemptId: ctx.stepAttemptId});
+  const nextAttempt = crypto.randomUUID();
+  await claimSession({...ctx, harness: 'pi', stepAttemptId: nextAttempt});
+
+  const released = await releaseSession({sessionId: old.id, stepAttemptId: ctx.stepAttemptId});
+  await releaseSessionClaimsHeldByStepAttempts([ctx.stepAttemptId]);
+  await releaseSessionClaimsHeldByStepAttempts([ctx.stepAttemptId]);
+
+  expect(released).toBe(false);
+  expect((await findSession(old.id))?.claimedByStepAttempt).toBe(nextAttempt);
+});

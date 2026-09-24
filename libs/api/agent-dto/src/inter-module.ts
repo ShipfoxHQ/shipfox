@@ -240,7 +240,11 @@ export const agentInterModuleContract = defineInterModuleContract({
       }),
       errors: {
         'session-key-invalid': z.object({}),
-        'session-held': z.object({}),
+        'session-held': z.object({
+          holder: z
+            .object({sessionId: z.string().uuid(), stepAttemptId: z.string().uuid()})
+            .optional(),
+        }),
         'session-harness-mismatch': z.object({}),
         'session-lock-unavailable': z.object({}),
       },
