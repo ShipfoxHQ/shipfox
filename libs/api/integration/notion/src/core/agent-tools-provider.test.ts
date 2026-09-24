@@ -1,3 +1,4 @@
+import {AjvJsonSchemaValidator} from '@modelcontextprotocol/sdk/validation/ajv';
 import type {NotionAgentToolId} from '@shipfox/api-integration-notion-dto';
 import type {IntegrationConnection} from '@shipfox/api-integration-spi';
 import type {NotionAgentToolsClient} from '#api/client.js';
@@ -75,6 +76,99 @@ describe('NotionAgentToolsProvider', () => {
       })),
     );
     expect(notionAgentToolCatalog.filter((tool) => tool.sensitivity === 'write')).toHaveLength(3);
+  });
+
+  it.each([
+    {
+      toolId: 'search',
+      arguments: {query: 'Roadmap'},
+      body: {
+        object: 'list',
+        results: [{object: 'page', id: '101c6baa-a59e-8036-9020-c778471a1962'}],
+        next_cursor: '13dc6baa-a59e-803c-bb76-e49a29484e23',
+        has_more: true,
+        type: 'page_or_data_source',
+        page_or_data_source: {},
+        request_id: '8c71a1bf-3d41-4965-8501-001c80cb6752',
+      },
+    },
+    {
+      toolId: 'query_data_source',
+      arguments: {data_source_id: 'data-source-1'},
+      body: {
+        object: 'list',
+        results: [{object: 'page', id: 'page-1'}],
+        next_cursor: null,
+        has_more: false,
+        type: 'page_or_data_source',
+        page_or_data_source: {},
+      },
+    },
+    {
+      toolId: 'get_comments',
+      arguments: {block_id: 'page-1'},
+      body: {
+        object: 'list',
+        results: [{object: 'comment', id: 'comment-1'}],
+        next_cursor: null,
+        has_more: false,
+        type: 'comment',
+        comment: {},
+        request_status: {type: 'complete'},
+      },
+    },
+    {
+      toolId: 'get_page_content',
+      arguments: {page_id: 'page-1'},
+      body: {
+        object: 'page_markdown',
+        id: 'page-1',
+        markdown: '# Roadmap',
+        truncated: false,
+        unknown_block_ids: [],
+      },
+    },
+  ] as const)('accepts Notion $toolId response without dropping provider fields', async ({
+    toolId,
+    arguments: arguments_,
+    body,
+  }) => {
+    const options = providerOptions(async () => ({status: 200, body}));
+    const provider = new NotionAgentToolsProvider(options);
+    const tool = catalogTool(toolId);
+    const session = await provider.openSession({
+      connection: notionConnection(),
+      tools: [tool],
+      scope: {},
+    });
+
+    const result = await session.call({toolId, arguments: arguments_});
+    const validate = new AjvJsonSchemaValidator().getValidator(
+      tool.outputSchema as Parameters<AjvJsonSchemaValidator['getValidator']>[0],
+    );
+
+    expect(result.structuredContent).toEqual(body);
+    expect(validate(result.structuredContent)).toMatchObject({valid: true});
+  });
+
+  it('keeps catalog output schemas open for provider fields', () => {
+    for (const tool of notionAgentToolCatalog) {
+      expect(tool.outputSchema).toMatchObject({additionalProperties: true});
+    }
+  });
+
+  it('checks declared pagination fields while allowing other response fields', () => {
+    const tool = catalogTool('search');
+    const validate = new AjvJsonSchemaValidator().getValidator(
+      tool.outputSchema as Parameters<AjvJsonSchemaValidator['getValidator']>[0],
+    );
+
+    expect(
+      validate({results: [], next_cursor: null, has_more: false, request_id: 'request-1'}).valid,
+    ).toBe(true);
+    expect(validate({results: {}, next_cursor: null, has_more: false}).valid).toBe(false);
+    expect(validate({results: [], next_cursor: 1, has_more: false}).valid).toBe(false);
+    expect(validate({results: [], next_cursor: null, has_more: 'false'}).valid).toBe(false);
   });
 
   it('builds the five REST requests and preserves pagination results', async () => {
