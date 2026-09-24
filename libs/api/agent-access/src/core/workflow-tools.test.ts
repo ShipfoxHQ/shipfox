@@ -45,6 +45,8 @@ const context: AgentAccessContext = {
 };
 
 describe('bounded workflow agent-access tools', () => {
+  afterEach(() => vi.useRealTimers());
+
   test('registers the complete progressive traversal without a workspace argument', () => {
     const mocks = clients();
     const tools = createAgentAccessTools(mocks).filter((tool) => tool.name.includes('workflow'));
@@ -106,6 +108,67 @@ describe('bounded workflow agent-access tools', () => {
     const result = expectSuccess<GetWorkflowRunResultDto>(response);
 
     expect(result.run_url).toBe(`https://client.example.test/runs/${runId}`);
+  });
+
+  test('returns immediately when the run is already terminal', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(overview());
+
+    const response = await tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, wait_seconds: 5},
+    });
+
+    expectSuccess<GetWorkflowRunResultDto>(response);
+    expect(mocks.workflowHandlers.getWorkflowRunOverview).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns immediately when a job is listening', async () => {
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(listeningOverview());
+
+    const response = await tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, wait_seconds: 5},
+    });
+
+    expectSuccess<GetWorkflowRunResultDto>(response);
+    expect(mocks.workflowHandlers.getWorkflowRunOverview).toHaveBeenCalledTimes(1);
+  });
+
+  test('polls until a terminal state before the wait deadline', async () => {
+    vi.useFakeTimers();
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowRunOverview
+      .mockResolvedValueOnce(runningOverview())
+      .mockResolvedValueOnce(overview());
+
+    const responsePromise = tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, wait_seconds: 5},
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    const response = await responsePromise;
+
+    expectSuccess<GetWorkflowRunResultDto>(response);
+    expect(mocks.workflowHandlers.getWorkflowRunOverview).toHaveBeenCalledTimes(2);
+  });
+
+  test('returns the latest running result at the wait deadline', async () => {
+    vi.useFakeTimers();
+    const mocks = clients();
+    mocks.workflowHandlers.getWorkflowRunOverview.mockResolvedValue(runningOverview());
+
+    const responsePromise = tool(mocks, 'get_workflow_run').execute({
+      context,
+      arguments: {run_id: runId, wait_seconds: 2},
+    });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const response = await responsePromise;
+
+    expectSuccess<GetWorkflowRunResultDto>(response);
+    expect(response).toMatchObject({ok: true, result: {status: 'running'}});
+    expect(mocks.workflowHandlers.getWorkflowRunOverview).toHaveBeenCalledTimes(2);
   });
 
   test('passes an explicit run attempt through to the bounded overview', async () => {
@@ -480,6 +543,28 @@ function expectSuccess<T>(response: AgentAccessEnvelopeDto): T {
   if (!response.ok) throw new Error('Expected a successful tool response');
   expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
   return response.result as T;
+}
+
+function runningOverview(): WorkflowRunOverviewResponseDto {
+  const current = overview();
+  return {
+    ...current,
+    attempt: {...current.attempt, status: 'running', finished_at: null},
+  };
+}
+
+function listeningOverview(): WorkflowRunOverviewResponseDto {
+  const current = runningOverview();
+  if (current.jobs.kind !== 'complete') throw new Error('Expected a complete overview');
+  return {
+    ...current,
+    jobs: {
+      ...current.jobs,
+      items: current.jobs.items.map((item, index) =>
+        index === 0 ? {...item, listener_status: 'listening'} : item,
+      ),
+    },
+  };
 }
 
 function overview(attempt = 2): WorkflowRunOverviewResponseDto {
