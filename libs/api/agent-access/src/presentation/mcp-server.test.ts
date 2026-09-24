@@ -60,9 +60,9 @@ describe('buildAgentAccessMcpServer', () => {
       resources.resources.every((resource) => resource.annotations?.priority === undefined),
     ).toBe(true);
     expect(
-      resources.resources
-        .filter((resource) => resource.uri.endsWith('.md'))
-        .every((resource) => resource.annotations?.audience?.includes('assistant')),
+      resources.resources.every((resource) =>
+        resource.annotations?.audience?.includes('assistant'),
+      ),
     ).toBe(true);
 
     await first.close();

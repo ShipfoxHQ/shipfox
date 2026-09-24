@@ -101,7 +101,7 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
       mimeType: resource.mimeType,
       size: resource.size,
       _meta: {sha256: resource.sha256},
-      ...(resource.name.endsWith('.md') ? {annotations: {audience: ['assistant' as const]}} : {}),
+      annotations: {audience: ['assistant' as const]},
     })),
   }));
   server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({resourceTemplates: []}));
