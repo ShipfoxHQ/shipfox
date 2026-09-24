@@ -62,6 +62,28 @@ describe('workflow template result schemas', () => {
     expect(schemasAccept(invalid)).toEqual([false, false]);
   });
 
+  test('rejects a suggestion without a scored tested reference in both schemas', () => {
+    const invalid = {
+      ...result,
+      suggested_models: {fix: {...result.suggested_models.fix, reference: null}},
+    };
+
+    const accepted = schemasAccept(invalid);
+
+    expect(accepted).toEqual([false, false]);
+  });
+
+  test('rejects an empty model placeholder in both schemas', () => {
+    const invalid = {
+      ...result,
+      suggested_models: {'': result.suggested_models.fix},
+    };
+
+    const accepted = schemasAccept(invalid);
+
+    expect(accepted).toEqual([false, false]);
+  });
+
   test('rejects the removed resolved_models field', () => {
     expect(schemasAccept({...result, resolved_models: {}})).toEqual([false, false]);
   });

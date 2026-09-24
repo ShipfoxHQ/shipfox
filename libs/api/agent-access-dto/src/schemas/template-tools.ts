@@ -324,7 +324,11 @@ export const getWorkflowTemplateResultJsonSchema = {
       type: 'object',
       additionalProperties: {type: 'array', items: identifier},
     },
-    suggested_models: {type: 'object', additionalProperties: modelSuggestion},
+    suggested_models: {
+      type: 'object',
+      propertyNames: identifier,
+      additionalProperties: modelSuggestion,
+    },
   },
   required: [
     'template_id',

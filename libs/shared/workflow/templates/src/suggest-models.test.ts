@@ -165,6 +165,30 @@ describe('suggestModels', () => {
     ]);
   });
 
+  test('lists choices when multiple providers match the tested model and thinking', () => {
+    const first = model('tested', ['medium'], [measured('medium', 80, 4)]);
+    const second = {
+      ...model('tested', ['medium'], [measured('medium', 90, 3)]),
+      provider: 'other-provider',
+    };
+    const candidate = model('candidate', ['medium'], [measured('medium', 85, 2)]);
+
+    const result = suggestModels(tested, {
+      models: [first, second, candidate],
+      default_model: null,
+      attribution: 'Benchmark source',
+    });
+
+    expect(result).toMatchObject({outcome: 'list', reference: null});
+    expect(result.models.map(({provider, below_reference}) => [provider, below_reference])).toEqual(
+      [
+        ['provider', undefined],
+        ['other-provider', undefined],
+        ['provider', undefined],
+      ],
+    );
+  });
+
   test.each([
     {name: 'missing reference', placeholder: {note: 'Choose a model.'}},
     {

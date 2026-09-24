@@ -73,9 +73,10 @@ export function suggestModels(
   );
   const scored = choices.filter((choice) => choice.reference !== null);
   const tested = placeholder.reference;
-  const referenceChoice = choices.find(
+  const referenceChoices = choices.filter(
     (choice) => choice.id === tested?.model && choice.thinking === tested.thinking,
   );
+  const referenceChoice = referenceChoices.length === 1 ? referenceChoices[0] : undefined;
   const reference = referenceChoice?.reference;
   const referenceSummary =
     referenceChoice !== undefined && reference !== null && reference !== undefined
