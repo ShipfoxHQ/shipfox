@@ -5,3 +5,6 @@ url = "https://api.shipfox.io/mcp"
 
 [mcp_servers.shipfox-staging]
 url = "https://api.staging.shipfox.io/mcp"
+
+[mcp_servers.neon]
+url = "https://mcp.neon.tech/mcp?readonly=true"
