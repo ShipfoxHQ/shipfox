@@ -71,63 +71,65 @@ function ProjectWorkflowsPageInner({projectId}: {projectId: string}) {
   }
 
   return (
-    <div className="flex w-full flex-col gap-section">
-      <Header variant="h1" className="sr-only">
-        Workflows
-      </Header>
+    <div className="min-h-0 w-full flex-1 overflow-y-auto">
+      <div className="flex flex-col gap-section">
+        <Header variant="h1" className="sr-only">
+          Workflows
+        </Header>
 
-      {projectQuery.isPending ? (
-        <div className="flex flex-col gap-cluster">
-          <Skeleton className="h-28 w-1/3" />
-          <Skeleton className="h-18 w-1/2" />
-        </div>
-      ) : null}
+        {projectQuery.isPending ? (
+          <div className="flex flex-col gap-cluster">
+            <Skeleton className="h-28 w-1/3" />
+            <Skeleton className="h-18 w-1/2" />
+          </div>
+        ) : null}
 
-      {projectErrorContent}
+        {projectErrorContent}
 
-      {projectQuery.data ? (
-        <>
-          <SourceStrip
-            connectionId={projectQuery.data.source.connectionId}
-            externalRepositoryId={projectQuery.data.source.externalRepositoryId}
-            sync={sync}
-            isPending={definitionsQuery.isPending}
-          />
+        {projectQuery.data ? (
+          <>
+            <SourceStrip
+              connectionId={projectQuery.data.source.connectionId}
+              externalRepositoryId={projectQuery.data.source.externalRepositoryId}
+              sync={sync}
+              isPending={definitionsQuery.isPending}
+            />
 
-          <WorkflowSyncAlert sync={sync} />
-          <WorkflowSyncDiagnostics sync={sync} />
+            <WorkflowSyncAlert sync={sync} />
+            <WorkflowSyncDiagnostics sync={sync} />
 
-          <WorkflowDefinitionsTable
-            definitions={definitions}
-            isPending={definitionsQuery.isPending}
-            isError={definitionsQuery.isError}
-            isRefreshing={definitionsQuery.isRefetching}
-            sync={sync ?? null}
-            runError={runError}
-            runningDefinitionId={
-              fireManual.isPending && fireManual.variables
-                ? fireManual.variables.definitionId
-                : null
-            }
-            hasNextPage={definitionsQuery.hasNextPage}
-            isFetchingNextPage={definitionsQuery.isFetchingNextPage}
-            isFetchNextPageError={definitionsQuery.isFetchNextPageError}
-            onRetry={() => definitionsQuery.refetch()}
-            onLoadMore={() => definitionsQuery.fetchNextPage()}
-            onOpenDefinition={setSelectedDefinition}
-            onRun={(definition) => {
-              void handleRun(definition);
-            }}
-          />
-        </>
-      ) : null}
+            <WorkflowDefinitionsTable
+              definitions={definitions}
+              isPending={definitionsQuery.isPending}
+              isError={definitionsQuery.isError}
+              isRefreshing={definitionsQuery.isRefetching}
+              sync={sync ?? null}
+              runError={runError}
+              runningDefinitionId={
+                fireManual.isPending && fireManual.variables
+                  ? fireManual.variables.definitionId
+                  : null
+              }
+              hasNextPage={definitionsQuery.hasNextPage}
+              isFetchingNextPage={definitionsQuery.isFetchingNextPage}
+              isFetchNextPageError={definitionsQuery.isFetchNextPageError}
+              onRetry={() => definitionsQuery.refetch()}
+              onLoadMore={() => definitionsQuery.fetchNextPage()}
+              onOpenDefinition={setSelectedDefinition}
+              onRun={(definition) => {
+                void handleRun(definition);
+              }}
+            />
+          </>
+        ) : null}
 
-      <DefinitionSheet
-        definition={selectedDefinition}
-        onOpenChange={(open) => {
-          if (!open) setSelectedDefinition(null);
-        }}
-      />
+        <DefinitionSheet
+          definition={selectedDefinition}
+          onOpenChange={(open) => {
+            if (!open) setSelectedDefinition(null);
+          }}
+        />
+      </div>
     </div>
   );
 }
