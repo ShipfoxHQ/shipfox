@@ -4,6 +4,7 @@ import {AGENT_ACCESS_PAGE_LIMIT_MAX, AGENT_ACCESS_TEXT_MAX_BYTES} from './paged-
 import {dateTimeSchema, idSchema, utf8CappedString} from './primitives.js';
 
 export const AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX = 2_147_483_647;
+export const AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX = 120;
 export const AGENT_ACCESS_WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT = 25;
 export const AGENT_ACCESS_WORKFLOW_JOB_PAGE_LIMIT = 100;
 export const AGENT_ACCESS_WORKFLOW_EXECUTION_PAGE_LIMIT = 25;
@@ -19,7 +20,11 @@ const pageInput = (defaultLimit: number) => ({
 });
 
 export const getWorkflowRunInputSchema = z
-  .object({run_id: idSchema, attempt: attemptSchema.optional()})
+  .object({
+    run_id: idSchema,
+    attempt: attemptSchema.optional(),
+    wait_seconds: z.number().int().min(0).max(AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX).default(0),
+  })
   .strict();
 
 export const listWorkflowRunAttemptsInputSchema = z
@@ -350,6 +355,12 @@ export const getWorkflowRunInputJsonSchema = {
   properties: {
     run_id: uuid,
     attempt: {type: 'integer', minimum: 1, maximum: AGENT_ACCESS_WORKFLOW_ATTEMPT_MAX},
+    wait_seconds: {
+      type: 'integer',
+      minimum: 0,
+      maximum: AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX,
+      default: 0,
+    },
   },
   required: ['run_id'],
   additionalProperties: false,

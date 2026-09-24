@@ -4,9 +4,11 @@ import {
   AGENT_ACCESS_WORKFLOW_RUN_ATTEMPT_PAGE_LIMIT,
   AGENT_ACCESS_WORKFLOW_STEP_ATTEMPT_PAGE_LIMIT,
   AGENT_ACCESS_WORKFLOW_STEP_PAGE_LIMIT,
+  AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX,
   getWorkflowJobInputSchema,
   getWorkflowJobResultJsonSchema,
   getWorkflowJobResultSchema,
+  getWorkflowRunInputJsonSchema,
   getWorkflowRunInputSchema,
   getWorkflowRunResultJsonSchema,
   getWorkflowRunResultSchema,
@@ -50,7 +52,35 @@ describe('workflow agent-access schemas', () => {
     expect(getWorkflowRunInputSchema.safeParse({run_id: runId, workspace_id: runId}).success).toBe(
       false,
     );
+    expect(getWorkflowRunInputSchema.parse({run_id: runId}).wait_seconds).toBe(0);
+    expect(
+      getWorkflowRunInputSchema.safeParse({
+        run_id: runId,
+        wait_seconds: AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX,
+      }).success,
+    ).toBe(true);
     expect(getWorkflowJobInputSchema.safeParse({job_id: jobId, extra: true}).success).toBe(false);
+  });
+
+  test('rejects wait_seconds outside the bounded integer range', () => {
+    expect(getWorkflowRunInputSchema.safeParse({run_id: runId, wait_seconds: -1}).success).toBe(
+      false,
+    );
+    expect(
+      getWorkflowRunInputSchema.safeParse({
+        run_id: runId,
+        wait_seconds: AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX + 1,
+      }).success,
+    ).toBe(false);
+    expect(getWorkflowRunInputSchema.safeParse({run_id: runId, wait_seconds: 1.5}).success).toBe(
+      false,
+    );
+    expect(getWorkflowRunInputJsonSchema.properties.wait_seconds).toEqual({
+      type: 'integer',
+      minimum: 0,
+      maximum: AGENT_ACCESS_WORKFLOW_WAIT_SECONDS_MAX,
+      default: 0,
+    });
   });
 
   test('requires the run attempt when listing jobs', () => {
