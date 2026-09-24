@@ -14,14 +14,18 @@ test.describe('PostHog connection', () => {
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_project');
     await integrationsCatalogue.posthogConnectButton().click();
-    await expect(integrationsCatalogue.installedProviderName('E2E Single project')).toBeVisible();
+    await expect(
+      integrationsCatalogue.installedProviderName('PostHog E2E Single project'),
+    ).toBeVisible();
 
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_multi_project');
     await integrationsCatalogue.posthogConnectButton().click();
     await expect(integrationsCatalogue.posthogProject('E2E Analytics')).toBeVisible();
     await integrationsCatalogue.posthogProject('E2E Analytics').click();
-    await expect(integrationsCatalogue.installedProviderName('E2E Analytics')).toBeVisible();
+    await expect(
+      integrationsCatalogue.installedProviderName('PostHog E2E Analytics'),
+    ).toBeVisible();
 
     await integrationsCatalogue.addButton('PostHog').click();
     await integrationsCatalogue.posthogKeyField().fill('phx_scoped_single_project');
