@@ -183,6 +183,10 @@ interface ClaudeThinkingOptions {
   readonly effort?: EffortLevel;
 }
 
+// The session log renders thinking text, and adaptive models from Opus 4.7 and Sonnet 5
+// on default to display "omitted", which returns thinking blocks with empty text.
+const ADAPTIVE_THINKING: ThinkingConfig = {type: 'adaptive', display: 'summarized'};
+
 // Dated snapshot IDs (claude-haiku-4-5-20251001) resolve to their family row.
 const MODEL_SNAPSHOT_DATE_SUFFIX = /-\d{8}$/;
 
@@ -198,7 +202,13 @@ function claudeModelCapabilities(model: string): ClaudeModelCapabilities | undef
  * reject a budget, and `effort` exists only on models that advertise it.
  */
 function claudeThinkingOptions(model: string, thinking: string): ClaudeThinkingOptions {
-  if (thinking === 'default') return {};
+  if (thinking === 'default') {
+    // Adaptive is already the SDK default on these models; setting it only opts into
+    // readable thinking, which Opus 4.7+ and Sonnet 5 otherwise omit.
+    return claudeModelCapabilities(model)?.supportsAdaptiveThinking
+      ? {thinking: ADAPTIVE_THINKING}
+      : {};
+  }
 
   const budget = LEGACY_THINKING_BUDGETS[thinking];
   if (budget === undefined) {
@@ -220,7 +230,7 @@ function claudeThinkingOptions(model: string, thinking: string): ClaudeThinkingO
     return {};
   }
   const thinkingOptions: ClaudeThinkingOptions = capabilities.supportsAdaptiveThinking
-    ? {thinking: {type: 'adaptive'}}
+    ? {thinking: ADAPTIVE_THINKING}
     : {
         thinking: {
           type: 'enabled',
