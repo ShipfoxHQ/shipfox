@@ -5,42 +5,75 @@ import {idSchema, utf8CappedString} from './primitives.js';
 const identifierSchema = z.string().min(1);
 const textSchema = utf8CappedString(128 * 1024);
 const providerBindingSchema = z.record(identifierSchema, z.array(identifierSchema));
-const resolvedModelSchema = z
+const thinkingSchema = z.enum([
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'default',
+]);
+const measuredReferenceSchema = z
   .object({
-    model: identifierSchema.nullable(),
-    reason: z.literal('no-compatible-model').optional(),
+    thinking: thinkingSchema,
+    intelligence_index: z.number().finite(),
+    cost_per_task_usd: z.number().finite().nonnegative(),
+    scale: identifierSchema,
+  })
+  .strict();
+const priceSchema = z
+  .object({input: z.number().finite().nonnegative(), output: z.number().finite().nonnegative()})
+  .strict();
+const suggestedModelSchema = z
+  .object({
+    id: identifierSchema,
+    provider: identifierSchema,
+    harness: z.enum(['pi', 'claude']),
+    thinking: thinkingSchema,
+    is_default: z.boolean(),
+    price: priceSchema.nullable(),
+    reference: measuredReferenceSchema.nullable(),
+    below_reference: z.literal(true).optional(),
+  })
+  .strict();
+const modelSuggestionSchema = z
+  .object({
+    reference: z
+      .object({
+        model: identifierSchema,
+        thinking: thinkingSchema,
+        intelligence_index: z.number().finite(),
+      })
+      .strict()
+      .nullable(),
+    note: identifierSchema.nullable(),
+    outcome: z.enum(['suggested', 'list']),
+    models: z.array(suggestedModelSchema),
+    attribution: identifierSchema.nullable(),
   })
   .strict()
-  .superRefine(({model, reason}, context) => {
-    if (model === null && reason !== 'no-compatible-model') {
+  .superRefine(({reference, outcome, models}, context) => {
+    if (outcome === 'suggested' && reference === null) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['reason'],
-        message: 'A missing model must include the no-compatible-model reason',
+        path: ['reference'],
+        message: 'A suggestion needs a scored tested combination',
       });
     }
-    if (model !== null && reason !== undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['reason'],
-        message: 'A resolved model must not include a reason',
-      });
+    if (outcome === 'list') {
+      for (const [index, model] of models.entries()) {
+        if (model.below_reference !== undefined) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['models', index, 'below_reference'],
+            message: 'A list must not rank choices',
+          });
+        }
+      }
     }
   });
-const resolvedModelProfileSchema = z
-  .object({
-    mechanical: resolvedModelSchema,
-    implementation: resolvedModelSchema,
-    review: resolvedModelSchema,
-  })
-  .strict();
-const resolvedModelsSchema = z
-  .object({
-    balanced: resolvedModelProfileSchema,
-    economy: resolvedModelProfileSchema,
-    strongest: resolvedModelProfileSchema,
-  })
-  .strict();
 
 export const listWorkflowTemplatesInputSchema = z.object({}).strict();
 export type ListWorkflowTemplatesInputDto = z.output<typeof listWorkflowTemplatesInputSchema>;
@@ -106,7 +139,7 @@ export const getWorkflowTemplateResultSchema = z
     workflow_yaml: textSchema,
     guide_markdown: textSchema,
     suggested_bindings: providerBindingSchema,
-    resolved_models: resolvedModelsSchema,
+    suggested_models: z.record(identifierSchema, modelSuggestionSchema),
   })
   .strict();
 export type GetWorkflowTemplateResultDto = z.infer<typeof getWorkflowTemplateResultSchema>;
@@ -144,38 +177,75 @@ const optionChoice = {
   required: ['id'],
   additionalProperties: false,
 } as const;
-const resolvedModel = {
+const thinking = {
+  type: 'string',
+  enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'],
+} as const;
+const measuredReference = {
   type: 'object',
   properties: {
-    model: {anyOf: [identifier, {type: 'null'}]},
-    reason: {type: 'string', enum: ['no-compatible-model']},
+    thinking,
+    intelligence_index: {type: 'number'},
+    cost_per_task_usd: {type: 'number', minimum: 0},
+    scale: identifier,
   },
-  required: ['model'],
+  required: ['thinking', 'intelligence_index', 'cost_per_task_usd', 'scale'],
   additionalProperties: false,
-  if: {properties: {model: {type: 'null'}}, required: ['model']},
+} as const;
+const suggestedModel = {
+  type: 'object',
+  properties: {
+    id: identifier,
+    provider: identifier,
+    harness: {type: 'string', enum: ['pi', 'claude']},
+    thinking,
+    is_default: {type: 'boolean'},
+    price: {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {input: {type: 'number', minimum: 0}, output: {type: 'number', minimum: 0}},
+          required: ['input', 'output'],
+          additionalProperties: false,
+        },
+        {type: 'null'},
+      ],
+    },
+    reference: {anyOf: [measuredReference, {type: 'null'}]},
+    below_reference: {type: 'boolean', enum: [true]},
+  },
+  required: ['id', 'provider', 'harness', 'thinking', 'is_default', 'price', 'reference'],
+  additionalProperties: false,
+} as const;
+const modelSuggestion = {
+  type: 'object',
+  properties: {
+    reference: {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {model: identifier, thinking, intelligence_index: {type: 'number'}},
+          required: ['model', 'thinking', 'intelligence_index'],
+          additionalProperties: false,
+        },
+        {type: 'null'},
+      ],
+    },
+    note: {anyOf: [identifier, {type: 'null'}]},
+    outcome: {type: 'string', enum: ['suggested', 'list']},
+    models: {type: 'array', items: suggestedModel},
+    attribution: {anyOf: [identifier, {type: 'null'}]},
+  },
+  required: ['reference', 'note', 'outcome', 'models', 'attribution'],
+  additionalProperties: false,
+  if: {properties: {outcome: {const: 'suggested'}}, required: ['outcome']},
   // biome-ignore lint/suspicious/noThenProperty: JSON Schema uses "then" for a conditional branch.
-  then: {required: ['reason']},
-  else: {not: {required: ['reason']}},
-} as const;
-const resolvedModelProfile = {
-  type: 'object',
-  properties: {
-    mechanical: resolvedModel,
-    implementation: resolvedModel,
-    review: resolvedModel,
+  then: {properties: {reference: {type: 'object'}}},
+  else: {
+    properties: {
+      models: {type: 'array', items: {type: 'object', not: {required: ['below_reference']}}},
+    },
   },
-  required: ['mechanical', 'implementation', 'review'],
-  additionalProperties: false,
-} as const;
-const resolvedModels = {
-  type: 'object',
-  properties: {
-    balanced: resolvedModelProfile,
-    economy: resolvedModelProfile,
-    strongest: resolvedModelProfile,
-  },
-  required: ['balanced', 'economy', 'strongest'],
-  additionalProperties: false,
 } as const;
 const option = {
   type: 'object',
@@ -254,7 +324,11 @@ export const getWorkflowTemplateResultJsonSchema = {
       type: 'object',
       additionalProperties: {type: 'array', items: identifier},
     },
-    resolved_models: resolvedModels,
+    suggested_models: {
+      type: 'object',
+      propertyNames: identifier,
+      additionalProperties: modelSuggestion,
+    },
   },
   required: [
     'template_id',
@@ -263,7 +337,7 @@ export const getWorkflowTemplateResultJsonSchema = {
     'workflow_yaml',
     'guide_markdown',
     'suggested_bindings',
-    'resolved_models',
+    'suggested_models',
   ],
   additionalProperties: false,
 } as const satisfies AgentAccessObjectSchema;

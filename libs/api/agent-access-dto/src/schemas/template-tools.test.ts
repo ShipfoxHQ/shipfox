@@ -6,12 +6,14 @@ import {
 } from './template-tools.js';
 
 const addFormats = addFormatsModule.default as unknown as (validator: Ajv) => void;
-const model = {model: 'claude-sonnet-5'};
-const noModel = {model: null, reason: 'no-compatible-model'};
-const resolvedModels = {
-  balanced: {mechanical: model, implementation: model, review: noModel},
-  economy: {mechanical: model, implementation: model, review: model},
-  strongest: {mechanical: model, implementation: noModel, review: model},
+const choice = {
+  id: 'claude-sonnet-5',
+  provider: 'anthropic',
+  harness: 'pi',
+  thinking: 'medium',
+  is_default: true,
+  price: {input: 3, output: 15},
+  reference: {thinking: 'medium', intelligence_index: 80, cost_per_task_usd: 2, scale: 'coding-v1'},
 };
 const result = {
   template_id: 'ticket-to-pr',
@@ -20,49 +22,84 @@ const result = {
   workflow_yaml: 'name: workflow',
   guide_markdown: '# Guide',
   suggested_bindings: {source: ['github-main']},
-  resolved_models: resolvedModels,
+  suggested_models: {
+    fix: {
+      reference: {model: 'claude-sonnet-5', thinking: 'medium', intelligence_index: 80},
+      note: 'Tested on a coding task.',
+      outcome: 'suggested',
+      models: [choice, {...choice, thinking: 'low', is_default: false, reference: null}],
+      attribution: 'Benchmark source',
+    },
+  },
 };
 
+function schemasAccept(value: unknown) {
+  const ajv = new Ajv({strict: true, strictRequired: false});
+  addFormats(ajv);
+  return [
+    getWorkflowTemplateResultSchema.safeParse(value).success,
+    ajv.compile(getWorkflowTemplateResultJsonSchema)(value),
+  ];
+}
+
 describe('workflow template result schemas', () => {
-  test('accept resolved models and keep the JSON schema aligned', () => {
-    expect(getWorkflowTemplateResultSchema.safeParse(result).success).toBe(true);
-    expect(getWorkflowTemplateResultJsonSchema.required).toContain('resolved_models');
-
-    const ajv = new Ajv({strict: true, strictRequired: false});
-    addFormats(ajv);
-    expect(ajv.compile(getWorkflowTemplateResultJsonSchema)(result)).toBe(true);
+  test('accepts a measured suggestion and a manual choice in both schemas', () => {
+    expect(getWorkflowTemplateResultJsonSchema.required).toContain('suggested_models');
+    expect(schemasAccept(result)).toEqual([true, true]);
   });
 
-  test('requires a reason when a model cannot be resolved', () => {
-    const invalidResult = {
-      ...result,
-      resolved_models: {
-        ...resolvedModels,
-        balanced: {...resolvedModels.balanced, mechanical: {model: null}},
-      },
+  test('rejects incomplete measured values and unsupported thinking in both schemas', () => {
+    const invalidChoice = {
+      ...choice,
+      thinking: 'unknown',
+      reference: {thinking: 'unknown', intelligence_index: 80},
     };
-    const ajv = new Ajv({strict: true, strictRequired: false});
-    addFormats(ajv);
+    const invalid = {
+      ...result,
+      suggested_models: {fix: {...result.suggested_models.fix, models: [invalidChoice]}},
+    };
 
-    expect(getWorkflowTemplateResultSchema.safeParse(invalidResult).success).toBe(false);
-    expect(ajv.compile(getWorkflowTemplateResultJsonSchema)(invalidResult)).toBe(false);
+    expect(schemasAccept(invalid)).toEqual([false, false]);
   });
 
-  test('forbids a reason when a model is resolved', () => {
-    const invalidResult = {
+  test('rejects a suggestion without a scored tested reference in both schemas', () => {
+    const invalid = {
       ...result,
-      resolved_models: {
-        ...resolvedModels,
-        balanced: {
-          ...resolvedModels.balanced,
-          mechanical: {model: 'claude-sonnet-5', reason: 'no-compatible-model'},
+      suggested_models: {fix: {...result.suggested_models.fix, reference: null}},
+    };
+
+    const accepted = schemasAccept(invalid);
+
+    expect(accepted).toEqual([false, false]);
+  });
+
+  test('rejects an empty model placeholder in both schemas', () => {
+    const invalid = {
+      ...result,
+      suggested_models: {'': result.suggested_models.fix},
+    };
+
+    const accepted = schemasAccept(invalid);
+
+    expect(accepted).toEqual([false, false]);
+  });
+
+  test('rejects the removed resolved_models field', () => {
+    expect(schemasAccept({...result, resolved_models: {}})).toEqual([false, false]);
+  });
+
+  test('rejects ranking marks in a list outcome', () => {
+    const invalid = {
+      ...result,
+      suggested_models: {
+        fix: {
+          ...result.suggested_models.fix,
+          outcome: 'list',
+          models: [{...choice, below_reference: true}],
         },
       },
     };
-    const ajv = new Ajv({strict: true, strictRequired: false});
-    addFormats(ajv);
 
-    expect(getWorkflowTemplateResultSchema.safeParse(invalidResult).success).toBe(false);
-    expect(ajv.compile(getWorkflowTemplateResultJsonSchema)(invalidResult)).toBe(false);
+    expect(schemasAccept(invalid)).toEqual([false, false]);
   });
 });
