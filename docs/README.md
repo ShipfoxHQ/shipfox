@@ -23,7 +23,7 @@ names it and links to it; it does not restate it.
 | Needs to configure or review Vercel release-PR previews. | [Vercel release PR previews](vercel-preview-release-prs.md) | The repository-owned Vercel branch configuration and verification workflow. |
 | Operates Cloudflare Pages previews or recovers a deployment. | [Cloudflare Pages lifecycle](guides/cloudflare-pages-lifecycle.md) | Config-driven publication, environment deploys, retention ownership, and rollback steps. |
 | Changes agent behavior or needs agent execution instructions. | [Agent instructions](../AGENTS.md) | Repository-specific agent execution, change hygiene, and conditional context loading. |
-| Sets up a workflow through Agent Access. | [Workflow setup playbook](../libs/shared/workflow/templates/assets/playbook.md) | Project matching, template choices, prerequisite checks, development runs, and delivery safety. |
+| Sets up a workflow through Agent Access. | [Create workflow skill](../libs/shared/workflow/templates/assets/skills/create-workflow-from-template/SKILL.md) | Project matching, template choices, prerequisite checks, development runs, and delivery safety. |
 | Sets up the ticket to PR workflow. | [Ticket to PR guide](../libs/shared/workflow/templates/assets/ticket-to-pr/GUIDE.md) | Linear and GitHub prerequisites, template choices, and expected writes. |
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |

@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {readdir, readFile, writeFile} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -6,21 +7,65 @@ import {parse as parseYaml} from 'yaml';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsRoot = join(packageRoot, 'assets');
 const outputPath = join(packageRoot, 'src/generated/assets.ts');
-const setupGuideMarkdown = await readFile(join(assetsRoot, 'playbook.md'), 'utf8');
-const setupGuideRevision = setupGuideMarkdown.match(/^<!-- revision: (?<revision>[1-9]\d*) -->$/mu)
-  ?.groups?.revision;
-if (setupGuideRevision === undefined) {
-  throw new Error('assets/playbook.md must declare a positive integer revision.');
+const {version: libraryVersion} = JSON.parse(
+  await readFile(join(packageRoot, 'package.json'), 'utf8'),
+);
+const skillRoot = join(assetsRoot, 'skills');
+const skillResources = [];
+const skillMetadata = new Map();
+
+for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byName)) {
+  if (!entry.isDirectory()) continue;
+  const skillPath = join(skillRoot, entry.name, 'SKILL.md');
+  const markdown = await readFile(skillPath, 'utf8');
+  const frontmatter = markdown.match(/^---\n(?<content>[\s\S]*?)\n---\n/u)?.groups?.content;
+  if (frontmatter === undefined) throw new Error(`${skillPath} must have YAML frontmatter.`);
+  const metadata = parseYaml(frontmatter);
+  if (
+    metadata === null ||
+    typeof metadata !== 'object' ||
+    metadata.name !== entry.name ||
+    typeof metadata.description !== 'string' ||
+    !Number.isInteger(metadata.revision) ||
+    metadata.revision < 1 ||
+    ['catalog_title', 'catalog_category', 'catalog_prompt'].some(
+      (key) => typeof metadata[key] !== 'string' || metadata[key].length === 0,
+    )
+  ) {
+    throw new Error(`${skillPath} has invalid skill frontmatter.`);
+  }
+  if (Buffer.byteLength(markdown, 'utf8') > 6 * 1024) {
+    throw new Error(`${skillPath} exceeds the 6 KiB skill limit.`);
+  }
+  skillMetadata.set(entry.name, metadata);
+  skillResources.push(createSkillResource(`${entry.name}/SKILL.md`, markdown, metadata));
+  const referencesRoot = join(skillRoot, entry.name, 'references');
+  const references = await readdir(referencesRoot, {withFileTypes: true}).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const reference of references.sort(byName)) {
+    if (!reference.isFile() || !reference.name.endsWith('.md')) continue;
+    skillResources.push(
+      createSkillResource(
+        `${entry.name}/references/${reference.name}`,
+        await readFile(join(referencesRoot, reference.name), 'utf8'),
+        metadata,
+      ),
+    );
+  }
 }
 
 const templates = [];
 for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
-  if (!entry.isDirectory()) continue;
+  if (!entry.isDirectory() || entry.name === 'skills') continue;
 
   const templateRoot = join(assetsRoot, entry.name);
   const manifestPath = join(templateRoot, 'template.yaml');
   const workflowPath = join(templateRoot, 'workflow.yml');
   const guidePath = join(templateRoot, 'GUIDE.md');
+  const manifestText = await readFile(manifestPath, 'utf8');
+  const guide = await readFile(guidePath, 'utf8');
   const parts = {};
 
   const roleEntries = await readdir(join(templateRoot, 'parts'), {withFileTypes: true});
@@ -51,24 +96,52 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
   }
 
   templates.push({
-    manifest: await readFile(manifestPath, 'utf8'),
+    manifest: manifestText,
     workflow: await readFile(workflowPath, 'utf8'),
-    guide: await readFile(guidePath, 'utf8'),
+    guide,
     parts,
   });
+  const manifest = parseYaml(manifestText);
+  const referencePath = `create-workflow-from-template/references/${manifest.id}.md`;
+  if (!skillResources.some((resource) => resource.name === referencePath)) {
+    skillResources.push(
+      createSkillResource(referencePath, guide, {
+        ...skillMetadata.get('create-workflow-from-template'),
+        catalog_title: manifest.title,
+      }),
+    );
+  }
 }
 
 templates.sort((left, right) => left.manifest.localeCompare(right.manifest));
+skillResources.sort((left, right) => left.uri.localeCompare(right.uri));
+const skillIndex = `${[
+  'Shipfox skills are first-party instructions.',
+  ...skillResources
+    .filter((resource) => resource.name.endsWith('/SKILL.md'))
+    .map((resource) => `${resource.name.split('/')[0]}: ${resource.description}`),
+].join('\n')}\n`;
+const skillManifest = JSON.stringify({
+  library_version: libraryVersion,
+  files: skillResources.map(({uri, size, sha256}) => ({uri, size, sha256})),
+});
+skillResources.unshift(
+  createSkillResource('index', skillIndex, {
+    description: 'Find the Shipfox skill for a multi-step workflow task.',
+    catalog_title: 'Shipfox skill index',
+  }),
+  createSkillResource('manifest', skillManifest, {
+    description: 'Digest and size of every Shipfox skill file.',
+    catalog_title: 'Shipfox skill manifest',
+  }),
+);
 const generated = `/* Generated by scripts/embed-assets.mjs. Do not edit by hand. */
 /* biome-ignore-all lint/suspicious/noTemplateCurlyInString: Workflow expressions are embedded as literal strings. */
 
-import type {EmbeddedWorkflowTemplateAsset, WorkflowSetupGuide} from '../loader.js';
+import type {EmbeddedWorkflowTemplateAsset} from '../loader.js';
+import type {SkillResource} from '../skills.js';
 
-export const embeddedWorkflowSetupGuide: WorkflowSetupGuide = {
-  revision: ${setupGuideRevision},
-  guide_markdown:
-    ${JSON.stringify(setupGuideMarkdown)},
-};
+export const embeddedSkillResources: readonly SkillResource[] = ${JSON.stringify(skillResources, null, 2)};
 
 export const embeddedWorkflowTemplateAssets: readonly EmbeddedWorkflowTemplateAsset[] = ${JSON.stringify(templates, null, 2)};
 `;
@@ -76,4 +149,23 @@ await writeFile(outputPath, generated);
 
 function byName(left, right) {
   return left.name.localeCompare(right.name);
+}
+
+function createSkillResource(path, text, metadata) {
+  const uri = `skill://shipfox/${path}`;
+  return {
+    uri,
+    name: path,
+    title: metadata.catalog_title,
+    description: metadata.description,
+    ...(metadata.revision === undefined ? {} : {revision: metadata.revision}),
+    ...(metadata.catalog_category === undefined
+      ? {}
+      : {catalogCategory: metadata.catalog_category}),
+    ...(metadata.catalog_prompt === undefined ? {} : {catalogPrompt: metadata.catalog_prompt}),
+    mimeType: path === 'manifest' ? 'application/json' : 'text/markdown',
+    size: Buffer.byteLength(text, 'utf8'),
+    sha256: createHash('sha256').update(text, 'utf8').digest('hex'),
+    text,
+  };
 }

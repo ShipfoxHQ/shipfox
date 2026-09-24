@@ -11,7 +11,7 @@ import {useWorkspaceAgentGrant, type WorkspaceAgentGrant} from '#hooks/api/agent
 import type {WorkspaceReference} from './setup-checklist-types.js';
 
 export const FIRST_WORKFLOW_PROMPT =
-  'Set up a Shipfox workflow for this repository. Use the Shipfox MCP server: call `get_workflow_setup_guide` and follow it.';
+  "Set up a Shipfox workflow for this repository: read the Shipfox MCP server's `create-workflow-from-template` skill and follow it.";
 
 export interface FirstWorkflowPanelProps {
   workspace: WorkspaceReference;

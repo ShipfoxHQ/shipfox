@@ -13,10 +13,8 @@ export {
   loadShippedTemplates,
   shippedTemplateLoader,
   type TemplateLoader,
-  type WorkflowSetupGuide,
   type WorkflowTemplate,
   type WorkflowTemplateAsset,
-  workflowSetupGuideSchema,
 } from './loader.js';
 export {
   manifestSchema,
@@ -34,6 +32,11 @@ export {
   workflowTemplateOptionSchema,
   workflowTemplateRoleSchema,
 } from './manifest.js';
+export {
+  getShippedSkillResource,
+  listShippedSkillResources,
+  type SkillResource,
+} from './skills.js';
 export {
   type ModelSuggestion,
   type SuggestionModel,

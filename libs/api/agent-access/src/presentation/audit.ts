@@ -29,6 +29,7 @@ export interface AgentAccessActionAudit {
 }
 
 export interface AgentAccessToolCallAuditRecord {
+  kind?: 'resource' | undefined;
   tool: string;
   outcome: AgentAccessToolCallOutcome;
   errorCode: string;
@@ -61,6 +62,7 @@ export function createAgentAccessToolCallRecorder(
 function auditLogContext(record: AgentAccessToolCallAuditRecord): Record<string, unknown> {
   const credential = record.context.credential;
   return {
+    ...(record.kind === undefined ? {} : {kind: record.kind}),
     tool: record.tool,
     outcome: record.outcome,
     errorCode: record.errorCode,

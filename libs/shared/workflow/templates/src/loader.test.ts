@@ -5,11 +5,10 @@ import {parse as parseYaml} from 'yaml';
 import type {PartBlocks} from './composer.js';
 import {composeTemplate} from './composer.js';
 import type {WorkflowTemplateAsset} from './loader.js';
-import {createTemplateLoader, loadShippedTemplates, shippedTemplateLoader} from './loader.js';
+import {createTemplateLoader, loadShippedTemplates} from './loader.js';
 import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
 
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
-const setupGuide = {revision: 7, guide_markdown: '# Set up the fixture'};
 const fixture: WorkflowTemplateAsset = {
   manifest: workflowTemplateManifestSchema.parse(
     parseYaml(readFileSync(new URL('template.yaml', fixtureRoot), 'utf8')),
@@ -31,7 +30,7 @@ function parsePart(path: string): PartBlocks {
 
 describe('workflow template loader', () => {
   it('composes and parses every role combination within the payload limit', () => {
-    const loader = createTemplateLoader([fixture], setupGuide);
+    const loader = createTemplateLoader([fixture]);
     const template = loader.get('fixture-ticket-to-pr');
     if (template === undefined) throw new Error('Fixture template was not loaded');
 
@@ -64,15 +63,8 @@ describe('workflow template loader', () => {
     }
   });
 
-  it('embeds the revisioned workflow setup playbook', () => {
-    expect(shippedTemplateLoader.getSetupGuide()).toMatchObject({
-      revision: 1,
-      guide_markdown: expect.stringContaining('## 10. Deliver'),
-    });
-  });
-
   it('keeps setup command insertion inside job steps', () => {
-    const loader = createTemplateLoader([fixture], setupGuide);
+    const loader = createTemplateLoader([fixture]);
     const template = loader.get('fixture-ticket-to-pr');
     if (template === undefined) throw new Error('Fixture template was not loaded');
     const composed = composeTemplate(template, {tracker: 'linear', source: 'github'});
@@ -85,12 +77,6 @@ describe('workflow template loader', () => {
     );
 
     parseWorkflowDocument(parseYaml(withSetupCommand));
-  });
-
-  it('returns the injected revisioned setup guide', () => {
-    const loader = createTemplateLoader([fixture], setupGuide);
-
-    expect(loader.getSetupGuide()).toEqual(setupGuide);
   });
 });
 
