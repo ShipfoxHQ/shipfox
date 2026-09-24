@@ -770,7 +770,7 @@ describe('claudeHarnessAdapter', () => {
         allowDangerouslySkipPermissions: true,
         settingSources: [],
         strictMcpConfig: true,
-        thinking: {type: 'adaptive'},
+        thinking: {type: 'adaptive', display: 'summarized'},
         effort: 'max',
         persistSession: false,
         includePartialMessages: false,
@@ -933,7 +933,7 @@ describe('claudeHarnessAdapter', () => {
     await claudeHarnessAdapter.run(invocation({model: 'claude-opus-4-6', thinking: 'xhigh'}));
 
     expect(lastQueryOptions()).toMatchObject({
-      thinking: {type: 'adaptive'},
+      thinking: {type: 'adaptive', display: 'summarized'},
       effort: 'high',
     });
   });
@@ -945,15 +945,26 @@ describe('claudeHarnessAdapter', () => {
 
     expect(lastQueryOptions()).toMatchObject({
       model: 'claude-opus-4-8',
-      thinking: {type: 'adaptive'},
+      thinking: {type: 'adaptive', display: 'summarized'},
       effort: 'xhigh',
     });
   });
 
-  it('omits named thinking and effort options for explicit provider-default requests', async () => {
+  it('requests summarized adaptive thinking without effort for provider-default requests', async () => {
     queryMock.mockReturnValue(makeQuery([successMessage]));
 
-    await claudeHarnessAdapter.run(invocation({model: 'claude-opus-4-8', thinking: 'default'}));
+    await claudeHarnessAdapter.run(invocation({model: 'claude-sonnet-5', thinking: 'default'}));
+
+    expect(lastQueryOptions()).toMatchObject({
+      thinking: {type: 'adaptive', display: 'summarized'},
+    });
+    expect(lastQueryOptions()).not.toHaveProperty('effort');
+  });
+
+  it('omits thinking and effort options for provider-default requests on a legacy model', async () => {
+    queryMock.mockReturnValue(makeQuery([successMessage]));
+
+    await claudeHarnessAdapter.run(invocation({model: 'claude-haiku-4-5', thinking: 'default'}));
 
     expect(lastQueryOptions()).not.toHaveProperty('thinking');
     expect(lastQueryOptions()).not.toHaveProperty('effort');

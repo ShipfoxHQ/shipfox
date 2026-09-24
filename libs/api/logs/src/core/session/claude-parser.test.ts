@@ -616,6 +616,28 @@ describe('parseClaudeSessionRecord', () => {
     ]);
   });
 
+  it('renders nothing for an assistant message whose thinking text is omitted', () => {
+    const rows = parseClaudeSessionRecord(
+      record({
+        type: 'assistant',
+        message: {
+          id: 'gen_01M396JWF8XXW9A6G4WGE3JXSY',
+          type: 'message',
+          role: 'assistant',
+          content: [
+            {type: 'thinking', thinking: '', signature: 'EtACCrABCBIYAipA'},
+            {type: 'redacted_thinking', data: 'EmwKAhgBEgy3va3pzix'},
+          ],
+          model: 'claude-sonnet-5',
+          stop_reason: null,
+        },
+        session_id: 'session-1',
+      }),
+    );
+
+    expect(rows).toEqual([]);
+  });
+
   it('keeps assistant content after an identified tool call in order', () => {
     const context = createClaudeParseContext();
     const rows = parseClaudeSessionRecord(

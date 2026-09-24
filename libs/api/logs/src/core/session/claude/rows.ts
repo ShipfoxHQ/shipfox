@@ -317,7 +317,8 @@ export function assistantRows(
     thinkingParts: [],
   };
 
-  for (const block of contentBlocks(sdkMessage)) {
+  const blocks = contentBlocks(sdkMessage);
+  for (const block of blocks) {
     appendClaudeAssistantBlock(timestamp, block, state);
   }
 
@@ -325,6 +326,9 @@ export function assistantRows(
   flushClaudeAssistantThinking(timestamp, state);
 
   if (state.rows.length > 0) return state.rows;
+  // Thinking with display "omitted" (the default on Opus 4.7+ and Sonnet 5) carries only a
+  // signature, so a thinking-only message legitimately has nothing to show.
+  if (blocks.length > 0 && blocks.every(isClaudeThinkingBlock)) return [];
 
   const text = stringField(sdkMessage, 'content') ?? stringField(message, 'result');
   return [messageRow(timestamp, 'assistant', 'assistant', text ?? toJson(message), false)];
@@ -365,7 +369,7 @@ function appendClaudeAssistantBlock(
     appendClaudeToolCall(timestamp, block, state);
     return;
   }
-  if (type === 'thinking' || type === 'reasoning') {
+  if (isClaudeThinkingBlock(block)) {
     flushClaudeAssistantText(timestamp, state);
     const text = blockText(block);
     if (text) state.thinkingParts.push(text);
@@ -374,6 +378,11 @@ function appendClaudeAssistantBlock(
   flushClaudeAssistantThinking(timestamp, state);
   const text = blockText(block);
   if (text) state.textParts.push(text);
+}
+
+function isClaudeThinkingBlock(block: Record<string, unknown>): boolean {
+  const type = stringField(block, 'type');
+  return type === 'thinking' || type === 'reasoning' || type === 'redacted_thinking';
 }
 
 function appendClaudeToolCall(
