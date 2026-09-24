@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "shipfox": {
+      "type": "http",
+      "url": "https://api.shipfox.io/mcp"
+    },
+    "shipfox-staging": {
+      "type": "http",
+      "url": "https://api.staging.shipfox.io/mcp"
+    }
+  }
+}

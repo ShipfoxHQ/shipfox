@@ -1,1 +1,7 @@
 project_doc_fallback_filenames = ["CLAUDE.md"]
+
+[mcp_servers.shipfox]
+url = "https://api.shipfox.io/mcp"
+
+[mcp_servers.shipfox-staging]
+url = "https://api.staging.shipfox.io/mcp"
