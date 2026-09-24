@@ -12,12 +12,41 @@ import {
   persistVerifiedUnclaimedInstallation,
   pruneUnclaimedSentryInstallations,
   upsertSentryInstallation,
+  withSentryRefreshLock,
 } from './installations.js';
 import {sentryInstallations} from './schema/installations.js';
 
 describe('sentry installations persistence', () => {
   beforeEach(async () => {
     await db().delete(sentryInstallations);
+  });
+
+  test('serializes token minting for one connection across database clients', async () => {
+    const connectionId = randomUUID();
+    let notifyAcquired!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      notifyAcquired = resolve;
+    });
+    let release!: (value: string) => void;
+    const held = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const holder = withSentryRefreshLock(connectionId, () => {
+      notifyAcquired();
+      return held;
+    });
+    await acquired;
+
+    const contender = await withSentryRefreshLock(connectionId, async () => 'contender');
+    const other = await withSentryRefreshLock(randomUUID(), async () => 'other');
+    release('holder');
+    const heldResult = await holder;
+    const reacquired = await withSentryRefreshLock(connectionId, async () => 'renewed');
+
+    expect(contender).toEqual({acquired: false});
+    expect(other).toEqual({acquired: true, value: 'other'});
+    expect(heldResult).toEqual({acquired: true, value: 'holder'});
+    expect(reacquired).toEqual({acquired: true, value: 'renewed'});
   });
 
   test('upsert updates in place when the same connection reconnects, without duplicating', async () => {
