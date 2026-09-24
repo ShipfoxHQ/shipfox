@@ -11,8 +11,8 @@ import {sessionClaimReleaseCount} from '#metrics/instance.js';
  *
  * The release is delivered asynchronously through the workflows outbox, so it
  * is not ordered against the next synchronous `claimSession` at dispatch: the
- * dispatch side must tolerate `session-held` with a short bounded retry until
- * the outbox release lands (implemented with the dispatch consumer).
+ * dispatch side reconciles terminal holders through a guarded release before
+ * retrying the claim.
  */
 export async function onStepAttemptTerminated(
   payload: WorkflowsStepAttemptTerminatedEventDto,

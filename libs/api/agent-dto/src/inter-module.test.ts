@@ -438,3 +438,16 @@ describe('agentInterModuleContract', () => {
     ).toThrow();
   });
 });
+
+describe('session-held recovery context', () => {
+  const schema = agentInterModuleContract.methods.claimSession.errors['session-held'];
+  test.each([{}, {holder: {sessionId: UUID, stepAttemptId: UUID}}])('accepts %j', (details) => {
+    expect(schema.parse(details)).toEqual(details);
+  });
+  test.each([
+    {holder: {sessionId: UUID}},
+    {holder: {sessionId: 'invalid', stepAttemptId: UUID}},
+  ])('rejects %j', (details) => {
+    expect(schema.safeParse(details).success).toBe(false);
+  });
+});

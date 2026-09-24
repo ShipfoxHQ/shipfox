@@ -42,6 +42,31 @@ import {workflowRuns} from '../schema/workflow-runs.js';
 import {writeJobStepsSettledOutbox, writeStepAttemptTerminatedOutbox} from './outbox.js';
 import {NON_TERMINAL_STEP_STATUS_FILTER} from './shared.js';
 
+export async function getSessionClaimHolderStatus(params: {
+  stepAttemptId: string;
+  workspaceId: string;
+  projectId: string;
+  workflowRunAttemptId: string;
+}): Promise<StepAttemptStatus | null> {
+  const [row] = await db()
+    .select({status: stepAttempts.status})
+    .from(stepAttempts)
+    .innerJoin(jobExecutions, eq(stepAttempts.jobExecutionId, jobExecutions.id))
+    .innerJoin(jobs, eq(jobExecutions.jobId, jobs.id))
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .where(
+      and(
+        eq(stepAttempts.id, params.stepAttemptId),
+        eq(workflowRuns.workspaceId, params.workspaceId),
+        eq(workflowRuns.projectId, params.projectId),
+        eq(workflowRunAttempts.id, params.workflowRunAttemptId),
+      ),
+    )
+    .limit(1);
+  return (row?.status as StepAttemptStatus | undefined) ?? null;
+}
+
 export async function getStepByIdForJobExecution(params: {
   stepId: string;
   jobExecutionId: string;

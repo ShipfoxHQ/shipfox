@@ -146,8 +146,8 @@ export class AgentSessionHeldError extends Error {
   }) {
     super(
       params.heldByStepAttempt === null
-        ? `Agent session is claimed by another live attempt: ${params.workflowRunAttemptId}/${params.key} (holder not yet committed)`
-        : `Agent session is claimed by another live attempt: ${params.workflowRunAttemptId}/${params.key} (held by ${params.heldByStepAttempt})`,
+        ? `Agent session is claimed by another attempt: ${params.workflowRunAttemptId}/${params.key} (holder not yet committed)`
+        : `Agent session is claimed by another attempt: ${params.workflowRunAttemptId}/${params.key} (held by ${params.heldByStepAttempt})`,
     );
     this.name = 'AgentSessionHeldError';
     this.sessionId = params.sessionId;

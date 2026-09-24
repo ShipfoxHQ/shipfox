@@ -58,6 +58,7 @@ import {
   WorkflowExecutionPayloadTooLargeError,
   WorkflowStepResultTooLargeError,
 } from './errors.js';
+import {claimSessionWithReconciliation} from './session-claim.js';
 import {
   completeAgentDefaults,
   readAgentStepSessionIntent,
@@ -517,7 +518,7 @@ async function claimStepSessionForDispatch(params: {
   readonly authoredConfig: Record<string, unknown> | null;
   readonly workflowContext: Awaited<ReturnType<typeof getWorkflowContextForJob>>;
   readonly agent?: AgentInterModuleClient | undefined;
-}): Promise<ClaimedStepSession> {
+}): Promise<ClaimedStepSession | null> {
   if (params.session.key.trim().length === 0) {
     throw new AgentStepSessionClaimError(
       'agent_session_key_invalid',
@@ -542,9 +543,9 @@ async function claimStepSessionForDispatch(params: {
   let result: {
     readonly descriptor: AgentStepSessionDescriptorDto | null;
     readonly harness: 'pi' | 'claude';
-  };
+  } | null;
   try {
-    result = await claimSessionWithRetry({
+    result = await claimSessionWithReconciliation({
       agent: params.agent,
       workspaceId: params.workflowContext.workspaceId,
       projectId: params.workflowContext.projectId,
@@ -564,6 +565,8 @@ async function claimStepSessionForDispatch(params: {
       agentSessionClaimMessage(error.code),
     );
   }
+
+  if (result === null) return null;
 
   // A missing fork starts a fresh session and must not leak the authored intent
   // to the runner, which would otherwise try to load a non-existent transcript.
@@ -630,7 +633,7 @@ async function resolveClaimedAgentConfig(params: {
 async function completePendingSessionClaim(
   pending: PendingSessionClaim,
 ): Promise<NextStepResolution> {
-  let claimed: ClaimedStepSession;
+  let claimed: ClaimedStepSession | null;
   try {
     // This call deliberately happens after the transaction that persisted the
     // running attempt and authored session intent has committed.
@@ -649,6 +652,8 @@ async function completePendingSessionClaim(
     const failureError = dispatchConfigError(configError);
     return withTransaction((tx) => settlePreparedSessionClaimFailure(pending, failureError, tx));
   }
+
+  if (claimed === null) return {kind: 'wait', retryAfterMs: 1000};
 
   const release = async (): Promise<void> => {
     if (claimed.sessionId === undefined || pending.stepAttemptId === undefined) return;
@@ -817,7 +822,7 @@ function agentSessionClaimMessage(
     case 'session-key-invalid':
       return 'Agent session key is invalid';
     case 'session-held':
-      return 'Agent session is held by another live attempt';
+      return 'Agent session is held by another attempt';
     case 'session-harness-mismatch':
       return 'Agent session harness does not match the pinned harness';
     case 'session-lock-unavailable':
@@ -861,25 +866,6 @@ function evaluateStepCondition(params: {
   return outcome.value
     ? {kind: 'run'}
     : {kind: 'skip', statusReason: 'condition_rejected', evaluationTrace};
-}
-
-async function claimSessionWithRetry(
-  params: Parameters<NonNullable<AgentInterModuleClient['claimSession']>>[0] & {
-    agent: AgentInterModuleClient;
-  },
-): ReturnType<AgentInterModuleClient['claimSession']> {
-  const {agent, ...input} = params;
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await agent.claimSession(input);
-    } catch (error) {
-      const isHeld =
-        isInterModuleKnownError(agentInterModuleContract.methods.claimSession, error) &&
-        error.code === 'session-held';
-      if (!isHeld || attempt >= 2) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 50 * 2 ** attempt));
-    }
-  }
 }
 
 async function releaseClaim(params: {
