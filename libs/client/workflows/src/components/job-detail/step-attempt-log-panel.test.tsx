@@ -81,7 +81,10 @@ function renderPanel(
 }
 
 describe('StepAttemptLogPanel', () => {
-  test('uses cached attempt detail to identify integration actions', async () => {
+  test.each([
+    'agent',
+    'tool',
+  ])('uses cached %s attempt detail to identify integration actions', async (kind) => {
     const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}});
     queryClient.setQueryData(
       stepLogsQueryKeys.detail(STEP_ID, 1),
@@ -94,7 +97,10 @@ describe('StepAttemptLogPanel', () => {
             kind: 'tool-call',
             timestamp: 1,
             id: 'tool-1',
-            name: 'mcp__shipfox_integration_tools__tickets_main__list_teams',
+            name:
+              kind === 'agent'
+                ? 'mcp__shipfox_integration_tools__tickets_main__list_teams'
+                : 'tickets_main__list_teams',
             input: '{"workspace":"shipfox"}',
           },
         },
@@ -114,16 +120,27 @@ describe('StepAttemptLogPanel', () => {
       ]),
     );
     queryClient.setQueryData(stepAttemptDetailQueryKeys.detail(STEP_ID, 1), {
-      config: {
-        integrations: [
-          {
-            provider: 'linear',
-            connectionId: 'connection-1',
-            connectionSlug: 'tickets-main',
-            tools: [{id: 'list_teams', sensitivity: 'read', sensitive: true}],
-          },
-        ],
-      },
+      config:
+        kind === 'tool'
+          ? {
+              tool: {
+                provider: 'linear',
+                connection_id: 'connection-1',
+                connection_slug: 'tickets-main',
+                id: 'list_teams',
+                sensitivity: 'read',
+              },
+            }
+          : {
+              integrations: [
+                {
+                  provider: 'linear',
+                  connectionId: 'connection-1',
+                  connectionSlug: 'tickets-main',
+                  tools: [{id: 'list_teams', sensitivity: 'read', sensitive: true}],
+                },
+              ],
+            },
     });
     configureApiClient({baseUrl: 'https://api.example.test', fetchImpl: vi.fn()});
 

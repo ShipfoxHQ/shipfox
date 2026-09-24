@@ -1,5 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
-import {MAX_RECORD_DATA_BYTES} from '@shipfox/api-logs-dto';
+import {MAX_RECORD_DATA_BYTES, serverLogRecordSchema} from '@shipfox/api-logs-dto';
 import {type LogsModuleClient, logsInterModuleContract} from '@shipfox/api-logs-dto/inter-module';
 import {createWorkflowExpression, type OutputDeclarations} from '@shipfox/expression';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
@@ -116,11 +116,42 @@ describe('tool step executor', () => {
     });
     const logCalls = appendServerRecords.mock.calls.filter(([input]) => input.stepId === stepId);
     const records = logCalls.flatMap(([input]) => input.records);
-    expect(records[0]).toMatchObject({type: 'group_start', parent_group_id: null});
-    expect(records.at(-1)).toMatchObject({type: 'group_end'});
-    expect(records.filter((record) => record.type === 'output')).toHaveLength(2);
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      type: 'agent_session',
+      row: {
+        kind: 'tool-call',
+        name: 'fake_main__issue_read',
+        input: expect.stringContaining('ENG-1680'),
+      },
+    });
+    expect(records[1]).toMatchObject({
+      type: 'agent_session',
+      row: {
+        kind: 'tool-result',
+        toolName: 'fake_main__issue_read',
+        isError: false,
+      },
+    });
+    const request = records[0];
+    const result = records[1];
+    if (
+      request?.type !== 'agent_session' ||
+      request.row.kind !== 'tool-call' ||
+      result?.type !== 'agent_session' ||
+      result.row.kind !== 'tool-result'
+    )
+      throw new Error('Expected tool pair');
+    expect(result.row.toolCallId).toBe(request.row.id);
+    expect(result.row.timestamp).toBeGreaterThanOrEqual(request.row.timestamp);
+    expect(records.every((record) => serverLogRecordSchema.safeParse(record).success)).toBe(true);
     expect(
-      records.find((record) => record.type === 'output' && record.data.includes('ENG-1680')),
+      records.find(
+        (record) =>
+          record.type === 'agent_session' &&
+          record.row.kind === 'tool-result' &&
+          record.row.output.includes('ENG-1680'),
+      ),
     ).toBeDefined();
   });
 
@@ -788,6 +819,19 @@ describe('tool step executor', () => {
       callTimeoutMs: 30_000,
     });
 
+    const records = appendServerRecords.mock.calls.flatMap(([input]) => input.records);
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'agent_session',
+          row: expect.objectContaining({
+            kind: 'tool-result',
+            isError: true,
+            output: expect.stringContaining('Provider timed out'),
+          }),
+        }),
+      ]),
+    );
     expect(callTool).toHaveBeenCalledTimes(1);
     const [step] = await getStepsByJobId(jobId);
     expect(step).toMatchObject({status: 'failed', error: {code: 'provider-timeout'}});
@@ -1043,7 +1087,12 @@ describe('tool step executor', () => {
     const logCalls = appendServerRecords.mock.calls.filter(([input]) => input.stepId === stepId);
     const records = logCalls.flatMap(([input]) => input.records);
     expect(
-      records.find((record) => record.type === 'output' && record.data.includes('ENG-1680')),
+      records.find(
+        (record) =>
+          record.type === 'agent_session' &&
+          record.row.kind === 'tool-result' &&
+          record.row.output.includes('ENG-1680'),
+      ),
     ).toBeDefined();
   });
 
@@ -1162,17 +1211,14 @@ describe('tool step executor', () => {
     const records = appendServerRecords.mock.calls
       .filter(([input]) => input.stepId === stepId)
       .flatMap(([input]) => input.records);
-    const logData = records
-      .filter((record) => record.type === 'output')
-      .map((record) => record.data)
-      .join('\n');
+    const logData = JSON.stringify(records);
     expect(logData).toContain('sensitive tool arguments redacted');
     expect(logData).toContain('sensitive tool result redacted');
     expect(logData).not.toContain('argument-secret');
     expect(logData).not.toContain('result-secret');
   });
 
-  test('appends a large log group one record at a time', async () => {
+  test('bounds large tool results and appends each row separately', async () => {
     const {jobId, stepId} = await arrangeToolStep();
     const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
       outcome: 'success' as const,
@@ -1203,21 +1249,19 @@ describe('tool step executor', () => {
     expect(appendServerRecords.mock.calls.every(([input]) => input.records.length === 1)).toBe(
       true,
     );
-    expect(
-      records
-        .filter((record) => record.type === 'output')
-        .every((record) => Buffer.byteLength(record.data, 'utf8') <= MAX_RECORD_DATA_BYTES),
-    ).toBe(true);
-    expect(records.filter((record) => record.type === 'output').length).toBeGreaterThan(1);
-    expect(
-      records
-        .filter((record) => record.type === 'output')
-        .some((record) => record.data.includes('[truncated]')),
-    ).toBe(true);
-    expect(records.at(-1)).toMatchObject({type: 'group_end'});
+    const result = records.at(-1);
+    expect(result).toMatchObject({type: 'agent_session', row: {kind: 'tool-result'}});
+    if (result?.type !== 'agent_session' || result.row.kind !== 'tool-result')
+      throw new Error('Expected result');
+    expect(Buffer.byteLength(result.row.output, 'utf8')).toBeLessThan(
+      MAX_RECORD_DATA_BYTES * 64 + 100,
+    );
+    expect(result.row.output).toContain('[truncated]');
+    expect(result.row.output).not.toContain('�');
+    expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThan(4 * 1024 * 1024);
   });
 
-  test('preserves a BOM at a log chunk boundary', async () => {
+  test('preserves a BOM in a tool result', async () => {
     const {jobId, stepId} = await arrangeToolStep('read', {outputMappings: {}});
     const jsonPrefix = '{\n  "value": "';
     const value =
@@ -1245,13 +1289,16 @@ describe('tool step executor', () => {
     const output = appendServerRecords.mock.calls
       .filter(([input]) => input.stepId === stepId)
       .flatMap(([input]) => input.records)
-      .filter((record) => record.type === 'output')
-      .map((record) => record.data)
+      .flatMap((record) =>
+        record.type === 'agent_session' && record.row.kind === 'tool-result'
+          ? [record.row.output]
+          : [],
+      )
       .join('');
     expect(output).toContain('\uFEFFpreserved');
   });
 
-  test('stops a log group when its first append fails', async () => {
+  test('stops logging when its first append fails', async () => {
     const {jobId, stepId} = await arrangeToolStep();
     const callTool = vi.fn<IntegrationsModuleClient['callTool']>().mockResolvedValue({
       outcome: 'success' as const,

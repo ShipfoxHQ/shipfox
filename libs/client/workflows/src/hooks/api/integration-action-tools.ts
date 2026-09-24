@@ -4,6 +4,7 @@ import type {IntegrationActionTool} from '@shipfox/client-logs';
 export function toIntegrationActionTools(
   config: Record<string, unknown> | null | undefined,
 ): IntegrationActionTool[] {
+  if (isRecord(config?.tool)) return toolStepActionTools(config.tool);
   return integrationConfigs(config).flatMap(toIntegrationTools);
 }
 
@@ -51,4 +52,33 @@ function isString(value: unknown): value is string {
 
 function isSensitivity(value: unknown): value is 'read' | 'write' {
   return value === 'read' || value === 'write';
+}
+
+function toolStepActionTools(tool: Record<string, unknown>): IntegrationActionTool[] {
+  const {
+    provider,
+    connection_id: connectionId,
+    connection_slug: connectionSlug,
+    id,
+    sensitivity,
+  } = tool;
+  if (
+    !isString(provider) ||
+    !isString(connectionId) ||
+    !isString(connectionSlug) ||
+    !isString(id) ||
+    !isSensitivity(sensitivity)
+  )
+    return [];
+  const method = isString(tool.method) ? tool.method : null;
+  return [
+    {
+      provider,
+      connectionId,
+      connectionSlug,
+      toolId: id,
+      sensitivity,
+      ...(method ? {methods: [{id: method, sensitivity}]} : {}),
+    },
+  ];
 }
