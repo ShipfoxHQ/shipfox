@@ -207,10 +207,6 @@ async function readDocsResource(params: {
     throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
   }
   try {
-    if (slug !== 'index' && !(await docs.hasSlug(slug))) {
-      audit('invalid-request', 'unknown-resource', false);
-      throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
-    }
     const cached = slug === 'index' ? docs.isIndexCached() : docs.isPageCached(slug);
     if (!cached) {
       const decision = rateLimiter.consume(context.credential);
@@ -220,6 +216,10 @@ async function readDocsResource(params: {
           retry_after_seconds: decision.retry_after_seconds,
         });
       }
+    }
+    if (slug !== 'index' && !(await docs.hasSlug(slug))) {
+      audit('invalid-request', 'unknown-resource', false);
+      throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
     }
     const result = slug === 'index' ? await docs.readIndex() : await docs.readPage(slug);
     audit('success', 'none', cached || result.cached);

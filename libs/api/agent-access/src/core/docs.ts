@@ -2,6 +2,7 @@ import {docsBaseUrl} from '#config.js';
 
 export const DOCS_INDEX_URI = 'docs://shipfox/index';
 export const DOCS_TEMPLATE_URI = 'docs://shipfox/{slug}';
+const DOCS_HOME_SLUG = 'home';
 const INDEX_TTL_MS = 15 * 60_000;
 const PAGE_TTL_MS = 60 * 60_000;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/u;
@@ -117,9 +118,12 @@ export function createDocsCache(options: {
     const operation = (async () => {
       const previous = pages.get(slug);
       try {
-        const response = await fetcher(url(`llms.mdx/${slug}`), {
-          headers: previous?.etag ? {'If-None-Match': previous.etag} : {},
-        });
+        const response = await fetcher(
+          url(slug === DOCS_HOME_SLUG ? 'index.md' : `llms.mdx/${slug}`),
+          {
+            headers: previous?.etag ? {'If-None-Match': previous.etag} : {},
+          },
+        );
         if (response.status === 304 && previous) {
           pages.set(slug, {...previous, fetchedAt: now()});
           return;
@@ -205,7 +209,8 @@ export function createDocsCache(options: {
         if (typeof value !== 'object' || value === null) continue;
         const record = value as Record<string, unknown>;
         if (typeof record.url !== 'string') continue;
-        const slug = record.url.split('#')[0]?.replace(LEADING_SLASH, '');
+        const path = record.url.split('#')[0];
+        const slug = path === '/' ? DOCS_HOME_SLUG : path?.replace(LEADING_SLASH, '');
         if (!slug || !titles.has(slug) || found.has(slug)) continue;
         found.add(slug);
         const title = titles.get(slug) ?? slug;
@@ -236,11 +241,17 @@ function parseIndex(text: string, baseUrl: URL): Map<string, string> {
     } catch {
       continue;
     }
-    if (!page.pathname.startsWith(baseUrl.pathname)) continue;
-    const slug = page.pathname.slice(baseUrl.pathname.length).replace(TRAILING_SLASH, '');
-    if (SLUG_PATTERN.test(slug) && slug !== 'index' && slug !== 'llms-full.txt') {
+    const slug = pageSlug(page, baseUrl);
+    if (slug && isValidDocsSlug(slug)) {
       titles.set(slug, match[1] ?? slug);
     }
   }
   return titles;
+}
+
+function pageSlug(page: URL, baseUrl: URL): string | undefined {
+  const homePath = baseUrl.pathname.replace(TRAILING_SLASH, '');
+  if (page.pathname === homePath || page.pathname === baseUrl.pathname) return DOCS_HOME_SLUG;
+  if (!page.pathname.startsWith(baseUrl.pathname)) return undefined;
+  return page.pathname.slice(baseUrl.pathname.length).replace(TRAILING_SLASH, '');
 }

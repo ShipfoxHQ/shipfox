@@ -21,6 +21,7 @@ import {
   createApp,
   type FastifyRequest,
 } from '@shipfox/node-fastify';
+import {createDocsCache} from '#core/docs.js';
 import {createAgentAccessRateLimiter} from '#core/rate-limiter.js';
 import {createAgentAccessFixtureTool} from '#core/tools.js';
 import {type CreateAgentAccessRoutesOptions, createAgentAccessRoutes} from './routes.js';
@@ -59,7 +60,7 @@ describe('agent-access MCP routes', () => {
 
   test('rejects a partial core producer composition at startup', () => {
     expect(() =>
-      createAgentAccessRoutes({
+      createTestRoutes({
         projects: {} as unknown as ProjectsModuleClient,
         definitions: {} as unknown as DefinitionsInterModuleClient,
       }),
@@ -70,7 +71,7 @@ describe('agent-access MCP routes', () => {
 
   test('rejects an integrations-only composition at startup', () => {
     expect(() =>
-      createAgentAccessRoutes({
+      createTestRoutes({
         integrations: {} as unknown as IntegrationsModuleClient,
       }),
     ).toThrow(
@@ -81,7 +82,7 @@ describe('agent-access MCP routes', () => {
   test('rejects duplicate additional tools at startup', () => {
     const duplicate = {...createAgentAccessFixtureTool(), name: 'agent_access_fixture'};
 
-    expect(() => createAgentAccessRoutes({additionalTools: [duplicate]})).toThrow(
+    expect(() => createTestRoutes({additionalTools: [duplicate]})).toThrow(
       'Duplicate agent-access tool: agent_access_fixture',
     );
   });
@@ -283,7 +284,7 @@ describe('agent-access MCP routes', () => {
     'https://api.example.test/v1',
     'https://user:password@api.example.test',
   ])('rejects an invalid public API origin at startup: %s', (apiPublicUrl) => {
-    expect(() => createAgentAccessRoutes({apiPublicUrl})).toThrow(
+    expect(() => createTestRoutes({apiPublicUrl})).toThrow(
       'Agent-access API public URL configuration is invalid',
     );
   });
@@ -294,7 +295,7 @@ describe('agent-access MCP routes', () => {
     'http://127.0.0.1:16101',
     'http://[::1]:16101',
   ])('accepts a secure or loopback public API origin: %s', (apiPublicUrl) => {
-    expect(() => createAgentAccessRoutes({apiPublicUrl})).not.toThrow();
+    expect(() => createTestRoutes({apiPublicUrl})).not.toThrow();
   });
 
   test('serves stateless Streamable HTTP with the fixture tool', async () => {
@@ -364,7 +365,7 @@ async function createTestApp(
   const app = await createApp({
     auth: [testAuth],
     routes: [
-      createAgentAccessRoutes({
+      createTestRoutes({
         apiPublicUrl: 'https://api.example.test/',
         isOriginAllowed: (origin) =>
           origin === undefined || origin === 'https://allowed.example.test',
@@ -376,4 +377,16 @@ async function createTestApp(
   });
   await app.ready();
   return app;
+}
+
+function createTestRoutes(options: CreateAgentAccessRoutesOptions) {
+  return createAgentAccessRoutes({
+    docs: createDocsCache({
+      baseUrl: 'https://docs.example.test/docs',
+      fetch: () => {
+        throw new Error('Unexpected documentation fetch in route test');
+      },
+    }),
+    ...options,
+  });
 }

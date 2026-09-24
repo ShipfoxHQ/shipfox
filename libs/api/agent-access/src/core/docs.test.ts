@@ -18,6 +18,12 @@ describe('documentation host cache', () => {
     expect(() => createDocsCache({baseUrl: 'https://user:pass@docs.example.test'})).toThrow(
       'DOCS_BASE_URL',
     );
+    expect(() => createDocsCache({baseUrl: 'https://docs.example.test/docs?'})).toThrow(
+      'DOCS_BASE_URL',
+    );
+    expect(() => createDocsCache({baseUrl: 'https://docs.example.test/docs#'})).toThrow(
+      'DOCS_BASE_URL',
+    );
   });
 
   test('revalidates the index and pages with ETags and keeps warm content on outage', async () => {
@@ -146,5 +152,39 @@ describe('documentation host cache', () => {
     expect(
       fetcher.mock.calls.filter(([target]) => target.pathname.endsWith('api/search')),
     ).toHaveLength(2);
+  });
+
+  test('reads and searches the docs homepage', async () => {
+    const homeIndex = ['- [Introduction](https://docs.example.test/docs): Start here.', index].join(
+      '\n',
+    );
+    const fetcher = vi.fn((target: URL) => {
+      if (target.pathname.endsWith('llms.txt')) return new Response(homeIndex);
+      if (target.pathname.endsWith('index.md')) return new Response('# Introduction');
+      if (target.pathname.endsWith('api/search')) {
+        return new Response(JSON.stringify([{url: '/', content: 'Start here'}]));
+      }
+      throw new Error(`Unexpected URL ${target}`);
+    });
+    const docs = createDocsCache({
+      baseUrl: 'https://docs.example.test/docs',
+      fetch: fetcher as unknown as typeof fetch,
+    });
+
+    const page = await docs.readPage('home');
+    const hits = await docs.search('introduction');
+
+    expect(page.text).toBe('# Introduction');
+    expect(hits).toEqual([
+      {
+        slug: 'home',
+        title: 'Introduction',
+        excerpt: 'Start here',
+        uri: 'docs://shipfox/home',
+      },
+    ]);
+    expect(fetcher).toHaveBeenCalledWith(new URL('https://docs.example.test/docs/index.md'), {
+      headers: {},
+    });
   });
 });

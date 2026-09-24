@@ -197,6 +197,30 @@ describe('documentation MCP surface', () => {
     await close();
   });
 
+  test('charges a cold page read before fetching the index', async () => {
+    const fetcher = vi.fn(() => {
+      throw new Error('host down');
+    });
+    const docs = createDocsCache({
+      baseUrl: 'https://docs.example.test/docs',
+      fetch: fetcher as typeof fetch,
+    });
+    const rateLimiter = createAgentAccessRateLimiter({limit: 1});
+    const {client, close} = await connect({context, docs, rateLimiter});
+
+    await expect(client.readResource({uri: 'docs://shipfox/understand'})).rejects.toMatchObject({
+      code: ErrorCode.InternalError,
+      message: expect.stringContaining('Documentation index is unavailable'),
+    });
+    await expect(client.readResource({uri: 'docs://shipfox/understand'})).rejects.toMatchObject({
+      code: ErrorCode.InternalError,
+      message: expect.stringContaining('Documentation read rate limit exceeded'),
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await close();
+  });
+
   test('disabled docs expose neither resources nor search', async () => {
     const docs = createDocsCache({baseUrl: ''});
     const {client, close} = await connect({context, docs, tools: []});
