@@ -135,10 +135,12 @@ export async function waitForStepLogsContaining(
         signal: probeSignal,
       });
       const outputText = logs.records
-        .filter(
-          (record): record is Extract<LogRecord, {type: 'output'}> => record.type === 'output',
-        )
-        .map((record) => record.data)
+        .flatMap((record) => {
+          if (record.type === 'output') return [record.data];
+          if (record.type === 'agent_session' && record.row.kind === 'tool-result')
+            return [record.row.output];
+          return [];
+        })
         .join('');
       return outputText.includes(expectedText) ? logs : null;
     },

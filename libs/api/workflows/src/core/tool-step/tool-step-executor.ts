@@ -224,6 +224,7 @@ async function executeToolInvocation(params: ExecuteToolInvocationParams): Promi
   const startedAt = new Date();
   const execution = claim.interrupted ? interruptedExecution() : await callToolInvocation(params);
   if (params.serviceSignal.aborted) return;
+  const finishedAt = Date.now();
 
   if (execution.outcome === 'error') {
     const retryAfterMs = toolRetryDelayMs({
@@ -247,7 +248,13 @@ async function executeToolInvocation(params: ExecuteToolInvocationParams): Promi
       if (retried) {
         recordToolInvocationDuration(claim, execution, elapsedMilliseconds(startedAt));
         if (params.serviceSignal.aborted) return;
-        await appendToolInvocationLog(params.logs, claim, execution);
+        await appendToolInvocationLog(
+          params.logs,
+          claim,
+          execution,
+          startedAt.getTime(),
+          finishedAt,
+        );
         params.nudge?.();
       }
       return;
@@ -261,7 +268,7 @@ async function executeToolInvocation(params: ExecuteToolInvocationParams): Promi
     durationMs: elapsedMilliseconds(startedAt),
   });
   if (!settled || params.serviceSignal.aborted) return;
-  await appendToolInvocationLog(params.logs, claim, execution);
+  await appendToolInvocationLog(params.logs, claim, execution, startedAt.getTime(), finishedAt);
 }
 
 function claimOwnerFromInvocation(claim: ToolInvocationClaim): string {
@@ -649,12 +656,14 @@ async function appendToolInvocationLog(
   logs: LogsModuleClient,
   claim: ToolInvocationClaim,
   execution: ToolExecution,
+  startedAt: number,
+  finishedAt: number,
 ): Promise<void> {
   const rawTool = isRecord(claim.step.config.tool) ? claim.step.config.tool : {};
-  const provider = toolProvider(claim);
+  const connectionSlug = stringField(rawTool.connection_slug) ?? toolProvider(claim);
   const id = stringField(rawTool.id) ?? 'unknown-tool';
-  const groupId = `tool-${claim.invocation.id}-${claim.invocation.callIndex}`;
-  const timestamp = Date.now();
+  const callId = `tool-${claim.invocation.id}-${claim.invocation.callIndex}`;
+  const name = `${connectionSlug.replaceAll('-', '_')}__${id}`;
   const result =
     execution.outcome === 'error'
       ? {
@@ -669,25 +678,36 @@ async function appendToolInvocationLog(
   const records: ServerLogRecord[] = [
     {
       v: 1,
-      ts: timestamp,
-      type: 'group_start',
-      group_id: groupId,
-      parent_group_id: null,
-      name: `tool ${provider}/${id}`,
+      ts: startedAt,
+      type: 'agent_session',
+      row: {
+        kind: 'tool-call',
+        timestamp: startedAt,
+        id: callId,
+        name,
+        input: sensitive
+          ? '[sensitive tool arguments redacted]'
+          : truncateLogData(prettyJson(readToolArguments(claim))),
+      },
     },
-    ...outputRecords(
-      timestamp,
-      sensitive ? '[sensitive tool arguments redacted]' : prettyJson(readToolArguments(claim)),
-    ),
-    ...outputRecords(
-      timestamp,
-      sensitive ? '[sensitive tool result redacted]' : prettyJson(result),
-    ),
-    {v: 1, ts: timestamp, type: 'group_end', group_id: groupId},
+    {
+      v: 1,
+      ts: finishedAt,
+      type: 'agent_session',
+      row: {
+        kind: 'tool-result',
+        timestamp: finishedAt,
+        toolCallId: callId,
+        toolName: name,
+        output: sensitive
+          ? '[sensitive tool result redacted]'
+          : truncateLogData(prettyJson(result)),
+        isError: execution.outcome === 'error',
+      },
+    },
   ];
 
-  // The Logs module owns the request-size limit, so append records separately.
-  // A large provider result must not cause the complete group to be rejected.
+  // Keep each bounded value in its own append request.
   for (const record of records) {
     try {
       await logs.appendServerRecords({
@@ -726,32 +746,6 @@ function readToolArguments(claim: ToolInvocationClaim): Record<string, unknown> 
   const tool = claim.step.config.tool;
   if (!isRecord(tool) || !isRecord(tool.with)) return {};
   return tool.with;
-}
-
-function outputRecords(timestamp: number, data: string): ServerLogRecord[] {
-  return splitLogData(truncateLogData(data)).map((chunk) => ({
-    v: 1,
-    ts: timestamp,
-    type: 'output' as const,
-    stream: 'stdout' as const,
-    data: chunk,
-  }));
-}
-
-function splitLogData(data: string): string[] {
-  const encoded = new TextEncoder().encode(data);
-  if (encoded.length === 0) return ['{}'];
-
-  const decoder = new TextDecoder('utf-8', {ignoreBOM: true});
-  const chunks: string[] = [];
-  let offset = 0;
-  while (offset < encoded.length) {
-    const limit = Math.min(offset + MAX_RECORD_DATA_BYTES, encoded.length);
-    const end = utf8ChunkEnd(encoded, offset, limit);
-    chunks.push(decoder.decode(encoded.subarray(offset, end)));
-    offset = end;
-  }
-  return chunks;
 }
 
 function truncateLogData(data: string): string {

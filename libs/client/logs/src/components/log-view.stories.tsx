@@ -1198,3 +1198,70 @@ export const LoadingSkeleton: Story = {
     </div>
   ),
 };
+
+export const ToolStepResults: Story = {
+  render: (args) => (
+    <div className="w-full max-w-5xl">
+      <LogView
+        {...args}
+        attemptStatus="failed"
+        search="notion_main__search"
+        actionPresentation={createIntegrationActionPresentationLookup([
+          {
+            provider: 'notion',
+            connectionId: 'connection-notion',
+            connectionSlug: 'notion-main',
+            toolId: 'search',
+            sensitivity: 'read',
+          },
+        ])}
+        records={[
+          session(
+            {
+              kind: 'tool-call',
+              timestamp: 0,
+              id: 'tool-invocation-0',
+              name: 'notion_main__search',
+              input: '{"query":"Release notes"}',
+            },
+            0,
+          ),
+          session(
+            {
+              kind: 'tool-result',
+              timestamp: 0,
+              toolCallId: 'tool-invocation-0',
+              toolName: 'notion_main__search',
+              isError: false,
+              output:
+                '{"results":[{"id":"page-1","title":"Release notes","url":"https://notion.so/page-1"}]}',
+            },
+            1.7,
+          ),
+          session(
+            {
+              kind: 'tool-call',
+              timestamp: 0,
+              id: 'tool-invocation-1',
+              name: 'notion_main__search',
+              input: '{"query":"Private roadmap"}',
+            },
+            2,
+          ),
+          session(
+            {
+              kind: 'tool-result',
+              timestamp: 0,
+              toolCallId: 'tool-invocation-1',
+              toolName: 'notion_main__search',
+              isError: true,
+              output:
+                '{"code":"permission-denied","message":"The connection cannot access this page."}',
+            },
+            2.25,
+          ),
+        ]}
+      />
+    </div>
+  ),
+};

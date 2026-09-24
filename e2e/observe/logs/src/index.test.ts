@@ -180,12 +180,25 @@ describe('fetchStepLogs', () => {
 });
 
 describe('waitForStepLogsContaining', () => {
-  test('polls past partial logs and stops when the expected output arrives', async () => {
+  test.each(['output', 'tool-result'])('polls past partial logs until %s arrives', async (kind) => {
     const argumentRecord = output('{"query":"is:open"}\n');
-    const resultRecord = output(
-      'Selected repository access requires owner and repo parameters\n',
-      2,
-    );
+    const message = 'Selected repository access requires owner and repo parameters';
+    const resultRecord =
+      kind === 'output'
+        ? output(`${message}\n`, 2)
+        : {
+            v: 1 as const,
+            ts: 2,
+            type: 'agent_session' as const,
+            row: {
+              kind: 'tool-result' as const,
+              timestamp: 2,
+              toolCallId: 'tool-1',
+              toolName: 'github__check_runs',
+              output: JSON.stringify({message}),
+              isError: true,
+            },
+          };
     let requests = 0;
 
     const result = await waitForStepLogsContaining({
