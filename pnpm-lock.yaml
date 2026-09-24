@@ -833,6 +833,9 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../tools/typescript
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../libs/shared/workflow/templates
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.3.2

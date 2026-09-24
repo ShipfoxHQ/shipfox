@@ -6,6 +6,13 @@
 .content-collections
 .source
 /content/generated
+# skill pages rendered by scripts/generate.mjs from @shipfox/workflow-templates
+/content/docs/how-to/author-workflows/write-a-workflow.mdx
+/content/docs/how-to/author-workflows/create-workflow-from-template.mdx
+/content/docs/how-to/run-and-troubleshoot/validate-local-workflow-change.mdx
+/content/docs/how-to/run-and-troubleshoot/test-local-workflow-change.mdx
+/content/docs/how-to/run-and-troubleshoot/debug-failed-run.mdx
+/content/docs/reference/mcp-skills.mdx
 
 # test & build
 /coverage

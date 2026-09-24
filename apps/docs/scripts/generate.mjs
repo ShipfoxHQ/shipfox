@@ -93,6 +93,7 @@ import {
   workflowContextNames,
 } from '@shipfox/expression';
 import {buildWorkflowJsonSchema, parseWorkflowDocument} from '@shipfox/workflow-document';
+import {listShippedSkillResources} from '@shipfox/workflow-templates';
 import {load} from 'js-yaml';
 import {buildEventReference} from '@/lib/event-reference/build';
 import {GENERATED_MANIFEST_FILE} from '@/lib/generated-artifacts';
@@ -105,6 +106,13 @@ import {
   contextRootShape,
   WORKFLOW_FIELD_YAML_KEYS,
 } from './lib/context-reference.mjs';
+import {
+  renderSkillCatalog,
+  renderSkillPage,
+  renderSkillResourceTable,
+  SKILL_CATALOG_PAGE,
+  skillPageEntries,
+} from './lib/skill-pages.mjs';
 import {
   buildWorkflowSchemaDocument,
   renderWorkflowSchemaMarkdownMap,
@@ -159,6 +167,8 @@ const dtoCatalogBySlug = {
     eventCatalog: webhookEventCatalog,
   },
 };
+const skillResources = listShippedSkillResources();
+const skillPages = skillPageEntries(skillResources);
 const integrationCatalogProviders = registeredIntegrationProviders
   .filter((provider) => provider.kind === 'catalog')
   .map((provider) => ({...provider, ...dtoCatalogBySlug[provider.slug]}));
@@ -206,6 +216,10 @@ const regions = [
     render: renderMcpToolReference,
   },
   {file: 'content/generated/reference/mcp-server-limits.mdx', render: renderMcpToolLimits},
+  {
+    file: 'content/generated/reference/mcp-server-resources.mdx',
+    render: () => renderSkillResourceTable(skillResources, skillPages),
+  },
 ];
 
 const contextShapeDeps = {
@@ -546,6 +560,18 @@ for (const region of regions) {
 
   // biome-ignore lint/suspicious/noConsole: CLI diagnostics
   console.log(`✓ wrote ${region.file}`);
+}
+
+// Skill pages are whole Git-ignored pages under content/docs, rendered from the
+// SKILL.md files the MCP server serves, so the procedures have one source.
+for (const page of [
+  ...skillPages.map((entry) => ({path: entry.path, content: renderSkillPage(entry, skillPages)})),
+  {path: SKILL_CATALOG_PAGE.path, content: renderSkillCatalog(skillPages)},
+]) {
+  const file = `content/docs/${page.path}.mdx`;
+  writeGeneratedFile(join(docsRoot, file), page.content);
+  // biome-ignore lint/suspicious/noConsole: CLI diagnostics
+  console.log(`✓ wrote ${file}`);
 }
 
 writeGeneratedFile(

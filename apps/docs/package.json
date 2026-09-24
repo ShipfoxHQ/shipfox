@@ -69,6 +69,7 @@
     "@shipfox/expression": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
+    "@shipfox/workflow-templates": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
     "@types/js-yaml": "catalog:",
     "@types/mdx": "catalog:",
