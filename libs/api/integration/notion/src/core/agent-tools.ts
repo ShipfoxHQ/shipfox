@@ -42,7 +42,7 @@ export const notionAgentToolCatalog = [
       page_size: pageSizeSchema,
       cursor: cursorSchema,
     }),
-    outputSchema: objectSchema({
+    outputSchema: notionResponseSchema({
       results: arraySchema(dynamicObjectSchema),
       next_cursor: nullableStringSchema('Cursor for the next page'),
       has_more: booleanSchema('Whether another page is available'),
@@ -59,7 +59,7 @@ export const notionAgentToolCatalog = [
     id: 'get_page_content',
     description: 'Retrieve the Markdown content of a shared Notion page by URL or ID.',
     inputSchema: objectSchema({page_id: pageIdSchema}, ['page_id']),
-    outputSchema: objectSchema({
+    outputSchema: notionResponseSchema({
       markdown: stringSchema('Page content in Markdown'),
       truncated: booleanSchema('Whether Notion truncated the content'),
       unknown_block_ids: arraySchema(stringSchema('Block ID Notion could not represent')),
@@ -79,7 +79,7 @@ export const notionAgentToolCatalog = [
       },
       ['data_source_id'],
     ),
-    outputSchema: objectSchema({
+    outputSchema: notionResponseSchema({
       results: arraySchema(dynamicObjectSchema),
       next_cursor: nullableStringSchema('Cursor for the next page'),
       has_more: booleanSchema('Whether another page is available'),
@@ -92,7 +92,7 @@ export const notionAgentToolCatalog = [
       {block_id: stringSchema('Notion page URL, block URL, or block ID'), cursor: cursorSchema},
       ['block_id'],
     ),
-    outputSchema: objectSchema({
+    outputSchema: notionResponseSchema({
       results: arraySchema(dynamicObjectSchema),
       next_cursor: nullableStringSchema('Cursor for the next page'),
       has_more: booleanSchema('Whether another page is available'),
@@ -263,19 +263,22 @@ function objectSchema(
   };
 }
 
+function notionResponseSchema(
+  properties: Record<string, AgentToolJsonSchema>,
+): AgentToolJsonSchema {
+  return {type: 'object', additionalProperties: true, properties};
+}
+
 function pageOutputSchema(): AgentToolJsonSchema {
-  return {
-    ...objectSchema({
-      id: stringSchema('Notion page ID'),
-      url: stringSchema('Notion page URL'),
-      title: stringSchema('Page title'),
-      parent: dynamicObjectSchema,
-      properties: dynamicObjectSchema,
-      created_time: stringSchema('Creation timestamp'),
-      last_edited_time: stringSchema('Last edit timestamp'),
-    }),
-    additionalProperties: true,
-  };
+  return notionResponseSchema({
+    id: stringSchema('Notion page ID'),
+    url: stringSchema('Notion page URL'),
+    title: stringSchema('Page title'),
+    parent: dynamicObjectSchema,
+    properties: dynamicObjectSchema,
+    created_time: stringSchema('Creation timestamp'),
+    last_edited_time: stringSchema('Last edit timestamp'),
+  });
 }
 
 function openObjectSchema(description: string): AgentToolJsonSchema {
