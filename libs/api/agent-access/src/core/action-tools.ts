@@ -202,7 +202,7 @@ function createDevRunTool(
   return {
     name: 'create_dev_run',
     description:
-      'Check or start a development run from local YAML content or a repository ref. Supply project_id, config_path, trigger, and content, ref, or both; commit requires ref. Optional inputs and replay_event_id select the trigger input. With dry_run: true, the result has check_passed and event_checked but no run_id. Without dry_run, it starts a real run and returns run_id and run_url when configured. Results include the resolved commit and may include ref and warnings.',
+      'Check or start a development run from local YAML content or a repository ref. Supply project_id, config_path, trigger, and content, ref, or both; commit requires ref. Only manual triggers accept inputs. Integration triggers require replay_event_id for real runs; omit it for manual and cron triggers. With dry_run: true, a shape check can omit replay_event_id and the result has check_passed and event_checked but no run_id. Without dry_run, it starts a real run and returns run_id and run_url when configured. Results include the resolved commit and may include ref and warnings.',
     inputSchema: createDevRunInputJsonSchema,
     outputSchema: agentAccessOutputSchema(createDevRunResultJsonSchema),
     validateInput: (input) => createDevRunInputSchema.safeParse(input).success,
