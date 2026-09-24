@@ -177,7 +177,7 @@ function ActionDetail({
     </LogContent>
   );
   if (kind === 'markdown') {
-    content = <Markdown className="text-foreground-contrast-primary">{value}</Markdown>;
+    content = <Markdown tone="contrast">{value}</Markdown>;
   } else if (kind === 'structured') {
     content = <StructuredResult value={value} />;
   }

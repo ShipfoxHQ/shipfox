@@ -59,6 +59,30 @@ describe('Markdown', () => {
     ).toBe(true);
   });
 
+  test('uses contrast foregrounds on the contrast tone', () => {
+    const {container} = render(
+      <MarkdownTestHost>
+        <Markdown tone="contrast">{'Body\n\n- item\n\n> quoted\n\nRun `pnpm test`.'}</Markdown>
+      </MarkdownTestHost>,
+    );
+
+    expect(
+      container.querySelector('p')?.classList.contains('text-foreground-contrast-primary'),
+    ).toBe(true);
+    expect(
+      container.querySelector('ul')?.classList.contains('text-foreground-contrast-primary'),
+    ).toBe(true);
+    expect(
+      container
+        .querySelector('blockquote')
+        ?.classList.contains('text-foreground-contrast-secondary'),
+    ).toBe(true);
+    expect(
+      container.querySelector('code')?.classList.contains('bg-background-contrast-subtle'),
+    ).toBe(true);
+    expect(container.querySelector('[class*="text-foreground-neutral"]')).toBeNull();
+  });
+
   test('renders GFM tables, lists, and safe external links', () => {
     const {container, getByRole, getByText} = renderMarkdown(`
 - one
