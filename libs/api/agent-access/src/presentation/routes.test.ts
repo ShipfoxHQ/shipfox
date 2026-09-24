@@ -313,7 +313,7 @@ describe('agent-access MCP routes', () => {
     );
     await client.close();
 
-    expect(tools.tools.map((tool) => tool.name)).toEqual(['agent_access_fixture']);
+    expect(tools.tools.map((tool) => tool.name)).toEqual(['agent_access_fixture', 'search_docs']);
     expect(client.getServerVersion()?.name).toBe('shipfox');
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toEqual({

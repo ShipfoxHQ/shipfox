@@ -1,6 +1,10 @@
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import {logger} from '@shipfox/node-opentelemetry';
-import {type AgentAccessToolCallOutcome, recordAgentAccessToolCall} from '#metrics/index.js';
+import {
+  type AgentAccessToolCallOutcome,
+  recordAgentAccessResourceRead,
+  recordAgentAccessToolCall,
+} from '#metrics/index.js';
 
 export type AgentAccessAuthorityOutcome =
   | 'ok'
@@ -30,6 +34,10 @@ export interface AgentAccessActionAudit {
 
 export interface AgentAccessToolCallAuditRecord {
   kind?: 'resource' | undefined;
+  source?: 'docs' | 'skill' | undefined;
+  uri?: string | undefined;
+  slug?: string | undefined;
+  cached?: boolean | undefined;
   tool: string;
   outcome: AgentAccessToolCallOutcome;
   errorCode: string;
@@ -42,6 +50,7 @@ export type AgentAccessToolCallRecorder = (record: AgentAccessToolCallAuditRecor
 
 export interface CreateAgentAccessToolCallRecorderOptions {
   recordMetric?: typeof recordAgentAccessToolCall;
+  recordResourceMetric?: typeof recordAgentAccessResourceRead;
   logInfo?:
     | ((context: Record<string, unknown>, message: 'agent access tool call audited') => void)
     | undefined;
@@ -51,10 +60,15 @@ export function createAgentAccessToolCallRecorder(
   options: CreateAgentAccessToolCallRecorderOptions = {},
 ): AgentAccessToolCallRecorder {
   const recordMetric = options.recordMetric ?? recordAgentAccessToolCall;
+  const recordResourceMetric = options.recordResourceMetric ?? recordAgentAccessResourceRead;
   const logInfo = options.logInfo ?? ((context, message) => logger().info(context, message));
 
   return (record) => {
-    recordMetric({tool: record.tool, outcome: record.outcome});
+    if (record.kind === 'resource') {
+      recordResourceMetric({source: record.source ?? 'skill', outcome: record.outcome});
+    } else {
+      recordMetric({tool: record.tool, outcome: record.outcome});
+    }
     logInfo(auditLogContext(record), 'agent access tool call audited');
   };
 }
@@ -63,6 +77,10 @@ function auditLogContext(record: AgentAccessToolCallAuditRecord): Record<string,
   const credential = record.context.credential;
   return {
     ...(record.kind === undefined ? {} : {kind: record.kind}),
+    ...(record.source === undefined ? {} : {source: record.source}),
+    ...(record.uri === undefined ? {} : {uri: record.uri}),
+    ...(record.slug === undefined ? {} : {slug: record.slug}),
+    ...(record.cached === undefined ? {} : {cached: record.cached}),
     tool: record.tool,
     outcome: record.outcome,
     errorCode: record.errorCode,

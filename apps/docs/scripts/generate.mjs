@@ -23,6 +23,8 @@ import {
   createAgentAccessTemplateTools,
   createAgentAccessTools,
   createAgentAccessWorkflowDiagnosticTools,
+  createDocsCache,
+  createSearchDocsTool,
 } from '@shipfox/api-agent-access';
 import {
   AGENT_ACCESS_ANNOTATION_BODY_MAX_BYTES,
@@ -383,6 +385,7 @@ const mcpToolGroups = [
     title: 'Discovery',
     tools: [
       'list_projects',
+      'search_docs',
       'list_workflow_definitions',
       'list_workflow_runs',
       'list_integration_connections',
@@ -457,6 +460,7 @@ function listMcpTools() {
       templates: stub,
     }),
     ...createAgentAccessAuthoringContextTools({agent: stub, workflows: stub, secrets: stub}),
+    createSearchDocsTool(createDocsCache({baseUrl: 'https://www.shipfox.io/docs'})),
   ];
 }
 
@@ -509,7 +513,7 @@ function renderMcpToolLimits() {
     ],
     ['Failed-only log sections', `${AGENT_ACCESS_LOG_SECTION_MAX_ITEMS} step attempts`],
     [
-      'Tool calls',
+      'Tool calls and uncached docs reads',
       `${AGENT_ACCESS_TOOL_CALL_LIMIT} per credential per ${windowLabel} on each API instance`,
     ],
     [

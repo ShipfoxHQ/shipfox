@@ -23,10 +23,18 @@ const agentAccessMcpInstructionSuffix = [
   `Each API instance limits tools/call to ${AGENT_ACCESS_TOOL_CALL_LIMIT} calls per credential per ${rateLimitWindowLabel}, and limits action tools to ${AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT} calls per credential per ${rateLimitWindowLabel} on top of that window. A rejected call is returned as an isError tool result with retry_after_seconds metadata.`,
 ] as const;
 
-export function createAgentAccessMcpInstructions(includeIntegrationDiscovery: boolean): string {
+export function createAgentAccessMcpInstructions(
+  includeIntegrationDiscovery: boolean,
+  includeDocs = false,
+): string {
   return [
     ...agentAccessMcpInstructionParts,
     ...(includeIntegrationDiscovery ? [integrationDiscoveryMcpInstruction] : []),
+    ...(includeDocs
+      ? [
+          'Reference documentation is available as docs://shipfox/ resources. Use search_docs to find a page.',
+        ]
+      : []),
     ...agentAccessMcpInstructionSuffix,
   ].join(' ');
 }

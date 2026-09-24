@@ -28,6 +28,13 @@ import {
   AGENT_ACCESS_MCP_SERVER_NAME,
   createAgentAccessMcpInstructions,
 } from '#constants.js';
+import {
+  DOCS_INDEX_URI,
+  DOCS_TEMPLATE_URI,
+  type DocsCache,
+  DocsUnavailableError,
+  isValidDocsSlug,
+} from '#core/docs.js';
 import {agentAccessError, serializeAgentAccessEnvelope} from '#core/envelope.js';
 import {AGENT_ACCESS_INTEGRATION_TOOL_NAMES} from '#core/integration-tools.js';
 import {type AgentAccessRateLimiter, createAgentAccessRateLimiter} from '#core/rate-limiter.js';
@@ -53,6 +60,7 @@ export interface BuildAgentAccessMcpServerParams {
   actionRateLimiter?: AgentAccessRateLimiter | undefined;
   auth?: AuthInterModuleClient | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
+  docs?: DocsCache | undefined;
 }
 
 const defaultTools = (): readonly AgentAccessTool[] => [createAgentAccessFixtureTool()];
@@ -64,12 +72,14 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
     params.actionRateLimiter ??
     createAgentAccessRateLimiter({limit: AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT});
   const recordCall = params.recordCall ?? createAgentAccessToolCallRecorder();
+  const docs = params.docs;
   const server = new Server(
     {name: AGENT_ACCESS_MCP_SERVER_NAME, version: AGENT_ACCESS_PACKAGE_VERSION},
     {
       capabilities: {tools: {}, resources: {}},
       instructions: createAgentAccessMcpInstructions(
         AGENT_ACCESS_INTEGRATION_TOOL_NAMES.every((name) => tools.has(name)),
+        docs?.enabled ?? false,
       ),
     },
   );
@@ -93,23 +103,55 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
   }));
 
   server.setRequestHandler(ListResourcesRequestSchema, () => ({
-    resources: listShippedSkillResources().map((resource) => ({
-      uri: resource.uri,
-      name: resource.name,
-      title: resource.title,
-      description: resource.description,
-      mimeType: resource.mimeType,
-      size: resource.size,
-      _meta: {sha256: resource.sha256},
-      annotations: {audience: ['assistant' as const]},
-    })),
+    resources: [
+      ...listShippedSkillResources().map((resource) => ({
+        uri: resource.uri,
+        name: resource.name,
+        title: resource.title,
+        description: resource.description,
+        mimeType: resource.mimeType,
+        size: resource.size,
+        _meta: {sha256: resource.sha256},
+        annotations: {audience: ['assistant' as const]},
+      })),
+      ...(docs?.enabled
+        ? [
+            {
+              uri: DOCS_INDEX_URI,
+              name: 'Shipfox documentation index',
+              title: 'Shipfox documentation index',
+              description: 'Index of Shipfox documentation pages and their docs:// URIs.',
+              mimeType: 'text/markdown',
+              annotations: {audience: ['assistant' as const]},
+            },
+          ]
+        : []),
+    ],
   }));
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({resourceTemplates: []}));
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({
+    resourceTemplates: docs?.enabled
+      ? [
+          {
+            uriTemplate: DOCS_TEMPLATE_URI,
+            name: 'Shipfox documentation page',
+            title: 'Shipfox documentation page',
+            description:
+              'Read a Shipfox documentation page by its slug from the docs index or search_docs.',
+            mimeType: 'text/markdown',
+            annotations: {audience: ['assistant' as const]},
+          },
+        ]
+      : [],
+  }));
   server.setRequestHandler(ReadResourceRequestSchema, (request) => {
     const uri = request.params.uri;
     const resource = getShippedSkillResource(uri);
+    if (resource === undefined && docs?.enabled && uri.startsWith('docs://shipfox/')) {
+      return readDocsResource({uri, docs, rateLimiter, recordCall, context: params.context});
+    }
     recordToolCall(recordCall, {
       kind: 'resource',
+      source: 'skill',
       tool: 'resources/read',
       outcome: resource === undefined ? 'invalid-request' : 'success',
       errorCode: resource === undefined ? 'unknown-resource' : 'none',
@@ -136,6 +178,66 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
   );
 
   return server;
+}
+
+async function readDocsResource(params: {
+  uri: string;
+  docs: DocsCache;
+  rateLimiter: AgentAccessRateLimiter;
+  recordCall: AgentAccessToolCallRecorder;
+  context: AgentAccessContext;
+}): Promise<{contents: {uri: string; mimeType: string; text: string}[]}> {
+  const {uri, docs, rateLimiter, recordCall, context} = params;
+  const slug = docsSlugFromUri(uri);
+  const audit = (outcome: AgentAccessToolCallOutcome, errorCode: string, cached: boolean) =>
+    recordToolCall(recordCall, {
+      kind: 'resource',
+      source: 'docs',
+      uri,
+      slug,
+      cached,
+      tool: 'resources/read',
+      outcome,
+      errorCode,
+      context,
+      target: {uri},
+    });
+  if (slug !== 'index' && !isValidDocsSlug(slug)) {
+    audit('invalid-request', 'unknown-resource', false);
+    throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
+  }
+  try {
+    if (slug !== 'index' && !(await docs.hasSlug(slug))) {
+      audit('invalid-request', 'unknown-resource', false);
+      throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
+    }
+    const cached = slug === 'index' ? docs.isIndexCached() : docs.isPageCached(slug);
+    if (!cached) {
+      const decision = rateLimiter.consume(context.credential);
+      if (!decision.allowed) {
+        audit('rate-limited', 'rate-limited', false);
+        throw new McpError(ErrorCode.InternalError, 'Documentation read rate limit exceeded', {
+          retry_after_seconds: decision.retry_after_seconds,
+        });
+      }
+    }
+    const result = slug === 'index' ? await docs.readIndex() : await docs.readPage(slug);
+    audit('success', 'none', cached || result.cached);
+    return {contents: [{uri, mimeType: 'text/markdown', text: result.text}]};
+  } catch (error) {
+    if (error instanceof McpError) throw error;
+    if (error instanceof DocsUnavailableError) {
+      audit('exception', 'docs-unavailable', false);
+      throw new McpError(ErrorCode.InternalError, error.message);
+    }
+    throw error;
+  }
+}
+
+function docsSlugFromUri(uri: string): string {
+  if (uri === DOCS_INDEX_URI) return 'index';
+  if (uri.startsWith('docs://shipfox/')) return uri.slice('docs://shipfox/'.length);
+  return '';
 }
 
 interface HandleAgentAccessToolCallParams {

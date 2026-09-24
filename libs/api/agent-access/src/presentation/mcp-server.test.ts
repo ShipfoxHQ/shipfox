@@ -103,6 +103,7 @@ describe('buildAgentAccessMcpServer', () => {
     }
     expect(recordCall).toHaveBeenCalledWith({
       kind: 'resource',
+      source: 'skill',
       tool: 'resources/read',
       outcome: 'success',
       errorCode: 'none',

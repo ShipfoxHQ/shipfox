@@ -54,6 +54,7 @@
     "@shipfox/api-secrets-dto": "workspace:*",
     "@shipfox/api-triggers-dto": "workspace:*",
     "@shipfox/api-workflows-dto": "workspace:*",
+    "@shipfox/config": "workspace:*",
     "@shipfox/inter-module": "workspace:*",
     "@shipfox/workflow-templates": "workspace:*",
     "@shipfox/node-drizzle": "workspace:*",

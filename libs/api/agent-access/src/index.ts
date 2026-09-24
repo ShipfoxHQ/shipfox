@@ -22,6 +22,8 @@ export {
   type AgentAccessDiagnosticToolsOptions,
   createAgentAccessDiagnosticTools,
 } from '#core/diagnostic-tools.js';
+export {createDocsCache} from '#core/docs.js';
+export {createSearchDocsTool} from '#core/docs-tools.js';
 export {
   agentAccessError,
   agentAccessSuccess,
@@ -75,6 +77,7 @@ export {
   type AgentAccessToolCallOutcome,
   recordAgentAccessAuthFailure,
   recordAgentAccessAuthorityCheck,
+  recordAgentAccessResourceRead,
   recordAgentAccessToolCall,
 } from '#metrics/index.js';
 export {

@@ -54,6 +54,12 @@ export {
   getTriggerEventResultSchema,
 } from './schemas/diagnostic-tools.js';
 export {
+  searchDocsInputJsonSchema,
+  searchDocsInputSchema,
+  searchDocsResultJsonSchema,
+  searchDocsResultSchema,
+} from './schemas/docs-tools.js';
+export {
   AGENT_ACCESS_ERROR_CODE_MAX_LENGTH,
   AGENT_ACCESS_ERROR_DETAIL_STRING_MAX_BYTES,
   AGENT_ACCESS_ERROR_DETAILS_MAX_BYTES,
