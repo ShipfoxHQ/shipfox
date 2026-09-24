@@ -1,5 +1,24 @@
 # @shipfox/client-onboarding
 
+## 52.0.3
+
+### Patch Changes
+
+- fe68025: Serve embedded workflow skills as MCP resources with an index, manifest, and audited reads.
+
+  Remove `get_workflow_setup_guide` from the public MCP contract. The entry point is inactive, and no consumer outside this repository uses the tool.
+
+  Point the first workflow prompt at the template skill.
+
+- Updated dependencies [0a8dc4f]
+  - @shipfox/react-ui@3.3.0
+  - @shipfox/client-agent@52.0.3
+  - @shipfox/client-integrations@52.0.3
+  - @shipfox/client-projects@52.0.3
+  - @shipfox/client-runners@52.0.3
+  - @shipfox/client-shell@52.0.3
+  - @shipfox/client-workspace-settings@52.0.3
+
 ## 52.0.1
 
 ### Patch Changes

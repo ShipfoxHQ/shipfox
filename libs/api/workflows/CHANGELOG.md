@@ -1,5 +1,14 @@
 # @shipfox/api-workflows
 
+## 33.0.0
+
+### Patch Changes
+
+- f24d9cd: Recover completed attempts' session claims before dispatching the next writer, so delayed background releases do not fail sequential agent steps.
+- Updated dependencies [f24d9cd]
+  - @shipfox/api-agent-dto@33.0.0
+  - @shipfox/api-workflows-dto@33.0.0
+
 ## 32.2.1
 
 ### Patch Changes

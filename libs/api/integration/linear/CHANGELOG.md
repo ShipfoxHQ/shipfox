@@ -1,5 +1,11 @@
 # @shipfox/api-integration-linear
 
+## 33.0.0
+
+### Patch Changes
+
+- 53c65f9: Add safe OAuth error codes and integration connection context to Linear refresh logs. Record token refresh and persistence progress without logging credentials or response payloads.
+
 ## 31.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @shipfox/react-ui
 
+## 3.3.0
+
+### Minor Changes
+
+- 0a8dc4f: Adds a `tone="contrast"` option to `Markdown` for content on the dark code surface. Agent prompts and replies in logs now use it, so their text stays readable in light mode.
+
 ## 3.2.0
 
 ### Minor Changes
