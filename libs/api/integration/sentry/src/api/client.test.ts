@@ -1,3 +1,4 @@
+import {createHmac} from 'node:crypto';
 import {HTTPError, TimeoutError} from 'ky';
 import {SentryIntegrationProviderError} from '#core/errors.js';
 import {createSentryApiClient} from './client.js';
@@ -167,7 +168,8 @@ describe('Sentry authenticated reads', () => {
     expect(url).toContain('/sentry-app-installations/install%2F1/authorizations/');
     expect(options.json.grant_type).toBe('urn:sentry:params:oauth:grant-type:jwt-bearer');
     const assertion = options.headers.authorization.slice('Bearer '.length);
-    const [header, payload] = assertion.split('.');
+    const [header, payload, signature] = assertion.split('.');
+    expect(assertion.split('.')).toHaveLength(3);
     expect(JSON.parse(Buffer.from(header ?? '', 'base64url').toString())).toEqual({
       alg: 'HS256',
       typ: 'JWT',
@@ -182,6 +184,25 @@ describe('Sentry authenticated reads', () => {
     expect(claims).toMatchObject({iss: 'test-client-id', sub: 'test-client-id'});
     expect(claims.exp - claims.iat).toBe(60);
     expect(claims.jti).toBeTruthy();
+    expect(signature).toBe(
+      createHmac('sha256', 'test-client-secret').update(`${header}.${payload}`).digest('base64url'),
+    );
+  });
+
+  it('maps a rejected token mint to access-denied', async () => {
+    postMock.mockReturnValue(rejects(httpError(403)));
+
+    const result = createSentryApiClient().mintInstallationToken({installationUuid: 'install-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('rejects a minted token with a malformed expiry', async () => {
+    postMock.mockReturnValue(resolves({token: 'read-token', expiresAt: 'not-a-date'}));
+
+    const result = createSentryApiClient().mintInstallationToken({installationUuid: 'install-1'});
+
+    await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 
   it('encodes project filters and forwards the next cursor without following the link URL', async () => {

@@ -40,10 +40,13 @@ describe('sentry installations persistence', () => {
     const contender = await withSentryRefreshLock(connectionId, async () => 'contender');
     const other = await withSentryRefreshLock(randomUUID(), async () => 'other');
     release('holder');
+    const heldResult = await holder;
+    const reacquired = await withSentryRefreshLock(connectionId, async () => 'renewed');
 
     expect(contender).toEqual({acquired: false});
     expect(other).toEqual({acquired: true, value: 'other'});
-    expect(await holder).toEqual({acquired: true, value: 'holder'});
+    expect(heldResult).toEqual({acquired: true, value: 'holder'});
+    expect(reacquired).toEqual({acquired: true, value: 'renewed'});
   });
 
   test('upsert updates in place when the same connection reconnects, without duplicating', async () => {
