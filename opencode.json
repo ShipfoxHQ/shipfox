@@ -8,6 +8,10 @@
     "shipfox-staging": {
       "type": "remote",
       "url": "https://api.staging.shipfox.io/mcp"
+    },
+    "neon": {
+      "type": "remote",
+      "url": "https://mcp.neon.tech/mcp?readonly=true"
     }
   }
 }

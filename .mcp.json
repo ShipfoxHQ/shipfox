@@ -7,6 +7,10 @@
     "shipfox-staging": {
       "type": "http",
       "url": "https://api.staging.shipfox.io/mcp"
+    },
+    "neon": {
+      "type": "http",
+      "url": "https://mcp.neon.tech/mcp?readonly=true"
     }
   }
 }
