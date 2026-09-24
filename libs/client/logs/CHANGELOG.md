@@ -1,5 +1,14 @@
 # @shipfox/client-logs
 
+## 52.0.3
+
+### Patch Changes
+
+- 0a8dc4f: Adds a `tone="contrast"` option to `Markdown` for content on the dark code surface. Agent prompts and replies in logs now use it, so their text stays readable in light mode.
+- Updated dependencies [0a8dc4f]
+  - @shipfox/react-ui@3.3.0
+  - @shipfox/integration-icons@0.5.2
+
 ## 52.0.0
 
 ### Minor Changes

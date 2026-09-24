@@ -1,5 +1,23 @@
 # @shipfox/client-features
 
+## 52.0.3
+
+### Patch Changes
+
+- Updated dependencies [fe68025]
+  - @shipfox/client-onboarding@52.0.3
+  - @shipfox/client-agent@52.0.3
+  - @shipfox/client-auth@52.0.3
+  - @shipfox/client-integrations@52.0.3
+  - @shipfox/client-invitations@52.0.3
+  - @shipfox/client-projects@52.0.3
+  - @shipfox/client-runners@52.0.3
+  - @shipfox/client-secrets@52.0.3
+  - @shipfox/client-shell@52.0.3
+  - @shipfox/client-triggers@52.0.3
+  - @shipfox/client-workflows@52.0.3
+  - @shipfox/client-workspace-settings@52.0.3
+
 ## 52.0.2
 
 ### Patch Changes

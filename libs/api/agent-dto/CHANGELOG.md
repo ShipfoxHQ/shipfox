@@ -1,5 +1,11 @@
 # @shipfox/api-agent-dto
 
+## 33.0.0
+
+### Minor Changes
+
+- f24d9cd: Recover completed attempts' session claims before dispatching the next writer, so delayed background releases do not fail sequential agent steps.
+
 ## 32.2.0
 
 ### Minor Changes

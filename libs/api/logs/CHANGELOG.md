@@ -1,5 +1,12 @@
 # @shipfox/api-logs
 
+## 33.0.0
+
+### Patch Changes
+
+- 3468f1f: Stop rendering Claude assistant messages that contain only hidden thinking as raw JSON in the session view.
+  - @shipfox/api-workflows-dto@33.0.0
+
 ## 32.2.0
 
 ### Patch Changes

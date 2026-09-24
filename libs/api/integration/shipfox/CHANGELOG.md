@@ -1,5 +1,12 @@
 # @shipfox/api-integration-shipfox
 
+## 33.0.0
+
+### Patch Changes
+
+- @shipfox/api-workflows-dto@33.0.0
+- @shipfox/api-triggers-dto@33.0.0
+
 ## 32.2.0
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @shipfox/api-agent-access
 
+## 33.0.0
+
+### Minor Changes
+
+- f03324a: Replaces model profiles and `resolved_models` with `suggested_models` in template results. It lists available model and thinking choices and ranks qualified measured combinations by cost.
+- fe68025: Serve embedded workflow skills as MCP resources with an index, manifest, and audited reads.
+
+  Remove `get_workflow_setup_guide` from the public MCP contract. The entry point is inactive, and no consumer outside this repository uses the tool.
+
+  Point the first workflow prompt at the template skill.
+
+- ed5fe9f: Adds bounded wait support to `get_workflow_run` so callers can follow terminal or listening runs without polling.
+
+### Patch Changes
+
+- Updated dependencies [f03324a]
+- Updated dependencies [f24d9cd]
+- Updated dependencies [fe68025]
+- Updated dependencies [ed5fe9f]
+  - @shipfox/workflow-templates@1.0.0
+  - @shipfox/api-agent-access-dto@33.0.0
+  - @shipfox/api-agent-dto@33.0.0
+  - @shipfox/api-workflows-dto@33.0.0
+  - @shipfox/api-triggers-dto@33.0.0
+
 ## 32.2.0
 
 ### Patch Changes

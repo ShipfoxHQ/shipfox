@@ -1,5 +1,20 @@
 # @shipfox/api-agent-access-dto
 
+## 33.0.0
+
+### Major Changes
+
+- f03324a: Replaces model profiles and `resolved_models` with `suggested_models` in template results. It lists available model and thinking choices and ranks qualified measured combinations by cost.
+- fe68025: Serve embedded workflow skills as MCP resources with an index, manifest, and audited reads.
+
+  Remove `get_workflow_setup_guide` from the public MCP contract. The entry point is inactive, and no consumer outside this repository uses the tool.
+
+  Point the first workflow prompt at the template skill.
+
+### Minor Changes
+
+- ed5fe9f: Adds bounded wait support to `get_workflow_run` so callers can follow terminal or listening runs without polling.
+
 ## 32.2.0
 
 ### Minor Changes
