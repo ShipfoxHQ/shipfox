@@ -167,7 +167,6 @@ export function boundedSentryToolResult(result: SentryToolResult): {
     output.truncated = true;
     removeSourceContext(output.data);
     removeFramesUntilFit(output);
-    removeListItemsUntilFit(output);
     shortenTextUntilFit(output);
   }
   if (toolResultBytes(output) > MAX_RESULT_BYTES) {
@@ -210,22 +209,25 @@ function removeFramesUntilFit(result: SentryToolResult): void {
   const event = record(result.data);
   if (!event || !Array.isArray(event.exceptions)) return;
   while (toolResultBytes(result) > MAX_RESULT_BYTES) {
-    const exception = [...event.exceptions]
-      .reverse()
-      .map(record)
-      .find((value) => value && Array.isArray(value.frames) && value.frames.length > 0);
-    if (!exception || !Array.isArray(exception.frames)) return;
-    const reverseIndex = [...exception.frames]
-      .reverse()
-      .findIndex((frame) => record(frame)?.inApp !== true);
-    const nonAppIndex = reverseIndex < 0 ? -1 : exception.frames.length - 1 - reverseIndex;
-    exception.frames.splice(nonAppIndex < 0 ? exception.frames.length - 1 : nonAppIndex, 1);
+    const candidate =
+      removableFrame(event.exceptions, false) ?? removableFrame(event.exceptions, true);
+    if (!candidate) return;
+    candidate.frames.splice(candidate.index, 1);
   }
 }
 
-function removeListItemsUntilFit(result: SentryToolResult): void {
-  if (!Array.isArray(result.data)) return;
-  while (result.data.length > 1 && toolResultBytes(result) > MAX_RESULT_BYTES) result.data.pop();
+function removableFrame(
+  exceptions: unknown[],
+  inApp: boolean,
+): {frames: unknown[]; index: number} | undefined {
+  for (let exceptionIndex = exceptions.length - 1; exceptionIndex >= 0; exceptionIndex--) {
+    const frames = record(exceptions[exceptionIndex])?.frames;
+    if (!Array.isArray(frames)) continue;
+    for (let index = frames.length - 1; index >= 0; index--) {
+      if ((record(frames[index])?.inApp === true) === inApp) return {frames, index};
+    }
+  }
+  return undefined;
 }
 
 function shortenTextUntilFit(result: SentryToolResult): void {
@@ -256,7 +258,12 @@ function mutableStrings(value: unknown): {parent: JsonObject; key: string; value
 }
 
 function minimalData(data: SentryToolResult['data']): SentryToolResult['data'] {
-  if (Array.isArray(data)) return data.length === 0 ? [] : [{id: data[0]?.id}];
+  if (Array.isArray(data))
+    return data.map((item) => {
+      const minimal: JsonObject = {};
+      copy(minimal, item, ['id']);
+      return minimal;
+    });
   const minimal: JsonObject = {};
   copy(minimal, data, ['id', 'issueId', 'permalink']);
   return minimal;

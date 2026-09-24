@@ -290,10 +290,60 @@ describe('Sentry agent tools', () => {
   it('caps the serialized result at 64 KiB while retaining identifiers and a source link', async () => {
     const {client, call} = setup();
     client.getIssue.mockResolvedValueOnce({id: '42', title: 'x'.repeat(100_000)});
+
     const {data, response} = await call('get-issue', {issueId: '42'});
+
     expect(data.truncated).toBe(true);
     expect(data.data.id).toBe('42');
     expect(data.sourceUrl).toContain('/issues/42/');
+    expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it('keeps every issue on an oversized page before forwarding its cursor', async () => {
+    const {client, call} = setup();
+    const issues = Array.from({length: 100}, (_, index) => ({
+      id: String(index),
+      title: 'x'.repeat(500),
+    }));
+    client.searchIssues.mockResolvedValueOnce({data: issues, nextCursor: 'opaque:next'});
+
+    const {data, response} = await call('search-issues', {limit: 100});
+
+    expect(data.truncated).toBe(true);
+    expect(data.data.map((issue: {id: string}) => issue.id)).toEqual(
+      issues.map((issue) => issue.id),
+    );
+    expect(data.nextCursor).toBe('opaque:next');
+    expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it('keeps in-app frames across exceptions when trimming an oversized event', async () => {
+    const {client, call} = setup();
+    const libraryFrames = Array.from({length: 50}, (_, index) => ({
+      function: `library-${index}-${'x'.repeat(800)}`,
+      inApp: false,
+    }));
+    client.getIssueEvent.mockResolvedValueOnce({
+      id: 'event-4',
+      groupID: '42',
+      entries: [
+        {
+          type: 'exception',
+          data: {
+            values: [
+              {type: 'LibraryError', stacktrace: {frames: libraryFrames}},
+              {type: 'AppError', stacktrace: {frames: [{function: 'app', inApp: true}]}},
+            ],
+          },
+        },
+      ],
+    });
+
+    const {data, response} = await call('get-issue-event', {issueId: '42'});
+
+    expect(data.truncated).toBe(true);
+    expect(data.data.exceptions[0].frames.length).toBeLessThan(50);
+    expect(data.data.exceptions[1].frames).toEqual([{function: 'app', inApp: true}]);
     expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThanOrEqual(64 * 1024);
   });
 
