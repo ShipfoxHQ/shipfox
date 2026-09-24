@@ -507,15 +507,10 @@ function MetadataTrigger({meta}: {meta: readonly SessionViewRowMeta[]}) {
 
 function MarkdownPreview({text}: {text: string}) {
   if (text.length <= PREVIEW_CHAR_LIMIT) {
-    return <Markdown className="text-foreground-contrast-primary">{text}</Markdown>;
+    return <Markdown tone="contrast">{text}</Markdown>;
   }
 
-  return (
-    <PreviewText
-      text={text}
-      expandedContent={<Markdown className="text-foreground-contrast-primary">{text}</Markdown>}
-    />
-  );
+  return <PreviewText text={text} expandedContent={<Markdown tone="contrast">{text}</Markdown>} />;
 }
 
 function PreviewText({text, expandedContent}: {text: string; expandedContent?: ReactNode}) {

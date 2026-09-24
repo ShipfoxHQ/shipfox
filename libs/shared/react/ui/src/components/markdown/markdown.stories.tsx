@@ -54,3 +54,11 @@ export const Content: Story = {
     </div>
   ),
 };
+
+export const ContrastTone: Story = {
+  render: () => (
+    <div className="grid max-w-[720px] gap-24 bg-background-contrast-base p-24">
+      <Markdown tone="contrast">{sampleMarkdown}</Markdown>
+    </div>
+  ),
+};

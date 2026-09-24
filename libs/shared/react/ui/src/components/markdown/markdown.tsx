@@ -27,11 +27,32 @@ const sanitizeSchema = {
 type MarkdownHeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 type MarkdownHeadingComponent = NonNullable<Components['h1']>;
 
+// `contrast` renders on the inverted code surface (`bg-background-contrast-base`), which stays
+// dark in light mode, so the neutral foregrounds would read dark on dark there.
+type MarkdownTone = 'neutral' | 'contrast';
+
+const toneClassNames = {
+  neutral: {
+    text: 'text-foreground-neutral-base',
+    subtleText: 'text-foreground-neutral-subtle',
+    border: 'border-border-neutral-base',
+    strongBorder: 'border-border-neutral-strong',
+    inlineCode: 'bg-background-components-base text-foreground-neutral-base',
+  },
+  contrast: {
+    text: 'text-foreground-contrast-primary',
+    subtleText: 'text-foreground-contrast-secondary',
+    border: 'border-border-contrast-base',
+    strongBorder: 'border-border-contrast-base',
+    inlineCode: 'bg-background-contrast-subtle text-foreground-contrast-primary',
+  },
+} as const satisfies Record<MarkdownTone, Record<string, string>>;
+
 const headingClassNames = {
-  1: 'mb-8 text-lg font-medium text-foreground-neutral-base',
-  2: 'mb-8 text-md font-medium text-foreground-neutral-base',
-  3: 'mb-8 text-sm font-medium text-foreground-neutral-base',
-  4: 'mb-8 text-sm font-medium text-foreground-neutral-base',
+  1: 'mb-8 text-lg font-medium',
+  2: 'mb-8 text-md font-medium',
+  3: 'mb-8 text-sm font-medium',
+  4: 'mb-8 text-sm font-medium',
 } as const;
 
 function createMarkdownHeading(
@@ -44,167 +65,185 @@ function createMarkdownHeading(
   );
 }
 
-const markdownHeadingComponents = {
-  h1: createMarkdownHeading('h1', headingClassNames[1]),
-  h2: createMarkdownHeading('h2', headingClassNames[2]),
-  h3: createMarkdownHeading('h3', headingClassNames[3]),
-  h4: createMarkdownHeading('h4', headingClassNames[4]),
-} satisfies Components;
+function createMarkdownHeadingComponents(
+  tone: MarkdownTone,
+  headingLevelOffset: 0 | 1,
+): Components {
+  const text = toneClassNames[tone].text;
+  if (headingLevelOffset === 1) {
+    return {
+      h1: createMarkdownHeading('h2', cn(headingClassNames[1], text)),
+      h2: createMarkdownHeading('h3', cn(headingClassNames[2], text)),
+      h3: createMarkdownHeading('h4', cn(headingClassNames[3], text)),
+      h4: createMarkdownHeading('h5', cn(headingClassNames[4], text)),
+      h5: createMarkdownHeading('h6', cn(headingClassNames[4], text)),
+      h6: createMarkdownHeading('h6', cn(headingClassNames[4], text)),
+    };
+  }
 
-const nestedMarkdownHeadingComponents = {
-  h1: createMarkdownHeading('h2', headingClassNames[1]),
-  h2: createMarkdownHeading('h3', headingClassNames[2]),
-  h3: createMarkdownHeading('h4', headingClassNames[3]),
-  h4: createMarkdownHeading('h5', headingClassNames[4]),
-  h5: createMarkdownHeading('h6', headingClassNames[4]),
-  h6: createMarkdownHeading('h6', headingClassNames[4]),
-} satisfies Components;
+  return {
+    h1: createMarkdownHeading('h1', cn(headingClassNames[1], text)),
+    h2: createMarkdownHeading('h2', cn(headingClassNames[2], text)),
+    h3: createMarkdownHeading('h3', cn(headingClassNames[3], text)),
+    h4: createMarkdownHeading('h4', cn(headingClassNames[4], text)),
+  };
+}
 
-const markdownComponents = {
-  ...markdownHeadingComponents,
-  p: ({className, node: _node, ...props}) => (
-    <p
-      className={cn('mb-8 text-sm leading-20 text-foreground-neutral-base', className)}
-      {...props}
-    />
-  ),
-  ul: ({className, node: _node, ...props}) => (
-    <ul
-      className={cn('mb-8 list-disc pl-16 text-sm text-foreground-neutral-base', className)}
-      {...props}
-    />
-  ),
-  ol: ({className, node: _node, ...props}) => (
-    <ol
-      className={cn('mb-8 list-decimal pl-16 text-sm text-foreground-neutral-base', className)}
-      {...props}
-    />
-  ),
-  li: ({className, node: _node, ...props}) => (
-    <li className={cn('mb-4 pl-4', className)} {...props} />
-  ),
-  blockquote: ({className, node: _node, ...props}) => (
-    <blockquote
-      className={cn(
-        'mb-8 border-l-2 border-border-neutral-strong pl-12 text-sm text-foreground-neutral-subtle',
-        className,
-      )}
-      {...props}
-    />
-  ),
-  // Sized to content, not to the container: a two-column table stretched to full width puts a
-  // cell 700px from its row header. The scroll container still absorbs a table too wide to fit.
-  table: ({className, node: _node, ...props}) => (
-    <div className="mb-8 overflow-x-auto">
-      <table
+function createMarkdownComponents(tone: MarkdownTone, headingLevelOffset: 0 | 1): Components {
+  const toneClassName = toneClassNames[tone];
+
+  return {
+    ...createMarkdownHeadingComponents(tone, headingLevelOffset),
+    p: ({className, node: _node, ...props}) => (
+      <p className={cn('mb-8 text-sm leading-20', toneClassName.text, className)} {...props} />
+    ),
+    ul: ({className, node: _node, ...props}) => (
+      <ul
+        className={cn('mb-8 list-disc pl-16 text-sm', toneClassName.text, className)}
+        {...props}
+      />
+    ),
+    ol: ({className, node: _node, ...props}) => (
+      <ol
+        className={cn('mb-8 list-decimal pl-16 text-sm', toneClassName.text, className)}
+        {...props}
+      />
+    ),
+    li: ({className, node: _node, ...props}) => (
+      <li className={cn('mb-4 pl-4', className)} {...props} />
+    ),
+    blockquote: ({className, node: _node, ...props}) => (
+      <blockquote
         className={cn(
-          'w-auto border-collapse border border-border-neutral-base text-sm tabular-nums',
+          'mb-8 border-l-2 pl-12 text-sm',
+          toneClassName.strongBorder,
+          toneClassName.subtleText,
           className,
         )}
         {...props}
       />
-    </div>
-  ),
-  th: ({className, node: _node, ...props}) => (
-    <th
-      className={cn(
-        'border border-border-neutral-base px-8 py-4 text-left font-medium text-foreground-neutral-base',
-        className,
-      )}
-      {...props}
-    />
-  ),
-  td: ({className, node: _node, ...props}) => (
-    <td
-      className={cn(
-        'border border-border-neutral-base px-8 py-4 text-foreground-neutral-base',
-        className,
-      )}
-      {...props}
-    />
-  ),
-  hr: ({className, node: _node, ...props}) => (
-    <hr className={cn('mb-8 border-border-neutral-base', className)} {...props} />
-  ),
-  a: ({className, href, children, node: _node, ...props}) => {
-    if (!isSafeHref(href)) {
-      return <span className={className}>{children}</span>;
-    }
-
-    return (
-      <a
-        className={cn(
-          'inline-flex items-baseline gap-2 text-foreground-highlight-interactive underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-background-accent-blue-base focus-visible:ring-offset-2',
-          className,
-        )}
-        href={href}
-        rel="noopener noreferrer nofollow"
-        target="_blank"
-        {...props}
-      >
-        <span>{children}</span>
-        <Icon
-          name="externalLink"
-          size={14}
-          aria-hidden="true"
-          className="inline-block translate-y-2"
-        />
-        <span className="sr-only">(opens in new tab)</span>
-      </a>
-    );
-  },
-  img: () => null,
-  pre: ({children}) => <>{children}</>,
-  code: ({className, children, node: _node, ...props}) => {
-    const code = childrenToString(children).replace(TRAILING_NEWLINE_PATTERN, '');
-    const language = className?.match(LANGUAGE_CLASS_PATTERN)?.[1];
-    const isBlockCode = Boolean(language) || code.includes('\n');
-
-    if (!isBlockCode) {
-      return (
-        <code
+    ),
+    // Sized to content, not to the container: a two-column table stretched to full width puts a
+    // cell 700px from its row header. The scroll container still absorbs a table too wide to fit.
+    table: ({className, node: _node, ...props}) => (
+      <div className="mb-8 overflow-x-auto">
+        <table
           className={cn(
-            'rounded-2 bg-background-components-base px-4 py-2 font-code text-xs text-foreground-neutral-base',
+            'w-auto border-collapse border text-sm tabular-nums',
+            toneClassName.border,
             className,
           )}
           {...props}
-        >
-          {children}
-        </code>
-      );
-    }
-
-    const lineCount = code.split('\n').length;
-    const codeLanguage = language ?? calloutCodeLanguageFallback;
-    const syntaxHighlighting =
-      Boolean(language) &&
-      new TextEncoder().encode(code).byteLength <= CODE_FENCE_MAX_BYTES &&
-      lineCount <= CODE_FENCE_MAX_LINES;
-
-    return (
-      <div className="mb-8 overflow-x-auto">
-        <CodeBlockSurface lineNumbers={lineCount > 1}>
-          <CodeBlockContent language={codeLanguage} syntaxHighlighting={syntaxHighlighting}>
-            {code}
-          </CodeBlockContent>
-        </CodeBlockSurface>
+        />
       </div>
-    );
-  },
-} satisfies Components;
+    ),
+    th: ({className, node: _node, ...props}) => (
+      <th
+        className={cn(
+          'border px-8 py-4 text-left font-medium',
+          toneClassName.border,
+          toneClassName.text,
+          className,
+        )}
+        {...props}
+      />
+    ),
+    td: ({className, node: _node, ...props}) => (
+      <td
+        className={cn('border px-8 py-4', toneClassName.border, toneClassName.text, className)}
+        {...props}
+      />
+    ),
+    hr: ({className, node: _node, ...props}) => (
+      <hr className={cn('mb-8', toneClassName.border, className)} {...props} />
+    ),
+    a: ({className, href, children, node: _node, ...props}) => {
+      if (!isSafeHref(href)) {
+        return <span className={className}>{children}</span>;
+      }
 
-const nestedMarkdownComponents = {
-  ...markdownComponents,
-  ...nestedMarkdownHeadingComponents,
-} satisfies Components;
+      return (
+        <a
+          className={cn(
+            'inline-flex items-baseline gap-2 text-foreground-highlight-interactive underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-background-accent-blue-base focus-visible:ring-offset-2',
+            className,
+          )}
+          href={href}
+          rel="noopener noreferrer nofollow"
+          target="_blank"
+          {...props}
+        >
+          <span>{children}</span>
+          <Icon
+            name="externalLink"
+            size={14}
+            aria-hidden="true"
+            className="inline-block translate-y-2"
+          />
+          <span className="sr-only">(opens in new tab)</span>
+        </a>
+      );
+    },
+    img: () => null,
+    pre: ({children}) => <>{children}</>,
+    code: ({className, children, node: _node, ...props}) => {
+      const code = childrenToString(children).replace(TRAILING_NEWLINE_PATTERN, '');
+      const language = className?.match(LANGUAGE_CLASS_PATTERN)?.[1];
+      const isBlockCode = Boolean(language) || code.includes('\n');
+
+      if (!isBlockCode) {
+        return (
+          <code
+            className={cn(
+              'rounded-2 px-4 py-2 font-code text-xs',
+              toneClassName.inlineCode,
+              className,
+            )}
+            {...props}
+          >
+            {children}
+          </code>
+        );
+      }
+
+      const lineCount = code.split('\n').length;
+      const codeLanguage = language ?? calloutCodeLanguageFallback;
+      const syntaxHighlighting =
+        Boolean(language) &&
+        new TextEncoder().encode(code).byteLength <= CODE_FENCE_MAX_BYTES &&
+        lineCount <= CODE_FENCE_MAX_LINES;
+
+      return (
+        <div className="mb-8 overflow-x-auto">
+          <CodeBlockSurface lineNumbers={lineCount > 1}>
+            <CodeBlockContent language={codeLanguage} syntaxHighlighting={syntaxHighlighting}>
+              {code}
+            </CodeBlockContent>
+          </CodeBlockSurface>
+        </div>
+      );
+    },
+  };
+}
+
+const markdownComponents = {
+  neutral: [createMarkdownComponents('neutral', 0), createMarkdownComponents('neutral', 1)],
+  contrast: [createMarkdownComponents('contrast', 0), createMarkdownComponents('contrast', 1)],
+} as const satisfies Record<MarkdownTone, readonly [Components, Components]>;
 
 type MarkdownProps = {
   children: string;
   className?: string | undefined;
   headingLevelOffset?: 0 | 1 | undefined;
+  tone?: MarkdownTone | undefined;
 };
 
-function MarkdownImpl({children, className, headingLevelOffset = 0}: MarkdownProps) {
+function MarkdownImpl({
+  children,
+  className,
+  headingLevelOffset = 0,
+  tone = 'neutral',
+}: MarkdownProps) {
   if (!children.trim()) return null;
 
   return (
@@ -213,7 +252,7 @@ function MarkdownImpl({children, className, headingLevelOffset = 0}: MarkdownPro
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
-          components={headingLevelOffset === 1 ? nestedMarkdownComponents : markdownComponents}
+          components={markdownComponents[tone][headingLevelOffset]}
         >
           {children}
         </ReactMarkdown>
@@ -289,4 +328,5 @@ function isReactElementWithChildren(
 
 const Markdown = memo(MarkdownImpl);
 
+export type {MarkdownTone};
 export {Markdown, MarkdownRenderGuard};
