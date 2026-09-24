@@ -1,5 +1,13 @@
 # @shipfox/client-features
 
+## 52.0.2
+
+### Patch Changes
+
+- Updated dependencies [c93b3cd]
+- Updated dependencies [f01a070]
+  - @shipfox/client-workflows@52.0.2
+
 ## 52.0.1
 
 ### Patch Changes

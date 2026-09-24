@@ -1,5 +1,11 @@
 # @shipfox/api-workflows
 
+## 32.2.1
+
+### Patch Changes
+
+- f01a070: Show tool steps with the same integration icons, labels, results, and error status as agent tool calls. Record invocation timing for log durations.
+
 ## 32.2.0
 
 ### Patch Changes

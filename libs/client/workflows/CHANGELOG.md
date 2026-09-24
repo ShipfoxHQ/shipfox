@@ -1,5 +1,12 @@
 # @shipfox/client-workflows
 
+## 52.0.2
+
+### Patch Changes
+
+- c93b3cd: Let the workflows page scroll when its content is taller than the viewport.
+- f01a070: Show tool steps with the same integration icons, labels, results, and error status as agent tool calls. Record invocation timing for log durations.
+
 ## 52.0.1
 
 ### Patch Changes
