@@ -7,8 +7,8 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(1);
-    expect(skill?.text).toContain('revision: 1');
+    expect(skill?.revision).toBe(2);
+    expect(skill?.text).toContain('revision: 2');
     expect(skill?.text).toContain('## 1. Orient');
     expect(skill?.text).toContain('## 8. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
@@ -31,6 +31,28 @@ describe('shipped skill resources', () => {
     );
     expect(dependencyGuide?.text).toBe(
       readFileSync(new URL('../assets/fix-dependency-ci/GUIDE.md', import.meta.url), 'utf8'),
+    );
+  });
+
+  test('requires model confirmation, project-scoped replay, and a decision on partial writes', () => {
+    const text =
+      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
+
+    expect(text).toContain(
+      'Never bind a model and thinking combination the user has not confirmed.',
+    );
+    expect(text).toContain('Do not ask a separate thinking-level question.');
+    expect(text).toContain('`outcome: list`');
+    expect(text).toContain('Never rank or compare them.');
+    expect(text).toContain('If `model_provider_configured` is `false`, stop');
+    expect(text).not.toContain('no-compatible-model');
+    expect(text).toContain('state what a real run will write before listing events');
+    expect(text).toContain('Keep only events of the selected project');
+    expect(text).toContain('The event check does not verify this');
+    expect(text).toContain('Repeat the expected writes from step 6 in one line');
+    expect(text).toContain('stop, or repeat the writes with their agreement');
+    expect(text).toContain(
+      'Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.',
     );
   });
 
