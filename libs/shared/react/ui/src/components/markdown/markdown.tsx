@@ -112,10 +112,11 @@ function createMarkdownComponents(tone: MarkdownTone, headingLevelOffset: 0 | 1)
     li: ({className, node: _node, ...props}) => (
       <li className={cn('mb-4 pl-4', className)} {...props} />
     ),
+    // Quoted paragraphs carry their own foreground, so they inherit the quote's subtler one.
     blockquote: ({className, node: _node, ...props}) => (
       <blockquote
         className={cn(
-          'mb-8 border-l-2 pl-12 text-sm',
+          'mb-8 border-l-2 pl-12 text-sm [&_p]:text-inherit',
           toneClassName.strongBorder,
           toneClassName.subtleText,
           className,
