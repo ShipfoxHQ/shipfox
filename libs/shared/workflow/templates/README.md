@@ -82,13 +82,13 @@ assets/<template-id>/
   parts/<role>/<provider>.yml
 ```
 
-To check a local workflow without starting a run, read the [validation skill](assets/skills/validate-workflow-change/SKILL.md). It covers trigger inputs, retained events, dry-run refusals, and verification.
+To check a local workflow without starting a run, read `skill://shipfox/validate-workflow-change/SKILL.md` through MCP. It covers trigger inputs, retained events, dry-run refusals, and verification.
 
-To run a validated change against a real trigger, read the [testing skill](assets/skills/test-workflow-change/SKILL.md). It covers side effects, run inspection, retries, and checkout order.
+To run a validated change against a real trigger, read `skill://shipfox/test-workflow-change/SKILL.md` through MCP. It covers side effects, run inspection, retries, and checkout order.
 
 Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project.
 
-Shipped templates keep an adaptation guide beside their workflow. The [dependency-bot CI guide](assets/fix-dependency-ci/GUIDE.md) describes that template's prerequisites, choices, and customization slots.
+Shipped templates keep an adaptation guide beside their workflow. For dependency-bot CI, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, choices, and customization slots.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 
