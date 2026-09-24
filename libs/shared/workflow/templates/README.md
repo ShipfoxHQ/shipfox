@@ -6,8 +6,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, model placeholders, slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every manifest role and composes the workflow.
-- **`modelTiers`** stores the ordered model preferences for each profile and step role.
-- **`resolveModel`** selects the first preferred model available in a workspace catalog.
+- **`suggestModels`** orders measured model and thinking combinations for a template placeholder.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
 - **`getSetupGuide`** returns the versioned, first-party [workflow setup playbook](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/templates/assets/playbook.md).
@@ -20,7 +19,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads `assets/playbook.md`, `assets/model-tiers.yaml`, and template directories from `assets/`. It embeds the playbook, manifests, workflows, guides, provider parts, and model preferences into a generated TypeScript module. The API image therefore does not copy template files at runtime.
+The package build reads `assets/playbook.md` and template directories from `assets/`. It embeds the playbook, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy template files at runtime.
 
 ## Usage
 
@@ -62,9 +61,11 @@ Each `models` entry needs a matching marker in `workflow.yml` or a provider part
 
 An optional `reference: {model, thinking}` records the exact setting the template author tested. The catalog conformance test checks the model and its supported thinking levels. Leave `reference` out until the author tests the step with that setting.
 
-### Model profiles
+### Model suggestions
 
-`model-tiers.yaml` defines the `balanced`, `economy`, and `strongest` profiles. Each profile lists preferences for `mechanical`, `implementation`, and `review` steps. `resolveModel` checks those preferences in order against the model IDs available to a workspace and returns `null` when none match.
+`suggestModels` compares scored combinations with the exact model and thinking setting the template author tested. It suggests the cheapest combination that meets or exceeds that setting's measured intelligence index. The user confirms the complete provider, model, harness, and thinking binding.
+
+If the tested setting has no score or the measured scales differ, `suggestModels` lists supported combinations without a suggestion. Choices with no score remain available for manual selection.
 
 ### Asset layout
 

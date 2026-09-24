@@ -8,7 +8,11 @@ import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {AgentAccessContext} from '@shipfox/api-auth-context';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
-import {createTemplateLoader, type WorkflowTemplateAsset} from '@shipfox/workflow-templates';
+import {
+  createTemplateLoader,
+  type WorkflowTemplateAsset,
+  workflowTemplateManifestSchema,
+} from '@shipfox/workflow-templates';
 import {createAgentAccessTemplateTools} from './template-tools.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
@@ -119,7 +123,7 @@ describe('agent-access template tools', () => {
     expect(listWorkflowTemplatesResultSchema.safeParse(response.result).success).toBe(true);
   });
 
-  test('resolves each profile and step role to the first available model', async () => {
+  test('returns per-placeholder suggestions with the exact binding settings', async () => {
     const integrations = integrationClient([connection('linear-main', 'linear')]);
     integrations.resolveConnectionById.mockResolvedValue({
       id: sourceConnectionId,
@@ -128,19 +132,56 @@ describe('agent-access template tools', () => {
       displayName: 'Project GitHub',
       lifecycleStatus: 'active',
     });
-    const projects = projectClient();
-    const response = await getTool(
-      createTools(
-        integrations,
-        projects,
-        agentClient([
-          {id: 'claude-haiku-4-5', provider: 'anthropic'},
-          {id: 'claude-sonnet-5', provider: 'anthropic'},
-          {id: 'claude-opus-5', provider: 'anthropic'},
-        ]),
-      ),
+    const testedModel = {
+      id: 'tested',
+      provider: 'anthropic',
+      harness: 'pi',
+      thinking: 'medium',
+      supported_thinking: ['medium', 'default'],
+      is_default: true,
+      price: null,
+      references: [
+        {thinking: 'medium', intelligence_index: 80, cost_per_task_usd: 4, scale: 'coding-v1'},
+      ],
+    };
+    const cheaperModel = {
+      id: 'cheaper',
+      provider: 'openai',
+      harness: 'pi',
+      thinking: 'high',
+      supported_thinking: ['high', 'default'],
+      is_default: false,
+      price: {input: 1, output: 2},
+      references: [
+        {thinking: 'high', intelligence_index: 81, cost_per_task_usd: 2, scale: 'coding-v1'},
+        {thinking: 'default', intelligence_index: 80, cost_per_task_usd: 1, scale: 'coding-v1'},
+      ],
+    };
+    const agent = {
+      getWorkspaceModels: vi.fn().mockResolvedValue({
+        models: [testedModel, cheaperModel],
+        default_model: testedModel,
+        attribution: 'Benchmark source',
+      }),
+    } as unknown as AgentInterModuleClient;
+    const templateAsset = {
+      ...asset,
+      manifest: {
+        ...workflowTemplateManifestSchema.parse(asset.manifest),
+        models: {
+          fix: {
+            reference: {model: 'tested', thinking: 'medium' as const},
+            note: 'Confirm this setting.',
+          },
+        },
+      },
+    };
+    const get = getTool(
+      createTools(integrations, projectClient(), agent, templateAsset),
       'get_workflow_template',
-    ).execute({
+    );
+
+    const response = await get.execute({
       context,
       arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
     });
@@ -148,99 +189,34 @@ describe('agent-access template tools', () => {
     expect(response).toMatchObject({
       ok: true,
       result: {
-        resolved_models: {
-          balanced: {
-            mechanical: {model: 'claude-haiku-4-5'},
-            implementation: {model: 'claude-sonnet-5'},
-            review: {model: 'claude-sonnet-5'},
-          },
-          economy: {
-            mechanical: {model: 'claude-haiku-4-5'},
-            implementation: {model: 'claude-haiku-4-5'},
-            review: {model: 'claude-haiku-4-5'},
-          },
-          strongest: {
-            mechanical: {model: 'claude-sonnet-5'},
-            implementation: {model: 'claude-opus-5'},
-            review: {model: 'claude-opus-5'},
-          },
-        },
-      },
-    });
-  });
-
-  test('falls back to the workspace default model when no preference matches', async () => {
-    const integrations = integrationClient([connection('linear-main', 'linear')]);
-    integrations.resolveConnectionById.mockResolvedValue({
-      id: sourceConnectionId,
-      provider: 'github',
-      slug: 'github-project',
-      displayName: 'Project GitHub',
-      lifecycleStatus: 'active',
-    });
-    const response = await getTool(
-      createTools(
-        integrations,
-        projectClient(),
-        agentClient([{id: 'workspace-default', provider: 'custom'}], {
-          id: 'workspace-default',
-          provider: 'custom',
-        }),
-      ),
-      'get_workflow_template',
-    ).execute({
-      context,
-      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
-    });
-
-    expect(response).toMatchObject({
-      ok: true,
-      result: {
-        resolved_models: {
-          balanced: {
-            mechanical: {model: 'workspace-default'},
-            implementation: {model: 'workspace-default'},
-            review: {model: 'workspace-default'},
+        suggested_models: {
+          fix: {
+            reference: {model: 'tested', thinking: 'medium', intelligence_index: 80},
+            note: 'Confirm this setting.',
+            outcome: 'suggested',
+            models: [
+              {
+                id: 'cheaper',
+                provider: 'openai',
+                harness: 'pi',
+                thinking: 'default',
+                reference: {cost_per_task_usd: 1},
+              },
+              {id: 'cheaper', thinking: 'high'},
+              {id: 'tested', thinking: 'medium', is_default: true},
+              {id: 'tested', thinking: 'default', reference: null},
+            ],
+            attribution: 'Benchmark source',
           },
         },
       },
     });
+    expect(get.description).toContain('Bind the confirmed provider, model, harness, and thinking');
+    if (!response.ok) throw new Error('Expected a successful template response');
+    expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
 
-  test('returns no-compatible-model when the workspace has no compatible default', async () => {
-    const integrations = integrationClient([connection('linear-main', 'linear')]);
-    integrations.resolveConnectionById.mockResolvedValue({
-      id: sourceConnectionId,
-      provider: 'github',
-      slug: 'github-project',
-      displayName: 'Project GitHub',
-      lifecycleStatus: 'active',
-    });
-    const response = await getTool(
-      createTools(
-        integrations,
-        projectClient(),
-        agentClient([{id: 'unlisted', provider: 'custom'}], null),
-      ),
-      'get_workflow_template',
-    ).execute({
-      context,
-      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
-    });
-
-    expect(response).toMatchObject({
-      ok: true,
-      result: {
-        resolved_models: {
-          strongest: {
-            implementation: {model: null, reason: 'no-compatible-model'},
-          },
-        },
-      },
-    });
-  });
-
-  test('returns no-compatible-model for every role when the workspace has no models', async () => {
+  test('returns an empty suggestion map when the template has no model placeholders', async () => {
     const integrations = integrationClient([connection('linear-main', 'linear')]);
     integrations.resolveConnectionById.mockResolvedValue({
       id: sourceConnectionId,
@@ -257,18 +233,7 @@ describe('agent-access template tools', () => {
       arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
     });
 
-    expect(response).toMatchObject({
-      ok: true,
-      result: {
-        resolved_models: {
-          balanced: {
-            mechanical: {model: null, reason: 'no-compatible-model'},
-            implementation: {model: null, reason: 'no-compatible-model'},
-            review: {model: null, reason: 'no-compatible-model'},
-          },
-        },
-      },
-    });
+    expect(response).toMatchObject({ok: true, result: {suggested_models: {}}});
   });
 
   test('composes an open role and resolves the source from the project', async () => {
@@ -351,13 +316,14 @@ function createTools(
   integrations: IntegrationsModuleClient,
   projects?: ProjectsModuleClient,
   agent?: AgentInterModuleClient,
+  templateAsset: WorkflowTemplateAsset = asset,
 ) {
   return createAgentAccessTemplateTools({
     agent: agent ?? agentClient([{id: 'claude-opus-5', provider: 'anthropic'}]),
     integrations,
     projects:
       projects ?? ({requireProjectForWorkspace: vi.fn()} as unknown as ProjectsModuleClient),
-    templates: createTemplateLoader([asset], setupGuide),
+    templates: createTemplateLoader([templateAsset], setupGuide),
   });
 }
 
