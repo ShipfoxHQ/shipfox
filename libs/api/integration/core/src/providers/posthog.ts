@@ -109,7 +109,7 @@ async function loadPosthogModuleParts(
             provider: 'posthog',
             externalAccountId,
             slug,
-            displayName: input.projectName,
+            displayName: `PostHog ${input.projectName}`,
             lifecycleStatus: input.lifecycleStatus ?? 'active',
             capabilities: credentialStore ? ['agent_tools'] : [],
           },
