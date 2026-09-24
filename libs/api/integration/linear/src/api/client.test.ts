@@ -271,6 +271,31 @@ describe('createLinearApiClient.refreshAccessToken', () => {
     );
   });
 
+  it('logs the error class and refresh context without the message or payload', async () => {
+    const error = Object.assign(new SyntaxError('secret-provider-response'), {
+      payload: {refresh_token: 'secret-refresh-token'},
+    });
+    mocks.post.mockReturnValue(rejects(error));
+    const diagnostics = {
+      connectionId: 'connection-id',
+      refreshReason: 'expiry' as const,
+      tokenExpiresAt: '2026-07-07T11:00:00.000Z',
+    };
+
+    await expect(
+      createLinearApiClient().refreshAccessToken({
+        refreshToken: 'secret-refresh-token',
+        diagnostics,
+      }),
+    ).rejects.toMatchObject({reason: 'provider-unavailable'});
+
+    expect(mocks.warn).toHaveBeenCalledExactlyOnceWith(
+      {operation: 'refresh-access-token', errName: 'SyntaxError', ...diagnostics},
+      'Linear API request failed',
+    );
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain('secret-');
+  });
+
   it('maps an invalid refresh token to access-denied', async () => {
     mocks.post.mockReturnValue(rejects(httpError(400)));
     const client = createLinearApiClient();

@@ -280,7 +280,14 @@ function mapUnknownLinearError(
     logger().warn({operation, ...options.diagnostics}, 'Linear API request timed out');
     return new LinearIntegrationProviderError('timeout', 'Linear request timed out');
   }
-  logger().warn({operation, ...options.diagnostics}, 'Linear API request failed');
+  logger().warn(
+    {
+      operation,
+      errName: error instanceof Error ? error.name : typeof error,
+      ...options.diagnostics,
+    },
+    'Linear API request failed',
+  );
   return new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed');
 }
 
