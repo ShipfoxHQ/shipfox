@@ -1,6 +1,7 @@
+import {createHash} from 'node:crypto';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
+import {CallToolResultSchema, ErrorCode, type McpError} from '@modelcontextprotocol/sdk/types.js';
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import {
   type AgentAccessEnvelopeDto,
@@ -19,6 +20,7 @@ import {
 } from '@shipfox/api-triggers-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {createInterModuleKnownError} from '@shipfox/inter-module';
+import {getShippedSkillResource} from '@shipfox/workflow-templates';
 import {createAgentAccessActionTools} from '#core/action-tools.js';
 import {agentAccessSuccess} from '#core/envelope.js';
 import {AGENT_ACCESS_INTEGRATION_TOOL_NAMES} from '#core/integration-tools.js';
@@ -38,6 +40,88 @@ const context: AgentAccessContext = {
 };
 
 describe('buildAgentAccessMcpServer', () => {
+  test('declares immutable resources and lists the same files for different grants', async () => {
+    const first = await connectClient();
+    const second = await connectClient(undefined, undefined, undefined, undefined, undefined, {
+      ...context,
+      credential: {kind: 'oauth_grant', grantId: 'grant-2', clientId: 'client-2'},
+    });
+
+    const resources = await first.client.listResources();
+    const otherResources = await second.client.listResources();
+
+    expect(first.client.getServerCapabilities()?.resources).toEqual({});
+    expect(resources.nextCursor).toBeUndefined();
+    expect(resources.resources).toEqual(otherResources.resources);
+    expect(resources.resources.map((resource) => resource.uri)).toContain(
+      'skill://shipfox/create-workflow-from-template/SKILL.md',
+    );
+    expect(
+      resources.resources.every((resource) => resource.annotations?.priority === undefined),
+    ).toBe(true);
+    expect(
+      resources.resources
+        .filter((resource) => resource.uri.endsWith('.md'))
+        .every((resource) => resource.annotations?.audience?.includes('assistant')),
+    ).toBe(true);
+
+    await first.close();
+    await second.close();
+  });
+
+  test('returns an empty resource template list', async () => {
+    const {client, close} = await connectClient();
+    expect(await client.listResourceTemplates()).toEqual({resourceTemplates: []});
+    await close();
+  });
+
+  test('serves resource reads after the tool-call limit is exhausted', async () => {
+    const limiter = createAgentAccessRateLimiter({limit: 1, now: () => 1_000});
+    const {client, close} = await connectClient(limiter);
+    await client.callTool(
+      {name: 'agent_access_fixture', arguments: {message: 'consume limit'}},
+      CallToolResultSchema,
+    );
+    const resource = await client.readResource({uri: 'skill://shipfox/index'});
+    expect(resource.contents).toHaveLength(1);
+    await close();
+  });
+
+  test('reads exact embedded bytes with matching digest and size and audits the read', async () => {
+    const recordCall = vi.fn();
+    const {client, close} = await connectClient(undefined, undefined, recordCall);
+    const {resources} = await client.listResources();
+    for (const resource of resources) {
+      const result = await client.readResource({uri: resource.uri});
+      expect(result.contents).toHaveLength(1);
+      const content = result.contents[0];
+      expect(content).toMatchObject({uri: resource.uri, mimeType: resource.mimeType});
+      if (content === undefined || !('text' in content)) throw new Error('Expected text');
+      expect(Buffer.byteLength(content.text, 'utf8')).toBe(resource.size);
+      expect(createHash('sha256').update(content.text).digest('hex')).toBe(resource._meta?.sha256);
+      expect(content.text).toBe(getShippedSkillResource(resource.uri)?.text);
+    }
+    expect(recordCall).toHaveBeenCalledWith({
+      kind: 'resource',
+      tool: 'resources/read',
+      outcome: 'success',
+      errorCode: 'none',
+      context,
+      target: {uri: resources.at(-1)?.uri},
+    });
+    await close();
+  });
+
+  test('rejects unknown resource URIs with a JSON-RPC invalid params error', async () => {
+    const {client, close} = await connectClient();
+    const uri = 'skill://shipfox/../secret';
+    await expect(client.readResource({uri})).rejects.toMatchObject({
+      code: ErrorCode.InvalidParams,
+      data: {uri},
+    } satisfies Partial<McpError>);
+    await close();
+  });
+
   test('lists only the fixture tool and returns a schema-valid serialized envelope', async () => {
     const {client, close} = await connectClient();
 
@@ -611,9 +695,10 @@ async function connectClient(
   recordCall?: Parameters<typeof buildAgentAccessMcpServer>[0]['recordCall'],
   auth?: AuthInterModuleClient,
   actionRateLimiter?: Parameters<typeof buildAgentAccessMcpServer>[0]['actionRateLimiter'],
+  requestContext: AgentAccessContext = context,
 ): Promise<{client: Client; close: () => Promise<void>}> {
   const server = buildAgentAccessMcpServer({
-    context,
+    context: requestContext,
     tools,
     rateLimiter,
     actionRateLimiter,

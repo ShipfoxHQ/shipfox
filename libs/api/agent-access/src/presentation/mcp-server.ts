@@ -3,7 +3,12 @@ import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
   type CallToolResult,
+  ErrorCode,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  McpError,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   type AgentAccessEnvelopeDto,
@@ -17,6 +22,7 @@ import {
 import {isInterModuleKnownError} from '@shipfox/inter-module';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
+import {getShippedSkillResource, listShippedSkillResources} from '@shipfox/workflow-templates';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
   AGENT_ACCESS_MCP_SERVER_NAME,
@@ -61,7 +67,7 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
   const server = new Server(
     {name: AGENT_ACCESS_MCP_SERVER_NAME, version: AGENT_ACCESS_PACKAGE_VERSION},
     {
-      capabilities: {tools: {}},
+      capabilities: {tools: {}, resources: {}},
       instructions: createAgentAccessMcpInstructions(
         AGENT_ACCESS_INTEGRATION_TOOL_NAMES.every((name) => tools.has(name)),
       ),
@@ -85,6 +91,36 @@ export function buildAgentAccessMcpServer(params: BuildAgentAccessMcpServerParam
       annotations: {...tool.annotations},
     })),
   }));
+
+  server.setRequestHandler(ListResourcesRequestSchema, () => ({
+    resources: listShippedSkillResources().map((resource) => ({
+      uri: resource.uri,
+      name: resource.name,
+      title: resource.title,
+      description: resource.description,
+      mimeType: resource.mimeType,
+      size: resource.size,
+      _meta: {sha256: resource.sha256},
+      ...(resource.name.endsWith('.md') ? {annotations: {audience: ['assistant' as const]}} : {}),
+    })),
+  }));
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, () => ({resourceTemplates: []}));
+  server.setRequestHandler(ReadResourceRequestSchema, (request) => {
+    const uri = request.params.uri;
+    const resource = getShippedSkillResource(uri);
+    recordToolCall(recordCall, {
+      kind: 'resource',
+      tool: 'resources/read',
+      outcome: resource === undefined ? 'invalid-request' : 'success',
+      errorCode: resource === undefined ? 'unknown-resource' : 'none',
+      context: params.context,
+      target: {uri},
+    });
+    if (resource === undefined) {
+      throw new McpError(ErrorCode.InvalidParams, 'Resource is not available', {uri});
+    }
+    return {contents: [{uri, mimeType: resource.mimeType, text: resource.text}]};
+  });
 
   server.setRequestHandler(CallToolRequestSchema, (request) =>
     handleAgentAccessToolCall({

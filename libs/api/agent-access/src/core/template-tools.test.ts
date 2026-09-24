@@ -55,23 +55,7 @@ const asset: WorkflowTemplateAsset = {
     source: {github: {unused: 'unused'}},
   } as unknown as WorkflowTemplateAsset['parts'],
 };
-const setupGuide = {
-  revision: 3,
-  guide_markdown: '# Set up a workflow\n\nFollow all ten steps.',
-};
-
 describe('agent-access template tools', () => {
-  test('returns the revisioned first-party setup guide', async () => {
-    const tools = createTools(integrationClient([]));
-    const getGuide = getTool(tools, 'get_workflow_setup_guide');
-
-    const response = await getGuide.execute({context, arguments: {}});
-
-    expect(response).toEqual({ok: true, result: setupGuide});
-    expect(getGuide.annotations).toEqual({readOnlyHint: true});
-    expect(getGuide.description).toContain('first-party guidance meant to be followed');
-  });
-
   test('lists compatibility and active connection suggestions per provider', async () => {
     const integrations = integrationClient([
       connection('linear-main', 'linear'),
@@ -323,7 +307,7 @@ function createTools(
     integrations,
     projects:
       projects ?? ({requireProjectForWorkspace: vi.fn()} as unknown as ProjectsModuleClient),
-    templates: createTemplateLoader([templateAsset], setupGuide),
+    templates: createTemplateLoader([templateAsset]),
   });
 }
 

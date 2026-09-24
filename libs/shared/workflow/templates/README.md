@@ -9,7 +9,8 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`suggestModels`** orders measured model and thinking combinations for a template placeholder.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
-- **`getSetupGuide`** returns the versioned, first-party [workflow setup playbook](https://github.com/ShipfoxHQ/shipfox/blob/main/libs/shared/workflow/templates/assets/playbook.md).
+- **`listShippedSkillResources`** lists the embedded skill index, manifest, procedures, and references.
+- **`getShippedSkillResource`** reads one embedded resource by its exact `skill://shipfox/` URI.
 
 The package does not evaluate expressions or implement conditionals and loops. It keeps template comments in the composed YAML so the coding agent can use binding, slot, and option instructions.
 
@@ -19,7 +20,7 @@ The package does not evaluate expressions or implement conditionals and loops. I
 pnpm add @shipfox/workflow-templates
 ```
 
-The package build reads `assets/playbook.md` and template directories from `assets/`. It embeds the playbook, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy template files at runtime.
+The package build reads `assets/skills/` and template directories from `assets/`. It embeds the skill files, manifests, workflows, guides, and provider parts into a generated TypeScript module. The API image therefore does not copy these files at runtime.
 
 ## Usage
 
@@ -72,7 +73,8 @@ If the tested setting has no score or the measured scales differ, `suggestModels
 A shipped asset uses this layout:
 
 ```text
-assets/playbook.md
+assets/skills/<skill-name>/SKILL.md
+assets/skills/<skill-name>/references/*.md
 assets/<template-id>/
   template.yaml
   workflow.yml
@@ -83,6 +85,8 @@ assets/<template-id>/
 Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project.
 
 Shipped templates keep an adaptation guide beside their workflow. The [dependency-bot CI guide](assets/fix-dependency-ci/GUIDE.md) describes that template's prerequisites, choices, and customization slots.
+
+The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 
 ### Ticket to PR part contract
 
