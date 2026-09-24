@@ -7,6 +7,18 @@ const LINEAR_OAUTH_TOKEN_URL = 'https://api.linear.app/oauth/token';
 const LINEAR_OAUTH_REVOKE_URL = 'https://api.linear.app/oauth/revoke';
 const LINEAR_GRAPHQL_URL = 'https://api.linear.app/graphql';
 const LINEAR_API_TIMEOUT_MS = 10_000;
+const OAUTH_ERROR_CODES = new Set([
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+  'access_denied',
+  'server_error',
+  'temporarily_unavailable',
+]);
+
 const SCOPE_SEPARATOR_RE = /[,\s]+/;
 
 const IDENTITY_QUERY = `
@@ -38,12 +50,21 @@ export interface LinearIdentity {
 
 export interface LinearApiClient {
   exchangeAuthorizationCode(input: {code: string}): Promise<LinearAuthorization>;
-  refreshAccessToken(input: {refreshToken: string}): Promise<LinearAuthorization>;
+  refreshAccessToken(input: {
+    refreshToken: string;
+    diagnostics?: LinearRefreshDiagnostics | undefined;
+  }): Promise<LinearAuthorization>;
   revokeToken(input: {
     token: string;
     tokenTypeHint: 'access_token' | 'refresh_token';
   }): Promise<void>;
   getIdentity(input: {accessToken: string}): Promise<LinearIdentity>;
+}
+
+interface LinearRefreshDiagnostics {
+  connectionId: string;
+  refreshReason: 'forced' | 'expiry';
+  tokenExpiresAt: string | null;
 }
 
 interface LinearTokenResponse {
@@ -68,6 +89,7 @@ interface LinearIdentityData {
 }
 
 interface MapLinearErrorOptions {
+  diagnostics?: LinearRefreshDiagnostics | undefined;
   classifyHttp4xx?(status: number): 'access-denied' | 'malformed-provider-response';
 }
 
@@ -93,18 +115,21 @@ export function createLinearApiClient(): LinearApiClient {
     },
 
     async refreshAccessToken(input) {
-      const body = await mapLinearError('refresh-access-token', () =>
-        ky
-          .post(LINEAR_OAUTH_TOKEN_URL, {
-            body: new URLSearchParams({
-              grant_type: 'refresh_token',
-              client_id: config.LINEAR_OAUTH_CLIENT_ID,
-              client_secret: config.LINEAR_OAUTH_CLIENT_SECRET,
-              refresh_token: input.refreshToken,
-            }),
-            timeout: LINEAR_API_TIMEOUT_MS,
-          })
-          .json<LinearTokenResponse>(),
+      const body = await mapLinearError(
+        'refresh-access-token',
+        () =>
+          ky
+            .post(LINEAR_OAUTH_TOKEN_URL, {
+              body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                client_id: config.LINEAR_OAUTH_CLIENT_ID,
+                client_secret: config.LINEAR_OAUTH_CLIENT_SECRET,
+                refresh_token: input.refreshToken,
+              }),
+              timeout: LINEAR_API_TIMEOUT_MS,
+            })
+            .json<LinearTokenResponse>(),
+        {diagnostics: input.diagnostics},
       );
 
       return parseTokenResponse(body);
@@ -252,13 +277,10 @@ function mapUnknownLinearError(
 ): LinearIntegrationProviderError {
   if (error instanceof HTTPError) return mapLinearHttpError(operation, error, options);
   if (error instanceof TimeoutError) {
-    logger().warn({operation}, 'Linear API request timed out');
+    logger().warn({operation, ...options.diagnostics}, 'Linear API request timed out');
     return new LinearIntegrationProviderError('timeout', 'Linear request timed out');
   }
-  logger().warn(
-    {operation, errName: error instanceof Error ? error.name : typeof error},
-    'Linear API request failed',
-  );
+  logger().warn({operation, ...options.diagnostics}, 'Linear API request failed');
   return new LinearIntegrationProviderError('provider-unavailable', 'Linear request failed');
 }
 
@@ -267,8 +289,18 @@ function mapLinearHttpError(
   error: HTTPError,
   options: MapLinearErrorOptions,
 ): LinearIntegrationProviderError {
-  const {status, statusText, headers} = error.response;
-  logger().warn({operation, status, statusText}, 'Linear API request rejected');
+  const {status, headers} = error.response;
+  const isOAuthTokenRequest =
+    operation === 'refresh-access-token' || operation === 'exchange-authorization-code';
+  logger().warn(
+    {
+      operation,
+      status,
+      ...options.diagnostics,
+      ...(isOAuthTokenRequest ? {oauthErrorCode: oauthErrorCode(error.data)} : {}),
+    },
+    'Linear API request rejected',
+  );
   if (status === 429) {
     return new LinearIntegrationProviderError(
       'rate-limited',
@@ -292,4 +324,10 @@ function retryAfterSeconds(headers: Headers): number | undefined {
   if (!retryAfter) return undefined;
   const parsed = Number.parseInt(retryAfter, 10);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function oauthErrorCode(data: unknown): string {
+  if (typeof data !== 'object' || data === null || !('error' in data)) return 'unavailable';
+  if (typeof data.error !== 'string') return 'unavailable';
+  return OAUTH_ERROR_CODES.has(data.error) ? data.error : 'unknown';
 }

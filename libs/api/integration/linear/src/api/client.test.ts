@@ -166,7 +166,7 @@ describe('createLinearApiClient.exchangeAuthorizationCode', () => {
     expect(serialized).not.toContain('super-secret-code');
     expect(serialized).not.toContain('test-client-secret');
     expect(mocks.warn.mock.calls[0]).toEqual([
-      {operation: 'exchange-authorization-code', status: 403, statusText: 'Rejected'},
+      {operation: 'exchange-authorization-code', status: 403, oauthErrorCode: 'unavailable'},
       'Linear API request rejected',
     ]);
   });
@@ -199,12 +199,76 @@ describe('createLinearApiClient.refreshAccessToken', () => {
     const body = options.body as URLSearchParams;
     expect(body.get('grant_type')).toBe('refresh_token');
     expect(body.get('refresh_token')).toBe('old-refresh-token');
+    expect(body.has('scope')).toBe(false);
+    expect(body.has('diagnostics')).toBe(false);
     expect(result).toEqual({
       accessToken: 'new-access-token',
       refreshToken: 'new-refresh-token',
       expiresAt: new Date('2026-07-07T12:30:00.000Z'),
       scopes: ['read', 'write'],
     });
+  });
+
+  it.each([
+    ['invalid_grant', 'invalid_grant'],
+    ['invalid_client', 'invalid_client'],
+    ['invalid_scope', 'invalid_scope'],
+    ['invalid_request', 'invalid_request'],
+    ['unsupported_grant_type', 'unsupported_grant_type'],
+    ['secret-provider-value', 'unknown'],
+    [null, 'unavailable'],
+  ])('logs only a safe OAuth code for %s', async (providerCode, expectedCode) => {
+    const error = httpError(400, {}, 'secret-status-text');
+    error.data = {
+      error: providerCode,
+      error_description: 'secret-description',
+      access_token: 'secret-access-token',
+      refresh_token: 'secret-refresh-token',
+    };
+    mocks.post.mockReturnValue(rejects(error));
+    const diagnostics = {
+      connectionId: 'connection-id',
+      refreshReason: 'expiry' as const,
+      tokenExpiresAt: '2026-07-07T11:00:00.000Z',
+    };
+
+    await expect(
+      createLinearApiClient().refreshAccessToken({
+        refreshToken: 'secret-refresh-token',
+        diagnostics,
+      }),
+    ).rejects.toMatchObject({reason: 'access-denied'});
+
+    expect(mocks.warn).toHaveBeenCalledWith(
+      {
+        operation: 'refresh-access-token',
+        status: 400,
+        ...diagnostics,
+        oauthErrorCode: expectedCode,
+      },
+      'Linear API request rejected',
+    );
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain('secret-');
+  });
+
+  it.each([
+    undefined,
+    '<html>secret-body</html>',
+    [],
+    {error: {token: 'secret-token'}},
+  ])('handles missing or malformed OAuth data without changing the failure', async (data) => {
+    const error = httpError(400);
+    error.data = data;
+    mocks.post.mockReturnValue(rejects(error));
+
+    await expect(
+      createLinearApiClient().refreshAccessToken({refreshToken: 'secret-token'}),
+    ).rejects.toMatchObject({reason: 'access-denied'});
+
+    expect(mocks.warn).toHaveBeenCalledWith(
+      {operation: 'refresh-access-token', status: 400, oauthErrorCode: 'unavailable'},
+      'Linear API request rejected',
+    );
   });
 
   it('maps an invalid refresh token to access-denied', async () => {
