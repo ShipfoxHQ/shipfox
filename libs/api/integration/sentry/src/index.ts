@@ -35,6 +35,11 @@ export type {
   SentrySearchIssuesInput,
 } from '#api/client.js';
 export {
+  sentryAgentToolCatalog,
+  sentryAgentToolSelectionCatalog,
+} from '#core/agent-tools.js';
+export {SentryAgentToolsProvider} from '#core/agent-tools-provider.js';
+export {
   SentryClaimProofMismatchError,
   SentryInstallationAlreadyLinkedError,
   SentryInstallationDeletedError,
