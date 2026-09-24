@@ -1,3 +1,4 @@
+import {logger} from '@shipfox/node-opentelemetry';
 import {createLinearApiClient, type LinearApiClient} from '#api/client.js';
 import {
   LinearAccessTokenMissingError,
@@ -201,7 +202,26 @@ async function refreshAccessTokenForConnection(params: {
     return currentAccessToken;
   }
 
-  const refreshed = await params.client.refreshAccessToken({refreshToken});
+  const diagnostics = {
+    connectionId: params.connectionId,
+    refreshReason: params.forceRefresh ? ('forced' as const) : ('expiry' as const),
+    tokenExpiresAt: currentInstallation?.tokenExpiresAt?.toISOString() ?? null,
+  };
+  const startedAt = Date.now();
+  logger().info(
+    {operation: 'refresh-access-token', ...diagnostics},
+    'Linear token refresh started',
+  );
+  const refreshed = await params.client.refreshAccessToken({refreshToken, diagnostics});
+  logger().info(
+    {
+      operation: 'refresh-access-token',
+      ...diagnostics,
+      durationMs: Date.now() - startedAt,
+      refreshTokenReturned: Boolean(refreshed.refreshToken),
+    },
+    'Linear token refresh succeeded',
+  );
   const values: Record<string, string> = {[ACCESS_TOKEN_KEY]: refreshed.accessToken};
   if (refreshed.refreshToken) values[REFRESH_TOKEN_KEY] = refreshed.refreshToken;
   await params.secrets.setSecrets({
@@ -209,11 +229,24 @@ async function refreshAccessTokenForConnection(params: {
     namespace: linearSecretsNamespace(params.connectionId),
     values,
   });
+  logger().info(
+    {operation: 'persist-refreshed-tokens', connectionId: params.connectionId},
+    'Linear refreshed tokens persisted',
+  );
   await updateLinearInstallationTokenExpiry({
     connectionId: params.connectionId,
     tokenExpiresAt: refreshed.expiresAt ?? null,
     scopes: refreshed.scopes.length > 0 ? refreshed.scopes : undefined,
   });
 
+  logger().info(
+    {
+      operation: 'persist-token-expiry',
+      connectionId: params.connectionId,
+      tokenExpiresAt: refreshed.expiresAt?.toISOString() ?? null,
+      durationMs: Date.now() - startedAt,
+    },
+    'Linear token refresh completed',
+  );
   return refreshed.accessToken;
 }

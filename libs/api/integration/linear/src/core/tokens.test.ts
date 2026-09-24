@@ -11,10 +11,17 @@ import {
   linearSecretsNamespace,
 } from './tokens.js';
 
+const logs = vi.hoisted(() => ({info: vi.fn()}));
+vi.mock('@shipfox/node-opentelemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shipfox/node-opentelemetry')>()),
+  logger: () => ({info: logs.info}),
+}));
+
 let secrets: LinearSecretsStore;
 
 beforeEach(() => {
   secrets = createInMemorySecretsStore();
+  logs.info.mockClear();
 });
 
 function createConnectionContext() {
@@ -169,6 +176,61 @@ describe('createLinearTokenStore.getAccessToken', () => {
     );
     expect(installation?.tokenExpiresAt?.toISOString()).toBe(expiresAt.toISOString());
     expect(installation?.scopes).toEqual(['read', 'write']);
+    expect(refreshAccessToken).toHaveBeenCalledWith({
+      refreshToken: 'old-refresh-token',
+      diagnostics: {
+        connectionId,
+        refreshReason: 'expiry',
+        tokenExpiresAt: '2026-07-07T11:00:00.000Z',
+      },
+    });
+    expect(logs.info.mock.calls.map((call) => call[1])).toEqual([
+      'Linear token refresh started',
+      'Linear token refresh succeeded',
+      'Linear refreshed tokens persisted',
+      'Linear token refresh completed',
+    ]);
+    expect(JSON.stringify(logs.info.mock.calls)).not.toContain('new-refresh-token');
+    expect(JSON.stringify(logs.info.mock.calls)).not.toContain('new-access-token');
+  });
+
+  it('distinguishes provider success from a failed token save', async () => {
+    const {connectionId, refreshAccessToken, store} = createConnectionContext();
+    await store.storeTokens({connectionId, accessToken: 'old-access', refreshToken: 'old-refresh'});
+    await createInstallation({connectionId, tokenExpiresAt: null});
+    refreshAccessToken.mockResolvedValue({
+      accessToken: 'new-access',
+      refreshToken: 'new-refresh',
+      scopes: [],
+    });
+    const failure = new Error('secret-storage-failure');
+    vi.spyOn(secrets, 'setSecrets').mockRejectedValue(failure);
+
+    await expect(store.getAccessToken({connectionId, forceRefresh: true})).rejects.toBe(failure);
+
+    expect(logs.info.mock.calls.map((call) => call[1])).toEqual([
+      'Linear token refresh started',
+      'Linear token refresh succeeded',
+    ]);
+    expect(refreshAccessToken).toHaveBeenCalledWith({
+      refreshToken: 'old-refresh',
+      diagnostics: {connectionId, refreshReason: 'forced', tokenExpiresAt: null},
+    });
+    expect(JSON.stringify(logs.info.mock.calls)).not.toContain('secret-storage-failure');
+  });
+
+  it('does not record success or write tokens when the provider rejects refresh', async () => {
+    const {connectionId, refreshAccessToken, store} = createConnectionContext();
+    await store.storeTokens({connectionId, accessToken: 'old-access', refreshToken: 'old-refresh'});
+    await createInstallation({connectionId, tokenExpiresAt: null});
+    const failure = new Error('provider-failure');
+    refreshAccessToken.mockRejectedValue(failure);
+    const setSecrets = vi.spyOn(secrets, 'setSecrets');
+
+    await expect(store.getAccessToken({connectionId, forceRefresh: true})).rejects.toBe(failure);
+
+    expect(setSecrets).not.toHaveBeenCalled();
+    expect(logs.info.mock.calls.map((call) => call[1])).toEqual(['Linear token refresh started']);
   });
 
   it('force refreshes even when the token expiry is unknown', async () => {
