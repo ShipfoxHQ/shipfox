@@ -1,5 +1,11 @@
 # @shipfox/api-integration-core
 
+## 32.2.1
+
+### Patch Changes
+
+- 2e83341: Prefix new PostHog connection names with "PostHog" so they match the other integrations in the installed list.
+
 ## 32.2.0
 
 ### Patch Changes

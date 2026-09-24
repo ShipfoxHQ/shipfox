@@ -1,5 +1,14 @@
 # @shipfox/api-server
 
+## 32.2.1
+
+### Patch Changes
+
+- Updated dependencies [2e83341]
+- Updated dependencies [f01a070]
+  - @shipfox/api-integration-core@32.2.1
+  - @shipfox/api-workflows@32.2.1
+
 ## 32.2.0
 
 ### Patch Changes
