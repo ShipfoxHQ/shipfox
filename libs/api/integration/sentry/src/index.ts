@@ -25,7 +25,15 @@ import {createSentryWebhookRoutes} from '#presentation/routes/webhooks.js';
 import {createSentryMaintenanceActivities} from '#temporal/activities/index.js';
 import {SENTRY_MAINTENANCE_TASK_QUEUE} from '#temporal/constants.js';
 
-export type {SentryApiClient} from '#api/client.js';
+export type {
+  SentryApiClient,
+  SentryIssue,
+  SentryIssueEvent,
+  SentryPage,
+  SentryProject,
+  SentryReadApiClient,
+  SentrySearchIssuesInput,
+} from '#api/client.js';
 export {
   SentryClaimProofMismatchError,
   SentryInstallationAlreadyLinkedError,
@@ -42,6 +50,12 @@ export {
   hashAuthorizationCode,
   verifyAndPersistUnclaimedInstallation,
 } from '#core/install.js';
+export type {
+  CreateSentryReadClientParams,
+  SentryReadClient,
+  SentrySecretsStore,
+} from '#core/read-client.js';
+export {createSentryReadClient, sentrySecretsNamespace} from '#core/read-client.js';
 export {
   handleSentryInstallationCreated,
   handleSentryInstallationDeleted,

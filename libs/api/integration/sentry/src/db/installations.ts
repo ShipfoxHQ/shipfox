@@ -1,3 +1,4 @@
+import {pgClient} from '@shipfox/node-postgres';
 import {and, eq, inArray, isNull, lt, ne, sql} from 'drizzle-orm';
 import {SentryInstallationAlreadyLinkedError} from '#core/errors.js';
 import {db} from './db.js';
@@ -244,6 +245,30 @@ export async function getSentryInstallationByConnectionId(
   const row = rows[0];
   if (!row) return undefined;
   return toSentryInstallation(row);
+}
+
+export async function withSentryRefreshLock<T>(
+  connectionId: string,
+  fn: () => Promise<T>,
+): Promise<{acquired: true; value: T} | {acquired: false}> {
+  const client = await pgClient().connect();
+  let acquired = false;
+  const key = `sentry:${connectionId}`;
+  try {
+    const result = await client.query<{acquired: boolean}>(
+      'SELECT pg_try_advisory_lock(hashtext($1)) AS acquired',
+      [key],
+    );
+    acquired = result.rows[0]?.acquired === true;
+    if (!acquired) return {acquired: false};
+    return {acquired: true, value: await fn()};
+  } finally {
+    try {
+      if (acquired) await client.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+    } finally {
+      client.release();
+    }
+  }
 }
 
 /**

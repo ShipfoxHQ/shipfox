@@ -145,3 +145,190 @@ describe('createSentryApiClient.getInstallation', () => {
     await expect(result).rejects.toMatchObject({reason: 'malformed-provider-response'});
   });
 });
+
+describe('Sentry authenticated reads', () => {
+  beforeEach(() => {
+    postMock.mockReset();
+    getMock.mockReset();
+  });
+
+  it('mints an app-signed JWT with a short lifetime and validates the token response', async () => {
+    postMock.mockReturnValue(resolves({token: 'read-token', expiresAt: '2026-09-25T00:00:00Z'}));
+
+    const result = await createSentryApiClient().mintInstallationToken({
+      installationUuid: 'install/1',
+    });
+
+    expect(result.token).toBe('read-token');
+    const [url, options] = postMock.mock.calls[0] as [
+      string,
+      {headers: {authorization: string}; json: {grant_type: string}},
+    ];
+    expect(url).toContain('/sentry-app-installations/install%2F1/authorizations/');
+    expect(options.json.grant_type).toBe('urn:sentry:params:oauth:grant-type:jwt-bearer');
+    const assertion = options.headers.authorization.slice('Bearer '.length);
+    const [header, payload] = assertion.split('.');
+    expect(JSON.parse(Buffer.from(header ?? '', 'base64url').toString())).toEqual({
+      alg: 'HS256',
+      typ: 'JWT',
+    });
+    const claims = JSON.parse(Buffer.from(payload ?? '', 'base64url').toString()) as {
+      iss: string;
+      sub: string;
+      iat: number;
+      exp: number;
+      jti: string;
+    };
+    expect(claims).toMatchObject({iss: 'test-client-id', sub: 'test-client-id'});
+    expect(claims.exp - claims.iat).toBe(60);
+    expect(claims.jti).toBeTruthy();
+  });
+
+  it('encodes project filters and forwards the next cursor without following the link URL', async () => {
+    getMock.mockReturnValue(
+      Promise.resolve(
+        new Response(JSON.stringify([{id: '1', slug: 'api', name: 'API'}]), {
+          headers: {
+            link: '<https://foreign.example/?cursor=opaque%3A1>; rel="next"; results="true"; cursor="opaque:1"',
+          },
+        }),
+      ),
+    );
+
+    const result = await createSentryApiClient().listProjects({
+      orgSlug: 'team/name',
+      token: 'secret',
+      query: 'api & jobs',
+      limit: 20,
+      cursor: 'old:1',
+    });
+
+    expect(result).toEqual({data: [{id: '1', slug: 'api', name: 'API'}], nextCursor: 'opaque:1'});
+    const [url, options] = getMock.mock.calls[0] as [
+      string,
+      {headers: {authorization: string}; searchParams: URLSearchParams},
+    ];
+    expect(url).toBe('https://sentry.io/api/0/organizations/team%2Fname/projects/');
+    expect(options.headers.authorization).toBe('Bearer secret');
+    expect(options.searchParams.get('query')).toBe('api & jobs');
+    expect(options.searchParams.get('per_page')).toBe('20');
+    expect(options.searchParams.get('cursor')).toBe('old:1');
+  });
+
+  it('passes issue filters, including an explicit empty query', async () => {
+    getMock.mockReturnValue(
+      Promise.resolve(new Response(JSON.stringify([{id: '42', title: 'Failure'}]))),
+    );
+
+    const result = await createSentryApiClient().searchIssues({
+      orgSlug: 'acme',
+      token: 'secret',
+      query: '',
+      projectIds: ['12', '34'],
+      environments: ['prod', 'stage'],
+      statsPeriod: '24h',
+      sort: 'date',
+      limit: 20,
+      cursor: 'next:1',
+    });
+
+    expect(result).toEqual({data: [{id: '42', title: 'Failure'}], nextCursor: null});
+    const [, options] = getMock.mock.calls[0] as [string, {searchParams: URLSearchParams}];
+    expect(options.searchParams.get('query')).toBe('');
+    expect(options.searchParams.getAll('project')).toEqual(['12', '34']);
+    expect(options.searchParams.getAll('environment')).toEqual(['prod', 'stage']);
+    expect(options.searchParams.get('statsPeriod')).toBe('24h');
+    expect(options.searchParams.get('sort')).toBe('date');
+    expect(options.searchParams.get('limit')).toBe('20');
+    expect(options.searchParams.has('shortIdLookup')).toBe(false);
+  });
+
+  it('reads issue detail and latest event through encoded organization paths', async () => {
+    getMock.mockReturnValueOnce(
+      Promise.resolve(new Response(JSON.stringify({id: '42', title: 'Failure'}))),
+    );
+    getMock.mockReturnValueOnce(
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 'event-1',
+            groupID: '42',
+            eventID: 'event-1',
+            entries: [
+              {
+                type: 'exception',
+                data: {
+                  values: [
+                    {
+                      type: 'Error',
+                      value: 'failure',
+                      stacktrace: {
+                        frames: [
+                          {
+                            filename: 'src/app.ts',
+                            function: 'run',
+                            lineNo: 12,
+                            colNo: 3,
+                            inApp: true,
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    const client = createSentryApiClient();
+
+    expect(
+      await client.getIssue({orgSlug: 'acme', token: 'secret', issueId: '42/other'}),
+    ).toMatchObject({id: '42'});
+    const event = await client.getIssueEvent({
+      orgSlug: 'acme',
+      token: 'secret',
+      issueId: '42/other',
+      environments: ['prod & blue'],
+    });
+    expect(event).toMatchObject({
+      id: 'event-1',
+      entries: [{data: {values: [{stacktrace: {frames: [{inApp: true}]}}]}}],
+    });
+    expect(getMock.mock.calls[0]?.[0]).toContain('/issues/42%2Fother/');
+    expect(getMock.mock.calls[1]?.[0]).toContain('/issues/42%2Fother/events/latest/');
+    const options = getMock.mock.calls[1]?.[1] as {searchParams: URLSearchParams};
+    expect(options.searchParams.get('environment')).toBe('prod & blue');
+  });
+
+  it.each([400, 404])('maps read %i without exposing the provider body', async (status) => {
+    getMock.mockReturnValue(Promise.reject(httpError(status)));
+    const error = await createSentryApiClient()
+      .getIssue({orgSlug: 'acme', token: 'secret', issueId: '42'})
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({reason: 'provider-rejected', status});
+    expect(JSON.stringify(error)).not.toContain('secret');
+  });
+
+  it('maps read 401 for coordinated renewal and keeps installation errors unchanged', async () => {
+    getMock.mockReturnValueOnce(Promise.reject(httpError(401)));
+    getMock.mockReturnValueOnce(rejects(httpError(401)));
+    const client = createSentryApiClient();
+
+    await expect(
+      client.getIssue({orgSlug: 'acme', token: 'secret', issueId: '42'}),
+    ).rejects.toMatchObject({reason: 'credentials-unavailable', status: 401});
+    await expect(
+      client.getInstallation({installationUuid: 'install-1', token: 'secret'}),
+    ).rejects.toMatchObject({reason: 'access-denied'});
+  });
+
+  it('rejects malformed successful responses', async () => {
+    getMock.mockReturnValue(Promise.resolve(new Response(JSON.stringify([{id: '1'}]))));
+    await expect(
+      createSentryApiClient().listProjects({orgSlug: 'acme', token: 'secret'}),
+    ).rejects.toMatchObject({reason: 'malformed-provider-response'});
+  });
+});
