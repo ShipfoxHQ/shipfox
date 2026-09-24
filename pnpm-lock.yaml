@@ -2296,6 +2296,9 @@ importers:
       '@shipfox/api-workflows-dto':
         specifier: workspace:*
         version: link:../workflows-dto
+      '@shipfox/config':
+        specifier: workspace:*
+        version: link:../../shared/common/config
       '@shipfox/inter-module':
         specifier: workspace:*
         version: link:../../shared/common/inter-module

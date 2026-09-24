@@ -26,6 +26,7 @@ function counterAdd(name: string): ReturnType<typeof vi.fn> {
 describe('agent-access instance metrics', () => {
   beforeEach(() => {
     counterAdd('agent_access_tool_calls').mockReset();
+    counterAdd('agent_access_resource_read_count').mockReset();
     counterAdd('agent_access_auth_failures').mockReset();
     counterAdd('agent_access_authority_checks').mockReset();
     counterAdd('agent_access_log_sections_unavailable').mockReset();
@@ -34,6 +35,9 @@ describe('agent-access instance metrics', () => {
   test('declares the bounded tool-call and authentication metrics', () => {
     expect(metricMocks.createCounter).toHaveBeenCalledWith('agent_access_tool_calls', {
       description: 'MCP tool-call requests received by this instance',
+    });
+    expect(metricMocks.createCounter).toHaveBeenCalledWith('agent_access_resource_read_count', {
+      description: 'MCP resource reads received by this instance',
     });
     expect(metricMocks.createCounter).toHaveBeenCalledWith('agent_access_auth_failures', {
       description: 'agent-access authentication rejections on this instance',
@@ -49,6 +53,7 @@ describe('agent-access instance metrics', () => {
 
   test('records tool calls and authentication rejections with bounded labels', () => {
     metrics.recordAgentAccessToolCall({tool: 'agent_access_fixture', outcome: 'rate-limited'});
+    metrics.recordAgentAccessResourceRead({source: 'docs', outcome: 'success'});
     metrics.recordAgentAccessAuthFailure('origin-not-allowed');
     metrics.recordAgentAccessAuthorityCheck('membership-revoked');
     metrics.recordAgentAccessLogSectionUnavailable('compacted-log-unavailable');
@@ -60,6 +65,10 @@ describe('agent-access instance metrics', () => {
       tool: 'agent_access_fixture',
       outcome: 'rate-limited',
     });
+    expect(counterAdd('agent_access_resource_read_count')).toHaveBeenCalledWith(1, {
+      source: 'docs',
+      outcome: 'success',
+    });
     expect(counterAdd('agent_access_auth_failures')).toHaveBeenCalledWith(1, {
       reason: 'origin-not-allowed',
     });
@@ -70,6 +79,9 @@ describe('agent-access instance metrics', () => {
 
   test('does not let metric failures affect gateway callers', () => {
     counterAdd('agent_access_tool_calls').mockImplementationOnce(() => {
+      throw new Error('metrics unavailable');
+    });
+    counterAdd('agent_access_resource_read_count').mockImplementationOnce(() => {
       throw new Error('metrics unavailable');
     });
     counterAdd('agent_access_auth_failures').mockImplementationOnce(() => {
@@ -84,6 +96,9 @@ describe('agent-access instance metrics', () => {
 
     expect(() =>
       metrics.recordAgentAccessToolCall({tool: 'agent_access_fixture', outcome: 'success'}),
+    ).not.toThrow();
+    expect(() =>
+      metrics.recordAgentAccessResourceRead({source: 'skill', outcome: 'success'}),
     ).not.toThrow();
     expect(() => metrics.recordAgentAccessAuthFailure('invalid')).not.toThrow();
     expect(() => metrics.recordAgentAccessAuthorityCheck('ok')).not.toThrow();

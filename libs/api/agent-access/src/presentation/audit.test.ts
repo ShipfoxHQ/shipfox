@@ -8,6 +8,41 @@ const baseContext: AgentAccessContext = {
 };
 
 describe('agent-access tool call audit recorder', () => {
+  test('records docs reads with bounded identifiers and a resource metric', () => {
+    const recordMetric = vi.fn();
+    const recordResourceMetric = vi.fn();
+    const logInfo = vi.fn();
+    const recorder = createAgentAccessToolCallRecorder({
+      recordMetric,
+      recordResourceMetric,
+      logInfo,
+    });
+
+    recorder({
+      kind: 'resource',
+      source: 'docs',
+      uri: 'docs://shipfox/understand',
+      slug: 'understand',
+      cached: true,
+      tool: 'resources/read',
+      outcome: 'success',
+      errorCode: 'none',
+      context: baseContext,
+    });
+
+    expect(recordResourceMetric).toHaveBeenCalledWith({source: 'docs', outcome: 'success'});
+    expect(recordMetric).not.toHaveBeenCalled();
+    expect(logInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'docs',
+        uri: 'docs://shipfox/understand',
+        slug: 'understand',
+        cached: true,
+      }),
+      'agent access tool call audited',
+    );
+  });
+
   test('records bounded OAuth identity fields without tool arguments', () => {
     const recordMetric = vi.fn();
     const logInfo = vi.fn();

@@ -29,6 +29,7 @@ import {
 } from '@shipfox/node-fastify';
 import {logger} from '@shipfox/node-opentelemetry';
 import type {TemplateLoader} from '@shipfox/workflow-templates';
+import {config} from '#config.js';
 import {
   AGENT_ACCESS_ACTION_TOOL_CALL_LIMIT,
   AGENT_ACCESS_MCP_PATH,
@@ -37,6 +38,8 @@ import {
 import {createAgentAccessActionTools} from '#core/action-tools.js';
 import {createAgentAccessAuthoringContextTools} from '#core/authoring-context.js';
 import {createAgentAccessDiagnosticTools} from '#core/diagnostic-tools.js';
+import {createDocsCache, type DocsCache} from '#core/docs.js';
+import {createSearchDocsTool} from '#core/docs-tools.js';
 import {createAgentAccessIntegrationTools} from '#core/integration-tools.js';
 import {createAgentAccessLogTools} from '#core/log-tools.js';
 import {createAgentAccessTools} from '#core/paged-tools.js';
@@ -62,6 +65,7 @@ export interface CreateAgentAccessRoutesOptions {
   rateLimiter?: AgentAccessRateLimiter | undefined;
   actionRateLimiter?: AgentAccessRateLimiter | undefined;
   recordCall?: AgentAccessToolCallRecorder | undefined;
+  docs?: DocsCache | undefined;
   auth?: AuthInterModuleClient | undefined;
   agent?: AgentInterModuleClient | undefined;
   isOriginAllowed?: ((origin: string | undefined) => boolean) | undefined;
@@ -77,8 +81,13 @@ export interface CreateAgentAccessRoutesOptions {
 }
 
 export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions = {}): RouteGroup {
+  const docs = options.docs ?? defaultDocs();
   const resolvedTools = options.tools ?? toolsFromProducerClients(options);
-  const tools = [...resolvedTools, ...(options.additionalTools ?? [])];
+  const tools = [
+    ...resolvedTools,
+    ...(docs.enabled ? [createSearchDocsTool(docs)] : []),
+    ...(options.additionalTools ?? []),
+  ];
   createAgentAccessToolMap(tools);
   const rateLimiter = options.rateLimiter ?? createAgentAccessRateLimiter();
   const actionRateLimiter =
@@ -121,6 +130,7 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
             actionRateLimiter,
             auth: options.auth,
             recordCall,
+            docs,
           });
           // No sessionIdGenerator selects the SDK's stateless transport mode.
           const transport = new StreamableHTTPServerTransport();
@@ -162,6 +172,14 @@ export function createAgentAccessRoutes(options: CreateAgentAccessRoutesOptions 
       }),
     ],
   };
+}
+
+let sharedDocs: DocsCache | undefined;
+function defaultDocs(): DocsCache {
+  if (sharedDocs) return sharedDocs;
+  sharedDocs = createDocsCache({baseUrl: config.DOCS_BASE_URL});
+  sharedDocs.start();
+  return sharedDocs;
 }
 
 function toolsFromProducerClients(

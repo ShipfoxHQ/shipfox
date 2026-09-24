@@ -31,6 +31,13 @@ const toolCallCount = meter.createCounter<{
   description: 'MCP tool-call requests received by this instance',
 });
 
+const resourceReadCount = meter.createCounter<{
+  source: 'docs' | 'skill';
+  outcome: AgentAccessToolCallOutcome;
+}>('agent_access_resource_read_count', {
+  description: 'MCP resource reads received by this instance',
+});
+
 const authFailureCount = meter.createCounter<{
   reason: AgentAccessAuthFailureReason;
 }>('agent_access_auth_failures', {
@@ -55,6 +62,17 @@ export function recordAgentAccessToolCall(params: {
 }): void {
   try {
     toolCallCount.add(1, params);
+  } catch {
+    // Metrics must not affect MCP responses.
+  }
+}
+
+export function recordAgentAccessResourceRead(params: {
+  source: 'docs' | 'skill';
+  outcome: AgentAccessToolCallOutcome;
+}): void {
+  try {
+    resourceReadCount.add(1, params);
   } catch {
     // Metrics must not affect MCP responses.
   }
