@@ -53,17 +53,17 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 ## 6. Validate the workflow and select an event
 
-Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, `project_id`, `config_path`, and trigger key. Complete its shape check before selecting an event.
+Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, `project_id`, `config_path`, and trigger key.
 
 For an integration trigger, state what a real run will write before listing events: the ticket it reads, and any branch, PR, comment, or transition from the guide's **Expected writes**, plus runner time and inference. Keep only events of the selected project: a source-control payload's repository must be the project's; a ticket's team, project, or space must be the one the user named. The event check does not verify this; one connection can cover several repositories or teams. Check the kept payloads against the workflow expressions; let the user choose.
 
-If no event matches, tell the user the exact action that causes a safe one (repository, team, label, assignee). Poll for a few minutes. If the user cannot produce one, stop as "shape validated, not executed" and offer a PR marked untested.
+If no event matches, ask the user to trigger a safe one themselves: name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Then call `list_trigger_events` every 30 seconds for up to 5 minutes until it appears. If none arrives, stop as "shape validated, not executed" and offer a PR marked untested.
 
 ## 7. Test the workflow
 
 Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. Repeat the expected writes from step 6 in one line before the real run.
 
-A successful one-shot run reaches `succeeded`. A run with listening jobs stays open once its one-shot jobs succeed; report each `listener_status: listening` and offer to leave it or stop it with `cancel_workflow_run`. If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. After a failed real run, find what it produced (branch, PR, comment) and decide explicitly with the user: reuse it (target the same branch or PR, or pick an event with idempotent writes), stop, or repeat the writes with their agreement. Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.
+A run with listening jobs stays open once its one-shot jobs succeed; report each `listener_status: listening` and offer to leave it or stop it with `cancel_workflow_run`. If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. After a failed real run, find what it produced (branch, PR, comment) and decide explicitly with the user: reuse it (target the same branch or PR, or pick an event with idempotent writes), stop, or repeat the writes with their agreement. Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.
 
 ## 8. Deliver
 
