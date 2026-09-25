@@ -1676,9 +1676,15 @@ importers:
       '@shipfox/e2e-setup-auth':
         specifier: workspace:*
         version: link:../../../setup/auth
+      '@shipfox/e2e-setup-integrations':
+        specifier: workspace:*
+        version: link:../../../setup/integrations
       '@shipfox/e2e-setup-projects':
         specifier: workspace:*
         version: link:../../../setup/projects
+      '@shipfox/e2e-setup-secrets':
+        specifier: workspace:*
+        version: link:../../../setup/secrets
       '@shipfox/e2e-setup-workspaces':
         specifier: workspace:*
         version: link:../../../setup/workspaces
@@ -1691,6 +1697,12 @@ importers:
       '@shipfox/typescript':
         specifier: workspace:*
         version: link:../../../../tools/typescript
+      '@shipfox/workflow-document':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/document
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
 
   e2e/suites/client/agent:
     devDependencies:

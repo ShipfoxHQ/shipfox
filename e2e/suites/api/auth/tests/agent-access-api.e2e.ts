@@ -51,6 +51,10 @@ const EXPECTED_TOOL_NAMES = [
   'list_trigger_events',
   'list_integration_connections',
   'get_integration_connection_tools',
+  'list_workflow_templates',
+  'get_workflow_template',
+  'get_workflow_authoring_context',
+  'search_docs',
 ] as const;
 
 test('exposes the composed OAuth and agent-access contract through a real MCP client', async ({
@@ -153,6 +157,7 @@ test('exposes the composed OAuth and agent-access contract through a real MCP cl
       // The merge branch can include additive tools landed on main after this PR branched.
       expect(toolNames).toEqual(expect.arrayContaining([...EXPECTED_TOOL_NAMES]));
       expect(toolNames).not.toContain('getWorkflowRunDetail');
+      expect(toolNames).not.toContain('get_workflow_setup_guide');
 
       const projectsCall = await client.callTool(
         {name: 'list_projects', arguments: {}},

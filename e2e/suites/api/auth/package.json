@@ -29,10 +29,14 @@
     "@shipfox/e2e-harness": "workspace:*",
     "@shipfox/e2e-kit": "workspace:*",
     "@shipfox/e2e-setup-auth": "workspace:*",
+    "@shipfox/e2e-setup-integrations": "workspace:*",
     "@shipfox/e2e-setup-projects": "workspace:*",
+    "@shipfox/e2e-setup-secrets": "workspace:*",
     "@shipfox/e2e-setup-workspaces": "workspace:*",
     "@shipfox/playwright": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
-    "@shipfox/typescript": "workspace:*"
+    "@shipfox/typescript": "workspace:*",
+    "@shipfox/workflow-document": "workspace:*",
+    "yaml": "catalog:"
   }
 }

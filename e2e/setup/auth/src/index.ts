@@ -106,6 +106,8 @@ export interface AgentAccessConsentRequestOptions {
   clientName: string;
   redirectUri: string;
   statePrefix?: string | undefined;
+  /** Reuses a client from `registerAgentAccessClient`; registration is IP rate-limited. */
+  clientId?: string | undefined;
 }
 
 export interface AgentAccessConsentRequest {
@@ -115,9 +117,12 @@ export interface AgentAccessConsentRequest {
   state: string;
 }
 
-export async function requestAgentAccessConsent(
-  options: AgentAccessConsentRequestOptions,
-): Promise<AgentAccessConsentRequest> {
+export async function registerAgentAccessClient(
+  options: Pick<
+    AgentAccessConsentRequestOptions,
+    'request' | 'apiOrigin' | 'clientName' | 'redirectUri'
+  >,
+): Promise<string> {
   const registration = await options.request.post(`${options.apiOrigin}/oauth/register`, {
     data: {
       client_name: options.clientName,
@@ -131,16 +136,19 @@ export async function requestAgentAccessConsent(
   if (registration.status() !== 201) {
     throw new Error(`OAuth client registration returned ${registration.status()}, expected 201`);
   }
-  const registeredClient = oauthDynamicClientRegistrationResponseSchema.parse(
-    await registration.json(),
-  );
+  return oauthDynamicClientRegistrationResponseSchema.parse(await registration.json()).client_id;
+}
 
+export async function requestAgentAccessConsent(
+  options: AgentAccessConsentRequestOptions,
+): Promise<AgentAccessConsentRequest> {
+  const clientId = options.clientId ?? (await registerAgentAccessClient(options));
   const codeVerifier = randomBytes(32).toString('base64url');
   const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
   const state = `${options.statePrefix ?? 'e2e'}-${randomBytes(12).toString('hex')}`;
   const authorizationUrl = new URL(`${options.apiOrigin}/oauth/authorize`);
   authorizationUrl.search = new URLSearchParams({
-    client_id: registeredClient.client_id,
+    client_id: clientId,
     response_type: 'code',
     redirect_uri: options.redirectUri,
     code_challenge: codeChallenge,
@@ -161,7 +169,7 @@ export async function requestAgentAccessConsent(
   if (!requestId) throw new Error('OAuth authorization did not return a consent request id');
 
   return {
-    clientId: registeredClient.client_id,
+    clientId,
     codeVerifier,
     requestId,
     state,
