@@ -51,13 +51,10 @@ options:
         label: Do not write to Linear
 models:
   ticket:
-    reference: {model: gpt-5.6-luna, thinking: max}
     note: Reads the ticket and its comments in the shared implementation conversation.
   fix:
-    reference: {model: gpt-5.6-luna, thinking: max}
     note: Implements the change and repairs failed tests or CI.
   review:
-    reference: {model: gpt-5.6-luna, thinking: max}
     note: Handles PR review comments in a follow-up conversation.
 slots: [setup_commands, test_command]
 secrets: []

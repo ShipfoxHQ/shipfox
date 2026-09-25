@@ -22,7 +22,7 @@ Choose one `ticket_write_back` block. `comment` posts the PR URL on the Linear i
 
 ## Bind the model and connections
 
-The `ticket`, `fix`, and `review` markers use the same tested `gpt-5.6-luna` model with `max` thinking. If the workspace uses a different model, confirm one model and thinking level with the user and apply that setting to every marked step. All steps that resume the `ticket_pr` session must use the same harness.
+Confirm that the model and thinking level on the `ticket`, `fix`, and `review` steps are available in the workspace. If the workspace uses a different setting, confirm it with the user and apply it to every marked step. All steps that resume the `ticket_pr` session must use the same harness.
 
 The ticket and implementation steps resume one conversation. Review and CI executions fork that conversation because their listening jobs can overlap. A fork reads the implementation history without competing for a session write lock. Each execution reads the current PR branch before editing.
 
