@@ -34,8 +34,8 @@ for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byNam
   ) {
     throw new Error(`${skillPath} has invalid skill frontmatter.`);
   }
-  if (Buffer.byteLength(markdown, 'utf8') > 6 * 1024) {
-    throw new Error(`${skillPath} exceeds the 6 KiB skill limit.`);
+  if (Buffer.byteLength(markdown, 'utf8') > 8 * 1024) {
+    throw new Error(`${skillPath} exceeds the 8 KiB skill limit.`);
   }
   skillMetadata.set(entry.name, metadata);
   skillResources.push(createSkillResource(`${entry.name}/SKILL.md`, markdown, metadata));
