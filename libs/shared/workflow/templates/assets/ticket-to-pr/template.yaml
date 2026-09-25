@@ -17,7 +17,7 @@ options:
       - id: agent_session
         label: Assign or mention the Shipfox agent
         default: true
-        tradeoff: Starts on every issue assignment to the Shipfox agent in Linear.
+        tradeoff: Starts when the Shipfox agent is assigned to or mentioned on a Linear issue.
       - id: label
         label: Add a Linear label
         tradeoff: Starts when an issue is created with the chosen label or when that label is added later.
