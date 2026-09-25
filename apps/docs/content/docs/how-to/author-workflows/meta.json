@@ -1,6 +1,9 @@
 {
   "title": "Author Workflows",
   "pages": [
+    "---Write with an agent---",
+    "write-a-workflow",
+    "create-workflow-from-template",
     "---Start runs---",
     "run-manually",
     "schedule-workflows",

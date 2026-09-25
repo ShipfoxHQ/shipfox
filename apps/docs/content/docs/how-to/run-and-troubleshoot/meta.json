@@ -5,6 +5,7 @@
     "validate-local-workflow-change",
     "test-local-workflow-change",
     "---Diagnose a problem---",
+    "debug-failed-run",
     "inspect-runs-and-attempts",
     "inspect-logs",
     "agent-provider-failures",

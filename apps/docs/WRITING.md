@@ -618,6 +618,15 @@ navigation and authored context in the canonical page. Docs development, build,
 and test commands must generate these artifacts before they read, build, or
 check those pages. Do not use inline markers.
 
+### Skill pages
+
+Every skill the Shipfox MCP server serves has a Git-ignored how-to page that
+tells the reader to start it from their coding agent. The page prose, URL, and
+title live in `scripts/lib/skill-pages.mjs`. The prompt comes from the skill's
+`catalog_prompt` in `@shipfox/workflow-templates`. Generation fails until a new
+skill has an entry there. Add its page path to `.gitignore`, and list it in
+the directory's `meta.json` for the sidebar.
+
 ## Schema fields: document only shipped surface
 
 Document a schema field only when its feature works end to end on `main`. A field
