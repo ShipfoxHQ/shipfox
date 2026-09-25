@@ -1,5 +1,18 @@
 # @shipfox/workflow-templates
 
+## 1.2.0
+
+### Minor Changes
+
+- 94a6e9d: The create-workflow-from-template and write-a-workflow skills now ask one question per message and restate what each choice decides and entails. Every template option choice now describes its tradeoff, and the ticket-to-pr guide no longer lists Linear agent-session setup that cloud-hosted Shipfox handles.
+- e4f160d: The ticket to pull request template's `label` trigger also starts a run when a Linear issue is created with the chosen label. The template revision is now 2.
+
+### Patch Changes
+
+- 310bf1d: Direct workflow creation skills to find the current schema reference and relevant design guidance through Shipfox documentation search.
+- 7062352: Waits for a matching event before a workflow dev run unless the user cannot trigger one or asks to skip.
+- 6759ba2: Updates the shipped workflow templates' model and thinking selections.
+
 ## 1.1.0
 
 ### Minor Changes

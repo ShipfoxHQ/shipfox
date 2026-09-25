@@ -1,5 +1,11 @@
 # @shipfox/api-integration-sentry
 
+## 33.2.0
+
+### Minor Changes
+
+- 678db4a: Registers the four read-only Sentry tools for agent steps and tool steps. Sentry connections now advertise the `agent_tools` capability, and their stored tokens are deleted with the connection.
+
 ## 33.1.0
 
 ### Minor Changes

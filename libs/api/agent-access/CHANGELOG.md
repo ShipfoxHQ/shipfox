@@ -1,5 +1,16 @@
 # @shipfox/api-agent-access
 
+## 33.2.0
+
+### Patch Changes
+
+- Updated dependencies [310bf1d]
+- Updated dependencies [94a6e9d]
+- Updated dependencies [7062352]
+- Updated dependencies [6759ba2]
+- Updated dependencies [e4f160d]
+  - @shipfox/workflow-templates@1.2.0
+
 ## 33.1.0
 
 ### Minor Changes
