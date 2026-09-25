@@ -10,6 +10,8 @@ import type {
 import type {ModuleWorker} from '@shipfox/node-module';
 import type {NodePgDatabase} from 'drizzle-orm/node-postgres';
 import {createSentryApiClient, type SentryApiClient} from '#api/client.js';
+import {SentryAgentToolsProvider} from '#core/agent-tools-provider.js';
+import type {SentryReadClient} from '#core/read-client.js';
 import {createSentryWebhookProcessor} from '#core/webhook-processor.js';
 import {closeDb, db} from '#db/db.js';
 import {
@@ -90,6 +92,12 @@ export interface CreateSentryIntegrationProviderOptions
     'sentry' | 'persistVerifiedUnclaimedInstallation'
   > {
   sentry?: SentryApiClient | undefined;
+  agentTools?: {readClient: SentryReadClient} | undefined;
+  cleanup?:
+    | {
+        deleteConnectionSecrets?: (connection: {id: string; workspaceId: string}) => Promise<void>;
+      }
+    | undefined;
   coreDb: () => NodePgDatabase<Record<string, unknown>>;
   publishIntegrationEventReceived: PublishIntegrationEventReceivedFn;
   recordDeliveryOnly: RecordDeliveryOnlyFn;
@@ -113,16 +121,21 @@ export function createSentryIntegrationProvider(options: CreateSentryIntegration
     getIntegrationConnectionById: options.getIntegrationConnectionById,
     updateConnectionLifecycleStatus: options.updateConnectionLifecycleStatus,
   });
+  const adapters = options.agentTools
+    ? {agent_tools: new SentryAgentToolsProvider(options.agentTools.readClient)}
+    : {};
 
   return {
     provider: 'sentry' as const,
     displayName: 'Sentry',
     eventCatalog: sentryEventCatalog,
+    adapters,
     async connectionExternalUrl(connection: {id: string}): Promise<string | undefined> {
       const installation = await getInstallationByConnectionId(connection.id);
       if (!installation?.orgSlug) return undefined;
       return `https://sentry.io/organizations/${encodeURIComponent(installation.orgSlug)}/`;
     },
+    ...options.cleanup,
     routes: [
       createSentryIntegrationRoutes({
         sentry,

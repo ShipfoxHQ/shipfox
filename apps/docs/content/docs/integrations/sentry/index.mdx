@@ -1,10 +1,10 @@
 ---
 title: "Sentry integration"
-description: "Connect Sentry to trigger workflows from issue lifecycle events."
+description: "Connect Sentry to trigger workflows from issue events and let workflows read issues and events through Sentry tools."
 catalog:
   name: "Sentry"
-  summary: "Receive Sentry issue events and route error signals into Shipfox workflows."
-  capabilities: ["events"]
+  summary: "Receive Sentry issue events and read issues, events, and stack traces with read-only tools."
+  capabilities: ["events", "agent_tools"]
   categories: ["observability"]
   aliases: ["errors", "monitoring", "crash"]
   icon: "sentry"
@@ -15,11 +15,14 @@ catalog:
 Shipfox connects through a Sentry App. Install the App in the target Sentry
 organization and authorize its requested access.
 
+Sentry tools read with the installation's access. They can read every project
+that the installation can see in the organization.
+
 ## Integration connection identity
 
 The slug of a Sentry integration connection defaults to `sentry_<organization>`, such
 as `sentry_acme`. Use the slug of the workspace integration connection as a workflow
-trigger `source`.
+trigger `source`, or as `connection` in an agent integration or tool step.
 
 ```yaml
 triggers:
@@ -35,5 +38,6 @@ For trigger field rules, see the [workflow schema reference](/reference/workflow
 | Capability | Details |
 | --- | --- |
 | Events | [View Sentry events](/integrations/sentry/events). |
+| Tools | [View Sentry tools and examples](/integrations/sentry/tools). |
 
 [Connect Sentry](/integrations/sentry/setup) to create an integration connection.

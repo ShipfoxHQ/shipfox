@@ -60,6 +60,7 @@
     "@shipfox/api-integration-notion": "workspace:*",
     "@shipfox/api-integration-notion-dto": "workspace:*",
     "@shipfox/api-integration-posthog": "workspace:*",
+    "@shipfox/api-integration-sentry": "workspace:*",
     "@shipfox/api-integration-sentry-dto": "workspace:*",
     "@shipfox/api-integration-shipfox": "workspace:*",
     "@shipfox/api-integration-slack": "workspace:*",

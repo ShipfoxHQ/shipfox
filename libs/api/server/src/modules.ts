@@ -252,6 +252,30 @@ export async function defaultModules(
             })
           ).deleted,
       },
+      sentry: {
+        getSecret: async (params) =>
+          (
+            await secretsClient.getSecret({
+              ...params,
+              namespace: `system/integrations/sentry/${params.namespace}`,
+            })
+          ).value,
+        setSecrets: async (params) => {
+          const {editedBy, ...secretParams} = params;
+          await secretsClient.setSecrets({
+            ...secretParams,
+            namespace: `system/integrations/sentry/${secretParams.namespace}`,
+            ...(editedBy === undefined ? {} : {editedBy}),
+          });
+        },
+        deleteSecrets: async (params) =>
+          (
+            await secretsClient.deleteSecrets({
+              ...params,
+              namespace: `system/integrations/sentry/${params.namespace}`,
+            })
+          ).deleted,
+      },
       notion: {
         getSecret: async (params) =>
           (

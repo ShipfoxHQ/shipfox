@@ -806,6 +806,9 @@ importers:
       '@shipfox/api-integration-posthog':
         specifier: workspace:*
         version: link:../../libs/api/integration/posthog
+      '@shipfox/api-integration-sentry':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/sentry
       '@shipfox/api-integration-sentry-dto':
         specifier: workspace:*
         version: link:../../libs/api/integration/sentry-dto
