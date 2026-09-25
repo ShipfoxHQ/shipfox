@@ -49,8 +49,8 @@ const asset: WorkflowTemplateAsset = {
   guide: '# Follow this fixture',
   parts: {
     tracker: {
-      linear: {trigger: 'source: linear\n  event: issue.created'},
-      github: {trigger: 'source: github\n  event: issues.opened'},
+      linear: {trigger: '- source: linear\n  event: issue.created'},
+      github: {trigger: '- source: github\n  event: issues.opened'},
     },
     source: {github: {unused: 'unused'}},
   } as unknown as WorkflowTemplateAsset['parts'],

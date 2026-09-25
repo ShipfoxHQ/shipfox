@@ -1,6 +1,13 @@
+import {execFile} from 'node:child_process';
+import {cp, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {promisify} from 'node:util';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {extractModelAnchors, validateModelAnchors} from './model-anchors.js';
 
+const execFileAsync = promisify(execFile);
+const packageRoot = fileURLToPath(new URL('../', import.meta.url));
 const manifest = {
   id: 'fixture',
   models: {
@@ -45,6 +52,14 @@ describe('extractModelAnchors', () => {
     );
 
     expect(anchors).toEqual({ticket: {model: 'tested', thinking: 'high'}});
+  });
+
+  it('surfaces malformed YAML before scanning model anchors', () => {
+    expect(() =>
+      extractModelAnchors(
+        ['model: tested # model:ticket', 'thinking: high', 'malformed: [unterminated'].join('\n'),
+      ),
+    ).toThrow('Invalid composed YAML: Flow sequence in block collection');
   });
 
   it('ignores model-looking text inside prompt block scalars', () => {
@@ -119,6 +134,41 @@ describe('extractModelAnchors', () => {
         ].join('\n'),
       ),
     ).toThrow('Conflicting model anchor for placeholder ticket');
+  });
+});
+
+describe('asset validation', () => {
+  it('surfaces malformed YAML before validating embedded assets', async () => {
+    const temporaryRoot = await mkdtemp(join(packageRoot, '.tmp-embed-assets-'));
+
+    try {
+      await Promise.all([
+        mkdir(join(temporaryRoot, 'scripts'), {recursive: true}),
+        mkdir(join(temporaryRoot, 'src/generated'), {recursive: true}),
+      ]);
+      await Promise.all([
+        cp(join(packageRoot, 'assets'), join(temporaryRoot, 'assets'), {recursive: true}),
+        cp(
+          join(packageRoot, 'scripts/embed-assets.mjs'),
+          join(temporaryRoot, 'scripts/embed-assets.mjs'),
+        ),
+        cp(join(packageRoot, 'package.json'), join(temporaryRoot, 'package.json')),
+      ]);
+
+      const workflowPath = join(temporaryRoot, 'assets/ticket-to-pr/workflow.yml');
+      await writeFile(
+        workflowPath,
+        `${await readFile(workflowPath, 'utf8')}\nmalformed: [unterminated\n`,
+      );
+
+      await expect(
+        execFileAsync(process.execPath, [join(temporaryRoot, 'scripts/embed-assets.mjs')], {
+          cwd: temporaryRoot,
+        }),
+      ).rejects.toThrow('Invalid composed YAML: Flow sequence in block collection');
+    } finally {
+      await rm(temporaryRoot, {recursive: true, force: true});
+    }
   });
 });
 

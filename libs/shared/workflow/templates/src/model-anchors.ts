@@ -148,6 +148,10 @@ function createAnchorScanContext(composedYaml: string): AnchorScanContext {
   const blockScalarRanges: SourceRange[] = [];
   const modelMappings = new Map<number, YAMLMap>();
   const document = parseDocument(composedYaml, {uniqueKeys: false});
+  const firstError = document.errors[0];
+  if (firstError !== undefined) {
+    throw new Error(`Invalid composed YAML: ${firstError.message}`);
+  }
 
   visitYamlNode(document.contents, lineStarts, blockScalarRanges, modelMappings);
 

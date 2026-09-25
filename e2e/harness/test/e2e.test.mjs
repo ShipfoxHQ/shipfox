@@ -8,13 +8,14 @@ import {
   copySharedOllamaLog,
   defaultLogDir,
   e2eClickUpApiBaseUrl,
-  e2eNotionApiBaseUrl,
   e2eEnv,
+  e2eNotionApiBaseUrl,
   e2ePosthogApiBaseUrl,
   e2ePosthogMcpEndpoint,
   e2eTestVcsPort,
   parseArgs,
   startCommand,
+  turboBuildCommandArgs,
   turboCommandArgs,
 } from '../src/e2e.mjs';
 
@@ -269,6 +270,23 @@ describe('turboCommandArgs', () => {
     );
 
     assert.deepEqual(args, ['test:e2e', '--filter=@shipfox/e2e-client-agent', '--concurrency=2']);
+  });
+
+  test('prepares E2E dependencies without passing test-runner arguments to build', () => {
+    const args = turboBuildCommandArgs(
+      {
+        turboArgs: ['--filter=!@shipfox/e2e-flow-workflows', '--affected', '--', '--grep=renewable'],
+        turboTask: 'test:e2e',
+      },
+      {SHIPFOX_TURBO_CONCURRENCY: '2'},
+    );
+
+    assert.deepEqual(args, [
+      'build',
+      '--filter=@shipfox/e2e-*...',
+      '--affected',
+      '--concurrency=2',
+    ]);
   });
 
   test('keeps turbo default concurrency without an environment override', () => {
