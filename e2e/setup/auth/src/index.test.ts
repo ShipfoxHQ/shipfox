@@ -285,6 +285,25 @@ describe('auth setup helper', () => {
     expect(flow.post.mock.calls[2]?.[1]).toMatchObject({failOnStatusCode: false});
   });
 
+  test('reuses a registered client without registering again', async () => {
+    const flow = agentAccessFlow();
+    vi.doMock('@shipfox/e2e-core', () => ({config: {}, request: vi.fn(), requestJson: vi.fn()}));
+    const {authorizeAgentAccess} = await import('./index.js');
+
+    const result = await authorizeAgentAccess({
+      ...agentAccessAuthorizationOptions(flow.request),
+      clientId: 'client-id',
+    });
+
+    expect(result.access_token).toBe('access-token');
+    expect(flow.post).not.toHaveBeenCalledWith(
+      'https://api.example.test/oauth/register',
+      expect.anything(),
+    );
+    const authorizationUrl = new URL(String(flow.get.mock.calls[0]?.[0]));
+    expect(authorizationUrl.searchParams.get('client_id')).toBe('client-id');
+  });
+
   test.each([
     {consentClientName: 'Another client'},
     {consentWorkspaceId: '44444444-4444-4444-8444-444444444444'},

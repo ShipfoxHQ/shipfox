@@ -1,8 +1,11 @@
 import {randomUUID, timingSafeEqual} from 'node:crypto';
-import type {
-  ManagedModelApi,
-  ManagedModelProvider,
-  ManagedProviderRuntimeConfig,
+import {
+  type ManagedModelApi,
+  type ManagedModelProvider,
+  type ManagedModelThinkingLevel,
+  type ManagedModelThinkingLevelMap,
+  type ManagedProviderRuntimeConfig,
+  managedModelThinkingLevelSchema,
 } from '@shipfox/api-agent-dto';
 import {
   type AuthMethod,
@@ -21,6 +24,11 @@ const E2E_CLAUDE_MODEL = 'e2e-renewable-claude';
 const E2E_REFRESH_PI_MODEL = 'e2e-refresh-renewable-pi';
 const E2E_REFRESH_CLAUDE_MODEL = 'e2e-refresh-renewable-claude';
 const E2E_CLAUDE_MODEL_ID = 'claude-opus-4-8';
+// Matches the tested reference of the shipped ticket-to-pr template so the
+// template tools can suggest a scored combination against this catalog.
+const E2E_SCORED_REFERENCE_MODEL = 'gpt-5.6-luna';
+const E2E_SCORED_EFFICIENT_MODEL = 'e2e-scored-efficient';
+const E2E_REFERENCE_SCALE = 'e2e-fixture-v1';
 const E2E_RESPONSE_TEXT = 'ok';
 const E2E_CREDENTIAL_LIFETIME_MS = 300_000;
 const E2E_CREDENTIAL_STATE_TTL_MS = E2E_CREDENTIAL_LIFETIME_MS * 2;
@@ -50,7 +58,49 @@ const E2E_MODELS = [
     api: 'anthropic-messages' as const,
     claudeModelId: E2E_CLAUDE_MODEL_ID,
   },
+  {
+    id: E2E_SCORED_REFERENCE_MODEL,
+    label: 'E2E scored reference',
+    api: 'openai-completions',
+    reasoning: true,
+    thinkingLevelMap: onlyThinkingLevels(['high', 'max']),
+    references: [
+      {
+        thinking: 'high',
+        intelligence_index: 60,
+        cost_per_task_usd: 0.4,
+        scale: E2E_REFERENCE_SCALE,
+      },
+      {thinking: 'max', intelligence_index: 70, cost_per_task_usd: 1.2, scale: E2E_REFERENCE_SCALE},
+    ],
+  },
+  {
+    id: E2E_SCORED_EFFICIENT_MODEL,
+    label: 'E2E scored efficient',
+    api: 'openai-completions',
+    reasoning: true,
+    thinkingLevelMap: onlyThinkingLevels(['medium']),
+    references: [
+      {
+        thinking: 'medium',
+        intelligence_index: 72,
+        cost_per_task_usd: 0.8,
+        scale: E2E_REFERENCE_SCALE,
+      },
+    ],
+  },
 ] as const satisfies ManagedModelProvider['models'];
+
+function onlyThinkingLevels(
+  levels: readonly ManagedModelThinkingLevel[],
+): ManagedModelThinkingLevelMap {
+  return Object.fromEntries(
+    managedModelThinkingLevelSchema.options.map((level) => [
+      level,
+      levels.includes(level) ? level : null,
+    ]),
+  );
+}
 
 interface CredentialState {
   nextGeneration: number;
