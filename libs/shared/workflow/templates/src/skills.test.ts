@@ -10,7 +10,7 @@ describe('shipped skill resources', () => {
     expect(skill?.revision).toBe(2);
     expect(skill?.text).toContain('revision: 2');
     expect(skill?.text).toContain('## 1. Orient');
-    expect(skill?.text).toContain('## 8. Deliver');
+    expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
     expect(skill?.text).toContain('skill://shipfox/test-workflow-change/SKILL.md');
     expect(skill?.text).not.toContain('setup-procedure.md');
