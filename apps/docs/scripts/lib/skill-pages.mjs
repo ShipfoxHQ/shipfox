@@ -1,10 +1,10 @@
-import {posix} from 'node:path';
 import {inlineCode, tableValue} from '@/lib/markdown';
 
 /**
- * The docs page for every shipped skill. The docs own the URL
- * and page metadata; the body comes from the skill's SKILL.md. Generation fails
- * when a shipped skill has no entry here or an entry names a missing skill.
+ * The docs page for every skill the Shipfox MCP server serves. The docs own the
+ * URL and the reader-facing prose; the prompt comes from the skill's
+ * `catalog_prompt`. Generation fails when a shipped skill has no entry here or
+ * an entry names a missing skill.
  */
 export const SKILL_PAGES = [
   {
@@ -13,7 +13,15 @@ export const SKILL_PAGES = [
     title: 'Write a Workflow With a Coding Agent',
     sidebarTitle: 'Write a Workflow With an Agent',
     description:
-      "Have a coding agent turn a goal into workflow YAML from your workspace's connections, models, and events.",
+      'Describe what to automate and let your coding agent write, check, and test the workflow file.',
+    intro: [
+      'Describe what you want to automate and let your coding agent write the',
+      'workflow file. The agent reads your repository and your Shipfox workspace',
+      'for integration connections, models, runners, and real events. It asks you',
+      'to confirm choices such as the model, then checks and tests the file before',
+      'you commit it.',
+    ],
+    prerequisites: ['A Shipfox project with the repository configured.'],
   },
   {
     skill: 'create-workflow-from-template',
@@ -21,7 +29,17 @@ export const SKILL_PAGES = [
     title: 'Create a Workflow From a Template',
     sidebarTitle: 'Start From a Template',
     description:
-      'Have a coding agent adapt a Shipfox workflow template to your repository and test it before you push.',
+      'Let your coding agent adapt a Shipfox workflow template to your repository and test it before you push.',
+    intro: [
+      'Start from a Shipfox workflow template instead of a blank file. Your coding',
+      'agent suggests the templates that fit your integration connections and asks',
+      'one set of questions. It then adapts the template to your repository and',
+      'tests it before you commit it.',
+    ],
+    prerequisites: [
+      'A Shipfox project with the repository configured.',
+      'An integration connection for each provider the template uses, such as GitHub or Linear.',
+    ],
   },
   {
     skill: 'validate-workflow-change',
@@ -30,6 +48,17 @@ export const SKILL_PAGES = [
     sidebarTitle: 'Validate Unpushed YAML',
     description:
       'Use a coding agent to check unpushed workflow YAML and trigger eligibility without starting a run.',
+    intro: [
+      'Check unpushed workflow YAML before you start a run. Your coding agent sends',
+      'the file from your working tree to Shipfox. It reports whether the',
+      'definition is valid and whether the trigger accepts a matching event.',
+      'Nothing runs and no external resource changes.',
+    ],
+    prerequisites: [
+      'A Shipfox project with the repository configured.',
+      'The workflow YAML file in your working tree.',
+      'For an integration trigger, a matching event received within the last 30 days. Without one, the agent checks only the shape of the workflow.',
+    ],
   },
   {
     skill: 'test-workflow-change',
@@ -37,7 +66,23 @@ export const SKILL_PAGES = [
     title: 'Run a Workflow Before You Push',
     sidebarTitle: 'Run Unpushed YAML',
     description:
-      'Use a coding agent to run validated, unpushed workflow YAML against a retained event and inspect the result.',
+      'Use a coding agent to run validated, unpushed workflow YAML against a real event and inspect the result.',
+    intro: [
+      'Run unpushed workflow YAML against a real event before you push it. Your',
+      'coding agent validates the file, starts a run, follows it, and reads the',
+      'logs when it fails.',
+      '',
+      'The run acts on real resources. It can comment on the original issue or pull',
+      'request and run code with workspace secrets. The agent tells you what it',
+      'expects to change and waits for your approval before it starts the run.',
+      '',
+      'Only the YAML file is uploaded. Commit and push the scripts and prompt files',
+      'it depends on first.',
+    ],
+    prerequisites: [
+      'A Shipfox project with its repository, integration connections, runners, and secrets configured.',
+      'The workflow YAML file in your working tree.',
+    ],
   },
   {
     skill: 'debug-a-failed-run',
@@ -45,22 +90,19 @@ export const SKILL_PAGES = [
     title: 'Debug a Failed Run With a Coding Agent',
     sidebarTitle: 'Debug a Run With an Agent',
     description:
-      'Have a coding agent trace a failed run to its first error, or find why an event did not start one.',
+      'Let your coding agent trace a failed run to its first error, or find why an event did not start one.',
+    intro: [
+      'Find why a workflow run failed or why an event did not start one. Your',
+      'coding agent traces the run through its jobs, steps, and logs. It reports',
+      'the first error, its likely cause, and one fix to try.',
+    ],
+    prerequisites: [
+      'A link to the failed run, or a description of the event that did not start one.',
+    ],
   },
 ];
 
 const SKILL_FILE_SUFFIX = '/SKILL.md';
-const FRONTMATTER_PATTERN = /^---\n[\s\S]*?\n---\n/;
-const LEADING_TITLE_PATTERN = /^\s*# [^\n]+\n+/;
-const FENCE_PATTERN = /^ {0,3}(`{3,}|~{3,})/;
-const CODE_SPAN_PATTERN = /(`[^`\n]+`)/;
-const MARKDOWN_LINK_PATTERN = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
-const SITE_LINK_PATTERN = /^[/#]/;
-const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
-const SKILL_URI_PATTERN = /^skill:\/\/shipfox\/([^/]+)\/SKILL\.md$/;
-const DOCS_URI_PATTERN = /^docs:\/\/shipfox\/([a-z0-9][a-z0-9/-]*)$/;
-const DOCS_URL_PATTERN = /^https:\/\/www\.shipfox\.io\/docs(\/[^#?]*?)?(?:\.md)?([#?].*)?$/;
-const MDX_SYNTAX_PATTERN = /[<{]/g;
 
 /**
  * Pairs each shipped SKILL.md resource with its docs page.
@@ -83,28 +125,47 @@ export function skillPageEntries(resources, pages = SKILL_PAGES) {
   return pages.map((page) => ({...page, resource: skills.get(page.skill)}));
 }
 
-export function renderSkillPage(entry, entries) {
-  const {skill, resource} = entry;
+export function renderSkillPage({
+  title,
+  sidebarTitle,
+  description,
+  intro,
+  prerequisites,
+  resource,
+}) {
   return [
-    frontmatter(entry),
+    '---',
+    `title: ${JSON.stringify(title)}`,
+    `sidebarTitle: ${JSON.stringify(sidebarTitle)}`,
+    `description: ${JSON.stringify(description)}`,
+    '---',
     '',
-    `This page shows the \`${skill}\` skill that the [Shipfox MCP server](/reference/mcp-server#resources)`,
-    'serves to coding agents. To have your agent follow it, [connect the',
-    'agent](/how-to/set-up-work/connect-mcp-client) and paste this prompt:',
+    ...intro,
+    '',
+    'This guide is meant to be carried out by your coding agent. You start it with',
+    "one prompt, answer the agent's questions, and review what it reports.",
+    '',
+    '## Before you begin',
+    '',
+    'You need:',
+    '',
+    '- A coding agent [connected to the Shipfox MCP',
+    '  server](/how-to/set-up-work/connect-mcp-client).',
+    ...prerequisites.map((prerequisite) => `- ${prerequisite}`),
+    '',
+    '## Start the agent',
+    '',
+    'Open your coding agent in your repository and send this prompt:',
     '',
     '```text',
     resource.catalogPrompt,
     '```',
     '',
-    'The procedure below is written for the agent.',
-    '',
-    skillMarkdownToMdx(resource.text, {skill, routes: skillRoutes(entries)}),
-    '',
   ].join('\n');
 }
 
 export function renderSkillResourceTable(resources, entries) {
-  const routes = skillRoutes(entries);
+  const routes = new Map(entries.map((entry) => [entry.skill, `/${entry.path}`]));
   return [
     '| Resource | Title | Description |',
     '|---|---|---|',
@@ -115,72 +176,5 @@ export function renderSkillResourceTable(resources, entries) {
         : resource.title;
       return `| ${inlineCode(resource.uri)} | ${tableValue(title)} | ${tableValue(resource.description)} |`;
     }),
-  ].join('\n');
-}
-
-/**
- * Turns a SKILL.md file into an MDX page body. Skill and docs URIs become links
- * to their docs pages, relative links resolve against the skill directory, and
- * MDX syntax characters in prose are escaped so the text renders as written.
- */
-export function skillMarkdownToMdx(markdown, {skill, routes}) {
-  const body = markdown.replace(FRONTMATTER_PATTERN, '').replace(LEADING_TITLE_PATTERN, '');
-  let fence;
-  return body
-    .trim()
-    .split('\n')
-    .map((line) => {
-      const marker = line.match(FENCE_PATTERN)?.[1];
-      if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) {
-        fence = fence ? undefined : marker;
-        return line;
-      }
-      if (fence) return line;
-      return rewriteLinks(line, {skill, routes})
-        .split(CODE_SPAN_PATTERN)
-        .map((segment, index) =>
-          index % 2 === 1
-            ? rewriteCodeSpan(segment, routes)
-            : segment.replace(MDX_SYNTAX_PATTERN, '\\$&'),
-        )
-        .join('');
-    })
-    .join('\n');
-}
-
-function rewriteLinks(line, {skill, routes}) {
-  return line.replace(MARKDOWN_LINK_PATTERN, (link, text, destination) => {
-    const docsUrl = destination.match(DOCS_URL_PATTERN);
-    if (docsUrl) return `[${text}](${docsUrl[1] || '/'}${docsUrl[2] ?? ''})`;
-    if (SCHEME_PATTERN.test(destination) || SITE_LINK_PATTERN.test(destination)) return link;
-
-    const uri = `skill://shipfox/${posix.normalize(posix.join(skill, destination))}`;
-    const route = routes.get(uri.match(SKILL_URI_PATTERN)?.[1]);
-    return route ? `[${text}](${route})` : `${text} (\`${uri}\`)`;
-  });
-}
-
-function rewriteCodeSpan(codeSpan, routes) {
-  const value = codeSpan.slice(1, -1);
-  const route = routes.get(value.match(SKILL_URI_PATTERN)?.[1]);
-  if (route) return `[${codeSpan}](${route})`;
-  const docsSlug = value.match(DOCS_URI_PATTERN)?.[1];
-  if (docsSlug && docsSlug !== 'index') {
-    return `[${codeSpan}](/${docsSlug === 'home' ? '' : docsSlug})`;
-  }
-  return codeSpan;
-}
-
-function skillRoutes(entries) {
-  return new Map(entries.map((entry) => [entry.skill, `/${entry.path}`]));
-}
-
-function frontmatter({title, sidebarTitle, description}) {
-  return [
-    '---',
-    `title: ${JSON.stringify(title)}`,
-    `sidebarTitle: ${JSON.stringify(sidebarTitle)}`,
-    `description: ${JSON.stringify(description)}`,
-    '---',
   ].join('\n');
 }

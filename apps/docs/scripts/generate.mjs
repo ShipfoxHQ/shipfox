@@ -556,11 +556,11 @@ for (const region of regions) {
   console.log(`✓ wrote ${region.file}`);
 }
 
-// Skill pages are whole Git-ignored pages under content/docs, rendered from the
-// SKILL.md files the MCP server serves, so the procedures have one source.
+// Every skill the MCP server serves gets a Git-ignored how-to page under
+// content/docs that starts it from the user's coding agent.
 for (const entry of skillPages) {
   const file = `content/docs/${entry.path}.mdx`;
-  writeGeneratedFile(join(docsRoot, file), renderSkillPage(entry, skillPages));
+  writeGeneratedFile(join(docsRoot, file), renderSkillPage(entry));
   // biome-ignore lint/suspicious/noConsole: CLI diagnostics
   console.log(`✓ wrote ${file}`);
 }

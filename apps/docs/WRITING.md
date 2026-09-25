@@ -620,12 +620,11 @@ check those pages. Do not use inline markers.
 
 ### Skill pages
 
-The Shipfox MCP server skills are rendered as Git-ignored pages from the
-`SKILL.md` files in `@shipfox/workflow-templates`. Edit the skill file, not
-the page.
-`scripts/lib/skill-pages.mjs` owns each page's URL, title, and description.
-Generation fails until a new skill has an entry there. Add its page path to
-`.gitignore` too.
+Every skill the Shipfox MCP server serves has a Git-ignored how-to page that
+tells the reader to start it from their coding agent. The page prose, URL, and
+title live in `scripts/lib/skill-pages.mjs`. The prompt comes from the skill's
+`catalog_prompt` in `@shipfox/workflow-templates`. Generation fails until a new
+skill has an entry there. Add its page path to `.gitignore` too.
 
 ## Schema fields: document only shipped surface
 
