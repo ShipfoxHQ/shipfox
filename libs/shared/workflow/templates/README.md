@@ -6,6 +6,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, model placeholders, slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every manifest role and composes the workflow.
+- **`extractModelAnchors`** reads the tested model and thinking level for every model marker in composed YAML.
 - **`suggestModels`** orders measured model and thinking combinations for a template placeholder.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
@@ -59,9 +60,9 @@ The following comments are preserved as authoring instructions:
 
 The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or provider binding throws an error.
 
-Each `models` entry needs a matching marker in `workflow.yml` or a provider part. The entry can include a `note` for the user.
+Each `models` entry needs a matching marker in `workflow.yml` or a provider part. The entry can include a `note` for the user. The loader checks every role binding combination for missing and undeclared markers.
 
-An optional `reference: {model, thinking}` records the exact setting the template author tested. The catalog conformance test checks the model and its supported thinking levels. Leave `reference` out until the author tests the step with that setting.
+`extractModelAnchors` reads the model value and its sibling `thinking` field from each marked step. Repeated markers must agree. An optional `reference: {model, thinking}` remains accepted for compatibility and records the setting the template author tested.
 
 ### Model suggestions
 

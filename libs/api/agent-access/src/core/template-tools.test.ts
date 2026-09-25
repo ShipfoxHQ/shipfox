@@ -159,6 +159,15 @@ describe('agent-access template tools', () => {
           },
         },
       },
+      workflow:
+        'name: fixture\ntriggers:\n  # part:tracker.trigger\njobs:\n  fix:\n    steps:\n      - model: tested # model:fix\n        thinking: medium',
+      parts: {
+        ...asset.parts,
+        tracker: {
+          linear: {trigger: 'source: linear\nevent: issue.created'},
+          github: {trigger: 'source: github\nevent: issues.opened'},
+        },
+      },
     };
     const get = getTool(
       createTools(integrations, projectClient(), agent, templateAsset),

@@ -32,6 +32,7 @@ export {
   workflowTemplateOptionSchema,
   workflowTemplateRoleSchema,
 } from './manifest.js';
+export {extractModelAnchors, type ModelAnchor, type ModelAnchors} from './model-anchors.js';
 export {
   CHEAPER_RATIO,
   type CostTradeoff,

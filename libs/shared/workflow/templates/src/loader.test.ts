@@ -7,6 +7,7 @@ import {composeTemplate} from './composer.js';
 import type {WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates} from './loader.js';
 import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
+import {extractModelAnchors} from './model-anchors.js';
 
 const fixtureRoot = new URL('../test/fixtures/', import.meta.url);
 const fixture: WorkflowTemplateAsset = {
@@ -61,6 +62,49 @@ describe('workflow template loader', () => {
         expect(Buffer.byteLength(composed, 'utf8')).toBeLessThan(64 * 1024);
       }
     }
+  });
+
+  it('extracts anchors from every shipped role combination', () => {
+    for (const template of loadShippedTemplates()) {
+      for (const bindings of roleBindings(template.manifest.roles)) {
+        const anchors = extractModelAnchors(composeTemplate(template, bindings));
+
+        if (template.manifest.id === 'ticket-to-pr') {
+          expect(anchors).toEqual({
+            ticket: {model: 'gpt-6-luna', thinking: 'max'},
+            fix: {model: 'gpt-6-luna', thinking: 'max'},
+            review: {model: 'gpt-6-luna', thinking: 'max'},
+          });
+        } else {
+          expect(anchors).toEqual({fix: {model: 'gpt-6-sol', thinking: 'high'}});
+        }
+      }
+    }
+  });
+
+  it('rejects a manifest placeholder without a model marker', () => {
+    expect(() =>
+      createTemplateLoader([
+        {
+          ...fixture,
+          manifest: {...(fixture.manifest as WorkflowTemplateManifest), models: {fix: {}}},
+        },
+      ]),
+    ).toThrow('missing a model marker for "fix"');
+  });
+
+  it('rejects a model marker for an undeclared placeholder', () => {
+    expect(() =>
+      createTemplateLoader([
+        {
+          ...fixture,
+          workflow: fixture.workflow.replace(
+            '      # slot:setup_commands',
+            '      - key: marked\n        model: tested # model:extra\n        thinking: max',
+          ),
+        },
+      ]),
+    ).toThrow('model marker for undeclared placeholder "extra"');
   });
 
   it('keeps setup command insertion inside job steps', () => {
