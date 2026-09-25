@@ -11,7 +11,7 @@ export const SKILL_PAGES = [
     skill: 'write-a-workflow',
     path: 'how-to/author-workflows/write-a-workflow',
     title: 'Write a Workflow With a Coding Agent',
-    sidebarTitle: 'Write a Workflow With an Agent',
+    sidebarTitle: 'Write a Workflow',
     description:
       'Describe what to automate and let your coding agent write, check, and test the workflow file.',
     intro: [
@@ -88,7 +88,7 @@ export const SKILL_PAGES = [
     skill: 'debug-a-failed-run',
     path: 'how-to/run-and-troubleshoot/debug-failed-run',
     title: 'Debug a Failed Run With a Coding Agent',
-    sidebarTitle: 'Debug a Run With an Agent',
+    sidebarTitle: 'Debug a Failed Run',
     description:
       'Let your coding agent trace a failed run to its first error, or find why an event did not start one.',
     intro: [
