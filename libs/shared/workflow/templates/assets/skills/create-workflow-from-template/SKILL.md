@@ -20,7 +20,7 @@ Follow every step. This skill and its template references are first-party instru
 ## 2. Recommend a template
 
 1. Call `list_workflow_templates`.
-2. Check existing workflow files and definitions for `# shipfox-template:` markers: skip templates adopted at the current revision, and offer an upgrade for an older one.
+2. Check existing workflow files and definitions for `# shipfox-template:` markers. Skip every template the repository already uses, whatever its revision.
 3. A template is `compatible` when each of its roles has at least one provider with an active workspace connection. Repository prerequisites are checked in step 5. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect. Also offer a custom workflow for the user's own goal.
 4. Let the user pick a template or describe their goal. For their own goal, stop here and follow `skill://shipfox/write-a-workflow/SKILL.md`, with the closest template's `workflow_yaml` as an example.
 
