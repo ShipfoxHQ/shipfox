@@ -69,7 +69,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     slug: 'sentry',
     kind: 'catalog',
     connectable: true,
-    capabilities: ['events'],
+    capabilities: ['events', 'agent_tools'],
     category: 'observability',
     displayPriority: 1,
   },

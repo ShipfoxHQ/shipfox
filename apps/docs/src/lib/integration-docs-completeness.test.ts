@@ -8,8 +8,8 @@ import {
 import {registeredIntegrationProviders} from '@/lib/registered-integration-providers';
 
 const githubToolsIssuePattern = /Integration provider "github": add tools\.mdx/;
-const sentryCapabilitiesIssuePattern =
-  /Integration provider "sentry": remove the stale "agent_tools" capability/;
+const webhooksCapabilitiesIssuePattern =
+  /Integration provider "webhooks": remove the stale "agent_tools" capability/;
 const cronEventIssuePattern = /Built-in source "cron": mention event "tick"/;
 const linearMissingSetupIssuePattern =
   /Integration provider "linear": add setup\.mdx for the connectable provider\./;
@@ -26,7 +26,7 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 1,
       toolCount: 1,
     },
-    sentry: {capabilities: ['events'], eventCount: 1, toolCount: 0},
+    sentry: {capabilities: ['events', 'agent_tools'], eventCount: 1, toolCount: 4},
     webhooks: {capabilities: ['events'], eventCount: 1, toolCount: 0},
     linear: {
       capabilities: ['events', 'agent_tools'],
@@ -71,11 +71,16 @@ const validInput: IntegrationDocsCompletenessInput = {
         aliases: ['git'],
       },
     ),
-    sentry: directory('sentry', ['index', 'setup', 'events'], ['setup', 'events'], {
-      capabilities: ['events'],
-      categories: ['observability'],
-      aliases: ['errors'],
-    }),
+    sentry: directory(
+      'sentry',
+      ['index', 'setup', 'events', 'tools'],
+      ['setup', 'events', 'tools'],
+      {
+        capabilities: ['events', 'agent_tools'],
+        categories: ['observability'],
+        aliases: ['errors'],
+      },
+    ),
     webhooks: directory('webhooks', ['index', 'setup', 'events'], ['setup', 'events'], {
       capabilities: ['events'],
       categories: ['custom'],
@@ -141,8 +146,8 @@ test('accepts complete integration documentation', () => {
 
 test('reports provider-named fixes for missing and stale documentation', () => {
   const github = validInput.integrationDirectories.github;
-  const sentry = validInput.integrationDirectories.sentry;
-  const sentryOverview = catalogOverview(sentry);
+  const webhooks = validInput.integrationDirectories.webhooks;
+  const webhooksOverview = catalogOverview(webhooks);
   const input: IntegrationDocsCompletenessInput = {
     ...validInput,
     integrationDirectories: {
@@ -152,11 +157,11 @@ test('reports provider-named fixes for missing and stale documentation', () => {
         pages: ['index', 'setup', 'events'],
         pageBodies: {...github.pageBodies, tools: ''},
       },
-      sentry: {
-        ...sentry,
+      webhooks: {
+        ...webhooks,
         overview: {
-          ...sentryOverview,
-          catalog: {...sentryOverview.catalog, capabilities: ['events', 'agent_tools']},
+          ...webhooksOverview,
+          catalog: {...webhooksOverview.catalog, capabilities: ['events', 'agent_tools']},
         },
       },
     },
@@ -166,7 +171,7 @@ test('reports provider-named fixes for missing and stale documentation', () => {
   const issues = collectIntegrationDocIssues(input);
 
   assert.match(issues.join('\n'), githubToolsIssuePattern);
-  assert.match(issues.join('\n'), sentryCapabilitiesIssuePattern);
+  assert.match(issues.join('\n'), webhooksCapabilitiesIssuePattern);
   assert.match(issues.join('\n'), cronEventIssuePattern);
 });
 

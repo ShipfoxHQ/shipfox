@@ -74,6 +74,10 @@ import {
   posthogAgentToolCatalog,
   posthogAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-posthog/agent-tools';
+import {
+  sentryAgentToolCatalog,
+  sentryAgentToolSelectionCatalog,
+} from '@shipfox/api-integration-sentry/agent-tools';
 import {sentryEventCatalog} from '@shipfox/api-integration-sentry-dto';
 import {
   shipfoxAgentToolCatalog,
@@ -147,6 +151,8 @@ const dtoCatalogBySlug = {
   },
   sentry: {
     eventCatalog: sentryEventCatalog,
+    toolCatalog: sentryAgentToolCatalog,
+    toolSelectionCatalog: sentryAgentToolSelectionCatalog,
   },
   shipfox: {
     toolCatalog: shipfoxAgentToolCatalog,

@@ -3,7 +3,7 @@
 Shipfox API Integration Sentry receives Sentry App webhooks and publishes
 normalized integration events for downstream modules such as triggers and
 projects. It also exposes the install/connect flow that links a Sentry
-installation to a Shipfox workspace.
+installation to a Shipfox workspace, and four read-only agent tools.
 
 ## Setup
 
@@ -79,7 +79,24 @@ taken from the request body (`workspace_id`) and authorized against the live
 session. `POST /connect` accepts `{workspace_id, code, installation_id}` only;
 the organization slug is derived from Sentry after the code exchange, never
 trusted from the client. The exchanged token is used in-memory for the optional
-verify-install call and then discarded; **no Sentry token is persisted**.
+verify-install call and then discarded. Agent tools mint their own token, as
+described in [Agent tools](#agent-tools).
+
+## Agent tools
+
+The provider registers an `agent_tools` adapter with four read-only tools:
+`list-projects`, `search-issues`, `get-issue`, and `get-issue-event`. Agent
+steps and tool steps share the same adapter and result shape. Each call uses
+the organization bound to the selected connection; arguments cannot choose
+another organization, host, or credential.
+
+Tools mint an installation token with an app-signed JWT
+(`SENTRY_APP_CLIENT_ID` and `SENTRY_APP_CLIENT_SECRET`). The token is stored in
+the connection's `system/integrations/sentry/<connectionId>` secrets namespace.
+Minting a new token invalidates the previous one, so renewal runs under a
+per-connection database lock. Deleting the connection deletes the namespace.
+The composition root must pass the `sentry` scoped secrets store to the
+integrations module.
 
 ## Sentry App registration
 
@@ -112,8 +129,8 @@ reinstalling the app** before the new scope takes effect.
 
 | Permission | Level | Why |
 | --- | --- | --- |
-| **Organization** | Read | `POST /connect` reads the installation to derive the org slug. Without it, the org lookup returns `403 Forbidden` and connect fails with `access-denied` (422). |
-| **Issue & Event** | Read | Required for Sentry to deliver issue webhooks against the installation. |
+| **Organization** | Read | `POST /connect` reads the installation to derive the org slug, and `list-projects` reads organization projects. Without it, the org lookup returns `403 Forbidden` and connect fails with `access-denied` (422). |
+| **Issue & Event** | Read | Required for Sentry to deliver issue webhooks against the installation, and for the issue and event tools. |
 
 When a Sentry call is rejected, the API logs a `Sentry API request rejected`
 warning with the failing `operation` and the upstream `status` (for example
