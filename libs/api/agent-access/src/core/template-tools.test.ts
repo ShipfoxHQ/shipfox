@@ -159,6 +159,16 @@ describe('agent-access template tools', () => {
           },
         },
       },
+      workflow: [
+        'name: fixture',
+        'jobs:',
+        '  fix:',
+        '    steps:',
+        '      - key: fix',
+        '        model: tested # model:fix',
+        '        thinking: medium',
+        '        prompt: Fix the issue.',
+      ].join('\n'),
     };
     const get = getTool(
       createTools(integrations, projectClient(), agent, templateAsset),

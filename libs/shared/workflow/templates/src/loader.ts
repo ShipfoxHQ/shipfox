@@ -33,6 +33,7 @@ export interface TemplateLoader {
 /** Creates an injectable loader. Production uses only the generated asset module. */
 export function createTemplateLoader(assets: readonly WorkflowTemplateAsset[]): TemplateLoader {
   const templates = assets.map(normalizeTemplate);
+  for (const template of templates) validateTemplateCombinations(template);
   const byId = new Map(templates.map((template) => [template.manifest.id, template]));
 
   return {
@@ -59,6 +60,24 @@ export function getShippedTemplate(id: string): WorkflowTemplate | undefined {
 }
 
 export const shippedTemplateLoader = createTemplateLoader(embeddedWorkflowTemplateAssets);
+
+function validateTemplateCombinations(template: WorkflowTemplate): void {
+  for (const bindings of roleBindings(template.manifest.roles)) {
+    composeTemplate(template, bindings);
+  }
+}
+
+function roleBindings(
+  roles: WorkflowTemplateManifest['roles'],
+): ReadonlyArray<TemplateRoleBindings> {
+  return Object.entries(roles).reduce<ReadonlyArray<TemplateRoleBindings>>(
+    (bindings, [role, declaration]) =>
+      bindings.flatMap((binding) =>
+        declaration.providers.map((provider) => ({...binding, [role]: provider})),
+      ),
+    [{}],
+  );
+}
 
 function normalizeTemplate(asset: WorkflowTemplateAsset): WorkflowTemplate {
   const manifest =
