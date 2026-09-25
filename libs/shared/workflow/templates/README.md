@@ -7,6 +7,7 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
 - **`composeTemplate`** selects one provider part for every manifest role and composes the workflow.
 - **`suggestModels`** orders measured model and thinking combinations for a template placeholder.
+- **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
 - **`listShippedSkillResources`** lists the embedded skill index, manifest, procedures, and references.
@@ -67,6 +68,8 @@ An optional `reference: {model, thinking}` records the exact setting the templat
 `suggestModels` compares scored combinations with the exact model and thinking setting the template author tested. It suggests the cheapest combination that meets or exceeds that setting's measured intelligence index. The user confirms the complete provider, model, harness, and thinking binding.
 
 If the tested setting has no score or the measured scales differ, `suggestModels` lists supported combinations without a suggestion. Choices with no score remain available for manual selection.
+
+`recommendModels({anchor, models})` takes a scored, resolved template anchor and the workspace catalog. It considers only models with a lab on the anchor's scale and within ten intelligence-index points, and excludes every thinking level of the anchor's model. It first selects the cheapest cheaper alternative (within three points below the anchor), then the cheapest model more than three points smarter, and fills up to four alternatives by score proximity while preferring labs not yet represented. A selected model removes all of its thinking levels from later slots. Results are ordered by intelligence index, highest first, and each result includes dimension-specific intelligence and cost tradeoff keys and display copy.
 
 ### Asset layout
 
