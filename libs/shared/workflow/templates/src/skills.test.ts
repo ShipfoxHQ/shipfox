@@ -50,6 +50,10 @@ describe('shipped skill resources', () => {
     expect(text).toContain('Keep only events of the selected project');
     expect(text).toContain('The event check does not verify this');
     expect(text).toContain('Repeat the expected writes from step 6 in one line');
+    expect(text).toContain(
+      "Bind the confirmed entry's `provider`, model, `harness`, and `thinking`.",
+    );
+    expect(text).toContain('Before any repeat real run, after a failure or after edits');
     expect(text).toContain('stop, or repeat the writes with their agreement');
     expect(text).toContain(
       'Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.',
