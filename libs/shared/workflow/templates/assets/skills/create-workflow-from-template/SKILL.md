@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 2
+revision: 3
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -32,7 +32,7 @@ Call `get_workflow_template` with the selected template, project ID, and one pro
 
 Call `search_docs` for `workflow schema` and read the workflow schema reference from the returned `docs://` URI. Search for the template's triggers, steps, and chosen providers. Read other relevant pages that help design or adapt the workflow.
 
-Ask one batch of questions: only the options the template declares for the chosen providers, each with its tradeoff. Skip choices known facts decide, and offer all defaults as "pick for me."
+Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Wait for each answer before asking the next. Skip options that known facts decide.
 
 ## 4. Learn the repository
 
@@ -88,6 +88,8 @@ Write the YAML under `.shipfox/workflows/` with the template marker and a descri
 
 ## Rules
 
+- Ask one question per message and wait for the answer. Never bundle questions or offer to accept all defaults at once.
+- With each question, restate what it decides and what each answer entails: its tradeoff, what it changes in the workflow, and any writes, executions, or IDs it requires. Mark the default.
 - Never request, read, or write secret values.
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
 - Never bind a model and thinking combination the user has not confirmed.

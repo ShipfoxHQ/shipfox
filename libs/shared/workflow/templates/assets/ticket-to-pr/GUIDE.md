@@ -7,8 +7,7 @@ Use this template when a Linear ticket should produce a tested GitHub pull reque
 - Connect Linear as the tracker and GitHub as the project's source.
 - Give the GitHub connection permission to read and write repository contents and pull requests.
 - Use GitHub Actions if you turn on the CI feedback listener.
-- For `agent_session`, give the Shipfox agent a seat in Linear and enable agent-session webhooks. Assign or mention that agent on an issue to start a run.
-- For `label`, choose a Linear label and record its ID from a real `Issue.create` or `Issue.update` event. Agent seats are not needed for this trigger.
+- For `label`, choose a Linear label and record its ID from a real `Issue.create` or `Issue.update` event.
 
 ## Choose the options
 

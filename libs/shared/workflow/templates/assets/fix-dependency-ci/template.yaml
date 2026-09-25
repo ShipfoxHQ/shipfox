@@ -14,8 +14,10 @@ options:
       - id: dependabot
         label: Dependabot
         default: true
+        tradeoff: Runs only for failed CI runs that Dependabot triggers.
       - id: renovate
         label: Renovate
+        tradeoff: Runs only for failed CI runs that Renovate triggers.
       - id: custom
         label: Custom bot login
         tradeoff: Requires the exact GitHub login used by the bot.
