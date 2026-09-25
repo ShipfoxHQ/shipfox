@@ -51,8 +51,9 @@ export const SKILL_PAGES = [
     intro: [
       'Check unpushed workflow YAML before you start a run. Your coding agent sends',
       'the file from your working tree to Shipfox. It reports whether the',
-      'definition is valid and whether the trigger accepts a matching event.',
-      'Nothing runs and no external resource changes.',
+      'definition is valid. For an integration trigger, it also reports whether',
+      'the trigger accepts a matching event. Nothing runs and no external resource',
+      'changes.',
     ],
     prerequisites: [
       'A Shipfox project with the repository configured.',
@@ -66,11 +67,12 @@ export const SKILL_PAGES = [
     title: 'Run a Workflow Before You Push',
     sidebarTitle: 'Run Unpushed YAML',
     description:
-      'Use a coding agent to run validated, unpushed workflow YAML against a real event and inspect the result.',
+      'Use a coding agent to start a real run from validated, unpushed workflow YAML and inspect the result.',
     intro: [
-      'Run unpushed workflow YAML against a real event before you push it. Your',
-      'coding agent validates the file, starts a run, follows it, and reads the',
-      'logs when it fails.',
+      'Start a real run from unpushed workflow YAML before you push it. For an',
+      'integration trigger, the run replays a real event. Your coding agent',
+      'validates the file, starts the run, follows it, and reads the logs when it',
+      'fails.',
       '',
       'The run acts on real resources. It can comment on the original issue or pull',
       'request and run code with workspace secrets. The agent tells you what it',
