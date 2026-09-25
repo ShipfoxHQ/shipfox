@@ -32,6 +32,16 @@ describe('shipped skill resources', () => {
     expect(dependencyGuide?.text).toBe(
       readFileSync(new URL('../assets/fix-dependency-ci/GUIDE.md', import.meta.url), 'utf8'),
     );
+
+    for (const name of [
+      'create-workflow-from-template',
+      'validate-workflow-change',
+      'write-a-workflow',
+    ]) {
+      expect(getShippedSkillResource(`skill://shipfox/${name}/SKILL.md`)?.text).toBe(
+        readFileSync(new URL(`../assets/skills/${name}/SKILL.md`, import.meta.url), 'utf8'),
+      );
+    }
   });
 
   test('requires model confirmation, project-scoped replay, and a decision on partial writes', () => {
@@ -49,6 +59,12 @@ describe('shipped skill resources', () => {
     expect(text).toContain('state what a real run will write before listing events');
     expect(text).toContain('Keep only events of the selected project');
     expect(text).toContain('The event check does not verify this');
+    expect(text).toContain(
+      'Tell them they can say they cannot trigger the event or ask to skip the dev run.',
+    );
+    expect(text).toContain(
+      'Skip the dev run only if the user says they cannot trigger an event or asks to skip it.',
+    );
     expect(text).toContain('Repeat the expected writes from step 6 in one line');
     expect(text).toContain(
       "Bind the confirmed entry's `provider`, model, `harness`, and `thinking`.",

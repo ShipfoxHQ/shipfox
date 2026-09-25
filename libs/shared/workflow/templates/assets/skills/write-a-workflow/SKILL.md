@@ -44,6 +44,9 @@ Read identifiers and available settings from the connected workspace. Do not inv
 | Install, build, and test commands | The repository: CI config, `AGENTS.md`, toolchain files, lockfiles, then README |
 
 If a required fact is unavailable, ask the user to set up the missing resource or supply the repository-specific decision. Never guess a secret value.
+
+For a missing integration event, ask them to trigger a safe matching event. Tell them they can say they cannot trigger the event or ask to skip the dev run. Wait for confirmation. After confirmation, check for the event every 30 seconds for up to 5 minutes. Resume authoring when it appears. If it has not arrived, tell the user and keep waiting. If the user cannot trigger an event or asks to skip, draft only from documented event fields and mark the event path unverified.
+
 For an agent step, show supported model and thinking combinations from the authoring context and have the user confirm the choice.
 Ask one question per message and wait for the answer. With each question, restate what it decides and what each answer entails, such as writes, extra executions, or IDs it requires.
 
@@ -60,6 +63,8 @@ Create a descriptive `.yml` file under `.shipfox/workflows/`. Put the editor sch
 
 ## 6. Verify and deliver
 
-Read and follow `skill://shipfox/validate-workflow-change/SKILL.md`, then `skill://shipfox/test-workflow-change/SKILL.md`. If a run fails, follow `skill://shipfox/debug-a-failed-run/SKILL.md` before retrying. Report what each check proved and any path left untested.
+Read and follow `skill://shipfox/validate-workflow-change/SKILL.md`, then `skill://shipfox/test-workflow-change/SKILL.md`. For an integration trigger without a matching event, wait for the user's manual trigger. Complete the dev run before delivery. Skip the dev run only if the user says they cannot trigger an event or asks to skip it.
+
+If a run fails, follow `skill://shipfox/debug-a-failed-run/SKILL.md` before retrying. Report what each check proved and any path left untested.
 
 Tell the user which workflow file to commit and that Shipfox syncs it after it reaches the project's default branch. A new event must arrive after sync to start an event-triggered workflow.
