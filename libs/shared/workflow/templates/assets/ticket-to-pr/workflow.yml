@@ -19,7 +19,7 @@ jobs:
       # part:tracker.read_ticket
 
       - key: fix
-        model: gpt-5.6-luna # model:fix
+        model: gpt-6-luna # model:fix
         thinking: max
         session: ticket_pr
         prompt: |
@@ -63,7 +63,7 @@ jobs:
     steps:
       # part:source.checkout_pr_branch
       - key: review
-        model: gpt-5.6-luna # model:review
+        model: gpt-6-luna # model:review
         thinking: max
         session:
           key: ticket_pr

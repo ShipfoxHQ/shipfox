@@ -95,7 +95,7 @@ test.describe('agent-access workflow templates', () => {
     }
   });
 
-  test('composes ticket to PR with project and tracker bindings and a scored suggestion', async ({
+  test('composes ticket to PR with project and tracker bindings and model choices', async ({
     request,
     auth,
   }) => {
@@ -117,27 +117,22 @@ test.describe('agent-access workflow templates', () => {
       expect(() => parseWorkflowDocument(parseYaml(template.workflow_yaml))).not.toThrow();
       const fix = template.suggested_models.fix;
       expect(fix).toMatchObject({
-        outcome: 'suggested',
-        reference: {model: 'gpt-5.6-luna', thinking: 'max', intelligence_index: 70},
+        outcome: 'list',
+        reference: null,
         attribution: expect.any(String),
       });
-      // The cheapest combination at or above the tested index wins, ahead of the tested one.
-      expect(fix?.models.slice(0, 3)).toEqual([
-        expect.objectContaining({
-          id: 'e2e-scored-efficient',
-          thinking: 'medium',
-          reference: expect.objectContaining({intelligence_index: 72, cost_per_task_usd: 0.8}),
-        }),
-        expect.objectContaining({id: 'gpt-5.6-luna', thinking: 'max'}),
-        expect.objectContaining({id: 'gpt-5.6-luna', thinking: 'high', below_reference: true}),
-      ]);
-      // Unscored combinations stay available as manual choices without a ranking mark.
-      const unscored = fix?.models.slice(3) ?? [];
-      expect(unscored.map(({id, thinking}) => `${id}@${thinking}`)).toEqual(
-        expect.arrayContaining(['e2e-renewable-pi@off', 'gpt-5.6-luna@default']),
+      expect(fix?.models).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'e2e-scored-efficient',
+            thinking: 'medium',
+            reference: expect.objectContaining({intelligence_index: 72, cost_per_task_usd: 0.8}),
+          }),
+          expect.objectContaining({id: 'gpt-5.6-luna', thinking: 'max'}),
+          expect.objectContaining({id: 'e2e-renewable-pi', thinking: 'off', reference: null}),
+        ]),
       );
-      for (const choice of unscored) {
-        expect(choice.reference).toBeNull();
+      for (const choice of fix?.models ?? []) {
         expect(choice).not.toHaveProperty('below_reference');
       }
     } finally {

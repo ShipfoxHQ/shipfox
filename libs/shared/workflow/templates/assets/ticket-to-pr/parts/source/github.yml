@@ -88,7 +88,7 @@ checkout_pr_branch: |
       git switch -C "$PR_BRANCH" "origin/$PR_BRANCH"
 repair_ci: |
   - key: repair
-    model: gpt-5.6-luna # model:fix
+    model: gpt-6-luna # model:fix
     thinking: max
     session:
       key: ticket_pr
