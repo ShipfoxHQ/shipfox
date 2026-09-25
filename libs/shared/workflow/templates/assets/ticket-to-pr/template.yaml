@@ -1,5 +1,5 @@
 id: ticket-to-pr
-revision: 1
+revision: 2
 added_at: 2026-09-23
 title: Ticket to pull request
 summary: An agent implements a Linear ticket, checks the change, and opens a GitHub pull request.

@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-# shipfox-template: ticket-to-pr@1 tracker=linear source=github
+# shipfox-template: ticket-to-pr@2 tracker=linear source=github
 name: Implement a ticket and open a pull request
 runner: shipfox
 

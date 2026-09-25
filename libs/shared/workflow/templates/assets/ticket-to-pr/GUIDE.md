@@ -8,11 +8,11 @@ Use this template when a Linear ticket should produce a tested GitHub pull reque
 - Give the GitHub connection permission to read and write repository contents and pull requests.
 - Use GitHub Actions if you turn on the CI feedback listener.
 - For `agent_session`, give the Shipfox agent a seat in Linear and enable agent-session webhooks. Assign or mention that agent on an issue to start a run.
-- For `label`, choose a Linear label and record its ID from a real `Issue.update` event. Agent seats are not needed for this trigger.
+- For `label`, choose a Linear label and record its ID from a real `Issue.create` or `Issue.update` event. Agent seats are not needed for this trigger.
 
 ## Choose the options
 
-Keep one trigger block. `agent_session` starts when the agent is assigned or mentioned. `label` starts only when the chosen label is added. Replace both `replace-with-label-id` values with that label's ID. Use a journaled `Issue.update` event to confirm the payload and filter before a real run.
+Keep one trigger block. `agent_session` starts when the agent is assigned or mentioned. `label` starts when an issue is created with the chosen label or when that label is added later. Replace every `replace-with-label-id` value with that label's ID. Use a journaled `Issue.create` or `Issue.update` event to confirm the payload and filter before a real run.
 
 Keep `feedback_loop=on` to listen for review comments and failed GitHub Actions runs on the opened pull request. Each listener matches the repository and PR number, then stops when that PR closes or after 24 hours or five executions. Choose `off` to remove both listening jobs.
 
