@@ -40,7 +40,7 @@ Find install, build, and test commands. Trust, in order: CI configuration (`.git
 
 Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `# option:` blocks the user chose and delete the others, fill each `# slot:` with the confirmed commands, and set each `# bind:<role>` value from `suggested_bindings`.
 
-Call `get_workflow_authoring_context` for the selected project. If `model_provider_configured` is `false`, stop, send the user to model provider settings, and wait. Compare required secret, variable, and runner names with the context; when one is missing, give the user the settings link and wait.
+Call `get_workflow_authoring_context` for the selected project. If `model_provider_configured` is `false`, stop: ask the user to add a model provider in the Shipfox dashboard under Settings > Agents, and to tell you when it is done. Compare required secret, variable, and runner names with the context; when one is missing, give the user the settings link and wait.
 
 Confirm one model and thinking combination per placeholder in `suggested_models`:
 
@@ -57,7 +57,7 @@ Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the ass
 
 For an integration trigger, state what a real run will write before listing events: the ticket it reads, and any branch, PR, comment, or transition from the guide's **Expected writes**, plus runner time and inference. Keep only events of the selected project: a source-control payload's repository must be the project's; a ticket's team, project, or space must be the one the user named. The event check does not verify this; one connection can cover several repositories or teams. Check the kept payloads against the workflow expressions; let the user choose.
 
-If no event matches, tell the user the exact action that causes a safe one (repository, team, label, assignee). Poll for a few minutes; events are journaled even without a subscription. If the user cannot produce one, stop as "shape validated, not executed" and offer a PR marked untested.
+If no event matches, tell the user the exact action that causes a safe one (repository, team, label, assignee). Poll for a few minutes. If the user cannot produce one, stop as "shape validated, not executed" and offer a PR marked untested.
 
 ## 7. Test the workflow
 
