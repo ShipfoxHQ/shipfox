@@ -38,7 +38,7 @@ Find install, build, and test commands. Trust, in order: CI configuration (`.git
 
 ## 5. Assemble the workflow and check prerequisites
 
-Apply the selected options to `workflow_yaml` and insert the confirmed commands into the declared slots. Bind source control from the project's `source_connection`, never a workspace-wide guess.
+Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `# option:` blocks the user chose and delete the others, fill each `# slot:` with the confirmed commands, and set each `# bind:<role>` value from `suggested_bindings`.
 
 Call `get_workflow_authoring_context` for the selected project. If `model_provider_configured` is `false`, stop, send the user to model provider settings, and wait. Compare required secret, variable, and runner names with the context; when one is missing, give the user the settings link and wait.
 
