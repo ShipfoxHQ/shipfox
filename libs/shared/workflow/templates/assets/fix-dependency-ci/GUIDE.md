@@ -29,7 +29,7 @@ For comment-only mode, also remove the marked checkout `permissions` block. This
 
 ## Choose a model
 
-The `# model:fix` marker identifies the repair step. Confirm that its model and thinking level are available in the workspace. If the workspace uses a different setting, confirm both values with the user and update `fix_failure`.
+The `# model:fix` marker identifies the repair step. Confirm that its model and thinking level are available in the workspace. If the workspace uses a different setting, confirm both values with the user. Update the `model:` and `thinking:` fields on `fix_failure`.
 
 The manifest has no tested reference for this step, so it does not support a scored suggestion yet.
 
