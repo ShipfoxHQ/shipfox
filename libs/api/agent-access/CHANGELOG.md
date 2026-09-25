@@ -1,5 +1,23 @@
 # @shipfox/api-agent-access
 
+## 33.1.0
+
+### Minor Changes
+
+- 62e1ef4: Serves Shipfox documentation as cached MCP resources and adds the `search_docs` tool.
+
+### Patch Changes
+
+- 238df72: Adds separate skills for validating and testing local workflow changes, and shortens the development run tool description.
+- Updated dependencies [238df72]
+- Updated dependencies [62e1ef4]
+- Updated dependencies [81c982a]
+- Updated dependencies [1092419]
+- Updated dependencies [3bc43e5]
+- Updated dependencies [0bd5f3d]
+  - @shipfox/workflow-templates@1.1.0
+  - @shipfox/api-agent-access-dto@33.1.0
+
 ## 33.0.0
 
 ### Minor Changes

@@ -1,5 +1,15 @@
 # @shipfox/api-integration-core
 
+## 33.1.0
+
+### Patch Changes
+
+- Updated dependencies [9587ad3]
+- Updated dependencies [6b0c18d]
+- Updated dependencies [43fcfd9]
+  - @shipfox/api-integration-sentry@33.1.0
+  - @shipfox/api-integration-notion@33.1.0
+
 ## 33.0.0
 
 ### Patch Changes

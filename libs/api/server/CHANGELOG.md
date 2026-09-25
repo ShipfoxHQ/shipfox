@@ -1,5 +1,19 @@
 # @shipfox/api-server
 
+## 33.1.0
+
+### Patch Changes
+
+- Updated dependencies [238df72]
+- Updated dependencies [62e1ef4]
+- Updated dependencies [81c982a]
+- Updated dependencies [1092419]
+- Updated dependencies [3bc43e5]
+- Updated dependencies [0bd5f3d]
+  - @shipfox/workflow-templates@1.1.0
+  - @shipfox/api-agent-access@33.1.0
+  - @shipfox/api-integration-core@33.1.0
+
 ## 33.0.0
 
 ### Patch Changes

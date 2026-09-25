@@ -1,5 +1,11 @@
 # @shipfox/api-integration-notion
 
+## 33.1.0
+
+### Patch Changes
+
+- 6b0c18d: Accept additional Notion response fields in agent tool results.
+
 ## 31.0.0
 
 ### Minor Changes
