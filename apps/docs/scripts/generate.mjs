@@ -106,13 +106,7 @@ import {
   contextRootShape,
   WORKFLOW_FIELD_YAML_KEYS,
 } from './lib/context-reference.mjs';
-import {
-  renderSkillCatalog,
-  renderSkillPage,
-  renderSkillResourceTable,
-  SKILL_CATALOG_PAGE,
-  skillPageEntries,
-} from './lib/skill-pages.mjs';
+import {renderSkillPage, renderSkillResourceTable, skillPageEntries} from './lib/skill-pages.mjs';
 import {
   buildWorkflowSchemaDocument,
   renderWorkflowSchemaMarkdownMap,
@@ -564,12 +558,9 @@ for (const region of regions) {
 
 // Skill pages are whole Git-ignored pages under content/docs, rendered from the
 // SKILL.md files the MCP server serves, so the procedures have one source.
-for (const page of [
-  ...skillPages.map((entry) => ({path: entry.path, content: renderSkillPage(entry, skillPages)})),
-  {path: SKILL_CATALOG_PAGE.path, content: renderSkillCatalog(skillPages)},
-]) {
-  const file = `content/docs/${page.path}.mdx`;
-  writeGeneratedFile(join(docsRoot, file), page.content);
+for (const entry of skillPages) {
+  const file = `content/docs/${entry.path}.mdx`;
+  writeGeneratedFile(join(docsRoot, file), renderSkillPage(entry, skillPages));
   // biome-ignore lint/suspicious/noConsole: CLI diagnostics
   console.log(`✓ wrote ${file}`);
 }

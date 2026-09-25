@@ -1,16 +1,8 @@
 import {posix} from 'node:path';
 import {inlineCode, tableValue} from '@/lib/markdown';
 
-export const SKILL_CATALOG_PAGE = {
-  path: 'reference/mcp-skills',
-  title: 'Shipfox MCP Server Skills',
-  sidebarTitle: 'MCP server skills',
-  description:
-    'Look up each skill the Shipfox MCP server serves, when to use it, and the prompt that starts it.',
-};
-
 /**
- * The docs page for every shipped skill, in catalog order. The docs own the URL
+ * The docs page for every shipped skill. The docs own the URL
  * and page metadata; the body comes from the skill's SKILL.md. Generation fails
  * when a shipped skill has no entry here or an entry names a missing skill.
  */
@@ -104,47 +96,10 @@ export function renderSkillPage(entry, entries) {
     resource.catalogPrompt,
     '```',
     '',
-    'The procedure below is written for the agent. The [skills',
-    `catalog](/${SKILL_CATALOG_PAGE.path}) lists every skill.`,
+    'The procedure below is written for the agent.',
     '',
     skillMarkdownToMdx(resource.text, {skill, routes: skillRoutes(entries)}),
     '',
-  ].join('\n');
-}
-
-export function renderSkillCatalog(entries) {
-  const categories = Map.groupBy(entries, (entry) => entry.resource.catalogCategory);
-  const sections = [...categories].map(([category, categoryEntries]) =>
-    [
-      `## ${category}`,
-      '',
-      ...categoryEntries.flatMap(({title, path, resource}) => [
-        `### ${resource.title}`,
-        '',
-        resource.description,
-        '',
-        `- Resource: ${inlineCode(resource.uri)}`,
-        `- Procedure: [${title}](/${path})`,
-        '',
-        'Prompt:',
-        '',
-        '```text',
-        resource.catalogPrompt,
-        '```',
-        '',
-      ]),
-    ].join('\n'),
-  );
-  return [
-    frontmatter(SKILL_CATALOG_PAGE),
-    '',
-    'A skill is a multi-step procedure that the [Shipfox MCP',
-    'server](/reference/mcp-server#resources) serves to coding agents as a',
-    '`skill://shipfox/` resource. [Connect your coding',
-    "agent](/how-to/set-up-work/connect-mcp-client), then paste a skill's prompt",
-    "to start it. Each skill's page shows the procedure the agent follows.",
-    '',
-    sections.join('\n'),
   ].join('\n');
 }
 

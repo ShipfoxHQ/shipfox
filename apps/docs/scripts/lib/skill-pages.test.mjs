@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 import {
-  renderSkillCatalog,
   renderSkillPage,
   renderSkillResourceTable,
   skillMarkdownToMdx,
@@ -13,8 +12,6 @@ const MISSING_SKILL_PATTERN = /SKILL_PAGES names skills that are not shipped: va
 const PAGE_FRONTMATTER_PATTERN = /^---\ntitle: "Debug It"\nsidebarTitle: "Debug"\n/;
 const PAGE_PROMPT_PATTERN = /```text\nDebug my run\.\n```/;
 const PAGE_BODY_PATTERN = /\n## debug body\n$/;
-const CATALOG_PROCEDURE_PATTERN = /- Procedure: \[Debug It\]\(\/how-to\/debug\)/;
-const CATALOG_PROMPT_PATTERN = /Prompt:\n\n```text\nValidate my change\.\n```/;
 const INDEX_ROW_PATTERN = /^\| `skill:\/\/shipfox\/index` \| Skill index \| Find a skill\. \|$/m;
 const SKILL_ROW_PATTERN = /\| \[debug title\]\(\/how-to\/debug\) \|/;
 const REFERENCE_ROW_PATTERN = /\| `skill:\/\/shipfox\/debug\/references\/logs\.md` \| Logs \|/;
@@ -131,16 +128,6 @@ describe('renderSkillPage', () => {
     assert.match(page, PAGE_FRONTMATTER_PATTERN);
     assert.match(page, PAGE_PROMPT_PATTERN);
     assert.match(page, PAGE_BODY_PATTERN);
-  });
-});
-
-describe('renderSkillCatalog', () => {
-  it('groups skills by category with their resource, page, and prompt', () => {
-    const catalog = renderSkillCatalog(skillPageEntries(resources, pages));
-
-    assert.ok(catalog.indexOf('## Validation') < catalog.indexOf('## Troubleshooting'));
-    assert.match(catalog, CATALOG_PROCEDURE_PATTERN);
-    assert.match(catalog, CATALOG_PROMPT_PATTERN);
   });
 });
 
