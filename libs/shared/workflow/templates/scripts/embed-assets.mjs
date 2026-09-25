@@ -18,22 +18,6 @@ const {version: libraryVersion} = JSON.parse(
 const skillRoot = join(assetsRoot, 'skills');
 const skillResources = [];
 const skillMetadata = new Map();
-const partMarkerPattern = /^(\s*)#\s*part:([a-z0-9_-]+)\.([a-z0-9_-]+)\s*$/;
-const modelMarkerPattern = /^\s*model\s*:\s*([^#\r\n]+?)\s+#\s*model:([a-z0-9][a-z0-9_-]*)\s*$/;
-const modelCommentPattern = /#\s*model:/;
-const thinkingLinePattern = /^(\s*)thinking\s*:\s*([^#\r\n]+?)\s*(?:#.*)?$/;
-const thinkingValues = new Set([
-  'off',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-  'default',
-]);
-const leadingWhitespacePattern = /^\s*/;
-const newlinePattern = /\r?\n/;
 
 for (const entry of (await readdir(skillRoot, {withFileTypes: true})).sort(byName)) {
   if (!entry.isDirectory()) continue;
@@ -116,15 +100,13 @@ for (const entry of await readdir(assetsRoot, {withFileTypes: true})) {
     parts[roleEntry.name] = roleParts;
   }
 
-  const manifest = parseYaml(manifestText);
-  const workflow = await readFile(workflowPath, 'utf8');
-  validateTemplateAsset(manifest, workflow, parts);
   templates.push({
     manifest: manifestText,
-    workflow,
+    workflow: await readFile(workflowPath, 'utf8'),
     guide,
     parts,
   });
+  const manifest = parseYaml(manifestText);
   const referencePath = `create-workflow-from-template/references/${manifest.id}.md`;
   if (!skillResources.some((resource) => resource.name === referencePath)) {
     skillResources.push(
@@ -188,128 +170,6 @@ async function writeFormattedIfChanged(generated) {
   } finally {
     await rm(temporaryRoot, {recursive: true, force: true});
   }
-}
-
-function validateTemplateAsset(manifest, workflow, parts) {
-  for (const bindings of roleBindings(manifest.roles)) {
-    const composed = composeTemplateAsset(manifest, workflow, parts, bindings);
-    const anchors = extractModelAnchors(composed);
-    for (const placeholder of Object.keys(anchors)) {
-      if (manifest.models?.[placeholder] === undefined) {
-        throw new Error(`${manifest.id}: # model:${placeholder} has no manifest placeholder`);
-      }
-    }
-    for (const placeholder of Object.keys(manifest.models ?? {})) {
-      if (anchors[placeholder] === undefined) {
-        throw new Error(
-          `${manifest.id}: models.${placeholder} has no # model:${placeholder} marker`,
-        );
-      }
-    }
-  }
-}
-
-function extractModelAnchors(composed) {
-  const lines = composed.split(newlinePattern);
-  const anchors = {};
-  for (const [index, line] of lines.entries()) {
-    const marker = modelMarkerPattern.exec(line);
-    if (marker !== null) {
-      const model = marker[1]?.trim();
-      const placeholder = marker[2];
-      const thinking = findThinking(lines, index);
-      const existing = anchors[placeholder];
-      if (existing && (existing.model !== model || existing.thinking !== thinking)) {
-        throw new Error(`Conflicting model anchor for placeholder ${placeholder}`);
-      }
-      anchors[placeholder] = {model, thinking};
-    } else if (modelCommentPattern.test(line)) {
-      throw new Error(`Model marker must be on a model line: ${line.trim()}`);
-    }
-  }
-  return anchors;
-}
-
-function findThinking(lines, modelLineIndex) {
-  const modelIndentation = indentationOf(lines[modelLineIndex]);
-  let start = modelLineIndex;
-  while (start > 0 && isInsideMapping(lines[start - 1], modelIndentation)) start -= 1;
-  let end = modelLineIndex + 1;
-  while (end < lines.length && isInsideMapping(lines[end], modelIndentation)) end += 1;
-  for (let index = start; index < end; index += 1) {
-    const line = lines[index];
-    const thinking = thinkingLinePattern.exec(line);
-    if (thinking === null || indentationOf(line) !== modelIndentation) continue;
-    const value = thinking[2]?.trim();
-    if (!thinkingValues.has(value))
-      throw new Error(`Invalid thinking setting for model marker: ${value}`);
-    return value;
-  }
-  throw new Error(`Model marker has no sibling thinking field: ${lines[modelLineIndex].trim()}`);
-}
-
-function isInsideMapping(line, modelIndentation) {
-  return (
-    line === undefined ||
-    line.trim() === '' ||
-    line.trimStart().startsWith('#') ||
-    indentationOf(line) >= modelIndentation
-  );
-}
-
-function indentationOf(line) {
-  return line.match(leadingWhitespacePattern)?.[0].length ?? 0;
-}
-
-function composeTemplateAsset(manifest, workflow, parts, bindings) {
-  const selectedParts = {};
-  for (const [role] of Object.entries(manifest.roles)) {
-    const provider = bindings[role];
-    for (const [name, block] of Object.entries(parts[role][provider])) {
-      selectedParts[`${role}.${name}`] = block;
-    }
-  }
-  return workflow
-    .split('\n')
-    .map((line) => {
-      const marker = partMarkerPattern.exec(line);
-      if (marker === null) return line;
-      const indentation = marker[1];
-      const part = selectedParts[`${marker[2]}.${marker[3]}`] ?? selectedParts[marker[3]];
-      if (part === undefined)
-        throw new Error(`Missing workflow template part: ${marker[2]}.${marker[3]}`);
-      return indentPart(dedent(part), indentation);
-    })
-    .join('\n');
-}
-
-function roleBindings(roles) {
-  return Object.entries(roles).reduce(
-    (bindings, [role, declaration]) =>
-      bindings.flatMap((binding) =>
-        declaration.providers.map((provider) => ({...binding, [role]: provider})),
-      ),
-    [{}],
-  );
-}
-
-function dedent(block) {
-  const lines = block.replace(/\r\n/g, '\n').split('\n');
-  while (lines[0] === '') lines.shift();
-  while (lines.at(-1) === '') lines.pop();
-  const indentation = Math.min(
-    ...lines
-      .filter((line) => line.trim() !== '')
-      .map((line) => line.match(leadingWhitespacePattern)?.[0].length ?? 0),
-  );
-  return lines.map((line) => line.slice(indentation)).join('\n');
-}
-
-function indentPart(block, indentation) {
-  return block
-    .split('\n')
-    .map((line) => (line === '' ? line : `${indentation}${line}`))
-    .join('\n');
 }
 
 function byName(left, right) {

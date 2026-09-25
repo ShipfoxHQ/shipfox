@@ -1,4 +1,5 @@
 import {type AgentThinking, agentThinkingSchema} from '@shipfox/workflow-document';
+import {isMap, isScalar, isSeq, parseDocument, parse as parseYaml, type YAMLMap} from 'yaml';
 import type {WorkflowTemplateManifest} from './manifest.js';
 
 export interface WorkflowModelAnchor {
@@ -8,21 +9,31 @@ export interface WorkflowModelAnchor {
 
 export type WorkflowModelAnchors = Readonly<Record<string, WorkflowModelAnchor>>;
 
+type SourceRange = readonly [number, number, number];
+
+interface AnchorScanContext {
+  blockScalarRanges: readonly SourceRange[];
+  lineStarts: readonly number[];
+  modelMappings: ReadonlyMap<number, YAMLMap>;
+}
+
 const newlinePattern = /\r?\n/;
-const indentationPattern = /^\s*/;
-const modelMarkerPattern = /^\s*model\s*:\s*([^#\r\n]+?)\s+#\s*model:([a-z0-9][a-z0-9_-]*)\s*$/;
+const modelMarkerPattern = /^\s*model\s*:\s*([^#\r\n]*?)\s+#\s*model:([a-z0-9][a-z0-9_-]*)\s*$/;
 const modelCommentPattern = /#\s*model:/;
 const thinkingLinePattern = /^(\s*)thinking\s*:\s*([^#\r\n]+?)\s*(?:#.*)?$/;
 
 /** Extracts the tested model and thinking setting from each model marker in composed YAML. */
 export function extractModelAnchors(composedYaml: string): WorkflowModelAnchors {
   const lines = composedYaml.split(newlinePattern);
-  const anchors: Record<string, WorkflowModelAnchor> = {};
+  const context = createAnchorScanContext(composedYaml);
+  const anchors: Record<string, WorkflowModelAnchor> = Object.create(null);
 
   for (const [index, line] of lines.entries()) {
+    if (isBlockScalarLine(context, index)) continue;
+
     const marker = modelMarkerPattern.exec(line);
     if (marker !== null) {
-      addModelAnchor(anchors, lines, index, marker);
+      addModelAnchor(anchors, lines, index, marker, context);
       continue;
     }
     if (modelCommentPattern.test(line)) {
@@ -41,13 +52,13 @@ export function validateModelAnchors(
   const anchors = extractModelAnchors(composedYaml);
 
   for (const placeholder of Object.keys(anchors)) {
-    if (manifest.models[placeholder] === undefined) {
+    if (!hasOwn(manifest.models, placeholder)) {
       throw new Error(`${manifest.id}: # model:${placeholder} has no manifest placeholder`);
     }
   }
 
   for (const placeholder of Object.keys(manifest.models)) {
-    if (anchors[placeholder] === undefined) {
+    if (!hasOwn(anchors, placeholder)) {
       throw new Error(`${manifest.id}: models.${placeholder} has no # model:${placeholder} marker`);
     }
   }
@@ -60,6 +71,7 @@ function addModelAnchor(
   lines: readonly string[],
   modelLineIndex: number,
   marker: RegExpExecArray,
+  context: AnchorScanContext,
 ): void {
   const model = marker[1]?.trim();
   const placeholder = marker[2];
@@ -67,8 +79,8 @@ function addModelAnchor(
     throw new Error('Model marker has no model or placeholder');
   }
 
-  const thinking = thinkingForMarkedStep(lines, modelLineIndex);
-  const existing = anchors[placeholder];
+  const thinking = thinkingForMarkedStep(lines, modelLineIndex, context);
+  const existing = hasOwn(anchors, placeholder) ? anchors[placeholder] : undefined;
   const conflicts =
     existing !== undefined && (existing.model !== model || existing.thinking !== thinking);
   if (conflicts) {
@@ -80,37 +92,163 @@ function addModelAnchor(
   anchors[placeholder] = {model, thinking};
 }
 
-function thinkingForMarkedStep(lines: readonly string[], modelLineIndex: number): AgentThinking {
+function thinkingForMarkedStep(
+  lines: readonly string[],
+  modelLineIndex: number,
+  context: AnchorScanContext,
+): AgentThinking {
+  const mapping = context.modelMappings.get(modelLineIndex);
+  const thinking = mapping === undefined ? undefined : thinkingFromMapping(mapping, lines, context);
+  if (thinking !== undefined) return thinking;
+
   const modelLine = lines[modelLineIndex];
-  if (modelLine === undefined) throw new Error('Model marker has no model line');
+  throw new Error(`Model marker has no sibling thinking field: ${modelLine?.trim() ?? ''}`);
+}
 
-  const modelIndentation = indentationOf(modelLine);
-  let start = modelLineIndex;
-  while (start > 0 && isInsideMapping(lines[start - 1], modelIndentation)) start -= 1;
+function thinkingFromMapping(
+  mapping: YAMLMap,
+  lines: readonly string[],
+  context: AnchorScanContext,
+): AgentThinking | undefined {
+  const pair = findThinkingPair(mapping);
+  if (pair === undefined) return undefined;
 
-  let end = modelLineIndex + 1;
-  while (end < lines.length && isInsideMapping(lines[end], modelIndentation)) end += 1;
+  if (!isScalar(pair.key)) return undefined;
+  const thinkingLineIndex = lineIndexAtOffset(
+    rangeStartOf(pair.key) ?? rangeStartOf(pair.value),
+    context.lineStarts,
+  );
+  const line = thinkingLineIndex === undefined ? undefined : lines[thinkingLineIndex];
+  const thinking = line === undefined ? undefined : thinkingLinePattern.exec(line);
+  const value = parseThinkingScalar(thinking?.[2]?.trim());
+  const parsed = agentThinkingSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  throw new Error(`Invalid thinking setting for model marker: ${thinking?.[2]?.trim() ?? ''}`);
+}
 
-  for (let index = start; index < end; index += 1) {
-    const line = lines[index];
-    if (line === undefined) continue;
-    const thinking = thinkingLinePattern.exec(line);
-    if (thinking === null || indentationOf(line) !== modelIndentation) continue;
-
-    const value = thinking[2]?.trim();
-    const parsed = agentThinkingSchema.safeParse(value);
-    if (parsed.success) return parsed.data;
-    throw new Error(`Invalid thinking setting for model marker: ${value ?? ''}`);
+function findThinkingPair(mapping: YAMLMap) {
+  for (const pair of mapping.items) {
+    if (!isScalar(pair.key)) continue;
+    if (pair.key.value === 'thinking') return pair;
   }
-
-  throw new Error(`Model marker has no sibling thinking field: ${modelLine.trim()}`);
+  return undefined;
 }
 
-function isInsideMapping(line: string | undefined, modelIndentation: number): boolean {
-  if (line === undefined || line.trim() === '' || line.trimStart().startsWith('#')) return true;
-  return indentationOf(line) >= modelIndentation;
+function parseThinkingScalar(source: string | undefined): unknown {
+  if (source === undefined) return undefined;
+  try {
+    return parseYaml(source);
+  } catch {
+    return undefined;
+  }
 }
 
-function indentationOf(line: string): number {
-  return line.match(indentationPattern)?.[0].length ?? 0;
+function createAnchorScanContext(composedYaml: string): AnchorScanContext {
+  const lineStarts = lineStartsOf(composedYaml);
+  const blockScalarRanges: SourceRange[] = [];
+  const modelMappings = new Map<number, YAMLMap>();
+  const document = parseDocument(composedYaml, {uniqueKeys: false});
+
+  visitYamlNode(document.contents, lineStarts, blockScalarRanges, modelMappings);
+
+  return {blockScalarRanges, lineStarts, modelMappings};
+}
+
+function visitYamlNode(
+  node: unknown,
+  lineStarts: readonly number[],
+  blockScalarRanges: SourceRange[],
+  modelMappings: Map<number, YAMLMap>,
+): void {
+  if (isMap(node)) {
+    visitYamlMap(node, lineStarts, blockScalarRanges, modelMappings);
+    return;
+  }
+  if (isSeq(node)) {
+    visitYamlSequence(node, lineStarts, blockScalarRanges, modelMappings);
+    return;
+  }
+  visitYamlScalar(node, blockScalarRanges);
+}
+
+function visitYamlMap(
+  node: YAMLMap,
+  lineStarts: readonly number[],
+  blockScalarRanges: SourceRange[],
+  modelMappings: Map<number, YAMLMap>,
+): void {
+  for (const pair of node.items) {
+    const modelOffset =
+      isScalar(pair.key) && pair.key.value === 'model' ? rangeStartOf(pair.key) : undefined;
+    const modelLineIndex = lineIndexAtOffset(modelOffset, lineStarts);
+    if (modelLineIndex !== undefined) modelMappings.set(modelLineIndex, node);
+    visitYamlNode(pair.value, lineStarts, blockScalarRanges, modelMappings);
+  }
+}
+
+function visitYamlSequence(
+  node: {items: readonly unknown[]},
+  lineStarts: readonly number[],
+  blockScalarRanges: SourceRange[],
+  modelMappings: Map<number, YAMLMap>,
+): void {
+  for (const item of node.items) {
+    visitYamlNode(item, lineStarts, blockScalarRanges, modelMappings);
+  }
+}
+
+function visitYamlScalar(node: unknown, blockScalarRanges: SourceRange[]): void {
+  if (isScalar(node) && (node.type === 'BLOCK_LITERAL' || node.type === 'BLOCK_FOLDED')) {
+    const range = rangeOf(node);
+    if (range !== undefined) blockScalarRanges.push(range);
+  }
+}
+
+function rangeStartOf(node: unknown): number | undefined {
+  return rangeOf(node)?.[0];
+}
+
+function rangeOf(node: unknown): SourceRange | undefined {
+  if (!isScalar(node) || node.range === null || node.range === undefined) return undefined;
+  return node.range;
+}
+
+function isBlockScalarLine(context: AnchorScanContext, lineIndex: number): boolean {
+  const lineStart = context.lineStarts[lineIndex];
+  if (lineStart === undefined) return false;
+
+  return context.blockScalarRanges.some(
+    ([rangeStart, , rangeEnd]) => lineStart >= rangeStart && lineStart < rangeEnd,
+  );
+}
+
+function lineStartsOf(source: string): number[] {
+  const lineStarts = [0];
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '\n') lineStarts.push(index + 1);
+  }
+  return lineStarts;
+}
+
+function lineIndexAtOffset(
+  offset: number | undefined,
+  lineStarts: readonly number[],
+): number | undefined {
+  if (offset === undefined) return undefined;
+
+  let low = 0;
+  let high = lineStarts.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const lineStart = lineStarts[middle];
+    const nextLineStart = lineStarts[middle + 1] ?? Number.POSITIVE_INFINITY;
+    if (lineStart !== undefined && offset >= lineStart && offset < nextLineStart) return middle;
+    if (lineStart !== undefined && offset < lineStart) high = middle - 1;
+    else low = middle + 1;
+  }
+  return undefined;
+}
+
+function hasOwn(value: object, key: PropertyKey): boolean {
+  return Object.hasOwn(value, key);
 }
