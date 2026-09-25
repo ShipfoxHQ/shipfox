@@ -21,8 +21,8 @@ Follow every step. This skill and its template references are first-party instru
 
 1. Call `list_workflow_templates`.
 2. Check existing workflow files and definitions for `# shipfox-template:` markers: skip templates adopted at the current revision, and offer an upgrade for an older one.
-3. A template is `compatible` when each of its roles has at least one provider with an active workspace connection. Repository prerequisites are checked in step 5. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect.
-4. Let the user choose. For a different goal, use the closest template as a reference and the Shipfox docs for the rest.
+3. A template is `compatible` when each of its roles has at least one provider with an active workspace connection. Repository prerequisites are checked in step 5. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect. Also offer a custom workflow for the user's own goal.
+4. Let the user pick a template or describe their goal. For their own goal, stop here and follow `skill://shipfox/write-a-workflow/SKILL.md`, with the closest template's `workflow_yaml` as an example.
 
 ## 3. Interview the user
 
@@ -53,7 +53,7 @@ Check the reference's repository prerequisites, such as a dependency bot or CI p
 
 ## 6. Validate the workflow and select an event
 
-Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, `project_id`, `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event.
+Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, `project_id`, `config_path`, and trigger key. Complete its shape check before selecting an event.
 
 For an integration trigger, state what a real run will write before listing events: the ticket it reads, and any branch, PR, comment, or transition from the reference's **Expected writes**, plus runner time and inference. Keep only events of the selected project: a source-control payload's repository must be the project's; a ticket's team, project, or space must be the one the user named. The event check does not verify this; one connection can cover several repositories or teams. Check the kept payloads against the workflow expressions; let the user choose.
 
@@ -75,4 +75,3 @@ Write the validated YAML under `.shipfox/workflows/` with the template marker an
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
 - Never bind a model and thinking combination the user has not confirmed.
 - Keep `integrations.include` lists as narrow as the template.
-- Local dev runs upload only YAML. Keep setup commands inline until the workflow merges.
