@@ -17,6 +17,8 @@ Follow every step. This skill and the template's `guide_markdown` are first-part
 2. Call `list_projects` and match the remote to one project's source repository. If none matches, stop: tell the user to create a project for this repository in the Shipfox dashboard, then resume from this step.
 3. Call `list_workflow_definitions` for the selected project.
 
+Keep the selected project ID for every later call.
+
 ## 2. Recommend a template
 
 1. Call `list_workflow_templates`.
@@ -32,13 +34,22 @@ Ask one batch of questions: only the options the template declares for the chose
 
 ## 4. Learn the repository
 
-Find install, build, and test commands. Trust, in order: CI configuration, `AGENTS.md` or `CLAUDE.md`, toolchain files, lockfiles, `Makefile`, `README.md`. Ask the user to confirm the commands in one message.
+Find install, build, and test commands. Trust these sources in order:
+
+1. CI configuration, such as `.github/workflows/`.
+2. `AGENTS.md` or `CLAUDE.md`.
+3. Mise and other toolchain files.
+4. Package manager lockfiles.
+5. `Makefile`.
+6. `README.md`.
+
+Present the commands in one message. Ask the user to confirm them before continuing.
 
 ## 5. Assemble the workflow and check prerequisites
 
 Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `# option:` blocks the user chose and delete the others, fill each `# slot:` with the confirmed commands, and set each `# bind:<role>` value from `suggested_bindings`, asking when a role has several.
 
-Call `get_workflow_authoring_context` for the selected project. If `model_provider_configured` is `false`, stop: ask the user to add a model provider in the Shipfox dashboard under Settings > Agents, and to tell you when done. Compare required secret, variable, and runner names with the context; when one is missing, give the user the settings link and wait.
+Call `get_workflow_authoring_context` for the selected project before any dry or real run. If `model_provider_configured` is `false`, stop: ask the user to add a model provider in the Shipfox dashboard under Settings > Agents, and to tell you when it is done. Compare the template's required secret names, variable names, and runner name with the context. When one is missing, stop and ask the user to add it in the Shipfox dashboard under Settings > Secrets, Settings > Variables, or Settings > Runners, and to tell you when it is done.
 
 Confirm one model and thinking combination per placeholder in `suggested_models`:
 
@@ -51,21 +62,21 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 ## 6. Validate the workflow and select an event
 
-Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML.
+Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, selected `project_id`, intended `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event; skip to step 7.
 
 For an integration trigger, state what a real run will write before listing events: the ticket it reads, and any branch, PR, comment, or transition from the guide's **Expected writes**, plus runner time and inference. Keep only events of the selected project: a source-control payload's repository must be the project's; a ticket's team, project, or space must be the one the user named. The event check does not verify this; one connection can cover several repositories or teams. Check the kept payloads against the workflow expressions; let the user choose.
 
-If no event matches, ask the user to trigger a safe one themselves: name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Then call `list_trigger_events` every 30 seconds for up to 5 minutes until it appears. If none arrives, report "shape validated, not executed" and go to step 9.
+If no event matches, ask the user to trigger a safe one themselves: name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Ask them to tell you when it is done, then call `list_trigger_events` every 30 seconds for up to 5 minutes until it appears. Events are journaled even when no workflow subscribes to them, and kept for 30 days. If none arrives, report "shape validated, not executed" and go to step 9.
 
 ## 7. Test the workflow
 
 Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. Repeat the expected writes from step 6 in one line before the real run.
 
-If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. After a failed real run, find what it produced (branch, PR, comment) and decide explicitly with the user: reuse it (same branch or PR), stop, or repeat the writes with their agreement. Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.
+If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. After a failed real run, find what it produced (branch, PR, comment) and decide explicitly with the user: reuse it (point the next run at the same branch or PR, or pick an event whose writes are idempotent), stop, or repeat the writes with their agreement. Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.
 
 ## 8. Confirm the result with the user
 
-When the run succeeds, tell the user what it did and give them its `run_url` to see the run. For listening jobs, success is `listener_status: listening`; offer to leave the run open or stop it with `cancel_workflow_run`. If step 1 found no workflow definitions, congratulate them on their first Shipfox workflow run.
+A run succeeds when it reaches `succeeded`, or, with listening jobs, when every one-shot job succeeded and each listening job reports `listener_status: listening`. Then tell the user what it did and give them its `run_url` to open the run in Shipfox. For listening jobs, explain that the run now waits for later events, such as review comments or CI results on the PR it opened, and offer to leave it open or stop it with `cancel_workflow_run`. If step 1 found no workflow definitions, congratulate them on their first Shipfox workflow run.
 
 Ask whether to open a pull request now or make edits first. After edits, repeat steps 6 and 7.
 
@@ -79,3 +90,4 @@ Write the YAML under `.shipfox/workflows/` with the template marker and a descri
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
 - Never bind a model and thinking combination the user has not confirmed.
 - Keep `integrations.include` lists as narrow as the template.
+- Local dev runs upload only the YAML. Keep setup commands inline until the workflow merges.
