@@ -1,5 +1,11 @@
 # @shipfox/api-agent-access-dto
 
+## 33.1.0
+
+### Minor Changes
+
+- 62e1ef4: Serves Shipfox documentation as cached MCP resources and adds the `search_docs` tool.
+
 ## 33.0.0
 
 ### Major Changes

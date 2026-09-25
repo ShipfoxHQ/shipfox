@@ -1,5 +1,12 @@
 # @shipfox/api-integration-sentry
 
+## 33.1.0
+
+### Minor Changes
+
+- 9587ad3: Adds authenticated Sentry reads with shared token renewal for projects, issues, and events.
+- 43fcfd9: Adds four read-only Sentry agent tools for listing projects, searching issues, and reading issue metadata and events. The provider remains unregistered.
+
 ## 31.0.0
 
 ### Patch Changes

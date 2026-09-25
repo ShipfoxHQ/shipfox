@@ -1,5 +1,15 @@
 # @shipfox/workflow-templates
 
+## 1.1.0
+
+### Minor Changes
+
+- 238df72: Adds separate skills for validating and testing local workflow changes, and shortens the development run tool description.
+- 81c982a: Add a workflow run debugging skill that traces job and step failures, checks events when no run starts, and reports when user action is needed.
+- 1092419: Revise the create-workflow-from-template skill: users confirm the full model and thinking setting, replay events are limited to the selected project, failed real runs need an explicit decision before any writes repeat, and a successful run is confirmed with the user before the pull request. The skill no longer offers template upgrades.
+- 3bc43e5: Serves the complete create-workflow-from-template procedure as one MCP skill and links its validation, testing, and template references.
+- 0bd5f3d: Add a Shipfox skill for writing a workflow from a repository and connected workspace facts.
+
 ## 1.0.0
 
 ### Major Changes
