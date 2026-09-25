@@ -28,14 +28,17 @@ const context: AgentAccessContext = {
 
 describe('get_workflow_authoring_context', () => {
   test('returns models, runners, and names without secret values', async () => {
+    const sourceModel = workspaceModel({
+      id: 'claude-opus',
+      label: 'Claude Opus',
+      lab: 'Anthropic',
+      provider: 'anthropic',
+      is_default: true,
+    });
     const clients = createClients({
       models: {
-        models: [workspaceModel({id: 'claude-opus', provider: 'anthropic', is_default: true})],
-        default_model: workspaceModel({
-          id: 'claude-opus',
-          provider: 'anthropic',
-          is_default: true,
-        }),
+        models: [sourceModel],
+        default_model: sourceModel,
         attribution: null,
       },
       runners: ['default'],
@@ -48,12 +51,8 @@ describe('get_workflow_authoring_context', () => {
     expect(response).toEqual({
       ok: true,
       result: {
-        models: [workspaceModel({id: 'claude-opus', provider: 'anthropic', is_default: true})],
-        default_model: workspaceModel({
-          id: 'claude-opus',
-          provider: 'anthropic',
-          is_default: true,
-        }),
+        models: [authoringContextModel(sourceModel)],
+        default_model: authoringContextModel(sourceModel),
         attribution: null,
         model_provider_configured: true,
         runners: ['default'],
@@ -175,10 +174,25 @@ function createClients(overrides: Partial<AuthoringContextFixtures> = {}) {
   return {agent, workflows, secrets};
 }
 
+function authoringContextModel(model: AgentWorkspaceModel) {
+  return {
+    id: model.id,
+    provider: model.provider,
+    harness: model.harness,
+    thinking: model.thinking,
+    supported_thinking: model.supported_thinking,
+    is_default: model.is_default,
+    price: model.price,
+    references: model.references,
+  };
+}
+
 function workspaceModel(
   overrides: Partial<AgentWorkspaceModel> & Pick<AgentWorkspaceModel, 'id' | 'provider'>,
 ): AgentWorkspaceModel {
   return {
+    label: null,
+    lab: null,
     harness: 'pi',
     thinking: 'medium',
     supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],

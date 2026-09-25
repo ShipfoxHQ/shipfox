@@ -55,6 +55,8 @@ describe('getWorkspaceModels', () => {
 
     expect(model).toMatchObject({
       id: 'gpt-5.5-pro',
+      label: expect.any(String),
+      lab: null,
       provider: 'openai',
       harness: 'pi',
       thinking: 'medium',
@@ -88,6 +90,8 @@ describe('getWorkspaceModels', () => {
     expect(result.models).toEqual([
       {
         id: 'llama-3.1',
+        label: 'Llama 3.1',
+        lab: null,
         provider: 'local-vllm',
         harness: 'pi',
         thinking: 'low',
@@ -106,6 +110,7 @@ describe('getWorkspaceModels', () => {
       {
         id: 'managed-strong',
         label: 'Managed strong',
+        lab: 'Anthropic',
         api: 'openai-responses',
         price: {input: 2, output: 8},
         reasoning: true,
@@ -126,6 +131,8 @@ describe('getWorkspaceModels', () => {
     expect(result.models).toEqual([
       {
         id: 'managed-strong',
+        label: 'Managed strong',
+        lab: 'Anthropic',
         provider: 'shipfox',
         harness: 'pi',
         thinking: 'xhigh',
@@ -136,6 +143,8 @@ describe('getWorkspaceModels', () => {
       },
       {
         id: 'managed-small',
+        label: 'Managed small',
+        lab: null,
         provider: 'shipfox',
         harness: 'pi',
         thinking: 'xhigh',
@@ -288,6 +297,8 @@ describe('getWorkspaceModels', () => {
       models: [
         {
           id: 'llama-3.1',
+          label: 'Llama 3.1',
+          lab: null,
           provider: 'local-vllm',
           harness: 'pi',
           thinking: 'low',

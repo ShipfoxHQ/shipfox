@@ -17,6 +17,7 @@ describe('managed provider model metadata', () => {
     const dto = toCustomAgentModelDto({
       id: 'gpt-5.6-sol',
       label: 'GPT 5.6 Sol',
+      lab: 'OpenAI',
       claudeModelId: 'claude-opus-5',
       thinkingLevelMap,
       compat,
@@ -62,6 +63,7 @@ describe('managed provider model metadata', () => {
     expect(
       managedModelMetadataSchema.safeParse({
         claudeModelId: 'claude-haiku-4-5',
+        lab: 'Anthropic',
         thinkingLevelMap: {minimal: null},
         compat: {supportsStore: false, thinkingFormat: 'deepseek'},
       }).success,

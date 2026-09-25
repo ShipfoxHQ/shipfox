@@ -5,7 +5,10 @@ import {
   getWorkflowAuthoringContextResultJsonSchema,
   getWorkflowAuthoringContextResultSchema,
 } from '@shipfox/api-agent-access-dto';
-import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
+import type {
+  AgentInterModuleClient,
+  AgentWorkspaceModel,
+} from '@shipfox/api-agent-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
 import {agentAccessSuccess} from './envelope.js';
@@ -54,8 +57,9 @@ function createGetWorkflowAuthoringContextTool(
 
       return fitAgentAccessResponseToCeiling(
         agentAccessSuccess({
-          models: models.models,
-          default_model: models.default_model,
+          models: models.models.map(toAuthoringContextModel),
+          default_model:
+            models.default_model === null ? null : toAuthoringContextModel(models.default_model),
           attribution: models.attribution,
           model_provider_configured: models.models.length > 0,
           runners: runners.names,
@@ -64,5 +68,18 @@ function createGetWorkflowAuthoringContextTool(
         }),
       );
     },
+  };
+}
+
+function toAuthoringContextModel(model: AgentWorkspaceModel) {
+  return {
+    id: model.id,
+    provider: model.provider,
+    harness: model.harness,
+    thinking: model.thinking,
+    supported_thinking: model.supported_thinking,
+    is_default: model.is_default,
+    price: model.price,
+    references: model.references,
   };
 }
