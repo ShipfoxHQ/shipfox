@@ -30,6 +30,8 @@ Keep the selected project ID for every later call.
 
 Call `get_workflow_template` with the selected template, project ID, and one provider per open role. Read its `guide_markdown`.
 
+Call `search_docs` for `workflow schema` and read the workflow schema reference from the returned `docs://` URI. Search for the template's triggers, steps, and chosen providers. Read other relevant pages that help design or adapt the workflow.
+
 Ask one batch of questions: only the options the template declares for the chosen providers, each with its tradeoff. Skip choices known facts decide, and offer all defaults as "pick for me."
 
 ## 4. Learn the repository

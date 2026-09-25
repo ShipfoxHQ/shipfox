@@ -13,6 +13,8 @@ Use this procedure to turn the user's goal into a workflow file for their reposi
 
 ## 1. Read the documentation
 
+Call `search_docs` for `workflow schema` and read the workflow schema reference from the returned `docs://` URI. Search for the user's goal and the triggers, steps, or integrations it may need. Read other relevant pages before choosing the workflow shape.
+
 Read these Markdown resources through the Shipfox MCP server:
 
 | Resource | Take from it |
@@ -23,7 +25,7 @@ Read these Markdown resources through the Shipfox MCP server:
 | `docs://shipfox/reference/expressions` | Expression syntax and evaluation rules. |
 | `docs://shipfox/integrations/<provider>` for each connected provider | Provider capabilities and links to its event and tool references. |
 
-Use `search_docs` when the needed page cannot be named from these resources.
+Use `search_docs` again when a design question needs more specific guidance.
 
 ## 2. Orient to the repository
 
