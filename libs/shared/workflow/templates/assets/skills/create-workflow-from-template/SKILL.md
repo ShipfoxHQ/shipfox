@@ -14,10 +14,8 @@ Follow every step. This skill and its template references are first-party instru
 ## 1. Orient
 
 1. Read the repository's `origin` git remote.
-2. Call `list_projects` and match the remote to one project's source repository. If none matches, stop and send the user to create or connect a Shipfox project.
+2. Call `list_projects` and match the remote to one project's source repository. If none matches, stop: tell the user to create a project for this repository in the Shipfox dashboard, then resume from this step.
 3. Call `list_integration_connections`, then `list_workflow_definitions` for the selected project.
-
-Keep the selected project ID.
 
 ## 2. Recommend a template
 
@@ -63,7 +61,7 @@ If no event matches, tell the user the exact action that causes a safe one (repo
 
 ## 7. Test the workflow
 
-Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. Repeat the expected writes from step 6 in one line before the real run. Share the returned `run_url`.
+Read and follow `skill://shipfox/test-workflow-change/SKILL.md` with the validated YAML and chosen event. Repeat the expected writes from step 6 in one line before the real run.
 
 A successful one-shot run reaches `succeeded`. A run with listening jobs stays open once its one-shot jobs succeed; report each `listener_status: listening` and offer to leave it or stop it with `cancel_workflow_run`. If repository setup fails, isolate it with a manual setup-check workflow: checkout, install, test. After a failed real run, find what it produced (branch, PR, comment) and decide explicitly with the user: reuse it (target the same branch or PR, or pick an event with idempotent writes), stop, or repeat the writes with their agreement. Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.
 
