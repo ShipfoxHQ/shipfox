@@ -13,6 +13,10 @@ trigger: |
       has(event.updatedFrom) && has(event.updatedFrom.labelIds) &&
       !event.updatedFrom.labelIds.exists(id, id == "replace-with-label-id") &&
       event.data.labelIds.exists(id, id == "replace-with-label-id")
+  on_labeled_issue_created:
+    source: linear_tracker # bind:tracker
+    event: Issue.create
+    filter: event.data.labelIds.exists(id, id == "replace-with-label-id")
   # option:trigger_style=label end
 read_ticket: |
   - key: ticket
