@@ -21,12 +21,12 @@ Follow every step. This skill and its template references are first-party instru
 
 1. Call `list_workflow_templates`.
 2. Check existing workflow files and definitions for `# shipfox-template:` markers: skip templates adopted at the current revision, and offer an upgrade for an older one.
-3. Present compatible templates first, one sentence each, then incompatible ones with the providers to connect.
+3. A template is `compatible` when each of its roles has at least one provider with an active workspace connection. Repository prerequisites are checked in step 5. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect.
 4. Let the user choose. For a different goal, use the closest template as a reference and the Shipfox docs for the rest.
 
 ## 3. Interview the user
 
-Call `get_workflow_template` with the selected template, project ID, and one provider for each open role. Read its matching reference: `skill://shipfox/create-workflow-from-template/references/ticket-to-pr.md` or `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md`.
+Call `get_workflow_template` with the selected template, project ID, and one provider per open role. Read its reference, `skill://shipfox/create-workflow-from-template/references/<template id>.md`.
 
 Use `suggested_bindings`; ask when several connections can fill a role.
 
@@ -40,7 +40,7 @@ Find install, build, and test commands. Trust, in order: CI configuration (`.git
 
 Apply the selected options to `workflow_yaml` and insert the confirmed commands into the declared slots. Bind source control from the project's `source_connection`, never a workspace-wide guess.
 
-Call `get_workflow_authoring_context` for the selected project before any dry or real run. If `model_provider_configured` is `false`, stop, send the user to model provider settings, and wait. Compare required secret, variable, and runner names with the context; when one is missing, give the user the settings link and wait.
+Call `get_workflow_authoring_context` for the selected project. If `model_provider_configured` is `false`, stop, send the user to model provider settings, and wait. Compare required secret, variable, and runner names with the context; when one is missing, give the user the settings link and wait.
 
 Confirm one model and thinking combination per placeholder in `suggested_models`:
 
@@ -49,15 +49,15 @@ Confirm one model and thinking combination per placeholder in `suggested_models`
 
 Bind the confirmed entry's model, `harness`, and `thinking`.
 
-Follow the reference's other prerequisites, such as the required dependency bot or CI provider.
+Check the reference's repository prerequisites, such as a dependency bot or CI provider.
 
 ## 6. Validate the workflow and select an event
 
-Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, selected `project_id`, intended `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event.
+Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, `project_id`, `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event.
 
 For an integration trigger, state what a real run will write before listing events: the ticket it reads, and any branch, PR, comment, or transition from the reference's **Expected writes**, plus runner time and inference. Keep only events of the selected project: a source-control payload's repository must be the project's; a ticket's team, project, or space must be the one the user named. The event check does not verify this; one connection can cover several repositories or teams. Check the kept payloads against the workflow expressions; let the user choose.
 
-If no event matches, tell the user the exact action that causes a safe one (repository, team, label, assignee). Poll for it for a few minutes; events are journaled 30 days without a subscription. If the user cannot produce one, stop as "shape validated, not executed" and offer a PR marked untested.
+If no event matches, tell the user the exact action that causes a safe one (repository, team, label, assignee). Poll for a few minutes; events are journaled even without a subscription. If the user cannot produce one, stop as "shape validated, not executed" and offer a PR marked untested.
 
 ## 7. Test the workflow
 
