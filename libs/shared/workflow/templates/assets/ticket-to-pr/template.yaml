@@ -17,9 +17,10 @@ options:
       - id: agent_session
         label: Assign or mention the Shipfox agent
         default: true
+        tradeoff: Starts on every issue assignment to the Shipfox agent in Linear.
       - id: label
         label: Add a Linear label
-        tradeoff: Works without agent seats, but needs a label ID and event filter.
+        tradeoff: Starts when an issue is created with the chosen label or when that label is added later.
   - id: feedback_loop
     question: Should the agent respond to review comments and CI failures?
     choices:
@@ -36,19 +37,23 @@ options:
       - id: draft
         label: Draft
         default: true
+        tradeoff: Someone marks the PR ready before review.
       - id: ready
         label: Ready for review
+        tradeoff: Opens the PR for review right away, which can notify reviewers.
   - id: ticket_write_back
     question: What should the workflow write to Linear?
     choices:
       - id: comment
         label: Comment with the pull request
         default: true
+        tradeoff: Posts one comment with the PR link on the Linear issue.
       - id: comment_and_transition
         label: Comment and change status
         tradeoff: Requires the destination Linear status to be chosen.
       - id: none
         label: Do not write to Linear
+        tradeoff: The ticket does not link to the PR or change status.
 models:
   ticket:
     note: Reads the ticket and its comments in the shared implementation conversation.

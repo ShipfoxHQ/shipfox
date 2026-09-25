@@ -7,8 +7,8 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(2);
-    expect(skill?.text).toContain('revision: 2');
+    expect(skill?.revision).toBe(3);
+    expect(skill?.text).toContain('revision: 3');
     expect(skill?.text).toContain('## 1. Orient');
     expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
@@ -58,6 +58,17 @@ describe('shipped skill resources', () => {
     expect(text).toContain(
       'Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.',
     );
+  });
+
+  test('asks one explained question at a time', () => {
+    const text =
+      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
+
+    expect(text).toContain('one option per message');
+    expect(text).toContain('Ask one question per message and wait for the answer.');
+    expect(text).toContain('restate what it decides and what each answer entails');
+    expect(text).not.toContain('one batch of questions');
+    expect(text).not.toContain('pick for me');
   });
 
   test('manifests every embedded skill file with its exact size and digest', () => {

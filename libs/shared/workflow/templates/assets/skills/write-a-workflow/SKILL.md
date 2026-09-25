@@ -1,7 +1,7 @@
 ---
 name: write-a-workflow
 description: Use when writing a Shipfox workflow from an idea or adapting an existing workflow without a template.
-revision: 1
+revision: 2
 catalog_title: Write a workflow
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to write a workflow for this repository.
@@ -45,6 +45,7 @@ Read identifiers and available settings from the connected workspace. Do not inv
 
 If a required fact is unavailable, ask the user to set up the missing resource or supply the repository-specific decision. Never guess a secret value.
 For an agent step, show supported model and thinking combinations from the authoring context and have the user confirm the choice.
+Ask one question per message and wait for the answer. With each question, restate what it decides and what each answer entails, such as writes, extra executions, or IDs it requires.
 
 ## 4. Choose the workflow shape
 
