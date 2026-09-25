@@ -30,7 +30,7 @@ Keep the selected project ID for every later call.
 
 Call `get_workflow_template` with the selected template, project ID, and one provider per open role. Read its `guide_markdown`.
 
-Call `search_docs` for `workflow schema` and read the workflow schema reference from the returned `docs://` URI. Search for the template's triggers, steps, and chosen providers. Read other relevant pages that help design or adapt the workflow.
+Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers. Read other relevant pages.
 
 Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Wait for each answer before asking the next. Skip options that known facts decide.
 
@@ -51,7 +51,7 @@ Present the commands in one message. Ask the user to confirm them before continu
 
 Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `# option:` blocks the user chose and delete the others, fill each `# slot:` with the confirmed commands, and set each `# bind:<role>` value from `suggested_bindings`, asking when a role has several.
 
-Call `get_workflow_authoring_context` for the selected project before any dry or real run. If `model_provider_configured` is `false`, stop: ask the user to add a model provider in the Shipfox dashboard under Settings > Agents, and to tell you when it is done. Compare the template's required secret names, variable names, and runner name with the context. When one is missing, stop and ask the user to add it in the Shipfox dashboard under Settings > Secrets, Settings > Variables, or Settings > Runners, and to tell you when it is done.
+Call `get_workflow_authoring_context` for the selected project before any run. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Compare the template's required secrets, variables, and runner with the context. If any are missing, stop and ask the user to add them under Settings > Secrets, Variables, or Runners, then report back.
 
 Confirm one model and thinking combination per placeholder in `suggested_models`:
 
@@ -66,9 +66,13 @@ Check the guide's repository prerequisites, such as a dependency bot or CI provi
 
 Read and follow `skill://shipfox/validate-workflow-change/SKILL.md` with the assembled YAML, selected `project_id`, intended `config_path`, and trigger key. Complete its shape check before selecting an event. Manual and cron triggers need no replay event; skip to step 7.
 
-For an integration trigger, state what a real run will write before listing events: the ticket it reads, and any branch, PR, comment, or transition from the guide's **Expected writes**, plus runner time and inference. Keep only events of the selected project: a source-control payload's repository must be the project's; a ticket's team, project, or space must be the one the user named. The event check does not verify this; one connection can cover several repositories or teams. Check the kept payloads against the workflow expressions; let the user choose.
+For an integration trigger, state what a real run will write before listing events: ticket, branch, PR, comment, or transition from the guide's **Expected writes**, plus runner time and inference. Keep only events of the selected project: match the source-control repository or named ticket team, project, or space. The event check does not verify this; a connection may cover several repositories or teams. Check payloads against workflow expressions and let the user choose.
 
-If no event matches, ask the user to trigger a safe one themselves: name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Ask them to tell you when it is done, then call `list_trigger_events` every 30 seconds for up to 5 minutes until it appears. Events are journaled even when no workflow subscribes to them, and kept for 30 days. If none arrives, report "shape validated, not executed" and go to step 9.
+If no event matches, ask the user to trigger a safe one themselves. Name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Tell them they can say they cannot trigger the event or ask to skip the dev run. Stop and wait for their response.
+
+After confirmation, call `list_trigger_events` every 30 seconds for up to 5 minutes. Events are journaled even when no workflow subscribes to them, and kept for 30 days. When the event appears, complete the event check and go to step 7 for the real dev run. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. Do not deliver the workflow or open the pull request while waiting.
+
+Skip the dev run only if the user says they cannot trigger an event or asks to skip it. Then report "shape validated, not executed" and go to step 9.
 
 ## 7. Test the workflow
 
@@ -84,7 +88,7 @@ Ask whether to open a pull request now or make edits first. After edits, repeat 
 
 ## 9. Deliver
 
-Write the YAML under `.shipfox/workflows/` with the template marker and a descriptive file name, then open the pull request. Mark it untested if step 6 stopped. Shipfox syncs the workflow once it merges.
+Write the YAML under `.shipfox/workflows/` with the template marker and a descriptive file name, then open the pull request. Mark it untested if the user could not trigger an event or asked to skip the dev run. Shipfox syncs the workflow once it merges.
 
 ## Rules
 
