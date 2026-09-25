@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsRoot = join(packageRoot, 'assets');
 const outputPath = join(packageRoot, 'src/generated/assets.ts');
+const formatterPath = resolve(packageRoot, 'node_modules/@shipfox/biome/bin/biome-format.js');
 const {version: libraryVersion} = JSON.parse(
   await readFile(join(packageRoot, 'package.json'), 'utf8'),
 );
@@ -157,7 +158,7 @@ async function writeFormattedIfChanged(generated) {
 
   try {
     await writeFile(temporaryPath, generated);
-    await execFileAsync('shipfox-biome-format', ['--write', temporaryPath], {
+    await execFileAsync(process.execPath, [formatterPath, '--write', temporaryPath], {
       cwd: packageRoot,
     });
     const formatted = await readFile(temporaryPath, 'utf8');
