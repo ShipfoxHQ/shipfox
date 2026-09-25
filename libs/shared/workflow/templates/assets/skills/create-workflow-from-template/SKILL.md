@@ -70,7 +70,7 @@ For an integration trigger, state what a real run will write before listing even
 
 If no event matches, ask the user to trigger a safe one themselves. Name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Tell them they can say they cannot trigger the event or ask to skip the dev run. Stop and wait for their response.
 
-After confirmation, call `list_trigger_events` every 30 seconds for up to 5 minutes. Events are journaled even when no workflow subscribes to them, and kept for 30 days. When the event appears, complete the event check and real dev run. If it has not arrived after 5 minutes, tell the user and wait for a matching event. Do not deliver the workflow or open the pull request while waiting.
+After confirmation, call `list_trigger_events` every 30 seconds for up to 5 minutes. Events are journaled even when no workflow subscribes to them, and kept for 30 days. When the event appears, complete the event check and go to step 7 for the real dev run. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. Do not deliver the workflow or open the pull request while waiting.
 
 Skip the dev run only if the user says they cannot trigger an event or asks to skip it. Then report "shape validated, not executed" and go to step 9.
 

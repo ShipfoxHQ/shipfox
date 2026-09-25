@@ -45,7 +45,7 @@ Read identifiers and available settings from the connected workspace. Do not inv
 
 If a required fact is unavailable, ask the user to set up the missing resource or supply the repository-specific decision. Never guess a secret value.
 
-For a missing integration event, ask them to trigger a safe matching event. Tell them they can say they cannot trigger the event or ask to skip the dev run. Wait for confirmation. After confirmation, check for the event every 30 seconds for up to 5 minutes. Resume authoring when it appears. If it has not arrived, tell the user and keep waiting. If the user cannot trigger an event or asks to skip, draft only from documented event fields and mark the event path unverified.
+For a missing integration event, ask them to trigger a safe matching event. Tell them they can say they cannot trigger the event or ask to skip the dev run. Wait for confirmation. After confirmation, check for the event every 30 seconds for up to 5 minutes. Resume authoring when it appears. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. If the user cannot trigger an event or asks to skip, draft only from documented event fields and mark the event path unverified.
 
 For an agent step, show supported model and thinking combinations from the authoring context and have the user confirm the choice.
 Ask one question per message and wait for the answer. With each question, restate what it decides and what each answer entails, such as writes, extra executions, or IDs it requires.
