@@ -598,12 +598,19 @@ jobs:
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      # Blacksmith's builder keeps layers and cache mounts on a sticky disk and
+      # becomes the default buildx builder. Blacksmith branch protection keeps PR
+      # jobs from committing to it: they reuse the latest main snapshot.
+      - name: Set up Docker builder
+        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2
+        with:
+          cache-key: ${{ matrix.image }}-${{ runner.arch }}
 
       # --affected skips images untouched by the PR. The Docker wrapper validates
       # PR builds with BuildKit's cache-only output, so no local image import runs.
       - name: Build images
+        env:
+          SHIPFOX_DOCKER_CACHE: none
         run: turbo image --affected --filter "${{ matrix.package }}"
 
   build-images:
@@ -643,7 +650,7 @@ jobs:
       (needs.tests.result == 'success' || needs.tests.result == 'skipped') &&
       (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold gha BuildKit
+    # Multi-arch: linux/arm64 builds under QEMU emulation, slow on a cold builder
     # cache (the runner image's apt layer most of all); the cache makes later runs fast.
     timeout-minutes: 60
     strategy:
@@ -677,9 +684,13 @@ jobs:
         if: needs.release-mode.outputs.mode != 'version-only-main'
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4
 
-      - name: Set up Docker Buildx
+      # Runs after QEMU so buildkitd detects the arm64 emulator at startup.
+      - name: Set up Docker builder
         if: needs.release-mode.outputs.mode != 'version-only-main'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2
+        with:
+          cache-key: ${{ matrix.image }}-${{ runner.arch }}
+          platforms: linux/amd64,linux/arm64
 
       - name: Log in to GHCR
         if: needs.release-mode.outputs.mode != 'version-only-main'
@@ -756,6 +767,7 @@ jobs:
         if: needs.release-mode.outputs.mode != 'version-only-main' && steps.existing-image.outputs.digest == ''
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          SHIPFOX_DOCKER_CACHE: none
         run: |
           set -euo pipefail
           # apps/runner is private and has no package version; use the versioned
