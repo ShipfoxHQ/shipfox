@@ -1,9 +1,10 @@
 import {getTriggerSourceIcon} from './trigger-source-icon.js';
 
 describe('getTriggerSourceIcon', () => {
-  test('maps the system sources manual and cron to their own icons', () => {
+  test('maps system sources to their own icons', () => {
     expect(getTriggerSourceIcon({provider: null, source: 'manual'})).toBe('cursorLine');
     expect(getTriggerSourceIcon({provider: null, source: 'cron'})).toBe('timeLine');
+    expect(getTriggerSourceIcon({provider: 'shipfox', source: 'shipfox'})).toBe('shipfox');
   });
 
   test('resolves integration icons from provider while preserving slug sources', () => {

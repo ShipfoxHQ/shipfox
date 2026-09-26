@@ -74,6 +74,10 @@ const SAMPLE_EVENTS = [
   makeEvent('failed', 'gitlab', 'gitlab_acme', 'push', 1, 95),
 ].map(toTriggerEventSummary);
 
+const SHIPFOX_EVENT = toTriggerEventSummary(
+  makeEvent('routed', 'shipfox', 'shipfox', 'run.completed', 1, 8),
+);
+
 const SAMPLE_FACETS: TriggerEventFacetsResponseDto = {
   sources: [
     {value: 'github_acme', count: 3},
@@ -111,6 +115,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {};
+
+export const ShipfoxEvent: Story = {
+  args: {
+    events: [SHIPFOX_EVENT],
+    facets: {
+      sources: [{value: 'shipfox', count: 1}],
+      events: [{value: 'run.completed', count: 1}],
+    },
+    selectedEventId: undefined,
+  },
+};
 
 export const DataStates: Story = {
   render: (args) => (
