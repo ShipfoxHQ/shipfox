@@ -15,7 +15,8 @@ Turn a failed GitHub Actions run on the default branch into a tested repair pull
 Replace `replace-with-owner/repository` with the selected project's exact GitHub repository name.
 A connection can receive events from several repositories. Keep this filter even when the project has one source.
 
-Replace `replace-with-workflow-path` with the workflow files to investigate, such as `[".github/workflows/ci.yml"]`.
+Replace `replace-with-workflow-path` with the path of a workflow file to investigate, such as `.github/workflows/ci.yml`.
+Add more quoted paths to the same list to investigate several workflows, such as `[".github/workflows/ci.yml", ".github/workflows/lint.yml"]`.
 Choose workflows whose checks the runner can reproduce. Leave out deployment and release workflows.
 
 The trigger accepts a failed first attempt of a push or scheduled run on the default branch.
@@ -105,7 +106,7 @@ The shell commit is not signed by this template. Check signing and sign-off requ
 With Slack, each reported outcome posts one message.
 
 Delivery rejects changed commit history, unstaged changes, unignored untracked files, and empty repairs.
-Patches larger than 30,000 bytes are not delivered and are reported as a diagnosis.
+Patches larger than 30,000 bytes are not delivered. They are posted as a diagnosis only when the Slack report uses `pull_requests_and_diagnoses`.
 
 A failed run can leave a pushed branch without a pull request. Delete that branch before starting the run again.
 The workflow posts nothing about its own failures. Use Shipfox run notifications for those.
