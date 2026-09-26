@@ -15,12 +15,19 @@ runs:
       shell: bash
       run: |
         path="$(pnpm store path --silent)"
-        echo "path=$path" >> "$GITHUB_OUTPUT"
         # Mount the parent so a pnpm store-format upgrade (v11 to v12) gets a new
         # subdirectory on the same disk instead of reading an older format.
-        echo "root=$(dirname "$path")" >> "$GITHUB_OUTPUT"
+        root="$(dirname "$path")"
+        echo "path=$path" >> "$GITHUB_OUTPUT"
+        echo "root=$root" >> "$GITHUB_OUTPUT"
         if [[ -n "${BLACKSMITH_VM_ID:-}" ]]; then
           echo "blacksmith=true" >> "$GITHUB_OUTPUT"
+          # Native addons in node_modules are built for one Node ABI, and the
+          # node_modules layout belongs to one pnpm version.
+          echo "runtime=node-$(node --version)-pnpm-$(pnpm --version)" >> "$GITHUB_OUTPUT"
+          # The cache holds registry metadata and the lockfile supply-chain
+          # verification, so an unchanged lockfile skips that check.
+          echo "pnpm_config_cache_dir=$root/cache" >> "$GITHUB_ENV"
         else
           echo "blacksmith=false" >> "$GITHUB_OUTPUT"
         fi
@@ -36,6 +43,17 @@ runs:
         path: ${{ steps.pnpm-store.outputs.root }}
         # A filtered install only holds part of the store, so it never saves it.
         commit: ${{ inputs.filter == '' && 'on-change' || 'false' }}
+
+    # pnpm can't hard-link across disks, so it copies every package from the
+    # store disk. Keeping node_modules on its own disk leaves only the changed
+    # packages and the per-project symlinks to write.
+    - name: Mount node_modules sticky disk
+      if: steps.pnpm-store.outputs.blacksmith == 'true' && inputs.filter == ''
+      uses: useblacksmith/stickydisk@94697d49e77d0dd78b77deb85ad3de63a28b4b8a # v1.7.1
+      with:
+        key: ${{ github.repository }}-node-modules-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.pnpm-store.outputs.runtime }}
+        path: ${{ github.workspace }}/node_modules
+        commit: on-change
 
     - name: Restore pnpm store cache
       id: pnpm-store-cache

@@ -29,12 +29,13 @@ The actions detect a Blacksmith runner through `BLACKSMITH_VM_ID`.
 | Action | Path | Key |
 | --- | --- | --- |
 | `setup-mise` | `~/.local/share/mise` | One disk per tool list |
-| `setup-pnpm` | The parent of `pnpm store path` | One disk per OS and architecture |
+| `setup-pnpm` | The parent of `pnpm store path`, which also holds the pnpm cache | One disk per OS and architecture |
+| `setup-pnpm` | The root `node_modules`, for unfiltered installs only | One disk per OS, architecture, Node version and pnpm version |
 | `setup-playwright` | `~/.cache/ms-playwright` | One disk per Playwright version |
 
 The disks use `commit: on-change`, so a job that changes nothing doesn't take a
 new snapshot. A filtered pnpm install never saves the store, on either runner,
-because it only holds part of it.
+because it only holds part of it. It doesn't mount the `node_modules` disk.
 
 To reset a disk, bump the `v1` in its key. Blacksmith evicts a disk after 7
 days without use.
