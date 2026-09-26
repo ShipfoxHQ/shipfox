@@ -7,6 +7,7 @@ import {DescribeImagesCommand, EC2Client, type Image} from '@aws-sdk/client-ec2'
 import {log} from '@shipfox/tool-utils';
 
 const CANDIDATE_REGION = 'eu-central-1';
+const CANDIDATE_MANIFEST_REPOSITORY = 'ghcr.io/shipfoxhq/runner-image-candidates';
 const FRESHNESS_DAYS = 5;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const AMI_ID_PATTERN = /^ami-[0-9a-f]{17}$/u;
@@ -66,6 +67,7 @@ interface CandidateInventoryClient {
 
 interface CandidatePlannerDependencies {
   listImages?: () => Promise<Image[]>;
+  listPublishedRevisions?: () => string[];
   resolveEffectiveDirectories?: () => string[];
   isAncestor?: (base: string, head: string) => boolean;
   listChangedFiles?: (base: string, head: string) => string[];
@@ -95,7 +97,13 @@ export async function planRunnerImageCandidate(
   try {
     requireRevision(options.currentRevision, 'Current revision');
     const images = await (dependencies.listImages ?? listCandidateImages)();
-    const inventory = inspectCandidateInventory(images, options.currentRevision);
+    const listPublishedRevisions =
+      dependencies.listPublishedRevisions ?? listPublishedCandidateRevisions;
+    let publishedRevisions: ReadonlySet<string> | undefined;
+    const inventory = inspectCandidateInventory(images, options.currentRevision, (revision) => {
+      publishedRevisions ??= new Set(listPublishedRevisions());
+      return publishedRevisions.has(revision);
+    });
     const now = options.now ?? new Date();
     const inventoryDecision = decideFromInventory(options, inventory, now);
     if (inventoryDecision) return inventoryDecision;
@@ -109,7 +117,7 @@ export async function planRunnerImageCandidate(
         mode: 'build',
         reason: 'prior-not-ancestor',
         detail:
-          'The newest complete candidate revision is not an ancestor of the current revision.',
+          'The newest published candidate revision is not an ancestor of the current revision.',
         priorPair,
         candidateAgeDays: pairAgeDays(priorPair, now),
       };
@@ -128,7 +136,7 @@ export async function planRunnerImageCandidate(
         ...baseResult,
         mode: 'build',
         reason: 'effective-inputs-changed',
-        detail: 'Runner image inputs changed since the newest complete candidate pair.',
+        detail: 'Runner image inputs changed since the newest published candidate pair.',
         priorPair,
         candidateAgeDays: pairAgeDays(priorPair, now),
         effectiveChanges,
@@ -141,7 +149,7 @@ export async function planRunnerImageCandidate(
         ...baseResult,
         mode: 'build',
         reason: 'freshness-threshold',
-        detail: `The newest complete candidate pair is at least ${FRESHNESS_DAYS} days old.`,
+        detail: `The newest published candidate pair is at least ${FRESHNESS_DAYS} days old.`,
         priorPair,
         candidateAgeDays,
       };
@@ -151,7 +159,7 @@ export async function planRunnerImageCandidate(
       ...baseResult,
       mode: 'skip-recent',
       reason: 'recent-unchanged-pair',
-      detail: 'The newest complete pair is recent and no effective runner image input changed.',
+      detail: 'The newest published pair is recent and no effective runner image input changed.',
       priorPair,
       candidateAgeDays,
     };
@@ -167,9 +175,13 @@ export async function planRunnerImageCandidate(
   }
 }
 
+// A prior pair counts only once its manifest is published. CI bakes alongside the required
+// checks, so a revision that fails them keeps its AMIs but must not become the baseline that
+// lets later revisions skip publishing its runner changes.
 export function inspectCandidateInventory(
   images: Image[],
   currentRevision: string,
+  isPublished: (revision: string) => boolean,
 ): InventorySelection {
   const groups = new Map<
     string,
@@ -203,7 +215,11 @@ export function inspectCandidateInventory(
       images: ARCHITECTURES.map((architecture) => requiredMapValue(group, architecture)),
     }));
   const currentPair = pairs.find((pair) => pair.revision === currentRevision) ?? null;
-  const newestPriorPair = pairs.find((pair) => pair.revision !== currentRevision) ?? null;
+  // Reusing the current pair needs no baseline, so a registry failure cannot block a rerun.
+  const newestPriorPair = currentPair
+    ? null
+    : (pairs.find((pair) => pair.revision !== currentRevision && isPublished(pair.revision)) ??
+      null);
   const newestGroup = orderedGroups[0];
 
   return {
@@ -299,7 +315,7 @@ function decideFromInventory(
     return inventoryBuildResult(
       options.currentRevision,
       'no-complete-pair',
-      'No complete prior candidate pair is available.',
+      'No complete, published prior candidate pair is available.',
       null,
       now,
     );
@@ -478,6 +494,13 @@ function gitIsAncestor(base: string, head: string): boolean {
     if (processStatus(error) === 1) return false;
     throw error;
   }
+}
+
+function listPublishedCandidateRevisions(): string[] {
+  const output = execFileSync('oras', ['repo', 'tags', CANDIDATE_MANIFEST_REPOSITORY], {
+    encoding: 'utf8',
+  });
+  return output.split('\n').filter((tag) => GIT_REVISION_PATTERN.test(tag));
 }
 
 function gitChangedFiles(base: string, head: string): string[] {

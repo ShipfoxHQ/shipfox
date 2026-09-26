@@ -102,9 +102,9 @@ marker disappear when the instance is terminated with its root volume.
 
 ### Image freshness
 
-The image does not update packages after the bake. After a successful normal
-merge to `main`, CI builds a candidate when effective inputs changed or the
-newest complete pair is at least five days old. Candidates expire after 14 days.
+The image does not update packages after the bake. After a normal merge to
+`main`, CI builds a candidate when effective inputs changed or the newest
+published pair is at least five days old. Candidates expire after 14 days.
 
 Release promotion should happen at least weekly. When a candidate is stale,
 rebuild or republish it and investigate the release promotion path before using
@@ -190,16 +190,22 @@ total. Record the end-to-end time before retiring the old AMI.
 
 ## Candidate builds
 
-After the required `main` checks pass, CI evaluates whether the revision needs a
-candidate. It builds the complete `amd64` and `arm64` pair when any effective
-runner image input changed since the newest complete pair. It also refreshes an
-unchanged pair when that pair is at least five days old.
+On a normal `main` build, CI evaluates whether the revision needs a candidate
+and bakes it alongside the required checks. It publishes the candidate manifest
+only after those checks pass. It builds the complete `amd64` and `arm64` pair
+when any effective runner image input changed since the newest published pair.
+It also refreshes an unchanged pair when that pair is at least five days old.
+
+A published pair has both AMIs and a manifest in
+`ghcr.io/shipfoxhq/runner-image-candidates`. A revision that fails the required
+checks keeps its AMIs until they expire. It never becomes the baseline, so the
+next revision still builds and publishes its runner changes.
 
 Effective inputs include the runner image directory, the runner's production
 workspace dependency closure, the lockfile, workspace configuration, and
 relevant toolchain pins. CI derives the package closure from workspace package
-manifests. An incomplete inventory, Git comparison, or dependency graph causes
-both architectures to build.
+manifests. An incomplete inventory, manifest listing, Git comparison, or
+dependency graph causes both architectures to build.
 
 CI skips a recent unchanged revision. A skipped revision gets no AMI, snapshot,
 or candidate manifest. A rerun for a revision that already owns both AMIs
