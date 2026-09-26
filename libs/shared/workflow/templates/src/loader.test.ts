@@ -3,10 +3,10 @@ import {describe, expect, it} from '@shipfox/vitest/vi';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import type {PartBlocks} from './composer.js';
-import {composeTemplate} from './composer.js';
+import {composeTemplate, templateRoleBindings} from './composer.js';
 import type {WorkflowTemplate, WorkflowTemplateAsset} from './loader.js';
 import {createTemplateLoader, loadShippedTemplates} from './loader.js';
-import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
+import {workflowTemplateManifestSchema} from './manifest.js';
 import {extractModelAnchors} from './model-anchors.js';
 
 const missingThinkingPattern = /thinking: high\s*/u;
@@ -66,7 +66,7 @@ describe('workflow template loader', () => {
     };
 
     for (const template of loadShippedTemplates()) {
-      for (const bindings of roleBindings(template.manifest.roles)) {
+      for (const bindings of templateRoleBindings(template.manifest.roles)) {
         expect(extractModelAnchors(composeTemplate(template, bindings))).toEqual(
           expected[template.manifest.id as keyof typeof expected],
         );
@@ -76,7 +76,7 @@ describe('workflow template loader', () => {
 
   it('composes and parses every shipped role combination within the payload limit', () => {
     for (const template of loadShippedTemplates()) {
-      for (const bindings of roleBindings(template.manifest.roles)) {
+      for (const bindings of templateRoleBindings(template.manifest.roles)) {
         const composed = composeTemplate(template, bindings);
 
         parseWorkflowDocument(parseYaml(composed));
@@ -184,14 +184,4 @@ function withSourcePart(
       },
     },
   };
-}
-
-function roleBindings(roles: WorkflowTemplateManifest['roles']): Record<string, string>[] {
-  return Object.entries(roles).reduce<Record<string, string>[]>(
-    (bindings, [role, declaration]) =>
-      bindings.flatMap((binding) =>
-        declaration.providers.map((provider) => ({...binding, [role]: provider})),
-      ),
-    [{}],
-  );
 }

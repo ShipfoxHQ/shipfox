@@ -82,4 +82,40 @@ describe('workflowTemplateManifestSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it.each([
+    {
+      name: 'an optional role without a question',
+      role: {providers: ['slack'], optional: true, tradeoff: 'Posts to Slack.'},
+    },
+    {
+      name: 'an optional role without a tradeoff',
+      role: {providers: ['slack'], optional: true, question: 'Report to Slack?'},
+    },
+    {
+      name: 'an optional project role',
+      role: {
+        from: 'project',
+        providers: ['github'],
+        optional: true,
+        question: 'Use GitHub?',
+        tradeoff: 'Reads the repository.',
+      },
+    },
+    {
+      name: 'a question on a required role',
+      role: {providers: ['slack'], question: 'Report to Slack?'},
+    },
+  ])('rejects $name', ({role}) => {
+    expect(
+      workflowTemplateManifestSchema.safeParse({
+        id: 'fixture',
+        revision: 1,
+        added_at: '2026-10-01',
+        title: 'Fixture',
+        summary: 'A fixture template.',
+        roles: {role},
+      }).success,
+    ).toBe(false);
+  });
 });

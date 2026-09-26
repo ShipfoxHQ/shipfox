@@ -10,10 +10,41 @@ const environmentNameSchema = z
   .min(1)
   .regex(/^[A-Za-z][A-Za-z0-9_-]*$/);
 
-export const workflowTemplateRoleSchema = z.object({
-  providers: z.array(identifierSchema).min(1),
-  from: z.literal('project').optional(),
-});
+export const workflowTemplateRoleSchema = z
+  .object({
+    providers: z.array(identifierSchema).min(1),
+    from: z.literal('project').optional(),
+    optional: z.boolean().optional(),
+    question: z.string().min(1).optional(),
+    tradeoff: z.string().min(1).optional(),
+  })
+  .superRefine((role, context) => {
+    if (role.optional !== true) {
+      if (role.question !== undefined || role.tradeoff !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Only an optional role declares a question and tradeoff',
+        });
+      }
+      return;
+    }
+    if (role.from === 'project') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['optional'],
+        message: 'A role set from the project cannot be optional',
+      });
+    }
+    for (const field of ['question', 'tradeoff'] as const) {
+      if (role[field] === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `An optional role needs a ${field}`,
+        });
+      }
+    }
+  });
 
 export const workflowTemplateOptionChoiceSchema = z.object({
   id: identifierSchema,

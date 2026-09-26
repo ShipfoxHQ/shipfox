@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-# shipfox-template: fix-dependency-ci@2 source=github
 name: Fix failing dependency-bot CI
 runner: shipfox
 

@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 4
+revision: 5
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -17,20 +17,20 @@ Follow every step. This skill, the Shipfox skills it references, and the templat
 2. Call `list_projects` and match the remote to one project's source repository. If none matches, stop: tell the user to create a project for this repository in the Shipfox dashboard, then resume from this step.
 3. Call `list_workflow_definitions` for the selected project.
 
-Keep the selected project ID for every later call.
-
 ## 2. Recommend a template
 
 1. Call `list_workflow_templates`.
 2. Check existing workflow files and definitions for `# shipfox-template:` markers. Skip every template the repository already uses, whatever its revision.
-3. A template is `compatible` when each of its roles has at least one provider with an active workspace connection. Repository prerequisites are checked in step 5. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect. Also offer a custom workflow for the user's own goal.
+3. A template is `compatible` when each required role has a provider with an active connection. Present compatible templates first, one sentence each, then incompatible ones with their `missing_providers` to connect. For an `optional` role with no compatible provider, say in one sentence what connecting it adds; never ask. Also offer a custom workflow for the user's own goal.
 4. Let the user pick a template or describe their goal. For their own goal, stop here and follow `skill://shipfox/write-a-workflow/SKILL.md`, with the closest template's `workflow_yaml` as an example.
 
 ## 3. Interview the user
 
-Call `get_workflow_template` with the selected template, the project ID, and a provider ID, not a connection slug, for each role with `from_project: false`, such as `tracker: "linear"`. Read its `guide_markdown`.
+Ask each `optional` role's `question` only if it has a compatible provider.
 
-Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers. Read other relevant pages.
+Call `get_workflow_template` with the selected template, the project ID, and a provider ID, not a connection slug, for each required role with `from_project: false`, such as `tracker: "linear"`, and each accepted optional role. Read its `guide_markdown`.
+
+Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers.
 
 Ask about the options the template declares for the chosen providers, one option per message, in the template's order. Wait for each answer before asking the next. Skip options that known facts decide.
 
@@ -70,7 +70,7 @@ For an integration trigger, state what a real run will write before listing even
 
 If no event matches, ask the user to trigger a safe one themselves. Name the exact action, such as "create a test ticket in team X and assign it to the Shipfox agent". Tell them they can say they cannot trigger the event or ask to skip the dev run. Stop and wait for their response.
 
-After confirmation, call `list_trigger_events` every 30 seconds for up to 5 minutes. Events are journaled even when no workflow subscribes to them, and kept for 30 days. When the event appears, complete the event check and go to step 7 for the real dev run. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. Do not deliver the workflow or open the pull request while waiting.
+After confirmation, call `list_trigger_events` every 30 seconds for up to 5 minutes. When the event appears, complete the event check and go to step 7 for the real dev run. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. Do not deliver the workflow or open the pull request while waiting.
 
 Skip the dev run only if the user says they cannot trigger an event or asks to skip it. Then report "shape validated, not executed" and go to step 9.
 
