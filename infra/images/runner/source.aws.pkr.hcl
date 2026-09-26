@@ -4,7 +4,7 @@ source "amazon-ebs" "build_image" {
   associate_public_ip_address = true
   ami_users                   = var.image_lifecycle == "candidate" ? var.candidate_ami_users : []
   imds_support                = "v2.0"
-  instance_type               = var.architecture == "amd64" ? "t3.large" : "t4g.large"
+  instance_type               = var.architecture == "amd64" ? "c8a.xlarge" : "c8g.xlarge"
   region                      = "eu-central-1"
   shutdown_behavior           = "terminate"
   ssh_username                = "ubuntu"

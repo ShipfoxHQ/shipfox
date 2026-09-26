@@ -16,6 +16,7 @@ build {
     environment_vars = ["NODE_VERSION=${var.node_version}"]
     execute_command  = "sudo -E sh -c '{{ .Vars }} {{ .Path }}'"
     scripts = [
+      var.runner_base_prepare_script,
       "${path.root}/scripts/build/setup-runner.sh",
       "${path.root}/scripts/build/install-node.sh",
       "${path.root}/scripts/build/install-runner.sh",

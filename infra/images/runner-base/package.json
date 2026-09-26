@@ -1,32 +1,33 @@
 {
-  "name": "@shipfox/runner-image",
+  "name": "@shipfox/runner-base",
   "license": "MIT",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "imports": {
     "#*": "./src/*"
   },
   "bin": {
-    "build-runner-image": "./bin/build-runner-image.js",
-    "build-runner-image-candidate": "./bin/build-runner-image-candidate.js",
-    "plan-runner-image-candidate": "./bin/plan-runner-image-candidate.js",
-    "runner-image-catalog": "./bin/runner-image-catalog.js"
+    "build-runner-base": "./bin/build-runner-base.js",
+    "runner-base-recipe": "./bin/runner-base-recipe.js"
   },
   "scripts": {
     "build": "shipfox-swc",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
-    "image:build": "node ./bin/build-runner-image.js ubuntu24 aws",
-    "image:candidate": "node ./bin/build-runner-image-candidate.js",
+    "image:build": "node ./bin/build-runner-base.js",
     "test": "shipfox-vitest-run",
     "type": "shipfox-tsc-check",
     "type:emit": "shipfox-tsc-emit",
     "verify": "node scripts/verify-packer.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-ec2": "catalog:",
-    "@shipfox/runner": "workspace:*",
-    "@shipfox/runner-base": "workspace:*",
     "ajv": "catalog:",
     "ajv-formats": "catalog:"
   },

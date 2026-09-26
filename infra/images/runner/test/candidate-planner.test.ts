@@ -339,6 +339,7 @@ describe('runner image effective input boundary', () => {
       'runner-image composition',
       'infra/images/runner/composition/ubuntu24/amd64/required-enabled.txt',
     ],
+    ['runner-base OS preparation', 'infra/images/runner-base/scripts/build/prepare-os.sh'],
     ['direct runner source', 'apps/runner/src/index.ts'],
     ['transitive production source', 'libs/runner/agent/src/index.ts'],
     ['lockfile', 'pnpm-lock.yaml'],
