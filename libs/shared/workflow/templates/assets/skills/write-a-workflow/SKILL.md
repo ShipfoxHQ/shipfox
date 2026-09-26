@@ -1,7 +1,7 @@
 ---
 name: write-a-workflow
 description: Use when writing a Shipfox workflow from an idea or adapting an existing workflow without a template.
-revision: 2
+revision: 3
 catalog_title: Write a workflow
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to write a workflow for this repository.
@@ -39,15 +39,23 @@ Read identifiers and available settings from the connected workspace. Do not inv
 | --- | --- |
 | Trigger `source` or tool-step `connection` | `list_integration_connections` |
 | Event names, tool IDs, or what an integration connection can do | `get_integration_connection_tools` |
-| Models, thinking levels, runners, secret names, or variable names | `get_workflow_authoring_context` |
+| Models and their thinking levels | `list_workspace_models` |
+| The default model, runners, secret names, or variable names | `get_workflow_authoring_context` |
 | A real event payload before writing `event.*` expressions or a filter | `list_trigger_events` with `replayable: true`, then `get_trigger_event` |
 | Install, build, and test commands | The repository: CI config, `AGENTS.md`, toolchain files, lockfiles, then README |
 
 If a required fact is unavailable, ask the user to set up the missing resource or supply the repository-specific decision. Never guess a secret value.
 
+If any tool returns `content-too-large`, stop and report it to the user. Do not rebuild the missing data from other sources.
+
 For a missing integration event, ask them to trigger a safe matching event. Tell them they can say they cannot trigger the event or ask to skip the dev run. Wait for confirmation. After confirmation, check for the event every 30 seconds for up to 5 minutes. Resume authoring when it appears. If it has not arrived after 5 minutes, tell the user and wait for an update. If they confirm another trigger or ask you to keep checking, repeat the 30-second lookup for up to 5 minutes. If the user cannot trigger an event or asks to skip, draft only from documented event fields and mark the event path unverified.
 
-For an agent step, show supported model and thinking combinations from the authoring context and have the user confirm the choice.
+For an agent step, choose the model with the user:
+
+1. Call `get_workflow_authoring_context`. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Otherwise propose `default_model` at its `thinking` level.
+2. If the user wants another model, ask for a preference first: a lab, a provider, part of a model name, or scored models only. Call `list_workspace_models` with the matching `lab`, `provider`, `query`, or `scored_only` filter. Show at most one page. Never page through the whole catalog. Never rank or compare models without `references`.
+3. Have the user confirm one model and one level from its `supported_thinking`. Write the confirmed `provider`, `model`, `harness`, and `thinking` in the step. Always write `provider` for a model from `list_workspace_models`: several providers can offer the same model ID.
+
 Ask one question per message and wait for the answer. With each question, restate what it decides and what each answer entails, such as writes, extra executions, or IDs it requires.
 
 ## 4. Choose the workflow shape

@@ -21,8 +21,8 @@ const model = {
   references: [reference],
 };
 const result = {
-  models: [model],
   default_model: model,
+  model_count: 1,
   attribution: 'Intelligence Index by Artificial Analysis',
   model_provider_configured: true,
   runners: ['linux'],
@@ -49,11 +49,7 @@ describe('workflow authoring context result schemas', () => {
       supported_thinking: ['off', 'default'],
       references: [{...reference, thinking: 'off'}, defaultReference],
     };
-    const providerDefaultResult = {
-      ...result,
-      models: [providerDefault],
-      default_model: providerDefault,
-    };
+    const providerDefaultResult = {...result, default_model: providerDefault};
 
     expect(getWorkflowAuthoringContextResultSchema.safeParse(providerDefaultResult).success).toBe(
       true,
@@ -68,13 +64,11 @@ describe('workflow authoring context result schemas', () => {
   test('rejects measured values for unsupported thinking levels', () => {
     const unsupported = {
       ...result,
-      models: [
-        {
-          ...model,
-          supported_thinking: ['off', 'low'],
-          references: [{...reference, thinking: 'high'}],
-        },
-      ],
+      default_model: {
+        ...model,
+        supported_thinking: ['off', 'low'],
+        references: [{...reference, thinking: 'high'}],
+      },
     };
 
     expect(getWorkflowAuthoringContextResultSchema.safeParse(unsupported).success).toBe(false);
@@ -83,13 +77,11 @@ describe('workflow authoring context result schemas', () => {
   test('rejects provider-default references when the model does not support default', () => {
     const unsupported = {
       ...result,
-      models: [
-        {
-          ...model,
-          supported_thinking: ['off', 'low'],
-          references: [{...reference, thinking: 'default'}],
-        },
-      ],
+      default_model: {
+        ...model,
+        supported_thinking: ['off', 'low'],
+        references: [{...reference, thinking: 'default'}],
+      },
     };
 
     expect(getWorkflowAuthoringContextResultSchema.safeParse(unsupported).success).toBe(false);
@@ -98,16 +90,14 @@ describe('workflow authoring context result schemas', () => {
   test('rejects duplicate measured and supported thinking levels', () => {
     const duplicateReferences = {
       ...result,
-      models: [
-        {
-          ...model,
-          references: [reference, {...reference, intelligence_index: 72}],
-        },
-      ],
+      default_model: {
+        ...model,
+        references: [reference, {...reference, intelligence_index: 72}],
+      },
     };
     const duplicateSupported = {
       ...result,
-      models: [{...model, supported_thinking: ['off', 'low', 'low']}],
+      default_model: {...model, supported_thinking: ['off', 'low', 'low']},
     };
 
     expect(getWorkflowAuthoringContextResultSchema.safeParse(duplicateReferences).success).toBe(
@@ -123,9 +113,29 @@ describe('workflow authoring context result schemas', () => {
     ).toBe(false);
   });
 
-  test('requires attribution when at least one model is measured', () => {
+  test('requires attribution exactly when the default model is measured', () => {
     expect(
       getWorkflowAuthoringContextResultSchema.safeParse({...result, attribution: null}).success,
     ).toBe(false);
+    expect(
+      getWorkflowAuthoringContextResultSchema.safeParse({
+        ...result,
+        default_model: {...model, references: []},
+      }).success,
+    ).toBe(false);
+  });
+
+  test('rejects the removed model list and a missing model count', () => {
+    const {model_count: _modelCount, ...withoutCount} = result;
+    const validate = new Ajv({strict: true, strictRequired: false}).compile(
+      getWorkflowAuthoringContextResultJsonSchema,
+    );
+
+    expect(
+      getWorkflowAuthoringContextResultSchema.safeParse({...result, models: [model]}).success,
+    ).toBe(false);
+    expect(getWorkflowAuthoringContextResultSchema.safeParse(withoutCount).success).toBe(false);
+    expect(validate({...result, models: [model]})).toBe(false);
+    expect(validate(withoutCount)).toBe(false);
   });
 });

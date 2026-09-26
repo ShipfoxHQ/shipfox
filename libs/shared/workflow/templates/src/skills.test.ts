@@ -91,6 +91,21 @@ describe('shipped skill resources', () => {
     expect(text).toContain('each accepted optional role.');
   });
 
+  test('chooses models from the paged catalog when writing a workflow', () => {
+    const text = getShippedSkillResource('skill://shipfox/write-a-workflow/SKILL.md')?.text ?? '';
+
+    expect(text).toContain('revision: 3');
+    expect(text).toContain('| Models and their thinking levels | `list_workspace_models` |');
+    expect(text).toContain(
+      '| The default model, runners, secret names, or variable names | `get_workflow_authoring_context` |',
+    );
+    expect(text).toContain('ask for a preference first');
+    expect(text).toContain('Show at most one page. Never page through the whole catalog.');
+    expect(text).toContain('Always write `provider` for a model from `list_workspace_models`');
+    expect(text).toContain('If any tool returns `content-too-large`, stop and report it');
+    expect(text).not.toContain('from the authoring context');
+  });
+
   test('asks one explained question at a time', () => {
     const text =
       getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';

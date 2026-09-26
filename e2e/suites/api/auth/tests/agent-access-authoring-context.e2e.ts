@@ -40,12 +40,17 @@ test('returns workspace and project authoring names without values', async ({req
       {name: 'get_workflow_authoring_context', arguments: {project_id: project.id}},
       getWorkflowAuthoringContextResultSchema,
     );
-    const workspaceModels = await callToolResult(
+    const scoredModels = await callToolResult(
       client,
       {
         name: 'list_workspace_models',
         arguments: {provider: 'shipfox', query: 'LUNA', scored_only: true, limit: 25},
       },
+      listWorkspaceModelsResultSchema,
+    );
+    const unscoredModels = await callToolResult(
+      client,
+      {name: 'list_workspace_models', arguments: {provider: 'shipfox', query: 'e2e-renewable-pi'}},
       listWorkspaceModelsResultSchema,
     );
 
@@ -56,31 +61,30 @@ test('returns workspace and project authoring names without values', async ({req
     const serialized = JSON.stringify([workspaceContext, projectContext]);
     expect(serialized).not.toContain(SECRET_VALUE);
     expect(serialized).not.toContain(VARIABLE_VALUE);
-    expect(workspaceModels.models).toEqual([
+    expect(scoredModels.models).toEqual([
       expect.objectContaining({
         id: 'gpt-5.6-luna',
         label: expect.any(String),
         lab: expect.any(String),
         provider: 'shipfox',
-        references: expect.arrayContaining([expect.objectContaining({thinking: 'high'})]),
+        supported_thinking: ['high', 'max', 'default'],
+        references: [
+          expect.objectContaining({thinking: 'high', intelligence_index: 60}),
+          expect.objectContaining({thinking: 'max', intelligence_index: 70}),
+        ],
       }),
     ]);
-    expect(workspaceModels.next_cursor).toBeNull();
+    expect(scoredModels.next_cursor).toBeNull();
+    expect(unscoredModels.models).toEqual([
+      expect.objectContaining({id: 'e2e-renewable-pi', references: []}),
+    ]);
+    expect(workspaceContext).not.toHaveProperty('models');
     expect(workspaceContext).toMatchObject({
       model_provider_configured: true,
-      attribution: expect.any(String),
-      models: expect.arrayContaining([
-        expect.objectContaining({
-          id: 'gpt-5.6-luna',
-          supported_thinking: ['high', 'max', 'default'],
-          references: [
-            expect.objectContaining({thinking: 'high', intelligence_index: 60}),
-            expect.objectContaining({thinking: 'max', intelligence_index: 70}),
-          ],
-        }),
-        expect.objectContaining({id: 'e2e-renewable-pi', references: []}),
-      ]),
+      model_count: expect.any(Number),
+      default_model: expect.objectContaining({provider: 'shipfox', is_default: true}),
     });
+    expect(workspaceContext.model_count).toBeGreaterThanOrEqual(2);
   } finally {
     await client.close();
   }

@@ -27,7 +27,7 @@ const context: AgentAccessContext = {
 };
 
 describe('get_workflow_authoring_context', () => {
-  test('returns models, runners, and names without secret values', async () => {
+  test('returns the default model, model count, runners, and names without secret values', async () => {
     const sourceModel = workspaceModel({
       id: 'claude-opus',
       label: 'Claude Opus',
@@ -35,9 +35,10 @@ describe('get_workflow_authoring_context', () => {
       provider: 'anthropic',
       is_default: true,
     });
+    const otherModel = workspaceModel({id: 'gpt-5', provider: 'openai'});
     const clients = createClients({
       models: {
-        models: [sourceModel],
+        models: [sourceModel, otherModel],
         default_model: sourceModel,
         attribution: null,
       },
@@ -51,8 +52,8 @@ describe('get_workflow_authoring_context', () => {
     expect(response).toEqual({
       ok: true,
       result: {
-        models: [authoringContextModel(sourceModel)],
         default_model: authoringContextModel(sourceModel),
+        model_count: 2,
         attribution: null,
         model_provider_configured: true,
         runners: ['default'],
@@ -65,7 +66,21 @@ describe('get_workflow_authoring_context', () => {
     expect(JSON.stringify(response)).not.toContain('secret-value');
   });
 
-  test('returns measured references for supported thinking levels', async () => {
+  test('stays bounded for a large model catalog', async () => {
+    const models = Array.from({length: 2_000}, (_, index) =>
+      workspaceModel({id: `model-${index}`, provider: 'openrouter', is_default: index === 0}),
+    );
+    const clients = createClients({
+      models: {models, default_model: models[0] ?? null, attribution: null},
+    });
+
+    const response = await tool(clients).execute({context, arguments: {}});
+
+    expect(response).toMatchObject({ok: true, result: {model_count: 2_000}});
+    expect(JSON.stringify(response).length).toBeLessThan(2_000);
+  });
+
+  test('returns measured references of the default model with attribution', async () => {
     const measuredModel = workspaceModel({
       id: 'gpt-5',
       provider: 'openai',
@@ -88,15 +103,37 @@ describe('get_workflow_authoring_context', () => {
     expect(response).toMatchObject({
       ok: true,
       result: {
-        models: [
-          expect.objectContaining({
-            supported_thinking: expect.arrayContaining(['low', 'high']),
-            references: measuredModel.references,
-          }),
-        ],
+        default_model: expect.objectContaining({
+          supported_thinking: expect.arrayContaining(['low', 'high']),
+          references: measuredModel.references,
+        }),
         attribution: 'Intelligence Index by Artificial Analysis',
       },
     });
+    if (!response.ok) throw new Error('Expected a successful response');
+    expect(getWorkflowAuthoringContextResultSchema.safeParse(response.result).success).toBe(true);
+  });
+
+  test('omits attribution when only non-default models are measured', async () => {
+    const defaultModel = workspaceModel({id: 'local', provider: 'ollama', is_default: true});
+    const measuredModel = workspaceModel({
+      id: 'gpt-5',
+      provider: 'openai',
+      references: [
+        {thinking: 'low', intelligence_index: 70, cost_per_task_usd: 0.04, scale: 'aa-v1'},
+      ],
+    });
+    const clients = createClients({
+      models: {
+        models: [defaultModel, measuredModel],
+        default_model: defaultModel,
+        attribution: 'Intelligence Index by Artificial Analysis',
+      },
+    });
+
+    const response = await tool(clients).execute({context, arguments: {}});
+
+    expect(response).toMatchObject({ok: true, result: {attribution: null}});
     if (!response.ok) throw new Error('Expected a successful response');
     expect(getWorkflowAuthoringContextResultSchema.safeParse(response.result).success).toBe(true);
   });
@@ -121,8 +158,8 @@ describe('get_workflow_authoring_context', () => {
       expect.objectContaining({
         ok: true,
         result: expect.objectContaining({
-          models: [],
           default_model: null,
+          model_count: 0,
           attribution: null,
           model_provider_configured: false,
         }),
