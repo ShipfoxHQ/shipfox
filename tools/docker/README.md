@@ -10,7 +10,7 @@ Workspace wrapper around `docker buildx` for building Shipfox app images. It pre
 - **Push vs. validate by registry**: with `IMAGE_REGISTRIES` set it builds `--platform linux/amd64,linux/arm64 --push`, emitting the multi-arch manifest in one invocation (no per-arch tags, no `docker manifest` step; QEMU covers both arches). With `--image` but no registry it builds single-arch `--platform linux/amd64`; local runs use `--load`, while GitHub Actions validation uses `--output=type=cacheonly` and pushes nothing.
 - **OCI build metadata**: sets `--build-arg IMAGE_REVISION` (from `GITHUB_SHA`) and `--build-arg IMAGE_CREATED` (the build time) for the app images. These are passed by the tool, not as `turbo image -- …` args, because anything after `--` enters the hash of every task in the run, so a run-unique timestamp would bust the workspace build cache.
 - **Clean manifest**: Defaults to `--provenance=false` so the pushed multi-arch index stays a clean per-arch manifest, without the `unknown/unknown` provenance entries some registries display. Pass your own `--provenance` to re-enable SLSA attestations.
-- **gha BuildKit cache**: Adds `--cache-from`/`--cache-to type=gha` (scoped per image) when running in GitHub Actions.
+- **gha BuildKit cache**: Adds `--cache-from`/`--cache-to type=gha` (scoped per image) when running in GitHub Actions. Set `SHIPFOX_DOCKER_CACHE=none` to use a persistent builder cache without GitHub Actions cache flags.
 
 Every default is added only when you did not pass the flag yourself, so the caller stays in control (for example, pass your own `--platform`, `--push`/`--load`, or `--build-arg` to override).
 
@@ -52,7 +52,8 @@ Pass `--tag` explicitly (for example, for a one-off local build); doing so skips
 - `IMAGE_REGISTRIES`: space-separated registry bases for the derived tags (for example, `ghcr.io/shipfoxhq docker.io/shipfoxhq`). Each base produces its own tag set; unset means the validation path (one local `<name>:ci` tag, or no tag in GitHub Actions cache-only validation). Read by name, so a credential variable is never mistaken for a registry.
 - `GITHUB_SHA` / `BUILD_NUMBER` / `GITHUB_REF_NAME`: the commit identity for the `sha-<short>`, `build-<number>`, and moving branch tags. The moving tag is `latest` on the default branch (`main`) and the sanitized branch name otherwise. `GITHUB_SHA` also becomes the `IMAGE_REVISION` build-arg.
 - `NODE_VERSION` / `PNPM_VERSION`: forwarded as `--build-arg` for the base image.
-- `GITHUB_ACTIONS`: enables the gha BuildKit cache.
+- `GITHUB_ACTIONS`: enables the gha BuildKit cache when `SHIPFOX_DOCKER_CACHE` is unset or `gha`.
+- `SHIPFOX_DOCKER_CACHE`: selects the GitHub Actions cache backend (`gha`, the default) or disables the generated cache flags (`none`). Explicit `--cache-from` and `--cache-to` flags still take precedence.
 - `npm_package_name`: the prune target for `--setup-context` (set by the package manager when run through a script).
 
 ## License
