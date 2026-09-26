@@ -98,15 +98,10 @@ packages. Any other conflict fails the upload.
 
 Then the upload rewrites `candidates/main.json` as `{"sha", "createdAt"}`. It
 skips this when the pointer already names a newer commit, for example when
-someone reruns the job for an older commit. The CI job notifies Cloud only when the pointer
-moved. It sends a `repository_dispatch` of type `shipfox-candidate-published`
-to `ShipfoxHQ/cloud`, with `client_payload: {sha, manifestUrl}`.
+someone reruns the job for an older commit.
 
 The CI job reads these settings:
 
 - `R2_CANDIDATE_ACCESS_KEY_ID` and `R2_CANDIDATE_SECRET_ACCESS_KEY` secrets: the
   bucket-scoped R2 token. Cloud's candidate storage runbook covers rotation.
 - `CLOUDFLARE_ACCOUNT_ID` variable: builds the R2 S3 endpoint.
-- The release App (`RELEASE_BOT_CLIENT_ID`, `RELEASE_BOT_APP_PRIVATE_KEY`)
-  mints the dispatch token. Its installation must include `ShipfoxHQ/cloud`
-  with **Contents: write**, which GitHub requires for `repository_dispatch`.

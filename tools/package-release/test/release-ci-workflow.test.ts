@@ -143,10 +143,7 @@ describe('generated release CI path', () => {
     assert.ok(
       stepIndex('Check packing restored the working tree') < stepIndex('Upload candidate bundle'),
     );
-    assert.ok(stepIndex('Upload candidate bundle') < stepIndex('Notify Cloud'));
-    for (const name of ['Mint Cloud dispatch token', 'Notify Cloud']) {
-      assert.equal(steps[stepIndex(name)]?.if, "steps.upload.outputs.pointer_advanced == 'true'");
-    }
+    assert.ok(stepIndex('Upload candidate bundle') < stepIndex('Summarize candidate'));
     assert.ok(steps.every((step) => !npmPublicationPattern.test(step.run ?? '')));
   });
 

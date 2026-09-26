@@ -1220,30 +1220,6 @@ jobs:
             --public-url "$CANDIDATE_PUBLIC_URL" \
             --github-output "$GITHUB_OUTPUT"
 
-      - name: Mint Cloud dispatch token
-        id: cloud-token
-        if: steps.upload.outputs.pointer_advanced == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
-          owner: ShipfoxHQ
-          repositories: cloud
-          permission-contents: write
-
-      # A rerun of an older commit leaves `candidates/main.json` on the newer one and skips this,
-      # so staging-edge never moves backwards.
-      - name: Notify Cloud
-        if: steps.upload.outputs.pointer_advanced == 'true'
-        env:
-          GH_TOKEN: ${{ steps.cloud-token.outputs.token }}
-          MANIFEST_URL: ${{ steps.upload.outputs.manifest_url }}
-        run: |
-          gh api --method POST repos/ShipfoxHQ/cloud/dispatches \
-            -f event_type=shipfox-candidate-published \
-            -f "client_payload[sha]=$GITHUB_SHA" \
-            -f "client_payload[manifestUrl]=$MANIFEST_URL"
-
       - name: Summarize candidate
         env:
           MANIFEST_URL: ${{ steps.upload.outputs.manifest_url }}
@@ -1253,9 +1229,9 @@ jobs:
             echo '## Package candidate'
             echo "- Manifest: $MANIFEST_URL"
             if [[ "$POINTER_ADVANCED" == true ]]; then
-              echo '- `candidates/main.json` now names this commit, and Cloud was notified.'
+              echo '- `candidates/main.json` now names this commit.'
             else
-              echo '- `candidates/main.json` already names a newer commit, so Cloud was not notified.'
+              echo '- `candidates/main.json` already names a newer commit, so it was left unchanged.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
