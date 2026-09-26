@@ -13,6 +13,8 @@
     "check:fix": "shipfox-biome-check --write",
     "verify-generated-release": "node dist/generated-release-verifier.js",
     "publish:closure": "node dist/publish-productionized-closure.js",
+    "pack:candidate": "node dist/candidate-bundle.js",
+    "upload:candidate": "node dist/candidate-upload.js",
     "preflight": "node dist/publication-preflight.js",
     "await-published-versions": "node dist/publication-readiness.js",
     "test": "shipfox-vitest-run",
@@ -22,6 +24,7 @@
     "verify": "node dist/published-package-artifacts.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
     "@shipfox/architecture-policy": "workspace:*",
     "@shipfox/repository-documentation-policy": "workspace:*",
     "@shipfox/tool-utils": "workspace:*",

@@ -1,4 +1,4 @@
-import {spawn} from 'node:child_process';
+import {type StdioOptions, spawn} from 'node:child_process';
 import {cp, readFile, writeFile} from 'node:fs/promises';
 import {basename, join} from 'node:path';
 
@@ -92,7 +92,7 @@ export function run(
   command: string,
   args: string[],
   cwd: string,
-  {signal, stdio = 'inherit'}: {signal?: AbortSignal; stdio?: 'ignore' | 'inherit'} = {},
+  {signal, stdio = 'inherit'}: {signal?: AbortSignal | undefined; stdio?: StdioOptions} = {},
 ): Promise<void> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {cwd, stdio});
@@ -148,7 +148,7 @@ function safePackageName(name: string) {
 const excludedStagingEntryNames = new Set(['node_modules', '.turbo']);
 const dependencyFields = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
-function productionizeDependencyReferences(
+export function productionizeDependencyReferences(
   manifest: JsonRecord,
   dependencyContext: PackageDependencyContext,
 ): JsonRecord {

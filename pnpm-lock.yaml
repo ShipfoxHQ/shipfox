@@ -9331,6 +9331,9 @@ importers:
 
   tools/package-release:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1089.0
       '@shipfox/architecture-policy':
         specifier: workspace:*
         version: link:../architecture-policy

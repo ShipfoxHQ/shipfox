@@ -170,16 +170,7 @@ export async function preflightPublicationClosure(root: string): Promise<void> {
   const packages = await readPublicationPackages(manifestPaths);
   const packagesByName = new Map(packages.map((entry) => [entry.manifest.name, entry]));
   const workspacePackages = await readWorkspacePackages(root);
-  const workspaceVersions = new Map(
-    [...workspacePackages].flatMap(([name, manifest]) =>
-      typeof manifest.version === 'string' ? [[name, manifest.version] as const] : [],
-    ),
-  );
-  const workspaceConfig = parseYaml(await readFile(join(root, 'pnpm-workspace.yaml'), 'utf8')) as {
-    catalog?: DependencyMap;
-    catalogs?: Record<string, DependencyMap>;
-  };
-  const dependencyContext = {workspaceConfig, workspaceVersions} satisfies PackageDependencyContext;
+  const dependencyContext = await dependencyContextFor(root, workspacePackages);
 
   validatePublicationPlan(packages, packagesByName, workspacePackages);
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-publication-preflight-'));
@@ -219,6 +210,28 @@ export async function preflightPublicationClosure(root: string): Promise<void> {
   } finally {
     await rm(temporaryRoot, {force: true, recursive: true});
   }
+}
+
+export async function readPackageDependencyContext(
+  root: string,
+): Promise<PackageDependencyContext> {
+  return dependencyContextFor(root, await readWorkspacePackages(root));
+}
+
+async function dependencyContextFor(
+  root: string,
+  workspacePackages: ReadonlyMap<string, PackageManifest>,
+): Promise<PackageDependencyContext> {
+  const workspaceVersions = new Map(
+    [...workspacePackages].flatMap(([name, manifest]) =>
+      typeof manifest.version === 'string' ? [[name, manifest.version] as const] : [],
+    ),
+  );
+  const workspaceConfig = parseYaml(await readFile(join(root, 'pnpm-workspace.yaml'), 'utf8')) as {
+    catalog?: DependencyMap;
+    catalogs?: Record<string, DependencyMap>;
+  };
+  return {workspaceConfig, workspaceVersions};
 }
 
 function readPublicationPackages(manifestPaths: string[]): Promise<PublicationPackage[]> {
