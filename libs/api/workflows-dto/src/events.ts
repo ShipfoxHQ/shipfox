@@ -2,6 +2,7 @@ import {z} from 'zod';
 import {jobStatusReasonSchema} from './schemas/job.js';
 import {listeningTriggerSchema} from './schemas/job-listening.js';
 import {logOutcomeSchema} from './schemas/log-outcome.js';
+import {workflowRunStatusSchema} from './schemas/workflow-run.js';
 
 const nonEmptyStringSchema = z.string().nonempty();
 
@@ -13,6 +14,8 @@ export const WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED =
   'workflows.workflow_concurrency.holder_cancellation_requested' as const;
 export const WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED =
   'workflows.workflow_concurrency.acquired' as const;
+// Lifecycle fact for a workflow run, written in the same transaction as the status flip.
+export const WORKFLOWS_WORKFLOW_RUN_STARTED = 'workflows.workflow_run.started' as const;
 // Terminal fact for a workflow run, written in the same transaction as the status flip.
 export const WORKFLOWS_WORKFLOW_RUN_TERMINATED = 'workflows.workflow_run.terminated' as const;
 // Intent fact for cooperative run cancellation. Consumers use this to stop orchestration.
@@ -22,6 +25,8 @@ export const WORKFLOWS_WORKFLOW_RUN_CANCELLED = 'workflows.workflow_run.cancelle
 export const WORKFLOWS_JOB_EXECUTION_TERMINATED = 'workflows.job_execution.terminated' as const;
 // Scheduling fact for a job execution, written when workflows first records it as queued.
 export const WORKFLOWS_JOB_EXECUTION_QUEUED = 'workflows.job_execution.queued' as const;
+// Lifecycle fact for a claimed job execution, written only on the first started_at write.
+export const WORKFLOWS_JOB_EXECUTION_STARTED = 'workflows.job_execution.started' as const;
 export const WORKFLOWS_JOB_ACTIVATED = 'workflows.job.activated' as const;
 export const WORKFLOWS_JOB_EVENT_DELIVERED = 'workflows.job_event.delivered' as const;
 // Terminal fact for a job: the single reliable "this job is over" signal, written in
@@ -50,6 +55,8 @@ export const workflowsWorkflowRunAttemptCreatedSchema = z.object({
   // Failed reruns carry sessions from this attempt before orchestration starts.
   // Optional for ordinary runs and events written before session carry-over existed.
   carryOverFromWorkflowRunAttemptId: nonEmptyStringSchema.optional(),
+  // Optional so consumers can continue to read events written before this field existed.
+  status: workflowRunStatusSchema.optional(),
 });
 export type WorkflowsWorkflowRunAttemptCreatedEventDto = z.infer<
   typeof workflowsWorkflowRunAttemptCreatedSchema
@@ -132,8 +139,37 @@ export const workflowsJobExecutionQueuedSchema = z.object({
   workflowId: nonEmptyStringSchema.optional(),
   workflowName: nonEmptyStringSchema.optional(),
   runNumber: z.number().int().positive().optional(),
+  // Optional so consumers can continue to read events written before this field existed.
+  executionSequence: z.number().int().positive().optional(),
 });
 export type WorkflowsJobExecutionQueuedEventDto = z.infer<typeof workflowsJobExecutionQueuedSchema>;
+
+export const workflowsWorkflowRunStartedSchema = z.object({
+  workflowRunId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
+  definitionId: nonEmptyStringSchema,
+  startedAt: z.string().datetime(),
+});
+export type WorkflowsWorkflowRunStartedEventDto = z.infer<typeof workflowsWorkflowRunStartedSchema>;
+
+export const workflowsJobExecutionStartedSchema = z.object({
+  jobId: nonEmptyStringSchema,
+  jobExecutionId: nonEmptyStringSchema,
+  workflowRunId: nonEmptyStringSchema,
+  workflowRunAttemptId: nonEmptyStringSchema,
+  workspaceId: nonEmptyStringSchema,
+  projectId: nonEmptyStringSchema,
+  definitionId: nonEmptyStringSchema,
+  jobKey: nonEmptyStringSchema,
+  executionSequence: z.number().int().positive(),
+  runnerLabels: z.array(nonEmptyStringSchema).min(1).nullable(),
+  startedAt: z.string().datetime(),
+});
+export type WorkflowsJobExecutionStartedEventDto = z.infer<
+  typeof workflowsJobExecutionStartedSchema
+>;
 
 export const workflowStopReasonSchema = z.enum([
   'run_cancelled',
@@ -261,6 +297,10 @@ export const workflowsJobTerminatedSchema = z.object({
   status: jobTerminalStatusSchema,
   statusReason: jobStatusReasonSchema.nullable(),
   statusReasonMessage: z.string().nullable().optional(),
+  // Optional so consumers can continue to read events written before these fields existed.
+  workspaceId: nonEmptyStringSchema.optional(),
+  jobKey: nonEmptyStringSchema.optional(),
+  finishedAt: z.string().datetime().optional(),
 });
 export type WorkflowsJobTerminatedEventDto = z.infer<typeof workflowsJobTerminatedSchema>;
 
@@ -319,9 +359,11 @@ export interface WorkflowsEventMapDto {
   [WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED]: WorkflowsWorkflowConcurrencyWaiterSupersededEventDto;
   [WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED]: WorkflowsWorkflowConcurrencyHolderCancellationRequestedEventDto;
   [WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED]: WorkflowsWorkflowConcurrencyAcquiredEventDto;
+  [WORKFLOWS_WORKFLOW_RUN_STARTED]: WorkflowsWorkflowRunStartedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: WorkflowsWorkflowRunTerminatedEventDto;
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: WorkflowsWorkflowRunCancelledEventDto;
   [WORKFLOWS_JOB_EXECUTION_QUEUED]: WorkflowsJobExecutionQueuedEventDto;
+  [WORKFLOWS_JOB_EXECUTION_STARTED]: WorkflowsJobExecutionStartedEventDto;
   [WORKFLOWS_JOB_EXECUTION_TERMINATED]: WorkflowsJobExecutionTerminatedEventDto;
   [WORKFLOWS_JOB_ACTIVATED]: WorkflowsJobActivatedEventDto;
   [WORKFLOWS_JOB_EVENT_DELIVERED]: WorkflowsJobEventDeliveredEventDto;
@@ -338,9 +380,11 @@ export const workflowsEventSchemas = {
   [WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED]:
     workflowsWorkflowConcurrencyHolderCancellationRequestedSchema,
   [WORKFLOWS_WORKFLOW_CONCURRENCY_ACQUIRED]: workflowsWorkflowConcurrencyAcquiredSchema,
+  [WORKFLOWS_WORKFLOW_RUN_STARTED]: workflowsWorkflowRunStartedSchema,
   [WORKFLOWS_WORKFLOW_RUN_TERMINATED]: workflowsWorkflowRunTerminatedSchema,
   [WORKFLOWS_WORKFLOW_RUN_CANCELLED]: workflowsWorkflowRunCancelledSchema,
   [WORKFLOWS_JOB_EXECUTION_QUEUED]: workflowsJobExecutionQueuedSchema,
+  [WORKFLOWS_JOB_EXECUTION_STARTED]: workflowsJobExecutionStartedSchema,
   [WORKFLOWS_JOB_EXECUTION_TERMINATED]: workflowsJobExecutionTerminatedSchema,
   [WORKFLOWS_JOB_ACTIVATED]: workflowsJobActivatedSchema,
   [WORKFLOWS_JOB_EVENT_DELIVERED]: workflowsJobEventDeliveredSchema,

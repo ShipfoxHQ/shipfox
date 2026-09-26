@@ -8,6 +8,7 @@ import {
   jobExecutionTerminatedEvents,
   jobTerminatedEvents,
   runCancelledEvents,
+  runStartedEvents,
   runTerminatedEvents,
   stepAttemptTerminatedEvents,
 } from '#test/helpers/workflow-runs.js';
@@ -64,6 +65,32 @@ describe('workflow run queries', () => {
 
       expect(updated.status).toBe('running');
       expect(updated.version).toBe(2);
+    });
+
+    test('writes one run-started event on the first running transition', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      const running = await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'running',
+        expectedVersion: run.version,
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'running',
+        expectedVersion: running.version,
+      });
+
+      expect(await runStartedEvents(run.id)).toEqual([
+        expect.objectContaining({
+          workflowRunId: run.id,
+          workflowRunAttemptId: expect.any(String),
+          workspaceId,
+          projectId,
+          definitionId,
+          startedAt: running.startedAt?.toISOString(),
+        }),
+      ]);
     });
 
     test('accepts waiting without starting the run', async () => {
@@ -382,6 +409,9 @@ describe('workflow run queries', () => {
         expect.objectContaining({
           jobId: runningJobExecution.id,
           workflowRunId: run.id,
+          workspaceId,
+          jobKey: expect.any(String),
+          finishedAt: expect.any(String),
           status: 'cancelled',
           statusReason: 'run_cancelled',
         }),

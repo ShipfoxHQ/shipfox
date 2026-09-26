@@ -1,9 +1,11 @@
 import {
+  WORKFLOWS_JOB_EXECUTION_STARTED,
   WORKFLOWS_JOB_EXECUTION_TERMINATED,
   WORKFLOWS_JOB_TERMINATED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
+  WORKFLOWS_WORKFLOW_RUN_STARTED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import {createWorkflowExpression} from '@shipfox/expression';
@@ -162,6 +164,32 @@ export async function jobExecutionTerminatedEvents(jobExecutionId: string) {
         statusReasonMessage?: string | null;
       },
   );
+}
+
+export async function runStartedEvents(workflowRunId: string) {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_WORKFLOW_RUN_STARTED),
+        sql`${workflowsOutbox.payload}->>'workflowRunId' = ${workflowRunId}`,
+      ),
+    );
+  return rows.map((row) => row.payload);
+}
+
+export async function jobExecutionStartedEvents(jobExecutionId: string) {
+  const rows = await db()
+    .select({payload: workflowsOutbox.payload})
+    .from(workflowsOutbox)
+    .where(
+      and(
+        eq(workflowsOutbox.eventType, WORKFLOWS_JOB_EXECUTION_STARTED),
+        sql`${workflowsOutbox.payload}->>'jobExecutionId' = ${jobExecutionId}`,
+      ),
+    );
+  return rows.map((row) => row.payload);
 }
 
 export async function runTerminatedEvents(workflowRunId: string) {

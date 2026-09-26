@@ -40,7 +40,11 @@ import {steps, toStep} from '../schema/steps.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
 import {getDirectDependencyJobContexts} from './jobs.js';
-import {writeJobExecutionQueuedOutbox, writeJobExecutionTerminatedOutbox} from './outbox.js';
+import {
+  writeJobExecutionQueuedOutbox,
+  writeJobExecutionStartedOutbox,
+  writeJobExecutionTerminatedOutbox,
+} from './outbox.js';
 import {loadReferencedVariables} from './runs.js';
 import {optimisticLockRetry, TERMINAL_EXECUTION_STATUSES} from './shared.js';
 import {bulkUpdateStepStatuses, getStepsByJobExecutionIdForUpdate} from './steps.js';
@@ -459,6 +463,7 @@ export async function queueJobExecution(params: {jobExecutionId: string}): Promi
       jobExecutionId: queued.id,
       requiredLabels,
       queuedAt: queued.queuedAt,
+      executionSequence: queued.sequence,
     });
 
     return {
@@ -487,13 +492,32 @@ export async function recordJobExecutionStartedAt(params: {
   // that only need to stamp the start time (e.g. tests exercising display state).
   runnerIdentity?: JobExecutionRunnerIdentity;
 }): Promise<void> {
-  const updated = await db()
-    .update(jobExecutions)
-    .set({startedAt: params.startedAt, ...params.runnerIdentity})
-    .where(and(eq(jobExecutions.id, params.jobExecutionId), isNull(jobExecutions.startedAt)))
-    .returning({id: jobExecutions.id});
+  const changed = await db().transaction(async (tx) => {
+    const [updated] = await tx
+      .update(jobExecutions)
+      .set({startedAt: params.startedAt, ...params.runnerIdentity})
+      .where(and(eq(jobExecutions.id, params.jobExecutionId), isNull(jobExecutions.startedAt)))
+      .returning({
+        id: jobExecutions.id,
+        jobId: jobExecutions.jobId,
+        sequence: jobExecutions.sequence,
+        startedAt: jobExecutions.startedAt,
+        runnerLabels: jobExecutions.runnerLabels,
+      });
 
-  if (updated.length > 0) recordWorkflowJobExecutionStarted();
+    if (!updated?.startedAt) return false;
+
+    await writeJobExecutionStartedOutbox(tx, {
+      jobId: updated.jobId,
+      jobExecutionId: updated.id,
+      executionSequence: updated.sequence,
+      runnerLabels: updated.runnerLabels,
+      startedAt: updated.startedAt,
+    });
+    return true;
+  });
+
+  if (changed) recordWorkflowJobExecutionStarted();
 }
 
 export async function failJobExecutionAsTimedOut(params: {

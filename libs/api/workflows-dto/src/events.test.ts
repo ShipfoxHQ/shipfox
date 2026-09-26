@@ -2,6 +2,7 @@ import {
   WORKFLOWS_JOB_ACTIVATED,
   WORKFLOWS_JOB_EVENT_DELIVERED,
   WORKFLOWS_JOB_EXECUTION_QUEUED,
+  WORKFLOWS_JOB_EXECUTION_STARTED,
   WORKFLOWS_JOB_EXECUTION_TERMINATED,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_JOB_TERMINATED,
@@ -12,11 +13,13 @@ import {
   WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
   WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
+  WORKFLOWS_WORKFLOW_RUN_STARTED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   workflowsEventSchemas,
   workflowsJobActivatedSchema,
   workflowsJobEventDeliveredSchema,
   workflowsJobExecutionQueuedSchema,
+  workflowsJobExecutionStartedSchema,
   workflowsJobExecutionTerminatedSchema,
   workflowsJobStepsSettledSchema,
   workflowsJobTerminatedSchema,
@@ -24,6 +27,7 @@ import {
   workflowsStepRestartEnqueuedSchema,
   workflowsWorkflowRunAttemptCreatedSchema,
   workflowsWorkflowRunCancelledSchema,
+  workflowsWorkflowRunStartedSchema,
   workflowsWorkflowRunTerminatedSchema,
 } from './events.js';
 
@@ -66,6 +70,29 @@ const validJobExecutionQueued = {
   projectId: 'project-1',
   requiredLabels: ['linux'],
   queuedAt: '2026-08-11T08:00:00.000Z',
+};
+
+const validWorkflowRunStarted = {
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
+  workspaceId: 'ws-1',
+  projectId: 'project-1',
+  definitionId: 'def-1',
+  startedAt: '2026-08-11T08:00:05.000Z',
+};
+
+const validJobExecutionStarted = {
+  jobId: 'job-1',
+  jobExecutionId: 'execution-1',
+  workflowRunId: 'run-1',
+  workflowRunAttemptId: 'attempt-1',
+  workspaceId: 'ws-1',
+  projectId: 'project-1',
+  definitionId: 'def-1',
+  jobKey: 'build',
+  executionSequence: 1,
+  runnerLabels: ['linux'],
+  startedAt: '2026-08-11T08:00:05.000Z',
 };
 
 const validJobExecutionTerminated = {
@@ -207,6 +234,28 @@ describe('workflowsJobTerminatedSchema', () => {
     const result = workflowsJobTerminatedSchema.parse(input);
 
     expect(result).toEqual(validJobTerminated);
+  });
+});
+
+describe('workflowsWorkflowRunStartedSchema', () => {
+  it('parses a run-started payload', () => {
+    expect(workflowsWorkflowRunStartedSchema.parse(validWorkflowRunStarted)).toEqual(
+      validWorkflowRunStarted,
+    );
+  });
+});
+
+describe('workflowsJobExecutionStartedSchema', () => {
+  it('parses a job-execution-started payload', () => {
+    expect(workflowsJobExecutionStartedSchema.parse(validJobExecutionStarted)).toEqual(
+      validJobExecutionStarted,
+    );
+  });
+
+  it('accepts missing runner labels when the claim has no runner identity', () => {
+    expect(
+      workflowsJobExecutionStartedSchema.parse({...validJobExecutionStarted, runnerLabels: null}),
+    ).toMatchObject({runnerLabels: null});
   });
 });
 
@@ -489,12 +538,13 @@ describe('workflowsStepRestartEnqueuedSchema', () => {
 });
 
 describe('workflowsJobExecutionQueuedSchema', () => {
-  it('accepts the job key, definition id, and run number added for self-sufficient usage records', () => {
+  it('accepts the job key, definition id, run number, and execution sequence added for self-sufficient usage records', () => {
     const input = {
       ...validJobExecutionQueued,
       jobKey: 'build',
       definitionId: 'def-1',
       runNumber: 12,
+      executionSequence: 1,
     };
 
     expect(workflowsJobExecutionQueuedSchema.strict().parse(input)).toEqual(input);
@@ -506,10 +556,18 @@ describe('workflowsJobExecutionQueuedSchema', () => {
     expect(result.jobKey).toBeUndefined();
     expect(result.definitionId).toBeUndefined();
     expect(result.runNumber).toBeUndefined();
+    expect(result.executionSequence).toBeUndefined();
   });
 });
 
 describe('workflowsWorkflowRunAttemptCreatedSchema', () => {
+  it('accepts the attempt status', () => {
+    expect(
+      workflowsWorkflowRunAttemptCreatedSchema.parse({...validRunCreated, status: 'pending'})
+        .status,
+    ).toBe('pending');
+  });
+
   it('accepts an actor user id for attributed attempts', () => {
     const input = {
       ...validRunCreated,
@@ -635,9 +693,11 @@ describe('workflowsEventSchemas', () => {
         WORKFLOWS_WORKFLOW_CONCURRENCY_HOLDER_CANCELLATION_REQUESTED,
         WORKFLOWS_WORKFLOW_CONCURRENCY_WAITER_SUPERSEDED,
         WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+        WORKFLOWS_WORKFLOW_RUN_STARTED,
         WORKFLOWS_WORKFLOW_RUN_TERMINATED,
         WORKFLOWS_WORKFLOW_RUN_CANCELLED,
         WORKFLOWS_JOB_EXECUTION_QUEUED,
+        WORKFLOWS_JOB_EXECUTION_STARTED,
         WORKFLOWS_JOB_EXECUTION_TERMINATED,
         WORKFLOWS_JOB_ACTIVATED,
         WORKFLOWS_JOB_EVENT_DELIVERED,

@@ -12,6 +12,7 @@ import {listTestRunAttempts} from '#test/helpers/run-attempts.js';
 import {
   buildModel,
   expression,
+  jobExecutionStartedEvents,
   runAttemptCreatedEvents,
   stepOutputField,
   template,
@@ -1452,6 +1453,7 @@ describe('workflow run queries', () => {
         status: 'succeeded',
       });
       expect(buildExecutions[0]?.finishedAt).toBeInstanceOf(Date);
+      expect(await jobExecutionStartedEvents(buildExecutions[0]?.id as string)).toHaveLength(0);
 
       for (const job of [test, deploy, notify]) {
         const jobSteps = await getStepsByJobId(job?.id as string);
