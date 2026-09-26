@@ -418,6 +418,8 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
       workspaceId: 'ws-1',
       definitionId: 'definition-1',
       statusReason: 'job_failed',
+      startedAt: '2026-08-11T08:00:00.000Z',
+      finishedAt: '2026-08-11T08:05:00.000Z',
     });
   });
 
