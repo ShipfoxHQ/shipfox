@@ -1,5 +1,12 @@
 # @shipfox/api-definitions
 
+## 33.3.0
+
+### Patch Changes
+
+- Updated dependencies [68d6cd6]
+  - @shipfox/api-agent-dto@33.3.0
+
 ## 33.0.0
 
 ### Patch Changes

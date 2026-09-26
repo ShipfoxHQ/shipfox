@@ -1,5 +1,15 @@
 # @shipfox/client-features
 
+## 52.0.4
+
+### Patch Changes
+
+- @shipfox/client-agent@52.0.4
+- @shipfox/client-workflows@52.0.4
+- @shipfox/client-onboarding@52.0.4
+- @shipfox/client-projects@52.0.4
+- @shipfox/client-triggers@52.0.4
+
 ## 52.0.3
 
 ### Patch Changes

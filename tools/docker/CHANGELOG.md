@@ -1,5 +1,11 @@
 # @shipfox/docker
 
+## 2.1.0
+
+### Minor Changes
+
+- e9f583c: Add `SHIPFOX_DOCKER_CACHE` to select or disable the GitHub Actions BuildKit cache backend.
+
 ## 2.0.1
 
 ### Patch Changes

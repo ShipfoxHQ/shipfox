@@ -1,5 +1,11 @@
 # @shipfox/api-logs
 
+## 33.3.0
+
+### Patch Changes
+
+- @shipfox/api-workflows-dto@33.3.0
+
 ## 33.0.0
 
 ### Patch Changes

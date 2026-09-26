@@ -1,5 +1,11 @@
 # @shipfox/api-agent-dto
 
+## 33.3.0
+
+### Minor Changes
+
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+
 ## 33.0.0
 
 ### Minor Changes
