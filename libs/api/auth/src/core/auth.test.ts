@@ -113,6 +113,18 @@ const refreshAccessToken = (params: {refreshToken: string}) =>
 const confirmPasswordReset = (params: {token: string; newPassword: string}) =>
   coreConfirmPasswordReset({...params, workspaces});
 
+async function backdateRotation(refreshToken: string): Promise<void> {
+  await db()
+    .update(refreshTokens)
+    .set({rotatedAt: new Date(Date.now() - 60 * 60 * 1000)})
+    .where(eq(refreshTokens.hashedToken, hashOpaqueToken(refreshToken)));
+}
+
+function findActiveToken(refreshToken: string | undefined) {
+  if (!refreshToken) return Promise.resolve(undefined);
+  return refreshTokenDb.findActiveRefreshTokenByHash({hashedToken: hashOpaqueToken(refreshToken)});
+}
+
 const TOKEN_RE = /token=([\w\-_=]+)/;
 
 function extractToken(link: string | undefined): string {
@@ -710,28 +722,59 @@ describe('auth core', () => {
     ).resolves.toMatchObject({sub: user.id});
   });
 
-  test('refreshAccessToken rejects reuse past the grace window and revokes the session', async () => {
+  test('refreshAccessToken recovers a lost rotation response while the successor is unused', async () => {
     const user = await userFactory.create({emailVerifiedAt: new Date()});
     const loginResult = await login({email: user.email, password: user.plainPassword});
-    const refreshed = await refreshAccessToken({refreshToken: loginResult.refreshToken});
-    // Backdate the rotation so the original token is now past the grace window.
-    await db()
-      .update(refreshTokens)
-      .set({rotatedAt: new Date(Date.now() - 60 * 60 * 1000)})
-      .where(eq(refreshTokens.hashedToken, hashOpaqueToken(loginResult.refreshToken)));
+    const lost = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+    await backdateRotation(loginResult.refreshToken);
+
+    const recovered = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    expect(recovered.refreshToken).toEqual(expect.any(String));
+    expect(await findActiveToken(recovered.refreshToken)).toBeDefined();
+    expect(await findActiveToken(lost.refreshToken)).toBeUndefined();
+    const recoveredClaims = await verifyUserToken({
+      token: recovered.token,
+      secret: userAccessTokenKey(),
+    });
+    const loginClaims = await verifyUserToken({
+      token: loginResult.token,
+      secret: userAccessTokenKey(),
+    });
+    expect(recoveredClaims.refreshSessionId).toBe(loginClaims.refreshSessionId);
+  });
+
+  test('refreshAccessToken tolerates a concurrent recovery within the grace window', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+    await refreshAccessToken({refreshToken: loginResult.refreshToken});
+    await backdateRotation(loginResult.refreshToken);
+    const recovered = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    const raced = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+
+    expect(raced.refreshToken).toBeUndefined();
+    expect(await findActiveToken(recovered.refreshToken)).toBeDefined();
+  });
+
+  test('refreshAccessToken rejects reuse after the successor was used and revokes only that session', async () => {
+    const user = await userFactory.create({emailVerifiedAt: new Date()});
+    const loginResult = await login({email: user.email, password: user.plainPassword});
+    const otherSession = await login({email: user.email, password: user.plainPassword});
+    const first = await refreshAccessToken({refreshToken: loginResult.refreshToken});
+    if (!first.refreshToken) throw new Error('Expected a rotated refresh token');
+    const second = await refreshAccessToken({refreshToken: first.refreshToken});
+    if (!second.refreshToken) throw new Error('Expected a rotated refresh token');
+    await backdateRotation(loginResult.refreshToken);
+    await backdateRotation(first.refreshToken);
 
     const reused = refreshAccessToken({refreshToken: loginResult.refreshToken});
 
     await expect(reused).rejects.toBeInstanceOf(TokenInvalidError);
-    // The successor token is revoked too: reuse is treated as a compromise.
-    const successor = refreshed.refreshToken
-      ? await refreshTokenDb.findActiveRefreshTokenByHash({
-          hashedToken: hashOpaqueToken(refreshed.refreshToken),
-        })
-      : undefined;
-    expect(successor).toBeUndefined();
+    expect(await findActiveToken(second.refreshToken)).toBeUndefined();
+    expect(await findActiveToken(otherSession.refreshToken)).toBeDefined();
     await expect(
-      verifyUserToken({token: refreshed.token, secret: userAccessTokenKey()}),
+      verifyUserToken({token: second.token, secret: userAccessTokenKey()}),
     ).resolves.toMatchObject({sub: user.id});
   });
 

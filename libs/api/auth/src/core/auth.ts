@@ -19,6 +19,7 @@ import {
   createRefreshTokenForActiveUser,
   findActiveRefreshTokenByHash,
   findRefreshTokenByHash,
+  findRefreshTokenSuccessor,
   revokeRefreshSession,
   revokeRefreshTokensForUser,
   rotateRefreshToken,
@@ -605,6 +606,30 @@ export async function createImpersonatedSessionToken(
   });
 }
 
+type RotatedRefreshTokenDecision =
+  | {kind: 'grace'; sessionId: string}
+  | {kind: 'recover'; successor: RefreshToken}
+  | {kind: 'reused'};
+
+/**
+ * Within the grace window a rotated token means a concurrent refresh (e.g. a
+ * second tab). Past it, the token is still accepted while its successor is
+ * unused: a refresh whose response never reached the browser (tab closed,
+ * request aborted) leaves the cookie on the predecessor. Any other reuse of a
+ * retired token means a compromised session.
+ */
+async function resolveRotatedRefreshToken(
+  token: RefreshToken,
+): Promise<RotatedRefreshTokenDecision> {
+  if (isWithinRotationGrace(token)) return {kind: 'grace', sessionId: token.sessionId};
+  const successor = await findRefreshTokenSuccessor({id: token.id});
+  if (!successor || successor.revokedAt) return {kind: 'reused'};
+  if (!successor.rotatedAt) return {kind: 'recover', successor};
+  // A concurrent recovery from the same stale cookie already rotated it.
+  if (isWithinRotationGrace(successor)) return {kind: 'grace', sessionId: successor.sessionId};
+  return {kind: 'reused'};
+}
+
 export interface RefreshAccessTokenResult {
   token: string;
   /** Undefined on a grace-window hit: keep the existing cookie instead of rotating it. */
@@ -632,18 +657,23 @@ export async function refreshAccessToken(params: {
   }
   const adminRole = await getCurrentAdminRole({userId: user.id});
 
-  // Within the grace window a rotated token means a concurrent refresh (e.g. a
-  // second tab); past it, reuse of a retired token means a compromised session.
+  const grace = async (sessionId: string): Promise<RefreshAccessTokenResult> => {
+    const memberships = await loadTokenMemberships(user.id, params.workspaces);
+    const token = await signAccessToken(user, memberships, sessionId);
+    recordRefreshOutcome('grace');
+    return {token, refreshToken: undefined, user, adminRole};
+  };
+
+  let claimed = current;
   if (current.rotatedAt) {
-    if (isWithinRotationGrace(current)) {
-      const memberships = await loadTokenMemberships(user.id, params.workspaces);
-      const token = await signAccessToken(user, memberships, current.sessionId);
-      recordRefreshOutcome('grace');
-      return {token, refreshToken: undefined, user, adminRole};
+    const decision = await resolveRotatedRefreshToken(current);
+    if (decision.kind === 'reused') {
+      await revokeRefreshSession({sessionId: current.sessionId, userId: current.userId});
+      recordRefreshOutcome('rejected');
+      throw new TokenInvalidError('Refresh token reused after rotation');
     }
-    await revokeRefreshTokensForUser({userId: user.id});
-    recordRefreshOutcome('rejected');
-    throw new TokenInvalidError('Refresh token reused after rotation');
+    if (decision.kind === 'grace') return await grace(decision.sessionId);
+    claimed = decision.successor;
   }
 
   // Keep the external membership snapshot ahead of rotation so an outage
@@ -654,19 +684,19 @@ export async function refreshAccessToken(params: {
   // revoked, or expired the token before this refresh could claim it.
   const nextRefreshToken = generateOpaqueToken('refreshToken');
   const rotated = await rotateRefreshToken({
-    userId: current.userId,
-    id: current.id,
-    currentHashedToken,
+    userId: claimed.userId,
+    id: claimed.id,
+    currentHashedToken: claimed.hashedToken,
     nextHashedToken: hashOpaqueToken(nextRefreshToken),
     expiresAt: daysFromNow(config.AUTH_REFRESH_TOKEN_EXPIRES_IN_DAYS),
   });
   if (!rotated) {
-    const latestUser = await findUserById({id: current.userId});
+    const latestUser = await findUserById({id: claimed.userId});
     if (latestUser?.status !== 'active') {
       recordRefreshOutcome('rejected');
       throw new TokenInvalidError('Refresh token is invalid or expired');
     }
-    const latest = await findRefreshTokenByHash({hashedToken: currentHashedToken});
+    const latest = await findRefreshTokenByHash({hashedToken: claimed.hashedToken});
     if (!latest || !isWithinRotationGrace(latest)) {
       recordRefreshOutcome('rejected');
       throw new TokenInvalidError('Refresh token is invalid or expired');
@@ -676,8 +706,8 @@ export async function refreshAccessToken(params: {
     return {token, refreshToken: undefined, user, adminRole};
   }
 
-  const token = await signAccessToken(user, memberships, current.sessionId);
-  recordRefreshOutcome('rotated');
+  const token = await signAccessToken(user, memberships, claimed.sessionId);
+  recordRefreshOutcome(claimed === current ? 'rotated' : 'recovered');
   return {token, refreshToken: nextRefreshToken, user, adminRole};
 }
 

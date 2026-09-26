@@ -45,7 +45,7 @@ const configSchema = {
     default: 14,
   }),
   AUTH_REFRESH_ROTATION_GRACE_SECONDS: num({
-    desc: 'Window after a refresh token is rotated during which the now-rotated token is still accepted, so concurrent refreshes from parallel tabs do not log the user out. Reuse past this window is treated as a compromise and revokes the session.',
+    desc: 'Window after a refresh token is rotated during which the now-rotated token is still accepted, so concurrent refreshes from parallel tabs do not log the user out. Past this window, a rotated token is accepted only while its replacement is unused, which covers a refresh response that never reached the browser. Any other reuse is treated as a compromise and revokes that session.',
     default: 30,
   }),
   AUTH_REFRESH_COOKIE_NAME: str({
