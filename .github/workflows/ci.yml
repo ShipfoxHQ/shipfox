@@ -23,6 +23,10 @@ concurrency:
   queue: single
 
 env:
+  # `mise run` and `mise exec` otherwise install every tool in mise.toml, such
+  # as the uncached 1.4 GB Ollama download. Jobs declare their tools instead.
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+  MISE_EXEC_AUTO_INSTALL: "false"
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: shipfox
   # Pull requests only run tasks affected between their base and head commits.
@@ -57,7 +61,9 @@ jobs:
 
       - name: Set up mise
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: gh node npm:pnpm npm:turbo
 
       - name: Set up pnpm
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
@@ -451,8 +457,8 @@ jobs:
     timeout-minutes: 30
     env:
       CLOUDFLARE_PAGES_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      # Reserve one of the runner's four CPUs for the API/client processes,
-      # Docker services, and Ollama-backed provider validation.
+      # Reserve one of the runner's four CPUs for the API/client processes
+      # and Docker services.
       SHIPFOX_TURBO_CONCURRENCY: "3"
     strategy:
       fail-fast: false
