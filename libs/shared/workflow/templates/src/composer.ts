@@ -7,7 +7,7 @@ export type TemplateRoleBindings = Readonly<Record<string, string>>;
 const newlinePattern = /\n/;
 const leadingWhitespacePattern = /^\s*/;
 const partMarkerPattern = /^(\s*)#\s*part:([a-z0-9_-]+)\.([a-z0-9_-]+)\s*$/;
-const templateHeaderPattern = /^\s*#\s*shipfox-template:/;
+const templateHeaderPattern = /^#\s*shipfox-template:/;
 
 /** Composes a base workflow by replacing its part markers with indented blocks. */
 export function composeWorkflow(workflow: string, parts: PartBlocks): string {

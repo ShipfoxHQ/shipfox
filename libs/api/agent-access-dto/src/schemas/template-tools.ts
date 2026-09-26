@@ -173,7 +173,7 @@ const roleResult = {
     optional: {
       type: 'boolean',
       description:
-        'True when the user opts into this role. Pass it to get_workflow_template only after the user says yes.',
+        'True when the role is opt-in. Ask its question only when a provider is compatible, and pass the role to get_workflow_template only after the user says yes.',
     },
     question: {
       type: 'string',
