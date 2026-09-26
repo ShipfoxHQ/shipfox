@@ -42,10 +42,7 @@ describe('workflowTemplateManifestSchema', () => {
         },
       ],
       models: {
-        fix: {
-          reference: {model: 'claude-sonnet-5', thinking: 'default'},
-          note: 'Repairs the failed check.',
-        },
+        fix: {note: 'Repairs the failed check.'},
         review: {},
       },
       slots: ['setup_commands'],
@@ -58,11 +55,11 @@ describe('workflowTemplateManifestSchema', () => {
 
     expect(sourceRole.from).toBe('project');
     expect(manifest.options[0]?.choices[0]?.default).toBe(true);
-    expect(manifest.models.fix?.reference).toEqual({model: 'claude-sonnet-5', thinking: 'default'});
+    expect(manifest.models.fix).toEqual({note: 'Repairs the failed check.'});
     expect(manifest.models.review).toEqual({});
   });
 
-  it('rejects invalid model placeholder names and thinking levels', () => {
+  it('rejects invalid model placeholder names and the retired tested reference', () => {
     const base = {
       id: 'fixture',
       revision: 1,
@@ -78,7 +75,7 @@ describe('workflowTemplateManifestSchema', () => {
     expect(
       workflowTemplateManifestSchema.safeParse({
         ...base,
-        models: {fix: {reference: {model: 'claude-sonnet-5', thinking: 'turbo'}}},
+        models: {fix: {reference: {model: 'claude-sonnet-5', thinking: 'high'}}},
       }).success,
     ).toBe(false);
   });

@@ -37,7 +37,12 @@ describe('getWorkspaceModels', () => {
 
     const result = await getWorkspaceModels(workspaceId);
 
-    expect(result).toEqual({models: [], default_model: null, attribution: null});
+    expect(result).toEqual({
+      models: [],
+      default_model: null,
+      attribution: null,
+      managed_provider_id: null,
+    });
   });
 
   test('returns configured built-in models with Pi prices and no references', async () => {
@@ -310,6 +315,7 @@ describe('getWorkspaceModels', () => {
       ],
       default_model: expect.objectContaining({id: 'llama-3.1'}),
       attribution: null,
+      managed_provider_id: null,
     });
   });
 
@@ -348,7 +354,12 @@ describe('getWorkspaceModels', () => {
 
     const result = await getWorkspaceModels(workspaceId);
 
-    expect(result).toEqual({models: [], default_model: null, attribution: null});
+    expect(result).toEqual({
+      models: [],
+      default_model: null,
+      attribution: null,
+      managed_provider_id: null,
+    });
   });
 
   test('returns only the managed provider when workspace providers are disabled', async () => {

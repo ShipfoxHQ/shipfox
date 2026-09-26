@@ -43,7 +43,7 @@ The `answer` job publishes `status` and `reply_ts`, the timestamp of the posted 
 ## Choose a model
 
 Confirm the provider, model, harness, and thinking setting for `# model:answer`.
-The step traces behavior across files and separates evidence from inference, so the template suggests a strong model with high thinking. The manifest has no tested model reference or scored suggestion.
+The step traces behavior across files and separates evidence from inference, so the template uses a strong model with high thinking.
 
 ## Outcomes
 

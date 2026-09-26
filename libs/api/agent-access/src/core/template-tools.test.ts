@@ -1,4 +1,5 @@
 import {
+  AGENT_ACCESS_RESPONSE_MAX_BYTES,
   agentAccessEnvelopeSchema,
   getWorkflowTemplateInputJsonSchema,
   getWorkflowTemplateResultSchema,
@@ -13,6 +14,12 @@ import {
   type WorkflowTemplateAsset,
   workflowTemplateManifestSchema,
 } from '@shipfox/workflow-templates';
+import {
+  createTestAgentClient,
+  scoredModel,
+  TEST_ATTRIBUTION,
+  workspaceModel,
+} from '#test/fixtures/agent-models.js';
 import {createAgentAccessTemplateTools} from './template-tools.js';
 
 const workspaceId = '00000000-0000-4000-8000-000000000001';
@@ -126,75 +133,33 @@ describe('agent-access template tools', () => {
     expect(listWorkflowTemplatesResultSchema.safeParse(response.result).success).toBe(true);
   });
 
-  test('returns per-placeholder suggestions with the exact binding settings', async () => {
+  test('returns model recommendations grouped by the tested binding', async () => {
     const integrations = integrationClient([connection('linear-main', 'linear')]);
-    integrations.resolveConnectionById.mockResolvedValue({
-      id: sourceConnectionId,
-      provider: 'github',
-      slug: 'github-project',
-      displayName: 'Project GitHub',
-      lifecycleStatus: 'active',
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+    const agent = createTestAgentClient({
+      models: [
+        scoredModel({
+          id: 'tested',
+          provider: 'shipfox',
+          lab: 'Anthropic',
+          thinking: 'medium',
+          index: 80,
+          cost: 4,
+        }),
+        scoredModel({
+          id: 'cheaper',
+          provider: 'shipfox',
+          lab: 'OpenAI',
+          thinking: 'high',
+          index: 79,
+          cost: 1,
+        }),
+      ],
+      runtimeProvider: 'shipfox',
+      managedProviderId: 'shipfox',
     });
-    const testedModel = {
-      id: 'tested',
-      label: 'Tested model',
-      lab: 'Anthropic',
-      provider: 'anthropic',
-      harness: 'pi',
-      thinking: 'medium',
-      supported_thinking: ['medium', 'default'],
-      is_default: true,
-      price: null,
-      references: [
-        {thinking: 'medium', intelligence_index: 80, cost_per_task_usd: 4, scale: 'coding-v1'},
-      ],
-    };
-    const cheaperModel = {
-      id: 'cheaper',
-      label: 'Cheaper model',
-      lab: 'OpenAI',
-      provider: 'openai',
-      harness: 'pi',
-      thinking: 'high',
-      supported_thinking: ['high', 'default'],
-      is_default: false,
-      price: {input: 1, output: 2},
-      references: [
-        {thinking: 'high', intelligence_index: 81, cost_per_task_usd: 2, scale: 'coding-v1'},
-        {thinking: 'default', intelligence_index: 80, cost_per_task_usd: 1, scale: 'coding-v1'},
-      ],
-    };
-    const agent = {
-      getWorkspaceModels: vi.fn().mockResolvedValue({
-        models: [testedModel, cheaperModel],
-        default_model: testedModel,
-        attribution: 'Benchmark source',
-      }),
-    } as unknown as AgentInterModuleClient;
-    const templateAsset = {
-      ...asset,
-      manifest: {
-        ...workflowTemplateManifestSchema.parse(asset.manifest),
-        models: {
-          fix: {
-            reference: {model: 'tested', thinking: 'medium' as const},
-            note: 'Confirm this setting.',
-          },
-        },
-      },
-      workflow: [
-        'name: fixture',
-        'jobs:',
-        '  fix:',
-        '    steps:',
-        '      - key: fix',
-        '        model: tested # model:fix',
-        '        thinking: medium',
-        '        prompt: Fix the issue.',
-      ].join('\n'),
-    };
     const get = getTool(
-      createTools(integrations, projectClient(), agent, templateAsset),
+      createTools(integrations, projectClient(), agent, modelTemplateAsset()),
       'get_workflow_template',
     );
 
@@ -206,51 +171,87 @@ describe('agent-access template tools', () => {
     expect(response).toMatchObject({
       ok: true,
       result: {
-        suggested_models: {
-          fix: {
-            reference: {model: 'tested', thinking: 'medium', intelligence_index: 80},
-            note: 'Confirm this setting.',
-            outcome: 'suggested',
-            models: [
+        model_recommendations: [
+          {
+            placeholders: ['fix', 'review'],
+            notes: {fix: 'Confirm this setting.'},
+            mode: 'recommended',
+            choices: [
+              {model: 'tested', provider: 'shipfox', is_anchor: true, provider_required: false},
               {
-                id: 'cheaper',
-                provider: 'openai',
-                harness: 'pi',
-                thinking: 'default',
-                reference: {cost_per_task_usd: 1},
+                model: 'cheaper',
+                thinking: 'high',
+                tradeoff: {intelligence: 'similar', cost: 'much_cheaper'},
               },
-              {id: 'cheaper', thinking: 'high'},
-              {id: 'tested', thinking: 'medium', is_default: true},
-              {id: 'tested', thinking: 'default', reference: null},
             ],
-            attribution: 'Benchmark source',
+            attribution: TEST_ATTRIBUTION,
           },
-        },
+        ],
       },
     });
-    expect(get.description).toContain('Bind the confirmed provider, model, harness, and thinking');
+    expect(get.description).toContain('provider_required');
     if (!response.ok) throw new Error('Expected a successful template response');
     expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
 
-  test('returns an empty suggestion map when the template has no model placeholders', async () => {
+  test('keeps the response far under the ceiling with an OpenRouter-sized catalog', async () => {
     const integrations = integrationClient([connection('linear-main', 'linear')]);
-    integrations.resolveConnectionById.mockResolvedValue({
-      id: sourceConnectionId,
-      provider: 'github',
-      slug: 'github-project',
-      displayName: 'Project GitHub',
-      lifecycleStatus: 'active',
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+    const labs = ['Anthropic', 'OpenAI', 'Google', 'DeepSeek', 'Z.ai', 'Moonshot AI', 'Alibaba'];
+    const models = Array.from({length: 346}, (_, index) =>
+      workspaceModel({
+        id: index === 0 ? 'tested' : `vendor/model-${index}-with-a-long-catalog-identifier`,
+        provider: 'shipfox',
+        label: `Model ${index} with a long display label`,
+        lab: labs[index % labs.length] ?? null,
+        price: {input: 1, output: 2},
+        references: (['low', 'medium', 'high', 'xhigh', 'max'] as const).map((thinking, level) => ({
+          thinking,
+          intelligence_index: 70 + ((index + level) % 20),
+          cost_per_task_usd: 0.1 * ((index % 30) + level + 1),
+          scale: 'coding-v1',
+        })),
+      }),
+    );
+    const agent = createTestAgentClient({
+      models,
+      runtimeProvider: 'shipfox',
+      managedProviderId: 'shipfox',
+      defaultModel: {id: 'tested', provider: 'shipfox'},
     });
+    const template = modelTemplateAsset({reply: 'vendor/model-7-with-a-long-catalog-identifier'});
+
     const response = await getTool(
-      createTools(integrations, projectClient(), agentClient([])),
+      createTools(integrations, projectClient(), agent, template),
       'get_workflow_template',
     ).execute({
       context,
       arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
     });
 
-    expect(response).toMatchObject({ok: true, result: {suggested_models: {}}});
+    if (!response.ok) throw new Error('Expected a successful template response');
+    const result = getWorkflowTemplateResultSchema.parse(response.result);
+    expect(result.model_recommendations.map(({mode}) => mode)).toEqual([
+      'recommended',
+      'recommended',
+    ]);
+    expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThan(
+      AGENT_ACCESS_RESPONSE_MAX_BYTES / 8,
+    );
+  });
+
+  test('returns no recommendation groups when the template has no model placeholders', async () => {
+    const integrations = integrationClient([connection('linear-main', 'linear')]);
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+    const response = await getTool(
+      createTools(integrations, projectClient()),
+      'get_workflow_template',
+    ).execute({
+      context,
+      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
+    });
+
+    expect(response).toMatchObject({ok: true, result: {model_recommendations: []}});
   });
 
   test('composes an open role and resolves the source from the project', async () => {
@@ -459,7 +460,13 @@ function createTools(
   templateAsset: WorkflowTemplateAsset = asset,
 ) {
   return createAgentAccessTemplateTools({
-    agent: agent ?? agentClient([{id: 'claude-opus-5', provider: 'anthropic'}]),
+    agent:
+      agent ??
+      createTestAgentClient({
+        models: [workspaceModel({id: 'claude-opus-5', provider: 'anthropic'})],
+        runtimeProvider: 'anthropic',
+        defaultModel: {id: 'claude-opus-5', provider: 'anthropic'},
+      }),
     integrations,
     projects:
       projects ?? ({requireProjectForWorkspace: vi.fn()} as unknown as ProjectsModuleClient),
@@ -483,36 +490,40 @@ function projectClient() {
   } as unknown as ProjectsModuleClient;
 }
 
-function agentClient(
-  models: readonly {id: string; provider: string}[],
-  defaultModel: {id: string; provider: string} | null = models[0] ?? null,
-) {
-  const workspaceModels = models.map((model) => ({
-    ...model,
-    harness: 'pi' as const,
-    thinking: 'medium' as const,
-    supported_thinking: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const,
-    is_default:
-      defaultModel !== null &&
-      model.id === defaultModel.id &&
-      model.provider === defaultModel.provider,
-    price: null,
-    references: [],
-  }));
-  const workspaceDefaultModel =
-    defaultModel === null
-      ? null
-      : (workspaceModels.find(
-          ({id, provider}) => id === defaultModel.id && provider === defaultModel.provider,
-        ) ?? null);
-
+function modelTemplateAsset(models: {reply?: string} = {}): WorkflowTemplateAsset {
   return {
-    getWorkspaceModels: vi.fn().mockResolvedValue({
-      models: workspaceModels,
-      default_model: workspaceDefaultModel,
-      attribution: null,
-    }),
-  } as unknown as AgentInterModuleClient;
+    ...asset,
+    manifest: {
+      ...workflowTemplateManifestSchema.parse(asset.manifest),
+      models: {
+        fix: {note: 'Confirm this setting.'},
+        review: {},
+        ...(models.reply === undefined ? {} : {reply: {}}),
+      },
+    },
+    workflow: [
+      'name: fixture',
+      'jobs:',
+      '  fix:',
+      '    steps:',
+      '      - key: fix',
+      '        model: tested # model:fix',
+      '        thinking: medium',
+      '        prompt: Fix the issue.',
+      '      - key: review',
+      '        model: tested # model:review',
+      '        thinking: medium',
+      '        prompt: Review the fix.',
+      ...(models.reply === undefined
+        ? []
+        : [
+            '      - key: reply',
+            `        model: ${models.reply} # model:reply`,
+            '        thinking: low',
+            '        prompt: Reply.',
+          ]),
+    ].join('\n'),
+  };
 }
 
 function getTool(

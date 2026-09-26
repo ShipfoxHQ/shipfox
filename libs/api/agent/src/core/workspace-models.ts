@@ -65,7 +65,8 @@ export async function getWorkspaceModels(
     managedProvider,
     workspaceProviders,
   );
-  if (candidates.length === 0) return emptyWorkspaceModels();
+  const managedProviderId = managedProvider?.id ?? null;
+  if (candidates.length === 0) return emptyWorkspaceModels(managedProviderId);
 
   const resolutionContext = workspaceAgentResolutionContext(
     snapshot,
@@ -104,11 +105,17 @@ export async function getWorkspaceModels(
     attribution: models.some(({references}) => references.length > 0)
       ? MODEL_REFERENCE_ATTRIBUTION
       : null,
+    managed_provider_id: managedProviderId,
   };
 }
 
-function emptyWorkspaceModels(): AgentWorkspaceModels {
-  return {models: [], default_model: null, attribution: null};
+function emptyWorkspaceModels(managedProviderId: string | null): AgentWorkspaceModels {
+  return {
+    models: [],
+    default_model: null,
+    attribution: null,
+    managed_provider_id: managedProviderId,
+  };
 }
 
 function configuredModels(

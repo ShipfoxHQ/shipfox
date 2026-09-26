@@ -100,10 +100,14 @@ export function createAgentModule(params: CreateAgentModuleOptions): ShipfoxModu
       sessionArtifactStore: params.workflows === undefined ? undefined : sessionArtifactStore(),
     }),
     e2eRoutes: [
-      createAgentE2eRoutes(params.secrets, {
-        managedProviderId: params.managedProvider?.id,
-        workspaceProviders: workspaceProvidersPolicy,
-      }),
+      createAgentE2eRoutes(
+        params.secrets,
+        {
+          managedProviderId: params.managedProvider?.id,
+          workspaceProviders: workspaceProvidersPolicy,
+        },
+        params.managedProvider,
+      ),
     ],
     interModulePresentations: [
       createAgentInterModulePresentation({

@@ -1,8 +1,12 @@
 import {randomUUID} from 'node:crypto';
 import {
+  type GetWorkflowTemplateResultDto,
   getWorkflowTemplateResultSchema,
   listWorkflowTemplatesResultSchema,
+  listWorkspaceModelsResultSchema,
+  type ModelChoiceDto,
 } from '@shipfox/api-agent-access-dto';
+import {createApiClient, requestJson} from '@shipfox/e2e-core';
 import {createGithubConnection, createLinearConnection} from '@shipfox/e2e-setup-integrations';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
@@ -17,6 +21,15 @@ const SHIPPED_TEMPLATE_IDS = [
   'fix-dependency-ci',
   'ticket-to-pr',
 ];
+const E2E_MANAGED_PROVIDER = 'shipfox';
+const MODEL_MARKER_RE = /^(\s*)model:\s*\S+\s+#\s*model:([a-z0-9_-]+)\s*$/u;
+const AGENT_FIELD_RE = /^(\s*)(model|thinking|provider|harness):\s*(\S+)/u;
+const LEADING_SPACES_RE = /^\s*/u;
+
+type ChoiceBinding = Pick<
+  ModelChoiceDto,
+  'model' | 'provider' | 'harness' | 'thinking' | 'provider_required'
+>;
 
 async function createGithubProject(workspaceId: string) {
   const uniqueId = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -119,7 +132,7 @@ test.describe('agent-access workflow templates', () => {
     }
   });
 
-  test('composes ticket to PR with project and tracker bindings and model choices', async ({
+  test('recommends ticket to PR models that resolve to the chosen binding', async ({
     request,
     auth,
   }) => {
@@ -136,66 +149,132 @@ test.describe('agent-access workflow templates', () => {
         },
         getWorkflowTemplateResultSchema,
       );
+      const models = await callToolResult(
+        client,
+        {
+          name: 'list_workspace_models',
+          arguments: {provider: E2E_MANAGED_PROVIDER, query: 'efficient', limit: 25},
+        },
+        listWorkspaceModelsResultSchema,
+      );
 
       expect(template.suggested_bindings).toEqual({source: [github.slug], tracker: [linear.slug]});
       expect(() => parseWorkflowDocument(parseYaml(template.workflow_yaml))).not.toThrow();
-      const fix = template.suggested_models.fix;
+      const fix = groupFor(template, 'fix');
       expect(fix).toMatchObject({
-        outcome: 'list',
-        reference: null,
+        mode: 'recommended',
         attribution: expect.any(String),
-      });
-      expect(fix?.models).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: 'e2e-scored-efficient',
+        cost_note: expect.any(String),
+        choices: [
+          {
+            model: 'gpt-6-luna',
+            provider: E2E_MANAGED_PROVIDER,
+            thinking: 'high',
+            provider_required: false,
+            is_anchor: true,
+            intelligence_index: 60,
+            tradeoff: null,
+          },
+          {
+            model: 'e2e-scored-efficient',
+            lab: 'DeepSeek',
             thinking: 'medium',
-            reference: expect.objectContaining({intelligence_index: 72, cost_per_task_usd: 0.8}),
-          }),
-          expect.objectContaining({id: 'gpt-5.6-luna', thinking: 'max'}),
-          expect.objectContaining({id: 'e2e-renewable-pi', thinking: 'off', reference: null}),
-        ]),
-      );
-      for (const choice of fix?.models ?? []) {
-        expect(choice).not.toHaveProperty('below_reference');
+            is_anchor: false,
+            tradeoff: {intelligence: 'slightly_smarter', cost: 'more_expensive'},
+          },
+        ],
+      });
+      const reply = groupFor(template, 'reply');
+      expect(reply).toMatchObject({
+        mode: 'workspace_default',
+        choices: [{model: 'e2e-renewable-pi', is_anchor: false, is_default: true}],
+      });
+
+      for (const choice of fix.choices) {
+        await expectChoiceResolves({
+          workspaceId,
+          yaml: template.workflow_yaml,
+          placeholder: 'fix',
+          choice,
+        });
       }
+      await expectChoiceResolves({
+        workspaceId,
+        yaml: template.workflow_yaml,
+        placeholder: 'reply',
+        choice: onlyChoice(reply),
+      });
+      const [catalogPick] = models.models;
+      if (catalogPick === undefined) throw new Error('Expected a catalog model');
+      await expectChoiceResolves({
+        workspaceId,
+        yaml: template.workflow_yaml,
+        placeholder: 'reply',
+        choice: {
+          ...catalogPick,
+          model: catalogPick.id,
+          thinking: 'medium',
+          provider_required: false,
+        },
+        writeProvider: true,
+      });
     } finally {
       await client.close();
     }
   });
 
-  test('lists every combination for a placeholder without a tested reference', async ({
+  test('binds the only provider that lists a template model and not an ambiguous one', async ({
     request,
     auth,
   }) => {
-    const {client, workspaceId} = await connectAgentAccessClient({request, auth});
+    const {client, workspaceId, sessionToken} = await connectAgentAccessClient({request, auth});
     try {
       const {project} = await createGithubProject(workspaceId);
+      const getTemplate = async () =>
+        await callToolResult(
+          client,
+          {
+            name: 'get_workflow_template',
+            arguments: {template_id: 'fix-dependency-ci', project_id: project.id},
+          },
+          getWorkflowTemplateResultSchema,
+        );
 
-      const template = await callToolResult(
-        client,
-        {
-          name: 'get_workflow_template',
-          arguments: {template_id: 'fix-dependency-ci', project_id: project.id},
-        },
-        getWorkflowTemplateResultSchema,
-      );
+      const unavailable = groupFor(await getTemplate(), 'fix');
+      const firstProvider = await createCustomProvider({
+        workspaceId,
+        sessionToken,
+        model: 'gpt-6-sol',
+      });
+      const template = await getTemplate();
+      const onlyProvider = groupFor(template, 'fix');
+      await createCustomProvider({workspaceId, sessionToken, model: 'gpt-6-sol'});
+      const ambiguous = groupFor(await getTemplate(), 'fix');
 
-      const fix = template.suggested_models.fix;
-      expect(fix).toMatchObject({outcome: 'list', reference: null});
-      expect(fix?.models).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({id: 'e2e-renewable-pi', thinking: 'off', reference: null}),
-          expect.objectContaining({
-            id: 'e2e-scored-efficient',
-            thinking: 'medium',
-            reference: expect.objectContaining({intelligence_index: 72}),
-          }),
-        ]),
-      );
-      for (const choice of fix?.models ?? []) {
-        expect(choice).not.toHaveProperty('below_reference');
-      }
+      expect(unavailable).toMatchObject({
+        mode: 'workspace_default',
+        choices: [{model: 'e2e-renewable-pi', provider: E2E_MANAGED_PROVIDER}],
+      });
+      expect(onlyProvider).toMatchObject({
+        mode: 'template_default',
+        choices: [
+          {
+            model: 'gpt-6-sol',
+            provider: firstProvider,
+            thinking: 'high',
+            provider_required: true,
+            is_anchor: true,
+            intelligence_index: null,
+          },
+        ],
+      });
+      await expectChoiceResolves({
+        workspaceId,
+        yaml: template.workflow_yaml,
+        placeholder: 'fix',
+        choice: onlyChoice(onlyProvider),
+      });
+      expect(ambiguous).toMatchObject({mode: 'workspace_default'});
     } finally {
       await client.close();
     }
@@ -244,3 +323,127 @@ test.describe('agent-access workflow templates', () => {
     }
   });
 });
+
+function groupFor(template: GetWorkflowTemplateResultDto, placeholder: string) {
+  const group = template.model_recommendations.find(({placeholders}) =>
+    placeholders.includes(placeholder),
+  );
+  if (group === undefined) throw new Error(`Missing model group for ${placeholder}`);
+  return group;
+}
+
+function onlyChoice(group: GetWorkflowTemplateResultDto['model_recommendations'][number]) {
+  const [choice] = group.choices;
+  if (choice === undefined || group.choices.length !== 1) throw new Error('Expected one choice');
+  return choice;
+}
+
+async function createCustomProvider(params: {
+  workspaceId: string;
+  sessionToken: string;
+  model: string;
+}): Promise<string> {
+  const slug = `e2e-models-${randomUUID().slice(0, 8)}`;
+  await createApiClient({token: params.sessionToken}).requestJson(
+    'post',
+    `/workspaces/${params.workspaceId}/agent/custom-model-providers`,
+    {
+      json: {
+        slug,
+        display_name: `E2E models ${slug}`,
+        api: 'openai-completions',
+        base_url: 'http://127.0.0.1:9/v1',
+        models: [{id: params.model, label: params.model, reasoning: true}],
+        default_model: params.model,
+      },
+    },
+  );
+  return slug;
+}
+
+/**
+ * Binds the choice at every marker of the placeholder, as the template playbook
+ * does, then resolves each marked step through the agent module.
+ */
+async function expectChoiceResolves(params: {
+  workspaceId: string;
+  yaml: string;
+  placeholder: string;
+  choice: ChoiceBinding;
+  writeProvider?: boolean;
+}) {
+  const {choice} = params;
+  const applied = applyModelChoice(params.yaml, params.placeholder, choice, params.writeProvider);
+  const steps = markedStepConfigs(applied, params.placeholder);
+
+  expect(steps).toHaveLength(markedStepConfigs(params.yaml, params.placeholder).length);
+  expect(() => parseWorkflowDocument(parseYaml(applied))).not.toThrow();
+  for (const config of steps) {
+    const resolved = await requestJson('post', '/__e2e/agent/resolve-agent-config', {
+      json: {workspace_id: params.workspaceId, config},
+    });
+    expect(resolved).toEqual({
+      provider: choice.provider,
+      harness: choice.harness,
+      model: choice.model,
+      thinking: choice.thinking,
+    });
+  }
+}
+
+function applyModelChoice(
+  yaml: string,
+  placeholder: string,
+  choice: ChoiceBinding,
+  writeProvider = false,
+): string {
+  const output: string[] = [];
+  let indentation: string | undefined;
+  for (const line of yaml.split('\n')) {
+    const marker = MODEL_MARKER_RE.exec(line);
+    if (marker?.[2] === placeholder) {
+      indentation = marker[1] ?? '';
+      output.push(`${indentation}model: ${choice.model} # model:${placeholder}`);
+      if (choice.provider_required || writeProvider) {
+        output.push(`${indentation}provider: ${choice.provider}`);
+      }
+      continue;
+    }
+    if (indentation !== undefined && leavesStep(line, indentation)) indentation = undefined;
+    const field = AGENT_FIELD_RE.exec(line);
+    if (indentation !== undefined && field?.[1] === indentation && field[2] === 'thinking') {
+      output.push(`${indentation}thinking: ${choice.thinking}`);
+      continue;
+    }
+    output.push(line);
+  }
+  return output.join('\n');
+}
+
+function markedStepConfigs(yaml: string, placeholder: string): Record<string, string>[] {
+  const configs: Record<string, string>[] = [];
+  let current: Record<string, string> | undefined;
+  let indentation: string | undefined;
+  for (const line of yaml.split('\n')) {
+    const marker = MODEL_MARKER_RE.exec(line);
+    if (marker?.[2] === placeholder) {
+      indentation = marker[1] ?? '';
+      current = {};
+      configs.push(current);
+    }
+    if (indentation !== undefined && leavesStep(line, indentation)) {
+      current = undefined;
+      indentation = undefined;
+    }
+    const [, fieldIndentation, key, value] = AGENT_FIELD_RE.exec(line) ?? [];
+    if (current !== undefined && fieldIndentation === indentation && key !== undefined) {
+      current[key] = value ?? '';
+    }
+  }
+  return configs;
+}
+
+function leavesStep(line: string, indentation: string): boolean {
+  if (line.trim() === '') return false;
+  return (LEADING_SPACES_RE.exec(line)?.[0].length ?? 0) < indentation.length;
+}

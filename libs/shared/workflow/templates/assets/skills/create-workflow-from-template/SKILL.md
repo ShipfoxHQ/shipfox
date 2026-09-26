@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 5
+revision: 6
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -53,12 +53,7 @@ Edit `workflow_yaml`, the complete file from `get_workflow_template`: keep the `
 
 Call `get_workflow_authoring_context` for the selected project before any run. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Compare the template's required secrets, variables, and runner with the context. If any are missing, stop and ask the user to add them under Settings > Secrets, Variables, or Runners, then report back.
 
-Confirm one model and thinking combination per placeholder in `suggested_models`:
-
-- `outcome: suggested`: show the first entry, its thinking level, `intelligence_index`, and `cost_per_task_usd` next to the tested `reference`. Group the other entries by model, preselect the suggestion, and let the user confirm or override the complete combination. Do not ask a separate thinking-level question.
-- `outcome: list`: show the entries with the `is_default` one preselected, if any, and let the user pick. Never rank or compare them.
-
-Bind the confirmed entry's `provider`, model, `harness`, and `thinking`.
+Confirm a model for each group in `model_recommendations`: read and follow `skill://shipfox/create-workflow-from-template/references/choose-models.md`.
 
 Check the guide's repository prerequisites, such as a dependency bot or CI provider.
 
@@ -97,5 +92,6 @@ Write the YAML under `.shipfox/workflows/` with the template marker and a descri
 - Never request, read, or write secret values.
 - Never guess a tool ID, event name, model ID, runner name, connection slug, or project ID.
 - Never bind a model and thinking combination the user has not confirmed.
+- If any tool returns `content-too-large`, stop and report it. Never reconstruct a template's YAML by hand.
 - Keep `integrations.include` lists as narrow as the template.
 - Local dev runs upload only the YAML. Keep setup commands inline until the workflow merges.

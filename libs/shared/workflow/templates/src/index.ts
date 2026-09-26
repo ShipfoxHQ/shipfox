@@ -61,9 +61,3 @@ export {
   listShippedSkillResources,
   type SkillResource,
 } from './skills.js';
-export {
-  type ModelSuggestion,
-  type SuggestionModel,
-  type SuggestionWorkspaceModels,
-  suggestModels,
-} from './suggest-models.js';

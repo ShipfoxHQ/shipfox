@@ -63,7 +63,7 @@ test('returns workspace and project authoring names without values', async ({req
     expect(serialized).not.toContain(VARIABLE_VALUE);
     expect(scoredModels.models).toEqual([
       expect.objectContaining({
-        id: 'gpt-5.6-luna',
+        id: 'gpt-6-luna',
         label: expect.any(String),
         lab: expect.any(String),
         provider: 'shipfox',

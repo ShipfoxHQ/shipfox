@@ -8,7 +8,6 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 - **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
 - **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
-- **`suggestModels`** orders measured model and thinking combinations for a template placeholder.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
 - **`createTemplateLoader`** creates an injectable loader for tests or other asset sources.
 - **`shippedTemplateLoader`** serves only assets embedded during the package build.
@@ -78,15 +77,9 @@ roles:
 
 When an optional role is unbound, `composeTemplate` removes its `# part:` markers and leaves it out of the header. Keep everything that depends on the role inside its parts, such as a whole job. A role with `from: project` cannot be optional.
 
-`extractModelAnchors` reads markers after provider parts are composed and before options are applied. It returns the model and sibling `thinking` value for each placeholder. Repeated markers must agree.
+`extractModelAnchors` reads markers after provider parts are composed and before options are applied. It returns the model and sibling `thinking` value for each placeholder. Repeated markers must agree. The marked `model` and `thinking` values are the setting the template author tested, so write only a tested setting there.
 
-An optional `reference: {model, thinking}` records the exact setting the template author tested. The catalog conformance test checks the model and its supported thinking levels. Leave `reference` out until the author tests the step with that setting.
-
-### Model suggestions
-
-`suggestModels` compares scored combinations with the exact model and thinking setting the template author tested. It suggests the cheapest combination that meets or exceeds that setting's measured intelligence index. The user confirms the complete provider, model, harness, and thinking binding.
-
-If the tested setting has no score or the measured scales differ, `suggestModels` lists supported combinations without a suggestion. Choices with no score remain available for manual selection.
+### Model recommendations
 
 `recommendModels({anchor, models})` takes a scored, resolved template anchor and the workspace catalog. It considers only models with a lab on the anchor's scale and within ten intelligence-index points, and excludes every thinking level of the anchor's model. It first selects the cheapest cheaper alternative (within three points below the anchor), then the cheapest model more than three points smarter, and fills up to four alternatives by score proximity while preferring labs not yet represented. A selected model removes all of its thinking levels from later slots. Results are ordered by intelligence index, highest first, and each result includes dimension-specific intelligence and cost tradeoff keys and display copy.
 
@@ -113,6 +106,8 @@ Each part file is a YAML map from part name to a literal text block. The source 
 Shipped templates keep an adaptation guide beside their workflow. For dependency-bot CI, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, choices, and customization slots.
 For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
 For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, and the optional Slack report.
+
+The template procedure reads `skill://shipfox/create-workflow-from-template/references/choose-models.md` to confirm each model placeholder from `get_workflow_template` recommendations.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 

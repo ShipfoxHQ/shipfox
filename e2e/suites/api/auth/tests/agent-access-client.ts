@@ -16,6 +16,8 @@ export interface AgentAccessSession {
   client: Client;
   userId: string;
   workspaceId: string;
+  /** User session for workspace routes outside Agent Access. */
+  sessionToken: string;
 }
 
 const CLIENT_NAME = 'Agent Access Tools E2E Client';
@@ -61,7 +63,7 @@ export async function connectAgentAccessClient(params: {
     },
   });
   await client.connect(transport as unknown as Transport);
-  return {client, userId: user.user.id, workspaceId: workspace.id};
+  return {client, userId: user.user.id, workspaceId: workspace.id, sessionToken: session.token};
 }
 
 /** Calls a tool and parses its successful result, failing with the envelope otherwise. */

@@ -73,6 +73,7 @@ export const agentTestClient: AgentInterModuleClient = {
         references: [],
       },
       attribution: null,
+      managed_provider_id: null,
     });
   },
   resolveAgentConfig({config}) {

@@ -164,6 +164,8 @@ export {
   listWorkflowTemplatesInputSchema,
   listWorkflowTemplatesResultJsonSchema,
   listWorkflowTemplatesResultSchema,
+  type ModelChoiceDto,
+  type ModelRecommendationGroupDto,
 } from './schemas/template-tools.js';
 export {
   AGENT_ACCESS_WORKFLOW_DIAGNOSTIC_VALUE_MAX_BYTES,
