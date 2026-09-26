@@ -178,6 +178,9 @@ async function main() {
     process.stdout.write(
       `Published ${published.length} package versions: ${published.map(({name, version}) => `${name}@${version}`).join(', ') || 'none'}\n`,
     );
+    // Consumed downstream as the `published-versions` workflow artifact: `{"packages": [{name,
+    // version}]}`, sorted by name, only versions this run published. Written even when empty so
+    // "nothing published" stays distinguishable from a missing file.
     if (publishedVersionsPath)
       writeFileSync(publishedVersionsPath, `${JSON.stringify({packages: published}, null, 2)}\n`);
     if (status !== 0) process.exitCode = status;

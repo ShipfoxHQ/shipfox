@@ -41,6 +41,11 @@ describe('package release workflows', () => {
       workflow.indexOf('await-published-versions') > workflow.indexOf('release:publish'),
       'npm readiness must be checked after publication and before the job succeeds',
     );
+    assert.ok(
+      workflow.indexOf('name: published-versions') > workflow.indexOf('await-published-versions'),
+      'the versions artifact must appear only once npm serves every version',
+    );
+    assert.ok(workflow.includes('path: $' + '{{ runner.temp }}/published-versions.json'));
     assert.equal(
       workflow.match(
         /SHIPFOX_PUBLISHED_VERSIONS_PATH: \$\{\{ runner\.temp \}\}\/published-versions\.json/gu,
