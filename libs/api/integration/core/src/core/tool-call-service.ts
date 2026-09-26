@@ -3,6 +3,7 @@ import type {
   MaterializedAgentIntegrationConfigDto,
   MaterializedAgentIntegrationToolConfigDto,
 } from '@shipfox/api-agent-dto';
+import {SHIPFOX_BUILTIN_CONNECTION_ID} from '@shipfox/api-integration-shipfox-dto';
 import type {AgentToolsCallerContext} from '@shipfox/api-integration-spi';
 import {reportError} from '@shipfox/node-error-monitoring';
 import {logger} from '@shipfox/node-opentelemetry';
@@ -46,7 +47,7 @@ import {
 
 export type {IntegrationToolCallCaller} from './tool-call-audit.js';
 
-export const SHIPFOX_BUILTIN_CONNECTION_ID = '00000000-0000-4000-8000-000000000001';
+export {SHIPFOX_BUILTIN_CONNECTION_ID};
 
 export interface IntegrationToolCallError {
   code: IntegrationAgentToolCallErrorCode;

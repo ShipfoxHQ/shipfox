@@ -1,11 +1,11 @@
 {
-  "name": "@shipfox/api-integration-shipfox",
+  "name": "@shipfox/api-integration-shipfox-dto",
   "license": "MIT",
-  "version": "33.0.0",
+  "version": "0.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShipfoxHQ/shipfox.git",
-    "directory": "libs/api/integration/shipfox"
+    "directory": "libs/api/integration/shipfox-dto"
   },
   "private": false,
   "type": "module",
@@ -28,16 +28,6 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "./agent-tools": {
-      "workspace-source": {
-        "types": "./src/agent-tools.ts",
-        "default": "./src/agent-tools.ts"
-      },
-      "default": {
-        "types": "./dist/agent-tools.d.ts",
-        "default": "./dist/agent-tools.js"
-      }
     }
   },
   "scripts": {
@@ -51,17 +41,8 @@
     "type:emit": "shipfox-tsc-emit"
   },
   "dependencies": {
-    "@shipfox/annotations-dto": "workspace:*",
-    "@shipfox/api-definitions-dto": "workspace:*",
-    "@shipfox/api-integration-shipfox-dto": "workspace:*",
-    "@shipfox/api-integration-spi": "workspace:*",
-    "@shipfox/api-logs-dto": "workspace:*",
-    "@shipfox/api-projects-dto": "workspace:*",
-    "@shipfox/api-secrets-dto": "workspace:*",
-    "@shipfox/api-triggers-dto": "workspace:*",
-    "@shipfox/api-workflows-dto": "workspace:*",
-    "@shipfox/inter-module": "workspace:*",
-    "@shipfox/node-drizzle": "workspace:*"
+    "@shipfox/api-integration-core-dto": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
