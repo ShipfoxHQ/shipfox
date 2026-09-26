@@ -32,13 +32,16 @@ import {workspaceAgentResolutionContext} from './workspace-agent-context.js';
 
 interface WorkspaceModelCandidate {
   readonly id: string;
+  readonly label: string;
+  readonly lab: string | null;
   readonly provider: string;
   readonly price: ModelPrice | null;
   readonly supportedThinking: readonly AgentThinking[];
   readonly references: readonly ModelReference[];
 }
 
-type WorkspaceModelOption = Pick<AgentModelOptionDto, 'id' | 'price' | 'references'> & {
+type WorkspaceModelOption = Pick<AgentModelOptionDto, 'id' | 'label' | 'price' | 'references'> & {
+  readonly lab?: string | undefined;
   readonly supported_thinking?: readonly AgentThinking[] | undefined;
   readonly reasoning?: boolean | undefined;
   readonly thinkingLevelMap?: ManagedModelThinkingLevelMap | undefined;
@@ -78,6 +81,8 @@ export async function getWorkspaceModels(
       candidate.provider === defaultModel.provider;
     return {
       id: candidate.id,
+      label: candidate.label,
+      lab: candidate.lab,
       provider: candidate.provider,
       harness: resolved.harness,
       thinking: resolved.thinking,
@@ -180,6 +185,8 @@ function modelCandidate(
 
   return {
     id: model.id,
+    label: model.label,
+    lab: model.lab ?? null,
     provider,
     price: model.price ?? null,
     supportedThinking,

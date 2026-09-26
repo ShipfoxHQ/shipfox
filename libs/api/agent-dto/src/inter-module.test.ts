@@ -7,6 +7,8 @@ const ATTRIBUTION = 'Intelligence Index by Artificial Analysis';
 function workspaceModel() {
   return {
     id: 'claude-opus-4-8',
+    label: 'Claude Opus 4.8',
+    lab: null,
     provider: 'anthropic',
     harness: 'claude' as const,
     thinking: 'high' as const,
@@ -75,6 +77,17 @@ describe('agentInterModuleContract', () => {
       models: [workspaceModel()],
       default_model: workspaceModel(),
       attribution: null,
+    });
+    const {label: _label, lab: _lab, ...legacyModel} = workspaceModel();
+    expect(
+      agentInterModuleContract.methods.getWorkspaceModels.output.parse({
+        models: [legacyModel],
+        default_model: {...legacyModel},
+        attribution: null,
+      }),
+    ).toMatchObject({
+      models: [{label: null, lab: null}],
+      default_model: {label: null, lab: null},
     });
     expect(
       agentInterModuleContract.methods.getWorkspaceModels.output.parse({
@@ -146,6 +159,8 @@ describe('agentInterModuleContract', () => {
   test('accepts distinct off and provider-default references for one model', () => {
     const model = {
       id: 'gpt-5.5-pro',
+      label: 'GPT 5.5 Pro',
+      lab: null,
       provider: 'openai',
       harness: 'pi' as const,
       thinking: 'medium' as const,

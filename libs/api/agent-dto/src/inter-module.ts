@@ -46,6 +46,8 @@ export type AgentValidationCatalogV2 = z.infer<typeof agentValidationCatalogV2Sc
 const agentWorkspaceModelSchema = z
   .object({
     id: z.string().min(1),
+    label: z.string().min(1).nullable().optional().default(null),
+    lab: z.string().min(1).nullable().optional().default(null),
     provider: modelProviderRefSchema,
     harness: harnessSchema,
     thinking: agentThinkingSchema,

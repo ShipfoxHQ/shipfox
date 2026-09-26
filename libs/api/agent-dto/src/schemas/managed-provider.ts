@@ -44,6 +44,7 @@ export const managedModelMetadataSchema = customAgentModelSchema
   })
   .extend({
     claudeModelId: z.string().min(1).max(128).optional(),
+    lab: z.string().min(1).optional(),
     price: modelPriceSchema.optional(),
     references: modelReferencesSchema.optional(),
     thinkingLevelMap: managedModelThinkingLevelMapSchema.optional(),
@@ -79,6 +80,7 @@ export function toCustomAgentModelDto(
     claudeModelId: _claudeModelId,
     price: _price,
     references: _references,
+    lab: _lab,
     thinkingLevelMap,
     thinking_level_map,
     ...metadata

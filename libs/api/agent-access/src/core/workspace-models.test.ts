@@ -10,6 +10,8 @@ describe('getWorkspaceModels', () => {
   test('returns the Agent-owned workspace model result', async () => {
     const model: AgentWorkspaceModel = {
       id: 'claude-opus',
+      label: 'Claude Opus',
+      lab: 'Anthropic',
       provider: 'anthropic',
       harness: 'claude',
       thinking: 'high',

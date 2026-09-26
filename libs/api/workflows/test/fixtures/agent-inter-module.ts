@@ -49,6 +49,8 @@ export const agentTestClient: AgentInterModuleClient = {
       models: [
         {
           id: 'claude-opus-4-8',
+          label: 'Claude Opus 4.8',
+          lab: null,
           provider: 'anthropic',
           harness: 'pi',
           thinking: 'xhigh',
@@ -60,6 +62,8 @@ export const agentTestClient: AgentInterModuleClient = {
       ],
       default_model: {
         id: 'claude-opus-4-8',
+        label: 'Claude Opus 4.8',
+        lab: null,
         provider: 'anthropic',
         harness: 'pi',
         thinking: 'xhigh',

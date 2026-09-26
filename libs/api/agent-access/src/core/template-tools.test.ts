@@ -120,6 +120,8 @@ describe('agent-access template tools', () => {
     });
     const testedModel = {
       id: 'tested',
+      label: 'Tested model',
+      lab: 'Anthropic',
       provider: 'anthropic',
       harness: 'pi',
       thinking: 'medium',
@@ -132,6 +134,8 @@ describe('agent-access template tools', () => {
     };
     const cheaperModel = {
       id: 'cheaper',
+      label: 'Cheaper model',
+      lab: 'OpenAI',
       provider: 'openai',
       harness: 'pi',
       thinking: 'high',

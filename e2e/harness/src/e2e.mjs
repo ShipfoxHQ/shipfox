@@ -73,7 +73,10 @@ export async function main(argv) {
       await startServer({
         name: 'api',
         command: 'pnpm',
-        args: ['--filter=@shipfox/api', 'dev'],
+        // Keep the API process stable while Turbo builds E2E dependencies; the
+        // regular development task watches generated workflow assets and can
+        // restart during the test preflight.
+        args: ['--filter=@shipfox/api', 'dev:e2e'],
         env,
         logFile: join(logDir, 'shipfox-api.log'),
       }),
