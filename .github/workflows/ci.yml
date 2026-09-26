@@ -258,6 +258,12 @@ jobs:
         if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
         run: turbo verify --concurrency="$SHIPFOX_TURBO_CONCURRENCY"
 
+      - name: Verify merged migrations are unchanged
+        if: always() && (needs.release-mode.result != 'success' || needs.release-mode.outputs.mode == 'normal')
+        env:
+          SHIPFOX_MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: pnpm check:api-migrations
+
       - name: Verify release metadata and publication closure
         if: always() && needs.release-mode.result == 'success' && needs.release-mode.outputs.mode != 'normal'
         run: |
