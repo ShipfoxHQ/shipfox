@@ -58,9 +58,8 @@ describe('workflow template loader', () => {
     const expected = {
       'fix-dependency-ci': {fix: {model: 'gpt-6-sol', thinking: 'high'}},
       'ticket-to-pr': {
-        ticket: {model: 'gpt-6-luna', thinking: 'max'},
-        fix: {model: 'gpt-6-luna', thinking: 'max'},
-        review: {model: 'gpt-6-luna', thinking: 'max'},
+        fix: {model: 'gpt-6-luna', thinking: 'high'},
+        reply: {model: 'gpt-6-sol', thinking: 'low'},
       },
     };
 
@@ -115,7 +114,7 @@ describe('workflow template loader', () => {
       name: 'conflicting markers for one placeholder',
       template: () => {
         const template = shippedTemplate('ticket-to-pr');
-        return withSourcePart(template, 'repair_ci', (block) =>
+        return withSourcePart(template, 'respond', (block) =>
           block.replace('gpt-6-luna # model:fix', 'gpt-6-sol # model:fix'),
         );
       },
