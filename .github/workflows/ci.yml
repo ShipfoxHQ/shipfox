@@ -43,7 +43,7 @@ env:
 jobs:
   release-classification:
     name: Classify release PR or version-only main commit
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     outputs:
       generated_release: ${{ steps.classify.outputs.generated_release || 'false' }}
@@ -68,6 +68,9 @@ jobs:
       - name: Set up pnpm
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
         uses: ./.github/actions/setup-pnpm
+        with:
+          # The verifier installs the base revision itself in a separate worktree.
+          filter: "@shipfox/package-release..."
 
       - name: Mint release App installation token
         id: release-app-token
@@ -151,7 +154,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       needs.release-classification.result == 'success' &&
       needs.release-classification.outputs.version_only_main == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -199,7 +202,7 @@ jobs:
     name: Select CI execution mode
     needs: [release-classification, release-image-classification]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 2
     outputs:
       mode: ${{ steps.select.outputs.mode }}
