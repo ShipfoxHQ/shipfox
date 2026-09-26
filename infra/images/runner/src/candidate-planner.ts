@@ -269,6 +269,8 @@ export function findEffectiveChanges(
   const exactInputs = new Set<string>(ROOT_EFFECTIVE_INPUTS);
   const directories = [
     'infra/images/runner',
+    // Complete runner images run the base package's OS preparation.
+    'infra/images/runner-base',
     ...BUILD_TOOL_DIRECTORIES,
     ...productionPackageDirectories,
   ];

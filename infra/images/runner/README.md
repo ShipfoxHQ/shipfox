@@ -6,6 +6,8 @@
 
 Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper obtains the Node version from `mise`, prunes `@shipfox/runner`, and then invokes Packer.
 
+Each bake starts with the OS preparation script exported by [`@shipfox/runner-base`](../runner-base/README.md): OS packages, snapd and SSM agent removal, and apt cleanup. The runner stage then removes cloud-init and adds the swap file, the `shipfox` user, Node, pnpm, the runner, and the boot, network, and hardening policy. AWS and QEMU builds still start from Canonical Ubuntu 24.04.
+
 ```sh
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS=123456789012,210987654321 BUILD_CANDIDATE_KMS_KEY_ID=alias/shipfox-runner-image-candidate BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image-candidate.js --output /tmp/runner-image-candidate.json
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
@@ -73,7 +75,7 @@ the applied network file back from `networkctl` rather than settling for a
 routable link, because a leftover configuration would also report routable.
 
 Both checks run against the link Packer is connected through. The build instance
-is a `t3.large` and a launched runner is whatever its template asks for, so this
+is a `c8a.xlarge` or `c8g.xlarge` and a launched runner is whatever its template asks for, so this
 proves the shipped file selects a real interface and takes a lease, not that it
 selects an interface on every instance type. Predictable naming gives every
 Ethernet device an `en*` name, which is what makes that gap small rather than
@@ -201,9 +203,9 @@ A published pair has both AMIs and a manifest in
 checks keeps its AMIs until they expire. It never becomes the baseline, so the
 next revision still builds and publishes its runner changes.
 
-Effective inputs include the runner image directory, the runner's production
-workspace dependency closure, the lockfile, workspace configuration, and
-relevant toolchain pins. CI derives the package closure from workspace package
+Effective inputs include the runner image and runner base directories, the
+runner's production workspace dependency closure, the lockfile, workspace
+configuration, and relevant toolchain pins. CI derives the package closure from workspace package
 manifests. An incomplete inventory, manifest listing, Git comparison, or
 dependency graph causes both architectures to build.
 

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:shipfox:schema:runner-base:v1",
+  "title": "Shipfox runner base generation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "generation",
+    "recipeDigest",
+    "sourceRevision",
+    "buildUrl",
+    "createdAt",
+    "verifiedAt",
+    "owner",
+    "region",
+    "kmsKeyArn",
+    "imageOs",
+    "images"
+  ],
+  "properties": {
+    "apiVersion": { "const": "shipfox.runner-base/v1" },
+    "generation": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" },
+    "recipeDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "buildUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s/?#]+(?:[/?#][^\\s]*)?$"
+    },
+    "createdAt": { "$ref": "#/$defs/timestamp" },
+    "verifiedAt": { "$ref": "#/$defs/timestamp" },
+    "owner": { "$ref": "#/$defs/accountId" },
+    "region": { "$ref": "#/$defs/region" },
+    "kmsKeyArn": {
+      "type": "string",
+      "pattern": "^arn:aws:kms:[a-z]{2}(?:-gov)?-[a-z]+-\\d:[0-9]{12}:key/[0-9A-Za-z-]+$"
+    },
+    "imageOs": { "const": "ubuntu24" },
+    "images": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/image" },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": ["architecture"],
+            "properties": { "architecture": { "const": "amd64" } }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": ["architecture"],
+            "properties": { "architecture": { "const": "arm64" } }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "accountId": { "type": "string", "pattern": "^[0-9]{12}$" },
+    "amiId": { "type": "string", "pattern": "^ami-[0-9a-f]{17}$" },
+    "region": { "type": "string", "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-\\d$" },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|02-(?:0[1-9]|1\\d|2[0-8])))|(?:(?:\\d{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29))T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.[0-9]{3})?Z$"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "amiId", "sourceAmiId", "createdAt"],
+      "properties": {
+        "architecture": { "enum": ["amd64", "arm64"] },
+        "amiId": { "$ref": "#/$defs/amiId" },
+        "sourceAmiId": { "$ref": "#/$defs/amiId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" }
+      }
+    }
+  }
+}

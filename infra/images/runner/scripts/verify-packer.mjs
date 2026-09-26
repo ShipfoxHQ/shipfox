@@ -2,6 +2,7 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {RUNNER_BASE_PREPARE_OS_SCRIPT} from '@shipfox/runner-base';
 
 const runnerWorkspace = mkdtempSync(join(tmpdir(), 'shipfox-runner-workspace-'));
 
@@ -20,6 +21,8 @@ try {
     'platform=aws',
     '-var',
     'revision=ci',
+    '-var',
+    `runner_base_prepare_script=${RUNNER_BASE_PREPARE_OS_SCRIPT}`,
     '-var',
     `runner_workspace=${runnerWorkspace}`,
     '-var',

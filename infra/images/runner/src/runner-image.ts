@@ -2,6 +2,7 @@ import {execFileSync, spawn} from 'node:child_process';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {RUNNER_BASE_PREPARE_OS_SCRIPT} from '@shipfox/runner-base';
 import {getProjectRootPath, overlayBuiltOutputs} from '@shipfox/tool-utils';
 import {findProducedAmiId, readPackerAmiArtifact} from './aws.js';
 import {qemuSourceImageArgs} from './qemu.js';
@@ -63,6 +64,8 @@ export function packerBuildArgs(
     `revision=${build.revision}`,
     '-var',
     `platform=${build.platform}`,
+    '-var',
+    `runner_base_prepare_script=${RUNNER_BASE_PREPARE_OS_SCRIPT}`,
     '-var',
     `runner_workspace=${workspacePath}`,
   ];

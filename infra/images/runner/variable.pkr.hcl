@@ -81,6 +81,11 @@ variable "platform" {
   }
 }
 
+variable "runner_base_prepare_script" {
+  type        = string
+  description = "OS preparation script exported by @shipfox/runner-base."
+}
+
 variable "runner_workspace" {
   type = string
 }
