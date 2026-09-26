@@ -7,6 +7,7 @@ import {parse} from 'yaml';
 const packageDirectory = dirname(fileURLToPath(import.meta.url));
 const workflowPath = resolve(packageDirectory, '../../../.github/workflows/ci.yml');
 const mainRefConditionPattern = /github\.ref == 'refs\/heads\/main'/;
+const npmPublicationPattern = /release:publish|publish:closure|changeset publish|npm publish/u;
 const pullRequestBaseExpression =
   '${{' + " github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}";
 const pullRequestRequiredExpression =
@@ -113,6 +114,40 @@ describe('generated release CI path', () => {
       workflow.includes('needs.release-mode.outputs.mode }}" = "generated-release"') &&
         workflow.includes('needs.build-image.result }}" = "skipped"'),
     );
+  });
+
+  test('publishes a package candidate only after normal main CI passes', async () => {
+    const parsedWorkflow = parse(await readWorkflow());
+    const candidate = parsedWorkflow.jobs['publish-package-candidate'];
+    const steps: Array<{name: string; if?: string; run?: string}> = candidate.steps;
+    const stepIndex = (name: string) => steps.findIndex((step) => step.name === name);
+
+    assert.deepEqual(candidate.needs, [
+      'release-mode',
+      'static-verification',
+      'external-package-contracts',
+      'publication-preflight',
+      'tests',
+      'e2e',
+    ]);
+    assert.ok(candidate.if.includes("github.event_name == 'push'"));
+    assert.match(candidate.if, mainRefConditionPattern);
+    assert.ok(candidate.if.includes("needs.release-mode.outputs.mode == 'normal'"));
+    for (const job of candidate.needs.slice(1)) {
+      assert.ok(candidate.if.includes(`needs.${job}.result == 'success'`), job);
+    }
+    assert.deepEqual(candidate.permissions, {contents: 'read'});
+    assert.ok(
+      stepIndex('Pack candidate bundle') < stepIndex('Check packing restored the working tree'),
+    );
+    assert.ok(
+      stepIndex('Check packing restored the working tree') < stepIndex('Upload candidate bundle'),
+    );
+    assert.ok(stepIndex('Upload candidate bundle') < stepIndex('Notify Cloud'));
+    for (const name of ['Mint Cloud dispatch token', 'Notify Cloud']) {
+      assert.equal(steps[stepIndex(name)]?.if, "steps.upload.outputs.pointer_advanced == 'true'");
+    }
+    assert.ok(steps.every((step) => !npmPublicationPattern.test(step.run ?? '')));
   });
 
   test('reports the E2E suite matrix through one required check', async () => {

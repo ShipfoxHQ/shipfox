@@ -1147,6 +1147,117 @@ jobs:
           echo '## Runner image candidate' >> "$GITHUB_STEP_SUMMARY"
           jq -r '.images[] | "- `\(.architecture)`: `\(.region):\(.amiId)` owner `\(.owner)`, expires `\(.expiresAt)`"' runner-image-candidate.json >> "$GITHUB_STEP_SUMMARY"
 
+  # Cloud staging-edge installs these packed packages by URL. Nothing here publishes to npm.
+  publish-package-candidate:
+    name: Publish package candidate
+    needs: [release-mode, static-verification, external-package-contracts, publication-preflight, tests, e2e]
+    if: >-
+      always() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.release-mode.result == 'success' &&
+      needs.release-mode.outputs.mode == 'normal' &&
+      needs.static-verification.result == 'success' &&
+      needs.external-package-contracts.result == 'success' &&
+      needs.publication-preflight.result == 'success' &&
+      needs.tests.result == 'success' &&
+      needs.e2e.result == 'success'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      CANDIDATE_PUBLIC_URL: https://candidates.shipfox.io
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # The upload compares this commit with the one `candidates/main.json` names.
+          fetch-depth: 0
+
+      - name: Set up mise
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: gh node npm:pnpm npm:turbo
+
+      - name: Set up pnpm
+        uses: ./.github/actions/setup-pnpm
+        with:
+          # The publication closure and its build only use libraries and tools.
+          filter: "./{libs,tools}/**"
+
+      - name: Build publication closure
+        run: turbo type build type:emit --filter='./libs/**' --filter='./tools/**'
+
+      - name: Pack candidate bundle
+        run: |
+          pnpm --silent --filter=@shipfox/package-release pack:candidate -- \
+            --sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/package-candidate" \
+            --public-url "$CANDIDATE_PUBLIC_URL" \
+            --ci-run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Check packing restored the working tree
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git status --short
+            echo "Packing the candidate left the working tree modified." >&2
+            exit 1
+          fi
+
+      - name: Upload candidate bundle
+        id: upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_CANDIDATE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_CANDIDATE_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          pnpm --silent --filter=@shipfox/package-release upload:candidate -- \
+            --directory "$RUNNER_TEMP/package-candidate" \
+            --bucket shipfox-package-candidates \
+            --endpoint "$R2_ENDPOINT" \
+            --public-url "$CANDIDATE_PUBLIC_URL" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Mint Cloud dispatch token
+        id: cloud-token
+        if: steps.upload.outputs.pointer_advanced == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_APP_PRIVATE_KEY }}
+          owner: ShipfoxHQ
+          repositories: cloud
+          permission-contents: write
+
+      # A rerun of an older commit leaves `candidates/main.json` on the newer one and skips this,
+      # so staging-edge never moves backwards.
+      - name: Notify Cloud
+        if: steps.upload.outputs.pointer_advanced == 'true'
+        env:
+          GH_TOKEN: ${{ steps.cloud-token.outputs.token }}
+          MANIFEST_URL: ${{ steps.upload.outputs.manifest_url }}
+        run: |
+          gh api --method POST repos/ShipfoxHQ/cloud/dispatches \
+            -f event_type=shipfox-candidate-published \
+            -f "client_payload[sha]=$GITHUB_SHA" \
+            -f "client_payload[manifestUrl]=$MANIFEST_URL"
+
+      - name: Summarize candidate
+        env:
+          MANIFEST_URL: ${{ steps.upload.outputs.manifest_url }}
+          POINTER_ADVANCED: ${{ steps.upload.outputs.pointer_advanced }}
+        run: |
+          {
+            echo '## Package candidate'
+            echo "- Manifest: $MANIFEST_URL"
+            if [[ "$POINTER_ADVANCED" == true ]]; then
+              echo '- `candidates/main.json` now names this commit, and Cloud was notified.'
+            else
+              echo '- `candidates/main.json` already names a newer commit, so Cloud was not notified.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish-application-release:
     name: Publish application release
     needs: [release-mode, publish-images]

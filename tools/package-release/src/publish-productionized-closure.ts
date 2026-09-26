@@ -13,7 +13,7 @@ type JsonRecord = Record<string, unknown>;
 const packageNamePattern = /^@shipfox\/[a-z0-9][a-z0-9._-]*$/u;
 
 interface PublishProductionizedClosureOptions<T> {
-  onPrepared?: (restore: () => void) => void;
+  onPrepared?: ((restore: () => void) => void) | undefined;
   packageNames: string[];
   publish: () => Promise<T> | T;
   root: string;
