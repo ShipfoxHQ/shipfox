@@ -7,6 +7,7 @@ import {findProducedAmiId, readPackerAmiArtifact} from './aws.js';
 import {qemuSourceImageArgs} from './qemu.js';
 
 const WHITESPACE_PATTERN = /\s+/;
+const PACKER_OUTPUT_TAIL_LENGTH = 1024 * 1024;
 
 export type RunnerImagePlatform = 'aws' | 'qemu';
 export type RunnerImageLifecycle = 'candidate' | 'release';
@@ -114,8 +115,8 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
   }
 }
 
-// Stream while capturing so CI shows each phase as it happens, and the AMI ID can still be
-// recovered from the output when Packer fails before writing its manifest.
+// Stream so CI shows each phase as it happens. Keep only the output tail, where Packer reports
+// the produced AMI, to recover its ID when a successful build leaves no manifest.
 function runPackerBuild(
   build: RunnerImageBuild,
   workspacePath: string,
@@ -129,7 +130,7 @@ function runPackerBuild(
     let output = '';
     packer.stdout.setEncoding('utf8');
     packer.stdout.on('data', (chunk: string) => {
-      output += chunk;
+      output = (output + chunk).slice(-PACKER_OUTPUT_TAIL_LENGTH);
       process.stdout.write(chunk);
     });
     packer.on('error', reject);
