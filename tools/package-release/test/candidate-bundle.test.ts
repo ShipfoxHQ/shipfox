@@ -51,6 +51,17 @@ const fakePack: PackPackage = async (packageDirectory, destination) => {
   await writeFile(join(destination, candidateTarballName(name, version)), manifest);
 };
 
+describe('sha512Integrity', () => {
+  test('matches the integrity format pnpm writes to lockfiles', () => {
+    const integrity = sha512Integrity(Buffer.alloc(0));
+
+    assert.equal(
+      integrity,
+      'sha512-z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPg==',
+    );
+  });
+});
+
 describe('packCandidateBundle', () => {
   test('writes the manifest and overrides for every packed package', async () => {
     const root = createRepository();
