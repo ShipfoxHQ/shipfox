@@ -107,7 +107,7 @@ Shipped templates keep an adaptation guide beside their workflow. For dependency
 For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
 For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, and the optional Slack report.
 
-The template procedure reads `skill://shipfox/create-workflow-from-template/references/choose-models.md` to confirm each model placeholder from `get_workflow_template` recommendations.
+The template procedure reads [the model choice reference](assets/skills/create-workflow-from-template/references/choose-models.md), served as `skill://shipfox/create-workflow-from-template/references/choose-models.md`, to confirm each model placeholder from `get_workflow_template` recommendations.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 

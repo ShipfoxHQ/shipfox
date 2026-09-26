@@ -41,8 +41,9 @@ export async function connectAgentAccessClient(params: {
   });
   const clientId = await registeredClientId;
   const user = await params.auth.createUser();
-  const session = await params.auth.createSession({user_id: user.user.id});
   const workspace = await createWorkspace({userId: user.user.id, userEmail: user.email});
+  // The session token snapshots memberships when it is signed; workspace routes need them.
+  const session = await params.auth.createSession({user_id: user.user.id});
   const token = await authorizeAgentAccess({
     request: params.request,
     apiOrigin,
