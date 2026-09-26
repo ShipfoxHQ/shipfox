@@ -52,6 +52,7 @@ for removed_path in \
   fi
 done
 
+apt-get clean
 rm -rf "$root_dir/var/lib/apt/lists/"*
 
 ln -sf "$(command -v fdfind)" "$root_dir/usr/local/bin/fd"

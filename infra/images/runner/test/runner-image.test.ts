@@ -86,6 +86,7 @@ describe('packerBuildArgs', () => {
 
     expect(args).toEqual([
       'build',
+      '-timestamp-ui',
       '-only',
       'runner.amazon-ebs.build_image',
       '-var',
@@ -1929,6 +1930,20 @@ describe('runner image composition', () => {
     }
   });
 
+  it('clears the apt package cache before the snapshot', async () => {
+    const script = new URL('../scripts/build/setup-runner.sh', import.meta.url);
+    const fixture = await createRunnerImageSetupFixture();
+
+    try {
+      execFileSync('/bin/sh', [script.pathname], {env: fixture.environment, stdio: 'pipe'});
+
+      const events = (await readFile(fixture.commandLog, 'utf8')).trim().split('\n');
+      expect(events).toContain('apt-get clean');
+    } finally {
+      await rm(fixture.root, {force: true, recursive: true});
+    }
+  });
+
   it('unmounts seeded snaps, purges snapd, and removes its image state', async () => {
     const script = new URL('../scripts/build/setup-runner.sh', import.meta.url);
     const build = await readFile(new URL('../build.pkr.hcl', import.meta.url), 'utf8');
@@ -2035,8 +2050,12 @@ describe('runner installation', () => {
       });
 
       expect(await pathExists(fixture.workspace)).toBe(false);
-      expect(await readFile(fixture.commandLog, 'utf8')).toContain(
-        `pnpm --filter=@shipfox/runner deploy --prod --legacy --config.strict-peer-dependencies=false ${fixture.runnerDirectory}`,
+      const commands = await readFile(fixture.commandLog, 'utf8');
+      const storeDirectory = join(fixture.root, 'tmp/shipfox-runner-pnpm-store');
+      expect(commands).toContain(`pnpm install --frozen-lockfile --store-dir ${storeDirectory}`);
+      expect(await pathExists(storeDirectory)).toBe(false);
+      expect(commands).toContain(
+        `pnpm --filter=@shipfox/runner deploy --prod --legacy --config.strict-peer-dependencies=false --store-dir ${storeDirectory} ${fixture.runnerDirectory}`,
       );
       expect(await readFile(fixture.commandLog, 'utf8')).toContain(
         `node ${fixture.runnerDirectory}/dist/verify-installation.js`,
@@ -2282,7 +2301,7 @@ async function createRunnerInstallFixture(
     `#!/bin/sh
 set -eu
 printf 'pnpm %s\\n' "$*" >> "$RUNNER_IMAGE_COMMAND_LOG"
-mkdir -p "$RUNNER_IMAGE_RUNNER_DIR/dist"
+mkdir -p "$RUNNER_IMAGE_ROOT/tmp/shipfox-runner-pnpm-store" "$RUNNER_IMAGE_RUNNER_DIR/dist"
 : > "$RUNNER_IMAGE_RUNNER_DIR/dist/index.js"
 if [ "\${RUNNER_IMAGE_MISSING_RUNTIME:-}" != helper ]; then
   printf '#!/bin/sh\\n' > "$RUNNER_IMAGE_RUNNER_DIR/dist/git-credential-helper.js"
