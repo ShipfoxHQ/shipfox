@@ -1,4 +1,5 @@
 import type {WorkflowTemplateManifest} from './manifest.js';
+import {validateModelAnchors} from './model-anchors.js';
 
 export type PartBlocks = Readonly<Record<string, string>>;
 export type TemplateRoleBindings = Readonly<Record<string, string>>;
@@ -57,7 +58,9 @@ export function composeTemplate(
     }
   }
 
-  return composeWorkflow(template.workflow, selectedParts);
+  const composed = composeWorkflow(template.workflow, selectedParts);
+  validateModelAnchors(template.manifest, composed);
+  return composed;
 }
 
 export type PartProviderBlocks = Readonly<Record<string, Readonly<Record<string, PartBlocks>>>>;

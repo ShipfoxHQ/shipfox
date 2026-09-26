@@ -16,6 +16,7 @@ const defaultAuthSignupNotAllowedMessage = 'This E2E deployment does not accept 
 const defaultReadinessTimeoutMs = 60_000;
 const defaultShutdownTimeoutMs = 15_000;
 const defaultTurboTask = 'test:e2e';
+const defaultE2eBuildFilter = '@shipfox/e2e-*...';
 const trailingSlashPattern = /\/$/;
 let generatedGithubAppPrivateKey;
 let generatedE2eBootstrapToken;
@@ -58,6 +59,10 @@ export async function main(argv) {
   await mkdir(logDir, {recursive: true});
 
   try {
+    // Build dependencies before watch processes start so test:e2e cannot restart the API during readiness checks.
+    if (options.turboTask === defaultTurboTask) {
+      await buildE2eDependencies(options, env, servers);
+    }
     if (
       process.env.POSTHOG_API_BASE_URL === undefined &&
       process.env.POSTHOG_MCP_ENDPOINT === undefined
@@ -236,8 +241,12 @@ export function e2eEnv(sourceEnv) {
     e2eGithubApiBaseUrl(apiUrl),
   );
   const slackApiBaseUrl = valueOr(sourceEnv.SLACK_API_BASE_URL, () => e2eSlackApiBaseUrl(apiUrl));
-  const clickupApiBaseUrl = valueOr(sourceEnv.CLICKUP_API_BASE_URL, () => e2eClickUpApiBaseUrl(apiUrl));
-  const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, () => e2eNotionApiBaseUrl(apiUrl));
+  const clickupApiBaseUrl = valueOr(sourceEnv.CLICKUP_API_BASE_URL, () =>
+    e2eClickUpApiBaseUrl(apiUrl),
+  );
+  const notionApiBaseUrl = valueOr(sourceEnv.NOTION_API_BASE_URL, () =>
+    e2eNotionApiBaseUrl(apiUrl),
+  );
   const testVcsPort = valueOr(sourceEnv.INTEGRATIONS_TEST_VCS_PORT, () => e2eTestVcsPort(apiUrl));
   const posthogApiBaseUrl = valueOr(sourceEnv.POSTHOG_API_BASE_URL, () =>
     e2ePosthogApiBaseUrl(apiUrl),
@@ -518,7 +527,36 @@ export function e2eLinearMcpEndpoint(apiUrl) {
 }
 
 export function turboCommandArgs(options, env) {
-  const args = [options.turboTask, ...options.turboArgs];
+  return withTurboConcurrency([options.turboTask, ...options.turboArgs], env);
+}
+
+export function turboBuildCommandArgs(options, env) {
+  const separatorIndex = options.turboArgs.indexOf('--');
+  const turboArgs =
+    separatorIndex < 0 ? options.turboArgs : options.turboArgs.slice(0, separatorIndex);
+  const buildOptions = withoutTurboFilters(turboArgs);
+  return withTurboConcurrency(['build', `--filter=${defaultE2eBuildFilter}`, ...buildOptions], env);
+}
+
+function withoutTurboFilters(args) {
+  const buildOptions = [];
+  let skipNextFilterValue = false;
+  for (const arg of args) {
+    if (skipNextFilterValue) {
+      skipNextFilterValue = false;
+      continue;
+    }
+    if (arg === '--filter') {
+      skipNextFilterValue = true;
+      continue;
+    }
+    if (arg?.startsWith('--filter=')) continue;
+    buildOptions.push(arg);
+  }
+  return buildOptions;
+}
+
+function withTurboConcurrency(args, env) {
   if (hasTurboConcurrency(args)) return args;
 
   const concurrency = env.SHIPFOX_TURBO_CONCURRENCY;
@@ -541,6 +579,18 @@ function hasTurboConcurrency(args) {
 
 export function defaultLogDir(env) {
   return join(env.RUNNER_TEMP ?? '.context', 'shipfox-e2e-logs');
+}
+
+async function buildE2eDependencies(options, env, servers) {
+  const build = await startCommand('turbo', turboBuildCommandArgs(options, env), {
+    env,
+    stdio: 'inherit',
+  });
+  servers.push({name: 'build', child: build.child});
+  const exitCode = await build.exitCode;
+  if (exitCode !== 0) {
+    throw new Error(`E2E dependency build failed with exit code ${exitCode}`);
+  }
 }
 
 async function startServer(params) {

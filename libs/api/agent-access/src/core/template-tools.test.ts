@@ -49,8 +49,8 @@ const asset: WorkflowTemplateAsset = {
   guide: '# Follow this fixture',
   parts: {
     tracker: {
-      linear: {trigger: 'source: linear\n  event: issue.created'},
-      github: {trigger: 'source: github\n  event: issues.opened'},
+      linear: {trigger: '- source: linear\n  event: issue.created'},
+      github: {trigger: '- source: github\n  event: issues.opened'},
     },
     source: {github: {unused: 'unused'}},
   } as unknown as WorkflowTemplateAsset['parts'],
@@ -159,6 +159,16 @@ describe('agent-access template tools', () => {
           },
         },
       },
+      workflow: [
+        'name: fixture',
+        'jobs:',
+        '  fix:',
+        '    steps:',
+        '      - key: fix',
+        '        model: tested # model:fix',
+        '        thinking: medium',
+        '        prompt: Fix the issue.',
+      ].join('\n'),
     };
     const get = getTool(
       createTools(integrations, projectClient(), agent, templateAsset),

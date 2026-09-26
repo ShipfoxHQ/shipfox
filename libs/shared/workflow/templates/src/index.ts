@@ -33,6 +33,12 @@ export {
   workflowTemplateRoleSchema,
 } from './manifest.js';
 export {
+  extractModelAnchors,
+  validateModelAnchors,
+  type WorkflowModelAnchor,
+  type WorkflowModelAnchors,
+} from './model-anchors.js';
+export {
   CHEAPER_RATIO,
   type CostTradeoff,
   type IntelligenceTradeoff,
