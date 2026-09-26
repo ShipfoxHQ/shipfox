@@ -110,21 +110,33 @@ async function readChangesetIgnoreList(root: string): Promise<ReadonlySet<string
   return new Set(config.ignore ?? []);
 }
 
-export async function fetchPublishedVersions(
+export interface RegistryPackageDocument {
+  versions?: Record<string, {dist?: {tarball?: unknown}}>;
+}
+
+// Requests the abbreviated install document, the same metadata pnpm resolves versions from.
+export async function fetchRegistryPackageDocument(
   name: string,
   registry: string = defaultRegistry,
-): Promise<ReadonlySet<string>> {
+): Promise<RegistryPackageDocument | undefined> {
   const response = await fetch(
     `${registry.replace(trailingSlash, '')}/${name.replace('/', '%2f')}`,
     {
       headers: {accept: 'application/vnd.npm.install-v1+json'},
     },
   );
-  if (response.status === 404) return new Set();
+  if (response.status === 404) return undefined;
   if (!response.ok)
     throw new Error(`Registry lookup for ${name} failed with status ${response.status}`);
-  const document = (await response.json()) as {versions?: Record<string, unknown>};
-  return new Set(Object.keys(document.versions ?? {}));
+  return (await response.json()) as RegistryPackageDocument;
+}
+
+export async function fetchPublishedVersions(
+  name: string,
+  registry: string = defaultRegistry,
+): Promise<ReadonlySet<string>> {
+  const document = await fetchRegistryPackageDocument(name, registry);
+  return new Set(Object.keys(document?.versions ?? {}));
 }
 
 // `changeset publish` treats an already-published version as a no-op and reports success, so a

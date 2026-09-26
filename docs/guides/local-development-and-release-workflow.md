@@ -193,8 +193,10 @@ means a newer `main` push supersedes an older pending update; it has no npm
 publication authority. `publish-packages` runs only after a merged,
 deterministically verified `changeset-release/main` pull request, then checks
 out that exact merge revision and publishes under a separate non-cancelable
-concurrency group. Do not run `release:publish` as a normal contributor
-workflow. It is the workflow command and requires its release environment.
+concurrency group. The workflow succeeds only after npm serves every version
+that run published, because downstream package refreshes start from that
+success. Do not run `release:publish` as a normal contributor workflow. It is
+the workflow command and requires its release environment.
 
 If an npm operation is interrupted or only partly succeeds, use the
 `publish-packages` **Run workflow** control with the exact merged release

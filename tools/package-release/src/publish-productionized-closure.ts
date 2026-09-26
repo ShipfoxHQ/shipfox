@@ -1,4 +1,4 @@
-import {type ChildProcess, spawn} from 'node:child_process';
+import {type ChildProcess, execFileSync, spawn} from 'node:child_process';
 import {globSync, readFileSync, writeFileSync} from 'node:fs';
 import {constants} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
@@ -17,6 +17,11 @@ interface PublishProductionizedClosureOptions<T> {
   packageNames: string[];
   publish: () => Promise<T> | T;
   root: string;
+}
+
+export interface PublishedPackageVersion {
+  name: string;
+  version: string;
 }
 
 export interface PublicationClosureConfig {
@@ -121,8 +126,31 @@ export function publishChangesets(onSpawn?: (child: ChildProcess) => void): Prom
   });
 }
 
+export function readGitTags(root: string): ReadonlySet<string> {
+  const output = execFileSync('git', ['tag', '--list'], {cwd: root, encoding: 'utf8'});
+  return new Set(output.split('\n').filter(Boolean));
+}
+
+// `changeset publish` creates one local `<name>@<version>` tag for each upload npm accepted, so the
+// tags added during publication are the exact versions this run published.
+export function publishedVersionsFromTags(
+  tagsBefore: ReadonlySet<string>,
+  tagsAfter: ReadonlySet<string>,
+): PublishedPackageVersion[] {
+  return [...tagsAfter]
+    .filter((tag) => !tagsBefore.has(tag))
+    .flatMap((tag) => {
+      const separator = tag.lastIndexOf('@');
+      if (separator <= 0) return [];
+      return [{name: tag.slice(0, separator), version: tag.slice(separator + 1)}];
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
 async function main() {
   const repositoryRoot = getRepositoryRoot(import.meta.url);
+  const publishedVersionsPath = process.env.SHIPFOX_PUBLISHED_VERSIONS_PATH;
+  const tagsBefore = readGitTags(repositoryRoot);
   const {packages: packageNames} = loadPublicationClosure(repositoryRoot);
   let restore: (() => void) | undefined;
   let stopPublish: (() => void) | undefined;
@@ -146,6 +174,12 @@ async function main() {
         restore = nextRestore;
       },
     });
+    const published = publishedVersionsFromTags(tagsBefore, readGitTags(repositoryRoot));
+    process.stdout.write(
+      `Published ${published.length} package versions: ${published.map(({name, version}) => `${name}@${version}`).join(', ') || 'none'}\n`,
+    );
+    if (publishedVersionsPath)
+      writeFileSync(publishedVersionsPath, `${JSON.stringify({packages: published}, null, 2)}\n`);
     if (status !== 0) process.exitCode = status;
   } finally {
     process.removeListener('SIGINT', stop);

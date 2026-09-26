@@ -90,7 +90,7 @@ jobs:
     needs: authorize-release
     if: needs.authorize-release.outputs.authorized == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       SHIPFOX_PUBLICATION_REGISTRY_BASE: ${{ needs.authorize-release.outputs.base_sha }}
 
@@ -137,7 +137,16 @@ jobs:
           TURBO_TEAM: shipfox
           # Publish must never populate the shared cache: only read what CI built.
           TURBO_CACHE: local:rw,remote:r
+          SHIPFOX_PUBLISHED_VERSIONS_PATH: ${{ runner.temp }}/published-versions.json
         run: pnpm run release:publish
+
+      # Downstream refreshes start on this workflow's success, so it must not succeed before npm
+      # serves every version this run published.
+      - name: Wait for published versions on npm
+        timeout-minutes: 20
+        env:
+          SHIPFOX_PUBLISHED_VERSIONS_PATH: ${{ runner.temp }}/published-versions.json
+        run: pnpm --silent --filter=@shipfox/package-release await-published-versions
 
       - name: Summarize publication
         run: |
