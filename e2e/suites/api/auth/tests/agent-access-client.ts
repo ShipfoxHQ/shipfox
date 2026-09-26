@@ -16,8 +16,6 @@ export interface AgentAccessSession {
   client: Client;
   userId: string;
   workspaceId: string;
-  /** User session for workspace routes outside Agent Access. */
-  sessionToken: string;
 }
 
 const CLIENT_NAME = 'Agent Access Tools E2E Client';
@@ -41,9 +39,8 @@ export async function connectAgentAccessClient(params: {
   });
   const clientId = await registeredClientId;
   const user = await params.auth.createUser();
-  const workspace = await createWorkspace({userId: user.user.id, userEmail: user.email});
-  // The session token snapshots memberships when it is signed; workspace routes need them.
   const session = await params.auth.createSession({user_id: user.user.id});
+  const workspace = await createWorkspace({userId: user.user.id, userEmail: user.email});
   const token = await authorizeAgentAccess({
     request: params.request,
     apiOrigin,
@@ -64,7 +61,7 @@ export async function connectAgentAccessClient(params: {
     },
   });
   await client.connect(transport as unknown as Transport);
-  return {client, userId: user.user.id, workspaceId: workspace.id, sessionToken: session.token};
+  return {client, userId: user.user.id, workspaceId: workspace.id};
 }
 
 /** Calls a tool and parses its successful result, failing with the envelope otherwise. */

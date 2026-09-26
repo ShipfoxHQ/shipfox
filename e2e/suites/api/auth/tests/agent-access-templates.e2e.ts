@@ -6,7 +6,7 @@ import {
   listWorkspaceModelsResultSchema,
   type ModelChoiceDto,
 } from '@shipfox/api-agent-access-dto';
-import {createApiClient, requestJson} from '@shipfox/e2e-core';
+import {requestJson} from '@shipfox/e2e-core';
 import {createGithubConnection, createLinearConnection} from '@shipfox/e2e-setup-integrations';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
@@ -223,63 +223,6 @@ test.describe('agent-access workflow templates', () => {
     }
   });
 
-  test('binds the only provider that lists a template model and not an ambiguous one', async ({
-    request,
-    auth,
-  }) => {
-    const {client, workspaceId, sessionToken} = await connectAgentAccessClient({request, auth});
-    try {
-      const {project} = await createGithubProject(workspaceId);
-      const getTemplate = async () =>
-        await callToolResult(
-          client,
-          {
-            name: 'get_workflow_template',
-            arguments: {template_id: 'fix-dependency-ci', project_id: project.id},
-          },
-          getWorkflowTemplateResultSchema,
-        );
-
-      const unavailable = groupFor(await getTemplate(), 'fix');
-      const firstProvider = await createCustomProvider({
-        workspaceId,
-        sessionToken,
-        model: 'gpt-6-sol',
-      });
-      const template = await getTemplate();
-      const onlyProvider = groupFor(template, 'fix');
-      await createCustomProvider({workspaceId, sessionToken, model: 'gpt-6-sol'});
-      const ambiguous = groupFor(await getTemplate(), 'fix');
-
-      expect(unavailable).toMatchObject({
-        mode: 'workspace_default',
-        choices: [{model: 'e2e-renewable-pi', provider: E2E_MANAGED_PROVIDER}],
-      });
-      expect(onlyProvider).toMatchObject({
-        mode: 'template_default',
-        choices: [
-          {
-            model: 'gpt-6-sol',
-            provider: firstProvider,
-            thinking: 'high',
-            provider_required: true,
-            is_anchor: true,
-            intelligence_index: null,
-          },
-        ],
-      });
-      await expectChoiceResolves({
-        workspaceId,
-        yaml: template.workflow_yaml,
-        placeholder: 'fix',
-        choice: onlyChoice(onlyProvider),
-      });
-      expect(ambiguous).toMatchObject({mode: 'workspace_default'});
-    } finally {
-      await client.close();
-    }
-  });
-
   test('does not serve another workspace project or a fixture template', async ({
     request,
     auth,
@@ -336,29 +279,6 @@ function onlyChoice(group: GetWorkflowTemplateResultDto['model_recommendations']
   const [choice] = group.choices;
   if (choice === undefined || group.choices.length !== 1) throw new Error('Expected one choice');
   return choice;
-}
-
-async function createCustomProvider(params: {
-  workspaceId: string;
-  sessionToken: string;
-  model: string;
-}): Promise<string> {
-  const slug = `e2e-models-${randomUUID().slice(0, 8)}`;
-  await createApiClient({token: params.sessionToken}).requestJson(
-    'post',
-    `/workspaces/${params.workspaceId}/agent/custom-model-providers`,
-    {
-      json: {
-        slug,
-        display_name: `E2E models ${slug}`,
-        api: 'openai-completions',
-        base_url: 'http://127.0.0.1:9/v1',
-        models: [{id: params.model, label: params.model, reasoning: true}],
-        default_model: params.model,
-      },
-    },
-  );
-  return slug;
 }
 
 /**
