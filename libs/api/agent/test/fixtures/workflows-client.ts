@@ -48,6 +48,7 @@ export function createTestWorkflowsClient(
       listWorkflowExecutionSteps: vi.fn(),
       listWorkflowStepAttempts: vi.fn(),
       getWorkflowRunSource: vi.fn(),
+      getLifecycleEventContext: vi.fn(),
       getWorkflowJobExecutionContext: vi.fn(),
       listExecutionTriggerEvents: vi.fn(),
       getExecutionTriggerEvent: vi.fn(),

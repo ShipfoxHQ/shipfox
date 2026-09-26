@@ -19,6 +19,7 @@ interface TestWorkflowsClient {
     listWorkflowExecutionSteps: WorkflowHandlerMock;
     listWorkflowStepAttempts: WorkflowHandlerMock;
     getWorkflowRunSource: WorkflowHandlerMock;
+    getLifecycleEventContext: WorkflowHandlerMock;
     getWorkflowJobExecutionContext: WorkflowHandlerMock;
     listExecutionTriggerEvents: WorkflowHandlerMock;
     getExecutionTriggerEvent: WorkflowHandlerMock;
@@ -42,6 +43,7 @@ export function createTestWorkflowsClient(): TestWorkflowsClient {
     listWorkflowExecutionSteps: vi.fn(),
     listWorkflowStepAttempts: vi.fn(),
     getWorkflowRunSource: vi.fn(),
+    getLifecycleEventContext: vi.fn(),
     getWorkflowJobExecutionContext: vi.fn(),
     listExecutionTriggerEvents: vi.fn(),
     getExecutionTriggerEvent: vi.fn(),
@@ -74,6 +76,7 @@ export function createTestWorkflowsClient(): TestWorkflowsClient {
       listWorkflowExecutionSteps: (input) => handlers.listWorkflowExecutionSteps(input),
       listWorkflowStepAttempts: (input) => handlers.listWorkflowStepAttempts(input),
       getWorkflowRunSource: (input) => handlers.getWorkflowRunSource(input),
+      getLifecycleEventContext: (input) => handlers.getLifecycleEventContext(input),
       getWorkflowJobExecutionContext: (input) => handlers.getWorkflowJobExecutionContext(input),
       listExecutionTriggerEvents: (input) => handlers.listExecutionTriggerEvents(input),
       getExecutionTriggerEvent: (input) => handlers.getExecutionTriggerEvent(input),

@@ -145,6 +145,7 @@ export {
   buildWorkflowRunListConditions,
   getLatestAttempt,
   getLatestRunAttempt,
+  getLifecycleEventContextRead,
   getWorkflowJobExecutionDepth,
   getWorkflowRunAggregates,
   getWorkflowRunAttemptById,

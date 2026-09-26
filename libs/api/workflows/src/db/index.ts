@@ -160,6 +160,7 @@ export {
   getLatestJobExecutionByJobId,
   getLatestRunAttempt,
   getLatestStepAttempt,
+  getLifecycleEventContextRead,
   getStepAttemptDetail,
   getStepAttempts,
   getStepAttemptsByJobIds,

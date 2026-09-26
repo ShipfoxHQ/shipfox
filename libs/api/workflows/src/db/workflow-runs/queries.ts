@@ -165,6 +165,57 @@ export async function getWorkflowRunAttemptById(workflowRunAttemptId: string) {
   return row ? toWorkflowRunAttempt(row) : undefined;
 }
 
+/**
+ * Reads the immutable identity needed to publish a lifecycle event. The
+ * attempt id is the event's address; an optional job id must belong to that
+ * same attempt, so a rerun can never read a previous attempt's job.
+ */
+export async function getLifecycleEventContextRead(params: {
+  workspaceId: string;
+  workflowRunAttemptId: string;
+  jobId?: string | undefined;
+}) {
+  const conditions = [
+    eq(workflowRunAttempts.id, params.workflowRunAttemptId),
+    eq(workflowRuns.workspaceId, params.workspaceId),
+  ];
+
+  const rows = await db()
+    .select({
+      runId: workflowRuns.id,
+      projectId: workflowRuns.projectId,
+      definitionId: workflowRuns.definitionId,
+      number: workflowRuns.number,
+      attempt: workflowRunAttempts.attempt,
+      name: workflowRuns.name,
+      workflowName: workflowRuns.workflowName,
+      origin: workflowRuns.origin,
+      triggerSource: workflowRuns.triggerSource,
+      triggerEvent: workflowRuns.triggerEvent,
+      triggerReference: workflowRuns.triggerReference,
+      devSource: workflowRuns.devSource,
+      parentRunId: workflowRuns.parentRunId,
+      rootRunId: workflowRuns.rootRunId,
+      createdAt: workflowRuns.createdAt,
+      jobId: jobs.id,
+      jobKey: jobs.key,
+      jobMode: jobs.mode,
+      jobOutputs: jobs.outputs,
+    })
+    .from(workflowRunAttempts)
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .leftJoin(
+      jobs,
+      params.jobId === undefined
+        ? sql`false`
+        : and(eq(jobs.workflowRunAttemptId, workflowRunAttempts.id), eq(jobs.id, params.jobId)),
+    )
+    .where(and(...conditions))
+    .limit(1);
+
+  return rows[0];
+}
+
 export async function listRunAttemptsPage(
   params: {
     workflowRunId: string;
