@@ -1,5 +1,15 @@
 # @shipfox/api-integration-core
 
+## 33.3.0
+
+### Patch Changes
+
+- Updated dependencies [68d6cd6]
+  - @shipfox/api-agent-dto@33.3.0
+  - @shipfox/api-workflows-dto@33.3.0
+  - @shipfox/api-integration-shipfox@33.3.0
+  - @shipfox/api-triggers-dto@33.3.0
+
 ## 33.2.0
 
 ### Minor Changes

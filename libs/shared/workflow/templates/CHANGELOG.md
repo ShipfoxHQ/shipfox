@@ -1,5 +1,23 @@
 # @shipfox/workflow-templates
 
+## 1.4.0
+
+### Minor Changes
+
+- 5f88947: Adds the `ask-codebase` template. It answers repository questions in the Slack thread where someone mentions the app, or when a dispatcher starts it with `channel_id`, `thread_ts`, and an optional `request`.
+
+  The workflow reads the thread with a tool step and answers from a read-only checkout without saved credentials. Its agent has no integration tools. It posts one reply with file references and the source commit, or a failure notice. The guide covers channel scope, the manual-only option for dispatchers, outcomes, and expected writes.
+
+- ba0d750: Updates the dependency CI repair template to revision 2.
+
+  Scopes runs to one repository and bot-authored PR, serializes repairs, and skips stale failures. Installation errors now reach the repair agent, and validation repeats installation after edits.
+
+  Adds explicit no-change and human-help outcomes, tested patches for comment-only delivery, and result or failure comments. Pushes check the current PR head and preserve the intended upgrade. The guide explains credential access, auto-merge, commit rules, and local validation limits.
+
+### Patch Changes
+
+- cc644b8: `list_workflow_templates` now marks each role with `from_project`. `get_workflow_template` accepts a project role that matches the project's source provider, and its errors now carry a `message` that names the unknown input, missing role, or invalid provider ID. The tool description and the create-workflow-from-template skill show the expected call shape.
+
 ## 1.3.0
 
 ### Minor Changes

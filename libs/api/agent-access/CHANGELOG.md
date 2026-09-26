@@ -1,5 +1,24 @@
 # @shipfox/api-agent-access
 
+## 33.3.0
+
+### Minor Changes
+
+- cc644b8: `list_workflow_templates` now marks each role with `from_project`. `get_workflow_template` accepts a project role that matches the project's source provider, and its errors now carry a `message` that names the unknown input, missing role, or invalid provider ID. The tool description and the create-workflow-from-template skill show the expected call shape.
+
+### Patch Changes
+
+- 68d6cd6: Adds lab and display label fields to workspace model contracts while preserving strict agent-access projections.
+- Updated dependencies [5f88947]
+- Updated dependencies [ba0d750]
+- Updated dependencies [68d6cd6]
+- Updated dependencies [cc644b8]
+  - @shipfox/workflow-templates@1.4.0
+  - @shipfox/api-agent-dto@33.3.0
+  - @shipfox/api-agent-access-dto@33.3.0
+  - @shipfox/api-workflows-dto@33.3.0
+  - @shipfox/api-triggers-dto@33.3.0
+
 ## 33.2.1
 
 ### Patch Changes

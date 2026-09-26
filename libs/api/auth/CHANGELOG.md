@@ -1,5 +1,11 @@
 # @shipfox/api-auth
 
+## 33.3.0
+
+### Patch Changes
+
+- 7e0041d: Keeps a browser session signed in when a refresh response never reaches the browser, and limits refresh-token reuse revocation to the affected session.
+
 ## 29.1.0
 
 ### Minor Changes
