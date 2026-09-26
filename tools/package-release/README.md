@@ -50,3 +50,10 @@ It never publishes again.
 SHIPFOX_PUBLISHED_VERSIONS_PATH="$RUNNER_TEMP/published-versions.json" \
   pnpm --silent --filter=@shipfox/package-release await-published-versions
 ```
+
+The file holds `{"packages": [{"name": "...", "version": "..."}]}`, sorted by
+name. It lists only the versions this run published, and the list is empty
+when the run published nothing. After npm serves every version, the publish
+workflow uploads the file as the `published-versions` artifact for 30 days.
+Downstream refreshes can read it with
+`gh run download <run-id> -R ShipfoxHQ/shipfox -n published-versions`.
