@@ -125,10 +125,10 @@ export function capNullable(
   return value === null ? null : cap(value, maxBytes);
 }
 
-export function invalidRequest(): AgentAccessEnvelopeDto {
-  return agentAccessError('invalid-request');
+export function invalidRequest(message?: string): AgentAccessEnvelopeDto {
+  return agentAccessError('invalid-request', optionalField('message', message));
 }
 
-export function notFound(): AgentAccessEnvelopeDto {
-  return agentAccessError('not-found');
+export function notFound(message?: string): AgentAccessEnvelopeDto {
+  return agentAccessError('not-found', optionalField('message', message));
 }

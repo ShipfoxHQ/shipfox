@@ -1,7 +1,7 @@
 ---
 name: create-workflow-from-template
 description: Use when setting up a Shipfox workflow from a template.
-revision: 3
+revision: 4
 catalog_title: Create a workflow from a template
 catalog_category: Workflow setup
 catalog_prompt: Use Shipfox to create a workflow from a template.
@@ -28,7 +28,7 @@ Keep the selected project ID for every later call.
 
 ## 3. Interview the user
 
-Call `get_workflow_template` with the selected template, project ID, and one provider per open role. Read its `guide_markdown`.
+Call `get_workflow_template` with the selected template, the project ID, and a provider ID, not a connection slug, for each role with `from_project: false`, such as `tracker: "linear"`. Read its `guide_markdown`.
 
 Use `search_docs` for `workflow schema` and read the returned `docs://` reference. Search for the template's triggers, steps, and providers. Read other relevant pages.
 

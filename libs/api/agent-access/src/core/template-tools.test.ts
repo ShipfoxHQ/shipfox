@@ -79,6 +79,7 @@ describe('agent-access template tools', () => {
             roles: [
               {
                 role: 'tracker',
+                from_project: false,
                 providers: [
                   {provider: 'linear', compatible: true, suggested_bindings: ['linear-main']},
                   {
@@ -90,6 +91,7 @@ describe('agent-access template tools', () => {
               },
               {
                 role: 'source',
+                from_project: true,
                 providers: [
                   {
                     provider: 'github',
@@ -268,38 +270,127 @@ describe('agent-access template tools', () => {
     expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
 
-  test.each([
-    {
-      arguments: {template_id: 'missing', project_id: projectId, tracker: 'linear'},
-      code: 'not-found',
-    },
-    {arguments: {template_id: 'fixture-template', project_id: projectId}, code: 'invalid-request'},
-    {
-      arguments: {template_id: 'fixture-template', project_id: projectId, source: 'github'},
-      code: 'invalid-request',
-    },
-    {
-      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'unknown'},
-      code: 'invalid-request',
-    },
-  ])('returns $code for invalid template selection', async ({arguments: input, code}) => {
-    const integrations = integrationClient([]);
-    const projects = {
-      requireProjectForWorkspace: vi.fn().mockResolvedValue({project: {sourceConnectionId}}),
-    } as unknown as ProjectsModuleClient;
+  test('accepts a project role that matches the project source', async () => {
+    const integrations = integrationClient([connection('linear-main', 'linear')]);
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+
     const response = await getTool(
-      createTools(integrations, projects),
+      createTools(integrations, projectClient()),
       'get_workflow_template',
     ).execute({
       context,
-      arguments: input,
+      arguments: {
+        template_id: 'fixture-template',
+        project_id: projectId,
+        tracker: 'linear',
+        source: 'github',
+      },
     });
 
-    expect(response).toEqual({ok: false, error: {code}});
+    expect(response).toMatchObject({
+      ok: true,
+      result: {suggested_bindings: {tracker: ['linear-main'], source: ['github-project']}},
+    });
+  });
+
+  test.each([
+    {
+      name: 'an unknown template',
+      arguments: {template_id: 'missing', project_id: projectId, tracker: 'linear'},
+      error: {
+        code: 'not-found',
+        message: 'Unknown template_id "missing". Call list_workflow_templates for template IDs.',
+      },
+    },
+    {
+      name: 'a missing open role',
+      arguments: {template_id: 'fixture-template', project_id: projectId},
+      error: {
+        code: 'invalid-request',
+        message:
+          'Missing role "tracker". Pass each open role as `<role>: <provider ID>`: tracker (linear or github). The project sets source.',
+      },
+    },
+    {
+      name: 'a connection slug instead of a provider ID',
+      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear-main'},
+      error: {
+        code: 'invalid-request',
+        message:
+          'Role "tracker" takes a provider ID (linear or github), not "linear-main". Choose connection slugs later from suggested_bindings.',
+      },
+    },
+    {
+      name: 'an unknown input',
+      arguments: {
+        template_id: 'fixture-template',
+        project_id: projectId,
+        tracker_provider: 'linear',
+      },
+      error: {
+        code: 'invalid-request',
+        message:
+          'Unknown input "tracker_provider". Pass each open role as `<role>: <provider ID>`: tracker (linear or github). The project sets source.',
+      },
+    },
+  ])('explains $name', async ({arguments: input, error}) => {
+    const response = await getTool(
+      createTools(integrationClient([]), projectClient()),
+      'get_workflow_template',
+    ).execute({context, arguments: input});
+
+    expect(response).toEqual({ok: false, error});
+  });
+
+  test('rejects a project role that differs from the project source', async () => {
+    const integrations = integrationClient([]);
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+
+    const response = await getTool(
+      createTools(integrations, projectClient()),
+      'get_workflow_template',
+    ).execute({
+      context,
+      arguments: {
+        template_id: 'fixture-template',
+        project_id: projectId,
+        tracker: 'linear',
+        source: 'gitlab',
+      },
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid-request',
+        message: 'Role "source" is set from the project, which uses "github". Omit "source".',
+      },
+    });
+  });
+
+  test('explains a project source the template does not support', async () => {
+    const integrations = integrationClient([]);
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('gitlab'));
+
+    const response = await getTool(
+      createTools(integrations, projectClient()),
+      'get_workflow_template',
+    ).execute({
+      context,
+      arguments: {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'},
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid-request',
+        message: 'This template needs a github project source, but the project uses "gitlab".',
+      },
+    });
   });
 
   test('advertises open-role inputs as dynamic provider properties', () => {
-    expect(getWorkflowTemplateInputJsonSchema.additionalProperties).toEqual({
+    expect(getWorkflowTemplateInputJsonSchema.additionalProperties).toMatchObject({
       type: 'string',
       minLength: 1,
     });
@@ -319,6 +410,16 @@ function createTools(
       projects ?? ({requireProjectForWorkspace: vi.fn()} as unknown as ProjectsModuleClient),
     templates: createTemplateLoader([templateAsset]),
   });
+}
+
+function projectSource(provider: string) {
+  return {
+    id: sourceConnectionId,
+    provider,
+    slug: `${provider}-project`,
+    displayName: 'Project source',
+    lifecycleStatus: 'active',
+  };
 }
 
 function projectClient() {
