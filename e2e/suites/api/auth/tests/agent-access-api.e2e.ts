@@ -54,6 +54,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_workflow_templates',
   'get_workflow_template',
   'get_workflow_authoring_context',
+  'list_workspace_models',
   'search_docs',
 ] as const;
 

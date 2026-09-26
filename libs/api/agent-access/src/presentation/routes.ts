@@ -51,6 +51,7 @@ import {
   createAgentAccessToolMap,
 } from '#core/tools.js';
 import {createAgentAccessWorkflowDiagnosticTools} from '#core/workflow-diagnostic-tools.js';
+import {createAgentAccessWorkspaceModelTools} from '#core/workspace-models.js';
 import {recordAgentAccessAuthFailure} from '#metrics/index.js';
 import {type AgentAccessToolCallRecorder, createAgentAccessToolCallRecorder} from './audit.js';
 import {buildAgentAccessMcpServer} from './mcp-server.js';
@@ -269,10 +270,14 @@ function toolsFromProducerClients(
             templates,
           }),
         ];
+  const withWorkspaceModels =
+    options.agent === undefined
+      ? withTemplates
+      : [...withTemplates, ...createAgentAccessWorkspaceModelTools(options.agent)];
   return options.agent === undefined || secrets === undefined
-    ? withTemplates
+    ? withWorkspaceModels
     : [
-        ...withTemplates,
+        ...withWorkspaceModels,
         ...createAgentAccessAuthoringContextTools({agent: options.agent, workflows, secrets}),
       ];
 }
