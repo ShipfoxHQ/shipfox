@@ -6,6 +6,7 @@ import type {TriggerEventSource} from '#core/trigger-event.js';
 const SYSTEM_TRIGGER_SOURCE_ICONS: Record<string, IconName> = {
   manual: 'cursorLine',
   cron: 'timeLine',
+  shipfox: 'shipfox',
 };
 
 /**
