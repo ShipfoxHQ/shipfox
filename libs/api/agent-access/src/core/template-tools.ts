@@ -191,7 +191,7 @@ async function resolveTemplateBindings(
   return {bindings, sourceRole: roleName, sourceConnection};
 }
 
-/** Project roles are accepted here and checked against the project source once it resolves. */
+/** Project roles pass through here; the project source check tells the agent to omit a wrong one. */
 function openRoleBindings(
   manifest: WorkflowTemplateManifest,
   input: Record<string, string>,
@@ -201,7 +201,7 @@ function openRoleBindings(
     if (key === 'template_id' || key === 'project_id') continue;
     const role = Object.hasOwn(manifest.roles, key) ? manifest.roles[key] : undefined;
     if (role === undefined) return {error: `Unknown input ${quote(key)}. ${roleUsage(manifest)}`};
-    if (!role.providers.includes(provider)) {
+    if (role.from !== 'project' && !role.providers.includes(provider)) {
       return {
         error: `Role ${quote(key)} takes a provider ID (${role.providers.join(' or ')}), not ${quote(provider)}. Choose connection slugs later from suggested_bindings.`,
       };

@@ -343,26 +343,11 @@ describe('agent-access template tools', () => {
   });
 
   test('rejects a project role that differs from the project source', async () => {
-    const manifest = workflowTemplateManifestSchema.parse(asset.manifest);
-    const multiSourceAsset = {
-      ...asset,
-      manifest: {
-        ...manifest,
-        roles: {
-          ...manifest.roles,
-          source: {from: 'project' as const, providers: ['github', 'gitlab']},
-        },
-      },
-      parts: {
-        ...asset.parts,
-        source: {github: {unused: 'unused'}, gitlab: {unused: 'unused'}},
-      } as unknown as WorkflowTemplateAsset['parts'],
-    };
     const integrations = integrationClient([]);
     integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
 
     const response = await getTool(
-      createTools(integrations, projectClient(), undefined, multiSourceAsset),
+      createTools(integrations, projectClient()),
       'get_workflow_template',
     ).execute({
       context,
