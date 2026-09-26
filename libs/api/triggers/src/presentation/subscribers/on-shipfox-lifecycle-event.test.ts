@@ -1,3 +1,4 @@
+import type {ShipfoxEventName} from '@shipfox/api-integration-shipfox-dto';
 import type {DomainEvent} from '@shipfox/node-outbox';
 import {dispatchIntegrationEvent} from '#core/dispatch-integration-event.js';
 import {findMatchingJobListenerSubscriptions} from '#db/job-listener-subscriptions.js';
@@ -62,7 +63,7 @@ describe('Shipfox lifecycle subscriber', () => {
     dispatchMock.mockResolvedValue();
   });
 
-  it.each([
+  it.each<[ShipfoxEventName, Record<string, unknown>]>([
     [
       'run.requested',
       {workspaceId: ids.workspace, workflowRunAttemptId: ids.attempt, status: 'pending'},
@@ -93,7 +94,7 @@ describe('Shipfox lifecycle subscriber', () => {
     );
   });
 
-  it.each([
+  it.each<[ShipfoxEventName, Record<string, unknown>]>([
     ['job.queued', {jobExecutionId: ids.execution, executionSequence: 2, queuedAt: createdAt}],
     [
       'job.started',

@@ -40,7 +40,11 @@ export function createOnShipfoxLifecycleEvent(
 
     const [subscriptions, listenerSubscriptions] = await Promise.all([
       findMatchingSubscriptions({workspaceId, source: SHIPFOX_PROVIDER, event: eventName}),
-      findMatchingJobListenerSubscriptions({workspaceId, source: SHIPFOX_PROVIDER, event: eventName}),
+      findMatchingJobListenerSubscriptions({
+        workspaceId,
+        source: SHIPFOX_PROVIDER,
+        event: eventName,
+      }),
     ]);
     if (subscriptions.length === 0 && listenerSubscriptions.length === 0) {
       shipfoxEventCount.add(1, {event: eventName, outcome: 'no-subscription'});
