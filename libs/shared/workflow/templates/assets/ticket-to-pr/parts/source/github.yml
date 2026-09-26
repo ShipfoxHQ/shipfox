@@ -236,7 +236,7 @@ reply: |
       # option:resolve_threads=addressed begin
 
       Threads to resolve:
-      ${{ toJson(steps.respond.outputs.decisions.filter(d, (d.decision == "apply" || d.decision == "already_addressed") && steps.respond.outputs.decisions.filter(o, o.thread_id == d.thread_id).all(o, o.decision == "apply" || o.decision == "already_addressed" || o.decision == "ignore")).map(d, d.thread_id)) }}
+      ${{ toJson(steps.respond.outputs.decisions.filter(d, (d.decision == "already_addressed" || (d.decision == "apply" && steps.push_feedback.status == "succeeded")) && steps.respond.outputs.decisions.filter(o, o.thread_id == d.thread_id).all(o, o.decision == "already_addressed" || o.decision == "ignore" || (o.decision == "apply" && steps.push_feedback.status == "succeeded"))).map(d, d.thread_id)) }}
 
       After posting every reply, call pull_request_review_thread_write resolve
       once for each distinct thread ID above. Skip threads that are already

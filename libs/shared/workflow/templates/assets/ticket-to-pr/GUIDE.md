@@ -56,7 +56,7 @@ Replace `linear_tracker` with the tracker connection slug and `github_source` wi
 
 ## Fill the command slots
 
-Replace each `# slot:setup_commands` line with the repository's setup steps at that indentation. Setup runs before any agent step, so the agent can run checks while it works. A later step fails if setup changes tracked files.
+Replace each `# slot:setup_commands` line with the repository's setup steps at that indentation. Setup runs before any agent step, so the agent can run checks while it works. A later step fails if setup leaves tracked changes or unignored untracked files in the working tree.
 
 Replace each `replace-with-test-command` with the test command that proves the change, and keep the rest of the line. The output goes to `.git/shipfox-test.log`, which the agent reads when the gate restarts it.
 
