@@ -1,31 +1,89 @@
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-# shipfox-template: fix-dependency-ci@1 source=github
+# shipfox-template: fix-dependency-ci@2 source=github
 name: Fix failing dependency-bot CI
 runner: shipfox
+
+concurrency:
+  group: 'dependency-ci-${{ event.repository.full_name }}-${{ event.workflow_run.pull_requests[0].number }}'
+  cancel_in_progress: false
 
 triggers:
   # part:source.trigger
 
 jobs:
-  fix:
+  inspect:
     checkout: false
+    outputs:
+      eligible: ${{ steps.read_pr.outputs.open && steps.read_pr.outputs.author == event.workflow_run.actor.login && steps.read_pr.outputs.repository == event.repository.full_name && steps.read_pr.outputs.branch == event.workflow_run.head_branch && steps.read_pr.outputs.head_sha == event.workflow_run.head_sha }}
+      head_sha: ${{ steps.read_pr.outputs.head_sha }}
+    steps:
+      # part:source.read_pr
+
+  fix:
+    needs: inspect
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.eligible }}
+    checkout: false
+    outputs:
+      outcome: ${{ steps.deliver.outputs.outcome }}
+      commit: ${{ steps.deliver.outputs.commit }}
+      patch_base64: ${{ steps.deliver.outputs.patch_base64 }}
+      summary: ${{ steps.fix_failure.outputs.summary }}
     steps:
       # part:source.checkout
       # slot:setup_commands
+
+      - key: confirm_clean
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_HEAD" ] || [ -n "$(git status --porcelain)" ]; then
+            echo "Bootstrap changed the checkout. Keep installation in install_command." >&2
+            git status --short >&2
+            exit 1
+          fi
+        env:
+          EXPECTED_HEAD: ${{ jobs.inspect.outputs.head_sha }}
+
+      - key: reproduce
+        run: |
+          set +e
+          (
+            set -e
+            replace-with-install-command # slot:install_command
+            replace-with-test-command # slot:test_command
+          ) 2>&1 | tee .git/shipfox-test.log
+          printf 'exit_code=%s\n' "${PIPESTATUS[0]}" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          exit_code: number
+
       # part:source.fix
 
       - key: test
-        run: replace-with-test-command # slot:test_command
+        if: ${{ steps.fix_failure.outputs.status != "needs_human" }}
+        run: |
+          (
+            set -e
+            replace-with-install-command # slot:install_command
+            replace-with-test-command # slot:test_command
+          ) 2>&1 | tee .git/shipfox-test.log
         gate:
           success: step.exit_code == 0
           on_failure:
             restart_from: fix_failure
-            feedback: The test command still fails. Reproduce the failure and fix its cause.
+            feedback: Read .git/shipfox-test.log. Installation or validation failed. Repair the cause or explain why a person must act.
 
-      # option:delivery_mode=push_fix begin
-      # part:source.push_fix
-      # option:delivery_mode=push_fix end
+      # part:source.check_changes
+      # part:source.refresh_pr
+      # part:source.deliver
 
-      # option:delivery_mode=comment_only begin
-      # part:source.comment_only
-      # option:delivery_mode=comment_only end
+  report:
+    needs: [inspect, fix]
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.fix.outputs.outcome != "superseded" }}
+    checkout: false
+    steps:
+      # part:source.report
+
+  report_failure:
+    needs: [inspect, fix]
+    if: ${{ needs.exists(n, n.status == "failed") }}
+    checkout: false
+    steps:
+      # part:source.failure_report
