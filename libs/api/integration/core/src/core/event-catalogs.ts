@@ -7,7 +7,7 @@ import type {IntegrationProviderRegistry} from '#core/providers/registry.js';
  * closed set. `manual` and `cron` are registered built-in trigger sources;
  * sync classifies them by literal, before slug resolution.
  */
-export const FIXED_EVENT_PROVIDERS = ['webhook'] as const;
+export const FIXED_EVENT_PROVIDERS = ['webhook', 'shipfox'] as const;
 
 export interface ProviderEventCatalog {
   provider: string;

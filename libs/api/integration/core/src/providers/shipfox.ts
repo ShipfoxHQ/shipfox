@@ -1,4 +1,7 @@
-import {SHIPFOX_BUILTIN_CONNECTION_ID} from '#core/tool-call-service.js';
+import {
+  SHIPFOX_BUILTIN_CONNECTION_ID,
+  shipfoxEventCatalog,
+} from '@shipfox/api-integration-shipfox-dto';
 import type {IntegrationModuleParts, IntegrationProviderModule} from '#providers/types.js';
 
 async function loadShipfoxModuleParts(
@@ -10,6 +13,7 @@ async function loadShipfoxModuleParts(
     provider: {
       provider: 'shipfox',
       displayName: 'Shipfox',
+      eventCatalog: shipfoxEventCatalog,
       ...(interModule === undefined
         ? {}
         : {

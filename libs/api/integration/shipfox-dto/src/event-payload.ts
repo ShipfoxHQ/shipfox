@@ -1,4 +1,12 @@
 import {z} from 'zod';
+import {
+  SHIPFOX_JOB_COMPLETED_EVENT,
+  SHIPFOX_JOB_QUEUED_EVENT,
+  SHIPFOX_JOB_STARTED_EVENT,
+  SHIPFOX_RUN_COMPLETED_EVENT,
+  SHIPFOX_RUN_REQUESTED_EVENT,
+  SHIPFOX_RUN_STARTED_EVENT,
+} from './constants.js';
 
 const nonEmptyStringSchema = z.string().min(1);
 const idSchema = z.string().uuid();
@@ -13,7 +21,7 @@ const projectSchema = z.object({
 const workflowSchema = z.object({
   id: idSchema,
   name: nonEmptyStringSchema,
-  path: nonEmptyStringSchema,
+  path: nonEmptyStringSchema.nullable(),
 });
 
 const runIdentitySchema = z.object({
@@ -104,7 +112,7 @@ export type ShipfoxJobQueuedEventPayloadDto = z.infer<typeof shipfoxJobQueuedEve
 
 const jobStartedSchema = jobIdentitySchema.extend({
   status: z.literal('running'),
-  runner_labels: z.array(nonEmptyStringSchema).min(1),
+  runner_labels: z.array(nonEmptyStringSchema).min(1).nullable(),
   started_at: timestampSchema,
 });
 
@@ -133,7 +141,8 @@ const jobStatusReasonSchema = z.enum([
   'output_invalid',
 ]);
 
-const jobCompletedSchema = jobIdentitySchema.extend({
+// A skipped job never had an execution, so completion carries none.
+const jobCompletedSchema = jobIdentitySchema.omit({execution: true}).extend({
   status: z.enum(['succeeded', 'failed', 'cancelled', 'skipped']),
   status_reason: jobStatusReasonSchema.nullable(),
   finished_at: timestampSchema,
@@ -146,3 +155,12 @@ export const shipfoxJobCompletedEventPayloadSchema = jobEventPayloadBaseSchema.e
 export type ShipfoxJobCompletedEventPayloadDto = z.infer<
   typeof shipfoxJobCompletedEventPayloadSchema
 >;
+
+export const shipfoxEventPayloadSchemas = {
+  [SHIPFOX_RUN_REQUESTED_EVENT]: shipfoxRunRequestedEventPayloadSchema,
+  [SHIPFOX_RUN_STARTED_EVENT]: shipfoxRunStartedEventPayloadSchema,
+  [SHIPFOX_RUN_COMPLETED_EVENT]: shipfoxRunCompletedEventPayloadSchema,
+  [SHIPFOX_JOB_QUEUED_EVENT]: shipfoxJobQueuedEventPayloadSchema,
+  [SHIPFOX_JOB_STARTED_EVENT]: shipfoxJobStartedEventPayloadSchema,
+  [SHIPFOX_JOB_COMPLETED_EVENT]: shipfoxJobCompletedEventPayloadSchema,
+} as const;

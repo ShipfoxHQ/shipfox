@@ -1,4 +1,5 @@
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
+import {SHIPFOX_BUILTIN_CONNECTION_ID} from '@shipfox/api-integration-shipfox-dto';
 import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
 import type {TriggerPayload, WorkflowRunTriggerReference} from './entities/workflow-run.js';
 
@@ -9,6 +10,7 @@ export async function resolveWorkflowRunTriggerReference(params: {
   integrations?: IntegrationsModuleClient | undefined;
   projects?: ProjectsModuleClient | undefined;
 }): Promise<WorkflowRunTriggerReference | null> {
+  if (params.triggerConnectionId === SHIPFOX_BUILTIN_CONNECTION_ID) return null;
   if (
     params.triggerConnectionId === undefined ||
     !('data' in params.triggerPayload) ||

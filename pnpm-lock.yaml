@@ -5031,6 +5031,9 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
+      '@shipfox/api-integration-shipfox-dto':
+        specifier: workspace:*
+        version: link:../integration/shipfox-dto
       '@shipfox/api-projects-dto':
         specifier: workspace:*
         version: link:../projects-dto
@@ -5329,6 +5332,9 @@ importers:
       '@shipfox/api-integration-core-dto':
         specifier: workspace:*
         version: link:../integration/core-dto
+      '@shipfox/api-integration-shipfox-dto':
+        specifier: workspace:*
+        version: link:../integration/shipfox-dto
       '@shipfox/api-logs-dto':
         specifier: workspace:*
         version: link:../logs-dto
