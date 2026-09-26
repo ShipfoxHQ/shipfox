@@ -8,6 +8,7 @@ import {
   findClosureManifests,
   findPublishableToolManifests,
   getRepositoryRoot,
+  publishedVersionsFromTags,
   publishProductionizedClosure,
 } from '../src/publish-productionized-closure.js';
 
@@ -180,5 +181,24 @@ describe('publishProductionizedClosure', () => {
     assert.equal(readFileSync(manifestPath, 'utf8'), originalManifest);
     await assert.rejects(publish, SPAWN_FAILURE_ERROR);
     assert.equal(readFileSync(manifestPath, 'utf8'), originalManifest);
+  });
+});
+
+describe('publishedVersionsFromTags', () => {
+  test('returns only the package versions tagged during publication', () => {
+    const tagsBefore = new Set(['@shipfox/api-server@33.1.0', 'v1.0.0']);
+    const tagsAfter = new Set([
+      ...tagsBefore,
+      '@shipfox/api-server@33.2.0',
+      '@shipfox/api-runners@33.2.0-next.1',
+      'v2.0.0',
+    ]);
+
+    const published = publishedVersionsFromTags(tagsBefore, tagsAfter);
+
+    assert.deepEqual(published, [
+      {name: '@shipfox/api-runners', version: '33.2.0-next.1'},
+      {name: '@shipfox/api-server', version: '33.2.0'},
+    ]);
   });
 });

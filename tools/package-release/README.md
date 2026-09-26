@@ -37,3 +37,16 @@ rewritten.
 Preflight proves that the planned packages can be transformed and packed as a
 coherent release closure. The real publish step still proves registry
 authorization, provenance, and that npm accepted each upload.
+
+When `SHIPFOX_PUBLISHED_VERSIONS_PATH` is set, the closure publisher writes the
+exact versions that `changeset publish` uploaded to that JSON file. It reads
+them from the local `<name>@<version>` Git tags that Changesets creates for each
+accepted upload. `await-published-versions` reads the same file and polls npm
+until each version appears in the install metadata and its tarball responds.
+It fails after 15 minutes and lists every version that is still unavailable.
+It never publishes again.
+
+```sh
+SHIPFOX_PUBLISHED_VERSIONS_PATH="$RUNNER_TEMP/published-versions.json" \
+  pnpm --silent --filter=@shipfox/package-release await-published-versions
+```

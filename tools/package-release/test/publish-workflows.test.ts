@@ -37,5 +37,15 @@ describe('package release workflows', () => {
     assert.ok(workflow.includes('steps.release-app-token.outputs.app-slug'));
     assert.ok(workflow.includes('gh api "/users/$' + '{RELEASE_APP_SLUG}[bot]" --jq .id'));
     assert.ok(workflow.includes('--release-app-id "$RELEASE_BOT_USER_ID"'));
+    assert.ok(
+      workflow.indexOf('await-published-versions') > workflow.indexOf('release:publish'),
+      'npm readiness must be checked after publication and before the job succeeds',
+    );
+    assert.equal(
+      workflow.match(
+        /SHIPFOX_PUBLISHED_VERSIONS_PATH: \$\{\{ runner\.temp \}\}\/published-versions\.json/gu,
+      )?.length,
+      2,
+    );
   });
 });
