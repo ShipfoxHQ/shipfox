@@ -194,7 +194,7 @@ publication authority. `publish-packages` runs only after a merged,
 deterministically verified `changeset-release/main` pull request, then checks
 out that exact merge revision and publishes under a separate non-cancelable
 concurrency group. The workflow succeeds only after npm serves every version
-that run published, because downstream package refreshes start from that
+this run published, because downstream package refreshes start from that
 success. Do not run `release:publish` as a normal contributor workflow. It is
 the workflow command and requires its release environment.
 

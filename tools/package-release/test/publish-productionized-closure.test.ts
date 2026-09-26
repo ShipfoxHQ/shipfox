@@ -191,6 +191,7 @@ describe('publishedVersionsFromTags', () => {
       ...tagsBefore,
       '@shipfox/api-server@33.2.0',
       '@shipfox/api-runners@33.2.0-next.1',
+      'v2.0.0',
     ]);
 
     const published = publishedVersionsFromTags(tagsBefore, tagsAfter);
