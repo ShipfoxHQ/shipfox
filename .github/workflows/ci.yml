@@ -240,7 +240,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
     env:
-      SHIPFOX_TURBO_CONCURRENCY: "4"
+      # One Turbo task per CPU, whatever the runner size.
+      SHIPFOX_TURBO_CONCURRENCY: "100%"
       CLOUDFLARE_PAGES_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       SHIPFOX_PUBLICATION_REGISTRY_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
       SHIPFOX_PUBLICATION_REGISTRY_REQUIRED: ${{ github.event_name == 'pull_request' && needs.release-mode.outputs.mode != 'normal' }}
@@ -318,7 +319,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 40
     env:
-      SHIPFOX_TURBO_CONCURRENCY: "4"
+      SHIPFOX_TURBO_CONCURRENCY: "100%"
 
     steps:
       - name: Check out repository
@@ -380,7 +381,7 @@ jobs:
     timeout-minutes: 40
     env:
       CLOUDFLARE_PAGES_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      SHIPFOX_TURBO_CONCURRENCY: "4"
+      SHIPFOX_TURBO_CONCURRENCY: "100%"
       SHIPFOX_VITEST_MAX_WORKERS: "1"
 
     steps:
