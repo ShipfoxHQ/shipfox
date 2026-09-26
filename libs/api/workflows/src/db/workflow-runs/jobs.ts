@@ -156,7 +156,7 @@ interface LoadedDirectDependencyExecutions {
 async function loadDirectDependencyExecutions(params: {
   tx: ReturnType<typeof db> | Tx;
   workflowRunAttemptId: string;
-  dependencyKeys: readonly string[];
+  dependencyKeys?: readonly string[] | undefined;
   includeTriggerEventPayloads: boolean;
 }): Promise<LoadedDirectDependencyExecutions> {
   const rows = (await params.tx
@@ -171,7 +171,7 @@ async function loadDirectDependencyExecutions(params: {
     .where(
       and(
         eq(jobs.workflowRunAttemptId, params.workflowRunAttemptId),
-        inArray(jobs.key, params.dependencyKeys),
+        params.dependencyKeys === undefined ? undefined : inArray(jobs.key, params.dependencyKeys),
       ),
     )
     .orderBy(
@@ -224,6 +224,29 @@ export async function getDirectDependencyJobContexts(
     dependencyKeys: target.job.dependencies,
     includeTriggerEventPayloads: options.includeTriggerEventPayloads !== false,
   });
+  return toJobContextInputs(loaded, model);
+}
+
+/** Every job of an attempt, as the `jobs` context sees it, with event metadata only. */
+export async function getRunAttemptJobContexts(
+  tx: Tx,
+  params: {
+    workflowRunAttemptId: string;
+    model: ReturnType<typeof readPersistedWorkflowModel> | null;
+  },
+): Promise<JobContextInput[]> {
+  const loaded = await loadDirectDependencyExecutions({
+    tx,
+    workflowRunAttemptId: params.workflowRunAttemptId,
+    includeTriggerEventPayloads: false,
+  });
+  return toJobContextInputs(loaded, params.model);
+}
+
+function toJobContextInputs(
+  loaded: LoadedDirectDependencyExecutions,
+  model: ReturnType<typeof readPersistedWorkflowModel> | null,
+): JobContextInput[] {
   const outputTypes = outputTypesByJobKey(model);
   const contextsByJobId = new Map<string, JobContextInput & {executions: JobExecution[]}>();
   for (const row of loaded.rows) {

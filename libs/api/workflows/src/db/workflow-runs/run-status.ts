@@ -19,7 +19,9 @@ import {
 import {
   recordWorkflowJobStatusChanged,
   recordWorkflowListenerEventOutcome,
+  recordWorkflowRunOutputs,
   recordWorkflowRunStatusChanged,
+  type WorkflowRunOutputsOutcome,
 } from '#metrics/instance.js';
 import {db, type Tx} from '../db.js';
 import {
@@ -34,6 +36,7 @@ import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
 import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
 import {updateJobStatusAtVersion} from './jobs.js';
 import {writeJobExecutionTerminatedOutbox} from './outbox.js';
+import {materializeRunAttemptOutputs} from './run-outputs.js';
 import {
   lockWorkflowRun,
   TERMINAL_EXECUTION_STATUSES,
@@ -454,30 +457,84 @@ export interface UpdateWorkflowRunStatusParams {
   statusReasonMessage?: string | null | undefined;
 }
 
+interface UpdateWorkflowRunStatusResult {
+  run: WorkflowRun;
+  changed: boolean;
+  outputsOutcome?: WorkflowRunOutputsOutcome | undefined;
+}
+
 export async function updateWorkflowRunStatus(
   params: UpdateWorkflowRunStatusParams,
 ): Promise<WorkflowRun> {
-  const result = await db().transaction(async (tx) => {
+  const result: UpdateWorkflowRunStatusResult = await db().transaction(async (tx) => {
     const target = await loadWorkflowRunStatusTarget(params, tx);
-    const attemptRow = await updateWorkflowRunAttemptStatus(target.attempt.id, params, tx);
+    const completion = await resolveRunAttemptCompletion(target, params, tx);
+    const attemptRow = await updateWorkflowRunAttemptStatus(
+      target.attempt.id,
+      completion.params,
+      completion.outputs,
+      tx,
+    );
     if (!attemptRow) return resolveWorkflowRunStatusConflict(target, params, tx);
 
     const shouldMirror = target.run.currentAttempt === attemptRow.attempt;
     const run = await mirrorWorkflowRunStatus(
       target.run,
       attemptRow.version,
-      params,
+      completion.params,
       shouldMirror,
       tx,
     );
-    await writeRunStartedIfNeeded(target, attemptRow, params, shouldMirror, tx);
+    await writeRunStartedIfNeeded(target, attemptRow, completion.params, shouldMirror, tx);
     await writeRunTerminatedIfNeeded(run, attemptRow, shouldMirror, tx);
-    return {run, changed: true};
+    return {run, changed: true, outputsOutcome: completion.outputsOutcome};
   });
 
   if (result.changed) recordWorkflowRunStatusChanged(result.run.status);
+  if (result.outputsOutcome !== undefined) recordWorkflowRunOutputs(result.outputsOutcome);
 
   return result.run;
+}
+
+/**
+ * A succeeding attempt materializes its workflow outputs under the run and
+ * attempt locks, so the committed status, reason, outputs, and terminated
+ * event always agree. An output failure turns the success into a failure.
+ */
+async function resolveRunAttemptCompletion(
+  target: Awaited<ReturnType<typeof loadWorkflowRunStatusTarget>>,
+  params: UpdateWorkflowRunStatusParams,
+  tx: Tx,
+): Promise<{
+  params: UpdateWorkflowRunStatusParams;
+  outputs?: Record<string, unknown>;
+  outputsOutcome?: WorkflowRunOutputsOutcome;
+}> {
+  if (
+    params.status !== 'succeeded' ||
+    target.attempt.version !== params.expectedVersion ||
+    isWorkflowRunTerminal(target.attempt.status)
+  ) {
+    return {params};
+  }
+
+  const result = await materializeRunAttemptOutputs(tx, target);
+  switch (result.kind) {
+    case 'none':
+      return {params};
+    case 'materialized':
+      return {params, outputs: result.outputs, outputsOutcome: 'materialized'};
+    case 'failed':
+      return {
+        params: {
+          ...params,
+          status: 'failed',
+          statusReason: result.statusReason,
+          statusReasonMessage: result.statusReasonMessage,
+        },
+        outputsOutcome: result.statusReason === 'output_too_large' ? 'too-large' : 'invalid',
+      };
+  }
 }
 
 async function loadWorkflowRunStatusTarget(params: UpdateWorkflowRunStatusParams, tx: Tx) {
@@ -515,6 +572,7 @@ async function loadWorkflowRunStatusTarget(params: UpdateWorkflowRunStatusParams
 async function updateWorkflowRunAttemptStatus(
   attemptId: string,
   params: UpdateWorkflowRunStatusParams,
+  outputs: Record<string, unknown> | undefined,
   tx: Tx,
 ) {
   const isTerminal = isWorkflowRunTerminal(params.status);
@@ -534,6 +592,7 @@ async function updateWorkflowRunAttemptStatus(
       ...(isTerminal && params.statusReasonMessage !== undefined
         ? {statusReasonMessage: params.statusReasonMessage}
         : {}),
+      ...(outputs === undefined ? {} : {outputs}),
     })
     .where(
       and(

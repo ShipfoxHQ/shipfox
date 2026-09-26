@@ -89,6 +89,8 @@ interface TestWorkflowModelInput {
   readonly runner?: string | readonly string[] | undefined;
   readonly env?: WorkflowModel['env'] | undefined;
   readonly jobs?: Readonly<Record<string, TestWorkflowJob>> | undefined;
+  readonly outputs?: Readonly<Record<string, string>> | undefined;
+  readonly outputTypes?: WorkflowModel['outputTypes'] | undefined;
 }
 
 export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel {
@@ -126,6 +128,8 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     dependencies: modelJobs.flatMap((job) =>
       job.dependencies.map((dependency) => ({from: dependency, to: job.id})),
     ),
+    ...(input.outputs === undefined ? {} : {outputs: outputTemplates(input.outputs)}),
+    ...(input.outputTypes === undefined ? {} : {outputTypes: input.outputTypes}),
   };
 }
 

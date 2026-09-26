@@ -718,6 +718,7 @@ function referencedVariables(
   collectFieldVariableReferences(model.concurrency?.group, references, {
     field: 'workflow.concurrency.group',
   });
+  collectTemplateVariableReferences(model.outputs, references, {field: 'workflow.outputs'});
   if (jobs.length > 0) collectTemplateVariableReferences(model.templates?.env, references);
   for (const job of jobs) collectJobVariableReferences(job, references);
   return references;

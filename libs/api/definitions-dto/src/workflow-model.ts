@@ -96,6 +96,8 @@ export interface WorkflowModel {
   readonly triggers: readonly WorkflowModelTrigger[];
   readonly jobs: readonly WorkflowModelJob[];
   readonly dependencies: readonly WorkflowModelDependency[];
+  readonly outputs?: WorkflowOutputTemplates;
+  readonly outputTypes?: Readonly<Record<string, ExpressionType>>;
 }
 
 export interface WorkflowModelTrigger {

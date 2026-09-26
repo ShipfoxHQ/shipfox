@@ -255,6 +255,24 @@ export function assembleJobActivationContext(
   };
 }
 
+export interface AssembleWorkflowOutputsContextParams extends AssembleWorkflowRunContextParams {
+  readonly jobs: readonly JobContextInput[];
+}
+
+/** Workflow outputs are evaluated once the attempt has resolved every job. */
+export function assembleWorkflowOutputsContext(
+  params: AssembleWorkflowOutputsContextParams,
+): WorkflowEvaluationContext {
+  return {
+    site: 'job-resolution',
+    values: {
+      ...assembleWorkflowRunContext(params),
+      ...assembleJobsContext(params.jobs, {eventProjection: 'metadata'}),
+      vars: params.vars ?? {},
+    },
+  };
+}
+
 type ListenerPredicateField = 'listener.on' | 'listener.until';
 type ListenerSnapshotRoot = Exclude<WorkflowPredicateContextRoot<ListenerPredicateField>, 'event'>;
 

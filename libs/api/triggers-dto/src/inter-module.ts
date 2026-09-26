@@ -263,6 +263,7 @@ const interpolationFieldSchema = z.enum([
   'job.execution_name',
   'workflow.concurrency.group',
   'workflow.run_name',
+  'workflow.outputs',
   'step.name',
   'step.working_directory',
   'step.feedback',

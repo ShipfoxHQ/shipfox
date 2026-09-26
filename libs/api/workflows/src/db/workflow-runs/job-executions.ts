@@ -6,14 +6,9 @@ import {and, asc, desc, eq, isNull, notInArray, sql} from 'drizzle-orm';
 import {assertWorkflowProductOutputSize} from '#core/diagnostics.js';
 import type {JobStatusReason} from '#core/entities/job.js';
 import type {JobExecution, JobExecutionStatus} from '#core/entities/job-execution.js';
-import {
-  InterpolationUnresolvableError,
-  JobNotFoundError,
-  JobOutputNotJsonSafeError,
-  JobOutputTooLargeError,
-  JobOutputTooManyEntriesError,
-} from '#core/errors.js';
+import {JobNotFoundError} from '#core/errors.js';
 import {deriveJobExecutionOutputs} from '#core/job-transition/index.js';
+import {classifyOutputFailure} from '#core/output-failure.js';
 import {deriveCompletion, isTerminal} from '#core/step-transition/decide-step-transition.js';
 import type {RuntimeCompletionStatus} from '#core/workflow-scheduling/runtime-dag.js';
 import {
@@ -174,41 +169,6 @@ export interface UpdateJobExecutionStatusAtVersionParams {
   secrets?: Pick<SecretsInterModuleClient, 'getVariablesByNamespace'> | undefined;
 }
 
-const MAX_STATUS_REASON_MESSAGE_LENGTH = 2048;
-
-export type JobOutputFailure = {
-  statusReason: Extract<JobStatusReason, 'output_invalid' | 'output_too_large'>;
-  statusReasonMessage: string;
-};
-
-export function classifyJobOutputFailure(error: unknown): JobOutputFailure | null {
-  if (error instanceof JobOutputTooLargeError) {
-    return {
-      statusReason: 'output_too_large',
-      statusReasonMessage: boundedStatusReasonMessage(error.message),
-    };
-  }
-
-  if (
-    (error instanceof InterpolationUnresolvableError && error.field === 'job.outputs') ||
-    error instanceof JobOutputNotJsonSafeError ||
-    error instanceof JobOutputTooManyEntriesError
-  ) {
-    return {
-      statusReason: 'output_invalid',
-      statusReasonMessage: boundedStatusReasonMessage(error.message),
-    };
-  }
-
-  return null;
-}
-
-function boundedStatusReasonMessage(message: string): string {
-  return message.length <= MAX_STATUS_REASON_MESSAGE_LENGTH
-    ? message
-    : `${message.slice(0, MAX_STATUS_REASON_MESSAGE_LENGTH - 1)}…`;
-}
-
 async function resolveJobExecutionOutputs(
   tx: Tx,
   params: {
@@ -315,7 +275,7 @@ async function updateJobExecutionStatusAtVersion(
         secrets: params.secrets,
       });
     } catch (error) {
-      const outputFailure = classifyJobOutputFailure(error);
+      const outputFailure = classifyOutputFailure(error);
       if (outputFailure === null) throw error;
       status = 'failed';
       statusReason = outputFailure.statusReason;

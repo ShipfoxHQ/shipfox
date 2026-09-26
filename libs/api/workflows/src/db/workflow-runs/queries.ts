@@ -198,6 +198,7 @@ export async function getLifecycleEventContextRead(params: {
       parentRunId: workflowRuns.parentRunId,
       rootRunId: workflowRuns.rootRunId,
       createdAt: workflowRuns.createdAt,
+      outputs: workflowRunAttempts.outputs,
       jobId: jobs.id,
       jobKey: jobs.key,
       jobMode: jobs.mode,

@@ -122,6 +122,7 @@ function readLifecycleEventContext() {
     parentRunId: null,
     rootRunId: null,
     createdAt: new Date('2026-08-31T10:00:00.000Z'),
+    outputs: null,
     jobId: null,
     jobKey: null,
     jobMode: null,
@@ -248,6 +249,17 @@ describe('Workflows inter-module presentation', () => {
       jobId: undefined,
     },
     {
+      name: 'succeeded attempt with workflow outputs',
+      origin: 'synced',
+      attempt: 1,
+      triggerReference: {ref: 'refs/heads/main', commit: 'outputs-commit'},
+      devSource: null,
+      parentRunId: null,
+      rootRunId: null,
+      jobId: undefined,
+      outputs: {version: '1.2.3'},
+    },
+    {
       name: 'job context',
       origin: 'synced',
       attempt: 1,
@@ -280,6 +292,7 @@ describe('Workflows inter-module presentation', () => {
       parentRunId: scenario.parentRunId,
       rootRunId: scenario.rootRunId,
       createdAt,
+      outputs: scenario.outputs ?? null,
       jobId: scenario.jobId ?? null,
       jobKey: scenario.jobId === undefined ? null : 'build',
       jobMode: scenario.jobId === undefined ? null : 'one_shot',
@@ -342,6 +355,7 @@ describe('Workflows inter-module presentation', () => {
         parent_run_id: scenario.parentRunId,
         root_run_id: scenario.rootRunId,
         created_at: createdAt.toISOString(),
+        outputs: scenario.outputs ?? null,
       },
       ...(scenario.jobId === undefined
         ? {}
