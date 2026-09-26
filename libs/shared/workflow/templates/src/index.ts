@@ -33,6 +33,23 @@ export {
   workflowTemplateRoleSchema,
 } from './manifest.js';
 export {
+  CHEAPER_RATIO,
+  type CostTradeoff,
+  type IntelligenceTradeoff,
+  MORE_EXPENSIVE_RATIO,
+  type ModelRecommendation,
+  type ModelTradeoff,
+  MUCH_CHEAPER_RATIO,
+  MUCH_MORE_EXPENSIVE_RATIO,
+  RECOMMENDATION_INDEX_BAND,
+  type RecommendationAnchor,
+  type RecommendationModel,
+  type RecommendationReference,
+  type RecommendModelsInput,
+  recommendModels,
+  SIMILAR_INTELLIGENCE_BAND,
+} from './recommend-models.js';
+export {
   getShippedSkillResource,
   listShippedSkillResources,
   type SkillResource,

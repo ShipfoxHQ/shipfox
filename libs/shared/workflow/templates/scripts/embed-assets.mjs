@@ -1,12 +1,17 @@
+import {execFile} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {readdir, readFile, writeFile} from 'node:fs/promises';
+import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {promisify} from 'node:util';
 import {parse as parseYaml} from 'yaml';
 
+const execFileAsync = promisify(execFile);
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsRoot = join(packageRoot, 'assets');
 const outputPath = join(packageRoot, 'src/generated/assets.ts');
+const formatterPath = resolve(packageRoot, 'node_modules/@shipfox/biome/bin/biome-format.js');
 const {version: libraryVersion} = JSON.parse(
   await readFile(join(packageRoot, 'package.json'), 'utf8'),
 );
@@ -145,7 +150,27 @@ export const embeddedSkillResources: readonly SkillResource[] = ${JSON.stringify
 
 export const embeddedWorkflowTemplateAssets: readonly EmbeddedWorkflowTemplateAsset[] = ${JSON.stringify(templates, null, 2)};
 `;
-await writeFile(outputPath, generated);
+await writeFormattedIfChanged(generated);
+
+async function writeFormattedIfChanged(generated) {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'shipfox-workflow-template-assets-'));
+  const temporaryPath = join(temporaryRoot, 'assets.ts');
+
+  try {
+    await writeFile(temporaryPath, generated);
+    await execFileAsync(process.execPath, [formatterPath, '--write', temporaryPath], {
+      cwd: packageRoot,
+    });
+    const formatted = await readFile(temporaryPath, 'utf8');
+    const existing = await readFile(outputPath, 'utf8').catch((error) => {
+      if (error.code === 'ENOENT') return undefined;
+      throw error;
+    });
+    if (existing !== formatted) await writeFile(outputPath, formatted);
+  } finally {
+    await rm(temporaryRoot, {recursive: true, force: true});
+  }
+}
 
 function byName(left, right) {
   return left.name.localeCompare(right.name);
