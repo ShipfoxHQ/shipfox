@@ -61,7 +61,9 @@ jobs:
 
       - name: Set up mise
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+        uses: ./.github/actions/setup-mise
+        with:
+          tools: gh node npm:pnpm npm:turbo
 
       - name: Set up pnpm
         if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && vars.FORCE_FULL_CI != 'true'
