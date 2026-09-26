@@ -5,7 +5,8 @@ A library for composing first-party workflow templates from embedded YAML and Ma
 
 - **`workflowTemplateManifestSchema`** checks template identity, revisions, roles, provider choices, options, model placeholders, slots, secrets, and variables.
 - **`composeWorkflow`** replaces `# part:<role>.<name>` markers with text blocks at the marker indentation.
-- **`composeTemplate`** selects one provider part for every manifest role and composes the workflow.
+- **`composeTemplate`** selects one provider part for every bound role, composes the workflow, and writes its `# shipfox-template:` header.
+- **`templateRoleBindings`** lists every role binding a template supports, with each optional role both bound and unbound.
 - **`extractModelAnchors`** reads each placeholder's tested model and thinking setting from composed YAML.
 - **`suggestModels`** orders measured model and thinking combinations for a template placeholder.
 - **`recommendModels`** selects up to four scored alternatives to a tested model and labels their intelligence and cost tradeoffs.
@@ -56,11 +57,26 @@ The following comments are preserved as authoring instructions:
 - `# slot:<name>` identifies a value the agent fills from the manifest slot.
 - `# model:<key>` identifies a model value on an agent step's `model:` line. Each key needs a `models` entry in the manifest.
 - `# option:X=Y begin` and `# option:X=Y end` surround an optional block.
-- `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template.
+- `# shipfox-template: <id>@<revision> <role>=<provider>` identifies an adopted composed template. `composeTemplate` writes it after the leading comments from the manifest and the bound roles, so base workflows must not declare it.
 
-The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or provider binding throws an error.
+The composer only substitutes `part:` markers. It does not evaluate expressions, conditionals, or loops. A missing part or required provider binding throws an error.
 
-Each `models` entry needs a matching marker in `workflow.yml` or a provider part. The entry can include a `note` for the user. The loader composes every role binding and rejects missing, unknown, incomplete, or conflicting markers.
+Each `models` entry needs a matching marker in `workflow.yml` or a provider part. The entry can include a `note` for the user. The loader composes every role binding and rejects missing, unknown, incomplete, or conflicting markers. Keep model markers out of optional-role parts, because the composition without that role would lose them.
+
+### Optional roles
+
+A role can set `optional: true` with a `question` and a `tradeoff`, so the user opts into part of a template:
+
+```yaml
+roles:
+  report:
+    providers: [slack]
+    optional: true
+    question: Should the workflow post its outcome to Slack?
+    tradeoff: Posts one Slack message per investigated failure.
+```
+
+When an optional role is unbound, `composeTemplate` removes its `# part:` markers and leaves it out of the header. Keep everything that depends on the role inside its parts, such as a whole job. A role with `from: project` cannot be optional.
 
 `extractModelAnchors` reads markers after provider parts are composed and before options are applied. It returns the model and sibling `thinking` value for each placeholder. Repeated markers must agree.
 

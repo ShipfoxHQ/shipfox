@@ -1,5 +1,10 @@
 import {parse as parseYaml} from 'yaml';
-import {composeTemplate, type PartProviderBlocks, type TemplateRoleBindings} from './composer.js';
+import {
+  composeTemplate,
+  type PartProviderBlocks,
+  type TemplateRoleBindings,
+  templateRoleBindings,
+} from './composer.js';
 import {embeddedWorkflowTemplateAssets} from './generated/assets.js';
 import {type WorkflowTemplateManifest, workflowTemplateManifestSchema} from './manifest.js';
 
@@ -62,21 +67,9 @@ export function getShippedTemplate(id: string): WorkflowTemplate | undefined {
 export const shippedTemplateLoader = createTemplateLoader(embeddedWorkflowTemplateAssets);
 
 function validateTemplateCombinations(template: WorkflowTemplate): void {
-  for (const bindings of roleBindings(template.manifest.roles)) {
+  for (const bindings of templateRoleBindings(template.manifest.roles)) {
     composeTemplate(template, bindings);
   }
-}
-
-function roleBindings(
-  roles: WorkflowTemplateManifest['roles'],
-): ReadonlyArray<TemplateRoleBindings> {
-  return Object.entries(roles).reduce<ReadonlyArray<TemplateRoleBindings>>(
-    (bindings, [role, declaration]) =>
-      bindings.flatMap((binding) =>
-        declaration.providers.map((provider) => ({...binding, [role]: provider})),
-      ),
-    [{}],
-  );
 }
 
 function normalizeTemplate(asset: WorkflowTemplateAsset): WorkflowTemplate {

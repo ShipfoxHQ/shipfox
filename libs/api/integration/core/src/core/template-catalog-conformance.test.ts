@@ -25,6 +25,7 @@ import {
   composeTemplate,
   loadShippedTemplates,
   type TemplateRoleBindings,
+  templateRoleBindings,
   type WorkflowTemplate,
   type WorkflowTemplateManifest,
 } from '@shipfox/workflow-templates';
@@ -405,7 +406,7 @@ function partConformance(
 }
 
 function templateVariantsConformance(template: WorkflowTemplate): ConformanceResult {
-  const results = roleBindings(template.manifest.roles).map((bindings) =>
+  const results = templateRoleBindings(template.manifest.roles).map((bindings) =>
     bindingVariantsConformance(template, bindings),
   );
 
@@ -701,16 +702,6 @@ function writeToolsForBindings(bindings: TemplateRoleBindings): ReadonlySet<stri
     Object.values(bindings).flatMap((provider) => [
       ...(providerCatalogs[provider]?.writeTools ?? []),
     ]),
-  );
-}
-
-function roleBindings(roles: WorkflowTemplateManifest['roles']): TemplateRoleBindings[] {
-  return Object.entries(roles).reduce<TemplateRoleBindings[]>(
-    (bindings, [role, declaration]) =>
-      bindings.flatMap((binding) =>
-        declaration.providers.map((provider) => ({...binding, [role]: provider})),
-      ),
-    [{}],
   );
 }
 

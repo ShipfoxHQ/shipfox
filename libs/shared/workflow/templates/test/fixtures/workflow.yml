@@ -1,4 +1,3 @@
-# shipfox-template: fixture-ticket-to-pr@1 tracker=linear source=github
 name: Fixture ticket to pull request
 triggers:
   # bind:tracker

@@ -1,5 +1,4 @@
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
-# shipfox-template: ask-codebase@1 chat=slack source=github
 name: Answer codebase questions in Slack
 runner: shipfox
 

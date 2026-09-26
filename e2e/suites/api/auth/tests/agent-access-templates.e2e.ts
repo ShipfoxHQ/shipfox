@@ -87,11 +87,13 @@ test.describe('agent-access workflow templates', () => {
           {
             role: 'tracker',
             from_project: false,
+            optional: false,
             providers: [{provider: 'linear', compatible: true, suggested_bindings: [linear.slug]}],
           },
           {
             role: 'source',
             from_project: true,
+            optional: false,
             providers: [{provider: 'github', compatible: true, suggested_bindings: [github.slug]}],
           },
         ]),

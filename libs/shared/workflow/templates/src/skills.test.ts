@@ -7,8 +7,8 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(4);
-    expect(skill?.text).toContain('revision: 4');
+    expect(skill?.revision).toBe(5);
+    expect(skill?.text).toContain('revision: 5');
     expect(skill?.text).toContain('## 1. Orient');
     expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
@@ -80,6 +80,15 @@ describe('shipped skill resources', () => {
     expect(text).toContain(
       'Never rerun a writing step without one of these. Stop and ask the user after five failed real runs.',
     );
+  });
+
+  test('asks about an optional role only when its provider is connected', () => {
+    const text =
+      getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md')?.text ?? '';
+
+    expect(text).toContain('only if it has a compatible provider.');
+    expect(text).toContain('say in one sentence what connecting it adds; never ask.');
+    expect(text).toContain('each accepted optional role.');
   });
 
   test('asks one explained question at a time', () => {

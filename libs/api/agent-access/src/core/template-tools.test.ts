@@ -38,6 +38,12 @@ const asset: WorkflowTemplateAsset = {
     roles: {
       tracker: {providers: ['linear', 'github']},
       source: {from: 'project', providers: ['github']},
+      report: {
+        providers: ['slack'],
+        optional: true,
+        question: 'Should the workflow report to Slack?',
+        tradeoff: 'Posts one Slack message per run.',
+      },
     },
     options: [{id: 'mode', choices: [{id: 'safe', default: true}]}],
     models: {},
@@ -45,7 +51,7 @@ const asset: WorkflowTemplateAsset = {
     secrets: [],
     variables: [],
   },
-  workflow: 'name: fixture\ntriggers:\n  # part:tracker.trigger\njobs: {}',
+  workflow: 'name: fixture\ntriggers:\n  # part:tracker.trigger\n  # part:report.trigger\njobs: {}',
   guide: '# Follow this fixture',
   parts: {
     tracker: {
@@ -53,10 +59,11 @@ const asset: WorkflowTemplateAsset = {
       github: {trigger: '- source: github\n  event: issues.opened'},
     },
     source: {github: {unused: 'unused'}},
+    report: {slack: {trigger: '- source: slack\n  event: app_mention'}},
   } as unknown as WorkflowTemplateAsset['parts'],
 };
 describe('agent-access template tools', () => {
-  test('lists compatibility and active connection suggestions per provider', async () => {
+  test('lists compatibility from required roles and active connection suggestions per provider', async () => {
     const integrations = integrationClient([
       connection('linear-main', 'linear'),
       connection('github-main', 'github'),
@@ -80,6 +87,7 @@ describe('agent-access template tools', () => {
               {
                 role: 'tracker',
                 from_project: false,
+                optional: false,
                 providers: [
                   {provider: 'linear', compatible: true, suggested_bindings: ['linear-main']},
                   {
@@ -92,6 +100,7 @@ describe('agent-access template tools', () => {
               {
                 role: 'source',
                 from_project: true,
+                optional: false,
                 providers: [
                   {
                     provider: 'github',
@@ -99,6 +108,14 @@ describe('agent-access template tools', () => {
                     suggested_bindings: ['github-main', 'github-secondary'],
                   },
                 ],
+              },
+              {
+                role: 'report',
+                from_project: false,
+                optional: true,
+                question: 'Should the workflow report to Slack?',
+                tradeoff: 'Posts one Slack message per run.',
+                providers: [{provider: 'slack', compatible: false, suggested_bindings: []}],
               },
             ],
           }),
@@ -274,6 +291,40 @@ describe('agent-access template tools', () => {
     expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
 
+  test('composes an optional role only when it is passed', async () => {
+    const integrations = integrationClient([
+      connection('linear-main', 'linear'),
+      connection('slack-main', 'slack'),
+    ]);
+    integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
+    const get = getTool(createTools(integrations, projectClient()), 'get_workflow_template');
+    const input = {template_id: 'fixture-template', project_id: projectId, tracker: 'linear'};
+
+    const without = await get.execute({context, arguments: input});
+    const withReport = await get.execute({context, arguments: {...input, report: 'slack'}});
+
+    if (!without.ok || !withReport.ok) throw new Error('Expected successful template responses');
+    const omitted = getWorkflowTemplateResultSchema.parse(without.result);
+    const chosen = getWorkflowTemplateResultSchema.parse(withReport.result);
+    expect(omitted.workflow_yaml).toContain(
+      '# shipfox-template: fixture-template@1 tracker=linear source=github',
+    );
+    expect(omitted.workflow_yaml).not.toContain('source: slack');
+    expect(omitted.suggested_bindings).toEqual({
+      tracker: ['linear-main'],
+      source: ['github-project'],
+    });
+    expect(chosen.workflow_yaml).toContain(
+      '# shipfox-template: fixture-template@1 tracker=linear source=github report=slack',
+    );
+    expect(chosen.workflow_yaml).toContain('source: slack');
+    expect(chosen.suggested_bindings).toEqual({
+      tracker: ['linear-main'],
+      source: ['github-project'],
+      report: ['slack-main'],
+    });
+  });
+
   test('accepts a project role that matches the project source', async () => {
     const integrations = integrationClient([connection('linear-main', 'linear')]);
     integrations.resolveConnectionById.mockResolvedValue(projectSource('github'));
@@ -312,7 +363,7 @@ describe('agent-access template tools', () => {
       error: {
         code: 'invalid-request',
         message:
-          'Missing role "tracker". Pass each open role as `<role>: <provider ID>`: tracker (linear or github). The project sets source.',
+          'Missing role "tracker". Pass each open role as `<role>: <provider ID>`: tracker (linear or github). Pass an optional role only when the user chose it: report (slack). The project sets source.',
       },
     },
     {
@@ -334,7 +385,7 @@ describe('agent-access template tools', () => {
       error: {
         code: 'invalid-request',
         message:
-          'Unknown input "tracker_provider". Pass each open role as `<role>: <provider ID>`: tracker (linear or github). The project sets source.',
+          'Unknown input "tracker_provider". Pass each open role as `<role>: <provider ID>`: tracker (linear or github). Pass an optional role only when the user chose it: report (slack). The project sets source.',
       },
     },
   ])('explains $name', async ({arguments: input, error}) => {

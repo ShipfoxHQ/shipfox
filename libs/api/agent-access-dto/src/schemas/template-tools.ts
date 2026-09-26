@@ -95,6 +95,9 @@ const suggestedBindingSchema = z.object({
 const roleResultSchema = z.object({
   role: identifierSchema,
   from_project: z.boolean(),
+  optional: z.boolean(),
+  question: z.string().min(1).optional(),
+  tradeoff: z.string().min(1).optional(),
   providers: z.array(suggestedBindingSchema),
 });
 
@@ -167,9 +170,24 @@ const roleResult = {
       description:
         "True when the project's source connection sets this role. Omit it from get_workflow_template.",
     },
+    optional: {
+      type: 'boolean',
+      description:
+        'True when the role is opt-in. Ask its question only when a provider is compatible, and pass the role to get_workflow_template only after the user says yes.',
+    },
+    question: {
+      type: 'string',
+      minLength: 1,
+      description: 'The question that asks the user whether to use an optional role.',
+    },
+    tradeoff: {
+      type: 'string',
+      minLength: 1,
+      description: 'What choosing an optional role adds and writes.',
+    },
     providers: {type: 'array', items: suggestedBinding},
   },
-  required: ['role', 'from_project', 'providers'],
+  required: ['role', 'from_project', 'optional', 'providers'],
   additionalProperties: false,
 } as const;
 const optionChoice = {
@@ -283,7 +301,7 @@ export const getWorkflowTemplateInputJsonSchema = {
   additionalProperties: {
     ...identifier,
     description:
-      'One provider ID per open role, keyed by role name, such as `tracker: "linear"`. Omit roles with `from_project: true`.',
+      'One provider ID per open role, keyed by role name, such as `tracker: "linear"`. Omit roles with `from_project: true`, and optional roles the user did not choose.',
   },
 } as const satisfies AgentAccessObjectSchema;
 
@@ -300,8 +318,15 @@ export const listWorkflowTemplatesResultJsonSchema = {
           added_at: {type: 'string', format: 'date'},
           title: text,
           summary: text,
-          compatible: {type: 'boolean'},
-          missing_providers: {type: 'array', items: identifier},
+          compatible: {
+            type: 'boolean',
+            description: 'True when every required role has a provider with an active connection.',
+          },
+          missing_providers: {
+            type: 'array',
+            items: identifier,
+            description: 'Providers of required roles that have no active connection.',
+          },
           roles: {type: 'array', items: roleResult},
         },
         required: [

@@ -4,6 +4,7 @@ export {
   composeWorkflowTemplate,
   type PartBlocks,
   type TemplateRoleBindings,
+  templateRoleBindings,
 } from './composer.js';
 export {
   createTemplateLoader,
