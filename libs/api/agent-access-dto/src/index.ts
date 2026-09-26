@@ -266,3 +266,12 @@ export {
   listWorkflowStepAttemptsResultJsonSchema,
   listWorkflowStepAttemptsResultSchema,
 } from './schemas/workflow-tools.js';
+export {
+  AGENT_ACCESS_WORKSPACE_MODELS_DEFAULT_PAGE_LIMIT,
+  type ListWorkspaceModelsInputDto,
+  type ListWorkspaceModelsResultDto,
+  listWorkspaceModelsInputJsonSchema,
+  listWorkspaceModelsInputSchema,
+  listWorkspaceModelsResultJsonSchema,
+  listWorkspaceModelsResultSchema,
+} from './schemas/workspace-models.js';
