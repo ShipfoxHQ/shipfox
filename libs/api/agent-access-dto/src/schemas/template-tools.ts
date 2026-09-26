@@ -94,6 +94,7 @@ const suggestedBindingSchema = z.object({
 
 const roleResultSchema = z.object({
   role: identifierSchema,
+  from_project: z.boolean(),
   providers: z.array(suggestedBindingSchema),
 });
 
@@ -161,9 +162,14 @@ const roleResult = {
   type: 'object',
   properties: {
     role: identifier,
+    from_project: {
+      type: 'boolean',
+      description:
+        "True when the project's source connection sets this role. Omit it from get_workflow_template.",
+    },
     providers: {type: 'array', items: suggestedBinding},
   },
-  required: ['role', 'providers'],
+  required: ['role', 'from_project', 'providers'],
   additionalProperties: false,
 } as const;
 const optionChoice = {
@@ -274,7 +280,11 @@ export const getWorkflowTemplateInputJsonSchema = {
     project_id: uuid,
   },
   required: ['template_id', 'project_id'],
-  additionalProperties: identifier,
+  additionalProperties: {
+    ...identifier,
+    description:
+      'One provider ID per open role, keyed by role name, such as `tracker: "linear"`. Omit roles with `from_project: true`.',
+  },
 } as const satisfies AgentAccessObjectSchema;
 
 export const listWorkflowTemplatesResultJsonSchema = {

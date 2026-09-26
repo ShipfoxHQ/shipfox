@@ -82,10 +82,12 @@ test.describe('agent-access workflow templates', () => {
         roles: expect.arrayContaining([
           {
             role: 'tracker',
+            from_project: false,
             providers: [{provider: 'linear', compatible: true, suggested_bindings: [linear.slug]}],
           },
           {
             role: 'source',
+            from_project: true,
             providers: [{provider: 'github', compatible: true, suggested_bindings: [github.slug]}],
           },
         ]),
@@ -200,8 +202,21 @@ test.describe('agent-access workflow templates', () => {
         arguments: {template_id: 'fixture-ticket-to-pr', project_id: project.id, tracker: 'linear'},
       });
 
-      expect(crossWorkspace).toEqual({ok: false, error: {code: 'not-found'}});
-      expect(fixture).toEqual({ok: false, error: {code: 'not-found'}});
+      expect(crossWorkspace).toEqual({
+        ok: false,
+        error: {
+          code: 'not-found',
+          message: 'Unknown project_id. Call list_projects for project IDs.',
+        },
+      });
+      expect(fixture).toEqual({
+        ok: false,
+        error: {
+          code: 'not-found',
+          message:
+            'Unknown template_id "fixture-ticket-to-pr". Call list_workflow_templates for template IDs.',
+        },
+      });
     } finally {
       await client.close();
     }
