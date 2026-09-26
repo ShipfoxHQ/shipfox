@@ -61,6 +61,13 @@ const runStatusChangedCount = meter.createCounter<{status: WorkflowRunStatus}>(
   {description: 'Workflow run status transitions by resulting status'},
 );
 
+export type WorkflowRunOutputsOutcome = 'materialized' | 'invalid' | 'too-large';
+
+const runOutputsCount = meter.createCounter<{outcome: WorkflowRunOutputsOutcome}>(
+  'workflows_run_outputs',
+  {description: 'Workflow output evaluations on run success by bounded outcome'},
+);
+
 const jobStatusChangedCount = meter.createCounter<{status: JobStatus}>(
   'workflows_job_status_changed',
   {description: 'Workflow job status transitions by resulting status'},
@@ -311,6 +318,10 @@ export function recordWorkflowDisplayNameResolutionDegraded(
 
 export function recordWorkflowRunStatusChanged(status: WorkflowRunStatus): void {
   runStatusChangedCount.add(1, {status});
+}
+
+export function recordWorkflowRunOutputs(outcome: WorkflowRunOutputsOutcome): void {
+  runOutputsCount.add(1, {outcome});
 }
 
 export function recordWorkflowJobStatusChanged(status: JobStatus): void {

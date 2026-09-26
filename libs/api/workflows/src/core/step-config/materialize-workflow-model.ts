@@ -1,4 +1,9 @@
-import {DEFAULT_JOB_CHECKOUT, type WorkflowModel} from '@shipfox/api-definitions-dto';
+import {
+  DEFAULT_JOB_CHECKOUT,
+  type WorkflowModel,
+  type WorkflowOutputTemplates,
+} from '@shipfox/api-definitions-dto';
+import type {ExpressionType} from '@shipfox/expression';
 import {findInvalidLabels, MAX_RUNNER_LABELS, resolveRunnerLabels} from '@shipfox/runner-labels';
 import {runnerCatalog} from '#config.js';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
@@ -10,6 +15,7 @@ import {
   InvalidJobRunnerLabelsError,
   JobOutputTooLargeError,
   JobOutputTooManyEntriesError,
+  type OutputOwner,
 } from '#core/errors.js';
 import {completeStepField, completeStepFieldWithType} from './fields.js';
 import {
@@ -127,12 +133,42 @@ export function materializeJobOutputs(params: {
   readonly context: WorkflowEvaluationContext;
   readonly definitionId: string;
 }): Record<string, unknown> | null {
-  const outputs = params.job.outputs;
+  return materializeOutputs({
+    owner: 'job',
+    outputs: params.job.outputs,
+    outputTypes: params.job.outputTypes,
+    context: params.context,
+    definitionId: params.definitionId,
+  });
+}
+
+export function materializeWorkflowOutputs(params: {
+  readonly model: WorkflowModel;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+}): Record<string, unknown> | null {
+  return materializeOutputs({
+    owner: 'workflow',
+    outputs: params.model.outputs,
+    outputTypes: params.model.outputTypes,
+    context: params.context,
+    definitionId: params.definitionId,
+  });
+}
+
+function materializeOutputs(params: {
+  readonly owner: OutputOwner;
+  readonly outputs: WorkflowOutputTemplates | undefined;
+  readonly outputTypes: Readonly<Record<string, ExpressionType>> | undefined;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+}): Record<string, unknown> | null {
+  const {owner, outputs} = params;
   if (outputs === undefined) return null;
 
   const outputEntries = Object.entries(outputs);
   if (outputEntries.length > MAX_JOB_OUTPUT_ENTRIES) {
-    throw new JobOutputTooManyEntriesError(outputEntries.length, MAX_JOB_OUTPUT_ENTRIES);
+    throw new JobOutputTooManyEntriesError(outputEntries.length, MAX_JOB_OUTPUT_ENTRIES, owner);
   }
 
   const materialized: Record<string, JsonSafeJobOutputValue> = {};
@@ -141,24 +177,11 @@ export function materializeJobOutputs(params: {
   let recordBytes = 2;
 
   for (const [index, [key, template]] of outputEntries.entries()) {
-    const outputTypes = params.job.outputTypes;
-    const outputType =
-      outputTypes !== undefined && Object.hasOwn(outputTypes, key) ? outputTypes[key] : undefined;
-    const completionParams = {
-      field: 'job.outputs' as const,
-      errorField: 'job.outputs' as const,
-      template: {segments: template},
-      context: params.context,
-      definitionId: params.definitionId,
-    };
-    const value =
-      outputType === undefined || outputType === 'string'
-        ? completeStepField(completionParams)
-        : completeStepFieldWithType(completionParams);
-    const normalizedValue = normalizeJobOutputValue(value, key);
+    const value = completeOutputTemplate({...params, key, template});
+    const normalizedValue = normalizeJobOutputValue(value, key, owner);
     const valueBytes = jobOutputValueByteLength(normalizedValue);
     if (valueBytes > MAX_JOB_OUTPUT_VALUE_BYTES) {
-      throw new JobOutputTooLargeError(key, MAX_JOB_OUTPUT_VALUE_BYTES, valueBytes, 'value');
+      throw new JobOutputTooLargeError(key, MAX_JOB_OUTPUT_VALUE_BYTES, valueBytes, 'value', owner);
     }
 
     recordBytes += (index === 0 ? 0 : 1) + jobOutputRecordEntryByteLength(key, normalizedValue);
@@ -169,11 +192,42 @@ export function materializeJobOutputs(params: {
       writable: true,
     });
     if (recordBytes > MAX_JOB_OUTPUTS_TOTAL_BYTES) {
-      throw new JobOutputTooLargeError(key, MAX_JOB_OUTPUTS_TOTAL_BYTES, recordBytes, 'total');
+      throw new JobOutputTooLargeError(
+        key,
+        MAX_JOB_OUTPUTS_TOTAL_BYTES,
+        recordBytes,
+        'total',
+        owner,
+      );
     }
   }
 
   return materialized;
+}
+
+function completeOutputTemplate(params: {
+  readonly owner: OutputOwner;
+  readonly key: string;
+  readonly template: WorkflowOutputTemplates[string];
+  readonly outputTypes: Readonly<Record<string, ExpressionType>> | undefined;
+  readonly context: WorkflowEvaluationContext;
+  readonly definitionId: string;
+}): unknown {
+  const {owner, key, outputTypes} = params;
+  const outputType =
+    outputTypes !== undefined && Object.hasOwn(outputTypes, key) ? outputTypes[key] : undefined;
+  const completionParams = {
+    // Workflow outputs share the job-output completion policy: an unresolved reference fails.
+    field: 'job.outputs' as const,
+    errorField: owner === 'workflow' ? ('workflow.outputs' as const) : ('job.outputs' as const),
+    ...(owner === 'workflow' ? {envKey: key} : {}),
+    template: {segments: params.template},
+    context: params.context,
+    definitionId: params.definitionId,
+  };
+  return outputType === undefined || outputType === 'string'
+    ? completeStepField(completionParams)
+    : completeStepFieldWithType(completionParams);
 }
 
 export function modelHasAgentStep(model: WorkflowModel): boolean {

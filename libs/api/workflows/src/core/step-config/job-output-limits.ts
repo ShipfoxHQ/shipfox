@@ -2,7 +2,7 @@ import {
   WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES,
   WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH,
 } from '@shipfox/workflow-document';
-import {JobOutputNotJsonSafeError} from '#core/errors.js';
+import {JobOutputNotJsonSafeError, type OutputOwner} from '#core/errors.js';
 
 export const MAX_JOB_OUTPUT_ENTRIES = WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES;
 export const MAX_JOB_OUTPUT_NESTING_DEPTH = WORKFLOW_DOCUMENT_STEP_OUTPUT_SCHEMA_MAX_DEPTH;
@@ -19,8 +19,21 @@ export type JsonSafeJobOutputValue =
   | readonly JsonSafeJobOutputValue[]
   | {[key: string]: JsonSafeJobOutputValue};
 
-export function normalizeJobOutputValue(value: unknown, outputKey: string): JsonSafeJobOutputValue {
-  return normalize(value, outputKey, new WeakSet<object>(), 0);
+interface OutputTarget {
+  readonly key: string;
+  readonly owner: OutputOwner;
+}
+
+export function normalizeJobOutputValue(
+  value: unknown,
+  outputKey: string,
+  owner: OutputOwner = 'job',
+): JsonSafeJobOutputValue {
+  return normalize(value, {key: outputKey, owner}, new WeakSet<object>(), 0);
+}
+
+function notJsonSafe(target: OutputTarget, reason: string): JobOutputNotJsonSafeError {
+  return new JobOutputNotJsonSafeError(target.key, reason, target.owner);
 }
 
 export function jobOutputValueByteLength(value: unknown): number {
@@ -40,7 +53,7 @@ function jsonByteLength(value: unknown): number {
 
 function normalize(
   value: unknown,
-  outputKey: string,
+  target: OutputTarget,
   ancestors: WeakSet<object>,
   depth: number,
 ): JsonSafeJobOutputValue {
@@ -52,7 +65,7 @@ function normalize(
       return value;
     case 'number':
       if (!Number.isFinite(value)) {
-        throw new JobOutputNotJsonSafeError(outputKey, 'numbers must be finite');
+        throw notJsonSafe(target, 'numbers must be finite');
       }
       return value;
     case 'bigint': {
@@ -60,40 +73,37 @@ function normalize(
       return Number.isSafeInteger(numberValue) ? numberValue : value.toString();
     }
     case 'undefined':
-      throw new JobOutputNotJsonSafeError(outputKey, 'undefined is not a JSON value');
+      throw notJsonSafe(target, 'undefined is not a JSON value');
     case 'function':
     case 'symbol':
-      throw new JobOutputNotJsonSafeError(
-        outputKey,
-        `values of type ${typeof value} are not JSON values`,
-      );
+      throw notJsonSafe(target, `values of type ${typeof value} are not JSON values`);
     case 'object':
-      return normalizeObject(value, outputKey, ancestors, depth);
+      return normalizeObject(value, target, ancestors, depth);
   }
 
-  throw new JobOutputNotJsonSafeError(outputKey, 'the value has an unsupported type');
+  throw notJsonSafe(target, 'the value has an unsupported type');
 }
 
 function normalizeObject(
   value: object,
-  outputKey: string,
+  target: OutputTarget,
   ancestors: WeakSet<object>,
   depth: number,
 ): JsonSafeJobOutputValue {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
-      throw new JobOutputNotJsonSafeError(outputKey, 'dates must be valid');
+      throw notJsonSafe(target, 'dates must be valid');
     }
     return value.toISOString();
   }
 
   if (ancestors.has(value)) {
-    throw new JobOutputNotJsonSafeError(outputKey, 'the value contains a circular reference');
+    throw notJsonSafe(target, 'the value contains a circular reference');
   }
 
   if (depth >= MAX_JOB_OUTPUT_NESTING_DEPTH) {
-    throw new JobOutputNotJsonSafeError(
-      outputKey,
+    throw notJsonSafe(
+      target,
       `values cannot be nested deeper than ${MAX_JOB_OUTPUT_NESTING_DEPTH} levels`,
     );
   }
@@ -103,7 +113,7 @@ function normalizeObject(
     try {
       const normalized: JsonSafeJobOutputValue[] = [];
       for (const item of value) {
-        normalized.push(normalize(item, outputKey, ancestors, depth + 1));
+        normalized.push(normalize(item, target, ancestors, depth + 1));
       }
       return normalized;
     } finally {
@@ -113,7 +123,7 @@ function normalizeObject(
 
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    throw new JobOutputNotJsonSafeError(outputKey, 'the value has an unsupported object type');
+    throw notJsonSafe(target, 'the value has an unsupported object type');
   }
 
   ancestors.add(value);
@@ -121,7 +131,7 @@ function normalizeObject(
     return Object.fromEntries(
       Object.keys(value).map((key) => [
         key,
-        normalize((value as Record<string, unknown>)[key], outputKey, ancestors, depth + 1),
+        normalize((value as Record<string, unknown>)[key], target, ancestors, depth + 1),
       ]),
     ) as {[key: string]: JsonSafeJobOutputValue};
   } finally {

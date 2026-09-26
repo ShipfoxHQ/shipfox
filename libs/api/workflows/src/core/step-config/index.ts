@@ -1,6 +1,7 @@
 export {
   type AssembleExecutionCreationContextParams,
   type AssembleJobActivationContextParams,
+  type AssembleWorkflowOutputsContextParams,
   type AssembleWorkflowRunContextParams,
   applyListenerFilterSnapshots,
   assembleCreationContext,
@@ -12,6 +13,7 @@ export {
   assembleJobResolutionContext,
   assembleListenerSnapshotContext,
   assembleStepDispatchContext,
+  assembleWorkflowOutputsContext,
   assembleWorkflowRunContext,
   type JobContextInput,
   type ListenerFilterOutputTypes,
@@ -33,6 +35,7 @@ export {
   materializeJobOutputs,
   materializeJobRunner,
   materializeWorkflowModel,
+  materializeWorkflowOutputs,
   modelHasAgentStep,
 } from './materialize-workflow-model.js';
 export {

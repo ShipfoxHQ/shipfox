@@ -121,6 +121,7 @@ export type InterpolationUnresolvableField =
   | 'job.runner'
   | 'job.outputs'
   | 'job.execution_name'
+  | 'workflow.outputs'
   | 'workflow.concurrency.group'
   | 'workflow.run_name'
   | 'step.name'
@@ -208,6 +209,13 @@ export class InvalidJobRunnerLabelsError extends Error {
   }
 }
 
+/** Job outputs and workflow outputs share one materializer and its limits. */
+export type OutputOwner = 'job' | 'workflow';
+
+function outputOwnerLabel(owner: OutputOwner): string {
+  return owner === 'workflow' ? 'Workflow' : 'Job';
+}
+
 export class JobOutputTooLargeError extends Error {
   readonly overshootBytes: number;
 
@@ -216,13 +224,15 @@ export class JobOutputTooLargeError extends Error {
     readonly limitBytes: number,
     readonly measuredBytes: number,
     readonly scope: 'value' | 'total',
+    readonly owner: OutputOwner = 'job',
   ) {
     const overshootBytes = measuredBytes - limitBytes;
+    const label = outputOwnerLabel(owner);
     super(
       scope === 'total'
-        ? `Job outputs exceed the total size limit of ${limitBytes} bytes at "${outputKey}" ` +
+        ? `${label} outputs exceed the total size limit of ${limitBytes} bytes at "${outputKey}" ` +
             `(measured ${measuredBytes} bytes; overshoot ${overshootBytes} bytes).`
-        : `Job output "${outputKey}" exceeds the per-value size limit of ${limitBytes} bytes ` +
+        : `${label} output "${outputKey}" exceeds the per-value size limit of ${limitBytes} bytes ` +
             `(measured ${measuredBytes} bytes; overshoot ${overshootBytes} bytes).`,
     );
     this.name = 'JobOutputTooLargeError';
@@ -234,8 +244,11 @@ export class JobOutputTooManyEntriesError extends Error {
   constructor(
     readonly entryCount: number,
     readonly limitEntries: number,
+    readonly owner: OutputOwner = 'job',
   ) {
-    super(`Job outputs cannot define more than ${limitEntries} entries (found ${entryCount})`);
+    super(
+      `${outputOwnerLabel(owner)} outputs cannot define more than ${limitEntries} entries (found ${entryCount})`,
+    );
     this.name = 'JobOutputTooManyEntriesError';
   }
 }
@@ -244,8 +257,11 @@ export class JobOutputNotJsonSafeError extends Error {
   constructor(
     readonly outputKey: string,
     readonly reason: string,
+    readonly owner: OutputOwner = 'job',
   ) {
-    super(`Job output "${outputKey}" cannot be persisted as JSON: ${reason}`);
+    super(
+      `${outputOwnerLabel(owner)} output "${outputKey}" cannot be persisted as JSON: ${reason}`,
+    );
     this.name = 'JobOutputNotJsonSafeError';
   }
 }

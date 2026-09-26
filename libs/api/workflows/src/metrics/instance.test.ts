@@ -124,6 +124,18 @@ describe('workflow run status metrics', () => {
       status: 'waiting',
     });
   });
+
+  test('records workflow output outcomes with bounded labels', () => {
+    metrics.recordWorkflowRunOutputs('materialized');
+    metrics.recordWorkflowRunOutputs('too-large');
+
+    expect(counterAdd('workflows_run_outputs')).toHaveBeenNthCalledWith(1, 1, {
+      outcome: 'materialized',
+    });
+    expect(counterAdd('workflows_run_outputs')).toHaveBeenNthCalledWith(2, 1, {
+      outcome: 'too-large',
+    });
+  });
 });
 
 describe('workflow tool invocation metrics', () => {

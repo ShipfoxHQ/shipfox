@@ -11,6 +11,7 @@ export interface WorkflowRunAttempt {
   status: WorkflowRunStatus;
   statusReason: WorkflowRunStatusReason | null;
   statusReasonMessage: string | null;
+  outputs: Record<string, unknown> | null;
   rerunMode: RerunMode | null;
   rerunByUserId: string | null;
   model: WorkflowModel | null;

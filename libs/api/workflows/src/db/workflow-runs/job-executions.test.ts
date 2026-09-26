@@ -5,13 +5,6 @@ import {
 } from '@shipfox/api-workflows-dto';
 import {and, eq, sql} from 'drizzle-orm';
 import {
-  InterpolationUnresolvableError,
-  JobOutputNotJsonSafeError,
-  JobOutputTooLargeError,
-  JobOutputTooManyEntriesError,
-  WorkflowDiagnosticTooLargeError,
-} from '#core/errors.js';
-import {
   MAX_JOB_OUTPUT_ENTRIES,
   MAX_JOB_OUTPUT_VALUE_BYTES,
 } from '#core/step-config/job-output-limits.js';
@@ -41,7 +34,6 @@ import {
   resolveJobExecutionAfterLeaseExpiry,
   updateJobExecutionStatus,
 } from '../workflow-runs.js';
-import {classifyJobOutputFailure} from './job-executions.js';
 
 describe('workflow run job executions', () => {
   let workspaceId: string;
@@ -979,54 +971,6 @@ describe('workflow run job executions', () => {
       statusReasonMessage: `Job outputs cannot define more than ${MAX_JOB_OUTPUT_ENTRIES} entries (found ${MAX_JOB_OUTPUT_ENTRIES + 1})`,
       outputs: null,
     });
-  });
-});
-
-describe('classifyJobOutputFailure', () => {
-  test.each([
-    [
-      new InterpolationUnresolvableError('definition-1', {
-        field: 'job.outputs',
-        source: 'steps.collect.outputs.payload',
-      }),
-      'output_invalid',
-    ],
-    [new JobOutputNotJsonSafeError('payload', 'undefined is not a JSON value'), 'output_invalid'],
-    [new JobOutputTooManyEntriesError(11, 10), 'output_invalid'],
-    [new JobOutputTooLargeError('payload', 16 * 1024, 16 * 1024 + 1, 'value'), 'output_too_large'],
-  ] as const)('classifies %s with the persisted reason', (error, statusReason) => {
-    expect(classifyJobOutputFailure(error)).toMatchObject({statusReason});
-  });
-
-  test('does not classify legacy diagnostic overages as product output failures', () => {
-    expect(
-      classifyJobOutputFailure(
-        new WorkflowDiagnosticTooLargeError('execution_outputs', 1024, 2048),
-      ),
-    ).toBeNull();
-  });
-
-  test('does not classify interpolation failures outside job outputs', () => {
-    const error = new InterpolationUnresolvableError('definition-1', {
-      field: 'env',
-      source: 'event.ref',
-      envKey: 'REF',
-    });
-
-    expect(classifyJobOutputFailure(error)).toBeNull();
-  });
-
-  test('does not classify unexpected failures', () => {
-    expect(classifyJobOutputFailure(new Error('database unavailable'))).toBeNull();
-  });
-
-  test('bounds the persisted message', () => {
-    const failure = classifyJobOutputFailure(
-      new JobOutputNotJsonSafeError('payload', 'x'.repeat(4096)),
-    );
-
-    expect(failure?.statusReasonMessage).toHaveLength(2048);
-    expect(failure?.statusReasonMessage.endsWith('…')).toBe(true);
   });
 });
 

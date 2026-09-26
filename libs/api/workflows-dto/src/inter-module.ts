@@ -120,6 +120,7 @@ const interpolationFieldSchema = z.enum([
   'job.execution_name',
   'workflow.concurrency.group',
   'workflow.run_name',
+  'workflow.outputs',
   'step.name',
   'step.working_directory',
   'step.feedback',
@@ -204,6 +205,7 @@ const lifecycleEventContextSchema = z.object({
     parent_run_id: idSchema.nullable(),
     root_run_id: idSchema.nullable(),
     created_at: z.string().datetime(),
+    outputs: z.record(z.string(), z.unknown()).nullable(),
   }),
   job: z
     .object({

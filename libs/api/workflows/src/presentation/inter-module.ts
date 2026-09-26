@@ -239,6 +239,7 @@ function toLifecycleEventContext(
       parent_run_id: context.parentRunId,
       root_run_id: context.rootRunId,
       created_at: context.createdAt.toISOString(),
+      outputs: context.outputs ?? null,
     },
     ...(job === undefined ? {} : {job}),
   };
