@@ -30,6 +30,7 @@ names it and links to it; it does not restate it.
 | Diagnoses a failed workflow run or an event that started no run. | [Debug a failed run skill](../libs/shared/workflow/templates/assets/skills/debug-a-failed-run/SKILL.md) | Run and event diagnostics, log traversal, stop conditions, and reporting. |
 | Sets up the ticket to PR workflow. | [Ticket to PR guide](../libs/shared/workflow/templates/assets/ticket-to-pr/GUIDE.md) | Linear and GitHub prerequisites, template choices, and expected writes. |
 | Adapts the dependency-bot CI template. | [Dependency-bot CI guide](../libs/shared/workflow/templates/assets/fix-dependency-ci/GUIDE.md) | Template prerequisites, choices, and customization slots. |
+| Sets up the Slack codebase question workflow. | [Ask the codebase guide](../libs/shared/workflow/templates/assets/ask-codebase/GUIDE.md) | Slack and GitHub prerequisites, channel scope, manual inputs, outcomes, and expected writes. |
 | Adds, updates, or exempts a dependency. | [Dependency version policy](policies/dependency-versions.md) | Version ranges, exceptions, coordinated package families, and dependency checks. |
 | Changes a cross-package client composition seam. | [ADR 0001](adr/0001-client-composition-contract.md) | The public client composition contract and its decision rationale. |
 | Changes client analytics context or subject ownership. | [ADR 0018](adr/0018-client-analytics-subject-context.md) | The analytics subject contract, privacy boundary, and supported capture timing. |

@@ -11,7 +11,7 @@ import {parse as parseYaml} from 'yaml';
 import {callToolEnvelope, callToolResult, connectAgentAccessClient} from './agent-access-client.js';
 import {expect, test} from './test.js';
 
-const SHIPPED_TEMPLATE_IDS = ['fix-dependency-ci', 'ticket-to-pr'];
+const SHIPPED_TEMPLATE_IDS = ['ask-codebase', 'fix-dependency-ci', 'ticket-to-pr'];
 
 async function createGithubProject(workspaceId: string) {
   const uniqueId = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -75,6 +75,10 @@ test.describe('agent-access workflow templates', () => {
       expect(before.templates.find(({id}) => id === 'ticket-to-pr')).toMatchObject({
         compatible: false,
         missing_providers: ['linear'],
+      });
+      expect(before.templates.find(({id}) => id === 'ask-codebase')).toMatchObject({
+        compatible: false,
+        missing_providers: ['slack'],
       });
       expect(after.templates.find(({id}) => id === 'ticket-to-pr')).toMatchObject({
         compatible: true,

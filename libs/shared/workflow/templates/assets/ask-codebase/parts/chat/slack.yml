@@ -1,0 +1,49 @@
+trigger: |
+  # option:entry_point=mention begin
+  on_mention:
+    source: slack_chat # bind:chat
+    event: app_mention
+    # Replace replace-with-channel-id with the IDs of the channels where the app answers.
+    filter: >-
+      !has(event.bot_id) &&
+      event.channel in ["replace-with-channel-id"]
+  # option:entry_point=mention end
+read_thread: |
+  outputs:
+    channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel }}'
+    thread_ts: '${{ trigger.source == "manual" ? inputs.thread_ts : (has(event.thread_ts) ? event.thread_ts : event.ts) }}'
+    request: '${{ trigger.source == "manual" ? (has(inputs.request) ? inputs.request : "") : event.text }}'
+    messages: ${{ steps.read_thread.outputs.messages }}
+    truncated: ${{ steps.read_thread.outputs.truncated }}
+  steps:
+    - key: read_thread
+      tool: read_thread
+      connection: slack_chat # bind:chat
+      with:
+        channel_id: '${{ trigger.source == "manual" ? inputs.channel_id : event.channel }}'
+        message_ts: '${{ trigger.source == "manual" ? inputs.thread_ts : (has(event.thread_ts) ? event.thread_ts : event.ts) }}'
+        limit: 50
+      outputs:
+        messages: '${{ toJson(result.messages.map(m, {"ts": m.ts, "author": has(m.bot_id) ? "bot:" + m.bot_id : (has(m.user) ? m.user : "unknown"), "text": !has(m.text) ? "" : size(m.text) > 1000 ? m.text.substring(0, 1000) + " [truncated]" : m.text})) }}'
+        truncated: ${{ has(result.has_more) && result.has_more }}
+reply: |
+  - key: reply
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: |-
+        ${{ steps.answer.outputs.reply }}
+
+        _Answered from `${{ steps.revision.outputs.repository }}` at `${{ steps.revision.outputs.commit }}`. Check the cited files before relying on this answer._
+    outputs:
+      message_ts: ${{ result.ts }}
+failure_reply: |
+  - key: report_failure
+    tool: send_message
+    connection: slack_chat # bind:chat
+    with:
+      channel_id: ${{ jobs.thread.outputs.channel_id }}
+      thread_ts: ${{ jobs.thread.outputs.thread_ts }}
+      message: Shipfox could not answer this question. Run ${{ run.number }} of the codebase question workflow failed. A project member can inspect the run in Shipfox.

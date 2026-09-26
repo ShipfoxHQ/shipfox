@@ -1,0 +1,28 @@
+id: ask-codebase
+revision: 1
+added_at: 2026-09-26
+title: Ask the codebase in Slack
+summary: An agent reads a Slack thread and the project's repository, then replies in the thread with a grounded answer.
+roles:
+  chat:
+    providers: [slack]
+  source:
+    from: project
+    providers: [github]
+options:
+  - id: entry_point
+    question: What should start the workflow?
+    choices:
+      - id: mention
+        label: Mention the app in allowed channels
+        default: true
+        tradeoff: Answers every mention of the Shipfox app in the listed channels. Manual starts with thread inputs still work.
+      - id: dispatch_only
+        label: Manual starts only
+        tradeoff: Answers only when a Slack dispatcher or a person starts the workflow with thread inputs. Use it when a dispatcher already handles mentions, so one mention does not get two replies.
+models:
+  answer:
+    note: Analyzes the repository to answer the Slack thread's question with one grounded reply. Needs a strong model with high thinking.
+slots: []
+secrets: []
+variables: []

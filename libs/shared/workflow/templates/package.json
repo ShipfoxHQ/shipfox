@@ -51,6 +51,7 @@
   "devDependencies": {
     "@shipfox/biome": "workspace:*",
     "@shipfox/depcruise": "workspace:*",
+    "@shipfox/expression": "workspace:*",
     "@shipfox/swc": "workspace:*",
     "@shipfox/ts-config": "workspace:*",
     "@shipfox/typescript": "workspace:*",
