@@ -155,11 +155,18 @@ if (imageName && !ciValidateOnly && !hasFlag('--tag', '-t')) {
   for (const tag of perCommitTags(imageName, registries)) args.push('--tag', tag);
 }
 
-if (process.env.GITHUB_ACTIONS) {
+const cacheBackend = process.env.SHIPFOX_DOCKER_CACHE;
+if (cacheBackend !== undefined && cacheBackend !== 'gha' && cacheBackend !== 'none')
+  throw new Error(
+    `SHIPFOX_DOCKER_CACHE must be one of the accepted values: "gha" or "none". Received: "${cacheBackend}".`,
+  );
+
+if (process.env.GITHUB_ACTIONS && cacheBackend !== 'none') {
   const scope = cacheScope();
   const scoped = scope ? [`scope=${scope}`] : [];
-  args.push('--cache-from', ['type=gha', ...scoped].join(','));
-  args.push('--cache-to', ['type=gha', 'mode=max', 'ignore-error=true', ...scoped].join(','));
+  if (!hasFlag('--cache-from')) args.push('--cache-from', ['type=gha', ...scoped].join(','));
+  if (!hasFlag('--cache-to'))
+    args.push('--cache-to', ['type=gha', 'mode=max', 'ignore-error=true', ...scoped].join(','));
 }
 
 if (process.env.NODE_VERSION) args.push(`--build-arg=NODE_VERSION=${process.env.NODE_VERSION}`);

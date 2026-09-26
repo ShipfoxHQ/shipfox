@@ -163,7 +163,7 @@
       "cache": false,
       "dependsOn": ["build", "@shipfox/worktree-services#build"],
       "env": ["BUILD_NUMBER", "NODE_VERSION", "PNPM_VERSION", "RUNNER_VERSION"],
-      "passThroughEnv": ["IMAGE_REGISTRIES"]
+      "passThroughEnv": ["IMAGE_REGISTRIES", "SHIPFOX_DOCKER_CACHE"]
     }
   }
 }
