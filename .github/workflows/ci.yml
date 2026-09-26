@@ -811,22 +811,21 @@ jobs:
           fi
           oras tag "$APPLICATION_IMAGE_REPOSITORY@$digest" "revision-$GITHUB_SHA"
 
+  # The bake runs alongside the required checks because the AMI snapshot dominates CI time.
+  # Only the manifest waits for the checks, and the planner ignores unpublished pairs.
   plan-runner-image-candidate:
     name: Plan runner image candidate
-    needs: [release-mode, static-verification, external-package-contracts, tests, e2e]
+    needs: [release-mode]
     if: >-
       always() && github.ref == 'refs/heads/main' &&
       needs.release-mode.result == 'success' &&
-      needs.release-mode.outputs.mode == 'normal' &&
-      needs.static-verification.result == 'success' &&
-      needs.external-package-contracts.result == 'success' &&
-      needs.tests.result == 'success' &&
-      needs.e2e.result == 'success'
+      needs.release-mode.outputs.mode == 'normal'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
+      packages: read
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
 
@@ -850,6 +849,17 @@ jobs:
           aws-region: eu-central-1
           role-session-name: shipfox-runner-image-candidate-plan
           role-to-assume: ${{ secrets.AWS_RUNNER_IMAGE_ROLE_ARN }}
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d # v2
+        with:
+          version: 1.3.3
+
+      - name: Log in to GHCR
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
 
       - name: Build runner image planner
         run: turbo build --filter=@shipfox/runner-image...
@@ -884,23 +894,11 @@ jobs:
 
   publish-runner-image-candidate:
     name: Publish runner image candidate (${{ matrix.architecture }})
-    needs:
-      [
-        release-mode,
-        static-verification,
-        external-package-contracts,
-        tests,
-        e2e,
-        plan-runner-image-candidate,
-      ]
+    needs: [release-mode, plan-runner-image-candidate]
     if: >-
       always() && github.ref == 'refs/heads/main' &&
       needs.release-mode.result == 'success' &&
       needs.release-mode.outputs.mode == 'normal' &&
-      needs.static-verification.result == 'success' &&
-      needs.external-package-contracts.result == 'success' &&
-      needs.tests.result == 'success' &&
-      needs.e2e.result == 'success' &&
       needs['plan-runner-image-candidate'].result == 'success' &&
       (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
       needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current')
@@ -979,10 +977,22 @@ jobs:
 
   publish-runner-image-candidate-manifest:
     name: Publish runner image candidate manifest
-    needs: [plan-runner-image-candidate, publish-runner-image-candidate]
+    needs:
+      [
+        static-verification,
+        external-package-contracts,
+        tests,
+        e2e,
+        plan-runner-image-candidate,
+        publish-runner-image-candidate,
+      ]
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
+      needs.static-verification.result == 'success' &&
+      needs.external-package-contracts.result == 'success' &&
+      needs.tests.result == 'success' &&
+      needs.e2e.result == 'success' &&
       (needs['plan-runner-image-candidate'].outputs.mode == 'build' ||
       needs['plan-runner-image-candidate'].outputs.mode == 'reuse-current') &&
       needs['publish-runner-image-candidate'].result == 'success'
