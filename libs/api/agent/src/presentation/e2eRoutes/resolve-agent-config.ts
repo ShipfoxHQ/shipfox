@@ -6,13 +6,7 @@ import {
 } from '@shipfox/api-agent-dto';
 import {ClientError, defineRoute} from '@shipfox/node-fastify';
 import {z} from 'zod';
-import {
-  InvalidAgentModelError,
-  UnsupportedHarnessProviderError,
-  UnsupportedHarnessThinkingError,
-  UnsupportedModelProviderError,
-  WorkspaceProvidersDisabledError,
-} from '#core/errors.js';
+import {isAgentConfigResolutionError} from '#core/errors.js';
 import {createWorkspaceAgentDefaultsResolver} from '#core/workspace-agent-defaults-resolver.js';
 
 const resolveAgentConfigBodySchema = z.object({
@@ -54,13 +48,7 @@ export function createE2eResolveAgentConfigRoute(options: {
       try {
         return resolve(request.body.config);
       } catch (error) {
-        if (
-          error instanceof InvalidAgentModelError ||
-          error instanceof UnsupportedHarnessProviderError ||
-          error instanceof UnsupportedHarnessThinkingError ||
-          error instanceof UnsupportedModelProviderError ||
-          error instanceof WorkspaceProvidersDisabledError
-        ) {
+        if (isAgentConfigResolutionError(error)) {
           throw new ClientError(error.message, 'agent-config-invalid', {status: 422});
         }
         throw error;

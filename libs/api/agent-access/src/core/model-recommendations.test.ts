@@ -269,6 +269,7 @@ describe('model recommendations', () => {
       choices: [{model: 'luna', thinking: 'max', is_anchor: true, intelligence_index: null}],
     });
     expect(fix).not.toHaveProperty('scale');
+    await expectChoiceResolves({agent, placeholder: 'fix', choice: onlyChoice(fix)});
   });
 
   test('asks the user to choose when neither the tested model nor a default is available', async () => {
@@ -347,6 +348,7 @@ async function expectChoiceResolves(params: {
   });
   const steps = markedStepConfigs(yaml, params.placeholder);
 
+  expect(steps.length).toBeGreaterThan(0);
   expect(steps).toHaveLength(markedStepConfigs(workflowYaml, params.placeholder).length);
   for (const step of steps) {
     const resolved = await params.agent.resolveAgentConfig({workspaceId, config: step});

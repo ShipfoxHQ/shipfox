@@ -18,11 +18,8 @@ import {
   AgentSessionHeldError,
   AgentSessionKeyInvalidError,
   AgentSessionLockUnavailableError,
-  InvalidAgentModelError,
+  isAgentConfigResolutionError,
   ModelProviderConfigNotFoundError,
-  UnsupportedHarnessProviderError,
-  UnsupportedHarnessThinkingError,
-  UnsupportedModelProviderError,
   WorkspaceProvidersDisabledError,
 } from '#core/errors.js';
 import {resolveAgentConfig} from '#core/resolve-agent-config.js';
@@ -117,13 +114,7 @@ export function createAgentInterModulePresentation(params: {
 }
 
 function toResolveAgentConfigKnownError(error: unknown): unknown {
-  if (
-    error instanceof InvalidAgentModelError ||
-    error instanceof UnsupportedHarnessProviderError ||
-    error instanceof UnsupportedHarnessThinkingError ||
-    error instanceof UnsupportedModelProviderError ||
-    error instanceof WorkspaceProvidersDisabledError
-  ) {
+  if (isAgentConfigResolutionError(error)) {
     return createInterModuleKnownError(
       agentInterModuleContract.methods.resolveAgentConfig,
       'agent-config-invalid',

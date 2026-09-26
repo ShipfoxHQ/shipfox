@@ -292,3 +292,21 @@ export class CustomModelProviderStoredSecretBaseUrlChangeError extends Error {
     this.name = 'CustomModelProviderStoredSecretBaseUrlChangeError';
   }
 }
+
+/** Errors the agent config resolver raises for settings a workspace cannot run. */
+export function isAgentConfigResolutionError(
+  error: unknown,
+): error is
+  | InvalidAgentModelError
+  | UnsupportedHarnessProviderError
+  | UnsupportedHarnessThinkingError
+  | UnsupportedModelProviderError
+  | WorkspaceProvidersDisabledError {
+  return (
+    error instanceof InvalidAgentModelError ||
+    error instanceof UnsupportedHarnessProviderError ||
+    error instanceof UnsupportedHarnessThinkingError ||
+    error instanceof UnsupportedModelProviderError ||
+    error instanceof WorkspaceProvidersDisabledError
+  );
+}

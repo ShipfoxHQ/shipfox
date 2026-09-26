@@ -138,6 +138,7 @@ describe('workflow template result schemas', () => {
 
   test('rejects a group without placeholders', () => {
     expect(schemasAccept(withGroup({...recommended, placeholders: []}))).toEqual([false, false]);
+    expect(schemasAccept(withGroup({...recommended, placeholders: ['']}))).toEqual([false, false]);
   });
 
   test('rejects the removed suggested_models field', () => {

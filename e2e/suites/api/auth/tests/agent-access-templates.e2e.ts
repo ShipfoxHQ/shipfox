@@ -376,6 +376,7 @@ async function expectChoiceResolves(params: {
   const applied = applyModelChoice(params.yaml, params.placeholder, choice, params.writeProvider);
   const steps = markedStepConfigs(applied, params.placeholder);
 
+  expect(steps.length).toBeGreaterThan(0);
   expect(steps).toHaveLength(markedStepConfigs(params.yaml, params.placeholder).length);
   expect(() => parseWorkflowDocument(parseYaml(applied))).not.toThrow();
   for (const config of steps) {
