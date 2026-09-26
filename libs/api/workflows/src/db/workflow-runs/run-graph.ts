@@ -143,6 +143,7 @@ export async function persistMaterializedRunGraph(
       workspaceId: params.run.workspaceId,
       projectId: params.run.projectId,
       definitionId: params.run.definitionId,
+      status: 'pending',
       ...(params.actorUserId === undefined ? {} : {actorUserId: params.actorUserId}),
       ...(params.carryOverFromWorkflowRunAttemptId === undefined
         ? {}

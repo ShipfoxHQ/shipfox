@@ -17,6 +17,7 @@ import {
 } from '#core/step-config/job-output-limits.js';
 import {
   buildModel,
+  jobExecutionStartedEvents,
   jobExecutionTerminatedEvents,
   stepAttemptTerminatedEvents,
   template,
@@ -99,7 +100,50 @@ describe('workflow run job executions', () => {
       workflowId: definitionId,
       workflowName: run.workflowName,
       runNumber: run.number,
+      executionSequence: execution.sequence,
     });
+  });
+
+  test('writes one job-execution-started fact for the first start projection', async () => {
+    const run = await createWorkflowRun({
+      workspaceId,
+      projectId,
+      definitionId,
+      model: buildModel({jobs: {build: {steps: [{run: 'echo build'}]}}}),
+      triggerPayload: {
+        source: 'manual',
+        event: 'fire',
+        subscriptionId: crypto.randomUUID(),
+        userId: crypto.randomUUID(),
+      },
+    });
+    const [job] = await getJobsByWorkflowRunId(run.id);
+    if (!job) throw new Error('Expected workflow job');
+    const execution = await getFirstJobExecutionByJobId(job.id);
+    if (!execution) throw new Error('Expected job execution');
+    const startedAt = new Date('2026-08-11T08:00:05.000Z');
+
+    await recordJobExecutionStartedAt({jobExecutionId: execution.id, startedAt});
+    await recordJobExecutionStartedAt({
+      jobExecutionId: execution.id,
+      startedAt: new Date('2026-08-11T08:01:05.000Z'),
+    });
+
+    expect(await jobExecutionStartedEvents(execution.id)).toEqual([
+      expect.objectContaining({
+        jobId: job.id,
+        jobExecutionId: execution.id,
+        workflowRunId: run.id,
+        workflowRunAttemptId: job.workflowRunAttemptId,
+        workspaceId,
+        projectId,
+        definitionId,
+        jobKey: job.key,
+        executionSequence: execution.sequence,
+        runnerLabels: null,
+        startedAt: startedAt.toISOString(),
+      }),
+    ]);
   });
 
   test('writes one terminal fact when a job execution becomes terminal', async () => {

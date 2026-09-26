@@ -1,5 +1,6 @@
 import {
   WORKFLOWS_WORKFLOW_RUN_CANCELLED,
+  WORKFLOWS_WORKFLOW_RUN_STARTED,
   WORKFLOWS_WORKFLOW_RUN_TERMINATED,
 } from '@shipfox/api-workflows-dto';
 import {and, asc, eq, inArray, notInArray, sql} from 'drizzle-orm';
@@ -450,6 +451,7 @@ export async function updateWorkflowRunStatus(
       shouldMirror,
       tx,
     );
+    await writeRunStartedIfNeeded(target, attemptRow, params, shouldMirror, tx);
     await writeRunTerminatedIfNeeded(run, attemptRow.id, shouldMirror, tx);
     return {run, changed: true};
   });
@@ -558,6 +560,31 @@ async function mirrorWorkflowRunStatus(
     .where(eq(workflowRuns.id, runRow.id))
     .returning();
   return {...toWorkflowRun(updated ?? runRow), version: attemptVersion};
+}
+
+async function writeRunStartedIfNeeded(
+  target: Awaited<ReturnType<typeof loadWorkflowRunStatusTarget>>,
+  attemptRow: typeof workflowRunAttempts.$inferSelect,
+  params: UpdateWorkflowRunStatusParams,
+  shouldMirror: boolean,
+  tx: Tx,
+): Promise<void> {
+  if (!shouldMirror || params.status !== 'running' || target.attempt.status === 'running') return;
+  if (!attemptRow.startedAt) {
+    throw new Error(`Running attempt ${attemptRow.id} has no started_at timestamp`);
+  }
+
+  await writeWorkflowsOutboxEvent(tx, {
+    type: WORKFLOWS_WORKFLOW_RUN_STARTED,
+    payload: {
+      workflowRunId: target.run.id,
+      workflowRunAttemptId: attemptRow.id,
+      workspaceId: target.run.workspaceId,
+      projectId: target.run.projectId,
+      definitionId: target.run.definitionId,
+      startedAt: attemptRow.startedAt.toISOString(),
+    },
+  });
 }
 
 async function writeRunTerminatedIfNeeded(

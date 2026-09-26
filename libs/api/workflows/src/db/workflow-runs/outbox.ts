@@ -2,6 +2,7 @@ import {
   type LogOutcomeDto,
   type StepAttemptTerminalCauseDto,
   WORKFLOWS_JOB_EXECUTION_QUEUED,
+  WORKFLOWS_JOB_EXECUTION_STARTED,
   WORKFLOWS_JOB_EXECUTION_TERMINATED,
   WORKFLOWS_JOB_STEPS_SETTLED,
   WORKFLOWS_STEP_ATTEMPT_TERMINATED,
@@ -23,6 +24,7 @@ export async function writeJobExecutionQueuedOutbox(
     jobExecutionId: string;
     requiredLabels: string[];
     queuedAt: Date;
+    executionSequence: number;
   },
 ): Promise<void> {
   const identity = await getWorkflowContextForJob(params.jobId, tx);
@@ -43,6 +45,37 @@ export async function writeJobExecutionQueuedOutbox(
       workflowId: identity.workflowId,
       workflowName: identity.workflowName,
       runNumber: identity.runNumber,
+      executionSequence: params.executionSequence,
+    },
+  });
+}
+
+export async function writeJobExecutionStartedOutbox(
+  tx: Tx,
+  params: {
+    jobId: string;
+    jobExecutionId: string;
+    executionSequence: number;
+    startedAt: Date;
+    runnerLabels: string[] | null;
+  },
+): Promise<void> {
+  const identity = await getWorkflowContextForJob(params.jobId, tx);
+
+  await writeWorkflowsOutboxEvent(tx, {
+    type: WORKFLOWS_JOB_EXECUTION_STARTED,
+    payload: {
+      jobId: params.jobId,
+      jobExecutionId: params.jobExecutionId,
+      workflowRunId: identity.workflowRunId,
+      workflowRunAttemptId: identity.workflowRunAttemptId,
+      workspaceId: identity.workspaceId,
+      projectId: identity.projectId,
+      definitionId: identity.definitionId,
+      jobKey: identity.jobKey,
+      executionSequence: params.executionSequence,
+      runnerLabels: params.runnerLabels,
+      startedAt: params.startedAt.toISOString(),
     },
   });
 }
