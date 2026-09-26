@@ -764,6 +764,7 @@ describe('auth core', () => {
     const first = await refreshAccessToken({refreshToken: loginResult.refreshToken});
     if (!first.refreshToken) throw new Error('Expected a rotated refresh token');
     const second = await refreshAccessToken({refreshToken: first.refreshToken});
+    if (!second.refreshToken) throw new Error('Expected a rotated refresh token');
     await backdateRotation(loginResult.refreshToken);
     await backdateRotation(first.refreshToken);
 
