@@ -105,7 +105,7 @@ export function auditMigrationHistory(
       findings.push({
         file: change.path,
         rule: 'changed-snapshot',
-        message: 'snapshot changed without a new migration in the same folder',
+        message: 'snapshot changed or was removed without a new migration in the same folder',
       });
     }
   }

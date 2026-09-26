@@ -128,6 +128,7 @@ describe('migration history verifier', () => {
       await git('init', '--quiet', '--initial-branch=main');
       await write(`${migrations}/0000_initial.sql`, 'CREATE TABLE runners_a ();\n');
       await write(`${migrations}/meta/_journal.json`, journal(firstEntry));
+      await write(`${migrations}/meta/0000_snapshot.json`, '{}');
       await git('add', '.');
       await git(
         '-c',
@@ -148,9 +149,10 @@ describe('migration history verifier', () => {
       await rm(root, {recursive: true, force: true});
     });
 
-    test('accepts an uncommitted new migration', async () => {
+    test('accepts a snapshot change alongside an untracked new migration', async () => {
       await write(`${migrations}/0001_next.sql`, 'CREATE TABLE runners_b ();\n');
       await write(`${migrations}/meta/_journal.json`, journal(firstEntry, secondEntry));
+      await write(`${migrations}/meta/0000_snapshot.json`, '{"a":1}');
 
       assert.deepEqual(
         await verifyMigrationHistory({rootDirectory: root, baseRevision: 'main'}),
@@ -166,6 +168,17 @@ describe('migration history verifier', () => {
       assert.deepEqual(
         findings.map((finding) => finding.rule),
         ['changed-migration'],
+      );
+    });
+
+    test('rejects a deleted migration from the base revision', async () => {
+      await rm(join(root, `${migrations}/0000_initial.sql`));
+
+      const findings = await verifyMigrationHistory({rootDirectory: root, baseRevision: 'main'});
+
+      assert.deepEqual(
+        findings.map((finding) => finding.rule),
+        ['removed-migration'],
       );
     });
   });
