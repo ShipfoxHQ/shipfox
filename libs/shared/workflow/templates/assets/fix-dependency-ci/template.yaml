@@ -1,8 +1,8 @@
 id: fix-dependency-ci
-revision: 1
+revision: 2
 added_at: 2026-09-22
 title: Fix failing dependency-bot CI
-summary: An agent reads a dependency update's failed GitHub Actions logs, fixes the branch, and reports or pushes the result.
+summary: An agent diagnoses failed dependency CI, validates repairs, and posts a patch or pushes the fix.
 roles:
   source:
     from: project
@@ -14,10 +14,10 @@ options:
       - id: dependabot
         label: Dependabot
         default: true
-        tradeoff: Runs only for failed CI runs that Dependabot triggers.
+        tradeoff: Repairs pull requests authored by Dependabot after its initial CI run fails.
       - id: renovate
         label: Renovate
-        tradeoff: Runs only for failed CI runs that Renovate triggers.
+        tradeoff: Repairs pull requests authored by Renovate after its initial CI run fails.
       - id: custom
         label: Custom bot login
         tradeoff: Requires the exact GitHub login used by the bot.
@@ -27,13 +27,13 @@ options:
       - id: push_fix
         label: Push the fix
         default: true
-        tradeoff: Updates the dependency bot's pull request branch.
+        tradeoff: Updates the bot branch and posts the result. Existing auto-merge rules can merge the repair.
       - id: comment_only
         label: Comment only
-        tradeoff: Leaves the branch unchanged and posts the proposed fix on the pull request.
+        tradeoff: Leaves the branch unchanged and posts a tested patch or an actionable diagnosis.
 models:
   fix:
     note: Reads failed CI logs and repairs the dependency update branch.
-slots: [setup_commands, test_command]
+slots: [setup_commands, install_command, test_command]
 secrets: []
 variables: []
