@@ -99,6 +99,8 @@ describe('shipped skill resources', () => {
     expect(text).toContain(
       '| The default model, runners, secret names, or variable names | `get_workflow_authoring_context` |',
     );
+    expect(text).toContain('If `default_model` is null, go to step 2.');
+    expect(text).toContain('when its `supported_thinking` includes it');
     expect(text).toContain('ask for a preference first');
     expect(text).toContain('Show at most one page. Never page through the whole catalog.');
     expect(text).toContain('Always write `provider` for a model from `list_workspace_models`');

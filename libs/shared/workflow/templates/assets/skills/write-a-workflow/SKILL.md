@@ -52,7 +52,7 @@ For a missing integration event, ask them to trigger a safe matching event. Tell
 
 For an agent step, choose the model with the user:
 
-1. Call `get_workflow_authoring_context`. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. Otherwise propose `default_model` at its `thinking` level.
+1. Call `get_workflow_authoring_context`. If `model_provider_configured` is `false`, stop and ask the user to add a provider under Settings > Agents, then report back. If `default_model` is null, go to step 2. Otherwise propose `default_model`, at its `thinking` level when its `supported_thinking` includes it.
 2. If the user wants another model, ask for a preference first: a lab, a provider, part of a model name, or scored models only. Call `list_workspace_models` with the matching `lab`, `provider`, `query`, or `scored_only` filter. Show at most one page. Never page through the whole catalog. Never rank or compare models without `references`.
 3. Have the user confirm one model and one level from its `supported_thinking`. Write the confirmed `provider`, `model`, `harness`, and `thinking` in the step. Always write `provider` for a model from `list_workspace_models`: several providers can offer the same model ID.
 
