@@ -23,6 +23,10 @@ concurrency:
   queue: single
 
 env:
+  # `mise run` and `mise exec` otherwise install every tool in mise.toml, such
+  # as the uncached 1.4 GB Ollama download. Jobs declare their tools instead.
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
+  MISE_EXEC_AUTO_INSTALL: "false"
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: shipfox
   # Pull requests only run tasks affected between their base and head commits.
@@ -451,9 +455,6 @@ jobs:
     timeout-minutes: 30
     env:
       CLOUDFLARE_PAGES_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      # `mise run` otherwise installs every tool in mise.toml, including the
-      # uncached 1.4 GB Ollama download, which no E2E suite uses.
-      MISE_TASK_RUN_AUTO_INSTALL: "false"
       # Reserve one of the runner's four CPUs for the API/client processes
       # and Docker services.
       SHIPFOX_TURBO_CONCURRENCY: "3"
