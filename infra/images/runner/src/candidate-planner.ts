@@ -97,14 +97,13 @@ export async function planRunnerImageCandidate(
   try {
     requireRevision(options.currentRevision, 'Current revision');
     const images = await (dependencies.listImages ?? listCandidateImages)();
-    const publishedRevisions = new Set(
-      (dependencies.listPublishedRevisions ?? listPublishedCandidateRevisions)(),
-    );
-    const inventory = inspectCandidateInventory(
-      images,
-      options.currentRevision,
-      publishedRevisions,
-    );
+    const listPublishedRevisions =
+      dependencies.listPublishedRevisions ?? listPublishedCandidateRevisions;
+    let publishedRevisions: ReadonlySet<string> | undefined;
+    const inventory = inspectCandidateInventory(images, options.currentRevision, (revision) => {
+      publishedRevisions ??= new Set(listPublishedRevisions());
+      return publishedRevisions.has(revision);
+    });
     const now = options.now ?? new Date();
     const inventoryDecision = decideFromInventory(options, inventory, now);
     if (inventoryDecision) return inventoryDecision;
@@ -182,7 +181,7 @@ export async function planRunnerImageCandidate(
 export function inspectCandidateInventory(
   images: Image[],
   currentRevision: string,
-  publishedRevisions: ReadonlySet<string>,
+  isPublished: (revision: string) => boolean,
 ): InventorySelection {
   const groups = new Map<
     string,
@@ -216,10 +215,11 @@ export function inspectCandidateInventory(
       images: ARCHITECTURES.map((architecture) => requiredMapValue(group, architecture)),
     }));
   const currentPair = pairs.find((pair) => pair.revision === currentRevision) ?? null;
-  const newestPriorPair =
-    pairs.find(
-      (pair) => pair.revision !== currentRevision && publishedRevisions.has(pair.revision),
-    ) ?? null;
+  // Reusing the current pair needs no baseline, so a registry failure cannot block a rerun.
+  const newestPriorPair = currentPair
+    ? null
+    : (pairs.find((pair) => pair.revision !== currentRevision && isPublished(pair.revision)) ??
+      null);
   const newestGroup = orderedGroups[0];
 
   return {

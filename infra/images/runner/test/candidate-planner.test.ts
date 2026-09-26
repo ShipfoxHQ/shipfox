@@ -67,6 +67,23 @@ describe('runner image candidate planner', () => {
     expect(result.priorPair?.revision).toBe(CURRENT_REVISION);
   });
 
+  it('reuses the current pair without listing published revisions', async () => {
+    const images = [candidate('amd64', CURRENT_REVISION), candidate('arm64', CURRENT_REVISION)];
+
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      {
+        ...plannerDependencies([...images, candidate('amd64'), candidate('arm64')]),
+        listPublishedRevisions: () => {
+          throw new Error('registry unavailable');
+        },
+      },
+    );
+
+    expect(result.mode).toBe('reuse-current');
+    expect(result.priorPair?.revision).toBe(CURRENT_REVISION);
+  });
+
   it('builds when no complete prior pair exists', async () => {
     const result = await planRunnerImageCandidate(
       {currentRevision: CURRENT_REVISION, force: false, now: NOW},
@@ -100,7 +117,11 @@ describe('runner image candidate planner', () => {
 
     const result = await planRunnerImageCandidate(
       {currentRevision: CURRENT_REVISION, force: false, now: NOW},
-      plannerDependencies(images, {changedFiles: ['libs/runner/agent/src/index.ts']}),
+      {
+        ...plannerDependencies(images),
+        listChangedFiles: (base: string) =>
+          base === UNPUBLISHED_REVISION ? [] : ['libs/runner/agent/src/index.ts'],
+      },
     );
 
     expect(result.mode).toBe('build');
@@ -358,7 +379,7 @@ describe('candidate inventory parsing', () => {
     const image = candidate('amd64');
     image.Architecture = 'arm64';
 
-    expect(() => inspectCandidateInventory([image], CURRENT_REVISION, new Set())).toThrow(
+    expect(() => inspectCandidateInventory([image], CURRENT_REVISION, () => false)).toThrow(
       'architecture does not match its tag',
     );
   });
