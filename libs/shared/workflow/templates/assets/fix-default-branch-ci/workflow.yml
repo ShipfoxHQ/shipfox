@@ -1,0 +1,147 @@
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Investigate and repair default-branch CI failures
+runner: shipfox
+
+concurrency:
+  group: 'default-branch-ci-${{ event.repository.full_name }}-${{ event.workflow_run.workflow_id }}'
+  cancel_in_progress: false
+
+triggers:
+  # part:source.trigger
+
+jobs:
+  inspect:
+    checkout: false
+    outputs:
+      eligible: ${{ steps.open_repairs.outputs.count == 0 && steps.history.outputs.previous_conclusion != "failure" }}
+      open_repairs: ${{ steps.open_repairs.outputs.count }}
+      previous_conclusion: ${{ steps.history.outputs.previous_conclusion }}
+    steps:
+      # part:source.open_repairs
+      # part:source.history
+
+  investigate:
+    needs: inspect
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.inspect.outputs.eligible }}
+    checkout: false
+    outputs:
+      status: ${{ steps.investigate.outputs.status }}
+      classification: ${{ steps.investigate.outputs.classification }}
+      summary: ${{ steps.investigate.outputs.summary }}
+      pr_title: ${{ steps.investigate.outputs.pr_title }}
+      commit: ${{ steps.revision.outputs.commit }}
+      outcome: '${{ steps.package.status == "succeeded" ? steps.package.outputs.outcome : "none" }}'
+      patch_base64: '${{ steps.package.status == "succeeded" ? steps.package.outputs.patch_base64 : "" }}'
+    steps:
+      # part:source.checkout
+
+      - key: revision
+        run: printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          commit: string
+
+      # slot:setup_commands
+
+      - key: confirm_clean
+        env:
+          EXPECTED_HEAD: ${{ steps.revision.outputs.commit }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_HEAD" ] || [ -n "$(git status --porcelain)" ]; then
+            echo "Setup changed the checkout. Setup must leave HEAD and repository files unchanged." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+      # part:source.investigate
+
+      - key: test
+        if: ${{ steps.investigate.outputs.status == "repair_candidate" }}
+        run: |
+          { replace-with-test-command; } 2>&1 | tee .git/shipfox-test.log # slot:test_command
+        gate:
+          success: step.exit_code == 0
+          on_failure:
+            restart_from: investigate
+            feedback: >-
+              The configured checks failed after your repair. Read
+              .git/shipfox-test.log and repair the cause without weakening
+              checks, or choose needs_human.
+
+      - key: check_changes
+        if: ${{ steps.investigate.outputs.status == "repair_candidate" }}
+        env:
+          EXPECTED_HEAD: ${{ steps.revision.outputs.commit }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_HEAD" ]; then
+            echo "The agent changed the commit history." >&2
+            exit 1
+          fi
+          if ! git diff --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            echo "Unstaged changes remain. Stage only the intended repair." >&2
+            git status --short >&2
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "The repair candidate has no staged changes." >&2
+            exit 1
+          fi
+        gate:
+          on_failure:
+            restart_from: investigate
+            feedback: >-
+              Delivery checks failed. Preserve HEAD, stage only the intended
+              repair, and leave no unstaged or unignored untracked files.
+
+      - key: package
+        if: ${{ steps.investigate.outputs.status == "repair_candidate" }}
+        run: |
+          git diff --cached --binary --full-index > .git/shipfox-repair.patch
+          if [ "$(wc -c < .git/shipfox-repair.patch)" -gt 30000 ]; then
+            printf 'outcome=patch_too_large\npatch_base64=\n' >> "$SHIPFOX_OUTPUT"
+            exit 0
+          fi
+          PATCH_BASE64="$(base64 < .git/shipfox-repair.patch | tr -d '\n')"
+          printf 'outcome=ready\npatch_base64=%s\n' "$PATCH_BASE64" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          outcome: string
+          patch_base64: string
+
+  deliver:
+    needs: investigate
+    if: ${{ needs.all(n, n.status == "succeeded") && jobs.investigate.outputs.outcome == "ready" }}
+    checkout: false
+    outputs:
+      branch: ${{ steps.push_repair.outputs.branch }}
+      pr_number: ${{ steps.open_pr.outputs.pr_number }}
+      pr_url: ${{ steps.open_pr.outputs.pr_url }}
+    steps:
+      # part:source.checkout_repair
+
+      - key: push_repair
+        env:
+          EXPECTED_HEAD: ${{ jobs.investigate.outputs.commit }}
+          PATCH_BASE64: ${{ jobs.investigate.outputs.patch_base64 }}
+          COMMIT_TITLE: ${{ jobs.investigate.outputs.pr_title }}
+          BRANCH_NAME: 'shipfox/default-branch-ci/${{ event.workflow_run.workflow_id }}-${{ event.workflow_run.id }}'
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_HEAD" ]; then
+            echo "The checkout is not the investigated commit." >&2
+            exit 1
+          fi
+          if [ -z "$COMMIT_TITLE" ]; then
+            echo "The repair needs a pull request title." >&2
+            exit 1
+          fi
+          printf '%s' "$PATCH_BASE64" | base64 --decode > .git/shipfox-repair.patch
+          git apply --index .git/shipfox-repair.patch
+          git switch -c "$BRANCH_NAME"
+          git commit -m "$COMMIT_TITLE"
+          git push origin "HEAD:refs/heads/$BRANCH_NAME"
+          printf 'branch=%s\ncommit=%s\n' "$BRANCH_NAME" "$(git rev-parse HEAD)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          branch: string
+          commit: string
+
+      # part:source.open_pr
+
+  # part:report.job

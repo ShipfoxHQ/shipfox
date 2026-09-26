@@ -50,6 +50,7 @@ describe('workflow template loader', () => {
   it('does not expose test fixtures through the shipped loader', () => {
     expect(loadShippedTemplates().map((template) => template.manifest.id)).toEqual([
       'ask-codebase',
+      'fix-default-branch-ci',
       'fix-dependency-ci',
       'ticket-to-pr',
     ]);
@@ -58,6 +59,7 @@ describe('workflow template loader', () => {
   it('extracts anchors from every shipped role combination', () => {
     const expected = {
       'ask-codebase': {answer: {model: 'gpt-6-sol', thinking: 'high'}},
+      'fix-default-branch-ci': {investigate: {model: 'gpt-6-sol', thinking: 'high'}},
       'fix-dependency-ci': {fix: {model: 'gpt-6-sol', thinking: 'high'}},
       'ticket-to-pr': {
         fix: {model: 'gpt-6-luna', thinking: 'high'},
