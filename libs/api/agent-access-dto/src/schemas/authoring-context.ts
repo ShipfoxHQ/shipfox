@@ -104,8 +104,14 @@ export type GetWorkflowAuthoringContextInputDto = z.output<
 
 export const getWorkflowAuthoringContextResultSchema = z
   .object({
-    models: z.array(modelSchema),
     default_model: modelSchema.nullable(),
+    model_count: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Number of models available in the workspace. List them with list_workspace_models.',
+      ),
     attribution: identifierSchema.nullable(),
     model_provider_configured: z.boolean(),
     runners: z.array(identifierSchema),
@@ -113,15 +119,15 @@ export const getWorkflowAuthoringContextResultSchema = z
     variable_names: z.array(identifierSchema),
   })
   .strict()
-  .superRefine(({models, attribution}, ctx) => {
-    const hasReferences = models.some(({references}) => references.length > 0);
+  .superRefine(({default_model: defaultModel, attribution}, ctx) => {
+    const hasReferences = (defaultModel?.references.length ?? 0) > 0;
     if ((attribution !== null) !== hasReferences) {
       ctx.addIssue({
         code: 'custom',
         path: ['attribution'],
         message: hasReferences
-          ? 'attribution is required when a model has references'
-          : 'attribution must be null when no model has references',
+          ? 'attribution is required when the default model has references'
+          : 'attribution must be null when the default model has no references',
       });
     }
   });
@@ -208,8 +214,13 @@ export const getWorkflowAuthoringContextInputJsonSchema = {
 export const getWorkflowAuthoringContextResultJsonSchema = {
   type: 'object',
   properties: {
-    models: {type: 'array', items: model},
     default_model: {anyOf: [model, {type: 'null'}]},
+    model_count: {
+      type: 'integer',
+      minimum: 0,
+      description:
+        'Number of models available in the workspace. List them with list_workspace_models.',
+    },
     attribution: {anyOf: [identifier, {type: 'null'}]},
     model_provider_configured: {type: 'boolean'},
     runners: {type: 'array', items: identifier},
@@ -217,8 +228,8 @@ export const getWorkflowAuthoringContextResultJsonSchema = {
     variable_names: {type: 'array', items: identifier},
   },
   required: [
-    'models',
     'default_model',
+    'model_count',
     'attribution',
     'model_provider_configured',
     'runners',
