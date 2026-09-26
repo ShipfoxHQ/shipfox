@@ -54,7 +54,10 @@ export function createOnShipfoxLifecycleEvent(
       workflowRunAttemptId: payload.workflowRunAttemptId,
       ...(isJobEvent && 'jobId' in payload ? {jobId: payload.jobId} : {}),
     });
-    if (context === null) return;
+    if (context === null) {
+      shipfoxEventCount.add(1, {event: eventName, outcome: 'unresolved-context'});
+      return;
+    }
 
     const normalized = buildLifecyclePayload(eventName, context, payload, event.createdAt);
     const parsed = shipfoxEventPayloadSchemas[eventName].safeParse(normalized);

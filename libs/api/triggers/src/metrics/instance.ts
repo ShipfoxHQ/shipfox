@@ -6,7 +6,7 @@ type TriggerEventMetricOrigin = Exclude<TriggerEventOrigin, 'cron'>;
 
 export const shipfoxEventCount = meter.createCounter<{
   event: string;
-  outcome: 'dispatched' | 'no-subscription' | 'unscoped';
+  outcome: 'dispatched' | 'no-subscription' | 'unscoped' | 'unresolved-context';
 }>('triggers_shipfox_events', {
   description: 'Built-in Shipfox lifecycle events by event and dispatch outcome',
 });
