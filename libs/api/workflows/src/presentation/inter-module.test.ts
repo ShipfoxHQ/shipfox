@@ -1,5 +1,6 @@
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {createWorkflowModelSnapshot} from '@shipfox/api-definitions-dto';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {
   MAX_RESOLVED_STEP_CONFIG_BYTES,
   WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES,
@@ -103,6 +104,30 @@ const input = {
   },
   idempotencyKey: 'manual-1',
 };
+
+function readLifecycleEventContext() {
+  return {
+    runId: crypto.randomUUID(),
+    projectId: input.projectId,
+    definitionId: input.definitionId,
+    number: 42,
+    attempt: 1,
+    name: null,
+    workflowName: 'Build',
+    origin: 'synced' as const,
+    triggerSource: 'github',
+    triggerEvent: 'push',
+    triggerReference: {ref: 'refs/heads/main', commit: 'commit'},
+    devSource: null,
+    parentRunId: null,
+    rootRunId: null,
+    createdAt: new Date('2026-08-31T10:00:00.000Z'),
+    jobId: null,
+    jobKey: null,
+    jobMode: null,
+    jobOutputs: null,
+  };
+}
 
 type SyncedWorkflowRun = Extract<WorkflowRun, {origin: 'synced'}>;
 
@@ -346,6 +371,119 @@ describe('Workflows inter-module presentation', () => {
     ).resolves.toBeNull();
     expect(projects.requireProjectForWorkspace).not.toHaveBeenCalled();
     expect(definitions.getDefinitionForWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it('masks a known project access error as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(readLifecycleEventContext());
+    const projects = {
+      requireProjectForWorkspace: vi
+        .fn()
+        .mockRejectedValue(
+          createInterModuleKnownError(
+            projectsInterModuleContract.methods.requireProjectForWorkspace,
+            'project-not-found',
+            {projectId: input.projectId},
+          ),
+        ),
+    };
+    const definitions = {getDefinitionForWorkflowRun: vi.fn()};
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(projects.requireProjectForWorkspace).toHaveBeenCalledWith({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+    });
+    expect(definitions.getDefinitionForWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it('masks a missing definition as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(readLifecycleEventContext());
+    const projects = {
+      requireProjectForWorkspace: vi.fn().mockResolvedValue({
+        project: {id: input.projectId, name: 'API'},
+      }),
+    };
+    const definitions = {
+      getDefinitionForWorkflowRun: vi.fn().mockResolvedValue({definition: null}),
+    };
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(definitions.getDefinitionForWorkflowRun).toHaveBeenCalledWith({
+      definitionId: input.definitionId,
+    });
+  });
+
+  it('masks a definition from another project as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(readLifecycleEventContext());
+    const projects = {
+      requireProjectForWorkspace: vi.fn().mockResolvedValue({
+        project: {id: input.projectId, name: 'API'},
+      }),
+    };
+    const definitions = {
+      getDefinitionForWorkflowRun: vi.fn().mockResolvedValue({
+        definition: {
+          id: input.definitionId,
+          workflowId: crypto.randomUUID(),
+          projectId: crypto.randomUUID(),
+          name: 'Build',
+          configPath: '.shipfox/workflows/build.yml',
+          model: {},
+          sourceSnapshot: null,
+        },
+      }),
+    };
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(projects.requireProjectForWorkspace).toHaveBeenCalledWith({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+    });
+    expect(definitions.getDefinitionForWorkflowRun).toHaveBeenCalledWith({
+      definitionId: input.definitionId,
+    });
   });
 
   beforeEach(() => {

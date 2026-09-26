@@ -179,6 +179,7 @@ export async function getLifecycleEventContextRead(params: {
     eq(workflowRunAttempts.id, params.workflowRunAttemptId),
     eq(workflowRuns.workspaceId, params.workspaceId),
   ];
+  if (params.jobId !== undefined) conditions.push(eq(jobs.id, params.jobId));
 
   const rows = await db()
     .select({
