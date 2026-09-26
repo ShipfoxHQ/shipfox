@@ -19,8 +19,8 @@ Keep sticky-disk branch protection turned on. A pull request can edit these
 actions, so the workflow files can't enforce the rule for Blacksmith runners.
 The Blacksmith setting is the control.
 
-When the setting is on, the post step of each sticky disk in a pull request job
-logs `commit denied for this job`.
+When the setting is on, each sticky disk in a pull request job logs `Sticky
+disk changes will not be committed for this job (branch protection: ...)`.
 
 ## Sticky disks
 
@@ -32,9 +32,9 @@ The actions detect a Blacksmith runner through `BLACKSMITH_VM_ID`.
 | `setup-pnpm` | The parent of `pnpm store path` | One disk per OS and architecture |
 | `setup-playwright` | `~/.cache/ms-playwright` | One disk per Playwright version |
 
-The disks use `commit: on-change`. A job that adds nothing, such as a filtered
-install, doesn't overwrite a snapshot that a full install committed at the
-same time.
+The disks use `commit: on-change`, so a job that changes nothing doesn't take a
+new snapshot. A filtered pnpm install never saves the store, on either runner,
+because it only holds part of it.
 
 To reset a disk, bump the `v1` in its key. Blacksmith evicts a disk after 7
 days without use.

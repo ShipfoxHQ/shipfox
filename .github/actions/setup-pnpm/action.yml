@@ -34,9 +34,8 @@ runs:
       with:
         key: ${{ github.repository }}-pnpm-store-v1-${{ runner.os }}-${{ runner.arch }}
         path: ${{ steps.pnpm-store.outputs.root }}
-        # Filtered installs add nothing to the store, so they skip the commit
-        # instead of racing a full install's snapshot.
-        commit: on-change
+        # A filtered install only holds part of the store, so it never saves it.
+        commit: ${{ inputs.filter == '' && 'on-change' || 'false' }}
 
     - name: Restore pnpm store cache
       id: pnpm-store-cache
@@ -62,6 +61,7 @@ runs:
     - name: Save pnpm store cache
       if: >-
         steps.pnpm-store.outputs.blacksmith != 'true' &&
+        inputs.filter == '' &&
         github.ref == 'refs/heads/main' &&
         steps.pnpm-store-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
