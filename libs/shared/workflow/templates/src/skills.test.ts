@@ -7,8 +7,8 @@ const semanticVersionPattern = /^\d+\.\d+\.\d+$/u;
 describe('shipped skill resources', () => {
   test('embeds the template procedure and template guide bytes', () => {
     const skill = getShippedSkillResource('skill://shipfox/create-workflow-from-template/SKILL.md');
-    expect(skill?.revision).toBe(5);
-    expect(skill?.text).toContain('revision: 5');
+    expect(skill?.revision).toBe(6);
+    expect(skill?.text).toContain('revision: 6');
     expect(skill?.text).toContain('## 1. Orient');
     expect(skill?.text).toContain('## 9. Deliver');
     expect(skill?.text).toContain('skill://shipfox/validate-workflow-change/SKILL.md');
@@ -63,9 +63,11 @@ describe('shipped skill resources', () => {
     expect(text).toContain(
       'Never bind a model and thinking combination the user has not confirmed.',
     );
-    expect(text).toContain('Do not ask a separate thinking-level question.');
-    expect(text).toContain('`outcome: list`');
-    expect(text).toContain('Never rank or compare them.');
+    expect(text).toContain(
+      'skill://shipfox/create-workflow-from-template/references/choose-models.md',
+    );
+    expect(text).toContain('If any tool returns `content-too-large`, stop and report it.');
+    expect(text).toContain("Never reconstruct a template's YAML by hand.");
     expect(text).toContain('If `model_provider_configured` is `false`, stop');
     expect(text).not.toContain('no-compatible-model');
     expect(text).toContain('state what a real run will write before listing events');
@@ -78,9 +80,6 @@ describe('shipped skill resources', () => {
       'Skip the dev run only if the user says they cannot trigger an event or asks to skip it.',
     );
     expect(text).toContain('Repeat the expected writes from step 6 in one line');
-    expect(text).toContain(
-      "Bind the confirmed entry's `provider`, model, `harness`, and `thinking`.",
-    );
     expect(text).toContain('Before any repeat real run, after a failure or after edits');
     expect(text).toContain('stop, or repeat the writes with their agreement');
     expect(text).toContain(
@@ -112,6 +111,29 @@ describe('shipped skill resources', () => {
     expect(text).toContain('Always write `provider` for a model from `list_workspace_models`');
     expect(text).toContain('If any tool returns `content-too-large`, stop and report it');
     expect(text).not.toContain('from the authoring context');
+  });
+
+  test('chooses template models per recommendation group', () => {
+    const reference = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/references/choose-models.md',
+    );
+
+    expect(reference?.text).toBe(
+      readFileSync(
+        new URL(
+          '../assets/skills/create-workflow-from-template/references/choose-models.md',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    );
+    for (const mode of ['`recommended`', '`template_default`', '`workspace_default`', '`choose`']) {
+      expect(reference?.text).toContain(mode);
+    }
+    expect(reference?.text).toContain('`provider_required: true`');
+    expect(reference?.text).toContain('always for a model chosen from `list_workspace_models`');
+    expect(reference?.text).toContain('show at most one page');
+    expect(reference?.text).toContain('Never rank or compare unscored models.');
   });
 
   test('asks one explained question at a time', () => {

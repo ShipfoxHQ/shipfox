@@ -24,6 +24,7 @@ export interface AgentAccessWorkspaceModels {
   readonly models: readonly AgentAccessWorkspaceModel[];
   readonly default_model: AgentAccessWorkspaceModel | null;
   readonly attribution: string | null;
+  readonly managed_provider_id: string | null;
 }
 
 /**

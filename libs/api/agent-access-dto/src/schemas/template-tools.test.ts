@@ -6,14 +6,43 @@ import {
 } from './template-tools.js';
 
 const addFormats = addFormatsModule.default as unknown as (validator: Ajv) => void;
-const choice = {
-  id: 'claude-sonnet-5',
-  provider: 'anthropic',
+const anchor = {
+  model: 'gpt-6-luna',
+  label: 'GPT 6 Luna',
+  lab: 'OpenAI',
+  provider: 'shipfox',
   harness: 'pi',
-  thinking: 'medium',
-  is_default: true,
-  price: {input: 3, output: 15},
-  reference: {thinking: 'medium', intelligence_index: 80, cost_per_task_usd: 2, scale: 'coding-v1'},
+  thinking: 'max',
+  provider_required: false,
+  is_anchor: true,
+  is_default: false,
+  intelligence_index: 37.26,
+  cost_per_task_usd: 0.069,
+  tradeoff: null,
+};
+const alternative = {
+  ...anchor,
+  model: 'gpt-6-sol',
+  label: 'GPT 6 Sol',
+  thinking: 'high',
+  is_anchor: false,
+  intelligence_index: 42.82,
+  cost_per_task_usd: 0.377,
+  tradeoff: {
+    intelligence: 'slightly_smarter',
+    cost: 'much_more_expensive',
+    label: 'Slightly smarter, much more expensive',
+  },
+};
+const unscored = {...anchor, intelligence_index: null, cost_per_task_usd: null};
+const recommended = {
+  placeholders: ['fix'],
+  notes: {fix: 'Implements the ticket.'},
+  mode: 'recommended',
+  choices: [anchor, alternative],
+  scale: 'coding-v1',
+  attribution: 'Benchmark source',
+  cost_note: 'Cost per task is measured on a benchmark workload.',
 };
 const result = {
   template_id: 'ticket-to-pr',
@@ -22,15 +51,17 @@ const result = {
   workflow_yaml: 'name: workflow',
   guide_markdown: '# Guide',
   suggested_bindings: {source: ['github-main']},
-  suggested_models: {
-    fix: {
-      reference: {model: 'claude-sonnet-5', thinking: 'medium', intelligence_index: 80},
-      note: 'Tested on a coding task.',
-      outcome: 'suggested',
-      models: [choice, {...choice, thinking: 'low', is_default: false, reference: null}],
-      attribution: 'Benchmark source',
+  model_recommendations: [
+    recommended,
+    {placeholders: ['reply'], notes: {}, mode: 'template_default', choices: [unscored]},
+    {
+      placeholders: ['review'],
+      notes: {},
+      mode: 'workspace_default',
+      choices: [{...unscored, is_anchor: false, is_default: true}],
     },
-  },
+    {placeholders: ['answer'], notes: {}, mode: 'choose', choices: []},
+  ],
 };
 
 function schemasAccept(value: unknown) {
@@ -42,64 +73,75 @@ function schemasAccept(value: unknown) {
   ];
 }
 
+function withGroup(group: unknown) {
+  return {...result, model_recommendations: [group]};
+}
+
 describe('workflow template result schemas', () => {
-  test('accepts a measured suggestion and a manual choice in both schemas', () => {
-    expect(getWorkflowTemplateResultJsonSchema.required).toContain('suggested_models');
+  test('accepts every recommendation mode in both schemas', () => {
+    expect(getWorkflowTemplateResultJsonSchema.required).toContain('model_recommendations');
     expect(schemasAccept(result)).toEqual([true, true]);
   });
 
-  test('rejects incomplete measured values and unsupported thinking in both schemas', () => {
-    const invalidChoice = {
-      ...choice,
-      thinking: 'unknown',
-      reference: {thinking: 'unknown', intelligence_index: 80},
-    };
-    const invalid = {
-      ...result,
-      suggested_models: {fix: {...result.suggested_models.fix, models: [invalidChoice]}},
-    };
+  test('rejects a recommended group without its scale, attribution, or cost note', () => {
+    const {scale: _scale, ...withoutScale} = recommended;
+    const {cost_note: _costNote, ...withoutCostNote} = recommended;
 
-    expect(schemasAccept(invalid)).toEqual([false, false]);
+    expect(schemasAccept(withGroup(withoutScale))).toEqual([false, false]);
+    expect(schemasAccept(withGroup(withoutCostNote))).toEqual([false, false]);
+    expect(schemasAccept(withGroup({...recommended, attribution: null}))).toEqual([false, false]);
   });
 
-  test('rejects a suggestion without a scored tested reference in both schemas', () => {
-    const invalid = {
-      ...result,
-      suggested_models: {fix: {...result.suggested_models.fix, reference: null}},
-    };
+  test('rejects more than five recommended choices', () => {
+    const choices = [anchor, alternative, alternative, alternative, alternative, alternative];
 
-    const accepted = schemasAccept(invalid);
-
-    expect(accepted).toEqual([false, false]);
+    expect(schemasAccept(withGroup({...recommended, choices}))).toEqual([false, false]);
   });
 
-  test('rejects an empty model placeholder in both schemas', () => {
-    const invalid = {
-      ...result,
-      suggested_models: {'': result.suggested_models.fix},
+  test('rejects scores or comparisons outside recommended mode', () => {
+    const scored = {placeholders: ['fix'], notes: {}, mode: 'template_default', choices: [anchor]};
+    const compared = {
+      placeholders: ['fix'],
+      notes: {},
+      mode: 'workspace_default',
+      choices: [{...unscored, tradeoff: alternative.tradeoff}],
     };
 
-    const accepted = schemasAccept(invalid);
-
-    expect(accepted).toEqual([false, false]);
+    expect(schemasAccept(withGroup(scored))).toEqual([false, false]);
+    expect(schemasAccept(withGroup(compared))).toEqual([false, false]);
   });
 
-  test('rejects the removed resolved_models field', () => {
-    expect(schemasAccept({...result, resolved_models: {}})).toEqual([false, false]);
-  });
-
-  test('rejects ranking marks in a list outcome', () => {
-    const invalid = {
-      ...result,
-      suggested_models: {
-        fix: {
-          ...result.suggested_models.fix,
-          outcome: 'list',
-          models: [{...choice, below_reference: true}],
-        },
-      },
+  test('rejects choices in choose mode and scale fields in other modes', () => {
+    const choose = {placeholders: ['fix'], notes: {}, mode: 'choose', choices: [unscored]};
+    const templateDefault = {
+      placeholders: ['fix'],
+      notes: {},
+      mode: 'template_default',
+      choices: [unscored],
+      scale: 'coding-v1',
     };
 
-    expect(schemasAccept(invalid)).toEqual([false, false]);
+    expect(schemasAccept(withGroup(choose))).toEqual([false, false]);
+    expect(schemasAccept(withGroup(templateDefault))).toEqual([false, false]);
+  });
+
+  test('rejects unsupported thinking and unknown tradeoff keys', () => {
+    const invalidThinking = {...recommended, choices: [{...anchor, thinking: 'unknown'}]};
+    const invalidTradeoff = {
+      ...recommended,
+      choices: [anchor, {...alternative, tradeoff: {...alternative.tradeoff, cost: 'free'}}],
+    };
+
+    expect(schemasAccept(withGroup(invalidThinking))).toEqual([false, false]);
+    expect(schemasAccept(withGroup(invalidTradeoff))).toEqual([false, false]);
+  });
+
+  test('rejects a group without placeholders', () => {
+    expect(schemasAccept(withGroup({...recommended, placeholders: []}))).toEqual([false, false]);
+    expect(schemasAccept(withGroup({...recommended, placeholders: ['']}))).toEqual([false, false]);
+  });
+
+  test('rejects the removed suggested_models field', () => {
+    expect(schemasAccept({...result, suggested_models: {}})).toEqual([false, false]);
   });
 });

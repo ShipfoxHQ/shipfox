@@ -15,65 +15,66 @@ const thinkingSchema = z.enum([
   'max',
   'default',
 ]);
-const measuredReferenceSchema = z
+const modelTradeoffSchema = z
   .object({
-    thinking: thinkingSchema,
-    intelligence_index: z.number().finite(),
-    cost_per_task_usd: z.number().finite().nonnegative(),
-    scale: identifierSchema,
+    intelligence: z.enum(['slightly_smarter', 'similar', 'slightly_less_capable']),
+    cost: z.enum(['much_cheaper', 'cheaper', 'similar', 'more_expensive', 'much_more_expensive']),
+    label: identifierSchema,
   })
   .strict();
-const priceSchema = z
-  .object({input: z.number().finite().nonnegative(), output: z.number().finite().nonnegative()})
-  .strict();
-const suggestedModelSchema = z
+const modelChoiceSchema = z
   .object({
-    id: identifierSchema,
+    model: identifierSchema,
+    label: identifierSchema.nullable(),
+    lab: identifierSchema.nullable(),
     provider: identifierSchema,
     harness: z.enum(['pi', 'claude']),
     thinking: thinkingSchema,
+    provider_required: z.boolean(),
+    is_anchor: z.boolean(),
     is_default: z.boolean(),
-    price: priceSchema.nullable(),
-    reference: measuredReferenceSchema.nullable(),
-    below_reference: z.literal(true).optional(),
+    intelligence_index: z.number().finite().nullable(),
+    cost_per_task_usd: z.number().finite().nonnegative().nullable(),
+    tradeoff: modelTradeoffSchema.nullable(),
   })
   .strict();
-const modelSuggestionSchema = z
-  .object({
-    reference: z
-      .object({
-        model: identifierSchema,
-        thinking: thinkingSchema,
-        intelligence_index: z.number().finite(),
-      })
-      .strict()
-      .nullable(),
-    note: identifierSchema.nullable(),
-    outcome: z.enum(['suggested', 'list']),
-    models: z.array(suggestedModelSchema),
-    attribution: identifierSchema.nullable(),
-  })
-  .strict()
-  .superRefine(({reference, outcome, models}, context) => {
-    if (outcome === 'suggested' && reference === null) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['reference'],
-        message: 'A suggestion needs a scored tested combination',
-      });
-    }
-    if (outcome === 'list') {
-      for (const [index, model] of models.entries()) {
-        if (model.below_reference !== undefined) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['models', index, 'below_reference'],
-            message: 'A list must not rank choices',
-          });
-        }
-      }
-    }
-  });
+const unscoredModelChoiceSchema = modelChoiceSchema.extend({
+  intelligence_index: z.null(),
+  cost_per_task_usd: z.null(),
+  tradeoff: z.null(),
+});
+const recommendationGroupShape = {
+  placeholders: z.array(identifierSchema).min(1),
+  notes: z.record(identifierSchema, identifierSchema),
+};
+const modelRecommendationGroupSchema = z.discriminatedUnion('mode', [
+  z
+    .object({
+      ...recommendationGroupShape,
+      mode: z.literal('recommended'),
+      choices: z.array(modelChoiceSchema).min(1).max(5),
+      scale: identifierSchema,
+      attribution: identifierSchema,
+      cost_note: identifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...recommendationGroupShape,
+      mode: z.enum(['template_default', 'workspace_default']),
+      choices: z.array(unscoredModelChoiceSchema).length(1),
+    })
+    .strict(),
+  z
+    .object({
+      ...recommendationGroupShape,
+      mode: z.literal('choose'),
+      choices: z.array(modelChoiceSchema).length(0),
+    })
+    .strict(),
+]);
+export type ModelRecommendationGroupDto = z.infer<typeof modelRecommendationGroupSchema>;
+export type ModelChoiceDto = z.infer<typeof modelChoiceSchema>;
 
 export const listWorkflowTemplatesInputSchema = z.object({}).strict();
 export type ListWorkflowTemplatesInputDto = z.output<typeof listWorkflowTemplatesInputSchema>;
@@ -143,7 +144,7 @@ export const getWorkflowTemplateResultSchema = z
     workflow_yaml: textSchema,
     guide_markdown: textSchema,
     suggested_bindings: providerBindingSchema,
-    suggested_models: z.record(identifierSchema, modelSuggestionSchema),
+    model_recommendations: z.array(modelRecommendationGroupSchema),
   })
   .strict();
 export type GetWorkflowTemplateResultDto = z.infer<typeof getWorkflowTemplateResultSchema>;
@@ -205,71 +206,109 @@ const thinking = {
   type: 'string',
   enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'default'],
 } as const;
-const measuredReference = {
+const nullableNumber = {anyOf: [{type: 'number'}, {type: 'null'}]} as const;
+const modelTradeoff = {
   type: 'object',
   properties: {
-    thinking,
-    intelligence_index: {type: 'number'},
-    cost_per_task_usd: {type: 'number', minimum: 0},
-    scale: identifier,
+    intelligence: {type: 'string', enum: ['slightly_smarter', 'similar', 'slightly_less_capable']},
+    cost: {
+      type: 'string',
+      enum: ['much_cheaper', 'cheaper', 'similar', 'more_expensive', 'much_more_expensive'],
+    },
+    label: identifier,
   },
-  required: ['thinking', 'intelligence_index', 'cost_per_task_usd', 'scale'],
+  required: ['intelligence', 'cost', 'label'],
   additionalProperties: false,
 } as const;
-const suggestedModel = {
-  type: 'object',
-  properties: {
-    id: identifier,
-    provider: identifier,
-    harness: {type: 'string', enum: ['pi', 'claude']},
-    thinking,
-    is_default: {type: 'boolean'},
-    price: {
-      anyOf: [
-        {
-          type: 'object',
-          properties: {input: {type: 'number', minimum: 0}, output: {type: 'number', minimum: 0}},
-          required: ['input', 'output'],
-          additionalProperties: false,
-        },
-        {type: 'null'},
-      ],
-    },
-    reference: {anyOf: [measuredReference, {type: 'null'}]},
-    below_reference: {type: 'boolean', enum: [true]},
+const modelChoiceProperties = {
+  model: identifier,
+  label: {anyOf: [identifier, {type: 'null'}]},
+  lab: {anyOf: [identifier, {type: 'null'}]},
+  provider: identifier,
+  harness: {type: 'string', enum: ['pi', 'claude']},
+  thinking,
+  provider_required: {
+    type: 'boolean',
+    description:
+      'True when the step must name this provider to run this model. Write `provider` into the step.',
   },
-  required: ['id', 'provider', 'harness', 'thinking', 'is_default', 'price', 'reference'],
+  is_anchor: {type: 'boolean', description: 'True for the model the template was tested with.'},
+  is_default: {type: 'boolean'},
+  intelligence_index: nullableNumber,
+  cost_per_task_usd: {anyOf: [{type: 'number', minimum: 0}, {type: 'null'}]},
+  tradeoff: {anyOf: [modelTradeoff, {type: 'null'}]},
+} as const;
+const modelChoiceRequired = [
+  'model',
+  'label',
+  'lab',
+  'provider',
+  'harness',
+  'thinking',
+  'provider_required',
+  'is_anchor',
+  'is_default',
+  'intelligence_index',
+  'cost_per_task_usd',
+  'tradeoff',
+] as const;
+const modelChoice = {
+  type: 'object',
+  properties: modelChoiceProperties,
+  required: modelChoiceRequired,
   additionalProperties: false,
 } as const;
-const modelSuggestion = {
+const unscoredModelChoice = {
   type: 'object',
   properties: {
-    reference: {
-      anyOf: [
-        {
-          type: 'object',
-          properties: {model: identifier, thinking, intelligence_index: {type: 'number'}},
-          required: ['model', 'thinking', 'intelligence_index'],
-          additionalProperties: false,
-        },
-        {type: 'null'},
-      ],
-    },
-    note: {anyOf: [identifier, {type: 'null'}]},
-    outcome: {type: 'string', enum: ['suggested', 'list']},
-    models: {type: 'array', items: suggestedModel},
-    attribution: {anyOf: [identifier, {type: 'null'}]},
+    ...modelChoiceProperties,
+    intelligence_index: {type: 'null'},
+    cost_per_task_usd: {type: 'null'},
+    tradeoff: {type: 'null'},
   },
-  required: ['reference', 'note', 'outcome', 'models', 'attribution'],
+  required: modelChoiceRequired,
   additionalProperties: false,
-  if: {properties: {outcome: {const: 'suggested'}}, required: ['outcome']},
-  // biome-ignore lint/suspicious/noThenProperty: JSON Schema uses "then" for a conditional branch.
-  then: {properties: {reference: {type: 'object'}}},
-  else: {
-    properties: {
-      models: {type: 'array', items: {type: 'object', not: {required: ['below_reference']}}},
+} as const;
+const recommendationGroupProperties = {
+  placeholders: {type: 'array', items: identifier, minItems: 1},
+  notes: {type: 'object', propertyNames: identifier, additionalProperties: identifier},
+} as const;
+const modelRecommendationGroup = {
+  oneOf: [
+    {
+      type: 'object',
+      properties: {
+        ...recommendationGroupProperties,
+        mode: {const: 'recommended'},
+        choices: {type: 'array', items: modelChoice, minItems: 1, maxItems: 5},
+        scale: identifier,
+        attribution: identifier,
+        cost_note: identifier,
+      },
+      required: ['placeholders', 'notes', 'mode', 'choices', 'scale', 'attribution', 'cost_note'],
+      additionalProperties: false,
     },
-  },
+    {
+      type: 'object',
+      properties: {
+        ...recommendationGroupProperties,
+        mode: {type: 'string', enum: ['template_default', 'workspace_default']},
+        choices: {type: 'array', items: unscoredModelChoice, minItems: 1, maxItems: 1},
+      },
+      required: ['placeholders', 'notes', 'mode', 'choices'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
+        ...recommendationGroupProperties,
+        mode: {const: 'choose'},
+        choices: {type: 'array', maxItems: 0},
+      },
+      required: ['placeholders', 'notes', 'mode', 'choices'],
+      additionalProperties: false,
+    },
+  ],
 } as const;
 const option = {
   type: 'object',
@@ -359,10 +398,11 @@ export const getWorkflowTemplateResultJsonSchema = {
       type: 'object',
       additionalProperties: {type: 'array', items: identifier},
     },
-    suggested_models: {
-      type: 'object',
-      propertyNames: identifier,
-      additionalProperties: modelSuggestion,
+    model_recommendations: {
+      type: 'array',
+      description:
+        'Model choices per group of model placeholders. `mode` is `recommended`, `template_default`, `workspace_default`, or `choose`; for `choose`, use list_workspace_models.',
+      items: modelRecommendationGroup,
     },
   },
   required: [
@@ -372,7 +412,7 @@ export const getWorkflowTemplateResultJsonSchema = {
     'workflow_yaml',
     'guide_markdown',
     'suggested_bindings',
-    'suggested_models',
+    'model_recommendations',
   ],
   additionalProperties: false,
 } as const satisfies AgentAccessObjectSchema;

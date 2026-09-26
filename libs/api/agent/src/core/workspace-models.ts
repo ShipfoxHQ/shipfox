@@ -17,13 +17,7 @@ import type {
 } from '@shipfox/api-agent-dto/inter-module';
 import {getAgentWorkspaceDefaultsSnapshot} from '#db/index.js';
 import type {ModelProviderConfig} from './entities/model-provider-config.js';
-import {
-  InvalidAgentModelError,
-  UnsupportedHarnessProviderError,
-  UnsupportedHarnessThinkingError,
-  UnsupportedModelProviderError,
-  WorkspaceProvidersDisabledError,
-} from './errors.js';
+import {isAgentConfigResolutionError} from './errors.js';
 import {listHarnessProviderModels} from './harness/index.js';
 import {resolveAgentConfig} from './resolve-agent-config.js';
 import {supportedThinkingForModel} from './supported-thinking.js';
@@ -65,7 +59,8 @@ export async function getWorkspaceModels(
     managedProvider,
     workspaceProviders,
   );
-  if (candidates.length === 0) return emptyWorkspaceModels();
+  const managedProviderId = managedProvider?.id ?? null;
+  if (candidates.length === 0) return emptyWorkspaceModels(managedProviderId);
 
   const resolutionContext = workspaceAgentResolutionContext(
     snapshot,
@@ -104,11 +99,17 @@ export async function getWorkspaceModels(
     attribution: models.some(({references}) => references.length > 0)
       ? MODEL_REFERENCE_ATTRIBUTION
       : null,
+    managed_provider_id: managedProviderId,
   };
 }
 
-function emptyWorkspaceModels(): AgentWorkspaceModels {
-  return {models: [], default_model: null, attribution: null};
+function emptyWorkspaceModels(managedProviderId: string | null): AgentWorkspaceModels {
+  return {
+    models: [],
+    default_model: null,
+    attribution: null,
+    managed_provider_id: managedProviderId,
+  };
 }
 
 function configuredModels(
@@ -207,17 +208,7 @@ function resolveDefaultModel(
       null
     );
   } catch (error) {
-    if (isExpectedResolutionError(error)) return null;
+    if (isAgentConfigResolutionError(error)) return null;
     throw error;
   }
-}
-
-function isExpectedResolutionError(error: unknown): boolean {
-  return (
-    error instanceof InvalidAgentModelError ||
-    error instanceof UnsupportedHarnessProviderError ||
-    error instanceof UnsupportedHarnessThinkingError ||
-    error instanceof UnsupportedModelProviderError ||
-    error instanceof WorkspaceProvidersDisabledError
-  );
 }

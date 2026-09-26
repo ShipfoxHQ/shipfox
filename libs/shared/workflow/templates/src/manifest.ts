@@ -1,4 +1,3 @@
-import {agentThinkingSchema} from '@shipfox/workflow-document';
 import {z} from 'zod';
 
 const identifierSchema = z
@@ -87,10 +86,11 @@ export const workflowTemplateOptionSchema = z
     }
   });
 
-export const workflowTemplateModelSchema = z.object({
-  reference: z.object({model: z.string().min(1), thinking: agentThinkingSchema}).optional(),
-  note: z.string().min(1).optional(),
-});
+export const workflowTemplateModelSchema = z
+  .object({
+    note: z.string().min(1).optional(),
+  })
+  .strict();
 
 export const workflowTemplateManifestSchema = z.object({
   id: identifierSchema,

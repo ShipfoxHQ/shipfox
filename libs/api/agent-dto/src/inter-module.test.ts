@@ -70,6 +70,7 @@ describe('agentInterModuleContract', () => {
       models: [workspaceModel()],
       default_model: workspaceModel(),
       attribution: null,
+      managed_provider_id: 'shipfox',
     });
 
     expect(input).toEqual({workspaceId: UUID});
@@ -77,6 +78,7 @@ describe('agentInterModuleContract', () => {
       models: [workspaceModel()],
       default_model: workspaceModel(),
       attribution: null,
+      managed_provider_id: 'shipfox',
     });
     const {label: _label, lab: _lab, ...legacyModel} = workspaceModel();
     expect(
@@ -95,7 +97,7 @@ describe('agentInterModuleContract', () => {
         default_model: null,
         attribution: null,
       }),
-    ).toEqual({models: [], default_model: null, attribution: null});
+    ).toEqual({models: [], default_model: null, attribution: null, managed_provider_id: null});
   });
 
   test('carries a scored workspace model through the output contract', () => {
@@ -110,6 +112,7 @@ describe('agentInterModuleContract', () => {
       models: [model],
       default_model: model,
       attribution: ATTRIBUTION,
+      managed_provider_id: null,
     });
   });
 

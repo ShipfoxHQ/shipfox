@@ -24,9 +24,9 @@ const E2E_CLAUDE_MODEL = 'e2e-renewable-claude';
 const E2E_REFRESH_PI_MODEL = 'e2e-refresh-renewable-pi';
 const E2E_REFRESH_CLAUDE_MODEL = 'e2e-refresh-renewable-claude';
 const E2E_CLAUDE_MODEL_ID = 'claude-opus-4-8';
-// Matches the tested reference of the shipped ticket-to-pr template so the
-// template tools can suggest a scored combination against this catalog.
-const E2E_SCORED_REFERENCE_MODEL = 'gpt-5.6-luna';
+// Matches the tested model of the shipped ticket-to-pr `fix` steps so the
+// template tools can recommend scored alternatives against this catalog.
+const E2E_SCORED_REFERENCE_MODEL = 'gpt-6-luna';
 const E2E_SCORED_EFFICIENT_MODEL = 'e2e-scored-efficient';
 const E2E_REFERENCE_SCALE = 'e2e-fixture-v1';
 const E2E_RESPONSE_TEXT = 'ok';
@@ -78,13 +78,14 @@ const E2E_MODELS = [
   {
     id: E2E_SCORED_EFFICIENT_MODEL,
     label: 'E2E scored efficient',
+    lab: 'DeepSeek',
     api: 'openai-completions',
     reasoning: true,
     thinkingLevelMap: onlyThinkingLevels(['medium']),
     references: [
       {
         thinking: 'medium',
-        intelligence_index: 72,
+        intelligence_index: 64,
         cost_per_task_usd: 0.8,
         scale: E2E_REFERENCE_SCALE,
       },

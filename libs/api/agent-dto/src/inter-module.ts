@@ -93,6 +93,7 @@ const agentWorkspaceModelsSchema = z
     models: z.array(agentWorkspaceModelSchema),
     default_model: agentWorkspaceModelSchema.nullable(),
     attribution: z.string().min(1).nullable(),
+    managed_provider_id: modelProviderRefSchema.nullable().optional().default(null),
   })
   .superRefine(({models, default_model: defaultModel, attribution}, ctx) => {
     const hasReferencedModel = models.some(({references}) => references.length > 0);
