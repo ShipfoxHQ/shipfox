@@ -10,9 +10,26 @@ runs:
       run: |
         version="$(pnpm --filter=@shipfox/playwright exec playwright --version | awk '{print $2}')"
         echo "version=$version" >> "$GITHUB_OUTPUT"
+        if [[ -n "${BLACKSMITH_VM_ID:-}" ]]; then
+          echo "blacksmith=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "blacksmith=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    # Blacksmith branch protection only commits sticky disks from default-branch
+    # push, schedule and workflow_dispatch jobs. Pull requests mount a clone of
+    # the last main snapshot and discard it, like the actions/cache rule below.
+    - name: Mount Playwright browser sticky disk
+      if: steps.playwright-version.outputs.blacksmith == 'true'
+      uses: useblacksmith/stickydisk@94697d49e77d0dd78b77deb85ad3de63a28b4b8a # v1.7.1
+      with:
+        key: ${{ github.repository }}-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+        path: ~/.cache/ms-playwright
+        commit: on-change
 
     - name: Restore Playwright browser cache
       id: playwright-cache
+      if: steps.playwright-version.outputs.blacksmith != 'true'
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/.cache/ms-playwright
@@ -23,7 +40,10 @@ runs:
       run: pnpm --filter=@shipfox/playwright exec playwright install --with-deps chromium
 
     - name: Save Playwright browser cache
-      if: github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
+      if: >-
+        steps.playwright-version.outputs.blacksmith != 'true' &&
+        github.ref == 'refs/heads/main' &&
+        steps.playwright-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       continue-on-error: true
       with:

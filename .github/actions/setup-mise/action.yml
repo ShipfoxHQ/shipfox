@@ -9,10 +9,35 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Select mise tool cache
+      id: cache
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+      run: |
+        if [[ -n "${BLACKSMITH_VM_ID:-}" ]]; then
+          echo "blacksmith=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "blacksmith=false" >> "$GITHUB_OUTPUT"
+        fi
+        echo "profile=$(tr -cs 'a-z0-9' '-' <<< "$TOOLS" | sed 's/-$//')" >> "$GITHUB_OUTPUT"
+
+    # Blacksmith branch protection only commits sticky disks from default-branch
+    # push, schedule and workflow_dispatch jobs. Pull requests mount a clone of
+    # the last main snapshot and discard it, like the actions/cache rule below.
+    - name: Mount mise tool sticky disk
+      if: steps.cache.outputs.blacksmith == 'true'
+      uses: useblacksmith/stickydisk@94697d49e77d0dd78b77deb85ad3de63a28b4b8a # v1.7.1
+      with:
+        key: ${{ github.repository }}-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.cache.outputs.profile }}
+        path: ~/.local/share/mise
+        commit: on-change
+
     - name: Set up selected mise tools
       uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
       with:
         install_args: ${{ inputs.tools }}
+        cache: ${{ steps.cache.outputs.blacksmith != 'true' }}
         # Keep each tool set isolated and invalidate it whenever the locked mise
         # configuration changes. There is deliberately no cross-profile fallback.
         cache_key: mise-ci-tools-v1-{{platform}}-{{install_args_hash}}-{{file_hash}}
