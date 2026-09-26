@@ -5,6 +5,7 @@ import {db} from '#db/db.js';
 import {jobExecutions} from '#db/schema/job-executions.js';
 import {jobs} from '#db/schema/jobs.js';
 import {workflowsOutbox} from '#db/schema/outbox.js';
+import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
 import {failWorkflowRunAsTimedOut} from '#db/workflow-runs.js';
 import {jobFactory} from '#test/index.js';
 
@@ -39,6 +40,10 @@ describe('failWorkflowRunAsTimedOut', () => {
     const run = await failWorkflowRunAsTimedOut({runAttemptId: job.workflowRunAttemptId});
 
     const storedJob = await readJob(job.id);
+    const [storedAttempt] = await db()
+      .select()
+      .from(workflowRunAttempts)
+      .where(eq(workflowRunAttempts.id, job.workflowRunAttemptId));
     const [storedExecution] = await db()
       .select()
       .from(jobExecutions)
@@ -46,6 +51,11 @@ describe('failWorkflowRunAsTimedOut', () => {
     expect(run.status).toBe('failed');
     expect(storedJob?.status).toBe('failed');
     expect(storedJob?.statusReason).toBe('timed_out');
+    expect(storedAttempt).toMatchObject({
+      status: 'failed',
+      statusReason: 'timed_out',
+      statusReasonMessage: null,
+    });
     expect(storedJob?.listenerStatus).toBe('resolved');
     expect(storedJob?.resolutionReason).toBe('cancelled');
     expect(storedExecution?.status).toBe('failed');
@@ -66,7 +76,15 @@ describe('failWorkflowRunAsTimedOut', () => {
       (row) => (row.payload as Record<string, unknown>).workflowRunId === run.id,
     );
     expect(forRun).toHaveLength(1);
-    expect(forRun[0]?.payload).toMatchObject({workflowRunId: run.id, status: 'failed'});
+    expect(forRun[0]?.payload).toMatchObject({
+      workflowRunId: run.id,
+      status: 'failed',
+      workspaceId: run.workspaceId,
+      definitionId: run.definitionId,
+      statusReason: 'timed_out',
+      startedAt: null,
+      finishedAt: expect.any(String),
+    });
   });
 
   it('leaves an already-resolved listener job untouched', async () => {

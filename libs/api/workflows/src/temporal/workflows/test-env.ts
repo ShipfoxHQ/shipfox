@@ -115,7 +115,13 @@ export function callsNamed(name: string): ActivityCall[] {
 export function setRunAttemptStatusCalls() {
   return callsNamed('setRunAttemptStatus') as Array<{
     name: string;
-    params: {runAttemptId: string; status: string; version: number};
+    params: {
+      runAttemptId: string;
+      status: string;
+      version: number;
+      statusReason?: string | null;
+      statusReasonMessage?: string | null;
+    };
   }>;
 }
 
@@ -259,7 +265,13 @@ function createMockActivities() {
       );
     },
 
-    setRunAttemptStatus: (params: {runAttemptId: string; status: string; version: number}) => {
+    setRunAttemptStatus: (params: {
+      runAttemptId: string;
+      status: string;
+      version: number;
+      statusReason?: string | null;
+      statusReasonMessage?: string | null;
+    }) => {
       calls.push({name: 'setRunAttemptStatus', params});
       const status =
         params.status === 'running' && cfg.initialRunStatus ? cfg.initialRunStatus : params.status;

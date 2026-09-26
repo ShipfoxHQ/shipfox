@@ -8,6 +8,14 @@ export type WorkflowRunStatus =
 
 export type WorkflowRunOrigin = 'synced' | 'dev';
 
+export type WorkflowRunStatusReason =
+  | 'job_failed'
+  | 'timed_out'
+  | 'user_cancelled'
+  | 'concurrency_superseded'
+  | 'output_invalid'
+  | 'output_too_large';
+
 /**
  * Why a dev run was created: the ref and pinned commit the definition came from, the
  * file that ran, the user who started it, and the journaled event it replays when any.

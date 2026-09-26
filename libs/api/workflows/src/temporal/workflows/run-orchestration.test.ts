@@ -285,6 +285,10 @@ describe('runOrchestration', () => {
       expect.objectContaining({jobId: 'j2'}),
     ]);
     expect(setRunAttemptStatusCalls().map((c) => c.params.status)).toEqual(['running', 'failed']);
+    expect(setRunAttemptStatusCalls().at(-1)?.params).toMatchObject({
+      status: 'failed',
+      statusReason: 'job_failed',
+    });
   });
 
   test('explicit-if job skips when activation evaluation rejects it', async () => {

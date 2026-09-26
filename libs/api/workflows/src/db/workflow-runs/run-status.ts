@@ -9,6 +9,7 @@ import {
   isWorkflowRunTerminal,
   type WorkflowRun,
   type WorkflowRunStatus,
+  type WorkflowRunStatusReason,
 } from '#core/entities/workflow-run.js';
 import {
   WorkflowRunAttemptMismatchError,
@@ -61,12 +62,17 @@ export interface FailWorkflowRunAsTimedOutParams {
 export interface RunTerminationSpec {
   terminalStatus: Extract<WorkflowRunStatus, 'failed' | 'cancelled'>;
   statusReason: Extract<JobStatusReason, 'timed_out' | 'run_cancelled' | 'concurrency_superseded'>;
+  workflowRunStatusReason: WorkflowRunStatusReason;
   markExecutionTimedOut: boolean;
   emitCancelledEvent: boolean;
 }
 
 function stepTerminalCauseFor(statusReason: RunTerminationSpec['statusReason']) {
   return statusReason === 'concurrency_superseded' ? undefined : statusReason;
+}
+
+function isoOrNull(value: Date | null | undefined): string | null {
+  return value?.toISOString() ?? null;
 }
 
 function finalizeCancelledListenerEvents(
@@ -206,10 +212,12 @@ async function terminateRunAttempt(
     }
   }
 
-  await tx
+  const [terminatedAttempt] = await tx
     .update(workflowRunAttempts)
     .set({
       status: spec.terminalStatus,
+      statusReason: spec.workflowRunStatusReason,
+      statusReasonMessage: null,
       version: sql`${workflowRunAttempts.version} + 1`,
       updatedAt: new Date(),
       finishedAt: sql`now()`,
@@ -219,7 +227,8 @@ async function terminateRunAttempt(
         eq(workflowRunAttempts.id, lockedAttempt.id),
         notInArray(workflowRunAttempts.status, TERMINAL_WORKFLOW_RUN_STATUSES),
       ),
-    );
+    )
+    .returning();
 
   const [terminatedRunRow] = await tx
     .update(workflowRuns)
@@ -245,6 +254,11 @@ async function terminateRunAttempt(
       workflowRunAttemptId: lockedAttempt.id,
       projectId: run.projectId,
       status: spec.terminalStatus,
+      workspaceId: run.workspaceId,
+      definitionId: run.definitionId,
+      statusReason: spec.workflowRunStatusReason,
+      startedAt: isoOrNull(terminatedAttempt?.startedAt ?? lockedAttempt.startedAt),
+      finishedAt: isoOrNull(terminatedAttempt?.finishedAt ?? run.finishedAt),
     },
   });
   if (spec.emitCancelledEvent) {
@@ -293,6 +307,7 @@ export async function failWorkflowRunAsTimedOut(
       spec: {
         terminalStatus: 'failed',
         statusReason: 'timed_out',
+        workflowRunStatusReason: 'timed_out',
         markExecutionTimedOut: true,
         emitCancelledEvent: false,
       },
@@ -345,6 +360,7 @@ export async function cancelWorkflowRun(params: CancelWorkflowRunParams): Promis
       spec: {
         terminalStatus: 'cancelled',
         statusReason: 'run_cancelled',
+        workflowRunStatusReason: 'user_cancelled',
         markExecutionTimedOut: false,
         emitCancelledEvent: true,
       },
@@ -407,6 +423,7 @@ export async function cancelWorkflowRunAttemptForConcurrencyWithOutcome(
         spec: {
           terminalStatus: 'cancelled',
           statusReason: 'concurrency_superseded',
+          workflowRunStatusReason: 'concurrency_superseded',
           markExecutionTimedOut: false,
           emitCancelledEvent: true,
         },
@@ -433,6 +450,8 @@ export interface UpdateWorkflowRunStatusParams {
   workflowRunAttemptId?: string;
   status: WorkflowRunStatus;
   expectedVersion: number;
+  statusReason?: WorkflowRunStatusReason | null | undefined;
+  statusReasonMessage?: string | null | undefined;
 }
 
 export async function updateWorkflowRunStatus(
@@ -452,7 +471,7 @@ export async function updateWorkflowRunStatus(
       tx,
     );
     await writeRunStartedIfNeeded(target, attemptRow, params, shouldMirror, tx);
-    await writeRunTerminatedIfNeeded(run, attemptRow.id, shouldMirror, tx);
+    await writeRunTerminatedIfNeeded(run, attemptRow, shouldMirror, tx);
     return {run, changed: true};
   });
 
@@ -498,6 +517,7 @@ async function updateWorkflowRunAttemptStatus(
   params: UpdateWorkflowRunStatusParams,
   tx: Tx,
 ) {
+  const isTerminal = isWorkflowRunTerminal(params.status);
   const [attemptRow] = await tx
     .update(workflowRunAttempts)
     .set({
@@ -507,7 +527,13 @@ async function updateWorkflowRunAttemptStatus(
       ...(params.status === 'running'
         ? {startedAt: sql`coalesce(${workflowRunAttempts.startedAt}, now())`}
         : {}),
-      ...(isWorkflowRunTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
+      ...(isTerminal ? {finishedAt: sql`now()`} : {}),
+      ...(isTerminal && params.statusReason !== undefined
+        ? {statusReason: params.statusReason}
+        : {}),
+      ...(isTerminal && params.statusReasonMessage !== undefined
+        ? {statusReasonMessage: params.statusReasonMessage}
+        : {}),
     })
     .where(
       and(
@@ -589,7 +615,7 @@ async function writeRunStartedIfNeeded(
 
 async function writeRunTerminatedIfNeeded(
   run: WorkflowRun,
-  attemptId: string,
+  attempt: typeof workflowRunAttempts.$inferSelect,
   shouldMirror: boolean,
   tx: Tx,
 ): Promise<void> {
@@ -598,9 +624,14 @@ async function writeRunTerminatedIfNeeded(
     type: WORKFLOWS_WORKFLOW_RUN_TERMINATED,
     payload: {
       workflowRunId: run.id,
-      workflowRunAttemptId: attemptId,
+      workflowRunAttemptId: attempt.id,
       projectId: run.projectId,
       status: run.status,
+      workspaceId: run.workspaceId,
+      definitionId: run.definitionId,
+      statusReason: attempt.statusReason ?? null,
+      startedAt: isoOrNull(attempt.startedAt),
+      finishedAt: isoOrNull(attempt.finishedAt),
     },
   });
 }
