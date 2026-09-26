@@ -13,6 +13,8 @@ import {jiraAgentToolSelectionCatalog} from '@shipfox/api-integration-jira';
 import {jiraEventCatalog} from '@shipfox/api-integration-jira-dto';
 import {linearAgentToolSelectionCatalog} from '@shipfox/api-integration-linear';
 import {linearEventCatalog} from '@shipfox/api-integration-linear-dto';
+import {slackAgentToolSelectionCatalog} from '@shipfox/api-integration-slack';
+import {slackEventCatalog} from '@shipfox/api-integration-slack-dto';
 import {describe, expect, it} from '@shipfox/vitest/vi';
 import {
   parseWorkflowDocument,
@@ -82,6 +84,7 @@ const providerCatalogs: Readonly<Record<string, ProviderCatalog>> = {
   github: catalog(githubEventCatalog.events, githubAgentToolSelectionCatalog.selectors),
   jira: catalog(jiraEventCatalog.events, jiraAgentToolSelectionCatalog.selectors),
   linear: catalog(linearEventCatalog.events, linearAgentToolSelectionCatalog.selectors),
+  slack: catalog(slackEventCatalog.events, slackAgentToolSelectionCatalog.selectors),
 };
 
 describe('workflow template catalog conformance', () => {
@@ -135,8 +138,7 @@ describe('workflow template catalog conformance', () => {
   });
 
   it('requires matching model markers on model lines in provider parts', () => {
-    const template = loadShippedTemplates()[0];
-    if (template === undefined) throw new Error('Shipped template was not loaded');
+    const template = dependencyCiTemplate();
     const fix = template.parts.source?.github?.fix;
     if (fix === undefined) throw new Error('Fix part was not loaded');
 
@@ -176,8 +178,7 @@ describe('workflow template catalog conformance', () => {
   });
 
   it('rejects unknown reference models and unsupported thinking levels', () => {
-    const template = loadShippedTemplates()[0];
-    if (template === undefined) throw new Error('Shipped template was not loaded');
+    const template = dependencyCiTemplate();
     const models = new Map<string, ReadonlySet<AgentThinking>>([
       ['known-model', new Set<AgentThinking>(['off'])],
     ]);
@@ -215,6 +216,12 @@ describe('workflow template catalog conformance', () => {
     ).toEqual([]);
   });
 });
+
+function dependencyCiTemplate(): WorkflowTemplate {
+  const template = loadShippedTemplates().find(({manifest}) => manifest.id === 'fix-dependency-ci');
+  if (template === undefined) throw new Error('Shipped template was not loaded');
+  return template;
+}
 
 function templateConformance(template: WorkflowTemplate): ConformanceResult {
   const templateReferences = collectCatalogReferences(parseYaml(template.workflow));

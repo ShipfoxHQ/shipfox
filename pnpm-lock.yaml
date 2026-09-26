@@ -3263,6 +3263,9 @@ importers:
       '@shipfox/api-integration-linear-dto':
         specifier: workspace:*
         version: link:../linear-dto
+      '@shipfox/api-integration-slack-dto':
+        specifier: workspace:*
+        version: link:../slack-dto
       '@shipfox/biome':
         specifier: workspace:*
         version: link:../../../../tools/biome
@@ -9037,6 +9040,9 @@ importers:
       '@shipfox/depcruise':
         specifier: workspace:*
         version: link:../../../../tools/depcruise
+      '@shipfox/expression':
+        specifier: workspace:*
+        version: link:../../expression
       '@shipfox/swc':
         specifier: workspace:*
         version: link:../../../../tools/swc

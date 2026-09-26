@@ -32,6 +32,12 @@ describe('shipped skill resources', () => {
     expect(dependencyGuide?.text).toBe(
       readFileSync(new URL('../assets/fix-dependency-ci/GUIDE.md', import.meta.url), 'utf8'),
     );
+    const askCodebaseGuide = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/references/ask-codebase.md',
+    );
+    expect(askCodebaseGuide?.text).toBe(
+      readFileSync(new URL('../assets/ask-codebase/GUIDE.md', import.meta.url), 'utf8'),
+    );
 
     for (const name of [
       'create-workflow-from-template',

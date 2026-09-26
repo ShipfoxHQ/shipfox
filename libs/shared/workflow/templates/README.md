@@ -95,6 +95,7 @@ To run a validated change against a real trigger, read `skill://shipfox/test-wor
 Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project.
 
 Shipped templates keep an adaptation guide beside their workflow. For dependency-bot CI, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, choices, and customization slots.
+For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 
