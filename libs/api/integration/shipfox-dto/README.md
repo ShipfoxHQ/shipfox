@@ -4,7 +4,8 @@
 
 ## What it does
 
-- **`shipfoxEventCatalog`** describes the Shipfox event catalog. It starts empty until a producer delivers an event.
+- **`shipfoxEventCatalog`** describes the six Shipfox lifecycle events, one family per event.
+- **`shipfoxEventPayloadSchemas`** maps each event name to its payload schema.
 - **Shipfox event name constants** identify the six run and job lifecycle events.
 - **Shipfox payload schemas** parse the normalized payload for each lifecycle event.
 - **`SHIPFOX_BUILTIN_CONNECTION_ID`** identifies the first-party synthetic Shipfox integration connection.

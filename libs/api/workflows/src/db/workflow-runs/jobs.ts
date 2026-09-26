@@ -496,6 +496,7 @@ export async function updateJobStatusAtVersion(
         status: job.status,
         statusReason: job.statusReason,
         statusReasonMessage: currentExecution?.statusReasonMessage ?? null,
+        projectId: identity.projectId,
       },
     });
   }

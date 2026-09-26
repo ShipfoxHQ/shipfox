@@ -15,7 +15,12 @@ import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module'
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
   WORKFLOWS_JOB_ACTIVATED,
+  WORKFLOWS_JOB_EXECUTION_QUEUED,
+  WORKFLOWS_JOB_EXECUTION_STARTED,
   WORKFLOWS_JOB_TERMINATED,
+  WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+  WORKFLOWS_WORKFLOW_RUN_STARTED,
+  WORKFLOWS_WORKFLOW_RUN_TERMINATED,
   type WorkflowsEventMapDto,
 } from '@shipfox/api-workflows-dto';
 import type {WorkflowsModuleClient} from '@shipfox/api-workflows-dto/inter-module';
@@ -27,6 +32,7 @@ import {createTriggerRoutes} from '#presentation/index.js';
 import {createTriggersInterModulePresentation} from '#presentation/inter-module.js';
 import {
   createOnIntegrationEventReceived,
+  createOnShipfoxLifecycleEvent,
   onDefinitionDeleted,
   onDefinitionResolved,
   onJobActivated,
@@ -126,6 +132,30 @@ export function createTriggersModule({
       subscriber(INTEGRATION_EVENT_RECEIVED, createOnIntegrationEventReceived(workflows, secrets)),
       subscriber(WORKFLOWS_JOB_ACTIVATED, onJobActivated),
       subscriber(WORKFLOWS_JOB_TERMINATED, onJobTerminated),
+      subscriber(
+        WORKFLOWS_WORKFLOW_RUN_ATTEMPT_CREATED,
+        createOnShipfoxLifecycleEvent(workflows, 'run.requested'),
+      ),
+      subscriber(
+        WORKFLOWS_WORKFLOW_RUN_STARTED,
+        createOnShipfoxLifecycleEvent(workflows, 'run.started'),
+      ),
+      subscriber(
+        WORKFLOWS_WORKFLOW_RUN_TERMINATED,
+        createOnShipfoxLifecycleEvent(workflows, 'run.completed'),
+      ),
+      subscriber(
+        WORKFLOWS_JOB_EXECUTION_QUEUED,
+        createOnShipfoxLifecycleEvent(workflows, 'job.queued'),
+      ),
+      subscriber(
+        WORKFLOWS_JOB_EXECUTION_STARTED,
+        createOnShipfoxLifecycleEvent(workflows, 'job.started'),
+      ),
+      subscriber(
+        WORKFLOWS_JOB_TERMINATED,
+        createOnShipfoxLifecycleEvent(workflows, 'job.completed'),
+      ),
     ],
     workers: [
       {
