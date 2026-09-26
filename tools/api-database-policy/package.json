@@ -13,7 +13,8 @@
     "type:emit": "shipfox-tsc-emit",
     "verify": "cd ../.. && node tools/biome/bin/biome-check.js --config-path biome.json libs/api && node tools/api-database-policy/dist/api-database-registry.js && node tools/api-database-policy/dist/api-database-boundaries.js",
     "verify:boundaries": "node dist/api-database-boundaries.js",
-    "verify:catalog": "node dist/api-database-catalog.js"
+    "verify:catalog": "node dist/api-database-catalog.js",
+    "verify:migrations": "node dist/api-database-migrations.js"
   },
   "dependencies": {
     "@shipfox/node-drizzle": "workspace:*",

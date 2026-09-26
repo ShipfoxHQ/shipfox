@@ -18,6 +18,7 @@
     "check:dependencies": "pnpm --filter=@shipfox/dependency-policy verify:dependencies",
     "check:api-context-inventory": "turbo verify --filter=@shipfox/api-architecture-policy",
     "check:api-database-boundaries": "turbo verify --filter=@shipfox/api-database-policy",
+    "check:api-migrations": "turbo build --filter=@shipfox/api-database-policy && pnpm --filter=@shipfox/api-database-policy verify:migrations",
     "check:client-architecture": "turbo verify --filter=@shipfox/client-architecture-policy",
     "check:lockfile": "turbo build --filter=@shipfox/dependency-policy && pnpm --filter=@shipfox/dependency-policy verify:lockfile",
     "check:published-artifacts": "turbo verify --filter=@shipfox/package-release",

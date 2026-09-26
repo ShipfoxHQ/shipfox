@@ -111,6 +111,20 @@ still use public module boundaries.
 Migration ordering guarantees that every module can initialize its own storage.
 It does not grant a later module access to an earlier module's tables.
 
+**A migration can't change once it is on `main`.** Staging applies migrations
+from `main` before any release, and Drizzle records each applied migration by
+hash. An edited migration would leave staging and production with different
+schemas. Once a migration is on `main`:
+
+- Don't edit, delete, or rename its SQL file (`libs/api/**/drizzle/*.sql`).
+- Don't change its entry in `drizzle/meta/_journal.json`. Append new entries
+  only.
+- A snapshot in `drizzle/meta/*_snapshot.json` can change only in a change
+  that adds a new migration to the same folder.
+
+Correct a merged migration with a new migration. An exceptional repair needs an
+accepted architecture decision, like other boundary exceptions.
+
 ## Enforcement
 
 The database-boundary gate is fail-closed and has no violation baseline or
@@ -147,6 +161,15 @@ after starting the repository services with:
 mise exec -- pnpm dev:services:up
 mise exec -- turbo test:external --filter=@shipfox/api-database-policy
 mise exec -- pnpm --filter=@shipfox/api-database-policy verify:catalog --json
+```
+
+The migration history verifier compares migration folders with the merge base
+of `SHIPFOX_MIGRATION_BASE` and the working tree. It defaults to `origin/main`.
+Static verification CI sets it to the pull request base, or to the previous
+`main` commit on a push. A finding fails the command and points to this policy:
+
+```sh
+mise exec -- pnpm check:api-migrations
 ```
 
 Any static or catalog finding fails its command. Diagnostics identify the
