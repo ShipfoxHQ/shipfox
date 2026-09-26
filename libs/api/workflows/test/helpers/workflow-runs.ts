@@ -209,6 +209,11 @@ export async function runTerminatedEvents(workflowRunId: string) {
         workflowRunAttemptId: string;
         projectId: string;
         status: string;
+        workspaceId?: string;
+        definitionId?: string;
+        statusReason?: string | null;
+        startedAt?: string | null;
+        finishedAt?: string | null;
       },
   );
 }

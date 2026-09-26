@@ -97,6 +97,15 @@ export type WorkflowsWorkflowConcurrencyAcquiredEventDto = z.infer<
 // Keep outbox terminal statuses narrower than the public status schemas, which
 // also carry pending/running and job-only skipped.
 export const workflowRunTerminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled']);
+export const workflowRunStatusReasonSchema = z.enum([
+  'job_failed',
+  'timed_out',
+  'user_cancelled',
+  'concurrency_superseded',
+  'output_invalid',
+  'output_too_large',
+]);
+export type WorkflowRunStatusReasonDto = z.infer<typeof workflowRunStatusReasonSchema>;
 export const jobTerminalStatusSchema = z.enum(['succeeded', 'failed', 'cancelled', 'skipped']);
 export const terminalStatusSchema = workflowRunTerminalStatusSchema;
 
@@ -108,6 +117,13 @@ export const workflowsWorkflowRunTerminatedSchema = z.object({
   workflowRunAttemptId: nonEmptyStringSchema,
   projectId: nonEmptyStringSchema,
   status: workflowRunTerminalStatusSchema,
+  // Optional for rolling deployments. New events include the workspace and definition scope.
+  workspaceId: nonEmptyStringSchema.optional(),
+  definitionId: nonEmptyStringSchema.optional(),
+  // Optional for rolling deployments and null when the terminal transition had no known reason.
+  statusReason: workflowRunStatusReasonSchema.nullable().optional(),
+  startedAt: z.string().datetime().nullable().optional(),
+  finishedAt: z.string().datetime().nullable().optional(),
 });
 export type WorkflowsWorkflowRunTerminatedEventDto = z.infer<
   typeof workflowsWorkflowRunTerminatedSchema

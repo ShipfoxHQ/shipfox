@@ -120,6 +120,13 @@
       "when": 1789954766352,
       "tag": "0016_cold_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790453580152,
+      "tag": "0017_harsh_unus",
+      "breakpoints": true
     }
   ]
 }

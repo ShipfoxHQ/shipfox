@@ -404,6 +404,23 @@ describe('workflowsWorkflowRunTerminatedSchema', () => {
     expect(result).toEqual(validRunTerminated);
   });
 
+  it('accepts terminal transition metadata', () => {
+    const result = workflowsWorkflowRunTerminatedSchema.parse({
+      ...validRunTerminated,
+      workspaceId: 'ws-1',
+      definitionId: 'definition-1',
+      statusReason: 'job_failed',
+      startedAt: '2026-08-11T08:00:00.000Z',
+      finishedAt: '2026-08-11T08:05:00.000Z',
+    });
+
+    expect(result).toMatchObject({
+      workspaceId: 'ws-1',
+      definitionId: 'definition-1',
+      statusReason: 'job_failed',
+    });
+  });
+
   it('rejects a payload missing a required field', () => {
     const {projectId: _projectId, ...withoutProjectId} = validRunTerminated;
 

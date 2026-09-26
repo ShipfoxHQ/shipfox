@@ -8,7 +8,7 @@ import {defaultJobConditionTrace} from '#core/condition-trace.js';
 import type {JobStatus, JobStatusReason, ResolutionReason} from '#core/entities/job.js';
 import type {PersistedEvaluationTraceEntry, StepStatus} from '#core/entities/step.js';
 import type {WorkflowConcurrencyClaimState} from '#core/entities/workflow-concurrency-claim.js';
-import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import type {WorkflowRunStatus, WorkflowRunStatusReason} from '#core/entities/workflow-run.js';
 import {JobNotFoundError, WorkflowExecutionPayloadTooLargeError} from '#core/errors.js';
 import type {
   RuntimeCompletionStatus,
@@ -142,11 +142,15 @@ export async function setRunAttemptStatus(params: {
   runAttemptId: string;
   status: WorkflowRunStatus;
   version: number;
+  statusReason?: WorkflowRunStatusReason | null | undefined;
+  statusReasonMessage?: string | null | undefined;
 }): Promise<{newVersion: number; status: WorkflowRunStatus}> {
   const updated = await updateWorkflowRunStatus({
     workflowRunAttemptId: params.runAttemptId,
     status: params.status,
     expectedVersion: params.version,
+    statusReason: params.statusReason,
+    statusReasonMessage: params.statusReasonMessage,
   });
   return {newVersion: updated.version, status: updated.status};
 }

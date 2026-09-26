@@ -5,8 +5,9 @@ import {
 } from '@shipfox/api-definitions-dto';
 import {uuidv7PrimaryKey} from '@shipfox/node-drizzle';
 import {sql} from 'drizzle-orm';
-import {check, integer, jsonb, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
+import {check, integer, jsonb, text, timestamp, uniqueIndex, uuid} from 'drizzle-orm/pg-core';
 import type {AgentToolMaterializationSnapshot} from '#core/agent-tools.js';
+import type {WorkflowRunStatusReason} from '#core/entities/workflow-run.js';
 import type {WorkflowRunAttempt} from '#core/entities/workflow-run-attempt.js';
 import {pgTable} from './common.js';
 import {workflowRunRerunModeEnum, workflowRunStatusEnum, workflowRuns} from './workflow-runs.js';
@@ -20,6 +21,8 @@ export const workflowRunAttempts = pgTable(
       .references(() => workflowRuns.id, {onDelete: 'cascade'}),
     attempt: integer('attempt').notNull(),
     status: workflowRunStatusEnum('status').notNull().default('pending'),
+    statusReason: text('status_reason').$type<WorkflowRunStatusReason>(),
+    statusReasonMessage: text('status_reason_message'),
     rerunMode: workflowRunRerunModeEnum('rerun_mode'),
     rerunByUserId: uuid('rerun_by_user_id'),
     model: jsonb('model').$type<WorkflowModel | WorkflowModelSnapshot>(),
@@ -51,6 +54,8 @@ export function toWorkflowRunAttempt(row: WorkflowRunAttemptDb): WorkflowRunAtte
     workflowRunId: row.workflowRunId,
     attempt: row.attempt,
     status: row.status,
+    statusReason: row.statusReason ?? null,
+    statusReasonMessage: row.statusReasonMessage ?? null,
     rerunMode: row.rerunMode ?? null,
     rerunByUserId: row.rerunByUserId,
     model: row.model === null ? null : readPersistedWorkflowModel(row.model),

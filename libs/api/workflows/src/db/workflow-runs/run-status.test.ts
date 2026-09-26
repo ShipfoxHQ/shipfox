@@ -208,7 +208,37 @@ describe('workflow run queries', () => {
 
       const events = await runTerminatedEvents(run.id);
       expect(events).toHaveLength(1);
-      expect(events[0]).toMatchObject({workflowRunId: run.id, projectId: run.projectId, status});
+      expect(events[0]).toMatchObject({
+        workflowRunId: run.id,
+        projectId: run.projectId,
+        workspaceId,
+        definitionId,
+        status,
+        statusReason: null,
+        startedAt: null,
+        finishedAt: expect.any(String),
+      });
+    });
+
+    test('persists and emits the failed-job status reason', async () => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'failed',
+        statusReason: 'job_failed',
+        expectedVersion: 1,
+      });
+
+      const attempt = await listTestRunAttempts({workflowRunId: run.id, projectId});
+      expect(attempt[0]).toMatchObject({
+        status: 'failed',
+        statusReason: 'job_failed',
+        statusReasonMessage: null,
+      });
+      expect(await runTerminatedEvents(run.id)).toEqual([
+        expect.objectContaining({status: 'failed', statusReason: 'job_failed'}),
+      ]);
     });
 
     test('writes no run-terminated event for a non-terminal transition', async () => {
@@ -400,8 +430,19 @@ describe('workflow run queries', () => {
         (await getStepsByJobId(skippedJob.id)).every((step) => step.status === 'pending'),
       ).toBe(true);
       expect(await runTerminatedEvents(run.id)).toEqual([
-        expect.objectContaining({workflowRunId: run.id, projectId, status: 'cancelled'}),
+        expect.objectContaining({
+          workflowRunId: run.id,
+          projectId,
+          workspaceId,
+          definitionId,
+          status: 'cancelled',
+          statusReason: 'user_cancelled',
+        }),
       ]);
+      expect((await listTestRunAttempts({workflowRunId: run.id, projectId}))[0]).toMatchObject({
+        statusReason: 'user_cancelled',
+        statusReasonMessage: null,
+      });
       expect(await runCancelledEvents(run.id)).toEqual([
         expect.objectContaining({workflowRunId: run.id, projectId}),
       ]);
@@ -598,6 +639,13 @@ describe('workflow run queries', () => {
         }),
       ]);
       expect(await runCancelledEvents(run.id)).toHaveLength(1);
+      expect(await runTerminatedEvents(run.id)).toEqual([
+        expect.objectContaining({statusReason: 'concurrency_superseded'}),
+      ]);
+      expect((await listTestRunAttempts({workflowRunId: run.id, projectId}))[0]).toMatchObject({
+        statusReason: 'concurrency_superseded',
+        statusReasonMessage: null,
+      });
     });
 
     test('succeeds without emitting another event for an already-terminal attempt', async () => {

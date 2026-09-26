@@ -109,6 +109,7 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
         runAttemptId: input.runAttemptId,
         status: completeRun.status,
         version: runVersion,
+        ...runCompletionStatusReason(completeRun.status),
       });
       return;
     }
@@ -126,6 +127,10 @@ export async function runOrchestration(input: RunOrchestrationInput): Promise<vo
     inFlight.delete(settled.job.key);
     recordRuntimeJobResult(settled.job, progress, settled.result);
   }
+}
+
+function runCompletionStatusReason(status: 'succeeded' | 'failed') {
+  return status === 'failed' ? {statusReason: 'job_failed' as const} : {};
 }
 
 async function startRunAttemptForWorkflow(params: {
