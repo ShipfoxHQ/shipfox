@@ -67,8 +67,10 @@ export {
 } from '#core/tools.js';
 export {createAgentAccessWorkflowDiagnosticTools} from '#core/workflow-diagnostic-tools.js';
 export {
+  AGENT_ACCESS_WORKSPACE_MODELS_TOOL_NAME,
   type AgentAccessWorkspaceModel,
   type AgentAccessWorkspaceModels,
+  createAgentAccessWorkspaceModelTools,
   getWorkspaceModels,
 } from '#core/workspace-models.js';
 export {

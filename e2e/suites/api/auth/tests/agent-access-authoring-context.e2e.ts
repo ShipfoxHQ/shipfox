@@ -1,4 +1,7 @@
-import {getWorkflowAuthoringContextResultSchema} from '@shipfox/api-agent-access-dto';
+import {
+  getWorkflowAuthoringContextResultSchema,
+  listWorkspaceModelsResultSchema,
+} from '@shipfox/api-agent-access-dto';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {createSecret, createVariable} from '@shipfox/e2e-setup-secrets';
 import {callToolResult, connectAgentAccessClient} from './agent-access-client.js';
@@ -37,6 +40,14 @@ test('returns workspace and project authoring names without values', async ({req
       {name: 'get_workflow_authoring_context', arguments: {project_id: project.id}},
       getWorkflowAuthoringContextResultSchema,
     );
+    const workspaceModels = await callToolResult(
+      client,
+      {
+        name: 'list_workspace_models',
+        arguments: {provider: 'openai', query: 'LUNA', scored_only: true, limit: 25},
+      },
+      listWorkspaceModelsResultSchema,
+    );
 
     expect(workspaceContext.secret_names).toEqual(['WORKSPACE_TOKEN']);
     expect(workspaceContext.variable_names).toEqual(['WORKSPACE_REGION']);
@@ -45,6 +56,16 @@ test('returns workspace and project authoring names without values', async ({req
     const serialized = JSON.stringify([workspaceContext, projectContext]);
     expect(serialized).not.toContain(SECRET_VALUE);
     expect(serialized).not.toContain(VARIABLE_VALUE);
+    expect(workspaceModels.models).toEqual([
+      expect.objectContaining({
+        id: 'gpt-5.6-luna',
+        label: expect.any(String),
+        lab: expect.any(String),
+        provider: 'openai',
+        references: expect.arrayContaining([expect.objectContaining({thinking: 'high'})]),
+      }),
+    ]);
+    expect(workspaceModels.next_cursor).toBeNull();
     expect(workspaceContext).toMatchObject({
       model_provider_configured: true,
       attribution: expect.any(String),

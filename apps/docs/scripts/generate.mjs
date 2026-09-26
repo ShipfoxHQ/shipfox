@@ -23,6 +23,7 @@ import {
   createAgentAccessTemplateTools,
   createAgentAccessTools,
   createAgentAccessWorkflowDiagnosticTools,
+  createAgentAccessWorkspaceModelTools,
   createDocsCache,
   createSearchDocsTool,
 } from '@shipfox/api-agent-access';
@@ -407,6 +408,7 @@ const mcpToolGroups = [
       'list_workflow_templates',
       'get_workflow_template',
       'get_workflow_authoring_context',
+      'list_workspace_models',
     ],
   },
   {
@@ -474,6 +476,7 @@ function listMcpTools() {
       templates: stub,
     }),
     ...createAgentAccessAuthoringContextTools({agent: stub, workflows: stub, secrets: stub}),
+    ...createAgentAccessWorkspaceModelTools(stub),
     createSearchDocsTool(createDocsCache({baseUrl: 'https://www.shipfox.io/docs'})),
   ];
 }
