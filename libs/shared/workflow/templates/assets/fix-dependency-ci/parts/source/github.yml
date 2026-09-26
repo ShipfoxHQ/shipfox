@@ -2,6 +2,7 @@ trigger: |
   on_dependency_ci_failure:
     source: github_source # bind:source
     event: workflow_run.completed
+    # Replace replace-with-owner/repository with the selected project repository before enabling this workflow.
     # option:bot_identity
     filter: >-
       event.repository.full_name == "replace-with-owner/repository" &&

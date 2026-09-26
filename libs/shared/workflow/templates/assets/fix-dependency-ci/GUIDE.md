@@ -42,7 +42,7 @@ Keep every marked block for the chosen mode and remove the others.
 
 For comment-only mode, remove the marked checkout `permissions` block too. The checkout then receives read access.
 Both modes post diagnoses when a person must act or no repair is needed.
-Stale or closed PRs are skipped without posting an obsolete result.
+The delivery step skips repair results for stale or closed PRs. Failure notices describe a specific run and can arrive later.
 
 Push mode can interact with existing auto-merge rules. Those rules might merge the agent's repair without another human review.
 Dependabot normally stops automatic rebasing after another author adds commits.
@@ -85,21 +85,22 @@ The agent preserves the intended dependency upgrade. It cannot solve a failure b
 | Repair candidate | Installation and validation must pass before delivery. |
 | No change needed | Local checks pass without edits. The report does not claim GitHub CI passed. |
 | Needs human help | The report explains missing configuration, an unsupported check, or a migration decision. No changes are delivered. |
-| Superseded | The PR closed or its head moved. No result is delivered. |
+| Superseded | Delivery finds a closed PR or a changed head. It skips the repair result. |
 | Patch too large | The report explains the delivery limit. Use push mode or repair the PR manually. |
 
 Comment-only patches include new files and binary changes.
 The comment contains Base64-encoded patch data for an exact source commit.
-Save it outside the repository, decode it, and inspect it before applying:
+Save the Base64 text as `$HOME/shipfox-repair.base64`, outside the repository.
+From the repository checkout, check out the source commit shown in the comment.
+Decode and inspect the patch before applying it:
 
 ```sh
-base64 --decode shipfox-repair.base64 > shipfox-repair.patch
+base64 --decode "$HOME/shipfox-repair.base64" > "$HOME/shipfox-repair.patch"
 # On macOS, use base64 -D instead of base64 --decode.
-git apply --check shipfox-repair.patch
-git apply --index shipfox-repair.patch
+git apply --check "$HOME/shipfox-repair.patch"
+git apply --index "$HOME/shipfox-repair.patch"
 ```
 
-Checkout the source commit shown in the comment before applying the patch.
 The patch limit is 30,000 bytes before encoding. Oversized patches are never truncated or reported as delivered.
 
 The workflow checks the live PR and remote branch again before delivery.
@@ -110,6 +111,7 @@ A later CI failure needs a separate investigation; this template does not listen
 
 Push mode creates one commit on the bot branch. Both modes can post one result or failure comment.
 The report runs separately, so a failed comment does not undo a completed push.
+Failure notices do not recheck PR eligibility. They report a past run, even if the PR has since changed or closed.
 Inspect existing commits and comments before rerunning a failed workflow.
 A runner or integration failure can also prevent the failure comment from being posted.
 
