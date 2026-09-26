@@ -31,6 +31,8 @@ export async function materializeRunAttemptOutputs(
   if (!model || model.outputs === undefined) return {kind: 'none'};
 
   const run = toWorkflowRun(params.run);
+  // No row locks needed: a run only succeeds once every job is terminal, and terminal jobs
+  // never change status or outputs.
   const jobs = await getRunAttemptJobContexts(tx, {workflowRunAttemptId: params.attempt.id, model});
   try {
     const outputs = materializeWorkflowOutputs({
