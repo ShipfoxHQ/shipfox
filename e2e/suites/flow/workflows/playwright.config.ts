@@ -10,8 +10,9 @@ export default defineConfig({
   globalTeardown: './tests/global-teardown.ts',
   reporter: process.env.CI ? 'github' : 'list',
   fullyParallel: true,
-  // The 4-vCPU CI runner also hosts the API, Temporal, and the local runners.
-  workers: process.env.CI ? 2 : 4,
+  // The flow suite has its own CI runner, which also hosts the API, Temporal,
+  // and the local runners.
+  workers: 4,
   maxFailures: process.env.CI ? 1 : 0,
   // A scenario waits on real provisioning and execution; its own poll budgets
   // (expect.yaml timeout_seconds, plus the helper defaults) are the real deadlines,
