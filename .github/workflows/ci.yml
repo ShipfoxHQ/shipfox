@@ -1181,6 +1181,9 @@ jobs:
 
       - name: Set up pnpm
         uses: ./.github/actions/setup-pnpm
+        with:
+          # The publication closure and its build only use libraries and tools.
+          filter: "./{libs,tools}/**"
 
       - name: Build publication closure
         run: turbo type build type:emit --filter='./libs/**' --filter='./tools/**'
