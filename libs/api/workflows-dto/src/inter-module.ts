@@ -189,6 +189,32 @@ const workflowRunCursorSchema = z.object({
   createdAt: z.string().datetime(),
   id: idSchema,
 });
+const lifecycleEventContextSchema = z.object({
+  project: z.object({id: idSchema, name: z.string()}),
+  workflow: z.object({id: idSchema, name: z.string(), path: z.string().nullable()}),
+  run: z.object({
+    id: idSchema,
+    number: z.number().int().positive(),
+    attempt: attemptSchema,
+    name: z.string(),
+    origin: workflowRunOriginSchema,
+    trigger: z.object({source: z.string(), event: z.string()}),
+    ref: z.string().nullable(),
+    commit: z.string().nullable(),
+    parent_run_id: idSchema.nullable(),
+    root_run_id: idSchema.nullable(),
+    created_at: z.string().datetime(),
+  }),
+  job: z
+    .object({
+      id: idSchema,
+      key: z.string(),
+      mode: z.enum(['one_shot', 'listening']),
+      outputs: z.record(z.string(), z.unknown()).nullable(),
+    })
+    .optional(),
+});
+
 const workflowRunFiltersSchema = z
   .object({
     status: workflowRunStatusSchema.optional(),
@@ -577,6 +603,14 @@ export const workflowsInterModuleContract = defineInterModuleContract({
         attempt: attemptSchema.optional(),
       }),
       output: workflowRunSourceResponseSchema.nullable(),
+    },
+    getLifecycleEventContext: {
+      input: z.object({
+        workspaceId: idSchema,
+        workflowRunAttemptId: idSchema,
+        jobId: idSchema.optional(),
+      }),
+      output: lifecycleEventContextSchema.nullable(),
     },
     getWorkflowJobExecutionContext: {
       input: z.object({

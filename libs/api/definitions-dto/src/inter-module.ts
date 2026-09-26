@@ -65,6 +65,8 @@ const definitionSnapshotSchema = z.object({
   workflowId: idSchema,
   projectId: idSchema,
   name: z.string(),
+  /** The repository-relative workflow path, when the definition has one. */
+  configPath: z.string().nullable().optional(),
   model: workflowModelSnapshotSchema,
   sourceSnapshot: z.object({content: z.string(), format: z.literal('yaml')}).nullable(),
 });

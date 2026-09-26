@@ -1,5 +1,6 @@
 import {annotationsInterModuleContract} from '@shipfox/annotations-dto/inter-module';
 import {createWorkflowModelSnapshot} from '@shipfox/api-definitions-dto';
+import {projectsInterModuleContract} from '@shipfox/api-projects-dto/inter-module';
 import {
   MAX_RESOLVED_STEP_CONFIG_BYTES,
   WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES,
@@ -54,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   getStepById: vi.fn(),
   getStepByIdForJobExecution: vi.fn(),
   getExecutionTriggerEvent: vi.fn(),
+  getLifecycleEventContextRead: vi.fn(),
   getWorkflowJobDetail: vi.fn(),
   getWorkflowJobExecutionContext: vi.fn(),
   getWorkflowJobReadScope: vi.fn(),
@@ -102,6 +104,30 @@ const input = {
   },
   idempotencyKey: 'manual-1',
 };
+
+function readLifecycleEventContext() {
+  return {
+    runId: crypto.randomUUID(),
+    projectId: input.projectId,
+    definitionId: input.definitionId,
+    number: 42,
+    attempt: 1,
+    name: null,
+    workflowName: 'Build',
+    origin: 'synced' as const,
+    triggerSource: 'github',
+    triggerEvent: 'push',
+    triggerReference: {ref: 'refs/heads/main', commit: 'commit'},
+    devSource: null,
+    parentRunId: null,
+    rootRunId: null,
+    createdAt: new Date('2026-08-31T10:00:00.000Z'),
+    jobId: null,
+    jobKey: null,
+    jobMode: null,
+    jobOutputs: null,
+  };
+}
 
 type SyncedWorkflowRun = Extract<WorkflowRun, {origin: 'synced'}>;
 
@@ -180,6 +206,286 @@ describe('Workflows inter-module presentation', () => {
     });
   });
 
+  it.each([
+    {
+      name: 'synced run',
+      origin: 'synced',
+      attempt: 1,
+      triggerReference: {ref: 'refs/heads/main', commit: 'synced-commit'},
+      devSource: null,
+      parentRunId: null,
+      rootRunId: null,
+      jobId: undefined,
+    },
+    {
+      name: 'dev run',
+      origin: 'dev',
+      attempt: 1,
+      triggerReference: null,
+      devSource: {ref: 'feature', commit: 'dev-commit'},
+      parentRunId: null,
+      rootRunId: null,
+      jobId: undefined,
+    },
+    {
+      name: 'child run started by start_workflow_run',
+      origin: 'synced',
+      attempt: 1,
+      triggerReference: {ref: 'refs/heads/main', commit: 'child-commit'},
+      devSource: null,
+      parentRunId: '00000000-0000-4000-8000-000000000010',
+      rootRunId: '00000000-0000-4000-8000-000000000011',
+      jobId: undefined,
+    },
+    {
+      name: 'rerun attempt',
+      origin: 'synced',
+      attempt: 2,
+      triggerReference: {ref: 'refs/heads/main', commit: 'rerun-commit'},
+      devSource: null,
+      parentRunId: null,
+      rootRunId: null,
+      jobId: undefined,
+    },
+    {
+      name: 'job context',
+      origin: 'synced',
+      attempt: 1,
+      triggerReference: {ref: 'refs/heads/main', commit: 'job-commit'},
+      devSource: null,
+      parentRunId: null,
+      rootRunId: null,
+      jobId: '00000000-0000-4000-8000-000000000012',
+    },
+  ])('maps the $name lifecycle context through the serialized transport', async (scenario) => {
+    const workspaceId = input.workspaceId;
+    const projectId = input.projectId;
+    const runId = '00000000-0000-4000-8000-000000000013';
+    const attemptId = '00000000-0000-4000-8000-000000000014';
+    const definitionId = '00000000-0000-4000-8000-000000000015';
+    const createdAt = new Date('2026-08-31T10:00:00.000Z');
+    mocks.getLifecycleEventContextRead.mockResolvedValue({
+      runId,
+      projectId,
+      definitionId,
+      number: 42,
+      attempt: scenario.attempt,
+      name: null,
+      workflowName: 'Build',
+      origin: scenario.origin,
+      triggerSource: 'github',
+      triggerEvent: 'push',
+      triggerReference: scenario.triggerReference,
+      devSource: scenario.devSource,
+      parentRunId: scenario.parentRunId,
+      rootRunId: scenario.rootRunId,
+      createdAt,
+      jobId: scenario.jobId ?? null,
+      jobKey: scenario.jobId === undefined ? null : 'build',
+      jobMode: scenario.jobId === undefined ? null : 'one_shot',
+      jobOutputs: scenario.jobId === undefined ? null : {version: '1.2.3'},
+    });
+    const definitions = {
+      getDefinitionForWorkflowRun: vi.fn().mockResolvedValue({
+        definition: {
+          id: definitionId,
+          workflowId: '00000000-0000-4000-8000-000000000016',
+          projectId,
+          name: 'Build',
+          configPath: '.shipfox/workflows/build.yml',
+          model: {},
+          sourceSnapshot: null,
+        },
+      }),
+    };
+    const projects = {
+      requireProjectForWorkspace: vi.fn().mockResolvedValue({
+        project: {id: projectId, name: 'API'},
+      }),
+    };
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+    const transport = createInMemoryInterModuleTransport();
+    const client = transport.createClient(workflowsInterModuleContract);
+    transport.register(presentation);
+    transport.seal();
+
+    await expect(
+      client.getLifecycleEventContext({
+        workspaceId,
+        workflowRunAttemptId: attemptId,
+        ...(scenario.jobId === undefined ? {} : {jobId: scenario.jobId}),
+      }),
+    ).resolves.toMatchObject({
+      project: {id: projectId, name: 'API'},
+      workflow: {
+        id: '00000000-0000-4000-8000-000000000016',
+        name: 'Build',
+        path: '.shipfox/workflows/build.yml',
+      },
+      run: {
+        id: runId,
+        number: 42,
+        attempt: scenario.attempt,
+        name: 'Build',
+        origin: scenario.origin,
+        trigger: {source: 'github', event: 'push'},
+        ref: scenario.triggerReference?.ref ?? scenario.devSource?.ref ?? null,
+        commit: scenario.triggerReference?.commit ?? scenario.devSource?.commit ?? null,
+        parent_run_id: scenario.parentRunId,
+        root_run_id: scenario.rootRunId,
+        created_at: createdAt.toISOString(),
+      },
+      ...(scenario.jobId === undefined
+        ? {}
+        : {job: {id: scenario.jobId, key: 'build', mode: 'one_shot', outputs: {version: '1.2.3'}}}),
+    });
+  });
+
+  it('masks an attempt from another workspace as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(null);
+    const projects = {requireProjectForWorkspace: vi.fn()};
+    const definitions = {getDefinitionForWorkflowRun: vi.fn()};
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(projects.requireProjectForWorkspace).not.toHaveBeenCalled();
+    expect(definitions.getDefinitionForWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it('masks a known project access error as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(readLifecycleEventContext());
+    const projects = {
+      requireProjectForWorkspace: vi
+        .fn()
+        .mockRejectedValue(
+          createInterModuleKnownError(
+            projectsInterModuleContract.methods.requireProjectForWorkspace,
+            'project-not-found',
+            {projectId: input.projectId},
+          ),
+        ),
+    };
+    const definitions = {getDefinitionForWorkflowRun: vi.fn()};
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(projects.requireProjectForWorkspace).toHaveBeenCalledWith({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+    });
+    expect(definitions.getDefinitionForWorkflowRun).not.toHaveBeenCalled();
+  });
+
+  it('masks a missing definition as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(readLifecycleEventContext());
+    const projects = {
+      requireProjectForWorkspace: vi.fn().mockResolvedValue({
+        project: {id: input.projectId, name: 'API'},
+      }),
+    };
+    const definitions = {
+      getDefinitionForWorkflowRun: vi.fn().mockResolvedValue({definition: null}),
+    };
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(definitions.getDefinitionForWorkflowRun).toHaveBeenCalledWith({
+      definitionId: input.definitionId,
+    });
+  });
+
+  it('masks a definition from another project as not found', async () => {
+    mocks.getLifecycleEventContextRead.mockResolvedValue(readLifecycleEventContext());
+    const projects = {
+      requireProjectForWorkspace: vi.fn().mockResolvedValue({
+        project: {id: input.projectId, name: 'API'},
+      }),
+    };
+    const definitions = {
+      getDefinitionForWorkflowRun: vi.fn().mockResolvedValue({
+        definition: {
+          id: input.definitionId,
+          workflowId: crypto.randomUUID(),
+          projectId: crypto.randomUUID(),
+          name: 'Build',
+          configPath: '.shipfox/workflows/build.yml',
+          model: {},
+          sourceSnapshot: null,
+        },
+      }),
+    };
+    const presentation = createWorkflowsInterModulePresentation({
+      agent: {} as never,
+      definitions: definitions as never,
+      integrations: {} as never,
+      projects: projects as never,
+      runners: {} as never,
+      secrets: {} as never,
+      workspaces: {getWorkspaceOperatingState: vi.fn()} as never,
+    });
+
+    await expect(
+      presentation.handlers.getLifecycleEventContext(
+        {workspaceId: input.workspaceId, workflowRunAttemptId: crypto.randomUUID()},
+        {signal: new AbortController().signal},
+      ),
+    ).resolves.toBeNull();
+    expect(projects.requireProjectForWorkspace).toHaveBeenCalledWith({
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+    });
+    expect(definitions.getDefinitionForWorkflowRun).toHaveBeenCalledWith({
+      definitionId: input.definitionId,
+    });
+  });
+
   beforeEach(() => {
     mocks.getJobScope.mockReset();
     mocks.getLatestRunAttempt.mockReset();
@@ -189,6 +495,7 @@ describe('Workflows inter-module presentation', () => {
     mocks.getStepById.mockReset();
     mocks.getStepByIdForJobExecution.mockReset();
     mocks.getExecutionTriggerEvent.mockReset();
+    mocks.getLifecycleEventContextRead.mockReset();
     mocks.getWorkflowJobDetail.mockReset();
     mocks.getWorkflowJobExecutionContext.mockReset();
     mocks.getWorkflowJobReadScope.mockReset();

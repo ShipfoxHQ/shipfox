@@ -6,7 +6,10 @@ import {
 import type {AgentInterModuleClient} from '@shipfox/api-agent-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import type {IntegrationsModuleClient} from '@shipfox/api-integration-core-dto/inter-module';
-import type {ProjectsModuleClient} from '@shipfox/api-projects-dto/inter-module';
+import {
+  type ProjectsModuleClient,
+  projectsInterModuleContract,
+} from '@shipfox/api-projects-dto/inter-module';
 import type {RunnersInterModuleClient} from '@shipfox/api-runners-dto/inter-module';
 import type {SecretsInterModuleClient} from '@shipfox/api-secrets-dto/inter-module';
 import {
@@ -17,13 +20,17 @@ import {
   WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT,
   workflowExecutionPayloadFieldSchema,
 } from '@shipfox/api-workflows-dto';
-import {workflowsInterModuleContract} from '@shipfox/api-workflows-dto/inter-module';
+import {
+  type WorkflowsModuleClient,
+  workflowsInterModuleContract,
+} from '@shipfox/api-workflows-dto/inter-module';
 import type {WorkspacesInterModuleClient} from '@shipfox/api-workspaces-dto/inter-module';
 import {
   createInterModuleKnownError,
   defineInterModulePresentation,
   type InterModuleKnownErrorFor,
   type InterModulePresentation,
+  isInterModuleKnownError,
 } from '@shipfox/inter-module';
 import {
   createTimestampIdCursor,
@@ -78,6 +85,7 @@ import {
   getJobScope,
   getLatestRunAttempt,
   getLatestStepAttempt,
+  getLifecycleEventContextRead,
   getStepAttemptDetail,
   getStepById,
   getStepByIdForJobExecution,
@@ -158,6 +166,83 @@ function childRunStartErrorOutcome(error: unknown): ChildRunStartOutcome {
 }
 
 const DECIMAL_CURSOR_VALUE = /^\d+$/;
+
+type LifecycleEventContextRead = NonNullable<
+  Awaited<ReturnType<typeof getLifecycleEventContextRead>>
+>;
+type LifecycleEventProject = Awaited<
+  ReturnType<ProjectsModuleClient['requireProjectForWorkspace']>
+>['project'];
+type LifecycleEventDefinition = NonNullable<
+  Awaited<ReturnType<DefinitionsInterModuleClient['getDefinitionForWorkflowRun']>>['definition']
+>;
+
+type LifecycleEventContext = NonNullable<
+  Awaited<ReturnType<WorkflowsModuleClient['getLifecycleEventContext']>>
+>;
+
+async function getLifecycleEventProject(
+  projects: ProjectsModuleClient,
+  input: {workspaceId: string; projectId: string},
+): Promise<LifecycleEventProject | null> {
+  try {
+    return (
+      await projects.requireProjectForWorkspace({
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+      })
+    ).project;
+  } catch (error) {
+    if (
+      isInterModuleKnownError(projectsInterModuleContract.methods.requireProjectForWorkspace, error)
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function toLifecycleEventContext(
+  context: LifecycleEventContextRead,
+  project: LifecycleEventProject,
+  definition: LifecycleEventDefinition,
+): LifecycleEventContext | null {
+  let job: LifecycleEventContext['job'];
+  if (context.jobId !== null) {
+    if (context.jobKey === null || context.jobMode === null) return null;
+    job = {
+      id: context.jobId,
+      key: context.jobKey,
+      mode: context.jobMode,
+      outputs: context.jobOutputs ?? null,
+    };
+  }
+
+  const source = context.origin === 'dev' ? context.devSource : context.triggerReference;
+  const origin = context.origin === 'dev' ? ('dev' as const) : ('synced' as const);
+  return {
+    project: {id: project.id, name: project.name},
+    workflow: {
+      id: definition.workflowId,
+      name: definition.name,
+      path: definition.configPath ?? null,
+    },
+    run: {
+      id: context.runId,
+      number: context.number,
+      attempt: context.attempt,
+      name: context.name ?? context.workflowName,
+      origin,
+      trigger: {source: context.triggerSource, event: context.triggerEvent},
+      ref: source?.ref ?? null,
+      commit: source?.commit ?? null,
+      parent_run_id: context.parentRunId,
+      root_run_id: context.rootRunId,
+      created_at: context.createdAt.toISOString(),
+    },
+    ...(job === undefined ? {} : {job}),
+  };
+}
 
 export function createWorkflowsInterModulePresentation(params: {
   agent: AgentInterModuleClient;
@@ -572,6 +657,23 @@ export function createWorkflowsInterModulePresentation(params: {
 
       const source = await getWorkflowRunSource({workflowRunId: scope.id, attempt});
       return source ? toWorkflowRunSourceResponseDto(source) : null;
+    },
+    getLifecycleEventContext: async (input) => {
+      const context = await getLifecycleEventContextRead(input);
+      if (!context) return null;
+
+      const project = await getLifecycleEventProject(params.projects, {
+        workspaceId: input.workspaceId,
+        projectId: context.projectId,
+      });
+      if (!project) return null;
+
+      const {definition} = await params.definitions.getDefinitionForWorkflowRun({
+        definitionId: context.definitionId,
+      });
+      if (!definition || definition.projectId !== context.projectId) return null;
+
+      return toLifecycleEventContext(context, project, definition);
     },
     getWorkflowJobExecutionContext: async (input) => {
       const scope = await getAccessibleJobScope(input.workspaceId, input.jobId);

@@ -48,6 +48,7 @@ describe('definitionsInterModuleContract', () => {
         workflowId: '00000000-0000-4000-8000-000000000003',
         projectId: '00000000-0000-4000-8000-000000000002',
         name: 'Deploy',
+        configPath: CONFIG_PATH,
         model: {version: 4, model: {kind: 'workflow'}},
         sourceSnapshot: null,
       },
@@ -55,6 +56,7 @@ describe('definitionsInterModuleContract', () => {
 
     expect(result.definition?.model.version).toBe(4);
     expect(result.definition?.workflowId).toBe('00000000-0000-4000-8000-000000000003');
+    expect(result.definition?.configPath).toBe(CONFIG_PATH);
   });
 
   test('rejects an unknown persisted snapshot version', () => {

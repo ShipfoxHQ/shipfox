@@ -45,6 +45,7 @@ const workflows = {
   listWorkflowExecutionSteps: async () => null,
   listWorkflowStepAttempts: async () => null,
   getWorkflowRunSource: async () => null,
+  getLifecycleEventContext: async () => null,
   getWorkflowJobExecutionContext: async () => null,
   listExecutionTriggerEvents: async () => null,
   getExecutionTriggerEvent: async () => null,

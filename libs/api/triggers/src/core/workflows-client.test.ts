@@ -121,6 +121,27 @@ function localWorkflowsClient(): WorkflowsModuleClient {
       listWorkflowExecutionSteps: vi.fn(),
       listWorkflowStepAttempts: vi.fn(),
       getWorkflowRunSource: vi.fn(),
+      getLifecycleEventContext: () => ({
+        project: {id: input.projectId, name: 'API'},
+        workflow: {
+          id: input.definitionId,
+          name: 'Build',
+          path: '.shipfox/workflows/build.yml',
+        },
+        run: {
+          id: input.definitionId,
+          number: 42,
+          attempt: 1,
+          name: 'Build',
+          origin: 'synced' as const,
+          trigger: {source: 'github', event: 'push'},
+          ref: 'refs/heads/main',
+          commit: 'a'.repeat(40),
+          parent_run_id: null,
+          root_run_id: null,
+          created_at: '2026-08-31T10:00:00.000Z',
+        },
+      }),
       getWorkflowJobExecutionContext: vi.fn(),
       listExecutionTriggerEvents: vi.fn(),
       getExecutionTriggerEvent: vi.fn(),
@@ -152,6 +173,16 @@ async function runConsumerSuite(client: WorkflowsModuleClient): Promise<void> {
   await expect(client.startDevRun(devRunInput)).resolves.toEqual({
     id: devRunInput.workflowId,
     name: 'Build',
+  });
+
+  const lifecycleInput = {
+    workspaceId: input.workspaceId,
+    workflowRunAttemptId: input.definitionId,
+  };
+  await expect(client.getLifecycleEventContext(lifecycleInput)).resolves.toMatchObject({
+    project: {id: input.projectId, name: 'API'},
+    workflow: {path: '.shipfox/workflows/build.yml'},
+    run: {origin: 'synced', number: 42},
   });
 
   const result = client.startRunFromTrigger({...input, definitionId: crypto.randomUUID()});

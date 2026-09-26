@@ -11,6 +11,54 @@ import {
 import {workflowsInterModuleContract} from './inter-module.js';
 
 describe('workflowsInterModuleContract', () => {
+  test('defines the lifecycle event context contract', () => {
+    const workspaceId = '00000000-0000-4000-8000-000000000001';
+    const workflowRunAttemptId = '00000000-0000-4000-8000-000000000002';
+    const jobId = '00000000-0000-4000-8000-000000000003';
+    const context = {
+      project: {
+        id: '00000000-0000-4000-8000-000000000004',
+        name: 'API',
+      },
+      workflow: {
+        id: '00000000-0000-4000-8000-000000000005',
+        name: 'Build',
+        path: '.shipfox/workflows/build.yml',
+      },
+      run: {
+        id: '00000000-0000-4000-8000-000000000006',
+        number: 42,
+        attempt: 2,
+        name: 'Build #42',
+        origin: 'synced' as const,
+        trigger: {source: 'github', event: 'push'},
+        ref: 'refs/heads/main',
+        commit: 'a'.repeat(40),
+        parent_run_id: null,
+        root_run_id: null,
+        created_at: '2026-08-31T10:00:00.000Z',
+      },
+      job: {id: jobId, key: 'build', mode: 'one_shot' as const, outputs: {version: '1.2.3'}},
+    };
+
+    expect(
+      workflowsInterModuleContract.methods.getLifecycleEventContext.input.parse({
+        workspaceId,
+        workflowRunAttemptId,
+        jobId,
+      }),
+    ).toEqual({workspaceId, workflowRunAttemptId, jobId});
+    expect(
+      workflowsInterModuleContract.methods.getLifecycleEventContext.output.parse(context),
+    ).toEqual(context);
+    expect(
+      workflowsInterModuleContract.methods.getLifecycleEventContext.output.parse({
+        ...context,
+        job: undefined,
+      })?.job,
+    ).toBeUndefined();
+  });
+
   test('defines the runner catalog names read contract', () => {
     expect(workflowsInterModuleContract.methods.listRunnerCatalogNames.input.parse({})).toEqual({});
     expect(

@@ -39,6 +39,7 @@ export function createDefinitionsInterModulePresentation(
           workflowId: definition.workflowId,
           projectId: definition.projectId,
           name: definition.name,
+          configPath: definition.configPath ?? null,
           model: createWorkflowModelSnapshot(populateDefaultGateMaxAttempts(definition.model)),
           sourceSnapshot: definition.sourceSnapshot,
         },
