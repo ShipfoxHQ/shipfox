@@ -61,7 +61,7 @@ export async function main(argv) {
   try {
     // Build dependencies before watch processes start so test:e2e cannot restart the API during readiness checks.
     if (options.turboTask === defaultTurboTask) {
-      await buildE2eDependencies(options, env);
+      await buildE2eDependencies(options, env, servers);
     }
     if (
       process.env.POSTHOG_API_BASE_URL === undefined &&
@@ -581,11 +581,12 @@ export function defaultLogDir(env) {
   return join(env.RUNNER_TEMP ?? '.context', 'shipfox-e2e-logs');
 }
 
-async function buildE2eDependencies(options, env) {
+async function buildE2eDependencies(options, env, servers) {
   const build = await startCommand('turbo', turboBuildCommandArgs(options, env), {
     env,
     stdio: 'inherit',
   });
+  servers.push({name: 'build', child: build.child});
   const exitCode = await build.exitCode;
   if (exitCode !== 0) {
     throw new Error(`E2E dependency build failed with exit code ${exitCode}`);
