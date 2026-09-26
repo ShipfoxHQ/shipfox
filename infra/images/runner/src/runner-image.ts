@@ -1,4 +1,4 @@
-import {execFileSync} from 'node:child_process';
+import {execFileSync, spawn} from 'node:child_process';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -43,6 +43,7 @@ export function packerBuildArgs(
   const source = build.platform === 'aws' ? 'amazon-ebs' : 'qemu';
   const args = [
     'build',
+    '-timestamp-ui',
     '-only',
     `runner.${source}.build_image`,
     '-var',
@@ -99,8 +100,7 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
     overlayBuiltOutputs({prunedRoot: workspacePath});
     execFileSync('packer', ['init', '.'], {cwd: rootDir, stdio: 'inherit'});
     await rm(manifestPath, {force: true});
-    const output = runPackerBuild(build, workspacePath, rootDir);
-    process.stdout.write(output);
+    const output = await runPackerBuild(build, workspacePath, rootDir);
     if (build.platform !== 'aws') return {amiId: null};
 
     try {
@@ -114,29 +114,30 @@ export async function buildRunnerImage(build: RunnerImageBuild): Promise<{amiId:
   }
 }
 
-function runPackerBuild(build: RunnerImageBuild, workspacePath: string, rootDir: string): string {
-  try {
-    return execFileSync('packer', packerBuildArgs(build, workspacePath, rootDir), {
+// Stream while capturing so CI shows each phase as it happens, and the AMI ID can still be
+// recovered from the output when Packer fails before writing its manifest.
+function runPackerBuild(
+  build: RunnerImageBuild,
+  workspacePath: string,
+  rootDir: string,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const packer = spawn('packer', packerBuildArgs(build, workspacePath, rootDir), {
       cwd: rootDir,
-      encoding: 'utf8',
-      // A full AMI bake (apt, node, pnpm install) streams well past the 1 MB default,
-      // and an ENOBUFS throw would discard the already-built AMI. Give it ample room.
-      maxBuffer: 256 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'inherit'],
     });
-  } catch (error) {
-    writePackerFailureOutput(error);
-    throw error;
-  }
-}
-
-function writePackerFailureOutput(error: unknown): void {
-  if (!(error instanceof Error)) return;
-  const processError = error as NodeJS.ErrnoException & {
-    stdout?: string | Buffer;
-    stderr?: string | Buffer;
-  };
-  if (processError.stdout) process.stdout.write(processError.stdout);
-  if (processError.stderr) process.stderr.write(processError.stderr);
+    let output = '';
+    packer.stdout.setEncoding('utf8');
+    packer.stdout.on('data', (chunk: string) => {
+      output += chunk;
+      process.stdout.write(chunk);
+    });
+    packer.on('error', reject);
+    packer.on('close', (code, signal) => {
+      if (code === 0) resolve(output);
+      else reject(new Error(`packer build failed with ${signal ?? `exit code ${code}`}.`));
+    });
+  });
 }
 
 function isMissingManifest(error: unknown): boolean {
