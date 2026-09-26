@@ -61,6 +61,14 @@ function renewDispatchClaim(source: string, claim: OutboxDispatchClaim) {
   return renewFromRegistry(outboxRegistry, source, claim);
 }
 
+// Claim leases are truncated to milliseconds, so a renewal in the same millisecond as the
+// drain would keep the original claim current instead of making it stale.
+async function renewDispatchClaimLater(source: string, claim: OutboxDispatchClaim) {
+  await new Promise((resolve) => setTimeout(resolve, 2));
+  const renewed = await renewDispatchClaim(source, claim);
+  expect(renewed?.getTime()).toBeGreaterThan(claim.claimExpiresAt.getTime());
+}
+
 function recordDispatchFailure(
   source: string,
   id: string,
@@ -1349,7 +1357,7 @@ describe('definition queries', () => {
     test('markDispatched ignores stale claims that have already been renewed', async () => {
       await insertOutboxRow({projectId, marker: 'stale-success', orderingKey: 'run-1'});
       const [event] = eventsForProject((await drainAll()).events, projectId);
-      await renewDispatchClaim('definitions', {
+      await renewDispatchClaimLater('definitions', {
         id: event?.id as string,
         claimExpiresAt: event?.claimExpiresAt as Date,
       });
@@ -1372,7 +1380,7 @@ describe('definition queries', () => {
       };
       await insertOutboxRow({projectId, marker: 'stale-failure', orderingKey: 'run-1'});
       const [event] = eventsForProject((await drainAll()).events, projectId);
-      await renewDispatchClaim('definitions', {
+      await renewDispatchClaimLater('definitions', {
         id: event?.id as string,
         claimExpiresAt: event?.claimExpiresAt as Date,
       });
