@@ -1,6 +1,7 @@
 import {AUTH_USER_SIGNED_IN, type AuthEventMap} from '@shipfox/api-auth-dto';
 import {writeOutboxEvent} from '@shipfox/node-outbox';
-import {and, eq, gt, isNull, ne, sql} from 'drizzle-orm';
+import {and, asc, eq, getTableColumns, gt, isNull, ne, sql} from 'drizzle-orm';
+import {alias} from 'drizzle-orm/pg-core';
 import type {RefreshToken} from '#core/entities/refresh-token.js';
 import {db} from './db.js';
 import {authOutbox} from './schema/outbox.js';
@@ -121,6 +122,36 @@ export async function findRefreshTokenByHash(params: {
         gt(refreshTokens.expiresAt, sql`now()`),
       ),
     )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return undefined;
+  return toRefreshToken(row);
+}
+
+/**
+ * Returns the token that replaced the given one in its session, whatever its
+ * state. Each rotation inserts exactly one successor, so the next token created
+ * in the session is the direct successor. Creation times are compared in SQL
+ * because a JS Date drops Postgres's microseconds.
+ */
+export async function findRefreshTokenSuccessor(params: {
+  id: string;
+}): Promise<RefreshToken | undefined> {
+  const predecessor = alias(refreshTokens, 'predecessor');
+  const rows = await db()
+    .select(getTableColumns(refreshTokens))
+    .from(refreshTokens)
+    .innerJoin(
+      predecessor,
+      and(
+        eq(predecessor.id, params.id),
+        eq(refreshTokens.userId, predecessor.userId),
+        eq(refreshTokens.sessionId, predecessor.sessionId),
+        gt(refreshTokens.createdAt, predecessor.createdAt),
+      ),
+    )
+    .orderBy(asc(refreshTokens.createdAt))
     .limit(1);
 
   const row = rows[0];

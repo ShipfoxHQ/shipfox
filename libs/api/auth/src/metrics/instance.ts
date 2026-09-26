@@ -7,7 +7,7 @@ export type AuthTokenType =
   | 'job_lease'
   | 'runner_session';
 export type AuthTokenVerificationOutcome = 'ok' | 'rejected';
-export type AuthTokenRefreshOutcome = 'rotated' | 'grace' | 'rejected' | 'reused';
+export type AuthTokenRefreshOutcome = 'rotated' | 'recovered' | 'grace' | 'rejected' | 'reused';
 export type AuthRateLimitAction =
   | 'login'
   | 'email-send'
