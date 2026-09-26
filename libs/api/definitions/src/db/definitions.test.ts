@@ -67,6 +67,7 @@ async function renewDispatchClaimLater(source: string, claim: OutboxDispatchClai
   await new Promise((resolve) => setTimeout(resolve, 2));
   const renewed = await renewDispatchClaim(source, claim);
   expect(renewed?.getTime()).toBeGreaterThan(claim.claimExpiresAt.getTime());
+  return renewed;
 }
 
 function recordDispatchFailure(
@@ -1338,7 +1339,7 @@ describe('definition queries', () => {
       await insertOutboxRow({projectId, marker: 'renewed', orderingKey: 'run-1'});
       const [event] = eventsForProject((await drainAll()).events, projectId);
 
-      const renewedClaimExpiresAt = await renewDispatchClaim('definitions', {
+      const renewedClaimExpiresAt = await renewDispatchClaimLater('definitions', {
         id: event?.id as string,
         claimExpiresAt: event?.claimExpiresAt as Date,
       });
@@ -1348,9 +1349,6 @@ describe('definition queries', () => {
       });
 
       expect(renewedClaimExpiresAt).toBeInstanceOf(Date);
-      expect(renewedClaimExpiresAt?.getTime()).toBeGreaterThanOrEqual(
-        (event?.claimExpiresAt as Date).getTime(),
-      );
       expect(staleRenewal).toBeUndefined();
     });
 
