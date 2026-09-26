@@ -79,6 +79,9 @@ export function parseRunnerBaseMetadata(value: unknown): RunnerBaseMetadata {
     throw new Error(`Runner base metadata is invalid: ${errors}`);
   }
 
+  if (value.region !== RUNNER_BASE_REGION) {
+    throw new Error(`Runner base metadata region must be ${RUNNER_BASE_REGION}.`);
+  }
   // The key must be the account's own key in the base region: an alias or a foreign key would
   // break the snapshot lineage that derived candidates rely on.
   const [, , , keyRegion, keyOwner] = value.kmsKeyArn.split(':');

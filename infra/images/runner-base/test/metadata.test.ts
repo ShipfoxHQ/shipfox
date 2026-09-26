@@ -69,6 +69,17 @@ describe('runner base metadata', () => {
     );
   });
 
+  it('rejects a generation outside the base region', () => {
+    expect(() =>
+      parseRunnerBaseMetadata(
+        metadata({
+          region: 'us-east-1',
+          kmsKeyArn: `arn:aws:kms:us-east-1:${OWNER}:key/1234abcd`,
+        }),
+      ),
+    ).toThrow('region must be eu-central-1');
+  });
+
   it('rejects a key from another account or region', () => {
     expect(() =>
       parseRunnerBaseMetadata(
