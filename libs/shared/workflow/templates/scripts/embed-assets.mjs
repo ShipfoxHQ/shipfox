@@ -1,6 +1,6 @@
 import {execFile} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -166,7 +166,10 @@ async function writeFormattedIfChanged(generated) {
       if (error.code === 'ENOENT') return undefined;
       throw error;
     });
-    if (existing !== formatted) await writeFile(outputPath, formatted);
+    if (existing !== formatted) {
+      await mkdir(dirname(outputPath), {recursive: true});
+      await writeFile(outputPath, formatted);
+    }
   } finally {
     await rm(temporaryRoot, {recursive: true, force: true});
   }

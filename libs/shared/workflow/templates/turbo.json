@@ -1,0 +1,24 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build:assets": {
+      "cache": true,
+      "inputs": ["assets/**", "scripts/embed-assets.mjs", "package.json"],
+      "outputs": ["src/generated/**"],
+      "dependsOn": ["@shipfox/biome#build"]
+    },
+    "build": {
+      "dependsOn": ["^build", "build:assets"]
+    },
+    "type": {
+      "dependsOn": ["@shipfox/typescript#build", "^type:emit", "build:assets"]
+    },
+    "type:emit": {
+      "dependsOn": ["@shipfox/typescript#build", "type", "^type:emit", "build:assets"]
+    },
+    "depcruise": {
+      "dependsOn": ["@shipfox/depcruise#build", "build:assets"]
+    }
+  }
+}

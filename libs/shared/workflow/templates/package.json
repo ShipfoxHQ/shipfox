@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "build": "pnpm run build:assets && shipfox-swc",
+    "build": "shipfox-swc",
     "build:assets": "node scripts/embed-assets.mjs",
     "check": "shipfox-biome-check",
     "check:fix": "shipfox-biome-check --write",
