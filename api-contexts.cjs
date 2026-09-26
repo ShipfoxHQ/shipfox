@@ -48,6 +48,7 @@ const architecturePackages = {
       'libs/api/integration/posthog-dto',
       'libs/api/integration/sentry-dto',
       'libs/api/integration/slack-dto',
+      'libs/api/integration/shipfox-dto',
       'libs/api/integration/webhook-dto',
     ],
     logs: ['libs/api/logs-dto'],

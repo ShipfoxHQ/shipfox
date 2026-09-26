@@ -3,6 +3,10 @@ import {ANNOTATION_READ_BODY_MAX_BYTES, truncateAnnotationBody} from '@shipfox/a
 import type {AnnotationsInterModuleClient} from '@shipfox/annotations-dto/inter-module';
 import type {DefinitionsInterModuleClient} from '@shipfox/api-definitions-dto/inter-module';
 import {definitionsInterModuleContract} from '@shipfox/api-definitions-dto/inter-module';
+import {
+  SHIPFOX_BUILTIN_CONNECTION_ID,
+  SHIPFOX_PROVIDER,
+} from '@shipfox/api-integration-shipfox-dto';
 import type {
   AgentToolCallInput,
   AgentToolCatalogEntry,
@@ -37,8 +41,7 @@ import {
   encodeTimestampIdCursor,
 } from '@shipfox/node-drizzle';
 
-export const SHIPFOX_PROVIDER = 'shipfox' as const;
-export const SHIPFOX_BUILTIN_CONNECTION_ID = '00000000-0000-4000-8000-000000000001';
+export {SHIPFOX_BUILTIN_CONNECTION_ID, SHIPFOX_PROVIDER};
 export const SHIPFOX_INPUTS_MAX_BYTES = 16 * 1024;
 export const SHIPFOX_IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const DEFAULT_PAGE_LIMIT = 50;

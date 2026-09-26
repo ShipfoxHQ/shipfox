@@ -3172,6 +3172,9 @@ importers:
       '@shipfox/api-integration-shipfox':
         specifier: workspace:*
         version: link:../shipfox
+      '@shipfox/api-integration-shipfox-dto':
+        specifier: workspace:*
+        version: link:../shipfox-dto
       '@shipfox/api-integration-slack':
         specifier: workspace:*
         version: link:../slack
@@ -4079,6 +4082,9 @@ importers:
       '@shipfox/api-definitions-dto':
         specifier: workspace:*
         version: link:../../definitions-dto
+      '@shipfox/api-integration-shipfox-dto':
+        specifier: workspace:*
+        version: link:../shipfox-dto
       '@shipfox/api-integration-spi':
         specifier: workspace:*
         version: link:../spi
@@ -4103,6 +4109,34 @@ importers:
       '@shipfox/node-drizzle':
         specifier: workspace:*
         version: link:../../../shared/node/drizzle
+    devDependencies:
+      '@shipfox/biome':
+        specifier: workspace:*
+        version: link:../../../../tools/biome
+      '@shipfox/depcruise':
+        specifier: workspace:*
+        version: link:../../../../tools/depcruise
+      '@shipfox/swc':
+        specifier: workspace:*
+        version: link:../../../../tools/swc
+      '@shipfox/ts-config':
+        specifier: workspace:*
+        version: link:../../../../tools/ts-config
+      '@shipfox/typescript':
+        specifier: workspace:*
+        version: link:../../../../tools/typescript
+      '@shipfox/vitest':
+        specifier: workspace:*
+        version: link:../../../../tools/vitest
+
+  libs/api/integration/shipfox-dto:
+    dependencies:
+      '@shipfox/api-integration-core-dto':
+        specifier: workspace:*
+        version: link:../core-dto
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@shipfox/biome':
         specifier: workspace:*
