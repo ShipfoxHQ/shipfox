@@ -38,6 +38,12 @@ describe('shipped skill resources', () => {
     expect(askCodebaseGuide?.text).toBe(
       readFileSync(new URL('../assets/ask-codebase/GUIDE.md', import.meta.url), 'utf8'),
     );
+    const defaultBranchGuide = getShippedSkillResource(
+      'skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md',
+    );
+    expect(defaultBranchGuide?.text).toBe(
+      readFileSync(new URL('../assets/fix-default-branch-ci/GUIDE.md', import.meta.url), 'utf8'),
+    );
 
     for (const name of [
       'create-workflow-from-template',
