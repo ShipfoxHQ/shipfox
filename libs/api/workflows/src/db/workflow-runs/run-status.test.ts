@@ -241,6 +241,36 @@ describe('workflow run queries', () => {
       ]);
     });
 
+    test.each([
+      'waiting',
+      'running',
+    ] as const)('does not carry a reason from %s into a terminal event', async (status) => {
+      const run = await createTestRun({workspaceId, projectId, definitionId});
+
+      const active = await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status,
+        statusReason: 'job_failed',
+        statusReasonMessage: 'stale reason',
+        expectedVersion: run.version,
+      });
+      await updateWorkflowRunStatus({
+        workflowRunId: run.id,
+        status: 'failed',
+        expectedVersion: active.version,
+      });
+
+      const attempts = await listTestRunAttempts({workflowRunId: run.id, projectId});
+      expect(attempts[0]).toMatchObject({
+        status: 'failed',
+        statusReason: null,
+        statusReasonMessage: null,
+      });
+      expect(await runTerminatedEvents(run.id)).toEqual([
+        expect.objectContaining({status: 'failed', statusReason: null}),
+      ]);
+    });
+
     test('writes no run-terminated event for a non-terminal transition', async () => {
       const run = await createTestRun({workspaceId, projectId, definitionId});
 

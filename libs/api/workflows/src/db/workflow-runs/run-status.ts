@@ -517,6 +517,7 @@ async function updateWorkflowRunAttemptStatus(
   params: UpdateWorkflowRunStatusParams,
   tx: Tx,
 ) {
+  const isTerminal = isWorkflowRunTerminal(params.status);
   const [attemptRow] = await tx
     .update(workflowRunAttempts)
     .set({
@@ -526,9 +527,11 @@ async function updateWorkflowRunAttemptStatus(
       ...(params.status === 'running'
         ? {startedAt: sql`coalesce(${workflowRunAttempts.startedAt}, now())`}
         : {}),
-      ...(isWorkflowRunTerminal(params.status) ? {finishedAt: sql`now()`} : {}),
-      ...(params.statusReason !== undefined ? {statusReason: params.statusReason} : {}),
-      ...(params.statusReasonMessage !== undefined
+      ...(isTerminal ? {finishedAt: sql`now()`} : {}),
+      ...(isTerminal && params.statusReason !== undefined
+        ? {statusReason: params.statusReason}
+        : {}),
+      ...(isTerminal && params.statusReasonMessage !== undefined
         ? {statusReasonMessage: params.statusReasonMessage}
         : {}),
     })
