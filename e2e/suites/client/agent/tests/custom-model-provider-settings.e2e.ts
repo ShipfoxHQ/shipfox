@@ -15,7 +15,7 @@ const EDIT_PROVIDER_NAME = 'Fake OpenAI Edit';
 const EDITED_PROVIDER_NAME = 'Fake OpenAI Edited';
 const DELETE_PROVIDER_ID = 'fake-openai-delete';
 const DELETE_PROVIDER_NAME = 'Fake OpenAI Delete';
-const PROVIDER_SAVE_TIMEOUT_MS = 75_000;
+const PROVIDER_SAVE_TIMEOUT_MS = 15_000;
 
 let fakeModelProvider: FakeOpenAiModelProviderHandle | undefined;
 
