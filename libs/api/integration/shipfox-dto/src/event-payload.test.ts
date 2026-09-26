@@ -46,7 +46,10 @@ describe('Shipfox event payload schemas', () => {
       run: {...identity.run, status: 'waiting'},
     });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      data: {run: {status: 'waiting'}},
+    });
   });
 
   it('parses run.started', () => {
@@ -55,7 +58,12 @@ describe('Shipfox event payload schemas', () => {
       run: {...identity.run, status: 'running', started_at: '2026-09-26T10:01:00Z'},
     });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        run: {status: 'running', started_at: '2026-09-26T10:01:00Z'},
+      },
+    });
   });
 
   it('parses run.completed without a start or workflow outputs', () => {
@@ -73,7 +81,20 @@ describe('Shipfox event payload schemas', () => {
       },
     });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        run: {
+          ref: null,
+          commit: null,
+          status: 'cancelled',
+          status_reason: 'user_cancelled',
+          started_at: null,
+          finished_at: '2026-09-26T10:02:00Z',
+          outputs: null,
+        },
+      },
+    });
   });
 
   it('parses job.queued', () => {
@@ -82,7 +103,10 @@ describe('Shipfox event payload schemas', () => {
       job: {...job, status: 'pending', queued_at: '2026-09-26T10:01:00Z'},
     });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      data: {job: {status: 'pending', queued_at: '2026-09-26T10:01:00Z'}},
+    });
   });
 
   it('parses job.started with runner labels', () => {
@@ -96,7 +120,16 @@ describe('Shipfox event payload schemas', () => {
       },
     });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        job: {
+          status: 'running',
+          runner_labels: ['linux', 'x64'],
+          started_at: '2026-09-26T10:01:01Z',
+        },
+      },
+    });
   });
 
   it('parses job.completed with null outputs', () => {
@@ -111,6 +144,88 @@ describe('Shipfox event payload schemas', () => {
       },
     });
 
-    expect(result.success).toBe(true);
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        job: {
+          status: 'failed',
+          status_reason: 'step_failed',
+          finished_at: '2026-09-26T10:02:00Z',
+          outputs: null,
+        },
+      },
+    });
+  });
+
+  it('rejects run.requested without a status', () => {
+    const result = shipfoxRunRequestedEventPayloadSchema.safeParse({
+      ...identity,
+      run: {...identity.run},
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects run.started without a start timestamp', () => {
+    const result = shipfoxRunStartedEventPayloadSchema.safeParse({
+      ...identity,
+      run: {...identity.run, status: 'running'},
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects run.completed with an invalid status reason', () => {
+    const result = shipfoxRunCompletedEventPayloadSchema.safeParse({
+      ...identity,
+      run: {
+        ...identity.run,
+        status: 'cancelled',
+        status_reason: 'not-a-reason',
+        started_at: null,
+        finished_at: '2026-09-26T10:02:00Z',
+        outputs: null,
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects job.queued without a queue timestamp', () => {
+    const result = shipfoxJobQueuedEventPayloadSchema.safeParse({
+      ...identity,
+      job: {...job, status: 'pending'},
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects job.started with empty runner labels', () => {
+    const result = shipfoxJobStartedEventPayloadSchema.safeParse({
+      ...identity,
+      job: {
+        ...job,
+        status: 'running',
+        runner_labels: [],
+        started_at: '2026-09-26T10:01:01Z',
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects job.completed with invalid outputs', () => {
+    const result = shipfoxJobCompletedEventPayloadSchema.safeParse({
+      ...identity,
+      job: {
+        ...job,
+        status: 'failed',
+        status_reason: 'step_failed',
+        finished_at: '2026-09-26T10:02:00Z',
+        outputs: 'not-an-object',
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 });
