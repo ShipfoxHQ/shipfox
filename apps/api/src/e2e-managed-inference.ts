@@ -61,6 +61,7 @@ const E2E_MODELS = [
   {
     id: E2E_SCORED_REFERENCE_MODEL,
     label: 'E2E scored reference',
+    lab: 'OpenAI',
     api: 'openai-completions',
     reasoning: true,
     thinkingLevelMap: onlyThinkingLevels(['high', 'max']),

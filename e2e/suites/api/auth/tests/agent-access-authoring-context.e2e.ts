@@ -44,7 +44,7 @@ test('returns workspace and project authoring names without values', async ({req
       client,
       {
         name: 'list_workspace_models',
-        arguments: {provider: 'openai', query: 'LUNA', scored_only: true, limit: 25},
+        arguments: {provider: 'shipfox', query: 'LUNA', scored_only: true, limit: 25},
       },
       listWorkspaceModelsResultSchema,
     );
@@ -61,7 +61,7 @@ test('returns workspace and project authoring names without values', async ({req
         id: 'gpt-5.6-luna',
         label: expect.any(String),
         lab: expect.any(String),
-        provider: 'openai',
+        provider: 'shipfox',
         references: expect.arrayContaining([expect.objectContaining({thinking: 'high'})]),
       }),
     ]);
