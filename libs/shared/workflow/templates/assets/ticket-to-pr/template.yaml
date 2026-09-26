@@ -1,5 +1,5 @@
 id: ticket-to-pr
-revision: 2
+revision: 3
 added_at: 2026-09-23
 title: Ticket to pull request
 summary: An agent implements a Linear ticket, checks the change, and opens a GitHub pull request.
@@ -17,20 +17,30 @@ options:
       - id: agent_session
         label: Assign or mention the Shipfox agent
         default: true
-        tradeoff: Starts when the Shipfox agent is assigned to or mentioned on a Linear issue.
+        tradeoff: Starts when the Shipfox agent is assigned to or mentioned on an issue in the chosen Linear team.
       - id: label
         label: Add a Linear label
-        tradeoff: Starts when an issue is created with the chosen label or when that label is added later.
+        tradeoff: Starts when an issue in the chosen Linear team is created with the label or gets it later. Requires the label's exact name.
   - id: feedback_loop
-    question: Should the agent respond to review comments and CI failures?
+    question: Should the agent respond to inline review comments and failed GitHub Actions runs on its pull request?
     choices:
-      - id: on
-        label: Respond to feedback
-        default: true
-        tradeoff: Each review comment or failed check starts another execution.
       - id: off
         label: Stop after opening the PR
+        default: true
         tradeoff: A person handles later feedback.
+      - id: on
+        label: Respond to feedback
+        tradeoff: Each batch of inline review comments or failed GitHub Actions runs starts another execution until the PR closes. Review summaries, PR conversation comments, and other CI providers are not handled.
+  - id: resolve_threads
+    question: When the agent responds to review comments, should it resolve the threads it handled?
+    choices:
+      - id: addressed
+        label: Resolve handled threads
+        default: true
+        tradeoff: Resolves a thread once its fix is pushed or it was already handled. Reviewers can reopen it.
+      - id: never
+        label: Leave threads open
+        tradeoff: Reviewers resolve every thread themselves.
   - id: pr_mode
     question: How should the pull request open?
     choices:
@@ -47,20 +57,18 @@ options:
       - id: comment
         label: Comment with the pull request
         default: true
-        tradeoff: Posts one comment with the PR link on the Linear issue.
+        tradeoff: Posts one comment with the PR link, or the agent's questions when the issue is unclear.
       - id: comment_and_transition
         label: Comment and change status
-        tradeoff: Requires the destination Linear status to be chosen.
+        tradeoff: Also moves the issue to a chosen Linear status after the PR opens.
       - id: none
         label: Do not write to Linear
-        tradeoff: The ticket does not link to the PR or change status.
+        tradeoff: The ticket gets no PR link, questions, or status change.
 models:
-  ticket:
-    note: Reads the ticket and its comments in the shared implementation conversation.
   fix:
-    note: Implements the change and repairs failed tests or CI.
-  review:
-    note: Handles PR review comments in a follow-up conversation.
+    note: Implements the ticket and handles review comments and CI failures in one conversation.
+  reply:
+    note: Posts prepared review replies and resolves threads.
 slots: [setup_commands, test_command]
 secrets: []
 variables: []
