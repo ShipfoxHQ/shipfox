@@ -200,6 +200,9 @@ const RUN_OVERVIEW_RESPONSE: WorkflowRunOverviewResponseDto = {
     started_at: RUN_STARTED_AT,
     finished_at: RUN_FINISHED_AT,
     rerun_mode: null,
+    status_reason: null,
+    status_reason_message: null,
+    outputs: null,
   },
   has_started_job_execution: true,
   jobs: {

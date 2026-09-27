@@ -1,5 +1,6 @@
 import {MAX_WORKFLOW_FILE_BYTES} from '@shipfox/api-definitions-dto';
 import {z} from 'zod';
+import {workflowRunStatusReasonSchema} from '../events.js';
 import {jobStatusReasonSchema, jobStatusSchema} from './job.js';
 import {jobModeSchema, listenerStatusSchema} from './job-listening.js';
 import {
@@ -33,6 +34,9 @@ export const WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES = MAX_WORKFLOW_FILE_BYTES;
 
 /** Persisted execution status-reason messages are bounded at the read boundary. */
 export const JOB_EXECUTION_STATUS_REASON_MESSAGE_MAX_LENGTH = 2048;
+
+/** Persisted run status-reason messages are bounded at the read boundary. */
+export const WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH = 2048;
 
 export const boundedExecutionCountSchema = z.union([
   z.number().int().nonnegative().max(WORKFLOW_RUN_EXECUTION_COUNT_LIMIT),
@@ -146,9 +150,19 @@ export const workflowRunOverviewLargeJobsDtoSchema = z.object({
 
 export type WorkflowRunOverviewLargeJobsDto = z.infer<typeof workflowRunOverviewLargeJobsDtoSchema>;
 
+// The pinned attempt carries its terminal result. Outputs are set only when the attempt
+// succeeded, and are bounded when they are materialized.
+export const workflowRunOverviewAttemptDtoSchema = workflowRunAttemptDtoSchema.extend({
+  status_reason: workflowRunStatusReasonSchema.nullable(),
+  status_reason_message: z.string().max(WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH).nullable(),
+  outputs: z.record(z.string(), z.unknown()).nullable(),
+});
+
+export type WorkflowRunOverviewAttemptDto = z.infer<typeof workflowRunOverviewAttemptDtoSchema>;
+
 export const workflowRunOverviewResponseSchema = z.object({
   run: workflowRunOverviewHeaderDtoSchema,
-  attempt: workflowRunAttemptDtoSchema,
+  attempt: workflowRunOverviewAttemptDtoSchema,
   has_started_job_execution: z.boolean(),
   jobs: z.discriminatedUnion('kind', [
     workflowRunOverviewCompleteJobsDtoSchema,

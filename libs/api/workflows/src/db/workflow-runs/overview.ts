@@ -4,6 +4,7 @@ import {
   WORKFLOW_RUN_OVERVIEW_COMPLETE_EDGE_LIMIT,
   WORKFLOW_RUN_OVERVIEW_COMPLETE_JOB_LIMIT,
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
+  WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH,
 } from '@shipfox/api-workflows-dto';
 import {and, asc, count, desc, eq, gt, inArray, or, sql} from 'drizzle-orm';
 import {alias} from 'drizzle-orm/pg-core';
@@ -20,6 +21,7 @@ import type {
   WorkflowRunOriginState,
   WorkflowRunParent,
   WorkflowRunStatus,
+  WorkflowRunStatusReason,
   WorkflowRunTriggerReference,
 } from '#core/entities/workflow-run.js';
 import {db, type Tx} from '../db.js';
@@ -53,6 +55,9 @@ export interface WorkflowRunOverviewAttempt {
   workflowRunId: string;
   attempt: number;
   status: WorkflowRunStatus;
+  statusReason: WorkflowRunStatusReason | null;
+  statusReasonMessage: string | null;
+  outputs: Record<string, unknown> | null;
   createdAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -426,6 +431,9 @@ async function loadOverviewTarget(
       attemptWorkflowRunId: workflowRunAttempts.workflowRunId,
       attempt: workflowRunAttempts.attempt,
       attemptStatus: workflowRunAttempts.status,
+      attemptStatusReason: workflowRunAttempts.statusReason,
+      attemptStatusReasonMessage: workflowRunAttempts.statusReasonMessage,
+      attemptOutputs: workflowRunAttempts.outputs,
       attemptCreatedAt: workflowRunAttempts.createdAt,
       attemptStartedAt: workflowRunAttempts.startedAt,
       attemptFinishedAt: workflowRunAttempts.finishedAt,
@@ -486,6 +494,11 @@ async function loadOverviewTarget(
       workflowRunId: row.attemptWorkflowRunId,
       attempt: row.attempt,
       status: row.attemptStatus,
+      statusReason: row.attemptStatusReason ?? null,
+      statusReasonMessage:
+        row.attemptStatusReasonMessage?.slice(0, WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH) ??
+        null,
+      outputs: row.attemptOutputs ?? null,
       createdAt: row.attemptCreatedAt,
       startedAt: row.attemptStartedAt,
       finishedAt: row.attemptFinishedAt,

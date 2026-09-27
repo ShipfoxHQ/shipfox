@@ -14,6 +14,7 @@ import Fastify from 'fastify';
 import {serializerCompiler, validatorCompiler} from 'fastify-type-provider-zod';
 import {db} from '#db/db.js';
 import {jobExecutions} from '#db/schema/job-executions.js';
+import {workflowRunAttempts} from '#db/schema/workflow-run-attempts.js';
 import {workflowRuns} from '#db/schema/workflow-runs.js';
 import {createWorkflowRun} from '#db/workflow-runs.js';
 import {buildModel} from '#test/helpers/workflow-runs.js';
@@ -109,6 +110,70 @@ describe('bounded workflow run overview routes', () => {
     expect(body.jobs.items[0]).not.toHaveProperty('outputs');
     expect(body.jobs.items[0]).not.toHaveProperty('runner');
     expect(body.jobs.items[0].default_execution).not.toHaveProperty('trigger_events');
+  });
+
+  test('returns the outputs of a succeeded attempt', async () => {
+    const run = await createRun();
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'succeeded', outputs: {version: '1.2.3'}})
+      .where(eq(workflowRunAttempts.workflowRunId, run.id));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}/overview?attempt=1`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().attempt).toMatchObject({
+      status: 'succeeded',
+      status_reason: null,
+      status_reason_message: null,
+      outputs: {version: '1.2.3'},
+    });
+  });
+
+  test('returns the status reason of a failed attempt', async () => {
+    const run = await createRun();
+    await db()
+      .update(workflowRunAttempts)
+      .set({
+        status: 'failed',
+        statusReason: 'output_invalid',
+        statusReasonMessage: 'Workflow output "version" could not be evaluated.',
+      })
+      .where(eq(workflowRunAttempts.workflowRunId, run.id));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}/overview?attempt=1`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().attempt).toMatchObject({
+      status: 'failed',
+      status_reason: 'output_invalid',
+      status_reason_message: 'Workflow output "version" could not be evaluated.',
+      outputs: null,
+    });
+  });
+
+  test('does not count workflow outputs against the job byte budget', async () => {
+    const run = await createRun();
+    const outputs = {blob: 'x'.repeat(WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT)};
+    await db()
+      .update(workflowRunAttempts)
+      .set({status: 'succeeded', outputs})
+      .where(eq(workflowRunAttempts.workflowRunId, run.id));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/workflows/runs/${run.id}/overview?attempt=1`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().jobs.kind).toBe('complete');
+    expect(response.json().attempt.outputs).toEqual(outputs);
   });
 
   test('includes the parent run in the overview across projects', async () => {

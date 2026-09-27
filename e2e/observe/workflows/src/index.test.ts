@@ -169,7 +169,7 @@ function overview(
   const currentAttempt = attempt(params.status ?? 'succeeded');
   return {
     run: runHeader(),
-    attempt: currentAttempt,
+    attempt: {...currentAttempt, status_reason: null, status_reason_message: null, outputs: null},
     has_started_job_execution: params.status !== 'pending',
     jobs: params.largeJobs ?? {
       kind: 'complete',

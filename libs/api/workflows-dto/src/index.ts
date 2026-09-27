@@ -152,6 +152,7 @@ export {
   type WorkflowRunListQueryDto,
   type WorkflowRunListResponseDto,
   type WorkflowRunOriginDto,
+  type WorkflowRunOverviewAttemptDto,
   type WorkflowRunOverviewCompleteJobsDto,
   type WorkflowRunOverviewHeaderDto,
   type WorkflowRunOverviewJobsQueryDto,
@@ -204,6 +205,7 @@ export {
   workflowRunListQuerySchema,
   workflowRunListResponseSchema,
   workflowRunOriginSchema,
+  workflowRunOverviewAttemptDtoSchema,
   workflowRunOverviewCompleteJobsDtoSchema,
   workflowRunOverviewHeaderDtoSchema,
   workflowRunOverviewJobsQuerySchema,
@@ -281,6 +283,7 @@ export {
   WORKFLOW_RUN_OVERVIEW_COMPLETE_JOB_LIMIT,
   WORKFLOW_RUN_OVERVIEW_LARGE_JOB_PAGE_LIMIT,
   WORKFLOW_RUN_OVERVIEW_RESPONSE_BYTE_LIMIT,
+  WORKFLOW_RUN_STATUS_REASON_MESSAGE_MAX_LENGTH,
   WORKFLOW_SOURCE_SNAPSHOT_MAX_BYTES,
 } from '#schemas/workflow-run-overview.js';
 export {
