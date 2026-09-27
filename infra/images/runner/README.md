@@ -182,7 +182,7 @@ runner capability reports.
 
 `shipfox-runner.service` powers off immediately when the runner exits. Its SIGTERM drain budget is 90 seconds, after which systemd can force-kill the process and the backend re-reserves the job. The image accepts `SHIPFOX_RUNNER_MAX_LIFETIME_SECONDS` for compatibility but does not arm an age-based timer or fallback poweroff from that key. Before an orchestration-owned exit, the runner writes one bounded `runner.shutdown_intent` event to the structured logger and the direct EC2 console descriptor, identifying a success, controlled exit, or fatal failure. AWS builds also enable a Spot IMDSv2 watcher that stops the runner, allows it to drain briefly, then powers off.
 
-`shipfox-runner.service` sets `OOMScoreAdjust=-900`, so under memory pressure the kernel kills a runaway step before the runner. Step processes inherit the score and reset it to the default before they run user code.
+`shipfox-runner.service` sets `OOMScoreAdjust=-900`, so under memory pressure the kernel kills a runaway step before the runner. Run step processes inherit the score and reset it to the default before they run user code. Agent step subprocesses still inherit it (ENG-2508).
 
 With `InstanceInitiatedShutdownBehavior=terminate` and Spot `InstanceInterruptionBehavior=terminate`, provider-side settings convert these poweroffs into EC2 termination. The systemd lifecycle action is the fast path. The durable backstop remains tagged-instance reconciliation, the backend staleness reaper, and terminate-on-shutdown because privileged job steps or a wedged kernel can prevent normal process exit.
 
