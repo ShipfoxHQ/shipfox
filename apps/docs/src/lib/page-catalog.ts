@@ -2,7 +2,7 @@ import {source} from '@/lib/source';
 
 const SECTION_ORDER = [
   'get-started',
-  'tutorials',
+  'examples',
   'understand',
   'how-to',
   'integrations',
@@ -16,7 +16,7 @@ type SectionKey = (typeof SECTION_ORDER)[number];
 
 const SECTION_LABELS: Record<SectionKey, string> = {
   'get-started': 'Get Started',
-  tutorials: 'Tutorials',
+  examples: 'Examples',
   understand: 'Understand',
   'how-to': 'How-to Guides',
   integrations: 'Integrations',

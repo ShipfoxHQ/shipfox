@@ -19,7 +19,7 @@ Every page serves one reader need from the
 
 | Type | Primary section | Reader need | Page job |
 | --- | --- | --- | --- |
-| [Tutorial](https://diataxis.fr/tutorials/) | `getting-started/`, `tutorials/` | Learn through a guided experience | Lead the learner through a reliable, complete project with visible results. |
+| [Tutorial](https://diataxis.fr/tutorials/) | `getting-started/` | Learn through a guided experience | Lead the learner through a reliable, complete project with visible results. |
 | [Explanation](https://diataxis.fr/explanation/) | `understand/` | Understand a subject | Provide context, rationale, connections, implications, and useful comparisons. |
 | [How-to](https://diataxis.fr/how-to-guides/) | `how-to/` | Complete a real task or solve a problem | Guide an already-competent reader to a concrete, verified result. |
 | [Reference](https://diataxis.fr/reference/) | `reference/` | Find authoritative facts while working | Describe the shipped product accurately, completely, neutrally, and predictably. |

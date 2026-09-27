@@ -10,6 +10,8 @@ import {
 import {inlineCode, tableValue} from './markdown';
 import {type ModelCatalog, serializeModelCatalog} from './model-catalog';
 import {serializeSolutionsComparison} from './solutions-comparison';
+import {serializeTemplateCatalog, serializeTemplateDetail} from './template-catalog/markdown';
+import type {TemplateCatalogEntry, TemplateDetail} from './template-catalog/types';
 import type {ToolReferenceDocument} from './tool-reference/document';
 
 const INTERNAL_DOC_HOSTS = new Set([
@@ -49,6 +51,8 @@ export interface MachineReadableMarkdownOptions {
   modelCatalog?: ModelCatalog;
   toolReference?: ToolReferenceDocument;
   eventReference?: EventReferenceDocument;
+  templateCatalog?: readonly TemplateCatalogEntry[];
+  getTemplateDetail?: (id: string) => TemplateDetail;
   pageUrl?: string;
   requiredFacts?: readonly string[];
   sourcePath?: string;
@@ -222,11 +226,16 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
       return `\0${JSON.stringify({name: 'ComparisonTable', children: '', attributes: {}})}\0`;
     case 'ModelCatalog':
       return `\0${JSON.stringify({name: 'ModelCatalog', children: '', attributes: {}})}\0`;
+    case 'TemplateGallery':
+      return `\0${JSON.stringify({name: 'TemplateGallery', children: '', attributes: {}})}\0`;
+    case 'TemplateDetail':
+      return `\0${JSON.stringify({name: 'TemplateDetail', children: '', attributes: {id: attributeValue(node, 'id')}})}\0`;
     case 'Callout':
       return blockquote(
         childrenMarkdown(node, state, info),
         calloutLabel(attributeValue(node, 'title'), attributeValue(node, 'type')),
       );
+    case 'div':
     case 'Steps':
     case 'Cards':
     case 'Accordions':
@@ -263,10 +272,18 @@ export const stringifyMachineReadableComponent: StringifyCallback = (
 
 type PlaceholderOptions = Pick<
   MachineReadableMarkdownOptions,
-  'integrationCatalog' | 'modelCatalog' | 'toolReference' | 'eventReference'
+  | 'integrationCatalog'
+  | 'modelCatalog'
+  | 'toolReference'
+  | 'eventReference'
+  | 'templateCatalog'
+  | 'getTemplateDetail'
 >;
 
-const placeholderSerializers: Record<string, (options: PlaceholderOptions) => string> = {
+const placeholderSerializers: Record<
+  string,
+  (options: PlaceholderOptions, attributes: Record<string, unknown>) => string
+> = {
   ComparisonTable: (options) => {
     if (!options.integrationCatalog) {
       throw new Error('ComparisonTable requires an integration catalog.');
@@ -298,6 +315,18 @@ const placeholderSerializers: Record<string, (options: PlaceholderOptions) => st
     }
     return options.eventReference.markdown;
   },
+  TemplateGallery: (options) => {
+    if (!options.templateCatalog) {
+      throw new Error('Example catalog data is unavailable for machine-readable Markdown.');
+    }
+    return serializeTemplateCatalog(options.templateCatalog);
+  },
+  TemplateDetail: (options, attributes) => {
+    if (!options.getTemplateDetail || typeof attributes.id !== 'string') {
+      throw new Error('Example data is unavailable for machine-readable Markdown.');
+    }
+    return serializeTemplateDetail(options.getTemplateDetail(attributes.id));
+  },
 };
 
 function replacePlaceholders(markdown: string, options: PlaceholderOptions): string {
@@ -319,7 +348,7 @@ function replacePlaceholders(markdown: string, options: PlaceholderOptions): str
         `Machine-readable Markdown contains an unresolved component placeholder: ${placeholder.name}`,
       );
     }
-    return serialize(options);
+    return serialize(options, placeholder.attributes ?? {});
   });
 }
 
@@ -495,7 +524,9 @@ function isMdxElement(node: StringifyNode): node is StringifyNode & MdxElementNo
   return node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement';
 }
 
-function isPlaceholder(value: unknown): value is {name: string} {
+function isPlaceholder(
+  value: unknown,
+): value is {name: string; attributes?: Record<string, unknown>} {
   return (
     typeof value === 'object' && value !== null && 'name' in value && typeof value.name === 'string'
   );
