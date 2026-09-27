@@ -322,7 +322,7 @@ jobs:
           elif [[ "$PLAN_RESULT" == "success" && "$BUILD_RESULT" == "success" && "$PUBLISH_RESULT" == "success" ]]; then
             echo '- Outcome: published a verified generation.' >> "$GITHUB_STEP_SUMMARY"
           else
-            message="Runner base publication failed (plan: $PLAN_RESULT, build: $BUILD_RESULT, publish: $PUBLISH_RESULT). The previous pointer was kept."
+            message="Runner base publication failed (plan: $PLAN_RESULT, build: $BUILD_RESULT, publish: $PUBLISH_RESULT). Inspect the pointer before retrying."
             echo "::error::$message"
             echo "- Outcome: $message" >> "$GITHUB_STEP_SUMMARY"
           fi

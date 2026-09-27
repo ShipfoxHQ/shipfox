@@ -53,13 +53,13 @@ BUILD_ARCH=amd64 BUILD_BASE_GENERATION=local-1 BUILD_SOURCE_AMI_ID="$SOURCE_AMI_
 
 Print the recipe digest and its inputs with `node infra/images/runner-base/bin/runner-base-recipe.js`.
 
-Plan and publish a generation from two build results. `plan-runner-base` writes the decision, the resolved key ARN, and the pinned Canonical sources. `publish-runner-base` compares the results with the recipe of a trusted main checkout before writing the pointer:
+Plan and publish a generation from two build results. `plan-runner-base` writes the decision and the resolved key ARN, and pins the Canonical sources when it decides to build. `publish-runner-base` compares the results with the recipe of a trusted main checkout before writing the pointer:
 
 ```sh
 node infra/images/runner-base/bin/plan-runner-base.js --output /tmp/runner-base-plan.json
 node infra/images/runner-base/bin/publish-runner-base.js \
   --result /tmp/runner-base-amd64.json --result /tmp/runner-base-arm64.json \
-  --trusted-root /tmp/trusted-main --build-url "$BUILD_URL" \
+  --trusted-root /tmp/trusted-main --build-url https://github.com/ShipfoxHQ/shipfox/actions/runs/1/attempts/1 \
   --output /tmp/runner-base-publication.json
 ```
 
@@ -89,7 +89,7 @@ The **Publish runner base** workflow runs daily, on manual dispatch, and as a re
 
 - **Plan**: resolve the candidate key alias to its key ARN and read the pointer. A pointer is reused only when its recipe and key match, both AMIs are available and tagged `verified`, and its older AMI is at most seven days old. Otherwise, the plan pins the current Canonical Ubuntu 24.04 source for each architecture from the Canonical SSM parameters. It checks owner, architecture, release, and availability.
 - **Build**: both architectures build concurrently from the pinned sources under the resolved key ARN, and each passes its fresh-instance verification. The run ID and attempt name the generation.
-- **Publish**: check that both AMIs carry the generation's identity tags and that every snapshot uses the key. Then tag the AMIs and snapshots `shipfox.base_status=verified`, read the tags back, and write the pointer once. Publication rejects a recipe that trusted main no longer expects, a pair older than seven days, and a generation older than the published one.
+- **Publish**: check that both AMIs carry the generation's identity tags and that every snapshot uses the key. Then tag the AMIs and snapshots `shipfox.base_status=verified` and write the pointer once. Publication rejects a recipe that trusted main no longer expects, a pair older than seven days, and a generation older than the published one.
 
 The workflow's concurrency group serializes whole runs, so the pointer has one writer. A caller must not use the `runner-base-ubuntu24` group itself. Any failure before the pointer write leaves the previous pointer in place. The run summary reports the plan, both builds with their kernel and boot timing, and the published metadata. The metadata is also uploaded as the `runner-base-metadata` artifact.
 

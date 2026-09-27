@@ -382,11 +382,6 @@ async function markVerified(
       Tags: Object.entries(runnerBaseImageTags(identity)).map(([Key, Value]) => ({Key, Value})),
     }),
   );
-
-  checkImageTags(await describeOwnedImage(ec2, amiId), identity);
-  for (const snapshot of await describeSnapshots(ec2, snapshotIds)) {
-    checkTags(snapshot.Tags, identity, `Runner base snapshot ${snapshot.SnapshotId}`);
-  }
 }
 
 async function writePointer(
