@@ -13,6 +13,8 @@ Defaults include:
 
 - ISO timestamps.
 - Standard serializers for `err`, `errors`, `req`, and `res`, preserving `cause` chains.
+- The `req` serializer keeps only the `user-agent` and `x-forwarded-for` headers, and the `res` serializer keeps only the status code. Credentials in headers such as `authorization` and `set-cookie` never reach logs.
+- The error serializers drop the `options`, `request`, `response`, and `config` fields that HTTP client errors carry, and redact `authorization`, `cookie`, `proxy-authorization`, and `set-cookie` fields at any depth.
 - An `error` field holding an `Error` is normalized to `err` so it reaches the same serializer.
 - Output control through environment variables.
 
