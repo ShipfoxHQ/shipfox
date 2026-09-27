@@ -26,6 +26,9 @@ type DefinitionForWorkflowRun = NonNullable<
 let definitionResponse: DefinitionForWorkflowRun | null = null;
 const definitions: DefinitionsInterModuleClient = {
   getDefinitionForWorkflowRun: async () => ({definition: definitionResponse}),
+  getWorkflow: () => {
+    throw new Error('getWorkflow is not used by runWorkflow');
+  },
   getDefinitionByConfigPath: () => {
     throw new Error('getDefinitionByConfigPath is not used by runWorkflow');
   },

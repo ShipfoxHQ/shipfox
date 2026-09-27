@@ -15,7 +15,11 @@ import {
 } from '@shipfox/inter-module';
 import {DefinitionAtRefError, listDefinitionsAtRef, resolveDefinitionAtRef} from '#core/index.js';
 import {populateDefaultGateMaxAttempts} from '#core/workflow-model/populate-default-gate-max-attempts.js';
-import {getDefinitionByConfigPath, getDefinitionById} from '#db/definitions.js';
+import {
+  getDefinitionByConfigPath,
+  getDefinitionById,
+  getWorkflowLineageById,
+} from '#db/definitions.js';
 import {toDefinitionReadModel, toDefinitionSyncSummary} from '#presentation/dto/index.js';
 import {listDefinitionsWithSync} from '#presentation/list-definitions.js';
 
@@ -44,6 +48,10 @@ export function createDefinitionsInterModulePresentation(
           sourceSnapshot: definition.sourceSnapshot,
         },
       };
+    },
+    getWorkflow: async ({workflowId}) => {
+      const workflow = await getWorkflowLineageById(workflowId);
+      return {workflow: workflow ?? null};
     },
     getDefinitionByConfigPath: async ({workspaceId, projectId, configPath}) => {
       const method = definitionsInterModuleContract.methods.getDefinitionByConfigPath;

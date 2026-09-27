@@ -25,6 +25,7 @@ import {
   findOrCreateWorkflowLineage,
   getDefinitionByConfigPath,
   getDefinitionById,
+  getWorkflowLineageById,
   invalidateCache,
   listDefinitionsByProject,
   softDeleteVcsDefinitionsNotIn,
@@ -706,6 +707,28 @@ describe('definition queries', () => {
       const found = await getDefinitionById(crypto.randomUUID());
 
       expect(found).toBeUndefined();
+    });
+  });
+
+  describe('getWorkflowLineageById', () => {
+    test('returns the lineage by its id, which differs from its definition row id', async () => {
+      const created = await upsertDefinition({
+        projectId,
+        workspaceId,
+        configPath: '.shipfox/workflows/ci.yml',
+        name: 'CI',
+        ...definitionFields('CI'),
+      });
+
+      const found = await getWorkflowLineageById(created.workflowId);
+
+      expect(created.workflowId).not.toBe(created.id);
+      expect(found).toEqual({
+        id: created.workflowId,
+        projectId,
+        configPath: '.shipfox/workflows/ci.yml',
+      });
+      expect(await getWorkflowLineageById(created.id)).toBeUndefined();
     });
   });
 

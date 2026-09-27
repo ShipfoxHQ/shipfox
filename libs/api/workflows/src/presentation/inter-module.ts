@@ -173,8 +173,8 @@ type LifecycleEventContextRead = NonNullable<
 type LifecycleEventProject = Awaited<
   ReturnType<ProjectsModuleClient['requireProjectForWorkspace']>
 >['project'];
-type LifecycleEventDefinition = NonNullable<
-  Awaited<ReturnType<DefinitionsInterModuleClient['getDefinitionForWorkflowRun']>>['definition']
+type LifecycleEventWorkflow = NonNullable<
+  Awaited<ReturnType<DefinitionsInterModuleClient['getWorkflow']>>['workflow']
 >;
 
 type LifecycleEventContext = NonNullable<
@@ -205,7 +205,7 @@ async function getLifecycleEventProject(
 function toLifecycleEventContext(
   context: LifecycleEventContextRead,
   project: LifecycleEventProject,
-  definition: LifecycleEventDefinition,
+  workflow: LifecycleEventWorkflow,
 ): LifecycleEventContext | null {
   let job: LifecycleEventContext['job'];
   if (context.jobId !== null) {
@@ -223,9 +223,9 @@ function toLifecycleEventContext(
   return {
     project: {id: project.id, name: project.name},
     workflow: {
-      id: definition.workflowId,
-      name: definition.name,
-      path: definition.configPath ?? null,
+      id: workflow.id,
+      name: context.workflowName,
+      path: workflow.configPath,
     },
     run: {
       id: context.runId,
@@ -669,12 +669,13 @@ export function createWorkflowsInterModulePresentation(params: {
       });
       if (!project) return null;
 
-      const {definition} = await params.definitions.getDefinitionForWorkflowRun({
-        definitionId: context.definitionId,
+      // A run's definition_id holds the workflow lineage id, not a definition row id.
+      const {workflow} = await params.definitions.getWorkflow({
+        workflowId: context.definitionId,
       });
-      if (!definition || definition.projectId !== context.projectId) return null;
+      if (!workflow || workflow.projectId !== context.projectId) return null;
 
-      return toLifecycleEventContext(context, project, definition);
+      return toLifecycleEventContext(context, project, workflow);
     },
     getWorkflowJobExecutionContext: async (input) => {
       const scope = await getAccessibleJobScope(input.workspaceId, input.jobId);

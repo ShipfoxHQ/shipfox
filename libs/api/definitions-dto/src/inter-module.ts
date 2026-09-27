@@ -70,6 +70,11 @@ const definitionSnapshotSchema = z.object({
   model: workflowModelSnapshotSchema,
   sourceSnapshot: z.object({content: z.string(), format: z.literal('yaml')}).nullable(),
 });
+const workflowLineageSchema = z.object({
+  id: idSchema,
+  projectId: idSchema,
+  configPath: z.string().nullable(),
+});
 const refResolutionErrors = {
   'project-not-found': z.object({projectId: idSchema}),
   'ref-not-found': z.object({ref: refSchema}),
@@ -111,6 +116,10 @@ export const definitionsInterModuleContract = defineInterModuleContract({
     getDefinitionForWorkflowRun: {
       input: z.object({definitionId: idSchema}),
       output: z.object({definition: definitionSnapshotSchema.nullable()}),
+    },
+    getWorkflow: {
+      input: z.object({workflowId: idSchema}),
+      output: z.object({workflow: workflowLineageSchema.nullable()}),
     },
     getDefinitionByConfigPath: {
       input: z.object({
