@@ -591,6 +591,7 @@ function clients() {
       listDefinitionsByProject: (input) => definitionHandlers.listDefinitionsByProject(input),
       resolveDefinitionAtRef: vi.fn(),
       listDefinitionsAtRef: vi.fn(),
+      getActionSnapshot: vi.fn(),
     }),
     annotations: defineInterModulePresentation(annotationsInterModuleContract, {
       replaceOrRemoveAnnotation: () => ({}),

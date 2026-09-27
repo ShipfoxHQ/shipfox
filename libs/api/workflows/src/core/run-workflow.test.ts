@@ -41,6 +41,9 @@ const definitions: DefinitionsInterModuleClient = {
   listDefinitionsAtRef: () => {
     throw new Error('listDefinitionsAtRef is not used by runWorkflow');
   },
+  getActionSnapshot: () => {
+    throw new Error('getActionSnapshot is not used by runWorkflow');
+  },
 };
 
 function buildDefinition(

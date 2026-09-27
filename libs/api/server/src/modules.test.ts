@@ -303,6 +303,7 @@ describe('defaultModules', () => {
             listDefinitionsByProject: vi.fn(),
             listDefinitionsAtRef: vi.fn(),
             resolveDefinitionAtRef: vi.fn(),
+            getActionSnapshot: vi.fn(),
           },
         },
       ],

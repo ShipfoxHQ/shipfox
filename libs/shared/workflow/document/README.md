@@ -12,6 +12,8 @@ Input shape for Shipfox workflow authoring.
 - A job step is a **run step** (`run: <shell command>`), an inline **agent
   step** (`prompt`), a **checkout step** (`checkout`), or a **tool step**
   (`tool`). A step carries one kind, never multiple kinds.
+- `encodeActionBundle` and `decodeActionBundle` store an action directory as
+  one content-addressed bundle, so the API and the runner agree on its digest.
 
 Use this package where Shipfox accepts a workflow object from a file, tool, or
 API call. It checks the shape only. It does not add defaults, pick runners,
@@ -159,6 +161,35 @@ parseWorkflowDocument({
   },
 });
 ```
+
+### Action bundles
+
+An action bundle holds the UTF-8 text files of one action directory. The
+encoder writes canonical JSON, `{"files":[{"content":"…","path":"action.yml"}],"version":1}`,
+with NFC-normalized paths in code-unit order. The digest is
+`sha256:<hex>` over that JSON, and the stored form is the same JSON gzipped.
+
+```ts
+import {decodeActionBundle, encodeActionBundle} from '@shipfox/workflow-document';
+
+const bundle = await encodeActionBundle({
+  files: [
+    {path: 'action.yml', content: 'name: Hello\nmain: index.ts\n'},
+    {path: 'index.ts', content: 'export default 1;\n'},
+  ],
+});
+bundle.digest; // "sha256:..."
+
+const files = await decodeActionBundle({gzip: bundle.gzip, digest: bundle.digest});
+```
+
+- File order does not change the digest. Paths must be relative, with no empty,
+  `.`, or `..` segments and no backslashes; paths that collide after
+  normalization are rejected.
+- `decodeActionBundle` throws `InvalidActionBundleError` when the data is not
+  gzip, the digest does not match, or the JSON is not in canonical form.
+- The codec uses Web Crypto and `CompressionStream`, so it runs in Node and in
+  browsers.
 
 ## Behavior notes
 
