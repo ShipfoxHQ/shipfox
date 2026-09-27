@@ -2,7 +2,7 @@ import {cp, mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {computeRunnerBaseRecipe, readPackerVersion} from '#recipe.js';
+import {computeRunnerBaseRecipe, readNodeVersion, readPackerVersion} from '#recipe.js';
 
 const SHA256_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -42,12 +42,17 @@ describe('runner base recipe', () => {
       'locals.pkr.hcl',
       'requirements.pkr.hcl',
       'scripts/build/clean-identity.sh',
+      'scripts/build/install-node.sh',
       'scripts/build/prepare-os.sh',
       'scripts/verify/verify-instance.sh',
       'source.pkr.hcl',
       'variable.pkr.hcl',
     ]);
-    expect(recipe).toMatchObject({imageOs: 'ubuntu24', packerVersion: '1.15.4'});
+    expect(recipe).toMatchObject({
+      imageOs: 'ubuntu24',
+      nodeVersion: '24.17.0',
+      packerVersion: '1.15.4',
+    });
     expect(recipe.ubuntuRelease).toBe('noble');
     expect(recipe.digest).toMatch(SHA256_DIGEST_PATTERN);
   });
@@ -75,12 +80,16 @@ describe('runner base recipe', () => {
     expect(digest()).not.toBe(before);
   });
 
-  it('ignores Node and pnpm pin changes', async () => {
+  it('changes when the Node pin changes', async () => {
     const before = digest();
-    await writeFile(
-      miseConfigPath,
-      MISE_CONFIG.replace('24.17.0', '24.18.0').replace('11.7.0', '11.8.0'),
-    );
+    await writeFile(miseConfigPath, MISE_CONFIG.replace('24.17.0', '24.18.0'));
+
+    expect(digest()).not.toBe(before);
+  });
+
+  it('ignores pnpm pin changes', async () => {
+    const before = digest();
+    await writeFile(miseConfigPath, MISE_CONFIG.replace('11.7.0', '11.8.0'));
 
     expect(digest()).toBe(before);
   });
@@ -100,5 +109,13 @@ describe('runner base recipe', () => {
 
   it('requires a Packer pin', () => {
     expect(() => readPackerVersion('[tools]\nnode = "24.17.0"\n')).toThrow('packer');
+  });
+
+  it('reads a quoted Node pin', () => {
+    expect(readNodeVersion('[tools]\n"node" = "24.17.0"\n')).toBe('24.17.0');
+  });
+
+  it('requires a Node pin', () => {
+    expect(() => readNodeVersion('[tools]\npacker = "1.15.4"\n')).toThrow('node');
   });
 });

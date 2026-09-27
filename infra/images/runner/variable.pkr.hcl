@@ -98,6 +98,11 @@ variable "runner_base_prepare_script" {
   description = "OS preparation script exported by @shipfox/runner-base."
 }
 
+variable "runner_base_install_node_script" {
+  type        = string
+  description = "Node installation script exported by @shipfox/runner-base."
+}
+
 variable "source_ami_id" {
   type        = string
   default     = ""
