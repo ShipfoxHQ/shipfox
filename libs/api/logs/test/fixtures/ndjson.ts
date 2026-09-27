@@ -16,6 +16,10 @@ export function sessionLine(data: string): string {
   return recordLine({type: 'agent_session', data});
 }
 
+export function toolRowLine(row: Record<string, unknown>): string {
+  return recordLine({type: 'tool_row', row});
+}
+
 export function groupStartLine(
   groupId: string,
   name: string,

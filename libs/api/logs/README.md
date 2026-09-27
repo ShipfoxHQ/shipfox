@@ -141,6 +141,22 @@ carries a whole entry. Per-entry size is bounded by `LOG_MAX_SESSION_LINE_BYTES`
 rejected with 400, and the runner drops it with a `gap`); the request body limit
 (`LOG_APPEND_BODY_LIMIT_BYTES`) must hold a full line plus framing, enforced by a startup invariant.
 
+## Runner-written tool rows
+
+A runner that proxies tool calls for a step (action steps) appends each call and result as a
+`tool_row` record on the same append request:
+
+```ts
+{v: 1, ts, type: 'tool_row', row} // row.kind is 'tool-call' or 'tool-result'
+```
+
+The runner writes these rows, not the server, because only the runner can order them against the
+step's stdout. The API stores each one as a normal `agent_session` record with the row unchanged,
+the same shape tool steps write through `appendServerRecords`, so the client renders both alike.
+`tool_row` is a write contract only; it never appears on read. Any other row kind is rejected with
+400, so a runner cannot forge messages or lifecycle rows. A `tool_row` line shares the
+`LOG_MAX_SESSION_LINE_BYTES` bound.
+
 ## Budget and terminal state
 
 One shared, job-wide, generous accrual budget covers a job's logs. When the job's stored bytes

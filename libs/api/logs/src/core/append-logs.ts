@@ -107,15 +107,16 @@ function parseAppendBody(body: Buffer): ParsedBody {
     if (record.type === 'end') {
       declaredTotalBytes = record.total_bytes;
     }
-    // An agent_session line is one whole entry in one record; bound its size here (the DTO
-    // schema leaves `data` uncapped because it cannot read this runtime config). An over-cap
-    // line is rejected so a single entry can never blow the request body or the spool window.
+    // An agent_session or tool_row line is one whole entry in one record; bound its size here
+    // (the DTO schema leaves it uncapped because it cannot read this runtime config). An
+    // over-cap line is rejected so a single entry can never blow the request body or the
+    // spool window.
     if (
-      record.type === 'agent_session' &&
+      (record.type === 'agent_session' || record.type === 'tool_row') &&
       Buffer.byteLength(line, 'utf8') > config.LOG_MAX_SESSION_LINE_BYTES
     ) {
       throw new MalformedLogChunkError(
-        `agent_session line exceeds ${config.LOG_MAX_SESSION_LINE_BYTES} bytes`,
+        `${record.type} line exceeds ${config.LOG_MAX_SESSION_LINE_BYTES} bytes`,
       );
     }
     if (record.type === 'agent_session') {
@@ -233,6 +234,10 @@ function appendStoredRecord(
   index: number,
   state: StoredBodyBuildState,
 ): void {
+  if (record.type === 'tool_row') {
+    state.storedRecords.push(storedAgentSessionRow(record.row));
+    return;
+  }
   if (record.type !== 'agent_session') {
     state.storedRecords.push(record);
     return;

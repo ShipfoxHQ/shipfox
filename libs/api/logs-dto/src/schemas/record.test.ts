@@ -247,6 +247,53 @@ describe('rawLogRecordSchema (write path)', () => {
   });
 });
 
+describe('tool_row records', () => {
+  const toolCallRow = {
+    kind: 'tool-call',
+    timestamp: ts,
+    id: 'call-1',
+    name: 'linear__get_issue',
+    input: '{"id": "ENG-1"}',
+  } as const;
+  const toolResultRow = {
+    kind: 'tool-result',
+    timestamp: ts,
+    toolCallId: 'call-1',
+    toolName: 'linear__get_issue',
+    output: '{"title": "Issue"}',
+    isError: false,
+  } as const;
+
+  it.each([toolCallRow, toolResultRow])('accepts a raw tool_row carrying a $kind row', (row) => {
+    const record = {v: 1, ts, type: 'tool_row', row};
+
+    const parsed = rawLogRecordSchema.parse(record);
+
+    expect(parsed).toEqual(record);
+  });
+
+  it.each([
+    sessionRow,
+    {kind: 'thinking', timestamp: ts, text: 'hmm'},
+    {
+      kind: 'lifecycle',
+      timestamp: ts,
+      label: 'Session completed',
+      detail: null,
+      meta: [],
+      tone: 'success',
+      terminalFailure: false,
+    },
+    {kind: 'raw', timestamp: ts, label: 'Unknown', raw: '{}'},
+  ])('rejects a raw tool_row carrying a $kind row', (row) => {
+    expect(() => rawLogRecordSchema.parse({v: 1, ts, type: 'tool_row', row})).toThrow();
+  });
+
+  it('rejects a tool_row on the read path', () => {
+    expect(() => logRecordSchema.parse({v: 1, ts, type: 'tool_row', row: toolCallRow})).toThrow();
+  });
+});
+
 describe('parseLogRecordLine', () => {
   it('parses a JSON line', () => {
     const parsed: LogRecord = parseLogRecordLine(
