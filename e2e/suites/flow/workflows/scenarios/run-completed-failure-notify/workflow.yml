@@ -1,0 +1,10 @@
+name: Run completed failing upstream
+runner: __RUNNER_LABEL__
+triggers:
+  manual:
+    source: manual
+jobs:
+  build:
+    steps:
+      - key: boom
+        run: exit 1

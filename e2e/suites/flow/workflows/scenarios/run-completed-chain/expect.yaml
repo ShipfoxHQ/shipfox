@@ -1,0 +1,22 @@
+trigger: manual
+timeout_seconds: 180
+run:
+  status: succeeded
+jobs:
+  build:
+    status: succeeded
+triggered_run:
+  workflow: .shipfox/workflows/run-completed-chain-child.yml
+  status: succeeded
+  trigger:
+    source: shipfox
+    event: run.completed
+  jobs:
+    deploy:
+      status: succeeded
+      steps:
+        receive_version:
+          status: succeeded
+          exit_code: 0
+          logs:
+            include: ["received_version=1.4.2"]

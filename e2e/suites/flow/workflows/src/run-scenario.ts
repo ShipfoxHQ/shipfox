@@ -22,6 +22,7 @@ import {
   evaluateChildRunExpectation,
   evaluateExpectations,
   evaluateLogs,
+  evaluateTriggeredRunExpectation,
   logText,
   type Mismatch,
   type StepLogRequirement,
@@ -275,7 +276,8 @@ async function seedScenarioProject(params: {
   token: string;
   webhookSlug: string;
 }) {
-  const gitea = params.scenario.kind === 'expect' ? params.scenario.expectation.gitea : undefined;
+  const expectation = params.scenario.kind === 'expect' ? params.scenario.expectation : undefined;
+  const gitea = expectation?.gitea;
   const seedParams = {
     suite: params.suite,
     token: params.token,
@@ -286,16 +288,18 @@ async function seedScenarioProject(params: {
     configPath: params.scenario.configPath,
     webhookSlug: params.webhookSlug,
     extraFiles: params.scenario.extraFiles,
-    ...(gitea === undefined
-      ? {}
-      : {
-          giteaIssue: gitea.issue,
-          replacements: {
+    ...(gitea === undefined ? {} : {giteaIssue: gitea.issue}),
+    replacements: {
+      // createProject names the project after its repository.
+      __PROJECT_NAME__: params.repo,
+      ...(gitea === undefined
+        ? {}
+        : {
             __GITEA_ISSUE_TITLE__: JSON.stringify(gitea.issue.title),
             __GITEA_ISSUE_BODY__: JSON.stringify(gitea.issue.body),
             __GITEA_COMMENT_BODY__: JSON.stringify(gitea.comment),
-          },
-        }),
+          }),
+    },
     ...(params.scenario.childWorkflowYaml === undefined
       ? {}
       : {
@@ -306,7 +310,9 @@ async function seedScenarioProject(params: {
             },
           ],
         }),
-    ...(params.scenario.kind === 'expect' && params.scenario.expectation.child_run !== undefined
+    // Child and triggered runs name their definition by config path, which only a
+    // repository-backed definition has.
+    ...(expectation?.child_run !== undefined || expectation?.triggered_run !== undefined
       ? {repositoryBacked: true}
       : {}),
   };
@@ -445,6 +451,40 @@ async function waitForDescendantRun(params: {
         if (item === undefined) return null;
         parentId = item.id;
       }
+      if (item === undefined || !TERMINAL_RUN_STATUSES.has(item.status)) return null;
+
+      return item;
+    },
+  );
+}
+
+async function waitForTriggeredRun(params: {
+  client: ReturnType<typeof createApiClient>;
+  projectId: string;
+  triggeringRunId: string;
+  workflowName: string;
+  timeoutMs: number;
+}): Promise<WorkflowRunListItemDto> {
+  return await pollUntil(
+    {
+      timeoutMs: params.timeoutMs,
+      intervalMs: 250,
+      maxIntervalMs: 4_000,
+      backoffFactor: 1.5,
+      describe: () =>
+        `triggered run: workflowName=${params.workflowName}, triggeringRunId=${params.triggeringRunId}`,
+    },
+    async () => {
+      const query = new URLSearchParams({project_id: params.projectId, limit: '100'});
+      const runs = await params.client.requestJson<WorkflowRunListResponseDto>(
+        'get',
+        `/workflows/runs?${query}`,
+      );
+      const item = runs.runs.find(
+        (candidate) =>
+          candidate.workflow_name === params.workflowName &&
+          candidate.id !== params.triggeringRunId,
+      );
       if (item === undefined || !TERMINAL_RUN_STATUSES.has(item.status)) return null;
 
       return item;
@@ -632,6 +672,40 @@ export async function runScenario(params: RunScenarioParams): Promise<Mismatch[]
       );
       mismatches.push(...childResult.mismatches);
       logRequirements.push(...childResult.logRequirements);
+    }
+    const triggeredExpectation = scenario.expectation.triggered_run;
+    if (triggeredExpectation !== undefined) {
+      const targetDefinition = selectTargetDefinition({
+        childConfigPath: scenario.childConfigPath,
+        childDefinition,
+        configPath: scenario.configPath,
+        definition,
+        workflow: triggeredExpectation.workflow,
+      });
+      if (targetDefinition === undefined) {
+        throw new Error(
+          `Scenario ${scenario.name} triggered_run.workflow must name child-workflow.yml or the scenario workflow`,
+        );
+      }
+      const triggeredRun = await waitForTriggeredRun({
+        client,
+        projectId: project.id,
+        triggeringRunId: triggered.runId,
+        workflowName: targetDefinition.name,
+        timeoutMs: scenario.expectation.timeout_seconds * 1000,
+      });
+      const triggeredObservation = await waitForRunTerminal({
+        runId: triggeredRun.id,
+        token,
+        timeoutMs: scenario.expectation.timeout_seconds * 1000,
+        selection: observationSelection(triggeredExpectation),
+      });
+      const triggeredResult = evaluateTriggeredRunExpectation(
+        triggeredObservation,
+        triggeredExpectation,
+      );
+      mismatches.push(...triggeredResult.mismatches);
+      logRequirements.push(...triggeredResult.logRequirements);
     }
     const giteaMismatches = await evaluateGiteaScenario({
       expectation: scenario.expectation.gitea,

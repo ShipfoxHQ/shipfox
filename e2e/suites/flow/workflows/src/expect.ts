@@ -187,6 +187,21 @@ const childRunExpectationSchema = z
   })
   .strict();
 
+const triggeredRunExpectationSchema = z
+  .object({
+    // The config path identifies the definition whose trigger reacts to the scenario run.
+    workflow: z.string().min(1),
+    status: runStatusSchema,
+    trigger: z
+      .object({
+        source: z.string().min(1),
+        event: z.string().min(1),
+      })
+      .strict(),
+    jobs: z.record(z.string(), jobExpectationSchema).optional(),
+  })
+  .strict();
+
 export const expectationSchema = z
   .object({
     trigger: z.enum(['push', 'manual', 'webhook']).default('push'),
@@ -197,6 +212,7 @@ export const expectationSchema = z
     run: z.object({status: runStatusSchema}).strict(),
     jobs: z.record(z.string(), jobExpectationSchema).optional(),
     child_run: childRunExpectationSchema.optional(),
+    triggered_run: triggeredRunExpectationSchema.optional(),
     runner_log: logsExpectationSchema.optional(),
     gitea: giteaExpectationSchema.optional(),
   })
@@ -514,6 +530,44 @@ export function evaluateChildRunExpectation(
   }
   for (const [jobKey, jobExpectation] of Object.entries(expectation.jobs ?? {})) {
     evaluateJobExpectation(child.observation, jobKey, jobExpectation, result, 'child_run.jobs');
+  }
+
+  return result;
+}
+
+/**
+ * Compares the run another definition's trigger started in reaction to the scenario run,
+ * including which trigger source and event started it.
+ */
+export function evaluateTriggeredRunExpectation(
+  observation: WorkflowRunObservation,
+  expectation: NonNullable<Expectation['triggered_run']>,
+): ExpectationResult {
+  const result: ExpectationResult = {mismatches: [], logRequirements: []};
+
+  if (observation.status !== expectation.status) {
+    result.mismatches.push({
+      path: 'triggered_run.status',
+      expected: expectation.status,
+      actual: observation.status,
+    });
+  }
+  if (observation.trigger_source !== expectation.trigger.source) {
+    result.mismatches.push({
+      path: 'triggered_run.trigger.source',
+      expected: expectation.trigger.source,
+      actual: observation.trigger_source,
+    });
+  }
+  if (observation.trigger_event !== expectation.trigger.event) {
+    result.mismatches.push({
+      path: 'triggered_run.trigger.event',
+      expected: expectation.trigger.event,
+      actual: observation.trigger_event,
+    });
+  }
+  for (const [jobKey, jobExpectation] of Object.entries(expectation.jobs ?? {})) {
+    evaluateJobExpectation(observation, jobKey, jobExpectation, result, 'triggered_run.jobs');
   }
 
   return result;

@@ -1,0 +1,19 @@
+name: Run completed downstream
+runner: __RUNNER_LABEL__
+triggers:
+  after_upstream:
+    source: shipfox
+    event: run.completed
+    filter: >-
+      event.project.name == '__PROJECT_NAME__'
+      && event.workflow.path == '.shipfox/workflows/run-completed-chain.yml'
+      && event.run.status == 'succeeded'
+jobs:
+  deploy:
+    steps:
+      - key: receive_version
+        env:
+          VERSION: '${{ event.run.outputs.version }}'
+        run: |
+          echo "received_version=$VERSION"
+          test "$VERSION" = "1.4.2"
