@@ -82,7 +82,7 @@ async function createSlackNotifier(workspaceId: string) {
 }
 
 test.describe('agent-access workflow templates', () => {
-  test('flips ticket to PR compatibility when a tracker connection is added', async ({
+  test('marks the optional ticket to PR tracker compatible when a tracker connection is added', async ({
     request,
     auth,
   }) => {
@@ -108,8 +108,15 @@ test.describe('agent-access workflow templates', () => {
         missing_providers: [],
       });
       expect(before.templates.find(({id}) => id === 'ticket-to-pr')).toMatchObject({
-        compatible: false,
-        missing_providers: ['linear'],
+        compatible: true,
+        missing_providers: [],
+        roles: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'tracker',
+            optional: true,
+            providers: [{provider: 'linear', compatible: false, suggested_bindings: []}],
+          }),
+        ]),
       });
       expect(before.templates.find(({id}) => id === 'ask-codebase')).toMatchObject({
         compatible: false,
@@ -130,12 +137,12 @@ test.describe('agent-access workflow templates', () => {
         compatible: true,
         missing_providers: [],
         roles: expect.arrayContaining([
-          {
+          expect.objectContaining({
             role: 'tracker',
             from_project: false,
-            optional: false,
+            optional: true,
             providers: [{provider: 'linear', compatible: true, suggested_bindings: [linear.slug]}],
-          },
+          }),
           {
             role: 'source',
             from_project: true,
