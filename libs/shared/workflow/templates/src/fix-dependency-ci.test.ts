@@ -2,32 +2,84 @@ import {execFileSync, spawnSync} from 'node:child_process';
 import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {createWorkflowEnvironment} from '@shipfox/expression';
 import {afterEach, describe, expect, it} from '@shipfox/vitest/vi';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
 import {parse as parseYaml} from 'yaml';
 import {composeTemplate} from './composer.js';
 import {loadShippedTemplates} from './loader.js';
 
+type DeliveryMode = 'push_fix' | 'comment_only';
+type Selection = 'dependency_bot' | 'label' | 'all_pull_requests';
+type YamlRecord = Record<string, unknown>;
+
 const template = loadShippedTemplates().find((entry) => entry.manifest.id === 'fix-dependency-ci');
 if (template === undefined) throw new Error('Missing dependency repair template');
 const composed = composeTemplate(template, {source: 'github'});
 const roots: string[] = [];
-const deliveryMarker = /^\s*# option:delivery_mode=(\w+) (begin|end)$/;
+const optionMarker = /^\s*# option:(\w+)=(\w+) (begin|end)$/;
+const expressionPattern = /^\$\{\{\s*([\s\S]*?)\s*\}\}$/;
+const environment = createWorkflowEnvironment();
+const selections: Selection[] = ['dependency_bot', 'label', 'all_pull_requests'];
+const modes: DeliveryMode[] = ['push_fix', 'comment_only'];
 
-function workflow(mode: 'push_fix' | 'comment_only') {
-  let selected = true;
+function render(mode: DeliveryMode, selection: Selection = 'dependency_bot'): YamlRecord {
+  const chosen: Record<string, string> = {delivery_mode: mode, pr_selection: selection};
+  const blocks: boolean[] = [];
   const yaml = composed
     .split('\n')
     .filter((line) => {
-      const marker = deliveryMarker.exec(line);
-      if (marker !== null) {
-        selected = marker[2] === 'end' || marker[1] === mode;
-        return false;
-      }
-      return selected;
+      const marker = optionMarker.exec(line);
+      if (marker === null) return blocks.every(Boolean);
+      const [, option = '', choice = '', boundary] = marker;
+      if (boundary === 'begin') blocks.push(chosen[option] === choice);
+      else blocks.pop();
+      return false;
     })
     .join('\n');
-  return parseWorkflowDocument(parseYaml(yaml));
+  return parseYaml(yaml) as YamlRecord;
+}
+
+function workflow(mode: DeliveryMode, selection: Selection = 'dependency_bot') {
+  return parseWorkflowDocument(render(mode, selection));
+}
+
+function at(value: unknown, ...path: (string | number)[]): unknown {
+  return path.reduce<unknown>((current, key) => (current as YamlRecord)[key], value);
+}
+
+function evaluate(source: unknown, context: YamlRecord): unknown {
+  const expression = expressionPattern.exec(String(source).trim())?.[1] ?? String(source);
+  return environment.evaluate(expression, context);
+}
+
+function triggerFilter(selection: Selection): unknown {
+  return at(render('push_fix', selection), 'triggers', 'on_pull_request_ci_failure', 'filter');
+}
+
+function readPrOutput(selection: Selection, output: string): unknown {
+  const steps = at(render('push_fix', selection), 'jobs', 'inspect', 'steps') as YamlRecord[];
+  return at(
+    steps.find((step) => step.key === 'read_pr'),
+    'outputs',
+    output,
+  );
+}
+
+function failedRun(overrides: YamlRecord = {}): YamlRecord {
+  return {
+    repository: {full_name: 'replace-with-owner/repository'},
+    workflow_run: {
+      conclusion: 'failure',
+      pull_requests: [{number: 42}],
+      run_attempt: 1,
+      actor: {login: 'dependabot[bot]'},
+      head_branch: 'bot/update',
+      head_sha: 'a'.repeat(40),
+      head_commit: {message: 'Bump left-pad from 1.0.0 to 1.1.0'},
+      ...overrides,
+    },
+  };
 }
 
 function script(key: string, mode: 'push_fix' | 'comment_only' = 'comment_only') {
@@ -74,7 +126,8 @@ function checkout() {
           SHIPFOX_OUTPUT: output,
           EXPECTED_HEAD: head,
           PR_CURRENT: 'true',
-          BOT_BRANCH: 'bot/update',
+          PR_BRANCH: 'bot/update',
+          FAILED_RUN_URL: 'https://github.com/acme/api/actions/runs/7',
           REPAIR_STATUS: 'repair_candidate',
           COMMIT_TITLE: 'fix: adapt to dependency update',
           ...env,
@@ -100,9 +153,75 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, {recursive: true, force: true});
 });
 
-describe('dependency CI repair', () => {
-  it.each(['push_fix', 'comment_only'] as const)('parses the %s delivery variant', (mode) => {
-    expect(workflow(mode).concurrency?.cancel_in_progress).toBe(false);
+describe('pull request CI repair', () => {
+  it.each(
+    selections.flatMap((selection) => modes.map((mode) => ({selection, mode}))),
+  )('parses the $selection selection with $mode delivery', ({selection, mode}) => {
+    expect(workflow(mode, selection).concurrency?.cancel_in_progress).toBe(false);
+  });
+
+  it.each([
+    {selection: 'dependency_bot', actor: 'dependabot[bot]', expected: true},
+    {selection: 'dependency_bot', actor: 'octocat', expected: false},
+    {selection: 'label', actor: 'octocat', expected: true},
+    {selection: 'all_pull_requests', actor: 'octocat', expected: true},
+  ] as const)('starts for $selection when $actor ran CI: $expected', ({
+    selection,
+    actor,
+    expected,
+  }) => {
+    const event = failedRun({actor: {login: actor}});
+
+    expect(evaluate(triggerFilter(selection), {event})).toBe(expected);
+  });
+
+  it.each(
+    selections,
+  )('ignores reruns and failures on its own repair commits for %s', (selection) => {
+    const repairCommit = failedRun({
+      actor: {login: 'shipfox[bot]'},
+      head_commit: {
+        message: 'Fix build\n\nShipfox-CI-Repair: https://github.com/acme/api/actions/runs/7',
+      },
+    });
+
+    expect(evaluate(triggerFilter(selection), {event: failedRun({run_attempt: 2})})).toBe(false);
+    expect(evaluate(triggerFilter(selection), {event: repairCommit})).toBe(false);
+  });
+
+  it.each([
+    {selection: 'dependency_bot', author: 'dependabot[bot]', labels: [], expected: true},
+    {selection: 'dependency_bot', author: 'octocat', labels: [], expected: false},
+    {selection: 'label', author: 'octocat', labels: ['replace-with-label-name'], expected: true},
+    {selection: 'label', author: 'octocat', labels: ['bug'], expected: false},
+    {selection: 'all_pull_requests', author: 'octocat', labels: [], expected: true},
+  ] as const)('selects a PR by $author with labels $labels for $selection: $expected', ({
+    selection,
+    author,
+    labels,
+    expected,
+  }) => {
+    const result = {user: {login: author}, labels: labels.map((name) => ({name}))};
+
+    expect(evaluate(readPrOutput(selection, 'selected'), {event: failedRun(), result})).toBe(
+      expected,
+    );
+  });
+
+  it.each([
+    {name: 'the failed commit is the PR head', head: 'a'.repeat(40), expected: true},
+    {name: 'a newer commit is the PR head', head: 'b'.repeat(40), expected: false},
+  ])('repairs only when $name', ({head, expected}) => {
+    const eligible = at(render('push_fix'), 'jobs', 'inspect', 'outputs', 'eligible');
+    const outputs = {
+      open: true,
+      selected: true,
+      repository: 'replace-with-owner/repository',
+      branch: 'bot/update',
+      head_sha: head,
+    };
+
+    expect(evaluate(eligible, {event: failedRun(), steps: {read_pr: {outputs}}})).toBe(expected);
   });
 
   it('delivers a patch that applies new and binary files without changing the remote', () => {
@@ -137,6 +256,24 @@ describe('dependency CI repair', () => {
     expect(repo.git('ls-remote', 'origin', 'refs/heads/bot/update').split('\t')[0]).toBe(
       result.values.commit,
     );
+  });
+
+  it.each(
+    selections,
+  )('does not repair CI that still fails on its pushed repair for %s', (selection) => {
+    const repo = checkout();
+    writeFileSync(join(repo.cwd, 'adapter.txt'), 'adapter\n');
+    repo.git('add', 'adapter.txt');
+    const result = repo.run('deliver', 'push_fix');
+    const message = repo.git('log', '-1', '--format=%B', result.values.commit ?? '');
+    const event = failedRun({
+      actor: {login: 'dependabot[bot]'},
+      head_sha: result.values.commit,
+      head_commit: {message},
+    });
+
+    expect(message).toContain('Shipfox-CI-Repair: https://github.com/acme/api/actions/runs/7');
+    expect(evaluate(triggerFilter(selection), {event})).toBe(false);
   });
 
   it('skips a repair after the remote branch moves', () => {

@@ -1,10 +1,11 @@
-# Fix failing dependency-bot CI
+# Repair failing pull request CI
 
-Diagnose a failed dependency update and deliver a tested repair or an actionable explanation.
+Diagnose failed CI on a pull request and deliver a tested repair or an actionable explanation.
+The workflow repairs dependency-bot pull requests by default. Labeled or all same-repository pull requests are opt-in.
 
 ## Prerequisites
 
-- The repository uses GitHub Actions and a dependency bot.
+- The repository uses GitHub Actions. Dependency-bot selection also needs a dependency bot.
 - The GitHub connection can read pull requests and Actions logs, and post PR comments.
 - Push mode also requires repository write access and compatible commit rules.
 - The runner has Bash, Git, and Base64 utilities.
@@ -16,19 +17,44 @@ Replace `replace-with-owner/repository` with the selected project's exact GitHub
 A connection can receive events from several repositories. Keep this filter even when the project has one source.
 
 The trigger accepts failed initial workflow runs associated with exactly one PR.
-It ignores manual reruns, ambiguous PR associations, and CI started by Shipfox's repair push.
-The inspection step checks the PR author, open state, source repository, branch, and commit.
+It ignores manual reruns and ambiguous PR associations.
+The inspection step checks the PR selection, open state, source repository, branch, and commit.
 Fork PRs and failures from an older commit are skipped before repair starts.
 
 Runs for one repository and PR share a concurrency group.
 The active run finishes; only the newest additional run waits.
 A queued run checks whether its event still describes the PR head.
-This prevents overlapping repairs, but separate failures without a new commit can still produce repeated diagnoses.
+This prevents overlapping repairs, but separate failed workflows on one commit each produce a diagnosis.
+
+### Repair limits
+
+Each pushed repair commit carries a `Shipfox-CI-Repair:` trailer with the failed run URL.
+The trigger ignores any failure whose head commit has this trailer, whichever account pushed it.
+A repair that still fails CI therefore never starts another repair. A person reads the result and acts.
+
+Each PR head commit gets at most one repair run per failed GitHub workflow.
+A new repair needs a new commit that is not a Shipfox repair.
+Inside a run, the `fix_failure` step retries until the validation gate passes or its attempt limit is reached.
+Shipfox drops a repeated GitHub webhook delivery that has the same delivery ID.
 
 ## Choose the options
 
+### Pull request selection
+
+| Choice | Selects | Writes |
+| --- | --- | --- |
+| `dependency_bot` (default) | PRs authored by the bot login when that bot also started the failed CI. | Commits on bot branches. |
+| `label` | Same-repository PRs that carry the label when the inspection step reads the PR. | Commits on branches of people who opted in. |
+| `all_pull_requests` | Every same-repository PR. | Commits on any PR branch, including branches people are working on. |
+
+Keep the marked blocks for the chosen selection in the trigger filter and in the `read_pr` `selected` output. Remove the others.
+For `label`, replace `replace-with-label-name` with the exact GitHub label name.
+Anyone who can label PRs in the repository can opt a PR in. Removing the label stops later runs, not a run that already passed inspection.
+With `label` or `all_pull_requests`, the workflow repairs a PR regardless of who opened it, including drafts and bot PRs.
+
 ### Bot identity
 
+This option applies only to `dependency_bot` selection.
 Keep `dependabot[bot]` for Dependabot, or replace it with `renovate[bot]` for Renovate.
 For a custom bot, use its exact GitHub login.
 The initial CI actor must match this login. The inspection step also verifies that this actor authored the PR.
@@ -37,7 +63,7 @@ The initial CI actor must match this login. The inspection step also verifies th
 
 Keep every marked block for the chosen mode and remove the others.
 
-- `push_fix` commits the staged repair, pushes to the bot branch, and posts the result.
+- `push_fix` commits the staged repair, pushes to the PR branch, and posts the result.
 - `comment_only` posts an applicable patch after local checks pass. It leaves the branch unchanged.
 
 For comment-only mode, remove the marked checkout `permissions` block too. The checkout then receives read access.
@@ -48,13 +74,18 @@ Push mode can interact with existing auto-merge rules. Those rules might merge t
 Dependabot normally stops automatic rebasing after another author adds commits.
 Bot recreation or later updates can discard the repair.
 
+On branches people work on, push mode adds a commit the author must pull before pushing again.
+A non-fast-forward push from the author is rejected until they pull. A force push discards the repair.
+The pushed commit starts the repository's CI again.
+Choose comment-only mode when authors should apply repairs themselves.
+
 The commit title follows repository conventions through the agent prompt.
 The shell commit is not signed by this template. Check signing and sign-off requirements before choosing push mode.
 
 ## Choose a model
 
 Confirm the provider, model, harness, and thinking setting for `# model:fix`.
-Retries continue the `dependency_repair` session. Keep that binding consistent.
+Retries continue the `ci_repair` session. Keep that binding consistent.
 The manifest has no tested model reference or scored suggestion.
 
 ## Fill the command slots
@@ -78,7 +109,7 @@ Delivery checks reject unstaged changes, unignored untracked files, changed comm
 
 ## Outcomes and patch delivery
 
-The agent preserves the intended dependency upgrade. It cannot solve a failure by reverting the upgrade or weakening checks.
+The agent preserves the intended change of the PR. It cannot solve a failure by reverting the change, downgrading an upgrade, or weakening checks.
 
 | Outcome | Result |
 | --- | --- |
@@ -109,7 +140,7 @@ A later CI failure needs a separate investigation; this template does not listen
 
 ## Expected writes and failures
 
-Push mode creates one commit on the bot branch. Both modes can post one result or failure comment.
+Push mode creates one commit on the PR branch. Both modes can post one result or failure comment.
 The report runs separately, so a failed comment does not undo a completed push.
 Failure notices do not recheck PR eligibility. They report a past run, even if the PR has since changed or closed.
 Inspect existing commits and comments before rerunning a failed workflow.
@@ -120,5 +151,5 @@ The prompts do not isolate that credential. The GitHub provider also requests wo
 The delivery check rejects staged GitHub workflow changes, but it cannot restrict arbitrary commands that use the credential.
 
 The reported checks are local. A successful push does not prove that GitHub CI passed.
-Before relying on an adapted workflow, validate every selected option and run it against a real dependency PR.
-Exercise installation failure, incompatible APIs, stale events, no-change diagnoses, and comment-only patch application.
+Before relying on an adapted workflow, validate every selected option and run it against a real PR of the selected kind.
+Exercise installation failure, incompatible APIs, stale events, no-change diagnoses, comment-only patch application, and a repair whose CI still fails.

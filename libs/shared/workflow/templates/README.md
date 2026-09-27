@@ -105,7 +105,7 @@ Each part file is a YAML map from part name to a literal text block. The source 
 
 Provider tool IDs, event names, and connection bindings belong in parts. The one exception is the built-in `shipfox` connection, which exists in every workspace: `workflow.yml` can bind it directly with `source: shipfox` and `connection: shipfox`.
 
-Shipped templates keep an adaptation guide beside their workflow. For dependency-bot CI, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, choices, and customization slots.
+Shipped templates keep an adaptation guide beside their workflow. For pull request CI repair, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, PR selection, repair limits, choices, and customization slots.
 For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
 For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, and the optional Slack report.
 For failed run reports, read `skill://shipfox/create-workflow-from-template/references/report-failed-runs.md`. It covers run event filters, options, and Slack writes.

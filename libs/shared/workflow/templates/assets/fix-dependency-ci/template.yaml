@@ -1,15 +1,28 @@
 id: fix-dependency-ci
-revision: 2
+revision: 3
 added_at: 2026-09-22
-title: Fix failing dependency-bot CI
-summary: Get a tested fix for every dependency update that breaks CI.
+title: Repair failing pull request CI
+summary: Get a tested fix when CI fails on a dependency update or an opted-in pull request.
 roles:
   source:
     from: project
     providers: [github]
 options:
+  - id: pr_selection
+    question: Which pull requests should the workflow repair?
+    choices:
+      - id: dependency_bot
+        label: Dependency-bot pull requests
+        default: true
+        tradeoff: Repairs pull requests opened by one dependency bot after its initial CI run fails.
+      - id: label
+        label: Pull requests with a label
+        tradeoff: Repairs same-repository pull requests that carry a chosen label when CI starts the repair. Anyone who can label a PR opts it in.
+      - id: all_pull_requests
+        label: All same-repository pull requests
+        tradeoff: Repairs every pull request whose branch lives in the repository, including engineers' branches. Push mode then adds commits to branches people are working on.
   - id: bot_identity
-    question: Which dependency bot opens update pull requests?
+    question: For dependency-bot pull requests, which bot opens them?
     choices:
       - id: dependabot
         label: Dependabot
@@ -27,13 +40,13 @@ options:
       - id: push_fix
         label: Push the fix
         default: true
-        tradeoff: Updates the bot branch and posts the result. Existing auto-merge rules can merge the repair.
+        tradeoff: Adds one commit to the pull request branch and posts the result. Existing auto-merge rules can merge the repair, and people working on the branch must pull it.
       - id: comment_only
         label: Comment only
         tradeoff: Leaves the branch unchanged and posts a tested patch or an actionable diagnosis.
 models:
   fix:
-    note: Reads failed CI logs and repairs the dependency update branch.
+    note: Reads failed CI logs and repairs the pull request branch.
 slots: [setup_commands, install_command, test_command]
 secrets: []
 variables: []
