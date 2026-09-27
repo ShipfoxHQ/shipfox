@@ -27,6 +27,8 @@ export type SlackApiMockCall =
 export interface SlackApiMock {
   calls: SlackApiMockCall[];
   endpoint: URL;
+  /** Makes later chat.postMessage calls fail with this Slack error, or succeed again with null. */
+  setPostMessageError(error: string | null): void;
   stop(): Promise<void>;
 }
 
@@ -34,9 +36,10 @@ export async function startSlackApiMock(
   endpoint = new URL(requiredSlackApiBaseUrl()),
 ): Promise<SlackApiMock> {
   const calls: SlackApiMockCall[] = [];
+  const failures: {postMessage: string | null} = {postMessage: null};
   let boundEndpoint = endpoint;
   const server = createServer((request, response) => {
-    void handleSlackRequest({calls, endpoint: boundEndpoint, request, response});
+    void handleSlackRequest({calls, failures, endpoint: boundEndpoint, request, response});
   });
 
   try {
@@ -48,6 +51,9 @@ export async function startSlackApiMock(
   return {
     calls,
     endpoint: boundEndpoint,
+    setPostMessageError: (error) => {
+      failures.postMessage = error;
+    },
     stop: async () => {
       try {
         await close(server);
@@ -60,6 +66,7 @@ export async function startSlackApiMock(
 
 async function handleSlackRequest(params: {
   calls: SlackApiMockCall[];
+  failures: {postMessage: string | null};
   endpoint: URL;
   request: IncomingMessage;
   response: ServerResponse;
@@ -91,8 +98,13 @@ async function handleSlackRequest(params: {
       threadTs: body.get('thread_ts') ?? undefined,
       text,
     });
+    if (params.failures.postMessage !== null) {
+      sendJson(params.response, 200, {ok: false, error: params.failures.postMessage});
+      return;
+    }
     sendJson(params.response, 200, {
       ok: true,
+      channel: body.get('channel') ?? undefined,
       ts: SLACK_POSTED_TS,
       message: {text},
     });

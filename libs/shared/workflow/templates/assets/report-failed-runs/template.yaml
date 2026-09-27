@@ -1,0 +1,55 @@
+id: report-failed-runs
+revision: 1
+added_at: 2026-09-26
+title: Report failed Shipfox workflow runs
+summary: Posts each failed Shipfox workflow run to Slack with the failed jobs, a log excerpt, and a next step.
+roles:
+  notify:
+    providers: [slack]
+options:
+  - id: scope
+    question: Which projects should the report cover?
+    choices:
+      - id: project
+        label: This project
+        default: true
+        tradeoff: Reports runs of the project that holds this workflow. Requires the project ID.
+      - id: workspace
+        label: Every project in the workspace
+        tradeoff: Reports runs of every project into one channel. Add this workflow to one project only, or each failure is reported once per copy.
+  - id: workflow_filter
+    question: Which workflows should the report cover?
+    choices:
+      - id: all
+        label: Every workflow
+        default: true
+        tradeoff: Reports failed runs of every synced workflow except this one.
+      - id: selected
+        label: Named workflow files
+        tradeoff: Reports only the workflow files you list. A moved or renamed file stops being reported until you update the list.
+  - id: include_cancelled
+    question: Should the report include cancelled runs?
+    choices:
+      - id: off
+        label: Failed runs only
+        default: true
+        tradeoff: Cancelled runs are not reported.
+      - id: on
+        label: Failed and cancelled runs
+        tradeoff: Also reports runs a person cancelled or that timed out. Runs replaced by a newer run in their concurrency group are never reported.
+  - id: diagnosis
+    question: Should an agent add a diagnosis from the failed step logs?
+    choices:
+      - id: off
+        label: Report only
+        default: true
+        tradeoff: No model or inference cost. The report lists the failed jobs and steps, a log excerpt, and a next step.
+      - id: agent
+        label: Add an agent diagnosis
+        tradeoff: After each report, an agent reads the run's failed logs and replies in the report's thread. Each failed run uses inference.
+models:
+  diagnose:
+    note: Reads one failed run and its step logs, then writes a short diagnosis that cites the log lines.
+slots: []
+secrets: []
+variables: []
