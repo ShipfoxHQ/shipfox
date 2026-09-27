@@ -1,6 +1,7 @@
 {
   "$schema": "./tools/application-release/schema/publication-closure.schema.json",
   "roots": [
+    "@shipfox/actions",
     "@shipfox/annotations",
     "@shipfox/api-agent",
     "@shipfox/api-auth",
@@ -41,6 +42,7 @@
     "@shipfox/node-postgres"
   ],
   "packages": [
+    "@shipfox/actions",
     "@shipfox/annotations",
     "@shipfox/annotations-dto",
     "@shipfox/api-agent",

@@ -93,6 +93,7 @@ const architecturePackages = {
       'libs/shared/node/temporal',
       'libs/shared/node/tokens',
     ],
+    workflow: ['libs/shared/workflow/actions'],
   },
   spi: {integrations: ['libs/api/integration/spi']},
   'composition-root': {api: ['libs/api/server']},
