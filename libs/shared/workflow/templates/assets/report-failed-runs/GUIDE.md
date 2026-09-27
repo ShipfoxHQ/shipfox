@@ -78,7 +78,7 @@ Log excerpts and errors come from the failed workflows. Anyone in the channel ca
 
 Validate the shape with a dry run against the `run_completed` trigger.
 Shipfox keeps a `run.completed` event only while a synced workflow subscribes to it, so a new workspace has none to replay.
-If `list_trigger_events` finds a retained `run.completed` event of a failed run in the chosen project, replay it in a dev run.
+If `list_trigger_events` finds a retained `run.completed` event for a failed, synced run in the chosen project that matches the selected workflow filter and is not this workflow's own run, replay it in a dev run.
 Otherwise report "shape validated, not executed", merge the workflow, then fail a run on purpose, such as a manual workflow whose step runs `exit 1`.
 Before any run, tell the user that it posts to the chosen channel.
 

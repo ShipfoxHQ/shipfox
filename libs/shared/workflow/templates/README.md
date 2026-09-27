@@ -101,7 +101,7 @@ To check a local workflow without starting a run, read `skill://shipfox/validate
 
 To run a validated change against a real trigger, read `skill://shipfox/test-workflow-change/SKILL.md` through MCP. It covers side effects, run inspection, retries, and checkout order.
 
-Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project. A template without such a role, such as `report-failed-runs`, still takes a project but binds no source connection.
+Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project. A template without such a role, such as `report-failed-runs`, still takes a project but binds no project-specific source connection.
 
 Provider tool IDs, event names, and connection bindings belong in parts. The one exception is the built-in `shipfox` connection, which exists in every workspace: `workflow.yml` can bind it directly with `source: shipfox` and `connection: shipfox`.
 

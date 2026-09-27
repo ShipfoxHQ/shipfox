@@ -476,6 +476,9 @@ describe('agent-access template tools', () => {
         suggested_bindings: {notify: ['slack-alerts']},
       },
     });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+    if (!response.ok) throw new Error('Expected a successful template response');
+    expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
   });
 
   test('advertises open-role inputs as dynamic provider properties', () => {

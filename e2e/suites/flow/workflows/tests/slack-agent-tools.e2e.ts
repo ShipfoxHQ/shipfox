@@ -135,7 +135,9 @@ test('reports a failed run to Slack from its run.completed event', async ({suite
   const runnerLabel = `e2e-report-failed-runs-${uniqueId}`;
   let localRunner: Awaited<ReturnType<typeof startSuiteLocalRunner>> | undefined;
 
-  const posted = () => slackApi.calls.filter(isPostMessage);
+  // A retried failure can still produce a late report, so count posts per failed run.
+  const postsFor = (runId: string) =>
+    slackApi.calls.filter(isPostMessage).filter((call) => call.text?.includes(`/runs/${runId}`));
   const waitForTerminal = async (runId: string) => {
     if (localRunner === undefined) throw new Error('The local runner did not start');
     return await waitForRunTerminalOrFailedRunner({
@@ -211,14 +213,13 @@ test('reports a failed run to Slack from its run.completed event', async ({suite
     const firstReport = await waitForTerminal(first.reportRunId);
 
     expect(firstReport.status).toBe('succeeded');
-    expect(posted()).toHaveLength(1);
-    expect(posted()[0]).toMatchObject({
+    expect(postsFor(first.failedRunId)).toHaveLength(1);
+    expect(postsFor(first.failedRunId)[0]).toMatchObject({
       authorization: `Bearer xoxb-report-failed-runs-${uniqueId}`,
       channel: REPORT_CHANNEL,
     });
-    expect(posted()[0]?.text).toContain(`/runs/${first.failedRunId}`);
-    expect(posted()[0]?.text).toContain('Failed: fail › Fail on purpose');
-    expect(posted()[0]?.text).toContain(REPORT_FAILURE_MARKER);
+    expect(postsFor(first.failedRunId)[0]?.text).toContain('Failed: fail › Fail on purpose');
+    expect(postsFor(first.failedRunId)[0]?.text).toContain(REPORT_FAILURE_MARKER);
 
     slackApi.setPostMessageError('channel_not_found');
     const second = await failAndAwaitReport();
@@ -240,9 +241,10 @@ test('reports a failed run to Slack from its run.completed event', async ({suite
     expect(selfReport.status).toBe('succeeded');
     expect(selfReport.jobs.find((job) => job.key === 'report')?.status).toBe('skipped');
     expect(redelivered.status).toBe('succeeded');
-    expect(posted()).toHaveLength(3);
-    expect(posted()[1]?.text).toContain(`/runs/${second.failedRunId}`);
-    expect(posted()[2]?.text).toBe(posted()[1]?.text);
+    expect(postsFor(second.reportRunId)).toEqual([]);
+    const secondPosts = postsFor(second.failedRunId);
+    expect(secondPosts).toHaveLength(2);
+    expect(secondPosts[1]?.text).toBe(secondPosts[0]?.text);
   } finally {
     await Promise.all([
       slackApi.stop().catch((error: unknown) => {

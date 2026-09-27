@@ -46,7 +46,7 @@ options:
         tradeoff: No model or inference cost. The report lists the failed jobs and steps, a log excerpt, and a next step.
       - id: agent
         label: Add an agent diagnosis
-        tradeoff: After each report, an agent reads the run's failed logs and replies in the report's thread. Each failed run uses inference.
+        tradeoff: After each failed-run report, an agent reads the run's failed logs and replies in the report's thread. Each failed run uses inference.
 models:
   diagnose:
     note: Reads one failed run and its step logs, then writes a short diagnosis that cites the log lines.
