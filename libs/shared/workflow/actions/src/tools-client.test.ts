@@ -403,18 +403,7 @@ describe('createToolsClient', () => {
 
     it('does not retry a rate-limited error with an unknown outcome', async () => {
       const clock = fakeClock();
-      replies.push(
-        replyJson(200, {
-          ok: false,
-          call_id: 'call-1',
-          error: {
-            code: 'rate-limited',
-            message: 'Slow down.',
-            retry_after_seconds: 1,
-            outcome_unknown: true,
-          },
-        }),
-      );
+      replies.push(replyJson(200, rateLimited({retryAfterSeconds: 1, outcomeUnknown: true})));
 
       const error = await rejection(client(clock).github?.call('create_commit', {}));
 
@@ -481,14 +470,18 @@ function callSuccess(result: {structured: unknown; content?: unknown[]}) {
   return {ok: true, call_id: 'call-1', result: {content: [], ...result}};
 }
 
-function rateLimited(params: {retryAfterSeconds?: number; callId?: string}) {
+function rateLimited(params: {
+  retryAfterSeconds?: number;
+  callId?: string;
+  outcomeUnknown?: boolean;
+}) {
   return {
     ok: false,
     call_id: params.callId ?? 'call-1',
     error: {
       code: 'rate-limited',
       message: 'Slow down.',
-      outcome_unknown: false,
+      outcome_unknown: params.outcomeUnknown ?? false,
       ...(params.retryAfterSeconds === undefined
         ? {}
         : {retry_after_seconds: params.retryAfterSeconds}),
