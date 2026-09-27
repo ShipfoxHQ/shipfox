@@ -1,5 +1,3 @@
-import type {WorkflowTemplateOption} from '@shipfox/workflow-templates';
-
 export type TemplateIcon =
   | 'github'
   | 'linear'
@@ -76,7 +74,7 @@ export interface TemplateVariant {
 
 export interface TemplateDetail extends TemplateCatalogEntry {
   prerequisites: string[];
-  options: WorkflowTemplateOption[];
+  options: TemplateOption[];
   models: {key: string; note?: string; model?: string; thinking?: string}[];
   variants: TemplateVariant[];
   related: TemplateCatalogEntry[];
@@ -84,4 +82,15 @@ export interface TemplateDetail extends TemplateCatalogEntry {
 
 export function templateIntegrations(entry: TemplateCatalogEntry): TemplateIcon[] {
   return [...new Set(entry.roles.flatMap((role) => role.providers))];
+}
+
+export interface TemplateOption {
+  id: string;
+  question?: string;
+  choices: {id: string; label?: string; default?: boolean; tradeoff?: string}[];
+}
+
+export interface TemplateCatalogDocument {
+  id: string;
+  templates: TemplateDetail[];
 }

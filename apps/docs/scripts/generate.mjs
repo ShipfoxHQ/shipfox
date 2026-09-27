@@ -114,6 +114,10 @@ import {
 } from './lib/context-reference.mjs';
 import {renderSkillPage, renderSkillResourceTable, skillPageEntries} from './lib/skill-pages.mjs';
 import {
+  buildTemplateCatalogDocument,
+  TEMPLATE_CATALOG_DOCUMENT_ID,
+} from './lib/template-catalog.mjs';
+import {
   buildWorkflowSchemaDocument,
   renderWorkflowSchemaMarkdownMap,
   renderWorkflowSchemaMdx,
@@ -198,6 +202,11 @@ const regions = [
       : []),
   ]),
   {file: 'content/generated/integrations/catalog.json', render: renderIntegrationCatalogData},
+  {
+    file: `content/generated/${TEMPLATE_CATALOG_DOCUMENT_ID}.json`,
+    document: true,
+    render: () => JSON.stringify(buildTemplateCatalogDocument(), null, 2),
+  },
   {
     file: 'content/generated/reference/workflow-schema.mdx',
     render: renderWorkflowSchemaArtifact,
