@@ -10,3 +10,4 @@ The ticket to pull request template is now "Task to pull request", at revision 4
 - **Unclear tasks:** the agent asks for clarification when the acceptance criteria are missing or cannot be checked, or when the task needs another repository.
 - **Pull requests:** the PR body ends with `Fixes <identifier>` for a ticket, or links the task's source.
 - **Tracker parts:** they now set ticket fields on a shared `task` step and own their write-back jobs. The package README documents the new part contract.
+- **Summaries:** every shipped template now has a shorter summary that leads with the outcome.

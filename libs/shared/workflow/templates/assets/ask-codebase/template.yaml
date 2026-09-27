@@ -2,7 +2,7 @@ id: ask-codebase
 revision: 1
 added_at: 2026-09-26
 title: Ask the codebase in Slack
-summary: An agent reads a Slack thread and the project's repository, then replies in the thread with a grounded answer.
+summary: Answer questions about your code in Slack, with references to the files.
 roles:
   chat:
     providers: [slack]
