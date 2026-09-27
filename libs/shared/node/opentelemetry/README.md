@@ -10,6 +10,7 @@ OpenTelemetry setup for Shipfox Node services. It starts tracing, OpenTelemetry 
 - **`getServiceMetricsProvider()`** returns the app metrics provider.
 - **`instanceMetrics`** re-exports OpenTelemetry `metrics`.
 - **`logger(options?)`** returns a logger with active trace IDs when a span exists.
+- **`withoutTracing(fn)`** runs `fn` without creating spans. Use it for repeated reads inside a long poll.
 - **`shutdownInstrumentation()`** flushes and shuts down tracing, logs, and metrics.
 
 Environment variables:
@@ -112,6 +113,21 @@ export OTEL_SERVICE_METRICS_PORT="9474"
 ```
 
 Set metrics ports in code with `startInstanceInstrumentation` options.
+
+## Telemetry volume
+
+Postgres queries create spans only inside a parent span. Queries from polling
+loops and metric callbacks therefore create no traces. Start a span when a loop
+finds work, so the queries for that work stay traced.
+
+Requests to the instance and service metrics ports create no spans. The SDK
+drops the `http.server.duration` and `http.server.request.duration` histograms,
+because Fastify request metrics already cover them.
+
+Fastify spans for a 4xx client error get no error status, as the HTTP semantic
+conventions require. They carry the reason as `error.type` and `error.message`
+attributes instead of an exception event. A thrown error counts as a client
+error when its `statusCode` is between 400 and 499.
 
 ## Development
 

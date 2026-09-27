@@ -26,7 +26,12 @@ import './diag.js';
 
 export type {InstrumentationOptions} from './common.js';
 export {shouldStartTelemetry as isTelemetryEnabled} from './common.js';
-export {contextWithMetadata, enrichSpanWithMetadata, getContextMetadata} from './context.js';
+export {
+  contextWithMetadata,
+  enrichSpanWithMetadata,
+  getContextMetadata,
+  withoutTracing,
+} from './context.js';
 export {
   getFastifyInstrumentation,
   getInstanceResource,

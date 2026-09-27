@@ -1,11 +1,16 @@
+import type {IncomingMessage} from 'node:http';
 import otel from '@fastify/otel';
 import {OTLPTraceExporter} from '@opentelemetry/exporter-trace-otlp-http';
 import type {Instrumentation} from '@opentelemetry/instrumentation';
+import type {HttpInstrumentationConfig} from '@opentelemetry/instrumentation-http';
+import type {PgInstrumentationConfig} from '@opentelemetry/instrumentation-pg';
 import type {Resource} from '@opentelemetry/resources';
+import {AggregationType, type ViewOptions} from '@opentelemetry/sdk-metrics';
 import {NodeSDK} from '@opentelemetry/sdk-node';
 import type {SpanProcessor} from '@opentelemetry/sdk-trace-node';
 import {BatchSpanProcessor} from '@opentelemetry/sdk-trace-node';
 import {config} from '#config.js';
+import {ClientErrorStatusSpanProcessor} from './client-error-status.js';
 import {
   getMetricsReader,
   getResource,
@@ -23,8 +28,30 @@ let fastifyInstrumentation: InstanceType<typeof FastifyOtelInstrumentation> | un
 let instanceResource: Resource | undefined;
 let instanceSpanProcessor: SpanProcessor | undefined;
 
+// Queries outside a request, job, or dispatch span come from background polling. Tracing them
+// turns every poll into its own one-span trace.
+const pgConfig: PgInstrumentationConfig = {requireParentSpan: true};
+
+// Fastify records per-route request duration. The generic server histogram duplicates it and
+// also counts Prometheus scrapes.
+const views: ViewOptions[] = ['http.server.duration', 'http.server.request.duration'].map(
+  (instrumentName) => ({
+    meterName: '@opentelemetry/instrumentation-http',
+    instrumentName,
+    aggregation: {type: AggregationType.DROP},
+  }),
+);
+
+function createHttpConfig(metricsPorts: number[]): HttpInstrumentationConfig {
+  return {
+    ignoreIncomingRequestHook: (request: IncomingMessage) =>
+      metricsPorts.includes(request.socket.localPort ?? -1),
+  };
+}
+
 async function resolveInstrumentations(
   options: InstrumentationOptions,
+  httpConfig: HttpInstrumentationConfig,
 ): Promise<Instrumentation[]> {
   const {
     fastify = true,
@@ -47,7 +74,7 @@ async function resolveInstrumentations(
   }
   if (http) {
     const {HttpInstrumentation} = await import('@opentelemetry/instrumentation-http');
-    instrumentations.push(new HttpInstrumentation());
+    instrumentations.push(new HttpInstrumentation(httpConfig));
   }
   if (net) {
     const {NetInstrumentation} = await import('@opentelemetry/instrumentation-net');
@@ -59,7 +86,7 @@ async function resolveInstrumentations(
   }
   if (pg) {
     const {PgInstrumentation} = await import('@opentelemetry/instrumentation-pg');
-    instrumentations.push(new PgInstrumentation());
+    instrumentations.push(new PgInstrumentation(pgConfig));
   }
   if (ioredis) {
     const {IORedisInstrumentation} = await import('@opentelemetry/instrumentation-ioredis');
@@ -94,30 +121,42 @@ async function resolveInstrumentations(
 export async function startInstanceInstrumentation(options: StartInstrumentationOptions) {
   if (instanceInstrumentation) throw new Error('Instrumentation already initialized');
   if (!shouldStartTelemetry()) return;
-  const metricReader = getMetricsReader({
+  const instanceExporter = {
     port: config.OTEL_INSTANCE_METRICS_PORT,
     endpoint: '/metrics',
     ...options.exporter?.instance,
-  });
+  };
+  const metricReader = getMetricsReader(instanceExporter);
+  const httpConfig = createHttpConfig([
+    instanceExporter.port,
+    options.exporter?.service.port ?? config.OTEL_SERVICE_METRICS_PORT,
+  ]);
 
   let instrumentations: Instrumentation[];
   if (options.instrumentations === undefined) {
     fastifyInstrumentation = new FastifyOtelInstrumentation({requestHook: fastifyRequestHook});
     const {getNodeAutoInstrumentations} = await import('@opentelemetry/auto-instrumentations-node');
-    instrumentations = [fastifyInstrumentation, ...getNodeAutoInstrumentations()];
+    instrumentations = [
+      fastifyInstrumentation,
+      ...getNodeAutoInstrumentations({
+        '@opentelemetry/instrumentation-http': httpConfig,
+        '@opentelemetry/instrumentation-pg': pgConfig,
+      }),
+    ];
   } else {
-    instrumentations = await resolveInstrumentations(options.instrumentations);
+    instrumentations = await resolveInstrumentations(options.instrumentations, httpConfig);
   }
 
   instanceResource = getResource(options);
   const sdkConfig: ConstructorParameters<typeof NodeSDK>[0] = {
     resource: instanceResource,
     metricReader,
+    views,
     instrumentations,
   };
   if (shouldExportTraces()) {
     instanceSpanProcessor = new BatchSpanProcessor(new OTLPTraceExporter());
-    sdkConfig.spanProcessors = [instanceSpanProcessor];
+    sdkConfig.spanProcessors = [new ClientErrorStatusSpanProcessor(), instanceSpanProcessor];
   }
   instanceInstrumentation = new NodeSDK(sdkConfig);
   instanceInstrumentation.start();
