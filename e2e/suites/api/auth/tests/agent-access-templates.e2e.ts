@@ -7,7 +7,11 @@ import {
   type ModelChoiceDto,
 } from '@shipfox/api-agent-access-dto';
 import {requestJson} from '@shipfox/e2e-core';
-import {createGithubConnection, createLinearConnection} from '@shipfox/e2e-setup-integrations';
+import {
+  createGithubConnection,
+  createLinearConnection,
+  createSlackConnection,
+} from '@shipfox/e2e-setup-integrations';
 import {createProject} from '@shipfox/e2e-setup-projects';
 import {createWorkspace} from '@shipfox/e2e-setup-workspaces';
 import {parseWorkflowDocument} from '@shipfox/workflow-document';
@@ -19,6 +23,7 @@ const SHIPPED_TEMPLATE_IDS = [
   'ask-codebase',
   'fix-default-branch-ci',
   'fix-dependency-ci',
+  'report-failed-runs',
   'ticket-to-pr',
 ];
 const E2E_MANAGED_PROVIDER = 'shipfox';
@@ -61,6 +66,18 @@ async function createLinearTracker(workspaceId: string) {
     appUserId: `templates-e2e-app-user-${organizationId}`,
     displayName: 'Linear Templates E2E',
     accessToken: `templates-e2e-token-${organizationId}`,
+  });
+}
+
+async function createSlackNotifier(workspaceId: string) {
+  const uniqueId = randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase();
+  return await createSlackConnection({
+    workspaceId,
+    teamId: `T${uniqueId}`,
+    teamName: `Templates E2E ${uniqueId}`,
+    appId: `A${uniqueId}`,
+    botUserId: `U${uniqueId}`,
+    botToken: `xoxb-templates-e2e-${uniqueId}`,
   });
 }
 
@@ -218,6 +235,41 @@ test.describe('agent-access workflow templates', () => {
         },
         writeProvider: true,
       });
+    } finally {
+      await client.close();
+    }
+  });
+
+  test('composes the failed run report without a project source binding', async ({
+    request,
+    auth,
+  }) => {
+    const {client, workspaceId} = await connectAgentAccessClient({request, auth});
+    try {
+      const {project} = await createGithubProject(workspaceId);
+
+      const before = await callToolResult(
+        client,
+        {name: 'list_workflow_templates', arguments: {}},
+        listWorkflowTemplatesResultSchema,
+      );
+      const slack = await createSlackNotifier(workspaceId);
+      const template = await callToolResult(
+        client,
+        {
+          name: 'get_workflow_template',
+          arguments: {template_id: 'report-failed-runs', project_id: project.id, notify: 'slack'},
+        },
+        getWorkflowTemplateResultSchema,
+      );
+
+      expect(before.templates.find(({id}) => id === 'report-failed-runs')).toMatchObject({
+        compatible: false,
+        missing_providers: ['slack'],
+      });
+      expect(template.suggested_bindings).toEqual({notify: [slack.slug]});
+      expect(template.workflow_yaml).toContain('source: shipfox');
+      expect(() => parseWorkflowDocument(parseYaml(template.workflow_yaml))).not.toThrow();
     } finally {
       await client.close();
     }

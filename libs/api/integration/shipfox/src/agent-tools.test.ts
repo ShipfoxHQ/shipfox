@@ -8,6 +8,7 @@ import {
   encodeStringIdCursor,
   encodeTimestampIdCursor,
 } from '@shipfox/node-drizzle';
+import {Ajv} from 'ajv';
 import {
   createShipfoxAgentToolsProvider,
   SHIPFOX_INPUTS_MAX_BYTES,
@@ -168,6 +169,14 @@ describe('Shipfox agent tools', () => {
   it('keeps the tool catalog and selection catalog deliberate', () => {
     expect(shipfoxAgentToolCatalog).toMatchSnapshot();
     expect(shipfoxAgentToolSelectionCatalog).toMatchSnapshot();
+  });
+
+  it('compiles every input schema with the strict validator tool steps use', () => {
+    const ajv = new Ajv({strict: true, strictRequired: false});
+
+    for (const tool of shipfoxAgentToolCatalog) {
+      expect(() => ajv.compile(tool.inputSchema), tool.id).not.toThrow();
+    }
   });
 
   it('describes producer-shaped workflow result fields in the catalog', () => {
@@ -618,6 +627,12 @@ describe('Shipfox agent tools', () => {
       workflow_run_attempt: 3,
       sections: [{step_id: stepId, attempt: 1, content_truncated: true}],
     });
+    const outputSchema = shipfoxAgentToolCatalog.find(
+      (tool) => tool.id === 'get_step_logs',
+    )?.outputSchema;
+    expect(new Ajv({strict: false}).validate(outputSchema ?? {}, result.structuredContent)).toBe(
+      true,
+    );
   });
 
   it('pages run annotations with the producer cursor', async () => {

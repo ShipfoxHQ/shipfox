@@ -445,6 +445,42 @@ describe('agent-access template tools', () => {
     });
   });
 
+  test('composes a template without a project source role', async () => {
+    const integrations = integrationClient([connection('slack-alerts', 'slack')]);
+    const projects = projectClient();
+    const notifyAsset: WorkflowTemplateAsset = {
+      ...asset,
+      manifest: {
+        ...workflowTemplateManifestSchema.parse(asset.manifest),
+        id: 'notify-template',
+        roles: {notify: {providers: ['slack']}},
+      },
+      workflow: 'name: fixture\njobs:\n  notify:\n    steps:\n      # part:notify.send',
+      parts: {notify: {slack: {send: '- tool: send_message\n  connection: slack'}}},
+    };
+
+    const response = await getTool(
+      createTools(integrations, projects, undefined, notifyAsset),
+      'get_workflow_template',
+    ).execute({
+      context,
+      arguments: {template_id: 'notify-template', project_id: projectId, notify: 'slack'},
+    });
+
+    expect(projects.requireProjectForWorkspace).toHaveBeenCalledWith({workspaceId, projectId});
+    expect(integrations.resolveConnectionById).not.toHaveBeenCalled();
+    expect(response).toMatchObject({
+      ok: true,
+      result: {
+        workflow_yaml: expect.stringContaining('tool: send_message'),
+        suggested_bindings: {notify: ['slack-alerts']},
+      },
+    });
+    expect(agentAccessEnvelopeSchema.safeParse(response).success).toBe(true);
+    if (!response.ok) throw new Error('Expected a successful template response');
+    expect(getWorkflowTemplateResultSchema.safeParse(response.result).success).toBe(true);
+  });
+
   test('advertises open-role inputs as dynamic provider properties', () => {
     expect(getWorkflowTemplateInputJsonSchema.additionalProperties).toMatchObject({
       type: 'string',

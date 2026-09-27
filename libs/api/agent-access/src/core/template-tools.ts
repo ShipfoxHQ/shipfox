@@ -131,9 +131,14 @@ function createGetWorkflowTemplateTool(options: AgentAccessTemplateToolsOptions)
         options: template.manifest.options,
         workflow_yaml: workflowYaml,
         guide_markdown: template.guide,
-        suggested_bindings: suggestedBindings(template.manifest, resolution.bindings, connections, {
-          [resolution.sourceRole]: resolution.sourceConnection.slug,
-        }),
+        suggested_bindings: suggestedBindings(
+          template.manifest,
+          resolution.bindings,
+          connections,
+          resolution.source === undefined
+            ? {}
+            : {[resolution.source.role]: resolution.source.connectionSlug},
+        ),
         model_recommendations: modelRecommendations,
       });
     },
@@ -147,7 +152,7 @@ async function resolveTemplateBindings(
   input: GetWorkflowTemplateInputDto,
   bindings: Record<string, string>,
 ): Promise<
-  | {bindings: Record<string, string>; sourceRole: string; sourceConnection: {slug: string}}
+  | {bindings: Record<string, string>; source?: {role: string; connectionSlug: string}}
   | {error: AgentAccessEnvelopeDto}
 > {
   let project: {sourceConnectionId: string};
@@ -165,17 +170,16 @@ async function resolveTemplateBindings(
     throw error;
   }
 
+  const sourceRole = Object.entries(template.manifest.roles).find(
+    ([, role]) => role.from === 'project',
+  );
+  if (sourceRole === undefined) return {bindings};
+
   const sourceConnection = await options.integrations.resolveConnectionById({
     connectionId: project.sourceConnectionId,
   });
   if (sourceConnection === null || sourceConnection.lifecycleStatus !== 'active') {
     return {error: notFound("The project's source connection is not active.")};
-  }
-  const sourceRole = Object.entries(template.manifest.roles).find(
-    ([, role]) => role.from === 'project',
-  );
-  if (sourceRole === undefined) {
-    return {error: invalidRequest('This template does not use a project source.')};
   }
   const [roleName, role] = sourceRole;
   if (!role.providers.includes(sourceConnection.provider)) {
@@ -194,7 +198,7 @@ async function resolveTemplateBindings(
     };
   }
   bindings[roleName] = sourceConnection.provider;
-  return {bindings, sourceRole: roleName, sourceConnection};
+  return {bindings, source: {role: roleName, connectionSlug: sourceConnection.slug}};
 }
 
 /** Project roles pass through here; the project source check tells the agent to omit a wrong one. */

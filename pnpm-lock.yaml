@@ -2135,6 +2135,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+      '@shipfox/workflow-templates':
+        specifier: workspace:*
+        version: link:../../../../libs/shared/workflow/templates
       '@types/js-yaml':
         specifier: 'catalog:'
         version: 4.0.9
@@ -4174,6 +4177,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
 
   libs/api/integration/shipfox-dto:
     dependencies:

@@ -52,6 +52,7 @@ describe('workflow template loader', () => {
       'ask-codebase',
       'fix-default-branch-ci',
       'fix-dependency-ci',
+      'report-failed-runs',
       'ticket-to-pr',
     ]);
   });
@@ -61,6 +62,7 @@ describe('workflow template loader', () => {
       'ask-codebase': {answer: {model: 'gpt-6-sol', thinking: 'high'}},
       'fix-default-branch-ci': {investigate: {model: 'gpt-6-sol', thinking: 'high'}},
       'fix-dependency-ci': {fix: {model: 'gpt-6-sol', thinking: 'high'}},
+      'report-failed-runs': {diagnose: {model: 'gpt-6-luna', thinking: 'low'}},
       'ticket-to-pr': {
         fix: {model: 'gpt-6-luna', thinking: 'high'},
         reply: {model: 'gpt-6-sol', thinking: 'low'},

@@ -101,11 +101,14 @@ To check a local workflow without starting a run, read `skill://shipfox/validate
 
 To run a validated change against a real trigger, read `skill://shipfox/test-workflow-change/SKILL.md` through MCP. It covers side effects, run inspection, retries, and checkout order.
 
-Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project.
+Each part file is a YAML map from part name to a literal text block. The source role can declare `from: project` so later consumers resolve its provider from the selected project. A template without such a role, such as `report-failed-runs`, still takes a project but binds no project-specific source connection.
+
+Provider tool IDs, event names, and connection bindings belong in parts. The one exception is the built-in `shipfox` connection, which exists in every workspace: `workflow.yml` can bind it directly with `source: shipfox` and `connection: shipfox`.
 
 Shipped templates keep an adaptation guide beside their workflow. For dependency-bot CI, read `skill://shipfox/create-workflow-from-template/references/fix-dependency-ci.md` through MCP. It covers prerequisites, choices, and customization slots.
 For Slack codebase questions, read `skill://shipfox/create-workflow-from-template/references/ask-codebase.md`. It covers channel scope, manual dispatch inputs, and outcomes.
 For default-branch CI failures, read `skill://shipfox/create-workflow-from-template/references/fix-default-branch-ci.md`. It covers duplicate limits, outcomes, and the optional Slack report.
+For failed run reports, read `skill://shipfox/create-workflow-from-template/references/report-failed-runs.md`. It covers run event filters, options, and Slack writes.
 
 The build also serves each template guide as a `create-workflow-from-template/references/<template-id>.md` resource. The manifest lists the SHA-256 digest and byte size of every skill file.
 
