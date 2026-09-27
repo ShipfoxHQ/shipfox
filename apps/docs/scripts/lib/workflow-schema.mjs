@@ -24,7 +24,7 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
     component: 'TopLevelFields',
     path: 'workflow',
     example: 'workflow.yml',
-    fields: ['name', 'run_name', 'triggers', 'concurrency', 'runner', 'env', 'jobs'],
+    fields: ['name', 'run_name', 'triggers', 'concurrency', 'runner', 'env', 'jobs', 'outputs'],
     select: (schema) => properties(schema),
     required: ['name', 'jobs'],
     nested: {
@@ -38,6 +38,7 @@ export const WORKFLOW_SCHEMA_SECTIONS = [
       env: 'Environment',
       triggers: 'Record<string, Trigger>',
       jobs: 'Record<string, Job>',
+      outputs: 'Record<string, string>',
     },
   },
   {

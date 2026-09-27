@@ -12,4 +12,11 @@ env:
 jobs:
   deploy:
     steps:
-      - run: ./deploy.sh
+      - key: deploy
+        run: echo "url=https://example.com" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          url: string
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+outputs:
+  url: ${{ jobs.deploy.outputs.url }}

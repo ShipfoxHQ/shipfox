@@ -17,6 +17,9 @@ Code that turns a checked workflow document into the model used by definitions.
   schemas, keeps open or unknown shapes dynamic, records the `steps.<key>` type
   overlay, and validates the connection, tool, and inputs against the optional
   integration context.
+- **Workflow outputs**: Parse top-level `outputs` as `workflow.outputs`
+  templates, typed against every job's declared outputs. A job without
+  `outputs` exposes none, so any reference to one of its outputs is an error.
 - **`InvalidWorkflowModelError`**: Reports semantic workflow errors found during
   normalization.
 

@@ -57,6 +57,7 @@ export function findHistoricalEventPayloadDependencies(
 
   scanTemplate(model.runName, ['run_name'], dependencies);
   scanTemplateRecord(model.templates?.env, ['env'], dependencies);
+  scanTemplateRecord(model.outputs, ['outputs'], dependencies);
 
   for (const [triggerIndex, trigger] of model.triggers.entries()) {
     const triggerPath = ['triggers', trigger.key === '' ? triggerIndex : trigger.key] as const;

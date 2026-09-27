@@ -23,6 +23,7 @@ export const WORKFLOW_FIELD_YAML_KEYS = {
   'job.outputs': 'jobs.<job_id>.outputs.<name>',
   'workflow.run_name': 'run_name',
   'workflow.concurrency.group': 'concurrency.group',
+  'workflow.outputs': 'outputs.<name>',
   'job.execution_name': 'jobs.<job_id>.execution_name',
   'step.name': 'jobs.<job_id>.steps[*].name',
   'step.working_directory': 'jobs.<job_id>.steps[*].working_directory',

@@ -128,7 +128,9 @@ export function workflowModel(input: TestWorkflowModelInput = {}): WorkflowModel
     dependencies: modelJobs.flatMap((job) =>
       job.dependencies.map((dependency) => ({from: dependency, to: job.id})),
     ),
-    ...(input.outputs === undefined ? {} : {outputs: outputTemplates(input.outputs)}),
+    ...(input.outputs === undefined
+      ? {}
+      : {outputs: outputTemplates(input.outputs, 'workflow.outputs')}),
     ...(input.outputTypes === undefined ? {} : {outputTypes: input.outputTypes}),
   };
 }
@@ -154,7 +156,7 @@ function normalizeJob(
     checkout: job.checkout ?? DEFAULT_JOB_CHECKOUT,
     ...(job.if === undefined ? {} : {if: workflowExpression(job.if)}),
     ...(job.success === undefined ? {} : {success: job.success}),
-    ...(job.outputs === undefined ? {} : {outputs: outputTemplates(job.outputs)}),
+    ...(job.outputs === undefined ? {} : {outputs: outputTemplates(job.outputs, 'job.outputs')}),
     ...(job.outputTypes === undefined ? {} : {outputTypes: job.outputTypes}),
     ...(job.name === undefined ? {} : {name: job.name}),
     ...(job.executionName === undefined
@@ -178,11 +180,14 @@ function workflowExpression(source: string) {
   });
 }
 
-function outputTemplates(outputs: Readonly<Record<string, string>>) {
+function outputTemplates(
+  outputs: Readonly<Record<string, string>>,
+  field: 'job.outputs' | 'workflow.outputs',
+) {
   return Object.fromEntries(
     Object.entries(outputs).map(([key, source]) => [
       key,
-      fieldTemplate('job.outputs', source) ?? [{kind: 'literal' as const, value: source}],
+      fieldTemplate(field, source) ?? [{kind: 'literal' as const, value: source}],
     ]),
   );
 }

@@ -1165,17 +1165,19 @@ function articleForStepKind(stepKind: 'agent' | 'checkout' | 'run' | 'tool'): 'a
   return stepKind === 'agent' ? 'an' : 'a';
 }
 
-const workflowDocumentJobOutputsSchema = nonEmptyRecordSchema(z.string().min(1)).superRefine(
-  (outputs, ctx) => {
+function outputsMappingSchema(label: 'Job' | 'Workflow') {
+  return nonEmptyRecordSchema(z.string().min(1)).superRefine((outputs, ctx) => {
     const entries = Object.keys(outputs).length;
     if (entries > WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES) {
       ctx.addIssue({
         code: 'custom',
-        message: `Job outputs cannot define more than ${WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES} entries.`,
+        message: `${label} outputs cannot define more than ${WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES} entries.`,
       });
     }
-  },
-);
+  });
+}
+
+const workflowDocumentJobOutputsSchema = outputsMappingSchema('Job');
 
 export const workflowDocumentJobSchema = z.strictObject({
   needs: stringOrStringArraySchema.optional().meta({
@@ -1236,6 +1238,10 @@ export const workflowDocumentSchema = z.strictObject({
   }),
   jobs: nonEmptyRecordSchema(workflowDocumentJobSchema).meta({
     description: 'Defines the jobs that the workflow runs. Add at least one job.',
+  }),
+  outputs: outputsMappingSchema('Workflow').optional().meta({
+    description:
+      'Creates named outputs from job outputs when a run succeeds. An output that cannot be evaluated fails the run.',
   }),
 });
 

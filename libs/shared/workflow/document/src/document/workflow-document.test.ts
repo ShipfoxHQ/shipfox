@@ -198,6 +198,43 @@ describe('workflowDocumentSchema', () => {
     );
   });
 
+  it('accepts workflow output mappings', () => {
+    const result = workflowDocumentSchema.safeParse({
+      name: 'workflow outputs',
+      outputs: {version: interpolation('jobs.build.outputs.version')},
+      jobs: {
+        build: {
+          steps: [{key: 'build', run: 'npm run build'}],
+          outputs: {version: interpolation('steps.build.outputs.version')},
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects too many workflow output declarations', () => {
+    const outputs = Object.fromEntries(
+      Array.from({length: WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES + 1}, (_, index) => [
+        `output_${index}`,
+        'value',
+      ]),
+    );
+
+    const result = workflowDocumentSchema.safeParse({
+      name: 'workflow outputs',
+      outputs,
+      jobs: {build: {steps: [{run: 'npm run build'}]}},
+    });
+
+    const issue = result.success
+      ? undefined
+      : result.error.issues.find((candidate) => candidate.path.join('.') === 'outputs');
+    expect(issue?.message).toBe(
+      `Workflow outputs cannot define more than ${WORKFLOW_DOCUMENT_JOB_OUTPUTS_MAX_ENTRIES} entries.`,
+    );
+  });
+
   it('accepts and desugars step output declarations', () => {
     const workflowDocument = {
       name: 'typed outputs',
