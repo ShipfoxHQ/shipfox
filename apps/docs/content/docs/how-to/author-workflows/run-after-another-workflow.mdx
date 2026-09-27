@@ -1,0 +1,127 @@
+---
+title: "Run a Workflow After Another One Finishes"
+sidebarTitle: "Run After Another Workflow"
+description: "Start a workflow when a run of another workflow completes, and choose which runs it reacts to."
+---
+
+Use a `run.completed` trigger when one workflow must start after another
+workflow's run ends. Shipfox sends this event from the built-in `shipfox`
+source each time a run attempt succeeds, fails, or is cancelled.
+
+The example below starts a deploy workflow after each successful build run in
+the `api` project. To react to other runs, keep the trigger and change the
+filter.
+
+## Before you begin
+
+You need:
+
+- A synced upstream workflow, and its configuration path.
+- The name of the upstream workflow's project.
+
+## Start a workflow after a successful run
+
+Create `.shipfox/workflows/deploy.yml`. Replace `api` with the upstream
+project's name and `.shipfox/workflows/build.yml` with the upstream workflow's
+configuration path. This is a complete workflow:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Deploy after build
+runner: shipfox
+
+triggers:
+  after_build:
+    source: shipfox
+    event: run.completed
+    filter: >-
+      event.project.name == 'api'
+      && event.workflow.path == '.shipfox/workflows/build.yml'
+      && event.run.origin == 'synced'
+      && event.run.status == 'succeeded'
+
+jobs:
+  deploy:
+    steps:
+      - env:
+          UPSTREAM_WORKFLOW: ${{ event.workflow.name }}
+          UPSTREAM_RUN: ${{ event.run.number }}
+        run: echo "Deploying after $UPSTREAM_WORKFLOW run $UPSTREAM_RUN"
+```
+
+The trigger receives events only once the workflow is synced.
+
+Every workflow that reacts to another run needs three things:
+
+1. **Subscribe to the event.** Set `source: shipfox` and `event: run.completed`.
+2. **Select the runs.** Write a `filter` that names the project, the
+   workflow, the run origin, and the status you want. Without a filter, the
+   trigger matches every run in the workspace, including its own runs.
+3. **Read the upstream run.** Read `event.run`, `event.workflow`, and
+   `event.project` in the jobs. The [Shipfox events
+   reference](/integrations/shipfox/events) lists every field.
+
+In your own workflow, change the filter values and the deploy step.
+
+The downstream run uses its own project's default branch. It doesn't check out
+the upstream run's commit. Read `event.run.ref` and `event.run.commit` if your
+jobs need them.
+
+## Avoid trigger loops
+
+Shipfox doesn't stop a workflow from triggering itself. A trigger that matches
+its own runs starts a new run each time one ends. Two workflows that trigger
+each other loop the same way.
+
+Keep every `run.completed` filter safe with these three conditions:
+
+- **Filter on `event.project.name`.** A configuration path, such as
+  `.shipfox/workflows/build.yml`, can exist in every project of the workspace.
+- **Filter on `event.run.origin`.** Dev runs also send `run.completed`. Filter
+  on `'synced'` to ignore them.
+- **Exclude the workflow's own path** when the filter doesn't name one upstream
+  workflow.
+
+For example, this trigger reacts to failed runs of any workflow in the `api`
+project, except its own runs:
+
+```yaml
+triggers:
+  on_failure:
+    source: shipfox
+    event: run.completed
+    filter: >-
+      event.project.name == 'api'
+      && event.workflow.path != '.shipfox/workflows/notify-failures.yml'
+      && event.run.origin == 'synced'
+      && event.run.status == 'failed'
+```
+
+This fragment replaces the `triggers` map of a workflow stored at
+`.shipfox/workflows/notify-failures.yml` in the `api` project.
+
+## Adapt it to your workflow
+
+| To... | Change this |
+| --- | --- |
+| Pass a value from the upstream run | Declare workflow outputs in the upstream workflow, then read `event.run.outputs.<name>`. See [Publish workflow outputs](/how-to/author-workflows/publish-workflow-outputs). |
+| React to failed or cancelled runs | Compare `event.run.status` with another status. Read `event.run.status_reason` to tell a timeout from a failed job. See [Shipfox events](/integrations/shipfox/events#runcompleted). |
+| React to runs from one trigger | Add a condition on `event.run.trigger.source` or `event.run.trigger.event`. |
+| Skip reruns | Add `event.run.attempt == 1`. Each rerun sends its own `run.completed` event. |
+| Continue a run instead of starting one | Use `run.completed` in a listening job's `on` matcher. See [Listening fields](/reference/workflow-schema#listening-fields). |
+
+## Verify the downstream run
+
+1. Start a run of the upstream workflow that matches your filter.
+2. Wait for the upstream run to end.
+3. Open the downstream workflow's project. Confirm that a new run of the
+   downstream workflow started.
+4. Open its log and confirm that it names the upstream run.
+
+In the example, run **Build** in the `api` project. After it succeeds, a
+**Deploy after build** run starts. Its log contains `Deploying after Build run`
+and the number of the build run.
+
+If no run starts, open **Settings → Events** and filter by source `shipfox`.
+Follow [Troubleshoot events that do not start a
+run](/how-to/run-and-troubleshoot/event-routing).

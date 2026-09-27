@@ -1,0 +1,115 @@
+---
+title: "Publish Workflow Outputs"
+sidebarTitle: "Publish Workflow Outputs"
+description: "Publish values from a successful run so that another workflow can read them."
+---
+
+Use workflow outputs to hand a small value, such as a version or a URL, to the
+next workflow. A successful run sends its outputs in its `run.completed` event.
+
+The example below publishes a version from a build workflow and reads it in a
+deploy workflow. To publish another value, keep the same structure and change
+the names and the command.
+
+## Before you begin
+
+You need a project where both workflows can sync.
+
+## Publish a value from the upstream workflow
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Build
+runner: shipfox
+
+triggers:
+  manual:
+    source: manual
+
+outputs:
+  version: ${{ jobs.build.outputs.version }}
+
+jobs:
+  build:
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - key: version
+        run: echo "version=$(date +%Y.%m.%d)" >> "$SHIPFOX_OUTPUT"
+        outputs:
+          version: string
+```
+
+To publish a workflow output, you need three things:
+
+1. **Create the value in a step.** Declare the step output and write it to
+   `$SHIPFOX_OUTPUT`.
+2. **Publish the value from the job.** Add the value to the job's `outputs`
+   map.
+3. **Publish the value from the workflow.** Add a top-level `outputs` map. Set
+   each entry to an expression that reads `jobs.<job>.outputs.<name>`.
+
+The first two parts are the same as in [Pass values between
+jobs](/how-to/author-workflows/pass-outputs). Only the top-level `outputs` map
+is new.
+
+Shipfox evaluates workflow outputs once, when the run succeeds. A failed or
+cancelled run has no outputs. If an output can't be evaluated, or the outputs
+exceed the [workflow output limits](/reference/limits#workflow-outputs), the run
+fails. Its status reason is `output_invalid` or `output_too_large`.
+
+## Read the value in the downstream workflow
+
+Add `.shipfox/workflows/deploy.yml` to the same project:
+
+```yaml
+# yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
+name: Deploy
+runner: shipfox
+
+triggers:
+  after_build:
+    source: shipfox
+    event: run.completed
+    filter: >-
+      event.project.name == 'api'
+      && event.workflow.path == '.shipfox/workflows/build.yml'
+      && event.run.origin == 'synced'
+      && event.run.status == 'succeeded'
+
+jobs:
+  deploy:
+    steps:
+      - env:
+          VERSION: ${{ event.run.outputs.version }}
+        run: echo "Deploying version $VERSION"
+```
+
+Read each output with `event.run.outputs.<name>`. Filter on
+`event.run.status == 'succeeded'`, because only a successful run carries
+outputs. [Run a workflow after another one
+finishes](/how-to/author-workflows/run-after-another-workflow) explains the
+trigger and its filter.
+
+## Adapt it to your workflow
+
+| To... | Change this |
+| --- | --- |
+| Publish several values | Add one entry per value to the top-level `outputs` map. |
+| Publish structured data | Declare a `json` step output. Set the job output and the workflow output to one expression each and nothing else. See [How outputs move results between jobs](/understand/data-and-templating#how-outputs-move-results-between-jobs). |
+| Combine values in one output | Write text around the expression, such as `api-${{ jobs.build.outputs.version }}`. The result is a string. |
+| Use data other than job outputs | Read `inputs`, `vars`, `run`, `workflow`, `trigger`, or `event` in the expression. See [Context availability](/reference/contexts#context-availability). |
+| Read the outputs in another project | Change the project name in the downstream filter. Workflow outputs reach every workflow in the workspace that matches the event. |
+
+## Verify the workflow outputs
+
+1. Start the upstream workflow and wait for it to succeed.
+2. Open **Settings → Events** and filter by source `shipfox` and event
+   `run.completed`. Open the event of the upstream run. Confirm that
+   `run.outputs` contains each output that you declared.
+3. Open the downstream run that the event started. Confirm that its log
+   contains the value.
+
+In the example, run **Build**. The event contains `run.outputs.version` with
+the current date. The **Deploy** log contains `Deploying version` followed by
+the same date.

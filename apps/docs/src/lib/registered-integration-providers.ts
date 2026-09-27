@@ -101,7 +101,7 @@ export const registeredIntegrationProviders: readonly RegisteredIntegrationProvi
     slug: 'shipfox',
     kind: 'catalog',
     connectable: false,
-    capabilities: ['agent_tools'],
+    capabilities: ['events', 'agent_tools'],
     category: 'built-in',
     displayPriority: 1,
   },

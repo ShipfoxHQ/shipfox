@@ -821,6 +821,9 @@ importers:
       '@shipfox/api-integration-shipfox':
         specifier: workspace:*
         version: link:../../libs/api/integration/shipfox
+      '@shipfox/api-integration-shipfox-dto':
+        specifier: workspace:*
+        version: link:../../libs/api/integration/shipfox-dto
       '@shipfox/api-integration-slack':
         specifier: workspace:*
         version: link:../../libs/api/integration/slack

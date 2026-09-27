@@ -58,7 +58,7 @@ const validInput: IntegrationDocsCompletenessInput = {
       eventCount: 0,
       toolCount: 19,
     },
-    shipfox: {capabilities: ['agent_tools'], eventCount: 0, toolCount: 7},
+    shipfox: {capabilities: ['events', 'agent_tools'], eventCount: 6, toolCount: 7},
   },
   integrationDirectories: {
     github: directory(
@@ -131,8 +131,8 @@ const validInput: IntegrationDocsCompletenessInput = {
       categories: ['observability'],
       aliases: ['analytics', 'product analytics', 'feature flags', 'experiments'],
     }),
-    shipfox: directory('shipfox', ['index', 'tools'], ['tools'], {
-      capabilities: ['agent_tools'],
+    shipfox: directory('shipfox', ['index', 'events', 'tools'], ['events', 'tools'], {
+      capabilities: ['events', 'agent_tools'],
       categories: ['built-in'],
       aliases: ['workflows'],
     }),
@@ -224,11 +224,16 @@ test('rejects a setup page for a built-in catalog provider', () => {
     ...validInput,
     integrationDirectories: {
       ...validInput.integrationDirectories,
-      shipfox: directory('shipfox', ['index', 'setup', 'tools'], ['setup', 'tools'], {
-        capabilities: ['agent_tools'],
-        categories: ['built-in'],
-        aliases: ['workflows'],
-      }),
+      shipfox: directory(
+        'shipfox',
+        ['index', 'setup', 'events', 'tools'],
+        ['setup', 'events', 'tools'],
+        {
+          capabilities: ['events', 'agent_tools'],
+          categories: ['built-in'],
+          aliases: ['workflows'],
+        },
+      ),
     },
   };
 

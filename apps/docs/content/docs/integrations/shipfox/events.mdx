@@ -1,0 +1,26 @@
+---
+title: "Shipfox events"
+sidebarTitle: "Events"
+description: "See which Shipfox run events can start a workflow and what each event contains."
+eventReference: "integrations/shipfox/events"
+---
+
+<Callout type="warn" title="Filter out your own runs">
+  Shipfox doesn't stop a workflow from triggering itself. Filter on
+  `event.project.name` and `event.run.origin`, and exclude the workflow's own
+  path. See [Avoid trigger
+  loops](/how-to/author-workflows/run-after-another-workflow#avoid-trigger-loops).
+</Callout>
+
+Reruns and dev runs send these events too. Filter on `event.run.attempt == 1`
+to skip reruns, or on `event.run.origin == 'synced'` to skip dev runs.
+
+**Settings → Events** lists a Shipfox event only when a workflow was listening
+for it. Runs that ended before you added the trigger have no event to inspect or
+replay.
+
+## Event catalog
+
+The `shipfox` integration is available without any setup.
+
+<EventReference />
