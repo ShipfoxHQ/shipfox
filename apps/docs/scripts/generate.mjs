@@ -84,6 +84,7 @@ import {
   shipfoxAgentToolCatalog,
   shipfoxAgentToolSelectionCatalog,
 } from '@shipfox/api-integration-shipfox/agent-tools';
+import {shipfoxEventCatalog} from '@shipfox/api-integration-shipfox-dto';
 import {
   slackAgentToolCatalog,
   slackAgentToolSelectionCatalog,
@@ -156,6 +157,7 @@ const dtoCatalogBySlug = {
     toolSelectionCatalog: sentryAgentToolSelectionCatalog,
   },
   shipfox: {
+    eventCatalog: shipfoxEventCatalog,
     toolCatalog: shipfoxAgentToolCatalog,
     toolSelectionCatalog: shipfoxAgentToolSelectionCatalog,
   },
@@ -310,8 +312,10 @@ function renderModelProvidersTable() {
 
 // Event reference documents feed the EventReference component, the page TOC,
 // and the machine-readable text. Trigger fragments use a sample connection slug;
-// the custom webhook subscribes to its source without naming an event.
+// the custom webhook subscribes to its source without naming an event, and the
+// built-in Shipfox source has a fixed slug.
 const eventReferenceSamples = {
+  shipfox: {connection: 'shipfox'},
   webhooks: {connection: 'deploy_hook', trigger: {key: 'on_webhook', omitEvent: true}},
 };
 

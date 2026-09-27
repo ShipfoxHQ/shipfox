@@ -1,25 +1,50 @@
 ---
 title: "Shipfox integration"
-description: "Start workflows and inspect workspace runs with the built-in Shipfox tool provider."
+description: "Trigger workflows on Shipfox run events, start workflows, and inspect workspace runs with the built-in Shipfox integration."
 catalog:
   name: "Shipfox"
-  summary: "Start workflows and inspect runs with built-in Shipfox tools."
-  capabilities: ["agent_tools"]
+  summary: "React to Shipfox run events, start workflows, and inspect runs with built-in Shipfox tools."
+  capabilities: ["events", "agent_tools"]
   categories: ["built-in"]
   aliases: ["workflow chaining", "runs", "automation"]
   icon: "shipfox"
 ---
 
-The built-in Shipfox tool provider lets workflow steps start other workflows.
-It also lets agent steps inspect projects, workflow definitions, runs, logs, and
-annotations.
+The built-in Shipfox integration sends events about workflow runs, so one
+workflow can start after another. Its tools let workflow steps start other
+workflows. They also let agent steps inspect projects, workflow definitions,
+runs, logs, and annotations.
 
 ## Authentication
 
-Shipfox tools use the identity of the calling workflow. They require no external
-account, credentials, or setup.
+Shipfox events and tools require no external account, credentials, or setup.
+Shipfox tools use the identity of the calling workflow.
 
-Shipfox tools can only access data in the same workspace as the workflow.
+Shipfox tools can only access data in the same workspace as the workflow. A
+trigger receives Shipfox events only from runs in its own workspace.
+
+## Events
+
+Set `source: shipfox` in a trigger to start a workflow from a run in the same
+workspace. This trigger starts a workflow after a build run succeeds. Its
+`filter` chooses the runs:
+
+```yaml
+triggers:
+  after_build:
+    source: shipfox
+    event: run.completed
+    filter: >-
+      event.project.name == 'api'
+      && event.workflow.path == '.shipfox/workflows/build.yml'
+      && event.run.origin == 'synced'
+      && event.run.status == 'succeeded'
+```
+
+A `run.completed` event carries the run's workflow outputs when the run
+succeeds.
+
+For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
 
 ## Use Shipfox tools
 
@@ -29,9 +54,13 @@ Set `connection: shipfox` in a tool step or agent integration.
 
 | Capability | Details |
 | --- | --- |
+| Events | [View Shipfox events](/integrations/shipfox/events). |
 | Tools | [View Shipfox tools](/integrations/shipfox/tools). |
 
-Use a deterministic tool step to [start another
+[Run a workflow after another one
+finishes](/how-to/author-workflows/run-after-another-workflow), and [publish
+workflow outputs](/how-to/author-workflows/publish-workflow-outputs) for the
+next workflow to read. Use a deterministic tool step to [start another
 workflow](/how-to/author-workflows/start-another-workflow). Give an agent
 read-only tools to [inspect other
 runs](/how-to/author-workflows/inspect-other-runs).

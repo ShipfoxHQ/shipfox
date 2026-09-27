@@ -10,6 +10,7 @@
     "trigger-ready-pull-requests",
     "pass-trigger-inputs",
     "start-another-workflow",
+    "run-after-another-workflow",
     "---Run commands---",
     "run-shell-commands",
     "choose-runners",
@@ -21,6 +22,7 @@
     "inspect-other-runs",
     "---Pass data and call tools---",
     "pass-outputs",
+    "publish-workflow-outputs",
     "call-integration-tool",
     "---Listen for events---",
     "define-listener-success"

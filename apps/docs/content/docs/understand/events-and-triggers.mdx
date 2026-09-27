@@ -26,8 +26,12 @@ and different repositories. A trigger names the integration connection that it
 accepts events from.
 
 Provider event names live in the [Integrations reference](/integrations). For
-built-in sources, see [Run manually](/how-to/author-workflows/run-manually) and
-[Schedule workflows](/how-to/author-workflows/schedule-workflows).
+built-in sources, see [Run manually](/how-to/author-workflows/run-manually),
+[Schedule workflows](/how-to/author-workflows/schedule-workflows), and [Shipfox
+events](/integrations/shipfox/events).
+
+Shipfox itself is also a source. Its events report what happened to runs in
+the workspace, so one workflow can react to the result of another.
 
 ## How a trigger decides to create a run
 
@@ -87,6 +91,7 @@ Each mechanism creates a different kind of record.
 | External event trigger | A delivered event starts independent work. | A new run. |
 | Manual trigger | A person needs a new run on demand. | A new run. |
 | Schedule | Time, not an external event, starts recurring work. | A new run for each tick. |
+| Shipfox run event | Another workflow's run completes and its result should start follow-up work. | A new run, separate from the run that sent the event. |
 | Feedback loop | A check says the current work isn't ready. | A new step attempt in the same job execution. |
 | Listening job | A later event continues work that the run already represents. | A new job execution in the same run. |
 
