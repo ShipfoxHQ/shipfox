@@ -8,6 +8,10 @@ Polls the Shipfox API for jobs and executes their steps on the runner host.
   `PATH`. Each job is executed against a checkout of its project repository, so
   a runner without `git` cannot run repository-backed jobs.
 
+## Container image
+
+The Docker image lowers the runner's OOM score to `-900` at container start. Under memory pressure, the kernel then kills a runaway step before the runner. This needs `CAP_SYS_RESOURCE`, which Docker does not grant by default. Start the container with `--cap-add SYS_RESOURCE` to enable it. Without the capability, the runner starts with the container's default score.
+
 ## Workspace directories
 
 The runner prepares a fresh working directory for every job, runs all the

@@ -20,6 +20,8 @@ ExecStart=/opt/shipfox-runner/scripts/runtime/run-runner.sh /usr/local/bin/node 
 Restart=no
 KillSignal=SIGTERM
 KillMode=control-group
+# Step processes reset their inherited score, so the kernel kills a runaway step before the runner.
+OOMScoreAdjust=-900
 TimeoutStopSec=90s
 StandardOutput=journal+console
 StandardError=journal
