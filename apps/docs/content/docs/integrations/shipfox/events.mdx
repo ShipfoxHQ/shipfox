@@ -16,9 +16,9 @@ Shipfox sends these events from the built-in `shipfox` source. Each run attempt
 sends its own events, so a rerun sends them again with a higher `run.attempt`.
 Dev runs send them too, with `run.origin` set to `dev`.
 
-Shipfox records an event only when a synced trigger or a listening job
-subscribes to it. The event journal and event replay can't show an event that
-no workflow subscribed to.
+**Settings → Events** lists a Shipfox event only when a workflow was listening
+for it. You can't inspect or replay events from runs that ended before you added
+the trigger.
 
 ## Event catalog
 

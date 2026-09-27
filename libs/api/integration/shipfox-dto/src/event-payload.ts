@@ -15,7 +15,7 @@ const outputsSchema = z.record(z.string(), z.unknown()).nullable();
 
 const projectSchema = z
   .object({
-    id: idSchema.describe('Project ID.'),
+    id: idSchema,
     name: nonEmptyStringSchema.describe('Project name when Shipfox delivers the event.'),
   })
   .describe('Project that owns the run.');
@@ -23,7 +23,7 @@ const projectSchema = z
 const workflowSchema = z
   .object({
     id: idSchema.describe('Workflow definition ID.'),
-    name: nonEmptyStringSchema.describe('Workflow `name`.'),
+    name: nonEmptyStringSchema,
     path: nonEmptyStringSchema
       .nullable()
       .describe(
@@ -33,10 +33,10 @@ const workflowSchema = z
   .describe('Workflow that the run executes.');
 
 const runIdentitySchema = z.object({
-  id: idSchema.describe('Run ID.'),
+  id: idSchema,
   number: z.number().int().positive().describe('Run number within the workflow.'),
   attempt: z.number().int().positive().describe('Run attempt. A rerun increments it.'),
-  name: nonEmptyStringSchema.describe('Run name.'),
+  name: nonEmptyStringSchema,
   origin: z
     .enum(['synced', 'dev'])
     .describe('`synced` for a run of a synced workflow definition, `dev` for a dev run.'),
@@ -64,14 +64,14 @@ const runEventPayloadBaseSchema = z.object({
 });
 
 const jobIdentitySchema = z.object({
-  id: idSchema.describe('Job ID.'),
+  id: idSchema,
   key: nonEmptyStringSchema.describe('Job key in the workflow `jobs` map.'),
   mode: z
     .enum(['one_shot', 'listening'])
     .describe('`listening` for a listening job, otherwise `one_shot`.'),
   execution: z
     .object({
-      id: idSchema.describe('Job execution ID.'),
+      id: idSchema,
       sequence: z
         .number()
         .int()
@@ -101,7 +101,7 @@ export type ShipfoxRunRequestedEventPayloadDto = z.infer<
 export const shipfoxRunStartedEventPayloadSchema = runEventPayloadBaseSchema.extend({
   run: runIdentitySchema
     .extend({
-      status: z.literal('running').describe('Run status.'),
+      status: z.literal('running'),
       started_at: timestampSchema.describe('Time the run attempt started running.'),
     })
     .describe('Run that the event is about.'),
@@ -141,7 +141,7 @@ export type ShipfoxRunCompletedEventPayloadDto = z.infer<
 
 const jobQueuedSchema = jobIdentitySchema
   .extend({
-    status: z.literal('pending').describe('Job status.'),
+    status: z.literal('pending'),
     queued_at: timestampSchema.describe('Time the execution was queued.'),
   })
   .describe('Job that the event is about.');
@@ -153,7 +153,7 @@ export type ShipfoxJobQueuedEventPayloadDto = z.infer<typeof shipfoxJobQueuedEve
 
 const jobStartedSchema = jobIdentitySchema
   .extend({
-    status: z.literal('running').describe('Job status.'),
+    status: z.literal('running'),
     runner_labels: z
       .array(nonEmptyStringSchema)
       .min(1)

@@ -4,10 +4,8 @@ sidebarTitle: "Publish Workflow Outputs"
 description: "Publish values from a successful run so that another workflow can read them."
 ---
 
-Use workflow outputs to hand a small value from one workflow to the next.
-Typical values are a version, an image tag, or a URL. A successful run sends
-its workflow outputs in its `run.completed` event. A workflow that triggers on
-that event reads them.
+Use workflow outputs to hand a small value, such as a version or a URL, to the
+next workflow. A successful run sends its outputs in its `run.completed` event.
 
 The example below publishes a version from a build workflow and reads it in a
 deploy workflow. To publish another value, keep the same structure and change
@@ -15,14 +13,9 @@ the names and the command.
 
 ## Before you begin
 
-You need:
-
-- A project where both workflows can sync.
-- A runner for both workflows.
+You need a project where both workflows can sync.
 
 ## Publish a value from the upstream workflow
-
-Create `.shipfox/workflows/build.yml`. This is a complete workflow:
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -67,8 +60,7 @@ fails. Its status reason is `output_invalid` or `output_too_large`.
 
 ## Read the value in the downstream workflow
 
-Create `.shipfox/workflows/deploy.yml` in the same project. Replace `api` with
-the project's name. This is a complete workflow:
+Add `.shipfox/workflows/deploy.yml` to the same project:
 
 ```yaml
 # yaml-language-server: $schema=https://www.shipfox.io/docs/workflow.schema.json
@@ -98,9 +90,6 @@ Read each output with `event.run.outputs.<name>`. Filter on
 outputs. [Run a workflow after another one
 finishes](/how-to/author-workflows/run-after-another-workflow) explains the
 trigger and its filter.
-
-Commit and push both files to the default branch. Wait for **Build** and
-**Deploy** to sync.
 
 ## Adapt it to your workflow
 

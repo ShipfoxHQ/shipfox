@@ -18,7 +18,6 @@ You need:
 
 - A synced upstream workflow, and its configuration path.
 - The name of the upstream workflow's project.
-- A runner for the downstream workflow.
 
 ## Start a workflow after a successful run
 
@@ -50,8 +49,7 @@ jobs:
         run: echo "Deploying after $UPSTREAM_WORKFLOW run $UPSTREAM_RUN"
 ```
 
-Commit and push the file to the default branch. Wait for **Deploy after build**
-to sync. The trigger receives events only after the sync.
+The trigger receives events only once the workflow is synced.
 
 Every workflow that reacts to another run needs three things:
 
