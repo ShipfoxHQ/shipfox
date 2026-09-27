@@ -1,12 +1,12 @@
 import {eq, sql} from 'drizzle-orm';
 import type {JobStatus} from '#core/entities/job.js';
 import type {JobExecutionStatus} from '#core/entities/job-execution.js';
-import type {WorkflowRunStatus} from '#core/entities/workflow-run.js';
+import type {WorkflowRun, WorkflowRunStatus} from '#core/entities/workflow-run.js';
 import type {Tx} from '../db.js';
 import {jobs} from '../schema/jobs.js';
 import {steps} from '../schema/steps.js';
 import {workflowRunAttempts} from '../schema/workflow-run-attempts.js';
-import {workflowRuns} from '../schema/workflow-runs.js';
+import {toWorkflowRun, workflowRuns} from '../schema/workflow-runs.js';
 
 export const TERMINAL_WORKFLOW_RUN_STATUSES: WorkflowRunStatus[] = [
   'succeeded',
@@ -93,4 +93,21 @@ export async function getWorkflowContextForJob(
   const context = rows[0];
   if (!context) throw new Error(`Cannot load workflow context: job ${jobId} not found`);
   return context;
+}
+
+/** The run and job a step dispatch reads for run-scoped interpolation roots. */
+export async function getStepDispatchRunContext(
+  jobId: string,
+  tx: Tx,
+): Promise<{run: WorkflowRun; job: {key: string; name: string | null}}> {
+  const rows = await tx
+    .select({run: workflowRuns, jobKey: jobs.key, jobName: jobs.name})
+    .from(jobs)
+    .innerJoin(workflowRunAttempts, eq(jobs.workflowRunAttemptId, workflowRunAttempts.id))
+    .innerJoin(workflowRuns, eq(workflowRunAttempts.workflowRunId, workflowRuns.id))
+    .where(eq(jobs.id, jobId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw new Error(`Cannot load step dispatch context: job ${jobId} not found`);
+  return {run: toWorkflowRun(row.run), job: {key: row.jobKey, name: row.jobName}};
 }

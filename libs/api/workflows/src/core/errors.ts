@@ -146,6 +146,8 @@ export class InterpolationUnresolvableError extends Error {
       readonly field: InterpolationUnresolvableField;
       readonly source: string;
       readonly envKey?: string;
+      /** The expression reads a context this fill site does not carry, not a missing value. */
+      readonly contextUnavailable?: boolean;
       readonly cause?: unknown;
     },
   ) {
@@ -163,10 +165,15 @@ function interpolationUnresolvableMessage(
     readonly field: InterpolationUnresolvableField;
     readonly source: string;
     readonly envKey?: string;
+    readonly contextUnavailable?: boolean;
   },
 ): string {
   const envSuffix = params.envKey === undefined ? '' : ` (${params.envKey})`;
-  return `Workflow interpolation cannot be resolved for definition ${definitionId}: ${params.field}${envSuffix} uses \`${params.source}\`. Use has(x) ? x : '' for optional references.`;
+  const hint =
+    params.contextUnavailable === true
+      ? 'It reads a context that is not available where this field is filled.'
+      : "Use has(x) ? x : '' for optional references.";
+  return `Workflow interpolation cannot be resolved for definition ${definitionId}: ${params.field}${envSuffix} uses \`${params.source}\`. ${hint}`;
 }
 
 /**

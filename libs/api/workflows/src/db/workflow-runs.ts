@@ -174,7 +174,7 @@ export {
   loadReferencedVariables,
   updateWorkflowRunStatus,
 } from './workflow-runs/runs.js';
-export {getWorkflowContextForJob} from './workflow-runs/shared.js';
+export {getStepDispatchRunContext, getWorkflowContextForJob} from './workflow-runs/shared.js';
 export type {WorkflowRunSourceRead} from './workflow-runs/source.js';
 export {getWorkflowRunSource} from './workflow-runs/source.js';
 export type {

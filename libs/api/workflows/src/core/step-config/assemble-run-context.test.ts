@@ -2019,11 +2019,12 @@ describe('assembleStepDispatchContext', () => {
     });
 
     expect(Object.keys(context.values).sort()).toEqual(
-      [...getWorkflowPredicateContextRoots('step.if')].sort(),
+      [...getWorkflowPredicateContextRoots('step.if'), 'needs'].sort(),
     );
     expect(context).toEqual({
       site: 'step-dispatch',
       values: {
+        needs: [],
         execution: {
           index: 1n,
           name: 'Deploy',
@@ -2072,6 +2073,44 @@ describe('assembleStepDispatchContext', () => {
         vars: {},
       },
     });
+  });
+
+  it('carries run-scoped roots so a segment mixing them with steps can fill', () => {
+    const targetStep = step({id: 'step-2', key: 'post'});
+    const steps = [step({id: 'step-1', key: 'read', status: 'succeeded'}), targetStep];
+    const attempts = [attempt({stepId: 'step-1', output: {status: 'failed'}})];
+
+    const context = assembleStepDispatchContext({
+      steps,
+      attempts,
+      targetStepId: targetStep.id,
+      runContext: {
+        run: {
+          id: 'run-1',
+          number: 1,
+          currentAttempt: 1,
+          name: 'Report',
+          workflowName: 'Report',
+          definitionId: 'def-1',
+          projectId: 'proj-1',
+          workspaceId: 'workspace-1',
+          createdAt: date,
+        },
+        triggerPayload: {
+          source: 'shipfox',
+          event: 'run.completed',
+          deliveryId: 'delivery-1',
+          data: {workflow: {name: 'Deploy'}},
+        },
+      },
+      job: {key: 'report', name: null},
+    });
+    const expression = createWorkflowExpression({
+      source: 'event.workflow.name + " " + steps.read.outputs.status + " in " + job.name',
+      check: {mode: 'syntax'},
+    });
+
+    expect(evaluateWorkflowExpression(expression, context.values)).toBe('Deploy failed in report');
   });
 
   it('uses the latest terminal attempt by execution order and keeps history ordered', () => {

@@ -17,7 +17,7 @@ import {
   InterpolationUnresolvableError,
   ToolConfigInvalidError,
 } from '#core/errors.js';
-import {completeStepDispatchConfig} from './complete-step-dispatch-config.js';
+import {completeStepDispatchConfig, planReadsContext} from './complete-step-dispatch-config.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
 
 function plannedField(source: string) {
@@ -189,6 +189,29 @@ function integrationMcpServers(
     },
   ];
 }
+
+describe('planReadsContext', () => {
+  it('finds a context read by a nested tool input segment', () => {
+    const plan = {
+      tool: {
+        with: {
+          options: {
+            label: plannedField(template('executions.size() + steps.build.outputs.count')).segments,
+          },
+        },
+      },
+    };
+
+    expect(planReadsContext(plan, 'executions')).toBe(true);
+  });
+
+  it('ignores contexts the plan does not read', () => {
+    const plan = {env: {SHA: plannedField(template('steps.build.outputs.sha'))}};
+
+    expect(planReadsContext(plan, 'executions')).toBe(false);
+    expect(planReadsContext(null, 'executions')).toBe(false);
+  });
+});
 
 describe('completeStepDispatchConfig', () => {
   it('completes a deferred session key at the dispatch site with its authored mode', async () => {

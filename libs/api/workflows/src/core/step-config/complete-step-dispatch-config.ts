@@ -7,13 +7,31 @@ import {
 import {capTraceEntries, type ResolvedFieldSegment} from '@shipfox/expression';
 import {Ajv, type AnySchema} from 'ajv';
 import type {AgentDefaultsResolver} from '#core/agent-defaults.js';
-import type {PersistedEvaluationTraceEntry, Step} from '#core/entities/step.js';
+import type {
+  PersistedEvaluationTraceEntry,
+  Step,
+  StepConfigDispatchPlan,
+} from '#core/entities/step.js';
 import {AgentStepSessionClaimError, ToolConfigInvalidError} from '#core/errors.js';
 import {completeAgentConfig, readAgentStepSessionIntent} from './agent.js';
 import {completeStepFieldWithTrace, completeStepFieldWithTypeAndTrace} from './fields.js';
 import {completeRunDispatchConfig} from './run.js';
 import {assertSecretInputDestinations} from './tool.js';
 import type {WorkflowEvaluationContext} from './workflow-evaluation-context.js';
+
+/** True when any deferred segment in the plan reads `root`. */
+export function planReadsContext(plan: StepConfigDispatchPlan | null, root: string): boolean {
+  return valueReadsContext(plan, root);
+}
+
+function valueReadsContext(value: unknown, root: string): boolean {
+  if (Array.isArray(value)) return value.some((entry) => valueReadsContext(entry, root));
+  if (value === null || typeof value !== 'object') return false;
+
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'deferred') return Array.isArray(record.roots) && record.roots.includes(root);
+  return Object.values(record).some((entry) => valueReadsContext(entry, root));
+}
 
 export async function completeStepDispatchConfig(params: {
   readonly step: Step;
