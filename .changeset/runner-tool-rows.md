@@ -3,4 +3,4 @@
 "@shipfox/api-logs": minor
 ---
 
-Adds a `tool_row` raw log record so a runner can append ready tool call and tool result rows. The API stores them as `agent_session` records, the same shape tool steps write.
+Adds a `tool_row` log record so a runner can append tool call and tool result rows to step logs. They read back as `agent_session` rows, like tool-step calls.
