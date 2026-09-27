@@ -4174,6 +4174,9 @@ importers:
       '@shipfox/vitest':
         specifier: workspace:*
         version: link:../../../../tools/vitest
+      ajv:
+        specifier: 'catalog:'
+        version: 8.20.0
 
   libs/api/integration/shipfox-dto:
     dependencies:

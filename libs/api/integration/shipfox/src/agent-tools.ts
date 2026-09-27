@@ -52,6 +52,10 @@ const UUID_PATTERN = new RegExp(UUID_JSON_SCHEMA_PATTERN, 'u');
 const ISO_DATE_PATTERN =
   /^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$/u;
 const ISO_TIME_PATTERN = /^(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?)Z$/u;
+// Tool steps validate input with strict Ajv, which rejects unregistered formats; the
+// provider checks the calendar date itself.
+const UTC_DATE_TIME_JSON_SCHEMA_PATTERN =
+  '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?Z$';
 const WORKFLOW_RUN_STATUSES = [
   'waiting',
   'pending',
@@ -133,7 +137,7 @@ const listWorkflowDefinitionsInputSchema = objectSchema(
   {
     project_id: {
       type: 'string',
-      format: 'uuid',
+      pattern: UUID_JSON_SCHEMA_PATTERN,
       description: 'Project to inspect. Defaults to the calling run project.',
     },
     ...pageInputProperties,
@@ -145,21 +149,22 @@ const listWorkflowRunsInputSchema = objectSchema(
   {
     project_id: {
       type: 'string',
-      format: 'uuid',
+      pattern: UUID_JSON_SCHEMA_PATTERN,
       description: 'Project to inspect. Defaults to the calling run project.',
     },
     workflow: {type: 'string', minLength: 1, description: 'Workflow configuration path.'},
     status: {type: 'string', enum: [...WORKFLOW_RUN_STATUSES]},
-    created_from: {type: 'string', format: 'date-time'},
-    created_to: {type: 'string', format: 'date-time'},
+    created_from: {type: 'string', pattern: UTC_DATE_TIME_JSON_SCHEMA_PATTERN},
+    created_to: {type: 'string', pattern: UTC_DATE_TIME_JSON_SCHEMA_PATTERN},
     ...pageInputProperties,
   },
   [],
 );
 
-const getWorkflowRunInputSchema = objectSchema({run_id: {type: 'string', format: 'uuid'}}, [
-  'run_id',
-]);
+const getWorkflowRunInputSchema = objectSchema(
+  {run_id: {type: 'string', pattern: UUID_JSON_SCHEMA_PATTERN}},
+  ['run_id'],
+);
 
 const startWorkflowRunOutputSchema = objectSchema(
   {
@@ -353,7 +358,7 @@ const getStepLogsInputSchema = {
     {
       type: 'object',
       properties: {
-        step_id: {type: 'string', format: 'uuid'},
+        step_id: {type: 'string', pattern: UUID_JSON_SCHEMA_PATTERN},
         attempt: {type: 'integer', minimum: 1, maximum: 2_147_483_647},
         tail_lines: {
           type: 'integer',
@@ -368,7 +373,7 @@ const getStepLogsInputSchema = {
     {
       type: 'object',
       properties: {
-        run_id: {type: 'string', format: 'uuid'},
+        run_id: {type: 'string', pattern: UUID_JSON_SCHEMA_PATTERN},
         failed_only: {const: true},
         tail_lines: {
           type: 'integer',
@@ -412,9 +417,9 @@ const getStepLogsOutputSchema = objectSchema(
 
 const getRunAnnotationsInputSchema = objectSchema(
   {
-    run_id: {type: 'string', format: 'uuid'},
+    run_id: {type: 'string', pattern: UUID_JSON_SCHEMA_PATTERN},
     attempt: {type: 'integer', minimum: 1, maximum: 2_147_483_647},
-    job_execution_id: {type: 'string', format: 'uuid'},
+    job_execution_id: {type: 'string', pattern: UUID_JSON_SCHEMA_PATTERN},
     limit: {type: 'integer', minimum: 1, maximum: 100, default: 50},
     cursor: {type: 'string', minLength: 1},
   },
@@ -1138,7 +1143,15 @@ function failedCoordinates(coordinate: {
   step_attempt_id: string;
   step_attempt: number;
 }): LogCoordinates {
-  return {...coordinate, attempt: coordinate.step_attempt};
+  return {
+    workflow_run_id: coordinate.workflow_run_id,
+    workflow_run_attempt: coordinate.workflow_run_attempt,
+    job_id: coordinate.job_id,
+    job_execution_id: coordinate.job_execution_id,
+    step_id: coordinate.step_id,
+    step_attempt_id: coordinate.step_attempt_id,
+    attempt: coordinate.step_attempt,
+  };
 }
 
 function isUnavailableLogRead(
