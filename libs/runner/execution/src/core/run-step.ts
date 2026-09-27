@@ -384,9 +384,7 @@ function spawnRunStepProcess(
 // Runner images lower the runner's OOM score, and children inherit it. The process resets its
 // own score before it execs, so the kernel kills a runaway step before the runner or the host's
 // daemons. Resetting from the runner after spawn would race the process's first fork.
-function withDefaultOomScore(
-  launch: ProcessLaunch,
-): Pick<ProcessLaunch, 'executable' | 'args'> {
+function withDefaultOomScore(launch: ProcessLaunch): Pick<ProcessLaunch, 'executable' | 'args'> {
   if (process.platform !== 'linux') return launch;
   return {
     executable: '/bin/sh',
