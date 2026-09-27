@@ -147,14 +147,14 @@ export function parsePackerBaseArtifact(value: unknown): {
   const manifest = record(value, 'Packer manifest');
   const builds = manifest.builds;
   if (!Array.isArray(builds)) throw new Error('Packer manifest builds must be an array.');
-  // Packer prefixes the build-block name onto the source name.
+  // Packer records the source name, not the build-block name.
   const build = builds
     .map((item) => record(item, 'Packer manifest build'))
     .find(
       (item) =>
         item.packer_run_uuid === manifest.last_run_uuid &&
         item.builder_type === 'amazon-ebs' &&
-        item.name === 'base.base',
+        item.name === 'base',
     );
   if (!build) throw new Error('Packer manifest does not include the completed runner base AMI.');
 
