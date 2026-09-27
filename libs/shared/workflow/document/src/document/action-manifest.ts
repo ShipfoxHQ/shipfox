@@ -156,7 +156,7 @@ function matchesValueType(type: WorkflowDocumentStepOutputType, value: unknown):
     case 'boolean':
       return typeof value === 'boolean';
     case 'json':
-      return isJsonValue(value);
+      return isJsonValue(value) && isSerializable(value);
   }
 }
 
@@ -193,4 +193,14 @@ function jsonChildren(value: object): unknown[] | undefined {
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return undefined;
   return Object.values(value);
+}
+
+// YAML aliases can build a cycle, which has no JSON form.
+function isSerializable(value: unknown): boolean {
+  try {
+    JSON.stringify(value);
+    return true;
+  } catch {
+    return false;
+  }
 }

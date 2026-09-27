@@ -1283,8 +1283,10 @@ export function isNormalizedRelativePath(path: string): boolean {
 }
 
 const workflowDocumentSecretReferencePattern = /(?<!\$)\$\{\{[^}]*\bsecrets\b/;
+// `secrets.KEY` or `secrets.<store>.KEY`; the model layer checks the store and
+// key against the secrets schemas.
 const workflowDocumentBareSecretReferencePattern =
-  /^\$\{\{\s*secrets\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}$/;
+  /^\$\{\{\s*secrets(?:\.[A-Za-z_][A-Za-z0-9_]*){1,2}\s*\}\}$/;
 
 // Secret inputs are filled on the runner by input name, so a secret must be
 // the whole value of a top-level input. The model layer repeats the check with

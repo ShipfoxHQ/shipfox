@@ -125,6 +125,31 @@ describe('actionManifestSchema', () => {
     ]);
   });
 
+  it('rejects a cyclic json default', () => {
+    const cyclic: unknown[] = [1];
+    cyclic.push(cyclic);
+
+    const issues = manifestIssues({
+      ...slackThreadManifest,
+      inputs: {filters: {type: 'json', default: cyclic}},
+    });
+
+    expect(issues).toEqual([
+      {path: 'inputs.filters.default', message: 'The default must be a json value.'},
+    ]);
+  });
+
+  it('accepts a json default that reuses one object twice', () => {
+    const shared = {label: 'bug'};
+
+    const issues = manifestIssues({
+      ...slackThreadManifest,
+      inputs: {filters: {type: 'json', default: [shared, shared]}},
+    });
+
+    expect(issues).toEqual([]);
+  });
+
   it('rejects a schema on a scalar value', () => {
     const issues = manifestIssues({
       ...slackThreadManifest,

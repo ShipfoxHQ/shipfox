@@ -118,6 +118,19 @@ describe('action steps', () => {
     ]);
   });
 
+  it.each([
+    'secrets.NPM_TOKEN',
+    'secrets.local.NPM_TOKEN',
+    'secrets.inputs.NPM_TOKEN',
+  ])('accepts a bare %s reference as a top-level input', (reference) => {
+    const issues = stepIssues({
+      uses: './actions/deploy',
+      with: {token: `${'$'}{{ ${reference} }}`},
+    });
+
+    expect(issues).toEqual([]);
+  });
+
   it('accepts an escaped secret reference as a literal string', () => {
     const issues = stepIssues({
       uses: './actions/deploy',
@@ -224,9 +237,10 @@ describe('buildWorkflowJsonSchema actions option', () => {
   it('omits action fields by default', () => {
     const step = stepSchema(buildWorkflowJsonSchema());
 
-    expect(Object.keys(record(step.properties))).not.toEqual(
-      expect.arrayContaining(['uses', 'connections']),
-    );
+    const keys = Object.keys(record(step.properties));
+
+    expect(keys).not.toContain('uses');
+    expect(keys).not.toContain('connections');
     expect(JSON.stringify(step.allOf)).not.toContain('"required":["uses"]');
   });
 
