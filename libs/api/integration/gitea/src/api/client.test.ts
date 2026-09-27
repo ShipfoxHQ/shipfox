@@ -177,9 +177,9 @@ describe('HttpGiteaApiClient', () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         tree: [
-          {path: 'README.md', type: 'blob', size: 12},
-          {path: 'src', type: 'tree'},
-          {path: 'src/index.ts', type: 'blob', size: 34},
+          {path: 'README.md', mode: '100644', type: 'blob', size: 12},
+          {path: 'src', mode: '040000', type: 'tree'},
+          {path: 'src/index.ts', mode: '100644', type: 'blob', size: 34},
         ],
         truncated: false,
       }),
@@ -189,13 +189,35 @@ describe('HttpGiteaApiClient', () => {
     const result = await client.listTree({owner: 'shipfox', repo: 'platform', sha: 'abc123'});
 
     expect(result.blobs).toEqual([
-      {path: 'README.md', size: 12},
-      {path: 'src/index.ts', size: 34},
+      {path: 'README.md', type: 'file', size: 12},
+      {path: 'src/index.ts', type: 'file', size: 34},
     ]);
     expect(result.truncated).toBe(false);
     const url = requestedUrl();
     expect(url.pathname).toBe('/api/v1/repos/shipfox/platform/git/trees/abc123');
     expect(url.searchParams.get('recursive')).toBe('true');
+  });
+
+  it('classifies symlinks and submodules in the tree', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        tree: [
+          {path: 'actions/greet/main.js', mode: '100755', type: 'blob', size: 40},
+          {path: 'actions/greet/link.js', mode: '120000', type: 'blob', size: 7},
+          {path: 'actions/greet/vendor', mode: '160000', type: 'commit'},
+        ],
+        truncated: false,
+      }),
+    );
+    const client = createGiteaApiClient();
+
+    const result = await client.listTree({owner: 'shipfox', repo: 'platform', sha: 'abc123'});
+
+    expect(result.blobs).toEqual([
+      {path: 'actions/greet/main.js', type: 'file', size: 40},
+      {path: 'actions/greet/link.js', type: 'symlink', size: 7},
+      {path: 'actions/greet/vendor', type: 'submodule', size: null},
+    ]);
   });
 
   it('reports a truncated tree', async () => {
@@ -231,6 +253,32 @@ describe('HttpGiteaApiClient', () => {
     const url = requestedUrl();
     expect(url.pathname).toBe('/api/v1/repos/shipfox/platform/contents/.shipfox/workflows/ci.yml');
     expect(url.searchParams.get('ref')).toBe('main');
+  });
+
+  it('rejects file content that is not UTF-8 text', async () => {
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff]);
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        type: 'file',
+        encoding: 'base64',
+        path: 'actions/greet/logo.png',
+        size: bytes.length,
+        content: bytes.toString('base64'),
+      }),
+    );
+    const client = createGiteaApiClient();
+
+    const result = client.fetchFileContent({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'actions/greet/logo.png',
+      ref: 'main',
+    });
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'binary-file-unsupported',
+      message: 'Gitea file actions/greet/logo.png is not UTF-8 text',
+    });
   });
 
   it('rejects a content response that is a directory listing', async () => {

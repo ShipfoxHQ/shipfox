@@ -61,7 +61,7 @@ function githubClient(overrides: Partial<GithubApiClient> = {}): GithubApiClient
     ),
     listRepositoryFiles: vi.fn(() =>
       Promise.resolve({
-        files: [{path: '.shipfox/workflows/ci.yml', size: 64}],
+        files: [{path: '.shipfox/workflows/ci.yml', type: 'file' as const, size: 64}],
         nextCursor: null,
       }),
     ),
@@ -295,6 +295,35 @@ describe('GithubSourceControlProvider', () => {
       limit: 100,
       cursor: undefined,
     });
+  });
+
+  it('keeps symlink and submodule entry types in file listings', async () => {
+    await createInstallation();
+    const github = githubClient({
+      listRepositoryFiles: vi.fn(() =>
+        Promise.resolve({
+          files: [
+            {path: 'actions/greet/link.js', type: 'symlink' as const, size: 9},
+            {path: 'actions/greet/vendor', type: 'submodule' as const, size: 0},
+          ],
+          nextCursor: null,
+        }),
+      ),
+    });
+    const provider = new GithubSourceControlProvider(github);
+
+    const result = await provider.listFiles({
+      connection: connection(),
+      externalRepositoryId: 'github:42',
+      ref: 'main',
+      prefix: 'actions/greet/',
+      limit: 100,
+    });
+
+    expect(result.files).toEqual([
+      {path: 'actions/greet/link.js', type: 'symlink', size: 9},
+      {path: 'actions/greet/vendor', type: 'submodule', size: 0},
+    ]);
   });
 
   it('resolves a branch ref to the commit it points at', async () => {

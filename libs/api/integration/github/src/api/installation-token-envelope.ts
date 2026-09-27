@@ -49,6 +49,7 @@ type MissingProviderErrorReason = Exclude<
   | 'ref-invalid'
   | 'credentials-unavailable'
   | 'search-qualifier-conflict'
+  | 'binary-file-unsupported'
 >;
 const providerErrorReasonSchemaCoversUnion: Record<MissingProviderErrorReason, never> = {};
 void providerErrorReasonSchemaCoversUnion;

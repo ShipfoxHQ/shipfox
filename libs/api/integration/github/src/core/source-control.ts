@@ -192,7 +192,7 @@ export class GithubSourceControlProvider
     });
 
     return {
-      files: page.files.map((file) => ({path: file.path, type: 'file', size: file.size})),
+      files: page.files.map((file) => ({path: file.path, type: file.type, size: file.size})),
       nextCursor: page.nextCursor,
     };
   }

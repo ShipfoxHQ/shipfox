@@ -1,5 +1,10 @@
 import {Buffer} from 'node:buffer';
-import {isRecord, MAX_REPOSITORY_FILE_BYTES} from '@shipfox/api-integration-spi';
+import {
+  decodeRepositoryFileText,
+  type FileEntryType,
+  isRecord,
+  MAX_REPOSITORY_FILE_BYTES,
+} from '@shipfox/api-integration-spi';
 import {logger} from '@shipfox/node-opentelemetry';
 import ky, {HTTPError, TimeoutError} from 'ky';
 import {App, Octokit, RequestError} from 'octokit';
@@ -52,6 +57,7 @@ export interface GithubRepositoryPage {
 
 export interface GithubFileEntry {
   path: string;
+  type: FileEntryType;
   size: number | null;
 }
 
@@ -364,9 +370,14 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
       }
     };
 
-    const collectFile = (data: {path?: string; size?: number; type: string}): void => {
-      if (data.type !== 'file' || !data.path) return;
-      collected.push({path: data.path, size: typeof data.size === 'number' ? data.size : null});
+    const collectFile = (data: GithubContentEntry): void => {
+      const type = githubFileEntryType(data);
+      if (type === null || !data.path) return;
+      collected.push({
+        path: data.path,
+        type,
+        size: typeof data.size === 'number' ? data.size : null,
+      });
     };
 
     const walk = async (path: string, depth: number): Promise<void> => {
@@ -387,8 +398,8 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
     const collectGithubEntry = async (entry: GetContentEntry, depth: number): Promise<boolean> => {
       if (collected.length >= overflowLimit) return false;
       if (!entry.path) return true;
-      if (entry.type === 'file') collectFile(entry);
-      else if (entry.type === 'dir') await walk(entry.path, depth + 1);
+      if (entry.type === 'dir') await walk(entry.path, depth + 1);
+      else collectFile(entry);
       return true;
     };
 
@@ -446,12 +457,15 @@ class OctokitGithubApiClient implements GithubApiClient, GithubBotUserClient {
         'GitHub file response did not include base64 content',
       );
     }
+    const content = decodeRepositoryFileText(Buffer.from(data.content, 'base64'));
+    if (content === null) {
+      throw new GithubIntegrationProviderError(
+        'binary-file-unsupported',
+        `GitHub file ${data.path} is not UTF-8 text`,
+      );
+    }
 
-    return {
-      path: data.path,
-      size: data.size,
-      content: Buffer.from(data.content, 'base64').toString('utf8'),
-    };
+    return {path: data.path, size: data.size, content};
   }
 
   async listRepositoryCommits(input: {
@@ -773,6 +787,20 @@ function parseRetryAfterSeconds(
   if (!retryAfter) return undefined;
   const parsed = Number.parseInt(String(retryAfter), 10);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+interface GithubContentEntry {
+  type: string;
+  path?: string | undefined;
+  size?: number | undefined;
+  download_url?: string | null | undefined;
+}
+
+function githubFileEntryType(entry: GithubContentEntry): FileEntryType | null {
+  if (entry.type === 'symlink' || entry.type === 'submodule') return entry.type;
+  if (entry.type !== 'file') return null;
+  // Directory listings report submodules as `file` entries without a download URL.
+  return entry.download_url === null ? 'submodule' : 'file';
 }
 
 function cursorToPage(cursor: string | undefined): number {

@@ -554,6 +554,32 @@ describe('resolveDefinitionAtRef', () => {
     expect(error.details).toEqual({ref: 'fix-branch', configPath: CONFIG_PATH});
   });
 
+  test('answers invalid-definition when the file is not UTF-8 text', async () => {
+    const clients = withClients({
+      integrations: {
+        fetchSourceFile: () => {
+          throw createInterModuleKnownError(
+            integrationsInterModuleContract.methods.fetchSourceFile,
+            'provider-failure',
+            {reason: 'binary-file-unsupported'},
+          );
+        },
+      },
+    });
+    const error = await expectRefError(
+      resolveDefinitionAtRef({
+        projectId: crypto.randomUUID(),
+        ref: 'fix-branch',
+        configPath: CONFIG_PATH,
+        ...clients,
+      }),
+      'invalid-definition',
+    );
+    expect(error.details).toEqual({
+      errors: [{message: `Workflow file is not UTF-8 text: ${CONFIG_PATH}`}],
+    });
+  });
+
   test('answers source-unavailable when the file fetch fails', async () => {
     const clients = withClients({
       integrations: {
@@ -833,6 +859,56 @@ describe('listDefinitionsAtRef', () => {
       expect.objectContaining({ref: COMMIT, prefix: '.shipfox/workflows/', limit: 100}),
     );
     expect(clients.integrations.getAgentToolsContext).toHaveBeenCalled();
+  });
+
+  test('skips symlinks and submodules in the workflow listing', async () => {
+    const clients = withClients({
+      integrations: {
+        listSourceFiles: vi.fn(async () => ({
+          files: [
+            {path: CONFIG_PATH, type: 'file' as const, size: validYaml.length},
+            {path: '.shipfox/workflows/linked.yml', type: 'symlink' as const, size: 12},
+            {path: '.shipfox/workflows/shared.yml', type: 'submodule' as const, size: 0},
+          ],
+          nextCursor: null,
+        })),
+      },
+    });
+    const result = await listDefinitionsAtRef({
+      projectId: crypto.randomUUID(),
+      ref: 'fix-branch',
+      ...clients,
+    });
+
+    expect(result.files.map((file) => file.configPath)).toEqual([CONFIG_PATH]);
+    expect(clients.integrations.fetchSourceFile).toHaveBeenCalledOnce();
+  });
+
+  test('reports a file that is not UTF-8 text as invalid', async () => {
+    const clients = withClients({
+      integrations: {
+        fetchSourceFile: () => {
+          throw createInterModuleKnownError(
+            integrationsInterModuleContract.methods.fetchSourceFile,
+            'provider-failure',
+            {reason: 'binary-file-unsupported'},
+          );
+        },
+      },
+    });
+    const result = await listDefinitionsAtRef({
+      projectId: crypto.randomUUID(),
+      ref: 'fix-branch',
+      ...clients,
+    });
+
+    expect(result.files).toMatchObject([
+      {
+        configPath: CONFIG_PATH,
+        valid: false,
+        errors: [{message: `Workflow file is not UTF-8 text: ${CONFIG_PATH}`}],
+      },
+    ]);
   });
 
   test('reports an invalid file without failing the listing', async () => {

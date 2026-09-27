@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import {GithubIntegrationProviderError} from '#core/errors.js';
 import {
   GITHUB_STATEFUL_INSTALLATION_TOKEN,
@@ -11,6 +12,7 @@ const {
   authMock,
   createInstallationAccessTokenMock,
   getByUsernameMock,
+  getContentMock,
   listRepositoryCommitsMock,
   octokitOptionsMock,
   requestMock,
@@ -31,6 +33,7 @@ const {
     authMock: vi.fn(),
     createInstallationAccessTokenMock: vi.fn(),
     getByUsernameMock: vi.fn(),
+    getContentMock: vi.fn(),
     listRepositoryCommitsMock: vi.fn(),
     octokitOptionsMock: vi.fn(),
     requestMock: vi.fn(),
@@ -50,7 +53,7 @@ vi.mock('octokit', () => ({
   },
   Octokit: class Octokit {
     rest = {
-      repos: {listCommits: listRepositoryCommitsMock},
+      repos: {getContent: getContentMock, listCommits: listRepositoryCommitsMock},
       users: {getByUsername: getByUsernameMock},
     };
     request = requestMock;
@@ -425,6 +428,141 @@ describe('OctokitGithubApiClient.listRepositoryCommits', () => {
       sha: 'refs/heads/missing',
       per_page: 1,
       request: {signal: expect.any(AbortSignal)},
+    });
+  });
+});
+
+const REPOSITORY_RESPONSE = {
+  data: {
+    id: 42,
+    owner: {login: 'shipfox'},
+    name: 'platform',
+    full_name: 'shipfox/platform',
+    default_branch: 'main',
+    private: true,
+    clone_url: 'https://github.com/shipfox/platform.git',
+    html_url: 'https://github.com/shipfox/platform',
+  },
+};
+
+function contentEntry(entry: {
+  path: string;
+  type: string;
+  size?: number;
+  download_url?: string | null;
+}) {
+  return {
+    size: 0,
+    download_url: `https://raw.githubusercontent.com/shipfox/platform/main/${entry.path}`,
+    ...entry,
+  };
+}
+
+describe('OctokitGithubApiClient.listRepositoryFiles', () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    getContentMock.mockReset();
+    requestMock.mockReset();
+    authMock.mockResolvedValue({token: GITHUB_STATEFUL_INSTALLATION_TOKEN});
+    requestMock.mockResolvedValue(REPOSITORY_RESPONSE);
+  });
+
+  it('walks directories and reports symlinks and submodules next to files', async () => {
+    const directories: Record<string, unknown[]> = {
+      'actions/greet': [
+        contentEntry({path: 'actions/greet/action.yml', type: 'file', size: 64}),
+        contentEntry({path: 'actions/greet/src', type: 'dir'}),
+        contentEntry({path: 'actions/greet/link.js', type: 'symlink', size: 9}),
+        contentEntry({path: 'actions/greet/vendor', type: 'file', download_url: null}),
+      ],
+      'actions/greet/src': [
+        contentEntry({path: 'actions/greet/src/main.js', type: 'file', size: 40}),
+        contentEntry({path: 'actions/greet/src/lib', type: 'submodule', download_url: null}),
+      ],
+    };
+    getContentMock.mockImplementation(({path}: {path: string}) =>
+      Promise.resolve({data: directories[path]}),
+    );
+    const client = createGithubApiClient();
+
+    const result = await client.listRepositoryFiles({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'main',
+      prefix: 'actions/greet/',
+      limit: 100,
+    });
+
+    expect(result).toEqual({
+      files: [
+        {path: 'actions/greet/action.yml', type: 'file', size: 64},
+        {path: 'actions/greet/link.js', type: 'symlink', size: 9},
+        {path: 'actions/greet/src/lib', type: 'submodule', size: 0},
+        {path: 'actions/greet/src/main.js', type: 'file', size: 40},
+        {path: 'actions/greet/vendor', type: 'submodule', size: 0},
+      ],
+      nextCursor: null,
+    });
+    expect(getContentMock).toHaveBeenCalledWith({
+      owner: 'shipfox',
+      repo: 'platform',
+      path: 'actions/greet/src',
+      ref: 'main',
+    });
+  });
+});
+
+describe('OctokitGithubApiClient.fetchRepositoryFile', () => {
+  beforeEach(() => {
+    authMock.mockReset();
+    getContentMock.mockReset();
+    requestMock.mockReset();
+    authMock.mockResolvedValue({token: GITHUB_STATEFUL_INSTALLATION_TOKEN});
+    requestMock.mockResolvedValue(REPOSITORY_RESPONSE);
+  });
+
+  function fileResponse(path: string, bytes: Buffer) {
+    return {
+      data: {
+        type: 'file',
+        encoding: 'base64',
+        path,
+        size: bytes.length,
+        content: bytes.toString('base64'),
+      },
+    };
+  }
+
+  it('decodes UTF-8 file content', async () => {
+    const content = 'name: café\n';
+    getContentMock.mockResolvedValue(fileResponse('action.yml', Buffer.from(content)));
+    const client = createGithubApiClient();
+
+    const result = await client.fetchRepositoryFile({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'main',
+      path: 'action.yml',
+    });
+
+    expect(result).toEqual({path: 'action.yml', size: Buffer.byteLength(content), content});
+  });
+
+  it('rejects file content that is not UTF-8 text', async () => {
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff]);
+    getContentMock.mockResolvedValue(fileResponse('logo.png', bytes));
+    const client = createGithubApiClient();
+
+    const result = client.fetchRepositoryFile({
+      installationId: 1,
+      repositoryId: 42,
+      ref: 'main',
+      path: 'logo.png',
+    });
+
+    await expect(result).rejects.toMatchObject({
+      reason: 'binary-file-unsupported',
+      message: 'GitHub file logo.png is not UTF-8 text',
     });
   });
 });

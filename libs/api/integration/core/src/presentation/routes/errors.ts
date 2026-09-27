@@ -35,7 +35,8 @@ function isProviderError(error: unknown): error is IntegrationProviderError {
         error.reason === 'provider-rejected' ||
         error.reason === 'malformed-provider-response' ||
         error.reason === 'content-too-large' ||
-        error.reason === 'too-many-files'))
+        error.reason === 'too-many-files' ||
+        error.reason === 'binary-file-unsupported'))
   );
 }
 
