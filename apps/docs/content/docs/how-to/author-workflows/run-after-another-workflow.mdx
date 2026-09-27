@@ -1,12 +1,13 @@
 ---
 title: "Run a Workflow After Another One Finishes"
 sidebarTitle: "Run After Another Workflow"
-description: "Start a workflow when a run of another workflow completes, and choose which runs it reacts to."
+description: "Start a workflow when a run or a job of another workflow completes, and choose which ones it reacts to."
 ---
 
 Use a `run.completed` trigger when one workflow must start after another
 workflow's run ends. Shipfox sends this event from the built-in `shipfox`
-source each time a run attempt succeeds, fails, or is cancelled.
+source each time a run attempt succeeds, fails, or is cancelled. Use a
+`job.completed` trigger when the workflow depends on one job of that run.
 
 The example below starts a deploy workflow after each successful build run in
 the `api` project. To react to other runs, keep the trigger and change the
@@ -67,17 +68,43 @@ The downstream run uses its own project's default branch. It doesn't check out
 the upstream run's commit. Read `event.run.ref` and `event.run.commit` if your
 jobs need them.
 
+## Start a workflow after one job finishes
+
+Use `job.completed` when the downstream workflow depends on one job, not on
+the whole run. Shipfox sends the event as soon as that job ends, while other
+jobs of the upstream run can still be running.
+
+This trigger starts a workflow after the `deploy` job of the release workflow
+in the `api` project succeeds:
+
+```yaml
+triggers:
+  after_deploy:
+    source: shipfox
+    event: job.completed
+    filter: >-
+      event.project.name == 'api'
+      && event.workflow.path == '.shipfox/workflows/release.yml'
+      && event.run.origin == 'synced'
+      && event.job.key == 'deploy'
+      && event.job.status == 'succeeded'
+```
+
+Use this fragment as the `triggers` map of your downstream workflow. The
+filter names the job with `event.job.key`, and checks the job's status with
+`event.job.status`. Read the job's outputs from `event.job.outputs`.
+
 ## Avoid trigger loops
 
 Shipfox doesn't stop a workflow from triggering itself. A trigger that matches
 its own runs starts a new run each time one ends. Two workflows that trigger
 each other loop the same way.
 
-Keep every `run.completed` filter safe with these three conditions:
+Keep every Shipfox event filter safe with these three conditions:
 
 - **Filter on `event.project.name`.** A configuration path, such as
   `.shipfox/workflows/build.yml`, can exist in every project of the workspace.
-- **Filter on `event.run.origin`.** Dev runs also send `run.completed`. Filter
+- **Filter on `event.run.origin`.** Dev runs also send Shipfox events. Filter
   on `'synced'` to ignore them.
 - **Exclude the workflow's own path** when the filter doesn't name one upstream
   workflow.

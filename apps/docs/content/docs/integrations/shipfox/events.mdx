@@ -1,7 +1,7 @@
 ---
 title: "Shipfox events"
 sidebarTitle: "Events"
-description: "See which Shipfox run events can start a workflow and what each event contains."
+description: "See which Shipfox run and job events can start a workflow, when each one fires, and what it contains."
 eventReference: "integrations/shipfox/events"
 ---
 
@@ -14,6 +14,22 @@ eventReference: "integrations/shipfox/events"
 
 Reruns and dev runs send these events too. Filter on `event.run.attempt == 1`
 to skip reruns, or on `event.run.origin == 'synced'` to skip dev runs.
+
+## When events fire
+
+Each run attempt sends its own `run.requested`, `run.started`, and
+`run.completed` events. A job that a rerun keeps from the previous attempt
+sends no job events in the new attempt.
+
+A job sends `job.queued` and `job.started` for each of its executions, and
+`job.completed` once. A one-shot job has one execution. A listening job starts
+one execution for each matching event or event batch, so it sends `job.queued`
+and `job.started` many times in one run. Read `event.job.execution.sequence` to
+tell its executions apart. The listening job sends `job.completed` once, when
+it resolves.
+
+A skipped job sends only `job.completed`, with `event.job.status` set to
+`skipped`.
 
 **Settings → Events** lists a Shipfox event only when a workflow was listening
 for it. Runs that ended before you added the trigger have no event to inspect or

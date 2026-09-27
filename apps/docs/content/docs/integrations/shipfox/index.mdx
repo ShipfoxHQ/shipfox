@@ -1,17 +1,17 @@
 ---
 title: "Shipfox integration"
-description: "Trigger workflows on Shipfox run events, start workflows, and inspect workspace runs with the built-in Shipfox integration."
+description: "Trigger workflows on Shipfox run and job events, start workflows, and inspect workspace runs with the built-in Shipfox integration."
 catalog:
   name: "Shipfox"
-  summary: "React to Shipfox run events, start workflows, and inspect runs with built-in Shipfox tools."
+  summary: "React to Shipfox run and job events, start workflows, and inspect runs with built-in Shipfox tools."
   capabilities: ["events", "agent_tools"]
   categories: ["built-in"]
   aliases: ["workflow chaining", "runs", "automation"]
   icon: "shipfox"
 ---
 
-The built-in Shipfox integration sends events about workflow runs, so one
-workflow can start after another. Its tools let workflow steps start other
+The built-in Shipfox integration sends events about workflow runs and jobs, so
+one workflow can start after another. Its tools let workflow steps start other
 workflows. They also let agent steps inspect projects, workflow definitions,
 runs, logs, and annotations.
 
@@ -25,9 +25,9 @@ trigger receives Shipfox events only from runs in its own workspace.
 
 ## Events
 
-Set `source: shipfox` in a trigger to start a workflow from a run in the same
-workspace. This trigger starts a workflow after a build run succeeds. Its
-`filter` chooses the runs:
+Set `source: shipfox` in a trigger to start a workflow from a run or a job in
+the same workspace. This trigger starts a workflow after a build run succeeds.
+Its `filter` chooses the runs:
 
 ```yaml
 triggers:
@@ -42,6 +42,7 @@ triggers:
 ```
 
 A `run.completed` event carries the run's workflow outputs when the run
+succeeds. A `job.completed` event carries the job's outputs when the job
 succeeds.
 
 For trigger field rules, see the [workflow schema reference](/reference/workflow-schema#trigger-fields).
