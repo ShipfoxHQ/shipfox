@@ -17,16 +17,18 @@ to skip reruns, or on `event.run.origin == 'synced'` to skip dev runs.
 
 ## When events fire
 
-Each run attempt sends its own `run.requested`, `run.started`, and
-`run.completed` events. A job that a rerun keeps from the previous attempt
-sends no job events in the new attempt.
+Each run attempt sends its own `run.requested` and `run.completed` events. It
+sends `run.started` only if it starts running, so an attempt cancelled while it
+waits skips it. A job that a rerun keeps from the previous attempt sends no job
+events in the new attempt.
 
-A job sends `job.queued` and `job.started` for each of its executions, and
-`job.completed` once. A one-shot job has one execution. A listening job starts
-one execution for each matching event or event batch, so it sends `job.queued`
-and `job.started` many times in one run. Read `event.job.execution.sequence` to
-tell its executions apart. The listening job sends `job.completed` once, when
-it resolves.
+A job sends `job.queued` when an execution is queued, `job.started` when a
+runner claims that execution, and `job.completed` once. An execution cancelled
+before a runner claims it sends no `job.started`. A one-shot job has one
+execution. A listening job starts one execution for each matching event or
+event batch, so it sends `job.queued` and `job.started` many times in one run.
+Read `event.job.execution.sequence` to tell its executions apart. The listening
+job sends `job.completed` once, when it resolves.
 
 A skipped job sends only `job.completed`, with `event.job.status` set to
 `skipped`.
