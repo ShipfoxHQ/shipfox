@@ -28,9 +28,6 @@ const HTTP_METHODS = new Set([
 
 const meter = instanceMetrics.getMeter('node-fastify');
 
-const requestCount = meter.createCounter<RequestMetricLabels>('fastify_request', {
-  description: 'Fastify requests completed by route, method, and response status',
-});
 const requestDuration = meter.createHistogram<RequestMetricLabels>('fastify_request_duration', {
   description: 'Fastify request duration by route, method, and response status',
   unit: 'ms',
@@ -83,7 +80,6 @@ export function registerFastifyMetrics(app: FastifyInstance): void {
     requests.delete(request);
     activeRequests.add(-1, active.labels);
     const labels = {...active.labels, status_code: statusCode};
-    requestCount.add(1, labels);
     requestDuration.record(performance.now() - active.start, labels);
   }
 }

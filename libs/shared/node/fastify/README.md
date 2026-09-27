@@ -14,7 +14,8 @@ Fastify setup for Shipfox Node services. It adds Zod validation, CORS, Swagger, 
 - **Auth hooks** can be set on routes or route groups.
 - **Route groups** support prefixes, inherited auth, and scoped plugins.
 - **Swagger** is on by default and serves `GET /openapi.json`.
-- **OpenTelemetry metrics** record normalized request counts, duration, active requests, and readiness.
+- **OpenTelemetry metrics** record normalized request duration (with its count), active requests, and readiness.
+- **Request logs** write one `request completed` line per request with the request, status, route, and duration. A client error adds a `clientError` field to that line instead of a separate record.
 
 Environment variables (via `@shipfox/config`):
 
@@ -109,6 +110,10 @@ import { ClientError } from "@shipfox/node-fastify";
 // Returns { "code": "not-found" } with status 404.
 throw new ClientError("User not found", "not-found", { status: 404 });
 ```
+
+The message and `data` go to the request log line, never to the client. A
+route `errorHandler` also maps errors thrown by its handler, so tracing records
+the mapped client error rather than the original one.
 
 ## Development
 

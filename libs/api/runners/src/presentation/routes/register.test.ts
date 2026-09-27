@@ -160,7 +160,7 @@ describe('POST /runners/register', () => {
     });
   });
 
-  it('rejects registration without a capability manifest before creating a runner session', async () => {
+  it('asks an outdated runner to upgrade before creating a runner session', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/runners/register',
@@ -169,6 +169,13 @@ describe('POST /runners/register', () => {
     });
 
     expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      code: 'runner-upgrade-required',
+      details: {
+        message:
+          'This runner version is too old for this Shipfox API. Upgrade the runner to the latest release.',
+      },
+    });
     const rows = await db()
       .select()
       .from(runnerSessions)
@@ -192,6 +199,7 @@ describe('POST /runners/register', () => {
     });
 
     expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({code: 'validation-error'});
     const rows = await db()
       .select()
       .from(runnerSessions)

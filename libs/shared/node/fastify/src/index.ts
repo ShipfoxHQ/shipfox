@@ -8,6 +8,7 @@ import {registerCors} from './cors.js';
 import {
   errorHandler as defaultErrorHandler,
   notFoundHandler as defaultNotFoundHandler,
+  getClientErrorLog,
 } from './errorHandler.js';
 import {registerHealthChecks} from './health.js';
 import {registerFastifyMetrics} from './metrics.js';
@@ -58,12 +59,28 @@ export async function createApp(appConfig?: AppConfig): Promise<FastifyInstance>
 
   const fastify = Fastify({
     loggerInstance: logger(),
+    disableRequestLogging: true,
     ...appConfig?.fastifyOptions,
   });
 
   const fastifyInstrumentation = getFastifyInstrumentation();
   if (fastifyInstrumentation) await fastify.register(fastifyInstrumentation.plugin());
   registerFastifyMetrics(fastify);
+  // One line per request instead of Fastify's `incoming request` and `request completed` pair.
+  fastify.addHook('onResponse', (request, reply, done) => {
+    const clientError = getClientErrorLog(request);
+    request.log.info(
+      {
+        req: request,
+        statusCode: reply.statusCode,
+        route: request.routeOptions.url,
+        responseTime: reply.elapsedTime,
+        ...(clientError === undefined ? {} : {clientError}),
+      },
+      'request completed',
+    );
+    done();
+  });
 
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);

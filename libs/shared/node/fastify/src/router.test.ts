@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {closeApp, createApp, defineRoute} from './index.js';
+import {ClientError, closeApp, createApp, defineRoute} from './index.js';
 import type {RouteGroup} from './types.js';
 
 afterEach(async () => {
@@ -154,6 +154,35 @@ describe('route mounting', () => {
     const res = await app.inject({method: 'GET', url: '/fail'});
     expect(res.statusCode).toBe(418);
     expect(res.json()).toEqual({custom: true});
+  });
+
+  test('maps a handler error with the route error handler before rethrowing it', async () => {
+    class ConflictError extends Error {}
+    const errorHandler = vi.fn((error: unknown) => {
+      if (error instanceof ConflictError)
+        throw new ClientError('Already exists', 'conflict', {status: 409});
+      throw error;
+    });
+    const app = await createApp({
+      routes: [
+        {
+          method: 'POST',
+          path: '/items',
+          description: 'Create an item',
+          handler: () => {
+            throw new ConflictError('duplicate key');
+          },
+          errorHandler,
+        },
+      ],
+    });
+
+    const res = await app.inject({method: 'POST', url: '/items'});
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({code: 'conflict'});
+    expect(errorHandler).toHaveBeenCalledTimes(2);
+    expect(errorHandler.mock.calls[1]?.[0]).toBeInstanceOf(ClientError);
   });
 
   test('route preHandler runs after auth and schema validation', async () => {
