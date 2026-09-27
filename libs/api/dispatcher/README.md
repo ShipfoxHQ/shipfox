@@ -49,7 +49,7 @@ dedicated-drainer deployment is available.
 ## Behavior notes
 
 While the outbox stays empty, the drainer doubles its wait after each check, up
-to 2 seconds. It returns to `OUTBOX_DISPATCH_POLL_MS` after it claims an event.
+to 2 seconds or `OUTBOX_DISPATCH_POLL_MS`, whichever is longer. It returns to `OUTBOX_DISPATCH_POLL_MS` after it claims an event.
 An event written in the same process ends an idle wait, and the drainer checks
 the outbox one poll interval later. That gives the writer's transaction time to
 commit.

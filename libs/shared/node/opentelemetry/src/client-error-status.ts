@@ -53,7 +53,9 @@ export class ClientErrorStatusSpanProcessor implements SpanProcessor {
 }
 
 function clientErrorReason(exception: Exception): {type: string; message: string} | undefined {
-  if (typeof exception !== 'object' || !('statusCode' in exception)) return undefined;
+  if (typeof exception !== 'object' || exception === null || !('statusCode' in exception)) {
+    return undefined;
+  }
   const {statusCode, code, message} = exception as {
     statusCode: unknown;
     code?: unknown;

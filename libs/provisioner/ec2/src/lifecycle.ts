@@ -831,6 +831,31 @@ async function applyObservedInstances(
   )
     return;
 
+  const converge = async () => {
+    await assignEnrolledReservations(context, assignments);
+    await terminateInstances(
+      context,
+      plan.terminateIntentInstances,
+      'backend-terminate',
+      plan.forcedTerminateIntentIds,
+      plan.terminationAuthorizationReasons,
+      plan.terminationDeadlines,
+      plan.missingStoppingTimestampIntentIds,
+    );
+    if (plan.events.length > 0)
+      await reportEvents(context, plan.events, plan.terminalReportInstanceIds);
+    // Retries reports that failed earlier, including in this pass.
+    await reportEvents(context, []);
+  };
+  // Every pass re-reports each live instance, so routine state reports alone stay untraced.
+  const hasWork =
+    assignments.size > 0 ||
+    plan.terminateIntentInstances.length > 0 ||
+    plan.events.some((event) => event.state === 'failed' || event.state === 'terminated');
+  if (!hasWork) {
+    await withoutTracing(converge);
+    return;
+  }
   await withWorkSpan(
     'provisioner.ec2.converge',
     {
@@ -838,22 +863,7 @@ async function applyObservedInstances(
       'provisioner.terminate_count': plan.terminateIntentInstances.length,
       'provisioner.report_count': plan.events.length,
     },
-    async () => {
-      await assignEnrolledReservations(context, assignments);
-      await terminateInstances(
-        context,
-        plan.terminateIntentInstances,
-        'backend-terminate',
-        plan.forcedTerminateIntentIds,
-        plan.terminationAuthorizationReasons,
-        plan.terminationDeadlines,
-        plan.missingStoppingTimestampIntentIds,
-      );
-      if (plan.events.length > 0)
-        await reportEvents(context, plan.events, plan.terminalReportInstanceIds);
-      // Retries reports that failed earlier, including in this pass.
-      await reportEvents(context, []);
-    },
+    converge,
   );
 }
 
