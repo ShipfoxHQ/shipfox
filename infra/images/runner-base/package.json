@@ -17,7 +17,8 @@
     "build-runner-base": "./bin/build-runner-base.js",
     "plan-runner-base": "./bin/plan-runner-base.js",
     "publish-runner-base": "./bin/publish-runner-base.js",
-    "runner-base-recipe": "./bin/runner-base-recipe.js"
+    "runner-base-recipe": "./bin/runner-base-recipe.js",
+    "select-runner-base": "./bin/select-runner-base.js"
   },
   "scripts": {
     "build": "shipfox-swc",

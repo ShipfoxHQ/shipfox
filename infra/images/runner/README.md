@@ -6,14 +6,17 @@
 
 Builds run the production deploy inside the target VM. This is required because the runner contains architecture-specific native payloads. The wrapper obtains the Node version from `mise`, prunes `@shipfox/runner`, and then invokes Packer.
 
-Each bake starts with the OS preparation script exported by [`@shipfox/runner-base`](../runner-base/README.md): OS packages, snapd and SSM agent removal, and apt cleanup. The runner stage then removes cloud-init and adds the swap file, the `shipfox` user, Node, pnpm, the runner, and the boot, network, and hardening policy. AWS and QEMU builds still start from Canonical Ubuntu 24.04.
+Candidate AWS builds start from an exact verified base AMI published by [`@shipfox/runner-base`](../runner-base/README.md). That base already holds the OS packages, with snapd and the SSM agent removed. Direct release and QEMU builds keep the complete build: they start from Canonical Ubuntu 24.04 and run the base package's OS preparation script first. Both paths then run the same runner stage. It removes cloud-init and adds the swap file, the `shipfox` user, Node, pnpm, the runner, and the boot, network, and hardening policy.
+
+The source is explicit per lifecycle. A candidate AWS build fails without a base selection. A release or QEMU build fails with one, so a release never starts from a base encrypted under the candidate key.
 
 ```sh
-BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS=123456789012,210987654321 BUILD_CANDIDATE_KMS_KEY_ID=alias/shipfox-runner-image-candidate BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image-candidate.js --output /tmp/runner-image-candidate.json
+node infra/images/runner-base/bin/select-runner-base.js --output /tmp/runner-base-selection.json
+BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS=123456789012,210987654321 BUILD_CANDIDATE_KMS_KEY_ID="$(jq -r .kmsKeyArn /tmp/runner-base-selection.json)" BUILD_RUNNER_BASE_SELECTION="$(cat /tmp/runner-base-selection.json)" BUILD_NUMBER=42 BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image-candidate.js --output /tmp/runner-image-candidate.json
 BUILD_ARCH=amd64 BUILD_ATTEMPT=1 BUILD_NUMBER=42 BUILD_RUNNER_VERSION=0.1.0 pnpm --filter=@shipfox/runner-image exec node ./bin/build-runner-image.js ubuntu24 qemu
 ```
 
-The AMI source uses Canonical Ubuntu 24.04 and requires AWS credentials in `eu-central-1`. The QEMU build uses a pinned Canonical Ubuntu 24.04 release image. Packer accesses QEMU through a temporary NoCloud seed. The seed is consumed during the build and is not part of the runtime contract. To use a different QEMU source, set `SHIPFOX_QEMU_SOURCE_IMAGE` and `SHIPFOX_QEMU_SOURCE_CHECKSUM` (for example, `sha256:<digest>`). Relative source paths resolve from the repository root.
+AMI builds require AWS credentials in `eu-central-1`. The QEMU build uses a pinned Canonical Ubuntu 24.04 release image. Packer accesses QEMU through a temporary NoCloud seed. The seed is consumed during the build and is not part of the runtime contract. To use a different QEMU source, set `SHIPFOX_QEMU_SOURCE_IMAGE` and `SHIPFOX_QEMU_SOURCE_CHECKSUM` (for example, `sha256:<digest>`). Relative source paths resolve from the repository root.
 
 Packer is pinned in `mise.toml`. Install QEMU and `xorriso` through the host operating system before running a QEMU build.
 
@@ -105,8 +108,9 @@ marker disappear when the instance is terminated with its root volume.
 ### Image freshness
 
 The image does not update packages after the bake. After a normal merge to
-`main`, CI builds a candidate when effective inputs changed or the newest
-published pair is at least five days old. Candidates expire after 14 days.
+`main`, CI builds a candidate when effective inputs changed, when the selected
+runner base generation differs from the newest published pair's, or when that
+pair is at least five days old. Candidates expire after 14 days.
 
 Release promotion should happen at least weekly. When a candidate is stale,
 rebuild or republish it and investigate the release promotion path before using
@@ -198,12 +202,46 @@ only after those checks pass. It builds the complete `amd64` and `arm64` pair
 when any effective runner image input changed since the newest published pair.
 It also refreshes an unchanged pair when that pair is at least five days old.
 
+### Base selection
+
+The plan selects one verified base generation for both architectures from the
+`/shipfox/runner-base/ubuntu24/current` pointer. The generation must match this
+revision's base recipe and the candidate key. Both AMIs must be available and
+tagged `verified`, and the older AMI must be at most seven days old.
+The run warns when that AMI is more than two days old. When no published base is
+acceptable, a separate job calls the reusable **Publish runner base** workflow
+without forcing a build. That workflow re-plans after it acquires its
+publication slot, so concurrent callers do not bake the same base twice. A
+second job then selects the new pointer. If the refresh fails, no candidate is
+built.
+
+Both architecture jobs receive the same selection, including exact AMI IDs and
+the base key ARN. Each job rechecks its base AMI immediately before launch. It
+refuses a selection more than one day old. A delayed or re-run job therefore
+never launches from a base that retention may delete after nine days. Re-run all jobs
+to select again. Candidate AMIs record `shipfox.base_generation`,
+`shipfox.base_recipe`, and `shipfox.source_ami_id`. The job summary and the
+candidate result file report the same provenance. The v1 manifest is unchanged.
+
+A new generation on the pointer makes the next revision bake, including a
+generation from the daily base schedule. A newest published pair without base
+tags, from before base-derived builds, also makes the next revision bake. Base
+package changes reach candidates through the base generation, so they are not
+effective inputs. A scheduled base publication does not start a candidate by
+itself.
+
+When only one architecture of the current revision exists, the plan completes
+the pair from the generation recorded on the surviving AMI. That generation must
+still be available, verified, compatible, and at most seven days old. An architecture job refuses to complete a pair started from another
+generation or from a complete build. In that case, deregister the unpublished
+candidate AMI or publish a new `main` revision.
+
 A published pair has both AMIs and a manifest in
 `ghcr.io/shipfoxhq/runner-image-candidates`. A revision that fails the required
 checks keeps its AMIs until they expire. It never becomes the baseline, so the
 next revision still builds and publishes its runner changes.
 
-Effective inputs include the runner image and runner base directories, the
+Effective inputs include the runner image directory, the
 runner's production workspace dependency closure, the lockfile, workspace
 configuration, and relevant toolchain pins. CI derives the package closure from workspace package
 manifests. An incomplete inventory, manifest listing, Git comparison, or
@@ -215,13 +253,17 @@ reuses those AMIs and its immutable manifest.
 
 Use the **Publish runner image candidate** workflow to publish an exact revision
 reachable from `main`. Manual publication bypasses the age gate. Existing
-exact-revision candidates remain idempotent.
+exact-revision candidates remain idempotent. It selects a base the same way as
+`main` CI, against the revision's own base recipe. A refresh builds `main`'s
+current recipe, so a historical revision whose recipe `main` no longer publishes
+fails selection and needs a separately scoped base build. Revisions from before
+base-derived candidates cannot be published through this workflow.
 
 Candidates are not releases. CI shares them only with the configured
 worker-plane accounts. The v1 OCI manifest references only the two AMIs built
 from its full source revision. There is no moving `latest` or `main` pointer.
 
-The candidate command writes its AMI ID, architecture, region, owner, creation time, expiration time, source SHA, and whether it built or reused the image to its required `--output` JSON file. The AMI tags are the discovery contract. Internal users resolve an available image by its exact source SHA and architecture with `shipfox.managed=true`, `shipfox.lifecycle=candidate`, `shipfox.candidate_id`, `shipfox.revision`, and `shipfox.architecture`. Candidates are encrypted with `BUILD_CANDIDATE_KMS_KEY_ID`, shared with the comma-separated or JSON-array account IDs in `BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS`, and retain the 14-day expiry.
+The candidate command writes its AMI ID, architecture, region, owner, creation time, expiration time, source SHA, and base provenance to its required `--output` JSON file. The file also records whether the command built or reused the image. `BUILD_RUNNER_BASE_SELECTION` holds the JSON selection from `select-runner-base`, and `BUILD_CANDIDATE_KMS_KEY_ID` must then be the selection's key ARN. The AMI tags are the discovery contract. Internal users resolve an available image by its exact source SHA and architecture with `shipfox.managed=true`, `shipfox.lifecycle=candidate`, `shipfox.candidate_id`, `shipfox.revision`, and `shipfox.architecture`. Candidates are encrypted with `BUILD_CANDIDATE_KMS_KEY_ID`, shared with the comma-separated or JSON-array account IDs in `BUILD_CANDIDATE_CONSUMER_ACCOUNT_IDS`, and retain the 14-day expiry.
 
 CI assumes `AWS_RUNNER_IMAGE_ROLE_ARN` through GitHub OIDC. Repository variables `AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID` and `AWS_RUNNER_IMAGE_CANDIDATE_CONSUMER_ACCOUNT_IDS` supply the candidate distribution inputs; account IDs are intentionally not Packer source defaults. The role must belong to the candidate account and trust only `ShipfoxHQ/shipfox` builds from `main`. Candidate AMIs must not be used by production provisioning.
 

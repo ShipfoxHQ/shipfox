@@ -192,6 +192,10 @@ export function mergeRunnerImageCandidateManifests(
   if (candidates.some((candidate) => candidate.revision !== input.revision)) {
     throw new Error('Runner image candidates must describe the same source revision.');
   }
+  const generations = new Set(candidates.map((candidate) => candidate.base?.generation ?? null));
+  if (generations.size > 1) {
+    throw new Error('Runner image candidates must share one runner base generation.');
+  }
   return createRunnerImageCandidateManifest({...input, images: [...candidates]});
 }
 
@@ -363,11 +367,23 @@ function readRunnerImageCandidate(path: string): RunnerImageCandidate {
     typeof candidate.owner !== 'string' ||
     typeof candidate.region !== 'string' ||
     typeof candidate.revision !== 'string' ||
-    (candidate.status !== 'built' && candidate.status !== 'reused')
+    (candidate.status !== 'built' && candidate.status !== 'reused') ||
+    !isCandidateBase(candidate.base)
   ) {
     throw new Error(`Runner image candidate ${path} is missing required metadata.`);
   }
   return candidate as RunnerImageCandidate;
+}
+
+function isCandidateBase(value: unknown): boolean {
+  if (value === null) return true;
+  if (!value || typeof value !== 'object') return false;
+  const base = value as Record<string, unknown>;
+  return (
+    typeof base.generation === 'string' &&
+    typeof base.recipeDigest === 'string' &&
+    typeof base.sourceAmiId === 'string'
+  );
 }
 
 function writeManifest(

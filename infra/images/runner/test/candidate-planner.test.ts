@@ -1,4 +1,5 @@
 import type {Image} from '@aws-sdk/client-ec2';
+import {type RunnerBaseSelection, RunnerBaseSelectionError} from '@shipfox/runner-base';
 import {
   findEffectiveChanges,
   inspectCandidateInventory,
@@ -12,12 +13,15 @@ const CURRENT_REVISION = '2222222222222222222222222222222222222222';
 const PRIOR_REVISION = '1111111111111111111111111111111111111111';
 const UNPUBLISHED_REVISION = '3333333333333333333333333333333333333333';
 const NOW = new Date('2026-09-20T12:00:00.000Z');
+const BASE_GENERATION = '18000000000-1';
+const NEW_BASE_GENERATION = '18100000000-1';
 
 function candidate(
   architecture: 'amd64' | 'arm64',
   revision = PRIOR_REVISION,
   createdAt = '2026-09-18T12:00:00.000Z',
   amiSuffix = architecture === 'amd64' ? '1' : '2',
+  baseGeneration: string | null = BASE_GENERATION,
 ): Image {
   return {
     Architecture: architecture === 'amd64' ? 'x86_64' : 'arm64',
@@ -30,6 +34,30 @@ function candidate(
       {Key: 'shipfox.candidate_id', Value: `main-${revision}`},
       {Key: 'shipfox.revision', Value: revision},
       {Key: 'shipfox.architecture', Value: architecture},
+      ...(baseGeneration ? [{Key: 'shipfox.base_generation', Value: baseGeneration}] : []),
+    ],
+  };
+}
+
+function baseSelection(generation = BASE_GENERATION): RunnerBaseSelection {
+  return {
+    generation,
+    recipeDigest: `sha256:${'a'.repeat(64)}`,
+    kmsKeyArn: 'arn:aws:kms:eu-central-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab',
+    owner: '123456789012',
+    createdAt: '2026-09-19T12:00:00.000Z',
+    selectedAt: NOW.toISOString(),
+    images: [
+      {
+        architecture: 'amd64',
+        amiId: 'ami-aaaaaaaaaaaaaaaaa',
+        createdAt: '2026-09-19T12:00:00.000Z',
+      },
+      {
+        architecture: 'arm64',
+        amiId: 'ami-bbbbbbbbbbbbbbbbb',
+        createdAt: '2026-09-19T12:05:00.000Z',
+      },
     ],
   };
 }
@@ -41,10 +69,13 @@ function plannerDependencies(
     isAncestor?: boolean;
     publishedRevisions?: string[];
     resolveEffectiveDirectories?: () => string[];
+    selectBase?: (generation?: string) => Promise<RunnerBaseSelection>;
   } = {},
 ) {
   return {
     listImages: async () => images,
+    selectBase:
+      overrides.selectBase ?? ((generation?: string) => Promise.resolve(baseSelection(generation))),
     listPublishedRevisions: () => overrides.publishedRevisions ?? [PRIOR_REVISION],
     resolveEffectiveDirectories:
       overrides.resolveEffectiveDirectories ?? (() => ['apps/runner', 'libs/runner/agent']),
@@ -65,6 +96,23 @@ describe('runner image candidate planner', () => {
     expect(result.mode).toBe('reuse-current');
     expect(result.reason).toBe('current-pair-exists');
     expect(result.priorPair?.revision).toBe(CURRENT_REVISION);
+    expect(result.base).toBeNull();
+  });
+
+  it('keeps an exact-revision pair without selecting a base', async () => {
+    const images = [
+      candidate('amd64', CURRENT_REVISION, undefined, undefined, null),
+      candidate('arm64', CURRENT_REVISION, undefined, undefined, null),
+    ];
+    const selectBase = vi.fn();
+
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      {...plannerDependencies(images), selectBase},
+    );
+
+    expect(result.mode).toBe('reuse-current');
+    expect(selectBase).not.toHaveBeenCalled();
   });
 
   it('reuses the current pair without listing published revisions', async () => {
@@ -183,11 +231,11 @@ describe('runner image candidate planner', () => {
     expect(result.priorPair?.revision).toBe(PRIOR_REVISION);
   });
 
-  it('builds both architectures when the newest inventory group is partial', async () => {
+  it('builds when the newest inventory group is partial', async () => {
     const images = [
       candidate('amd64'),
       candidate('arm64'),
-      candidate('amd64', CURRENT_REVISION, '2026-09-19T12:00:00.000Z', '3'),
+      candidate('amd64', UNPUBLISHED_REVISION, '2026-09-19T12:00:00.000Z', '3'),
     ];
 
     const result = await planRunnerImageCandidate(
@@ -197,6 +245,106 @@ describe('runner image candidate planner', () => {
 
     expect(result.mode).toBe('build');
     expect(result.reason).toBe('partial-candidate-pair');
+  });
+
+  it('completes a partial current pair from its surviving base generation', async () => {
+    const selectBase = vi.fn((generation?: string) => Promise.resolve(baseSelection(generation)));
+    const images = [
+      candidate('amd64'),
+      candidate('arm64'),
+      candidate('amd64', CURRENT_REVISION, '2026-09-19T12:00:00.000Z', '3', NEW_BASE_GENERATION),
+    ];
+
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      plannerDependencies(images, {selectBase}),
+    );
+
+    expect(result.mode).toBe('build');
+    expect(result.reason).toBe('partial-current-pair');
+    expect(selectBase).toHaveBeenCalledWith(NEW_BASE_GENERATION);
+    expect(result.base).toMatchObject({
+      action: 'select',
+      reason: 'recover-partial-pair',
+      selection: {generation: NEW_BASE_GENERATION},
+    });
+  });
+
+  it('fails open without recovery when the surviving current image predates base images', async () => {
+    const images = [
+      candidate('amd64'),
+      candidate('arm64'),
+      candidate('amd64', CURRENT_REVISION, '2026-09-19T12:00:00.000Z', '3', null),
+    ];
+
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      plannerDependencies(images),
+    );
+
+    expect(result.reason).toBe('planner-failed-open');
+    expect(result.detail).toContain('predates runner base images');
+    expect(result.base).toMatchObject({action: 'refresh', selection: null});
+  });
+
+  it('builds a new revision when the selected base generation changed', async () => {
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      plannerDependencies([candidate('amd64'), candidate('arm64')], {
+        selectBase: () => Promise.resolve(baseSelection(NEW_BASE_GENERATION)),
+      }),
+    );
+
+    expect(result.mode).toBe('build');
+    expect(result.reason).toBe('base-generation-changed');
+    expect(result.base?.selection?.generation).toBe(NEW_BASE_GENERATION);
+  });
+
+  it('builds a new revision when the prior pair has no base tags', async () => {
+    const images = [
+      candidate('amd64', PRIOR_REVISION, undefined, undefined, null),
+      candidate('arm64', PRIOR_REVISION, undefined, undefined, null),
+    ];
+
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      plannerDependencies(images),
+    );
+
+    expect(result.mode).toBe('build');
+    expect(result.reason).toBe('base-generation-changed');
+    expect(result.detail).toContain('base generation <none>');
+  });
+
+  it('asks for a base refresh when no acceptable base is published', async () => {
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      plannerDependencies([candidate('amd64'), candidate('arm64')], {
+        selectBase: () =>
+          Promise.reject(new RunnerBaseSelectionError('stale', 'The older image is 8 days old.')),
+      }),
+    );
+
+    expect(result.mode).toBe('build');
+    expect(result.reason).toBe('base-refresh-required');
+    expect(result.base).toEqual({
+      action: 'refresh',
+      reason: 'stale',
+      detail: 'The older image is 8 days old.',
+      selection: null,
+    });
+  });
+
+  it('asks for a base refresh alongside an inventory build decision', async () => {
+    const result = await planRunnerImageCandidate(
+      {currentRevision: CURRENT_REVISION, force: false, now: NOW},
+      plannerDependencies([], {
+        selectBase: () => Promise.reject(new RunnerBaseSelectionError('missing', 'Not set.')),
+      }),
+    );
+
+    expect(result.reason).toBe('no-complete-pair');
+    expect(result.base).toMatchObject({action: 'refresh', reason: 'missing'});
   });
 
   it('builds when the prior revision is not an ancestor', async () => {
@@ -240,6 +388,7 @@ describe('runner image candidate planner', () => {
       {currentRevision: CURRENT_REVISION, force: false, now: NOW},
       {
         listImages: async () => [candidate('amd64'), candidate('arm64')],
+        selectBase: () => Promise.resolve(baseSelection()),
         listPublishedRevisions: () => [PRIOR_REVISION],
         resolveEffectiveDirectories: () => ['apps/runner'],
         isAncestor: () => true,
@@ -339,7 +488,6 @@ describe('runner image effective input boundary', () => {
       'runner-image composition',
       'infra/images/runner/composition/ubuntu24/amd64/required-enabled.txt',
     ],
-    ['runner-base OS preparation', 'infra/images/runner-base/scripts/build/prepare-os.sh'],
     ['direct runner source', 'apps/runner/src/index.ts'],
     ['transitive production source', 'libs/runner/agent/src/index.ts'],
     ['lockfile', 'pnpm-lock.yaml'],
@@ -358,6 +506,15 @@ describe('runner image effective input boundary', () => {
 
   it('does not include unrelated application changes', () => {
     expect(findEffectiveChanges(['apps/client/src/index.ts'], productionDirectories)).toEqual([]);
+  });
+
+  it('leaves runner base changes to the base generation comparison', () => {
+    expect(
+      findEffectiveChanges(
+        ['infra/images/runner-base/scripts/build/prepare-os.sh'],
+        productionDirectories,
+      ),
+    ).toEqual([]);
   });
 });
 

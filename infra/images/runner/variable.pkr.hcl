@@ -1,3 +1,15 @@
+variable "base_generation" {
+  type        = string
+  default     = ""
+  description = "Runner base generation that source_ami_id belongs to."
+}
+
+variable "base_recipe" {
+  type        = string
+  default     = ""
+  description = "Recipe digest of the runner base generation."
+}
+
 variable "build_number" {
   type = string
 }
@@ -84,6 +96,16 @@ variable "platform" {
 variable "runner_base_prepare_script" {
   type        = string
   description = "OS preparation script exported by @shipfox/runner-base."
+}
+
+variable "source_ami_id" {
+  type        = string
+  default     = ""
+  description = "Exact verified runner base AMI for candidate builds. Empty selects the complete Canonical build."
+  validation {
+    condition     = var.source_ami_id == "" || can(regex("^ami-[0-9a-f]{17}$", var.source_ami_id))
+    error_message = "Source AMI ID must be an AMI ID."
+  }
 }
 
 variable "runner_workspace" {

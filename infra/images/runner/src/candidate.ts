@@ -8,6 +8,12 @@ import {
   type Image,
   ModifyImageAttributeCommand,
 } from '@aws-sdk/client-ec2';
+import {
+  parseRunnerBaseSelection,
+  RUNNER_BASE_TAGS,
+  type RunnerBaseSelection,
+  revalidateRunnerBaseImage,
+} from '@shipfox/runner-base';
 import {log} from '@shipfox/tool-utils';
 import {AWS_ACCOUNT_ID_PATTERN, parseBuildRunnerImageArgs} from './build-runner-image.js';
 import {buildRunnerImage, type RunnerImageBuild} from './runner-image.js';
@@ -19,10 +25,20 @@ const CANDIDATE_REGION = 'eu-central-1';
 const INVALID_AMI_NOT_FOUND = 'InvalidAMIID.NotFound';
 const GIT_REVISION_PATTERN = /^[a-f0-9]{40}$/u;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/u;
+/** Candidate AMI tag naming the base AMI it started from. */
+export const CANDIDATE_SOURCE_AMI_TAG = 'shipfox.source_ami_id';
+
+/** Base provenance from a candidate's AMI tags. Candidates built before base images have none. */
+export interface RunnerImageCandidateBase {
+  generation: string;
+  recipeDigest: string;
+  sourceAmiId: string;
+}
 
 export interface RunnerImageCandidate {
   amiId: string;
   architecture: 'amd64' | 'arm64';
+  base: RunnerImageCandidateBase | null;
   candidateId: string;
   createdAt: string;
   expiresAt: string;
@@ -35,6 +51,7 @@ export interface RunnerImageCandidate {
 
 interface CandidateImageMetadata {
   amiId: string;
+  base: RunnerImageCandidateBase | null;
   createdAt: string;
   expiresAt: string;
   owner: string;
@@ -52,6 +69,7 @@ interface BuildRunnerImageCandidateOptions {
   region?: string;
   describeAvailabilityRetries?: number;
   describeAvailabilityDelayMs?: number;
+  now?: () => Date;
 }
 
 export async function buildRunnerImageCandidate(
@@ -74,6 +92,16 @@ export async function buildRunnerImageCandidate(
     await reshareRunnerImageCandidate(client, existingImage.amiId, build);
     return candidateResult('reused', existingImage, build, candidateId, region);
   }
+
+  const base = build.base;
+  if (!base) throw new Error('Runner image candidates require a verified runner base selection.');
+  await requireMatchingSibling(client, build, candidateId, base);
+  await revalidateRunnerBaseImage({
+    ec2: client,
+    selection: base,
+    architecture: build.architecture,
+    now: (options.now ?? (() => new Date()))(),
+  });
 
   const result = await (options.build ?? buildRunnerImage)(build);
   if (!result.amiId) throw new Error('Packer did not report a runner candidate AMI.');
@@ -120,9 +148,10 @@ export function parseRunnerImageCandidateArgs(
     BUILD_IMAGE_LIFECYCLE: 'candidate',
     BUILD_REVISION: revision,
   });
+  const base = env.BUILD_RUNNER_BASE_SELECTION;
 
   return {
-    build,
+    build: base ? {...build, base: parseBaseSelectionEnv(base)} : build,
     outputPath: required(values.output, '--output'),
     region: candidateRegion(env.AWS_REGION),
   };
@@ -140,6 +169,37 @@ async function runRunnerImageCandidateCliAsync(args: string[]): Promise<void> {
   const candidate = await buildRunnerImageCandidate(build, {region});
   await writeFile(outputPath, `${JSON.stringify(candidate, null, 2)}\n`);
   log.info(`Runner image candidate ${candidate.status}: ${candidate.region}:${candidate.amiId}`);
+}
+
+function parseBaseSelectionEnv(value: string): RunnerBaseSelection {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error('BUILD_RUNNER_BASE_SELECTION must be a JSON runner base selection.');
+  }
+  return parseRunnerBaseSelection(parsed);
+}
+
+// Each architecture builds in its own job. A pair must share one base generation, so a build
+// that would complete a pair started from another generation stops before launching.
+async function requireMatchingSibling(
+  client: Ec2ClientLike,
+  build: RunnerImageBuild,
+  candidateId: string,
+  base: RunnerBaseSelection,
+): Promise<void> {
+  const siblingArchitecture = build.architecture === 'amd64' ? 'arm64' : 'amd64';
+  const sibling = await findRunnerImageCandidate(
+    client,
+    build.revision,
+    siblingArchitecture,
+    candidateId,
+  );
+  if (!sibling || sibling.base?.generation === base.generation) return;
+  throw new Error(
+    `The ${siblingArchitecture} candidate ${sibling.amiId} for ${build.revision} was built from base generation ${sibling.base?.generation ?? '<none>'}, not ${base.generation}. Architectures cannot mix base generations: deregister the unpublished candidate or publish a new main revision.`,
+  );
 }
 
 async function findRunnerImageCandidate(
@@ -194,7 +254,8 @@ async function describeBuiltCandidate(
   if (
     tags.get('shipfox.candidate_id') !== candidateId ||
     tags.get('shipfox.revision') !== build.revision ||
-    tags.get('shipfox.architecture') !== build.architecture
+    tags.get('shipfox.architecture') !== build.architecture ||
+    metadata.base?.generation !== build.base?.generation
   ) {
     throw new Error(`Candidate AMI ${amiId} does not carry the expected build identity tags.`);
   }
@@ -275,6 +336,7 @@ function candidateResult(
     status,
     amiId: image.amiId,
     architecture: build.architecture,
+    base: image.base,
     candidateId,
     createdAt: image.createdAt,
     expiresAt: image.expiresAt,
@@ -295,10 +357,23 @@ function candidateImageMetadata(image: Image): CandidateImageMetadata {
   }
   return {
     amiId,
+    base: candidateBase(image),
     createdAt: timestamp(createdAt, `Candidate AMI ${amiId} creation time`),
     expiresAt: timestamp(expiresAt, `Candidate AMI ${amiId} expiration time`),
     owner,
   };
+}
+
+function candidateBase(image: Image): RunnerImageCandidateBase | null {
+  const tags = new Map((image.Tags ?? []).map((tag) => [tag.Key, tag.Value]));
+  const generation = tags.get(RUNNER_BASE_TAGS.generation);
+  if (!generation) return null;
+  const recipeDigest = tags.get(RUNNER_BASE_TAGS.recipe);
+  const sourceAmiId = tags.get(CANDIDATE_SOURCE_AMI_TAG);
+  if (!recipeDigest || !sourceAmiId) {
+    throw new Error(`Candidate AMI ${image.ImageId} has incomplete runner base tags.`);
+  }
+  return {generation, recipeDigest, sourceAmiId};
 }
 
 function candidateTtlDays(value: string | undefined): number {

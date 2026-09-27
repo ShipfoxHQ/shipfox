@@ -64,6 +64,10 @@ export interface Ec2ClientLike {
   send(command: CreateTagsCommand): Promise<unknown>;
 }
 
+export interface DescribeImagesClient {
+  send(command: DescribeImagesCommand): Promise<{Images?: Image[] | undefined}>;
+}
+
 export interface SsmClientLike {
   send(command: GetParameterCommand): Promise<GetParameterCommandOutput>;
   send(command: GetParametersCommand): Promise<GetParametersCommandOutput>;
@@ -137,13 +141,22 @@ export async function planRunnerBase(options: PlanOptions): Promise<RunnerBasePl
   return {...decision, recipeDigest, kmsKeyArn, current: assessment.current, sources};
 }
 
-interface CurrentBaseAssessment {
-  reason: Exclude<RunnerBasePlanReason, 'forced'>;
-  detail: string;
-  current: RunnerBasePlan['current'];
-}
+export type CurrentBaseAssessment =
+  | {
+      reason: 'current';
+      detail: string;
+      current: NonNullable<RunnerBasePlan['current']>;
+      metadata: RunnerBaseMetadata;
+    }
+  | {
+      reason: Exclude<RunnerBasePlanReason, 'forced' | 'current'>;
+      detail: string;
+      current: RunnerBasePlan['current'];
+      metadata: null;
+    };
 
-async function assessCurrentBase(options: {
+/** Checks the pointer against the expected recipe, key, age, and both published AMIs. */
+export async function assessCurrentBase(options: {
   clients: RunnerBaseClients;
   kmsKeyArn: string;
   recipeDigest: string;
@@ -156,13 +169,14 @@ async function assessCurrentBase(options: {
       reason: 'missing',
       detail: `${RUNNER_BASE_POINTER_PARAMETER} is not set.`,
       current: null,
+      metadata: null,
     };
   }
   let metadata: RunnerBaseMetadata;
   try {
     metadata = parseRunnerBaseMetadata(JSON.parse(raw));
   } catch (error) {
-    return {reason: 'invalid', detail: errorMessage(error), current: null};
+    return {reason: 'invalid', detail: errorMessage(error), current: null, metadata: null};
   }
 
   const createdAt = pairCreatedAt(metadata.images);
@@ -173,6 +187,7 @@ async function assessCurrentBase(options: {
       reason: 'recipe-changed',
       detail: `Published recipe ${metadata.recipeDigest} differs from ${recipeDigest}.`,
       current,
+      metadata: null,
     };
   }
   if (metadata.kmsKeyArn !== kmsKeyArn) {
@@ -180,6 +195,7 @@ async function assessCurrentBase(options: {
       reason: 'key-changed',
       detail: `Published key ${metadata.kmsKeyArn} differs from ${kmsKeyArn}.`,
       current,
+      metadata: null,
     };
   }
   if (ageDays > RUNNER_BASE_MAX_AGE_DAYS) {
@@ -187,11 +203,13 @@ async function assessCurrentBase(options: {
       reason: 'stale',
       detail: `The older image is ${ageDays.toFixed(2)} days old; the limit is ${RUNNER_BASE_MAX_AGE_DAYS}.`,
       current,
+      metadata: null,
     };
   }
   try {
     for (const image of metadata.images) {
       const published = await describeOwnedImage(clients.ec2, image.amiId);
+      checkImageIdentity(published, image.architecture, metadata.owner);
       checkImageTags(published, {
         architecture: image.architecture,
         generation: metadata.generation,
@@ -201,9 +219,14 @@ async function assessCurrentBase(options: {
       });
     }
   } catch (error) {
-    return {reason: 'unavailable', detail: errorMessage(error), current};
+    return {reason: 'unavailable', detail: errorMessage(error), current, metadata: null};
   }
-  return {reason: 'current', detail: `Generation ${metadata.generation} is compatible.`, current};
+  return {
+    reason: 'current',
+    detail: `Generation ${metadata.generation} is compatible.`,
+    current,
+    metadata,
+  };
 }
 
 export async function resolveKmsKeyArn(kms: KmsClientLike, keyId: string): Promise<string> {
@@ -507,6 +530,21 @@ function tagIdentity(
   };
 }
 
+export function checkImageIdentity(
+  image: Image,
+  architecture: RunnerBaseArchitecture,
+  owner: string,
+): void {
+  if (image.OwnerId !== owner) {
+    throw new Error(`Runner base AMI ${image.ImageId} belongs to ${image.OwnerId}, not ${owner}.`);
+  }
+  if (image.Architecture !== AWS_ARCHITECTURES[architecture]) {
+    throw new Error(
+      `Runner base AMI ${image.ImageId} has architecture ${image.Architecture ?? 'unknown'}, not ${architecture}.`,
+    );
+  }
+}
+
 function checkImageTags(image: Image, expected: ExpectedTags): void {
   checkTags(image.Tags, expected, `Runner base AMI ${image.ImageId}`);
 }
@@ -523,7 +561,7 @@ function checkTags(tags: Tag[] | undefined, expected: ExpectedTags, label: strin
   }
 }
 
-async function describeOwnedImage(ec2: Ec2ClientLike, amiId: string): Promise<Image> {
+export async function describeOwnedImage(ec2: DescribeImagesClient, amiId: string): Promise<Image> {
   const {Images: images = []} = await ec2.send(
     new DescribeImagesCommand({Owners: ['self'], ImageIds: [amiId]}),
   );
@@ -557,7 +595,7 @@ async function describeSnapshots(ec2: Ec2ClientLike, snapshotIds: string[]): Pro
 }
 
 // Derived candidates share snapshot blocks with the base only under the same key.
-async function checkSnapshotEncryption(
+export async function checkSnapshotEncryption(
   ec2: Ec2ClientLike,
   image: Image,
   kmsKeyArn: string,
@@ -572,7 +610,7 @@ async function checkSnapshotEncryption(
 }
 
 // Pair freshness follows the older image, so a later verification cannot make it look newer.
-function pairCreatedAt(images: RunnerBaseImage[]): string {
+export function pairCreatedAt(images: ReadonlyArray<{createdAt: string}>): string {
   return new Date(Math.min(...images.map((image) => Date.parse(image.createdAt)))).toISOString();
 }
 
@@ -597,7 +635,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function defaultClients(): RunnerBaseClients {
+export function defaultClients(): RunnerBaseClients {
   const region = RUNNER_BASE_REGION;
   return {
     ec2: new EC2Client({region}),
@@ -606,7 +644,7 @@ function defaultClients(): RunnerBaseClients {
   };
 }
 
-function kmsKeyIdFromEnv(env: NodeJS.ProcessEnv): string {
+export function kmsKeyIdFromEnv(env: NodeJS.ProcessEnv): string {
   const keyId = env.BUILD_CANDIDATE_KMS_KEY_ID ?? env.AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID;
   if (!keyId) throw new Error('BUILD_CANDIDATE_KMS_KEY_ID is not set.');
   return keyId;
