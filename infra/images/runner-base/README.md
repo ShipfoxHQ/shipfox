@@ -10,6 +10,7 @@
 - **`computeRunnerBaseRecipe`**: computes the deterministic recipe digest that identifies base compatibility.
 - **`parseRunnerBaseMetadata`**: validates one published base generation against [`schema/runner-base.v1.schema.json`](schema/runner-base.v1.schema.json).
 - **`runnerBaseImageTags`**, **`RUNNER_BASE_TAGS`**, and **`RUNNER_BASE_POINTER_PARAMETER`**: name the AMI and snapshot tags and the SSM pointer that publication and retention use.
+- **Publication**: the `plan-runner-base` and `publish-runner-base` commands decide whether a new generation is needed, then mark a verified pair and write it to the single SSM pointer. The [**Publish runner base**](../../../.github/workflows/publish-runner-base.yml) workflow runs them.
 
 The base holds the OS packages and removes snapd and the bundled SSM agent. It keeps cloud-init, SSH, and the source network configuration, so each new instance receives its own identity and launch key. Before capture, the build cleans cloud-init instance state, the machine ID, the hostname, SSH host keys, and Packer's temporary authorized keys.
 
@@ -52,6 +53,16 @@ BUILD_ARCH=amd64 BUILD_BASE_GENERATION=local-1 BUILD_SOURCE_AMI_ID="$SOURCE_AMI_
 
 Print the recipe digest and its inputs with `node infra/images/runner-base/bin/runner-base-recipe.js`.
 
+Plan and publish a generation from two build results. `plan-runner-base` writes the decision and the resolved key ARN, and pins the Canonical sources when it decides to build. `publish-runner-base` compares the results with the recipe of a trusted main checkout before writing the pointer:
+
+```sh
+node infra/images/runner-base/bin/plan-runner-base.js --output /tmp/runner-base-plan.json
+node infra/images/runner-base/bin/publish-runner-base.js \
+  --result /tmp/runner-base-amd64.json --result /tmp/runner-base-arm64.json \
+  --trusted-root /tmp/trusted-main --build-url https://github.com/ShipfoxHQ/shipfox/actions/runs/1/attempts/1 \
+  --output /tmp/runner-base-publication.json
+```
+
 ## Environment
 
 | Variable | Meaning |
@@ -59,7 +70,7 @@ Print the recipe digest and its inputs with `node infra/images/runner-base/bin/r
 | `BUILD_ARCH` | `amd64` or `arm64`. |
 | `BUILD_SOURCE_AMI_ID` | Exact Canonical Ubuntu 24.04 AMI. Packer rejects another owner, architecture, or release. |
 | `BUILD_BASE_GENERATION` | Unique generation identifier, such as a workflow run and attempt. |
-| `BUILD_CANDIDATE_KMS_KEY_ID` | Candidate KMS key. Falls back to `AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID`. Derived candidates must use the same key. |
+| `BUILD_CANDIDATE_KMS_KEY_ID` | Candidate KMS key for build, plan, and publish. Falls back to `AWS_RUNNER_IMAGE_CANDIDATE_KMS_KEY_ID`. Derived candidates must use the same key. |
 | `BUILD_REVISION` | Source revision for the `shipfox.revision` tag. Falls back to `GITHUB_SHA`, then `local`. |
 
 The command needs AWS credentials in the candidate account.
@@ -68,9 +79,21 @@ The command needs AWS credentials in the candidate account.
 
 The recipe digest covers the Packer templates, the scripts under `scripts/build` and `scripts/verify`, the Packer pin from `mise.toml`, and the Ubuntu release. Plugin pins and storage settings live in the hashed templates. Node and pnpm pins, application code, package tooling, tests, and documentation do not change it.
 
-The base build tags the AMI, its snapshot, and the build instance with `shipfox.base_status=building`. This package does not mark bases as verified or publish the SSM pointer.
+The base build tags the AMI, its snapshot, and the build instance with `shipfox.base_status=building`.
 
 The build keeps the current package-installation semantics and does not run a distribution upgrade.
+
+### Publication
+
+The **Publish runner base** workflow runs daily, on manual dispatch, and as a reusable workflow (`workflow_call`). It runs only from `main`, because the candidate build role trusts only `main`. Scheduled runs and manual runs build a new generation by default. Callers pass `force: false` to reuse a compatible base; the workflow outputs `mode` and `generation`. Callers must grant `id-token: write` and pass `AWS_RUNNER_IMAGE_ROLE_ARN`.
+
+- **Plan**: resolve the candidate key alias to its key ARN and read the pointer. A pointer is reused only when its recipe and key match, both AMIs are available and tagged `verified`, and its older AMI is at most seven days old. Otherwise, the plan pins the current Canonical Ubuntu 24.04 source for each architecture from the Canonical SSM parameters. It checks owner, architecture, release, and availability.
+- **Build**: both architectures build concurrently from the pinned sources under the resolved key ARN, and each passes its fresh-instance verification. The run ID and attempt name the generation.
+- **Publish**: check that both AMIs carry the generation's identity tags and that every snapshot uses the key. Then tag the AMIs and snapshots `shipfox.base_status=verified` and write the pointer once. Publication rejects a recipe that trusted main no longer expects, a pair older than seven days, and a generation older than the published one.
+
+The workflow's concurrency group serializes whole runs, so the pointer has one writer. A caller must not use the `runner-base-ubuntu24` group itself. Any failure before the pointer write leaves the previous pointer in place. The run summary reports the plan, both builds with their kernel and boot timing, and the published metadata. The metadata is also uploaded as the `runner-base-metadata` artifact.
+
+To retry a failed publish job, re-run failed jobs: the tag writes are idempotent and a generation that is already published is not rewritten. A build that failed after capturing its AMI cannot reuse the generation's AMI name, so re-run all jobs instead. To stop scheduled publication, disable the workflow in GitHub Actions or remove its schedule. Published bases stay available for inspection.
 
 ## Development
 

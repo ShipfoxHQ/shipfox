@@ -15,6 +15,8 @@
   },
   "bin": {
     "build-runner-base": "./bin/build-runner-base.js",
+    "plan-runner-base": "./bin/plan-runner-base.js",
+    "publish-runner-base": "./bin/publish-runner-base.js",
     "runner-base-recipe": "./bin/runner-base-recipe.js"
   },
   "scripts": {
@@ -28,6 +30,9 @@
     "verify": "node scripts/verify-packer.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-ec2": "catalog:",
+    "@aws-sdk/client-kms": "catalog:",
+    "@aws-sdk/client-ssm": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:"
   },
